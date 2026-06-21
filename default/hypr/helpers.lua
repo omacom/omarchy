@@ -152,6 +152,7 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+<<<<<<< HEAD
 -- The region this machine was installed for (docs/regions.md).
 function o.region()
   local path = os.getenv("OMARCHY_REGION_FILE")
@@ -174,14 +175,24 @@ function o.region()
   return region
 end
 
-local bound_keys = {}
+local function bind_dedup_key(keys, options)
+  if not options then
+    return keys
+  end
+
+  -- Internal dedup key: same keys with a different event type
+  if options.release then
+    return keys .. "|r"
+  elseif options.long_press then
+    return keys .. "|l"
+  end
+
+  return keys
+end
+
+local registered = {}
 
 function o.bind(keys, description, dispatcher, options)
-  if bound_keys[keys] then
-    hl.unbind(keys)
-  end
-  bound_keys[keys] = true
-
   local opts = options or {}
 
   if description then
@@ -189,8 +200,16 @@ function o.bind(keys, description, dispatcher, options)
   end
 
   dispatcher = command_from(dispatcher, description)
+  local disp_is_launch = type(dispatcher) == "string"
+  local dedup = bind_dedup_key(keys, options)
 
-  if type(dispatcher) == "string" then
+  if registered[dedup] ~= nil and (disp_is_launch or registered[dedup]) then
+    hl.unbind(keys)
+  end
+
+  registered[dedup] = disp_is_launch
+
+  if disp_is_launch then
     dispatcher = hl.dsp.exec_cmd(dispatcher)
   end
 
