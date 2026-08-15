@@ -273,6 +273,68 @@ function isUntypedSource(node, sourceAvailability) {
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
 
+// Per application output routing.
+//
+// The mixer sets each stream's volume and mute but leaves it on whatever the
+// default output happens to be. Routing writes a pipewire metadata key against
+// the stream's node id, which moves the running stream and is remembered by
+// wireplumber for the next stream that application opens. Clearing it writes
+// -1, which hands the stream back to the default output.
+var DEFAULT_ROUTE = "__default__"
+
+function routeTargetOf(node) {
+  var props = nodeProps(node)
+  var target = props["target.object"]
+  if (target === undefined || target === null || target === "" || String(target) === "-1") return DEFAULT_ROUTE
+  return String(target)
+}
+
+function routeCommand(nodeId, sinkName) {
+  var value = !sinkName || sinkName === DEFAULT_ROUTE ? "-1" : String(sinkName)
+  return ["pw-metadata", "-n", "default", String(nodeId), "target.object", value]
+}
+
+function routeOptions(sinks) {
+  var options = [DEFAULT_ROUTE]
+  var list = sinks || []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].name) options.push(String(list[i].name))
+  }
+  return options
+}
+
+function nextRouteTarget(options, current) {
+  var list = options || []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] === current) return list[(i + 1) % list.length]
+  }
+  return list.length > 0 ? list[0] : DEFAULT_ROUTE
+}
+
+function sinkNamed(sinks, name) {
+  var list = sinks || []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && String(list[i].name) === String(name)) return list[i]
+  }
+  return null
+}
+
+// Prefer where the stream is linked, and fall back to the pinned preference,
+// because a link group is not always resolved for a stream that just started.
+// tr as in outputVolumeName.
+function routeLabel(node, sinks, linkedSink, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (linkedSink) return nodeLabel(linkedSink, tr)
+  var target = routeTargetOf(node)
+  if (target === DEFAULT_ROUTE) return t("audio.route.followDefault", "Follow default output")
+  var sink = sinkNamed(sinks, target)
+  return sink ? nodeLabel(sink, tr) : String(target)
+}
+
+function routeIsPinned(node) {
+  return routeTargetOf(node) !== DEFAULT_ROUTE
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -281,6 +343,14 @@ if (typeof module !== "undefined") {
     rowSnapshot: rowSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
+    DEFAULT_ROUTE: DEFAULT_ROUTE,
+    routeTargetOf: routeTargetOf,
+    routeCommand: routeCommand,
+    routeOptions: routeOptions,
+    nextRouteTarget: nextRouteTarget,
+    sinkNamed: sinkNamed,
+    routeLabel: routeLabel,
+    routeIsPinned: routeIsPinned,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,

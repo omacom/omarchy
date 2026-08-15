@@ -521,6 +521,12 @@ Panel {
     source.audio.volume = Math.max(0, Math.min(1, v))
   }
 
+  function cycleStreamRoute(node) {
+    if (!node) return
+    var options = Model.routeOptions(root.candidateSinks)
+    Quickshell.execDetached(Model.routeCommand(node.id, Model.nextRouteTarget(options, Model.routeTargetOf(node))))
+  }
+
   function toggleOutputMute() {
     if (volumeSink && volumeSink.audio) volumeSink.audio.muted = !volumeSink.audio.muted
   }
@@ -762,7 +768,7 @@ Panel {
     open: root.opened
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(620))
 
     content: PanelKeyCatcher {
       id: keyCatcher
@@ -778,6 +784,15 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
+        // 'o' sends the focused stream to the next output device.
+        if (t === "o" || t === "O") {
+          if (!root.cursorActive) return
+          if (root.focusSection === "streams" && root.selectedIndex >= 0
+              && root.selectedIndex < root.displayAudioStreams.length) {
+            root.cycleStreamRoute(root.nodeFor(root.displayAudioStreams[root.selectedIndex]))
+          }
+          return
+        }
         // 'm' mutes whatever the cursor is on: focused section's slider
         // for output/input, the focused stream for streams.
         if (t === "m" || t === "M") {
@@ -1258,6 +1273,10 @@ Panel {
     readonly property real streamVolume: node && node.audio ? node.audio.volume : 0
     readonly property bool streamMuted: node && node.audio ? node.audio.muted : false
     readonly property bool isActive: root.streamRepresentsPlayer(node, root.activeMediaPlayer)
+    readonly property var linkedSink: streamLinks.linkGroups && streamLinks.linkGroups.values.length > 0
+      ? streamLinks.linkGroups.values[0].target
+      : null
+    readonly property bool routePinned: Model.routeIsPinned(streamRow.node)
 
     hasCursor: root.cursorActive && root.focusSection === "streams" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(streamRow)
@@ -1266,6 +1285,11 @@ Panel {
     fill: root.hoverFill
     currentFill: root.selectedFill
     implicitHeight: streamColumn.implicitHeight + Style.spacing.xl
+
+    PwNodeLinkTracker {
+      id: streamLinks
+      node: streamRow.node
+    }
 
     Column {
       id: streamColumn
@@ -1344,6 +1368,45 @@ Panel {
         onRightClicked: {
           if (streamRow.node && streamRow.node.audio)
             streamRow.node.audio.muted = !streamRow.node.audio.muted
+        }
+      }
+
+      // Which output this application comes out of. Click to send it to the
+      // next device, and again to hand it back to the default. Hidden when
+      // there is only one output, where there is nothing to choose.
+      Item {
+        visible: root.candidateSinks.length > 1
+        width: parent.width
+        implicitHeight: visible ? routeText.implicitHeight : 0
+        height: implicitHeight
+
+        Text {
+          id: routeIcon
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+          text: streamRow.routePinned ? "\udb81\udd31" : "\udb80\udc54"
+          color: Qt.darker(root.bar.foreground, streamRow.routePinned ? 1.2 : 1.6)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Text {
+          id: routeText
+          anchors.left: routeIcon.right
+          anchors.leftMargin: Style.space(6)
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          text: Model.routeLabel(streamRow.node, root.candidateSinks, streamRow.linkedSink, Commons.I18n.t)
+          color: Qt.darker(root.bar.foreground, streamRow.routePinned ? 1.2 : 1.6)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.cycleStreamRoute(streamRow.node)
         }
       }
     }
