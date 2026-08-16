@@ -1,0 +1,403 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the OpenCode Go usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect OpenCode Go usage into one display-ready JSON record.
+
+OpenCode Go (the opencode.ai Go plan) exposes no usage API; the web console
+scrapes its own pages. This collector reads the rolling 5-hour / weekly /
+monthly meters from the workspace page and the recent per-request token
+records from the usage page, using the auth session cookie Firefox or Zen
+Browser stores for opencode.ai. The panel only ever reads the JSON this
+prints; it never talks to disk formats or endpoints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import re
+import shutil
+import sqlite3
+import sys
+import tempfile
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "opencode-go"
+AGENT_NAME = "OpenCode Go"
+AUTH_HELP = "Sign in to opencode.ai in a browser (Firefox or Zen) so its session cookie is available."
+WORKSPACE_HELP = 'Set "workspaceId" in ~/.config/omarchy/agents/opencode-go.json or OPENCODE_WORKSPACE.'
+SITE = "https://opencode.ai"
+# SolidStart server-function id backing the SPA's workspace picker query. If
+# opencode.ai changes the SPA, this constant must be refreshed from the
+# workspace-*.js asset referenced by any /workspace/<id> page.
+WORKSPACES_SERVER_FN_ID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
+FETCH_TIMEOUT_SECONDS = 15
+USER_AGENT = "omarchy-agent-usage-opencode-go/1.0"
+
+METER_RE = re.compile(
+    r'(rollingUsage|weeklyUsage|monthlyUsage):\$R\[\d+\]=\{status:"([^"]+)",resetInSec:(\d+),usagePercent:([\d.]+)\}'
+)
+PLAN_RE = re.compile(r'liteSubscriptionID:"[^"]+"')
+WORKSPACE_RE = re.compile(r'\{id:"(wrk_[A-Za-z0-9]{26})"[^}]*\}')
+# One serialized usage record from the workspace usage page. Field order is
+# stable in the observed SSR payload; a markup change here needs a regex retune.
+USAGE_RECORD_RE = re.compile(
+    r'\{id:"usg_[^"]+",workspaceID:"wrk_[^"]+",timeCreated:\$R\[\d+\]=new Date\("([^"]+)"\),'
+    r'timeUpdated:\$R\[\d+\]=new Date\("[^"]+"\),timeDeleted:[^,]+,'
+    r'model:"([^"]+)",provider:"([^"]+)",'
+    r'inputTokens:(\d+),outputTokens:(\d+),reasoningTokens:(\d+),cacheReadTokens:(\d+),'
+    r'cacheWrite5mTokens:([^,]+),cacheWrite1hTokens:([^,]+),cost:(\d+)'
+)
+
+
+def expand_path(value: str) -> Path:
+  return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def agent_config() -> dict[str, Any]:
+  root = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "omarchy" / "agents"
+  try:
+    data = json.loads((root / "opencode-go.json").read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {}
+  except Exception:
+    return {}
+
+
+def number(value: Any) -> int:
+  try:
+    n = float(value or 0)
+    return round(n) if n == n else 0
+  except Exception:
+    return 0
+
+
+def local_date_string() -> str:
+  return dt.date.today().strftime("%Y-%m-%d")
+
+
+# ---------------------------------------------------------------- session
+
+
+def find_cookie_dbs() -> list[Path]:
+  home = Path.home()
+  roots = [
+    home / ".mozilla" / "firefox",
+    home / ".config" / "mozilla" / "firefox",
+    home / ".zen",
+    home / ".var" / "app" / "org.mozilla.firefox" / ".mozilla" / "firefox",
+    home / ".var" / "app" / "io.github.zen_browser.zen" / ".zen",
+  ]
+  found: list[Path] = []
+  for root in roots:
+    if not root.is_dir():
+      continue
+    for entry in sorted(root.iterdir()):
+      candidate = entry / "cookies.sqlite"
+      if candidate.is_file():
+        found.append(candidate)
+  return found
+
+
+def extract_auth_cookie(cookie_db: Path) -> str:
+  """Read the opencode.ai auth cookie from a Firefox-style cookies.sqlite.
+
+  The database is copied to a temp dir first so a running browser's WAL (and
+  the file locks that come with it) does not interfere; the copy is a snapshot.
+  """
+  tmpdir = Path(tempfile.mkdtemp())
+  try:
+    db = tmpdir / "cookies.sqlite"
+    for suffix in ("", "-wal", "-shm"):
+      source = Path(str(cookie_db) + suffix)
+      if source.is_file():
+        shutil.copy2(source, Path(str(db) + suffix))
+    try:
+      conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+      try:
+        row = conn.execute(
+          "SELECT value FROM moz_cookies WHERE host IN ('.opencode.ai','opencode.ai') "
+          "AND name='auth' ORDER BY expiry DESC LIMIT 1"
+        ).fetchone()
+        return str(row[0]) if row else ""
+      finally:
+        conn.close()
+    except sqlite3.Error:
+      return ""
+  finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def resolve_session(cfg: dict[str, Any]) -> str:
+  cookie_file = str(cfg.get("cookieFile") or "").strip()
+  if cookie_file:
+    try:
+      value = expand_path(cookie_file).read_text(encoding="utf-8").strip()
+      if value:
+        return value
+    except Exception:
+      pass
+  for db in find_cookie_dbs():
+    cookie = extract_auth_cookie(db)
+    if cookie:
+      return cookie
+  return ""
+
+
+# --------------------------------------------------------------- workspace
+
+
+def list_workspaces(cookie: str) -> list[str]:
+  request = urllib.request.Request(
+    SITE + "/_server",
+    method="POST",
+    headers={
+      "Cookie": f"auth={cookie}",
+      "User-Agent": USER_AGENT,
+      "Accept": "text/html",
+      "X-Server-Id": WORKSPACES_SERVER_FN_ID,
+      "X-Server-Instance": "server-fn:1",
+    },
+  )
+  with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
+    body = response.read().decode("utf-8", errors="replace")
+  seen: dict[str, bool] = {}
+  for match in WORKSPACE_RE.finditer(body):
+    seen[match.group(1)] = True
+  return sorted(seen)
+
+
+def resolve_workspace(cfg: dict[str, Any], cookie: str) -> str:
+  explicit = str(cfg.get("workspaceId") or "").strip()
+  if explicit:
+    return explicit
+  env = os.environ.get("OPENCODE_WORKSPACE", "").strip()
+  if env:
+    return env
+  try:
+    workspaces = list_workspaces(cookie)
+  except Exception:
+    return ""
+  if len(workspaces) == 1:
+    return workspaces[0]
+  return ""
+
+
+# ------------------------------------------------------------------- fetch
+
+
+def fetch_page(cookie: str, path: str) -> str:
+  """GET a workspace page. HTTP status errors become RuntimeError; transport
+  failures raise urllib.error.URLError unchanged."""
+  request = urllib.request.Request(
+    SITE + path,
+    headers={
+      "Cookie": f"auth={cookie}",
+      "User-Agent": USER_AGENT,
+      "Accept": "text/html",
+    },
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
+      return response.read().decode("utf-8", errors="replace")
+  except urllib.error.HTTPError as error:
+    # HTTPError subclasses URLError; convert it so main() can tell a server
+    # answer from a transport failure (no route, no DNS, timeout).
+    raise RuntimeError(f"opencode.ai returned status {error.code}") from error
+
+
+# ------------------------------------------------------------------- parse
+
+
+def parse_meters(html: str) -> tuple[dict[str, dict[str, Any]], str]:
+  meters: dict[str, dict[str, Any]] = {}
+  for match in METER_RE.finditer(html):
+    name, status, reset_in_sec, percent = match.groups()
+    meters[name] = {"status": status, "resetInSec": int(reset_in_sec), "usagePercent": float(percent)}
+  plan = "Go" if PLAN_RE.search(html) else ""
+  return meters, plan
+
+
+def parse_usage_records(html: str) -> list[dict[str, Any]]:
+  records: list[dict[str, Any]] = []
+  for match in USAGE_RECORD_RE.finditer(html):
+    created, model, provider, inp, out, reasoning, cache_read, write_5m, write_1h, cost = match.groups()
+    records.append({
+      "day": str(created)[:10],
+      "model": model,
+      "input": number(inp),
+      "output": number(out),
+      "reasoning": number(reasoning),
+      "cacheRead": number(cache_read),
+      "cacheWrite5m": number(write_5m),
+      "cacheWrite1h": number(write_1h),
+    })
+  return records
+
+
+# ------------------------------------------------------------------- stats
+
+
+def build_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
+  today = local_date_string()
+  recent_dates = [(dt.date.today() - dt.timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+  usage_by_model: dict[str, dict[str, int]] = {}
+  active_dates: set[str] = set()
+  today_tokens: dict[str, int] = {}
+  today_prompts = 0
+
+  for record in records:
+    total = (
+      record["input"] + record["output"] + record["reasoning"]
+      + record["cacheRead"] + record["cacheWrite5m"] + record["cacheWrite1h"]
+    )
+    bucket = usage_by_model.setdefault(record["model"], {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+    })
+    bucket["inputTokens"] += record["input"]
+    # OpenCode Go keeps thinking tokens out of output; both are generated.
+    bucket["outputTokens"] += record["output"] + record["reasoning"]
+    bucket["cacheReadInputTokens"] += record["cacheRead"]
+    bucket["cacheCreationInputTokens"] += record["cacheWrite5m"] + record["cacheWrite1h"]
+
+    active_dates.add(record["day"])
+    if record["day"] in recent:
+      recent[record["day"]]["messageCount"] += total
+    if record["day"] == today:
+      today_prompts += 1
+      today_tokens[record["model"]] = today_tokens.get(record["model"], 0) + total
+
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": 0,
+    "todayTotalTokens": sum(today_tokens.values()),
+    "todayTokensByModel": today_tokens,
+    "recentDays": [recent[day] for day in recent_dates],
+    "modelUsage": usage_by_model,
+    "totalPrompts": len(records),
+    "totalSessions": 0,
+    "activeDays": len(active_dates),
+    "activeDates": sorted(active_dates),
+  }
+
+
+# ------------------------------------------------------------------- record
+
+
+def resets_at(reset_in_sec: int) -> str:
+  return (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=reset_in_sec)).isoformat()
+
+
+def build_limits(meters: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+  order = [("rollingUsage", "Rolling (5-hour)"), ("weeklyUsage", "Weekly"), ("monthlyUsage", "Monthly")]
+  limits: list[dict[str, Any]] = []
+  for key, label in order:
+    meter = meters.get(key)
+    if not meter or meter.get("status") != "ok":
+      continue
+    percent = float(meter.get("usagePercent") or 0) / 100.0
+    if not (percent >= 0):
+      continue
+    limits.append({
+      "label": label,
+      "percent": min(1.0, percent),
+      "resetsAt": resets_at(int(meter.get("resetInSec") or 0)),
+    })
+  return limits
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    "ready": False,
+    "hasLocalStats": True,
+    "hasPromptStats": False,
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": "",
+    "limits": [],
+  }
+  record.update(overrides)
+  return record
+
+
+def build_record(meters: dict[str, dict[str, Any]], plan: str, records: list[dict[str, Any]]) -> dict[str, Any]:
+  limits = build_limits(meters)
+  record = base_record(
+    ready=bool(limits),
+    tierLabel=plan or "Go",
+    limits=limits,
+  )
+  if records:
+    record.update(build_stats(records))
+  return record
+
+
+def print_record(record: dict[str, Any]) -> None:
+  print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true", help="re-fetch everything, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse recent stats; only limits must be fresh")
+  parser.parse_args()
+
+  cfg = agent_config()
+  cookie = resolve_session(cfg)
+
+  if not cookie:
+    print_record(base_record(authHelpText=AUTH_HELP))
+    return 0
+
+  workspace = resolve_workspace(cfg, cookie)
+  if not workspace:
+    print_record(base_record(usageStatusText="Workspace not configured", authHelpText=WORKSPACE_HELP))
+    return 0
+
+  try:
+    go_html = fetch_page(cookie, f"/workspace/{workspace}/go")
+  except urllib.error.URLError:
+    # A transport failure reached no server at all — no route, no DNS. Ask the
+    # shell to try again sooner than its regular interval.
+    print_record(base_record(retryAdvised=True, authHelpText="Couldn't reach opencode.ai. Retrying shortly."))
+    return 0
+  except RuntimeError as error:
+    print_record(base_record(authHelpText=f"{error}. Sign in again in a browser."))
+    return 0
+
+  meters, plan = parse_meters(go_html)
+  if not meters:
+    # The console redirects signed-out sessions to /signin; the page then
+    # carries no meter data.
+    print_record(base_record(
+      authHelpText="The opencode.ai session cookie is invalid or expired. Sign in again in a browser."
+    ))
+    return 0
+
+  records: list[dict[str, Any]] = []
+  try:
+    usage_html = fetch_page(cookie, f"/workspace/{workspace}/usage")
+    records = parse_usage_records(usage_html)
+  except Exception:
+    # Limits are the point; a missing usage page still shows them.
+    records = []
+
+  print_record(build_record(meters, plan, records))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
