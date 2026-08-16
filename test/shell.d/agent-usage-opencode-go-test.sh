@@ -65,7 +65,7 @@ def rec(rid, date, model, inp, out, reasoning, cread, w5m, w1h):
         'timeCreated:$R[10]=new Date("%sT12:00:00.000Z"),'
         'timeUpdated:$R[11]=new Date("%sT12:00:01.000Z"),timeDeleted:null,'
         'model:"%s",provider:"inf-go.oa-compat",'
-        'inputTokens:%d,outputTokens:%d,reasoningTokens:%d,cacheReadTokens:%d,'
+        'inputTokens:%d,outputTokens:%d,reasoningTokens:%s,cacheReadTokens:%d,'
         'cacheWrite5mTokens:%s,cacheWrite1hTokens:%s,cost:12345,'
         'keyID:"k",sessionID:"",enrichment:$R[12]={plan:"lite"}}' % (
             rid, date, date, model, inp, out, reasoning, cread, w5m, w1h)
@@ -76,6 +76,9 @@ usage_page = (
     + rec("usg_01AAA", today, "deepseek-v4-flash", 100, 200, 50, 300, "null", "null")
     + ',' + rec("usg_01BBB", today, "deepseek-v4-flash", 10, 20, 5, 30, "400", "50")
     + ',' + rec("usg_01CCC", yesterday, "qwen3-coder", 1000, 0, 0, 0, "null", "null")
+    # reasoningTokens comes back null for models that report no reasoning
+    # tokens; the record must still parse.
+    + ',' + rec("usg_01DDD", today, "deepseek-v4-flash", 1000, 500, "null", 0, "null", "null")
     + '</script>'
 )
 
@@ -113,23 +116,27 @@ pass "OpenCode Go collector reports percent-scale meters as fractions"
   fail "OpenCode Go collector stamps a future resetsAt" "$result"
 pass "OpenCode Go collector stamps a future resetsAt"
 
-[[ $(jq -r '.records | length' <<<"$result") == "3" ]] ||
+[[ $(jq -r '.records | length' <<<"$result") == "4" ]] ||
   fail "OpenCode Go collector parses every usage record" "$result"
 pass "OpenCode Go collector parses every usage record"
 
-[[ $(jq -r '.stats.todayPrompts' <<<"$result") == "2" ]] ||
+[[ $(jq -r '.records[3].reasoning' <<<"$result") == "0" ]] ||
+  fail "OpenCode Go collector treats a null reasoning token count as zero" "$result"
+pass "OpenCode Go collector treats a null reasoning token count as zero"
+
+[[ $(jq -r '.stats.todayPrompts' <<<"$result") == "3" ]] ||
   fail "OpenCode Go collector counts today's requests" "$result"
 pass "OpenCode Go collector counts today's requests"
 
-[[ $(jq -r '.stats.todayTotalTokens' <<<"$result") == "1165" ]] ||
+[[ $(jq -r '.stats.todayTotalTokens' <<<"$result") == "2665" ]] ||
   fail "OpenCode Go collector totals today's tokens" "$result"
 pass "OpenCode Go collector totals today's tokens"
 
-[[ $(jq -c '.stats.modelUsage["deepseek-v4-flash"]' <<<"$result") == '{"inputTokens":110,"outputTokens":275,"cacheReadInputTokens":330,"cacheCreationInputTokens":450}' ]] ||
+[[ $(jq -c '.stats.modelUsage["deepseek-v4-flash"]' <<<"$result") == '{"inputTokens":1110,"outputTokens":775,"cacheReadInputTokens":330,"cacheCreationInputTokens":450}' ]] ||
   fail "OpenCode Go collector rolls reasoning into output and sums cache writes" "$result"
 pass "OpenCode Go collector rolls reasoning into output and sums cache writes"
 
-[[ $(jq -r '.stats.recentDays[-1].messageCount' <<<"$result") == "1165" ]] ||
+[[ $(jq -r '.stats.recentDays[-1].messageCount' <<<"$result") == "2665" ]] ||
   fail "OpenCode Go collector builds the seven-day token series" "$result"
 pass "OpenCode Go collector builds the seven-day token series"
 

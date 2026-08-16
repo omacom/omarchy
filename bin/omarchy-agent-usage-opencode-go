@@ -51,8 +51,8 @@ USAGE_RECORD_RE = re.compile(
     r'\{id:"usg_[^"]+",workspaceID:"wrk_[^"]+",timeCreated:\$R\[\d+\]=new Date\("([^"]+)"\),'
     r'timeUpdated:\$R\[\d+\]=new Date\("[^"]+"\),timeDeleted:[^,]+,'
     r'model:"([^"]+)",provider:"([^"]+)",'
-    r'inputTokens:(\d+),outputTokens:(\d+),reasoningTokens:(\d+),cacheReadTokens:(\d+),'
-    r'cacheWrite5mTokens:([^,]+),cacheWrite1hTokens:([^,]+),cost:(\d+)'
+    r'inputTokens:(\d+),outputTokens:(\d+),reasoningTokens:([^,]+),cacheReadTokens:(\d+),'
+    r'cacheWrite5mTokens:([^,]+),cacheWrite1hTokens:([^,]+),cost:([^,]+)'
 )
 
 
