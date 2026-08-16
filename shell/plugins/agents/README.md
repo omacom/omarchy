@@ -55,6 +55,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `opencode-go` | Rolling 5-hour, weekly, and monthly Go-plan meters scraped from the opencode.ai workspace page | Server-side per-request records from the workspace usage page, grouped by day and model |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -63,6 +64,21 @@ falls back to local stats only. A non-default Claude directory is honored via
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
+
+### OpenCode Go
+
+OpenCode Go is opencode.ai's Go subscription plan: three credit windows — a
+rolling 5-hour, a weekly, and a monthly — each reported as a percentage with
+a reset time. There is no usage API, so the collector reads the workspace
+console pages: the meters from `/workspace/<id>/go` and the recent
+per-request token records from `/workspace/<id>/usage`, using the `auth`
+session cookie Firefox or Zen Browser stores for opencode.ai. The usage
+page embeds the last ~50 requests, so the all-time totals describe that
+window rather than the account's whole history. Session counts are not
+exposed, so the panel hides the prompt/session line. A workspace is
+required: set `workspaceId` in `~/.config/omarchy/agents/opencode-go.json`
+(or `OPENCODE_WORKSPACE`) when the session has more than one. Without a
+signed-in browser the panel shows an auth card instead of the meters.
 
 ### Fireworks balance
 
