@@ -21,6 +21,20 @@ pass "OpenCode Go collector prints a valid record without a cookie"
   fail "OpenCode Go collector explains the missing cookie" "$no_cookie"
 pass "OpenCode Go collector explains the missing cookie"
 
+# The update runner passes --force and --limits-only to every collector; both
+# must still print a valid record.
+force_out=$(HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" XDG_STATE_HOME="$TEST_HOME/.local/state" \
+  XDG_DATA_HOME="$TEST_HOME/.local/share" "$ROOT/bin/omarchy-agent-usage-opencode-go" --force)
+[[ $(jq -r '.id' <<<"$force_out") == "opencode-go" ]] ||
+  fail "OpenCode Go collector accepts --force" "$force_out"
+pass "OpenCode Go collector accepts --force"
+
+limits_out=$(HOME="$TEST_HOME" XDG_CONFIG_HOME="$TEST_HOME/.config" XDG_STATE_HOME="$TEST_HOME/.local/state" \
+  XDG_DATA_HOME="$TEST_HOME/.local/share" "$ROOT/bin/omarchy-agent-usage-opencode-go" --limits-only)
+[[ $(jq -r '.id' <<<"$limits_out") == "opencode-go" ]] ||
+  fail "OpenCode Go collector accepts --limits-only" "$limits_out"
+pass "OpenCode Go collector accepts --limits-only"
+
 result=$(python3 - "$ROOT/bin/omarchy-agent-usage-opencode-go" <<'PY'
 import importlib.machinery
 import importlib.util
@@ -48,8 +62,8 @@ go_page = (
 def rec(rid, date, model, inp, out, reasoning, cread, w5m, w1h):
     return (
         '{id:"%s",workspaceID:"wrk_XXXXXXXXXXXXXXXXXXXXXXXXXX",'
-        'timeCreated:$R[10]=new Date("%sT10:00:00.000Z"),'
-        'timeUpdated:$R[11]=new Date("%sT10:00:01.000Z"),timeDeleted:null,'
+        'timeCreated:$R[10]=new Date("%sT12:00:00.000Z"),'
+        'timeUpdated:$R[11]=new Date("%sT12:00:01.000Z"),timeDeleted:null,'
         'model:"%s",provider:"inf-go.oa-compat",'
         'inputTokens:%d,outputTokens:%d,reasoningTokens:%d,cacheReadTokens:%d,'
         'cacheWrite5mTokens:%s,cacheWrite1hTokens:%s,cost:12345,'

@@ -172,20 +172,23 @@ def list_workspaces(cookie: str) -> list[str]:
   return sorted(seen)
 
 
-def resolve_workspace(cfg: dict[str, Any], cookie: str) -> str:
+def resolve_workspace(cfg: dict[str, Any], cookie: str) -> tuple[str, str]:
+  """Return (workspace, status); status is "" on success, "transport" when the
+  workspace RPC could not reach the network, and "unknown" when zero or
+  several workspaces came back."""
   explicit = str(cfg.get("workspaceId") or "").strip()
   if explicit:
-    return explicit
+    return explicit, ""
   env = os.environ.get("OPENCODE_WORKSPACE", "").strip()
   if env:
-    return env
+    return env, ""
   try:
     workspaces = list_workspaces(cookie)
   except Exception:
-    return ""
+    return "", "transport"
   if len(workspaces) == 1:
-    return workspaces[0]
-  return ""
+    return workspaces[0], ""
+  return "", "unknown"
 
 
 # ------------------------------------------------------------------- fetch
@@ -227,8 +230,12 @@ def parse_usage_records(html: str) -> list[dict[str, Any]]:
   records: list[dict[str, Any]] = []
   for match in USAGE_RECORD_RE.finditer(html):
     created, model, provider, inp, out, reasoning, cache_read, write_5m, write_1h, cost = match.groups()
+    # The panel's "today" is the local calendar date; the record timestamp is
+    # UTC, so convert before slicing or evening requests in non-UTC zones land
+    # on tomorrow's date and drop out of todayPrompts/todayTotalTokens.
+    local_created = dt.datetime.fromisoformat(created.replace("Z", "+00:00")).astimezone()
     records.append({
-      "day": str(created)[:10],
+      "day": local_created.strftime("%Y-%m-%d"),
       "model": model,
       "input": number(inp),
       "output": number(out),
@@ -362,8 +369,13 @@ def main() -> int:
     print_record(base_record(authHelpText=AUTH_HELP))
     return 0
 
-  workspace = resolve_workspace(cfg, cookie)
+  workspace, workspace_status = resolve_workspace(cfg, cookie)
   if not workspace:
+    if workspace_status == "transport":
+      # The workspace RPC never reached the network; retry sooner than the
+      # regular interval instead of blaming the configuration.
+      print_record(base_record(retryAdvised=True, authHelpText="Couldn't reach opencode.ai. Retrying shortly."))
+      return 0
     print_record(base_record(usageStatusText="Workspace not configured", authHelpText=WORKSPACE_HELP))
     return 0
 
@@ -376,6 +388,12 @@ def main() -> int:
     return 0
   except RuntimeError as error:
     print_record(base_record(authHelpText=f"{error}. Sign in again in a browser."))
+    return 0
+  except Exception:
+    # http.client.HTTPException subclasses (BadStatusLine, IncompleteRead) and
+    # anything else must still yield a valid record, never a crash with no
+    # JSON on stdout.
+    print_record(base_record(authHelpText="Couldn't read the opencode.ai response. Retrying shortly."))
     return 0
 
   meters, plan = parse_meters(go_html)
