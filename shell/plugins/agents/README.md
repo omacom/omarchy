@@ -77,8 +77,11 @@ page embeds the last ~50 requests, so the all-time totals describe that
 window rather than the account's whole history. Session counts are not
 exposed, so the panel hides the prompt/session line. A workspace is
 required: set `workspaceId` in `~/.config/omarchy/agents/opencode-go.json`
-(or `OPENCODE_WORKSPACE`) when the session has more than one. Without a
-signed-in browser the panel shows an auth card instead of the meters.
+(or `OPENCODE_WORKSPACE`) when the session has more than one. With no
+sign-in and no previously recorded meters the provider stays hidden — the
+panel only lists providers that have produced data. Once meters have been
+recorded, a stale or missing sign-in keeps the last meters visible with a
+status card until their windows reset.
 
 ### Fireworks balance
 

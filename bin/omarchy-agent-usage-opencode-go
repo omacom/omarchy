@@ -23,6 +23,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -297,6 +298,78 @@ def build_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
   }
 
 
+# ------------------------------------------------------------ limits cache
+#
+# The meters scraped on a healthy run are cached so a later refresh failure
+# (cookie expired, no route, opencode.ai hiccup) keeps the last known numbers
+# on the panel instead of wiping the provider's tab. Cache reads and writes
+# are best-effort: a cache problem never takes down the record.
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  try:
+    root.mkdir(parents=True, exist_ok=True)
+  except OSError:
+    pass
+  return root
+
+
+def read_limits_cache() -> dict[str, Any] | None:
+  try:
+    data = json.loads((cache_root() / "opencode-go-limits.json").read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else None
+  except Exception:
+    return None
+
+
+def write_limits_cache(limits: list[dict[str, Any]]) -> None:
+  try:
+    payload = {"fetchedAtMs": round(time.time() * 1000), "limits": limits}
+    # A temp name unique to this writer, not derived from the target: several
+    # collectors can run at once and a shared temp path means the second
+    # replace finds the first one's file already moved away.
+    handle_fd, tmp_name = tempfile.mkstemp(dir=cache_root(), prefix="opencode-go-limits.", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+      with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+      # mkstemp opens at 0600; the caches the other collectors write are
+      # world-readable before.
+      tmp.chmod(0o644)
+      tmp.replace(cache_root() / "opencode-go-limits.json")
+    except BaseException:
+      tmp.unlink(missing_ok=True)
+  except Exception:
+    pass
+
+
+# A cached percentage outlives the run that measured it, but only until its
+# window rolls over: once a window has reset, the figure describes a period
+# that is over, and a stale 78% would misreport an allowance that is now
+# untouched. A window with no reset time, or one that will not parse, is kept
+# — an unreadable timestamp is no reason to throw away a real number.
+def limit_window_open(entry: dict[str, Any], now: dt.datetime) -> bool:
+  raw = str(entry.get("resetsAt") or "")
+  if raw == "":
+    return True
+  try:
+    resets_at = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except Exception:
+    return True
+  if resets_at.tzinfo is None:
+    resets_at = resets_at.replace(tzinfo=dt.timezone.utc)
+  return resets_at > now
+
+
+def usable_cached_limits(cached: dict[str, Any] | None) -> list[dict[str, Any]]:
+  entries = cached.get("limits") if cached else None
+  if not isinstance(entries, list):
+    return []
+  now = dt.datetime.now(dt.timezone.utc)
+  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+
+
 # ------------------------------------------------------------------- record
 
 
@@ -330,6 +403,9 @@ def base_record(**overrides: Any) -> dict[str, Any]:
     "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
     "ready": False,
     "hasLocalStats": True,
+    # The meters and token records are server-side, per-account truth: every
+    # synced device reports the same numbers, so aggregation must not sum them.
+    "scope": "account",
     "hasPromptStats": False,
     "tierLabel": "",
     "usageStatusText": "",
@@ -340,6 +416,26 @@ def base_record(**overrides: Any) -> dict[str, Any]:
   return record
 
 
+def failure_record(
+    cached: dict[str, Any] | None,
+    usage_status: str,
+    auth_help: str,
+    *,
+    retry: bool = False,
+) -> dict[str, Any]:
+  """A failure-path record that keeps the last cached meters visible: the
+  panel hides a provider whose record carries no limits, so a stale sign-in
+  must not make a working meter line vanish. Without usable cached limits the
+  record stays the bare base record."""
+  limits = usable_cached_limits(cached)
+  overrides: dict[str, Any] = {"limits": limits, "ready": bool(limits), "authHelpText": auth_help}
+  if limits:
+    overrides["usageStatusText"] = usage_status
+  if retry:
+    overrides["retryAdvised"] = True
+  return base_record(**overrides)
+
+
 def build_record(meters: dict[str, dict[str, Any]], plan: str, records: list[dict[str, Any]]) -> dict[str, Any]:
   limits = build_limits(meters)
   record = base_record(
@@ -347,8 +443,10 @@ def build_record(meters: dict[str, dict[str, Any]], plan: str, records: list[dic
     tierLabel=plan or "Go",
     limits=limits,
   )
-  if records:
-    record.update(build_stats(records))
+  # Stats always ride along, zero-shaped when no usage records parsed: the
+  # panel keys off their presence for the today/total lines and merges them
+  # across providers.
+  record.update(build_stats(records))
   return record
 
 
@@ -357,16 +455,21 @@ def print_record(record: dict[str, Any]) -> None:
 
 
 def main() -> int:
+  # --force and --limits-only arrive from the update runner, which passes both
+  # to every collector. They are deliberate no-ops here: meters are fetched
+  # fresh on every run, and the limits cache is a failure fallback, not a
+  # freshness shortcut the flags could bypass.
   parser = argparse.ArgumentParser()
-  parser.add_argument("--force", action="store_true", help="re-fetch everything, ignoring caches")
-  parser.add_argument("--limits-only", action="store_true", help="reuse recent stats; only limits must be fresh")
+  parser.add_argument("--force", action="store_true", help="accepted no-op (update-runner compatibility; no cache reuse to bypass)")
+  parser.add_argument("--limits-only", action="store_true", help="accepted no-op (update-runner compatibility; limits are always fresh)")
   parser.parse_args()
 
   cfg = agent_config()
+  cached = read_limits_cache()
   cookie = resolve_session(cfg)
 
   if not cookie:
-    print_record(base_record(authHelpText=AUTH_HELP))
+    print_record(failure_record(cached, "Waiting for sign-in", AUTH_HELP))
     return 0
 
   workspace, workspace_status = resolve_workspace(cfg, cookie)
@@ -374,9 +477,11 @@ def main() -> int:
     if workspace_status == "transport":
       # The workspace RPC never reached the network; retry sooner than the
       # regular interval instead of blaming the configuration.
-      print_record(base_record(retryAdvised=True, authHelpText="Couldn't reach opencode.ai. Retrying shortly."))
+      print_record(failure_record(
+        cached, "Couldn't reach opencode.ai", "Couldn't reach opencode.ai. Retrying shortly.", retry=True
+      ))
       return 0
-    print_record(base_record(usageStatusText="Workspace not configured", authHelpText=WORKSPACE_HELP))
+    print_record(failure_record(cached, "Workspace not configured", WORKSPACE_HELP))
     return 0
 
   try:
@@ -384,26 +489,34 @@ def main() -> int:
   except urllib.error.URLError:
     # A transport failure reached no server at all — no route, no DNS. Ask the
     # shell to try again sooner than its regular interval.
-    print_record(base_record(retryAdvised=True, authHelpText="Couldn't reach opencode.ai. Retrying shortly."))
+    print_record(failure_record(
+      cached, "Couldn't reach opencode.ai", "Couldn't reach opencode.ai. Retrying shortly.", retry=True
+    ))
     return 0
   except RuntimeError as error:
-    print_record(base_record(authHelpText=f"{error}. Sign in again in a browser."))
+    print_record(failure_record(cached, "Sign-in expired", f"{error}. Sign in again in a browser."))
     return 0
   except Exception:
     # http.client.HTTPException subclasses (BadStatusLine, IncompleteRead) and
     # anything else must still yield a valid record, never a crash with no
     # JSON on stdout.
-    print_record(base_record(authHelpText="Couldn't read the opencode.ai response. Retrying shortly."))
+    print_record(failure_record(
+      cached, "Couldn't reach opencode.ai", "Couldn't read the opencode.ai response. Retrying shortly.", retry=True
+    ))
     return 0
 
   meters, plan = parse_meters(go_html)
   if not meters:
     # The console redirects signed-out sessions to /signin; the page then
     # carries no meter data.
-    print_record(base_record(
-      authHelpText="The opencode.ai session cookie is invalid or expired. Sign in again in a browser."
+    print_record(failure_record(
+      cached, "Sign-in expired", "The opencode.ai session cookie is invalid or expired. Sign in again in a browser."
     ))
     return 0
+
+  # Meters parsed — this is the healthy answer of record, so the cache is
+  # refreshed before the (optional) usage page fetch.
+  write_limits_cache(build_limits(meters))
 
   records: list[dict[str, Any]] = []
   try:
