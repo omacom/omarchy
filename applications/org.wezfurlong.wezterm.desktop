@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+TryExec=wezterm
+Exec=wezterm start
+Icon=org.wezfurlong.wezterm
+Terminal=false
+Categories=System;TerminalEmulator;
+Name=WezTerm
+GenericName=Terminal
+Comment=A GPU-accelerated cross-platform terminal emulator and multiplexer
+StartupNotify=true
+StartupWMClass=org.wezfurlong.wezterm
+Actions=New;
+X-TerminalArgExec=-e
+X-TerminalArgAppId=--class=
+X-TerminalArgDir=--cwd=
+
+[Desktop Action New]
+Name=New Terminal
+Exec=wezterm start
