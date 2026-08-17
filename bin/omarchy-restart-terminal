@@ -11,4 +11,12 @@ pkill -SIGUSR1 -x kitty
 (( $? <= 1 )) || exit $?
 
 pkill -SIGUSR2 -x ghostty
-(( $? <= 1 ))
+(( $? <= 1 )) || exit $?
+
+# WezTerm watches its own config file and reloads on change, but not the theme
+# file it loads: omarchy-theme-set replaces the whole current theme directory,
+# so any watch on that path dies with the old inode. Touching the config is what
+# makes the new colors land.
+if [[ -f ~/.config/wezterm/wezterm.lua ]]; then
+  touch ~/.config/wezterm/wezterm.lua
+fi
