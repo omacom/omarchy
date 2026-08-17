@@ -59,6 +59,8 @@ exec /usr/bin/sleep "$(awk -v d="${1:-0}" 'BEGIN { printf "%g", d / 15 }')"
 SH
 chmod +x "$fake_bin/sleep"
 
+HOME="$test_tmp/home" PATH="$ROOT/bin:$PATH" omarchy-toggle monitor-management on
+
 monitors_file="$test_tmp/monitors.json"
 reload_log="$test_tmp/reload.log"
 recovered="$test_tmp/recovered.json"
@@ -174,6 +176,7 @@ start_watcher() {
   rm -f "$events"
   mkfifo "$events"
 
+  HOME="$test_tmp/home" \
   PATH="$fake_bin:$PATH" \
   XDG_RUNTIME_DIR="$test_tmp" \
   HYPRLAND_INSTANCE_SIGNATURE=test \
