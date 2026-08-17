@@ -14,9 +14,9 @@ focused=$(omarchy-hyprland-monitor-focused)
 terminal=$(xdg-terminal-exec --print-id)
 
 case $terminal in
-*Alacritty* | *ghostty* | *foot* | *kitty*) ;;
+*Alacritty* | *ghostty* | *foot* | *kitty* | *wezterm*) ;;
 *)
-  omarchy-notification-send -g ✋ "Screensaver only runs in Alacritty, Foot, Ghostty, or Kitty"
+  omarchy-notification-send -g ✋ "Screensaver only runs in Alacritty, Foot, Ghostty, Kitty, or WezTerm"
   exit 1
   ;;
 esac
@@ -64,6 +64,12 @@ for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
     ;;
   *kitty*)
     hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    ;;
+  *wezterm*)
+    # wezterm-gui with --always-new-process: the wezterm front-end hands the
+    # request to an already-running GUI instance, which races when windows are
+    # requested back to back and leaves monitors without a screensaver window.
+    hypr_exec wezterm-gui --config-file "$OMARCHY_PATH/default/wezterm/screensaver.lua" start --always-new-process --class org.omarchy.screensaver -- omarchy-screensaver
     ;;
   esac
 
