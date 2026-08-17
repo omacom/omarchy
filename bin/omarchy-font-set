@@ -50,6 +50,11 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
   sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
 fi
 
+# No reload signal needed: WezTerm watches this file, so the rewrite is the trigger.
+if [[ -f ~/.config/wezterm/wezterm.lua ]]; then
+  sed -i "s/wezterm.font(\"[^\"]*\"/wezterm.font(\"$font_name\"/g" ~/.config/wezterm/wezterm.lua
+fi
+
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
 # and anything resolving "monospace" all read from here. This file is loaded
 # after the package-owned default, and prepend_first puts the chosen family at
