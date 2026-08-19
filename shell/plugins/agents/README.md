@@ -100,8 +100,9 @@ sign-in; a sign-in left to lapse shows the last credits until Grok runs
 again. Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
-opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+pi stores in `~/.pi/agent/auth.json` when Fireworks is signed in there
+(honoring `PI_CODING_AGENT_DIR`, and pi's literal and `$ENV_VAR` key forms),
+and finally the key opencode stores in `~/.local/share/opencode/auth.json`.
 
 ### Fireworks balance
 
