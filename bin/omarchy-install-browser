@@ -24,11 +24,48 @@ copy_chromium_flags() {
   omarchy-install-chromium-ytdlp
 }
 
+# Zen's AUR package (zen-browser-bin) installs to /opt/zen-browser-bin and
+# ships its own /opt/zen-browser-bin/distribution/policies.json with package
+# policies like DisableAppUpdate. Merge Omarchy's Preferences on top of the
+# package's policies instead of overwriting them, using root-owned 0644
+# writes into a 0755 directory (never world-writable, never following a
+# planted symlink).
+#
+# The distribution dir is overridable for tests; the real install path is the
+# one Zen actually reads from.
+setup_zen_preferences() {
+  local distribution_dir="${1:-/opt/zen-browser-bin/distribution}"
+  local omarchy_policies="$OMARCHY_PATH/default/firefox/policies.json"
+  local merged_policies tmp_merged
+
+  browser_policy_setup_parent "$distribution_dir"
+
+  if [[ -f $distribution_dir/policies.json && ! -L $distribution_dir/policies.json ]] && omarchy-cmd-present jq; then
+    merged_policies=$(jq -S --slurpfile omarchy "$omarchy_policies" '
+      .policies + $omarchy[0].policies as $merged
+      | {policies: $merged}
+    ' "$distribution_dir/policies.json")
+    tmp_merged=$(mktemp) || return 1
+    printf '%s' "$merged_policies" >"$tmp_merged"
+    if [[ -L $distribution_dir/policies.json || -d $distribution_dir/policies.json ]]; then
+      if ! as_root rm -rf -- "$distribution_dir/policies.json"; then
+        rm -f "$tmp_merged"
+        return 1
+      fi
+    fi
+    as_root install -m 0644 -o root -g root -T "$tmp_merged" "$distribution_dir/policies.json"
+    rm -f "$tmp_merged"
+  else
+    browser_policy_install_firefox_policies "$distribution_dir" "$omarchy_policies"
+  fi
+}
+
 setup_firefox_wayland() {
   mkdir -p ~/.config/environment.d
   echo "MOZ_ENABLE_WAYLAND=1" > ~/.config/environment.d/omarchy-firefox-wayland.conf
 }
 
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
 case $1 in
 chromium)
   echo "Installing Chromium..."
@@ -87,7 +124,7 @@ zen)
   echo "Installing Zen..."
   omarchy-pkg-aur-add zen-browser-bin || exit 1
 
-  browser_policy_setup_firefox_distribution /opt/zen-browser/distribution
+  setup_zen_preferences
   setup_firefox_wayland
   announce_browser_installed "Zen"
   ;;
@@ -96,3 +133,4 @@ zen)
   exit 1
   ;;
 esac
+fi
