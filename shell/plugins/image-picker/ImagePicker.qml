@@ -24,6 +24,7 @@ Item {
   property bool imagesLoaded: false
   property bool opened: false
   property bool showLabels: false
+  property bool sentenceLabels: false
   property bool filterable: false
   property bool layoutSettled: false
   property bool neighborImagesEnabled: false
@@ -87,7 +88,7 @@ Item {
   }
 
   function labelForPath(path) {
-    return ImagePickerModel.labelForPath(path)
+    return ImagePickerModel.labelForPath(path, sentenceLabels)
   }
 
   function currentLabel() {
@@ -238,7 +239,8 @@ Item {
     selectionFile = nextSelectionFile
     doneFile = nextDoneFile
     requestActive = !!doneFile
-    showLabels = nextShowLabels === true || nextShowLabels === "true"
+    showLabels = nextShowLabels === true || nextShowLabels === "true" || nextShowLabels === "sentence"
+    sentenceLabels = nextShowLabels === "sentence"
     filterable = nextFilterable === true || nextFilterable === "true"
     filterText = ""
     layoutSettled = false
@@ -437,9 +439,7 @@ Item {
     var sel = String(args.selectedImage || selectedImage)
     var selFile = String(args.selectionFile || "")
     var doneF = String(args.doneFile || "")
-    var labels = args.showLabels === true || args.showLabels === "true"
-    var filter = args.filterable === true || args.filterable === "true"
-    openSelector(dirs, rows, sel, selFile, doneF, labels, filter)
+    openSelector(dirs, rows, sel, selFile, doneF, args.showLabels, args.filterable)
   }
 
   function close() {
@@ -456,7 +456,8 @@ Item {
     requestSerial += 1
     imageRows = nextImageRows
     selectedImage = nextSelectedImage
-    showLabels = nextShowLabels === true || nextShowLabels === "true"
+    showLabels = nextShowLabels === true || nextShowLabels === "true" || nextShowLabels === "sentence"
+    sentenceLabels = nextShowLabels === "sentence"
     filterable = nextFilterable === true || nextFilterable === "true"
     filterText = ""
     layoutSettled = false

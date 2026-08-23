@@ -68,6 +68,8 @@ Two ways to drive it:
   uses. Colors come from the central shell theme singleton; there is no
   per-call override surface.
 
+Set `showLabels` to `true` for title-case labels (`--show-labels`) or `"sentence"` for filename captions (`--sentence-labels`). Captions replace `-` and `_` with spaces and capitalize the first word, skipping numeric prefixes and preserving the remaining casing. Set `filterable` to `true` (`--filterable`) for case-insensitive substring matching. Escape clears an active filter before closing the picker.
+
 The selection round-trip remains file-based: callers create a
 `selection_file` and `done_file` (both `mktemp`), pass the paths, and
 poll `done_file` for existence. The plugin writes the chosen path into
