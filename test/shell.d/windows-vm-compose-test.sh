@@ -39,8 +39,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-write() { # RAM CORES DISK USER PASS TZ
-  printf 'RAM=%s\nCORES=%s\nDISK=%s\nUSERNAME=%s\nPASSWORD=%s\nTZ=%s\n' \
+write() { # RAM CORES DISK USER PASS REGION
+  printf 'RAM=%s\nCORES=%s\nDISK=%s\nUSERNAME=%s\nPASSWORD=%s\nREGION=%s\n' \
     "$@" | __priv_write_compose
 }
 
@@ -54,7 +54,7 @@ reset_case() {
 
 # Fixed protected anchors consume the pinned source inodes.
 prepare_user_mount_sources
-write 4G 2 64G alice s3cret Europe/Copenhagen
+write 4G 2 64G alice s3cret en-US
 resolve_caller
 [[ -f $COMPOSE ]] || fail "writer produced a compose file"
 grep -q 'image: dockurr/windows' "$COMPOSE" || fail "image is pinned"
@@ -62,6 +62,8 @@ grep -q -- '- NET_ADMIN' "$COMPOSE" || fail "cap_add is pinned"
 grep -q -- "- $EXPECTED_STORAGE:/storage" "$COMPOSE" || fail "storage uses the protected anchor"
 grep -q -- "- $EXPECTED_SHARED:/shared" "$COMPOSE" || fail "shared uses the protected anchor"
 grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected"
+grep -q 'LANGUAGE: "en-US"' "$COMPOSE" || fail "Windows language is missing"
+grep -q 'REGION: "en-US"' "$COMPOSE" || fail "Windows region is missing"
 [[ ! -L $HOME/.windows && ! -L $HOME/Windows ]] || fail "fresh sources stay real directories"
 [[ $(stat -Lc '%d:%i' "$HOME/.windows") == $(stat -Lc '%d:%i' "$EXPECTED_STORAGE") ]] || fail "storage bind did not pin source"
 [[ $(stat -Lc '%d:%i' "$HOME/Windows") == $(stat -Lc '%d:%i' "$EXPECTED_SHARED") ]] || fail "shared bind did not pin source"
@@ -73,7 +75,7 @@ pass "writer emits fixed anchors bound to exact private source inodes"
 rm -f "$COMPOSE"
 write 4G 2 64G 'x -v /:/h' p UTC 2>/dev/null && fail "malicious username accepted"
 [[ ! -f $COMPOSE ]] || fail "bad input wrote compose"
-printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=ok\nPASSWORD=p\nTZ=UTC\nSTORAGE=/\nSHARED=/etc\n' | __priv_write_compose
+printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=ok\nPASSWORD=p\nREGION=en-US\nSTORAGE=/\nSHARED=/etc\n' | __priv_write_compose
 grep -q -- "- $EXPECTED_STORAGE:/storage" "$COMPOSE" || fail "caller storage affected compose"
 grep -q -- '- /:/storage' "$COMPOSE" && fail "host root accepted as storage"
 write '4G; rm -rf /' 2 64G ok p UTC 2>/dev/null && fail "malicious RAM accepted"
@@ -169,7 +171,7 @@ ln -s / "$HOME/Windows"
 before_fds=$(fd_count)
 prepare_user_mount_sources 2>/dev/null && fail "root symlink passed user preflight"
 [[ -L $HOME/Windows && $(readlink "$HOME/Windows") == / ]] || fail "rejected symlink consumed"
-printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\n' | __priv_write_compose 2>/dev/null && fail "root symlink passed privileged preflight"
+printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nREGION=en-US\n' | __priv_write_compose 2>/dev/null && fail "root symlink passed privileged preflight"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "one source mounted before other failed"
 [[ $(fd_count) == "$before_fds" ]] || fail "source preflight leaked FD"
@@ -280,7 +282,7 @@ ln -s "$same" "$HOME/.windows"
 ln -s "$same" "$HOME/Windows"
 before_fds=$(fd_count)
 prepare_user_mount_sources 2>/dev/null && fail "same source passed user preflight"
-printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nTZ=UTC\n' | __priv_write_compose 2>/dev/null && fail "same source passed root preflight"
+printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=x\nPASSWORD=p\nREGION=en-US\n' | __priv_write_compose 2>/dev/null && fail "same source passed root preflight"
 resolve_caller
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "same source left mount"
 [[ $(fd_count) == "$before_fds" ]] || fail "same source leaked FDs"
