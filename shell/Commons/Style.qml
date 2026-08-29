@@ -303,6 +303,17 @@ QtObject {
     return Math.max(1, Math.round(base))
   }
 
+  // Bar tokens whose resting value is zero: a bar flush against its edge with
+  // square corners. barToken() floors at 1 and reads 0 as "unset", so margin
+  // and radius need a reader that keeps a deliberate 0.
+  function barInsetToken(key, fallback) {
+    var v = barOverrides[key]
+    var n = Number(v)
+    var base = (isFinite(n) && n >= 0) ? n : fallback
+    if (barScaleWithFont) base *= fontScale
+    return Math.max(0, Math.round(base))
+  }
+
   function boolToken(value, fallback) {
     if (value === undefined || value === null) return fallback
     var s = String(value).replace(/^\s+|\s+$/g, "").toLowerCase()
@@ -350,6 +361,11 @@ QtObject {
       var v = Number(root.barOverrides["notch-height"])
       return (isFinite(v) && v > 0) ? Math.round(v) : 0
     }
+    // Gap between the bar and the screen edges it would otherwise sit flush
+    // against, and the corner rounding of the bar surface. Both default to 0,
+    // which is the flush, square bar.
+    readonly property int margin:         root.barInsetToken("margin",     0)
+    readonly property int radius:         root.barInsetToken("radius",     0)
     readonly property int iconSlot:       root.barToken("icon-slot",       27)
     readonly property int iconCanvas:     root.barToken("icon-canvas",     16)
     readonly property int iconFont:       root.barToken("icon-font",       13)
@@ -427,7 +443,8 @@ QtObject {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
         } else if (key === "size-horizontal" || key === "size-vertical" || key === "notch-height"
           || key === "icon-slot" || key === "icon-canvas" || key === "icon-font"
-          || key === "icon-size" || key === "status-slot") {
+          || key === "icon-size" || key === "status-slot"
+          || key === "margin" || key === "radius") {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }
