@@ -108,10 +108,25 @@ assert(
   /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),
   'a hidden bar reserves no space for itself'
 )
+// [bar] margin and radius reach the bar through the same parser.
+style.applyShellValues({ 'bar.margin': '10', 'bar.radius': '8' })
+assertEqual(style.barOverrides.margin, 10, '[bar] margin in shell.toml reaches the bar')
+assertEqual(style.barOverrides.radius, 8, '[bar] radius in shell.toml reaches the bar')
+// A detached bar sits barMargin off its edge, so parking has to clear the gap
+// as well as the bar (its whole thickness, which a notch floor may raise), or
+// the margin leaves a sliver of it on screen.
+assert(
+  /readonly property int parkedMargin: -\(barWindow\.thickness \+ root\.barMargin\)/.test(barSource),
+  'parking a hidden bar clears its margin as well as its whole thickness'
+)
+assert(
+  /readonly property int edgeMargin: root\.barHidden \? parkedMargin : root\.barMargin/.test(barSource),
+  'the anchored edge parks when hidden and carries the margin when shown'
+)
 for (const edge of ['top', 'bottom', 'left', 'right']) {
   assert(
-    new RegExp(`${edge}: root\\.barHidden && root\\.position === "${edge}" \\? -barWindow\\.thickness : 0`).test(barSource),
-    `a hidden bar parks past the ${edge} edge by its whole thickness`
+    new RegExp(`${edge}: root\\.position === "${edge}" \\? edgeMargin :`).test(barSource),
+    `a hidden bar parks past the ${edge} edge`
   )
 }
 
