@@ -714,6 +714,11 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+  // A detached bar floats barMargin away from every screen edge it touches and
+  // rounds its corners by barRadius. Both are 0 by default, which anchors the
+  // bar flush against its edge with square corners.
+  readonly property int barMargin: Style.bar.margin
+  readonly property int barRadius: Style.bar.radius
 
   // Display cutouts (a camera notch) the platform's own package describes in
   // the fixed platform root, which no environment variable moves. Most machines
@@ -1724,7 +1729,8 @@ Item {
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: thickness
+    // A detached bar reserves its margin off the edge as well.
+    exclusiveZone: thickness + root.barMargin
 
     // While this window's widget or bar-move drag is live, the whole surface
     // takes input (mask below), so the pointer never leaves the bar surface
@@ -1819,33 +1825,48 @@ Item {
       id: noInputRegion
     }
 
-    // The bar itself, along its screen edge.
+    // A detached bar sits barMargin inside every edge it touches: the one it
+    // hangs from and the two it spans. The strip sits in this frame as a flush
+    // bar sits in the window.
     Item {
-      id: barStrip
+      id: barFrame
+      anchors.fill: parent
+      anchors.topMargin: root.position === "bottom" ? 0 : root.barMargin
+      anchors.bottomMargin: root.position === "top" ? 0 : root.barMargin
+      anchors.leftMargin: root.position === "right" ? 0 : root.barMargin
+      anchors.rightMargin: root.position === "left" ? 0 : root.barMargin
 
-      x: root.position === "right" ? parent.width - barWindow.thickness : 0
-      y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
-      width: root.vertical ? barWindow.thickness : parent.width
-      height: root.vertical ? parent.height : barWindow.thickness
+      // The bar itself, along its screen edge.
+      Item {
+        id: barStrip
 
-      Rectangle {
-        anchors.fill: parent
-        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
-      }
+        x: root.position === "right" ? parent.width - barWindow.thickness : 0
+        y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
+        width: root.vertical ? barWindow.thickness : parent.width
+        height: root.vertical ? parent.height : barWindow.thickness
 
-      Loader {
-        anchors.fill: parent
-        sourceComponent: root.vertical ? verticalBar : horizontalBar
+        // Carries the bar's background, which is what lets barRadius round
+        // the corners.
+        Rectangle {
+          anchors.fill: parent
+          color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+          radius: root.barRadius
+        }
 
-        // A child of the loader, not a sibling of the sections: an ancestor stays
-        // hovered while the pointer is over a widget, where a sibling would lose
-        // hover to the section the pointer entered.
-        HoverHandler {
-          readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
-          onPeekingChanged: root.setBarHovered(peeking)
-          // Unplugging a monitor destroys its bar without a leave event, which
-          // would strand this surface's tally and hold the peek open for good.
-          Component.onDestruction: if (peeking) root.setBarHovered(false)
+        Loader {
+          anchors.fill: parent
+          sourceComponent: root.vertical ? verticalBar : horizontalBar
+
+          // A child of the loader, not a sibling of the sections: an ancestor stays
+          // hovered while the pointer is over a widget, where a sibling would lose
+          // hover to the section the pointer entered.
+          HoverHandler {
+            readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
+            onPeekingChanged: root.setBarHovered(peeking)
+            // Unplugging a monitor destroys its bar without a leave event, which
+            // would strand this surface's tally and hold the peek open for good.
+            Component.onDestruction: if (peeking) root.setBarHovered(false)
+          }
         }
       }
     }
