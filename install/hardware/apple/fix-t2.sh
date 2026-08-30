@@ -32,6 +32,13 @@ if omarchy-hw-pci 106b:1801 106b:1802; then
   echo "MODULES+=(t2bce_vhci? usbhid hid_apple hid_generic xhci_pci xhci_hcd)" > \
     /etc/mkinitcpio.conf.d/apple-t2.conf
 
+  # The Titan Ridge USB-C host controllers lose power in deep sleep and, once
+  # reinitialized on resume, no longer wake on hot-plug from runtime suspend.
+  # Holding them on costs a little idle power and keeps the ports usable after
+  # every sleep.
+  install -Dm644 "$OMARCHY_PATH/default/udev/t2-usbc-hotplug.rules" \
+    /etc/udev/rules.d/99-omarchy-t2-usbc-hotplug.rules
+
   omarchy-boot-cmdline set t2-mac intel_iommu=on iommu=pt pm_async=off mem_sleep_default=deep
 
   # t2fanrd only reads sections for detected fans, so Fan2 is harmless on
