@@ -7,6 +7,14 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const tailscale = requireFromRoot('shell/plugins/panels/tailscale/Model.js')
 
+assertEqual(tailscale.adminUrlFromControlUrl(''), 'https://login.tailscale.com/admin/machines', 'tailscale falls back to the hosted admin console without a control URL')
+assertEqual(tailscale.adminUrlFromControlUrl('https://controlplane.tailscale.com'), 'https://login.tailscale.com/admin/machines', 'tailscale sends the hosted control plane to the hosted admin console')
+assertEqual(tailscale.adminUrlFromControlUrl('https://controlplane.tailscale.com/'), 'https://login.tailscale.com/admin/machines', 'tailscale ignores a trailing slash on the control URL')
+assertEqual(tailscale.adminUrlFromControlUrl('https://headscale.example.com'), 'https://headscale.example.com', 'tailscale points a self-hosted tailnet at its own control server')
+assertEqual(tailscale.adminUrlFromControlUrl('https://headscale.example.com/'), 'https://headscale.example.com', 'tailscale trims a self-hosted control URL')
+assertEqual(tailscale.controlUrlFromPrefs('{"ControlURL":"https://headscale.example.com"}'), 'https://headscale.example.com', 'tailscale reads the control URL out of prefs')
+assertEqual(tailscale.controlUrlFromPrefs('not json'), '', 'tailscale ignores unreadable prefs')
+
 assertDeepEqual(
   tailscale.filterIPv4(['100.64.0.1', 'fd7a:115c:a1e0::1', '192.168.1.2']),
   ['100.64.0.1'],
@@ -308,12 +316,14 @@ function makeServiceCtx(overrides) {
     _mullvadExitNodesOutput: '', _mullvadExitNodesError: '',
     _accountsOutput: '', _accountsError: '', _lastAccountsRefreshMs: 0,
     _operatorOutput: '', _operatorError: '', actionStatus: '',
+    _prefsStale: false, _prefsFailed: false, _prefsOutput: '',
     userName: 'dhh',
     I18n: { t: k => k },
     statusProcess: { running: false, command: [] },
     mullvadExitNodesProcess: { running: false, command: [] },
     accountsProcess: { running: false, command: [] },
     operatorProcess: { running: false, command: [] },
+    prefsProcess: { running: false, command: [] },
     pollWatchdog: { running: false, start() { this.running = true } }
   }, overrides)
   vm.runInNewContext(`${refreshFn}\n${authFn}`, ctx)
