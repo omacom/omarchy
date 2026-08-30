@@ -1281,6 +1281,17 @@ Panel {
       return String(peer.TailscaleIPv6[0] || "")
     }
     readonly property string peerDns: peer ? String(peer.DNSName || "") : ""
+    readonly property bool peerOnline: peer ? peer.Online === true : false
+    readonly property var copyOptions: {
+      var options = []
+      if (peerName !== "") options.push({ kind: "name", label: peerName })
+      if (peerDns !== "") options.push({ kind: "dns", label: peerDns })
+      if (peerIpv6 !== "") options.push({ kind: "ipv6", label: peerIpv6 })
+      if (peerIp !== "") options.push({ kind: "ip", label: peerIp })
+      return options
+    }
+    property int copyIndex: 0
+
     hasCursor: root.cursorActive && root.focusSection === "peers" && root.peerIndex === rowIndex
     foreground: root.foreground
 
@@ -1309,7 +1320,7 @@ Panel {
       Text {
         textFormat: Text.PlainText
         text: tailscale.osIcon(peer ? peer.OS : "")
-        color: root.foreground
+        color: peerRow.peerOnline ? root.foreground : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.icon
         Layout.alignment: Qt.AlignVCenter
@@ -1324,7 +1335,7 @@ Panel {
           textFormat: Text.PlainText
           Layout.fillWidth: true
           text: peerRow.peerName
-          color: root.foreground
+          color: peerRow.peerOnline ? root.foreground : root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           elide: Text.ElideRight
@@ -1335,6 +1346,7 @@ Panel {
           Layout.fillWidth: true
           text: {
             var parts = []
+            if (!peerRow.peerOnline) parts.push("Offline")
             if (peerRow.peerIp !== "") parts.push(peerRow.peerIp)
             if (peerRow.peerDns !== "") parts.push(peerRow.peerDns)
             return parts.join(" · ")
