@@ -207,8 +207,18 @@ Item {
         }
 
         Keys.onPressed: function(event) {
+          // A key hit at a dark panel is there to wake it, not to type. The
+          // wake clears displaysBlank, so read it first. What this view sees
+          // is the screen's state as Hyprland reports it once known, not only
+          // what the lock asked for, so a panel relit behind the lock's back
+          // does not eat the first key.
+          var wasBlank = root.displaysBlank
           root.wakeRequested()
           if (event.isAutoRepeat && root.dropsAutoRepeat(event.key)) {
+            event.accepted = true
+            return
+          }
+          if (wasBlank) {
             event.accepted = true
             return
           }
