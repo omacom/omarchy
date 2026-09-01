@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const vm = require('vm')
 
+const Model = requireFromRoot('shell/plugins/panels/monitor/Model.js')
 const source = fs.readFileSync(path.join(root, 'shell/plugins/panels/monitor/Panel.qml'), 'utf8')
 const method = source.match(/^  function toggleDisplay\(name, enabled\) \{[\s\S]*?^  \}/m)
 if (!method) fail('monitor panel provides toggleDisplay')
@@ -21,7 +22,7 @@ function toggle(name, enabled, count = 2, busy = false) {
     set running(value) { running = value; if (value) starts++ }
   }
   const invoke = vm.runInNewContext('(' + method[0] + ')', {
-    root: { enabledDisplayCount: count }, actionProc
+    root: { enabledDisplayCount: count }, actionProc, Model
   })
   invoke(name, enabled)
   return { command: actionProc.command, starts }
