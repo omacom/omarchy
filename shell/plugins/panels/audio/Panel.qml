@@ -1408,6 +1408,7 @@ Panel {
 
         Text {
           id: routeIcon
+          textFormat: Text.PlainText
           anchors.left: parent.left
           anchors.verticalCenter: parent.verticalCenter
           text: streamRow.routePinned ? "\udb81\udd31" : "\udb80\udc54"
@@ -1418,6 +1419,7 @@ Panel {
 
         Text {
           id: routeText
+          textFormat: Text.PlainText
           anchors.left: routeIcon.right
           anchors.leftMargin: Style.space(6)
           anchors.right: parent.right
