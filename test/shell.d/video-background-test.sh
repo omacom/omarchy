@@ -22,6 +22,7 @@ const lockService = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.
 const batteryService = fs.readFileSync(path.join(root, 'shell/plugins/services/battery/Service.qml'), 'utf8')
 const themeSet = fs.readFileSync(path.join(root, 'bin/omarchy-theme-set'), 'utf8')
 const directImageList = fs.readFileSync(path.join(root, 'shell/plugins/image-picker/list.sh'), 'utf8')
+const bootIntro = fs.readFileSync(path.join(root, 'bin/omarchy-theme-bg-boot-intro'), 'utf8')
 
 assert(
   /function isVideoPath\(path\)[\s\S]*\.test\(String\(path \|\| ""\)\)/.test(utilQml) &&
@@ -29,7 +30,7 @@ assert(
   'shared media helper identifies video paths without truncating valid local names'
 )
 assert(
-  videoQml.includes('loops: MediaPlayer.Infinite') &&
+  videoQml.includes('loops: root.loop ? MediaPlayer.Infinite : 1') &&
     videoQml.includes('autoPlay: root.playbackEnabled') &&
     videoQml.includes('fillMode: VideoOutput.PreserveAspectCrop') &&
     /imageUrl: path && !Util\.isVideoPath\(path\) \? Util\.fileUrl\(path\) \+ \(version \? "\?v=" \+ version : ""\) : ""/.test(mediaQml) &&
@@ -56,8 +57,19 @@ assert(
   'paused video sources are primed to display their first frame'
 )
 assert(
+  videoQml.includes('mediaStatus === MediaPlayer.EndOfMedia') &&
+    mediaQml.includes('property bool loop: true') &&
+    backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]') &&
+    backgroundQml.includes('path: root.bootIntroActive ? root.bootIntroPath : ""') &&
+    backgroundQml.includes('loop: false') &&
+    backgroundQml.includes('onFinished: root.finishBootIntro()') &&
+    bootIntro.includes('background-intro.boot-id'),
+  'a matching theme intro plays once per boot and reveals the loaded still at end of media'
+)
+assert(
   !/^\s*import QtMultimedia/m.test(mediaQml) &&
-    mediaQml.includes('source: "BackgroundVideo.qml"'),
+    mediaQml.includes('source: "BackgroundVideo.qml"') &&
+    mediaQml.includes('source: root.imageUrl'),
   'the still-image path never imports QtMultimedia, so image-only sessions do not map it'
 )
 assert(
@@ -364,3 +376,19 @@ set_theme_background
 
 pass "theme transitions skip snapshots whenever either side is a video"
 pass "theme changes recover from a missing preselected background"
+
+intro_home="$test_tmp/intro-home"
+intro_state="$intro_home/.local/state/omarchy/current"
+mkdir -p "$intro_state/theme/backgrounds" "$intro_state/theme/intros"
+printf 'still\n' >"$intro_state/theme/backgrounds/0-winding-road.webp"
+printf 'video\n' >"$intro_state/theme/intros/0-winding-road.mp4"
+ln -s "$intro_state/theme/backgrounds/0-winding-road.webp" "$intro_state/background"
+
+intro=$(HOME="$intro_home" OMARCHY_BOOT_ID=video-test-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
+[[ $intro == "$intro_state/theme/intros/0-winding-road.mp4" ]] || \
+  fail "boot intro resolves by the selected background stem" "$intro"
+
+second_intro=$(HOME="$intro_home" OMARCHY_BOOT_ID=video-test-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
+[[ -z $second_intro ]] || fail "boot intro runs once for a boot id" "$second_intro"
+
+pass "boot intro resolves the selected still once per boot"
