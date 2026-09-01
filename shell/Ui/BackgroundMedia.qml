@@ -13,6 +13,7 @@ Item {
   // would read a query as part of the filename.
   property int reloads: 0
   property bool reloading: false
+  property bool loop: true
   readonly property var current: video ? videoLoader.item : imageLoader.item
   readonly property bool ready: current ? current.ready : false
   readonly property bool video: Util.isVideoPath(path)
@@ -24,6 +25,8 @@ Item {
   // against the stale flag and leak the wrong file for one pass.
   readonly property url imageUrl: path && !Util.isVideoPath(path) ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
   readonly property url videoUrl: path && Util.isVideoPath(path) ? Util.fileUrl(path) : ""
+
+  signal finished()
 
   Loader {
     id: imageLoader
@@ -69,6 +72,20 @@ Item {
     property: "audioEnabled"
     value: root.audioEnabled
     when: videoLoader.item !== null
+  }
+
+  Binding {
+    target: videoLoader.item
+    property: "loop"
+    value: root.loop
+    when: videoLoader.item !== null
+  }
+
+  Connections {
+    target: videoLoader.item
+    function onFinished() {
+      root.finished()
+    }
   }
 
   Component {

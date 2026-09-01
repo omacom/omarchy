@@ -10,11 +10,14 @@ Item {
   property url mediaSource: ""
   property bool playbackEnabled: true
   property bool audioEnabled: false
+  property bool loop: true
   property int mediaGeneration: 0
   property bool priming: false
   property int primingGeneration: -1
   property bool frameReceived: false
   readonly property bool ready: player.hasVideo
+
+  signal finished()
 
   onMediaSourceChanged: {
     mediaGeneration += 1
@@ -91,9 +94,13 @@ Item {
     source: root.mediaSource
     videoOutput: output
     audioOutput: audioLoader.item
-    loops: MediaPlayer.Infinite
+    loops: root.loop ? MediaPlayer.Infinite : 1
     autoPlay: root.playbackEnabled
     onMediaStatusChanged: {
+      if (mediaStatus === MediaPlayer.EndOfMedia) {
+        root.finished()
+        return
+      }
       if (mediaStatus !== MediaPlayer.LoadedMedia) return
 
       if (!root.playbackEnabled) {
@@ -104,6 +111,7 @@ Item {
       }
       player.play()
     }
+    onErrorOccurred: root.finished()
   }
 
   Connections {

@@ -18,6 +18,9 @@ Item {
   property string currentBackground: ""
   property string displayedBackground: ""
   property int displayedReloads: 0
+  property string bootIntroPath: ""
+  property bool bootIntroActive: false
+  property bool bootIntroChecked: false
   property string incomingBackground: ""
   property string oldBackground: ""
   property bool finishingTransition: false
@@ -61,7 +64,20 @@ Item {
     transitionBackground("", path, path, instant, false)
   }
 
+  function checkBootIntro() {
+    if (bootIntroChecked || bootIntroProc.running) return
+    bootIntroChecked = true
+    bootIntroProc.running = true
+  }
+
+  function finishBootIntro() {
+    if (!bootIntroActive) return
+    bootIntroActive = false
+    bootIntroPath = ""
+  }
+
   function transitionBackground(fromPath, path, finalPath, instant, force) {
+    finishBootIntro()
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
@@ -152,7 +168,23 @@ Item {
     id: readlinkProc
     command: ["readlink", "-f", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        root.setBackground(String(text || "").trim(), false)
+        root.checkBootIntro()
+      }
+    }
+  }
+
+  Process {
+    id: bootIntroProc
+    command: ["omarchy-theme-bg-boot-intro"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        const path = String(text || "").trim()
+        if (!path) return
+        root.bootIntroPath = path
+        root.bootIntroActive = true
+      }
     }
   }
 
@@ -273,6 +305,17 @@ Item {
             root.finishingTransition = false
           }
         }
+      }
+
+      // The still background remains decoded underneath this one-shot layer,
+      // so a matching final frame can disappear without a reload or flash.
+      BackgroundMedia {
+        anchors.fill: parent
+        path: root.bootIntroActive ? root.bootIntroPath : ""
+        playbackEnabled: root.bootIntroActive && !root.sessionObscured && !panel.fullscreenHere
+        loop: false
+        visible: root.bootIntroActive
+        onFinished: root.finishBootIntro()
       }
 
       Image {
