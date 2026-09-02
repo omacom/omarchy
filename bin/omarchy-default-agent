@@ -149,6 +149,8 @@ fi
 
 if [[ $agent == "claude" ]]; then
   omarchy-install-chromium-claude 2>/dev/null || true
+elif [[ $agent == "afk" ]]; then
+  omarchy-afk-plugin-install || true
 fi
 
 mkdir -p "$(dirname "$agent_file")"
