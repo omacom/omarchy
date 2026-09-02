@@ -714,10 +714,11 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
-  // A detached bar floats barMargin away from every screen edge it touches and
-  // rounds its corners by barRadius. Both are 0 by default, which anchors the
-  // bar flush against its edge with square corners.
-  readonly property int barMargin: Style.bar.margin
+  // A detached bar floats barMargins away from every screen edge it touches
+  // and rounds its corners by barRadius. Every side is 0 by default, which
+  // anchors the bar flush against its edge with square corners. The keys are
+  // the position names, so barMargins[position] is the anchored edge's gap.
+  readonly property var barMargins: Style.bar.margins
   readonly property int barRadius: Style.bar.radius
 
   // Display cutouts (a camera notch) the platform's own package describes in
@@ -1522,13 +1523,20 @@ Item {
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
-      colorHex(root.themeContrastForeground)
+      colorHex(root.themeContrastForeground),
+      // A detached bar no longer covers the strip at the screen edge, so the
+      // sample has to move in with it or the contrast is picked against pixels
+      // the bar does not sit on.
+      "--inset",
+      [root.barMargins.top, root.barMargins.right,
+       root.barMargins.bottom, root.barMargins.left].join(" ")
     ]
     transparentForegroundProc.running = true
   }
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarMarginsChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1730,7 +1738,7 @@ Item {
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
     // A detached bar reserves its margin off the edge as well.
-    exclusiveZone: thickness + root.barMargin
+    exclusiveZone: thickness + root.barMargins[root.position]
 
     // While this window's widget or bar-move drag is live, the whole surface
     // takes input (mask below), so the pointer never leaves the bar surface
@@ -1825,16 +1833,17 @@ Item {
       id: noInputRegion
     }
 
-    // A detached bar sits barMargin inside every edge it touches: the one it
-    // hangs from and the two it spans. The strip sits in this frame as a flush
-    // bar sits in the window.
+    // A detached bar sits inside every edge it touches: the one it hangs from
+    // and the two it spans. The remaining side is the bar's own far face,
+    // which no margin applies to. The strip sits in this frame as a flush bar
+    // sits in the window.
     Item {
       id: barFrame
       anchors.fill: parent
-      anchors.topMargin: root.position === "bottom" ? 0 : root.barMargin
-      anchors.bottomMargin: root.position === "top" ? 0 : root.barMargin
-      anchors.leftMargin: root.position === "right" ? 0 : root.barMargin
-      anchors.rightMargin: root.position === "left" ? 0 : root.barMargin
+      anchors.topMargin: root.position === "bottom" ? 0 : root.barMargins.top
+      anchors.bottomMargin: root.position === "top" ? 0 : root.barMargins.bottom
+      anchors.leftMargin: root.position === "right" ? 0 : root.barMargins.left
+      anchors.rightMargin: root.position === "left" ? 0 : root.barMargins.right
 
       // The bar itself, along its screen edge.
       Item {
