@@ -97,6 +97,60 @@ for (const [key, value] of [['size-horizontal', 32], ['size-vertical', 34], ['ic
   assertEqual(style.barToken(key, 1), value, `[bar] ${key} in shell.toml reaches barToken()`)
 }
 
+// The gap is a width spec, not a scalar, so a bar can sit further off the edges
+// it spans than off the one it hangs from. The anchored edge reads out of the
+// same object by position name.
+assert(
+  /Geometry\.parseWidthSpec\(barOverrides\["margin"\], 0\)/.test(styleSource),
+  'the bar margin is parsed as a per-edge width spec'
+)
+assert(
+  /barOut\[key\] = raw/.test(styleSource),
+  'the bar margin reaches the parser unparsed, so a list survives'
+)
+assert(
+  /readonly property int anchoredMargin: root\.barMargins\[root\.position\]/.test(barSource),
+  'the anchored edge takes its own side of the margin'
+)
+// The drag overlays are full-screen, so a bar-local point becomes a screen point
+// by adding the bar window's origin. A detached bar's origin is the gap itself on the
+// axes it spans, and the far edge less its own size and gap on the one it is
+// anchored to; without that the drop marker and the drag ghost sit a margin away
+// from the cursor.
+const windowScreenPoint = barSource.slice(
+  barSource.indexOf('function windowScreenPoint'),
+  barSource.indexOf('function barDragScreenPoint')
+)
+assert(
+  /var margins = root\.barMargins/.test(windowScreenPoint),
+  'mapping a bar point to the screen accounts for a detached bar'
+)
+assert(
+  /window\.screen\.height - window\.height - margins\.bottom/.test(windowScreenPoint),
+  'a detached bottom bar maps from its own top edge, not the screen edge'
+)
+assert(
+  /window\.screen\.width - window\.width - margins\.right/.test(windowScreenPoint),
+  'a detached right bar maps from its own left edge, not the screen edge'
+)
+
+// omarchy-bar-text-color samples the wallpaper under the bar to pick a legible
+// transparent-mode foreground. It crops from the screen edge unless told
+// otherwise, so a detached bar has to hand it the gap or the contrast is
+// decided against pixels the bar does not cover.
+const transparentForeground = barSource.slice(
+  barSource.indexOf('function refreshTransparentForeground'),
+  barSource.indexOf('onRequestedTransparentChanged')
+)
+assert(
+  /"--inset",\s*\n\s*\[root\.barMargins\.top/.test(transparentForeground),
+  'transparent bar text samples the strip a detached bar covers'
+)
+assert(
+  /onBarMarginsChanged: scheduleTransparentForegroundRefresh\(\)/.test(barSource),
+  'changing the bar margin re-samples the transparent bar text color'
+)
+
 // Hiding must not unmap the bar. An unmapped layer surface has to be rebuilt on
 // every reveal, which measured ~150ms against ~20ms to tear it down; parking it
 // past the screen edge keeps show and hide symmetric at ~12ms.
@@ -109,18 +163,18 @@ assert(
   'a hidden bar reserves no space for itself'
 )
 // [bar] margin and radius reach the bar through the same parser.
-style.applyShellValues({ 'bar.margin': '10', 'bar.radius': '8' })
-assertEqual(style.barOverrides.margin, 10, '[bar] margin in shell.toml reaches the bar')
+style.applyShellValues({ 'bar.margin': '4 8', 'bar.radius': '8' })
+assertEqual(style.barOverrides.margin, '4 8', '[bar] margin in shell.toml reaches the bar as the list it was written as')
 assertEqual(style.barOverrides.radius, 8, '[bar] radius in shell.toml reaches the bar')
 // A detached bar sits barMargin off its edge, so parking has to clear the gap
 // as well as the bar (its whole thickness, which a notch floor may raise), or
 // the margin leaves a sliver of it on screen.
 assert(
-  /readonly property int parkedMargin: -\(barWindow\.thickness \+ root\.barMargin\)/.test(barSource),
+  /readonly property int parkedMargin: -\(barWindow\.thickness \+ anchoredMargin\)/.test(barSource),
   'parking a hidden bar clears its margin as well as its whole thickness'
 )
 assert(
-  /readonly property int edgeMargin: root\.barHidden \? parkedMargin : root\.barMargin/.test(barSource),
+  /readonly property int edgeMargin: root\.barHidden \? parkedMargin : anchoredMargin/.test(barSource),
   'the anchored edge parks when hidden and carries the margin when shown'
 )
 for (const edge of ['top', 'bottom', 'left', 'right']) {

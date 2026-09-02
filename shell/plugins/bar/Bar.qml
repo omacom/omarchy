@@ -559,10 +559,17 @@ Item {
     var y = scenePoint ? scenePoint.y : 0
     if (!window || !window.screen) return { x: x, y: y }
 
-    if (root.position === "bottom")
-      y += Math.max(0, window.screen.height - window.height)
-    else if (root.position === "right")
-      x += Math.max(0, window.screen.width - window.width)
+    // A detached bar sits inside every edge it touches, so its origin is the
+    // gap itself on the axes it spans, and the far edge less its own size and
+    // gap on the one it is anchored to. At margin 0 this is the flush bar's
+    // plain screen-corner offset.
+    var margins = root.barMargins
+    x += root.position === "right"
+      ? Math.max(0, window.screen.width - window.width - margins.right)
+      : margins.left
+    y += root.position === "bottom"
+      ? Math.max(0, window.screen.height - window.height - margins.bottom)
+      : margins.top
 
     return { x: x, y: y }
   }
@@ -657,10 +664,11 @@ Item {
 
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
-  // A detached bar floats barMargin away from every screen edge it touches and
-  // rounds its corners by barRadius. Both are 0 by default, which anchors the
-  // bar flush against its edge with square corners.
-  readonly property int barMargin: Style.bar.margin
+  // A detached bar floats barMargins away from every screen edge it touches
+  // and rounds its corners by barRadius. Every side is 0 by default, which
+  // anchors the bar flush against its edge with square corners. The keys are
+  // the position names, so barMargins[position] is the anchored edge's gap.
+  readonly property var barMargins: Style.bar.margins
   readonly property int barRadius: Style.bar.radius
 
   // Display cutouts (a camera notch) the platform's own package describes in
@@ -1367,13 +1375,20 @@ Item {
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
-      colorHex(root.themeContrastForeground)
+      colorHex(root.themeContrastForeground),
+      // A detached bar no longer covers the strip at the screen edge, so the
+      // sample has to move in with it or the contrast is picked against pixels
+      // the bar does not sit on.
+      "--inset",
+      [root.barMargins.top, root.barMargins.right,
+       root.barMargins.bottom, root.barMargins.left].join(" ")
     ]
     transparentForegroundProc.running = true
   }
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onBarMarginsChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1555,16 +1570,20 @@ Item {
     }
 
     // Parked by its full thickness, which a notch floor may make more than
-    // barSize, and by a detached bar's margin as well, so no strip of it stays
-    // on screen.
-    readonly property int parkedMargin: -(barWindow.thickness + root.barMargin)
-    readonly property int edgeMargin: root.barHidden ? parkedMargin : root.barMargin
+    // barSize, and by a detached bar's margin on that edge as well, so no
+    // strip of it stays on screen.
+    readonly property int anchoredMargin: root.barMargins[root.position]
+    readonly property int parkedMargin: -(barWindow.thickness + anchoredMargin)
+    readonly property int edgeMargin: root.barHidden ? parkedMargin : anchoredMargin
 
+    // Only the edges the bar actually touches take a gap: the one it is
+    // anchored to, and the two it spans. The remaining side is the bar's own
+    // far face, which no margin applies to.
     margins {
-      top: root.position === "top" ? edgeMargin : (root.vertical ? root.barMargin : 0)
-      bottom: root.position === "bottom" ? edgeMargin : (root.vertical ? root.barMargin : 0)
-      left: root.position === "left" ? edgeMargin : (root.vertical ? 0 : root.barMargin)
-      right: root.position === "right" ? edgeMargin : (root.vertical ? 0 : root.barMargin)
+      top: root.position === "top" ? edgeMargin : (root.vertical ? root.barMargins.top : 0)
+      bottom: root.position === "bottom" ? edgeMargin : (root.vertical ? root.barMargins.bottom : 0)
+      left: root.position === "left" ? edgeMargin : (root.vertical ? 0 : root.barMargins.left)
+      right: root.position === "right" ? edgeMargin : (root.vertical ? 0 : root.barMargins.right)
     }
 
     anchors {
