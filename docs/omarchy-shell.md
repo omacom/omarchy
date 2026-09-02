@@ -412,14 +412,23 @@ A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the
 A panel matches a screen whose connector name starts with `connector` and whose mode, as `hyprctl monitors` reports it, is `width` x `height` physical pixels, at any scale; `top` is the physical rows the cutout covers. On such a panel, `[bar] notch-height` (logical pixels, not scaled with the font) sets the floor by hand. The bar reads the file when the shell starts and whenever it changes; a file installed where its directory didn't exist yet (the platform root itself, on a first install) is read at the next shell start.
 
 Until Hyprland reports a screen's mode, a top bar there waits to appear if a description names the screen's connector, unless the logical size times Qt's whole-number scale already matches a panel. It then appears at its floor rather than growing once windows are laid out, and never guesses a floor for a panel nothing describes. After two seconds without a mode it appears without a floor. Notifications clear the bar as thick as it is on their screen. A plugin's `shell.bar` gives the same through `barSizeFor(screenName)` and the `barSizes` map (screen name to thickness); its `barSize` stays the configured size, which the widgets are drawn at.
-### Detached bar
+### Floating bar
 
-`[bar] margin` and `radius` lift the bar off its screen edge. `margin` is the gap left on every edge the bar touches — the one it is anchored to and the two it spans — and `radius` rounds the corners of the bar surface:
+`[bar] margin` lift the bar off its screen edge. `margin` is the gap between the bar and every edge the bar touches — the one it is anchored to and the two it spans
+
+[bar] `radius` rounds the corners of the bar surface
 
 ```toml
 [bar]
 margin = 10   # gap between the bar and the screen edges; 0 = flush
 radius = 12   # corner rounding of the bar surface; 0 = square
+```
+
+`margin` accepts the same CSS-style list as the border widths — `N`, `"Y X"`, `"T X B"`, or `"T R B L"` — so the gap can differ per edge. A bar set further off the sides than off the edge it hangs from:
+
+```toml
+[bar]
+margin = "4 8"   # 4 from the anchored edge, 8 at the two it spans
 ```
 
 Both default to `0`, a bar sitting flush against its edge with square corners, and both follow `scale-with-font` like the sizes above. The gap is reserved along with the bar itself, so maximized and tiled windows stop clear of it instead of sliding underneath. Auto-hide still parks the bar fully off screen, clearing the margin as well as the bar.
