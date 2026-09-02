@@ -34,8 +34,8 @@ vm.runInContext(
 )
 
 // [bar] margin and radius reach the bar through the same parser.
-style.applyShellValues({ 'bar.margin': '10', 'bar.radius': '8' })
-assertEqual(style.barOverrides.margin, 10, '[bar] margin in shell.toml reaches the bar')
+style.applyShellValues({ 'bar.margin': '4 8', 'bar.radius': '8' })
+assertEqual(style.barOverrides.margin, '4 8', '[bar] margin in shell.toml reaches the bar as the list it was written as')
 assertEqual(style.barOverrides.radius, 8, '[bar] radius in shell.toml reaches the bar')
 
 // A widget's slot can be on the bar without being drawn (hidden by the
