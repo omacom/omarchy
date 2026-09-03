@@ -46,6 +46,18 @@ Panel {
     && balance.remaining / balance.funded <= 0.1
   readonly property bool alarming: (!!headline && headline.percent >= 0.9) || balanceAlarming
 
+  // A record that survives a refresh cycle unwritten means its collector did
+  // not run — a missing binary or a failing scrape. Every collector rewrites
+  // updatedAt on each successful run, so an age past two refresh intervals is
+  // a real gap, not cadence jitter. Providers with no local record (synced
+  // only) carry no updatedAt and are never flagged; the sync footer owns
+  // their freshness.
+  readonly property double staleAgeMs: provider && provider.updatedAtMs > 0
+    ? root.nowMs - provider.updatedAtMs
+    : -1
+  readonly property bool stale: root.staleAgeMs > 2 * usage.refreshIntervalSec * 1000
+  readonly property string staleText: root.stale ? "stale · " + root.formatAge(root.staleAgeMs) : ""
+
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
@@ -145,6 +157,18 @@ Panel {
     var days = Math.floor(hours / 24)
     if (days > 0) return days + "d " + (hours % 24) + "h"
     if (hours > 0) return hours + "h " + (minutes % 60) + "m"
+    return Math.max(1, minutes) + "m"
+  }
+
+  // Compact age for the stale pill, where "12h 0m" would read as noise next
+  // to the provider name. Countdowns keep the minute detail; ages drop it.
+  function formatAge(ms) {
+    if (!(ms > 0)) return ""
+    var minutes = Math.floor(ms / 60000)
+    var hours = Math.floor(minutes / 60)
+    var days = Math.floor(hours / 24)
+    if (days > 0) return days + "d " + (hours % 24) + "h"
+    if (hours > 0) return hours + "h"
     return Math.max(1, minutes) + "m"
   }
 
@@ -401,6 +425,9 @@ Panel {
             width: parent.width
             title: root.provider ? root.provider.providerName : ""
             meta: root.heroMeta(root.provider)
+            detail: root.staleText
+            detailAlarming: root.stale
+            detailAlarmColor: root.urgent
             foreground: root.foreground
             fontFamily: root.fontFamily
 

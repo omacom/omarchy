@@ -81,9 +81,9 @@ def local_noon_utc(day):
 
 go_page = (
     '<html><body><script>'
-    'rollingUsage:$R[1]={status:"ok",resetInSec:8073,usagePercent:1.0},'
-    'weeklyUsage:$R[2]={status:"ok",resetInSec:101069,usagePercent:60},'
-    'monthlyUsage:$R[3]={status:"ok",resetInSec:2347422,usagePercent:30},'
+    'rollingUsage:$R[1]={status:"ok",resetInSec:8073,usagePercent:1.0,usage:12000000,limit:1200000000},'
+    'weeklyUsage:$R[2]={status:"ok",resetInSec:101069,usagePercent:60,usage:1800000000,limit:3000000000},'
+    'monthlyUsage:$R[3]={status:"ok",resetInSec:2347422,usagePercent:30,usage:1800000000,limit:6000000000},'
     'liteSubscriptionID:"sub_test"'
     '</script></body></html>'
 )
@@ -119,22 +119,64 @@ stats = module.build_stats(records)
 full_record = module.build_record(meters, plan, records)
 limits_only = module.build_record(meters, plan, [])
 
-# --- extract_auth_cookie fixture -------------------------------------------
+# --- extract_all_cookies fixture -------------------------------------------
 fixture_dir = tempfile.mkdtemp()
 cookie_db = os.path.join(fixture_dir, "cookies.sqlite")
 conn = sqlite3.connect(cookie_db)
-conn.execute("CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT, expiry INTEGER)")
-conn.execute("INSERT INTO moz_cookies VALUES ('.opencode.ai', 'auth', 'auth-token-xyz', 9999999999)")
+conn.execute(
+    "CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT, expiry INTEGER, "
+    "lastAccessed INTEGER, creationTime INTEGER)"
+)
+conn.execute(
+    "INSERT INTO moz_cookies VALUES ('.opencode.ai', 'auth', 'auth-token-xyz', "
+    "9999999999, 5000, 1000)"
+)
 conn.commit()
 conn.close()
-assert module.extract_auth_cookie(cookie_db) == "auth-token-xyz", "auth cookie value round-trips"
+assert module.extract_all_cookies(cookie_db) == [("auth", "auth-token-xyz", 5000)], "auth cookie value round-trips"
 
 empty_db = os.path.join(fixture_dir, "empty.sqlite")
 conn = sqlite3.connect(empty_db)
-conn.execute("CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT, expiry INTEGER)")
+conn.execute(
+    "CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT, expiry INTEGER, "
+    "lastAccessed INTEGER, creationTime INTEGER)"
+)
 conn.commit()
 conn.close()
-assert module.extract_auth_cookie(empty_db) == "", "empty cookies db yields an empty cookie"
+assert module.extract_all_cookies(empty_db) == [], "empty cookies db yields an empty list"
+
+multi_db = os.path.join(fixture_dir, "multi.sqlite")
+conn = sqlite3.connect(multi_db)
+conn.execute(
+    "CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT, expiry INTEGER, "
+    "lastAccessed INTEGER, creationTime INTEGER)"
+)
+# Two auth cookies with different lastAccessed — the more recent one wins.
+conn.execute(
+    "INSERT INTO moz_cookies VALUES ('opencode.ai', 'auth', 'stale-token', "
+    "9999999999, 1000, 1000)"
+)
+conn.execute(
+    "INSERT INTO moz_cookies VALUES ('opencode.ai', 'auth', 'fresh-token', "
+    "1818027938219, 9000, 2000)"
+)
+conn.execute(
+    "INSERT INTO moz_cookies VALUES ('opencode.ai', 'oc_locale', 'en', "
+    "1818028166359, 8000, 3000)"
+)
+conn.commit()
+conn.close()
+result = module.extract_all_cookies(multi_db)
+assert result == [
+    ("auth", "fresh-token", 9000),
+    ("oc_locale", "en", 8000),
+    ("auth", "stale-token", 1000),
+], "multi-cookie db returns all cookies sorted by lastAccessed"
+
+header = module.build_cookie_header(result)
+assert header == "auth=fresh-token; oc_locale=en", "build_cookie_header de-duplicates by name keeping freshest"
+
+# --- resolve_workspace precedence, never touching the network -------------
 
 # --- resolve_workspace precedence, never touching the network -------------
 os.environ["OPENCODE_WORKSPACE"] = "wrk_eeeeeeeeeeeeeeeeeeeeeeeeee"
@@ -197,6 +239,19 @@ failure_record = json.loads(captured.getvalue())
 assert failure_record["limits"] == cache_payload["limits"], "cached limits survive a refresh failure"
 assert failure_record["retryAdvised"] is True, "transport failure advises an earlier retry"
 assert failure_record["usageStatusText"] == "Couldn't reach opencode.ai", "status card explains the failure"
+
+# --- format change detection: no meters and no auth redirect ----------------
+def fetch_unknown_format(cookie, path):
+    return "<html><body><h1>Go Plan Dashboard</h1><p>Loading...</p></body></html>"
+module.fetch_page = fetch_unknown_format
+
+captured = io.StringIO()
+with contextlib.redirect_stdout(captured):
+    exit_code = module.main()
+assert exit_code == 0, "main returns 0 when the page format changes"
+format_record = json.loads(captured.getvalue())
+assert format_record["usageStatusText"] == "Page format changed", "unrecognised HTML is reported as a format change, not auth failure"
+assert format_record["retryAdvised"] is True, "format change advises retry in case it was transient"
 
 print(json.dumps({
     "plan": plan,

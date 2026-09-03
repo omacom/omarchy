@@ -42,7 +42,7 @@ FETCH_TIMEOUT_SECONDS = 15
 USER_AGENT = "omarchy-agent-usage-opencode-go/1.0"
 
 METER_RE = re.compile(
-    r'(rollingUsage|weeklyUsage|monthlyUsage):\$R\[\d+\]=\{status:"([^"]+)",resetInSec:(\d+),usagePercent:([\d.]+)\}'
+    r'(rollingUsage|weeklyUsage|monthlyUsage):\$R\[\d+\]=\{status:"([^"]+)",resetInSec:(\d+),usagePercent:([\d.]+)[^}]*\}'
 )
 PLAN_RE = re.compile(r'liteSubscriptionID:"[^"]+"')
 WORKSPACE_RE = re.compile(r'\{id:"(wrk_[A-Za-z0-9]{26})"[^}]*\}')
@@ -105,8 +105,19 @@ def find_cookie_dbs() -> list[Path]:
   return found
 
 
-def extract_auth_cookie(cookie_db: Path) -> str:
-  """Read the opencode.ai auth cookie from a Firefox-style cookies.sqlite.
+def extract_all_cookies(cookie_db: Path) -> list[tuple[str, str, int]]:
+  """Read every opencode.ai cookie scoped for the main opencode.ai domain.
+
+  Returns a list of (name, value, lastAccessed) tuples ordered by
+  lastAccessed descending (most recently sent by the browser first).
+
+  The browser only sends cookies whose domain matches the request host:
+  - host='opencode.ai' → exact match, sent to opencode.ai
+  - host='.opencode.ai' → domain cookie, sent to opencode.ai and subdomains
+  - host='auth.opencode.ai' → subdomain-scoped, NOT sent to opencode.ai
+
+  We mirror that scoping so we do not leak subdomain cookies to the main
+  site or send cookies the server is not expecting.
 
   The database is copied to a temp dir first so a running browser's WAL (and
   the file locks that come with it) does not interfere; the copy is a snapshot.
@@ -121,17 +132,35 @@ def extract_auth_cookie(cookie_db: Path) -> str:
     try:
       conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
       try:
-        row = conn.execute(
-          "SELECT value FROM moz_cookies WHERE host IN ('.opencode.ai','opencode.ai') "
-          "AND name='auth' ORDER BY expiry DESC LIMIT 1"
-        ).fetchone()
-        return str(row[0]) if row else ""
+        rows = conn.execute(
+          "SELECT name, value, lastAccessed FROM moz_cookies "
+          "WHERE host IN ('.opencode.ai','opencode.ai') "
+          "ORDER BY lastAccessed DESC"
+        ).fetchall()
+        return [(str(r[0]), str(r[1]), int(r[2])) for r in rows]
       finally:
         conn.close()
     except sqlite3.Error:
-      return ""
+      return []
+  except (OSError, PermissionError):
+    # The copy itself can fail if the profile dir is unreadable or the
+    # temp filesystem is full.  Treat it the same as a missing cookie.
+    return []
   finally:
     shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def build_cookie_header(cookies: list[tuple[str, str, int]]) -> str:
+  """Format cookies as a `Cookie` header value, de-duplicating by name so
+  the most recently accessed value wins (browser behavior)."""
+  seen: dict[str, bool] = {}
+  parts: list[str] = []
+  for name, value, _ in cookies:
+    if name in seen:
+      continue
+    seen[name] = True
+    parts.append(f"{name}={value}")
+  return "; ".join(parts)
 
 
 def resolve_session(cfg: dict[str, Any]) -> str:
@@ -143,22 +172,25 @@ def resolve_session(cfg: dict[str, Any]) -> str:
         return value
     except Exception:
       pass
+  all_cookies: list[tuple[str, str, int]] = []
   for db in find_cookie_dbs():
-    cookie = extract_auth_cookie(db)
-    if cookie:
-      return cookie
-  return ""
+    all_cookies.extend(extract_all_cookies(db))
+  if not all_cookies:
+    return ""
+  # Send every opencode.ai cookie, just like the browser does.
+  # De-duplicate by name so the most recently accessed value wins.
+  return build_cookie_header(all_cookies)
 
 
 # --------------------------------------------------------------- workspace
 
 
-def list_workspaces(cookie: str) -> list[str]:
+def list_workspaces(cookie_header: str) -> list[str]:
   request = urllib.request.Request(
     SITE + "/_server",
     method="POST",
     headers={
-      "Cookie": f"auth={cookie}",
+      "Cookie": cookie_header,
       "User-Agent": USER_AGENT,
       "Accept": "text/html",
       "X-Server-Id": WORKSPACES_SERVER_FN_ID,
@@ -173,7 +205,7 @@ def list_workspaces(cookie: str) -> list[str]:
   return sorted(seen)
 
 
-def resolve_workspace(cfg: dict[str, Any], cookie: str) -> tuple[str, str]:
+def resolve_workspace(cfg: dict[str, Any], cookie_header: str) -> tuple[str, str]:
   """Return (workspace, status); status is "" on success, "transport" when the
   workspace RPC could not reach the network, and "unknown" when zero or
   several workspaces came back."""
@@ -184,7 +216,7 @@ def resolve_workspace(cfg: dict[str, Any], cookie: str) -> tuple[str, str]:
   if env:
     return env, ""
   try:
-    workspaces = list_workspaces(cookie)
+    workspaces = list_workspaces(cookie_header)
   except Exception:
     return "", "transport"
   if len(workspaces) == 1:
@@ -195,24 +227,45 @@ def resolve_workspace(cfg: dict[str, Any], cookie: str) -> tuple[str, str]:
 # ------------------------------------------------------------------- fetch
 
 
-def fetch_page(cookie: str, path: str) -> str:
-  """GET a workspace page. HTTP status errors become RuntimeError; transport
-  failures raise urllib.error.URLError unchanged."""
+class FetchError(Exception):
+  def __init__(self, status_code: int):
+    self.status_code = status_code
+    super().__init__(f"opencode.ai returned status {status_code}")
+
+
+def fetch_page(cookie_header: str, path: str, retries: int = 1) -> str:
+  """GET a workspace page. HTTP status errors become FetchError; transport
+  failures raise urllib.error.URLError unchanged.
+
+  Retries once on transport failures (no route, timeout) and on 5xx server
+  errors, with a 1-second pause between attempts.  4xx errors are not
+  retried — they are client-side and unlikely to change on a second try."""
   request = urllib.request.Request(
     SITE + path,
     headers={
-      "Cookie": f"auth={cookie}",
+      "Cookie": cookie_header,
       "User-Agent": USER_AGENT,
       "Accept": "text/html",
     },
   )
-  try:
-    with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
-      return response.read().decode("utf-8", errors="replace")
-  except urllib.error.HTTPError as error:
-    # HTTPError subclasses URLError; convert it so main() can tell a server
-    # answer from a transport failure (no route, no DNS, timeout).
-    raise RuntimeError(f"opencode.ai returned status {error.code}") from error
+  last_error: Exception | None = None
+  for attempt in range(retries + 1):
+    try:
+      with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
+        return response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as error:
+      last_error = error
+      if 500 <= error.code < 600 and attempt < retries:
+        time.sleep(1)
+        continue
+      raise FetchError(error.code) from error
+    except urllib.error.URLError:
+      last_error = sys.exc_info()[1]
+      if attempt < retries:
+        time.sleep(1)
+        continue
+      raise
+  raise last_error or RuntimeError("fetch_page exhausted retries")
 
 
 # ------------------------------------------------------------------- parse
@@ -462,7 +515,9 @@ def main() -> int:
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true", help="accepted no-op (update-runner compatibility; no cache reuse to bypass)")
   parser.add_argument("--limits-only", action="store_true", help="accepted no-op (update-runner compatibility; limits are always fresh)")
-  parser.parse_args()
+  parser.add_argument("--debug", action="store_true", help="dump fetched HTML to stderr when meter parsing fails")
+  args = parser.parse_args()
+  debug = args.debug
 
   cfg = agent_config()
   cached = read_limits_cache()
@@ -493,8 +548,11 @@ def main() -> int:
       cached, "Couldn't reach opencode.ai", "Couldn't reach opencode.ai. Retrying shortly.", retry=True
     ))
     return 0
-  except RuntimeError as error:
-    print_record(failure_record(cached, "Sign-in expired", f"{error}. Sign in again in a browser."))
+  except FetchError as error:
+    if error.status_code in (401, 403):
+      print_record(failure_record(cached, "Sign-in expired", f"opencode.ai returned status {error.status_code}. Sign in again in a browser."))
+    else:
+      print_record(failure_record(cached, "Server error", f"opencode.ai returned status {error.status_code}. Retrying shortly.", retry=True))
     return 0
   except Exception:
     # http.client.HTTPException subclasses (BadStatusLine, IncompleteRead) and
@@ -507,11 +565,20 @@ def main() -> int:
 
   meters, plan = parse_meters(go_html)
   if not meters:
-    # The console redirects signed-out sessions to /signin; the page then
-    # carries no meter data.
-    print_record(failure_record(
-      cached, "Sign-in expired", "The opencode.ai session cookie is invalid or expired. Sign in again in a browser."
-    ))
+    if debug:
+      print(f"DEBUG: fetched {len(go_html)} chars from /workspace/{workspace}/go", file=sys.stderr)
+      print(f"DEBUG: first 4000 chars:\n{go_html[:4000]}", file=sys.stderr)
+    # Distinguish an auth redirect (cookie is genuinely stale) from a page
+    # format change (meters moved to a different markup pattern).
+    looks_like_auth = "OpenAuth" in go_html or "/signin" in go_html
+    if looks_like_auth:
+      print_record(failure_record(
+        cached, "Sign-in expired", "The opencode.ai session cookie is invalid or expired. Sign in again in a browser."
+      ))
+    else:
+      print_record(failure_record(
+        cached, "Page format changed", "The opencode.ai console layout changed and meters could not be found. This collector may need an update.", retry=True
+      ))
     return 0
 
   # Meters parsed — this is the healthy answer of record, so the cache is
