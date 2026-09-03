@@ -11,11 +11,15 @@ Item {
   property bool playbackEnabled: true
   property bool audioEnabled: false
   property bool loop: true
+  property int fadeOutDuration: 0
   property int mediaGeneration: 0
   property bool priming: false
   property int primingGeneration: -1
   property bool frameReceived: false
   readonly property bool ready: player.hasVideo
+  readonly property real fadeOutProgress: fadeOutDuration > 0 && player.duration > 0
+    ? Math.max(0, Math.min(1, (player.position - (player.duration - fadeOutDuration)) / fadeOutDuration))
+    : 0
 
   signal finished()
 
