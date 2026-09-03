@@ -25,6 +25,9 @@ Item {
   property string oldBackground: ""
   property bool finishingTransition: false
   property int backgroundVersion: 0
+  property int bootIntroRequestVersion: -1
+  property int bootIntroFinishedScreens: 0
+  property int fullscreenScreens: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -47,6 +50,15 @@ Item {
   // A lock or a screensaver covers every output, so it is decided once here.
   // Fullscreen is decided per output below, because it only covers its own.
   readonly property bool sessionObscured: lockActive || screensaverActive
+  readonly property bool fullscreenActive: fullscreenScreens > 0
+
+  onSessionObscuredChanged: {
+    if (sessionObscured) cancelBootIntro()
+  }
+
+  onFullscreenActiveChanged: {
+    if (fullscreenActive) cancelBootIntro()
+  }
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -67,13 +79,25 @@ Item {
   function checkBootIntro() {
     if (bootIntroChecked || bootIntroProc.running) return
     bootIntroChecked = true
+    bootIntroRequestVersion = backgroundVersion
     bootIntroProc.running = true
   }
 
   function finishBootIntro() {
-    if (!bootIntroActive) return
+    bootIntroRequestVersion = -1
+    bootIntroFinishedScreens = 0
     bootIntroActive = false
     bootIntroPath = ""
+  }
+
+  function cancelBootIntro() {
+    finishBootIntro()
+  }
+
+  function markBootIntroFinished() {
+    if (!bootIntroActive) return
+    bootIntroFinishedScreens += 1
+    if (bootIntroFinishedScreens >= Quickshell.screens.length) finishBootIntro()
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
@@ -181,7 +205,13 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: {
         const path = String(text || "").trim()
+        if (root.bootIntroRequestVersion !== root.backgroundVersion || root.sessionObscured || root.fullscreenActive) {
+          root.finishBootIntro()
+          return
+        }
+        root.bootIntroRequestVersion = -1
         if (!path) return
+        root.bootIntroFinishedScreens = 0
         root.bootIntroPath = path
         root.bootIntroActive = true
       }
@@ -209,6 +239,17 @@ Item {
 
     function themeTransition(fromPath: string, path: string, finalPath: string, colorsB64: string, shellB64: string): void {
       root.transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64)
+    }
+
+    function cancelBootIntro(): void {
+      root.cancelBootIntro()
+    }
+  }
+
+  Connections {
+    target: Quickshell
+    function onScreensChanged() {
+      if (root.bootIntroActive && root.bootIntroFinishedScreens >= Quickshell.screens.length) root.finishBootIntro()
     }
   }
 
@@ -275,6 +316,28 @@ Item {
         && String(Quickshell.screens[0].name || "") === String(modelData.name || "")
 
       property bool maskReady: false
+      property bool bootIntroFinished: false
+      property bool fullscreenReported: false
+
+      Component.onDestruction: {
+        if (fullscreenReported) root.fullscreenScreens = Math.max(0, root.fullscreenScreens - 1)
+        if (bootIntroFinished && root.bootIntroActive) root.bootIntroFinishedScreens = Math.max(0, root.bootIntroFinishedScreens - 1)
+      }
+
+      Component.onCompleted: syncFullscreenState()
+      onFullscreenHereChanged: syncFullscreenState()
+
+      function syncFullscreenState() {
+        if (fullscreenReported === fullscreenHere) return
+        fullscreenReported = fullscreenHere
+        root.fullscreenScreens = Math.max(0, root.fullscreenScreens + (fullscreenHere ? 1 : -1))
+      }
+
+      function handleBootIntroFinished() {
+        if (bootIntroFinished || !root.bootIntroActive) return
+        bootIntroFinished = true
+        root.markBootIntroFinished()
+      }
 
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
@@ -313,9 +376,12 @@ Item {
         anchors.fill: parent
         path: root.bootIntroActive ? root.bootIntroPath : ""
         playbackEnabled: root.bootIntroActive && !root.sessionObscured && !panel.fullscreenHere
+        audioEnabled: false
         loop: false
-        visible: root.bootIntroActive
-        onFinished: root.finishBootIntro()
+        fadeOutDuration: 750
+        opacity: 1 - fadeOutProgress
+        visible: root.bootIntroActive && opacity > 0
+        onFinished: panel.handleBootIntroFinished()
       }
 
       Image {
@@ -390,6 +456,9 @@ Item {
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
           panel.maybeStartReveal()
+        }
+        function onBootIntroActiveChanged() {
+          if (root.bootIntroActive) panel.bootIntroFinished = false
         }
       }
 
