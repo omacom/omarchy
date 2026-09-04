@@ -13,6 +13,8 @@ Item {
 
   readonly property int batteryThreshold: 10
   property string pendingPowerSource: ""
+  property string pendingPowerSourceHook: ""
+
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
   // shell started, so a one-off read on startup, on a power source change and
@@ -82,6 +84,17 @@ Item {
     }
   }
 
+  function dispatchPowerSourceHook() {
+    pendingPowerSourceHook = UPower.onBattery ? "battery" : "ac"
+    if (!powerSourceHookProcess.running) runPendingPowerSourceHook()
+  }
+
+  function runPendingPowerSourceHook() {
+    powerSourceHookProcess.command = ["omarchy-hook", "power-source-change", pendingPowerSourceHook]
+    pendingPowerSourceHook = ""
+    powerSourceHookProcess.running = true
+  }
+
   Process { id: warningProcess }
 
   Process {
@@ -124,6 +137,11 @@ Item {
     function refreshPowerProfile(): void { root.refreshPowerProfile() }
   }
 
+  Process {
+    id: powerSourceHookProcess
+    onExited: if (root.pendingPowerSourceHook !== "") root.runPendingPowerSourceHook()
+  }
+
   Timer {
     interval: 30000
     running: true
@@ -138,6 +156,7 @@ Item {
       root.checkBattery()
       root.applyPowerProfile()
       root.refreshPowerProfile()
+      root.dispatchPowerSourceHook()
     }
   }
 
