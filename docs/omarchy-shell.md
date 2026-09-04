@@ -102,6 +102,26 @@ The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 Elsewhen (`omacom.elsewhen`) ships in the `elsewhen` package at `/usr/share/omarchy/shell/plugins/omacom.elsewhen`, where the shell discovers it automatically. New installs place it immediately before the clock; the migration uses `omarchy bar put omacom.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. Existing plugin directories and symlinks are left intact. The normal update flow restarts the shell after migrations; the migration does not interrupt plugin loading with an immediate restart. With no shell to ask, as in an update from a TTY, the migration installs the package and skips the placement rather than failing the update; `omarchy bar put omacom.elsewhen --before omarchy.clock` places the widget later.
 
+## Wall-clock jumps
+
+`SystemClock` waits out a delay measured on a clock that stops while the machine is suspended, so it wakes still reporting the time it had before — for up to one full precision period, a whole minute at `SystemClock.Minutes`. An NTP correction after a long time offline steps the clock the same way. A plugin that displays a time should resync when `Wallclock` reports the step:
+
+```qml
+import qs.Commons
+
+SystemClock {
+  id: clock
+  precision: SystemClock.Minutes
+}
+
+Connections {
+  target: Wallclock
+  function onJumped() { Wallclock.resync(clock) }
+}
+```
+
+`Wallclock.resync(clock)` makes the clock re-read the wall clock and reschedule from now.
+
 ## IPC
 
 The shell exposes a `shell` target (the host also registers
