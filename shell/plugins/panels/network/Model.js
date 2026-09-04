@@ -315,6 +315,13 @@ function wifiSectionTitle(wifiNetworks, index) {
   return ""
 }
 
+function shouldShowAdapter(info) {
+  var value = info || {}
+  if (value.type === "wifi") return parseInt(value.wifi_adapter_count, 10) > 1
+  if (value.type === "ethernet") return parseInt(value.ethernet_adapter_count, 10) > 1
+  return false
+}
+
 // OWE (Enhanced Open) encrypts traffic without authenticating the user, so it
 // has no credentials to collect. The panel's lock is a credentials-required
 // affordance, so OWE should neither show it nor open its attached prompt.
@@ -389,6 +396,7 @@ if (typeof module !== "undefined") {
     wifiRow: wifiRow,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
+    shouldShowAdapter: shouldShowAdapter,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
