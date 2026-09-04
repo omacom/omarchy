@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.spacebeach",
+  "name": "SpaceBeach",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "A local-first visual time machine for the Omarchy desktop",
+  "kinds": [
+    "service",
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "overlay": "SpaceBeach.qml"
+  }
+}

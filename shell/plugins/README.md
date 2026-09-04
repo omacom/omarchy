@@ -18,6 +18,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Emojis        | `omarchy.emojis`          | `overlay`               | `emojis/Emojis.qml`                   |
 | Clipboard mgr | `omarchy.clipboard`       | `overlay`               | `clipboard/Clipboard.qml`             |
 | Reminders     | `omarchy.reminders`       | `overlay`               | `reminders/ReminderFlow.qml`          |
+| SpaceBeach    | `omarchy.spacebeach`       | `service`, `overlay`    | `spacebeach/Service.qml`, `spacebeach/SpaceBeach.qml` |
 | Omarchy menu  | `omarchy.menu`            | `menu`, `bar-widget`    | `menu/Menu.qml`, `menu/BarWidget.qml` |
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
