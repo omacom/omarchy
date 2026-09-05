@@ -4,6 +4,13 @@
 # omarchy:group=system
 # omarchy:hidden=true
 
+# Bounds the wait for logind to finish a sleep operation. The wait only ever
+# spans the tail of a resume, so the cap is a backstop against a stuck
+# PreparingForSleep rather than a duration worth tuning.
+settle_timeout_ms=30000
+settle_interval=0.1
+settle_interval_ms=100
+
 consume_sleep_events() {
   local line sleep_lock
   sleep_lock="$OMARCHY_PATH/bin/omarchy-system-sleep-lock"
@@ -40,6 +47,29 @@ monitor_sleep_events() {
   return "$status"
 }
 
+preparing_for_sleep() {
+  local value
+  value=$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager PreparingForSleep 2>/dev/null)
+
+  [[ ${value##* } == "true" ]]
+}
+
+# Releasing the inhibitor means exiting, so every locked suspend is followed by
+# a Restart. That restart lands while logind is still working through the sleep
+# operation, and logind refuses a delay inhibitor for an operation already in
+# flight: systemd-inhibit exits 1 and Restart tries again RestartSec later.
+# The retries burn StartLimitBurst, and tripping it leaves the unit failed --
+# so the next suspend gets no lock at all. Wait the operation out instead.
+wait_for_sleep_operation() {
+  local waited_ms=0
+
+  while (( waited_ms < settle_timeout_ms )) && preparing_for_sleep; do
+    sleep "$settle_interval"
+    (( waited_ms += settle_interval_ms ))
+  done
+}
+
 case ${1:-} in
   --consume)
     consume_sleep_events
@@ -52,6 +82,8 @@ case ${1:-} in
 esac
 
 sleep_monitor="$OMARCHY_PATH/bin/omarchy-system-sleep-monitor"
+
+wait_for_sleep_operation
 
 exec systemd-inhibit \
   --what=sleep \
