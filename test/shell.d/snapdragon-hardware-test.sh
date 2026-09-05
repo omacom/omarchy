@@ -37,6 +37,27 @@ bash -n "$firmware_setup" "$dtb_setup" || fail "Snapdragon hardware scripts have
 [[ -f $scratch/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
   fail "Snapdragon firmware setup protects a USB-backed root disk"
 
+run_internal_firmware_setup() (
+  omarchy-hw-qualcomm-soc() { return 0; }
+  omarchy-pkg-add() { :; }
+  findmnt() { printf '/dev/mapper/root\n'; }
+  lsblk() { printf 'nvme\n'; }
+  inspection_status=$1
+  qcom-firmware-extract() {
+    [[ $1 == "--list-missing" ]] || return 0
+    return "$inspection_status"
+  }
+  OMARCHY_QUALCOMM_MODPROBE_DIR="$scratch/modprobe.d"
+  source "$firmware_setup"
+)
+
+run_internal_firmware_setup 1
+[[ -f $scratch/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
+  fail "Snapdragon setup keeps DSPs disabled when firmware inspection fails"
+run_internal_firmware_setup 0
+[[ ! -f $scratch/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
+  fail "Snapdragon setup enables DSPs after firmware is verified on an internal root"
+
 mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/x1e80100-test.dtb"
 : >"$scratch/dtbs/x1e80100-test-el2.dtb"
@@ -56,7 +77,10 @@ run_dtb_setup() (
 )
 
 run_dtb_setup
+first_uki_config=$(<"$scratch/uki.conf")
 run_dtb_setup
+[[ $(<"$scratch/uki.conf") == "$first_uki_config" ]] ||
+  fail "Snapdragon DTB setup is idempotent"
 
 grep -Fq 'SecureBootPrivateKey=/secure/db.key' "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup preserves Secure Boot settings"

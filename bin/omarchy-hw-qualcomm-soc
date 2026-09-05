@@ -2,4 +2,5 @@
 
 # omarchy:summary=Detect a Qualcomm SoC from the boot device tree.
 
-tr '\0' '\n' </sys/firmware/devicetree/base/compatible 2>/dev/null | grep -q '^qcom,'
+[[ -r /sys/firmware/devicetree/base/compatible ]] || exit 1
+tr '\0' '\n' </sys/firmware/devicetree/base/compatible | grep '^qcom,' >/dev/null
