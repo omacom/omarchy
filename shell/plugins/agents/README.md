@@ -18,12 +18,14 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.
-- **Tokens by day** — one row per day for the last week: day, bar, tokens, with today
-  bolded at the bottom. Hover today for its prompt and session count.
+- **Period** — Day, Week, Month, or Total. Week is the default (last seven days). Total keeps the all-time model breakdown and does not reset with a quota window. `1`/`d`, `2`/`w`, `3`/`m`, `4`/`t` switch the filter.
+- **Tokens by day** — one row per day in the selected period: day, bar, tokens, with today
+  bolded at the bottom. Hover today for its prompt and session count. Hidden on Total, and on a harness that has no token history for the window.
 - **Tokens by model** — tokens per model with the bar behind each row scaled
   to the heaviest model,
   the same way the weekly chart scales to its busiest day. Hover for the
   input / output / cache split.
+- **All** — a first chip that sums every enabled harness: tokens by day and by model across Claude Code, Codex, Fireworks, Antigravity, Hermes, and any other record that appears. Rate limits stay per-account and are not merged.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
@@ -55,10 +57,13 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `antigravity` | `agy -p /usage --output-format json` (Gemini and Claude/GPT-OSS session + weekly pools) | `~/.gemini/antigravity-cli` `history.jsonl` and `conversation_summaries.db` |
+| `hermes` | none (bring-your-own providers) | `~/.hermes/state.db` (`HERMES_HOME`), including `profiles/*/state.db` |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Antigravity via
+`ANTIGRAVITY_DATA_DIR`, Hermes via `HERMES_HOME`. Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
@@ -92,10 +97,27 @@ accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
 
+### Antigravity quotas
+
+The collector asks `agy` for the same `/usage` payload the CLI panel shows.
+`agy` reports `remaining_fraction` (full → empty); the record inverts that to
+percent-used so the meters climb toward 100% like Claude and Codex. Gemini
+models share one session and one weekly pool; Claude and GPT-OSS share another.
+A missing `agy` or a failed probe leaves the tab on local prompt counts only.
+
+### Hermes tokens
+
+Hermes has no account quota. The collector sums `session_model_usage` in
+`~/.hermes/state.db` (and each `profiles/*/state.db`), skips archived sessions,
+and folds reasoning tokens into output. Each API call is one prompt. An
+optional `history` array on the record carries per-day model totals so Month
+and Total can filter more than the last seven days.
+
 ## Interactions
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
+  `1`/`d` Day, `2`/`w` Week, `3`/`m` Month, `4`/`t` Total,
   Tab moves to the neighboring bar panel, Esc closes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
@@ -128,7 +150,9 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "antigravity": { "enabled": true },
+  "hermes": { "enabled": true }
 }' --json
 ```
 

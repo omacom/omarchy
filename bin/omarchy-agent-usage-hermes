@@ -1,0 +1,250 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Hermes usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Hermes usage into one display-ready JSON record.
+
+Tokens come from ~/.hermes/state.db (and HERMES_HOME / profile copies):
+session_model_usage joined to sessions. Reasoning tokens count as output.
+Child sessions are kept — their API calls are not on the parent row.
+Archived sessions are skipped.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sqlite3
+import sys
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "hermes"
+AGENT_NAME = "Hermes"
+
+
+def hermes_home() -> Path:
+  return Path(os.environ.get("HERMES_HOME") or "~/.hermes").expanduser()
+
+
+def db_paths(home: Path) -> list[Path]:
+  paths: list[Path] = []
+  seen: set[Path] = set()
+  candidates = [home / "state.db"]
+  profiles = home / "profiles"
+  if profiles.is_dir():
+    candidates.extend(sorted(profiles.glob("*/state.db")))
+  for path in candidates:
+    try:
+      resolved = path.resolve()
+    except OSError:
+      continue
+    if resolved in seen or not path.is_file():
+      continue
+    seen.add(resolved)
+    paths.append(path)
+  return paths
+
+
+def recent_dates(today: date) -> list[str]:
+  return [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def add_bucket(target: dict[str, int], inp: int, out: int, cache_read: int, cache_write: int) -> None:
+  target["inputTokens"] += inp
+  target["outputTokens"] += out
+  target["cacheReadInputTokens"] += cache_read
+  target["cacheCreationInputTokens"] += cache_write
+
+
+def bucket_total(bucket: dict[str, int]) -> int:
+  return (
+    bucket["inputTokens"]
+    + bucket["outputTokens"]
+    + bucket["cacheReadInputTokens"]
+    + bucket["cacheCreationInputTokens"]
+  )
+
+
+def day_from_unix(value: Any) -> str:
+  try:
+    return datetime.fromtimestamp(float(value)).astimezone().date().isoformat()
+  except (TypeError, ValueError, OSError, OverflowError):
+    return datetime.now().astimezone().date().isoformat()
+
+
+def scan_db(path: Path) -> dict[str, Any]:
+  models: dict[str, dict[str, int]] = defaultdict(empty_bucket)
+  daily_models: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+  daily_prompts: dict[str, int] = defaultdict(int)
+  daily_sessions: dict[str, set[str]] = defaultdict(set)
+  root_sessions: set[str] = set()
+  prompts = 0
+  try:
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+  except sqlite3.Error:
+    return {}
+  try:
+    conn.row_factory = sqlite3.Row
+    try:
+      rows = conn.execute(
+        """
+        SELECT
+                  s.id AS session_id,
+                  s.parent_session_id AS parent_session_id,
+                  s.archived AS archived,
+                  s.message_count AS message_count,
+                  u.model AS model,
+                  u.api_call_count AS api_call_count,
+                  u.input_tokens AS input_tokens,
+                  u.output_tokens AS output_tokens,
+                  u.cache_read_tokens AS cache_read_tokens,
+                  u.cache_write_tokens AS cache_write_tokens,
+                  u.reasoning_tokens AS reasoning_tokens,
+                  u.last_seen AS last_seen,
+                  s.last_activity_at AS last_activity_at,
+                  s.started_at AS started_at
+        FROM session_model_usage u
+        JOIN sessions s ON s.id = u.session_id
+        WHERE IFNULL(s.archived, 0) = 0
+        """
+      )
+    except sqlite3.Error:
+      return {}
+    for row in rows:
+      if int(row["message_count"] or 0) <= 0:
+        continue
+      model = str(row["model"] or "").strip() or "unknown"
+      inp = int(row["input_tokens"] or 0)
+      out = int(row["output_tokens"] or 0) + int(row["reasoning_tokens"] or 0)
+      cache_read = int(row["cache_read_tokens"] or 0)
+      cache_write = int(row["cache_write_tokens"] or 0)
+      calls = int(row["api_call_count"] or 0)
+      day = day_from_unix(row["last_seen"] or row["last_activity_at"] or row["started_at"])
+      add_bucket(models[model], inp, out, cache_read, cache_write)
+      daily_models[day][model] += inp + out + cache_read + cache_write
+      daily_prompts[day] += calls
+      daily_sessions[day].add(str(row["session_id"]))
+      prompts += calls
+      if not row["parent_session_id"]:
+        root_sessions.add(str(row["session_id"]))
+  finally:
+    conn.close()
+  return {
+    "models": models,
+    "daily_models": daily_models,
+    "daily_prompts": daily_prompts,
+    "daily_sessions": daily_sessions,
+    "root_sessions": root_sessions,
+    "prompts": prompts,
+  }
+
+
+def merge_scan(acc: dict[str, Any], extra: dict[str, Any]) -> None:
+  if not extra:
+    return
+  for model, bucket in extra["models"].items():
+    add_bucket(acc["models"][model], bucket["inputTokens"], bucket["outputTokens"],
+                   bucket["cacheReadInputTokens"], bucket["cacheCreationInputTokens"])
+  for day, models in extra["daily_models"].items():
+    for model, total in models.items():
+      acc["daily_models"][day][model] += total
+  for day, n in extra["daily_prompts"].items():
+    acc["daily_prompts"][day] += n
+  for day, ids in extra["daily_sessions"].items():
+    acc["daily_sessions"][day].update(ids)
+  acc["root_sessions"].update(extra["root_sessions"])
+  acc["prompts"] += extra["prompts"]
+
+
+def collect() -> dict[str, Any]:
+  today = datetime.now().astimezone().date()
+  today_s = today.isoformat()
+  week = recent_dates(today)
+  acc: dict[str, Any] = {
+    "models": defaultdict(empty_bucket),
+    "daily_models": defaultdict(lambda: defaultdict(int)),
+    "daily_prompts": defaultdict(int),
+    "daily_sessions": defaultdict(set),
+    "root_sessions": set(),
+    "prompts": 0,
+  }
+  for path in db_paths(hermes_home()):
+    merge_scan(acc, scan_db(path))
+
+  history = []
+  for day in sorted(set(acc["daily_models"]) | set(acc["daily_prompts"])):
+    tokens_by_model = dict(acc["daily_models"][day])
+    history.append({
+      "date": day,
+      "messageCount": sum(tokens_by_model.values()),
+      "tokensByModel": tokens_by_model,
+      "prompts": acc["daily_prompts"].get(day, 0),
+      "sessions": len(acc["daily_sessions"].get(day, set())),
+    })
+
+  today_models = dict(acc["daily_models"].get(today_s, {}))
+  recent = []
+  by_date = {row["date"]: row["messageCount"] for row in history}
+  for day in week:
+    recent.append({"date": day, "messageCount": by_date.get(day, 0)})
+
+  model_usage = {model: dict(bucket) for model, bucket in acc["models"].items()}
+  active = sorted({row["date"] for row in history if row["messageCount"] or row["prompts"]})
+  return {
+    "todayPrompts": acc["daily_prompts"].get(today_s, 0),
+    "todaySessions": len(acc["daily_sessions"].get(today_s, set())),
+    "todayTotalTokens": sum(today_models.values()),
+    "todayTokensByModel": today_models,
+    "recentDays": recent,
+    "history": history,
+    "totalPrompts": acc["prompts"],
+    "totalSessions": len(acc["root_sessions"]),
+    "activeDays": len(active),
+    "activeDates": active,
+    "modelUsage": model_usage,
+    "hasLocalStats": True,
+    "hasPromptStats": True,
+  }
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Hermes usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.parse_args()
+
+  stats = collect()
+  ready = stats["totalPrompts"] > 0 or stats["totalSessions"] > 0 or bool(stats["modelUsage"])
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": ready,
+    "tierLabel": "Local",
+    "usageStatusText": "",
+    "authHelpText": "",
+    "limits": [],
+    "scope": "device",
+  }
+  record.update(stats)
+  json.dump(record, sys.stdout, separators=(",", ":"), sort_keys=True)
+  sys.stdout.write("\n")
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
