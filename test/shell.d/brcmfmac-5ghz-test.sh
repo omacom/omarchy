@@ -204,9 +204,9 @@ grep -qx 'macaddr=11:22:33:44:55:66' "$(generic)" ||
   fail "the permanent address wins over a randomised netdev address" "$(grep '^macaddr' "$(generic)")"
 pass "the permanent address wins over a randomised netdev address"
 
-# A card with no usable OTP boots on Broadcom's 00:90:4c placeholder and
-# reports it as its own address; persisting that would share it across
-# machines.
+# A card whose wiphy only shows Broadcom's 00:90:4c placeholder: do not treat
+# that as a unique address, but keep the source macaddr= key. Firmware crashes
+# without it.
 rm -rf "$fwdir" "$packaged" "$pci_devices"
 mkdir -p "$fwdir" "$packaged"
 provide_perm_mac 00:90:4c:0d:f4:3e
@@ -216,20 +216,20 @@ printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
 printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
 invoke_leaf 43ba >/dev/null
 [[ -f "$(generic)" ]] || fail "a card on the placeholder address still gets the NVRAM"
-! grep -q '^macaddr=' "$(generic)" ||
-  fail "the Broadcom placeholder address is never persisted" "$(grep '^macaddr' "$(generic)")"
-pass "the Broadcom placeholder address is never persisted"
+grep -qx "$(grep '^macaddr=' "$nvram")" "$(generic)" ||
+  fail "placeholder wiphy keeps the source macaddr= key" "$(grep '^macaddr' "$(generic)")"
+pass "placeholder wiphy keeps the source macaddr= key"
 
-# No MAC discoverable: drop the line rather than shipping the donor address.
+# No MAC discoverable: keep the source macaddr= key.
 rm -rf "$fwdir" "$packaged" "$pci_devices"
 mkdir -p "$fwdir" "$packaged"
 printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
 printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
 invoke_leaf 43ba >/dev/null
 [[ -f "$(generic)" ]] || fail "a Mac with no discoverable MAC still gets the NVRAM"
-! grep -q '^macaddr=' "$(generic)" ||
-  fail "the macaddr line is stripped when no MAC is discoverable" "$(grep '^macaddr' "$(generic)")"
-pass "the macaddr line is stripped when no MAC is discoverable"
+grep -qx "$(grep '^macaddr=' "$nvram")" "$(generic)" ||
+  fail "macaddr= is kept from the source when no MAC is discoverable" "$(grep '^macaddr' "$(generic)")"
+pass "macaddr= is kept from the source when no MAC is discoverable"
 
 run_leaf "Apple Inc." "MacBookPro14,3" 43a0 >/dev/null
 [[ ! -f "$(generic)" ]] || fail "a Mac whose Wi-Fi brcmfmac does not drive is left alone"
@@ -362,11 +362,11 @@ rm -rf "$fwdir" "$packaged" "$pci_devices"
 mkdir -p "$fwdir" "$packaged"
 run_migration "Apple Inc." "MacBookPro14,3" 43ba
 [[ -f "$(generic)" ]] || fail "the migration installs NVRAM without a discoverable MAC"
-! grep -q '^macaddr=' "$(generic)" ||
-  fail "the migration strips macaddr when no MAC is discoverable" "$(grep '^macaddr' "$(generic)")"
+grep -qx "$(grep '^macaddr=' "$nvram")" "$(generic)" ||
+  fail "the migration keeps source macaddr= when no MAC is discoverable" "$(grep '^macaddr' "$(generic)")"
 grep -Fq $'omarchy-state\tset\treboot-required' "$calls" ||
   fail "the migration still asks for a reboot without a MAC" "$(cat "$calls")"
-pass "the migration strips macaddr when no MAC is discoverable"
+pass "the migration keeps source macaddr= when no MAC is discoverable"
 
 rm -rf "$fwdir" "$packaged"
 mkdir -p "$fwdir" "$packaged"

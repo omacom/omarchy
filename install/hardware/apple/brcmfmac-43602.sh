@@ -90,8 +90,9 @@ brcmfmac43602_installed() {
 # (a USB adapter at install time would otherwise donate its address). The
 # wiphy's macaddress is the permanent address; net/*/address is whatever is
 # current, which NetworkManager randomises while scanning. 00:90:4c is the
-# Broadcom OUI the firmware falls back to when the card has no usable OTP
-# address, so it is a placeholder and never worth persisting.
+# Broadcom OUI, not a board identity, so it is not substituted in. The
+# macaddr= key still has to exist in the file: without it, BCM43602 firmware
+# times out on cur_etheraddr and crashes the dongle (MacBookPro14,3).
 brcmfmac43602_wifi_mac() {
   local bdf pci_devices candidate mac
   pci_devices=$(brcmfmac43602_pci_devices)
@@ -132,15 +133,15 @@ brcmfmac43602_install() {
   fi
 
   work=$(mktemp) || return 1
+  # Copy first so macaddr= always survives. Then substitute a real permanent
+  # address when wifi_mac found one. Do not strip the key: that crash is
+  # documented in the wifi_mac comment.
+  if ! cat "$src" >"$work"; then
+    rm -f "$work"
+    return 1
+  fi
   if mac=$(brcmfmac43602_wifi_mac); then
-    if ! sed "s/^macaddr=.*/macaddr=$mac/" "$src" >"$work"; then
-      rm -f "$work"
-      return 1
-    fi
-  else
-    # No MAC discoverable: drop the line and let the firmware use the OTP
-    # address, which is how these NICs already run with no NVRAM at all.
-    if ! sed '/^macaddr=/d' "$src" >"$work"; then
+    if ! sed -i "s/^macaddr=.*/macaddr=$mac/" "$work"; then
       rm -f "$work"
       return 1
     fi
