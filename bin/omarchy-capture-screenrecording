@@ -247,7 +247,7 @@ toggle_screenrecording_indicator() {
 }
 
 screenrecording_active() {
-  pgrep -f "^gpu-screen-recorder" >/dev/null
+  pidof -q gpu-screen-recorder
 }
 
 finalize_recording() {

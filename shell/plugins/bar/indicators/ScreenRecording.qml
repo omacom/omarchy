@@ -15,7 +15,7 @@ BarIndicator {
 
   function refresh() {
     if (!root.bar || statusProc.running) return
-    statusProc.command = ["pgrep", "--quiet", "-f", "^gpu-screen-recorder"]
+    statusProc.command = ["pidof", "-q", "gpu-screen-recorder"]
     statusProc.running = true
   }
 
