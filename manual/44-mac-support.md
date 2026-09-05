@@ -52,7 +52,7 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 
 - Touch Bar is non-functional
 - Sound is not functioning
-- When `apple_ib_als` is bound, panel and keyboard backlight follow the T1 ambient light sensor (`omarchy-als-brightness`)
+- When `apple_ib_als` is bound, panel and keyboard backlight follow the T1 ambient light sensor (`omarchy-als-brightness`). Toggle with Trigger > Hardware > Auto Brightness, or `omarchy toggle als brightness` (macOS: Displays > Automatically adjust brightness).
 
 #### Devices with T2 Chip
 

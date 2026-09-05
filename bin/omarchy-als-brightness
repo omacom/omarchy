@@ -69,6 +69,12 @@ internal_dpms_off() {
   [[ $s == false ]]
 }
 
+# macOS Displays > Automatically adjust brightness. Flag present = off.
+auto_brightness_off() {
+  local flag=${OMARCHY_ALS_TOGGLE:-$HOME/.local/state/omarchy/toggles/auto-brightness-off}
+  [[ -f $flag ]]
+}
+
 als=$(als_path) || exit 0
 panel=$(panel_dev) || exit 0
 kbd=$(kbd_dev) || kbd=""
@@ -77,7 +83,7 @@ last_panel=-1
 last_kbd=-1
 
 while true; do
-  if lid_closed || internal_dpms_off; then
+  if lid_closed || internal_dpms_off || auto_brightness_off; then
     last_panel=-1
     last_kbd=-1
     sleep 1

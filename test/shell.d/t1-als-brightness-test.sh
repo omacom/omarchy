@@ -61,7 +61,15 @@ pass "migration is gated and has no shebang"
 
 grep -Fq 'omarchy-als-brightness' "$ROOT/manual/44-mac-support.md" ||
   fail "Mac support chapter documents T1 ALS auto-brightness"
+grep -Fq 'omarchy toggle als brightness' "$ROOT/manual/44-mac-support.md" ||
+  fail "Mac support chapter documents the auto-brightness toggle"
 pass "Mac support chapter documents T1 ALS auto-brightness"
+
+grep -Fq 'omarchy-toggle-als-brightness' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
+  fail "Hardware menu exposes the auto-brightness toggle"
+grep -Fq 'omarchy-hw-apple-t1-als' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
+  fail "auto-brightness menu entry is gated on the T1 ALS detector"
+pass "Hardware menu exposes the auto-brightness toggle"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp" "$als_ok"' EXIT
@@ -160,3 +168,21 @@ PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
 [[ $(cat "$test_tmp/panel") == 818 ]] || fail "DPMS-off must not change the panel" "panel=$(cat "$test_tmp/panel")"
 [[ $(cat "$test_tmp/kbd") == 50 ]] || fail "DPMS-off must not change the keyboard" "kbd=$(cat "$test_tmp/kbd")"
 pass "DPMS-off leaves brightness alone"
+
+printf 'open\n' >"$test_tmp/lid"
+printf '818\n' >"$test_tmp/panel"
+printf '50\n' >"$test_tmp/kbd"
+printf '170\n' >"$als_ok"
+mkdir -p "$test_tmp/toggles"
+touch "$test_tmp/toggles/auto-brightness-off"
+PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
+  OMARCHY_ALS="$als_ok" \
+  OMARCHY_ALS_PANEL=gmux_backlight \
+  OMARCHY_ALS_KBD=spi::kbd_backlight \
+  OMARCHY_ALS_LID="$test_tmp/lid" \
+  OMARCHY_ALS_TOGGLE="$test_tmp/toggles/auto-brightness-off" \
+  OMARCHY_ALS_ONCE=1 \
+  "$als"
+[[ $(cat "$test_tmp/panel") == 818 ]] || fail "auto-brightness off must not change the panel" "panel=$(cat "$test_tmp/panel")"
+[[ $(cat "$test_tmp/kbd") == 50 ]] || fail "auto-brightness off must not change the keyboard" "kbd=$(cat "$test_tmp/kbd")"
+pass "auto-brightness off leaves brightness alone"
