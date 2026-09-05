@@ -253,9 +253,12 @@ ShellRoot {
     onActiveChanged: if (!active) shell.bar = null
     onStatusChanged: {
       if (status === Loader.Error) {
-        var detail = errorString && errorString() ? errorString() : ""
-        console.warn("bar option " + shell.activeBarId + " failed to load, falling back to " + shell.defaultBarId + ":", detail)
-        shell.failedBarId = shell.activeBarId
+        var failedId = shell.activeBarId
+        shell.failedBarId = failedId
+        var detail = ""
+        if (sourceComponent)
+          detail = sourceComponent.errorString()
+        console.warn("bar option " + failedId + " failed to load, falling back to " + shell.defaultBarId + ":", detail)
       }
     }
   }
@@ -639,11 +642,11 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader.errorString() reflects the source-load failure even when
-            // sourceComponent is null. Surface both so the user sees something
-            // actionable instead of a panel that silently refuses to open.
-            var detail = errorString && errorString() ? errorString() : ""
-            if (!detail && sourceComponent) detail = sourceComponent.errorString()
+            // Bare errorString() is unbound on Loader and aborts this handler
+            // before hide(). Component.errorString is the QML error text.
+            var detail = ""
+            if (sourceComponent)
+              detail = sourceComponent.errorString()
             console.warn("panel plugin " + panelEntry.pluginId + " failed to load:", detail)
             shell.hide(panelEntry.pluginId)
           }
