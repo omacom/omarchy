@@ -57,6 +57,18 @@ lid_closed() {
   [[ $s == *closed* ]]
 }
 
+# The T1 ALS is in the camera cluster. A blanked panel drops lux, so following
+# it while DPMS is off writes a dimmer target and that is what you see on wake.
+internal_dpms_off() {
+  local s
+  if [[ -n ${OMARCHY_ALS_DPMS:-} ]]; then
+    [[ $OMARCHY_ALS_DPMS == off || $OMARCHY_ALS_DPMS == 0 || $OMARCHY_ALS_DPMS == false ]]
+    return
+  fi
+  s=$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(.name | test("^(eDP|LVDS|DSI)-"))][0].dpmsStatus // empty')
+  [[ $s == false ]]
+}
+
 als=$(als_path) || exit 0
 panel=$(panel_dev) || exit 0
 kbd=$(kbd_dev) || kbd=""
@@ -65,7 +77,9 @@ last_panel=-1
 last_kbd=-1
 
 while true; do
-  if lid_closed; then
+  if lid_closed || internal_dpms_off; then
+    last_panel=-1
+    last_kbd=-1
     sleep 1
     [[ ${OMARCHY_ALS_ONCE:-} == 1 ]] && exit 0
     continue

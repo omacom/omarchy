@@ -144,3 +144,19 @@ PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
 [[ $(cat "$test_tmp/panel") == 818 ]] || fail "closed lid must not change the panel" "panel=$(cat "$test_tmp/panel")"
 [[ $(cat "$test_tmp/kbd") == 50 ]] || fail "closed lid must not change the keyboard" "kbd=$(cat "$test_tmp/kbd")"
 pass "closed lid leaves brightness alone"
+
+printf 'open\n' >"$test_tmp/lid"
+printf '818\n' >"$test_tmp/panel"
+printf '50\n' >"$test_tmp/kbd"
+printf '0\n' >"$als_ok"
+PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
+  OMARCHY_ALS="$als_ok" \
+  OMARCHY_ALS_PANEL=gmux_backlight \
+  OMARCHY_ALS_KBD=spi::kbd_backlight \
+  OMARCHY_ALS_LID="$test_tmp/lid" \
+  OMARCHY_ALS_DPMS=off \
+  OMARCHY_ALS_ONCE=1 \
+  "$als"
+[[ $(cat "$test_tmp/panel") == 818 ]] || fail "DPMS-off must not change the panel" "panel=$(cat "$test_tmp/panel")"
+[[ $(cat "$test_tmp/kbd") == 50 ]] || fail "DPMS-off must not change the keyboard" "kbd=$(cat "$test_tmp/kbd")"
+pass "DPMS-off leaves brightness alone"
