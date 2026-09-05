@@ -92,7 +92,7 @@ start() {
   if omarchy-cmd-present systemd-inhibit; then
     if (( EUID != 0 )); then
       if [[ -t 0 ]]; then
-        sudo -v
+        sudo -n true 2>/dev/null || sudo -v
         inhibit_runner=(sudo)
       else
         inhibit_runner=(pkexec)
