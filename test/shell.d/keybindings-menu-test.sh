@@ -183,6 +183,21 @@ rendered=$(keybindings)
   fail "chords with the same label but different actions stay apart" "$rendered"
 pass "chords with the same label but different actions stay apart"
 
+# User configs that iterate hl.get_loaded_plugins() must not hang the scanner.
+# Use a standalone hyprland.lua so dofile actually reaches the loop; appending
+# it after the default tree can fail earlier inside qconsole.lua.
+spin_home="$tmpdir/spin-home"
+mkdir -p "$spin_home/.config/hypr"
+cat >"$spin_home/.config/hypr/hyprland.lua" <<'LUA'
+for _, p in ipairs(hl.get_loaded_plugins()) do
+end
+LUA
+timeout 2 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$spin_home" \
+  XDG_CACHE_HOME="$tmpdir/cache-spin" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print >/dev/null ||
+  fail "the keybindings scanner terminates when a config iterates hl.get_loaded_plugins()"
+pass "the keybindings scanner terminates when a config iterates hl.get_loaded_plugins()"
+
 # An unresolved Lua bind reports no dispatcher at all, so nothing says the two
 # chords run the same thing, whatever their label promises.
 stub_hyprctl <<BINDS

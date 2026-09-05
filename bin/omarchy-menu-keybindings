@@ -186,8 +186,16 @@ end
 
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  __index = function(_, key)
+    -- ipairs walks 1..n until it sees nil. Returning noop for numeric
+    -- keys makes `for _, p in ipairs(hl.get_loaded_plugins())` spin.
+    if type(key) == "number" then
+      return nil
+    end
     return noop
+  end,
+  __len = function()
+    return 0
   end,
   __call = function()
     return noop
@@ -221,7 +229,10 @@ hl = setmetatable({
     return nil
   end,
 }, {
-  __index = function()
+  __index = function(_, key)
+    if type(key) == "number" then
+      return nil
+    end
     return noop
   end,
 })
