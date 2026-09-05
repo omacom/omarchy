@@ -14,6 +14,7 @@ Item {
   readonly property int batteryThreshold: 10
   property string pendingPowerSource: ""
   property string pendingPowerSourceHook: ""
+  property string lastPowerSource: ""
 
   // Follows power-profiles-daemon's change signals, so nothing polls it.
   // Quickshell never attaches that listener if the daemon failed when the
@@ -84,8 +85,19 @@ Item {
     }
   }
 
+  // UPower hydrates OnBattery before the display device becomes ready. Seed
+  // the baseline then, including when this service loads into an existing shell.
+  function initializePowerSource() {
+    if (UPower.displayDevice.ready && lastPowerSource === "")
+      lastPowerSource = UPower.onBattery ? "battery" : "ac"
+  }
+
   function dispatchPowerSourceHook() {
-    pendingPowerSourceHook = UPower.onBattery ? "battery" : "ac"
+    if (lastPowerSource === "") return
+    var source = UPower.onBattery ? "battery" : "ac"
+    if (source === lastPowerSource) return
+    lastPowerSource = source
+    pendingPowerSourceHook = source
     if (!powerSourceHookProcess.running) runPendingPowerSourceHook()
   }
 
@@ -151,6 +163,11 @@ Item {
   }
 
   Connections {
+    target: UPower.displayDevice
+    function onReadyChanged() { root.initializePowerSource() }
+  }
+
+  Connections {
     target: UPower
     function onOnBatteryChanged() {
       root.checkBattery()
@@ -160,5 +177,8 @@ Item {
     }
   }
 
-  Component.onCompleted: root.refreshPowerProfile()
+  Component.onCompleted: {
+    root.initializePowerSource()
+    root.refreshPowerProfile()
+  }
 }
