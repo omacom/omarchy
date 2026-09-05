@@ -18,7 +18,18 @@ case "${1:-}" in
     ;;
 esac
 
-battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
+upower_devices=$(upower -e 2>/dev/null)
+pack_count=$(grep -c BAT <<<"$upower_devices" || true)
+# DisplayDevice is the combined view. Use it only when more than one pack
+# exists; a single pack must stay on BAT* so sysfs power_now still applies.
+if (( pack_count > 1 )); then
+  battery=$(grep DisplayDevice <<<"$upower_devices" | head -n 1)
+else
+  battery=""
+fi
+if [[ -z $battery ]]; then
+  battery=$(grep BAT <<<"$upower_devices" | head -n 1)
+fi
 [[ -z $battery ]] && exit 0
 
 battery_info=$(upower -i "$battery")
@@ -44,12 +55,14 @@ time_remaining=$(awk '/time to (empty|full)/ {
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
 battery_path="$power_supply_path/$native_path"
+# DisplayDevice's native-path is not a sysfs battery node.
+[[ -d $battery_path && -r $battery_path/type ]] || battery_path=""
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
+if [[ -n $battery_path && -r $battery_path/power_now ]]; then
   power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+elif [[ -n $battery_path && -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
   power_rate_raw=$(awk \
     -v microamps="$(<"$battery_path/current_now")" \
     -v microvolts="$(<"$battery_path/voltage_now")" \
