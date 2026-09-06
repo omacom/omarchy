@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Reconcile displays and wake the panel when the laptop lid opens
+# omarchy:group=system
+# omarchy:hidden=true
+
+# Reconcile first, exactly as the lid-open binding has always done.
+omarchy-hyprland-monitor-clamshell
+
+# The reconciler only dispatches a DPMS enable when it has just cleared a
+# clamshell flag, and that flag is never written on a laptop with no external
+# monitor. A laptop-only lid open therefore had no path back from the lock
+# screen's idle blank: the panel stayed dark until a keypress reached the
+# password field, and logind swallows the power button, so reaching for that
+# instead makes a working machine look hung.
+#
+# omarchy-brightness-display on already skips its dispatch while every enabled
+# monitor reports dpmsStatus true, so a lid open that never blanked stays a
+# no-op and no display is forced through a second modeset.
+omarchy-brightness-display on
