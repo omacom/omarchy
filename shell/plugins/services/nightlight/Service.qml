@@ -31,7 +31,6 @@ Item {
 
   function refresh() {
     if (!statusProbe.running) statusProbe.running = true
-    if (!root.manualScheduleDisablePending && !scheduleProbe.running) scheduleProbe.running = true
   }
 
   function setNightlight(value) {
@@ -126,6 +125,8 @@ Item {
         root.temperature = null
         root.stateLoaded = true
       }
+      // Evaluate against the freshly read display state, not a pre-sleep cache.
+      if (!root.manualScheduleDisablePending && !scheduleProbe.running) scheduleProbe.running = true
     }
   }
 
@@ -187,6 +188,20 @@ Item {
     id: scheduleTimer
     repeat: false
     onTriggered: root.refresh()
+  }
+
+  Timer {
+    interval: 1000
+    running: root.scheduled
+    repeat: true
+    property double lastTick: Date.now()
+    onTriggered: {
+      // Qt's countdowns pause during suspend; wall time still crosses sunset.
+      var now = Date.now()
+      var elapsed = now - lastTick
+      lastTick = now
+      if (elapsed > 5000 || elapsed < 0) root.refresh()
+    }
   }
 
   Component.onCompleted: refresh()

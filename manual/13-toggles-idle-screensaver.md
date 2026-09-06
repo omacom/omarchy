@@ -46,6 +46,8 @@ Inactive indicators are hidden. Hover the area around them and they fade in dimm
 
 Right-click the night light indicator to open its mode panel, where **Daylight**, **Night Light**, and **Sunset** stay in a fixed order as you switch between them. Sunset mode turns night light on at sunset and off at sunrise. You can also choose **Sunset Nightlight** from _Trigger > Toggle_ or run `omarchy toggle nightlight --schedule`. Omarchy uses the representative location for your selected system timezone and follows daylight-saving changes automatically. Selecting a different timezone updates the schedule; using the regular night light toggle returns to manual control.
 
+Sunset mode rechecks the display temperature when the laptop wakes, so sleeping through sunset or sunrise does not leave the screen in the previous mode.
+
 By default hyprsunset does nothing to your screen at all. `~/.config/hypr/hyprsunset.conf` ships with an identity profile precisely so the display stays untouched until you ask for warmth. If you'd rather have it switch by the clock, replace that with a time profile:
 
 ```
