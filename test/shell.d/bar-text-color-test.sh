@@ -5,6 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command magick
+require_command ffmpeg
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
@@ -38,3 +39,15 @@ magick -size 100x100 xc:'#202020' -fill '#f5f5f5' -draw 'rectangle 0,0 99,19' \
 result=$(HOME="$TMPDIR" omarchy-bar-text-color top 20 '#ffffff' '#101010' --background "$multi_frame" --screen 100x100)
 [[ $result == "#101010" ]] || fail "transparent bar text samples only the first frame of a multi-frame background" "expected #101010, got $result"
 pass "transparent bar text samples only the first frame of a multi-frame background"
+
+# A video background must be sampled one frame at a time. Reading the whole file
+# emits a value per frame, which parses as nothing and silently falls back —
+# and decodes the entire wallpaper to find that out.
+light_top_video="$TMPDIR/light-top.mp4"
+ffmpeg -y -f lavfi -i "testsrc=size=640x360:rate=10:duration=2" \
+  -vf "drawbox=x=0:y=0:w=640:h=40:color=0xf5f5f5:t=fill" \
+  -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$light_top_video" -loglevel error
+
+result=$(HOME="$TMPDIR" omarchy-bar-text-color top 40 '#ffffff' '#101010' --background "$light_top_video" --screen 640x360)
+[[ $result == "#101010" ]] || fail "transparent bar text samples one frame of a video wallpaper" "expected #101010, got $result"
+pass "transparent bar text samples one frame of a video wallpaper"
