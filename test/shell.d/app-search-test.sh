@@ -167,4 +167,13 @@ assert(
   openMatch[1].includes('root.appLibrary.refreshIcons()'),
   'menu refreshes the shared icon index when opened'
 )
+
+assert(
+  /id: appIconImage[\s\S]*?Math\.round\(\(Style\.space\(36\) - width\) \/ 2\)/.test(menuQml),
+  'menu snaps app icon horizontal offset to whole pixels'
+)
+assert(
+  /id: appIconImage[\s\S]*?Math\.round\(contentColumn\.y \+ labelText\.y/.test(menuQml),
+  'menu snaps app icon vertical offset to whole pixels'
+)
 JS
