@@ -207,4 +207,35 @@ assertDeepEqual(
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+assertEqual(tailscale.exitNodeLabel({
+  HostName: 'Firezone',
+  DNSName: 'ny-exit-node.tailcb223.ts.net',
+  DisplayName: 'Firezone'
+}), 'ny-exit-node', 'tailscale prefers the MagicDNS name on exit node rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  HostName: 'atl-exit-node',
+  DNSName: 'atl-exit-node.tailcb223.ts.net',
+  DisplayName: 'atl-exit-node'
+}), 'atl-exit-node', 'tailscale leaves matching exit node names alone')
+
+assertEqual(tailscale.exitNodeLabel({
+  MullvadRegion: true,
+  DisplayName: 'Stockholm, Sweden',
+  DNSName: 'se-sto-wg-001.mullvad.ts.net'
+}), 'Stockholm, Sweden', 'tailscale keeps the region label on Mullvad region rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  Mullvad: true,
+  DisplayName: 'Stockholm, Sweden',
+  DNSName: 'se-sto-wg-001.mullvad.ts.net'
+}), 'Stockholm, Sweden', 'tailscale keeps the region label on Mullvad peer rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  AddMullvad: true,
+  DisplayName: 'Choose Mullvad region'
+}), 'Choose Mullvad region', 'tailscale keeps the synthetic add-Mullvad row label')
+
+assertEqual(tailscale.exitNodeLabel({ HostName: 'Firezone', DisplayName: 'Firezone' }), 'Firezone', 'tailscale falls back to the hostname when DNS is missing')
+assertEqual(tailscale.exitNodeLabel(null), 'Unknown', 'tailscale labels a missing exit node peer as Unknown')
 JS
