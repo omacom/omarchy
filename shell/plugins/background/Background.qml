@@ -37,8 +37,6 @@ Item {
   readonly property var lockService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.lock") : null
   readonly property var idleService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.idle") : null
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
-  readonly property var activeToplevel: ToplevelManager.activeToplevel
-  readonly property bool fullscreenActive: activeToplevel ? activeToplevel.fullscreen : false
   readonly property bool lockActive: lockService ? lockService.locked : false
   readonly property bool screensaverActive: idleService ? idleService.screensaverWindowCount > 0 : false
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
@@ -228,10 +226,12 @@ Item {
       updatesEnabled: true
 
       // Pausing every wallpaper for one fullscreen window would freeze the one
-      // still on show next to it, which costs a viewer more than it saves.
-      readonly property bool fullscreenHere: root.fullscreenActive
-        && !!Hyprland.focusedMonitor
-        && String(Hyprland.focusedMonitor.name || "") === String(modelData.name || "")
+      // still on show next to it, which costs a viewer more than it saves. The
+      // workspace on show here knows whether a fullscreen window covers it,
+      // wherever focus happens to be.
+      readonly property var hyprlandMonitor: Hyprland.monitorFor(modelData)
+      readonly property var visibleWorkspace: hyprlandMonitor ? hyprlandMonitor.activeWorkspace : null
+      readonly property bool fullscreenHere: visibleWorkspace ? visibleWorkspace.hasFullscreen : false
 
       property bool maskReady: false
 

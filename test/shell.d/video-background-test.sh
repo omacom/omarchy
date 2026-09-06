@@ -90,8 +90,10 @@ assert(
   'desktop playback stops while covered or on battery power-saver'
 )
 assert(
-  /fullscreenHere:[\s\S]*?Hyprland\.focusedMonitor\.name \|\| ""\) === String\(modelData\.name/.test(backgroundQml),
-  'a fullscreen window pauses only the output it covers, not every wallpaper'
+  backgroundQml.includes('Hyprland.monitorFor(modelData)') &&
+    /fullscreenHere: visibleWorkspace \? visibleWorkspace\.hasFullscreen : false/.test(backgroundQml) &&
+    !backgroundQml.includes('ToplevelManager.activeToplevel'),
+  'a fullscreen window pauses only the output it covers, wherever focus is'
 )
 assert(
   barTextColor.includes('magick "$background_path[0]"'),
