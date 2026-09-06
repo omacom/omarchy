@@ -45,6 +45,18 @@ Making a new app follow theme changes means adding its restart/retint command
 to that list. Runs serialize on a `flock`, so scripted theme changes queue
 instead of racing.
 
+GTK and libadwaita apps are the one group without a live retint: GTK loads its
+stylesheet at startup, so there is nothing to poke mid-run. Instead the theme
+swap points `~/.config/gtk-3.0/gtk.css` and `~/.config/gtk-4.0/gtk.css` at the
+generated `gtk-3.0.css` and `gtk.css` in the current theme, and every GTK app
+picks up the new palette on its next launch. New users get the two links from
+the shipped defaults (`config/gtk-3.0/` and `config/gtk-4.0/` seed them through
+`/etc/skel`, relative to the state theme like the Neovim link), and
+`omarchy-theme-set` re-asserts them after staging a theme. A real `gtk.css` the
+user wrote themselves is their customization and keeps winning over the link.
+Migrations restage the active theme so installs that predate the templates get
+the links too.
+
 ## What an installed theme may not ship
 
 `themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.
@@ -55,7 +67,7 @@ instead of racing.
 - `alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf` — each names the program the terminal launches
 - `vscode.json` — names the extension `omarchy-theme-set-vscode` installs, and a VS Code extension is arbitrary JavaScript
 
-Symlinks are dropped with them, at any depth; in a cloned theme they point wherever the theme author chose. Everything a cloned theme ships that is colour is kept, including files Omarchy would otherwise have generated — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, `icons.theme`, `keyboard.rgb` and the rest — so a theme can still say exactly how it wants each app to look. What is dropped gets generated from `default/themed/*.tpl` instead, and is named on stderr.
+Symlinks are dropped with them, at any depth; in a cloned theme they point wherever the theme author chose. Everything a cloned theme ships that is colour is kept, including files Omarchy would otherwise have generated — `btop.theme`, `chromium.theme`, `gtk.css`, `gtk-3.0.css`, `helix.toml`, `shell.toml`, `icons.theme`, `keyboard.rgb` and the rest — so a theme can still say exactly how it wants each app to look. What is dropped gets generated from `default/themed/*.tpl` instead, and is named on stderr.
 
 A denylist is only right while it is maintained. Adding a template for another terminal, or for another editor that loads Lua, means adding it to `INSTALLED_THEME_DENIED` in `bin/omarchy-theme-set`; `test/shell.d/theme-staging-test.sh` fails on any `default/themed/*.tpl` whose output is recorded as neither code nor colour, so a new template cannot be added without that decision being made.
 

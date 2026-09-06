@@ -339,6 +339,7 @@ return to the packaged default.
 | Goal | Touch |
 | --- | --- |
 | Default file at `~/.config/foo/` | `config/foo/` |
+| Default `~/.config/gtk-{3.0,4.0}/gtk.css` symlink into the state theme | `config/gtk-3.0/`, `config/gtk-4.0/` (relative links seeded through `/etc/skel`) |
 | `/etc/` drop-in we own outright | `etc/` |
 | `/etc/` file owned by an upstream package | `etc/` (see `etc/security/faillock.conf`), then add to `etc-overrides` in `omarchy-settings` PKGBUILD + scriptlet |
 | Package-owned system file (e.g. systemd user service in `/usr/lib`) | `default/`, then add the `install -Dm644` line in `omarchy-settings` PKGBUILD |

@@ -119,6 +119,28 @@ grep -q 'hyprland.lua' "$test_tmp/stderr" || fail "omarchy-theme-set names the f
 
 pass "an installed theme keeps its colour and loses everything that runs code"
 
+# GTK stylesheets are generated from built-in templates and linked into
+# ~/.config so GTK and libadwaita apps load the theme palette on next launch.
+assert_staged gtk.css "the GTK4 stylesheet is generated for every theme"
+grep -q '#7aa2f7' "$(staged gtk.css)" || fail "the GTK4 stylesheet carries the theme accent"
+assert_staged gtk-3.0.css "the GTK3 stylesheet is generated for every theme"
+grep -q 'theme_selected_bg_color #7aa2f7' "$(staged gtk-3.0.css)" || fail "the GTK3 stylesheet carries the theme palette"
+[[ $(readlink "$home/.config/gtk-4.0/gtk.css") == "../../.local/state/omarchy/current/theme/gtk.css" ]] ||
+  fail "GTK4 loads the theme stylesheet from the current theme"
+[[ -e $home/.config/gtk-4.0/gtk.css ]] || fail "the GTK4 stylesheet link resolves"
+[[ $(readlink "$home/.config/gtk-3.0/gtk.css") == "../../.local/state/omarchy/current/theme/gtk-3.0.css" ]] ||
+  fail "GTK3 loads the theme stylesheet from the current theme"
+[[ -e $home/.config/gtk-3.0/gtk.css ]] || fail "the GTK3 stylesheet link resolves"
+
+# The shipped default (config/gtk-*) seeds new users through /etc/skel with the
+# same relative links, so they need no theme-set before GTK apps are themed.
+[[ $(readlink "$ROOT/config/gtk-4.0/gtk.css") == "../../.local/state/omarchy/current/theme/gtk.css" ]] ||
+  fail "the shipped GTK4 default points at the state theme"
+[[ $(readlink "$ROOT/config/gtk-3.0/gtk.css") == "../../.local/state/omarchy/current/theme/gtk-3.0.css" ]] ||
+  fail "the shipped GTK3 default points at the state theme"
+
+pass "GTK apps are pointed at the theme's generated stylesheets"
+
 # icons.theme is staged verbatim and handed to gsettings, so a symlinked one
 # would stage a copy of whatever it points at.
 linked="$themes/linked"
@@ -194,6 +216,21 @@ grep -q "$marker" "$(staged hyprland.lua)" || fail "a symlinked working copy is 
 
 pass "a symlinked working copy is the user's own"
 
+# A real gtk.css the user wrote is their customization and must not be replaced
+# by the link. (rm the link first: redirection through a symlink would write the
+# theme's own stylesheet, not a user file.)
+rm -f "$home/.config/gtk-4.0/gtk.css"
+printf '/* custom */\n' >"$home/.config/gtk-4.0/gtk.css"
+set_theme mine-link || fail "omarchy-theme-set applies a theme over a user-written gtk.css"
+[[ ! -L $home/.config/gtk-4.0/gtk.css ]] || fail "theme-set keeps a user-written gtk.css instead of linking"
+grep -q '/\* custom \*/' "$home/.config/gtk-4.0/gtk.css" || fail "a user-written gtk.css survives a theme change"
+
+rm "$home/.config/gtk-4.0/gtk.css"
+set_theme mine-link || fail "omarchy-theme-set applies a theme after a user gtk.css is removed"
+[[ -L $home/.config/gtk-4.0/gtk.css ]] || fail "theme-set links gtk.css once the user's own file is gone"
+
+pass "theme-set respects a user's own GTK stylesheet"
+
 # The name is joined into paths that get removed and copied into.
 for name in .. . "../../evil"; do
   if set_theme "$name" >/dev/null; then
@@ -207,7 +244,7 @@ pass "a theme name cannot climb out of the theme directories"
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.
 denied=(alacritty.toml foot.ini ghostty.conf kitty.conf gum_env.lua hyprland.lua neovim.lua vscode.json)
-colour_only=(btop.theme chromium.theme claude.json helix.toml hyprland-preview-share-picker.css keyboard.rgb obsidian.css pi.json shell.toml vscode-theme.json)
+colour_only=(btop.theme chromium.theme claude.json gtk-3.0.css gtk.css helix.toml hyprland-preview-share-picker.css keyboard.rgb obsidian.css pi.json shell.toml vscode-theme.json)
 
 for tpl in "$ROOT"/default/themed/*.tpl; do
   generated=$(basename "$tpl" .tpl)
