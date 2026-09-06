@@ -4,6 +4,10 @@ You can add your own themes to `~/.config/omarchy/themes`. Just copy one of the 
 
 The main file you have to tweak is `colors.toml`. That defines the color set that's then used to generate configurations for the terminal (Foot/Alacritty/Ghostty/Kitty), btop, Chromium, Hyprland, Neovim, Helix, VSCode, Obsidian, and the entire Omarchy shell (top bar, menu, notifications, OSD, and lock screen).
 
+### Screen shaders
+
+To add a Hyprland screen shader, put a GLSL fragment shader in the theme root as `screen-shader.frag` (the older `screen-shader.glsl` name is also supported). Omarchy loads it for the whole screen when the theme is active and removes it when switching to a theme without one. If both files exist, `.frag` takes precedence. Full-screen shaders can keep the GPU rendering continuously, increasing power use and temperature; installed themes warn about this and remove shaders by default. Use `omarchy theme install <url> --keep-shader` to explicitly enable one. Keep the shader self-contained; installed themes are limited to a regular file no larger than 256 KiB, and symlinks are never followed.
+
 You can also use the included Aether application to create a new theme using a lovely GUI interface to play with colors and search for backgrounds. Just start it via the apps menu on `Super + Alt + Space`.
 
 ### What an installed theme can contain
@@ -12,7 +16,7 @@ A theme you write yourself in `~/.config/omarchy/themes` can contain whatever yo
 
 A theme you install from someone else's repo with `omarchy theme install` keeps everything that's colour, and loses the handful of files that would run code on your machine: any `.lua` file, the terminal configs (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`), and `vscode.json`. A theme's `hyprland.lua` is Lua your compositor runs at login, a terminal config names the program your terminal starts, and `vscode.json` names a VSCode extension to install. Installing someone's theme should change what your desktop looks like, never what it runs.
 
-Everything else still works exactly as the theme author wrote it — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, the backgrounds and the previews are all kept. Only what was dropped gets regenerated from `colors.toml` on your machine.
+Everything else still works exactly as the theme author wrote it — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, the backgrounds and the previews are all kept. A screen shader is kept only when installation uses `--keep-shader`. Only what was dropped gets regenerated from `colors.toml` on your machine.
 
 Omarchy tells the two apart by whether the theme has its own git repo inside it, which is what `omarchy theme install` leaves behind when it clones. So a theme you wrote stays yours, and one you pulled off the internet stays colours.
 
