@@ -32,6 +32,8 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
   printf 'mock_backlight,backlight,40,40%%\n'
+elif [[ $* == *" get"* ]]; then
+  printf '%s\n' "${MOCK_BRIGHTNESS:-250}"
 fi
 SH
 
@@ -144,3 +146,20 @@ if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-apple"; th
   fail "focused non-Apple display is not detected as Apple"
 fi
 pass "named Apple display is detected independently of focus"
+
+cap_file="$test_tmp/backlight-cap"
+printf '500\n' >"$cap_file"
+
+brightness=$(OMARCHY_BACKLIGHT_CAP_FILE="$cap_file" MOCK_BRIGHTNESS=250 run_brightness --monitor eDP-1)
+[[ $brightness == "50" ]] || fail "internal monitor brightness scales against cap" "actual: $brightness"
+pass "internal monitor brightness scales against cap"
+
+OMARCHY_BACKLIGHT_CAP_FILE="$cap_file" MOCK_BRIGHTNESS=250 run_brightness --no-osd --monitor eDP-1 100%
+grep -F 'brightnessctl -d mock_backlight set 500' "$call_log" >/dev/null || \
+  fail "100% brightness is scaled to the configured cap"
+pass "100% brightness is scaled to the configured cap"
+
+OMARCHY_BACKLIGHT_CAP_FILE="$cap_file" MOCK_BRIGHTNESS=250 run_brightness --no-osd --monitor eDP-1 50%
+grep -F 'brightnessctl -d mock_backlight set 250' "$call_log" >/dev/null || \
+  fail "50% brightness is scaled to half of the configured cap"
+pass "50% brightness is scaled to half of the configured cap"
