@@ -27,8 +27,3 @@ if [ -z "${LANG:-}" ]; then
     LC_MESSAGES LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT \
     LC_IDENTIFICATION
 fi
-
-case ":$PATH:" in
-  *":$HOME/.local/bin:"*) ;;
-  *) export PATH="$PATH:$HOME/.local/bin" ;;
-esac

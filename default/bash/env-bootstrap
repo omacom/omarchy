@@ -15,27 +15,38 @@ else
 fi
 export OMARCHY_PATH
 
+# Prepend a directory, moving it to the front if it is already on PATH.
+# Sourced by bash and zsh; keep this free of bash-only substitution.
+omarchy_path_prepend() {
+  _omarchy_dir="$1"
+  case ":$PATH:" in
+    *":$_omarchy_dir:"*)
+      PATH=":$PATH:"
+      PATH="${PATH%%:$_omarchy_dir:*}:${PATH#*:$_omarchy_dir:}"
+      PATH="${PATH#:}"
+      PATH="${PATH%:}"
+      ;;
+  esac
+  PATH="$_omarchy_dir${PATH:+:$PATH}"
+  unset _omarchy_dir
+}
+
+# User-level tool paths, prepended so they win over /usr/bin. mise shims
+# intercept names that also exist as distro packages; ~/.local/bin is the XDG
+# user executable dir. Move-to-front if already present so a PAM PATH that
+# listed them last still ends up correct in login shells. Keep in sync with
+# install/config/ssh-command-path.sh, which covers SSH commands that run no
+# shell setup at all.
+omarchy_path_prepend "$HOME/.local/bin"
+omarchy_path_prepend "$HOME/.local/share/mise/shims"
+
 # Only prepend in dev-link mode. On a production install, the binaries are
 # already on PATH as /usr/bin/omarchy-* via the omarchy package — prepending
-# /usr/share/omarchy/bin would just be noise.
+# /usr/share/omarchy/bin would just be noise. Do this last so the checkout
+# wins over user-level dirs.
 if [ "$OMARCHY_PATH" != /usr/share/omarchy ]; then
-  case ":$PATH:" in
-    *":${OMARCHY_PATH%/}/bin:"*) ;;
-    *) PATH="${OMARCHY_PATH%/}/bin${PATH:+:$PATH}" ;;
-  esac
+  omarchy_path_prepend "${OMARCHY_PATH%/}/bin"
 fi
 
-# User-level tool paths, appended so system binaries keep precedence. This is
-# what lets login shells (ssh, bash -lc) and the uwsm session find mise-managed
-# tools without an interactive rc. Keep these directories in sync with the PAM
-# PATH line from install/config/ssh-command-path.sh, which covers SSH commands
-# that run no shell setup at all.
-case ":$PATH:" in
-  *":$HOME/.local/share/mise/shims:"*) ;;
-  *) PATH="${PATH:+$PATH:}$HOME/.local/share/mise/shims" ;;
-esac
-case ":$PATH:" in
-  *":$HOME/.local/bin:"*) ;;
-  *) PATH="${PATH:+$PATH:}$HOME/.local/bin" ;;
-esac
+unset -f omarchy_path_prepend
 export PATH
