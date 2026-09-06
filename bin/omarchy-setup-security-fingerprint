@@ -77,14 +77,23 @@ fi
 # Install required packages
 echo "Installing required packages..."
 
-# libfprint-git provides+conflicts libfprint; pacman -S --noconfirm
-# defaults the conflict prompt to N and aborts. Pre-remove it (deps-only,
-# so an installed fprintd stays put) so stock libfprint installs cleanly.
-if pacman -Q libfprint-git &>/dev/null; then
-  sudo pacman -Rdd --noconfirm libfprint-git
-fi
+fingerprint_package=libfprint
+case "$(omarchy-channel-current)" in
+  edge | dev)
+    fingerprint_package=libfprint-git
+    # The previous OPR pin predates Synaptics USB 06cb:010b support.
+    minimum_version=1:1.94.100.r10.g6f9479c-1
+    available_version=$(LC_ALL=C pacman -Si "$fingerprint_package" | awk '/^Version *:/ { print $3; exit }')
+    if [[ -z $available_version ]] || (( $(vercmp "$available_version" "$minimum_version") < 0 )); then
+      echo "Fingerprint setup needs an updated edge package repository. Run omarchy update and try again." >&2
+      exit 1
+    fi
+    ;;
+esac
 
-omarchy-pkg-add libfprint fprintd usbutils
+# The drivers conflict. Accept their replacement in one transaction so a failed
+# install leaves the existing driver in place. --ask 4 does not overwrite files.
+sudo pacman -S --needed --noconfirm --ask 4 "$fingerprint_package" fprintd usbutils
 
 # Enroll first fingerprint
 echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
