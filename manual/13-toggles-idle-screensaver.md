@@ -41,7 +41,13 @@ Inactive indicators are hidden. Hover the area around them and they fade in dimm
 
 ### Night light
 
-`Super + Ctrl + N` warms the screen to 4000K, and hitting it again puts it back to 6500K. It's driven by hyprsunset, which the toggle starts for you if it isn't already running.
+`Super + Ctrl + N` warms the screen to 4000K, and hitting it again puts it back to 6500K. It's driven by hyprsunset, which the toggle starts for you if it isn't already running. To make Night Light warmer or cooler, set `nightlight.temperature` in `~/.config/omarchy/shell.json` to a whole number from 1000 through 5999. The shell and command-line toggle both use this value:
+
+```json
+"nightlight": {
+  "temperature": 2800
+}
+```
 
 By default hyprsunset does nothing to your screen at all. `~/.config/hypr/hyprsunset.conf` ships with an identity profile precisely so the display stays untouched until you ask for warmth. If you'd rather have it switch by the clock, replace that with a time profile:
 
@@ -52,7 +58,7 @@ profile {
 }
 ```
 
-Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~/.config/hypr/autostart.lua`. The 4000K/6500K pair used by the toggle is fixed, so the config file is where you go if you want a different temperature.
+Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~/.config/hypr/autostart.lua`. Scheduled profiles have their own temperature and do not use the manual toggle's `nightlight.temperature` setting.
 
 ### Do not disturb
 

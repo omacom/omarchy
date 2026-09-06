@@ -16,6 +16,9 @@ pass "default shell.json is valid JSON"
 jq -e '.version == 1 and (.bar.layout.left | type == "array") and (.bar.layout.center | type == "array") and (.bar.layout.right | type == "array")' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 
+jq -e '.nightlight.temperature == 4000' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default shell.json sets the nightlight temperature"
+
 # Pinning the whole row made this fail every time an unrelated widget moved,
 # so assert the adjacency the name is about and let the rest of the row change.
 jq -e '
