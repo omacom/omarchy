@@ -288,7 +288,7 @@ assertEqual(
 // A guard can still be about something other than having the software: no
 // Chromium at all means no account to wire up, and that row stays hidden.
 assert(
-  defaultById['install.service.chromium-account'].when === '[[ -f ~/.config/chromium-flags.conf ]]'
+  defaultById['install.service.chromium-account'].when === 'omarchy-cmd-present chromium'
     && defaultById['install.service.chromium-account'].disabled.includes('oauth2-client-id'),
   'menu keeps hiding Chromium Account without Chromium, and dims it once the account is set up'
 )

@@ -25,8 +25,8 @@ verify_core_packages() {
 }
 
 verify_defaults() {
-  [[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium is the default browser"
-  pass "Chromium is the default browser"
+  [[ $(omarchy-default-browser) == "brave-origin" ]] || fail "Brave Origin is the default browser"
+  pass "Brave Origin is the default browser"
 
   [[ $(omarchy-default-terminal) == "foot" ]] || fail "Foot is the default terminal"
   pass "Foot is the default terminal"
@@ -43,7 +43,8 @@ verify_defaults() {
   [[ -n $(omarchy-font-current) ]] || fail "a monospace font is configured"
   pass "a monospace font is configured"
 
-  [[ $(xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling uses Chromium"
+  [[ $(xdg-mime query default x-scheme-handler/http) == "brave-origin.desktop" ]] || fail "HTTP MIME handling uses Brave Origin"
+  [[ $(xdg-mime query default x-scheme-handler/https) == "brave-origin.desktop" ]] || fail "HTTPS MIME handling uses Brave Origin"
   [[ $(xdg-mime query default inode/directory) == "org.gnome.Nautilus.desktop" ]] || fail "directory MIME handling uses Nautilus"
   pass "desktop MIME handlers are configured"
 }

@@ -68,7 +68,7 @@ brave)
   ;;
 brave-origin)
   echo "Installing Brave Origin..."
-  omarchy-pkg-aur-add brave-origin-bin || exit 1
+  omarchy-pkg-add brave-origin-bin
 
   setup_chromium_policy_directory /etc/brave/policies/managed
   copy_chromium_flags ~/.config/brave-origin-flags.conf
