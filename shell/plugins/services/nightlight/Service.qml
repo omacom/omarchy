@@ -23,8 +23,8 @@ Item {
   property string nextEvent: ""
   property string nextEventAt: ""
   property string scheduleError: ""
-  property bool manualScheduleDisablePending: false
-  property bool scheduleEnablePending: false
+  // Keep the latest selection while an older mode is still being persisted.
+  property var requestedSchedule: null
 
   property bool hasPendingTemperature: false
   property int pendingTemperature: 0
@@ -34,7 +34,7 @@ Item {
   }
 
   function setNightlight(value) {
-    disableSchedule()
+    setScheduleEnabled(false)
     applyTemperature(value ? nightTemperature : dayTemperature)
   }
 
@@ -42,26 +42,25 @@ Item {
     setNightlight(!enabled)
   }
 
-  function disableSchedule() {
-    if (root.scheduleLoaded && !root.scheduled) return
+  function setScheduleEnabled(value) {
+    if (root.requestedSchedule === null && root.scheduleLoaded && root.scheduled === value) return
 
-    root.manualScheduleDisablePending = true
+    root.requestedSchedule = value
     scheduleProbe.running = false
-    root.scheduled = false
-    root.scheduleLoaded = true
     scheduleTimer.stop()
-    if (!scheduleDisableProcess.running) scheduleDisableProcess.running = true
+    if (!value) {
+      root.scheduled = false
+      root.scheduleLoaded = true
+    }
+    root.persistSchedule()
   }
 
-  function setScheduleEnabled(value) {
-    if (!value) {
-      disableSchedule()
-      return
-    }
-    if (root.scheduled || root.scheduleEnablePending) return
+  function persistSchedule() {
+    if (scheduleChangeProcess.running || root.requestedSchedule === null) return
 
-    root.scheduleEnablePending = true
-    if (!scheduleEnableProcess.running) scheduleEnableProcess.running = true
+    scheduleChangeProcess.enabling = root.requestedSchedule
+    scheduleChangeProcess.command = ["omarchy-nightlight-schedule", root.requestedSchedule ? "enable" : "disable"]
+    scheduleChangeProcess.running = true
   }
 
   function applySchedule(data) {
@@ -126,7 +125,7 @@ Item {
         root.stateLoaded = true
       }
       // Evaluate against the freshly read display state, not a pre-sleep cache.
-      if (!root.manualScheduleDisablePending && !scheduleProbe.running) scheduleProbe.running = true
+      if (root.requestedSchedule === null && !scheduleProbe.running) scheduleProbe.running = true
     }
   }
 
@@ -149,7 +148,7 @@ Item {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        if (root.manualScheduleDisablePending) return
+        if (root.requestedSchedule !== null) return
 
         try {
           root.applySchedule(JSON.parse(text))
@@ -165,21 +164,16 @@ Item {
   }
 
   Process {
-    id: scheduleDisableProcess
-    command: ["omarchy-nightlight-schedule", "disable"]
+    id: scheduleChangeProcess
+    property bool enabling: false
     onExited: function(exitCode) {
-      root.manualScheduleDisablePending = false
-      if (exitCode !== 0) console.warn("Night light schedule: unable to save manual mode")
-      root.refresh()
-    }
-  }
-
-  Process {
-    id: scheduleEnableProcess
-    command: ["omarchy-nightlight-schedule", "enable"]
-    onExited: function(exitCode) {
-      root.scheduleEnablePending = false
-      if (exitCode !== 0) console.warn("Night light schedule: unable to enable sunset mode")
+      if (exitCode !== 0) console.warn("Night light schedule: unable to save " + (scheduleChangeProcess.enabling ? "sunset" : "manual") + " mode")
+      // Finish the in-flight write before persisting any newer selection.
+      if (root.requestedSchedule !== scheduleChangeProcess.enabling) {
+        root.persistSchedule()
+        return
+      }
+      root.requestedSchedule = null
       root.refresh()
     }
   }

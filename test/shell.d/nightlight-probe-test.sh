@@ -13,7 +13,7 @@ const context = vm.createContext({
     temperature: 4000,
     nightTemperature: 4000,
     dayTemperature: 6500,
-    manualScheduleDisablePending: false
+    requestedSchedule: null
   },
   statusProbe: { running: false },
   scheduleProbe: { running: false },
@@ -48,11 +48,11 @@ context.root.applySchedule({
 assertDeepEqual(context.applied, [4000], 'nighttime resume corrects a display reset despite the formerly warm cache')
 
 context.scheduleProbe.running = false
-context.root.manualScheduleDisablePending = true
+context.root.requestedSchedule = false
 context.finishStatus(0)
 assertEqual(context.scheduleProbe.running, false, 'pending manual mode does not restart automatic scheduling')
 
-context.root.manualScheduleDisablePending = false
+context.root.requestedSchedule = null
 context.finishStatus(1)
 assertEqual(context.root.temperature, null, 'failed display probe invalidates cached temperature')
 assertEqual(context.scheduleProbe.running, true, 'failed display probe still lets sunset mode restore hyprsunset')
