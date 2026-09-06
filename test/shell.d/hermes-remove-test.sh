@@ -186,6 +186,8 @@ seed_install
 remove_tty || fail "remove succeeds when the data question is declined"
 tr '\0' '\n' <"$test_tmp/gum-log" | grep -qx 'confirm' ||
   fail "removal asks about the user's data on a terminal"
+tr '\0' '\n' <"$test_tmp/gum-log" | grep -qx -- '--default=false' ||
+  fail "data removal confirmation defaults to no"
 [[ -f $test_home/.hermes/sessions/one.json && -d $test_home/.config/Hermes ]] ||
   fail "declining the question keeps the user's data"
 pass "removal asks on a terminal and declining keeps the data"
