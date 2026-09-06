@@ -96,8 +96,12 @@ codex)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
 cursor-agent)
-  command=(cursor-agent --yolo)
-  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  # --yolo covers commands only; the workspace trust dialog has its own flag.
+  # A one-word prompt naming a subcommand (update, login, help) still runs that
+  # subcommand after a bare --, so the agent subcommand is named outright, and
+  # -- after it keeps a prompt starting with a dash from being read as an option.
+  command=(cursor-agent --yolo --trust)
+  [[ -n ${prompt:-} ]] && command+=(agent -- "$prompt")
   ;;
 hermes)
   if [[ -n ${prompt:-} ]]; then
