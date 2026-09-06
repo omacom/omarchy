@@ -5,8 +5,10 @@ function secondsFromConfig(value, fallback) {
 }
 
 function screensaverCommand(value, fallback) {
-  var command = String(value === undefined || value === null ? "" : value).trim()
-  return command || fallback
+  if (typeof value !== "string") return fallback
+  var command = value.trim()
+  if (command === "" || /[\r\n\0]/.test(command)) return fallback
+  return command
 }
 
 function eventParts(event, count) {

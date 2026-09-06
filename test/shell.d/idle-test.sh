@@ -14,7 +14,8 @@ assertEqual(idle.secondsFromConfig('nope', 10), 10, 'idle rejects invalid second
 assertEqual(idle.screensaverCommand('my-saver --fancy', 'default'), 'my-saver --fancy', 'idle uses configured screensaver command')
 assertEqual(idle.screensaverCommand('  ', 'default'), 'default', 'idle falls back on blank screensaver command')
 assertEqual(idle.screensaverCommand(undefined, 'default'), 'default', 'idle falls back on missing screensaver command')
-
+assertEqual(idle.screensaverCommand(42, 'default'), 'default', 'idle rejects non-string screensaver command')
+assertEqual(idle.screensaverCommand('my-saver\n--fancy', 'default'), 'default', 'idle rejects multiline screensaver command')
 assertDeepEqual(idle.eventParts({ data: 'a,b,c' }, 2), ['a', 'b', 'c'], 'idle parses raw event data')
 assertDeepEqual(
   idle.eventParts({ parse: function(count) { return ['parsed', count] } }, 4),
