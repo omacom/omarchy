@@ -88,6 +88,21 @@ This is about locking and the screensaver, not power. Suspend and hibernation ha
 
 Omarchy's screensaver is ASCII art running through random text effects, one instance per monitor. Any key or mouse movement exits it.
 
+It doesn't have to be. Set `idle.screensaverCommand` in `shell.json` to run something else when the screensaver timer fires:
+
+```json
+{
+  "version": 1,
+  "idle": {
+    "screensaver": 150,
+    "lock": 300,
+    "screensaverCommand": "my-screensaver"
+  }
+}
+```
+
+The only contract is that the command opens a window with app id `org.omarchy.screensaver` and exits on input. Hyprland already fullscreens that class, and the shell watches it to know when the screensaver has been dismissed. Leave the key out to get the default `omarchy-launch-screensaver`.
+
 You can start it on demand from _System > Screensaver_ (`Super + Esc`), which forces it up even if you've turned the idle screensaver off. There's no hotkey bound to it by default.
 
 `omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. It needs a terminal it knows how to configure — Alacritty, Foot, Ghostty, or Kitty — and will tell you so if your default terminal is something else.

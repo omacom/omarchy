@@ -16,9 +16,11 @@ Item {
   readonly property string stayAwakeStatePath: stayAwakeStateDir + "/stay-awake"
   readonly property int defaultScreensaverSeconds: 150
   readonly property int defaultLockSeconds: 300
+  readonly property string defaultScreensaverCommand: "omarchy-launch-screensaver"
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle ? shell.shellConfig.idle : ({})
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
+  readonly property string screensaverCommand: IdleModel.screensaverCommand(idleConfig.screensaverCommand, defaultScreensaverCommand)
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
@@ -65,7 +67,7 @@ Item {
   function launchScreensaver() {
     root.screensaverStartedThisCycle = true
     screensaverLaunchGraceTimer.restart()
-    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
+    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || " + root.screensaverCommand)
   }
 
   function lockSystem(reason) {
@@ -187,6 +189,7 @@ Item {
       inIdleCycle: root.idledThisCycle,
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
+      screensaverCommand: root.screensaverCommand,
       lock: root.lockTimeoutSeconds,
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,

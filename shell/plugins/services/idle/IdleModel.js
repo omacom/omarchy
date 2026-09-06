@@ -4,6 +4,13 @@ function secondsFromConfig(value, fallback) {
   return Math.floor(n)
 }
 
+function screensaverCommand(value, fallback) {
+  if (typeof value !== "string") return fallback
+  var command = value.trim()
+  if (command === "" || /[\r\n\0]/.test(command)) return fallback
+  return command
+}
+
 function eventParts(event, count) {
   try {
     if (event && event.parse) return event.parse(count)
@@ -46,6 +53,7 @@ function screensaverWindowsAfter(windows, address, visible) {
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
+    screensaverCommand: screensaverCommand,
     eventParts: eventParts,
     screensaverWindowsAfter: screensaverWindowsAfter
   }
