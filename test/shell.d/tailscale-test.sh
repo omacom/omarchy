@@ -238,4 +238,7 @@ assertEqual(tailscale.exitNodeLabel({
 
 assertEqual(tailscale.exitNodeLabel({ HostName: 'Firezone', DisplayName: 'Firezone' }), 'Firezone', 'tailscale falls back to the hostname when DNS is missing')
 assertEqual(tailscale.exitNodeLabel(null), 'Unknown', 'tailscale labels a missing exit node peer as Unknown')
+
+assert(/readonly property string peerName: tailscale\.exitNodeLabel\(peer\)/.test(panelSource), 'tailscale labels exit node rows with the MagicDNS helper')
+assert(/readonly property string peerName: peer \? String\(peer\.DisplayName \|\| peer\.HostName \|\| "Unknown"\) : "Unknown"/.test(panelSource), 'tailscale keeps the friendly hostname on machine rows')
 JS
