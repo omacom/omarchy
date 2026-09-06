@@ -354,6 +354,15 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+assert(
+  /outputText = data\.text !== undefined \? String\(data\.text\) : undefined/.test(barSource),
+  'bar command module treats an empty JSON text as an explicit value, not as missing'
+)
+assert(
+  /text: outputText !== undefined \? outputText : String\(setting\("text", ""\)\)/.test(barSource),
+  'bar command module only falls back to configured text when command output is absent'
+)
 JS
 
 put_tmp=$(mktemp -d)
