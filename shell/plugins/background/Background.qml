@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -16,6 +17,7 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  property int displayedReloads: 0
   property string incomingBackground: ""
   property string oldBackground: ""
   property bool finishingTransition: false
@@ -25,6 +27,27 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+
+  // Injected by the first-party service loader; used to reach the lock and idle
+  // services so playback can stop whenever nothing can see the wallpaper.
+  property var shell: null
+
+  // Stop a video wallpaper's decoding whenever it is covered. Qt's FFmpeg
+  // engine drives its own clock, so an unseen player keeps decoding until it
+  // is told not to — a locked laptop would otherwise decode until it died.
+  readonly property var lockService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.lock") : null
+  readonly property var idleService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.idle") : null
+  readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
+  readonly property bool lockActive: lockService ? lockService.locked : false
+  readonly property bool screensaverActive: idleService ? idleService.screensaverWindowCount > 0 : false
+  readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
+  // A lock or a screensaver covers every output, so it is decided once here.
+  // Fullscreen is decided per output below, because it only covers its own.
+  readonly property bool sessionObscured: lockActive || screensaverActive
+
+  function isVideo(path) {
+    return Util.isVideoPath(path)
+  }
 
   function imageUrl(path) {
     return Util.fileUrl(path)
@@ -50,10 +73,15 @@ Item {
     revealAnimation.stop()
     finishingTransition = false
 
-    if (instant || !displayedBackground) {
+    // Video frames are not fed through the image-only reveal stack. Switching
+    // instantly also avoids decoding two full videos during a transition.
+    if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground)) {
       oldBackground = ""
       incomingBackground = ""
-      displayedBackground = path
+      // A theme switch can replace the file behind an unchanged path, which
+      // an unchanged property would never pick up.
+      if (displayedBackground === finalPath) displayedReloads += 1
+      displayedBackground = finalPath
       revealProgress = 1
       return
     }
@@ -196,10 +224,23 @@ Item {
       color: "transparent"
       // Keep render updates enabled. The background layer has been observed to
       // lose its committed buffer while parked with updatesEnabled=false,
-      // leaving a black desktop until omarchy-shell is restarted. The wallpaper
-      // itself is static, so this favors correctness over a small render-loop
-      // optimization.
+      // leaving a black desktop until omarchy-shell is restarted. A still
+      // wallpaper costs nothing to keep enabled, and a video one is throttled
+      // by pausing playback rather than by parking the layer.
       updatesEnabled: true
+
+      // Pausing every wallpaper for one fullscreen window would freeze the one
+      // still on show next to it, which costs a viewer more than it saves. The
+      // workspace on show here knows whether a fullscreen window covers it,
+      // wherever focus happens to be.
+      readonly property var hyprlandMonitor: Hyprland.monitorFor(modelData)
+      readonly property var visibleWorkspace: hyprlandMonitor ? hyprlandMonitor.activeWorkspace : null
+      readonly property bool fullscreenHere: visibleWorkspace ? visibleWorkspace.hasFullscreen : false
+
+      // A sound track plays from one output only, or every monitor would
+      // layer its own copy of it.
+      readonly property bool firstScreen: Quickshell.screens.length > 0
+        && String(Quickshell.screens[0].name || "") === String(modelData.name || "")
 
       property bool maskReady: false
 
@@ -218,15 +259,15 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
-      Image {
+      BackgroundMedia {
         id: base
         anchors.fill: parent
-        source: root.imageUrl(root.displayedBackground)
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: true
-        onStatusChanged: {
-          if (status === Image.Ready && root.finishingTransition) {
+        path: root.displayedBackground
+        reloads: root.displayedReloads
+        playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
+        audioEnabled: panel.firstScreen
+        onReadyChanged: {
+          if (ready && root.finishingTransition) {
             root.incomingBackground = ""
             root.oldBackground = ""
             root.finishingTransition = false
