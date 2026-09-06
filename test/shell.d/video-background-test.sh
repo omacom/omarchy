@@ -224,12 +224,59 @@ failed_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$failed_cache" MD5_FILE
   "$ROOT/shell/plugins/image-picker/list.sh" "$failed_backgrounds")
 [[ -z $failed_rows ]] || fail "direct picker omits a video whose thumbnail fails" "$failed_rows"
 
+failed_marker=$(find "$failed_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
+[[ -n $failed_marker ]] || fail "direct picker remembers a video the converter rejected"
+
+thumbnailer_calls="$test_tmp/thumbnailer-calls"
+cat >"$test_tmp/bin/ffmpegthumbnailer" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$THUMBNAILER_CALLS"
+exit 1
+SH
+
+failed_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/shell/plugins/image-picker/list.sh" "$failed_backgrounds")
+[[ -z $failed_rows && ! -e $thumbnailer_calls ]] || fail "direct picker skips a rejected video on the next scan" "$(cat "$thumbnailer_calls" 2>/dev/null)"
+
+generator_failed_cache="$test_tmp/generator-failed-cache"
+PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
+[[ -s $thumbnailer_calls ]] || fail "menu image generator tries a video it has not seen"
+generator_marker=$(find "$generator_failed_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
+[[ -n $generator_marker ]] || fail "menu image generator remembers a video the converter rejected"
+rm -f "$thumbnailer_calls"
+PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
+[[ ! -e $thumbnailer_calls ]] || fail "menu image generator skips a rejected video on the next open" "$(<"$thumbnailer_calls")"
+
+# A repaired file gets a fresh key, so the old marker no longer applies.
+touch -d '2 minutes' "$failed_backgrounds/broken.mp4" "$failed_backgrounds"
+PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
+[[ -s $thumbnailer_calls ]] || fail "menu image generator retries a video that changed since it was rejected"
+
+timeout_backgrounds="$test_tmp/timeout-backgrounds"
+timeout_cache="$test_tmp/timeout-cache"
+mkdir -p "$timeout_backgrounds"
+printf 'slow video\n' >"$timeout_backgrounds/slow.mp4"
+cat >"$test_tmp/bin/ffmpegthumbnailer" <<'SH'
+#!/bin/bash
+exit 124
+SH
+timeout_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$timeout_cache" \
+  "$ROOT/shell/plugins/image-picker/list.sh" "$timeout_backgrounds")
+[[ -z $timeout_rows ]] || fail "direct picker omits a video whose thumbnail timed out" "$timeout_rows"
+timeout_marker=$(find "$timeout_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
+[[ -z $timeout_marker ]] || fail "a timed out video is left to retry rather than remembered as failed"
+
 grep -qx 'qt6-multimedia' "$ROOT/install/omarchy-base.packages" || fail "Qt Multimedia runtime is a base package"
 grep -qx 'qt6-multimedia-ffmpeg' "$ROOT/install/omarchy-base.packages" || fail "Qt Multimedia FFmpeg backend is a base package"
 
 pass "menu image generator creates thumbnails consumed by the picker"
 pass "direct picker generates and reuses still thumbnails"
 pass "direct picker omits videos whose thumbnails cannot be generated"
+pass "a rejected video is remembered so it costs nothing on the next open"
+pass "a timed out video is left to retry"
 pass "Qt Multimedia playback dependencies are declared"
 
 source <(awk '

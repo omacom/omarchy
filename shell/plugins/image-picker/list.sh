@@ -46,7 +46,12 @@ generate_video_thumbnail() {
   if timeout -k 5 10 ffmpegthumbnailer -i "$image" -o "$tmp" -s 1536 -q 8 {lock_fd}>&-; then
     mv -f "$tmp" "$thumbnail"
   else
+    status=$?
     rm -f "$tmp" "$thumbnail"
+    # Remember a rejected video so it costs nothing on the next scan; the key
+    # covers size and mtime, so a repaired file starts clean. A timeout is
+    # left to retry: the machine may only have been busy.
+    (( status == 124 || status == 137 )) || : >"$thumbnail.failed"
     return 1
   fi
 }
@@ -96,7 +101,7 @@ mapfile -d '' -t images < <(
 for image in "${images[@]}"; do
   if is_video_path "$image"; then
     thumbnail=$(thumbnail_path_for "$image") || continue
-    [[ -f $thumbnail ]] || printf '%s\0%s\0' "$image" "$thumbnail" >>"$pending_video_file"
+    [[ -f $thumbnail || -f $thumbnail.failed ]] || printf '%s\0%s\0' "$image" "$thumbnail" >>"$pending_video_file"
   fi
 done
 

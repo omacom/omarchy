@@ -185,7 +185,14 @@ generate_thumbnail() {
   if "${thumbnail_command[@]}" {lock_fd}>&-; then
     mv -f "$tmp" "$thumbnail"
   else
+    status=$?
     rm -f "$tmp" "$thumbnail"
+    # Remember a video the converter rejected, so it costs nothing on the next
+    # open. The key covers size and mtime, so a repaired file starts clean. A
+    # timeout is left to retry: the machine may only have been busy.
+    if is_video_path "$image" && (( status != 124 && status != 137 )); then
+      : >"$thumbnail.failed"
+    fi
   fi
 }
 
@@ -204,6 +211,11 @@ thumbnail_for() {
   thumbnail="$cache_dir/$hash.jpg"
 
   if [[ ! -f $thumbnail ]]; then
+    # A video that already failed to convert has no row to offer.
+    if is_video_path "$image" && [[ -f $thumbnail.failed ]]; then
+      return
+    fi
+
     # A lazy row stands in with the media file itself, which the picker draws
     # with an Image -- fine for a picture, blank for a video. Videos take the
     # queue instead, which also keeps them under its narrower fan out.
