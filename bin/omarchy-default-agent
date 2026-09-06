@@ -57,8 +57,15 @@ if [[ -n ${agent_installer:-} ]]; then
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
 else
-  agent_present() { mise where "$agent_package" &>/dev/null; }
-  agent_install() { mise use -g "$agent_package"; }
+  # Anything at the wrapper's path other than the wrapper is the user's own
+  # install, such as the symlink Cursor's installer leaves. A mise copy would
+  # only shadow it, since the mise shims precede ~/.local/bin on PATH.
+  user_install() {
+    [[ -x $HOME/.local/bin/$agent ]] &&
+      { [[ -L $HOME/.local/bin/$agent ]] || ! grep -q '^mise use -g' "$HOME/.local/bin/$agent"; }
+  }
+  agent_present() { user_install || mise where "$agent_package" &>/dev/null; }
+  agent_install() { user_install || mise use -g "$agent_package"; }
 fi
 
 if [[ $installing == "false" ]] && ! agent_present; then

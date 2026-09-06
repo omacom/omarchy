@@ -117,6 +117,7 @@ assert_lazy_stub "$grok_package" grok
 assert_lazy_stub "$omp_package" omp
 assert_lazy_stub "$crush_package" crush
 assert_lazy_stub "$ori_package" ori
+assert_lazy_stub "$cursor_agent_package" cursor-agent
 pass "custom agent lazy stubs preserve their mise packages"
 
 source "$ROOT/install/user/mise.sh"
@@ -137,8 +138,15 @@ source "$ROOT/migrations/1787342993.sh" >/dev/null
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "Ori migration creates a working lazy stub"
 
 : >"$stub_log"
+export OMARCHY_TEST_MISSING_COMMAND=cursor-agent
 source "$ROOT/migrations/1788577553.sh" >/dev/null
+unset OMARCHY_TEST_MISSING_COMMAND
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "Cursor Agent migration creates a working lazy stub"
+
+: >"$stub_log"
+source "$ROOT/migrations/1788577553.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "Cursor Agent migration reinstalls an existing cursor-agent command"
+pass "Cursor Agent migration preserves an existing Cursor Agent install"
 
 : >"$stub_log"
 source "$ROOT/migrations/1785846769.sh" >/dev/null
@@ -222,6 +230,7 @@ touch "$test_home/.local/state/omarchy/preinstalls-removed"
 source "$ROOT/migrations/1785617047.sh" >/dev/null
 source "$ROOT/migrations/1785846769.sh" >/dev/null
 source "$ROOT/migrations/1787342993.sh" >/dev/null
+OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/migrations/1788577553.sh" >/dev/null
 [[ ! -s $stub_log ]] || fail "agent migrations respect the preinstall opt-out"
 [[ ! -e $test_home/.local/bin/omp ]] || fail "agent migration removes the obsolete Oh My Pi wrapper after opt-out"
 
@@ -252,6 +261,15 @@ for command in agy omp ori grok crush cursor-agent; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
+
+# Cursor's installer links the same path, so anything but the mise wrapper is
+# the user's own install.
+touch "$test_home/.local/bin/cursor-agent.official"
+ln -s cursor-agent.official "$test_home/.local/bin/cursor-agent"
+omarchy-remove-preinstalls >/dev/null
+[[ -L $test_home/.local/bin/cursor-agent ]] || fail "Remove Preinstalls keeps an official Cursor Agent install"
+rm -f "$test_home/.local/bin/cursor-agent" "$test_home/.local/bin/cursor-agent.official"
+pass "Remove Preinstalls keeps an official Cursor Agent install"
 
 [[ -z $(omarchy-default-agent) ]] || fail "default agent is unset until one is chosen"
 pass "default agent is unset until one is chosen"
@@ -388,6 +406,35 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
   fail "installed agent opens in a new terminal after selection"
 pass "installed agents select and open without notifications"
+
+# Cursor's installer links the wrapper's path, and the mise shims precede
+# ~/.local/bin, so a mise copy would shadow the user's own install.
+touch "$test_home/.local/bin/cursor-agent.official"
+chmod +x "$test_home/.local/bin/cursor-agent.official"
+ln -s cursor-agent.official "$test_home/.local/bin/cursor-agent"
+: >"$terminal_log"
+: >"$mise_log"
+: >"$agent_open_log"
+omarchy-default-agent cursor-agent
+[[ ! -s $terminal_log ]] || fail "an official Cursor Agent install needs no install terminal"
+[[ ! -s $mise_log ]] || fail "an official Cursor Agent install is left to itself by mise"
+[[ $(<"$agent_file") == "cursor-agent" ]] || fail "an official Cursor Agent install becomes the default"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
+  fail "an official Cursor Agent install opens after selection"
+rm -f "$test_home/.local/bin/cursor-agent" "$test_home/.local/bin/cursor-agent.official"
+printf '%s\n' copilot >"$agent_file"
+pass "selecting an official Cursor Agent install skips mise"
+
+# A file nothing can run is not an install; the wrapper is still wanted.
+touch "$test_home/.local/bin/cursor-agent"
+: >"$terminal_log"
+omarchy-default-agent cursor-agent
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-agent --install cursor-agent" ]] ||
+  fail "a dead file at the wrapper's path still installs Cursor Agent"
+rm -f "$test_home/.local/bin/cursor-agent"
+pass "a dead file at the wrapper's path does not pass for an install"
 
 : >"$agent_open_log"
 if omarchy-default-agent unsupported >"$test_tmp/invalid-output" 2>&1; then
