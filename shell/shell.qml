@@ -273,7 +273,10 @@ ShellRoot {
   property var _services: ({})
 
   function serviceFor(pluginId) {
-    return _services[String(pluginId)] || null
+    var id = shell.pluginRegistry
+      ? shell.pluginRegistry.resolveEnabledId(pluginId)
+      : String(pluginId)
+    return _services[String(id)] || _services[String(pluginId)] || null
   }
 
   function firstPartyServiceFor(pluginId) {

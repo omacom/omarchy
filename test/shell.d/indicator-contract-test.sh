@@ -26,6 +26,7 @@ if ! command -v quickshell >/dev/null 2>&1; then
 fi
 
 require_command jq
+require_command node
 
 TMPDIR=$(mktemp -d)
 result="$TMPDIR/result.json"
@@ -33,6 +34,24 @@ log="$TMPDIR/quickshell.log"
 config_dir="$TMPDIR/indicator-contract"
 mkdir -p "$config_dir" "$TMPDIR/home"
 cp "$SHELL_TEST_DIR/fixtures/indicator-contract/shell.qml" "$config_dir/shell.qml"
+# Exercise the production lookup inside the QML binding engine, not a mock
+# that bypasses clone resolution. Only service instances are test doubles.
+node - "$ROOT" "$config_dir/shell.qml" <<'JS'
+const fs = require('fs')
+const path = require('path')
+const [root, target] = process.argv.slice(2)
+function method(file, name) {
+  const source = fs.readFileSync(path.join(root, file), 'utf8')
+  const match = source.match(new RegExp(`^  function ${name}\\([^]*?^  }`, 'm'))
+  if (!match) throw new Error(`Missing ${name} in ${file}`)
+  return match[0]
+}
+let fixture = fs.readFileSync(target, 'utf8')
+fixture = fixture.replace('// SERVICE_LOOKUP_METHODS',
+  ['serviceFor', 'firstPartyServiceFor'].map(name => method('shell/shell.qml', name)).join('\n'))
+fixture = fixture.replace('// RESOLVE_ENABLED_ID_METHOD', method('shell/services/PluginRegistry.qml', 'resolveEnabledId'))
+fs.writeFileSync(target, fixture)
+JS
 ln -s "$ROOT/shell/Ui" "$config_dir/Ui"
 ln -s "$ROOT/shell/Commons" "$config_dir/Commons"
 

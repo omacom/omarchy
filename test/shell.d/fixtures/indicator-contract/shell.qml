@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import qs.Commons
 
 ShellRoot {
   id: root
@@ -43,12 +44,52 @@ ShellRoot {
 
   QtObject {
     id: mockShell
-    function firstPartyServiceFor(id) {
-      if (id === "omarchy.notifications") return notificationService
-      if (id === "omarchy.idle") return idleService
-      if (id === "omarchy.nightlight") return nightlightService
-      return null
+    property var shell: mockShell
+    property var pluginRegistry: registry
+    property var clonedServices: []
+    property var _services: {
+      var services = {notifications: notificationService, idle: idleService, nightlight: nightlightService, media: mediaService}
+      var result = {}
+      for (var name in services)
+        result[(clonedServices.indexOf(name) !== -1 ? "tester." : "omarchy.") + name] = services[name]
+      return result
     }
+    // SERVICE_LOOKUP_METHODS
+  }
+
+  QtObject {
+    id: registry
+    property var installedPlugins: ({
+      "tester.notifications": { omarchy: { clonedFrom: "omarchy.notifications" } },
+      "tester.idle": { omarchy: { clonedFrom: "omarchy.idle" } },
+      "tester.nightlight": { omarchy: { clonedFrom: "omarchy.nightlight" } },
+      "tester.media": { omarchy: { clonedFrom: "omarchy.media" } }
+    })
+    function isEnabled(id) { return mockShell.clonedServices.indexOf(id.replace("tester.", "")) !== -1 }
+    // RESOLVE_ENABLED_ID_METHOD
+  }
+
+  QtObject {
+    id: player
+    property string trackTitle: "Lookup test"
+    property string trackArtist: "Test artist"
+    property bool isPlaying: false
+    property bool canGoPrevious: true
+    property bool canGoNext: true
+    property bool canTogglePlaying: true
+    property bool canPlay: true
+    property bool canPause: true
+  }
+
+  QtObject {
+    id: mediaService
+    property var activePlayer: player
+    property var sourcePlayers: [player]
+    function runAction(action, notify, key) {
+      root.commands.push("media:" + action)
+      if (action === "playPause") player.isPlaying = !player.isPlaying
+    }
+    function playerKey(value) { return "test-player" }
   }
 
   QtObject {
@@ -163,6 +204,79 @@ ShellRoot {
     return "'" + String(value).replace(/'/g, "'\\''") + "'"
   }
 
+  function checkCloneConsumers() {
+    var items = [root.createIndicator("StayAwake"), root.createIndicator("NightLight"), root.createIndicator("Dnd")]
+    for (var item of items) if (item) root.injectBar(item)
+    var mediaComponent = Qt.createComponent("file://" + rootPath + "/shell/plugins/services/media/BarWidget.qml")
+    var audioComponent = Qt.createComponent("file://" + rootPath + "/shell/plugins/panels/audio/Panel.qml")
+    var media = mediaComponent.status === Component.Ready ? mediaComponent.createObject(root, {bar: mockBar}) : null
+    var audio = audioComponent.status === Component.Ready ? audioComponent.createObject(root, {bar: mockBar}) : null
+    root.assertTrue(media !== null, "media widget loads: " + mediaComponent.errorString())
+    root.assertTrue(audio !== null, "audio panel loads: " + audioComponent.errorString())
+
+    function clickMediaButtons(item, seen) {
+      if (!item || seen.indexOf(item) !== -1) return
+      seen.push(item)
+      if ("iconText" in item && typeof item.clicked === "function") item.clicked()
+      for (var property of ["data", "children", "contentItem"]) {
+        var children = item[property]
+        if (!children) continue
+        if (typeof children.length === "number") {
+          for (var child of children) clickMediaButtons(child, seen)
+        }
+      }
+    }
+
+    function check(phase) {
+      idleService.setIdleEnabled(true)
+      nightlightService.setNightlight(false)
+      notificationService.setDoNotDisturb(false)
+      for (var item of items) {
+        if (!item) continue
+        root.assertTrue(!item.active, phase + ": external state clears indicator")
+        item.triggerPress(Qt.LeftButton)
+        root.assertTrue(item.active, phase + ": click activates indicator")
+      }
+      root.assertTrue(idleService.stayAwake, phase + ": idle receives click")
+      root.assertTrue(nightlightService.enabled, phase + ": nightlight receives click")
+      root.assertTrue(notificationService.doNotDisturb, phase + ": notifications receives click")
+      if (media && audio) {
+        root.assertTrue(media.mediaService === mediaService, phase + ": media widget resolves service")
+        root.assertTrue(audio.mediaService === mediaService, phase + ": audio panel resolves service")
+        root.assertTrue(media.activePlayer === player && audio.activeMediaPlayer === player, phase + ": both consumers expose player")
+        player.trackTitle = phase
+        root.assertTrue(media.title === phase, phase + ": media title updates")
+        mediaService.activePlayer = null
+        root.assertTrue(media.activePlayer === null && audio.activeMediaPlayer === null, phase + ": both consumers clear removed player")
+        mediaService.activePlayer = player
+        var before = root.commands.length
+        var wasPlaying = player.isPlaying
+        clickMediaButtons(media, [])
+        var actions = root.commands.slice(before)
+        for (var action of ["previous", "playPause", "next"])
+          root.assertTrue(actions.indexOf("media:" + action) !== -1, phase + ": media " + action + " reaches service")
+        root.assertTrue(player.isPlaying !== wasPlaying, phase + ": playback action updates player")
+      }
+    }
+
+    var phases = [[], ["idle"], ["nightlight"], ["notifications"], ["media"], ["idle", "nightlight", "notifications", "media"], []]
+    function nextPhase(index) {
+      mockShell.clonedServices = phases[index]
+      Qt.callLater(function() {
+        check(index === 0 ? "original" : index === phases.length - 1 ? "restored" : "cloned " + phases[index].join(","))
+        if (index + 1 < phases.length) {
+          nextPhase(index + 1)
+          return
+        }
+        for (var item of items) if (item) item.destroy()
+        if (media) media.destroy()
+        if (audio) audio.destroy()
+        root.checkIndicatorTray()
+      })
+    }
+    nextPhase(0)
+  }
+
   readonly property string rootPath: Quickshell.env("OMARCHY_PATH")
 
   Timer {
@@ -216,7 +330,7 @@ ShellRoot {
         root.assertTrue(idleService.stayAwake === true, "Stay Awake left click toggles the idle service")
       }
 
-      root.checkIndicatorTray()
+      root.checkCloneConsumers()
     }
   }
 }
