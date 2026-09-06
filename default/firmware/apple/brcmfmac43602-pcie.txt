@@ -9,10 +9,11 @@
 #
 # Lines starting with # are comments; the brcmfmac NVRAM parser ignores them.
 # macaddr= is a firmware key. The 00:90:4c value is Broadcom's placeholder,
-# not a board identity. The install leaf and migration substitute a real
-# permanent address from the 43ba wiphy when one exists. They keep this line
-# when it does not: dropping it makes the dongle time out on cur_etheraddr
-# and crash.
+# not a board identity. The install leaf and migration substitute the 43ba
+# wiphy's permanent address when it is not a Broadcom placeholder, otherwise
+# a machine-id-derived locally-administered address. The key is never dropped
+# (dropping it makes the dongle time out on cur_etheraddr and crash). The
+# donor value is never persisted.
 
 sromrev=11
 subvid=0x14e4

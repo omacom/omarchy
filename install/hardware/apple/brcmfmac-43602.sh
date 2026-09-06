@@ -90,9 +90,10 @@ brcmfmac43602_installed() {
 # (a USB adapter at install time would otherwise donate its address). The
 # wiphy's macaddress is the permanent address; net/*/address is whatever is
 # current, which NetworkManager randomises while scanning. 00:90:4c is the
-# Broadcom OUI, not a board identity, so it is not substituted in. The
-# macaddr= key still has to exist in the file: without it, BCM43602 firmware
-# times out on cur_etheraddr and crashes the dongle (MacBookPro14,3).
+# Broadcom OUI, not a board identity, so it is not substituted in — install
+# then writes a per-machine locally-administered address instead of the dump
+# donor. The macaddr= key still has to exist in the file: without it, BCM43602
+# firmware times out on cur_etheraddr and crashes the dongle (MacBookPro14,3).
 brcmfmac43602_wifi_mac() {
   local bdf pci_devices candidate mac
   pci_devices=$(brcmfmac43602_pci_devices)
@@ -108,6 +109,24 @@ brcmfmac43602_wifi_mac() {
     return 0
   done
   return 1
+}
+
+brcmfmac43602_machine_id() {
+  cat "${OMARCHY_BRCMFMAC_MACHINE_ID:-/etc/machine-id}" 2>/dev/null || true
+}
+
+# Locally-administered unicast address unique to this machine. Used when the
+# 43ba wiphy has no real permanent address so macaddr= stays present without
+# persisting the dump's shared 00:90:4c:0d:f4:3e. Salt is this helper's, not
+# #10141's mbp133-wifi — do not copy that PR's 13,3-only restriction.
+brcmfmac43602_stable_mac() {
+  local id seed
+  id=$(brcmfmac43602_machine_id)
+  [[ -n $id ]] || return 1
+  seed=$(printf '%s' "$id:bcm43602-wifi" | sha256sum | cut -c1-10)
+  [[ ${#seed} == 10 ]] || return 1
+  printf '02:%s:%s:%s:%s:%s\n' \
+    "${seed:0:2}" "${seed:2:2}" "${seed:4:2}" "${seed:6:2}" "${seed:8:2}"
 }
 
 # Reloading brcmfmac here would drop a live Wi-Fi connection, including the
@@ -133,9 +152,10 @@ brcmfmac43602_install() {
   fi
 
   work=$(mktemp) || return 1
-  # Copy first so macaddr= always survives. Then substitute a real permanent
-  # address when wifi_mac found one. Do not strip the key: that crash is
-  # documented in the wifi_mac comment.
+  # Copy first so macaddr= always survives. Substitute the 43ba wiphy's
+  # permanent address when it is not a Broadcom placeholder; otherwise a
+  # machine-id-derived locally-administered address. Never drop the key
+  # (dongle crash) and never persist the dump's 00:90:4c:0d:f4:3e.
   if ! cat "$src" >"$work"; then
     rm -f "$work"
     return 1
@@ -145,6 +165,14 @@ brcmfmac43602_install() {
       rm -f "$work"
       return 1
     fi
+  elif mac=$(brcmfmac43602_stable_mac); then
+    if ! sed -i "s/^macaddr=.*/macaddr=$mac/" "$work"; then
+      rm -f "$work"
+      return 1
+    fi
+  else
+    rm -f "$work"
+    return 1
   fi
 
   if ! brcmfmac43602_as_root mkdir -p "$fwdir"; then
