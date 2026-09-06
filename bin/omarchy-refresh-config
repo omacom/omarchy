@@ -17,8 +17,21 @@ USAGE
   exit 1
 fi
 
-user_config_file="${HOME}/.config/$config_file"
-default_config_file="$OMARCHY_PATH/config/$config_file"
+if [[ $config_file == /* || $config_file == ".." || $config_file == ../* || $config_file == */../* || $config_file == */.. ]]; then
+  echo "Invalid config path: $config_file" >&2
+  exit 1
+fi
+
+config_base=$(realpath -m "$HOME/.config")
+default_base=$(realpath -m "$OMARCHY_PATH/config")
+user_config_file="$config_base/$config_file"
+default_config_file="$default_base/$config_file"
+
+if [[ $user_config_file != "$config_base"/* || $default_config_file != "$default_base"/* ]]; then
+  echo "Invalid config path: $config_file" >&2
+  exit 1
+fi
+
 backup_config_file="$user_config_file.bak.$(date +%s)"
 
 if [[ ! -e $default_config_file ]]; then

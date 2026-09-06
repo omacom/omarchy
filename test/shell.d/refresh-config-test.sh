@@ -38,3 +38,26 @@ grep -Fq 'Not a shipped user config: hypr/missing.lua' "$tmpdir/err" ||
   fail "refresh-config reports missing shipped config"
 
 pass "refresh-config validates against OMARCHY_PATH/config"
+
+escape="$tmpdir/escape"
+echo "do not touch" >"$escape"
+
+if HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" ../escape >"$tmpdir/out" 2>"$tmpdir/err"; then
+  fail "refresh-config rejects parent traversal"
+fi
+
+grep -Fq 'Invalid config path' "$tmpdir/err" ||
+  fail "refresh-config reports invalid traversal path"
+
+[[ $(cat "$escape") == "do not touch" ]] ||
+  fail "refresh-config leaves files outside .config untouched"
+
+if HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" hypr/../../escape >"$tmpdir/out" 2>"$tmpdir/err"; then
+  fail "refresh-config rejects nested traversal"
+fi
+
+if HOME="$home" OMARCHY_PATH="$omarchy_path" "$ROOT/bin/omarchy-refresh-config" /etc/passwd >"$tmpdir/out" 2>"$tmpdir/err"; then
+  fail "refresh-config rejects absolute paths"
+fi
+
+pass "refresh-config rejects paths escaping .config"
