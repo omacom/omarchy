@@ -8,10 +8,14 @@ echo "Switch fingerprint support back to stock libfprint"
 # on a previous run, libfprint-git is already gone but fprintd is left with
 # no libfprint — the elif finishes the job on rerun.
 if pacman -Q libfprint-git &>/dev/null; then
-  # Deps-only removal keeps fprintd installed while its libfprint
-  # dependency is swapped out underneath it.
-  sudo pacman -Rdd --noconfirm libfprint-git
-  omarchy-pkg-add libfprint
+  # Readers stock libfprint still cannot drive keep the git snapshot; the
+  # fingerprint setup picks it for them from the same table.
+  if ! omarchy-hw-fingerprint-git; then
+    # Deps-only removal keeps fprintd installed while its libfprint
+    # dependency is swapped out underneath it.
+    sudo pacman -Rdd --noconfirm libfprint-git
+    omarchy-pkg-add libfprint
+  fi
 elif pacman -Q fprintd &>/dev/null && ! pacman -Q libfprint &>/dev/null; then
   omarchy-pkg-add libfprint
 fi

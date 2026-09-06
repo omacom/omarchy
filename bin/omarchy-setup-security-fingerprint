@@ -74,26 +74,44 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
-# Install required packages
-echo "Installing required packages..."
-
+# Stock libfprint drives most readers. The ones omarchy-hw-fingerprint-git
+# lists only work with the omarchy repo's libfprint-git, and pins of that
+# package older than this floor predate them.
 fingerprint_package=libfprint
-case "$(omarchy-channel-current)" in
-  edge | dev)
-    fingerprint_package=libfprint-git
-    # The previous OPR pin predates Synaptics USB 06cb:010b support.
-    minimum_version=1:1.94.100.r10.g6f9479c-1
-    available_version=$(LC_ALL=C pacman -Si "$fingerprint_package" | awk '/^Version *:/ { print $3; exit }')
+minimum_version=
+if omarchy-hw-fingerprint-git; then
+  fingerprint_package=libfprint-git
+  minimum_version=1:1.94.100.r10.g6f9479c-1
+fi
+
+packages_ready() {
+  omarchy-pkg-present "$fingerprint_package" fprintd usbutils || return 1
+  [[ -n $minimum_version ]] || return 0
+  local installed_version
+  installed_version=$(pacman -Q "$fingerprint_package" | awk '{ print $2 }')
+  (( $(vercmp "$installed_version" "$minimum_version") >= 0 ))
+}
+
+# Skipped when everything is in place: a rerun to enroll another finger must
+# not turn into a partial upgrade against a sync db newer than the system.
+if ! packages_ready; then
+  echo "Installing required packages..."
+
+  if [[ -n $minimum_version ]]; then
+    # Qualify the repo: a custom repo listed above [omarchy] may carry its own
+    # libfprint-git, built without these readers.
+    fingerprint_package=omarchy/libfprint-git
+    available_version=$(LC_ALL=C pacman -Si "$fingerprint_package" 2>/dev/null | awk '/^Version *:/ { print $3; exit }')
     if [[ -z $available_version ]] || (( $(vercmp "$available_version" "$minimum_version") < 0 )); then
-      echo "Fingerprint setup needs an updated edge package repository. Run omarchy update and try again." >&2
+      echo "This fingerprint reader needs a newer libfprint-git than the package repository offers yet. Run omarchy update later and try again." >&2
       exit 1
     fi
-    ;;
-esac
+  fi
 
-# The drivers conflict. Accept their replacement in one transaction so a failed
-# install leaves the existing driver in place. --ask 4 does not overwrite files.
-sudo pacman -S --needed --noconfirm --ask 4 "$fingerprint_package" fprintd usbutils
+  # The drivers conflict. Accept their replacement in one transaction so a failed
+  # install leaves the existing driver in place. --ask 4 does not overwrite files.
+  sudo pacman -S --needed --noconfirm --ask 4 "$fingerprint_package" fprintd usbutils
+fi
 
 # Enroll first fingerprint
 echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
