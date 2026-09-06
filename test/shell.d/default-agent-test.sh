@@ -19,7 +19,7 @@ mise_history="$test_tmp/mise-history"
 stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
-aur_log="$test_tmp/aur"
+muse_package_log="$test_tmp/muse-package"
 muse_login_log="$test_tmp/muse-login"
 mkdir -p "$mock_bin" "$test_home"
 
@@ -76,10 +76,16 @@ cat >"$mock_bin/omarchy-pkg-present" <<'SH'
 [[ ${OMARCHY_TEST_PKG_INSTALLED:-false} == "true" ]]
 SH
 
+cat >"$mock_bin/omarchy-pkg-add" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_MUSE_PACKAGE_LOG"
+[[ ${OMARCHY_TEST_MUSE_PACKAGE_FAIL:-false} != "true" ]]
+SH
+
 cat >"$mock_bin/omarchy-pkg-aur-add" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >>"$OMARCHY_TEST_AUR_LOG"
-[[ ${OMARCHY_TEST_AUR_FAIL:-false} != "true" ]]
+echo "Muse must install from OPR, not the AUR" >&2
+exit 1
 SH
 
 cat >"$mock_bin/muse" <<'SH'
@@ -113,7 +119,7 @@ export OMARCHY_TEST_MISE_HISTORY="$mise_history"
 export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
-export OMARCHY_TEST_AUR_LOG="$aur_log"
+export OMARCHY_TEST_MUSE_PACKAGE_LOG="$muse_package_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_PATH="$ROOT"
 
@@ -499,7 +505,7 @@ grep -F "Could not set Codex as the default coding agent" "$test_tmp/setup-failu
 [[ ! -s $agent_open_log ]] || fail "failed activation does not open an agent"
 pass "default agent reports mise failures without notifications"
 
-# Muse installs from the AUR rather than mise, and a fresh install runs the
+# Muse installs from OPR rather than mise, and a fresh install runs the
 # Meta browser login before the agent opens.
 : >"$notification_history"
 : >"$agent_open_log"
@@ -512,16 +518,25 @@ mapfile -d '' -t terminal_args <"$terminal_log"
 [[ ! -s $agent_open_log ]] || fail "missing Muse installation waits to open the agent"
 [[ $(omarchy-default-agent) == "copilot" ]] || fail "missing Muse installation waits to change the selection"
 
-: >"$aur_log"
+if OMARCHY_TEST_MUSE_PACKAGE_FAIL=true omarchy-default-agent --install muse >"$test_tmp/muse-install-failure-output" 2>&1; then
+  fail "missing Muse rejects a failed OPR installation"
+fi
+[[ $(omarchy-default-agent) == "copilot" ]] || fail "failed Muse installation preserves the current default"
+[[ ! -s $muse_login_log && ! -s $agent_open_log ]] || fail "failed Muse installation skips login and launch"
+grep -F "Could not install Muse Code from the Omarchy Package Repository" "$test_tmp/muse-install-failure-output" >/dev/null ||
+  fail "failed Muse installation identifies the package repository"
+pass "failed Muse OPR installation preserves the selection and skips login"
+
+: >"$muse_package_log"
 omarchy-default-agent --install muse >"$test_tmp/muse-install-output"
-grep -Fx "muse-code-bin" "$aur_log" >/dev/null || fail "visible Muse installation adds the AUR package"
+grep -Fx "muse-code" "$muse_package_log" >/dev/null || fail "visible Muse installation adds the OPR package"
 grep -Fx "muse login" "$muse_login_log" >/dev/null ||
   fail "fresh Muse installation runs the Meta login in the install terminal"
 [[ $(omarchy-default-agent) == "muse" ]] || fail "visible Muse installation changes the selection"
 mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
   fail "newly installed Muse opens in the installation terminal"
-pass "Muse installs visibly from the AUR and logs in before opening"
+pass "Muse installs visibly from OPR and logs in before opening"
 
 : >"$terminal_log"
 : >"$muse_login_log"
@@ -537,14 +552,14 @@ pass "installed Muse selects and opens without repeating the login"
 
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
-if OMARCHY_TEST_PKG_INSTALLED=true OMARCHY_TEST_AUR_FAIL=true omarchy-default-agent musecode >"$test_tmp/muse-failure-output" 2>&1; then
+if OMARCHY_TEST_PKG_INSTALLED=true OMARCHY_TEST_MUSE_PACKAGE_FAIL=true omarchy-default-agent musecode >"$test_tmp/muse-failure-output" 2>&1; then
   fail "default agent rejects a failed Muse activation"
 fi
 [[ $(omarchy-default-agent) == "pi" ]] || fail "failed Muse activation preserves the current default agent"
 grep -F "Could not set Muse Code as the default coding agent" "$test_tmp/muse-failure-output" >/dev/null ||
   fail "default agent reports a failed Muse activation"
 [[ ! -s $agent_open_log ]] || fail "failed Muse activation does not open an agent"
-pass "default agent reports Muse AUR failures without changing the selection"
+pass "default agent reports Muse package failures without changing the selection"
 
 rm "$mock_bin/omarchy-agent"
 hash -r

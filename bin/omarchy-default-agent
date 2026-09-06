@@ -36,7 +36,7 @@ openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-op
 agy | antigravity | antigravity-cli | gemini | gemini-cli) agent="agy"; name="Antigravity"; agent_package="antigravity-cli" ;;
 hermes) agent="hermes"; name="Hermes"; agent_installer="omarchy-install-hermes-cli" ;;
 copilot | github-copilot) agent="copilot"; name="GitHub Copilot" ;;
-muse | muse-code | musecode) agent="muse"; name="Muse Code"; agent_aur_package="muse-code-bin" ;;
+muse | muse-code | musecode) agent="muse"; name="Muse Code"; agent_system_package="muse-code" ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 *)
   echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
@@ -57,11 +57,10 @@ if [[ -n ${agent_installer:-} ]]; then
   # inside the menu action instead.
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
-elif [[ -n ${agent_aur_package:-} ]]; then
-  # Muse has no mise-installable distribution — Meta ships it only as a
-  # binary — so it installs from the AUR instead.
-  agent_present() { omarchy-pkg-present "$agent_aur_package"; }
-  agent_install() { omarchy-pkg-aur-add "$agent_aur_package"; }
+elif [[ -n ${agent_system_package:-} ]]; then
+  # Muse is packaged in the Omarchy Package Repository.
+  agent_present() { omarchy-pkg-present "$agent_system_package"; }
+  agent_install() { omarchy-pkg-add "$agent_system_package"; }
 else
   # Anything at the wrapper's path other than the wrapper is the user's own
   # install, such as the symlink Cursor's installer leaves. A mise copy would
@@ -79,8 +78,8 @@ if [[ $installing == "false" ]] && ! agent_present; then
 fi
 
 if ! agent_install; then
-  if [[ $installing == "true" && -n ${agent_aur_package:-} ]]; then
-    echo "Could not install $name from the AUR" >&2
+  if [[ $installing == "true" && -n ${agent_system_package:-} ]]; then
+    echo "Could not install $name from the Omarchy Package Repository" >&2
   elif [[ $installing == "true" ]]; then
     echo "Could not install $name with mise" >&2
   else
