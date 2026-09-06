@@ -78,10 +78,13 @@ flags map onto that call:
 | `--app-name` | `app_name` | defaults to `omarchy-action` |
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
+| `--action <id>=<label> <program> [args…] \;` | `actions` (id, label) + hint `omarchy-action-argv` | a button. The label is what it says; the words after it are its command, ended by a lone `;` (written `\;`, as for `find -exec`) or the end of the line. Repeatable; comes after the positionals like `--exec` (see *Buttons*) |
+| `--deadline <seconds>` | hint `omarchy-deadline-ms` | the moment the notification stops mattering, sent as an absolute epoch; the toast counts down to it and expires exactly there (see *Deadlines*) |
+| `--deadline-text <template>` | hint `omarchy-deadline-text` | what the countdown says, with `{s}` for the seconds left: `"Deny in {s} s"` |
 
-Unknown flags are a hard error, not a silent pass-through: `--exec` is the only
-door to a click command, and there is no generic option pass-through to smuggle
-one through.
+Unknown flags are a hard error, not a silent pass-through: `--exec` and
+`--action` are the only doors to a command, and there is no generic option
+pass-through to smuggle one through.
 
 The defaults are the point: an unadorned `omarchy-notification-send "Done"`
 is a low-urgency user-action toast that pops through DND and is treated as
@@ -98,6 +101,53 @@ immediately. For third-party clients the click falls back to the libnotify
 `default` action while the sender is alive, then to focusing the sender's
 window by class via `omarchy-hyprland-focus-app` — chat apps rarely register
 an action and just expect click-to-jump.
+
+Buttons follow the same split. The freedesktop `actions` array is welcome for
+what it is good at — *labels* — and every action other than `default` is drawn
+as a button on the card. What a button *does* travels the way the click does:
+an argv per button in the `omarchy-action-argv` hint, run by the shell itself.
+A live libnotify sender that registered the action gets `ActionInvoked` when
+its button is pressed — that is how a browser's web notifications (Gmail's
+*Mark as read*, *Archive*, *Reply*) and chat clients' *Reply* get their buttons —
+but nothing in Omarchy relies on it.
+
+### Buttons
+
+```bash
+omarchy-notification-send "Update ready" "Restart when convenient" \
+  --action now=Restart omarchy-restart-shell \; \
+  --action later=Later omarchy-notification-send "Reminder set"
+```
+
+Each `--action` is an id, a label, and a command. The id keys the argv in the
+hint and names the pressed button to the shell; `default` is reserved for the
+click. The command is the words that follow, split by the caller's shell and
+never re-parsed, exactly as for `--exec`; because there can be several, each
+ends at a lone `;` (`\;` in a shell, the `find -exec` convention) — the last one
+may run to the end of the line. `--exec` can still follow, for the click.
+
+The hint is a JSON object, `{"now": ["omarchy-restart-shell"], …}`, validated per
+button with the click argv's rules (an array of strings, a program that is
+present and not a leading-dash option) and run through `Util.execArgv` the same
+way. It is persisted with the popup, so a toast restored after a shell restart
+keeps working buttons, and the history replay shows them too. A pressed button
+dismisses the toast; the card's own click and right-click are unchanged, and
+each button has its own mouse area so a press never doubles as a click.
+
+Nothing changes for senders that pass no actions: the `actions` array stays
+empty and the card is what it was.
+
+### Deadlines
+
+Some notifications stop meaning anything at a known moment — a firewall prompt
+the daemon answers by itself after thirty seconds, an update that will proceed
+on its own. `--deadline <seconds>` sends that moment as an absolute epoch in
+`omarchy-deadline-ms`, and the card counts down to it with `--deadline-text`
+("Deny in {s} s", or just the seconds without one). A declared deadline outranks
+the usual lifetime: the toast is not clamped to thirty seconds, is not paused
+while hovered — the clock it mirrors does not pause — and expires exactly at the
+deadline. Because the moment is absolute, a toast restored after a shell restart
+keeps it, and a history replay drops it: a memory does not count down.
 
 ### Click commands are argv, never shell strings
 
