@@ -9,6 +9,7 @@ Item {
 
   property url mediaSource: ""
   property bool playbackEnabled: true
+  property bool audioEnabled: false
   property int mediaGeneration: 0
   property bool priming: false
   property int primingGeneration: -1
@@ -77,11 +78,23 @@ Item {
     fillMode: VideoOutput.PreserveAspectCrop
   }
 
+  // Sound is opted into per output: with a player per monitor, every output
+  // playing the track would layer copies of it. The sink is only built once
+  // the media reports a sound track, so a silent file never opens an audio
+  // client or its threads. Priming a paused player must not be heard.
+  Loader {
+    id: audioLoader
+    active: root.audioEnabled && player.hasAudio
+    sourceComponent: AudioOutput {
+      muted: root.priming || !root.playbackEnabled
+    }
+  }
+
   MediaPlayer {
     id: player
     source: root.mediaSource
     videoOutput: output
-    audioOutput: null
+    audioOutput: audioLoader.item
     loops: MediaPlayer.Infinite
     autoPlay: root.playbackEnabled
     onMediaStatusChanged: {

@@ -7,6 +7,7 @@ Item {
   property string path: ""
   property int version: 0
   property bool playbackEnabled: true
+  property bool audioEnabled: false
   // Bumped when the file behind an unchanged path may have been replaced.
   // Images cache-bust through version; a video is rebuilt, since FFmpeg
   // would read a query as part of the filename.
@@ -55,6 +56,13 @@ Item {
     target: videoLoader.item
     property: "playbackEnabled"
     value: root.playbackEnabled
+    when: videoLoader.item !== null
+  }
+
+  Binding {
+    target: videoLoader.item
+    property: "audioEnabled"
+    value: root.audioEnabled
     when: videoLoader.item !== null
   }
 

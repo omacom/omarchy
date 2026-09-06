@@ -61,11 +61,13 @@ assert(
   'the still-image path never imports QtMultimedia, so image-only sessions do not map it'
 )
 assert(
-  /^\s*audioOutput: null$/m.test(videoQml) &&
-    !/^\s*Video\s*\{/m.test(videoQml) &&
-    !/AudioOutput\s*\{/.test(videoQml) &&
-    !/^\s*muted\s*:/m.test(videoQml),
-  'wallpaper playback builds no audio output, which a muted Video convenience type would'
+  !/^\s*Video\s*\{/m.test(videoQml) &&
+    /active: root\.audioEnabled && player\.hasAudio/.test(videoQml) &&
+    /audioOutput: audioLoader\.item/.test(videoQml) &&
+    /muted: root\.priming \|\| !root\.playbackEnabled/.test(videoQml) &&
+    backgroundQml.includes('audioEnabled: panel.firstScreen') &&
+    !lockQml.includes('audioEnabled'),
+  'a sound track plays from the first monitor only, a silent file builds no audio output, and the lock stays quiet'
 )
 assert(
   !mediaQml.includes('mipmap'),

@@ -237,6 +237,11 @@ Item {
       readonly property var visibleWorkspace: hyprlandMonitor ? hyprlandMonitor.activeWorkspace : null
       readonly property bool fullscreenHere: visibleWorkspace ? visibleWorkspace.hasFullscreen : false
 
+      // A sound track plays from one output only, or every monitor would
+      // layer its own copy of it.
+      readonly property bool firstScreen: Quickshell.screens.length > 0
+        && String(Quickshell.screens[0].name || "") === String(modelData.name || "")
+
       property bool maskReady: false
 
       function maybeStartReveal() {
@@ -260,6 +265,7 @@ Item {
         path: root.displayedBackground
         reloads: root.displayedReloads
         playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
+        audioEnabled: panel.firstScreen
         onReadyChanged: {
           if (ready && root.finishingTransition) {
             root.incomingBackground = ""
