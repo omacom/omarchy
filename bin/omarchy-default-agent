@@ -36,7 +36,11 @@ openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-op
 agy | antigravity | antigravity-cli | gemini | gemini-cli) agent="agy"; name="Antigravity"; agent_package="antigravity-cli" ;;
 hermes) agent="hermes"; name="Hermes"; agent_installer="omarchy-install-hermes-cli" ;;
 copilot | github-copilot) agent="copilot"; name="GitHub Copilot" ;;
-muse | muse-code | musecode) agent="muse"; name="Muse Code"; agent_system_package="muse-code" ;;
+muse | muse-code | musecode)
+  agent="muse"; name="Muse Code"
+  # Meta's launcher verifies and updates the native binary for this platform.
+  agent_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
+  ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 *)
   echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
@@ -57,10 +61,6 @@ if [[ -n ${agent_installer:-} ]]; then
   # inside the menu action instead.
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
-elif [[ -n ${agent_system_package:-} ]]; then
-  # Muse is packaged in the Omarchy Package Repository.
-  agent_present() { omarchy-pkg-present "$agent_system_package"; }
-  agent_install() { omarchy-pkg-add "$agent_system_package"; }
 else
   # Anything at the wrapper's path other than the wrapper is the user's own
   # install, such as the symlink Cursor's installer leaves. A mise copy would
@@ -78,14 +78,18 @@ if [[ $installing == "false" ]] && ! agent_present; then
 fi
 
 if ! agent_install; then
-  if [[ $installing == "true" && -n ${agent_system_package:-} ]]; then
-    echo "Could not install $name from the Omarchy Package Repository" >&2
-  elif [[ $installing == "true" ]]; then
+  if [[ $installing == "true" ]]; then
     echo "Could not install $name with mise" >&2
   else
     echo "Could not set $name as the default coding agent" >&2
   fi
   exit 1
+fi
+
+# Muse has no preinstalled stub. Create one after mise succeeds, leaving a
+# user-managed launcher alone just as the installation path above does.
+if [[ $agent == "muse" ]] && ! user_install; then
+  omarchy-mise-install "$agent_package" muse || exit 1
 fi
 
 # A fresh Muse install has no credentials, so the browser login runs here in
