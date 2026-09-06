@@ -16,6 +16,10 @@ Item {
 
   // Injected by omarchy-shell (the first-party service loader).
   property var shell: null
+  property var manifest: null
+  readonly property var popupScreens: NotificationLogic.popupScreens(
+    Quickshell.screens, shell && shell.shellConfig ? shell.shellConfig.plugins : [],
+    manifest ? manifest.id : "omarchy.notifications")
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   readonly property string home: Quickshell.env("HOME")
@@ -944,13 +948,13 @@ Item {
 
   // -------------------------------------------------------------- popup UI
   //
-  // One PanelWindow per output (Variants on Quickshell.screens) holding the
+  // One PanelWindow per selected output holding the
   // stacked toast cards. Layer is Overlay, exclusionMode Ignore, no
   // keyboard focus — popups are passive surfaces and must never steal input
   // from the focused application.
 
   Variants {
-    model: Quickshell.screens
+    model: service.popupScreens
 
     PanelWindow {
       id: popupWindow
