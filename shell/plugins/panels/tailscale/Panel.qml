@@ -423,6 +423,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "t" || t === "T") tailscale.toggleTailscale()
+        else if (t === "r" || t === "R") tailscale.refresh(true)
         else if (t === "c" || t === "C") tailscale.copyPeerIp(root.selectedPeer())
         else if (t === "n" || t === "N") tailscale.copyPeerName(root.selectedPeer())
         else if (t === "d" || t === "D") tailscale.copyPeerDnsName(root.selectedPeer())
