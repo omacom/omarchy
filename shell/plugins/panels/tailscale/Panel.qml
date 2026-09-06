@@ -42,7 +42,11 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property bool showPeers: tailscale.active && tailscale.peers.length > 0
+  readonly property var peerGroups: tailscale.groupPeers(tailscale.peers, tailscale.selfUserId)
+  // Flat, render-ordered view of peerGroups. Cursor bounds and rowIndex must
+  // follow what is drawn, not tailscale.peers' sort order.
+  readonly property var orderedPeers: peerGroups.mine.concat(peerGroups.tagged).concat(peerGroups.other)
+  readonly property bool showPeers: tailscale.active && orderedPeers.length > 0
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
@@ -58,8 +62,8 @@ Panel {
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
 
   function selectedPeer() {
-    if (tailscale.peers.length === 0) return null
-    return tailscale.peers[Math.max(0, Math.min(peerIndex, tailscale.peers.length - 1))]
+    if (orderedPeers.length === 0) return null
+    return orderedPeers[Math.max(0, Math.min(peerIndex, orderedPeers.length - 1))]
   }
 
   function selectedExitNode() {
@@ -181,7 +185,7 @@ Panel {
     if (headerIndex < 0) headerIndex = 0
     if (headerIndex > 0) headerIndex = 0
     if (accountIndex >= tailscale.accounts.length) accountIndex = Math.max(0, tailscale.accounts.length - 1)
-    if (peerIndex >= tailscale.peers.length) peerIndex = Math.max(0, tailscale.peers.length - 1)
+    if (peerIndex >= orderedPeers.length) peerIndex = Math.max(0, orderedPeers.length - 1)
     if (exitNodeIndex >= exitNodes.length) exitNodeIndex = Math.max(0, exitNodes.length - 1)
     if (mullvadRegionIndex >= filteredMullvadRegions.length) mullvadRegionIndex = Math.max(0, filteredMullvadRegions.length - 1)
     if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
@@ -219,7 +223,7 @@ Panel {
         if (dy < 0) {
           if (peerIndex <= 0) focusSection = showExitNodes ? "exitNodes" : (tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : "header"))
           else peerIndex--
-        } else if (peerIndex < tailscale.peers.length - 1) {
+        } else if (peerIndex < orderedPeers.length - 1) {
           peerIndex++
         }
       } else if (focusSection === "exitNodes") {
@@ -695,16 +699,48 @@ Panel {
               id: peerColumn
               visible: root.showPeers
               width: parent.width
-              spacing: Style.space(6)
+              spacing: Style.space(12)
 
               Repeater {
-                model: tailscale.peers
-                PeerRow {
+                model: [
+                  { key: "mine", label: "MY DEVICES" },
+                  { key: "tagged", label: "TAGGED DEVICES" },
+                  { key: "other", label: "OTHER DEVICES" }
+                ]
+
+                Column {
+                  id: peerGroupColumn
                   required property var modelData
-                  required property int index
+
+                  readonly property var rows: root.peerGroups[modelData.key] || []
+                  // rowIndex must stay unique across groups: the cursor indexes
+                  // root.orderedPeers, which concatenates mine + tagged + other.
+                  readonly property int groupOffset: modelData.key === "mine"
+                    ? 0
+                    : (modelData.key === "tagged"
+                       ? root.peerGroups.mine.length
+                       : root.peerGroups.mine.length + root.peerGroups.tagged.length)
+
                   width: peerColumn.width
-                  peer: modelData
-                  rowIndex: index
+                  spacing: Style.space(6)
+                  visible: rows.length > 0
+
+                  PanelSectionHeader {
+                    text: peerGroupColumn.modelData.label
+                    foreground: root.dim
+                    fontFamily: root.fontFamily
+                  }
+
+                  Repeater {
+                    model: peerGroupColumn.rows
+                    PeerRow {
+                      required property var modelData
+                      required property int index
+                      width: peerColumn.width
+                      peer: modelData
+                      rowIndex: peerGroupColumn.groupOffset + index
+                    }
+                  }
                 }
               }
             }

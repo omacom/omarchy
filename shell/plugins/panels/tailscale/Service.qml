@@ -99,6 +99,10 @@ Item {
     return Model.exitNodeLabel(peer)
   }
 
+  function groupPeers(peers, selfUserId) {
+    return Model.groupPeers(peers, selfUserId)
+  }
+
   function osIcon(os) {
     return Model.osIcon(os)
   }
