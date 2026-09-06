@@ -182,24 +182,32 @@ def solar_parameters(julian_centuries: float) -> tuple[float, float]:
 def event_utc(day: date, latitude: float, longitude: float, sunrise: bool) -> datetime | None:
   day_julian = julian_day(day)
   centuries = (day_julian - 2451545.0) / 36525
-  equation, declination = solar_parameters(centuries)
+  equation, _ = solar_parameters(centuries)
   solar_noon_minutes = 720 - 4 * longitude - equation
 
   centuries = (day_julian + solar_noon_minutes / 1440 - 2451545.0) / 36525
-  equation, declination = solar_parameters(centuries)
-  latitude_radians = math.radians(latitude)
-  declination_radians = math.radians(declination)
-  hour_angle_cosine = (
-    math.cos(math.radians(90.833))
-    / (math.cos(latitude_radians) * math.cos(declination_radians))
-    - math.tan(latitude_radians) * math.tan(declination_radians)
+  equation, _ = solar_parameters(centuries)
+  noon = datetime.combine(day, time.min, timezone.utc) + timedelta(
+    minutes=720 - 4 * longitude - equation
   )
-  if hour_angle_cosine < -1 or hour_angle_cosine > 1:
+  start = noon - timedelta(hours=12) if sunrise else noon
+  end = noon if sunrise else noon + timedelta(hours=12)
+  lower = math.floor(start.timestamp())
+  upper = math.ceil(end.timestamp())
+  if (
+    is_night(datetime.fromtimestamp(lower, timezone.utc), latitude, longitude) != sunrise
+    or is_night(datetime.fromtimestamp(upper, timezone.utc), latitude, longitude) == sunrise
+  ):
     return None
 
-  hour_angle = math.degrees(math.acos(hour_angle_cosine))
-  event_minutes = 720 - 4 * (longitude + (hour_angle if sunrise else -hour_angle)) - equation
-  return datetime.combine(day, time.min, timezone.utc) + timedelta(minutes=event_minutes)
+  # Find the first whole second in the new state, using the same model as evaluate().
+  while upper - lower > 1:
+    middle = (lower + upper) // 2
+    if is_night(datetime.fromtimestamp(middle, timezone.utc), latitude, longitude) == sunrise:
+      lower = middle
+    else:
+      upper = middle
+  return datetime.fromtimestamp(upper, timezone.utc)
 
 
 def is_night(now: datetime, latitude: float, longitude: float) -> bool:
@@ -238,16 +246,19 @@ def evaluate(at: str | None = None) -> dict:
     now = now.replace(tzinfo=selected_zone) if now.tzinfo is None else now.astimezone(selected_zone)
   else:
     now = datetime.now(selected_zone)
+  # Match the whole-second event boundaries even for subsecond timer wakeups.
+  now = now.astimezone(timezone.utc).replace(microsecond=0)
   next_event = None
-  for offset in range(371):
+  # A solar calculation day can put its events on neighboring UTC dates.
+  for offset in range(-1, 371):
     event_day = now.date() + timedelta(days=offset)
     for event_name, sunrise in (("sunrise", True), ("sunset", False)):
       event = event_utc(event_day, latitude, longitude, sunrise)
-      if event and event > now.astimezone(timezone.utc):
+      if event and event > now:
         candidate = (event, event_name)
         if next_event is None or candidate[0] < next_event[0]:
           next_event = candidate
-    if next_event and next_event[0].astimezone(selected_zone).date() <= event_day:
+    if next_event and next_event[0] < datetime.combine(event_day, time.min, timezone.utc):
       break
 
   if next_event is None:
