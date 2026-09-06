@@ -9,7 +9,9 @@ dtb_setup="$ROOT/install/hardware/qualcomm/dtb-uki.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-bash -n "$firmware_setup" "$dtb_setup" || fail "Snapdragon hardware scripts have valid syntax"
+for script in "$firmware_setup" "$dtb_setup"; do
+  bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
+done
 
 (
   omarchy-hw-qualcomm-soc() { return 0; }
