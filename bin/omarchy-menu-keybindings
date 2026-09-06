@@ -9,11 +9,51 @@ declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
+# Compile the keymap Hyprland is actually using. Called with no arguments,
+# `xkbcli compile-keymap` compiles the default US keymap, which names every
+# code: binding after a key a non-US layout does not have: code:20 reads MINUS
+# everywhere, while a German keyboard prints ß there and a Spanish one '.
+active_keymap_command() {
+  local layouts variants index layout variant command
+
+  layouts=$(hyprctl getoption input:kb_layout 2>/dev/null | awk '/^str:/ { sub(/^str:[[:space:]]*/, ""); print; exit }')
+  variants=$(hyprctl getoption input:kb_variant 2>/dev/null | awk '/^str:/ { sub(/^str:[[:space:]]*/, ""); print; exit }')
+
+  # kb_layout may name several layouts; the keyboard says which one is live.
+  # Switching layouts rewrites the `active keymap:` line the cache keys on, so
+  # the menu re-renders against the layout the user just switched to.
+  index=$(hyprctl devices 2>/dev/null | awk '
+    /active layout index:/ { current = $NF; if (first == "") first = current }
+    /main: yes/ { print current; found = 1; exit }
+    END { if (!found) print first }
+  ')
+  [[ $index =~ ^[0-9]+$ ]] || index=0
+
+  layout=$(cut -d, -f$((index + 1)) <<<"$layouts")
+  variant=$(cut -d, -f$((index + 1)) <<<"$variants")
+  [[ -z $layout ]] && layout=$(cut -d, -f1 <<<"$layouts")
+
+  command="xkbcli compile-keymap"
+
+  # awk runs this through a shell, so only pass on what an RMLVO name is made
+  # of. Anything else leaves the command bare and the default keymap compiled.
+  if [[ $layout =~ ^[A-Za-z0-9_-]+$ ]]; then
+    command+=" --layout $layout"
+
+    if [[ $variant =~ ^[A-Za-z0-9_-]+$ ]]; then
+      command+=" --variant $variant"
+    fi
+  fi
+
+  # </dev/null keeps xkbcli from consuming the binding records on stdin
+  printf '%s </dev/null\n' "$command"
+}
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk '
+  awk -v keymap_cmd="$(active_keymap_command)" '
     BEGIN {
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
@@ -21,21 +61,57 @@ parse_keycodes() {
         keycode_symbol[substr(fallbacks[i], 1, separator - 1)] = substr(fallbacks[i], separator + 1)
       }
 
-      # </dev/null keeps xkbcli from consuming the binding records on stdin
-      keymap_cmd = "xkbcli compile-keymap </dev/null"
+      # Keysym names no keyboard prints on its keys. Uppercasing these puts
+      # SSHARP and DEAD_ACUTE in the menu for keys labelled ß and ´, so name
+      # them by the character instead. Keys a US layout already reaches, like
+      # minus and equal, keep the words the menu has always shown for them.
+      split("ssharp=ß adiaeresis=ä odiaeresis=ö udiaeresis=ü aring=å ae=æ oslash=ø " \
+            "eacute=é egrave=è agrave=à ugrave=ù iacute=í oacute=ó uacute=ú " \
+            "ccedilla=ç ntilde=ñ ccaron=č scaron=š zcaron=ž " \
+            "dead_acute=´ dead_grave=` dead_circumflex=^ dead_diaeresis=¨ " \
+            "dead_tilde=~ dead_caron=ˇ dead_breve=˘ dead_cedilla=¸ dead_abovering=° " \
+            "exclamdown=¡ questiondown=¿ masculine=º ordfeminine=ª degree=° " \
+            "section=§ currency=¤ mu=µ plus=+ numbersign=# apostrophe=\047 " \
+            "asterisk=* bar=| less=< greater=> at=@", named_symbols, " ")
+      for (i in named_symbols) {
+        separator = index(named_symbols[i], "=")
+        symbol_character[substr(named_symbols[i], 1, separator - 1)] = substr(named_symbols[i], separator + 1)
+      }
+
       section = ""
       while ((keymap_cmd | getline line) > 0) {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
         if (line ~ /xkb_symbols/)  { section = "syms";  continue }
         if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
-        if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+
+        # A key whose type xkbcli spells out puts its symbols on a line of
+        # their own, so remember the key the block opened on and read them off
+        # when they arrive. Only the compact one-line form was matched before,
+        # which left every key carrying an explicit type unresolved.
+        if (section == "syms") {
+          if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[m[1]] = m[2]
+            open_key = ""
+          } else if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{/, m)) {
+            open_key = m[1]
+          } else if (open_key != "" && match(line, /symbols\[[^\]]*\]\s*=\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[open_key] = m[1]
+            open_key = ""
+          }
+        }
       }
       close(keymap_cmd)
 
       for (name in code_by_name) {
         code = code_by_name[name]
         symbol = sym_by_name[name]
-        if (code != "" && symbol != "" && symbol != "NoSymbol") keycode_symbol[code] = toupper(symbol)
+        if (code == "" || symbol == "" || symbol == "NoSymbol") continue
+
+        if (symbol in symbol_character) {
+          keycode_symbol[code] = symbol_character[symbol]
+        } else {
+          keycode_symbol[code] = toupper(symbol)
+        }
       }
 
       # Read off the keysym rather than the keycode, so the key left of 1 reads
@@ -530,7 +606,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
+    printf 'v14\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
