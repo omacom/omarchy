@@ -186,16 +186,26 @@ pass "chords with the same label but different actions stay apart"
 # User configs that iterate hl.get_loaded_plugins() must not hang the scanner.
 # Use a standalone hyprland.lua so dofile actually reaches the loop; appending
 # it after the default tree can fail earlier inside qconsole.lua.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "" "Spin probe")
+BINDS
+
 spin_home="$tmpdir/spin-home"
 mkdir -p "$spin_home/.config/hypr"
 cat >"$spin_home/.config/hypr/hyprland.lua" <<'LUA'
 for _, p in ipairs(hl.get_loaded_plugins()) do
 end
+
+hl.bind("SUPER + P", hl.dsp.exec_cmd("true"), { description = "Spin probe" })
 LUA
-timeout 2 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$spin_home" \
+# Hyprland reports a Lua bind without its key, so a rendered chord is the scan
+# reaching past the loop. Exiting alone would not say that: a stub that raised
+# on a numeric index also terminates, losing every bind declared after it.
+spin_rendered=$(timeout 2 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$spin_home" \
   XDG_CACHE_HOME="$tmpdir/cache-spin" OMARCHY_PATH="$ROOT" \
-  bash "$ROOT/bin/omarchy-menu-keybindings" --print >/dev/null ||
-  fail "the keybindings scanner terminates when a config iterates hl.get_loaded_plugins()"
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print) &&
+  grep -q 'SUPER + P  *→ Spin probe' <<<"$spin_rendered" ||
+  fail "the keybindings scanner terminates when a config iterates hl.get_loaded_plugins()" "$spin_rendered"
 pass "the keybindings scanner terminates when a config iterates hl.get_loaded_plugins()"
 
 # An unresolved Lua bind reports no dispatcher at all, so nothing says the two
