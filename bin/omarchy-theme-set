@@ -48,6 +48,22 @@ shell_ipc() {
   timeout 2 omarchy-shell "$@" >/dev/null 2>&1
 }
 
+# GTK auto-loads ~/.config/gtk-3.0/gtk.css and ~/.config/gtk-4.0/gtk.css at
+# app startup. Point both at the theme's generated stylesheet so GTK and
+# libadwaita apps adopt the theme palette. A relative target survives a moved
+# $HOME. A real file the user wrote is theirs and wins over the link.
+ensure_gtk_css_links() {
+  local dir css
+
+  for spec in "gtk-3.0:gtk-3.0.css" "gtk-4.0:gtk.css"; do
+    dir=${spec%%:*}
+    css=${spec##*:}
+    mkdir -p "$HOME/.config/$dir"
+    [[ ! -e $HOME/.config/$dir/gtk.css || -L $HOME/.config/$dir/gtk.css ]] || continue
+    ln -snf "../../.local/state/omarchy/current/theme/$css" "$HOME/.config/$dir/gtk.css"
+  done
+}
+
 snapshot_background_path() {
   local background="$1"
   local name="$2"
@@ -294,6 +310,9 @@ mv "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH"
 
 # Store theme name for reference
 echo "$THEME_NAME" >"$HOME/.local/state/omarchy/current/theme.name"
+
+# Let GTK and libadwaita apps pick up the new stylesheet on their next launch.
+ensure_gtk_css_links
 
 # Make the running shell pick up the new palette immediately while the rest of
 # the theme hooks run.
