@@ -1800,13 +1800,16 @@ Item {
       var text = Util.isPlainObject(data) ? data.text : String(raw || "").trim()
 
       outputText = text === undefined || text === null ? undefined : String(text)
-      outputTooltip = data.tooltip || String(setting("tooltip", ""))
+
+      var tooltip = Util.isPlainObject(data) ? data.tooltip : undefined
+      outputTooltip = tooltip === undefined || tooltip === null ? String(setting("tooltip", "")) : String(tooltip)
+
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
 
     bar: root
     text: outputText !== undefined ? outputText : String(setting("text", ""))
-    tooltipText: outputTooltip || String(setting("tooltip", ""))
+    tooltipText: outputTooltip !== undefined ? outputTooltip : String(setting("tooltip", ""))
     active: outputActive
     keepSpace: setting("keepSpace", false) === true
     horizontalMargin: Number(setting("horizontalMargin", 7.5))

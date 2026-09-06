@@ -367,6 +367,18 @@ assert(
   /text: outputText !== undefined \? outputText : String\(setting\("text", ""\)\)/.test(barSource),
   'bar command module only falls back to configured text when command output is absent'
 )
+assert(
+  /var tooltip = Util\.isPlainObject\(data\) \? data\.tooltip : undefined/.test(barSource),
+  'bar command module reads tooltip only from waybar-style JSON'
+)
+assert(
+  /outputTooltip = tooltip === undefined \|\| tooltip === null \? String\(setting\("tooltip", ""\)\) : String\(tooltip\)/.test(barSource),
+  'bar command module treats missing and null tooltip as absent, empty tooltip as explicit'
+)
+assert(
+  /tooltipText: outputTooltip !== undefined \? outputTooltip : String\(setting\("tooltip", ""\)\)/.test(barSource),
+  'bar command module only falls back to configured tooltip when command output is absent'
+)
 JS
 
 put_tmp=$(mktemp -d)
