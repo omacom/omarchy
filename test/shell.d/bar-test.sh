@@ -356,8 +356,12 @@ assertEqual(
 )
 
 assert(
-  /outputText = data\.text !== undefined \? String\(data\.text\) : undefined/.test(barSource),
-  'bar command module treats an empty JSON text as an explicit value, not as missing'
+  /var text = Util\.isPlainObject\(data\) \? data\.text : String\(raw \|\| ""\)\.trim\(\)/.test(barSource),
+  'bar command module still renders output that parses as JSON without being a waybar object'
+)
+assert(
+  /outputText = text === undefined \|\| text === null \? undefined : String\(text\)/.test(barSource),
+  'bar command module treats an empty JSON text as an explicit value and a null one as missing'
 )
 assert(
   /text: outputText !== undefined \? outputText : String\(setting\("text", ""\)\)/.test(barSource),

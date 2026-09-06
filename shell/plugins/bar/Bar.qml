@@ -1795,8 +1795,11 @@ Item {
     function update(raw) {
       var data = Util.parseModuleJson(raw)
       var klass = data.class || data.alt || ""
+      // A bare number or quoted string parses as JSON without being a waybar object,
+      // so it is output to render rather than a missing text key.
+      var text = Util.isPlainObject(data) ? data.text : String(raw || "").trim()
 
-      outputText = data.text !== undefined ? String(data.text) : undefined
+      outputText = text === undefined || text === null ? undefined : String(text)
       outputTooltip = data.tooltip || String(setting("tooltip", ""))
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
