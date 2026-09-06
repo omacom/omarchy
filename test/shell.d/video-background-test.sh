@@ -268,8 +268,10 @@ PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_
   "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
 [[ ! -e $thumbnailer_calls ]] || fail "menu image generator skips a rejected video on the next open" "$(<"$thumbnailer_calls")"
 
-# A repaired file gets a fresh key, so the old marker no longer applies.
-touch -d '2 minutes' "$failed_backgrounds/broken.mp4" "$failed_backgrounds"
+# A repaired file gets a fresh key, so the old marker no longer applies, and
+# the rows are not cached over its absence, so an in-place repair that leaves
+# the directory's mtime alone is still noticed.
+touch -d '2 minutes' "$failed_backgrounds/broken.mp4"
 PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
   "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
 [[ -s $thumbnailer_calls ]] || fail "menu image generator retries a video that changed since it was rejected"
