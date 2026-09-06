@@ -86,8 +86,8 @@ if ! agent_install; then
   exit 1
 fi
 
-# Muse has no preinstalled stub. Create one after mise succeeds, leaving a
-# user-managed launcher alone just as the installation path above does.
+# Restore Muse's stub if preinstalls were removed, leaving a user-managed
+# launcher alone just as the installation path above does.
 if [[ $agent == "muse" ]] && ! user_install; then
   omarchy-mise-install "$agent_package" muse || exit 1
 fi

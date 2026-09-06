@@ -24,6 +24,12 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
     rm -f ~/.local/bin/cursor-agent
   fi
 
+  # Preserve a user-managed Muse launcher at the same path.
+  if [[ -f ~/.local/bin/muse && ! -L ~/.local/bin/muse ]] &&
+    grep -Eq '^mise use -g .*"http:muse\[' ~/.local/bin/muse; then
+    rm -f ~/.local/bin/muse
+  fi
+
   # Only the wrapper omarchy-install-hermes-cli wrote is a preinstall. Hermes
   # Desktop's command, an official install, or anything else at that path is
   # the user's, so it is the installer that decides whether the wrapper is its
