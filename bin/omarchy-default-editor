@@ -44,7 +44,7 @@ if omarchy-cmd-missing "$editor"; then
     code) omarchy-install-editor-vscode ;;
     cursor) omarchy-pkg-add cursor-bin ;;
     zed) omarchy-install-editor-zed ;;
-    sublime_text) omarchy-pkg-add sublime-text-4 ;;
+    sublime_text) omarchy-install-editor-sublime ;;
     helix) omarchy-install-editor-helix ;;
     vim) omarchy-pkg-add vim ;;
     emacs) omarchy-install-editor-emacs ;;
