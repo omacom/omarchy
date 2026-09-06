@@ -1,6 +1,6 @@
 # The GU605CX ALC285 headphone output pops when idle HDA power saving kicks in.
 # Keeping the codec powered avoids the pop, but may increase idle power use.
-# Only the pause/resume case has been verified; boot and shutdown are untested.
+# Idle pops are fixed; shutdown pops persist and boot popping is unverified.
 
 if omarchy-hw-asus-gu605cx-alc285; then
   audio_config="/etc/modprobe.d/omarchy-asus-gu605cx-audio.conf"
