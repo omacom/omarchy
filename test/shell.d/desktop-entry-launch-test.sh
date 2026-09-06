@@ -73,6 +73,7 @@ assert_detached_installer_launch() {
 
 assert_detached_installer_launch omarchy-install-editor-emacs emacsclient
 assert_detached_installer_launch omarchy-install-editor-vscode code
+assert_detached_installer_launch omarchy-install-editor-vscodium codium
 assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam

@@ -252,7 +252,7 @@ assertDeepEqual(
 const expectedDefaults = {
   browser: ['Chromium', 'Chrome', 'Brave', 'Brave Origin', 'Edge', 'Firefox', 'Zen'],
   terminal: ['Alacritty', 'Foot', 'Ghostty', 'Kitty'],
-  editor: ['Neovim', 'VSCode', 'Cursor', 'Zed', 'Sublime Text', 'Helix', 'Vim', 'Emacs']
+  editor: ['Neovim', 'VSCode', 'VSCodium', 'Cursor', 'Zed', 'Sublime Text', 'Helix', 'Vim', 'Emacs']
 }
 assert(
   Object.entries(expectedDefaults).every(([type, labels]) => {
