@@ -30,10 +30,18 @@ BorderSurface {
   // System monospace font injected by the container.
   property string fontFamily: ""
 
+  // Buttons: [{ id, label }], from the notification's freedesktop actions.
+  // The "default" action is the card click, never a button.
+  property var actions: []
+  // "Deny in 23 s": what is left until a sender-declared deadline (see
+  // Service.qml). Empty for every notification without one.
+  property string countdownText: ""
+
   readonly property bool hovered: hoverTracker.hovered
 
   signal closeRequested()
   signal cardClicked()
+  signal actionRequested(string id)
   // Prefer per-notification media/avatar data, then fall back to the app icon.
   // The `check` flag avoids Qt's missing-texture placeholder for unknown names.
   readonly property string smallIconSource: image.length > 0 ? image : iconSource(appIcon)
@@ -190,6 +198,67 @@ BorderSurface {
           wrapMode: Text.WordWrap
           elide: Text.ElideRight
           maximumLineCount: 3
+        }
+      }
+    }
+
+    // Buttons, right-aligned under the text, with the countdown on the left
+    // when there is one. Each button has its own MouseArea, stacked above the
+    // full-card one, so a press ends here and never reaches cardClicked.
+    RowLayout {
+      visible: root.actions.length > 0 || root.countdownText.length > 0
+      Layout.fillWidth: true
+      Layout.leftMargin: Style.space(12)
+      Layout.rightMargin: Style.space(12)
+      Layout.bottomMargin: Style.space(10)
+      spacing: Style.space(8)
+
+      Text {
+        Layout.fillWidth: true
+        Layout.alignment: Qt.AlignVCenter
+        textFormat: Text.PlainText
+        visible: root.countdownText.length > 0
+        text: root.countdownText
+        color: root.dimColor
+        font.family: "Liberation Sans"
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+      }
+      Item { Layout.fillWidth: root.countdownText.length === 0 }
+
+      Repeater {
+        model: root.actions
+
+        Rectangle {
+          id: actionButton
+          required property var modelData
+          readonly property bool hot: actionHover.hovered
+          Layout.preferredWidth: actionLabel.implicitWidth + Style.space(20)
+          Layout.preferredHeight: actionLabel.implicitHeight + Style.space(10)
+          radius: Style.space(4)
+          color: hot ? Util.alpha(Color.notifications.text, 0.14) : Util.alpha(Color.notifications.text, 0.06)
+          border.width: Math.max(1, Style.space(1))
+          border.color: hot ? Color.notifications.countdown : Util.alpha(Color.notifications.border, 0.6)
+
+          Text {
+            id: actionLabel
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: actionButton.modelData.label
+            color: Color.notifications.text
+            font.family: "Liberation Sans"
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+
+          HoverHandler { id: actionHover }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton
+            onClicked: root.actionRequested(actionButton.modelData.id)
+          }
         }
       }
     }
