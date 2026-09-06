@@ -28,28 +28,57 @@ done
 
 LOG_FILE="/tmp/omarchy-debug.log"
 
-# Strip identifiers before this output is attached to a public issue: ufw's
+# Strip identifiers before this output is attached to a public issue. ufw's
 # packet log carries the addresses of every device on the reporter's network,
 # the kernel's wifi association lines carry the access point BSSID, which is
-# geolocatable, and bluetoothd logs the addresses of paired devices. ufw logs at
-# kernel warning level, so both dmesg and the journal carry them.
+# geolocatable, and bluetoothd logs the addresses of paired devices, both as
+# colon-separated hex and in the underscore form its D-Bus object paths use.
+# ufw logs at kernel warning level, so both dmesg and the journal carry them.
 #
-# Hex is matched case-insensitively: the kernel prints MACs lowercase but BlueZ
-# prints them uppercase. MACs are substituted before the address rules so a MAC
-# is never rewritten as an address.
+# Ordering matters. IPv6 is substituted before MAC: a MAC rule with no left
+# boundary would otherwise consume six two-hex groups out of the middle of an
+# address and leave the prefix behind (2001:db8:00:11:22:33:44:55). The MAC and
+# IPv6 rules therefore refuse to start after a colon, which also leaves
+# colon-hex fingerprints (MD5:aa:bb:...) alone.
 #
-# Each address rule captures the character before the match and puts it back,
-# rather than relying on a word-boundary escape. That keeps the compressed-IPv6
-# rule from eating C++ scope resolution in log lines, where "e::" would
-# otherwise look like the start of an address:
-#   QSqlDatabasePrivate::removeDatabase
+# Each rule captures the characters bounding the match and puts them back
+# instead of using a word-boundary escape, and each runs twice so two addresses
+# separated by a single character are both caught. The right-hand boundary is
+# what stops the compressed-IPv6 rule eating C++ scope resolution in log lines,
+# where caf::actor_system and cc::Build otherwise parse as an address.
+#
+# Loopback, link-local and the unspecified address are protected first, by
+# standing their dots aside, because they identify nobody and losing them
+# destroys the diagnosis: 169.254.x.x is how a failed DHCP lease presents, and
+# 127.0.0.53 says a query went to the resolved stub. The octet range check
+# spares firmware versions such as "10.1.467.2", where 467 is not an octet.
 scrub_network_identifiers() {
+  local h='[0-9a-fA-F]' o='(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+  local p='(^|[^0-9A-Za-z])' pc='(^|[^0-9A-Za-z:])' d=$'\001'
+  # A trailing colon or dot ends the match only when what follows is not more
+  # of the same, so "addr: message" is redacted while MD5:aa:bb:... and
+  # 1.2.3.4.5 are left whole.
+  local tc="(\$|[^0-9A-Za-z:]|:(\$|[^0-9a-fA-F]))"
+  local td="(\$|[^0-9A-Za-z.]|\.(\$|[^0-9]))"
+  local v6="${pc}(${h}{1,4}:){7}${h}{1,4}${tc}"
+  local v6c="${pc}${h}{1,4}(:${h}{1,4}){0,6}::(${h}{1,4}(:${h}{1,4}){0,6})?${tc}"
+  local mac="${pc}(${h}{2}:){5}${h}{2}${tc}"
+  local und="${p}(${h}{2}_){5}${h}{2}([^0-9A-Za-z_]|\$)"
+  local ip4="${p}${o}(\.${o}){3}${td}"
+
   grep -v '\[UFW BLOCK\]' |
     sed -E \
-      -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/<mac>/g' \
-      -e 's/(^|[^0-9A-Za-z.])([0-9]{1,3}\.){3}[0-9]{1,3}/\1<ip>/g' \
-      -e 's/(^|[^0-9A-Za-z:])([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}/\1<ipv6>/g' \
-      -e 's/(^|[^0-9A-Za-z:])[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){0,6}::([0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){0,6})?/\1<ipv6>/g'
+      -e "s/${p}127\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/\1127${d}\2${d}\3${d}\4/g" \
+      -e "s/${p}169\.254\.([0-9]{1,3})\.([0-9]{1,3})/\1169${d}254${d}\2${d}\3/g" \
+      -e "s/${p}0\.0\.0\.0/\10${d}0${d}0${d}0/g" \
+      -e "s/${p}255\.255\.255\.255/\1255${d}255${d}255${d}255/g" \
+      -e "s/${v6}/\1<ipv6>\3/g"  -e "s/${v6}/\1<ipv6>\3/g" \
+      -e "s/${v6c}/\1<ipv6>\5/g" -e "s/${v6c}/\1<ipv6>\5/g" \
+      -e "s/${mac}/\1<mac>\3/g"  -e "s/${mac}/\1<mac>\3/g" \
+      -e "s/${und}/\1<mac>\3/g"  -e "s/${und}/\1<mac>\3/g" \
+      -e "s/(wlx|enx)${h}{12}/\1<mac>/g" \
+      -e "s/${ip4}/\1<ip>\5/g"   -e "s/${ip4}/\1<ip>\5/g" \
+      -e "s/${d}/./g"
 }
 
 if [[ $NO_SUDO = "true" ]]; then
