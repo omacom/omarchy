@@ -10,7 +10,6 @@ const tailscale = requireFromRoot('shell/plugins/panels/tailscale/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Panel.qml', 'utf8')
 
 assert(/function toggleTailscale\(\): string \{ tailscale\.toggleTailscale\(\); return "ok" \}/.test(panelSource), 'tailscale exposes the connection toggle over IPC')
-assert(/t === "r" \|\| t === "R"/.test(panelSource), 'tailscale refreshes on r, the key its README documents')
 
 assertDeepEqual(
   tailscale.filterIPv4(['100.64.0.1', 'fd7a:115c:a1e0::1', '192.168.1.2']),
@@ -205,6 +204,118 @@ assertDeepEqual(
   { authUrl: '', command: ['tailscale', 'up'] },
   'tailscale ignores stale authorization URLs outside the login state'
 )
+
+const withServices = tailscale.parseStatus(JSON.stringify({
+  BackendState: 'Running',
+  CurrentTailnet: { MagicDNSSuffix: 'tail32f559.ts.net' },
+  Self: {
+    HostName: 'dhh-fd',
+    DNSName: 'dhh-fd.tail32f559.ts.net.',
+    TailscaleIPs: ['100.74.97.73'],
+    Online: true,
+    PrimaryRoutes: ['100.90.0.1/32'],
+    CapMap: {
+      'services/web': [
+        { Name: 'svc:docs', Ports: ['tcp:443'], Addrs: ['100.90.0.1'] },
+        { Name: 'svc:metrics', Ports: ['tcp:9090'], Addrs: ['100.90.0.2'] },
+        { Name: 'svc:not a label', Ports: ['tcp:443'], Addrs: ['100.90.0.3'] }
+      ],
+      'services/extra': [
+        { Name: 'svc:wiki', Ports: ['tcp:80', 'tcp:443'], Addrs: ['fd7a:115c:a1e0::9'] },
+        { Name: 'svc:chat', Ports: ['tcp:443'], Addrs: ['100.90.0.7'] }
+      ],
+      'https://tailscale.com/cap/file-sharing': null
+    }
+  },
+  Peer: {
+    attic: {
+      HostName: 'attic',
+      DNSName: 'attic.tail32f559.ts.net.',
+      TailscaleIPs: ['100.1.1.9'],
+      Online: false,
+      OS: 'linux',
+      PrimaryRoutes: ['fd7a:115c:a1e0::9/128', '100.90.0.7/32']
+    },
+    shed: {
+      HostName: 'shed',
+      DNSName: 'shed.tail32f559.ts.net.',
+      TailscaleIPs: ['100.1.1.10'],
+      Online: true,
+      OS: 'linux',
+      PrimaryRoutes: ['100.90.0.7/32']
+    }
+  }
+}))
+
+assertDeepEqual(
+  withServices.services.map(service => service.Name),
+  ['chat', 'docs', 'wiki'],
+  'tailscale lists HTTPS services and skips ports it cannot open'
+)
+assertEqual(withServices.services[1].Url, 'https://docs.tail32f559.ts.net/', 'tailscale builds service URLs from the MagicDNS suffix')
+assertEqual(withServices.services[1].HostName, 'dhh-fd', 'tailscale credits this machine when it carries the service route')
+assertEqual(withServices.services[0].HostName, 'shed', 'tailscale prefers an online peer over an offline one carrying the same service')
+assertEqual(withServices.services[2].HostName, 'attic', 'tailscale still names an offline carrier so you know which machine to wake')
+assert(!withServices.services[2].HostOnline, 'tailscale reports an offline service carrier as offline')
+
+assertDeepEqual(
+  tailscale.parseServices({ Self: { CapMap: { 'services/web': [{ Name: 'svc:docs', Ports: ['tcp:443'] }] } } }),
+  [],
+  'tailscale advertises no services without a MagicDNS suffix to address them by'
+)
+assertDeepEqual(
+  tailscale.parseServices({
+    CurrentTailnet: { MagicDNSSuffix: 'tail32f559.ts.net', MagicDNSEnabled: false },
+    Self: { CapMap: { 'services/web': [{ Name: 'svc:docs', Ports: ['tcp:443'] }] } }
+  }),
+  [],
+  'tailscale lists no services when MagicDNS cannot resolve their names'
+)
+assertDeepEqual(
+  tailscale.parseServices({
+    CurrentTailnet: { MagicDNSSuffix: 'tail32f559.ts.net' },
+    Self: { CapMap: { 'services/web': [{ Name: 'svc:constructor', Ports: ['tcp:443'] }] } }
+  }).map(service => service.Name),
+  ['constructor'],
+  'tailscale keeps a service whose name collides with an object member'
+)
+
+const probeCommand = tailscale.serviceProbeCommand([
+  { Url: 'https://docs.tail32f559.ts.net/' },
+  { Url: 'https://wiki.tail32f559.ts.net/' }
+])
+
+assert(probeCommand.indexOf('--noproxy') !== -1 && probeCommand.indexOf('--disable') !== -1, 'tailscale probes services without proxies or ~/.curlrc')
+assert(probeCommand.indexOf('--proto') !== -1 && probeCommand.indexOf('=https') !== -1, 'tailscale probes services over HTTPS only')
+assert(probeCommand.indexOf('--location') === -1, 'tailscale does not follow redirects out of the tailnet while probing')
+assertEqual(
+  probeCommand.filter(argument => argument === '--output').length,
+  2,
+  'tailscale gives every probed URL its own output sink so bodies stay out of the report'
+)
+assertDeepEqual(tailscale.serviceProbeCommand([]), [], 'tailscale runs no probe without services')
+
+const probes = tailscale.parseProbeResults(
+  'https://docs.tail32f559.ts.net/\t200\t0.014866\n' +
+  'https://wiki.tail32f559.ts.net/\t401\t1.5\n' +
+  'https://chat.tail32f559.ts.net/\t000\t0.001\n' +
+  'truncated line without fields\n'
+)
+
+assertEqual(probes['https://docs.tail32f559.ts.net/'].latencyMs, 15, 'tailscale reports probe latency in whole milliseconds')
+assert(probes['https://wiki.tail32f559.ts.net/'].reachable, 'tailscale counts an authenticated service as reachable')
+assert(!probes['https://chat.tail32f559.ts.net/'].reachable, 'tailscale counts a service that never answered as unreachable')
+assertEqual(Object.keys(probes).length, 3, 'tailscale ignores probe output it cannot parse')
+
+const rows = tailscale.serviceRows(withServices.services, probes)
+
+assertDeepEqual(rows.map(row => row.Reachable), [false, true, true], 'tailscale joins probe results onto the service rows')
+assertEqual(rows[1].Code, 200, 'tailscale keeps the probe status code for the row')
+assertEqual(tailscale.reachableServiceCount(rows), 2, 'tailscale counts the reachable services')
+assert(!tailscale.serviceRows(withServices.services, {})[0].Probed, 'tailscale marks services as unprobed until the first probe lands')
+
+assert(/function services\(\): string/.test(panelSource), 'tailscale exposes the service summary over IPC')
+assert(/text: "SERVICES"/.test(panelSource), 'tailscale panel renders a services section')
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')

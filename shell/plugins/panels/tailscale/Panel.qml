@@ -13,11 +13,15 @@ Panel {
   manageIpc: false
 
   property string focusSection: "header"
+  // Which half of the panel is on screen: the tailnet's machines, or the
+  // HTTPS services advertised on it. The bar icon reports both regardless.
+  property string activeTab: "machines"
   property int headerIndex: 0
   property int accountIndex: 0
   property int peerIndex: 0
   property int exitNodeIndex: 0
   property int mullvadRegionIndex: 0
+  property int serviceIndex: 0
   property bool cursorActive: false
   property bool copyMenuOpen: false
   property bool mullvadPickerOpen: false
@@ -41,12 +45,12 @@ Panel {
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property bool showPeers: tailscale.active && tailscale.peers.length > 0
+  readonly property bool showConnections: machinesTab && (tailscale.accounts.length > 1 || tailscale.accountsAccessDenied)
+  readonly property bool showPeers: machinesTab && tailscale.active && tailscale.peers.length > 0
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
-  readonly property bool showExitNodes: tailscale.active && (exitNodes.length > 0 || tailscale.mullvadRegions.length > 0)
+  readonly property bool showExitNodes: machinesTab && tailscale.active && (exitNodes.length > 0 || tailscale.mullvadRegions.length > 0)
   readonly property var filteredMullvadRegions: filteredMullvadRegionNodes()
   // Only claim the header cursor when the switch is actually on screen —
   // "header" stays navigable, but an absent CLI leaves nothing to highlight.
@@ -56,6 +60,53 @@ Panel {
   readonly property color barIconColor: tailscale.active ? barForeground : Qt.darker(barForeground, 1.55)
   readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
+
+  // A tailnet that advertises no services has no second tab, and the panel is
+  // exactly what it always was. Nothing to turn on, nothing to turn off: the
+  // tailnet already answered the question.
+  readonly property bool hasServices: tailscale.serviceRows.length > 0
+  readonly property bool machinesTab: !hasServices || activeTab === "machines"
+  readonly property bool servicesTab: hasServices && activeTab === "services"
+  readonly property var tabOptions: [
+    { value: "machines", label: "Machines", tooltip: "Machines on this tailnet" },
+    { value: "services", label: "Services", tooltip: "HTTPS services on this tailnet" }
+  ]
+  // Rows arrive from the status poll and their verdicts a probe later, so
+  // "unreachable" and "not asked yet" are different states and only the first
+  // is worth colouring.
+  readonly property int probedServiceCount: {
+    var probed = 0
+    for (var i = 0; i < tailscale.serviceRows.length; i++) {
+      if (tailscale.serviceRows[i].Probed) probed++
+    }
+    return probed
+  }
+  readonly property string servicesSummary: {
+    if (!tailscale.active) return "Tailscale is disconnected"
+    if (!hasServices) return "No HTTPS services advertised"
+    if (tailscale.serviceProbeError !== "") return tailscale.serviceProbeError
+    if (probedServiceCount === 0) return "Checking services…"
+    return tailscale.reachableServiceCount + " of " + tailscale.serviceRows.length + " reachable"
+  }
+  // Only worth a dot in the bar when it says something the mark does not: that
+  // a service the tailnet advertises is not answering. Rows that have not been
+  // probed yet are not evidence of anything, so they neither raise the dot nor
+  // colour it.
+  readonly property bool barServiceDotVisible: tailscale.active
+    && probedServiceCount > 0
+    && tailscale.reachableServiceCount < probedServiceCount
+  // The theme palette has no "success" role, so mix one for the partial case:
+  // urgent when nothing answers, and the blend when only some of it does.
+  // Staying in the palette keeps the dot legible in every theme, which a
+  // hardcoded colour would not.
+  readonly property color barServiceStatusColor: tailscale.reachableServiceCount === 0
+    ? urgent
+    : Qt.tint(barForeground, Qt.rgba(urgent.r, urgent.g, urgent.b, 0.55))
+  readonly property string barTooltip: {
+    if (!tailscale.installed) return "Tailscale is not installed"
+    if (!tailscale.active || tailscale.serviceRows.length === 0) return tailscale.statusText
+    return tailscale.statusText + " · " + root.servicesSummary
+  }
 
   function selectedPeer() {
     if (tailscale.peers.length === 0) return null
@@ -177,6 +228,53 @@ Panel {
     return tailscale.accounts[Math.max(0, Math.min(accountIndex, tailscale.accounts.length - 1))]
   }
 
+  function selectedService() {
+    if (tailscale.serviceRows.length === 0) return null
+    return tailscale.serviceRows[Math.max(0, Math.min(serviceIndex, tailscale.serviceRows.length - 1))]
+  }
+
+  function setTab(name) {
+    if (!hasServices) return
+    var next = name === "services" ? "services" : "machines"
+    if (activeTab === next) return
+    activeTab = next
+    // Land on the hero rather than wherever the other tab's cursor sat: the
+    // sections do not line up, so keeping the row index would look random.
+    focusSection = "header"
+    if (next === "services") {
+      serviceIndex = 0
+      // The rows may be a poll old; arriving on the tab is a good moment to
+      // ask again, and a probe is cheap.
+      tailscale.probeServices()
+    }
+    if (panelFlick) panelFlick.contentY = 0
+    ensureCursor()
+  }
+
+  function openService(service) {
+    if (!service || !service.Url) return
+    tailscale.openUrl(service.Url)
+    close()
+  }
+
+  function openServicesAdmin() {
+    tailscale.openServicesAdmin()
+    close()
+  }
+
+  function setServiceCursor(index) {
+    cursorActive = true
+    focusSection = "services"
+    serviceIndex = index
+    scrollCursorIntoView()
+  }
+
+  function copySelectedServiceUrl() {
+    var service = selectedService()
+    if (!service || !service.Url) return
+    tailscale.copyToClipboard(String(service.Url), String(service.Name || "Service") + " URL")
+  }
+
   function ensureCursor() {
     if (headerIndex < 0) headerIndex = 0
     if (headerIndex > 0) headerIndex = 0
@@ -184,6 +282,15 @@ Panel {
     if (peerIndex >= tailscale.peers.length) peerIndex = Math.max(0, tailscale.peers.length - 1)
     if (exitNodeIndex >= exitNodes.length) exitNodeIndex = Math.max(0, exitNodes.length - 1)
     if (mullvadRegionIndex >= filteredMullvadRegions.length) mullvadRegionIndex = Math.max(0, filteredMullvadRegions.length - 1)
+    if (serviceIndex >= tailscale.serviceRows.length) serviceIndex = Math.max(0, tailscale.serviceRows.length - 1)
+    // The services tab is one flat list, so it has no section chain to repair:
+    // the cursor is either on the hero or in the list.
+    if (servicesTab) {
+      if (focusSection !== "header" && focusSection !== "services") focusSection = "header"
+      if (focusSection === "services" && !hasServices) focusSection = "header"
+      return
+    }
+    if (focusSection === "services") focusSection = "header"
     if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
     if (focusSection === "accounts" && tailscale.accounts.length <= 1) focusSection = tailscale.accountsAccessDenied ? "auth" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
     if (focusSection === "peers" && !showPeers) focusSection = showExitNodes ? "exitNodes" : (tailscale.accountsAccessDenied ? "auth" : (tailscale.accounts.length > 1 ? "accounts" : "header"))
@@ -191,10 +298,27 @@ Panel {
   }
 
   function moveCursor(dx, dy) {
+    // Left/right belongs to the tabs: neither list is horizontal, so the axis
+    // is free and h/l lands where a Vim user reaches for it anyway. Switching
+    // is not cursor movement, so it neither needs the priming keypress the
+    // vertical keys take nor lights up a row.
+    if (dx !== 0) {
+      setTab(dx > 0 ? "services" : "machines")
+      return
+    }
     cursorActive = true
     ensureCursor()
     if (dy !== 0) {
-      if (focusSection === "header") {
+      if (servicesTab) {
+        if (focusSection === "header") {
+          if (dy > 0 && hasServices) focusSection = "services"
+        } else if (dy < 0) {
+          if (serviceIndex <= 0) focusSection = "header"
+          else serviceIndex--
+        } else if (serviceIndex < tailscale.serviceRows.length - 1) {
+          serviceIndex++
+        }
+      } else if (focusSection === "header") {
         if (dy > 0) {
           if (tailscale.accountsAccessDenied) focusSection = "auth"
           else if (tailscale.accounts.length > 1) focusSection = "accounts"
@@ -250,6 +374,8 @@ Panel {
       openSelectedPeerCopyMenu()
     } else if (focusSection === "exitNodes") {
       chooseExitNode(selectedExitNode())
+    } else if (focusSection === "services") {
+      openService(selectedService())
     }
   }
 
@@ -284,6 +410,7 @@ Panel {
   function scrollCursorIntoView() {
     if (focusSection === "peers" && peerColumn && peerIndex >= 0 && peerIndex < peerColumn.children.length) scrollItemIntoView(peerColumn.children[peerIndex])
     else if (focusSection === "exitNodes" && exitNodeColumn && exitNodeIndex >= 0 && exitNodeIndex < exitNodeColumn.children.length) scrollItemIntoView(exitNodeColumn.children[exitNodeIndex])
+    else if (focusSection === "services" && serviceColumn && serviceIndex >= 0 && serviceIndex < serviceColumn.children.length) scrollItemIntoView(serviceColumn.children[serviceIndex])
   }
 
   function scrollMullvadRegionCursorIntoView() {
@@ -339,21 +466,30 @@ Panel {
 
   onOpenedChanged: if (opened) {
     cursorActive = false
+    // Settle the remembered tab on open rather than the moment services come
+    // and go: a status blip that empties the list for one poll should not cost
+    // the tab you were on, and `servicesTab` already falls back on its own.
+    if (!hasServices) activeTab = "machines"
     if (panelFlick) panelFlick.contentY = 0
+    // The status refresh carries the service probe with it, now that the panel
+    // being open makes probing worth the traffic.
     tailscale.refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
   onPeerIndexChanged: scrollCursorIntoView()
   onExitNodeIndexChanged: scrollCursorIntoView()
+  onServiceIndexChanged: scrollCursorIntoView()
   onMullvadRegionIndexChanged: if (mullvadPickerOpen) scrollMullvadRegionCursorIntoView()
   onShowConnectionsChanged: ensureCursor()
   onShowPeersChanged: ensureCursor()
   onShowExitNodesChanged: ensureCursor()
+  onHasServicesChanged: ensureCursor()
   onFilteredMullvadRegionsChanged: ensureCursor()
 
   Service {
     id: tailscale
     settings: root.settings
+    panelOpen: root.opened
   }
 
   Connections {
@@ -361,6 +497,7 @@ Panel {
     function onPeersChanged() { root.ensureCursor() }
     function onAccountsChanged() { root.ensureCursor() }
     function onAccountsAccessDeniedChanged() { root.ensureCursor() }
+    function onServiceRowsChanged() { root.ensureCursor() }
   }
 
   IpcHandler {
@@ -375,12 +512,16 @@ Panel {
     function down(): string { tailscale.down(); return "ok" }
     function toggleTailscale(): string { tailscale.toggleTailscale(); return "ok" }
     function status(): string { return tailscale.statusText }
+    function services(): string { return root.servicesSummary }
+    function refreshServices(): string { tailscale.probeServices(); return "ok" }
+    function tab(name: string): string { root.setTab(name); return root.activeTab }
   }
 
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
+    tooltipText: root.barTooltip
     iconComponent: Component {
       Item {
         TailscaleIcon {
@@ -390,12 +531,14 @@ Panel {
           badgeColor: root.urgent
           crossed: !tailscale.active && !tailscale.needsLogin
           warning: tailscale.needsLogin
+          statusColor: root.barServiceStatusColor
+          statusVisible: root.barServiceDotVisible
         }
       }
     }
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) tailscale.toggleTailscale()
-      else if (buttonCode === Qt.MiddleButton) tailscale.refresh()
+      else if (buttonCode === Qt.MiddleButton) { tailscale.refresh(); tailscale.probeServices() }
       else root.toggle()
     }
   }
@@ -415,7 +558,9 @@ Panel {
       anchors.fill: parent
       blocked: root.copyMenuOpen
       onMoveRequested: function(dx, dy) {
-        if (!root.cursorActive) { root.cursorActive = true; return }
+        // Vertical keys keep the stock behaviour: the first press only lights
+        // the cursor. Horizontal keys switch tab straight away.
+        if (dx === 0 && !root.cursorActive) { root.cursorActive = true; return }
         root.moveCursor(dx, dy)
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
@@ -423,7 +568,12 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "t" || t === "T") tailscale.toggleTailscale()
-        else if (t === "r" || t === "R") tailscale.refresh(true)
+        else if (t === "r" || t === "R") { tailscale.refresh(true); tailscale.probeServices() }
+        // The copy keys follow the visible tab: on services there is one thing
+        // worth copying, and no peer under the cursor to copy from.
+        else if (root.servicesTab) {
+          if (t === "c" || t === "C") root.copySelectedServiceUrl()
+        }
         else if (t === "c" || t === "C") tailscale.copyPeerIp(root.selectedPeer())
         else if (t === "n" || t === "N") tailscale.copyPeerName(root.selectedPeer())
         else if (t === "d" || t === "D") tailscale.copyPeerDnsName(root.selectedPeer())
@@ -459,7 +609,10 @@ Panel {
               id: hero
               width: parent.width
               title: tailscale.installed ? (tailscale.selfName || "Tailscale") : "Tailscale"
-              meta: tailscale.active ? root.heroPhraseText : "Tailscale is disconnected"
+              // The rotating phrases are flavour for the machines tab; on the
+              // services tab the same line carries the reachability count.
+              meta: !tailscale.active ? "Tailscale is disconnected"
+                : (root.servicesTab ? root.servicesSummary : root.heroPhraseText)
               foreground: root.foreground
               fontFamily: root.fontFamily
               iconOpacity: tailscale.active ? 1.0 : 0.5
@@ -495,6 +648,29 @@ Panel {
                   }
                 }
               }
+            }
+          }
+
+          // Machines / Services. Centred rather than left-aligned so the two
+          // chips read as one control instead of a stray pair of buttons.
+          Item {
+            visible: tailscale.installed && root.hasServices
+            width: parent.width
+            implicitHeight: tabs.implicitHeight
+
+            ButtonGroup {
+              id: tabs
+              anchors.horizontalCenter: parent.horizontalCenter
+              options: root.tabOptions
+              value: root.activeTab
+              foreground: root.foreground
+              background: root.bar ? Color.bar.background : Color.background
+              fontFamily: root.fontFamily
+              fontSize: Style.font.bodySmall
+              // The panel owns Tab (it switches bar panels), so the group must
+              // not claim it as a focus stop.
+              focusable: false
+              onChanged: function(tab) { root.setTab(tab) }
             }
           }
 
@@ -667,12 +843,12 @@ Panel {
           }
 
           PanelSeparator {
-            visible: tailscale.installed && tailscale.active
+            visible: root.machinesTab && tailscale.installed && tailscale.active
             foreground: root.foreground
           }
 
           Column {
-            visible: tailscale.installed && tailscale.active
+            visible: root.machinesTab && tailscale.installed && tailscale.active
             width: parent.width
             spacing: Style.space(10)
 
@@ -710,6 +886,93 @@ Panel {
               }
             }
           }
+
+          PanelSeparator {
+            visible: root.servicesTab && tailscale.installed
+            foreground: root.foreground
+          }
+
+          Column {
+            visible: root.servicesTab && tailscale.installed
+            width: parent.width
+            spacing: Style.space(10)
+
+            Item {
+              width: parent.width
+              implicitHeight: Math.max(servicesHeader.implicitHeight, servicesActions.implicitHeight)
+
+              PanelSectionHeader {
+                id: servicesHeader
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: "SERVICES"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+              }
+
+              Row {
+                id: servicesActions
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(4)
+
+                Button {
+                  text: "Admin"
+                  iconText: "󰏌"
+                  tooltipText: "Open the Tailscale admin console"
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.bodySmall
+                  horizontalPadding: Style.space(6)
+                  onClicked: root.openServicesAdmin()
+                }
+
+                // Button rather than PanelActionButton: only Button can spin
+                // its glyph, and a probe that takes a moment should show it.
+                Button {
+                  iconText: "󰑐"
+                  tooltipText: "Refresh service status"
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.bodySmall
+                  horizontalPadding: Style.space(6)
+                  iconSpinning: tailscale.probingServices
+                  onClicked: tailscale.probeServices()
+                }
+              }
+            }
+
+            // The tab only exists while the tailnet advertises services, so
+            // "none" and "Tailscale is off" are not states this section can be
+            // in. A probe that could not run is, and it is worth saying.
+            Text {
+              textFormat: Text.PlainText
+              visible: tailscale.serviceProbeError !== ""
+              width: parent.width
+              text: tailscale.serviceProbeError
+              color: root.urgent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+            }
+
+            Column {
+              id: serviceColumn
+              width: parent.width
+              spacing: Style.space(6)
+
+              Repeater {
+                model: tailscale.serviceRows
+                ServiceRow {
+                  required property var modelData
+                  required property int index
+                  width: serviceColumn.width
+                  service: modelData
+                  rowIndex: index
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -718,7 +981,7 @@ Panel {
   Timer {
     id: phraseTimer
     interval: 2800
-    running: root.opened && tailscale.active
+    running: root.opened && tailscale.active && root.machinesTab
     repeat: true
     onTriggered: phraseSwap.restart()
   }
@@ -1269,6 +1532,122 @@ Panel {
       visible: regionMouse.containsMouse
       text: regionRow.actionTooltip
       fontFamily: root.fontFamily
+    }
+  }
+
+  component ServiceRow: CursorSurface {
+    id: serviceRow
+    property var service: null
+    property int rowIndex: 0
+    readonly property bool reachable: service && service.Reachable === true
+    readonly property bool probed: service && service.Probed === true
+    readonly property string serviceName: service ? String(service.Name || "") : ""
+    readonly property string serviceUrl: service ? String(service.Url || "") : ""
+    // Which machine currently answers for the service, then what the probe got
+    // back from it: "shed · HTTP 200 · 11 ms". An offline carrier says so —
+    // that is the difference between "nobody serves this" and "go wake that
+    // machine up".
+    readonly property string detail: {
+      if (!service) return ""
+      var host = String(service.HostName || "")
+      if (host === "") host = "No current host"
+      else if (service.HostOnline !== true) host += " (offline)"
+      if (!probed) return host + " · Checking…"
+      var code = Number(service.Code || 0)
+      if (!reachable) return host + " · " + (code > 0 ? "HTTP " + code : "Unreachable")
+      var response = code > 0 ? "HTTP " + code : "Reachable"
+      var latency = Number(service.LatencyMs || 0)
+      if (latency > 0) response += " · " + latency + " ms"
+      return host + " · " + response
+    }
+
+    hasCursor: root.cursorActive && root.focusSection === "services" && root.serviceIndex === rowIndex
+    foreground: root.foreground
+
+    implicitHeight: Math.max(serviceContent.implicitHeight, copyServiceButton.implicitHeight) + Style.spacing.rowPaddingX
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onContainsMouseChanged: if (containsMouse) root.setServiceCursor(serviceRow.rowIndex)
+      onClicked: root.openService(serviceRow.service)
+    }
+
+    RowLayout {
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(8)
+      spacing: Style.space(8)
+
+      // Neutral until the first probe lands: an unprobed service is not a
+      // failing one, and a row of red on open would say otherwise.
+      Rectangle {
+        Layout.preferredWidth: Style.space(8)
+        Layout.preferredHeight: Style.space(8)
+        Layout.alignment: Qt.AlignVCenter
+        radius: Layout.preferredWidth / 2
+        color: !serviceRow.probed ? root.dim : (serviceRow.reachable ? root.foreground : root.urgent)
+      }
+
+      ColumnLayout {
+        id: serviceContent
+        Layout.fillWidth: true
+        spacing: Style.space(1)
+
+        Text {
+          textFormat: Text.PlainText
+          Layout.fillWidth: true
+          text: serviceRow.serviceName
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          Layout.fillWidth: true
+          text: serviceRow.serviceUrl
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideMiddle
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          Layout.fillWidth: true
+          text: serviceRow.detail
+          color: !serviceRow.probed || serviceRow.reachable ? root.dim : root.urgent
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+        }
+      }
+
+      PanelActionButton {
+        id: copyServiceButton
+        iconText: "󰆏"
+        tooltipText: "Copy service URL"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        enabled: serviceRow.serviceUrl !== ""
+        Layout.alignment: Qt.AlignVCenter
+        onClicked: tailscale.copyToClipboard(serviceRow.serviceUrl, serviceRow.serviceName + " URL")
+      }
+
+      PanelActionButton {
+        iconText: "󰏌"
+        tooltipText: "Open in browser"
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        enabled: serviceRow.serviceUrl !== ""
+        Layout.alignment: Qt.AlignVCenter
+        onClicked: root.openService(serviceRow.service)
+      }
     }
   }
 }

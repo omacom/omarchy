@@ -41,6 +41,22 @@ Item {
   property string actionStatus: ""
   property string lastError: ""
 
+  // Tailscale Services the tailnet advertises to this node, and the last
+  // reachability probe of each. A tailnet without services leaves both empty
+  // and nothing here ever runs.
+  property var services: []
+  property var serviceProbes: ({})
+  property string serviceProbeError: ""
+  // Set by the panel. Probing rides the status poll while someone is looking;
+  // with the panel closed the only consumer is the bar dot, which does not
+  // need minute-by-minute truth.
+  property bool panelOpen: false
+
+  readonly property var serviceRows: Model.serviceRows(services, serviceProbes)
+  readonly property int reachableServiceCount: Model.reachableServiceCount(serviceRows)
+  readonly property bool probingServices: probeProcess.running
+  readonly property int closedProbeIntervalMs: 300000
+
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
   readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
@@ -65,6 +81,8 @@ Item {
   property string _exitNodeError: ""
   property string _operatorOutput: ""
   property string _operatorError: ""
+  property string _probeOutput: ""
+  property double _lastProbeMs: 0
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -131,6 +149,38 @@ Item {
     if (peer.HostName) return String(peer.HostName)
     var ips = filterIPv4(peer.TailscaleIPs || [])
     return ips.length > 0 ? ips[0] : ""
+  }
+
+  // Probing costs a curl per refresh, so it only happens for a tailnet that
+  // actually advertises services, and only as often as someone can see it.
+  function maybeProbeServices() {
+    if (services.length === 0) {
+      serviceProbes = ({})
+      serviceProbeError = ""
+      return
+    }
+    if (panelOpen || _lastProbeMs === 0 || Date.now() - _lastProbeMs >= closedProbeIntervalMs) probeServices()
+  }
+
+  // Launching belongs here with the rest of the shell-outs, alongside the login
+  // flow that hands URLs to the same launcher.
+  function openUrl(url) {
+    var target = String(url || "")
+    if (target === "") return
+    Quickshell.execDetached(["omarchy-launch-browser", target])
+  }
+
+  function openServicesAdmin() {
+    openUrl("https://login.tailscale.com/admin/services")
+  }
+
+  function probeServices() {
+    if (!installed || !running || probeProcess.running || services.length === 0) return
+    var command = Model.serviceProbeCommand(services)
+    if (command.length === 0) return
+    _probeOutput = ""
+    probeProcess.command = command
+    probeProcess.running = true
   }
 
   function canSendFiles(peer) {
@@ -210,6 +260,9 @@ Item {
     fileSharing = false
     authUrl = ""
     peers = []
+    services = []
+    serviceProbes = ({})
+    serviceProbeError = ""
     exitNodes = []
     tailnetExitNodes = []
     mullvadExitNodes = []
@@ -248,6 +301,8 @@ Item {
     selfUserId = parsed.selfUserId
     fileSharing = parsed.fileSharing
     peers = parsed.running ? parsed.peers : []
+    services = parsed.running ? parsed.services : []
+    maybeProbeServices()
     tailnetExitNodes = parsed.running ? parsed.exitNodes : []
     exitNodes = parsed.running ? tailnetExitNodes.concat(mullvadRegions) : []
 
@@ -431,6 +486,9 @@ Item {
       if (statusProcess.running) statusProcess.running = false
       if (mullvadExitNodesProcess.running) mullvadExitNodesProcess.running = false
       if (accountsProcess.running) accountsProcess.running = false
+      // curl bounds itself with --max-time, but a probe that outlived it would
+      // block every later one for good, the same way a hung status poll does.
+      if (probeProcess.running) probeProcess.running = false
     }
   }
 
@@ -518,6 +576,27 @@ Item {
       var stdout = String(mullvadExitNodesStdout.text || root._mullvadExitNodesOutput || "")
       if (exitCode === 0) root.parseMullvadExitNodes(stdout)
       else root.parseMullvadExitNodes("")
+    }
+  }
+
+  Process {
+    id: probeProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: probeStdout; waitForEnd: true; onStreamFinished: root._probeOutput = text }
+    onExited: function(exitCode) {
+      // curl exits non-zero the moment any single service fails to answer, and
+      // still reports every URL it tried. The output decides, not the code —
+      // one unreachable service is a row to colour red, not a failed probe.
+      var stdout = String(probeStdout.text || root._probeOutput || "")
+      var results = Model.parseProbeResults(stdout)
+      var probed = 0
+      for (var url in results) probed++
+      root.serviceProbes = results
+      root._lastProbeMs = Date.now()
+      // Nothing parseable and a non-zero exit means curl itself did not run —
+      // missing, or refused before it reached the tailnet.
+      root.serviceProbeError = (probed === 0 && exitCode !== 0) ? "Could not probe services" : ""
     }
   }
 
