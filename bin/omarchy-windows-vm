@@ -77,6 +77,24 @@ priv_target() {
   printf '%s\n' "$candidate"
 }
 
+# pkexec can only run the packaged copy at its fixed root-owned path, which a
+# dev-link checkout never shadows: the unprivileged half then runs the checkout
+# while the elevated half runs the package. All privileged mount work happens in
+# the elevated half, so a stale packaged copy would re-apply whatever chmod
+# semantics it shipped with and fail closed with no diagnostic (observed as a
+# launch refusing a 2777 share and leaving it at 2700). Refuse unless both
+# halves are the same build.
+privileged_copy_matches() {
+  local target="$1" target_hash self_hash
+  [[ -r ${BASH_SOURCE[0]} && -r $target ]] || return 1
+  # The common case runs both halves from the same file; only a dev checkout
+  # needs the content comparison.
+  [[ ${BASH_SOURCE[0]} -ef $target ]] && return 0
+  target_hash=$(sha256sum -- "$target") || return 1
+  self_hash=$(sha256sum -- "${BASH_SOURCE[0]}") || return 1
+  [[ ${target_hash%% *} == "${self_hash%% *}" ]]
+}
+
 # Run a privileged VM action. write_compose always elevates (the compose is
 # root-owned); the daemon operations run directly when sudoless Docker is on and
 # otherwise behind a polkit prompt. The stock org.freedesktop.policykit.exec
@@ -102,6 +120,10 @@ priv() {
   local target
   target=$(priv_target) || {
     echo "omarchy-windows-vm: refusing to run a non-root-owned command as root" >&2
+    return 1
+  }
+  privileged_copy_matches "$target" || {
+    echo "omarchy-windows-vm: refusing to elevate: $target is not this command; refresh the installed omarchy package so root runs the same build" >&2
     return 1
   }
   pkexec "$target" __priv "$action" "$@"

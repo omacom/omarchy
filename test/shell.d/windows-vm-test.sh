@@ -103,3 +103,30 @@ EOF
     fail "the install share watcher left the share at $(stat -Lc '%a' "$test_home/Windows")"
 )
 pass "the install share watcher outlives the terminal install ran in"
+
+# pkexec runs the packaged copy, which a dev link cannot shadow. A stale
+# packaged copy used to re-apply the pre-fix chmod semantics with no diagnostic,
+# failing a launch and leaving the share at 2700. The skew check must refuse
+# before pkexec and say why, and must accept an identical copy.
+(
+  test_home=$(mktemp -d)
+  trap 'rm -rf "$test_home"' EXIT
+  set -- help
+  source "$windows_vm_command" >/dev/null
+  cp "$windows_vm_command" "$test_home/copy"
+  privileged_copy_matches "$test_home/copy" || fail "the skew check rejected an identical packaged copy"
+  printf drift >>"$test_home/copy"
+  privileged_copy_matches "$test_home/copy" && fail "the skew check accepted a drifted packaged copy"
+  docker_needs_sudo() { return 0; }
+  printf '#!/bin/bash\n' >"$test_home/packaged"
+  chmod 755 "$test_home/packaged"
+  priv_target() { printf '%s\n' "$test_home/packaged"; }
+  pkexec() { : >"$test_home/elevated"; }
+  privileged_copy_matches() { return 1; }
+  priv status >/dev/null 2>&1 && fail "priv elevated despite a mismatched privileged copy"
+  [[ ! -e $test_home/elevated ]] || fail "priv reached pkexec with a mismatched privileged copy"
+  privileged_copy_matches() { return 0; }
+  priv status >/dev/null 2>&1 || fail "priv refused a matching privileged copy"
+  [[ -e $test_home/elevated ]] || fail "priv did not reach pkexec with a matching privileged copy"
+)
+pass "elevation refuses a mismatched privileged copy and accepts an identical one"
