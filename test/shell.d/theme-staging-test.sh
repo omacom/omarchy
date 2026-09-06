@@ -132,6 +132,13 @@ grep -q 'theme_selected_bg_color #7aa2f7' "$(staged gtk-3.0.css)" || fail "the G
   fail "GTK3 loads the theme stylesheet from the current theme"
 [[ -e $home/.config/gtk-3.0/gtk.css ]] || fail "the GTK3 stylesheet link resolves"
 
+# The shipped default (config/gtk-*) seeds new users through /etc/skel with the
+# same relative links, so they need no theme-set before GTK apps are themed.
+[[ $(readlink "$ROOT/config/gtk-4.0/gtk.css") == "../../.local/state/omarchy/current/theme/gtk.css" ]] ||
+  fail "the shipped GTK4 default points at the state theme"
+[[ $(readlink "$ROOT/config/gtk-3.0/gtk.css") == "../../.local/state/omarchy/current/theme/gtk-3.0.css" ]] ||
+  fail "the shipped GTK3 default points at the state theme"
+
 pass "GTK apps are pointed at the theme's generated stylesheets"
 
 # icons.theme is staged verbatim and handed to gsettings, so a symlinked one

@@ -49,10 +49,13 @@ GTK and libadwaita apps are the one group without a live retint: GTK loads its
 stylesheet at startup, so there is nothing to poke mid-run. Instead the theme
 swap points `~/.config/gtk-3.0/gtk.css` and `~/.config/gtk-4.0/gtk.css` at the
 generated `gtk-3.0.css` and `gtk.css` in the current theme, and every GTK app
-picks up the new palette on its next launch. `omarchy-theme-set` creates those
-links after staging a theme; a real `gtk.css` the user wrote themselves is
-their customization and keeps winning over the link. Migrations restage the
-active theme so installs that predate the templates get the links too.
+picks up the new palette on its next launch. New users get the two links from
+the shipped defaults (`config/gtk-3.0/` and `config/gtk-4.0/` seed them through
+`/etc/skel`, relative to the state theme like the Neovim link), and
+`omarchy-theme-set` re-asserts them after staging a theme. A real `gtk.css` the
+user wrote themselves is their customization and keeps winning over the link.
+Migrations restage the active theme so installs that predate the templates get
+the links too.
 
 ## What an installed theme may not ship
 
