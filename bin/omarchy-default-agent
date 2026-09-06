@@ -86,19 +86,6 @@ if ! agent_install; then
   exit 1
 fi
 
-# Restore Muse's stub if preinstalls were removed, leaving a user-managed
-# launcher alone just as the installation path above does.
-if [[ $agent == "muse" ]] && ! user_install; then
-  omarchy-mise-install "$agent_package" muse || exit 1
-fi
-
-# A fresh Muse install has no credentials, so the browser login runs here in
-# the install terminal instead of stopping the first agent launch. A declined
-# login still opens the agent, which asks again itself.
-if [[ $installing == "true" && $agent == "muse" ]]; then
-  muse login
-fi
-
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 

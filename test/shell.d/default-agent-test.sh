@@ -528,8 +528,7 @@ grep -F "Could not set Codex as the default coding agent" "$test_tmp/setup-failu
 [[ ! -s $agent_open_log ]] || fail "failed activation does not open an agent"
 pass "default agent reports mise failures without notifications"
 
-# Muse installs through mise, and a fresh install runs the
-# Meta browser login before the agent opens.
+# Muse follows the shared mise installation and launch path.
 : >"$notification_history"
 : >"$agent_open_log"
 : >"$terminal_log"
@@ -554,14 +553,13 @@ pass "failed Muse mise installation preserves the selection and skips login"
 : >"$stub_log"
 omarchy-default-agent --install muse >"$test_tmp/muse-install-output"
 grep -Fx "use -g $muse_package" "$mise_history" >/dev/null || fail "visible Muse installation uses the HTTP backend"
-grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "visible Muse installation creates its mise wrapper"
-grep -Fx "muse login" "$muse_login_log" >/dev/null ||
-  fail "fresh Muse installation runs the Meta login in the install terminal"
+[[ ! -s $stub_log ]] || fail "Muse selection recreates its preinstalled wrapper"
+[[ ! -s $muse_login_log ]] || fail "Muse selection runs a separate login flow"
 [[ $(omarchy-default-agent) == "muse" ]] || fail "visible Muse installation changes the selection"
 mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
   fail "newly installed Muse opens in the installation terminal"
-pass "Muse installs visibly through mise and logs in before opening"
+pass "Muse installs visibly through mise and opens directly"
 
 : >"$terminal_log"
 : >"$muse_login_log"
@@ -573,7 +571,7 @@ OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent muse-code
 mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
   fail "installed Muse opens in a new terminal after selection"
-pass "installed Muse selects and opens without repeating the login"
+pass "installed Muse selects and opens directly"
 
 OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent pi
 : >"$agent_open_log"
