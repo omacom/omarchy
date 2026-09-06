@@ -49,12 +49,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeThresholdEnd)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates())
+    return Model.modeLabel(device, root.discharging, upowerStates(), root.chargeThresholdEnd)
   }
 
   function profileIcon(name) {
@@ -69,9 +69,13 @@ Panel {
     var device = UPower.displayDevice
     return !!(device && device.isPresent && UPower.onBattery)
   }
+  // UPower publishes no charge-threshold property, so the only source for the
+  // limit is omarchy-battery-status, which reads it from the hardware. NaN when
+  // the battery exposes no charge-control interface at all.
+  readonly property var chargeThresholdEnd: Model.parseThresholdEnd(root.batteryInfo.threshold)
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, root.chargeThresholdEnd)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -135,9 +139,17 @@ Panel {
   function refresh() {
     if (!batteryPresent) return
 
-    if (!batteryProc.running) batteryProc.running = true
+    refreshBattery()
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+  }
+
+  // The bar icon reads the charge limit too, and the full refresh only runs
+  // while the panel is open, so the battery read has to be reachable on its own
+  // or the icon would sit on an unset limit until the panel is first opened.
+  function refreshBattery() {
+    if (!batteryPresent) return
+    if (!batteryProc.running) batteryProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -199,7 +211,12 @@ Panel {
     }
   }
 
-  onBatteryPresentChanged: if (!batteryPresent) close()
+  onBatteryPresentChanged: {
+    if (batteryPresent) refreshBattery()
+    else close()
+  }
+
+  Component.onCompleted: refreshBattery()
 
   visible: batteryPresent
   implicitWidth: batteryPresent ? button.implicitWidth : 0
