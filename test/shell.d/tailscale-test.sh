@@ -264,4 +264,33 @@ assertDeepEqual(grouped.other.map(function (p) { return p.HostName }), ['c'], 't
 
 assertDeepEqual(tailscale.groupPeers([], SELF), { mine: [], tagged: [], other: [] }, 'tailscale groups an empty peer list into empty groups')
 assertDeepEqual(tailscale.groupPeers(null, SELF), { mine: [], tagged: [], other: [] }, 'tailscale groups a missing peer list into empty groups')
+const firezone = {
+  HostName: 'Firezone',
+  DisplayName: 'Firezone',
+  DNSName: 'ny-exit-node.tailcb223.ts.net',
+  OS: 'linux',
+  TailscaleIPs: ['100.95.213.121']
+}
+
+assert(tailscale.peerMatchesQuery(firezone, 'fire'), 'tailscale matches a peer by display name')
+assert(tailscale.peerMatchesQuery(firezone, 'FIRE'), 'tailscale matches a peer case-insensitively')
+assert(tailscale.peerMatchesQuery(firezone, 'ny-exit'), 'tailscale matches a peer by MagicDNS name')
+assert(tailscale.peerMatchesQuery(firezone, '100.95'), 'tailscale matches a peer by IP address')
+assert(!tailscale.peerMatchesQuery(firezone, 'zzz'), 'tailscale rejects a non-matching query')
+assert(tailscale.peerMatchesQuery(firezone, ''), 'tailscale treats an empty query as matching')
+assert(tailscale.peerMatchesQuery(firezone, '   '), 'tailscale treats a blank query as matching')
+assert(tailscale.peerMatchesQuery(null, ''), 'tailscale treats an empty query as matching even without a peer')
+assert(!tailscale.peerMatchesQuery(null, 'fire'), 'tailscale rejects a real query against a missing peer')
+
+const searchable = [firezone, {
+  HostName: 'atl-exit-node',
+  DisplayName: 'atl-exit-node',
+  DNSName: 'atl-exit-node.tailcb223.ts.net',
+  TailscaleIPs: []
+}]
+
+assertEqual(tailscale.filterPeers(searchable, 'fire').length, 1, 'tailscale filters peers down to a single match')
+assertEqual(tailscale.filterPeers(searchable, 'exit-node').length, 2, 'tailscale filters peers on a shared DNS fragment')
+assertEqual(tailscale.filterPeers(searchable, '').length, 2, 'tailscale returns every peer for an empty query')
+assertEqual(tailscale.filterPeers(null, 'x').length, 0, 'tailscale filters a missing peer list to nothing')
 JS

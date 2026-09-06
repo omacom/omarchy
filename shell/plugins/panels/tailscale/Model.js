@@ -151,6 +151,31 @@ function groupPeers(peers, selfUserId) {
   return groups
 }
 
+// Searches the MagicDNS name as well as the hostname: the two diverge (a
+// machine named "Firezone" answers to ny-exit-node), so hostname-only search
+// would miss the name the user actually knows the machine by.
+function peerMatchesQuery(peer, query) {
+  var needle = String(query || "").trim().toLowerCase()
+  if (needle === "") return true
+  if (!peer) return false
+  var haystack = [peer.DisplayName, peer.HostName, peer.DNSName, peer.OS]
+  var ips = peer.TailscaleIPs || []
+  for (var i = 0; i < ips.length; i++) haystack.push(ips[i])
+  for (var j = 0; j < haystack.length; j++) {
+    if (String(haystack[j] || "").toLowerCase().indexOf(needle) !== -1) return true
+  }
+  return false
+}
+
+function filterPeers(peers, query) {
+  var values = Array.isArray(peers) ? peers : []
+  var result = []
+  for (var i = 0; i < values.length; i++) {
+    if (peerMatchesQuery(values[i], query)) result.push(values[i])
+  }
+  return result
+}
+
 function sliceTableColumn(line, start, end) {
   var text = String(line || "")
   if (start < 0 || start >= text.length) return ""
@@ -355,6 +380,8 @@ if (typeof module !== "undefined") {
     peerFromStatus: peerFromStatus,
     peerGroup: peerGroup,
     groupPeers: groupPeers,
+    peerMatchesQuery: peerMatchesQuery,
+    filterPeers: filterPeers,
     parseExitNodeList: parseExitNodeList,
     mullvadRegionOptions: mullvadRegionOptions,
     mullvadCountryOptions: mullvadCountryOptions,
