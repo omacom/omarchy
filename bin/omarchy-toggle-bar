@@ -4,7 +4,23 @@
 # omarchy:args=[toggle|on|off]
 # omarchy:examples=omarchy toggle bar | omarchy toggle bar off | omarchy toggle bar on
 
-omarchy-toggle bar-off "${1:-toggle}"
+# The flag is named for the off state, so the user-facing on and off run the
+# other way round: `bar on` lifts `bar-off` and `bar off` sets it.
+case "${1:-toggle}" in
+  toggle)
+    omarchy-toggle bar-off
+    ;;
+  on)
+    omarchy-toggle bar-off off
+    ;;
+  off)
+    omarchy-toggle bar-off on
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-bar [toggle|on|off]" >&2
+    exit 1
+    ;;
+esac
 
 # The shell's watch on the toggles directory can miss flag changes that land in
 # quick succession, stranding the bar off screen until the shell restarts.

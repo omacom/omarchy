@@ -40,14 +40,29 @@ HOME="$test_home" omarchy-toggle example toggle
 [[ ! -f $flag ]] || fail "generic toggle flips enabled state off"
 pass "generic toggle flips enabled state off"
 
-HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on enables bar-off toggle"
-pass "bar on enables bar-off toggle"
-
-HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on is idempotent"
-pass "bar on is idempotent"
+HOME="$test_home" omarchy-toggle-bar off
+[[ -f $bar_flag ]] || fail "bar off sets the bar-off flag"
+pass "bar off sets the bar-off flag"
 
 HOME="$test_home" omarchy-toggle-bar off
-[[ ! -f $bar_flag ]] || fail "bar off disables bar-off toggle"
-pass "bar off disables bar-off toggle"
+[[ -f $bar_flag ]] || fail "bar off is idempotent"
+pass "bar off is idempotent"
+
+HOME="$test_home" omarchy-toggle-bar on
+[[ ! -f $bar_flag ]] || fail "bar on lifts the bar-off flag"
+pass "bar on lifts the bar-off flag"
+
+HOME="$test_home" omarchy-toggle-bar on
+[[ ! -f $bar_flag ]] || fail "bar on is idempotent"
+pass "bar on is idempotent"
+
+HOME="$test_home" omarchy-toggle-bar
+[[ -f $bar_flag ]] || fail "bar toggle hides a visible bar"
+pass "bar toggle hides a visible bar"
+
+HOME="$test_home" omarchy-toggle-bar toggle
+[[ ! -f $bar_flag ]] || fail "bar toggle reveals a hidden bar"
+pass "bar toggle reveals a hidden bar"
+
+HOME="$test_home" omarchy-toggle-bar sideways 2>/dev/null && fail "bar rejects an unknown action"
+pass "bar rejects an unknown action"
