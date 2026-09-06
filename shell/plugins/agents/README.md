@@ -99,6 +99,23 @@ only adds the meter and the spent-of-funded line under the real figure.
   Tab moves to the neighboring bar panel, Esc closes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
+## Usage at a glance
+
+Choose **Usage rings** in the widget's **Bar display** setting to replace the single icon with one ring per enabled subscription. Rings follow the bar horizontally or vertically and use the current theme. Hover a ring for each allowance's percentage and reset countdown; click it to open that subscription in the existing panel. Right-click still opens the agent picker, and middle-click still changes the selected subscription. The panel's existing keyboard shortcuts also work in this mode.
+
+Each ring represents the fullest reported allowance. Prepaid accounts show the fraction of funded credit consumed, with the remaining currency balance and any estimate label in the tooltip. An unknown allowance has an empty track, not a made-up percentage. Readings older than twice the configured refresh interval (at least one minute), readings without timestamps, and windows past their reset time are dimmed and labelled stale. An elapsed reset time never implies a fresh zero reading. This mode uses the same records and refresh schedule as the panel; hovering does not fetch credentials or call a provider.
+
+```bash
+omarchy bar set omarchy.agents barDisplay 'Usage rings'
+omarchy bar set omarchy.agents sessionActivity On
+```
+
+**Local session activity** is optional and off by default. It reads Claude Code's small `sessions/*.json` registry under `CLAUDE_CONFIG_DIR` or `~/.claude` every five seconds. A filled attention dot means Claude reports that input is needed; a hollow dot means it reports work in progress. The panel lists the verified local sessions and their reported state. Idle is shown as idle, not as successful completion. The single-icon mode also highlights when a verified Claude session needs input.
+
+The reader requires a matching process owner, Claude command, and start time. Dead processes, recycled PIDs, malformed records and records without usable process identity are excluded. It does not read prompts, credentials or transcripts, write hooks, change agent settings, make network requests, or sync session state to other machines. Disabling Claude or the activity setting clears the readings and stops the reader. Results expire after 15 seconds if scans stop. CLI versions without a compatible registry show status unavailable; Codex and other providers have no live session adapter in this change. Recent log writes are deliberately not presented as confirmed work or attention signals.
+
+The Claude registry field reference is [CodeNotch's session parser](https://github.com/vinzdg/codenotch/blob/main/Sources/Sessions/ClaudeSessionRecord.swift). The Linux reader and QML display are new implementations; no macOS application code or artwork is bundled.
+
 ## Settings
 
 Settings live in the widget's entry in `~/.config/omarchy/shell.json`. The
@@ -107,6 +124,8 @@ top-level keys can be set with
 
 | Key | Default | What it does |
 |---|---|---|
+| `barDisplay` | `"Icon"` | `"Usage rings"` shows each subscription in the bar |
+| `sessionActivity` | `"Off"` | `"On"` reads verified local Claude session states |
 | `refreshIntervalSec` | `900` | How often the usage records regenerate |
 | `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
