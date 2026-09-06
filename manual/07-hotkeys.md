@@ -171,7 +171,7 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Pick a new theme  |
+| `Super + Ctrl + Shift + Space` | Pick a new theme (`Up`/`Down` preview that theme's wallpapers)  |
 | `Super + Ctrl + Space` | Pick theme background |
 | `Super + Backspace` | Toggle transparency on a window |
 | `Super + Ctrl + Backspace` | Toggle single-window square aspect |
