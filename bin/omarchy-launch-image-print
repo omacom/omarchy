@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Open a print dialog for a picture
+# omarchy:args=<image>
+# omarchy:examples=omarchy launch image-print ~/Pictures/photo.jpg
+
+exec /usr/bin/python "$OMARCHY_PATH/default/image-print/print.py" "$@"

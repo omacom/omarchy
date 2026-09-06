@@ -8,6 +8,8 @@ Plug in a USB stick or an SD card and it's mounted automatically, so it just sho
 
 Double-clicking follows sensible defaults: images open in imv, video in mpv, PDFs in Document Viewer, and plain text in Neovim.
 
+To print a picture, right-click a local image in Files and choose _Print…_, or press `Ctrl + P` in imv. Choose the printer, copies, paper size, and orientation before printing. The picture is centered and fitted within the printable page without cropping. You can also choose _Print to File_ to save a PDF.
+
 ## Obsidian
 
 [Obsidian](https://obsidian.md/) is a free and highly extensible note taking application that uses simple Markdown files for storage.

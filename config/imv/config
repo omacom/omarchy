@@ -1,7 +1,7 @@
 [binds]
 
-# Print the current image file
-<Ctrl+p> = exec lp "$imv_current_file"
+# Open a print dialog without blocking the image viewer
+<Ctrl+p> = exec nohup omarchy-launch-image-print "$imv_current_file" </dev/null >/dev/null 2>&1 &
 
 # Trash the current image and quit the viewer (recoverable from Trash)
 <Ctrl+x> = exec gio trash -- "$imv_current_file"; quit

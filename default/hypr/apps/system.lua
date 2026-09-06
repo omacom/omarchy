@@ -31,6 +31,9 @@ o.window("dev.tensaku.Tensaku", { float = true })
 o.window("dev.tensaku.Tensaku", { center = true })
 o.window("omacalc", { float = true })
 
+-- Keep the picture print dialog above floating image viewers.
+o.window("org.omarchy.ImagePrint", { float = true, center = true })
+
 -- Fullscreen screensaver.
 o.window("org.omarchy.screensaver", { fullscreen = true })
 o.window("org.omarchy.screensaver", { float = true })
