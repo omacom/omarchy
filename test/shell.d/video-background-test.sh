@@ -132,9 +132,19 @@ assert(
   'a display coming back gives up the blank state instead of freezing a visible wallpaper'
 )
 assert(
+  lockService.includes('function screenBlank(screenName)') &&
+    lockService.includes('function applyMonitorDpms(text)') &&
+    lockService.includes('command: ["hyprctl", "monitors", "-j"]') &&
+    lockService.includes('running: root.locked && root.videoBackground') &&
+    /displaysBlank: root\.screenBlank\(lockSurface\.screen/.test(lockService) &&
+    /function runWake\(\) \{[\s\S]*?root\.monitorDpmsKnown = false/.test(lockService) &&
+    /function runBlank\(\) \{[\s\S]*?root\.monitorDpmsKnown = false/.test(lockService),
+  'a locked video wallpaper follows what each panel actually did, not only what the lock asked for'
+)
+assert(
   lockView.includes('playbackEnabled: root.loadBackground && !root.displaysBlank') &&
     lockView.includes('&& !root.powerSaverActive') &&
-    /displaysBlank: root\.displaysBlank/.test(lockService) &&
+    /displaysBlank: root\.screenBlank\(/.test(lockService) &&
     /powerSaverActive: root\.powerSaverActive/.test(lockService) &&
     /function runBlank\(\) \{\s*\n\s*root\.displaysBlank = true/.test(lockService) &&
     /function runWake\(\) \{\s*\n\s*root\.displaysBlank = false/.test(lockService),
@@ -277,6 +287,7 @@ pass "direct picker generates and reuses still thumbnails"
 pass "direct picker omits videos whose thumbnails cannot be generated"
 pass "a rejected video is remembered so it costs nothing on the next open"
 pass "a timed out video is left to retry"
+pass "a locked video wallpaper follows the panels' real DPMS state"
 pass "Qt Multimedia playback dependencies are declared"
 
 source <(awk '
