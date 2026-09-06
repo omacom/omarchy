@@ -62,9 +62,13 @@ assert(
 )
 assert(
   !/^\s*Video\s*\{/m.test(videoQml) &&
+    /property bool audioEnabled: false/.test(videoQml) &&
+    /property bool audioEnabled: false/.test(mediaQml) &&
     /active: root\.audioEnabled && player\.hasAudio/.test(videoQml) &&
     /audioOutput: audioLoader\.item/.test(videoQml) &&
     /muted: root\.priming \|\| !root\.playbackEnabled/.test(videoQml) &&
+    /property: "audioEnabled"\s*\n\s*value: root\.audioEnabled/.test(mediaQml) &&
+    /firstScreen: Quickshell\.screens\.length > 0\s*\n\s*&& String\(Quickshell\.screens\[0\]\.name/.test(backgroundQml) &&
     backgroundQml.includes('audioEnabled: panel.firstScreen') &&
     !lockQml.includes('audioEnabled'),
   'a sound track plays from the first monitor only, a silent file builds no audio output, and the lock stays quiet'
