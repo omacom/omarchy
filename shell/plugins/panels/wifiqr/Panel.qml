@@ -40,11 +40,18 @@ Item {
   property bool pwExpectedStop: false
   property bool copied: false
 
+  function resetCopied() {
+    copiedTimer.stop()
+    root.copied = false
+  }
+
   function copyPassword() {
-    if (!root.passwordVisible || root.password === "") return
+    if (!root.passwordVisible || root.password === "" || copyProc.running) return
     // wl-clipboard ships with the base install (the emojis plugin relies on
-    // it). The secret reaches wl-copy as an argv element, never a shell.
-    copyProc.command = ["wl-copy", "--", root.password]
+    // it). Mark the secret so Omarchy's clipboard watcher does not persist it,
+    // and pass it over stdin so it is not exposed in wl-copy's argv.
+    copyProc.stdinEnabled = true
+    copyProc.command = ["wl-copy", "--sensitive", "--type", "text/plain;charset=utf-8"]
     copyProc.running = true
     root.copied = true
     copiedTimer.restart()
@@ -58,8 +65,20 @@ Item {
 
   Process {
     id: copyProc
+    stdinEnabled: true
+    onStarted: {
+      // wl-copy reads stdin to EOF. Closing the write channel after write()
+      // flushes the password and lets wl-copy take ownership of the selection.
+      write(root.password)
+      stdinEnabled = false
+    }
     onExited: function(exitCode) {
-      if (exitCode !== 0) root.copied = false
+      // Re-enable stdin for the next run; this process's channel stays closed.
+      stdinEnabled = true
+      if (exitCode !== 0) {
+        copiedTimer.stop()
+        root.copied = false
+      }
     }
   }
 
@@ -110,6 +129,7 @@ Item {
     root.password = ""
     root.passwordVisible = false
     root.passwordError = ""
+    root.resetCopied()
   }
 
   function dismiss() {
@@ -145,6 +165,7 @@ Item {
     password = ""
     passwordVisible = false
     passwordError = ""
+    root.resetCopied()
     if (pwProc.running) {
       pwExpectedStop = true
       pwProc.running = false
@@ -409,4 +430,3 @@ Item {
     }
   }
 }
-
