@@ -1,4 +1,4 @@
-echo "Install Cursor Agent via mise wrapper"
+echo "Install Cursor CLI via mise wrapper"
 
 # Cursor's own installer links ~/.local/bin/cursor-agent, so an existing
 # command is the user's and stays. The wrapper resolves cursor-agent through

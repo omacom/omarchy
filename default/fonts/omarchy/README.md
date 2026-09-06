@@ -15,6 +15,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E90A` — Hermes, Font Awesome's staff-snake (CC BY 4.0) from <https://fontawesome.com/icons/staff-snake>, the mark Hermes serves as its favicon: their app icon is a portrait that reads as a smudge at menu size
 - `U+E90B` — Perplexity, from <https://simpleicons.org/icons/perplexity.svg>
 - `U+E90C` — OpenClaw, traced from the lobster mascot the openclaw package ships as `dist/control-ui/favicon.svg`, since upstream publishes no monochrome SVG
+- `U+E90D` — Cursor, from <https://simpleicons.org/icons/cursor.svg>
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
