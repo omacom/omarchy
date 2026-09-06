@@ -7,6 +7,11 @@ Item {
   property string path: ""
   property int version: 0
   property bool playbackEnabled: true
+  // Bumped when the file behind an unchanged path may have been replaced.
+  // Images cache-bust through version; a video is rebuilt, since FFmpeg
+  // would read a query as part of the filename.
+  property int reloads: 0
+  property bool reloading: false
   readonly property var current: video ? videoLoader.item : imageLoader.item
   readonly property bool ready: current ? current.ready : false
   readonly property bool video: Util.isVideoPath(path)
@@ -26,8 +31,14 @@ Item {
   Loader {
     id: videoLoader
     anchors.fill: parent
-    active: root.path !== "" && root.video
+    active: root.path !== "" && root.video && !root.reloading
     source: "BackgroundVideo.qml"
+  }
+
+  onReloadsChanged: {
+    if (!video) return
+    reloading = true
+    Qt.callLater(function() { root.reloading = false })
   }
 
   Binding {

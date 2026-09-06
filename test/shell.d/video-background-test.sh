@@ -96,6 +96,13 @@ assert(
   'a fullscreen window pauses only the output it covers, wherever focus is'
 )
 assert(
+  /if \(displayedBackground === finalPath\) displayedReloads \+= 1/.test(backgroundQml) &&
+    backgroundQml.includes('reloads: root.displayedReloads') &&
+    /active: root\.path !== "" && root\.video && !root\.reloading/.test(mediaQml) &&
+    /onReloadsChanged: \{[\s\S]*?reloading = true/.test(mediaQml),
+  'a theme switch that keeps the video path still reopens the replaced file'
+)
+assert(
   barTextColor.includes('magick "$background_path[0]"'),
   'bar colour sampling reads one frame instead of decoding a whole video'
 )
