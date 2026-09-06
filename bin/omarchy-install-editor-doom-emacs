@@ -4,41 +4,68 @@
 
 set -euo pipefail
 
-EMACS_DIR="$HOME/.config/emacs"
-DOOM_BIN="$EMACS_DIR/bin/doom"
+DOOM_CORE_DIR="$HOME/.config/doom-emacs"
+DOOM_USER_DIR="$HOME/.config/doom"
+DOOM_BIN="$DOOM_CORE_DIR/bin/doom"
 
 echo "Step 1: Installing omarchy-emacs and required dependencies..."
 omarchy-pkg-aur-add omarchy-emacs
 omarchy-pkg-add git ripgrep fd findutils
 
 echo "Step 2: Cloning Doom Emacs core repository..."
-if [[ ! -d $EMACS_DIR ]]; then
-  git clone --depth 1 https://github.com/doomemacs/core "$EMACS_DIR"
+if [[ ! -d $DOOM_CORE_DIR ]]; then
+  git clone --depth 1 https://github.com/doomemacs/core "$DOOM_CORE_DIR"
 else
-  echo "Emacs directory already exists at $EMACS_DIR"
+  echo "Doom Emacs core directory already exists at $DOOM_CORE_DIR"
 fi
 
 echo "Step 3: Running Doom installer..."
 if [[ -x $DOOM_BIN ]]; then
-  "$DOOM_BIN" install
+  EMACSDIR="$DOOM_CORE_DIR" DOOMDIR="$DOOM_USER_DIR" "$DOOM_BIN" install
 else
   echo "Error: $DOOM_BIN not found after cloning!" >&2
   exit 1
 fi
 
-echo "Step 4: Setting up PATH & 'ec' alias..."
-if ! grep -q 'emacs/bin' "$HOME/.bashrc" 2>/dev/null; then
-  echo 'export PATH="$HOME/.config/emacs/bin:$PATH"' >> "$HOME/.bashrc"
-fi
-if ! grep -q 'alias ec=' "$HOME/.bashrc" 2>/dev/null; then
-  echo "alias ec=\"emacsclient -c -a ''\"" >> "$HOME/.bashrc"
-fi
+echo "Step 4: Setting up Doom CLI and Desktop Launcher..."
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications"
+ln -sf "$DOOM_BIN" "$HOME/.local/bin/doom"
 
-echo "Step 5: Setting Doom Emacs as default editor (EDITOR & VISUAL)..."
-omarchy-default-editor doom
+cat >"$HOME/.local/share/applications/Doom Emacs.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Doom Emacs
+GenericName=Text Editor
+Comment=Emacs configuration tailored for Vim users
+Exec=omarchy-launch-editor doom %F
+Icon=emacs
+Terminal=false
+Categories=Development;TextEditor;
+StartupWMClass=Emacs
+EOF
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+
+echo "Step 5: Configuring Omarchy theme integration..."
+mkdir -p "$DOOM_USER_DIR"
+if [[ -f $DOOM_USER_DIR/config.el ]]; then
+  if ! grep -q 'doom-theme.el' "$DOOM_USER_DIR/config.el"; then
+    cat >>"$DOOM_USER_DIR/config.el" <<'EOF'
+
+;; Omarchy theme integration
+(setq doom-theme nil)
+(load "~/.local/state/omarchy/current/theme/doom-theme.el" t t)
+EOF
+  fi
+else
+  cat >"$DOOM_USER_DIR/config.el" <<'EOF'
+;; Omarchy theme integration
+(setq doom-theme nil)
+(load "~/.local/state/omarchy/current/theme/doom-theme.el" t t)
+EOF
+fi
 
 # Ensure initial theme template is rendered
 omarchy-theme-refresh
 
 echo "Doom Emacs installation complete!"
-omarchy-notification-send -g 󰗡 "Doom Emacs installed & set as default editor!"
+omarchy-notification-send -g 󰗡 "Doom Emacs installed successfully!"

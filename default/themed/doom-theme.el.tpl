@@ -11,15 +11,35 @@
 (setq omarchy-theme-magenta "{{ magenta }}")
 (setq omarchy-theme-cyan "{{ cyan }}")
 
-(defun omarchy/apply-theme-to-frame (frame)
-  "Ensure graphic emacsclient frames evaluate full 24-bit GUI theme colors."
-  (with-selected-frame frame
-    (when (display-graphic-p frame)
-      (set-face-attribute 'default frame :background "{{ bg }}" :foreground "{{ fg }}"))))
+(defun omarchy/apply-theme-to-frame (&optional frame)
+  "Ensure graphic and daemon frames evaluate Omarchy theme colors."
+  (let ((target (or frame (selected-frame))))
+    (with-selected-frame target
+      (when (display-graphic-p target)
+        (set-face-attribute 'default target :background "{{ bg }}" :foreground "{{ fg }}")
+        (set-face-attribute 'cursor target :background "{{ accent }}")
+        (set-face-attribute 'region target :background "{{ accent }}" :foreground "{{ bg }}")
+        (set-face-attribute 'mode-line target :background "{{ bg }}" :foreground "{{ fg }}")
+        (set-face-attribute 'mode-line-inactive target :background "{{ bg }}" :foreground "{{ fg }}")
+        (set-face-attribute 'font-lock-comment-face target :foreground "{{ fg }}")
+        (set-face-attribute 'font-lock-keyword-face target :foreground "{{ accent }}")
+        (set-face-attribute 'font-lock-string-face target :foreground "{{ green }}")
+        (set-face-attribute 'font-lock-function-name-face target :foreground "{{ blue }}")
+        (set-face-attribute 'font-lock-variable-name-face target :foreground "{{ magenta }}")
+        (set-face-attribute 'font-lock-type-face target :foreground "{{ yellow }}")
+        (set-face-attribute 'font-lock-constant-face target :foreground "{{ cyan }}")))))
 
-;; Handle daemon client frames & standalone GUI instances
+(defun omarchy-apply-theme ()
+  "Apply theme across all active frames."
+  (mapc #'omarchy/apply-theme-to-frame (frame-list)))
+
+;; Hooks for GUI frames, daemon instances, and Doom theme reloads
 (if (daemonp)
     (add-hook 'after-make-frame-functions #'omarchy/apply-theme-to-frame)
-  (omarchy/apply-theme-to-frame (selected-frame)))
+  (omarchy-apply-theme))
+
+(add-hook 'window-setup-hook #'omarchy-apply-theme)
+(when (boundp 'doom-load-theme-hook)
+  (add-hook 'doom-load-theme-hook #'omarchy-apply-theme))
 
 (provide 'omarchy-theme)

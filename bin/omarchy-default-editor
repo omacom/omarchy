@@ -37,8 +37,8 @@ nvim) selection="nvim"; editor="nvim"; name="Neovim"; glyph= ;;
   ;;
 esac
 
-if [[ $editor == "doom" && -x $HOME/.config/emacs/bin/doom ]]; then
-  export PATH="$HOME/.config/emacs/bin:$PATH"
+if [[ $editor == "doom" && -x $HOME/.config/doom-emacs/bin/doom ]]; then
+  export PATH="$HOME/.config/doom-emacs/bin:$PATH"
 fi
 
 if omarchy-cmd-missing "$editor"; then

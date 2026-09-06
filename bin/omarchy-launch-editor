@@ -19,8 +19,8 @@ else
 fi
 
 if [[ $editor == "doom" ]]; then
-  if ! omarchy-cmd-present doom && [[ -x $HOME/.config/emacs/bin/doom ]]; then
-    export PATH="$HOME/.config/emacs/bin:$PATH"
+  if ! omarchy-cmd-present doom && [[ -x $HOME/.config/doom-emacs/bin/doom ]]; then
+    export PATH="$HOME/.config/doom-emacs/bin:$PATH"
   fi
   if ! omarchy-cmd-present emacs && ! omarchy-cmd-present doom; then
     editor="nvim"
@@ -37,7 +37,14 @@ nvim | vim | nano | micro | hx | helix | fresh)
     exec omarchy-launch-tui "$editor" "$@"
   fi
   ;;
-doom | emacs)
+doom)
+  if [[ $inline == "true" ]]; then
+    exec emacs --init-directory "$HOME/.config/doom-emacs" -nw "$@"
+  else
+    exec setsid uwsm-app -- emacs --init-directory "$HOME/.config/doom-emacs" "$@"
+  fi
+  ;;
+emacs)
   if [[ $inline == "true" ]]; then
     exec emacs -nw "$@"
   else
