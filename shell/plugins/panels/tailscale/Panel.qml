@@ -42,7 +42,14 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property var peerGroups: tailscale.groupPeers(tailscale.peers, tailscale.selfUserId)
+  property bool peerSearchOpen: false
+  property string peerQuery: ""
+
+  // Filter before grouping so each group shows only matches and empty groups
+  // hide themselves, rather than leaving three headings over an empty list.
+  readonly property var peerGroups: tailscale.groupPeers(
+    tailscale.filterPeers(tailscale.peers, peerSearchOpen ? peerQuery : ""),
+    tailscale.selfUserId)
   // Flat, render-ordered view of peerGroups. Cursor bounds and rowIndex must
   // follow what is drawn, not tailscale.peers' sort order.
   readonly property var orderedPeers: peerGroups.mine.concat(peerGroups.tagged).concat(peerGroups.other)
@@ -264,6 +271,30 @@ Panel {
     scrollMullvadRegionCursorIntoView()
   }
 
+  function openPeerSearch() {
+    peerSearchOpen = true
+    peerQuery = ""
+    peerIndex = 0
+    focusSection = "peers"
+    Qt.callLater(function() { if (peerSearch) peerSearch.forceActiveFocus() })
+  }
+
+  function closePeerSearch() {
+    peerSearchOpen = false
+    peerQuery = ""
+    keyCatcher.forceActiveFocus()
+  }
+
+  // Deliberately not routed through moveCursor: its section dispatch would
+  // throw focus out of "peers" at the list boundaries while the search field
+  // still holds focus.
+  function movePeerCursor(delta) {
+    if (orderedPeers.length === 0) return
+    cursorActive = true
+    peerIndex = Math.max(0, Math.min(orderedPeers.length - 1, peerIndex + delta))
+    scrollCursorIntoView()
+  }
+
   function activateMullvadRegionCursor() {
     var region = selectedMullvadRegion()
     if (region) chooseExitNode(region)
@@ -417,7 +448,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: root.copyMenuOpen
+      blocked: root.copyMenuOpen || peerSearch.activeFocus || mullvadSearch.activeFocus
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
         root.moveCursor(dx, dy)
@@ -426,7 +457,8 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "t" || t === "T") tailscale.toggleTailscale()
+        if (t === "/") root.openPeerSearch()
+        else if (t === "t" || t === "T") tailscale.toggleTailscale()
         else if (t === "c" || t === "C") tailscale.copyPeerIp(root.selectedPeer())
         else if (t === "n" || t === "N") tailscale.copyPeerName(root.selectedPeer())
         else if (t === "d" || t === "D") tailscale.copyPeerDnsName(root.selectedPeer())
@@ -683,6 +715,39 @@ Panel {
               text: "MACHINES"
               foreground: root.foreground
               fontFamily: root.fontFamily
+            }
+
+            TextField {
+              id: peerSearch
+              visible: root.peerSearchOpen
+              width: parent.width
+              foreground: root.foreground
+              placeholderText: "Search machines"
+              text: root.peerQuery
+              onTextChanged: {
+                root.peerQuery = text
+                root.peerIndex = 0
+              }
+              // Arrow keys only -- unlike the Mullvad picker this field must
+              // accept j/k/h/l as literal text.
+              Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Down) { root.movePeerCursor(1); event.accepted = true; return }
+                if (event.key === Qt.Key_Up) { root.movePeerCursor(-1); event.accepted = true; return }
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.activateCursor(); event.accepted = true; return }
+                if (event.key === Qt.Key_Escape) { root.closePeerSearch(); event.accepted = true }
+              }
+            }
+
+            Text {
+              visible: root.peerSearchOpen && root.orderedPeers.length === 0
+              width: parent.width
+              text: "No machines match \"" + root.peerQuery + "\"."
+              // The query is user input; never let AutoText interpret markup.
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              horizontalAlignment: Text.AlignHCenter
             }
 
             Text {

@@ -103,6 +103,10 @@ Item {
     return Model.groupPeers(peers, selfUserId)
   }
 
+  function filterPeers(peers, query) {
+    return Model.filterPeers(peers, query)
+  }
+
   function osIcon(os) {
     return Model.osIcon(os)
   }
