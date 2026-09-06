@@ -19,6 +19,22 @@ trap 'rm -rf "$test_tmp"' EXIT
 # mount-safe copy of the helper before the mounts land.
 cp "$ROOT/bin/omarchy-windows-vm" "$test_tmp/omarchy-windows-vm"
 
+# A host VM leaves its anchors mounted at exactly the production anchor paths
+# this test re-creates for its fixture uid. The tmpfs below hides them from the
+# filesystem, but the user-ns copy of the mount table keeps them listed in
+# /proc/self/mountinfo — and they are MNT_LOCKED, so they cannot be detached —
+# while mountpoint(1) matches entries by path: the fresh anchors then look like
+# existing mounts and prepare_mount_anchor short-circuits without creating
+# them. Pick fixture uids whose anchor paths cannot collide with whatever the
+# host VM left behind.
+TEST_UID=4242
+TEST_UID_OTHER=$((TEST_UID + 1))
+while grep -qE "mounts/users/(${TEST_UID}|${TEST_UID_OTHER})/(storage|shared) " /proc/self/mountinfo; do
+  TEST_UID=$((TEST_UID + 2))
+  TEST_UID_OTHER=$((TEST_UID + 1))
+done
+export TEST_UID TEST_UID_OTHER
+
 # Hide host state before creating the production paths used by the root helper.
 mount -t tmpfs -o mode=0755,size=8m run-test /run
 mkdir -p /run/lock
@@ -42,8 +58,8 @@ stat() {
 
 TEST_PASSWD_HOME=/home/alice
 getent() {
-  if [[ $1 == passwd && ${2:-} == 1000 ]]; then
-    printf 'alice:x:1000:1000::%s:/bin/bash\n' "$TEST_PASSWD_HOME"
+  if [[ $1 == passwd && ${2:-} == ${TEST_UID} ]]; then
+    printf "alice:x:${TEST_UID}:${TEST_UID}::%s:/bin/bash\n" "$TEST_PASSWD_HOME"
     return 0
   fi
   return 2
@@ -63,14 +79,14 @@ assert_no_runtime_mutation "zero PKEXEC_UID"
 PKEXEC_UID=not-a-number
 resolve_caller 2>/dev/null && fail "root accepted nonnumeric PKEXEC_UID"
 assert_no_runtime_mutation "nonnumeric PKEXEC_UID"
-PKEXEC_UID=1001
+PKEXEC_UID=${TEST_UID_OTHER}
 resolve_caller 2>/dev/null && fail "root accepted uid absent from passwd"
 assert_no_runtime_mutation "missing passwd entry"
 
-PKEXEC_UID=1000
+PKEXEC_UID=${TEST_UID}
 resolve_caller 2>/dev/null && fail "root accepted a home not owned by caller"
 assert_no_runtime_mutation "wrong-owned home"
-chown 1000:1000 /home/alice
+chown ${TEST_UID}:${TEST_UID} /home/alice
 
 chmod 0777 /home
 resolve_caller 2>/dev/null && fail "root accepted writable home parent"
@@ -78,7 +94,7 @@ assert_no_runtime_mutation "writable parent"
 chmod 0755 /home
 
 mkdir /home/real-alice
-chown 1000:1000 /home/real-alice
+chown ${TEST_UID}:${TEST_UID} /home/real-alice
 ln -s /home/real-alice /home/link-alice
 TEST_PASSWD_HOME=/home/link-alice
 resolve_caller 2>/dev/null && fail "root accepted symlinked passwd home"
@@ -90,14 +106,14 @@ pass "root dispatch rejects missing/invalid uid, passwd, owner, symlink, and wri
 # Put each familiar source on its own filesystem. Both start with legacy 0755
 # permissions and world-readable payloads to prove migration hardens the leaves.
 mkdir /home/storage-target /home/shared-target
-mount -t tmpfs -o uid=1000,gid=1000,mode=0755,size=3g storage-test /home/storage-target
-mount -t tmpfs -o uid=1000,gid=1000,mode=0755,size=64m shared-test /home/shared-target
+mount -t tmpfs -o uid=${TEST_UID},gid=${TEST_UID},mode=0755,size=3g storage-test /home/storage-target
+mount -t tmpfs -o uid=${TEST_UID},gid=${TEST_UID},mode=0755,size=64m shared-test /home/shared-target
 ln -s /home/storage-target /home/alice/.windows
 ln -s /home/shared-target /home/alice/Windows
-chown -h 1000:1000 /home/alice/.windows /home/alice/Windows
+chown -h ${TEST_UID}:${TEST_UID} /home/alice/.windows /home/alice/Windows
 printf disk >/home/storage-target/disk.img
 printf shared >/home/shared-target/shared.txt
-chown 1000:1000 /home/storage-target/disk.img /home/shared-target/shared.txt
+chown ${TEST_UID}:${TEST_UID} /home/storage-target/disk.img /home/shared-target/shared.txt
 chmod 0644 /home/storage-target/disk.img /home/shared-target/shared.txt
 
 home_dev=$(command stat -Lc '%d' /home/alice)
@@ -113,12 +129,12 @@ resolve_caller
 [[ $(command stat -Lc '%d' "$CALLER_DATA_ROOT") != "$storage_dev" ]] || fail "Docker boundary unexpectedly shares the storage filesystem"
 [[ $(command stat -Lc '%u:%a' "$MOUNT_ROOT") == 0:711 &&
   $(command stat -Lc '%u:%a' "$CALLER_DATA_ROOT") == 0:711 ]] || fail "production ancestors are not root-owned/private-boundary modes"
-[[ $(command stat -Lc '%u:%a' "$EXPECTED_STORAGE") == 1000:700 &&
-  $(command stat -Lc '%u:%a' "$EXPECTED_SHARED") == 1000:700 ]] || fail "migrated leaves are not caller-owned 0700"
-if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_STORAGE/disk.img" >/dev/null 2>&1; then
+[[ $(command stat -Lc '%u:%a' "$EXPECTED_STORAGE") == ${TEST_UID}:700 &&
+  $(command stat -Lc '%u:%a' "$EXPECTED_SHARED") == ${TEST_UID}:700 ]] || fail "migrated leaves are not caller-owned 0700"
+if setpriv --reuid=${TEST_UID_OTHER} --regid=${TEST_UID_OTHER} --clear-groups cat "$EXPECTED_STORAGE/disk.img" >/dev/null 2>&1; then
   fail "another local account read the VM disk through its anchor"
 fi
-if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared.txt" >/dev/null 2>&1; then
+if setpriv --reuid=${TEST_UID_OTHER} --regid=${TEST_UID_OTHER} --clear-groups cat "$EXPECTED_SHARED/shared.txt" >/dev/null 2>&1; then
   fail "another local account read shared files through their anchor"
 fi
 pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves deny another account"
@@ -127,12 +143,12 @@ pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves
 # exact-700 check and block every privileged action (omacom/omarchy#9698).
 chmod 2700 /home/storage-target
 chmod 2777 /home/shared-target
-chown 1000:1000 /home/storage-target /home/shared-target
+chown ${TEST_UID}:${TEST_UID} /home/storage-target /home/shared-target
 with_vm_lock prepare_caller_mounts || fail "root could not harden setgid VM source directories"
 [[ $(command stat -Lc '%a' /home/storage-target) == 700 ]] || fail "storage still had special bits after hardening"
 [[ $(command stat -Lc '%a' /home/shared-target) == 700 ]] || fail "shared still had special bits after hardening"
-[[ $(command stat -Lc '%u:%a' "$EXPECTED_STORAGE") == 1000:700 &&
-  $(command stat -Lc '%u:%a' "$EXPECTED_SHARED") == 1000:700 ]] || fail "setgid hardening did not leave caller-owned 0700 anchors"
+[[ $(command stat -Lc '%u:%a' "$EXPECTED_STORAGE") == ${TEST_UID}:700 &&
+  $(command stat -Lc '%u:%a' "$EXPECTED_SHARED") == ${TEST_UID}:700 ]] || fail "setgid hardening did not leave caller-owned 0700 anchors"
 pass "setgid VM source directories harden to exactly 700"
 
 # Stop-time restore must cover every caller shape. Root walks the mounts tree
@@ -140,21 +156,21 @@ pass "setgid VM source directories harden to exactly 700"
 # 0711 tree is not listable, and must restore the caller's own anchor
 # owner-side instead. A second account's anchor is never another user's to
 # chmod, and nothing runs through a non-standard privileged runtime path.
-mkdir -p "$USERS_DIR/1001/shared" "$test_tmp/mounts/users/1000/shared"
-chmod 2777 "$USERS_DIR/1001/shared" "$EXPECTED_SHARED" "$test_tmp/mounts/users/1000/shared"
+mkdir -p "$USERS_DIR/${TEST_UID_OTHER}/shared" "$test_tmp/mounts/users/${TEST_UID}/shared"
+chmod 2777 "$USERS_DIR/${TEST_UID_OTHER}/shared" "$EXPECTED_SHARED" "$test_tmp/mounts/users/${TEST_UID}/shared"
 RUNTIME_DIR=$test_tmp restore_all_shared_privacy
 [[ $(command stat -Lc '%a' "$EXPECTED_SHARED") == 2777 &&
-  $(command stat -Lc '%a' "$USERS_DIR/1001/shared") == 2777 &&
-  $(command stat -Lc '%a' "$test_tmp/mounts/users/1000/shared") == 2777 ]] ||
+  $(command stat -Lc '%a' "$USERS_DIR/${TEST_UID_OTHER}/shared") == 2777 &&
+  $(command stat -Lc '%a' "$test_tmp/mounts/users/${TEST_UID}/shared") == 2777 ]] ||
   fail "root restored anchors through a non-standard runtime path"
 install -d -m 0755 /var/vm-test-bin
 install -m 0644 "$test_tmp/omarchy-windows-vm" /var/vm-test-bin/omarchy-windows-vm
 child_rc=0
-setpriv --reuid=1000 --regid=1000 --clear-groups bash -c '
-  # The namespace has no passwd entry for uid 1000, so mirror the stub above.
+setpriv --reuid=${TEST_UID} --regid=${TEST_UID} --clear-groups bash -c '
+  # The namespace has no passwd entry for uid ${TEST_UID}, so mirror the stub above.
   getent() {
-    if [[ $1 == passwd && $2 == 1000 ]]; then
-      printf "alice:x:1000:1000::/home/alice:/bin/bash\n"
+    if [[ $1 == passwd && $2 == ${TEST_UID} ]]; then
+      printf "alice:x:${TEST_UID}:${TEST_UID}::/home/alice:/bin/bash\n"
       return 0
     fi
     return 2
@@ -163,17 +179,17 @@ setpriv --reuid=1000 --regid=1000 --clear-groups bash -c '
   source /var/vm-test-bin/omarchy-windows-vm >/dev/null 2>&1
   resolve_caller || exit 10
   restore_all_shared_privacy || exit 11
-  [[ $(command stat -Lc "%a" "$USERS_DIR/1000/shared") == 2777 ]] || exit 12
-  [[ $(command stat -Lc "%a" "$USERS_DIR/1001/shared") == 2777 ]] || exit 13
+  [[ $(command stat -Lc "%a" "$USERS_DIR/${TEST_UID}/shared") == 2777 ]] || exit 12
+  [[ $(command stat -Lc "%a" "$USERS_DIR/${TEST_UID_OTHER}/shared") == 2777 ]] || exit 13
   restore_shared_privacy || exit 14
-  [[ $(command stat -Lc "%a" "$USERS_DIR/1000/shared") == 700 ]] || exit 15
-  [[ $(command stat -Lc "%a" "$USERS_DIR/1001/shared") == 2777 ]] || exit 16
+  [[ $(command stat -Lc "%a" "$USERS_DIR/${TEST_UID}/shared") == 700 ]] || exit 15
+  [[ $(command stat -Lc "%a" "$USERS_DIR/${TEST_UID_OTHER}/shared") == 2777 ]] || exit 16
 ' || child_rc=$?
 [[ $child_rc == 0 ]] || fail "sudoless stop restore misbehaved (rc=$child_rc)"
 chmod 2777 "$EXPECTED_SHARED"
 restore_all_shared_privacy
 [[ $(command stat -Lc '%a' "$EXPECTED_SHARED") == 700 &&
-  $(command stat -Lc '%a' "$USERS_DIR/1001/shared") == 700 ]] ||
+  $(command stat -Lc '%a' "$USERS_DIR/${TEST_UID_OTHER}/shared") == 700 ]] ||
   fail "root walk did not restore every anchor to 700"
 rm -rf /var/vm-test-bin
 pass "stop-time restore walks the tree as root and restores only the caller's anchor unprivileged"
@@ -187,10 +203,10 @@ mounts_ready 2>/dev/null && fail "final guard accepted a group-writable mount bo
 [[ $(command stat -Lc '%a' "$MOUNT_ROOT") == 731 ]] || fail "rejection unexpectedly changed the writable boundary"
 chmod 0711 "$MOUNT_ROOT"
 
-chown 1000:1000 "$USERS_DIR"
+chown ${TEST_UID}:${TEST_UID} "$USERS_DIR"
 with_vm_lock prepare_caller_mounts 2>/dev/null && fail "root repaired a caller-owned mount boundary instead of rejecting it"
 mounts_ready 2>/dev/null && fail "final guard accepted a caller-owned mount boundary"
-[[ $(command stat -Lc '%u' "$USERS_DIR") == 1000 ]] || fail "rejection unexpectedly changed the boundary owner"
+[[ $(command stat -Lc '%u' "$USERS_DIR") == ${TEST_UID} ]] || fail "rejection unexpectedly changed the boundary owner"
 chown root:root "$USERS_DIR"
 
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 1 &&
@@ -237,7 +253,7 @@ umount "$EXPECTED_SHARED"
 umount "$EXPECTED_STORAGE"
 rm /home/alice/Windows
 ln -s / /home/alice/Windows
-chown -h 1000:1000 /home/alice/Windows
+chown -h ${TEST_UID}:${TEST_UID} /home/alice/Windows
 with_vm_lock prepare_caller_mounts 2>/dev/null && fail "root accepted a non-caller-owned second source"
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 0 && $(mount_layer_count "$EXPECTED_SHARED") == 0 ]] || fail "failed second-source preflight left a partial bind"
 [[ $(readlink /home/alice/Windows) == / ]] || fail "failed preflight consumed or quarantined symlink"
@@ -247,7 +263,7 @@ pass "root preflights both sources before mounting either and preserves rejectio
 # root-planted anchor symlink to the expected mounted source is rejected.
 rm /home/alice/Windows
 ln -s /home/shared-target /home/alice/Windows
-chown -h 1000:1000 /home/alice/Windows
+chown -h ${TEST_UID}:${TEST_UID} /home/alice/Windows
 rmdir "$EXPECTED_STORAGE"
 ln -s /home/storage-target "$EXPECTED_STORAGE"
 storage_id=$(command stat -Lc '%d:%i' /home/storage-target)
