@@ -221,7 +221,7 @@ Item {
     if (id === "claude") return "Claude"
     if (id === "codex") return "Codex"
     if (id === "grok") return "Grok"
-    if (id === "antigravity") return "AGI"
+    if (id === "antigravity") return "AGY"
     if (id === "hermes") return "Hermes"
     if (id === "fireworks") return "Fireworks"
     var text = String(name || id || "")

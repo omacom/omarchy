@@ -37,6 +37,24 @@ Panel {
   }
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
 
+  property string activeView: "provider"
+  readonly property bool trackingExpanded: activeView !== "provider"
+  readonly property var navigationTabs: {
+    var tabs = [{ id: "all", label: "All" }, { id: "projects", label: "Projetos" }, { id: "live", label: "Tempo real" }]
+    for (var i = 0; i < providers.length; i++) {
+      if (providers[i].providerId !== "all")
+        tabs.push({ id: providers[i].providerId, label: providers[i].chipName || providers[i].providerName })
+    }
+    return tabs
+  }
+  readonly property string activeTab: trackingExpanded ? activeView : (provider ? provider.providerId : "all")
+
+  function selectTab(tab) {
+    if (tab === "projects" || tab === "live") activeView = tab
+    else { selectedProviderId = tab; activeView = "provider" }
+    cursorActive = false
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
   property bool cursorActive: false
 
   // Countdowns and "updated" read this instead of Date.now() so the
@@ -61,10 +79,13 @@ Panel {
     if (providers.length === 0) return
     var wrapped = ((index % providers.length) + providers.length) % providers.length
     selectedProviderId = providers[wrapped].providerId
+    activeView = "provider"
   }
 
   function refreshNow() {
-    usage.refreshAll(true)
+    if (activeView === "projects") projectData.refresh()
+    else if (activeView === "live") liveData.refresh()
+    else usage.refreshAll(true)
   }
 
   function launchAgent() {
@@ -237,43 +258,83 @@ Panel {
     return out
   }
 
+  function emptyTokenBucket() {
+    return { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
+  }
+
+  function addTokenValue(usage, id, value) {
+    if (!usage[id]) usage[id] = emptyTokenBucket()
+    if (value && typeof value === "object") {
+      usage[id].inputTokens += Number(value.inputTokens || 0)
+      usage[id].outputTokens += Number(value.outputTokens || 0)
+      usage[id].cacheReadInputTokens += Number(value.cacheReadInputTokens || 0)
+      usage[id].cacheCreationInputTokens += Number(value.cacheCreationInputTokens || 0)
+    } else if (Number(value || 0) > 0) {
+      usage[id].inputTokens += Number(value || 0)
+    }
+  }
+
+  function bucketTotal(bucket) {
+    var b = bucket || {}
+    return Number(b.inputTokens || 0) + Number(b.outputTokens || 0)
+      + Number(b.cacheReadInputTokens || 0) + Number(b.cacheCreationInputTokens || 0)
+  }
+
+  function usageMapTotal(usage) {
+    var n = 0
+    for (var id in usage) n += bucketTotal(usage[id])
+    return n
+  }
+
+  function periodDayTokenTotal(p, kind) {
+    var days = daysForPeriod(p, kind)
+    var n = 0
+    for (var i = 0; i < days.length; i++) n += Number((days[i] || {}).messageCount || 0)
+    return n
+  }
+
+  // Codex and Claude ship all-time modelUsage plus daily totals, but no
+  // per-day tokensByModel. Hermes and Grok do. All used to walk the merged
+  // history once, so Hermes's 23M of GPT-6 Astra hid Codex's ~1B of the same
+  // model. Sum each harness on its own, then combine.
   function periodModelMap(p, kind) {
     if (!p) return {}
+    if (p.providerId === "all") {
+      var combined = ({})
+      var list = root.providers || []
+      for (var i = 0; i < list.length; i++) {
+        var child = list[i]
+        if (!child || child.providerId === "all") continue
+        var part = periodModelMap(child, kind)
+        for (var id in part) addTokenValue(combined, id, part[id])
+      }
+      return combined
+    }
     if (kind === "total") return p.modelUsage || ({})
     var start = periodStartDate(kind)
     var hist = p.history || []
     var usage = ({})
-    var hasSplit = false
-    for (var i = 0; i < hist.length; i++) {
-      var row = hist[i] || {}
+    for (var h = 0; h < hist.length; h++) {
+      var row = hist[h] || {}
       var date = String(row.date || "")
       if (start !== "" && date < start) continue
       var models = row.tokensByModel || ({})
-      for (var id in models) {
-        var value = models[id]
-        if (!usage[id])
-          usage[id] = { inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
-        if (value && typeof value === "object") {
-          hasSplit = true
-          usage[id].inputTokens += Number(value.inputTokens || 0)
-          usage[id].outputTokens += Number(value.outputTokens || 0)
-          usage[id].cacheReadInputTokens += Number(value.cacheReadInputTokens || 0)
-          usage[id].cacheCreationInputTokens += Number(value.cacheCreationInputTokens || 0)
-        } else if (Number(value || 0) > 0) {
-          hasSplit = true
-          usage[id].inputTokens += Number(value || 0)
-        }
-      }
+      for (var mid in models) addTokenValue(usage, mid, models[mid])
     }
-    if (hasSplit) return usage
+    var fromHistory = usageMapTotal(usage)
+    var fromDays = periodDayTokenTotal(p, kind)
+    if (fromHistory > 0 && (fromDays <= 0 || fromHistory >= fromDays * 0.85))
+      return usage
     if (kind === "day") {
       var today = p.todayTokensByModel || ({})
       var mapped = ({})
-      for (var mid in today)
-        mapped[mid] = { inputTokens: Number(today[mid] || 0), outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
-      if (Object.keys(mapped).length > 0) return mapped
+      for (var tid in today) addTokenValue(mapped, tid, today[tid])
+      if (usageMapTotal(mapped) > 0) return mapped
+      if (fromDays <= 0 && Number(p.todayTotalTokens || 0) <= 0) return ({})
     }
-    return p.modelUsage || ({})
+    var fallback = p.modelUsage || ({})
+    if (usageMapTotal(fallback) > 0) return fallback
+    return usage
   }
 
   function dayName(date) {
@@ -403,6 +464,18 @@ Panel {
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
 
+  TrackingData {
+    id: projectData
+    active: root.opened && root.activeView === "projects"
+  }
+
+  TrackingData {
+    id: liveData
+    active: root.opened && root.activeView === "live"
+    live: true
+    period: "day"
+  }
+
   Main {
     id: usage
     settings: root.settings
@@ -448,16 +521,17 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(380))
+    contentWidth: panel.fittedContentWidth(root.trackingExpanded ? Style.space(900) : Style.space(380))
     // Taller than the control panels on purpose: this one is a dashboard, and
     // the whole point is reading limits and history without scrolling.
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(640))
+    contentHeight: root.trackingExpanded ? panel.fittedContentHeight(Style.space(560), Style.space(600)) : panel.fittedContentHeight(column.implicitHeight, Style.space(640))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
 
       onMoveRequested: function(dx, dy) {
+        if (root.trackingExpanded) { expandedTracking.scrollBy(dy); return }
         if (dx !== 0) {
           root.cursorActive = true
           root.selectProvider(root.providerIndex + dx)
@@ -470,15 +544,43 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "r" || t === "R") root.refreshNow()
-        else if (t === "1" || t === "d" || t === "D") root.period = "day"
+        if (t === "r" || t === "R") { root.refreshNow(); return }
+        if (root.trackingExpanded) {
+          if (root.activeView === "projects") {
+            var periods = { "1": "day", d: "day", "2": "week", w: "week", "3": "month", m: "month", "4": "total", t: "total" }
+            var chosen = periods[t.toLowerCase()]
+            if (chosen) projectData.period = chosen
+          }
+          return
+        }
+        if (t === "1" || t === "d" || t === "D") root.period = "day"
         else if (t === "2" || t === "w" || t === "W") root.period = "week"
         else if (t === "3" || t === "m" || t === "M") root.period = "month"
         else if (t === "4" || t === "t" || t === "T") root.period = "total"
       }
 
+      Column {
+        id: inspection
+        anchors.fill: parent
+        visible: root.trackingExpanded
+        spacing: Style.space(10)
+
+        NavigationTabs { width: parent.width }
+
+        Tracking {
+          id: expandedTracking
+          width: parent.width
+          height: Math.max(1, inspection.height - y)
+          mode: root.activeView === "live" ? "live" : "projects"
+          tracker: root.activeView === "live" ? liveData : projectData
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
+      }
+
       Flickable {
         id: panelFlick
+        visible: !root.trackingExpanded
         anchors.fill: parent
         contentWidth: width
         contentHeight: column.implicitHeight
@@ -558,42 +660,9 @@ Panel {
           }
 
           // ---------- Provider switch ----------
-          Grid {
+          NavigationTabs {
             id: providerSwitch
-            visible: root.providers.length > 1
             width: parent.width
-            columns: root.providers.length <= 4 ? Math.max(1, root.providers.length) : 3
-            columnSpacing: Style.spacing.md
-            rowSpacing: Style.spacing.sm
-
-            readonly property real cellWidth: {
-              var cols = columns
-              return cols > 0 ? (width - columnSpacing * (cols - 1)) / cols : 0
-            }
-
-            Repeater {
-              model: root.providers
-
-              Button {
-                required property var modelData
-                required property int index
-
-                width: providerSwitch.cellWidth
-                text: modelData.chipName || modelData.providerName
-                selected: index === root.providerIndex
-                hasCursor: root.cursorActive && index === root.providerIndex
-                bordered: true
-                foreground: root.foreground
-                fontFamily: root.fontFamily
-                fontSize: Style.font.bodySmall
-                verticalPadding: Style.spacing.controlPaddingY
-                onClicked: {
-                  root.cursorActive = true
-                  root.selectProvider(index)
-                }
-                onHovered: function(isHovered) { if (isHovered) root.cursorActive = true }
-              }
-            }
           }
 
           // ---------- Status ----------
@@ -908,6 +977,15 @@ Panel {
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
     }
+  }
+
+  component NavigationTabs: AgentTabs {
+    tabs: root.navigationTabs
+    activeTab: root.activeTab
+    expanded: root.trackingExpanded
+    foreground: root.foreground
+    fontFamily: root.fontFamily
+    onSelected: function(tab) { root.selectTab(tab) }
   }
 
   // Rounded track showing the percentage of the allowance used.

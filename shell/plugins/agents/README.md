@@ -172,3 +172,25 @@ One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
 billing API, so their totals and day counts cover that window. Claude's cover
 every transcript still on disk.
+
+## Projects and live activity
+
+The first navigation row contains All, Projetos and Tempo real. Provider tabs keep their quota meters and charts. Project and live views expand to at most 900 × 600 theme units, bounded by the monitor's available space.
+
+Projetos groups usage by directory. Select a project to inspect its records. Tempo real shows today's latest records, with a pause control. Each page contains 25 records with time, project, agent, model, message preview and tokens. Select a row for details; closing the detail returns to the same list.
+
+Previews come from the user messages already saved by each tool. The list reads up to 180 characters per record and the detail reads up to 1,200. The index stores message offsets, without copying conversation text. The tracking collector opens sources read-only and makes no network or model requests.
+
+`bin/tracking.py` indexes appended JSONL bytes, reindexes replaced or truncated files, and scans SQLite metadata when its source changes. Unchanged files are skipped. Previews are read for the current page only and reused when several records refer to the same message. Detail reads do not scan the history.
+
+Automatic refresh runs every 5 seconds in Tempo real and every 30 seconds in Projetos. It stops when these views close and respects pause. The local cache is `~/.local/state/omarchy/agents/tracking/ledger.sqlite`, created with mode 0600. Set `OMARCHY_TRACKING_STATE` to use a separate cache.
+
+Sources are Codex, Claude, Grok, Hermes, OpenCode and local 9Router history. The collector does not capture every AI request on the computer. Codex prefers individual response usage records when present instead of adding quota counters again. Grok reports totals per turn. Hermes reports totals per session and model, dated by last activity, and previews the session's latest user message. The list and detail label these record types. Requests in progress may not have usage recorded yet. Sources currently use their default local storage paths.
+
+Project attribution uses the session's directory. When Hermes omits it, the collector reads the initial working directory declared in its saved tool context. The detail shows the attribution source. Existing Git worktrees share their common repository root. Unknown directories appear as Sem projeto. Maestri workspace names are matched by directory; they do not establish which application initiated a call.
+
+Token totals include input, output and cache, without counting cache already included in Codex or Grok input twice. They are not billing amounts. 9Router stays separate from the combined view to avoid counting requests already recorded by the tools. Message previews appear only when the source links a record to a message.
+
+Run `python3 tests/test_tracking.py` from this directory, or `bash test/shell.d/agents-tracking-test.sh` from the repository root.
+
+Run `python3 bin/benchmark-tracking.py --cold` here to build a disposable index, measure the first scan, five refreshes and one detail read, then remove the index. The September 6, 2026 measurement in `tests/benchmark-local.json` contains performance metrics only. Results depend on log volume and machine activity; the CPU percentage estimates one core from CPU time per refresh.

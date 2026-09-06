@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "omarchy.agents",
   "name": "Agents",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Claude Code, Codex, Fireworks, Antigravity, and Hermes usage, plus an all-harness total with day/week/month/all-time filters.",
+  "description": "Agent usage with period filters, project totals, and live local activity with message previews.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {

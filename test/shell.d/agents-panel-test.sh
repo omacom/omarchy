@@ -16,7 +16,7 @@ assert(/else root\.toggle\(\)/.test(panelSource), 'agents left click still toggl
 assert(!/if \(buttonCode === Qt\.RightButton\) root\.refreshNow\(\)/.test(panelSource), 'agents right click no longer refreshes')
 assert(/property string period: "week"/.test(panelSource), 'agents panel defaults the token filter to the last week')
 assert(/root\.period = "total"/.test(panelSource), 'agents panel can switch the token filter to all-time')
-assert(/modelData\.chipName \|\| modelData\.providerName/.test(panelSource), 'agents panel uses short chip names when many harnesses are present')
+assert(/providers\[i\]\.chipName \|\| providers\[i\]\.providerName/.test(panelSource), 'agents panel uses short chip names when many harnesses are present')
 JS
 
 run_node_test <<'JS'
@@ -25,7 +25,7 @@ const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf
 
 assert(/function aggregateProviders\(list\)/.test(mainSource), 'agents display synthesizes an All tab from every harness')
 assert(/providerId: "all"/.test(mainSource), 'agents All tab uses a stable virtual provider id')
-assert(/function chipNameFor\(id, name\)/.test(mainSource), 'agents display shortens Antigravity to AGI on the chip row')
-assert(/if \(id === "antigravity"\) return "AGI"/.test(mainSource), 'agents display labels Antigravity as AGI')
+assert(/function chipNameFor\(id, name\)/.test(mainSource), 'agents display shortens Antigravity to AGY on the chip row')
+assert(/if \(id === "antigravity"\) return "AGY"/.test(mainSource), 'agents display labels Antigravity as AGY')
 assert(/command = \["omarchy-agent-usage-update"\]/.test(mainSource), 'agents display still regenerates records through the stock updater')
 JS
