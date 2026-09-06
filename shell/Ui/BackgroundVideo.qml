@@ -15,6 +15,10 @@ Item {
   property bool frameReceived: false
   readonly property bool ready: player.hasVideo
 
+  // Tearing down a playing player interrupts FFmpeg mid-read, which it logs
+  // as a failed open. Stop first so the switch away from video stays quiet.
+  Component.onDestruction: player.stop()
+
   onMediaSourceChanged: {
     mediaGeneration += 1
     priming = false
