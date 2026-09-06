@@ -120,7 +120,7 @@ assert_lazy_stub "$ori_package" ori
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 pass "custom agent lazy stubs preserve their mise packages"
 
-source "$ROOT/install/user/mise.sh"
+OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/install/user/mise.sh"
 grep -Fx "$agy_package agy" "$stub_log" >/dev/null || fail "user setup creates the Antigravity lazy stub"
 grep -Fx "$grok_package grok" "$stub_log" >/dev/null || fail "user setup creates the Grok lazy stub"
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup creates the Cursor CLI lazy stub"
@@ -128,6 +128,11 @@ grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "user setup creates t
 grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the Crush lazy stub"
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
 pass "user setup creates the custom agent lazy stubs"
+
+: >"$stub_log"
+source "$ROOT/install/user/mise.sh"
+grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null && fail "user setup replaces an existing cursor-agent command"
+pass "user setup keeps an existing Cursor CLI install"
 
 : >"$stub_log"
 source "$ROOT/migrations/1785617047.sh" >/dev/null
