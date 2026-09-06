@@ -241,4 +241,27 @@ assertEqual(tailscale.exitNodeLabel(null), 'Unknown', 'tailscale labels a missin
 
 assert(/readonly property string peerName: tailscale\.exitNodeLabel\(peer\)/.test(panelSource), 'tailscale labels exit node rows with the MagicDNS helper')
 assert(/readonly property string peerName: peer \? String\(peer\.DisplayName \|\| peer\.HostName \|\| "Unknown"\) : "Unknown"/.test(panelSource), 'tailscale keeps the friendly hostname on machine rows')
+const SELF = '7119035026267488'
+
+assertEqual(tailscale.peerGroup({ UserID: SELF, Tags: ['tag:exit-node'] }, SELF), 'tagged', 'tailscale groups my tagged device as tagged')
+assertEqual(tailscale.peerGroup({ UserID: '999', Tags: ['tag:server'] }, SELF), 'tagged', 'tailscale groups another user tagged device as tagged')
+assertEqual(tailscale.peerGroup({ UserID: SELF, Tags: [] }, SELF), 'mine', 'tailscale groups my untagged device as mine')
+assertEqual(tailscale.peerGroup({ UserID: '999', Tags: [] }, SELF), 'other', 'tailscale groups another user device as other')
+assertEqual(tailscale.peerGroup(null, SELF), 'other', 'tailscale groups a missing peer as other')
+assertEqual(tailscale.peerGroup({ UserID: '', Tags: [] }, SELF), 'other', 'tailscale groups an ownerless peer as other')
+assertEqual(tailscale.peerGroup({ UserID: SELF, Tags: [] }, ''), 'other', 'tailscale groups every peer as other without a self id')
+
+const grouped = tailscale.groupPeers([
+  { HostName: 'a', UserID: SELF, Tags: [] },
+  { HostName: 'b', UserID: '999', Tags: ['tag:x'] },
+  { HostName: 'c', UserID: '999', Tags: [] },
+  { HostName: 'd', UserID: SELF, Tags: [] }
+], SELF)
+
+assertDeepEqual(grouped.mine.map(function (p) { return p.HostName }), ['a', 'd'], 'tailscale collects my devices in order')
+assertDeepEqual(grouped.tagged.map(function (p) { return p.HostName }), ['b'], 'tailscale collects tagged devices in order')
+assertDeepEqual(grouped.other.map(function (p) { return p.HostName }), ['c'], 'tailscale collects other devices in order')
+
+assertDeepEqual(tailscale.groupPeers([], SELF), { mine: [], tagged: [], other: [] }, 'tailscale groups an empty peer list into empty groups')
+assertDeepEqual(tailscale.groupPeers(null, SELF), { mine: [], tagged: [], other: [] }, 'tailscale groups a missing peer list into empty groups')
 JS

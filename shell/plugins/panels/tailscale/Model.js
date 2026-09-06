@@ -127,6 +127,30 @@ function peerFromStatus(id, peer) {
   }
 }
 
+// Tagged wins over ownership: a tagged device is owned by the tag, not by
+// whoever authenticated it. Matches tsui, where atl-exit-node sits under
+// Tagged Devices even though it was enrolled by the current user.
+function peerGroup(peer, selfUserId) {
+  if (!peer) return "other"
+  var tags = peer.Tags
+  if (tags && tags.length > 0) return "tagged"
+  var owner = String(peer.UserID || "")
+  var self = String(selfUserId || "")
+  if (owner !== "" && self !== "" && owner === self) return "mine"
+  return "other"
+}
+
+// Input arrives already sorted by HostName (see parseStatus), so preserving
+// order keeps each group alphabetical without re-sorting.
+function groupPeers(peers, selfUserId) {
+  var groups = { mine: [], tagged: [], other: [] }
+  var values = Array.isArray(peers) ? peers : []
+  for (var i = 0; i < values.length; i++) {
+    groups[peerGroup(values[i], selfUserId)].push(values[i])
+  }
+  return groups
+}
+
 function sliceTableColumn(line, start, end) {
   var text = String(line || "")
   if (start < 0 || start >= text.length) return ""
@@ -329,6 +353,8 @@ if (typeof module !== "undefined") {
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
+    peerGroup: peerGroup,
+    groupPeers: groupPeers,
     parseExitNodeList: parseExitNodeList,
     mullvadRegionOptions: mullvadRegionOptions,
     mullvadCountryOptions: mullvadCountryOptions,
