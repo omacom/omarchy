@@ -49,25 +49,28 @@ wait_for_screensaver_window() {
   done
 }
 
-for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
+# Each window learns its monitor's refresh rate so omarchy-screensaver never asks ttfx for frames the panel cannot display. 
+# The terminal rasterizes every frame on the CPU at native resolution, so wasted frames are wasted cores.
+
+while read -r m refresh_rate; do
   hypr_focus_monitor "$m"
 
   case $terminal in
   *Alacritty*)
-    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
+    hypr_exec env OMARCHY_SCREENSAVER_MAX_FRAME_RATE="$refresh_rate" alacritty --class=org.omarchy.screensaver --config-file "$OMARCHY_PATH/default/alacritty/screensaver.toml" -e omarchy-screensaver
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e omarchy-screensaver
+    hypr_exec env OMARCHY_SCREENSAVER_MAX_FRAME_RATE="$refresh_rate" ghostty --class=org.omarchy.screensaver --config-file="$OMARCHY_PATH/default/ghostty/screensaver" --font-size=18 -e omarchy-screensaver
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
+    hypr_exec env OMARCHY_SCREENSAVER_MAX_FRAME_RATE="$refresh_rate" foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
     ;;
   *kitty*)
-    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    hypr_exec env OMARCHY_SCREENSAVER_MAX_FRAME_RATE="$refresh_rate" kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
     ;;
   esac
 
   wait_for_screensaver_window
-done
+done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.refreshRate // 0)"')
 
 hypr_focus_monitor "$focused"

@@ -71,14 +71,17 @@ The Omarchy shell owns idle behavior, and the timings are a top-level `idle` blo
   "version": 1,
   "idle": {
     "screensaver": 150,
-    "lock": 300
+    "lock": 300,
+    "screensaverFrameRate": 60
   }
 }
 ```
 
-Both numbers are seconds counted from the moment you went idle — not from each other. So with the defaults, the screensaver comes up after two and a half minutes and the lock screen takes over at five minutes, whether or not the screensaver ran. Save the file and the shell picks up the new timings right away.
+The first two numbers are seconds counted from the moment you went idle, not from each other. So with the defaults, the screensaver comes up after two and a half minutes and the lock screen takes over at five minutes, whether or not the screensaver ran. Save the file and the shell picks up the new timings right away.
 
 If you dismiss the screensaver before the lock deadline, that counts as activity and the pending lock is cancelled. You don't get locked out for glancing at your machine.
+
+`screensaverFrameRate` is how many frames per second the screensaver animates at, capped to each monitor's refresh rate. The terminal draws every frame on the CPU at the panel's native resolution, so on a 4K or 5K display a high frame rate can keep multiple cores busy.
 
 To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
 

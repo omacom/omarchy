@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Print the screensaver frame rate from shell.json, capped to a monitor refresh rate when one is given.
+# omarchy:args=[max-frame-rate]
+# omarchy:hidden=true
+
+# The screensaver terminal (foot by default) rasterizes every frame on the CPU
+# at native panel resolution, so the frame rate is the main knob on how much a
+# HiDPI panel costs. Users tune it with idle.screensaverFrameRate in shell.json;
+# the launcher passes each monitor's refresh rate so no frame is generated that
+# the panel can never display.
+
+default_frame_rate=60
+
+config_file="$HOME/.config/omarchy/shell.json"
+[[ -s $config_file ]] || config_file="$OMARCHY_PATH/config/omarchy/shell.json"
+
+frame_rate=$(jq -r '.idle.screensaverFrameRate // empty' "$config_file" 2>/dev/null || true)
+[[ $frame_rate =~ ^[1-9][0-9]*$ ]] || frame_rate=$default_frame_rate
+
+max_frame_rate=${1:-}
+if [[ $max_frame_rate =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  max_frame_rate=$(printf '%.0f' "$max_frame_rate")
+  if ((max_frame_rate > 0 && max_frame_rate < frame_rate)); then
+    frame_rate=$max_frame_rate
+  fi
+fi
+
+echo "$frame_rate"

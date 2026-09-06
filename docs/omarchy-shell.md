@@ -134,7 +134,8 @@ string on a miss.
   "version": 1,
   "idle": {
     "screensaver": 150,
-    "lock": 300
+    "lock": 300,
+    "screensaverFrameRate": 60
   },
   "bar": {
     "id": "omarchy.bar",
@@ -167,6 +168,9 @@ Rules:
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
+   `idle.screensaverFrameRate` is the screensaver's frames per second (default
+   60), capped to each monitor's refresh rate; the terminal rasterizes every
+   frame on the CPU, so HiDPI panels pay for each one.
 8. `version: 1` is required.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no

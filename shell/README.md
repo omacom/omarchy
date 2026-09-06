@@ -280,7 +280,9 @@ becomes the authoritative file — we do **not** deep-merge defaults back in.
    entries with their own values.
 7. **Idle timings are top-level.** `idle.screensaver` and `idle.lock`
    are seconds since user idle began, so the default lock fires at 300s
-   even if the 150s screensaver starts first.
+   even if the 150s screensaver starts first. `idle.screensaverFrameRate`
+   (default 60) is the screensaver's frames per second, capped to each
+   monitor's refresh rate; `omarchy-screensaver-frame-rate` reads it.
 8. **`version: 1` is required** at the top level. The shell will fall back
    to defaults rather than load an unknown version.
 
