@@ -32,8 +32,9 @@ assert(
   videoQml.includes('loops: MediaPlayer.Infinite') &&
     videoQml.includes('autoPlay: root.playbackEnabled') &&
     videoQml.includes('fillMode: VideoOutput.PreserveAspectCrop') &&
-    mediaQml.includes('!video && version'),
-  'background media plays aspect-cropped videos on a loop'
+    /imageUrl: path && !video \? Util\.fileUrl\(path\) \+ \(version \? "\?v=" \+ version : ""\) : ""/.test(mediaQml) &&
+    /videoUrl: path && video \? Util\.fileUrl\(path\) : ""/.test(mediaQml),
+  'background media plays aspect-cropped videos on a loop, and hands each loader only its own kind of file'
 )
 assert(
   videoQml.includes('MediaPlayer.LoadedMedia') &&

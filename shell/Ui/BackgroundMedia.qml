@@ -17,7 +17,10 @@ Item {
   readonly property bool video: Util.isVideoPath(path)
   // Cache-bust images selected in a running lock session. FFmpeg treats the
   // query as part of a local filename, so videos must keep their plain URL.
-  readonly property url mediaUrl: path ? Util.fileUrl(path) + (!video && version ? "?v=" + version : "") : ""
+  // Each URL is empty for the other kind, so a switch never hands the still
+  // loader a video, or the player a still, in the moment before it unloads.
+  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
+  readonly property url videoUrl: path && video ? Util.fileUrl(path) : ""
 
   Loader {
     id: imageLoader
@@ -44,7 +47,7 @@ Item {
   Binding {
     target: videoLoader.item
     property: "mediaSource"
-    value: root.mediaUrl
+    value: root.videoUrl
     when: videoLoader.item !== null
   }
 
@@ -60,7 +63,7 @@ Item {
 
     Image {
       readonly property bool ready: status === Image.Ready
-      source: root.mediaUrl
+      source: root.imageUrl
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
       cache: root.version === 0
