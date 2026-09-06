@@ -519,6 +519,7 @@ Panel {
 
       // ---- Hero row: big icon + temp on the left; location and stats stacked on the right.
       Item {
+        id: heroContainer
         width: parent.width
         height: Math.max(heroLeft.height, heroRight.height)
 
@@ -578,6 +579,7 @@ Panel {
           spacing: Style.space(12)
 
           Row {
+            id: locationRow
             visible: !root.editingLocation && root.reportLocation !== ""
             spacing: Style.space(6)
 
@@ -589,6 +591,7 @@ Panel {
             }
 
             Text {
+              id: locationMarker
               text: ""  // nf-fa-map_marker
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
@@ -596,6 +599,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+              id: locationText
               textFormat: Text.PlainText
               text: (root.reportLocation || "").toUpperCase()
               color: Qt.darker(root.bar.foreground, 1.4)
@@ -603,6 +607,8 @@ Panel {
               font.pixelSize: Style.font.body
               font.letterSpacing: 1
               anchors.verticalCenter: parent.verticalCenter
+              elide: Text.ElideRight
+              width: Math.min(implicitWidth, Math.max(0, heroContainer.width - heroLeft.width - heroLeft.anchors.leftMargin - heroRight.anchors.rightMargin - locationMarker.implicitWidth - locationRow.spacing - Style.space(16)))
             }
           }
 
