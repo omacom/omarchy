@@ -20,8 +20,10 @@ Item {
   // query as part of a local filename, so videos must keep their plain URL.
   // Each URL is empty for the other kind, so a switch never hands the still
   // loader a video, or the player a still, in the moment before it unloads.
-  readonly property url imageUrl: path && !video ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
-  readonly property url videoUrl: path && video ? Util.fileUrl(path) : ""
+  // Both test the path directly: going through `video` lets a URL evaluate
+  // against the stale flag and leak the wrong file for one pass.
+  readonly property url imageUrl: path && !Util.isVideoPath(path) ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
+  readonly property url videoUrl: path && Util.isVideoPath(path) ? Util.fileUrl(path) : ""
 
   Loader {
     id: imageLoader
@@ -45,11 +47,14 @@ Item {
     Qt.callLater(function() { root.reloading = false })
   }
 
+  // A player on its way out keeps its source: pushing an empty one starts a
+  // load of nothing that its destructor then cancels, which FFmpeg logs.
   Binding {
     target: videoLoader.item
     property: "mediaSource"
     value: root.videoUrl
-    when: videoLoader.item !== null
+    when: videoLoader.item !== null && Util.isVideoPath(root.path)
+    restoreMode: Binding.RestoreNone
   }
 
   Binding {

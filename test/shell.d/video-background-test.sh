@@ -32,8 +32,8 @@ assert(
   videoQml.includes('loops: MediaPlayer.Infinite') &&
     videoQml.includes('autoPlay: root.playbackEnabled') &&
     videoQml.includes('fillMode: VideoOutput.PreserveAspectCrop') &&
-    /imageUrl: path && !video \? Util\.fileUrl\(path\) \+ \(version \? "\?v=" \+ version : ""\) : ""/.test(mediaQml) &&
-    /videoUrl: path && video \? Util\.fileUrl\(path\) : ""/.test(mediaQml),
+    /imageUrl: path && !Util\.isVideoPath\(path\) \? Util\.fileUrl\(path\) \+ \(version \? "\?v=" \+ version : ""\) : ""/.test(mediaQml) &&
+    /videoUrl: path && Util\.isVideoPath\(path\) \? Util\.fileUrl\(path\) : ""/.test(mediaQml),
   'background media plays aspect-cropped videos on a loop, and hands each loader only its own kind of file'
 )
 assert(
@@ -68,6 +68,11 @@ assert(
     backgroundQml.includes('audioEnabled: panel.firstScreen') &&
     !lockQml.includes('audioEnabled'),
   'a sound track plays from the first monitor only, a silent file builds no audio output, and the lock stays quiet'
+)
+assert(
+  /property: "mediaSource"[\s\S]*?when: videoLoader\.item !== null && Util\.isVideoPath\(root\.path\)\s*\n\s*restoreMode: Binding\.RestoreNone/.test(mediaQml) &&
+    !videoQml.includes('Component.onDestruction'),
+  'a player on its way out keeps its source, so nothing is left loading for its destructor to cancel'
 )
 assert(
   !mediaQml.includes('mipmap'),
