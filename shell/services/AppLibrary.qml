@@ -125,13 +125,17 @@ Item {
     // icons like "printer" instead of app icons. The active icon theme (plus
     // its Inherits chain) is emitted first so the parser, which keeps the
     // first hit per name, prefers themed icons over stale hicolor fallbacks
-    // when the user switches to a third-party theme such as Papirus. SVGs are
-    // emitted before PNGs so scalable icons win within each tier. Finds follow
+    // when the user switches to a third-party theme such as Papirus. Within
+    // each tier, scalable icons come first and rasters follow largest-first so
+    // a 16x16 file never shadows a crisp source by readdir luck; a catch-all
+    // sweep afterwards still picks up nonstandard layouts. Finds follow
     // symlinks (-L) because theme variants such as Papirus-Dark symlink whole
     // context dirs back to their parent theme. Only apps/devices subtrees are
     // descended, @2x duplicates are pruned, the fallback pass skips theme dirs
     // already covered above (Omarchy's own icons live in hicolor, which is
-    // kept), and awk drops repeat names so the shell parses one line per icon.
+    // kept), a last-resort sweep over the remaining theme dirs preserves
+    // stock coverage for names no preferred location provides, and awk drops
+    // repeat names so the shell parses one line per icon.
     return [
       '{',
       'theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "\u0027");',
@@ -158,20 +162,40 @@ Item {
       '  ordered="$ordered$add";',
       'done;',
       'ctxskip="( -type d ( -name actions -o -name animations -o -name categories -o -name emblems -o -name emotes -o -name filesystems -o -name intl -o -name mimetypes -o -name panel -o -name places -o -name status -o -name stock ) ) -prune -o";',
+      'sizes="scalable 512x512 256x256 192x192 128x128 96x96 72x72 64x64 48x48 42x42 40x40 36x36 32x32 24x24 22x22 18x18 16x16 12x12 8x8";',
+      'sizeprune=();',
+      'for sz in $sizes; do sizeprune+=(-o -path "*/$sz"); done;',
       'for t in $ordered; do',
+      '  for sz in $sizes; do',
+      '    for ext in svg png; do',
+      '      for base in $bases; do',
+      '        d="$base/$t/$sz"; [[ -d $d ]] && find -L "$d" -maxdepth 3 \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" -print 2>/dev/null;',
+      '        d="$base/$t/apps/$sz"; [[ -d $d ]] && find -L "$d" -maxdepth 2 -name "*.$ext" -print 2>/dev/null;',
+      '        d="$base/$t/devices/$sz"; [[ -d $d ]] && find -L "$d" -maxdepth 2 -name "*.$ext" -print 2>/dev/null;',
+      '      done;',
+      '    done;',
+      '  done;',
       '  for ext in svg png; do',
       '    for base in $bases; do',
-      '      [[ -d $base/$t ]] && find -L "$base/$t" -path "*@2x*" -prune -o $ctxskip \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" -print 2>/dev/null;',
+      '      [[ -d $base/$t ]] && find -L "$base/$t" \\( -path "*@2x*" "${sizeprune[@]}" \\) -prune -o $ctxskip \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" -print 2>/dev/null;',
       '    done;',
       '  done;',
       'done;',
-      'prune=(-path "*@2x*");',
+      'prune=(-path "*@2x*"); swept=();',
       'for base in $bases; do',
       '  for d in "$base"/*/; do',
       '    [[ -d $d ]] || continue;',
+      '    [[ -f $d/index.theme ]] || continue;',
       '    n=${d%/}; n=${n##*/};',
       '    [[ $n == "hicolor" ]] && continue;',
-      '    [[ -f $d/index.theme ]] && prune+=(-o -path "${d%/}/*");',
+      '    prune+=(-o -path "${d%/}/*"); swept+=("$d");',
+      '  done;',
+      'done;',
+      'for sz in $sizes; do',
+      '  for ext in svg png; do',
+      '    for base in $bases; do',
+      '      d="$base/hicolor/$sz"; [[ -d $d ]] && find -L "$d" -maxdepth 3 \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" -print 2>/dev/null;',
+      '    done;',
       '  done;',
       'done;',
       'for ext in svg png; do',
@@ -179,6 +203,9 @@ Item {
       '    [[ -d $base ]] && find -L "$base" \\( "${prune[@]}" \\) -prune -o $ctxskip \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" -print 2>/dev/null;',
       '  done;',
       '  find /usr/share/pixmaps -maxdepth 1 -name "*.$ext" 2>/dev/null;',
+      '  for s in "${swept[@]}"; do',
+      '    [[ -d $s ]] && find -L "$s" $ctxskip \\( -path "*/apps/*" -o -path "*/devices/*" \\) -name "*.$ext" -print 2>/dev/null;',
+      '  done;',
       'done;',
       '} | awk -F/ \u0027{ n=$NF; sub(/\\.[^.]+$/, "", n) } !seen[n]++\u0027'
     ].join(' ')
