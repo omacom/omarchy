@@ -89,9 +89,13 @@ pass "root dispatch rejects missing/invalid uid, passwd, owner, symlink, and wri
 
 # Put each familiar source on its own filesystem. Both start with legacy 0755
 # permissions and world-readable payloads to prove migration hardens the leaves.
+# The setgid bit is part of that legacy state: chmod keeps a directory's
+# set-group-ID bit when it is handed an octal mode, so a source left at 2755
+# stays at 2700 and the exact-mode check below rejects every bring-up.
 mkdir /home/storage-target /home/shared-target
 mount -t tmpfs -o uid=1000,gid=1000,mode=0755,size=3g storage-test /home/storage-target
 mount -t tmpfs -o uid=1000,gid=1000,mode=0755,size=64m shared-test /home/shared-target
+chmod g+s /home/storage-target /home/shared-target
 ln -s /home/storage-target /home/alice/.windows
 ln -s /home/shared-target /home/alice/Windows
 chown -h 1000:1000 /home/alice/.windows /home/alice/Windows
