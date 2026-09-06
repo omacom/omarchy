@@ -128,7 +128,4 @@ To copy a default config to user config with automatic backup:
 omarchy-refresh-config hypr/hyprland.lua
 ```
 
-This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument
-is validated as a plain relative path: absolute paths and `..` segments are rejected, and both
-sides are canonicalized with `realpath -m` and checked to stay under `$OMARCHY_PATH/config` and
-`~/.config` before anything is copied.
+This copies `$OMARCHY_PATH/config/hypr/hyprland.lua` to `~/.config/hypr/hyprland.lua`. The argument must be a plain relative path: an absolute path or any `..` segment is rejected before anything is copied. That check is lexical, so a symlink under `~/.config` is still followed and its target rewritten — which is what keeps symlink-managed dotfiles working.
