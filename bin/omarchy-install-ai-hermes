@@ -5,28 +5,21 @@
 
 set -e
 
-# No CLI is installed here on purpose. Hermes Desktop only runs against a
-# runtime built from its own commit, so it provisions one itself under
-# ~/.hermes on first launch, which takes a few minutes and shows its own
-# progress. Handing it the mise CLI instead fails: PyPI trails the tags, and
-# the version gap fails the app's readiness probe with a 401.
+# The package is the entry point to a writable native installation. Wait for
+# both the runtime and desktop build so the app and CLI update the same copy.
 echo "Installing Hermes Desktop..."
 omarchy-pkg-add hermes-desktop
-
-# If Hermes was already installed for the terminal, the app supersedes it: one
-# machine, one Hermes. This drops that copy so the terminal, the default agent
-# and the app all end up on the app's installation.
-omarchy-install-hermes-cli || true
+omarchy-install-hermes-cli --now
 
 echo "Opening Hermes Desktop..."
 setsid uwsm-app -- /usr/bin/hermes-desktop >/dev/null 2>&1 &
 
-# Only a running Hermes can be told which skin to show, and the first launch
-# takes minutes; a unit outlives this terminal and reports to the journal.
+# A unit waits for the gateway to start before handing over the current skin.
 echo "Matching Hermes to the current theme once it is set up..."
 systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
-systemd-run --user --quiet --collect --unit=omarchy-hermes-theme omarchy-theme-set-hermes --wait
+systemd-run --user --quiet --collect --unit=omarchy-hermes-theme \
+  --setenv="HERMES_HOME=${HERMES_HOME:-$HOME/.hermes}" omarchy-theme-set-hermes --wait
 
 echo ""
 echo "Hermes Desktop has been installed."
-echo "Its first launch installs the Hermes runtime, which takes a few minutes."
+echo "Update it from Hermes Desktop or with: hermes update"

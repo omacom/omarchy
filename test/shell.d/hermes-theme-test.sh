@@ -399,3 +399,20 @@ OMARCHY_TEST_HERMES_READY=1 run_hook --wait 2>"$test_tmp/stderr"
 [[ $(grep -c 'sleep 10' "$hermes_calls") == 180 ]] || fail "--wait gives up after 30 minutes" "$(grep -c 'sleep 10' "$hermes_calls")"
 grep -q 'did not finish setting up' "$test_tmp/stderr" || fail "giving up is reported"
 pass "--wait polls until the desktop app has built its runtime and gives up in time"
+
+reset_home --set-up
+mkdir -p "$hermes_home/hermes-agent"
+echo ready >"$hermes_home/hermes-agent/.omarchy-hermes-desktop"
+OMARCHY_TEST_HERMES_READY=1 run_hook --wait 2>/dev/null
+grep -q '^config set display.skin omarchy$' "$hermes_calls" || fail "ready native setup activates its skin"
+grep -q '^sleep 10$' "$hermes_calls" && fail "ready native setup must not wait for the legacy bootstrap marker"
+pass "--wait recognizes the native package completion marker"
+
+reset_home --set-up
+mkdir -p "$hermes_home/hermes-agent"
+echo pending >"$hermes_home/hermes-agent/.omarchy-hermes-desktop"
+touch "$hermes_home/hermes-agent/.hermes-bootstrap-complete"
+OMARCHY_TEST_HERMES_READY=1 run_hook --wait 2>/dev/null
+grep -q '^config set' "$hermes_calls" && fail "pending native setup must not activate through a legacy marker"
+[[ $(grep -c '^sleep 10$' "$hermes_calls") == 180 ]] || fail "pending native setup must wait for completion"
+pass "--wait does not mistake native ownership for completed setup"

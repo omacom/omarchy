@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Install the Hermes CLI as a mise-backed wrapper in ~/.local/bin
+# omarchy:summary=Set up the Hermes CLI, sharing the native desktop installation when present
 # omarchy:args=[--check|--now|--owns|--remove]
 # omarchy:examples=omarchy install hermes cli | omarchy install hermes cli --now
 
@@ -16,12 +16,9 @@
 # dependency -- and omarchy-mise-install writes a fixed stub with nowhere to
 # say otherwise.
 #
-# There is only ever one Hermes on a machine. hermes-desktop cannot run against
-# this one -- it needs a runtime built from its own commit, and the version gap
-# fails its readiness probe -- so it installs its own under ~/.hermes and puts
-# that on PATH. When the package is present it therefore owns Hermes outright:
-# this installer stands aside and removes its own copy, so the terminal, the
-# default agent and the app are all the same installation.
+# With hermes-desktop installed, the package provisions a native installation
+# whose CLI and desktop can update together. Keep any old Omarchy mise CLI
+# until that replacement is ready, and leave foreign environments alone.
 
 set -euo pipefail
 
@@ -33,6 +30,8 @@ python='3.13'
 # The line that identifies the stub as this installer's; matched whole, so a
 # wrapper that merely mentions the command is not mistaken for ours.
 marker='# Written by omarchy-install-hermes-cli.'
+native_root="${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+predecessor_receipt="$native_root/.git/omarchy-mise-predecessor"
 
 # The package, not the runtime directory: it is installed before the app has
 # ever run, and that is exactly when we must not start building a second copy.
@@ -40,22 +39,16 @@ desktop_owns_hermes() {
   omarchy-pkg-present hermes-desktop
 }
 
-# The venv appears at the python-deps stage, several stages before the one that
-# installs the command, so its presence says nothing about being usable. The
-# marker is written last, and the command is what the agent actually runs.
+# Older packages forward unknown flags to Electron and call this helper on
+# launch. Calling their --check would recurse. Inspect package metadata first.
+desktop_supports_native_install() {
+  pacman -Qlq hermes-desktop 2>/dev/null | grep -qxF '/usr/share/hermes-desktop/install.sh'
+}
+
+# The package knows whether the native checkout, wrapper and desktop build
+# agree. Then probe the actual command for the flags Omarchy's agent needs.
 desktop_hermes_ready() {
-  [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]] || return 1
-
-  # An executable of that name proves nothing about whose it is; the app's own
-  # points into ~/.hermes, and anything else is not the install we are asking
-  # about. Matched as a plain string, because the path carries a dot and an
-  # unanchored pattern would also claim a wrapper pointing at ~/xhermes.
-  [[ -f $HOME/.local/bin/hermes ]] || return 1
-  grep -qF "$HOME/.hermes" "$HOME/.local/bin/hermes" || return 1
-
-  # And a marker left behind by an install whose venv has since gone answers
-  # for nothing, so the command has to run, exactly as a foreign one must.
-  hermes_prompt_ready
+  desktop_supports_native_install && hermes-desktop --check && hermes_prompt_ready
 }
 
 # Whether Hermes is really installed, not merely whether the stub exists. A
@@ -72,6 +65,29 @@ installed() {
 ours() {
   [[ -f $HOME/.local/bin/hermes && ! -L $HOME/.local/bin/hermes ]] &&
     grep -qxF "$marker" "$HOME/.local/bin/hermes"
+}
+
+# The package records the marked predecessor before replacing its wrapper.
+# Keep that proof across interrupted setup and failed cleanup, without claiming
+# a same-named environment from a symlink or a merely similar receipt.
+owns_predecessor() {
+  [[ -d $native_root/.git && ! -L $native_root/.git && -f $predecessor_receipt && ! -L $predecessor_receipt ]] &&
+    cmp -s <(printf '%s\n' "$tool") "$predecessor_receipt"
+}
+
+remove_predecessor() {
+  echo "Hermes Desktop is ready; removing the superseded Omarchy CLI..." >&2
+  mise rm -g "$tool" >/dev/null 2>&1 || true
+  mise uninstall --all "$tool" >/dev/null 2>&1 || true
+  if mise where "$tool" >/dev/null 2>&1; then
+    echo "Could not remove the superseded Hermes mise environment. Finish by hand:" >&2
+    echo "  mise rm -g '$tool'" >&2
+    echo "  mise uninstall --all '$tool'" >&2
+    return 1
+  fi
+  if owns_predecessor; then
+    rm -f "$predecessor_receipt"
+  fi
 }
 
 foreign_hermes() {
@@ -122,27 +138,23 @@ fi
 # --remove tears down a Hermes CLI this installer put in place -- the mise tool
 # it installed and the stub it marked -- so Remove Hermes clears a CLI the app
 # never superseded (an interrupted install, or the terminal CLI from before the
-# app existed) rather than leaving it stranded on PATH. The whole teardown
-# turns on the marked stub, exactly as replacement does further down: without
-# it nothing proves the mise environment is Omarchy's rather than one the user
-# built against the same spec, and a user's stays theirs. The desktop takeover
-# removes the environment without asking, but that is its own bargain -- a
-# second Hermes has to go whoever built it, and the app still provides the
-# command afterwards; here nothing would. Idempotent: nothing owned, nothing
-# to do.
+# app existed) rather than leaving it stranded on PATH. A marked stub or the
+# package's exact predecessor receipt proves the mise environment is ours.
+# Explicit removal needs no ready replacement. Idempotent: nothing owned,
+# nothing to do.
 if [[ $mode == "--remove" ]]; then
-  if ours; then
+  if ours || owns_predecessor; then
     mise rm -g "$tool" >/dev/null 2>&1 || true
     mise uninstall --all "$tool" >/dev/null 2>&1 || true
-    rm -f "$HOME/.local/bin/hermes" 2>/dev/null || true
+    if ours; then rm -f "$HOME/.local/bin/hermes" 2>/dev/null || true; fi
 
     # Every step is attempted before any is judged, and judged by what is left
     # rather than by what the commands claimed: the marked stub still answering
     # hermes, or mise still resolving the tool, is a CLI still installed no
     # matter how the removal exited.
-    # Not "run --remove again": once the stub is gone nothing marks the mise
-    # environment as ours, so a rerun would find nothing it owns and succeed
-    # without touching what was left. Only the full commands finish the job.
+    # A legacy CLI without a receipt loses ownership when the stub goes, so
+    # include the complete recovery commands instead of assuming a retry can
+    # still identify it. Receipt-backed removals retain their proof on failure.
     if ours || mise where "$tool" >/dev/null 2>&1; then
       echo "Could not remove the Hermes CLI Omarchy installed. Finish by hand:" >&2
       echo "  rm -f ~/.local/bin/hermes" >&2
@@ -150,6 +162,7 @@ if [[ $mode == "--remove" ]]; then
       echo "  mise uninstall --all '$tool'" >&2
       exit 1
     fi
+    if owns_predecessor; then rm -f "$predecessor_receipt"; fi
   fi
 
   exit 0
@@ -169,31 +182,37 @@ if [[ $mode == "--check" ]]; then
   if installed && hermes_prompt_ready; then exit 0; else exit 1; fi
 fi
 
-# Hand Hermes over to the app rather than keeping a second copy beside it.
+# Capture ownership before the native installer replaces the marked wrapper.
+# No cleanup runs on a failed install. A completed package-only setup leaves a
+# receipt so a later invocation can finish removing the proven predecessor.
 if desktop_owns_hermes; then
-  # Not gated on that copy being healthy: `mise up` can rebuild it against the
-  # wrong interpreter and a half-finished install answers to neither test, and
-  # either way it is still a second Hermes. Removing nothing is harmless.
-  if mise where "$tool" >/dev/null 2>&1; then
-    echo "Hermes Desktop provides Hermes; removing the separate CLI install..." >&2
-  fi
+  if [[ $mode == "--now" ]]; then
+    if ! desktop_supports_native_install; then
+      echo "Update the hermes-desktop package before setting up native Hermes updates." >&2
+      exit 1
+    fi
+    owned_cli=false
+    if ours || owns_predecessor; then owned_cli=true; fi
 
-  mise rm -g "$tool" >/dev/null 2>&1 || true
-  mise uninstall --all "$tool" >/dev/null 2>&1 || true
+    hermes-desktop --install
+    if ! desktop_hermes_ready; then
+      echo "Hermes Desktop did not finish setting up a CLI with interactive queries." >&2
+      exit 1
+    fi
 
-  # Our own stub has to go with it. Left in place it still answers `hermes`
-  # until the app's bootstrap overwrites it, and answering means building the
-  # second Hermes this whole arrangement exists to avoid.
-  if ours; then
-    rm -f "$HOME/.local/bin/hermes"
-  fi
-
-  if desktop_hermes_ready; then
+    if [[ $owned_cli == "true" ]]; then
+      remove_predecessor
+    fi
     exit 0
   fi
 
-  echo "Hermes Desktop is installed but has not set Hermes up yet." >&2
-  echo "Launch Hermes Desktop once to finish installing it." >&2
+  if desktop_hermes_ready; then
+    if owns_predecessor; then remove_predecessor; fi
+    exit 0
+  fi
+
+  echo "Hermes Desktop is installed but has not finished setting up Hermes." >&2
+  echo "Run omarchy-install-hermes-cli --now to finish installing it." >&2
   exit 1
 fi
 

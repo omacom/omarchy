@@ -6,6 +6,13 @@
 # -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
 set -euo pipefail
 
+hermes_home=${HERMES_HOME:-$HOME/.hermes}
+hermes_root="$hermes_home/hermes-agent"
+if [[ $hermes_home != /* || $hermes_home == "/" ]]; then
+  echo "HERMES_HOME must name an absolute Hermes data directory." >&2
+  exit 1
+fi
+
 omarchy-pkg-drop hermes-desktop
 
 # The installer leaves a unit waiting to hand the app the Omarchy theme.
@@ -16,48 +23,130 @@ systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
 # the app never superseded -- an interrupted install, or the terminal CLI from
 # before the app existed. Remove Hermes clears that too, scoped by the installer
 # to what Omarchy owns so a hermes the user set up themselves is left alone.
-# Tolerated here rather than fatal, so the ~/.hermes handling below still runs;
-# the failure is answered for at the end instead of being swallowed.
+# A failed cleanup retains the runtime and its receipt below so it can be
+# retried; the failure is returned after explaining what was kept.
 cli_removed=true
 omarchy-install-hermes-cli --remove || cli_removed=false
 
-# The app writes this when the runtime it provisions under ~/.hermes has landed,
-# and it is the only thing that tells that runtime apart from one the user
-# installed themselves -- the paths are the same either way. Without it the app
-# never got that far: a machine where it was installed but never launched still
-# has whatever was there before, and none of it is ours to delete unasked.
-if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
-  # The checkout and venv, its own uv, its own node. None of it is any use once
-  # the app is gone, so it goes without asking; what the user made with the app
-  # is a different question, answered below.
-  rm -rf \
-    "$HOME/.hermes/hermes-agent" \
-    "$HOME/.hermes/bootstrap-cache" \
-    "$HOME/.hermes/bin" \
-    "$HOME/.hermes/node"
+# New installs mark their runtime explicitly, including an interrupted setup.
+# Legacy app bootstraps predate that marker; only the known package revisions
+# with their upstream remote qualify for removal without the data question.
+managed_runtime=false
+if [[ -f $hermes_root/.omarchy-hermes-desktop && ! -L $hermes_root/.omarchy-hermes-desktop ]] &&
+  grep -qxE 'pending|updating|ready' "$hermes_root/.omarchy-hermes-desktop"; then
+  managed_runtime=true
+elif [[ -f $hermes_root/.hermes-bootstrap-complete ]] &&
+  jq -e '.schemaVersion == 1 and (.pinnedCommit == "e624e9fde561e1add9388384012b295fde669ade" or .pinnedCommit == "29112bef099274229cadff79cdff7bf7b99c4b77")' \
+    "$hermes_root/.hermes-bootstrap-complete" >/dev/null 2>&1; then
+  case "$(git -C "$hermes_root" remote get-url origin 2>/dev/null || true)" in
+    https://github.com/NousResearch/hermes-agent.git | https://github.com/NousResearch/hermes-agent | git@github.com:NousResearch/hermes-agent.git)
+      managed_runtime=true ;;
+  esac
+fi
 
-  # Only the wrappers pointing into ~/.hermes, matched as a plain string: the
-  # path carries a dot, so an unanchored pattern would also claim a wrapper
-  # pointing at a sibling like ~/xhermes.
-  for command in hermes hermes-agent hermes-acp; do
-    wrapper="$HOME/.local/bin/$command"
+# A clean working tree can still contain unpublished history. Compare all
+# local refs and HEAD against fetched remote history; the two old packaged
+# commits are also known upstream history in tag-only bootstrap clones.
+published_history() {
+  local commits branches remotes branch commit
+  local published=(--remotes)
 
-    if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$HOME/.hermes" "$wrapper"; then
-      rm -f "$wrapper"
+  if git -C "$hermes_root" rev-parse --verify refs/stash >/dev/null 2>&1; then
+    return 1
+  fi
+  for commit in e624e9fde561e1add9388384012b295fde669ade 29112bef099274229cadff79cdff7bf7b99c4b77; do
+    if git -C "$hermes_root" cat-file -e "$commit^{commit}" 2>/dev/null; then
+      published+=("$commit")
     fi
   done
+  commits=$(git -C "$hermes_root" rev-list --all HEAD --not "${published[@]}" 2>/dev/null) || return 1
+  [[ -z $commits ]] || return 1
 
-  # When Hermes brought its own Node it symlinked these next to its own commands,
-  # and they point at what we just deleted. Only the links into ~/.hermes: a
-  # system Node, or someone else's, lives somewhere else entirely.
+  branches=$(git -C "$hermes_root" for-each-ref --format='%(refname:strip=2)' refs/heads) || return 1
+  remotes=$(git -C "$hermes_root" for-each-ref --format='%(refname:strip=3)' refs/remotes) || return 1
+  while IFS= read -r branch; do
+    [[ -z $branch ]] && continue
+    grep -qxF -- "$branch" <<<"$remotes" || return 1
+  done <<<"$branches"
+}
+
+# An owned checkout can subsequently become a development checkout. Its Git
+# directory may also serve another worktree. Keep it and its launchers intact
+# when removal would take source changes or the other checkout's metadata.
+runtime_kept=false
+if [[ $cli_removed == "false" ]]; then
+  managed_runtime=false
+  runtime_kept=true
+  echo "Keeping $hermes_root and its launchers so the failed CLI cleanup can be retried." >&2
+elif [[ $managed_runtime == "true" ]]; then
+  if [[ -L $hermes_root || -L $hermes_home ]] ||
+    ! changes=$(git -C "$hermes_root" status --porcelain 2>/dev/null) ||
+    [[ -n $changes ]] ||
+    ! worktrees=$(git -C "$hermes_root" worktree list --porcelain 2>/dev/null) ||
+    (( $(grep -c '^worktree ' <<<"$worktrees") != 1 )) ||
+    ! published_history; then
+    managed_runtime=false
+    runtime_kept=true
+    echo "Keeping $hermes_root and its launchers: it has local work, unpublished history, linked worktrees, or is not a regular checkout." >&2
+  fi
+fi
+
+if [[ $managed_runtime == "true" ]]; then
+  # Compare the generated files before removing anything they target. A user's
+  # customized wrapper or launcher is preserved even if it mentions this root.
+  python3 - "$hermes_root" "$HOME/.local/bin" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/hermes.desktop" <<'PYTHON'
+from pathlib import Path
+import shlex
+import sys
+
+root, commands, entry = map(Path, sys.argv[1:])
+wrappers = {
+    "hermes": f'"{root}/hermes"',
+    "hermes-agent": f'"{root}/run_agent.py"',
+    "hermes-acp": f'"{root}/hermes" acp',
+}
+def contents(path):
+    try:
+        return path.read_bytes()
+    except OSError:
+        return b""
+
+owned = []
+for name, args in wrappers.items():
+    wrapper = commands / name
+    expected = f'#!/usr/bin/env bash\nunset PYTHONPATH\nunset PYTHONHOME\nexec "{root}/venv/bin/python" {args} "$@"\n'
+    if wrapper.is_file() and not wrapper.is_symlink() and contents(wrapper) == expected.encode():
+        owned.append(wrapper)
+
+if entry.is_file() and not entry.is_symlink():
+    # These fields are emitted by Hermes' native Linux desktop registration.
+    lines = contents(entry).decode(errors="replace").splitlines()
+    fixed = ["[Desktop Entry]", "Type=Application", "Name=Hermes", "GenericName=Hermes Desktop", "Comment=Launch Hermes Desktop", "Terminal=false", "Categories=Utility;", "StartupNotify=true", "StartupWMClass=Hermes"]
+    rest = [line for line in lines if not line.startswith(("Exec=", "Icon="))]
+    exec_lines = [line[5:] for line in lines if line.startswith("Exec=")]
+    icon_lines = [line[5:] for line in lines if line.startswith("Icon=")]
+    expected_exec = [[str(root / "venv/bin/python"), "-m", "hermes_cli.main", "desktop"]]
+    if commands / "hermes" in owned:
+        expected_exec.append([str(commands / "hermes"), "desktop"])
+    try:
+        matching_exec = len(exec_lines) == 1 and shlex.split(exec_lines[0]) in expected_exec
+    except ValueError:
+        matching_exec = False
+    if rest == fixed and matching_exec and icon_lines in [["hermes"], [str(root / "apps/desktop/assets/icon.png")]]:
+        entry.unlink()
+
+for wrapper in owned:
+    wrapper.unlink()
+PYTHON
+
+  rm -rf "$hermes_root" "$hermes_home/bootstrap-cache" "$hermes_home/bin" "$hermes_home/node"
+
   for command in node npm npx; do
     link="$HOME/.local/bin/$command"
-
-    if [[ -L $link && $(readlink "$link") == "$HOME/.hermes"/* ]]; then
+    if [[ -L $link && $(readlink "$link") == "$hermes_home/node/"* ]]; then
       rm -f "$link"
     fi
   done
-
 fi
 
 # What survives to here is the user's: the chats, memories and skills in
@@ -73,12 +162,12 @@ fi
 # never owned, a yes takes that with it, and saying so is the prompt's job.
 # Without a terminal to ask in, keeping everything is the answer.
 data_removed=false
-if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]] && omarchy-cmd-present gum; then
+if [[ $cli_removed == "true" ]] && [[ -d $hermes_home || -d $HOME/.config/Hermes ]] && [[ -t 0 ]]; then
   # du answers non-zero when either directory is missing, and pipefail would
   # turn that into an aborted removal; the size is worth no such thing.
-  size=$(du -shc "$HOME/.hermes" "$HOME/.config/Hermes" 2>/dev/null | tail -1 | cut -f1 || true)
-  if gum confirm --default=false "Also delete ~/.hermes and ~/.config/Hermes ($size: chats, memories, skills, connections and tokens)?"; then
-    rm -rf "$HOME/.hermes" "$HOME/.config/Hermes"
+  size=$(du -shc "$hermes_home" "$HOME/.config/Hermes" 2>/dev/null | tail -1 | cut -f1 || true)
+  if gum confirm --default=false "Also delete $hermes_home and ~/.config/Hermes ($size: chats, memories, skills, connections and tokens)?"; then
+    rm -rf "$hermes_home" "$HOME/.config/Hermes"
     data_removed=true
   fi
 fi
@@ -86,14 +175,16 @@ fi
 echo ""
 echo "Hermes Desktop has been removed."
 if [[ $data_removed == true ]]; then
-  echo "Its chats, memories, and settings in ~/.hermes and ~/.config/Hermes are gone too."
-elif [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]]; then
-  echo "Your chats, memories, and skills are still in ~/.hermes,"
+  echo "Its chats, memories, and settings in $hermes_home and ~/.config/Hermes are gone too."
+elif [[ $runtime_kept == "true" ]]; then
+  echo "The Hermes runtime, launchers, and user data have been kept."
+elif [[ -d $hermes_home || -d $HOME/.config/Hermes ]]; then
+  echo "Your chats, memories, and skills are still in $hermes_home,"
   echo "and your connections and settings in ~/.config/Hermes."
 fi
 
-# The messages above still hold -- the app and its runtime are gone -- but a CLI
-# teardown that failed already said so on stderr, and that stands.
+# The package is gone; any retained runtime is explained above. A failed CLI
+# teardown still reaches the caller.
 if [[ $cli_removed == "false" ]]; then
   exit 1
 fi

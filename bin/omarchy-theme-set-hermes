@@ -16,7 +16,9 @@ HERMES_CONFIG_PATH="$HERMES_HOME/config.yaml"
 HERMES_SKIN_NAME="omarchy"
 # The command the readiness probe vets, rather than whichever hermes is on PATH.
 HERMES_COMMAND="$HOME/.local/bin/hermes"
-# Written by the desktop app once the runtime its first launch provisions is in.
+# Native installation owns its directory before setup finishes; only ready
+# means the desktop build is usable. Keep the legacy completion marker too.
+HERMES_DESKTOP_MARKER="$HERMES_HOME/hermes-agent/.omarchy-hermes-desktop"
 HERMES_BOOTSTRAP_MARKER="$HERMES_HOME/hermes-agent/.hermes-bootstrap-complete"
 HERMES_ACTIVATE=0
 HERMES_WAIT=0
@@ -75,7 +77,7 @@ fi
 # would start Hermes to answer, so poll for the marker instead.
 if (( HERMES_WAIT == 1 )); then
   waited=0
-  until [[ -f $HERMES_BOOTSTRAP_MARKER && -f $HERMES_CONFIG_PATH ]]; do
+  until [[ -f $HERMES_CONFIG_PATH ]] && { grep -qxF ready "$HERMES_DESKTOP_MARKER" 2>/dev/null || [[ ! -e $HERMES_DESKTOP_MARKER && -f $HERMES_BOOTSTRAP_MARKER ]]; }; do
     if (( waited >= HERMES_WAIT_LIMIT )); then
       echo "Hermes did not finish setting up within $((HERMES_WAIT_LIMIT / 60)) minutes; run omarchy-theme-set-hermes --activate once it has." >&2
       exit 0

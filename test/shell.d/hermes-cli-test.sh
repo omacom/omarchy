@@ -11,10 +11,45 @@ mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 mise_log="$test_tmp/mise-log"
 mkdir -p "$mock_bin" "$test_home/.local/bin"
+export OMARCHY_TEST_DESKTOP_LOG="$test_tmp/desktop-log"
 
 cat >"$mock_bin/omarchy-pkg-present" <<'SH'
 #!/bin/bash
 [[ ${OMARCHY_TEST_DESKTOP_INSTALLED:-0} == 1 ]]
+SH
+
+# The package's own runtime/build validation is tested in omarchy-pkgs. This
+# fixture exposes its public install/check contract to the Omarchy caller.
+cat >"$mock_bin/hermes-desktop" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_DESKTOP_LOG"
+root="${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+if [[ $1 == "--install" ]]; then
+  [[ ${OMARCHY_TEST_DESKTOP_FAIL:-0} == 0 ]] || exit 1
+  mkdir -p "$root/venv/bin" "$HOME/.local/bin"
+  cat >"$root/venv/bin/hermes" <<'HERMES'
+#!/bin/bash
+if [[ ${1:-} == "chat" && ${2:-} == "--help" ]]; then
+  [[ ${OMARCHY_TEST_HERMES_CAPABLE:-1} == 1 ]] && echo "[--query QUERY] [--tui]"
+else
+  echo "hermes-agent fixture"
+fi
+HERMES
+  chmod +x "$root/venv/bin/hermes"
+  printf '#!/bin/bash\nexec "%s/venv/bin/hermes" "$@"\n' "$root" >"$HOME/.local/bin/hermes"
+  chmod +x "$HOME/.local/bin/hermes"
+  echo ready >"$root/.omarchy-hermes-desktop"
+fi
+[[ ${OMARCHY_TEST_DESKTOP_CHECK_FAIL:-0} == 0 ]] || exit 1
+[[ -f $root/.omarchy-hermes-desktop || -f $root/.hermes-bootstrap-complete ]] &&
+  [[ -f $HOME/.local/bin/hermes && ! -L $HOME/.local/bin/hermes ]] &&
+  grep -qF "$root/" "$HOME/.local/bin/hermes"
+SH
+
+cat >"$mock_bin/pacman" <<'SH'
+#!/bin/bash
+[[ $* == '-Qlq hermes-desktop' ]] || exit 1
+[[ ${OMARCHY_TEST_DESKTOP_NATIVE:-1} == 1 ]] && echo '/usr/share/hermes-desktop/install.sh'
 SH
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
@@ -31,6 +66,10 @@ SH
 cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >>"$OMARCHY_TEST_MISE_LOG"
+if [[ ${OMARCHY_TEST_MISE_TRACK_REMOVAL:-0} == 1 ]]; then
+  if [[ $1 == "uninstall" ]]; then touch "$OMARCHY_TEST_MISE_ROOT/removed"; fi
+  if [[ $1 == "where" && -f $OMARCHY_TEST_MISE_ROOT/removed ]]; then exit 1; fi
+fi
 if [[ $1 == "where" && ${OMARCHY_TEST_MISE_WHERE_OK:-0} == 1 ]]; then
   printf '%s\n' "$OMARCHY_TEST_MISE_ROOT"
   exit 0
@@ -57,6 +96,7 @@ run_installer() {
     OMARCHY_TEST_MISE_WHERE_OK="${OMARCHY_TEST_MISE_WHERE_OK:-0}" \
     OMARCHY_TEST_MISE_ROOT="$test_tmp/mise" \
     OMARCHY_TEST_MISE_LOG="$mise_log" \
+    HERMES_HOME="${OMARCHY_TEST_HERMES_HOME:-$test_home/.hermes}" \
     HOME="$test_home" \
     PATH="$mock_bin:$PATH" \
     bash "$ROOT/bin/omarchy-install-hermes-cli" ${2:+"$2"} >/dev/null 2>&1
@@ -78,31 +118,117 @@ tr '\0' ' ' <"$mise_log" | grep -q "use -g --quiet uv" &&
   fail "writing the stub does not install uv"
 pass "writing the Hermes stub provisions nothing"
 
-# The desktop app owns Hermes, so our own stub must go rather than sit there
-# answering `hermes` until the app's bootstrap replaces it.
-printf '%s\n' "#!/bin/bash" "$stub_marker" >"$test_home/.local/bin/hermes"
-chmod +x "$test_home/.local/bin/hermes"
-run_installer 1 || true
-[[ ! -e $test_home/.local/bin/hermes ]] ||
-  fail "the desktop taking over removes the stub this command wrote"
-pass "installing the desktop app removes the CLI stub"
-
-# ...but the app's own hermes is not ours to delete.
-printf '%s\n' "$app_stub_body" >"$test_home/.local/bin/hermes"
-chmod +x "$test_home/.local/bin/hermes"
-run_installer 1 || true
-[[ -x $test_home/.local/bin/hermes ]] ||
-  fail "the desktop app's own hermes command survives"
-pass "the app's own hermes command is left alone"
-
-# A copy mise cannot vouch for is still a second Hermes.
+# Merely installing the package must not remove a working terminal install.
 printf '%s\n' "#!/bin/bash" "$stub_marker" >"$test_home/.local/bin/hermes"
 chmod +x "$test_home/.local/bin/hermes"
 : >"$mise_log"
-OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 1 || true
-tr '\0' '\n' <"$mise_log" | grep -q "uninstall" ||
-  fail "takeover removes a mise copy even when it is not healthy"
-pass "takeover removes an unhealthy mise copy"
+run_installer 1 && fail "a cold desktop is not ready"
+grep -qxF "$stub_marker" "$test_home/.local/bin/hermes" || fail "cold desktop preserves the marked wrapper"
+tr '\0' '\n' <"$mise_log" | grep -Eq '^(rm|uninstall)$' && fail "cold desktop removes no mise environment"
+pass "a cold desktop preserves the existing CLI"
+
+# A failed setup keeps the old CLI and its environment available for retry.
+OMARCHY_TEST_DESKTOP_FAIL=1 run_installer 1 --now && fail "failed native setup reaches the caller"
+grep -qxF "$stub_marker" "$test_home/.local/bin/hermes" || fail "failed setup preserves the old wrapper"
+tr '\0' '\n' <"$mise_log" | grep -Eq '^(rm|uninstall)$' && fail "failed setup removes no mise environment"
+pass "failed native setup preserves the old CLI"
+
+# --now records provenance before the package replaces the wrapper, then drops
+# the superseded environment only after the replacement answers both probes.
+mkdir -p "$test_tmp/mise"
+: >"$mise_log"
+: >"$OMARCHY_TEST_DESKTOP_LOG"
+OMARCHY_TEST_MISE_TRACK_REMOVAL=1 OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 1 --now || fail "native takeover succeeds"
+[[ -f $test_tmp/mise/removed ]] || fail "takeover removes the owned mise environment"
+grep -qx -- '--install' "$OMARCHY_TEST_DESKTOP_LOG" || fail "takeover installs the native package synchronously"
+[[ -x $test_home/.local/bin/hermes ]] || fail "the native replacement remains on PATH"
+grep -qxF "$stub_marker" "$test_home/.local/bin/hermes" && fail "takeover actually replaced the wrapper"
+pass "native takeover removes mise only after the replacement is ready"
+
+# Without an owned wrapper, the same mise spec might be the user's own setup.
+: >"$mise_log"
+OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 1 --now || fail "existing native install remains ready"
+tr '\0' '\n' <"$mise_log" | grep -Eq '^(rm|uninstall)$' && fail "unowned mise environment was removed"
+pass "native setup preserves an unowned mise environment"
+
+OMARCHY_TEST_DESKTOP_CHECK_FAIL=1 run_installer 1 --check && fail "CLI readiness must respect the package's desktop check"
+pass "a working CLI alone does not make an incomplete native desktop ready"
+
+: >"$OMARCHY_TEST_DESKTOP_LOG"
+OMARCHY_TEST_DESKTOP_NATIVE=0 run_installer 1 --check && fail "legacy package is not native-ready"
+OMARCHY_TEST_DESKTOP_NATIVE=0 run_installer 1 --now && fail "legacy package must be upgraded before native setup"
+[[ ! -s $OMARCHY_TEST_DESKTOP_LOG ]] || fail "unsupported flags must not reach the legacy desktop launcher"
+pass "mixed versions never invoke unsupported legacy desktop flags"
+
+OMARCHY_TEST_HERMES_HOME="$test_home/custom hermes" run_installer 1 --now || fail "native setup supports a custom data home"
+[[ -f "$test_home/custom hermes/hermes-agent/.omarchy-hermes-desktop" ]] || fail "native setup uses HERMES_HOME"
+OMARCHY_TEST_HERMES_HOME="$test_home/custom hermes" run_installer 1 --check || fail "readiness follows the custom data home"
+pass "native setup and readiness follow HERMES_HOME"
+
+# A package-only setup can replace the wrapper before this helper ever runs.
+# Its exact receipt carries the predecessor ownership through a retry.
+run_installer 1 --now || fail "the default native installation is ready for receipt checks"
+receipt_dir="$test_home/.hermes/hermes-agent/.git"
+receipt="$receipt_dir/omarchy-mise-predecessor"
+mkdir -p "$receipt_dir"
+printf '%s\n' 'pipx:hermes-agent[extras=all]' >"$receipt"
+: >"$mise_log"
+run_installer 1 --check || fail "readiness accepts a ready native install with pending cleanup"
+[[ -f $receipt && ! -s $mise_log ]] || fail "--check must not consume ownership or remove mise"
+pass "readiness leaves a pending predecessor receipt untouched"
+
+OMARCHY_TEST_DESKTOP_CHECK_FAIL=1 run_installer 1 && fail "an incomplete desktop is not ready for cleanup"
+OMARCHY_TEST_HERMES_CAPABLE=0 run_installer 1 && fail "an incapable CLI is not ready for cleanup"
+[[ -f $receipt && ! -s $mise_log ]] || fail "failed readiness must retain receipt and mise"
+pass "predecessor cleanup waits for both native readiness probes"
+
+OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 1 && fail "failed predecessor removal reaches the caller"
+[[ -f $receipt ]] || fail "failed cleanup must retain its ownership receipt"
+pass "failed predecessor cleanup retains proof for retry"
+
+rm -f "$test_tmp/mise/removed"
+: >"$mise_log"
+OMARCHY_TEST_MISE_TRACK_REMOVAL=1 OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 1 || fail "warm native setup retries predecessor cleanup"
+[[ ! -e $receipt && -f $test_tmp/mise/removed && -x $test_home/.local/bin/hermes ]] || fail "successful cleanup consumes the receipt and preserves the native wrapper"
+pass "warm native setup completes package-only predecessor cleanup"
+
+printf '%s\n' 'pipx:hermes-agent[extras=all]' >"$receipt"
+rm -f "$test_tmp/mise/removed"
+OMARCHY_TEST_MISE_TRACK_REMOVAL=1 OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 1 --now || fail "explicit setup consumes predecessor ownership"
+[[ ! -e $receipt && -f $test_tmp/mise/removed ]] || fail "explicit setup finishes receipt cleanup"
+pass "explicit setup also consumes a predecessor receipt"
+
+printf '%s\n\n' 'pipx:hermes-agent[extras=all]' >"$receipt"
+: >"$mise_log"
+run_installer 1 || fail "an invalid receipt does not prevent using a ready native install"
+[[ -f $receipt && ! -s $mise_log ]] || fail "a receipt must match exact bytes before cleanup"
+pass "a similar receipt cannot authorize mise cleanup"
+
+rm -f "$receipt"
+printf '%s\n' 'pipx:hermes-agent[extras=all]' >"$test_tmp/foreign-receipt"
+ln -s "$test_tmp/foreign-receipt" "$receipt"
+run_installer 1 || fail "a symlink receipt does not prevent using native Hermes"
+[[ -L $receipt && ! -s $mise_log ]] || fail "a receipt symlink cannot authorize cleanup"
+rm -f "$receipt"
+rmdir "$receipt_dir"
+mkdir "$test_tmp/foreign-git"
+printf '%s\n' 'pipx:hermes-agent[extras=all]' >"$test_tmp/foreign-git/omarchy-mise-predecessor"
+ln -s "$test_tmp/foreign-git" "$receipt_dir"
+run_installer 1 || fail "a symlink Git directory does not prevent using native Hermes"
+[[ -L $receipt_dir && ! -s $mise_log ]] || fail "a symlink Git directory cannot authorize cleanup"
+pass "receipt ownership excludes symlinks"
+
+# Uninstall is explicit removal, so receipt ownership is sufficient even with
+# the package gone. Failed cleanup must leave that proof available for retry.
+rm -f "$receipt_dir"
+mkdir "$receipt_dir"
+printf '%s\n' 'pipx:hermes-agent[extras=all]' >"$receipt"
+OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 0 --remove && fail "failed uninstall reports the retained predecessor"
+[[ -f $receipt && -x $test_home/.local/bin/hermes ]] || fail "failed uninstall retains receipt and native wrapper"
+rm -f "$test_tmp/mise/removed"
+OMARCHY_TEST_MISE_TRACK_REMOVAL=1 OMARCHY_TEST_MISE_WHERE_OK=1 run_installer 0 --remove || fail "uninstall can finish receipt cleanup without the package"
+[[ ! -e $receipt && -f $test_tmp/mise/removed && -x $test_home/.local/bin/hermes ]] || fail "explicit predecessor removal consumes receipt and preserves native wrapper"
+pass "explicit uninstall uses predecessor ownership and retains proof on failure"
 
 # --check answers about Hermes being usable, not about the venv appearing. The
 # venv exists from the python-deps stage, several stages before the command.
@@ -266,6 +392,7 @@ run_mise_check() {
     OMARCHY_TEST_MISE_LOG="$mise_log" \
     OMARCHY_TEST_MISE_X_HERMES=1 \
     OMARCHY_TEST_HERMES_CAPABLE="$1" \
+    HERMES_HOME="${OMARCHY_TEST_HERMES_HOME:-$test_home/.hermes}" \
     HOME="$test_home" \
     PATH="$mock_bin:$PATH" \
     bash "$ROOT/bin/omarchy-install-hermes-cli" --check >/dev/null 2>&1

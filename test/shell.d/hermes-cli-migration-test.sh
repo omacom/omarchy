@@ -19,6 +19,12 @@ cat >"$mock_bin/omarchy-pkg-present" <<'SH'
 [[ ${OMARCHY_TEST_DESKTOP_INSTALLED:-0} == 1 ]]
 SH
 
+cat >"$mock_bin/pacman" <<'SH'
+#!/bin/bash
+[[ $* == '-Qlq hermes-desktop' ]] || exit 1
+[[ ${OMARCHY_TEST_DESKTOP_NATIVE:-1} == 1 ]] && echo '/usr/share/hermes-desktop/install.sh'
+SH
+
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 #!/bin/bash
 ! command -v "$1" >/dev/null 2>&1
@@ -29,6 +35,13 @@ cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >>"$OMARCHY_TEST_MISE_LOG"
 [[ $1 != "where" ]]
+SH
+
+# Migration only checks readiness; it must not reach a real desktop launcher.
+cat >"$mock_bin/hermes-desktop" <<'SH'
+#!/bin/bash
+[[ $1 == "--check" ]] || exit 2
+exit 1
 SH
 
 chmod +x "$mock_bin"/*
@@ -69,18 +82,16 @@ run_migration 1 || fail "the migration succeeds when Hermes Desktop owns Hermes"
 [[ ! -e $hermes ]] || fail "the migration writes nothing when Hermes Desktop owns Hermes"
 pass "the migration stands aside for Hermes Desktop"
 
-# Standing aside is not the same as leaving a second Hermes behind: the wrapper
-# an earlier install wrote and the mise copy it points at both go when the
-# desktop app owns Hermes, even though the app has not finished setting up.
+# A cold desktop must preserve the old CLI until explicit native setup has
+# finished. Migration never provisions or removes an environment here.
 printf '%s\n' "#!/bin/bash" "$marker" >"$hermes"
 chmod +x "$hermes"
 : >"$mise_log"
-run_migration 1 || fail "the migration succeeds when Hermes Desktop owns Hermes and the old wrapper is present"
-[[ ! -e $hermes ]] || fail "the migration removes the Omarchy wrapper when Hermes Desktop owns Hermes"
+run_migration 1 || fail "the migration succeeds with an old wrapper and a cold desktop"
+grep -qxF "$marker" "$hermes" || fail "the migration preserves the old wrapper until native setup finishes"
 mise_calls=$(tr '\0' ' ' <"$mise_log")
-[[ $mise_calls == *"rm -g "* ]] || fail "the migration removes the global mise Hermes for Hermes Desktop"
-[[ $mise_calls == *"uninstall --all "* ]] || fail "the migration uninstalls the mise Hermes for Hermes Desktop"
-pass "the migration clears the old Omarchy Hermes for Hermes Desktop"
+[[ $mise_calls != *"rm -g "* && $mise_calls != *"uninstall --all "* ]] || fail "the migration preserves the old mise environment"
+pass "the migration preserves the CLI until native desktop setup finishes"
 
 # ...while anyone else's hermes stays exactly where it is, and is not run.
 foreign_ran="$test_tmp/foreign-ran"

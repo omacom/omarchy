@@ -55,7 +55,14 @@ seed_install() {
   ln -sf "$test_home/.hermes/node/bin/npm" "$test_home/.local/bin/npm"
   ln -sf /usr/bin/npx "$test_home/.local/bin/npx"
   printf 'node\n' >"$test_home/.hermes/node/bin/node"
-  touch "$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
+  printf '{"schemaVersion":1,"pinnedCommit":"e624e9fde561e1add9388384012b295fde669ade"}\n' >"$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
+  git init -q -b main "$test_home/.hermes/hermes-agent"
+  git -C "$test_home/.hermes/hermes-agent" remote add origin https://github.com/NousResearch/hermes-agent.git
+  printf '.omarchy-hermes-desktop\n.hermes-bootstrap-complete\n' >>"$test_home/.hermes/hermes-agent/.git/info/exclude"
+  echo upstream >"$test_home/.hermes/hermes-agent/README.md"
+  git -C "$test_home/.hermes/hermes-agent" add README.md
+  git -C "$test_home/.hermes/hermes-agent" -c user.name=Fixture -c user.email=fixture@example.invalid commit --quiet -m baseline
+  git -C "$test_home/.hermes/hermes-agent" update-ref refs/remotes/origin/main HEAD
 }
 
 # </dev/null pins stdin off a terminal, so these runs exercise the
@@ -69,6 +76,8 @@ remove() {
     OMARCHY_TEST_INSTALLER_STATUS="${OMARCHY_TEST_INSTALLER_STATUS:-0}" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
+    HERMES_HOME="${OMARCHY_TEST_HERMES_HOME:-$test_home/.hermes}" \
+    XDG_DATA_HOME="$test_home/.local/share" \
     HOME="$test_home" PATH="$mock_bin:$PATH" \
     bash "$ROOT/bin/omarchy-remove-ai-hermes" </dev/null >/dev/null 2>&1
 }
@@ -84,13 +93,15 @@ remove_tty() {
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     OMARCHY_TEST_GUM_STATUS="${OMARCHY_TEST_GUM_STATUS:-1}" \
+    HERMES_HOME="${OMARCHY_TEST_HERMES_HOME:-$test_home/.hermes}" \
+    XDG_DATA_HOME="$test_home/.local/share" \
     HOME="$test_home" PATH="$mock_bin:$PATH" \
     script -qec "bash '$ROOT/bin/omarchy-remove-ai-hermes'" /dev/null >/dev/null 2>&1
 }
 
 # The app brings its own uv and its own node; both are runtime, not data.
 seed_install
-printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
+printf '%s\n' '#!/usr/bin/env bash' 'unset PYTHONPATH' 'unset PYTHONHOME' "exec \"$test_home/.hermes/hermes-agent/venv/bin/python\" \"$test_home/.hermes/hermes-agent/hermes\" \"\$@\"" \
   >"$test_home/.local/bin/hermes"
 remove || fail "remove succeeds"
 [[ ! -d $test_home/.hermes/hermes-agent ]] || fail "the runtime checkout is removed"
@@ -149,7 +160,7 @@ pass "removal leaves a hermes it does not own"
 seed_install
 rm -f "$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
 printf 'my local edit\n' >"$test_home/.hermes/hermes-agent/PATCH"
-printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
+printf '%s\n' '#!/usr/bin/env bash' 'unset PYTHONPATH' 'unset PYTHONHOME' "exec \"$test_home/.hermes/hermes-agent/venv/bin/python\" \"$test_home/.hermes/hermes-agent/hermes\" \"\$@\"" \
   >"$test_home/.local/bin/hermes"
 remove || fail "remove succeeds when the app never finished installing Hermes"
 # The stranded pre-desktop CLI is exactly the interrupted-install case, so the
@@ -219,13 +230,159 @@ OMARCHY_TEST_GUM_STATUS=0 remove_tty ||
   fail "a yes takes ~/.hermes whole when the marker never appeared"
 pass "removal honors a yes on the named paths without the marker"
 
-# A CLI teardown that fails must not stop the runtime handling, and must not be
-# papered over either: the data work still happens, and the failure reaches the
-# caller's exit code.
+# A failed CLI teardown retains the runtime and its ownership receipt so a
+# later retry still has the evidence needed to remove the predecessor.
 seed_install
-printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
+printf '%s\n' '#!/usr/bin/env bash' 'unset PYTHONPATH' 'unset PYTHONHOME' "exec \"$test_home/.hermes/hermes-agent/venv/bin/python\" \"$test_home/.hermes/hermes-agent/hermes\" \"\$@\"" \
   >"$test_home/.local/bin/hermes"
 OMARCHY_TEST_INSTALLER_STATUS=1 remove && fail "a failed CLI teardown surfaces in the exit code"
-[[ ! -d $test_home/.hermes/hermes-agent ]] ||
-  fail "a failed CLI teardown does not stop the runtime removal"
-pass "a failed CLI teardown is reported after the runtime is handled"
+[[ -d $test_home/.hermes/hermes-agent && -f $test_home/.local/bin/hermes ]] ||
+  fail "a failed CLI teardown preserves the runtime and launcher for retry"
+pass "a failed CLI teardown retains the runtime for retry"
+
+seed_native() {
+  seed_install
+  native_home=${1:-$test_home/.hermes}
+  if [[ $native_home != "$test_home/.hermes" ]]; then
+    mv "$test_home/.hermes" "$native_home"
+  fi
+  native_root="$native_home/hermes-agent"
+  rm -f "$native_root/.hermes-bootstrap-complete"
+  echo ready >"$native_root/.omarchy-hermes-desktop"
+  for name in hermes hermes-agent hermes-acp; do
+    case "$name" in
+      hermes) args="\"$native_root/hermes\"" ;;
+      hermes-agent) args="\"$native_root/run_agent.py\"" ;;
+      hermes-acp) args="\"$native_root/hermes\" acp" ;;
+    esac
+    printf '%s\n' '#!/usr/bin/env bash' 'unset PYTHONPATH' 'unset PYTHONHOME' \
+      "exec \"$native_root/venv/bin/python\" $args \"\$@\"" >"$test_home/.local/bin/$name"
+  done
+  desktop_entry="$test_home/.local/share/applications/hermes.desktop"
+  mkdir -p "$(dirname "$desktop_entry")"
+  cat >"$desktop_entry" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Hermes
+GenericName=Hermes Desktop
+Comment=Launch Hermes Desktop
+Exec="$test_home/.local/bin/hermes" desktop
+Icon=hermes
+Terminal=false
+Categories=Utility;
+StartupNotify=true
+StartupWMClass=Hermes
+EOF
+}
+
+seed_native
+remove || fail "native removal succeeds"
+[[ ! -e $native_root && ! -e $desktop_entry ]] || fail "native runtime and generated desktop entry are removed"
+for name in hermes hermes-agent hermes-acp; do
+  [[ ! -e $test_home/.local/bin/$name ]] || fail "generated $name wrapper is removed"
+done
+[[ -f $native_home/sessions/one.json ]] || fail "native removal retains user data"
+pass "native runtime removal clears generated launchers and retains data"
+
+seed_native
+echo pending >"$native_root/.omarchy-hermes-desktop"
+remove || fail "interrupted native setup can be removed"
+[[ ! -e $native_root ]] || fail "the owned partial runtime is removed"
+pass "native removal also handles an interrupted setup"
+
+seed_native
+printf '# custom wrapper mentioning %s\n' "$native_root" >>"$test_home/.local/bin/hermes"
+remove || fail "native removal tolerates customized launchers"
+[[ -e $test_home/.local/bin/hermes && -e $desktop_entry ]] || fail "custom wrapper and its desktop entry are preserved"
+pass "native removal preserves a customized wrapper even when it targets this runtime"
+
+seed_native
+sed -i 's/^Icon=hermes$/Icon=my-custom-icon/' "$desktop_entry"
+remove || fail "native removal tolerates a customized desktop entry"
+[[ -e $desktop_entry ]] || fail "a customized desktop icon is preserved"
+pass "native removal preserves a customized desktop entry"
+
+seed_native "$test_home/custom hermes"
+mkdir -p "$test_home/.hermes/hermes-agent"
+echo keep >"$test_home/.hermes/hermes-agent/unrelated"
+OMARCHY_TEST_HERMES_HOME="$native_home" remove || fail "native removal supports a custom data home"
+[[ ! -e $native_root && ! -e $desktop_entry ]] || fail "custom native runtime and launcher are removed"
+[[ -f $native_home/sessions/one.json && -f $test_home/.hermes/hermes-agent/unrelated ]] || fail "custom removal preserves user data and the default home"
+pass "native removal follows HERMES_HOME and leaves other installations alone"
+
+seed_install
+git -C "$test_home/.hermes/hermes-agent" remote set-url origin https://github.com/example/hermes-agent.git
+remove || fail "removal succeeds with a foreign checkout"
+[[ -d $test_home/.hermes/hermes-agent ]] || fail "a legacy marker with a foreign remote is preserved"
+pass "legacy removal requires known package provenance"
+
+seed_native
+echo 'local edit' >>"$native_root/README.md"
+remove || fail "native removal tolerates a development checkout"
+[[ -f $native_root/README.md && -f $test_home/.local/bin/hermes && -f $desktop_entry ]] || fail "local changes retain the runtime and launchers"
+grep -qF 'local edit' "$native_root/README.md" || fail "local source edits survive"
+pass "native removal preserves source edits and their launchers"
+
+seed_native
+echo 'new source' >"$native_root/local.py"
+remove || fail "native removal tolerates untracked source"
+[[ -f $native_root/local.py && -f $test_home/.local/bin/hermes ]] || fail "untracked work retains runtime and launchers"
+pass "native removal preserves untracked source"
+
+seed_native
+external_worktree="$test_tmp/external-worktree"
+git -C "$native_root" worktree add --quiet --detach "$external_worktree"
+remove || fail "native removal tolerates an external worktree"
+[[ -d $native_root/.git && -f $desktop_entry && -f $test_home/.local/bin/hermes ]] || fail "linked worktrees retain Git metadata and launchers"
+git -C "$external_worktree" status --porcelain >/dev/null || fail "the external worktree's Git metadata remains usable"
+pass "native removal preserves metadata used by another worktree"
+
+seed_native
+external_runtime="$test_tmp/external-runtime"
+mv "$native_root" "$external_runtime"
+ln -s "$external_runtime" "$native_root"
+remove || fail "native removal tolerates a symlinked runtime"
+[[ -L $native_root && -f $external_runtime/README.md && -f $test_home/.local/bin/hermes && -f $desktop_entry ]] || fail "symlinked runtime and launchers are retained"
+pass "native removal preserves a symlinked runtime"
+
+seed_native
+echo 'committed local work' >>"$native_root/README.md"
+git -C "$native_root" add README.md
+git -C "$native_root" -c user.name=Fixture -c user.email=fixture@example.invalid commit --quiet -m 'local work'
+local_head=$(git -C "$native_root" rev-parse HEAD)
+remove || fail "native removal tolerates unpublished commits"
+[[ -f $test_home/.local/bin/hermes && -f $desktop_entry ]] || fail "unpublished commits retain their launchers"
+[[ $(git -C "$native_root" rev-parse HEAD) == "$local_head" ]] || fail "clean unpublished history is retained"
+pass "native removal preserves clean unpublished commits"
+
+seed_native
+git -C "$native_root" branch my-local-branch
+remove || fail "native removal tolerates an unpublished branch"
+git -C "$native_root" show-ref --verify --quiet refs/heads/my-local-branch || fail "an unpushed branch is retained even at a published commit"
+[[ -f $test_home/.local/bin/hermes ]] || fail "an unpublished branch retains its launcher"
+pass "native removal preserves a local branch at a published commit"
+
+seed_native
+echo 'stashed work' >>"$native_root/README.md"
+git -C "$native_root" -c user.name=Fixture -c user.email=fixture@example.invalid stash push --quiet
+remove || fail "native removal tolerates stashed work"
+git -C "$native_root" show-ref --verify --quiet refs/stash || fail "stashed work survives removal"
+[[ -f $desktop_entry ]] || fail "stashed work retains its launcher"
+pass "native removal preserves stashed work"
+
+seed_native
+printf '%s\n' 'pipx:hermes-agent[extras=all]' >"$native_root/.git/omarchy-mise-predecessor"
+OMARCHY_TEST_INSTALLER_STATUS=1 remove && fail "failed native predecessor cleanup reaches the caller"
+[[ -f $native_root/.git/omarchy-mise-predecessor && -f $desktop_entry && -f $test_home/.local/bin/hermes ]] || fail "failed cleanup preserves native runtime ownership and launchers"
+[[ -f $native_home/sessions/one.json ]] || fail "failed cleanup retains user data"
+pass "failed native predecessor cleanup preserves the receipt for retry"
+
+OMARCHY_TEST_INSTALLER_STATUS=1 OMARCHY_TEST_GUM_STATUS=0 remove_tty && fail "failed cleanup is reported on a terminal too"
+[[ ! -s $test_tmp/gum-log && -f $native_root/.git/omarchy-mise-predecessor && -f $native_home/sessions/one.json ]] || fail "failed cleanup must not offer to delete its receipt and user data"
+pass "failed predecessor cleanup skips the data deletion question"
+
+seed_native
+git -C "$native_root" update-ref -d refs/remotes/origin/main
+remove || fail "native removal tolerates missing publication evidence"
+[[ -f $native_root/README.md && -f $desktop_entry ]] || fail "unknown local history is retained without a fetched remote"
+pass "native removal requires evidence that local history is published"
