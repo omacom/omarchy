@@ -1,7 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Restart the Omarchy shell
+# omarchy:args=[--force]
 # omarchy:examples=omarchy restart shell
+
+force=0
+if [[ ${1:-} == --force ]]; then
+  force=1
+  shift
+fi
 
 # A caller opened after dev link/unlink may disagree with the still-running
 # desktop. The user manager receives Hyprland's environment at session start.
@@ -29,8 +36,16 @@ relock=0
 if omarchy-hyprland-session-locked; then
   locking=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
     jq -r '.secure or .requested' 2>/dev/null)
-  if [[ $locking == "true" ]]; then
+  # A wedged shell keeps answering IPC with the lock state it last reached, so
+  # a locker that has already died still reports the lock secure. That is the
+  # failsafe case this guard exists to allow through, and it is indistinguishable
+  # from a healthy locker over IPC -- the wedge is in the event loop, not the IPC
+  # thread. Let someone looking at the failsafe say so.
+  if [[ $locking == "true" ]] && (( ! force )); then
     echo "Refusing to restart Omarchy shell while the session is locked." >&2
+    echo "If the lock screen is dead and Hyprland's failsafe is on screen, that" >&2
+    echo "state is stale: re-run with --force to restart and re-lock, then" >&2
+    echo "authenticate as usual." >&2
     exit 1
   fi
   relock=1
