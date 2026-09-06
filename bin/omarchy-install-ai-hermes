@@ -21,6 +21,12 @@ omarchy-install-hermes-cli || true
 echo "Opening Hermes Desktop..."
 setsid uwsm-app -- /usr/bin/hermes-desktop >/dev/null 2>&1 &
 
+# Only a running Hermes can be told which skin to show, and the first launch
+# takes minutes; a unit outlives this terminal and reports to the journal.
+echo "Matching Hermes to the current theme once it is set up..."
+systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
+systemd-run --user --quiet --collect --unit=omarchy-hermes-theme omarchy-theme-set-hermes --wait
+
 echo ""
 echo "Hermes Desktop has been installed."
 echo "Its first launch installs the Hermes runtime, which takes a few minutes."
