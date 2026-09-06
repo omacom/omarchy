@@ -1,6 +1,6 @@
 # The Top Bar
 
-The strip along the top of your screen is the Omarchy bar. It's not a bolted-on status bar but part of the Omarchy shell, the single long-running Quickshell process that also draws the menu, the notifications, the OSD popups, and the lock screen. That's why it themes perfectly with everything else and why a panel opens instantly instead of spawning a new app.
+The strip along the top of your screen is the Omarchy bar. It's not a bolted-on status bar but part of the Omarchy shell, the single long-running Quickshell process that also draws the menu, the notifications, and the OSD popups. That's why it themes perfectly with everything else and why a panel opens instantly instead of spawning a new app.
 
 It's also the one piece of the desktop that's always on screen, so it's worth knowing what all those little glyphs do.
 

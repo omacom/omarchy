@@ -45,7 +45,7 @@ ShellRoot {
     repeat: false
     onTriggered: {
       try {
-        var component = Qt.createComponent("file://" + root.rootPath + "/shell/plugins/lock/LockView.qml", Component.PreferSynchronous)
+        var component = Qt.createComponent("file://" + root.rootPath + "/shell/lock/LockView.qml", Component.PreferSynchronous)
         if (component.status !== Component.Ready) {
           root.fail("LockView failed to load: " + component.errorString())
           return

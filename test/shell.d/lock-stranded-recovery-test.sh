@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const fs = require('fs')
-const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.qml'), 'utf8')
+const serviceQml = fs.readFileSync(path.join(root, 'shell/lock/Service.qml'), 'utf8')
 
 // The compositor holds the lock past its client, so a fresh shell must retake it.
 assert(

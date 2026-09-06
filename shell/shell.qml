@@ -1016,9 +1016,7 @@ ShellRoot {
     return !!(manifest && manifest.keepLoaded === true)
   }
 
-  // keepLoaded services (lock, idle, polkit) must survive plugin hot-reload.
-  // Destroying omarchy.lock drops the ext-session-lock client while Hyprland
-  // still holds the lock, which surfaces the crashed-lockscreen fallback.
+  // keepLoaded services (idle, polkit) must survive plugin hot-reload.
   function unloadPluginServices() {
     var next = ({})
     for (var existingId in _services) {

@@ -2,12 +2,22 @@
 
 A single long-running [Quickshell](https://quickshell.org/) instance
 that hosts the Omarchy desktop. The bar, panels, overlays, menus, and
-services all run inside as plugins. Hyprland autostart launches the
+services run inside as plugins, except for the independent locker. Hyprland autostart launches the
 shell via `omarchy-launch-shell`; restart it with `omarchy-restart-shell`.
 IPC is the canonical way for CLIs to talk to a running shell —
 `omarchy-shell` forwards a call and fails when the shell is not running
 (`-q` makes it quiet best-effort; `OMARCHY_SHELL_IPC_TIMEOUT` bounds the
 wait).
+
+## Locker process
+
+`shell/lock.qml` loads the existing lock surface and authentication code from `shell/lock/`, using the same `qs.Commons` and `qs.Ui` modules as the desktop. It has no plugin registry. Hyprland launches it alongside the main shell with `omarchy-launch-shell --lock`; each invocation supervises only its own process, and the locker logs under `omarchy-lock`.
+
+`omarchy-shell lock ...` routes directly to the locker, so lock, status, preview, idle locking, and suspend locking keep their command interface even when the main shell is down. Theme calls (`shell applyTheme` and `background themeTransition`) also forward their payload to the locker. No polling or second copy of the bar/plugins is added. Idle scheduling remains in the main shell.
+
+`omarchy-restart-shell` only kills the main configuration. It starts a missing locker without replacing an existing instance and waits for it before stopping the shell. If the compositor is locked, the independent locker must confirm secure ownership first; this also retains recovery of an orphaned compositor lock. During an upgrade it checks the old main configuration for an integrated locker and refuses to kill an active or pending lock. Unlock before the first restart from that older version. No user-state migration is needed: startup defaults are package-owned, and a normal unlocked shell restart starts the separate locker.
+
+The lock screen is session infrastructure rather than a loadable shell plugin. Its code is not reloaded by plugin rescans or main-shell restarts; locker code updates take effect on the next graphical login. It still uses Quickshell's native `WlSessionLock`, `omarchy-lock-password` for password authentication, and `omarchy-lock-fingerprint` when fingerprints are enrolled. The separate Qt/QML engine adds some memory overhead; only modules used by the locker are loaded, and its existing timers and lazy lock surfaces are unchanged.
 
 ## Plugin manifest
 
@@ -37,7 +47,7 @@ wait).
 
 Only one full bar option is active at a time. The built-in `omarchy.bar` is
 used when `bar.id` is omitted or when a selected third-party bar cannot load.
-Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). First-party services are loaded at startup.
+Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (preserving their in-memory state). First-party services are loaded at startup.
 
 Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
 

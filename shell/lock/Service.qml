@@ -8,9 +8,6 @@ import qs.Commons
 Item {
   id: root
 
-  property var shell: null
-  property string omarchyPath: ""
-
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
@@ -579,6 +576,17 @@ Item {
 
   IpcHandler {
     target: "lock"
+
+    function applyTheme(colorsB64: string, shellB64: string): string {
+      var colorsRaw = ""
+      var shellRaw = ""
+      try { colorsRaw = Qt.atob(String(colorsB64 || "")) } catch (e) { colorsRaw = "" }
+      try { shellRaw = Qt.atob(String(shellB64 || "")) } catch (e2) { shellRaw = "" }
+      Color.loadColors(colorsRaw)
+      Color.loadShell(shellRaw)
+      Style.scheduleRefresh()
+      return "ok"
+    }
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
