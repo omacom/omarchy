@@ -209,6 +209,19 @@ hl.monitor({ output = "eDP-1"; position = "0x0"; scale = 1.25; transform = 1 })
 LUA
 }
 
+# A numeric omarchy_monitor_scale local that no rule references, the shape left
+# behind when the catch-all rule is commented out to hand the layout to an
+# external manager (hyprmoncfg, kanshi, nwg-displays).
+write_unreferenced_scale_local_config() {
+  cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 2
+local omarchy_monitor_scale = 1.6
+
+hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
+-- hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+LUA
+}
+
 remember_scale() {
   mkdir -p "$state_dir"
   printf '%s\n' "$1" >"$scale_state"
@@ -243,6 +256,26 @@ write_default_auto_config
 OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
 ! grep -F 'scale = ' "$eval_log" >/dev/null || fail "clamshell recovery leaves the shipped auto default alone"
 pass "clamshell recovery leaves the shipped auto default alone"
+
+# Regression: an omarchy_monitor_scale local that no rule references is not a
+# configured scale. Reading it as one made clamshell force that number over the
+# layout an external monitor manager owns, on every idle-wake -- the same flap
+# #7265 fixed for "auto", reached through a numeric local instead.
+write_unreferenced_scale_local_config
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=1.33333 run_clamshell
+! grep -F 'scale = ' "$eval_log" >/dev/null || fail "clamshell leaves a panel alone when no rule names a scale"
+pass "clamshell leaves a panel alone when no rule names a scale"
+
+# The same config with the panel off still needs a number, and takes it from
+# the remembered scale rather than the unreferenced local.
+write_unreferenced_scale_local_config
+remember_scale 1.33333
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'scale = 1.33333' "$eval_log" >/dev/null || fail "clamshell recovery prefers the remembered scale over an unreferenced local"
+! grep -F 'scale = 1.6' "$eval_log" >/dev/null || fail "clamshell recovery does not use an unreferenced local"
+pass "clamshell recovery prefers the remembered scale over an unreferenced local"
 
 # A numeric config keeps both sync behaviors: a matching active scale is not
 # reapplied, and a drifted one is corrected back to the configured value.

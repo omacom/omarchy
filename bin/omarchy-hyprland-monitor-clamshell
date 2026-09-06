@@ -101,8 +101,13 @@ configured_monitor_scale() {
   # to nothing usable. Only a rule that names none at all defers to the catch-all,
   # which is the scale Omarchy has always applied for that config.
   [[ -n $scale ]] || scale=$(configured_monitor_value "" scale)
-  # No rule carries a scale at all: fall back to Omarchy's own knob.
-  [[ -n $scale ]] || scale=$(lua_local_value omarchy_monitor_scale)
+  # No rule names a scale for this output, so the config does not configure one.
+  # A leftover omarchy_monitor_scale local that no rule references is not a
+  # configured scale: reading it as one makes clamshell force that number over
+  # whatever owns the layout -- an external manager, or the compositor itself --
+  # on every idle-wake, which is the flap #7265 fixed for "auto". Leave the
+  # panel alone; a panel that is off still gets a number from the remembered
+  # scale in read_monitor_scale.
 
   printf '%s\n' "$scale"
 }
