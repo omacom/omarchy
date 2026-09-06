@@ -166,8 +166,8 @@ assert_no_calls() {
 
 assert_config() {
   [[ -f $audio_config ]] || fail "$1 writes the configuration"
-  grep -qx 'options snd_hda_intel power_save=0 power_save_controller=N' "$audio_config" ||
-    fail "$1 disables both verified HDA power-saving settings"
+  grep -qx 'options snd_hda_intel power_save=0' "$audio_config" ||
+    fail "$1 disables codec power saving without overriding controller policy"
   [[ $(stat -c %a "$audio_config") == "644" ]] || fail "$1 installs mode 644"
 }
 
