@@ -33,7 +33,70 @@ function connectionIcon(kind, signalStrength, connectivity) {
   var restricted = connectivity === "portal" || connectivity === "limited"
   if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
   if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
+  // Cellular has no separate blocked glyph yet; the signal bars stand in
+  // either way, and the hero meta carries the restriction state.
+  if (kind === "wwan") return wwanIconFor(signalStrength)
   return "󰤮"
+}
+
+// Cellular signal bars, mirroring wifiIconFor's five steps. ModemManager
+// reports percent signal quality on the same 0-100 scale as NM's Wi-Fi
+// SIGNAL, so the bucketing carries over unchanged.
+function wwanIconFor(strength) {
+  var icons = ["󰣽", "󰣴", "󰣶", "󰣸", "󰣺"]
+  var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
+  return icons[index]
+}
+
+// ModemManager access-technology names -> the marketing labels people
+// expect beside the carrier name.
+function accessTechLabel(tech) {
+  var value = String(tech || "").toLowerCase()
+  if (value === "nr5g" || value === "5gnr" || value === "5g") return "5G"
+  if (value === "lte" || value === "lte-a" || value === "4g") return "4G"
+  if (value === "umts" || value === "hsdpa" || value === "hsupa" || value === "hspa" || value === "3g") return "3G"
+  if (value === "gsm" || value === "edge" || value === "gprs" || value === "2g") return "2G"
+  return ""
+}
+
+// Output of the wwan probe script (wwanStatusScript): one tab-separated
+// `wwan` header line followed by one `profile` line per GSM connection
+// profile. Empty input means no modem (or no mmcli) -- the panel then
+// reports cellular as simply unavailable.
+function parseWwanStatus(raw) {
+  var status = {
+    available: false,
+    state: "",
+    signal: -1,
+    tech: "",
+    operator: "",
+    radio: "",
+    netdev: "",
+    profiles: []
+  }
+  var lines = String(raw || "").replace(/\r?\n+$/, "").split("\n")
+
+  for (var i = 0; i < lines.length; i++) {
+    var parts = lines[i].split("\t")
+    if (parts[0] === "wwan" && parts.length >= 7) {
+      status.available = true
+      status.state = parts[1] || ""
+      status.signal = parts[2] !== "" ? parseInt(parts[2], 10) : -1
+      status.tech = parts[3] || ""
+      status.operator = parts[4] || ""
+      status.radio = parts[5] || ""
+      status.netdev = parts[6] || ""
+    } else if (parts[0] === "profile" && parts.length >= 4) {
+      status.profiles.push({
+        name: parts[1] || "",
+        uuid: parts[2] || "",
+        active: parts[3] === "yes"
+      })
+    }
+  }
+
+  status.profiles.sort(function(a, b) { return a.active === b.active ? 0 : (a.active ? -1 : 1) })
+  return status
 }
 
 function formatHeaderSpeed(mbps) {
@@ -57,11 +120,24 @@ function formatHeaderFreq(mhz) {
 }
 
 // Wi-Fi band state belongs in the selector section, not beside the hero name.
-// Ethernet has no equivalent selector, so keep its negotiated link speed here.
+// Ethernet has no equivalent selector, so keep its negotiated link speed here;
+// cellular shows its access technology and signal instead.
 function headerDetail(info) {
   var value = info || {}
   if (value.type === "ethernet") return formatHeaderSpeed(value.speed || "")
+  if (value.type === "wwan") return wwanDetail(value)
   return ""
+}
+
+// "4G · 68%" beside the hero name -- the access technology is the cellular
+// equivalent of the wired link speed that rides the header there. The fields
+// are pinned onto `info` by the panel when the routed interface is the modem.
+function wwanDetail(value) {
+  var parts = []
+  var tech = accessTechLabel(value.wwan_tech) || String(value.wwan_tech || "").toUpperCase()
+  if (tech) parts.push(tech)
+  if (value.wwan_signal !== undefined && value.wwan_signal >= 0) parts.push(value.wwan_signal + "%")
+  return parts.join(" · ")
 }
 
 function bandLabel(band) {
@@ -341,6 +417,25 @@ var enterpriseConnectScript =
   " && nmcli connection up uuid \"$u\"" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
+// One-shot cellular probe, same shape as enterpriseConnectScript above.
+// mmcli carries modem-wide truth (registration, signal quality, access
+// technology, operator); nmcli carries the radio kill switch and the GSM
+// connection profiles. Emits a `wwan` header line then one `profile` line
+// per profile; prints nothing at all when there is no modem (or no mmcli),
+// which parseWwanStatus reads as "unavailable". Profile lines are split
+// from the right so an escaped colon inside a profile name cannot
+// misalign the UUID/active fields.
+var wwanStatusScript =
+  "m=$(mmcli -J -m any 2>/dev/null); " +
+  "dev=$(nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2 == \"gsm\" { print $1; exit }'); " +
+  "[ -n \"$m\" ] || [ -n \"$dev\" ] || exit 0; " +
+  "radio=$(nmcli -t -f wwan radio 2>/dev/null); " +
+  "if [ -n \"$m\" ] && vals=$(printf '%s' \"$m\" | jq -r '[(.modem.generic.state // \"\"), (.modem.generic[\"signal-quality\"].value // -1), (.modem.generic[\"access-technologies\"][0] // \"\"), ((.modem[\"3gpp\"][\"operator-name\"] // .modem[\"3gpp\"][\"operator-code\"]) // \"\")] | @tsv' 2>/dev/null) && [ -n \"$vals\" ]; then " +
+  "printf 'wwan\\t%s\\t%s\\t%s\\n' \"$vals\" \"$radio\" \"$dev\"; " +
+  "else " +
+  "printf 'wwan\\t\\t\\t\\t\\t%s\\t%s\\n' \"$radio\" \"$dev\"; fi; " +
+  "nmcli -t -f NAME,UUID,ACTIVE,TYPE connection show 2>/dev/null | awk '$0 ~ /:gsm$/ { line=$0; sub(/:gsm$/, \"\", line); active=line; sub(/^.*:/, \"\", active); sub(/:[^:]*$/, \"\", line); uuid=line; sub(/^.*:/, \"\", uuid); sub(/:[^:]*$/, \"\", line); name=line; gsub(/\\\\:/, \":\", name); printf \"profile\\t%s\\t%s\\t%s\\n\", name, uuid, active }'"
+
 function networkFailureReason(reason, needsCredentials, reasons) {
   var r = reasons || {}
   if (needsCredentials && reason === r.NoSecrets) return "Passphrase required"
@@ -366,10 +461,10 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
 if (typeof module !== "undefined") {
   module.exports = {
     parseNetworkStatus: parseNetworkStatus,
-    wifiIconFor: wifiIconFor,
-    connectionIcon: connectionIcon,
     connectivityState: connectivityState,
     captivePortalUrl: captivePortalUrl,
+    wifiIconFor: wifiIconFor,
+    connectionIcon: connectionIcon,
     formatHeaderSpeed: formatHeaderSpeed,
     formatHeaderFreq: formatHeaderFreq,
     headerDetail: headerDetail,
@@ -378,6 +473,11 @@ if (typeof module !== "undefined") {
     bandTooltip: bandTooltip,
     parseBandStatus: parseBandStatus,
     decodeIwSsid: decodeIwSsid,
+    wwanIconFor: wwanIconFor,
+    accessTechLabel: accessTechLabel,
+    parseWwanStatus: parseWwanStatus,
+    wwanDetail: wwanDetail,
+    wwanStatusScript: wwanStatusScript,
     parseKeyValue: parseKeyValue,
     throughputState: throughputState,
     pingLatencyState: pingLatencyState,

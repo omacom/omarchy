@@ -82,6 +82,19 @@ Panel {
   property string bandSelected: "auto"
   property var bandAvailable: []
   property string pendingBand: ""
+  // ---- Cellular / WWAN -------------------------------------------------
+  // Quickshell's Networking service cannot see modem devices (DeviceType
+  // covers Wifi and Wired only), so cellular state comes from a polled
+  // mmcli/nmcli probe (Model.wwanStatusScript). The poll also runs while
+  // the panel is closed, at a slower cadence, so the bar pill tracks the
+  // modem. Profiles are pre-created with nmcli; the panel connects and
+  // disconnects them but never edits APN or SIM settings.
+  property var wwan: ({ available: false, profiles: [] })
+  // In-flight cellular action: the profile UUID being connected, "device"
+  // while the data bearer is being dropped, or "radio" while the modem's
+  // kill switch is toggling. Serializes against itself only.
+  property string wwanAction: ""
+  property int wwanIndex: -1
 
   // Per-row in-flight state. `actionSsid` flips on for the row whose action
   // is currently running so it can render "Connecting…" / "Disconnecting…" /
@@ -119,9 +132,9 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
+  // header actions ⇄ portal ⇄ band ⇄ DNS ⇄ cellular ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "cellular" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -130,14 +143,21 @@ Panel {
   // radio to switch. On a wired box it would otherwise sit there reading
   // "off" beside a perfectly live Ethernet connection.
   readonly property bool canToggleWifi: networkManagerAvailable && wifiStationAvailable
+  // Cellular twin of the radio switch: only when a modem answered.
+  readonly property bool canToggleWwan: networkManagerAvailable && wwanAvailable
   readonly property int qrHeaderIndex: canShareWifi ? 0 : -1
   readonly property int speedHeaderIndex: canRunSpeedTest ? (canShareWifi ? 1 : 0) : -1
   readonly property int toggleHeaderIndex: canToggleWifi ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
-  readonly property int headerActionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0)
+  // The cellular radio switch takes the last hero slot; same visibility
+  // rule as the Wi-Fi one — only when there is a modem to switch.
+  readonly property int wwanToggleHeaderIndex: canToggleWwan ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0) : -1
+  readonly property int headerActionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0) + (canToggleWwan ? 1 : 0)
   readonly property bool qrHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === qrHeaderIndex
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
+  readonly property bool wwanHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === wwanToggleHeaderIndex
   readonly property string toggleHint: Networking.wifiEnabled ? "Turn Wi-Fi off" : "Turn Wi-Fi on"
+  readonly property string wwanToggleHint: wwan.radio === "enabled" ? "Turn cellular off" : "Turn cellular on"
   readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
@@ -207,6 +227,45 @@ Panel {
     Qt.callLater(function() { root.refresh(true) })
   }
 
+  // ---- Cellular actions (nmcli; the native service cannot reach modems) --
+
+  function toggleWwan() {
+    if (!networkManagerAvailable || wwanAction !== "") return
+    wwanAction = "radio"
+    wwanActionProc.command = ["nmcli", "radio", "wwan", wwan.radio === "enabled" ? "off" : "on"]
+    wwanActionProc.running = true
+  }
+
+  function connectWwanProfile(profile) {
+    if (!profile || !profile.uuid || wwanAction !== "") return
+    wwanAction = profile.uuid
+    wwanActionProc.command = ["nmcli", "connection", "up", "uuid", profile.uuid]
+    wwanActionProc.running = true
+  }
+
+  function disconnectWwan() {
+    if (wwanAction !== "" || !wwan.netdev) return
+    wwanAction = "device"
+    wwanActionProc.command = ["nmcli", "device", "disconnect", wwan.netdev]
+    wwanActionProc.running = true
+  }
+
+  function updateWwan(raw) {
+    wwan = Model.parseWwanStatus(raw)
+  }
+
+  function activateWwanSelected() {
+    if (wwanAction !== "") return
+    var profile = wwanProfiles[wwanIndex] || null
+    if (!profile) return
+    if (profile.active) disconnectWwan()
+    else connectWwanProfile(profile)
+  }
+
+  function wwanIconFor(strength) {
+    return Model.wwanIconFor(strength)
+  }
+
   IpcHandler {
     target: "omarchy.network"
 
@@ -216,6 +275,7 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function toggleNetwork() { root.toggleNetwork() }
+    function toggleWwan() { root.toggleWwan() }
     // Compat routes for configs that summon the centered cards through the
     // network target; both cards are their own plugins now.
     function showQr() { root.summonWifiQr(true) }
@@ -228,6 +288,7 @@ Panel {
     if (headerIndex === qrHeaderIndex) summonWifiQr()
     else if (headerIndex === speedHeaderIndex) summonSpeedTest()
     else if (headerIndex === toggleHeaderIndex) toggleNetwork()
+    else if (headerIndex === wwanToggleHeaderIndex) toggleWwan()
   }
 
   function setHeaderCursor(index) {
@@ -436,16 +497,32 @@ Panel {
 
   // Bar pill state, derived from the native NetworkManager service so the
   // icon reflects connection changes without polling. Wired is preferred
-  // when both are up, matching the default-route device.
+  // when both are up, matching the default-route device. Cellular comes
+  // from the polled wwan probe instead (see the wwan property above)
+  // because the native service has no modem device type.
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
+    if (connectedWwanProfile) return "wwan"
     return "disconnected"
   }
   readonly property int signalStrength: connectedWifiNetwork
     ? Math.round((connectedWifiNetwork.signalStrength || 0) * 100)
-    : -1
+    : (wwan.signal >= 0 ? wwan.signal : -1)
+  readonly property bool wwanAvailable: wwan.available
+  readonly property var wwanProfiles: wwan.profiles || []
+  readonly property var connectedWwanProfile: {
+    for (var i = 0; i < wwanProfiles.length; i++) {
+      if (wwanProfiles[i] && wwanProfiles[i].active) return wwanProfiles[i]
+    }
+    return null
+  }
+  // The hero names the carrier the modem reports; the profile name and a
+  // generic label are fallbacks for modems that do not expose one.
+  readonly property string wwanTitle: wwan.operator
+    || (connectedWwanProfile ? connectedWwanProfile.name : "")
+    || "Cellular"
 
   function copyToClipboard(value) {
     if (!value || !root.bar) return
@@ -466,7 +543,8 @@ Panel {
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
   readonly property string connectionKey: kind === "wifi" && wifiDevice && connectedWifiNetwork
     ? kind + ":" + wifiDevice.name + ":" + connectedWifiNetwork.name
-    : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : "")
+    : (kind === "wwan" && wwan.netdev ? kind + ":" + wwan.netdev
+    : (kind === "ethernet" && wiredDevice ? kind + ":" + wiredDevice.name : ""))
 
   onConnectionKeyChanged: Qt.callLater(checkConnectivity)
   onConnectivityChecksEnabledChanged: Qt.callLater(checkConnectivity)
@@ -534,6 +612,7 @@ Panel {
       bandProc.command = ["omarchy-network-band"]
       bandProc.running = true
     }
+    if (!wwanProc.running) wwanProc.running = true
     // A closed panel has no nearby-network list to fill, and bare refresh()
     // reaches here from action completion, timeouts and construction.
     if (opened && wifiDevice) {
@@ -562,6 +641,15 @@ Panel {
 
   function updateDetails(raw) {
     var next = Model.parseKeyValue(raw)
+
+    // The stock status script classifies any routed non-wireless interface
+    // as ethernet, which mislabels the modem's netdev (cdc-wdm0). Relabel
+    // it as wwan and pin the cellular readings the hero header shows.
+    if (next.iface && wwan.netdev && next.iface === wwan.netdev) {
+      next.type = "wwan"
+      next.wwan_signal = wwan.signal
+      next.wwan_tech = wwan.tech
+    }
 
     // A band change tears the link down and brings it back, and the status
     // command reports nothing at all while there is no route. Publishing that
@@ -710,6 +798,7 @@ Panel {
     var connection = ""
     if (info.type === "wifi") connection = info.ssid || "Wi-Fi"
     else if (info.type === "ethernet") connection = "Ethernet"
+    else if (info.type === "wwan") connection = wwanTitle
     bar.shell.summon("omarchy.speedtest", connection ? JSON.stringify({ connection: connection }) : "{}")
   }
 
@@ -943,6 +1032,44 @@ Panel {
     }
   }
 
+  // Cellular probe: mmcli for modem-wide truth, nmcli for the radio switch
+  // and the GSM connection profiles (Model.wwanStatusScript).
+  Process {
+    id: wwanProc
+    command: ["bash", "-c", Model.wwanStatusScript]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateWwan(text)
+    }
+  }
+
+  // Serialized cellular action runner (radio toggle, connect, disconnect).
+  // nmcli exits before the link settles, so onExited only clears the
+  // in-flight marker and kicks a fresh probe — the kind/signal bindings
+  // pick the new state up from there.
+  Process {
+    id: wwanActionProc
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: {
+      root.wwanAction = ""
+      if (!wwanProc.running) wwanProc.running = true
+      root.refresh()
+    }
+  }
+
+  // Cellular poll. Slower than the open-panel cadence on purpose: while
+  // closed only the bar pill cares, and a modem's registration and signal
+  // barely move. The interval change restarts the timer, which is fine.
+  Timer {
+    id: wwanPoll
+    interval: root.opened ? 4000 : 15000
+    repeat: true
+    running: true
+    triggeredOnStart: true
+    onTriggered: if (!wwanProc.running) wwanProc.running = true
+  }
+
   // Poll details while the panel is open so the IP/route header catches up
   // as soon as NetworkManager finishes activating a connection.
   Timer {
@@ -956,7 +1083,7 @@ Panel {
   Timer {
     id: connectionPhraseTimer
     interval: 2800
-    running: root.opened && !root.restricted && (root.info.type === "ethernet" || (root.info.type === "wifi" && root.canDisconnect))
+    running: root.opened && !root.restricted && (root.info.type === "ethernet" || root.info.type === "wwan" || (root.info.type === "wifi" && root.canDisconnect))
     repeat: true
     onTriggered: connectionPhraseSwap.restart()
   }
@@ -979,7 +1106,7 @@ Panel {
   Connections {
     target: root
     function onInfoChanged() {
-      if (!(root.info.type === "ethernet" || (root.info.type === "wifi" && root.canDisconnect))) {
+      if (!(root.info.type === "ethernet" || root.info.type === "wwan" || (root.info.type === "wifi" && root.canDisconnect))) {
         connectionPhraseSwap.stop()
         heroMeta.opacity = 1.0
       }
@@ -1110,15 +1237,35 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
+            } else if (root.wwanProfiles.length > 0) {
+              root.focusSection = "cellular"
+              if (root.wwanIndex < 0) root.wwanIndex = 0
+            } else if (root.wifiNetworks.length > 0) {
+              root.focusSection = "wifi"
+              if (root.selectedIndex < 0) root.selectedIndex = 0
+            }
+          } else if (root.focusSection === "cellular") {
+            // One cursor row per profile; k escapes to DNS, j continues
+            // into the wifi list below.
+            if (dy < 0) {
+              root.focusSection = "dns"
+            } else if (root.wwanIndex < root.wwanProfiles.length - 1) {
+              root.wwanIndex = Math.max(0, Math.min(root.wwanProfiles.length - 1, root.wwanIndex + dy))
             } else if (root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
             }
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
+            // k from the top row escapes back up to the cellular list when
+            // it's on screen, otherwise the DNS row, rather than wrapping
+            // around to the bottom of the list.
             if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
+              if (root.wwanProfiles.length > 0) {
+                root.focusSection = "cellular"
+                root.wwanIndex = Math.max(0, root.wwanProfiles.length - 1)
+              } else {
+                root.focusSection = "dns"
+              }
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1137,6 +1284,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "cellular") root.activateWwanSelected()
           else root.activateSelected()
         }
       }
@@ -1228,6 +1376,23 @@ Panel {
               fontFamily: root.bar.fontFamily
             }
           }
+
+          ToggleSwitch {
+            id: wwanPowerSwitch
+            visible: root.canToggleWwan
+            checked: root.wwan.radio === "enabled"
+            hasCursor: root.wwanHeaderHasCursor
+            foreground: root.bar.foreground
+            Layout.alignment: Qt.AlignVCenter
+            onHovered: function(on) { if (on) root.setHeaderCursor(root.wwanToggleHeaderIndex) }
+            onToggled: root.toggleWwan()
+
+            PanelToolTip {
+              visible: wwanPowerSwitch.containsMouse
+              text: root.wwanToggleHint
+              fontFamily: root.bar.fontFamily
+            }
+          }
         }
 
         Column {
@@ -1252,6 +1417,7 @@ Panel {
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
               if (root.info.type === "wifi") return root.info.ssid || "Wi-Fi"
               if (root.info.type === "ethernet") return "Ethernet"
+              if (root.info.type === "wwan") return root.wwanTitle
               return root.info.iface || (root.kind === "disconnected" ? "Disconnected" : "No connection")
             }
             readonly property string detail: root.headerDetail()
@@ -1277,6 +1443,7 @@ Panel {
                 return ""
               }
               if (root.info.type === "ethernet") return root.connectionPhrase.toUpperCase()
+              if (root.info.type === "wwan") return root.connectionPhrase.toUpperCase()
               if (root.kind === "disconnected") return "NOT CONNECTED"
               return ""
             }
@@ -1569,6 +1736,45 @@ Panel {
         }
       }
 
+
+
+      // Cellular profiles (only if a modem answered the probe and has
+      // profiles to list; the hero's radio switch still surfaces the modem
+      // itself when there are none).
+      PanelSeparator {
+        visible: root.wwanAvailable && root.wwanProfiles.length > 0
+        foreground: root.bar.foreground
+      }
+
+      Column {
+        visible: root.wwanAvailable && root.wwanProfiles.length > 0
+        width: parent.width
+        spacing: Style.space(6)
+
+        PanelSectionHeader {
+          text: "CELLULAR"
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+        }
+
+        Repeater {
+          model: root.wwanProfiles
+
+          delegate: Item {
+            required property var modelData
+            required property int index
+            width: parent.width
+            height: cellularRow.implicitHeight
+
+            CellularRow {
+              id: cellularRow
+              width: parent.width
+              profile: modelData
+              slotIndex: index
+            }
+          }
+        }
+      }
 
       // Wi-Fi networks (only if a Wi-Fi station is available).
       PanelSeparator {
@@ -2042,6 +2248,118 @@ Panel {
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
+      }
+    }
+  }
+
+  // One cellular profile row: click toggles between connecting the profile
+  // and dropping the modem's data bearer. No inline editor — APN and SIM
+  // settings belong to nmcli, not the panel. The signal-bars icon mirrors
+  // the wifi rows; the second line carries action status only.
+  component CellularRow: CursorSurface {
+    id: crow
+    required property var profile
+    required property int slotIndex
+
+    readonly property bool isConnected: !!(profile && profile.active)
+    readonly property bool isBusy: root.wwanAction !== ""
+      && (root.wwanAction === (profile ? profile.uuid : "") || root.wwanAction === "device")
+    readonly property bool isSelected: root.focusSection === "cellular" && root.wwanIndex === crow.slotIndex
+
+    readonly property string statusText: {
+      if (root.wwanAction === "radio") return ""
+      if (isBusy && root.wwanAction === "device") return "Disconnecting…"
+      if (isBusy) return "Connecting…"
+      if (isConnected) return "Connected"
+      if (root.wwan.radio === "disabled") return "Radio off"
+      if (root.wwan.state === "registered") return "Registered"
+      if (root.wwan.state === "searching") return "Searching…"
+      return ""
+    }
+
+    readonly property color statusColor: {
+      if (isBusy || isConnected) return root.bar.foreground
+      return Qt.darker(root.bar.foreground, 1.5)
+    }
+
+    implicitHeight: crowBody.implicitHeight
+    hasCursor: root.cursorActive && isSelected
+    current: isConnected
+    foreground: root.bar.foreground
+    fill: root.hoverFill
+    currentFill: root.selectedFill
+
+    MouseArea {
+      id: crowMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.LeftButton
+      cursorShape: Qt.PointingHandCursor
+      enabled: root.wwanAction === ""
+
+      // Move the cursor here when the mouse enters; mouse leaving doesn't
+      // clear it (so j/k pick up from where the mouse last was).
+      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "cellular"; root.wwanIndex = crow.slotIndex }
+
+      onClicked: {
+        if (!crow.profile) return
+        root.cursorActive = true
+        root.focusSection = "cellular"
+        root.wwanIndex = crow.slotIndex
+        if (crow.isConnected) root.disconnectWwan()
+        else root.connectWwanProfile(crow.profile)
+      }
+    }
+
+    Item {
+      id: crowBody
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(10)
+      implicitHeight: Math.max(crowIcon.implicitHeight, crowInfo.implicitHeight) + Style.spacing.rowPaddingX
+
+      Text {
+        id: crowIcon
+        textFormat: Text.PlainText
+        text: root.wwanIconFor(root.wwan.signal)
+        color: crow.statusColor
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.title
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Column {
+        id: crowInfo
+        spacing: Style.space(1)
+        anchors.left: crowIcon.right
+        anchors.leftMargin: Style.space(10)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+
+        Text {
+          textFormat: Text.PlainText
+          text: crow.profile ? crow.profile.name : ""
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+          width: parent.width
+        }
+        Text {
+          textFormat: Text.PlainText
+          // An empty status collapses on its own: no doLayout lines means
+          // zero height, so there is no separate visible/height dance to
+          // keep the row one line tall (and none of its binding churn).
+          text: crow.statusText
+          color: crow.statusColor
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
       }
     }
   }
