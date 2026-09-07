@@ -85,7 +85,7 @@ cat >"$trusted_fprintd" <<'EOF'
 
 printf '%s\n' "$EUID" >"$TEST_TRUSTED_UID"
 printf '%s\n' "$*" >"$TEST_TRUSTED_ARGS"
-echo "Fingerprints are enrolled"
+echo " - #0: right-index-finger"
 EOF
 
 cat >"$poison_bin/fprintd-list" <<'EOF'
@@ -93,7 +93,7 @@ cat >"$poison_bin/fprintd-list" <<'EOF'
 
 printf '%s\n' "$EUID" >"$TEST_ATTACK_MARKER"
 printf '%s\n' "$*" >"$TEST_ATTACK_ARGS"
-echo "Fingerprints are enrolled"
+echo " - #0: right-index-finger"
 EOF
 
 chmod +x "$trusted_fprintd" "$poison_bin/fprintd-list"
@@ -131,11 +131,11 @@ prepare_helper() {
         }
         next
       }
-      if (line == "  /usr/bin/fprintd-list \"$target_user\" 2>/dev/null | grep -qi finger; then") {
+      if (line == "  /usr/bin/fprintd-list \"$target_user\" 2>/dev/null | grep -q '\'' - #'\''; then") {
         if (use_absolute_fprintd == 1) {
-          print "  \"" trusted_fprintd "\" \"$target_user\" 2>/dev/null | grep -qi finger; then"
+          print "  \"" trusted_fprintd "\" \"$target_user\" 2>/dev/null | grep -q '\'' - #'\''; then"
         } else {
-          print "  fprintd-list \"$target_user\" 2>/dev/null | grep -qi finger; then"
+          print "  fprintd-list \"$target_user\" 2>/dev/null | grep -q '\'' - #'\''; then"
         }
         next
       }
