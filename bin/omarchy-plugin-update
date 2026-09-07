@@ -39,13 +39,15 @@ valid_plugin_id() {
 update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
+  local candidate staging
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
     return 1
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+  candidate=$(git -C "$dir" rev-parse FETCH_HEAD) || return 1
+  if [[ $(git -C "$dir" rev-parse HEAD) == "$candidate" ]]; then
     echo "$id is up to date."
     return 0
   fi
@@ -53,9 +55,9 @@ update_one() {
   if (( ! ASSUME_YES )); then
     echo "Changes for $id:"
     if omarchy-cmd-present delta; then
-      git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
+      git -C "$dir" diff HEAD "$candidate" | delta --paging=never
     else
-      git -C "$dir" diff HEAD FETCH_HEAD
+      git -C "$dir" diff HEAD "$candidate"
     fi
     echo
     confirm "Update $id?" || {
@@ -64,14 +66,35 @@ update_one() {
     }
   fi
 
-  if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
-    echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
+  # Validate the candidate before changing the installed checkout. Rolling back
+  # with reset --hard after a merge can destroy unrelated local edits.
+  staging=$(mktemp -d) || return 1
+  # A separate index includes export-ignore files too, unlike git archive, and
+  # never changes the installed checkout's index or working tree.
+  if ! GIT_INDEX_FILE="$staging/index" git -C "$dir" read-tree "$candidate" ||
+    ! GIT_INDEX_FILE="$staging/index" git -C "$dir" checkout-index --all --prefix="$staging/tree/"; then
+    rm -rf -- "$staging"
+    echo "omarchy-plugin-update: could not stage '$id' for validation" >&2
+    return 1
+  fi
+  if ! omarchy-plugin-validate "$staging/tree"; then
+    rm -rf -- "$staging"
+    echo "omarchy-plugin-update: update of '$id' failed validation; installed version unchanged" >&2
+    return 1
+  fi
+  rm -rf -- "$staging"
+
+  # The validated tree must also be the one installed. Do not combine it with
+  # local edits or untracked files that the validator has not inspected.
+  local status
+  status=$(git -C "$dir" status --porcelain --untracked-files=all) || return 1
+  if [[ -n $status ]]; then
+    echo "omarchy-plugin-update: '$id' has local changes in $dir; commit or stash them before updating" >&2
     return 1
   fi
 
-  if ! omarchy-plugin-validate "$dir"; then
-    git -C "$dir" reset --hard ORIG_HEAD >/dev/null
-    echo "omarchy-plugin-update: update of '$id' failed validation; rolled back" >&2
+  if ! git -C "$dir" merge --ff-only "$candidate" >/dev/null 2>&1; then
+    echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
 
