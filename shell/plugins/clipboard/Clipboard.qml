@@ -12,6 +12,7 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property bool opened: false
   property string filterText: ""
+  property bool searchMode: false
   property int selectedIndex: 0
   property bool cursorActive: false
   property bool clearConfirmOpen: false
@@ -42,6 +43,7 @@ Item {
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
+    root.searchMode = false
     root.selectedIndex = 0
     root.cursorActive = true
     root.disarmPointer()
@@ -162,6 +164,7 @@ Item {
         path: row.path,
         mime: row.mime,
         pinned: row.pinned,
+        pinShortcut: row.pinShortcut,
         historyIndex: row.index
       })
     }
@@ -201,6 +204,16 @@ Item {
     root.cursorActive = true
     root.disarmPointer()
     root.rebuildDisplay()
+  }
+
+  function activatePinShortcut(shortcut) {
+    if (root.searchMode || root.filterText) return false
+    for (var i = 0; i < displayModel.count; i++) {
+      if (displayModel.get(i).pinShortcut !== shortcut) continue
+      root.activateIndex(i)
+      return true
+    }
+    return false
   }
 
   function disarmPointer() {
@@ -376,8 +389,16 @@ Item {
           }
 
           if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
+            if (root.filterText || root.searchMode) {
+              root.searchMode = false
+              root.setFilter("")
+            }
             else root.close()
+            event.accepted = true
+          } else if (event.key === Qt.Key_F && event.modifiers === Qt.ControlModifier) {
+            root.searchMode = true
+            event.accepted = true
+          } else if (!(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) && /^[1-9]$/.test(event.text) && root.activatePinShortcut(Number(event.text))) {
             event.accepted = true
           } else if (event.key === Qt.Key_P && event.modifiers === Qt.ControlModifier) {
             root.togglePinDisplayIndex(root.selectedIndex)
@@ -459,7 +480,7 @@ Item {
             anchors.right: pinAction.left
             anchors.rightMargin: root.contentSpacing
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search clipboard…"
+            text: root.filterText || (root.searchMode ? "Search clipboard…" : "Search clipboard… (Ctrl+F for numbers)")
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -517,6 +538,7 @@ Item {
                   required property string fullText
                   required property string previewImage
                   required property bool pinned
+                  required property int pinShortcut
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
 
@@ -559,9 +581,10 @@ Item {
 
                     Text {
                       id: pinLabel
+                      textFormat: Text.PlainText
                       visible: row.pinned
                       height: parent.height
-                      text: "Pinned"
+                      text: row.pinShortcut ? row.pinShortcut + " · Pinned" : "Pinned"
                       color: row.hasCursor ? root.selectedText : root.foreground
                       opacity: 0.7
                       font.family: root.fontFamily

@@ -67,12 +67,12 @@ assertDeepEqual(
 assertDeepEqual(clipboard.removeEntryAt(history, 10), history, 'clipboard removeEntryAt ignores invalid indexes')
 assertDeepEqual(clipboard.clearHistory(), [], 'clipboard clearHistory returns an empty history')
 
-const pinnedText = { type: 'text', text: 'saved', pinned: true }
-const pinnedImage = { type: 'image', path: '/tmp/saved.png', mime: 'image/png', capturedAt: 'Monday 12:00', pinned: true }
+const pinnedText = { type: 'text', text: 'saved', pinned: true, pinShortcut: 1 }
+const pinnedImage = { type: 'image', path: '/tmp/saved.png', mime: 'image/png', capturedAt: 'Monday 12:00', pinned: true, pinShortcut: 2 }
 const withPins = [history[0], pinnedText, history[1], pinnedImage]
 assertDeepEqual(clipboard.parseHistory(JSON.stringify(withPins)), withPins, 'text and image pins survive saving and reloading')
 assertDeepEqual(clipboard.normalizeEntry({ type: 'text', text: 'hello', pinned: 'false' }), { type: 'text', text: 'hello' }, 'only a boolean true marks a pin')
-assertDeepEqual(clipboard.togglePinAt(history, 1)[1], { ...history[1], pinned: true }, 'pinning marks the selected entry')
+assertDeepEqual(clipboard.togglePinAt(history, 1)[1], { ...history[1], pinned: true, pinShortcut: 1 }, 'pinning marks the selected entry')
 assertDeepEqual(clipboard.togglePinAt(withPins, 1)[1], { type: 'text', text: 'saved' }, 'unpinning removes the pin')
 assertDeepEqual(withPins[1], pinnedText, 'toggling does not mutate the original entry')
 for (const index of [-1, 20, 0.5, NaN]) {
@@ -84,13 +84,69 @@ assertDeepEqual(clipboard.trimHistory(withPins, 1), [history[0], pinnedText, pin
 assertDeepEqual(clipboard.addEntry(withPins, 'next', 1), [{ type: 'text', text: 'next' }, pinnedText, pinnedImage], 'new copies cannot evict old pins')
 assertDeepEqual(clipboard.addEntry(withPins, 'saved', 0), [pinnedText, pinnedImage], 'recopying text keeps its pin even with a zero history limit')
 assertDeepEqual(clipboard.addEntry(withPins, { type: 'image', path: '/tmp/saved.png' }, 1), [
-  { type: 'image', path: '/tmp/saved.png', mime: 'image/png', pinned: true }, history[0], pinnedText
+  { type: 'image', path: '/tmp/saved.png', mime: 'image/png', pinned: true, pinShortcut: 2 }, history[0], pinnedText
 ], 'recopying an image preserves its pin and removes the duplicate')
 assertDeepEqual(clipboard.displayRows(withPins, '', 3).map(row => [row.index, row.pinned]), [[1, true], [3, true], [0, false]], 'pins display first within the result limit while preserving history indexes')
 assertDeepEqual(clipboard.displayRows(withPins, 'saved', 1).map(row => row.index), [1], 'search finds pins with the original action index')
 assertDeepEqual(clipboard.displayRows(withPins, 'old', 1).map(row => row.index), [0], 'search still finds unpinned entries')
 assertEqual(clipboard.displayRows([{ type: 'text', text: 'x'.repeat(20000), pinned: true }], '', 1)[0].pinned, true, 'capping long previews preserves the pin label')
 assertDeepEqual(clipboard.displayRows(clipboard.togglePinAt(withPins, 1), '', 4).map(row => row.index), [3, 0, 1, 2], 'unpinning restores chronological order among ordinary entries')
+
+const legacyPins = [{ type: 'text', text: 'phone', pinned: true }, { type: 'text', text: 'email', pinned: true }]
+const numberedPins = clipboard.parseHistory(JSON.stringify(legacyPins))
+assertDeepEqual(numberedPins.map(entry => entry.pinShortcut), [1, 2], 'existing pins receive numbered shortcuts')
+assertDeepEqual(clipboard.parseHistory(JSON.stringify(numberedPins)), numberedPins, 'shortcut assignments survive reloading')
+const recopiedPins = clipboard.addEntry(numberedPins, 'email', 10)
+assertDeepEqual(clipboard.displayRows(recopiedPins, '', 50).map(row => [row.previewText, row.pinShortcut, row.index]), [['phone', 1, 1], ['email', 2, 0]], 'recopying keeps shortcut order and correct paste indexes')
+assertDeepEqual(clipboard.displayRows(recopiedPins, 'email', 50).map(row => row.pinShortcut), [2], 'search does not renumber a matching pin')
+assertDeepEqual(clipboard.trimHistory(clipboard.removeEntryAt(numberedPins, 0), 10).map(entry => entry.pinShortcut), [2], 'removing a pin leaves other shortcuts unchanged')
+const replacementPin = clipboard.togglePinAt([numberedPins[1], { type: 'text', text: 'replacement' }], 1)
+assertDeepEqual(replacementPin.map(entry => entry.pinShortcut), [2, 1], 'a newly pinned entry receives the lowest free shortcut')
+const tooManyPins = clipboard.parseHistory(JSON.stringify(Array.from({ length: 11 }, (_, i) => ({ type: 'text', text: String(i), pinned: true }))))
+assertDeepEqual(tooManyPins.map(entry => entry.pinShortcut || 0), [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0], 'additional pins remain available without duplicate digit shortcuts')
+const repairedPins = clipboard.parseHistory(JSON.stringify([
+  { type: 'text', text: 'legacy', pinned: true },
+  { type: 'text', text: 'reserved', pinned: true, pinShortcut: 1 },
+  { type: 'text', text: 'duplicate', pinned: true, pinShortcut: 1 },
+  { type: 'text', text: 'invalid', pinned: true, pinShortcut: 20 }
+]))
+assertDeepEqual(repairedPins.map(entry => entry.pinShortcut), [2, 1, 3, 4], 'repair reserves existing valid shortcuts before allocating missing or duplicate ones')
+assertDeepEqual(clipboard.normalizeEntry({ type: 'text', text: 'ordinary', pinShortcut: 1 }), { type: 'text', text: 'ordinary' }, 'unpinned entries cannot retain a shortcut')
+
+// Exercise the actual key handler and activation method with a fake picker;
+// never paste into the active desktop during automated tests.
+const activateBody = clipboardQml.match(/function activatePinShortcut\(shortcut\) \{([\s\S]*?)\n  \}/)[1]
+const keyBody = clipboardQml.match(/Keys.onPressed: function\(event\) \{([\s\S]*?)\n        \}/)[1]
+const pickerRows = clipboard.displayRows(recopiedPins, '', 50)
+const fakeModel = { count: pickerRows.length, get: index => pickerRows[index] }
+const activated = []
+const picker = {
+  filterText: '', searchMode: false, clearConfirmOpen: false,
+  activateIndex: index => activated.push(pickerRows[index].index),
+  setFilter: value => { picker.filterText = value },
+  close: () => {},
+}
+picker.activatePinShortcut = new Function('root', 'displayModel', 'shortcut', activateBody).bind(null, picker, fakeModel)
+const qt = { Key_F: 70, Key_Escape: 27, ControlModifier: 4, AltModifier: 8, MetaModifier: 16 }
+const handleKey = new Function('Qt', 'root', 'Util', 'clearConfirm', 'event', keyBody).bind(null, qt, picker, { editsFilter: () => false }, { handleKey: () => true })
+handleKey({ key: 49, text: '1', modifiers: 0 })
+assertDeepEqual(activated, [1], 'pressing 1 activates the pinned entry by its actual history index')
+handleKey({ key: 50, text: '2', modifiers: qt.AltModifier })
+assertDeepEqual(activated, [1], 'modified digits do not paste')
+picker.filterText = ''
+handleKey({ key: qt.Key_F, text: '', modifiers: qt.ControlModifier })
+handleKey({ key: 49, text: '1', modifiers: 0 })
+assertEqual(picker.filterText, '1', 'Ctrl+F allows a numeric search without pasting')
+assertDeepEqual(activated, [1], 'numeric search does not activate a pin')
+handleKey({ key: qt.Key_Escape, text: '', modifiers: 0 })
+handleKey({ key: 50, text: '2', modifiers: 0 })
+assertDeepEqual(activated, [1, 0], 'Escape leaves search mode and restores numbered activation')
+picker.clearConfirmOpen = true
+handleKey({ key: 49, text: '1', modifiers: 0 })
+assertDeepEqual(activated, [1, 0], 'confirmation dialogs never activate pin shortcuts')
+picker.clearConfirmOpen = false
+handleKey({ key: 57, text: '9', modifiers: 0 })
+assertEqual(picker.filterText, '9', 'an unassigned digit starts a normal search')
 
 assertDeepEqual(
   clipboard.displayRows(history, 'image', 50).map(row => ({ type: row.entryType, preview: row.previewText, mime: row.mime })),
@@ -132,6 +188,7 @@ assertDeepEqual(
     path: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     mime: 'text/plain',
     pinned: false,
+    pinShortcut: 0,
     index: 0
   },
   'clipboard display rows show file uri entries as files'

@@ -25,4 +25,8 @@ You can also search the history just by starting to type:
 
 Press `Ctrl + P` to pin or unpin the selected entry, or click the Pin/Unpin action beside the search field. Pinned text and images appear first and stay saved across restarts, even as older history expires. Copying a pinned item again keeps it pinned.
 
+Pins receive shortcuts `1`–`9`, shown beside each entry. Open clipboard history and press a pin's number to paste it immediately. Numbers stay assigned to the same items when you copy them again or remove another pin. Additional pins remain available through search and selection. Unpinning or deleting an item frees its number for reuse.
+
+Typing searches as usual once you have started a search. To begin a search with a number, press `Ctrl + F` first. `Escape` clears the search and restores numbered shortcuts.
+
 Press `Delete` to remove the selected entry, including a pin. Press `Shift + Delete` to clear history after confirmation; pinned entries are kept.
