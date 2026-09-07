@@ -16,6 +16,41 @@ hex_to_rgb() {
   printf "%d,%d,%d" "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
 }
 
+# Chromium derives the browser chrome color from the seed by adjusting
+# lightness while preserving HSL saturation. At the luminance extremes HSL
+# saturation is degenerate — a near-black's max+min is tiny and a near-white's
+# max channel is 255 — so a small hue tint yields full saturation and renders
+# as a loud, saturated tone of that hue: near-black blue-tinted backgrounds
+# render bright blue chrome, near-white warm ones bright yellow. Neutralize
+# degenerate seeds so near-black and near-white backgrounds keep
+# near-neutral chrome.
+chrome_seed_from_background() {
+  local background="$1"
+
+  awk -v background="$background" '
+    function hex_value(char) {
+      return index("0123456789abcdef", tolower(char)) - 1
+    }
+
+    function hex_pair_to_int(hex, idx) {
+      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
+    }
+
+    BEGIN {
+      r = hex_pair_to_int(background, 2)
+      g = hex_pair_to_int(background, 4)
+      b = hex_pair_to_int(background, 6)
+      max = r; if (g > max) max = g; if (b > max) max = b
+      min = r; if (g < min) min = g; if (b < min) min = b
+      chroma = max - min
+      if (((max == 255) || (max + min <= 16)) && (chroma <= 32)) {
+        r = g = b = int((r + g + b) / 3 + 0.5)
+      }
+      printf "%02x%02x%02x", r, g, b
+    }
+  '
+}
+
 # Mix two hex colors. Amount may be a fraction (0.30) or percentage (30%).
 mix_color() {
   local start="${1#\#}"
@@ -379,6 +414,14 @@ if [[ -f $COLORS_FILE ]]; then
   while IFS=$'\t' read -r key value; do
     THEME_COLORS[$key]="$value"
   done < <(omarchy-theme-color --file "$COLORS_FILE" --all)
+
+  # BrowserThemeColor is a seed, not a paint color (see
+  # chrome_seed_from_background). Derive a clamped chrome seed from the
+  # background so generated chromium.theme files survive Chromium's seed
+  # derivation.
+  if [[ -n ${THEME_COLORS[background]+_} ]]; then
+    THEME_COLORS[chrome_seed]="#$(chrome_seed_from_background "${THEME_COLORS[background]}")"
+  fi
 
   for key in "${!THEME_COLORS[@]}"; do
     add_template_value "$key" "${THEME_COLORS[$key]}"

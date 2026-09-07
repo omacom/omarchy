@@ -214,7 +214,7 @@ pass "Firefox setup does not follow a planted distribution symlink"
   fail "theme colour treats leading zeros as decimal"
 for malformed in "" "not,a,color" "1,2" "1,2,3,4" "256,0,0" "999,999,999" "-1,0,0" \
   "1,2,3;id" '1,2,$(id)' "0x10,0,0" "1,2,3 4,5,6"; do
-  [[ $(browser_policy_theme_hex "$malformed") == "#1c2027" ]] ||
+  [[ $(browser_policy_theme_hex "$malformed") == "#1f1f1f" ]] ||
     fail "theme colour falls back to the stock grey for '$malformed'"
 done
 pass "theme colour is six hex digits or the stock grey"
