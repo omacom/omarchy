@@ -14,6 +14,7 @@ eval_log="$test_tmp/hyprctl-eval.log"
 state_dir="$home_dir/.local/state/omarchy/toggles/hypr"
 scale_state="$state_dir/internal-monitor-scale"
 position_state="$state_dir/internal-monitor-position"
+manual_disable_flag="$state_dir/internal-monitor-disable.lua"
 
 mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 
@@ -21,11 +22,15 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
+  # A real `hyprctl monitors all -j` lists every output, not just the
+  # internal one -- keep an external entry in the array so selection-by-name
+  # is exercised the same way it is in production, for every case below.
+  external='{"name":"HDMI-A-1","disabled":false,"scale":1,"x":1920,"y":0}'
   if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" ]]; then
-    printf '[{"name":"eDP-1","disabled":true,"scale":null,"x":null,"y":null}]'
+    printf '[%s,{"name":"eDP-1","disabled":true,"scale":null,"x":null,"y":null}]' "$external"
   else
-    printf '[{"name":"eDP-1","disabled":false,"scale":%s,"x":%s,"y":%s}]' \
-      "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "${OMARCHY_TEST_INTERNAL_X:-0}" "${OMARCHY_TEST_INTERNAL_Y:-0}"
+    printf '[%s,{"name":"eDP-1","disabled":false,"scale":%s,"x":%s,"y":%s}]' \
+      "$external" "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "${OMARCHY_TEST_INTERNAL_X:-0}" "${OMARCHY_TEST_INTERNAL_Y:-0}"
   fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
@@ -211,6 +216,23 @@ hl.monitor({ output = "eDP-1"; position = "0x0"; scale = 1.25; transform = 1 })
 LUA
 }
 
+# A numeric catch-all scale with no rule -- specific or catch-all -- naming a
+# position at all, so read_monitor_position has nothing configured to read.
+write_catchall_scale_only_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "", mode = "preferred", scale = 1.5 })
+LUA
+}
+
+# The catch-all rule names a position, but read_monitor_position only ever
+# consults a rule specific to the internal output -- the catch-all's position
+# must not leak in as if it were configured for the internal panel.
+write_catchall_position_config() {
+  cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "", mode = "preferred", position = "0x0", scale = 1 })
+LUA
+}
+
 remember_scale() {
   mkdir -p "$state_dir"
   printf '%s\n' "$1" >"$scale_state"
@@ -320,6 +342,128 @@ OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
 grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "clamshell recovery uses configured internal position"
 grep -F 'scale = 1.25' "$eval_log" >/dev/null || fail "clamshell recovery uses configured internal scale"
 pass "clamshell recovery uses configured internal monitor rule"
+
+# A position variable reference on the internal rule is configured, the same
+# as a literal, and must win over a remembered value just the same.
+write_internal_monitor_position_var_config
+remember_position "1920x0"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "a configured position variable reference wins over a remembered position"
+pass "a configured position variable reference wins over a remembered position"
+
+# read_monitor_position only ever consults a rule specific to the internal
+# output -- the catch-all's own position must not stand in for a remembered
+# value when the internal panel has no rule of its own.
+write_catchall_position_config
+remember_position "1920x0"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "1920x0"' "$eval_log" >/dev/null || fail "clamshell recovery prefers a remembered position over the catch-all rule's position"
+pass "clamshell recovery prefers a remembered position over the catch-all rule's position"
+
+# Negative coordinates are valid Hyprland positions (a monitor placed above
+# or to the left of the origin) and must round-trip like positive ones.
+write_auto_monitor_config
+rm -f "$position_state"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_X=-1920 OMARCHY_TEST_INTERNAL_Y=0 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ $(<"$position_state") == "-1920x0" ]] || fail "clamshell disable remembers a negative internal position"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "-1920x0"' "$eval_log" >/dev/null || fail "clamshell recovery uses a remembered negative position"
+pass "clamshell disable/recovery round-trips a negative internal position"
+
+# A corrupted state file (partial write, manual edit) must not reach hyprctl
+# verbatim -- it is validated on read, exactly like the scale state is.
+write_auto_monitor_config
+remember_position "not-a-position"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "auto"' "$eval_log" >/dev/null || fail "clamshell recovery falls back to auto on a corrupted position state file"
+! grep -F 'not-a-position' "$eval_log" >/dev/null || fail "clamshell recovery never forwards a corrupted position state file to hyprctl"
+pass "clamshell recovery ignores a corrupted position state file"
+
+# Regression guard in the spirit of #8129: a state file this script itself
+# writes is still validated on read, not trusted as an opaque passthrough
+# into the generated hyprctl eval string.
+write_auto_monitor_config
+remember_position '0x0", disabled = false }) -- '
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "auto"' "$eval_log" >/dev/null || fail "clamshell recovery refuses an unsafe position state file"
+! grep -F 'disabled = false' "$eval_log" >/dev/null || fail "clamshell recovery never forwards unsafe content from the position state file"
+pass "clamshell recovery refuses an unsafe position state file"
+
+# hyprctl is expected to report integer coordinates; if it ever reported
+# something else, that must not be written out as a trusted position.
+write_auto_monitor_config
+rm -f "$position_state"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_X="1920.5" OMARCHY_TEST_INTERNAL_Y=0 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ ! -f $position_state ]] || fail "clamshell disable does not remember a non-integer position"
+pass "clamshell disable ignores a non-integer reported position"
+
+# A user-toggled manual disable owns the panel's state independently -- the
+# clamshell layer must not touch scale or position at all while it is set.
+write_auto_monitor_config
+rm -f "$scale_state" "$position_state"
+mkdir -p "$state_dir"
+: >"$manual_disable_flag"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=1.6 OMARCHY_TEST_INTERNAL_X=1920 OMARCHY_TEST_INTERNAL_Y=0 \
+  OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ ! -f $scale_state ]] || fail "manual disable prevents remembering internal scale"
+[[ ! -f $position_state ]] || fail "manual disable prevents remembering internal position"
+rm -f "$manual_disable_flag"
+pass "manual disable prevents the clamshell layer from touching scale or position"
+
+# A poll tick that re-runs disable_internal while already docked (the panel
+# already off) must not clobber the remembered position with the now-empty
+# read of a disabled panel.
+write_auto_monitor_config
+rm -f "$position_state"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_X=1920 OMARCHY_TEST_INTERNAL_Y=0 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ $(<"$position_state") == "1920x0" ]] || fail "clamshell disable remembers internal position before repeat check"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ $(<"$position_state") == "1920x0" ]] || fail "repeated clamshell disable does not clobber the remembered position"
+pass "repeated clamshell disable while already docked keeps the remembered position"
+
+# Each dock captures the panel's *current* position, so a rearrangement made
+# while undocked must not leave a stale value from an earlier dock cycle.
+write_auto_monitor_config
+rm -f "$position_state"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_X=0 OMARCHY_TEST_INTERNAL_Y=0 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ $(<"$position_state") == "0x0" ]] || fail "first dock remembers the initial position"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "first undock restores the initial position"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_X=2560 OMARCHY_TEST_INTERNAL_Y=0 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ $(<"$position_state") == "2560x0" ]] || fail "second dock remembers the rearranged position, not the stale one"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "2560x0"' "$eval_log" >/dev/null || fail "second undock restores the rearranged position"
+! grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "second undock does not fall back to the stale first position"
+pass "successive dock/undock cycles track a rearranged position without staleness"
+
+# A remembered position is not only for recovery-from-disabled: any call that
+# reasserts the panel -- e.g. correcting a scale that drifted after a
+# sleep/wake, without ever having been disabled -- must carry the same
+# remembered position rather than slipping back to "auto".
+write_catchall_scale_only_config
+remember_position "1920x0"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_SCALE=3 run_clamshell
+grep -F 'scale = 1.5' "$eval_log" >/dev/null || fail "a live scale correction still applies the configured scale"
+grep -F 'position = "1920x0"' "$eval_log" >/dev/null || fail "a live scale correction carries the remembered position instead of auto"
+pass "a live scale correction carries the remembered position instead of auto"
 
 # Regression: specific-output rule referencing the omarchy_monitor_scale
 # variable must resolve to the variable's value, not fall back to the default.
