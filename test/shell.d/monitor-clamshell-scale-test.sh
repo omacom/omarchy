@@ -13,6 +13,7 @@ monitor_lua="$home_dir/.config/hypr/monitors.lua"
 eval_log="$test_tmp/hyprctl-eval.log"
 state_dir="$home_dir/.local/state/omarchy/toggles/hypr"
 scale_state="$state_dir/internal-monitor-scale"
+position_state="$state_dir/internal-monitor-position"
 
 mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 
@@ -21,9 +22,10 @@ cat >"$stub_bin/hyprctl" <<'SH'
 
 if [[ $1 == "monitors" && $2 == "all" && $3 == "-j" ]]; then
   if [[ ${OMARCHY_TEST_INTERNAL_DISABLED:-false} == "true" ]]; then
-    printf '[{"name":"eDP-1","disabled":true,"scale":null}]'
+    printf '[{"name":"eDP-1","disabled":true,"scale":null,"x":null,"y":null}]'
   else
-    printf '[{"name":"eDP-1","disabled":false,"scale":%s}]' "${OMARCHY_TEST_INTERNAL_SCALE:-2}"
+    printf '[{"name":"eDP-1","disabled":false,"scale":%s,"x":%s,"y":%s}]' \
+      "${OMARCHY_TEST_INTERNAL_SCALE:-2}" "${OMARCHY_TEST_INTERNAL_X:-0}" "${OMARCHY_TEST_INTERNAL_Y:-0}"
   fi
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_LOG"
@@ -214,11 +216,18 @@ remember_scale() {
   printf '%s\n' "$1" >"$scale_state"
 }
 
+remember_position() {
+  mkdir -p "$state_dir"
+  printf '%s\n' "$1" >"$position_state"
+}
+
 run_clamshell() {
   HOME="$home_dir" \
     PATH="$stub_bin:$PATH" \
     OMARCHY_TEST_HYPRCTL_EVAL_LOG="$eval_log" \
     OMARCHY_TEST_INTERNAL_SCALE="${OMARCHY_TEST_INTERNAL_SCALE:-2}" \
+    OMARCHY_TEST_INTERNAL_X="${OMARCHY_TEST_INTERNAL_X:-0}" \
+    OMARCHY_TEST_INTERNAL_Y="${OMARCHY_TEST_INTERNAL_Y:-0}" \
     OMARCHY_TEST_INTERNAL_DISABLED="${OMARCHY_TEST_INTERNAL_DISABLED:-false}" \
     OMARCHY_TEST_EXTERNAL_ACTIVE="${OMARCHY_TEST_EXTERNAL_ACTIVE:-false}" \
     OMARCHY_TEST_CLAMSHELL="${OMARCHY_TEST_CLAMSHELL:-false}" \
@@ -271,16 +280,41 @@ grep -F 'scale = 1.6' "$eval_log" >/dev/null || fail "clamshell recovery uses re
 ! grep -F 'scale = "auto"' "$eval_log" >/dev/null || fail "clamshell recovery avoids auto after disabled internal display"
 pass "clamshell recovery uses remembered internal scale"
 
-# Recovery of a panel that is off, under an auto config with nothing
-# remembered, still needs a number: the historical default 2.
+# Regression: toggling the internal panel off then back on with "auto"
+# position appends it after whatever else is already positioned, so a panel
+# that was at 0x0 before docking can come back on the wrong side of a
+# monitor that stayed up the whole time. The live position must be captured
+# before disabling, and reapplied on recovery instead of "auto".
 write_auto_monitor_config
-rm -f "$scale_state"
+rm -f "$position_state"
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_X=0 OMARCHY_TEST_INTERNAL_Y=0 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_CLAMSHELL=true run_clamshell
+[[ -f $position_state ]] || fail "clamshell disable remembers internal position"
+[[ $(<"$position_state") == "0x0" ]] || fail "clamshell disable remembers internal position value"
+pass "clamshell disable remembers internal position"
+
+: >"$eval_log"
+OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
+grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "clamshell recovery uses remembered internal position"
+! grep -F 'position = "auto"' "$eval_log" >/dev/null || fail "clamshell recovery avoids auto position after disabled internal display"
+pass "clamshell recovery uses remembered internal position"
+
+# Recovery of a panel that is off, under an auto config with nothing
+# remembered, still needs a number: the historical default 2. Position falls
+# back to Hyprland's own "auto" the same way, e.g. on a machine that has
+# never docked.
+write_auto_monitor_config
+rm -f "$scale_state" "$position_state"
 : >"$eval_log"
 OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
 grep -F 'scale = 2' "$eval_log" >/dev/null || fail "clamshell recovery falls back to the default scale"
-pass "clamshell recovery falls back to the default scale"
+grep -F 'position = "auto"' "$eval_log" >/dev/null || fail "clamshell recovery falls back to auto position"
+pass "clamshell recovery falls back to the default scale and position"
 
+# A configured rule for the internal output always wins, even over a
+# remembered position from a previous, different arrangement.
 write_internal_monitor_config
+remember_position "1920x0"
 : >"$eval_log"
 OMARCHY_TEST_INTERNAL_DISABLED=true run_clamshell
 grep -F 'position = "0x0"' "$eval_log" >/dev/null || fail "clamshell recovery uses configured internal position"
