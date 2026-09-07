@@ -109,7 +109,9 @@ prepare_helper() {
     -v keep_root_path="$keep_root_path" \
     -v use_absolute_fprintd="$use_absolute_fprintd" \
     -v hook_src="$ROOT/default/systemd/system-sleep/fprintd-resume" \
-    -v hook_dst="$test_tmp/system-sleep/fprintd-resume" '
+    -v hook_dst="$test_tmp/system-sleep/fprintd-resume" \
+    -v timeout_src="$ROOT/default/systemd/system/fprintd.service.d/10-stop-timeout.conf" \
+    -v timeout_dst="$test_tmp/fprintd.service.d/10-stop-timeout.conf" '
     {
       line = $0
       gsub("/etc/pam\\.d/omarchy-lock-password", "\"" password_pam "\"", line)
@@ -147,6 +149,18 @@ prepare_helper() {
         print "resume_hook_dst=\"" hook_dst "\""
         next
       }
+      if (line == "stop_timeout_src=\"$OMARCHY_PATH/default/systemd/system/fprintd.service.d/10-stop-timeout.conf\"") {
+        print "stop_timeout_src=\"" timeout_src "\""
+        next
+      }
+      if (line == "stop_timeout_dst=/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf") {
+        print "stop_timeout_dst=\"" timeout_dst "\""
+        next
+      }
+      if (line == "  as_root systemctl daemon-reload" || line == "    as_root systemctl daemon-reload") {
+        print "  :"
+        next
+      }
       if (line == "if omarchy-shell lock status >/dev/null 2>&1; then") {
         print "if false; then"
         next
@@ -167,6 +181,8 @@ for helper in "$patched_helper" "$absolute_only_helper" "$root_path_only_helper"
   if grep -F '/etc/pam.d/' "$helper" >/dev/null ||
     grep -F '/usr/bin/fprintd-list' "$helper" >/dev/null ||
     grep -F '/usr/lib/systemd/system-sleep' "$helper" >/dev/null ||
+    grep -F '/etc/systemd/system/' "$helper" >/dev/null ||
+    grep -F 'systemctl daemon-reload' "$helper" >/dev/null ||
     grep -F 'omarchy-shell lock status' "$helper" >/dev/null; then
     fail "the isolated root fixture redirects every live-system lock-helper target"
   fi
@@ -194,6 +210,8 @@ grep -Fx "$target_user" "$trusted_args" >/dev/null || fail "the trusted fprintd-
   fail "the isolated root lock-helper run writes both scratch PAM fixtures"
 [[ -x $test_tmp/system-sleep/fprintd-resume ]] ||
   fail "the lock helper installs the resume hook beside the fingerprint PAM file"
+[[ -f $test_tmp/fprintd.service.d/10-stop-timeout.conf ]] ||
+  fail "the lock helper installs the stop-timeout drop-in beside the resume hook"
 pass "the hardened root lock helper uses the trusted fingerprint probe"
 
 reset_runtime_files

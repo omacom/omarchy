@@ -32,19 +32,29 @@ run_hook() {
 }
 
 # Resume ("post") is the only edge that clears a claim wedged across suspend.
+# The restart is enqueued, not awaited: user sessions stay frozen until the
+# hook returns, and a wedged fprintd can ride out its whole stop timeout.
 run_hook post suspend
-[[ $(<"$call_log") == "try-restart fprintd.service" ]] ||
-  fail "resume restarts fprintd to clear a wedged claim" "calls: $(<"$call_log")"
-pass "resume restarts fprintd to clear a wedged claim"
+[[ $(<"$call_log") == "--no-block try-restart fprintd.service" ]] ||
+  fail "resume enqueues an fprintd restart to clear a wedged claim" "calls: $(<"$call_log")"
+pass "resume enqueues an fprintd restart to clear a wedged claim"
 
 # Every resume path lands on "post" regardless of how the machine slept.
 run_hook post hibernate
-[[ $(<"$call_log") == "try-restart fprintd.service" ]] ||
+[[ $(<"$call_log") == "--no-block try-restart fprintd.service" ]] ||
   fail "resume from hibernate also restarts fprintd" "calls: $(<"$call_log")"
 pass "resume from hibernate also restarts fprintd"
 
-# There is nothing to clear before sleep, and try-restart would needlessly
-# re-activate a fprintd that idle-exited, so "pre" must do nothing.
+# The drop-in installed beside the hook is what keeps a SIGTERM-ignoring
+# fprintd from turning that restart into a multi-second dead reader.
+dropin="$ROOT/default/systemd/system/fprintd.service.d/10-stop-timeout.conf"
+grep -Eq '^TimeoutStopSec=[0-9]+s?$' "$dropin" ||
+  fail "the stop-timeout drop-in bounds TimeoutStopSec" "content: $(<"$dropin")"
+pass "the stop-timeout drop-in bounds TimeoutStopSec"
+
+# The claim only wedges once the verify dies under suspend, so there is
+# nothing to clear before sleep; a restart there would just take the reader
+# away from the verify the lock screen still has open. "pre" must do nothing.
 run_hook pre suspend
 [[ -z $(<"$call_log") ]] ||
   fail "pre-suspend leaves fprintd alone" "calls: $(<"$call_log")"
