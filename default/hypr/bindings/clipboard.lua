@@ -5,12 +5,27 @@
 -- The down/up split works around Hyprland send_shortcut sometimes leaving
 -- synthetic key state stuck/repeating.
 -- https://github.com/hyprwm/Hyprland/discussions/14099
+--
+-- Fire on key *release* so SUPER is already up before we inject C/V/X.
+-- A press-time send_key_state("V") while SUPER is held retriggers Super+V
+-- (each synthetic down is a new press; repeat=false does not stop it) and
+-- can fork-bomb the session. injecting ignores nested fires while a chord
+-- is in flight.
+local injecting = false
+
 local function send_shortcut_once(mods, key)
   return function()
+    if injecting then
+      return
+    end
+    injecting = true
     hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
 
     hl.timer(function()
       hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "up" }))
+      hl.timer(function()
+        injecting = false
+      end, { timeout = 150, type = "oneshot" })
     end, { timeout = 50, type = "oneshot" })
   end
 end
@@ -42,7 +57,7 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL", "Insert"))
-o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "V", "SHIFT", "Insert"))
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL", "Insert"), { release = true })
+o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "V", "SHIFT", "Insert"), { release = true })
+o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"), { release = true })
 o.bind("SUPER + CTRL + V", "Clipboard manager", "omarchy-shell shell toggle omarchy.clipboard")
