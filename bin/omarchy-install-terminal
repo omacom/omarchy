@@ -34,6 +34,9 @@ if omarchy-pkg-add $package; then
   elif [[ $package == "foot" ]]; then
     mkdir -p ~/.local/share/applications
     cp "$OMARCHY_PATH/applications/$desktop_id" ~/.local/share/applications/
+  elif [[ $package == "kitty" ]]; then
+    mkdir -p ~/.local/share/applications
+    cp "$OMARCHY_PATH/default/kitty/$desktop_id" ~/.local/share/applications/
   fi
 
   # Copy default config for optional terminals when missing
