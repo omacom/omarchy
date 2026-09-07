@@ -1,0 +1,2932 @@
+{
+  "assets": {
+    "gemma412bit-exl3-4bpw-128k-q6-tabbyapi-config.yml": "network:\n  host: 0.0.0.0\n  port: 5000\n  disable_auth: true\n  disable_fetch_requests: true\n  send_tracebacks: false\n  api_servers: [\"OAI\"]\n  sse_ping_interval: 15\n\nlogging:\n  log_prompt: false\n  log_generation_params: false\n  log_requests: false\n  log_chat_completion_requests: false\n\nmodel:\n  model_dir: /workspace/models\n  inline_model_loading: false\n  use_dummy_models: false\n  model_name: Gemma-4-12B-it-EXL3-4bpw\n  backend: exllamav3\n  max_seq_len: 131072\n  cache_size: 131072\n  cache_mode: Q6\n  tensor_parallel: false\n  gpu_split_auto: true\n  autosplit_reserve: [192]\n  chunk_size: 2048\n  output_chunking: true\n  max_batch_size: 2\n\ndraft_model:\n  draft_mode: disabled\n\nsampling:\n  override_preset:\n\nmemory:\n  sysmem_recurrent_cache: 4096\n  sysmem_kv_cache: 0\n  cuda_malloc_async: true\n",
+    "qwen359b-exl3-4bpw-128k-q4-tabbyapi-config.yml": "network:\n  host: 0.0.0.0\n  port: 5000\n  disable_auth: true\n  disable_fetch_requests: true\n  send_tracebacks: false\n  api_servers: [\"OAI\"]\n  sse_ping_interval: 15\n\nlogging:\n  log_prompt: false\n  log_generation_params: false\n  log_requests: false\n  log_chat_completion_requests: false\n\nmodel:\n  model_dir: /workspace/models\n  inline_model_loading: false\n  use_dummy_models: false\n  model_name: Qwen3.5-9B-EXL3-4bpw\n  backend: exllamav3\n  max_seq_len: 131072\n  cache_size: 131072\n  cache_mode: Q4\n  tensor_parallel: false\n  gpu_split_auto: true\n  autosplit_reserve: [192]\n  chunk_size: 2048\n  output_chunking: true\n  max_batch_size: 2\n\ndraft_model:\n  draft_mode: disabled\n\nsampling:\n  override_preset:\n\nmemory:\n  sysmem_recurrent_cache: 4096\n  sysmem_kv_cache: 0\n  cuda_malloc_async: true\n",
+    "qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml": "network:\n  host: 0.0.0.0\n  port: 5000\n  disable_auth: true\n  disable_fetch_requests: true\n  send_tracebacks: false\n  api_servers: [\"OAI\"]\n  sse_ping_interval: 15\n\nlogging:\n  log_prompt: false\n  log_generation_params: false\n  log_requests: false\n  log_chat_completion_requests: false\n\nmodel:\n  model_dir: /workspace/models\n  inline_model_loading: false\n  use_dummy_models: false\n  model_name: Qwen3.5-9B-EXL3-4bpw\n  backend: exllamav3\n  max_seq_len: 262144\n  cache_size: 262144\n  cache_mode: Q4\n  tensor_parallel: false\n  gpu_split_auto: true\n  autosplit_reserve: [192]\n  chunk_size: 2048\n  output_chunking: true\n  max_batch_size: 2\n\ndraft_model:\n  draft_mode: disabled\n\nsampling:\n  override_preset:\n\nmemory:\n  sysmem_recurrent_cache: 4096\n  sysmem_kv_cache: 0\n  cuda_malloc_async: true\n",
+    "qwen3827b-exl3-4bpw-256k-q4-tabbyapi-config.yml": "network:\n  host: 0.0.0.0\n  port: 5000\n  disable_auth: true\n  disable_fetch_requests: true\n  send_tracebacks: false\n  api_servers: [\"OAI\"]\n  sse_ping_interval: 15\n\nlogging:\n  log_prompt: false\n  log_generation_params: false\n  log_requests: false\n  log_chat_completion_requests: false\n\nmodel:\n  model_dir: /workspace/models\n  inline_model_loading: false\n  use_dummy_models: false\n  model_name: Qwen3.8-27B-EXL3-4bpw\n  backend: exllamav3\n  max_seq_len: 262144\n  cache_size: 262144\n  cache_mode: Q4\n  tensor_parallel: false\n  gpu_split_auto: true\n  autosplit_reserve: [192]\n  chunk_size: 2048\n  output_chunking: true\n  max_batch_size: 2\n\ndraft_model:\n  draft_mode: disabled\n\nsampling:\n  override_preset:\n\nmemory:\n  sysmem_recurrent_cache: 4096\n  sysmem_kv_cache: 0\n  cuda_malloc_async: true\n"
+  },
+  "gateway": {
+    "image": "ghcr.io/0xsero/gateway@sha256:a4d529170473cb9e1c96012edf79ba6b06a0100aa7b3ccf584a25c03aa3e4478",
+    "provenance": {
+      "attestation": "gh attestation verify oci://ghcr.io/0xsero/gateway@sha256:a4d529170473cb9e1c96012edf79ba6b06a0100aa7b3ccf584a25c03aa3e4478 -o 0xSero",
+      "dockerfile": "https://github.com/0xSero/local-ai-images/blob/main/gateway/Dockerfile",
+      "kind": "self-built-attested",
+      "source": "https://github.com/0xSero/local-ai-images",
+      "workflow": "https://github.com/0xSero/local-ai-images/actions/runs/33771944172"
+    }
+  },
+  "generatedAt": "2026-09-03T15:21:13Z",
+  "hardware": {
+    "intel-arc-pro-b70-32gb": {
+      "match": {
+        "backend": "intel-xpu",
+        "name": "Intel Arc Pro B70",
+        "names": [
+          "arcprob70"
+        ],
+        "vramGb": 32
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": true,
+          "vision": false
+        },
+        "engine": "llama-cpp",
+        "id": "qwen38-q4km-arcb70-llamacpp-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/qwen38-b70-attested@sha256:6ce7771eaa155e31916ac3144bd3aa34bed6584b9a43052a8f6b583b9c8f5db1 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "--device",
+            "SYCL0",
+            "--gpu-layers",
+            "99",
+            "--flash-attn",
+            "on",
+            "--batch-size",
+            "8192",
+            "--ubatch-size",
+            "8192",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--ctx-size",
+            "131072",
+            "--parallel",
+            "1"
+          ],
+          "capAdd": [],
+          "containerPort": 8010,
+          "entrypoint": null,
+          "environment": {
+            "BATCH": "8192",
+            "CTX_SIZE_OVERRIDE": "131072",
+            "ENABLE_MTP": "0",
+            "ENABLE_VISION": "0",
+            "GPU_COUNT": "1",
+            "MODELS_DIR": "/models",
+            "PARALLEL": "1",
+            "THREADS": "16",
+            "UBATCH": "8192"
+          },
+          "image": "ghcr.io/0xsero/qwen38-b70-attested@sha256:6ce7771eaa155e31916ac3144bd3aa34bed6584b9a43052a8f6b583b9c8f5db1",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "/dev/dri/by-path",
+              "target": "/dev/dri/by-path"
+            },
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen38-b70",
+              "target": "/models"
+            }
+          ],
+          "networkMode": "bridge",
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "",
+        "model": {
+          "id": "qwen3-8-27b",
+          "name": "Qwen3.8-27B",
+          "precision": "Q4_K_M",
+          "repository": "ggml-org/Qwen3.8-27B-GGUF",
+          "revision": "0669b98607d47046c7c2b3f801011d54a08cfccf",
+          "servedName": "/models/Qwen3.8-27B-Q4_K_M.gguf",
+          "sizeGb": 19
+        },
+        "serving": {
+          "concurrency": 1,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 33
+        },
+        "validated": {
+          "acceptedAt": null,
+          "harness": null
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "mi300x-192gb": {
+      "match": {
+        "backend": "amd-rocm",
+        "name": "AMD Instinct MI300X",
+        "names": [
+          "instinctmi300x"
+        ],
+        "vramGb": 192
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "qwen38-27b-fp8-mi300x-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream-published"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "Qwen/Qwen3.8-27B-FP8",
+            "--revision",
+            "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+            "--served-model-name",
+            "qwen3.8-27b",
+            "--trust-remote-code",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--context-length",
+            "262144",
+            "--mem-fraction-static",
+            "0.90",
+            "--max-running-requests",
+            "4",
+            "--attention-backend",
+            "aiter",
+            "--mamba-ssm-dtype",
+            "bfloat16",
+            "--mamba-radix-cache-strategy",
+            "extra_buffer",
+            "--chunked-prefill-size",
+            "2048",
+            "--max-prefill-tokens",
+            "16384",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--reasoning-parser",
+            "qwen3",
+            "--tool-call-parser",
+            "qwen3_coder"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/venv/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang-rocm:v0.5.18-rocm720-mi30x-20260823@sha256:8805fe3744f9b549b4e329b37134bce6ce4afd7ec749ea1249507bcbcea10096",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": "bridge",
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "",
+        "model": {
+          "id": "qwen3-8-27b",
+          "name": "Qwen3.8-27B",
+          "precision": "FP8",
+          "repository": "Qwen/Qwen3.8-27B-FP8",
+          "revision": "017b9c7af6b5689d5dd426a76e0bc077eb5ca20a",
+          "servedName": "qwen3.8-27b",
+          "sizeGb": 28.5
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 0
+        },
+        "validated": {
+          "acceptedAt": null,
+          "harness": null
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-2000-ada-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "NVIDIA RTX 2000 Ada Generation",
+        "names": [
+          "rtx2000ada"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm25-26b-bf16-rtx2000ada-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream-published"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--served-model-name",
+            "lfm2.5-2.6b",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--cuda-graph-max-bs-prefill",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": "bridge",
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "lfm2.5-2.6b",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 0
+        },
+        "validated": {
+          "acceptedAt": null,
+          "harness": null
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-3060-12gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3060",
+        "names": [
+          "rtx3060"
+        ],
+        "vramGb": 12
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx3060-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-128k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 48
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:41:38Z",
+          "harness": "validate_rented.py on vast RTX 3060 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-3060-ti-8gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3060 Ti",
+        "names": [
+          "rtx3060ti"
+        ],
+        "vramGb": 8
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx3060ti-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 64
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:49:34Z",
+          "harness": "validate_rented.py on vast RTX 3060 Ti"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-3070-8gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3070",
+        "names": [
+          "rtx3070"
+        ],
+        "vramGb": 8
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx3070-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 67
+        },
+        "validated": {
+          "acceptedAt": "2026-09-03T10:22:59Z",
+          "harness": "validate_rented.py on vast RTX 3070"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-3070-ti-8gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3070 Ti",
+        "names": [
+          "rtx3070ti"
+        ],
+        "vramGb": 8
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx3070ti-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 85
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:36:42Z",
+          "harness": "validate_rented.py on vast RTX 3070 Ti"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-3080-10gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3080",
+        "names": [
+          "rtx3080"
+        ],
+        "vramGb": 10
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx3080-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 94
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:39:00Z",
+          "harness": "validate_rented.py on vast RTX 3080"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-3080-ti-12gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3080 Ti",
+        "names": [
+          "rtx3080ti"
+        ],
+        "vramGb": 12
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx3080ti-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-128k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 89
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:59:35Z",
+          "harness": "validate_rented.py on vast RTX 3080 Ti (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-3090-24gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3090",
+        "names": [
+          "rtx3090"
+        ],
+        "vramGb": 24
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "gemma412b-exl3-4bpw-rtx3090-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/gemma-4-12b-it-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/gemma412bit-exl3-4bpw-128k-q6-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "gemma-4-12b-it",
+          "name": "Gemma-4-12B-it",
+          "precision": "4 bpw",
+          "repository": "turboderp/gemma-4-12B-it-exl3",
+          "revision": "e8d17ffbe696accdba72a47dac858d7e880d709e",
+          "servedName": "Gemma-4-12B-it-EXL3-4bpw",
+          "sizeGb": 8.37
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 65
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:53:16Z",
+          "harness": "validate_rented.py on vast RTX 3090 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Gemma-4-12B-it-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-3090-ti-24gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 3090 Ti",
+        "names": [
+          "rtx3090ti"
+        ],
+        "vramGb": 24
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "gemma412b-exl3-4bpw-rtx3090ti-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/gemma-4-12b-it-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/gemma412bit-exl3-4bpw-128k-q6-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "gemma-4-12b-it",
+          "name": "Gemma-4-12B-it",
+          "precision": "4 bpw",
+          "repository": "turboderp/gemma-4-12B-it-exl3",
+          "revision": "e8d17ffbe696accdba72a47dac858d7e880d709e",
+          "servedName": "Gemma-4-12B-it-EXL3-4bpw",
+          "sizeGb": 8.37
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 70
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:31:14Z",
+          "harness": "validate_rented.py on vast RTX 3090 Ti (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Gemma-4-12B-it-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4000-ada-20gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "NVIDIA RTX 4000 Ada Generation",
+        "names": [
+          "rtx4000ada"
+        ],
+        "vramGb": 20
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4000ada-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 60
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:58:14Z",
+          "harness": "validate_rented.py on vast RTX 4000Ada (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4060-8gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4060",
+        "names": [
+          "rtx4060"
+        ],
+        "vramGb": 8
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx4060-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 42
+        },
+        "validated": {
+          "acceptedAt": "2026-09-03T00:38:36Z",
+          "harness": "validate_rented.py on vast RTX 4060"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-4060-ti-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4060 Ti",
+        "names": [
+          "rtx4060ti"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4060ti-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 56
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:49:08Z",
+          "harness": "validate_rented.py on vast RTX 4060 Ti (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4060-ti-8gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4060 Ti",
+        "names": [
+          "rtx4060ti"
+        ],
+        "vramGb": 8
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx4060ti-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 47
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:37:25Z",
+          "harness": "validate_rented.py on vast RTX 4060 Ti"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-4070-12gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4070",
+        "names": [
+          "rtx4070"
+        ],
+        "vramGb": 12
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4070-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-128k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 83
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:06:56Z",
+          "harness": "validate_rented.py on vast RTX 4070 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4070-super-12gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4070 SUPER",
+        "names": [
+          "rtx4070super"
+        ],
+        "vramGb": 12
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4070super-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-128k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 82
+        },
+        "validated": {
+          "acceptedAt": "2026-09-03T00:15:37Z",
+          "harness": "validate_rented.py on vast RTX 4070S (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4070-ti-12gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4070 Ti",
+        "names": [
+          "rtx4070ti"
+        ],
+        "vramGb": 12
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4070ti-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-128k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 81
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:13:32Z",
+          "harness": "validate_rented.py on vast RTX 4070 Ti (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4070-ti-super-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4070 Ti SUPER",
+        "names": [
+          "rtx4070tisuper"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4070tisuper-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 106
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:47:59Z",
+          "harness": "validate_rented.py on vast RTX 4070S Ti (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4080-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4080",
+        "names": [
+          "rtx4080"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4080-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 96
+        },
+        "validated": {
+          "acceptedAt": "2026-09-03T10:18:43Z",
+          "harness": "validate_rented.py on vast RTX 4080 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4080-super-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4080 SUPER",
+        "names": [
+          "rtx4080super"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx4080super-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 100
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:43:04Z",
+          "harness": "validate_rented.py on vast RTX 4080S (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-4090-24gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 4090",
+        "names": [
+          "rtx4090"
+        ],
+        "vramGb": 24
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "gemma412b-exl3-4bpw-rtx4090-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/gemma-4-12b-it-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/gemma412bit-exl3-4bpw-128k-q6-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "gemma-4-12b-it",
+          "name": "Gemma-4-12B-it",
+          "precision": "4 bpw",
+          "repository": "turboderp/gemma-4-12B-it-exl3",
+          "revision": "e8d17ffbe696accdba72a47dac858d7e880d709e",
+          "servedName": "Gemma-4-12B-it-EXL3-4bpw",
+          "sizeGb": 8.37
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 83
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:41:51Z",
+          "harness": "validate_rented.py on vast RTX 4090 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Gemma-4-12B-it-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-5060-8gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 5060",
+        "names": [
+          "rtx5060"
+        ],
+        "vramGb": 8
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx5060-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 60
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:56:15Z",
+          "harness": "validate_rented.py on vast RTX 5060"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-5060-ti-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 5060 Ti",
+        "names": [
+          "rtx5060ti"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx5060ti-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 69
+        },
+        "validated": {
+          "acceptedAt": "2026-09-03T00:03:18Z",
+          "harness": "validate_rented.py on vast RTX 5060 Ti (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-5060-ti-8gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 5060 Ti",
+        "names": [
+          "rtx5060ti"
+        ],
+        "vramGb": 8
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "lfm2526b-bf16-rtx5060ti-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "LiquidAI/LFM2.5-2.6B",
+            "--revision",
+            "a334ee78cd38458bb71eda24109ac42dcec1309d",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--tp",
+            "1",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.90",
+            "--attention-backend",
+            "flashinfer",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3-thinking",
+            "--tool-call-parser",
+            "lfm2"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu12@sha256:c3479164c16d9a8ef33053914c07bfd372007c36c675f629095f2c925c7e7e30",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "lfm2-5-2-6b",
+          "name": "LFM2.5-2.6B",
+          "precision": "BF16",
+          "repository": "LiquidAI/LFM2.5-2.6B",
+          "revision": "a334ee78cd38458bb71eda24109ac42dcec1309d",
+          "servedName": "LiquidAI/LFM2.5-2.6B",
+          "sizeGb": 5.024
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 63
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:05:20Z",
+          "harness": "validate_rented.py on vast RTX 5060 Ti"
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    },
+    "rtx-5070-12gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 5070",
+        "names": [
+          "rtx5070"
+        ],
+        "vramGb": 12
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx5070-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-128k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 91
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:24:19Z",
+          "harness": "validate_rented.py on vast RTX 5070 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-5070-ti-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 5070 Ti",
+        "names": [
+          "rtx5070ti"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx5070ti-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 55
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:51:43Z",
+          "harness": "validate_rented.py on vast RTX 5070 Ti (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-5080-16gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 5080",
+        "names": [
+          "rtx5080"
+        ],
+        "vramGb": 16
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen359b-exl3-4bpw-rtx5080-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-5-9b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen359b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-5-9b",
+          "name": "Qwen3.5-9B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.5-9B-exl3",
+          "revision": "01192d8c6d9cbd94f9cf99c0ddb85e9e217ccc01",
+          "servedName": "Qwen3.5-9B-EXL3-4bpw",
+          "sizeGb": 6.71
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 124
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T22:41:46Z",
+          "harness": "validate_rented.py on vast RTX 5080 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.5-9B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-5090-32gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "GeForce RTX 5090",
+        "names": [
+          "rtx5090"
+        ],
+        "vramGb": 32
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen3827b-exl3-4bpw-rtx5090-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-8-27b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen3827b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-8-27b",
+          "name": "Qwen3.8-27B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.8-27B-exl3",
+          "revision": "113cf7ab958054860e43fb7f3063b1af19171095",
+          "servedName": "Qwen3.8-27B-EXL3-4bpw",
+          "sizeGb": 15.73
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 73
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:52:12Z",
+          "harness": "validate_rented.py on vast RTX 5090 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.8-27B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-6000-ada-48gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "RTX 6000 Ada Generation",
+        "names": [
+          "rtx6000ada"
+        ],
+        "vramGb": 48
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen3827b-exl3-4bpw-rtx6000ada-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-8-27b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen3827b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-8-27b",
+          "name": "Qwen3.8-27B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.8-27B-exl3",
+          "revision": "113cf7ab958054860e43fb7f3063b1af19171095",
+          "servedName": "Qwen3.8-27B-EXL3-4bpw",
+          "sizeGb": 15.73
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 49
+        },
+        "validated": {
+          "acceptedAt": "2026-09-03T07:46:36Z",
+          "harness": "validate_rented.py on vast RTX 6000Ada (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.8-27B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-a6000-48gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "RTX A6000",
+        "names": [
+          "rtxa6000"
+        ],
+        "vramGb": 48
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen3827b-exl3-4bpw-rtxa6000-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-8-27b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen3827b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-8-27b",
+          "name": "Qwen3.8-27B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.8-27B-exl3",
+          "revision": "113cf7ab958054860e43fb7f3063b1af19171095",
+          "servedName": "Qwen3.8-27B-EXL3-4bpw",
+          "sizeGb": 15.73
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 36
+        },
+        "validated": {
+          "acceptedAt": "2026-09-03T08:02:01Z",
+          "harness": "validate_rented.py on vast RTX A6000 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.8-27B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-pro-4000-blackwell-24gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "NVIDIA RTX PRO 4000 Blackwell",
+        "names": [
+          "rtxpro4000blackwell"
+        ],
+        "vramGb": 24
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "gemma412b-exl3-4bpw-rtxpro4000-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/gemma-4-12b-it-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/gemma412bit-exl3-4bpw-128k-q6-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "gemma-4-12b-it",
+          "name": "Gemma-4-12B-it",
+          "precision": "4 bpw",
+          "repository": "turboderp/gemma-4-12B-it-exl3",
+          "revision": "e8d17ffbe696accdba72a47dac858d7e880d709e",
+          "servedName": "Gemma-4-12B-it-EXL3-4bpw",
+          "sizeGb": 8.37
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 58
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:36:27Z",
+          "harness": "validate_rented.py on vast RTX PRO 4000 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Gemma-4-12B-it-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-pro-4500-blackwell-32gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "NVIDIA RTX PRO 4500 Blackwell",
+        "names": [
+          "rtxpro4500blackwell"
+        ],
+        "vramGb": 32
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": null,
+          "tools": null,
+          "vision": false
+        },
+        "engine": "tabbyapi",
+        "id": "qwen3827b-exl3-4bpw-rtxpro4500-tabbyapi-tp1",
+        "image": {
+          "attestation": "gh attestation verify oci://ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448 -o 0xSero",
+          "provenance": "self-built-attested"
+        },
+        "launch": {
+          "arguments": [
+            "main.py",
+            "--config",
+            "/app/config.yml"
+          ],
+          "capAdd": [],
+          "containerPort": 5000,
+          "entrypoint": "/opt/venv/bin/python3",
+          "environment": {
+            "NVIDIA_VISIBLE_DEVICES": "all"
+          },
+          "image": "ghcr.io/0xsero/tabbyapi-exl3@sha256:3d35e4979f5de7fd3b1621e4acd70035fa24ab78e941f4b569ab30fe1d1e7448",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": true,
+              "source": "${MODEL_ROOT}/qwen3-8-27b-exl3-4bpw",
+              "target": "/workspace/models"
+            },
+            {
+              "read_only": true,
+              "source": "asset/qwen3827b-exl3-4bpw-256k-q4-tabbyapi-config.yml",
+              "target": "/app/config.yml"
+            }
+          ],
+          "networkMode": null,
+          "securityOpt": [],
+          "shm": "8g"
+        },
+        "minDriver": "535.0",
+        "model": {
+          "id": "qwen3-8-27b",
+          "name": "Qwen3.8-27B",
+          "precision": "4 bpw",
+          "repository": "turboderp/Qwen3.8-27B-exl3",
+          "revision": "113cf7ab958054860e43fb7f3063b1af19171095",
+          "servedName": "Qwen3.8-27B-EXL3-4bpw",
+          "sizeGb": 15.73
+        },
+        "serving": {
+          "concurrency": 2,
+          "ctxTokens": 262144
+        },
+        "speed": {
+          "tps": 45
+        },
+        "validated": {
+          "acceptedAt": "2026-09-02T23:52:27Z",
+          "harness": "validate_rented.py on vast RTX PRO 4500 (weights and config materialized in-container in place of the bind mounts)"
+        },
+        "weights": {
+          "subdir": "Qwen3.8-27B-EXL3-4bpw"
+        }
+      }
+    },
+    "rtx-pro-6000-blackwell-96gb": {
+      "match": {
+        "backend": "nvidia",
+        "name": "RTX PRO 6000 Blackwell",
+        "names": [
+          "rtxpro6000blackwell"
+        ],
+        "vramGb": 96
+      },
+      "recipe": {
+        "capabilities": {
+          "chat": true,
+          "reasoning": false,
+          "tools": false,
+          "vision": false
+        },
+        "engine": "sglang",
+        "id": "qwen38-27b-nvfp4-rtxpro6000-sglang-tp1",
+        "image": {
+          "attestation": null,
+          "provenance": "upstream-published"
+        },
+        "launch": {
+          "arguments": [
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            "RadixArk/Qwen3.8-27B-NVFP4",
+            "--revision",
+            "319f741cce68d7914884900c138a1fbb70a42f30",
+            "--tp",
+            "1",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "30000",
+            "--context-length",
+            "131072",
+            "--mem-fraction-static",
+            "0.87",
+            "--attention-backend",
+            "flashinfer",
+            "--kv-cache-dtype",
+            "fp8_e4m3",
+            "--max-running-requests",
+            "4",
+            "--cuda-graph-max-bs-decode",
+            "4",
+            "--enable-cache-report",
+            "--trust-remote-code",
+            "--reasoning-parser",
+            "qwen3",
+            "--tool-call-parser",
+            "qwen3_coder"
+          ],
+          "capAdd": [],
+          "containerPort": 30000,
+          "entrypoint": "/opt/sglang/bin/python",
+          "environment": {
+            "HF_HOME": "/root/.cache/huggingface"
+          },
+          "image": "lmsysorg/sglang:dev-cu13@sha256:6cd4635214f279e0a43019f88e3120d407567640a58aa7dcc0085e3d91402cc4",
+          "ipc": null,
+          "mounts": [
+            {
+              "read_only": false,
+              "source": "~/.cache/huggingface",
+              "target": "/root/.cache/huggingface"
+            }
+          ],
+          "networkMode": "bridge",
+          "securityOpt": [],
+          "shm": "16g"
+        },
+        "minDriver": "575.0",
+        "model": {
+          "id": "qwen3-8-27b",
+          "name": "Qwen3.8-27B",
+          "precision": "NVFP4",
+          "repository": "RadixArk/Qwen3.8-27B-NVFP4",
+          "revision": "319f741cce68d7914884900c138a1fbb70a42f30",
+          "servedName": "qwen3.8-27b",
+          "sizeGb": 20.4
+        },
+        "serving": {
+          "concurrency": 4,
+          "ctxTokens": 131072
+        },
+        "speed": {
+          "tps": 0
+        },
+        "validated": {
+          "acceptedAt": null,
+          "harness": null
+        },
+        "weights": {
+          "subdir": ""
+        }
+      }
+    }
+  },
+  "registryCommit": "7f320db60b4ba4159306ab9b716bd38d523c7780",
+  "schemaVersion": "omarchy-local-ai/recipes/1"
+}

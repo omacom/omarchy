@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# omarchy:summary=Run the validated local model for this GPU and open coding agents on it
+# omarchy:args=<snapshot|load|unload|open-agent [name]|share [--key value]|agent-dir <path>>
+#
+# Five verbs. `snapshot` is a pure read that rewrites the state file the panel watches. `load`
+# and `unload` spawn a worker that holds the op lock; everything they do is logged. `open-agent`
+# launches an agent with the endpoint in its environment. `share` toggles the tailnet route.
+set -euo pipefail
+HERE=$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")")" && pwd)
+SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
+# shellcheck source=../lib/common.sh
+source "$HERE/../lib/common.sh"
+# shellcheck source=../lib/hardware.sh
+source "$HERE/../lib/hardware.sh"
+# shellcheck source=../lib/recipes.sh
+source "$HERE/../lib/recipes.sh"
+# shellcheck source=../lib/weights.sh
+source "$HERE/../lib/weights.sh"
+# shellcheck source=../lib/share.sh
+source "$HERE/../lib/share.sh"
+# shellcheck source=../lib/runtime.sh
+source "$HERE/../lib/runtime.sh"
+# shellcheck source=../lib/agents.sh
+source "$HERE/../lib/agents.sh"
+# shellcheck source=../lib/snapshot.sh
+source "$HERE/../lib/snapshot.sh"
+
+recipes_ok || fail "recipes.json is missing or not the expected schema" || exit 1
+
+spawn() { # spawn <op-name> <worker-verb>: detach a worker; it takes the lock itself and reports through the ledger
+  local name=$1; shift
+  if [[ ${OMARCHY_AI_FOREGROUND:-0} == 1 ]]; then "$SELF" "$@" >/dev/null 2>>"$LOGFILE" || true; return; fi
+  # the worker is its own session so closing the panel's process never kills it; its pid goes into
+  # the ledger right away so the panel turns busy on the next snapshot, not a second later
+  if command -v setsid >/dev/null 2>&1; then setsid "$SELF" "$@" >/dev/null 2>>"$LOGFILE" </dev/null & disown
+  else "$SELF" "$@" >/dev/null 2>>"$LOGFILE" </dev/null & disown; fi
+  op_pending "$name" "$!"
+}
+
+current_recipe() { # the one recipe for this machine, gated; prints json or fails out loud
+  local m id r gate
+  m=$(match_hardware); id=$(jq -r .hardwareId <<<"$m")
+  [[ -n $id ]] || { fail "$(jq -r .reason <<<"$m")"; return 1; }
+  r=$(recipe_for "$id") || return 1
+  r=$(jq -c --argjson m "$m" '. + {gpuIndex:$m.gpu.index, match:{backend:$m.gpu.backend}}' <<<"$r")
+  gate=$(gate_reason "$r"); [[ -z $gate ]] || { fail "recipe refused: $gate"; return 1; }
+  driver_ok "$(hardware_json | jq -r .driver)" "$(jq -r '.minDriver // ""' <<<"$r")" \
+    || { fail "needs NVIDIA driver $(jq -r .minDriver <<<"$r") or newer"; return 1; }
+  printf '%s\n' "$r"
+}
+
+w_load() {
+  guard || oops "another operation is running"
+  trap worker_exit EXIT   # a step that dies unexpectedly still leaves a reason on the card, never a silent idle
+  local r id t0
+  op download "" "checking the GPU and recipe" 0
+  r=$(current_recipe 2>"$STATE/gate.err") || oops "$(sed -n '$s/^local-ai: //p' "$STATE/gate.err")"
+  id=$(jq -r .id <<<"$r")
+  op download "$id" "checking" 0
+  ensure_image "$(jq -r .launch.image <<<"$r")" "$id"
+  ensure_image "$(gateway_image)" "$id"
+  weights_present "$r" || download_weights "$r"
+  t0=$SECONDS
+  op starting "$id" "setting aside the previous model" 0
+  set_aside || oops "could not set aside the running containers"
+  op starting "$id" "starting" 0
+  if ! start_pair "$r" || ! accept "$r" 2>"$STATE/accept.err"; then
+    local why; why=$(sed -n '$s/^local-ai: //p' "$STATE/accept.err" 2>/dev/null); [[ -n $why ]] || why="engine failed to start (see $LOGFILE)"
+    log "rollback: $why"; op starting "$id" "rolling back" 0
+    restore_previous
+    oops "$why"
+  fi
+  drop_previous
+  # how long Start took from the first container step to accepted: the next Start's progress bar
+  lwrite '.lastStartSeconds=($s|tonumber)' --arg s "$((SECONDS - t0))"
+  op_done; log "ready $id"
+}
+
+w_unload() {
+  guard || oops "another operation is running"
+  trap worker_exit EXIT
+  op unload "" "stopping" 0
+  share_forget
+  stop_all
+  lwrite '.accepted={recipeId:"",servedModel:"",registry:"",apis:[]}'
+  op_done; log "unloaded"
+}
+
+usage() {
+  echo 'Usage: omarchy-local-ai <command>
+  snapshot               refresh and print the state the panel renders
+  load                   download if needed, then start the model for this GPU
+  unload                 stop the model; keep downloads
+  open-agent [name]      open an installed coding agent on the running model
+  share [--key <value>]  toggle sharing on your tailnet, or replace the key
+  agent-dir <path>       directory agents open in (default: where the shell started)
+  agent-args <name> [-- flags]  extra flags for one agent when opened from the panel (none to clear)
+  gpu [auto|<backend:index>]  which detected card to use (snapshot lists them); auto = largest card with a recipe'
+}
+
+cmd=${1:-help}; shift || true
+case $cmd in
+  snapshot) snapshot_write; cat "$SNAPSHOT" ;;
+  load) [[ -z $(busy_pid) ]] || fail "another operation is running" || exit 1; spawn download _worker-load ;;
+  unload) [[ -z $(busy_pid) ]] || fail "another operation is running" || exit 1; spawn unload _worker-unload ;;
+  open-agent) snapshot_write; open_agent "${1:-}" 2>"$STATE/agent.err" || { m=$(sed -n '$s/^local-ai: //p' "$STATE/agent.err"); refuse "${m:-agent launch failed (see $LOGFILE)}"; exit 1; } ;;
+  share) share_toggle "$@" ;;
+  agent-args) [[ -n ${1:-} ]] || { fail "agent-args <name> [-- flags...]"; exit 1; }; n=$1; shift; [[ ${1:-} == -- ]] && shift; mkdir -p "$STATE/agents/args"; if (( $# )); then printf '%s\0' "$@" >"$STATE/agents/args/$n"; else rm -f "$STATE/agents/args/$n"; fi; log "agent-args $n: $*" ;;
+  gpu) case ${1:-} in
+         ""|auto) rm -f "$STATE/gpu"; log "gpu auto" ;;
+         *) [[ $1 =~ ^[a-z-]+:[0-9]+$ ]] || { fail "gpu <backend:index>, as listed in the snapshot"; exit 1; }
+            state_dir; printf '%s' "$1" >"$STATE/gpu"; log "gpu $1" ;;
+       esac; snapshot_write; jq -c '.gpus' "$SNAPSHOT" ;;
+  agent-dir) [[ -d ${1:-} ]] && { (cd "$1" && pwd) >"$STATE/agent-dir"; log "agent-dir $1"; } || { fail "agent-dir: not a directory: ${1:-}"; exit 1; } ;;
+  _worker-load) w_load ;;
+  _worker-unload) w_unload ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac
