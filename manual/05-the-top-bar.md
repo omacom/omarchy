@@ -125,6 +125,12 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
 }
 ```
 
+The tray menu defaults to a maximum height of `420` theme-scaled units. To
+make a tall tray menu show more entries before scrolling, add
+`"trayMenuMaxHeight": 600` under `bar` in `~/.config/omarchy/shell.json`.
+The value must be a positive integer; missing or invalid values use the
+default, and the menu still stays within the available monitor space.
+
 Every widget is one entry in one of the three layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.
 
 `centerAnchor` names the one center widget that gets pinned to the exact center of the screen, with the others flanking it. That's how the clock stays dead center even as the weather and update badge come and go. Set it to an empty string and the center list is just centered as a group instead.
