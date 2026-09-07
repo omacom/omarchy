@@ -54,6 +54,12 @@ reset_case() {
 
 # Fixed protected anchors consume the pinned source inodes.
 prepare_user_mount_sources
+# Samba initializes an empty share with setgid; user-side preparation must
+# remove that bit as well as group/other access before the root handoff.
+chmod 2777 "$HOME/Windows"
+prepare_user_mount_sources || fail "user preparation rejected a setgid shared directory"
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "user preparation retained setgid on the shared directory"
+pass "user preparation clears Samba's setgid shared-directory mode"
 write 4G 2 64G alice s3cret Europe/Copenhagen
 resolve_caller
 [[ -f $COMPOSE ]] || fail "writer produced a compose file"
