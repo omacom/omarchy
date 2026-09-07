@@ -26,6 +26,7 @@ Item {
   property int fingerprintUnreachedStreak: 0
   property bool fingerprintAttemptReachedDevice: false
   property double fingerprintLastNudgeMs: 0
+  property double fingerprintLastSettleMs: 0
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -143,6 +144,7 @@ Item {
     fingerprintAuthenticating = false
     fingerprintUnreachedStreak = 0
     fingerprintLastNudgeMs = 0
+    fingerprintLastSettleMs = 0
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
     if (passwordPam.active) passwordPam.abort()
@@ -200,13 +202,14 @@ Item {
   // trying now, so collapse a backed-off wait to a prompt retry rather than
   // ride out the cap. Rate-limited (see shouldNudge): a moving cursor raises a
   // wake per motion event, and without the floor each fresh backoff wait would
-  // be re-collapsed straight back into the storm the backoff exists to prevent.
+  // be re-collapsed straight back into the storm the backoff exists to prevent;
+  // past the floor, the current tier paces repeat nudges.
   function nudgeFingerprint() {
     if (!lockRequested || !fingerprintConfigured) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
     if (!fingerprintRetryTimer.running) return
     var now = Date.now()
-    if (!FingerprintModel.shouldNudge(now, fingerprintLastNudgeMs, fingerprintRetryTimer.interval)) return
+    if (!FingerprintModel.shouldNudge(now, fingerprintLastNudgeMs, fingerprintLastSettleMs, fingerprintRetryTimer.interval)) return
     fingerprintLastNudgeMs = now
     fingerprintRetryTimer.interval = FingerprintModel.MATCH_RETRY_MS
     fingerprintRetryTimer.restart()
@@ -325,6 +328,7 @@ Item {
     if (!lockRequested || !fingerprintConfigured) return
 
     fingerprintUnreachedStreak = FingerprintModel.nextStreak(fingerprintUnreachedStreak, fingerprintAttemptReachedDevice)
+    fingerprintLastSettleMs = Date.now()
     fingerprintRetryTimer.interval = FingerprintModel.retryDelayMs(fingerprintUnreachedStreak)
     fingerprintRetryTimer.restart()
   }
