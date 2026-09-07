@@ -196,6 +196,9 @@ pass "scratchpad retains existing bindings and adds Grave shortcuts"
 panels_home="$tmpdir/panels-home"
 mkdir -p "$panels_home"
 panels_output=$(run_omarchy_bindings "$panels_home")
+grep -Fqx $'SUPER + ALT + N\tRSS Reader' <<<"$panels_output" ||
+  fail "RSS Reader shortcut loads from package defaults without a user binding migration"
+pass "RSS Reader shortcut loads from package defaults without a user binding migration"
 for panel in 1 2 3 4 5 6 7 8 9; do
   grep -Fqx "SUPER + CTRL + code:$((panel + 9))"$'\t'"Bar panel $panel" <<<"$panels_output" ||
     fail "bar panel hotkeys count the right section" "$panel"
