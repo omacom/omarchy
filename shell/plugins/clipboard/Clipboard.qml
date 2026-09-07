@@ -10,6 +10,9 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // Injected by the shell on load; the extension slot needs it to find the
+  // plugins that contribute actions here.
+  property var pluginRegistry: null
   property bool opened: false
   property string filterText: ""
   property int selectedIndex: 0
@@ -41,6 +44,7 @@ Item {
 
   function open(payloadJson) {
     root.opened = true
+    extensions.closePane()
     root.filterText = ""
     root.selectedIndex = 0
     root.cursorActive = true
@@ -51,6 +55,7 @@ Item {
 
   function close() {
     root.cancelClearHistory()
+    extensions.closePane()
     root.opened = false
   }
 
@@ -189,9 +194,26 @@ Item {
   }
 
   function selectFromPointer(index, item, mouse) {
+    if (extensions.paneOpen) return
     if (!pointerGate.moved(item, mouse)) return
     root.cursorActive = true
     root.selectedIndex = index
+  }
+
+  // A plain snapshot rather than the ListModel row, so an extension holding on
+  // to it cannot be surprised by the next rebuild.
+  function selectedEntry() {
+    if (!root.cursorActive) return null
+    if (root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return null
+
+    var row = displayModel.get(root.selectedIndex)
+    return {
+      type: row.entryType,
+      text: row.fullText,
+      path: row.path,
+      mime: row.mime,
+      historyIndex: row.historyIndex
+    }
   }
 
   function activateIndex(index) {
@@ -241,6 +263,16 @@ Item {
   Component.onCompleted: initProc.running = true
 
   ListModel { id: displayModel }
+
+  // The clipboard's one extension point. The built-in id is deliberate: a
+  // clone of this plugin keeps hosting the same extensions.
+  PluginExtensions {
+    id: extensions
+    hostId: "omarchy.clipboard"
+    pluginRegistry: root.pluginRegistry
+    onCloseRequested: root.close()
+    onPaneClosed: Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
 
   PointerMoveGate {
     id: pointerGate
@@ -353,6 +385,21 @@ Item {
         Keys.onPressed: function(event) {
           if (root.clearConfirmOpen) {
             if (clearConfirm.handleKey(event)) event.accepted = true
+            return
+          }
+
+          if (extensions.paneOpen) {
+            // The pane owns the keyboard. Escape is the way back out if it
+            // never took focus.
+            if (event.key === Qt.Key_Escape) {
+              extensions.closePane()
+              event.accepted = true
+            }
+            return
+          }
+
+          if (extensions.handleKey(event, root.selectedEntry())) {
+            event.accepted = true
             return
           }
 
@@ -533,11 +580,22 @@ Item {
             }
 
             Item {
+              id: detailPane
               width: parent.width / 2
               height: parent.height
               clip: true
 
               property var activeRow: displayModel.count > 0 && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
+
+              readonly property var entry: {
+                // selectedEntry() reads the cursor and the model; the filter is
+                // the one input it cannot see, and refiltering can change what
+                // sits at the selected index without changing the row count.
+                var filterText = root.filterText
+                return root.selectedEntry()
+              }
+              readonly property var actions: extensions.available(entry)
+              readonly property int actionsInset: actionRow.visible ? actionRow.height + root.contentSpacing : 0
 
               Rectangle {
                 anchors.left: parent.left
@@ -549,12 +607,12 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                visible: parent.activeRow && !parent.activeRow.previewImage
+                visible: !extensions.paneOpen && parent.activeRow && !parent.activeRow.previewImage
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
                 anchors.rightMargin: 0
                 anchors.topMargin: 0
-                anchors.bottomMargin: 0
+                anchors.bottomMargin: detailPane.actionsInset
                 text: parent.activeRow ? parent.activeRow.fullText : ""
                 color: root.foreground
                 font.family: root.fontFamily
@@ -565,17 +623,49 @@ Item {
               }
 
               Image {
-                visible: parent.activeRow && parent.activeRow.previewImage
+                visible: !extensions.paneOpen && parent.activeRow && parent.activeRow.previewImage
                 anchors.fill: parent
                 anchors.leftMargin: root.contentMargin
                 anchors.rightMargin: 0
                 anchors.topMargin: 0
-                anchors.bottomMargin: 0
+                anchors.bottomMargin: detailPane.actionsInset
                 source: parent.activeRow ? parent.activeRow.previewImage : ""
                 fillMode: Image.PreserveAspectFit
                 verticalAlignment: Image.AlignTop
                 asynchronous: true
                 smooth: true
+              }
+
+              // Whatever an extension put here stands in for the preview until
+              // it hands the pane back.
+              Loader {
+                anchors.fill: parent
+                anchors.leftMargin: root.contentMargin
+                active: extensions.paneOpen
+                sourceComponent: extensions.paneComponent
+              }
+
+              Row {
+                id: actionRow
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                spacing: Style.spacing.controlGap
+                visible: !extensions.paneOpen && detailPane.actions.length > 0
+
+                Repeater {
+                  model: detailPane.actions
+
+                  delegate: Button {
+                    required property var modelData
+
+                    text: modelData.shortcut ? modelData.label + "  " + modelData.shortcut : modelData.label
+                    bordered: true
+                    foreground: root.foreground
+                    fontFamily: root.fontFamily
+                    fontSize: Style.font.body
+                    onClicked: extensions.activate(modelData, detailPane.entry)
+                  }
+                }
               }
             }
           }

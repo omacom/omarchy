@@ -34,6 +34,7 @@ wait).
 | `overlay`    | Fullscreen overlay (e.g. background picker)    |
 | `menu`       | Summoned menu surface                          |
 | `service`    | Headless singleton, no UI                      |
+| `extension`  | Actions contributed into another plugin's UI   |
 
 Only one full bar option is active at a time. The built-in `omarchy.bar` is
 used when `bar.id` is omitted or when a selected third-party bar cannot load.
@@ -42,6 +43,67 @@ Panels, overlays, and menus are loaded when summoned. Plugins can set the top-le
 Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
 
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
+
+## Extensions
+
+An `extension` contributes an action into another plugin's UI instead of
+carrying a surface of its own. It names the plugin it extends and ships one
+entry point:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "acme.clipedit",
+  "name": "ClipEdit",
+  "version": "1.0.0",
+  "kinds": ["extension"],
+  "entryPoints": { "extension": "ClipEdit.qml" },
+  "extension": { "host": "omarchy.clipboard" }
+}
+```
+
+The entry point declares what it offers and what it acts on:
+
+```qml
+Item {
+  property var host: null              // injected on load
+
+  readonly property string label: "Edit"
+  readonly property string shortcut: "Ctrl+E"   // optional
+
+  function supports(entry) { return entry && entry.type === "text" }
+  function activate(entry) { host.openPane(editorComponent, entry) }
+}
+```
+
+`host` is the [`PluginExtensions`](../shell/Ui/PluginExtensions.qml) slot the
+plugin offered. `host.openPane(component, entry)` puts a component of yours on
+the host's own surface, `host.closePane()` hands it back, and
+`host.requestClose()` dismisses the host. `host.paneEntry` is the entry the
+pane was opened for.
+
+A host offers a slot by naming itself and rendering what comes back; it never
+learns what an extension does:
+
+```qml
+PluginExtensions {
+  id: extensions
+  hostId: "omarchy.clipboard"
+  pluginRegistry: root.pluginRegistry
+  onCloseRequested: root.close()
+}
+```
+
+`extensions.available(entry)` is the list to draw as actions,
+`extensions.handleKey(event, entry)` claims contributed shortcuts, and
+`extensions.paneComponent` is what to mount when `extensions.paneOpen`. With
+nothing installed all three collapse to the behavior the host had before it
+offered a slot, and an extension that fails to load, or whose `supports()`
+throws, drops itself rather than the host.
+
+`omarchy.clipboard` is the first host: its detail pane shows contributed
+actions under the preview, and an extension can replace the preview with an
+editing surface of its own.
 
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
