@@ -285,6 +285,7 @@ and/or a working user systemd instance:
   `install/user/first-run/gtk-primary-paste.sh` — GNOME/GTK settings that
   need the dconf daemon.
 - `install/user/first-run/audio-tuning.sh` — apply speaker tuning.
+- `omarchy-t1bridge-import-notify` — stay silent when the T1Bridge machine-data import succeeded; otherwise show the one retryable hardware-setup notification on supported T1 Macs.
 - `install/user/first-run/welcome.sh` — keybindings toast that greets the
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
@@ -312,9 +313,7 @@ finalization. It sources:
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
   powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
   Snapper retention, locate index tuning, service enablement, firewall.
-- `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
-  device-specific kernel modules, udev rules, microcode, wireless regdom,
-  ASUS / Framework / Intel / Apple / Lenovo quirks.
+- `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and device-specific kernel modules, udev rules, microcode, wireless regdom, ASUS / Framework / Intel / Apple / Lenovo quirks. On supported T1 Macs, the Apple leaf installs T1Bridge and arms one downstream-owned machine-data import after T1Bridge's private link is ready.
 - `install/login/all.sh` — SDDM theme/session config.
 - `install/post-install/all.sh` — final pacman/udev/localdb passes.
 

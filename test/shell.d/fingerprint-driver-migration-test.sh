@@ -58,3 +58,7 @@ pass "an installed stock libfprint is left alone"
 INSTALLED='' run_migration
 [[ ! -s $CALL_LOG ]] || fail "a machine without fprintd is left alone" "$(<"$CALL_LOG")"
 pass "a machine without fprintd is left alone"
+
+INSTALLED=$'t1bridge\nlibfprint-t1bridge\nfprintd-t1bridge' run_migration
+[[ ! -s $CALL_LOG ]] || fail "the T1 compatibility pair is left alone" "$(<"$CALL_LOG")"
+pass "the T1 compatibility pair is left alone"

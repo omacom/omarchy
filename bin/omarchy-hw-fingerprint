@@ -3,6 +3,18 @@
 # omarchy:summary=Returns true when a fingerprint reader is present
 # omarchy:hidden=true
 
+dmi_product_name_path="${OMARCHY_DMI_PRODUCT_NAME_PATH:-/sys/class/dmi/id/product_name}"
+
+dmi_sys_vendor_path="${OMARCHY_DMI_SYS_VENDOR_PATH:-/sys/class/dmi/id/sys_vendor}"
+
+if [[ -r $dmi_product_name_path && -r $dmi_sys_vendor_path ]] &&
+  [[ $(<"$dmi_sys_vendor_path") == "Apple Inc." ]]; then
+  product_name=$(<"$dmi_product_name_path")
+  case $product_name in
+  MacBookPro13,2 | MacBookPro13,3 | MacBookPro14,2 | MacBookPro14,3) exit 0 ;;
+  esac
+fi
+
 # Detect straight from sysfs so this works before fprintd/usbutils are
 # installed (the fingerprint setup pulls those in). USB vendor IDs listed here
 # ship fingerprint readers; multi-purpose vendors (e.g. Elan/STMicro, which

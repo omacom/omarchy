@@ -1,6 +1,6 @@
 hl.on("hyprland.start", function()
   -- Slow app launch fix -- set systemd vars before starting session services.
-  hl.exec_cmd("systemctl --user import-environment $(env | cut -d'=' -f 1)")
+  hl.exec_cmd("systemctl --user import-environment $(env | cut -d'=' -f 1) && (systemctl --user try-restart t1-touchbar.service >/dev/null 2>&1 || true)")
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
 
   hl.exec_cmd("omarchy-launch-shell")

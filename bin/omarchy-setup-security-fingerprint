@@ -74,13 +74,32 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
-# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
-# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
-# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
-# one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
-  echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+# Keep the T1 compatibility pair together; migrating a competing stack is a
+# separate operation. The ordinary wizard must never replace either pair.
+if [[ $(pacman -Qq t1bridge 2>/dev/null) == "t1bridge" ]]; then
+  for package in libfprint libfprint-git fprintd; do
+    if [[ $(pacman -Qq "$package" 2>/dev/null) == "$package" ]]; then
+      printf 'Fingerprint setup stopped: migrate the existing %s package first.\n' "$package" >&2
+      exit 1
+    fi
+  done
+  omarchy-pkg-add libfprint-t1bridge fprintd-t1bridge usbutils
+  sudo systemctl restart fprintd.service
+else
+  for package in libfprint-t1bridge fprintd-t1bridge; do
+    if [[ $(pacman -Qq "$package" 2>/dev/null) == "$package" ]]; then
+      printf 'Fingerprint setup stopped: %s requires the T1Bridge stack.\n' "$package" >&2
+      exit 1
+    fi
+  done
+  # libfprint-git tracks upstream ahead of the Arch release, so a new reader only
+  # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
+  # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
+  # one transaction, so a failed install leaves the existing driver in place.
+  if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+    echo "Installing required packages..."
+    sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+  fi
 fi
 
 # Enroll first fingerprint

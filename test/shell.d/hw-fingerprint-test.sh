@@ -6,6 +6,13 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
+dmi_product_name_path="$tmp_dir/product_name"
+dmi_sys_vendor_path="$tmp_dir/sys_vendor"
+printf 'Apple Inc.\n' >"$dmi_sys_vendor_path"
+
+write_dmi_product_name() {
+  printf '%s\n' "$1" >"$dmi_product_name_path"
+}
 
 write_usb_devices() {
   rm -rf "$tmp_dir/devices"
@@ -35,7 +42,10 @@ write_usb_devices() {
 }
 
 hw_fingerprint() {
-  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$ROOT/bin/omarchy-hw-fingerprint"
+  OMARCHY_DMI_SYS_VENDOR_PATH="$dmi_sys_vendor_path" \
+    OMARCHY_DMI_PRODUCT_NAME_PATH="$dmi_product_name_path" \
+    OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" \
+    "$ROOT/bin/omarchy-hw-fingerprint"
 }
 
 assert_detects() {
@@ -53,6 +63,25 @@ assert_rejects() {
   fi
   pass "$description"
 }
+
+write_usb_devices
+for model in MacBookPro13,2 MacBookPro13,3 MacBookPro14,2 MacBookPro14,3; do
+  write_dmi_product_name "$model"
+  assert_detects "$model is detected as a T1 fingerprint device"
+done
+
+for model in MacBookPro13,1 MacBookPro14,1 MacBookPro15,1; do
+  write_dmi_product_name "$model"
+  assert_rejects "$model is not detected as a T1 fingerprint device"
+done
+
+write_dmi_product_name "MacBookPro13,3"
+printf 'Other Vendor\n' >"$dmi_sys_vendor_path"
+assert_rejects "a matching product from another vendor is not a T1 Mac"
+rm "$dmi_sys_vendor_path"
+assert_rejects "a matching product without a vendor is not a T1 Mac"
+
+write_dmi_product_name "Generic Laptop"
 
 write_usb_devices '10a5:a305:FPC L:0000 FW:1425046'
 assert_detects "an FPC reader is detected by its product string"

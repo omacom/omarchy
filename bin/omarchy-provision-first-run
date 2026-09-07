@@ -85,6 +85,8 @@ run_first_run_step "apply speaker tuning" \
   bash "$OMARCHY_PATH/install/user/first-run/audio-tuning.sh"
 
 omarchy-notification-wait || log_first_run "Timed out waiting for notification service; continuing"
+run_first_run_step "report T1Bridge machine-data import failure" \
+  omarchy-t1bridge-import-notify
 # Each send returns only once the server has taken the toast, so sending in
 # order is enough to stack them newest-on-top.
 run_first_run_step "show welcome notification" \

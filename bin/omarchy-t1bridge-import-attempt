@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Run one protected T1Bridge machine-data import attempt
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+state_dir=/var/lib/omarchy/t1bridge-import
+result_file="$state_dir/result"
+lock_file=/run/lock/omarchy-t1bridge-import.lock
+import_unit=t1bridge-import.service
+
+if (( EUID != 0 )); then
+  echo "Error: omarchy-t1bridge-import-attempt must run as root" >&2
+  exit 1
+fi
+
+exec 9>"$lock_file"
+/usr/bin/flock -n 9 || exit 75
+
+/usr/bin/install -d -m 0755 -o root -g root "$state_dir"
+
+result=failure
+load_state=$(/usr/bin/systemctl show --property=LoadState --value "$import_unit" 2>/dev/null || true)
+if [[ $load_state == "loaded" ]]; then
+  /usr/bin/systemctl reset-failed "$import_unit" >/dev/null 2>&1 || true
+  /usr/bin/systemctl start "$import_unit" >/dev/null 2>&1 || true
+
+  service_result=$(/usr/bin/systemctl show --property=Result --value "$import_unit" 2>/dev/null || true)
+  exit_status=$(/usr/bin/systemctl show --property=ExecMainStatus --value "$import_unit" 2>/dev/null || true)
+  if [[ $service_result == "success" && $exit_status == "0" ]]; then
+    result=success
+  fi
+fi
+
+temporary=$(/usr/bin/mktemp --tmpdir="$state_dir" .result.XXXXXX)
+trap '/usr/bin/rm -f "$temporary"' EXIT
+printf '%s\n' "$result" >"$temporary"
+/usr/bin/chmod 0644 "$temporary"
+/usr/bin/chown root:root "$temporary"
+/usr/bin/mv -f "$temporary" "$result_file"
+trap - EXIT

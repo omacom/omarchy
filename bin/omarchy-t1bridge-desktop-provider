@@ -1,0 +1,144 @@
+#!/bin/bash
+
+# omarchy:summary=Provide Omarchy desktop controls to T1Bridge
+# omarchy:hidden=true
+
+set -uo pipefail
+
+usage() {
+  echo "Usage: omarchy-t1bridge-desktop-provider v1 <operation> [value]" >&2
+  exit 1
+}
+
+audio_sink() {
+  omarchy-audio-output-sink 2>/dev/null
+}
+
+audio_volume() {
+  local sink=$1
+  pactl get-sink-volume "$sink" 2>/dev/null |
+    awk 'NR == 1 {
+      for (i = 1; i <= NF; i++)
+        if ($i ~ /%$/) {sub("%", "", $i); print $i; exit}
+    }'
+}
+
+audio_mute_state() {
+  local sink=$1 response
+  response=$(pactl get-sink-mute "$sink" 2>/dev/null) || return 1
+  case $response in
+    *yes) printf '1\n' ;;
+    *no) printf '0\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+status() {
+  local capabilities=12 volume=- muted=- sink media_status
+
+  sink=$(audio_sink)
+  if [[ -n $sink ]]; then
+    volume=$(audio_volume "$sink")
+    muted=$(audio_mute_state "$sink") || muted=-
+    if [[ $volume =~ ^[0-9]+$ && $muted =~ ^[01]$ ]]; then
+      ((volume <= 100)) || volume=100
+      capabilities=$((capabilities | 1))
+    else
+      volume=-
+      muted=-
+    fi
+  fi
+
+  media_status=$(omarchy-shell media status 2>/dev/null) || media_status=
+  if jq -e '.hasPlayer == true' >/dev/null 2>&1 <<<"$media_status"; then
+    capabilities=$((capabilities | 2))
+  fi
+
+  printf 'T1BRIDGE-DESKTOP 1 %d %s %s\n' "$capabilities" "$volume" "$muted"
+}
+
+set_volume() {
+  local requested=$1 sink
+  [[ $requested =~ ^[0-9]+$ ]] || usage
+  ((requested <= 100)) || usage
+  sink=$(audio_sink)
+  [[ -n $sink ]] || exit 1
+  pactl set-sink-mute "$sink" 0 >/dev/null
+  pactl set-sink-volume "$sink" "${requested}%" >/dev/null
+  omarchy-osd -i volume-high -p "$requested"
+}
+
+show_display_brightness() {
+  local percent
+  percent=$(omarchy-brightness-display) || exit 1
+  [[ $percent =~ ^[0-9]+$ ]] || exit 1
+  omarchy-osd -i brightness -p "$percent"
+}
+
+show_keyboard_backlight() {
+  local percent
+  percent=$(omarchy-brightness-keyboard status) || exit 1
+  [[ $percent =~ ^[0-9]+$ ]] || exit 1
+  omarchy-osd -i keyboard -p "$percent"
+}
+
+media_action() {
+  local method=$1 result
+  result=$(omarchy-shell media "$method" 2>/dev/null) || exit 1
+  [[ $result == "ok" ]]
+}
+
+notify_fallback() {
+  local reason=$1 description
+  case $reason in
+    selection-unavailable) description="The selected renderer is unavailable. Using the built-in controls." ;;
+    selection-exited) description="The selected renderer exited. Using the built-in controls." ;;
+    *) usage ;;
+  esac
+  omarchy-notification-send "Touch Bar renderer failed" "$description" >/dev/null
+}
+
+(( $# >= 2 )) || usage
+[[ $1 == "v1" ]] || usage
+operation=$2
+shift 2
+
+case $operation in
+  status)
+    (( $# == 0 )) || usage
+    status
+    ;;
+  set-volume)
+    (( $# == 1 )) || usage
+    set_volume "$1"
+    ;;
+  toggle-mute)
+    (( $# == 0 )) || usage
+    omarchy-audio-output-volume mute-toggle >/dev/null
+    ;;
+  media-previous)
+    (( $# == 0 )) || usage
+    media_action previous
+    ;;
+  media-play-pause)
+    (( $# == 0 )) || usage
+    media_action playPause
+    ;;
+  media-next)
+    (( $# == 0 )) || usage
+    media_action next
+    ;;
+  show-display-brightness)
+    (( $# == 0 )) || usage
+    show_display_brightness
+    ;;
+  show-keyboard-backlight)
+    (( $# == 0 )) || usage
+    show_keyboard_backlight
+    ;;
+  notify-renderer-fallback)
+    (( $# == 1 )) || usage
+    notify_fallback "$1"
+    ;;
+  *) usage ;;
+esac

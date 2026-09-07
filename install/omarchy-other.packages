@@ -73,5 +73,11 @@ linux-t2
 linux-t2-headers
 t2fanrd
 
+# T1 MacBook support packages (installed only on the four Touch Bar T1 models)
+t1bridge
+t1bridge-dkms
+libfprint-t1bridge
+fprintd-t1bridge
+
 # Framework 16
 qmk-hid

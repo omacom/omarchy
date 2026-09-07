@@ -1,0 +1,27 @@
+[Unit]
+Description=Run the automatic Omarchy T1Bridge machine-data import once
+ConditionPathExists=/var/lib/omarchy/t1bridge-import/enabled
+ConditionPathExists=!/var/lib/omarchy/t1bridge-import/result
+
+[Service]
+Type=oneshot
+TimeoutStartSec=180
+ExecStart=/usr/bin/omarchy-t1bridge-import-attempt
+User=root
+Group=root
+UMask=0022
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/omarchy/t1bridge-import
+ReadWritePaths=/run/lock

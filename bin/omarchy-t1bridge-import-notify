@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# omarchy:summary=Report a failed T1Bridge machine-data import
+# omarchy:hidden=true
+
+set -euo pipefail
+
+force=0
+if (($#)); then
+  if [[ $# == 1 && $1 == "--force" ]]; then
+    force=1
+  else
+    echo "Usage: omarchy-t1bridge-import-notify [--force]" >&2
+    exit 1
+  fi
+fi
+
+state_dir=/var/lib/omarchy/t1bridge-import
+result_file="$state_dir/result"
+enabled_file="$state_dir/enabled"
+notification_state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/t1bridge-import-notified"
+headline="T1 hardware setup needs attention"
+
+[[ -r $enabled_file ]] || exit 0
+
+import_state=$(systemctl show -p ActiveState --value omarchy-t1bridge-import.service 2>/dev/null || true)
+if [[ ! -r $result_file && ( $import_state == "active" || $import_state == "activating" ) ]]; then
+  exit 0
+fi
+
+result=pending
+if [[ -r $result_file ]]; then
+  IFS= read -r result <"$result_file" || result=pending
+fi
+
+if [[ $result == "success" ]]; then
+  omarchy-notification-dismiss "$headline" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ $result != "failure" ]]; then
+  result=pending
+fi
+
+if (( force == 0 )) && [[ -r $notification_state ]]; then
+  IFS= read -r previous <"$notification_state" || previous=
+  [[ $previous == "$result" ]] && exit 0
+fi
+
+if [[ $result == "failure" ]]; then
+  reason="The automatic import of this Mac's preserved Apple machine data failed."
+else
+  reason="The automatic import of this Mac's preserved Apple machine data did not complete."
+fi
+affected="Touch Bar controls, Touch ID, the FaceTime camera, and ambient-light sensing remain unavailable."
+
+omarchy-notification-send -u critical -g 󰌾 "$headline" "$reason $affected" \
+  --exec omarchy-t1bridge-import-retry
+
+/usr/bin/install -d -m 0700 "$(dirname -- "$notification_state")"
+printf '%s\n' "$result" >"$notification_state"
+/usr/bin/chmod 0600 "$notification_state"
