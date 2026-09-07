@@ -23,6 +23,11 @@ if (($# == 0)); then
   exit 0
 fi
 
+previous_agent=""
+if [[ -f $agent_file ]]; then
+  read -r previous_agent <"$agent_file"
+fi
+
 case "$1" in
 pi) agent="pi"; name="Pi" ;;
 omp | oh-my-pi) agent="omp"; name="Oh My Pi"; agent_package="github:can1357/oh-my-pi" ;;
@@ -91,7 +96,21 @@ printf '%s\n' "$agent" >"$agent_file"
 
 if [[ $installing == "true" ]]; then
   printf '\033[2J\033[3J\033[H'
-  exec omarchy-agent --inline
+  trap ':' INT
+  if ! omarchy-agent --inline; then
+    trap - INT
+    if [[ -n ${previous_agent:-} ]]; then
+      printf '%s\n' "$previous_agent" >"$agent_file"
+    else
+      rm -f "$agent_file"
+    fi
+    echo "Could not launch $name" >&2
+    if gum confirm "Would you like to select a different agent?"; then
+      exec omarchy-menu summon setup.default.agent
+    fi
+    exit 1
+  fi
+  trap - INT
 else
   exec omarchy-agent
 fi
