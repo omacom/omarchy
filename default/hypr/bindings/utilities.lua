@@ -19,6 +19,7 @@ o.bind("SUPER + SHIFT + CTRL + SPACE", "Theme menu", "omarchy-menu toggle theme"
 o.bind("SUPER + BACKSPACE", "Toggle window transparency", "omarchy-hyprland-window-transparency-toggle")
 o.bind("SUPER + SHIFT + BACKSPACE", "Toggle window gaps", "omarchy-hyprland-window-gaps-toggle")
 o.bind("SUPER + CTRL + BACKSPACE", "Toggle single-window square aspect", "omarchy-hyprland-window-single-square-aspect-toggle")
+o.bind_toggle("SUPER + CTRL + ALT + F", "Toggle full screen desktop", "fullscreen-desktop")
 
 -- xkbcommon names the comma keysym "comma"; the upper-case "COMMA" does not match.
 o.bind("SUPER + comma", "Dismiss last notification", "omarchy-shell notifications dismissOne")
@@ -93,7 +94,7 @@ o.bind("SUPER + CTRL + ALT + T", "Show time", "omarchy-notification-time")
 o.bind("SUPER + CTRL + ALT + B", "Show battery remaining", "omarchy-notification-battery")
 o.bind("SUPER + CTRL + ALT + W", "Toggle weather", "omarchy-notification-weather")
 
-o.bind("SUPER + SHIFT + CTRL + A", "Agent", "omarchy-launch-agent")
+o.bind("SUPER + SHIFT + CTRL + A", "Agent", "omarchy-agent --pick")
 o.bind("SUPER + CTRL + A", "Audio", "omarchy-shell shell toggle omarchy.audio")
 o.bind("SUPER + CTRL + B", "Bluetooth", "omarchy-shell shell toggle omarchy.bluetooth")
 o.bind("SUPER + CTRL + D", "Display", "omarchy-shell shell toggle omarchy.monitor")

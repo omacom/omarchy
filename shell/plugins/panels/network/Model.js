@@ -14,9 +14,25 @@ function wifiIconFor(strength) {
   return icons[index]
 }
 
-function connectionIcon(kind, signalStrength) {
-  if (kind === "wifi") return wifiIconFor(signalStrength)
-  if (kind === "ethernet") return "󰈀"
+// A known plain-HTTP endpoint lets the network redirect the browser to its
+// login page. Never execute or automatically open an untrusted Location header.
+var captivePortalUrl = "http://ping.archlinux.org/nm-check.txt"
+
+function connectivityState(kind, connectivity, states, checksEnabled) {
+  if (kind === "disconnected") return "none"
+  // Ignore stale cached results when the operator has disabled probing.
+  if (!checksEnabled) return "unknown"
+  if (connectivity === states.Portal) return "portal"
+  if (connectivity === states.Limited) return "limited"
+  if (connectivity === states.Full) return "full"
+  if (connectivity === states.None) return "none"
+  return "unknown"
+}
+
+function connectionIcon(kind, signalStrength, connectivity) {
+  var restricted = connectivity === "portal" || connectivity === "limited"
+  if (kind === "wifi") return restricted ? "󰤩" : wifiIconFor(signalStrength)
+  if (kind === "ethernet") return restricted ? "󰈂" : "󰈀"
   return "󰤮"
 }
 
@@ -299,8 +315,17 @@ function wifiSectionTitle(wifiNetworks, index) {
   return ""
 }
 
-function isProtected(security, openSecurity) {
-  return security !== openSecurity
+// OWE (Enhanced Open) encrypts traffic without authenticating the user, so it
+// has no credentials to collect. The panel's lock is a credentials-required
+// affordance, so OWE should neither show it nor open its attached prompt.
+function requiresCredentials(security, openSecurity, oweSecurity) {
+  // Only explicit passwordless types bypass the prompt. Unknown security
+  // stays credentialed as the conservative fallback.
+  return security !== openSecurity && security !== oweSecurity
+}
+
+function canForgetNetwork(network) {
+  return !!(network && network.known && !network.connected)
 }
 
 // The password arrives on stdin and reaches nmcli through the scriptable
@@ -316,10 +341,10 @@ var enterpriseConnectScript =
   " && nmcli connection up uuid \"$u\"" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
-function networkFailureReason(reason, reasons) {
+function networkFailureReason(reason, needsCredentials, reasons) {
   var r = reasons || {}
-  if (reason === r.NoSecrets) return "Passphrase required"
-  if (reason === r.WifiAuthTimeout) return "Wrong password"
+  if (needsCredentials && reason === r.NoSecrets) return "Passphrase required"
+  if (needsCredentials && reason === r.WifiAuthTimeout) return "Wrong password"
   if (reason === r.WifiNetworkLost) return "Network lost"
   if (reason === r.WifiClientDisconnected) return "Disconnected"
   if (reason === r.WifiClientFailed) return "Connection failed"
@@ -327,14 +352,15 @@ function networkFailureReason(reason, reasons) {
 }
 
 // Whether a failed connect should reopen the passphrase prompt. NoSecrets
-// always means credentials are missing. An auth timeout on a protected
-// network means the saved passphrase is wrong (the same profile a first
-// failed attempt leaves behind as "known"), so the user needs a chance to
-// re-enter it -- connectWithPsk overwrites the stored PSK on submit.
-function shouldRepromptPassphrase(reason, isProtected, reasons) {
+// means credentials are missing only for a network that actually uses them.
+// An auth timeout on such a network means the saved passphrase is wrong (the
+// same profile a first failed attempt leaves behind as "known"), so the user
+// needs a chance to re-enter it -- connectWithPsk overwrites the stored PSK on
+// submit.
+function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   var r = reasons || {}
-  if (reason === r.NoSecrets) return true
-  return !!isProtected && reason === r.WifiAuthTimeout
+  if (!needsCredentials) return false
+  return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
 
 if (typeof module !== "undefined") {
@@ -342,6 +368,8 @@ if (typeof module !== "undefined") {
     parseNetworkStatus: parseNetworkStatus,
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,
+    connectivityState: connectivityState,
+    captivePortalUrl: captivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,
     formatHeaderFreq: formatHeaderFreq,
     headerDetail: headerDetail,
@@ -361,7 +389,8 @@ if (typeof module !== "undefined") {
     wifiRow: wifiRow,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
-    isProtected: isProtected,
+    requiresCredentials: requiresCredentials,
+    canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase

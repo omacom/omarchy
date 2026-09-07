@@ -129,7 +129,8 @@ term_pt_for() {
     'BEGIN { printf "%d", int(s * p / b + 0.5) }'
 }
 
-# Set the font point size in every terminal config that exists. Family is left
+# Set the font point size in terminal configs, creating Kitty overrides when
+# it inherits its size from the system config. Family is left
 # untouched — that is omarchy-font-set's job. Live-reload signals mirror
 # omarchy-font-set; foot has no reload signal, so running instances are nudged.
 set_terminal_size() {
@@ -139,8 +140,13 @@ set_terminal_size() {
     sed -i -E "s/^size[[:space:]]*=.*/size = $pt/" ~/.config/alacritty/alacritty.toml
   fi
 
-  if [[ -f ~/.config/kitty/kitty.conf ]]; then
-    sed -i -E "s/^font_size[[:space:]]+.*/font_size $pt.0/" ~/.config/kitty/kitty.conf
+  if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
+    mkdir -p ~/.config/kitty
+    if grep -qE '^[[:space:]]*font_size[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
+      sed --follow-symlinks -i -E "s/^[[:space:]]*font_size[[:space:]]+.*/font_size $pt.0/" ~/.config/kitty/kitty.conf
+    else
+      printf '\nfont_size %s.0\n' "$pt" >>~/.config/kitty/kitty.conf
+    fi
     pkill -USR1 kitty 2>/dev/null || true
   fi
 
@@ -177,9 +183,13 @@ term_current_pt() {
   elif [[ -f ~/.config/alacritty/alacritty.toml ]]; then
     grep -oP '^size[[:space:]]*=[[:space:]]*\K[0-9.]+' ~/.config/alacritty/alacritty.toml | head -1
   elif [[ -f ~/.config/kitty/kitty.conf ]]; then
-    grep -oP '^font_size[[:space:]]+\K[0-9.]+' ~/.config/kitty/kitty.conf | head -1
+    local pt
+    pt=$(grep -oP '^[[:space:]]*font_size[[:space:]]+\K[0-9.]+' ~/.config/kitty/kitty.conf | tail -1)
+    echo "${pt:-$TERM_DEFAULT_PT}"
   elif [[ -f ~/.config/foot/foot.ini ]]; then
     grep -oP ':size=\K[0-9.]+' ~/.config/foot/foot.ini | head -1
+  elif omarchy-cmd-present kitty; then
+    echo "$TERM_DEFAULT_PT"
   fi
 }
 

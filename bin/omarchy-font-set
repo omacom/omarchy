@@ -30,8 +30,14 @@ if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
   sed -i "s/family = \".*\"/family = \"$font_name\"/g" ~/.config/alacritty/alacritty.toml
 fi
 
-if [[ -f ~/.config/kitty/kitty.conf ]]; then
-  sed -i "s/^font_family .*/font_family $font_name/g" ~/.config/kitty/kitty.conf
+if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
+  mkdir -p ~/.config/kitty
+  if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
+    kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
+    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" ~/.config/kitty/kitty.conf
+  else
+    printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
+  fi
   pkill -USR1 kitty
 fi
 
