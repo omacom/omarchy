@@ -209,7 +209,9 @@ Item {
   function sourceStatus(url) {
     var state = sourceState(url)
     if (!state) return news && news.refreshing ? "CHECKING" : "WAITING"
+    if (state.checking === true) return "CHECKING"
     if (String(state.error || "") !== "") return state.stale === true ? "CACHED" : "ERROR"
+    if (state.cached === true) return "CACHED"
     return "LIVE"
   }
 

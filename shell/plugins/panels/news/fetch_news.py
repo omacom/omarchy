@@ -641,7 +641,7 @@ def cached_result(source: dict[str, object], error: str) -> dict[str, object] | 
         return None
     if not isinstance(cached, dict) or not isinstance(cached.get("items"), list):
         return None
-    cached["stale"] = True
+    cached["stale"] = bool(error)
     cached["error"] = clean_text(error, 180)
     for item in cached["items"]:
         if not isinstance(item, dict):
@@ -743,6 +743,7 @@ def load_source(
                 item for item in cached["items"] if isinstance(item, dict)
             ][:item_limit]
             stale = cached is not None
+            from_cache = cached is not None
 
     state: dict[str, object] = {
         "id": source["id"],
@@ -753,6 +754,7 @@ def load_source(
         "url": source["url"],
         "stale": stale,
         "cached": from_cache,
+        "checking": False,
         "error": error,
         "itemCount": len(source_items),
     }
@@ -819,7 +821,7 @@ def main(argv: list[str] | None = None) -> int:
             ][:item_limit]
             results[str(source["id"])] = (cached_items, {
                 **{key: source[key] for key in ("id", "name", "category", "url")},
-                "stale": bool(cached_items), "cached": cached is not None,
+                "stale": False, "cached": cached is not None, "checking": True,
                 "error": "", "itemCount": len(cached_items),
             }, "")
         emit()
