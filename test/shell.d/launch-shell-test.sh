@@ -6,6 +6,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
 launch_pid=""
+runtime_dir="$test_tmp/runtime"
+mkdir -p "$runtime_dir"
 
 # A supervisor that fails to stop would hang the run instead of failing it.
 cleanup() {
@@ -91,6 +93,7 @@ launch_shell() {
 
   PATH="$fake_bin:$PATH" \
   OMARCHY_PATH="$shell_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
   OMARCHY_TEST_QS_LOG="$qs_log" \
   OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
   OMARCHY_TEST_QS_STATUSES="$1" \
@@ -106,10 +109,11 @@ launches() {
   wc -l <"$qs_log" | tr -d ' '
 }
 
-launch_shell '0' || fail "a clean launch succeeds"
-[[ $(launches) == 1 ]] || fail "a shell that exits cleanly is not relaunched" "$(<"$qs_log")"
+# A clean exit into a dead session is still a deliberate stop.
+launch_shell '0' 1 || fail "a clean launch succeeds when the compositor is gone"
+[[ $(launches) == 1 ]] || fail "a clean exit into a dead session is not relaunched" "$(<"$qs_log")"
 grep -F -- "-n -p $shell_root/shell" "$qs_log" >/dev/null || fail "the shell launches from OMARCHY_PATH"
-pass "a shell that exits cleanly is left alone"
+pass "a clean exit is left alone once the compositor is gone"
 
 # A misspelled variable would leave Quickshell hot-reloading the tree pacman
 # rewrites underneath it, which is what crashes the restart that follows.
@@ -117,9 +121,31 @@ pass "a shell that exits cleanly is left alone"
   fail "the shell launches with Quickshell's own reloading off" "$(<"$qs_env_log")"
 pass "the shell launches with Quickshell's config watcher and reload popup off"
 
+# Unexpected clean exits while Hyprland lives used to stop the supervisor and
+# leave the seat without a bar when a restart replacement failed.
+launch_shell $'0\n0\n0\n0\n0\n0\n0\n0' && fail "a shell that keeps exiting cleanly is given up on"
+[[ $(launches) == 6 ]] || fail "clean-exit relaunches stop after the attempt budget" "$(<"$qs_log")"
+grep -F 'exited with status 0' "$logger_log" >/dev/null || fail "the clean-exit relaunch is recorded in the journal"
+pass "an unexpected clean exit is relaunched while the compositor lives"
+
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
-launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
-[[ $(launches) == 2 ]] || fail "the dead shell is relaunched exactly once" "$(<"$qs_log")"
+# Second status is 0: after one crash relaunch, the clean follow-up also
+# relaunches once under the new policy, so expect two launches then continue
+# until the exhausted list hits the budget... wait.
+# Statuses 255 then 0: first dies 255 (relaunch), second exits 0 (relaunch again).
+# That would be more than 2 launches. Old test expected exactly 2 because status
+# 0 stopped the supervisor.
+# New: 255 then 0 then exhausted 0s → budget. Use 255 then run via background? Or
+# use compositor gone on the follow-up... can't change mid-flight.
+# Use: first 255, second exits with compositor still up but we only allow one
+# relaunch by using statuses that end the supervisor via terminating... 
+# Simplest: $'255\n0' with compositor gone on second iteration - can't.
+# Change expectation: $'255\n0' produces 2 launches then status 0 triggers
+# another relaunch cycle - actually after 2nd launch exits 0, attempts=2,
+# sleeps, 3rd launch gets default 0 from awk, etc. until 6.
+# So the old "exactly once" test must become: crash is relaunched (at least 2).
+launch_shell $'255\n0' && fail "a shell that dies then keeps exiting cleanly is given up on"
+[[ $(launches) == 6 ]] || fail "a Wayland death still consumes the relaunch budget" "$(<"$qs_log")"
 grep -F 'exited with status 255' "$logger_log" >/dev/null || fail "the relaunch is recorded in the journal"
 pass "a shell that dies without a signal is relaunched"
 
@@ -134,9 +160,35 @@ launch_shell $'255\n0' 1 || fail "a shell outliving the compositor exits cleanly
 pass "the shell is not relaunched once the compositor is gone"
 
 # A compositor mid-modeset can miss a query without being gone.
+# First exit 255 relaunches; second exit 0 also relaunches under the new policy
+# until the budget. Use a healthy follow-up via background + TERM instead.
 rm -f "$hyprctl_misses"
-launch_shell $'255\n0' 0 2 || fail "a shell survives a compositor that misses a query"
+: >"$qs_log"
+: >"$qs_env_log"
+: >"$logger_log"
+
+PATH="$fake_bin:$PATH" \
+OMARCHY_PATH="$shell_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_LOG="$qs_log" \
+OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
+OMARCHY_TEST_QS_STATUSES=$'255\nrun' \
+OMARCHY_TEST_COMPOSITOR_GONE=0 \
+OMARCHY_TEST_LOGGER_LOG="$logger_log" \
+OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
+OMARCHY_TEST_HYPRCTL_MISSES=2 \
+OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
+  "$ROOT/bin/omarchy-launch-shell" &
+launch_pid=$!
+
+for (( waited = 0; waited < 200; waited++ )); do
+  [[ $(launches) == 2 ]] && break
+  sleep 0.05
+done
 [[ $(launches) == 2 ]] || fail "a missed compositor query does not end supervision" "$(<"$qs_log")"
+kill -TERM "$launch_pid"
+wait "$launch_pid" 2>/dev/null || true
+launch_pid=""
 pass "a compositor too busy to answer is not mistaken for one that is gone"
 
 # A signal mid-backoff only reaches the trap once the sleep is over.
@@ -146,6 +198,7 @@ pass "a compositor too busy to answer is not mistaken for one that is gone"
 
 PATH="$fake_bin:$PATH" \
 OMARCHY_PATH="$shell_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
 OMARCHY_TEST_QS_LOG="$qs_log" \
 OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
 OMARCHY_TEST_QS_STATUSES=$'255\n0' \
@@ -175,6 +228,7 @@ rm -f "$qs_terminated"
 
 PATH="$fake_bin:$PATH" \
 OMARCHY_PATH="$shell_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
 OMARCHY_TEST_QS_LOG="$qs_log" \
 OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
 OMARCHY_TEST_QS_STATUSES='run' \
