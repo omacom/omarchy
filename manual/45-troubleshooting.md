@@ -38,6 +38,27 @@ On some laptops, Omarchy automatically applies a speaker tuning that corrects th
 
 You probably typed it wrong too many times and got locked out. If this is happening on the lock screen, you can hit `CTRL + ALT + F2` to start a new TTY where you can login as root, then run `faillock --reset --user [your-username]`. That'll reset the lockout, and you're good to go.
 
+### My password is accepted, but I return to the login screen
+
+A broken session environment file can prevent the desktop from starting even when your password is correct. This is especially worth checking after editing `~/.config/uwsm/env.d/`.
+
+Press `Ctrl + Alt + F2`, log in with your normal username and password, and inspect the current boot's user journal:
+
+```bash
+journalctl --user -b --grep='uwsm|preloader' --no-pager
+```
+
+Look for an error naming one of your environment files, such as `bad substitution` or a missing environment output marker. Move that file out of `env.d` before trying to log in again. For example, if the error names `99-custom`:
+
+```bash
+mkdir -p ~/.config/uwsm/disabled
+mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
+```
+
+Renaming the file to `.bak` inside `env.d` does not disable it: UWSM loads every entry in that directory. A system snapshot rollback does not repair these files either, because `/home` is not rolled back.
+
+Once you can log in, fix the saved copy before moving it back. `bash -n` catches syntax errors without running the file, but cannot catch every error that occurs when it is sourced. Keep a working terminal open while testing changes.
+
 ### Why isn't my 1Password authorization prompts for 1Password SSH Agent / CLI appearing?
 
 This can happen for 2 reasons:
