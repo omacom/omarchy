@@ -28,6 +28,81 @@ Item {
   property string pendingShellRaw: ""
   property real revealProgress: 1
 
+  readonly property real slant: -0.18
+
+  // The wipe is one front travelling across the whole output layout rather
+  // than an independent wipe per output. It starts at the centre of the output
+  // the change was made on and continues onto the others according to where
+  // Hyprland places them, so a layout with a vertical offset or a gap between
+  // outputs is followed rather than ignored. originScreenName is snapshotted
+  // when a transition begins, so moving focus mid-wipe cannot drag the origin
+  // along with it.
+  property string originScreenName: ""
+
+  readonly property var originScreen: screenByName(originScreenName)
+  readonly property real originX: originScreen
+    ? originScreen.x + originScreen.width / 2
+    : layoutCenter(true)
+  readonly property real originY: originScreen
+    ? originScreen.y + originScreen.height / 2
+    : layoutCenter(false)
+
+  // How far the front must travel to clear every output, and how far it would
+  // have travelled to clear the origin output alone. Scaling the duration by
+  // the ratio keeps the edge moving at the speed it has on a single screen
+  // instead of racing across the whole layout in the same 420ms; the cap stops
+  // a wide layout from turning the wipe into a crawl.
+  readonly property real globalReach: reachOver(Quickshell.screens, originX, originY)
+  readonly property real originReach: reachOver(
+    originScreen ? [originScreen] : Quickshell.screens, originX, originY)
+  readonly property int revealDuration: originReach > 0
+    ? Math.min(900, Math.round(420 * (globalReach / originReach)))
+    : 420
+
+  function screenByName(name) {
+    if (!name) return null
+    var list = Quickshell.screens
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].name || "") === name) return list[i]
+    }
+    return null
+  }
+
+  function layoutCenter(horizontal) {
+    var list = Quickshell.screens
+    if (!list.length) return 0
+    var low = horizontal ? list[0].x : list[0].y
+    var high = low + (horizontal ? list[0].width : list[0].height)
+    for (var i = 1; i < list.length; i++) {
+      var start = horizontal ? list[i].x : list[i].y
+      low = Math.min(low, start)
+      high = Math.max(high, start + (horizontal ? list[i].width : list[i].height))
+    }
+    return (low + high) / 2
+  }
+
+  // Largest horizontal distance from the slanted front line to any corner of
+  // the given outputs: how far spread has to grow to cover all of them.
+  function reachOver(screens, ox, oy) {
+    var furthest = 0
+    for (var i = 0; i < screens.length; i++) {
+      var s = screens[i]
+      var xs = [s.x, s.x + s.width]
+      var ys = [s.y, s.y + s.height]
+      for (var a = 0; a < 2; a++) {
+        for (var b = 0; b < 2; b++) {
+          furthest = Math.max(furthest, Math.abs(xs[a] - (ox + slant * (ys[b] - oy))))
+        }
+      }
+    }
+    return furthest + 4
+  }
+
+  function focusedScreenName() {
+    var monitor = Hyprland.focusedMonitor
+    return monitor ? String(monitor.name || "") : ""
+  }
+
   // Injected by the first-party service loader; used to reach the lock and idle
   // services so playback can stop whenever nothing can see the wallpaper.
   property var shell: null
@@ -69,6 +144,7 @@ Item {
     currentBackground = finalPath
     backgroundVersion += 1
     revealStartedVersion = -1
+    originScreenName = focusedScreenName()
 
     revealAnimation.stop()
     finishingTransition = false
@@ -193,7 +269,7 @@ Item {
     property: "revealProgress"
     from: 0
     to: 1
-    duration: 420
+    duration: root.revealDuration
     easing.type: Easing.InOutCubic
     onFinished: {
       if (root.incomingBackground) {
@@ -342,11 +418,17 @@ Item {
         id: revealMask
         anchors.fill: parent
 
-        readonly property real slant: -0.18
-        readonly property real centerTop: width / 2 - slant * height / 2
-        readonly property real centerBottom: width / 2 + slant * height / 2
-        readonly property real reach: width / 2 + Math.abs(slant) * height / 2 + 4
-        readonly property real spread: reach * root.revealProgress
+        // Local coordinates of the global front. The front at global y sits at
+        // originX + slant * (y - originY); dx and originDy carry this panel's
+        // offset within the layout, so an output away from the origin sees only
+        // the leading edge sweep in, at the y offset its position implies. For
+        // the origin output this reduces to the single-screen centre-out wipe.
+        readonly property real slant: root.slant
+        readonly property real dx: root.originX - (panel.screen ? panel.screen.x : 0)
+        readonly property real originDy: (panel.screen ? panel.screen.y : 0) - root.originY
+        readonly property real centerTop: dx + slant * originDy
+        readonly property real centerBottom: dx + slant * (originDy + height)
+        readonly property real spread: root.globalReach * root.revealProgress
 
         Shape {
           anchors.fill: parent
