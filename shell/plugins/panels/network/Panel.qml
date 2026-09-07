@@ -788,11 +788,17 @@ Panel {
 
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
+    var ssid = actionSsid
+    var needsCredentials = requiresCredentials(network.security)
+    var reprompt = actionKind === "connect" && shouldRepromptPassphrase(reason, needsCredentials)
     actionTimeout.stop()
-    failureSsid = actionSsid
-    failureReason = networkFailureReason(reason, requiresCredentials(network.security))
+    failureSsid = ssid
+    failureReason = networkFailureReason(reason, needsCredentials)
     actionSsid = ""
     actionKind = ""
+    // Keep recovery in the panel: refresh() replaces the rows and can destroy
+    // the delegate that delivered this failure before its handler returns.
+    if (reprompt) openPasswordPrompt(ssid)
     refresh()
   }
 
@@ -1743,12 +1749,7 @@ Panel {
     Connections {
       target: row.net ? root.networkForSsid(row.net.ssid) : null
       function onConnectionFailed(reason) {
-        // Background auto-connect retries fire this too; only reprompt for
-        // the connect started from this panel. Checked before
-        // failNetworkAction, which clears the action state.
-        var ours = root.actionKind === "connect" && root.actionSsid === (row.net.ssid || "")
         root.failNetworkAction(root.networkForSsid(row.net.ssid), reason)
-        if (ours && root.shouldRepromptPassphrase(reason, row.requiresCredentials)) root.openPasswordPrompt(row.net.ssid)
       }
       function onConnectedChanged() {
         if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))

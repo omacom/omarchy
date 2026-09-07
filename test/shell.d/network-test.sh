@@ -222,14 +222,6 @@ assert(
   'network row clicks gate unknown-network prompts on credential requirements'
 )
 assert(
-  /shouldRepromptPassphrase\(reason, row\.requiresCredentials\)/.test(panelSource),
-  'network failure reprompts use the row credential requirement'
-)
-assert(
-  /networkFailureReason\(reason, requiresCredentials\(network\.security\)\)/.test(panelSource),
-  'network failure copy uses the live network credential requirement'
-)
-assert(
   /readonly property bool canForget: root\.canForgetNetwork\(net\)/.test(panelSource),
   'network rows derive forget eligibility from the tested model helper'
 )
@@ -267,6 +259,48 @@ assertEqual(network.shouldRepromptPassphrase(reasons.NoSecrets, false, reasons),
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reasons), true, 'network reprompts a credentialed network after a wrong password')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, false, reasons), false, 'network does not reprompt an open network on auth timeout')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiClientFailed, true, reasons), false, 'network does not reprompt on generic connection failures')
+
+// A refresh replaces the row model and can destroy the calling delegate.
+// Execute the real handlers with separate panel/delegate scopes, invalidating
+// the delegate on refresh just as QML does during a failed first connection.
+const vm = require('vm')
+const failureHandler = panelSource.match(/function failNetworkAction\(network, reason\) \{[\s\S]*?\n {2}\}/)[0]
+const failureSignal = panelSource.match(/function onConnectionFailed\(reason\) \{[\s\S]*?\n {6}\}/)[0]
+function failConnection(kind, reason, secured = true, actionSsid = 'test-network') {
+  const wifi = { name: 'test-network', security: secured }
+  let delegate
+  const panel = vm.createContext({
+    actionKind: kind, actionSsid, failureSsid: '', failureReason: '',
+    passwordSsid: '', stopped: false, refreshed: false,
+    requiresCredentials: security => security,
+    networkFailureReason: (reason, secured) => network.networkFailureReason(reason, secured, reasons),
+    shouldRepromptPassphrase: (reason, secured) => network.shouldRepromptPassphrase(reason, secured, reasons),
+    networkForSsid: () => wifi,
+    actionTimeout: { stop() { panel.stopped = true } },
+    openPasswordPrompt(ssid) { panel.passwordSsid = ssid },
+    refresh() {
+      panel.refreshed = true
+      delegate.root = undefined
+      delegate.row = undefined
+    }
+  })
+  vm.runInContext(failureHandler, panel)
+  delegate = vm.createContext({ root: panel, row: { net: { ssid: wifi.name }, requiresCredentials: secured }, reason })
+  vm.runInContext(failureSignal + '\nonConnectionFailed(reason)', delegate)
+  return panel
+}
+for (const reason of [reasons.NoSecrets, reasons.WifiAuthTimeout]) {
+  const failed = failConnection('connect', reason)
+  assertEqual(failed.passwordSsid, 'test-network', 'network restores password entry even when refresh destroys the calling row')
+  assert(failed.stopped && failed.refreshed && failed.actionKind === '', 'network ends the failed action and refreshes its rows')
+  assertEqual(failed.failureSsid, 'test-network', 'network preserves the failed SSID for its error message')
+  assertEqual(failed.failureReason, network.networkFailureReason(reason, true, reasons), 'network failure copy uses the live network credential requirement')
+}
+assertEqual(failConnection('', reasons.NoSecrets).passwordSsid, '', 'network does not reprompt for background failures')
+assertEqual(failConnection('connect', reasons.NoSecrets, true, 'another-network').passwordSsid, '', 'network ignores failures for a different action')
+assertEqual(failConnection('disconnect', reasons.NoSecrets).passwordSsid, '', 'network does not reprompt for a failed disconnect')
+assertEqual(failConnection('connect', reasons.NoSecrets, false).passwordSsid, '', 'network does not reprompt for a passwordless connection failure')
+assertEqual(failConnection('connect', reasons.WifiClientFailed).passwordSsid, '', 'network does not reprompt for a generic connection failure')
 
 
 assertEqual(network.bandLabel('2.4'), '2.4ghz', 'network labels the 2.4GHz band')
