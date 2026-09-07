@@ -65,18 +65,6 @@ brcmfmac43602_regdom() {
   printf '%s\n' "$country"
 }
 
-brcmfmac43602_machine_id() {
-  cat "${OMARCHY_BRCMFMAC_MACHINE_ID:-/etc/machine-id}" 2>/dev/null || true
-}
-
-brcmfmac43602_stable_mac() {
-  local seed
-  seed=$(printf '%s' "$(brcmfmac43602_machine_id):mbp133-wifi" | sha256sum | cut -c1-10)
-  [[ ${#seed} == 10 ]] || return 1
-  printf '02:%s:%s:%s:%s:%s\n' \
-    "${seed:0:2}" "${seed:2:2}" "${seed:4:2}" "${seed:6:2}" "${seed:8:2}"
-}
-
 # Dual-band BCM43602 (14e4:43ba) on the 2017 Touch Bar MacBook Pros. The 2 GHz
 # only (43bb) and 5 GHz-only (43bc) variants are left alone, as are T2-era
 # chips that already get board files from apple-bcm-firmware.
@@ -116,8 +104,10 @@ brcmfmac43602_installed() {
 # (a USB adapter at install time would otherwise donate its address). The
 # wiphy's macaddress is the permanent address; net/*/address is whatever is
 # current, which NetworkManager randomises while scanning. 00:90:4c is the
-# Broadcom OUI the firmware falls back to when the card has no usable OTP
-# address, so it is a placeholder and never worth persisting.
+# Broadcom OUI, not a board identity, so it is not substituted in — install
+# then writes a per-machine locally-administered address instead of the dump
+# donor. The macaddr= key still has to exist in the file: without it, BCM43602
+# firmware times out on cur_etheraddr and crashes the dongle (MacBookPro14,3).
 brcmfmac43602_wifi_mac() {
   local bdf pci_devices candidate mac
   pci_devices=$(brcmfmac43602_pci_devices)
@@ -133,6 +123,29 @@ brcmfmac43602_wifi_mac() {
     return 0
   done
   return 1
+}
+
+brcmfmac43602_machine_id() {
+  cat "${OMARCHY_BRCMFMAC_MACHINE_ID:-/etc/machine-id}" 2>/dev/null || true
+}
+
+# Stable locally-administered unicast address for this installation. Keep the
+# established 13,3 salt so an existing installation does not change identity.
+# Cloned machine IDs produce the same address: images must generate a fresh ID.
+brcmfmac43602_stable_mac() {
+  local id seed salt
+  id=$(brcmfmac43602_machine_id)
+  [[ $id =~ ^[0-9a-f]{32}$ && $id != 00000000000000000000000000000000 ]] || return 1
+  if [[ $(brcmfmac43602_dmi_product) == "MacBookPro13,3" ]]; then
+    salt=mbp133-wifi
+  else
+    salt=bcm43602-wifi
+  fi
+  seed=$(printf '%s' "$id:$salt" | sha256sum) || return 1
+  [[ $seed =~ ^[0-9a-f]{64}[[:space:]] ]] || return 1
+  seed=${seed:0:10}
+  printf '02:%s:%s:%s:%s:%s\n' \
+    "${seed:0:2}" "${seed:2:2}" "${seed:4:2}" "${seed:6:2}" "${seed:8:2}"
 }
 
 # Reloading brcmfmac here would drop a live Wi-Fi connection, including the
@@ -159,14 +172,17 @@ brcmfmac43602_install() {
 
   work=$(mktemp) || return 1
   product=$(brcmfmac43602_dmi_product)
+  # Preserve the required key, substituting a real address or a stable fallback.
+  # Stripping macaddr crashes 14,3 firmware; retaining the shared default is not
+  # a unique identity. Refuse installation if neither source is usable.
   if mac=$(brcmfmac43602_wifi_mac); then
     sed_args=(-e "s/^macaddr=.*/macaddr=$mac/")
-  elif [[ $product == "MacBookPro13,3" ]] && mac=$(brcmfmac43602_stable_mac); then
+  elif mac=$(brcmfmac43602_stable_mac); then
     sed_args=(-e "s/^macaddr=.*/macaddr=$mac/")
   else
-    # No MAC discoverable: drop the line and let the firmware use the OTP
-    # address, which is how these NICs already run with no NVRAM at all.
-    sed_args=(-e '/^macaddr=/d')
+    echo "Cannot install BCM43602 NVRAM without a usable MAC or machine-id" >&2
+    rm -f "$work"
+    return 1
   fi
 
   if [[ $product == "MacBookPro13,3" ]]; then
@@ -178,7 +194,7 @@ brcmfmac43602_install() {
     sed_args+=(-e "s/^ccode=.*/ccode=$country/" -e 's/^regrev=.*/regrev=0/')
   fi
 
-  if ! sed "${sed_args[@]}" "$src" >"$work"; then
+  if ! grep -q '^macaddr=' "$src" || ! sed "${sed_args[@]}" "$src" >"$work"; then
     rm -f "$work"
     return 1
   fi

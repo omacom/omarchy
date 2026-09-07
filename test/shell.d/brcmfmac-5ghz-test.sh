@@ -49,9 +49,10 @@ calls="$test_tmp/calls.log"
 fwdir="$test_tmp/firmware/updates/brcm"
 packaged="$test_tmp/firmware/brcm"
 pci_devices="$test_tmp/sys-pci"
+machine_id_file="$test_tmp/machine-id"
 mkdir -p "$stub_bin" "$test_tmp/dmi"
 printf 'WIRELESS_REGDOM="US"\n' >"$test_tmp/wireless-regdom"
-printf '0123456789abcdef0123456789abcdef\n' >"$test_tmp/machine-id"
+printf '%s\n' '0123456789abcdef0123456789abcdef' >"$machine_id_file"
 
 cat >"$stub_bin/lspci" <<'SH'
 #!/bin/bash
@@ -124,6 +125,14 @@ provide_perm_mac() {
   printf '%s\n' "$mac" >"$pci_devices/0000:03:00.0/ieee80211/phy0/macaddress"
 }
 
+# Same derivation as brcmfmac43602_stable_mac, from this test's machine-id file.
+expected_stable_macaddr() {
+  local seed
+  seed=$(printf '%s' "$(cat "$machine_id_file" 2>/dev/null || true):bcm43602-wifi" | sha256sum | cut -c1-10)
+  printf 'macaddr=02:%s:%s:%s:%s:%s\n' \
+    "${seed:0:2}" "${seed:2:2}" "${seed:4:2}" "${seed:6:2}" "${seed:8:2}"
+}
+
 # Production run_logged uses bash -eE with no pipefail.
 invoke_leaf() {
   local wifi_id="${1:-}"
@@ -136,7 +145,7 @@ invoke_leaf() {
     OMARCHY_BRCMFMAC_DMI_PRODUCT="$test_tmp/dmi/product_name" \
     OMARCHY_BRCMFMAC_PCI_DEVICES="$pci_devices" \
     OMARCHY_BRCMFMAC_REGDOM_FILE="$test_tmp/wireless-regdom" \
-    OMARCHY_BRCMFMAC_MACHINE_ID="$test_tmp/machine-id" \
+    OMARCHY_BRCMFMAC_MACHINE_ID="$machine_id_file" \
     bash -eE -c 'source "$1"' bash "$leaf" </dev/null
 }
 
@@ -164,7 +173,7 @@ run_migration() {
     OMARCHY_BRCMFMAC_DMI_PRODUCT="$test_tmp/dmi/product_name" \
     OMARCHY_BRCMFMAC_PCI_DEVICES="$pci_devices" \
     OMARCHY_BRCMFMAC_REGDOM_FILE="$test_tmp/wireless-regdom" \
-    OMARCHY_BRCMFMAC_MACHINE_ID="$test_tmp/machine-id" \
+    OMARCHY_BRCMFMAC_MACHINE_ID="$machine_id_file" \
     bash -euo pipefail "$migration_path" >/dev/null
 }
 
@@ -178,9 +187,11 @@ invoke_leaf 43ba >/dev/null
 [[ -f "$(dmi_file "Apple Inc." "MacBookPro14,3")" ]] ||
   fail "a MacBookPro14,3 gets the DMI-specific NVRAM"
 grep -qx 'aa5g=7' "$(generic)" || fail "installed NVRAM enables 5 GHz"
-grep -qx 'macaddr=aa:bb:cc:dd:ee:ff' "$(generic)" ||
+expected=macaddr=aa:bb:cc:dd:ee:ff
+[[ -n $expected ]] || fail "expected macaddr is non-empty"
+grep -Fqx "$expected" "$(generic)" ||
   fail "the installed NVRAM carries the NIC's live MAC" "$(grep '^macaddr' "$(generic)")"
-grep -qx 'macaddr=aa:bb:cc:dd:ee:ff' "$(dmi_file "Apple Inc." "MacBookPro14,3")" ||
+grep -Fqx "$expected" "$(dmi_file "Apple Inc." "MacBookPro14,3")" ||
   fail "the DMI-specific NVRAM gets the live MAC"
 pass "a MacBookPro14,3 with BCM43602 gets both NVRAM names and the live MAC"
 
@@ -214,13 +225,14 @@ printf 'f2:11:22:33:44:55\n' >"$pci_devices/0000:03:00.0/net/wlp3s0/address"
 printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
 printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
 invoke_leaf 43ba >/dev/null
-grep -qx 'macaddr=11:22:33:44:55:66' "$(generic)" ||
+expected=macaddr=11:22:33:44:55:66
+[[ -n $expected ]] || fail "expected macaddr is non-empty"
+grep -Fqx "$expected" "$(generic)" ||
   fail "the permanent address wins over a randomised netdev address" "$(grep '^macaddr' "$(generic)")"
 pass "the permanent address wins over a randomised netdev address"
 
-# A card with no usable OTP boots on Broadcom's 00:90:4c placeholder and
-# reports it as its own address; persisting that would share it across
-# machines.
+# A card whose wiphy only shows Broadcom's 00:90:4c placeholder: keep macaddr=
+# but do not persist the dump donor or the wiphy's placeholder.
 rm -rf "$fwdir" "$packaged" "$pci_devices"
 mkdir -p "$fwdir" "$packaged"
 provide_perm_mac 00:90:4c:0d:f4:3e
@@ -230,20 +242,134 @@ printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
 printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
 invoke_leaf 43ba >/dev/null
 [[ -f "$(generic)" ]] || fail "a card on the placeholder address still gets the NVRAM"
-! grep -q '^macaddr=' "$(generic)" ||
-  fail "the Broadcom placeholder address is never persisted" "$(grep '^macaddr' "$(generic)")"
-pass "the Broadcom placeholder address is never persisted"
+expected=$(expected_stable_macaddr)
+[[ -n $expected ]] || fail "expected macaddr is non-empty"
+grep -q '^macaddr=' "$(generic)" || fail "placeholder wiphy keeps the macaddr= key" "$(cat "$(generic)")"
+! grep -Fqx 'macaddr=00:90:4c:0d:f4:3e' "$(generic)" ||
+  fail "placeholder wiphy must not persist the dump donor" "$(grep '^macaddr' "$(generic)")"
+grep -Fqx "$expected" "$(generic)" ||
+  fail "placeholder wiphy gets this machine's stable MAC" "$(grep '^macaddr' "$(generic)")"
+grep -Fqx "$expected" "$(dmi_file "Apple Inc." "MacBookPro14,3")" ||
+  fail "placeholder wiphy DMI file gets this machine's stable MAC" "$(grep '^macaddr' "$(dmi_file "Apple Inc." "MacBookPro14,3")")"
+pass "placeholder wiphy keeps macaddr= as a per-machine address"
 
-# No MAC discoverable: drop the line rather than shipping the donor address.
+# No MAC discoverable: still install, with a per-machine macaddr= rather than the donor.
 rm -rf "$fwdir" "$packaged" "$pci_devices"
 mkdir -p "$fwdir" "$packaged"
 printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
 printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
 invoke_leaf 43ba >/dev/null
 [[ -f "$(generic)" ]] || fail "a Mac with no discoverable MAC still gets the NVRAM"
-! grep -q '^macaddr=' "$(generic)" ||
-  fail "the macaddr line is stripped when no MAC is discoverable" "$(grep '^macaddr' "$(generic)")"
-pass "the macaddr line is stripped when no MAC is discoverable"
+expected=$(expected_stable_macaddr)
+[[ -n $expected ]] || fail "expected macaddr is non-empty"
+grep -q '^macaddr=' "$(generic)" || fail "macaddr= is present when no MAC is discoverable" "$(cat "$(generic)")"
+! grep -Fqx 'macaddr=00:90:4c:0d:f4:3e' "$(generic)" ||
+  fail "the dump donor is never persisted when no MAC is discoverable" "$(grep '^macaddr' "$(generic)")"
+grep -Fqx "$expected" "$(generic)" ||
+  fail "no discoverable MAC uses this machine's stable MAC" "$(grep '^macaddr' "$(generic)")"
+pass "macaddr= is a per-machine address when no MAC is discoverable"
+
+# A distinct Broadcom placeholder, including the kernel's 00:90:4c:c5:12:38
+# default, must not be persisted and must not fall through to the dump donor.
+rm -rf "$fwdir" "$packaged" "$pci_devices"
+mkdir -p "$fwdir" "$packaged"
+provide_perm_mac 00:90:4c:aa:bb:cc
+printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
+printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
+invoke_leaf 43ba >/dev/null
+expected=$(expected_stable_macaddr)
+[[ -n $expected ]] || fail "expected macaddr is non-empty"
+! grep -Fqx 'macaddr=00:90:4c:aa:bb:cc' "$(generic)" ||
+  fail "a distinct Broadcom placeholder is not persisted" "$(grep '^macaddr' "$(generic)")"
+! grep -Fqx 'macaddr=00:90:4c:0d:f4:3e' "$(generic)" ||
+  fail "rejecting 00:90:4c:* must not persist the dump donor" "$(grep '^macaddr' "$(generic)")"
+grep -Fqx "$expected" "$(generic)" ||
+  fail "a distinct Broadcom placeholder falls through to the stable MAC" "$(grep '^macaddr' "$(generic)")"
+rm -rf "$fwdir" "$packaged" "$pci_devices"
+mkdir -p "$fwdir" "$packaged"
+provide_perm_mac 00:90:4c:c5:12:38
+invoke_leaf 43ba >/dev/null
+! grep -Fqx 'macaddr=00:90:4c:c5:12:38' "$(generic)" ||
+  fail "the kernel default placeholder is not persisted" "$(grep '^macaddr' "$(generic)")"
+! grep -Fqx 'macaddr=00:90:4c:0d:f4:3e' "$(generic)" ||
+  fail "the kernel default placeholder must not persist the dump donor" "$(grep '^macaddr' "$(generic)")"
+grep -Fqx "$expected" "$(generic)" ||
+  fail "the kernel default placeholder falls through to the stable MAC" "$(grep '^macaddr' "$(generic)")"
+pass "Broadcom 00:90:4c placeholders fall through to a per-machine MAC"
+
+# Two machines with no interface up must not share a station address.
+rm -rf "$fwdir" "$packaged" "$pci_devices"
+mkdir -p "$fwdir" "$packaged"
+printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
+printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
+printf '%s\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' >"$machine_id_file"
+invoke_leaf 43ba >/dev/null
+mac_one=$(grep '^macaddr=' "$(generic)")
+[[ -n $mac_one ]] || fail "first machine-id produced a macaddr="
+! grep -Fqx 'macaddr=00:90:4c:0d:f4:3e' "$(generic)" ||
+  fail "first machine-id must not persist the dump donor" "$mac_one"
+rm -rf "$fwdir" "$packaged" "$pci_devices"
+mkdir -p "$fwdir" "$packaged"
+printf '%s\n' 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' >"$machine_id_file"
+invoke_leaf 43ba >/dev/null
+mac_two=$(grep '^macaddr=' "$(generic)")
+[[ -n $mac_two ]] || fail "second machine-id produced a macaddr="
+[[ $mac_one != $mac_two ]] || fail "two machine-ids must not share a macaddr" "$mac_one"
+printf '%s\n' '0123456789abcdef0123456789abcdef' >"$machine_id_file"
+pass "two machine-ids produce two different macaddr= values"
+
+# Empty or missing machine-id and no live MAC: fail closed, persist nothing.
+rm -rf "$fwdir" "$packaged" "$pci_devices"
+mkdir -p "$fwdir" "$packaged"
+printf '%s' "Apple Inc." >"$test_tmp/dmi/sys_vendor"
+printf '%s' "MacBookPro14,3" >"$test_tmp/dmi/product_name"
+: >"$machine_id_file"
+if invoke_leaf 43ba >/dev/null 2>&1; then
+  fail "empty machine-id without a live MAC must not look like success"
+fi
+[[ -z $(ls -A "$fwdir") ]] || fail "empty machine-id leaves nothing behind" "$(ls -A "$fwdir")"
+rm -f "$machine_id_file"
+if invoke_leaf 43ba >/dev/null 2>&1; then
+  fail "missing machine-id without a live MAC must not look like success"
+fi
+[[ -z $(ls -A "$fwdir") ]] || fail "missing machine-id leaves nothing behind" "$(ls -A "$fwdir")"
+printf '%s\n' '0123456789abcdef0123456789abcdef' >"$machine_id_file"
+pass "empty machine-id without a live MAC fails and persists nothing"
+
+# All supported boards must fail closed before staging firmware, not just 14,3.
+for model in MacBookPro13,3 MacBookPro14,2 MacBookPro14,3; do
+  printf '%s' "$model" >"$test_tmp/dmi/product_name"
+  for invalid in '' uninitialized 00000000000000000000000000000000; do
+    rm -rf "$fwdir" "$pci_devices"
+    mkdir -p "$fwdir"
+    printf '%s' "$invalid" >"$machine_id_file"
+    if invoke_leaf 43ba >/dev/null 2>&1; then
+      fail "$model invalid machine-id without a MAC must fail"
+    fi
+    [[ -z $(ls -A "$fwdir") ]] || fail "$model invalid identity leaves no firmware or temporary files"
+  done
+  # A usable discovered MAC does not depend on having a machine-id.
+  rm -f "$machine_id_file"
+  provide_mac
+  invoke_leaf 43ba >/dev/null
+  grep -Fqx 'macaddr=aa:bb:cc:dd:ee:ff' "$(generic)" || fail "$model keeps a discovered MAC without machine-id"
+  pass "$model rejects invalid fallback input but allows a discovered MAC"
+done
+printf '%s\n' '0123456789abcdef0123456789abcdef' >"$machine_id_file"
+
+# Missing identity must not mark the model-specific migration as complete.
+rm -rf "$fwdir" "$packaged" "$pci_devices"
+mkdir -p "$fwdir" "$packaged"
+rm -f "$machine_id_file"
+if run_migration "Apple Inc." "MacBookPro13,3" 43ba "$migration_mbp133" >/dev/null 2>&1; then
+  fail "13,3 migration must fail when identity is unavailable"
+fi
+[[ -z $(ls -A "$fwdir") ]] || fail "13,3 migration failure leaves no staged firmware"
+! grep -q 'omarchy-state' "$calls" || fail "13,3 identity failure must not request a reboot"
+printf '%s\n' '0123456789abcdef0123456789abcdef' >"$machine_id_file"
+run_migration "Apple Inc." "MacBookPro13,3" 43ba "$migration_mbp133"
+grep -Fqx 'macaddr=02:7a:7d:ca:68:5d' "$(generic)" || fail "13,3 migration can retry after identity becomes available"
+pass "13,3 migration fails without identity and succeeds on retry"
 
 run_leaf "Apple Inc." "MacBookPro14,3" 43a0 >/dev/null
 [[ ! -f "$(generic)" ]] || fail "a Mac whose Wi-Fi brcmfmac does not drive is left alone"
@@ -271,6 +397,7 @@ grep -qx 'ccode=US' "$(generic)" || fail "MacBookPro13,3 NVRAM uses the host cou
 grep -qx 'regrev=0' "$(generic)" || fail "MacBookPro13,3 NVRAM uses the country revision"
 grep -Eq '^macaddr=02:([0-9a-f]{2}:){4}[0-9a-f]{2}$' "$(generic)" ||
   fail "MacBookPro13,3 replaces the Broadcom placeholder with a stable local address"
+grep -Fqx 'macaddr=02:7a:7d:ca:68:5d' "$(generic)" || fail "13,3 reconciliation preserves the historical mbp133-wifi salt"
 pass "MacBookPro13,3 gets its board calibration, host country, and stable local address"
 
 run_leaf "Apple Inc." "MacBookPro13,2" 43ba >/dev/null
@@ -372,12 +499,42 @@ rm -f "$stub_bin/install" "$test_tmp/install-once"
 [[ -z $(ls -A "$fwdir") ]] || fail "a half-written NVRAM pair is rolled back" "$(ls -A "$fwdir")"
 pass "a half-written NVRAM pair is rolled back"
 
+# A failure after the first final rename must remove both final and temp names.
+rm -rf "$fwdir" "$packaged" "$pci_devices"
+mkdir -p "$fwdir" "$packaged"
+provide_mac
+printf '%s' "MacBookPro13,3" >"$test_tmp/dmi/product_name"
+cat >"$stub_bin/mv" <<'SH'
+#!/bin/bash
+if [[ ${@: -1} == *MacBookPro13,3.txt ]]; then
+  exit 1
+fi
+exec /usr/bin/mv "$@"
+SH
+chmod +x "$stub_bin/mv"
+if invoke_leaf 43ba >/dev/null 2>&1; then
+  fail "a failed second rename must not look like success"
+fi
+rm -f "$stub_bin/mv"
+[[ -z $(ls -A "$fwdir") ]] || fail "second-rename failure removes final and temporary firmware names" "$(ls -A "$fwdir")"
+pass "second-rename failure rolls back the complete NVRAM pair"
+
+# Even a source regression must not install a keyless file and break firmware.
+sed '/^macaddr=/d' "$nvram_mbp133" >"$test_tmp/keyless.txt"
+if OMARCHY_BRCMFMAC43602_NVRAM="$test_tmp/keyless.txt" invoke_leaf 43ba >/dev/null 2>&1; then
+  fail "a calibration missing the required MAC key must fail"
+fi
+[[ -z $(ls -A "$fwdir") ]] || fail "a keyless calibration leaves no firmware behind"
+pass "a calibration missing macaddr is rejected before installation"
+
 rm -rf "$fwdir" "$packaged" "$pci_devices"
 mkdir -p "$fwdir" "$packaged"
 provide_mac
 run_migration "Apple Inc." "MacBookPro14,3" 43ba
 [[ -f "$(generic)" ]] || fail "the migration installs NVRAM on an existing Mac"
-grep -qx 'macaddr=aa:bb:cc:dd:ee:ff' "$(generic)" ||
+expected=macaddr=aa:bb:cc:dd:ee:ff
+[[ -n $expected ]] || fail "expected macaddr is non-empty"
+grep -Fqx "$expected" "$(generic)" ||
   fail "the migration substitutes the live MAC" "$(grep '^macaddr' "$(generic)")"
 grep -Fq $'omarchy-state\tset\treboot-required' "$calls" ||
   fail "the migration asks for the reboot that applies it" "$(cat "$calls")"
@@ -391,11 +548,16 @@ rm -rf "$fwdir" "$packaged" "$pci_devices"
 mkdir -p "$fwdir" "$packaged"
 run_migration "Apple Inc." "MacBookPro14,3" 43ba
 [[ -f "$(generic)" ]] || fail "the migration installs NVRAM without a discoverable MAC"
-! grep -q '^macaddr=' "$(generic)" ||
-  fail "the migration strips macaddr when no MAC is discoverable" "$(grep '^macaddr' "$(generic)")"
+expected=$(expected_stable_macaddr)
+[[ -n $expected ]] || fail "expected macaddr is non-empty"
+grep -q '^macaddr=' "$(generic)" || fail "the migration keeps the macaddr= key" "$(cat "$(generic)")"
+! grep -Fqx 'macaddr=00:90:4c:0d:f4:3e' "$(generic)" ||
+  fail "the migration must not persist the dump donor" "$(grep '^macaddr' "$(generic)")"
+grep -Fqx "$expected" "$(generic)" ||
+  fail "the migration uses this machine's stable MAC when none is discoverable" "$(grep '^macaddr' "$(generic)")"
 grep -Fq $'omarchy-state\tset\treboot-required' "$calls" ||
   fail "the migration still asks for a reboot without a MAC" "$(cat "$calls")"
-pass "the migration strips macaddr when no MAC is discoverable"
+pass "the migration uses a per-machine MAC when none is discoverable"
 
 rm -rf "$fwdir" "$packaged"
 mkdir -p "$fwdir" "$packaged"

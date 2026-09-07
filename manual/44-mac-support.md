@@ -37,6 +37,8 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 
 The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware (including 5 GHz board calibration on supported 2016–2017 Touch Bar MacBook Pros), the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix when Omarchy is installed on the internal NVMe drive.
 
+The BCM43602 calibration keeps the required MAC-address field populated. When no usable address is discoverable, the installer derives a stable local address from the installation's machine ID; installation stops without writing firmware if that ID is missing or invalid. Cloned installations must have distinct machine IDs to avoid sharing the same fallback address. Existing calibration files are preserved, so updating Omarchy does not silently change an already-installed Wi-Fi identity.
+
 ### Known Limitations
 
 Members of the community are constantly working on solutions to these challenges so if these are problematic for you, join #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY) and see if there's any up-to-date methods for resolving these.
@@ -55,7 +57,7 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 
 On MacBookPro13,3, the Touch Bar provides Esc, brightness, keyboard-backlight, media, and volume controls by default; holding Fn switches it to F1–F12. The same iBridge USB configuration keeps the FaceTime HD camera available. After a kernel update, verify `dkms status apple-ib-drv` lists the new kernel before relying on the Touch Bar.
 
-On MacBookPro13,3 systems with the Radeon Pro 460, Omarchy pins only the VRAM clock to its highest performance level to avoid hard GPU lockups during memory-clock transitions. A small monitor reapplies the mask when the display driver resets it during compositor startup or later session transitions. The GPU core and PCIe link can still scale down, but the fixed VRAM clock uses more power at idle than fully automatic power management.
+On MacBookPro13,3 systems with the Radeon Pro 460, Omarchy pins only the VRAM clock to its highest performance level as an experimental stability workaround. A small monitor reapplies the mask when it detects changed power-management state during compositor startup or later session transitions. The GPU core and PCIe link can still scale down, but the fixed VRAM clock uses more power at idle than fully automatic power management. This does not prevent every Radeon lockup or repair suspend. If GPU controls become unreadable or reapplying the mask fails, the monitor stops until its next service start instead of repeatedly accessing a failed GPU.
 
 #### Devices with T2 Chip
 

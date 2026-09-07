@@ -8,9 +8,12 @@
 # The values below are otherwise this dump's calibration data; do not edit them.
 #
 # Lines starting with # are comments; the brcmfmac NVRAM parser ignores them.
-# macaddr= is a placeholder (00:90:4c is the Broadcom OUI, not a device MAC).
-# The install leaf and migration substitute the NIC's live address or strip
-# the line so this value is never used verbatim.
+# macaddr= is a firmware key. The 00:90:4c value is Broadcom's placeholder,
+# not a board identity. The install leaf and migration substitute the 43ba
+# wiphy's permanent address when it is not a Broadcom placeholder, otherwise
+# a machine-id-derived locally-administered address. The key is never dropped
+# (dropping it makes the dongle time out on cur_etheraddr and crash). The
+# donor value is never persisted.
 
 sromrev=11
 subvid=0x14e4
