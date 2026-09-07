@@ -71,7 +71,7 @@ mkdir -p "$poison_bin" "$trusted_root_bin"
 
 # The runtime copy pins to this isolated root path. It contains every bare
 # command the exercised helper needs, but deliberately no fprintd-list.
-for helper in grep rm tee; do
+for helper in grep rm tee install rmdir dirname; do
   ln -s "/usr/bin/$helper" "$trusted_root_bin/$helper"
 done
 
@@ -107,7 +107,9 @@ prepare_helper() {
     -v trusted_root_bin="$trusted_root_bin" \
     -v trusted_fprintd="$trusted_fprintd" \
     -v keep_root_path="$keep_root_path" \
-    -v use_absolute_fprintd="$use_absolute_fprintd" '
+    -v use_absolute_fprintd="$use_absolute_fprintd" \
+    -v hook_src="$ROOT/default/systemd/system-sleep/fprintd-resume" \
+    -v hook_dst="$test_tmp/system-sleep/fprintd-resume" '
     {
       line = $0
       gsub("/etc/pam\\.d/omarchy-lock-password", "\"" password_pam "\"", line)
@@ -137,6 +139,14 @@ prepare_helper() {
         }
         next
       }
+      if (line == "resume_hook_src=\"$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume\"") {
+        print "resume_hook_src=\"" hook_src "\""
+        next
+      }
+      if (line == "resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume") {
+        print "resume_hook_dst=\"" hook_dst "\""
+        next
+      }
       if (line == "if omarchy-shell lock status >/dev/null 2>&1; then") {
         print "if false; then"
         next
@@ -156,6 +166,7 @@ prepare_helper "$unprotected_helper" 0 0
 for helper in "$patched_helper" "$absolute_only_helper" "$root_path_only_helper" "$unprotected_helper"; do
   if grep -F '/etc/pam.d/' "$helper" >/dev/null ||
     grep -F '/usr/bin/fprintd-list' "$helper" >/dev/null ||
+    grep -F '/usr/lib/systemd/system-sleep' "$helper" >/dev/null ||
     grep -F 'omarchy-shell lock status' "$helper" >/dev/null; then
     fail "the isolated root fixture redirects every live-system lock-helper target"
   fi
@@ -181,6 +192,8 @@ grep -Fx '0' "$trusted_uid" >/dev/null || fail "the trusted fprintd-list probe r
 grep -Fx "$target_user" "$trusted_args" >/dev/null || fail "the trusted fprintd-list probe receives the target user"
 [[ -s $password_pam && -s $fingerprint_pam ]] ||
   fail "the isolated root lock-helper run writes both scratch PAM fixtures"
+[[ -x $test_tmp/system-sleep/fprintd-resume ]] ||
+  fail "the lock helper installs the resume hook beside the fingerprint PAM file"
 pass "the hardened root lock helper uses the trusted fingerprint probe"
 
 reset_runtime_files

@@ -40,6 +40,13 @@ auth       required                    pam_faillock.so authsucc
 account    include                     system-local-login
 EOF
 
+# The resume hook restarts fprintd after suspend so a verify wedged by the
+# sleep cannot leave the reader dead on the lock screen. It belongs exactly
+# where the fingerprint PAM file does, so install and remove them together
+# here rather than leaving the pair to drift apart between setups and updates.
+resume_hook_src="$OMARCHY_PATH/default/systemd/system-sleep/fprintd-resume"
+resume_hook_dst=/usr/lib/systemd/system-sleep/fprintd-resume
+
 if [[ -x /usr/bin/fprintd-list ]] &&
   /usr/bin/fprintd-list "$target_user" 2>/dev/null | grep -qi finger; then
   echo "Configuring lock screen fingerprint authentication..."
@@ -48,8 +55,9 @@ if [[ -x /usr/bin/fprintd-list ]] &&
 auth       required                    pam_fprintd.so
 account    include                     system-local-login
 EOF
+  as_root install -Dm755 -o root -g root "$resume_hook_src" "$resume_hook_dst"
 else
-  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint
+  as_root rm -f /etc/pam.d/omarchy-lock-fingerprint "$resume_hook_dst"
 fi
 
 # omarchy-shell can't reach a running shell during chroot install. The echo
