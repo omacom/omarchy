@@ -99,6 +99,10 @@ inject_icon_file="$applications/Inject Icon.desktop"
 pass "a newline in the icon name cannot inject a second Exec"
 
 mkdir -p "$applications/http:/127.0.0.1:4000"
+icons_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
+legacy_icon="http-127-0-0-1-4000"
+mkdir -p "$icons_dir"
+touch "$icons_dir/$legacy_icon.png"
 cat >"$applications/http:/127.0.0.1:4000/.desktop" <<'DESKTOP'
 [Desktop Entry]
 Name=http://127.0.0.1:4000
@@ -109,4 +113,6 @@ DESKTOP
 run_remove "127.0.0.1:4000" >/dev/null
 [[ -f "$applications/http:/127.0.0.1:4000/.desktop" ]] &&
   fail "tui remove deletes a launcher left nested by an older install"
-pass "tui remove reaches a nested legacy launcher"
+[[ -f "$icons_dir/$legacy_icon.png" ]] &&
+  fail "tui remove deletes the icon named for the launcher's full Name field"
+pass "tui remove reaches a nested legacy launcher and its icon"
