@@ -7,6 +7,7 @@ QtObject {
   required property string ownerPluginId
 
   signal appsChanged()
+  signal iconIndexChanged()
 
   property var _entryName: null
   property var _entrySubtext: null

@@ -1053,6 +1053,10 @@ ShellRoot {
 
   Connections {
     target: shell.appLibrary
+    function onIconIndexChanged() {
+      for (var id in shell._pluginAppLibraryApis)
+        shell._pluginAppLibraryApis[id].iconIndexChanged()
+    }
     function onAppsChanged() {
       for (var id in shell._pluginAppLibraryApis)
         shell._pluginAppLibraryApis[id].appsChanged()
@@ -1316,7 +1320,9 @@ ShellRoot {
       id: panelEntry
       required property var modelData
       readonly property string pluginId: modelData.id
-      readonly property var manifest: modelData.manifest
+      // Qt model data turns nested arrays into sequences. Use the registry
+      // object so capability checks see the validated manifest's array types.
+      readonly property var manifest: shell.pluginRegistry.installedPlugins[pluginId] || null
       readonly property string entryKind: modelData.kind
       readonly property bool keepLoaded: modelData.keepLoaded === true
       readonly property string sourceUrl: shell.pluginRegistry.entryPointUrl(manifest, entryKind)
