@@ -18,10 +18,16 @@ if lspci -nn | grep -q "106b:180[12]"; then
   sudo systemctl enable t2fanrd.service
   sudo systemctl enable tiny-dfr.service
 
-  echo "apple-bce" | sudo tee /etc/modules-load.d/t2.conf >/dev/null
+  # linux-t2 7.1.4 replaced apple-bce with t2bce. Current arch-mact2 kernels
+  # have no apple-bce module, so writing that name makes every mkinitcpio/UKI
+  # rebuild fail and the install never finishes. Load t2bce_vhci (keyboard USB
+  # host); t2bce_core/t2bce_dma come in via dependencies.
+  echo "t2bce_vhci" | sudo tee /etc/modules-load.d/t2.conf >/dev/null
   echo "hci_bcm4377" | sudo tee -a /etc/modules-load.d/t2.conf >/dev/null
 
-  echo "MODULES+=(apple-bce usbhid hid_apple hid_generic xhci_pci xhci_hcd)" | sudo tee /etc/mkinitcpio.conf.d/apple-t2.conf >/dev/null
+  # Optional '?' keeps both sides of the rename working if a mirror still
+  # ships a pre-7.1.4 linux-t2 (mkinitcpio skips missing optional modules).
+  echo "MODULES+=(t2bce_vhci? apple-bce? usbhid hid_apple hid_generic xhci_pci xhci_hcd)" | sudo tee /etc/mkinitcpio.conf.d/apple-t2.conf >/dev/null
 
   cat <<EOF | sudo tee /etc/modprobe.d/brcmfmac.conf >/dev/null
 # Fix for T2 MacBook WiFi connectivity issues
