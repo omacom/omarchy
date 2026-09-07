@@ -63,6 +63,55 @@ HOME="$fake_home" "$ROOT/bin/omarchy-hook" "sub/dir" >/dev/null 2>&1 || status=$
   fail "omarchy hook refuses a hook name with a slash" "exit: $status"
 pass "omarchy hook refuses a hook name with a slash"
 
+# --- omarchy-hook-install ------------------------------------------------------
+
+# The installer joins the type into ~/.config/omarchy/hooks/<type>.d before
+# mkdir/cp. The runner already refuses a slashed type; install must too, or a
+# name the runner will not run still lands on disk.
+
+source_hook="$work_dir/source-hook"
+cat >"$source_hook" <<'SH'
+#!/bin/bash
+true
+SH
+
+HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" post-update "$source_hook" >/dev/null
+[[ -f $fake_home/.config/omarchy/hooks/post-update.d/source-hook ]] ||
+  fail "omarchy hook install still installs a named hook"
+pass "omarchy hook install still installs a named hook"
+
+HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" a..b "$source_hook" >/dev/null
+[[ -f $fake_home/.config/omarchy/hooks/a..b.d/source-hook ]] ||
+  fail "omarchy hook install accepts a hook name with dots in the middle"
+pass "omarchy hook install accepts a hook name with dots in the middle"
+
+for name in . ..; do
+  status=0
+  HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" "$name" "$source_hook" >/dev/null 2>&1 || status=$?
+  (( status == 2 )) ||
+    fail "omarchy hook install refuses a hook name of $name" "exit: $status"
+  [[ ! -e $fake_home/.config/omarchy/hooks/${name}.d ]] ||
+    fail "omarchy hook install creates no directory for a hook name of $name"
+  pass "omarchy hook install refuses a hook name of $name"
+done
+
+# hooks/../../evil.d is ~/.config/evil.d. The guard must fire before mkdir.
+status=0
+HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" "../../evil" "$source_hook" >/dev/null 2>&1 || status=$?
+(( status == 2 )) ||
+  fail "omarchy hook install refuses a hook name with a dot-dot" "exit: $status"
+[[ ! -e $fake_home/.config/evil.d ]] ||
+  fail "omarchy hook install creates nothing outside the hooks directory"
+pass "omarchy hook install refuses a hook name with a dot-dot"
+
+status=0
+HOME="$fake_home" "$ROOT/bin/omarchy-hook-install" "sub/dir" "$source_hook" >/dev/null 2>&1 || status=$?
+(( status == 2 )) ||
+  fail "omarchy hook install refuses a hook name with a slash" "exit: $status"
+[[ ! -e $fake_home/.config/omarchy/hooks/sub ]] ||
+  fail "omarchy hook install creates no nested directory from a slashed name"
+pass "omarchy hook install refuses a hook name with a slash"
+
 # --- omarchy-state -------------------------------------------------------------
 
 state_dir="$fake_home/.local/state/omarchy"
