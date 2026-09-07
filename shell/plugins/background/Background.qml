@@ -244,11 +244,19 @@ Item {
 
       property bool maskReady: false
 
+      // Every output that has decoded the incoming image joins the wipe, even
+      // one that gets there after the animation has started. Each output
+      // decodes its own copy, so requiring revealProgress to still be 0 let
+      // whichever output decoded first claim the reveal and locked the rest
+      // out of it: they kept the old wallpaper and jumped to the new one when
+      // the transition ended. startReveal still restarts the animation only
+      // once per backgroundVersion, so a late output picks up the front where
+      // it already is.
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+        if (!root.incomingBackground || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+          if (!root.incomingBackground || maskReady) return
           if (incomingFrame.status !== Image.Ready) return
           root.startReveal(panel)
         })
