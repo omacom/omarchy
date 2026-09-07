@@ -31,11 +31,11 @@ function parse(value) {
   return result
 }
 
-function withBuiltIn(groups) {
+function withBuiltIn(groups, officialFeed) {
   return [{
     id: "omarchy",
-    name: "Omarchy",
-    sourceUrls: ["https://omarchy.org/news/rss.xml"]
+    name: officialFeed.name,
+    sourceUrls: [officialFeed.url]
   }].concat(groups || [])
 }
 

@@ -6,17 +6,19 @@ source "$(dirname "$0")/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const model = requireFromRoot('shell/plugins/panels/news/Collections.js')
+const feedCatalog = requireFromRoot('shell/plugins/panels/news/FeedCatalog.js')
+const withBuiltIn = groups => model.withBuiltIn(groups, feedCatalog.officialFeed)
 const curated = [{ id: 'omarchy', name: 'Omarchy', sourceUrls: ['https://omarchy.org/news/rss.xml'] }]
-assertDeepEqual(model.withBuiltIn(model.parse('')), curated, 'new readers always include curated Omarchy')
-assertDeepEqual(model.withBuiltIn(model.parse('[]')), curated, 'empty saved settings cannot remove curated Omarchy')
-assertDeepEqual(model.withBuiltIn(model.parse('{broken')), curated, 'curated Omarchy survives malformed settings')
+assertDeepEqual(withBuiltIn(model.parse('')), curated, 'new readers always include curated Omarchy')
+assertDeepEqual(withBuiltIn(model.parse('[]')), curated, 'empty saved settings cannot remove curated Omarchy')
+assertDeepEqual(withBuiltIn(model.parse('{broken')), curated, 'curated Omarchy survives malformed settings')
 const override = [{ id: 'omarchy', name: 'Changed', sourceUrls: ['https://example.com/rss'] }]
-assertDeepEqual(model.withBuiltIn(model.parse(JSON.stringify(override))), curated, 'saved settings cannot rename or replace curated Omarchy sources')
+assertDeepEqual(withBuiltIn(model.parse(JSON.stringify(override))), curated, 'saved settings cannot rename or replace curated Omarchy sources')
 assertDeepEqual(model.parse(JSON.stringify([{ id: 'chefs-choice', name: "Chef's Choice", sourceUrls: [] }])), [], 'previous starter collection is replaced by curated Omarchy')
 const curatedArticles = model.buildItemIndex([
   { id: 'official', sourceId: 'omarchy', sourceUrl: 'https://omarchy.org/news/rss.xml' },
   { id: 'tech', sourceId: 'hacker-news', sourceUrl: 'https://news.ycombinator.com/rss' }
-], model.withBuiltIn([]), 10)
+], withBuiltIn([]), 10)
 assertDeepEqual(curatedArticles['collection:omarchy'].map(item => item.id), ['official'], 'curated Omarchy excludes unrelated publisher news')
 const catalog = [
   { id: 'linux', url: 'https://linux.example/rss', category: 'linux' },

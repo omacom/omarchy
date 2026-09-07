@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import "Collections.js" as Collections
+import "FeedCatalog.js" as FeedCatalog
 import "ReadState.js" as ReadState
 
 Item {
@@ -31,26 +32,15 @@ Item {
   readonly property string statePath: stateDir + "/read.json"
   readonly property int refreshIntervalMin: intSetting("refreshIntervalMin", 15, 5, 120)
   readonly property int itemLimit: intSetting("itemLimit", 10, 5, 20)
-  readonly property var techFeedIds: ["hacker-news", "ars-technica", "techcrunch", "the-verge", "wired", "phoronix", "its-foss", "openai-news", "hugging-face", "mit-ai"]
-  readonly property var feedCatalog: [
-    { "id": "hacker-news", "name": "Hacker News", "description": "Developer and startup news", "category": "developer", "url": "https://news.ycombinator.com/rss" },
-    { "id": "ars-technica", "name": "Ars Technica", "description": "Deep technology, science and security", "category": "technology", "url": "https://feeds.arstechnica.com/arstechnica/index" },
-    { "id": "techcrunch", "name": "TechCrunch", "description": "Startups, business and AI", "category": "startup", "url": "https://techcrunch.com/feed/" },
-    { "id": "the-verge", "name": "The Verge", "description": "Mainstream technology and platforms", "category": "technology", "url": "https://www.theverge.com/rss/index.xml" },
-    { "id": "wired", "name": "WIRED", "description": "Technology, science, security and culture", "category": "technology", "url": "https://www.wired.com/feed/rss" },
-    { "id": "phoronix", "name": "Phoronix", "description": "Linux kernel, hardware and performance", "category": "linux", "url": "https://www.phoronix.com/rss.php" },
-    { "id": "its-foss", "name": "It's FOSS", "description": "Accessible Linux and open-source coverage", "category": "linux", "url": "https://itsfoss.com/rss/" },
-    { "id": "openai-news", "name": "OpenAI News", "description": "Official OpenAI product and research news", "category": "ai", "url": "https://openai.com/news/rss.xml" },
-    { "id": "hugging-face", "name": "Hugging Face", "description": "Open models, tooling and AI research", "category": "ai", "url": "https://huggingface.co/blog/feed.xml" },
-    { "id": "mit-ai", "name": "MIT News: AI", "description": "Academic AI research and developments", "category": "ai", "url": "https://news.mit.edu/rss/topic/artificial-intelligence2" }
-  ]
+  readonly property var techFeedIds: FeedCatalog.techFeedIds
+  readonly property var feedCatalog: FeedCatalog.feeds
   readonly property var enabledFeedIds: listSetting("enabledFeeds")
   readonly property var enabledSourceIds: Collections.subscribedIds(feedCatalog, enabledFeedIds, collections)
   readonly property string customFeeds: String(setting("customFeeds", "")).substring(0, 4096)
   readonly property var customFeedEntries: parseCustomFeedEntries(customFeeds)
   readonly property string collectionsSetting: String(setting("feedCollections", ""))
   readonly property var userCollections: Collections.parse(collectionsSetting)
-  readonly property var collections: Collections.withBuiltIn(userCollections)
+  readonly property var collections: Collections.withBuiltIn(userCollections, FeedCatalog.officialFeed)
   readonly property var hiddenFeedUrls: Array.isArray(setting("hiddenFeedUrls", [])) ? setting("hiddenFeedUrls", []) : []
   readonly property var visibleSources: Collections.visibleSources(sources, enabledFeedIds, hiddenFeedUrls)
   readonly property var selectableSources: buildSelectableSources()
@@ -82,7 +72,7 @@ Item {
     var result = []
     for (var i = 0; i < value.length; i++) {
       var sourceId = String(value[i] || "")
-      if (techFeedIds.indexOf(sourceId) !== -1 && result.indexOf(sourceId) === -1) result.push(sourceId)
+      if (feedCatalog.some(function(feed) { return feed.id === sourceId }) && result.indexOf(sourceId) === -1) result.push(sourceId)
     }
     return result
   }
@@ -102,12 +92,7 @@ Item {
   }
 
   function buildSelectableSources() {
-    var result = [{
-      "id": "omarchy",
-      "name": "Omarchy",
-      "category": "official",
-      "url": "https://omarchy.org/news/rss.xml"
-    }]
+    var result = [FeedCatalog.officialFeed]
     for (var i = 0; i < feedCatalog.length; i++) {
       result.push(feedCatalog[i])
     }

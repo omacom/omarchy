@@ -373,7 +373,7 @@ grep -qF 'tooltipText: "Close (Esc)"' "$ROOT/shell/plugins/panels/news/Panel.qml
 grep -qF 'o.bind("SUPER + ALT + N", "RSS Reader", "omarchy-shell shell toggle omarchy.news")' "$ROOT/default/hypr/bindings/utilities.lua" ||
   fail "news reader has a default Hyprland shortcut"
 
-grep -qF 'FEED_URL = "https://omarchy.org/news/rss.xml"' "$ROOT/shell/plugins/panels/news/fetch_news.py" ||
+grep -qF '"url": "https://omarchy.org/news/rss.xml"' "$ROOT/shell/plugins/panels/news/feeds.json" ||
   fail "news fetcher pins the official RSS URL"
 grep -qF 'MAX_RESPONSE_BYTES = 1024 * 1024' "$ROOT/shell/plugins/panels/news/fetch_news.py" ||
   fail "news fetcher bounds the response"
@@ -381,9 +381,9 @@ grep -qF 'urllib.request.ProxyHandler({})' "$ROOT/shell/plugins/panels/news/fetc
   fail "news fetcher ignores inherited proxy redirection"
 grep -qF 'SYSTEM_CA_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"' "$ROOT/shell/plugins/panels/news/fetch_news.py" ||
   fail "news fetcher pins the system CA bundle"
-grep -qF '"https://news.ycombinator.com/rss"' "$ROOT/shell/plugins/panels/news/fetch_news.py" ||
+grep -qF '"https://news.ycombinator.com/rss"' "$ROOT/shell/plugins/panels/news/feeds.json" ||
   fail "news fetcher includes the ranked tech feed pack"
-! grep -qF 'bbc' "$ROOT/shell/plugins/panels/news/fetch_news.py" ||
+! grep -qF 'bbc' "$ROOT/shell/plugins/panels/news/feeds.json" ||
   fail "news fetcher does not promote BBC into the initial tech feed pack"
 grep -qF 'custom feed host does not resolve to a public address' "$ROOT/shell/plugins/panels/news/fetch_news.py" ||
   fail "custom feeds cannot resolve to private network addresses"

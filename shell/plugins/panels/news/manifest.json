@@ -54,16 +54,56 @@
         "placeholderText": "Search feeds...",
         "emptyText": "No feeds",
         "options": [
-          { "value": "hacker-news", "label": "Hacker News", "description": "Developer and startup news" },
-          { "value": "ars-technica", "label": "Ars Technica", "description": "Deep technology, science and security" },
-          { "value": "techcrunch", "label": "TechCrunch", "description": "Startups, business and AI" },
-          { "value": "the-verge", "label": "The Verge", "description": "Mainstream technology and platforms" },
-          { "value": "wired", "label": "WIRED", "description": "Technology, science, security and culture" },
-          { "value": "phoronix", "label": "Phoronix", "description": "Linux kernel, hardware and performance" },
-          { "value": "its-foss", "label": "It's FOSS", "description": "Accessible Linux and open-source coverage" },
-          { "value": "openai-news", "label": "OpenAI News", "description": "Official OpenAI product and research news" },
-          { "value": "hugging-face", "label": "Hugging Face", "description": "Open models, tooling and AI research" },
-          { "value": "mit-ai", "label": "MIT News: AI", "description": "Academic AI research and developments" }
+          {
+            "value": "hacker-news",
+            "label": "Hacker News",
+            "description": "Developer and startup news"
+          },
+          {
+            "value": "ars-technica",
+            "label": "Ars Technica",
+            "description": "Deep technology, science and security"
+          },
+          {
+            "value": "techcrunch",
+            "label": "TechCrunch",
+            "description": "Startups, business and AI"
+          },
+          {
+            "value": "the-verge",
+            "label": "The Verge",
+            "description": "Mainstream technology and platforms"
+          },
+          {
+            "value": "wired",
+            "label": "WIRED",
+            "description": "Technology, science, security and culture"
+          },
+          {
+            "value": "phoronix",
+            "label": "Phoronix",
+            "description": "Linux kernel, hardware and performance"
+          },
+          {
+            "value": "its-foss",
+            "label": "It's FOSS",
+            "description": "Accessible Linux and open-source coverage"
+          },
+          {
+            "value": "openai-news",
+            "label": "OpenAI News",
+            "description": "Official OpenAI product and research news"
+          },
+          {
+            "value": "hugging-face",
+            "label": "Hugging Face",
+            "description": "Open models, tooling and AI research"
+          },
+          {
+            "value": "mit-ai",
+            "label": "MIT News: AI",
+            "description": "Academic AI research and developments"
+          }
         ],
         "defaultValue": [],
         "description": "Choose any combination. Omarchy remains pinned."

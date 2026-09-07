@@ -22,7 +22,6 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
-FEED_URL = "https://omarchy.org/news/rss.xml"
 MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_REDIRECTS = 3
 MAX_ITEMS = 40
@@ -32,109 +31,14 @@ SYSTEM_CA_BUNDLE = "/etc/ssl/certs/ca-certificates.crt"
 MAX_ARTICLE_CHARS = 12_000
 SSL_CONTEXT = ssl.create_default_context(cafile=SYSTEM_CA_BUNDLE)
 
+# Package-owned catalogue; never load feed policy from user settings or the network.
 SOURCE_CATALOG = {
-    "omarchy": {
-        "id": "omarchy",
-        "name": "Omarchy",
-        "category": "official",
-        "url": FEED_URL,
-        "article_hosts": ("omarchy.org",),
-        "article_path_prefix": "/news/",
-    },
-    "hacker-news": {
-        "id": "hacker-news",
-        "name": "Hacker News",
-        "category": "developer",
-        "url": "https://news.ycombinator.com/rss",
-        "article_hosts": (),
-        "allow_external_articles": True,
-        "article_path_prefix": "/",
-    },
-    "ars-technica": {
-        "id": "ars-technica",
-        "name": "Ars Technica",
-        "category": "technology",
-        "url": "https://feeds.arstechnica.com/arstechnica/index",
-        "article_hosts": ("arstechnica.com",),
-        "article_path_prefix": "/",
-    },
-    "techcrunch": {
-        "id": "techcrunch",
-        "name": "TechCrunch",
-        "category": "startup",
-        "url": "https://techcrunch.com/feed/",
-        "article_hosts": ("techcrunch.com",),
-        "article_path_prefix": "/",
-    },
-    "the-verge": {
-        "id": "the-verge",
-        "name": "The Verge",
-        "category": "technology",
-        "url": "https://www.theverge.com/rss/index.xml",
-        "article_hosts": ("theverge.com",),
-        "article_path_prefix": "/",
-    },
-    "wired": {
-        "id": "wired",
-        "name": "WIRED",
-        "category": "technology",
-        "url": "https://www.wired.com/feed/rss",
-        "article_hosts": ("wired.com",),
-        "article_path_prefix": "/",
-    },
-    "phoronix": {
-        "id": "phoronix",
-        "name": "Phoronix",
-        "category": "linux",
-        "url": "https://www.phoronix.com/rss.php",
-        "article_hosts": ("phoronix.com",),
-        "article_path_prefix": "/",
-    },
-    "its-foss": {
-        "id": "its-foss",
-        "name": "It's FOSS",
-        "category": "linux",
-        "url": "https://itsfoss.com/rss/",
-        "article_hosts": ("itsfoss.com",),
-        "article_path_prefix": "/",
-    },
-    "openai-news": {
-        "id": "openai-news",
-        "name": "OpenAI News",
-        "category": "ai",
-        "url": "https://openai.com/news/rss.xml",
-        "article_hosts": ("openai.com",),
-        "article_path_prefix": "/",
-    },
-    "hugging-face": {
-        "id": "hugging-face",
-        "name": "Hugging Face",
-        "category": "ai",
-        "url": "https://huggingface.co/blog/feed.xml",
-        "article_hosts": ("huggingface.co",),
-        "article_path_prefix": "/blog/",
-    },
-    "mit-ai": {
-        "id": "mit-ai",
-        "name": "MIT News: AI",
-        "category": "ai",
-        "url": "https://news.mit.edu/rss/topic/artificial-intelligence2",
-        "article_hosts": ("news.mit.edu",),
-        "article_path_prefix": "/",
-    },
+    source["id"]: source
+    for source in json.loads(Path(__file__).with_name("feeds.json").read_text(encoding="utf-8"))
 }
-
-TECH_FEED_IDS = (
-    "hacker-news",
-    "ars-technica",
-    "techcrunch",
-    "the-verge",
-    "wired",
-    "phoronix",
-    "its-foss",
-    "openai-news",
-    "hugging-face",
-    "mit-ai",
+FEED_URL = SOURCE_CATALOG["omarchy"]["url"]
+TECH_FEED_IDS = tuple(
+    source["id"] for source in SOURCE_CATALOG.values() if "tech" in source["packs"]
 )
 MAX_CUSTOM_FEEDS = 10
 MAX_CUSTOM_FEEDS_SETTING_CHARS = 4096
