@@ -225,7 +225,7 @@ for theme in "$ROOT"/themes/*/chromium.theme; do
   hex=$(browser_policy_theme_hex "$rgb")
   [[ $hex =~ ^#[0-9a-f]{6}$ ]] ||
     fail "shipped $(basename "$(dirname "$theme")") chromium.theme parses as hex" "got: $hex from $(printf %q "$rgb")"
-  if [[ $hex == "#1c2027" && ! $rgb =~ ^[[:space:]]*28[[:space:]]*,[[:space:]]*32[[:space:]]*,[[:space:]]*39[[:space:]]*$ ]]; then
+  if [[ $hex == "#1f1f1f" && ! $rgb =~ ^[[:space:]]*31[[:space:]]*,[[:space:]]*31[[:space:]]*,[[:space:]]*31[[:space:]]*$ ]]; then
     fail "shipped $(basename "$(dirname "$theme")") chromium.theme is a valid RGB triple" "got: $(printf %q "$rgb")"
   fi
 done

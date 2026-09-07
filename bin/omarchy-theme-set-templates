@@ -418,9 +418,16 @@ if [[ -f $COLORS_FILE ]]; then
   # BrowserThemeColor is a seed, not a paint color (see
   # chrome_seed_from_background). Derive a clamped chrome seed from the
   # background so generated chromium.theme files survive Chromium's seed
-  # derivation.
-  if [[ -n ${THEME_COLORS[background]+_} ]]; then
-    THEME_COLORS[chrome_seed]="#$(chrome_seed_from_background "${THEME_COLORS[background]}")"
+  # derivation. A theme that defines its own chrome_seed keeps it; a
+  # background that is not plain hex passes through untouched so
+  # {{ chrome_seed_rgb }} still resolves instead of leaking a placeholder.
+  if [[ -z ${THEME_COLORS[chrome_seed]+_} && -n ${THEME_COLORS[background]+_} ]]; then
+    if [[ ${THEME_COLORS[background]} =~ ^#[0-9a-fA-F]{6}$ ]]; then
+      THEME_COLORS[chrome_seed]="#$(chrome_seed_from_background "${THEME_COLORS[background]}")"
+    else
+      THEME_COLORS[chrome_seed]="${THEME_COLORS[background]}"
+      printf 's|{{ chrome_seed_rgb }}|%s|g\n' "${THEME_COLORS[background]}" >>"$sed_script"
+    fi
   fi
 
   for key in "${!THEME_COLORS[@]}"; do
