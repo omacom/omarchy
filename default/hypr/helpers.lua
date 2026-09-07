@@ -105,6 +105,11 @@ function o.bind(keys, description, dispatcher, options)
   hl.bind(keys, dispatcher, opts)
 end
 
+function o.rebind(keys, description, dispatcher, options)
+  hl.unbind(keys)
+  o.bind(keys, description, dispatcher, options)
+end
+
 function o.launch(command)
   return "uwsm-app -- " .. command
 end
