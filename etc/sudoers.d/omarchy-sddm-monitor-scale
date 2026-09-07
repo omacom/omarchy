@@ -1,2 +1,3 @@
-%wheel ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/sddm
+%wheel ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /etc/sddm
 %wheel ALL=(root) NOPASSWD: /usr/bin/tee /etc/sddm/omarchy-monitor-scale
+%wheel ALL=(root) NOPASSWD: /usr/bin/chmod 644 /etc/sddm/omarchy-monitor-scale

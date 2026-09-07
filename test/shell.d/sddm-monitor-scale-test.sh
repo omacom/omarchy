@@ -114,8 +114,16 @@ local omarchy_monitor_scale = 3 / 2
 LUA
 rm -f "$scale_file"
 run_helper
-[[ ! -e $scale_file ]] || fail "helper leaves expressions unresolved" "$(cat "$scale_file")"
+grep -Fx 'auto' "$scale_file" >/dev/null || fail "helper leaves expressions unresolved" "$(cat "$scale_file" 2>/dev/null || true)"
 pass "helper leaves expressions unresolved"
+
+printf '3\n' >"$scale_file"
+cat >"$monitor_lua" <<'LUA'
+local omarchy_monitor_scale = 3 / 2
+LUA
+run_helper
+grep -Fx 'auto' "$scale_file" >/dev/null || fail "helper replaces a stale scale when the config is unresolved" "$(cat "$scale_file" 2>/dev/null || true)"
+pass "helper replaces a stale scale when the config is unresolved"
 
 rm -f "$scale_file"
 status=0
@@ -124,25 +132,46 @@ run_helper 0.5 || status=$?
 [[ ! -e $scale_file ]] || fail "helper does not write an invalid explicit scale"
 pass "helper rejects an explicit scale below 1x"
 
-grep -F '%wheel ALL=(root) NOPASSWD: /usr/bin/mkdir -p /etc/sddm' "$sudoers_file" >/dev/null ||
-  fail "sddm scale sudoers allows passwordless mkdir"
+write_monitor_config 2
+rm -f "$scale_file"
+(
+  umask 077
+  run_helper
+)
+mode=$(stat -c '%a' "$scale_file")
+(( 8#$mode & 4 )) || fail "helper writes a world-readable scale file under umask 077" "mode: $mode"
+pass "helper writes a world-readable scale file under umask 077"
+
+grep -F '%wheel ALL=(root) NOPASSWD: /usr/bin/install -d -m 755 /etc/sddm' "$sudoers_file" >/dev/null ||
+  fail "sddm scale sudoers allows passwordless install -d"
 grep -F '%wheel ALL=(root) NOPASSWD: /usr/bin/tee /etc/sddm/omarchy-monitor-scale' "$sudoers_file" >/dev/null ||
   fail "sddm scale sudoers allows passwordless tee"
+grep -F '%wheel ALL=(root) NOPASSWD: /usr/bin/chmod 644 /etc/sddm/omarchy-monitor-scale' "$sudoers_file" >/dev/null ||
+  fail "sddm scale sudoers allows passwordless chmod"
 if command -v visudo >/dev/null; then
   visudo -cf "$sudoers_file" >/dev/null || fail "sddm scale sudoers is valid"
 fi
 pass "sddm scale sudoers allows passwordless writes"
 
-grep -F 'sudo mkdir -p "$dest_dir"' "$helper" >/dev/null ||
-  fail "helper uses the passwordless mkdir sudoers rule"
+grep -F 'sudo install -d -m 755 "$dest_dir"' "$helper" >/dev/null ||
+  fail "helper uses the passwordless install sudoers rule"
+grep -F 'install -d -m 755' "$helper" >/dev/null ||
+  fail "helper creates the drop-in directory at mode 755"
 grep -F 'sudo tee "$SCALE_FILE"' "$helper" >/dev/null ||
   fail "helper uses the passwordless tee sudoers rule"
+grep -F 'sudo chmod 644 "$SCALE_FILE"' "$helper" >/dev/null ||
+  fail "helper uses the passwordless chmod sudoers rule"
+grep -F 'chmod 644' "$helper" >/dev/null ||
+  fail "helper sets the drop-in file mode to 644"
 ! grep -F 'pkexec' "$helper" >/dev/null || fail "helper does not wrap the write in pkexec"
 pass "helper uses the passwordless sudoers rules"
 
 grep -F 'omarchy-sddm-set-monitor-scale || true' "$ROOT/bin/omarchy-system-logout" >/dev/null ||
   fail "logout persists the greeter monitor scale"
 pass "logout persists the greeter monitor scale"
+
+! grep -F '|| true' "$migration" >/dev/null || fail "migration does not swallow a failed seed"
+pass "migration does not swallow a failed seed"
 
 write_monitor_config 1.6
 rm -f "$scale_file"

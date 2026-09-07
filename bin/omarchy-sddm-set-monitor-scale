@@ -17,7 +17,7 @@ valid_scale() {
 }
 
 # Value assigned by `local omarchy_monitor_scale = ...`, without quotes or a trailing comment.
-# An expression like `3 / 2` does not match, so the caller keeps the greeter default.
+# An expression like `3 / 2` does not match; with no explicit argument the caller writes auto.
 configured_scale() {
   local value
   [[ -f $MONITOR_LUA ]] || return 1
@@ -36,8 +36,9 @@ if (($# > 0)); then
     exit 1
   fi
 else
-  scale=$(configured_scale) || exit 0
-  valid_scale "$scale" || exit 0
+  if ! scale=$(configured_scale) || ! valid_scale "$scale"; then
+    scale="auto"
+  fi
 fi
 
 if [[ $scale != "auto" ]]; then
@@ -47,7 +48,11 @@ fi
 dest_dir=$(dirname -- "$SCALE_FILE")
 if mkdir -p "$dest_dir" 2>/dev/null && [[ -w $dest_dir ]]; then
   printf '%s\n' "$scale" >"$SCALE_FILE"
+  chmod 644 "$SCALE_FILE"
 else
-  sudo mkdir -p "$dest_dir"
+  sudo install -d -m 755 "$dest_dir"
   printf '%s\n' "$scale" | sudo tee "$SCALE_FILE" >/dev/null
+  # An explicit mode so a restrictive user umask cannot leave the root-owned
+  # drop-in unreadable to the sddm greeter.
+  sudo chmod 644 "$SCALE_FILE"
 fi
