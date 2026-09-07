@@ -145,6 +145,7 @@ Important behavior:
   check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
 - `omarchy update` checks/runs migrations in the same visible terminal via
   `omarchy-migrate` after pacman finishes.
+- After tool updates, interactive updates offer the existing per-plugin diff and confirmation flow for third-party Git checkouts. Unattended or non-terminal runs report and skip plugin updates; run `omarchy plugin update` in a terminal to review them. Plugin failures are reported without preventing system update status and restart checks. Built-in plugins continue to update with system packages.
 - A failure should leave enough output in `/tmp/omarchy-update.log` and the
   terminal transcript to debug.
 
