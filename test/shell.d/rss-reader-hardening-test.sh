@@ -59,5 +59,20 @@ assert 'First<br>Second' in items[1]['contentHtml']
 assert 'href="https://example.com/posts/more/detail"' in items[1]['contentHtml']
 assert 'href="https://example.com/detail"' in r.article_markup('<a href="/detail">Link</a>', base_url='https://example.com/post')
 assert '<a ' not in r.article_markup('<a href="javascript:alert(1)">Bad</a>', base_url='https://example.com/')
+
+notice = '<br><br>Article shortened. Open the original to continue reading.'
+assert notice not in r.article_markup('x' * r.MAX_ARTICLE_CHARS)
+assert r.article_markup('x' * (r.MAX_ARTICLE_CHARS + 1)) == 'x' * r.MAX_ARTICLE_CHARS + notice
+assert r.article_markup('<a href="https://example.com">abcdef</a>', limit=5) == '<a href="https://example.com">abcde</a>' + notice
+assert r.article_markup('abcde<strong>f</strong>', limit=5) == 'abcde' + notice
+assert r.article_markup('&amp;' * 6, limit=5) == '&amp;' * 5 + notice
+assert notice not in r.article_markup('abcde<script>hidden text</script>', limit=5)
+assert notice not in r.article_markup('abcde<style>hidden text</style>', limit=5)
+long_feed = ('<rss><channel><item><title>Long</title><link>https://omarchy.org/news/long</link>'
+             '<description>' + 'x' * (r.MAX_ARTICLE_CHARS + 1) + '</description></item></channel></rss>').encode()
+item = r.parse_feed(long_feed)[0]
+assert item['contentHtml'].endswith(notice)
+assert len(item['content']) == r.MAX_ARTICLE_CHARS
 PY
 pass "Atom text, XHTML, inherited bases and safe relative links"
+pass "shortened articles show a notice outside links, without flagging exact limits or stripped content"

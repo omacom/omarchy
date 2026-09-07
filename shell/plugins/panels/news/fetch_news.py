@@ -178,6 +178,7 @@ class ArticleMarkupParser(HTMLParser):
         self.base_url = base_url
         self.limit = limit
         self.visible_chars = 0
+        self.truncated = False
         self.parts: list[str] = []
         self.link_stack: list[bool] = []
         self.skip_depth = 0
@@ -218,9 +219,11 @@ class ArticleMarkupParser(HTMLParser):
             self.newline()
 
     def handle_data(self, data: str) -> None:
-        if self.skip_depth or self.visible_chars >= self.limit:
+        if self.skip_depth:
             return
         remaining = self.limit - self.visible_chars
+        if len(data) > remaining:
+            self.truncated = True
         value = data[:remaining]
         self.visible_chars += len(value)
         self.parts.append(escape(value))
@@ -229,7 +232,10 @@ class ArticleMarkupParser(HTMLParser):
         while self.link_stack:
             if self.link_stack.pop():
                 self.parts.append("</a>")
-        return "".join(self.parts).strip().removeprefix("<br>").removesuffix("<br>")
+        markup = "".join(self.parts).strip().removeprefix("<br>").removesuffix("<br>")
+        if self.truncated:
+            markup += "<br><br>Article shortened. Open the original to continue reading."
+        return markup
 
 
 def article_text(value: str | None, limit: int = MAX_ARTICLE_CHARS) -> str:
