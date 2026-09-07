@@ -45,11 +45,25 @@ compositor_alive() {
   return 1
 }
 
+# Publish our pid so omarchy-restart-shell can stop this supervisor before it
+# starts a replacement. Without that handoff, relaunching on unexpected clean
+# exits would race a second launcher.
+pid_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy"
+mkdir -p "$pid_dir"
+pid_file="$pid_dir/launch-shell.pid"
+printf '%s\n' "$$" >"$pid_file"
+
+clear_pid_file() {
+  [[ -f $pid_file ]] || return 0
+  [[ $(<"$pid_file") == "$$" ]] && rm -f "$pid_file"
+}
+
 # Quickshell relaunches itself from its signal handlers, but Qt leaves through
 # _exit() when the Wayland connection fails, raising no signal: no crash report,
-# no relaunch, no bar. Supervise those deaths. A clean exit is a deliberate stop
-# (omarchy-restart-shell starts its own replacement); a signal here means the
-# session is going, and has to reach the shell the launcher used to exec.
+# no relaunch, no bar. Supervise those deaths. An unexpected clean exit (IPC
+# kill, failed reload) used to stop the supervisor because restart-shell starts
+# its own replacement; when that replacement fails the seat is left with no bar.
+# Keep supervising while the compositor is alive unless we were asked to stop.
 terminating=0
 shell_pid=""
 
@@ -58,7 +72,7 @@ stop() {
   [[ -n $shell_pid ]] && kill -TERM "$shell_pid" 2>/dev/null
   return 0
 }
-trap stop HUP INT TERM
+trap 'stop; clear_pid_file' HUP INT TERM EXIT
 
 attempts=0
 window_started=$SECONDS
@@ -71,7 +85,6 @@ while true; do
   status=$?
 
   (( terminating )) && exit 0
-  (( status == 0 )) && exit 0
 
   # Relaunching into a session already tearing down burns the attempt budget.
   compositor_alive || exit 0
