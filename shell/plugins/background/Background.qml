@@ -304,7 +304,7 @@ Item {
         layer.smooth: true
         layer.effect: MultiEffect {
           maskEnabled: true
-          maskSource: revealMask
+          maskSource: revealMaskSource
           maskThresholdMin: 0.5
           maskSpreadAtMin: 0.02
         }
@@ -322,11 +322,25 @@ Item {
         }
       }
 
+      // The mask has to stay in the render tree for the wipe to animate. An
+      // item kept out of it with visible: false can change its geometry
+      // without dirtying the window, so an output whose scene is otherwise
+      // static never schedules a frame: it held the old wallpaper for the
+      // whole transition and jumped when the reveal ended. hideSource keeps
+      // the mask off the screen while leaving it live, and the effect samples
+      // it from here instead of from the item's own layer.
+      ShaderEffectSource {
+        id: revealMaskSource
+        anchors.fill: parent
+        sourceItem: revealMask
+        live: true
+        hideSource: true
+        visible: false
+      }
+
       Item {
         id: revealMask
         anchors.fill: parent
-        visible: false
-        layer.enabled: true
 
         readonly property real slant: -0.18
         readonly property real centerTop: width / 2 - slant * height / 2
