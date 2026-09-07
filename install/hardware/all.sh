@@ -1,5 +1,6 @@
 run_logged "$OMARCHY_INSTALL/hardware/asus-rog.sh"
 run_logged "$OMARCHY_INSTALL/hardware/framework16.sh"
+run_logged "$OMARCHY_INSTALL/hardware/vmware.sh"
 run_logged "$OMARCHY_INSTALL/hardware/dell-xps-touchpad-haptics.sh"
 run_logged "$OMARCHY_INSTALL/hardware/surface.sh"
 
