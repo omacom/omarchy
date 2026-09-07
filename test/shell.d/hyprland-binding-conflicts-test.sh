@@ -154,7 +154,7 @@ bindings=$(PATH="$stub_bin:$PATH" list_bindings "$home")
 [[ -n $bindings ]] || fail "default bindings load for the conflict check"
 
 grep -Fq $'SUPER + RETURN\tTerminal' <<<"$bindings" || fail "conflict check sees the essential bindings"
-grep -Fq $'SUPER + SHIFT + A\tChatGPT' <<<"$bindings" || fail "conflict check sees the preinstalled bindings"
+grep -Fq $'SUPER + SHIFT + A\tAI' <<<"$bindings" || fail "conflict check sees the preinstalled bindings"
 grep -Fq $'F9\tStart dictation (push-to-talk)' <<<"$bindings" || fail "conflict check sees the Voxtype bindings"
 pass "conflict check covers the full default binding set"
 

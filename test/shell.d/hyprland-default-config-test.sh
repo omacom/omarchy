@@ -102,7 +102,7 @@ fresh_home="$tmpdir/fresh-home"
 mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default application bindings include essentials"
-grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
+grep -Fq $'SUPER + SHIFT + A	AI' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
 pass "default application bindings load from package defaults"
 
 grep -F 'hl.dsp.send_key_state({ mods = mods, key = key, state = "down" })' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
@@ -124,7 +124,7 @@ mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
 removed_output=$(run_application_bindings "$removed_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$removed_output" || fail "preinstall removal keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$removed_output"; then
+if grep -Fq $'SUPER + SHIFT + A	AI' <<<"$removed_output"; then
   fail "preinstall removal skips preinstalled web app bindings"
 fi
 pass "preinstall removal flag skips optional application bindings"
@@ -133,7 +133,7 @@ variable_home="$tmpdir/variable-home"
 mkdir -p "$variable_home"
 variable_output=$(run_application_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$variable_output" || fail "preinstalled binding variable keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
+if grep -Fq $'SUPER + SHIFT + A	AI' <<<"$variable_output"; then
   fail "preinstalled binding variable skips optional application bindings"
 fi
 pass "preinstalled binding variable skips optional application bindings"
