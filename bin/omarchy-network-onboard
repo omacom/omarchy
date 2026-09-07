@@ -1,0 +1,169 @@
+#!/bin/bash
+
+# omarchy:summary=Show this machine's MAC addresses and how to join a network from the terminal
+# omarchy:group=network
+# omarchy:args=[--macs-only]
+# omarchy:examples=omarchy network onboard | omarchy network onboard --macs-only
+
+set -euo pipefail
+
+macs_only=0
+case "${1:-}" in
+  "")
+    ;;
+  --macs-only)
+    macs_only=1
+    ;;
+  -h|--help)
+    cat <<USAGE
+Usage: omarchy-network-onboard [--macs-only]
+
+Print the MAC address of every physical network interface, then the nmcli
+recipes for joining a network from the terminal.
+
+Networks that gate access on a registered MAC have to be told the address
+before the machine can associate, so the addresses come first and the join
+instructions second.
+
+--macs-only prints just the addresses, one "interface<TAB>mac" per line.
+USAGE
+    exit 0
+    ;;
+  *)
+    echo "Usage: omarchy-network-onboard [--macs-only]" >&2
+    exit 2
+    ;;
+esac
+
+# Overridable so the interface layout can be faked in tests, following the
+# root-override pattern omarchy-hyprland-reload-guard uses.
+net_root="${OMARCHY_NETWORK_SYSFS_ROOT:-/sys/class/net}"
+
+# Physical interfaces only. Everything the kernel synthesizes -- lo, docker0,
+# veth pairs, bridges, wireguard -- links back under /sys/devices/virtual, and
+# registering one of those addresses with a network administrator accomplishes
+# nothing.
+physical_interfaces() {
+  local path name
+  for path in "$net_root"/*; do
+    name=${path##*/}
+    [[ -e $path/address ]] || continue
+    [[ $(readlink -f "$path") == */virtual/* ]] && continue
+    printf '%s\n' "$name"
+  done
+}
+
+interface_kind() {
+  local name=$1
+  if [[ -d $net_root/$name/wireless ]]; then
+    printf 'Wi-Fi'
+  else
+    printf 'Ethernet'
+  fi
+}
+
+print_macs() {
+  local name
+  for name in $(physical_interfaces); do
+    printf '%s\t%s\n' "$name" "$(<"$net_root/$name/address")"
+  done
+}
+
+if (( macs_only )); then
+  print_macs
+  exit 0
+fi
+
+bold=$'\033[1m'
+green=$'\033[32m'
+dim=$'\033[2m'
+reset=$'\033[0m'
+
+heading() {
+  printf '\n%s%s%s\n\n' "$bold" "$1" "$reset"
+}
+
+# The first Wi-Fi interface stands in for the ifname argument in the enterprise
+# recipe, so the line can be pasted as-is on the common single-radio laptop.
+# Not a pipeline: breaking out of a `while read` on the reading side of one
+# leaves the producer writing into a closed pipe, and pipefail turns that
+# SIGPIPE into a failure that set -e takes the whole guide down with.
+wifi_interface=""
+for name in $(physical_interfaces); do
+  if [[ -d $net_root/$name/wireless ]]; then
+    wifi_interface=$name
+    break
+  fi
+done
+wifi_interface=${wifi_interface:-wlan0}
+
+heading "1. Register this machine, if the network asks you to"
+
+cat <<'EXPLAIN'
+  Campus, office, hotel and guest networks often admit only devices whose
+  MAC address has been registered in advance. Hand these addresses over and
+  wait for confirmation before trying to connect -- associating first just
+  drops you on a quarantine VLAN that looks like broken Wi-Fi.
+
+EXPLAIN
+
+found_interface=0
+while read -r name; do
+  (( found_interface = 1 ))
+  printf '  %-10s %-16s %s%s%s\n' \
+    "$(interface_kind "$name")" "$name" "$green" "$(<"$net_root/$name/address")" "$reset"
+done < <(physical_interfaces)
+
+if (( found_interface == 0 )); then
+  printf '  %sNo physical network interface found.%s\n' "$dim" "$reset"
+  printf '  %sCheck that the adapter is not disabled in firmware.%s\n' "$dim" "$reset"
+fi
+
+printf '\n  %sCopy one to the clipboard:%s omarchy network onboard --macs-only | wl-copy\n' "$dim" "$reset"
+
+heading "2. Join a Wi-Fi network from the terminal"
+
+cat <<EXPLAIN
+  nmcli radio wifi on
+  nmcli device wifi list
+  nmcli device wifi connect "SSID" --ask
+
+  ${dim}--ask prompts for the password instead of taking it as an argument,
+  which keeps it out of your shell history and the process list.${reset}
+
+  ${bold}Hidden network${reset}
+  nmcli device wifi connect "SSID" --ask hidden yes
+
+  ${bold}WPA2/WPA3-Enterprise${reset} ${dim}(username + password; the usual pairing with MAC registration)${reset}
+  nmcli connection add type wifi con-name "NAME" ifname $wifi_interface ssid "SSID" \\
+    wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2 \\
+    802-1x.identity "USERNAME"
+  nmcli connection up "NAME" --ask
+EXPLAIN
+
+heading "3. Check, reconnect, clean up"
+
+cat <<EXPLAIN
+  nmcli device status                 ${dim}what each interface is doing${reset}
+  nmcli connection show               ${dim}saved networks${reset}
+  nmcli connection up "NAME"          ${dim}rejoin a saved network${reset}
+  nmcli connection delete "NAME"      ${dim}forget one${reset}
+  omarchy network status              ${dim}the active link, as the bar sees it${reset}
+
+  ${bold}Captive portal${reset} ${dim}(hotel, airport: you associate, but nothing loads)${reset}
+  omarchy launch browser http://neverssl.com
+EXPLAIN
+
+echo
+
+# The toast that opens this guide carries a single click action --
+# omarchy-notification-send sends an empty D-Bus actions array and takes one
+# --exec -- so the choice between staying here and using the picker belongs at
+# the end of the guide, once the address above has been read and handed over.
+# Only when a terminal is actually attached: piped or redirected runs (the
+# --macs-only path, a script) have nobody to answer.
+if : 2>/dev/null <>/dev/tty; then
+  if gum confirm --default=false "Open the Wi-Fi panel instead?"; then
+    omarchy-shell shell toggle omarchy.network
+  fi
+fi
