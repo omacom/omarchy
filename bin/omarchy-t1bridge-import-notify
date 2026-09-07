@@ -19,7 +19,7 @@ state_dir=/var/lib/omarchy/t1bridge-import
 result_file="$state_dir/result"
 enabled_file="$state_dir/enabled"
 notification_state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/t1bridge-import-notified"
-headline="T1 hardware setup needs attention"
+headline="Touch ID setup needs attention"
 
 [[ -r $enabled_file ]] || exit 0
 
@@ -48,13 +48,13 @@ if (( force == 0 )) && [[ -r $notification_state ]]; then
 fi
 
 if [[ $result == "failure" ]]; then
-  reason="The automatic import of this Mac's preserved Apple machine data failed."
+  reason="This Mac's Touch ID calibration data could not be imported."
 else
-  reason="The automatic import of this Mac's preserved Apple machine data did not complete."
+  reason="This Mac's Touch ID calibration import did not complete."
 fi
-affected="Touch Bar controls, Touch ID, the FaceTime camera, and ambient-light sensing remain unavailable."
+guidance="Retry using preserved Apple data or a backup from this Mac."
 
-omarchy-notification-send -u critical -g 󰌾 "$headline" "$reason $affected" \
+omarchy-notification-send -u critical -g 󰌾 "$headline" "$reason $guidance" \
   --exec omarchy-t1bridge-import-retry
 
 /usr/bin/install -d -m 0700 "$(dirname -- "$notification_state")"
