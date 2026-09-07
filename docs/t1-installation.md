@@ -1,17 +1,15 @@
 # T1 installation
 
-T1 hardware setup installs the driver, fingerprint package pair, kernel headers, desktop provider, and first-boot importer. Users enable fingerprint authentication through the existing wizard. Custom fingerprint menus, lock-screen changes, and legacy PAM migration are separate work.
+T1 setup installs the driver, matched fingerprint packages, kernel headers, desktop provider, and first-boot importer. The shared fingerprint manager supports Touch ID; authentication setup verifies enrollment before enabling sign-in.
 
-A drop-in names the private T1 interface `t1bridge0`; the xART firewall rule permits only its peer on that interface.
+The private interface is `t1bridge0`. Its xART firewall rule permits only the T1 peer. Known competing packages, DKMS registrations, services, and udev rules stop setup before changes. Retire custom stacks manually and reboot; preserve password access.
 
-## Before merging
+## Package admission
 
-The ISO installs offline. Its configured repositories must supply all four T1Bridge packages in `install/omarchy-other.packages`. They currently exist in the [Standard Agents repository](https://github.com/standardagents/t1bridge#install-official-packages), but not Omarchy stable. Admit the four recipes to the selected Omarchy channel before building the ISO; the package list alone cannot make the build succeed.
+Offline installation requires the four T1Bridge packages in `install/omarchy-other.packages` and the general `fingerprint-tui` package in the selected Omarchy channel. Merge package admission before building the ISO.
 
-Known competing packages, DKMS registrations, services, and udev rules stop setup before changes. T1 fingerprint setup also refuses competing packages. Masked services and backup files are allowed. Custom stacks need manual review and retirement, then a reboot; preserve password authentication.
-
-## Verify
+## Verification
 
 Run `./test/cli` for command metadata and `./test/shell` for hardware detection, package selection, conflict refusal, import/retry behavior, and desktop controls.
 
-Before shipping, verify a fresh ISO install, DKMS compilation, device activation, and automatic import on preserved multi-ESP layouts. Upstream still documents an automatic-discovery failure there. Mock tests and successful explicit backup import do not establish first-boot success.
+Fresh VM checks cover installation, encrypted boot, DKMS overrides, multi-ESP discovery, and preservation of original Apple files using stock systemd. Synthetic readers cover fingerprint operations. Physical T1 activation, calibration import, and sensor acceptance remain to be verified.
