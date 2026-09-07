@@ -175,7 +175,10 @@ target_home=$(getent passwd "$target_user" | cut -d: -f6)
 [[ -n $target_home && -d $target_home ]] || fail "Home directory for '$target_user' was not found."
 target_uid=$(id -u "$target_user")
 target_runtime_dir="/run/user/$target_uid"
-package_path="/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin:$target_home/.local/bin"
+# User-local commands are needed only after dropping to the target user. Never
+# expose their search path to commands run through as_root.
+root_path=/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin
+package_path="$root_path:$target_home/.local/bin"
 
 as_root() {
   if (( EUID == 0 )); then
@@ -597,6 +600,9 @@ preserve_kernel_cmdline_root() {
   fi
 
   log "Preserving the kernel cmdline root parameters in $default_conf"
+  # omarchy:heredoc-expands paths=none -- ${boot_params[*]} is the kernel
+  # cmdline fragment assembled above from findmnt output (root=, rootflags=),
+  # not a filesystem path this script controls.
   as_root tee -a "$default_conf" >/dev/null <<EOF
 # Written by omarchy-upgrade-to-quattro. The += drop-ins in
 # /etc/limine-entry-tool.d/ stop limine-entry-tool from reading
@@ -658,7 +664,7 @@ configure_lock_authentication() {
   as_root env \
     OMARCHY_INSTALL_USER="$target_user" \
     OMARCHY_PATH=/usr/share/omarchy \
-    PATH="$package_path" \
+    PATH="$root_path" \
     "$apply_lock"
 }
 
@@ -1187,11 +1193,19 @@ ensure_sleep_lock_service() {
 }
 
 run_post_upgrade_migrations() {
-  PATH="$package_path" command -v omarchy-migrate >/dev/null 2>&1 || return 0
+  local pending_status
 
   log "Running Omarchy migrations"
   if ! run_as_user_omarchy OMARCHY_UPGRADE_TO_QUATTRO_LIVE=1 omarchy-migrate; then
-    warn "Could not run Omarchy migrations; the user may be prompted to run them after login."
+    fail "Omarchy migrations did not complete. Fix the error above and rerun the upgrade before rebooting."
+  fi
+  if run_as_user_omarchy omarchy-migrate --pending >/dev/null; then
+    fail "Omarchy migrations are still pending. Rerun the upgrade before rebooting."
+  else
+    pending_status=$?
+    if (( pending_status != 1 )); then
+      fail "Could not verify that Omarchy migrations completed. Rerun the upgrade before rebooting."
+    fi
   fi
 }
 
@@ -1276,7 +1290,7 @@ apply_firewall_defaults() {
   fi
 
   log "Applying Omarchy firewall defaults"
-  as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$package_path" \
+  as_root env OMARCHY_PATH=/usr/share/omarchy PATH="$root_path" \
     bash -euo pipefail "$firewall_script" ||
     warn "Could not apply firewall defaults; run 'sudo bash $firewall_script' after reboot."
 }
@@ -1312,9 +1326,23 @@ apply_system_transition() {
     /usr/share/icons/Yaru/scalable/actions/go-next-symbolic.svg
   as_root gtk-update-icon-cache /usr/share/icons/Yaru >/dev/null 2>&1 || true
 
-  as_root install -d -m 0777 /etc/chromium/policies/managed
+  local browser_policy_helper=/usr/share/omarchy/install/helpers/browser-policy.sh
+  if ! as_root test -f "$browser_policy_helper"; then
+    warn "$browser_policy_helper is unavailable; Chromium policy directories were not hardened."
+  else
+    as_root env OMARCHY_PATH=/usr/share/omarchy \
+      bash -euo pipefail -c '
+        source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+        browser_policy_setup_dir /etc/chromium/policies/managed
+        for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+          [[ $dir == "/etc/chromium/policies/managed" ]] && continue
+          [[ -d $dir || -L $dir ]] || continue
+          browser_policy_setup_dir "$dir"
+        done
+      '
+  fi
   as_root install -d -m 0755 /usr/lib/chromium
-  printf '%s\n' '{"browser":{"theme":{"color_scheme":0,"color_scheme2":0}}}' | \
+  printf '%s\n' '{"distribution":{"require_eula":false},"browser":{"theme":{"color_scheme":0,"color_scheme2":0}}}' | \
     as_root tee /usr/lib/chromium/initial_preferences >/dev/null
 
   # Deliberately do NOT add the user to the docker group. That group is
@@ -1350,7 +1378,6 @@ EOF
   as_root systemctl disable docker.service >/dev/null 2>&1 || true
 
   enable_system_service cups.service
-  enable_system_service cups-browsed.service
   enable_system_service avahi-daemon.service
   enable_system_service linux-modules-cleanup.service
   enable_system_service docker.socket
@@ -1382,6 +1409,9 @@ EOF
       autologin_user=$(as_root awk -F= '/^User=/ { print $2; exit }' /etc/sddm.conf.d/autologin.conf 2>/dev/null || true)
     fi
     [[ -n ${autologin_user:-} ]] || autologin_user="$target_user"
+    # omarchy:heredoc-expands paths=none -- $autologin_user is a username, read
+    # back from the root-owned drop-in or falling back to $target_user. Same
+    # mechanism as the old getty override: a name expands, no path does.
     cat <<EOF | as_root tee /etc/sddm.conf.d/autologin.conf >/dev/null
 [Autologin]
 User=$autologin_user
@@ -1392,6 +1422,8 @@ EOF
   fi
 
   as_root install -d -m 0755 -o sddm -g sddm /var/lib/sddm 2>/dev/null || as_root install -d -m 0755 /var/lib/sddm
+  # omarchy:heredoc-expands paths=none -- $target_user is a username, not a
+  # path; SDDM's state file records who logged in last.
   cat <<EOF | as_root tee /var/lib/sddm/state.conf >/dev/null
 [Last]
 Session=omarchy.desktop
@@ -2049,7 +2081,10 @@ for file in \
 done
 ln -snf "$HOME/.local/state/omarchy/current/theme/btop.theme" "$HOME/.config/btop/themes/current.theme"
 if [[ ! -e $HOME/.local/state/omarchy/current/background && -d $HOME/.local/state/omarchy/current/theme/backgrounds ]]; then
-  background=$(find "$HOME/.local/state/omarchy/current/theme/backgrounds" -maxdepth 1 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) | sort | head -n1)
+  background=$(find "$HOME/.local/state/omarchy/current/theme/backgrounds" -maxdepth 1 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \
+       -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
+    | sort | head -n1)
   [[ -n ${background:-} ]] && ln -snf "$background" "$HOME/.local/state/omarchy/current/background"
 fi
 
@@ -2306,6 +2341,11 @@ refresh_current_theme_after_upgrade() {
   # hooks because one of them runs `hyprctl reload`. Still poke terminal
   # emulators so the active upgrade terminal picks up generated theme files.
   run_as_user_omarchy omarchy-restart-terminal >/dev/null 2>&1 || true
+
+  # apply_system_transition purged user-owned color.json. Headless theme-set
+  # skipped omarchy-theme-set-browser, so rewrite the colour here.
+  run_as_user_omarchy omarchy-theme-set-browser >/dev/null 2>&1 ||
+    warn "Could not apply browser theme colour. Run 'omarchy theme set \"$theme_name\"' after reboot if Chromium's theme looks stale."
 }
 
 # Everything below mutates the system, so a non-zero exit from here on leaves a
@@ -2340,8 +2380,8 @@ run_as_user_omarchy omarchy-bar defaults ||
 cleanup_retired_services
 ensure_sleep_lock_service
 remove_retired_default_packages
-run_post_upgrade_migrations
 run_final_system_package_upgrade
+run_post_upgrade_migrations
 run_post_upgrade_update_steps
 refresh_current_theme_after_upgrade
 # Do not force-reload Hyprland in the live upgraded session. The legacy
