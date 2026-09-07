@@ -264,6 +264,7 @@ Item {
   function noteFingerprintResumed() {
     var now = Date.now()
     if (FingerprintModel.inResumeGrace(now, fingerprintResumedAtMs)) return
+    logEvent("fingerprint-resume: streak=" + fingerprintUnreachedStreak)
     fingerprintResumedAtMs = now
     fingerprintUnreachedStreak = 0
   }
@@ -377,6 +378,7 @@ Item {
   // advances the streak (and so the notice) and retries against a daemon that
   // may now be fresh, instead of hanging silently behind a normal icon.
   function timeoutFingerprintReach() {
+    logEvent("fingerprint-reach-timeout")
     if (fingerprintPam.active) fingerprintPam.abort()
     settleFingerprintAttempt()
   }
@@ -403,15 +405,30 @@ Item {
       noteFingerprintResumed()
     }
 
+    // Reached attempts are the steady state (one per swipe window), so only
+    // the misses and the recovery from them leave a trace.
+    var previousStreak = fingerprintUnreachedStreak
     var inGrace = FingerprintModel.inResumeGrace(now, fingerprintResumedAtMs)
-    fingerprintUnreachedStreak = FingerprintModel.nextStreak(fingerprintUnreachedStreak, fingerprintAttemptReachedDevice, inGrace)
+    fingerprintUnreachedStreak = FingerprintModel.nextStreak(previousStreak, fingerprintAttemptReachedDevice, inGrace)
+    if (!fingerprintAttemptReachedDevice) {
+      var crossed = !FingerprintModel.isUnavailable(previousStreak) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak)
+      logEvent((crossed ? "fingerprint-unavailable" : "fingerprint-unreached") + ": streak=" + fingerprintUnreachedStreak)
+    } else if (previousStreak > 0) {
+      logEvent("fingerprint-recovered: streak=" + previousStreak)
+    }
     fingerprintLastSettleMs = now
     armFingerprintRetry(FingerprintModel.retryDelayMs(fingerprintUnreachedStreak))
   }
 
   function handleFingerprintFinished(result) {
-    if (result === PamResult.Success && lockRequested) finishUnlock()
-    else settleFingerprintAttempt()
+    if (result === PamResult.Success && lockRequested) {
+      // A match after a run of misses is the recovery too; the unlock resets
+      // the streak without settling, so log it here or it leaves no trace.
+      if (fingerprintUnreachedStreak > 0) logEvent("fingerprint-recovered: streak=" + fingerprintUnreachedStreak)
+      finishUnlock()
+    } else {
+      settleFingerprintAttempt()
+    }
   }
 
   WlSessionLock {
