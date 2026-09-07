@@ -33,7 +33,4 @@ echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 remove_pam_config
 remove_lock_fingerprint_pam
 
-echo "Removing fingerprint packages..."
-omarchy-pkg-drop fprintd fprintd-t1bridge libfprint libfprint-git libfprint-t1bridge
-
-echo -e "\e[32mFingerprint authentication has been completely removed.\e[0m"
+echo -e "\e[32mFingerprint sign-in is disabled. Enrolled fingers and driver packages are retained.\e[0m"

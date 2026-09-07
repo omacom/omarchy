@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Add, verify, or remove fingerprints on any supported reader
+
+source omarchy-restart-gum
+fingerprint-tui

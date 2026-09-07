@@ -102,29 +102,12 @@ else
   fi
 fi
 
-# Enroll first fingerprint
-echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
-echo -e "Keep moving the finger around on sensor until the process completes.\n"
-
-if sudo fprintd-enroll "$USER"; then
-  echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
-
-  # Verify
-  echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
-    # PAM comes last, once a print is enrolled and verified. Detection only
-    # proves a reader is there, not that libfprint can drive it — an Elan MOC
-    # sensor outside the elanmoc table gets this far and then fails to enroll.
-    # Editing the stacks up front would leave those machines pointing at
-    # pam_fprintd with nothing to match.
-    setup_pam_config
-    setup_lock_fingerprint_pam
-    echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
-    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
-  else
-    echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
-  fi
-else
-  echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
+# The generic TUI preserves existing enrollment and verifies before PAM changes.
+source omarchy-restart-gum
+if ! fingerprint-tui setup; then
+  printf 'Fingerprint setup did not complete. Authentication settings were not changed.\n' >&2
   exit 1
 fi
+setup_pam_config
+setup_lock_fingerprint_pam
+printf 'Fingerprint authentication is enabled. Password authentication remains available.\n'

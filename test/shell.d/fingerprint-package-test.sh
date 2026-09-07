@@ -47,7 +47,7 @@ case "$1" in
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
-cat > "$scratch/bin/fprintd-enroll" <<'STUB'
+cat > "$scratch/bin/fingerprint-tui" <<'STUB'
 #!/bin/bash
 # Stop before verification/PAM; no host authentication files may be changed.
 echo enroll >> "$CALL_LOG"
@@ -57,6 +57,10 @@ cat > "$scratch/bin/fprintd-verify" <<'STUB'
 #!/bin/bash
 echo verify >> "$CALL_LOG"
 exit 1
+STUB
+cat > "$scratch/bin/omarchy-restart-gum" <<'STUB'
+#!/bin/bash
+:
 STUB
 cat > "$scratch/bin/systemctl" <<'STUB'
 #!/bin/bash
