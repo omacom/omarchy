@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set up the Hermes CLI, sharing the native desktop installation when present
-# omarchy:args=[--check|--now|--owns|--remove]
+# omarchy:args=[--check|--check-package|--now|--owns|--remove]
 # omarchy:examples=omarchy install hermes cli | omarchy install hermes cli --now
 
 # Hermes pins every one of its dependencies exactly and declares
@@ -45,7 +45,7 @@ desktop_owns_hermes() {
 # Older packages forward unknown flags to Electron and call this helper on
 # launch. Calling their --check would recurse. Inspect package metadata first.
 desktop_supports_native_install() {
-  pacman -Qlq hermes-desktop 2>/dev/null | grep -qxF '/usr/share/hermes-desktop/install.sh'
+  pacman -Qlq hermes-desktop 2>/dev/null | grep -xF '/usr/share/hermes-desktop/install.sh' >/dev/null
 }
 
 # The package knows whether the native checkout, wrapper and desktop build
@@ -131,6 +131,20 @@ hermes_prompt_ready() {
     help_defines_flag '--query' "$help"
 }
 
+# The menu needs a compatible package before launching, but a cold runtime is
+# expected: the desktop will install it. Inspect metadata without running it.
+if [[ $mode == "--check-package" ]]; then
+  # Consume the whole file list: grep -q can SIGPIPE pacman on the large seed
+  # package, making a matching capability fail under pipefail.
+  if desktop_owns_hermes &&
+    pacman -Qlq hermes-desktop 2>/dev/null | grep -xF '/usr/share/hermes-desktop/seed/.git/config' >/dev/null; then
+    exit 0
+  else
+    echo "Install or update the hermes-desktop package before setting up native Hermes updates." >&2
+    exit 1
+  fi
+fi
+
 # --owns answers whether the wrapper on PATH is the one this command wrote, so
 # the migration and Remove Preinstalls do not each carry their own copy of the
 # marker and drift from it.
@@ -215,7 +229,8 @@ if desktop_owns_hermes; then
   fi
 
   echo "Hermes Desktop is installed but has not finished setting up Hermes." >&2
-  echo "Run omarchy-install-hermes-cli --now to finish installing it." >&2
+  echo "Launch Hermes Desktop to finish installing it inside the app." >&2
+  echo "For terminal setup, run omarchy-install-hermes-cli --now." >&2
   exit 1
 fi
 

@@ -50,7 +50,15 @@ SH
 cat >"$mock_bin/pacman" <<'SH'
 #!/bin/bash
 [[ $* == '-Qlq hermes-desktop' ]] || exit 1
-[[ ${OMARCHY_TEST_DESKTOP_NATIVE:-1} == 1 ]] && echo '/usr/share/hermes-desktop/install.sh'
+if [[ ${OMARCHY_TEST_DESKTOP_NATIVE:-1} == 1 ]]; then
+  echo '/usr/share/hermes-desktop/install.sh'
+  if [[ ${OMARCHY_TEST_DESKTOP_SEED:-1} == 1 ]]; then
+    echo '/usr/share/hermes-desktop/seed/.git/config'
+  fi
+  if [[ ${OMARCHY_TEST_LARGE_PACKAGE:-0} == 1 ]]; then
+    printf '/usr/share/hermes-desktop/seed/file-%s\n' {1..10000}
+  fi
+fi
 SH
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
@@ -118,6 +126,26 @@ grep -qxF "$stub_marker" "$test_home/.local/bin/hermes" || fail "the stub record
 tr '\0' ' ' <"$mise_log" | grep -q "use -g --quiet uv" &&
   fail "writing the stub does not install uv"
 pass "writing the Hermes stub provisions nothing"
+
+# The menu's package check must accept an empty runtime without installing or
+# probing it, and must preserve the terminal CLI until the app replaces it.
+cp "$test_home/.local/bin/hermes" "$test_tmp/cli-before-package-check"
+: >"$mise_log"
+: >"$OMARCHY_TEST_DESKTOP_LOG"
+OMARCHY_TEST_DESKTOP_CHECK_FAIL=1 run_installer 1 --check-package || fail "a compatible package can launch with no native runtime"
+[[ ! -s $OMARCHY_TEST_DESKTOP_LOG && ! -s $mise_log ]] || fail "package compatibility must not execute Hermes or mise"
+[[ ! -e $test_home/.hermes ]] || fail "package compatibility must not provision a native runtime"
+cmp -s "$test_home/.local/bin/hermes" "$test_tmp/cli-before-package-check" || fail "package compatibility must preserve the existing CLI"
+pass "package compatibility accepts a cold runtime without executing or changing it"
+OMARCHY_TEST_LARGE_PACKAGE=1 run_installer 1 --check-package || fail "a large seed file list must not cause SIGPIPE during package detection"
+OMARCHY_TEST_DESKTOP_SEED=0 run_installer 1 --check-package && fail "installer-only packages cannot perform graphical bootstrap"
+pass "package compatibility consumes large metadata lists and requires the prebuilt seed"
+
+OMARCHY_TEST_DESKTOP_NATIVE=0 run_installer 1 --check-package && fail "legacy packages do not support native updates"
+run_installer 0 --check-package && fail "an absent package cannot launch the desktop"
+[[ ! -s $OMARCHY_TEST_DESKTOP_LOG && ! -s $mise_log ]] || fail "missing or legacy packages must not invoke the desktop or mise"
+cmp -s "$test_home/.local/bin/hermes" "$test_tmp/cli-before-package-check" || fail "failed package checks must preserve the CLI"
+pass "package compatibility rejects missing and legacy packages without side effects"
 
 # Merely installing the package must not remove a working terminal install.
 printf '%s\n' "#!/bin/bash" "$stub_marker" >"$test_home/.local/bin/hermes"

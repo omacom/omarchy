@@ -8,11 +8,11 @@ set -e
 HERMES_HOME=$(omarchy-cmd-hermes-home)
 export HERMES_HOME
 
-# The package is the entry point to a writable native installation. Wait for
-# both the runtime and desktop build so the app and CLI update the same copy.
+# Install the desktop here; its first launch sets up the shared, writable
+# Hermes runtime inside the app.
 echo "Installing Hermes Desktop..."
 omarchy-pkg-add hermes-desktop
-omarchy-install-hermes-cli --now
+omarchy-install-hermes-cli --check-package
 
 echo "Opening Hermes Desktop..."
 setsid uwsm-app -- /usr/bin/hermes-desktop >/dev/null 2>&1 &
@@ -25,4 +25,5 @@ systemd-run --user --quiet --collect --unit=omarchy-hermes-theme \
 
 echo ""
 echo "Hermes Desktop has been installed."
+echo "Its first launch installs Hermes inside the app, which takes a few minutes."
 echo "Update it from Hermes Desktop or with: hermes update"
