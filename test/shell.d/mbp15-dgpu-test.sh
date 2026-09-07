@@ -163,8 +163,16 @@ pass "migration skips non-15-inch hardware"
 lid="$ROOT/bin/omarchy-hw-apple-mbp15-lid"
 grep -Fq 'omarchy-hw-apple-mbp15-lid close' "$ROOT/bin/omarchy-system-lid-close" ||
   fail "lid-close calls the 15-inch chill helper"
+close_clamshell=$(grep -n 'omarchy-hyprland-monitor-clamshell' "$ROOT/bin/omarchy-system-lid-close" | head -1 | cut -d: -f1)
+close_chill=$(grep -n 'omarchy-hw-apple-mbp15-lid close' "$ROOT/bin/omarchy-system-lid-close" | head -1 | cut -d: -f1)
+[[ -n $close_clamshell && -n $close_chill && $close_chill -gt $close_clamshell ]] ||
+  fail "lid-close chills after clamshell so disable is not undone"
 grep -Fq 'omarchy-hw-apple-mbp15-lid open' "$ROOT/bin/omarchy-system-lid-open" ||
   fail "lid-open restores the 15-inch overlay"
+open_chill=$(grep -n 'omarchy-hw-apple-mbp15-lid open' "$ROOT/bin/omarchy-system-lid-open" | head -1 | cut -d: -f1)
+open_clamshell=$(grep -n 'omarchy-hyprland-monitor-clamshell' "$ROOT/bin/omarchy-system-lid-open" | head -1 | cut -d: -f1)
+[[ -n $open_chill && -n $open_clamshell && $open_chill -lt $open_clamshell ]] ||
+  fail "lid-open drops the disable flag before clamshell"
 grep -Fq 'omarchy-system-lid-open' "$ROOT/default/hypr/bindings/utilities.lua" ||
   fail "default lid-open bind is omarchy-system-lid-open"
 ! grep -Fq 'omarchy-hw-apple-mbp15-lid' "$ROOT/bin/omarchy-hyprland-monitor-clamshell" ||
@@ -198,10 +206,10 @@ cat >"$test_tmp/bl-set" <<SH
 #!/bin/bash
 printf '%s\n' "\$1" >"$test_tmp/bl"
 SH
-: >"$test_tmp/dpms.log"
-cat >"$test_tmp/dpms" <<SH
+: >"$test_tmp/monitor.log"
+cat >"$test_tmp/monitor" <<SH
 #!/bin/bash
-echo "dpms \$1" >>"$test_tmp/dpms.log"
+echo "monitor \$1" >>"$test_tmp/monitor.log"
 SH
 printf 'true\ttrue\n' >"$test_tmp/wake"
 : >"$test_tmp/wake.log"
@@ -220,34 +228,40 @@ case \$1 in
     ;;
 esac
 SH
-chmod +x "$test_tmp/stub/"* "$test_tmp/bl-get" "$test_tmp/bl-set" "$test_tmp/dpms" "$test_tmp/dpms-wake"
+toggle_dir=$test_tmp/toggles
+mkdir -p "$toggle_dir"
+chmod +x "$test_tmp/stub/"* "$test_tmp/bl-get" "$test_tmp/bl-set" "$test_tmp/monitor" "$test_tmp/dpms-wake"
 
 PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
   OMARCHY_DMI_PRODUCT_NAME="$dmi" \
   OMARCHY_MBP15_LID_STATE="$lid_state" \
+  OMARCHY_MBP15_TOGGLE_DIR="$toggle_dir" \
   OMARCHY_MBP15_BRIGHTNESS_GET="$test_tmp/bl-get" \
   OMARCHY_MBP15_BRIGHTNESS_SET="$test_tmp/bl-set" \
-  OMARCHY_MBP15_DPMS="$test_tmp/dpms" \
+  OMARCHY_MBP15_MONITOR="$test_tmp/monitor" \
   OMARCHY_MBP15_DPMS_WAKE="$test_tmp/dpms-wake" \
   "$lid" close
 
 [[ $(cat "$test_tmp/bl") == 0 ]] || fail "lid close dims the backlight" "bl=$(cat "$test_tmp/bl")"
 [[ $(cat "$lid_state/backlight") == 675 ]] || fail "lid close remembers brightness"
 ! grep -q 'pp set power-saver' "$test_tmp/pp.log" || fail "lid close must not set power-saver"
-grep -Fxq 'dpms disable' "$test_tmp/dpms.log" || fail "lid close DPMS-offs the panel" "$(cat "$test_tmp/dpms.log")"
+grep -Fxq 'monitor disable' "$test_tmp/monitor.log" || fail "lid close disables the internal output" "$(cat "$test_tmp/monitor.log")"
+grep -Fq 'disabled = true' "$toggle_dir/internal-monitor-lid-closed.lua" ||
+  fail "lid close persists internal disable across reload" "$(cat "$toggle_dir/internal-monitor-lid-closed.lua" 2>/dev/null || true)"
 ! grep -q omarchy-powerprofiles-set "$test_tmp/pp.log" || fail "lid close must not persist via omarchy-powerprofiles-set"
 [[ $(cat "$test_tmp/wake") == $'false\tfalse' ]] ||
   fail "lid close disables DPMS wake on key/mouse" "wake=$(cat "$test_tmp/wake")"
 [[ $(cat "$lid_state/dpms-wake") == $'true\ttrue' ]] ||
   fail "lid close remembers previous DPMS wake flags" "saved=$(cat "$lid_state/dpms-wake" 2>/dev/null || true)"
-pass "lid close stops the panel without setting power-saver"
+pass "lid close disables the panel without setting power-saver"
 
 PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
   OMARCHY_DMI_PRODUCT_NAME="$dmi" \
   OMARCHY_MBP15_LID_STATE="$lid_state" \
+  OMARCHY_MBP15_TOGGLE_DIR="$toggle_dir" \
   OMARCHY_MBP15_BRIGHTNESS_GET="$test_tmp/bl-get" \
   OMARCHY_MBP15_BRIGHTNESS_SET="$test_tmp/bl-set" \
-  OMARCHY_MBP15_DPMS="$test_tmp/dpms" \
+  OMARCHY_MBP15_MONITOR="$test_tmp/monitor" \
   OMARCHY_MBP15_DPMS_WAKE="$test_tmp/dpms-wake" \
   "$lid" close
 [[ $(cat "$lid_state/dpms-wake") == $'true\ttrue' ]] ||
@@ -255,7 +269,7 @@ PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
 pass "lid close keeps the pre-close DPMS wake flags across a second close"
 
 : >"$test_tmp/pp.log"
-: >"$test_tmp/dpms.log"
+: >"$test_tmp/monitor.log"
 cat >"$test_tmp/stub/omarchy-hw-laptop-closed" <<'SH'
 #!/bin/bash
 exit 1
@@ -269,13 +283,15 @@ chmod +x "$test_tmp/stub/omarchy-hw-laptop-closed" "$test_tmp/stub/omarchy-power
 PATH="$test_tmp/stub:$ROOT/bin:$PATH" \
   OMARCHY_DMI_PRODUCT_NAME="$dmi" \
   OMARCHY_MBP15_LID_STATE="$lid_state" \
+  OMARCHY_MBP15_TOGGLE_DIR="$toggle_dir" \
   OMARCHY_MBP15_BRIGHTNESS_GET="$test_tmp/bl-get" \
   OMARCHY_MBP15_BRIGHTNESS_SET="$test_tmp/bl-set" \
-  OMARCHY_MBP15_DPMS="$test_tmp/dpms" \
+  OMARCHY_MBP15_MONITOR="$test_tmp/monitor" \
   OMARCHY_MBP15_DPMS_WAKE="$test_tmp/dpms-wake" \
   "$lid" open
 
-grep -Fxq 'dpms enable' "$test_tmp/dpms.log" || fail "lid open DPMS-ons the panel" "$(cat "$test_tmp/dpms.log")"
+grep -Fxq 'monitor enable' "$test_tmp/monitor.log" || fail "lid open re-enables the internal output" "$(cat "$test_tmp/monitor.log")"
+[[ ! -e $toggle_dir/internal-monitor-lid-closed.lua ]] || fail "lid open drops the persist disable flag"
 [[ $(cat "$test_tmp/bl") == 675 ]] || fail "lid open restores brightness" "bl=$(cat "$test_tmp/bl")"
 grep -Fq 'pps autodetect' "$test_tmp/pp.log" || fail "lid open restores the AC/battery profile"
 [[ $(cat "$test_tmp/wake") == $'true\ttrue' ]] ||

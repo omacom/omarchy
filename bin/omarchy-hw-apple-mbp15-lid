@@ -5,12 +5,12 @@
 # omarchy:args=<close|open>
 
 # Temporary overlay only. Does not write Omarchy's remembered AC/battery
-# profile. Close: save brightness, hold DPMS-wake keys/mouse off, DPMS off
-# the internal panel. Backlight-off alone still scans out eDP; stock
-# key/mouse DPMS-wake would turn the 560's scanout back on while the lid
-# is shut. Do not set power-saver: that puts BCM43602 into PCI D3 and
-# brcmfmac does not come back. Open: DPMS on, restore brightness and wake
-# flags, autodetect (unsticks a profile a previous close already set).
+# profile. Close: save brightness, hold DPMS-wake keys/mouse off, disable
+# the internal output. DPMS and backlight-off still leave the 560 scanning
+# out eDP; disabling the output tears the CRTC down. Do not set
+# power-saver: that puts BCM43602 into PCI D3 and brcmfmac does not come
+# back. Open: drop the disable flag, restore the panel, brightness and
+# wake flags, autodetect (unsticks a profile a previous close already set).
 
 set -euo pipefail
 
@@ -27,7 +27,9 @@ here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 "$here/omarchy-hw-apple-mbp15-dgpu" || exit 0
 
 state_dir=${OMARCHY_MBP15_LID_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/mbp15-lid}
-mkdir -p "$state_dir"
+toggle_dir=${OMARCHY_MBP15_TOGGLE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr}
+toggle_file=$toggle_dir/internal-monitor-lid-closed.lua
+mkdir -p "$state_dir" "$toggle_dir"
 
 backlight_get() {
   if [[ -n ${OMARCHY_MBP15_BRIGHTNESS_GET:-} ]]; then
@@ -47,21 +49,37 @@ backlight_set() {
   brightnessctl -d gmux_backlight set "$1" >/dev/null
 }
 
-# DPMS the laptop panel so the 560 stops scanning out. Clamshell already
-# returned above; this only runs when the internal display is the one in use.
-panel_dpms() {
-  local action=$1
-  if [[ -n ${OMARCHY_MBP15_DPMS:-} ]]; then
-    "$OMARCHY_MBP15_DPMS" "$action"
-    return
-  fi
+laptop_output() {
   local internal
   internal=$(omarchy-hyprland-monitor-laptop 2>/dev/null || true)
-  if [[ -n $internal && $internal =~ ^[A-Za-z0-9._-]+$ ]]; then
-    hyprctl dispatch "hl.dsp.dpms({ action = \"$action\", monitor = \"$internal\" })" >/dev/null 2>&1 || true
+  [[ -n $internal && $internal =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+  printf '%s\n' "$internal"
+}
+
+# Disable the laptop panel so the 560 stops scanning out. Clamshell already
+# returned above; this only runs when the internal display is the one in use.
+# The toggle file keeps it off across Hyprland reloads; eval applies now.
+panel_disable() {
+  local internal
+  if [[ -n ${OMARCHY_MBP15_MONITOR:-} ]]; then
+    "$OMARCHY_MBP15_MONITOR" disable
+    printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$toggle_file"
     return
   fi
-  hyprctl dispatch "hl.dsp.dpms({ action = \"$action\" })" >/dev/null 2>&1 || true
+  internal=$(laptop_output) || return 0
+  printf 'hl.monitor({ output = "%s", disabled = true })\n' "$internal" >"$toggle_file"
+  hyprctl eval "hl.monitor({ output = \"$internal\", disabled = true })" >/dev/null 2>&1 || true
+}
+
+panel_enable() {
+  local internal
+  rm -f "$toggle_file"
+  if [[ -n ${OMARCHY_MBP15_MONITOR:-} ]]; then
+    "$OMARCHY_MBP15_MONITOR" enable
+    return
+  fi
+  internal=$(laptop_output) || return 0
+  hyprctl eval "hl.monitor({ output = \"$internal\", mode = \"preferred\" })" >/dev/null 2>&1 || true
 }
 
 # Stock misc.key_press_enables_dpms / mouse_move_enables_dpms are true, so any
@@ -128,7 +146,7 @@ if [[ $cmd == close ]]; then
   fi
   # Hold wake-from-DPMS off before blanking, or a key/mouse re-enables scanout.
   dpms_wake_save_and_disable
-  panel_dpms disable
+  panel_disable
   backlight_set 0 || true
   exit 0
 fi
@@ -137,7 +155,7 @@ if command -v omarchy-hw-laptop-closed >/dev/null && omarchy-hw-laptop-closed; t
   exit 0
 fi
 
-panel_dpms enable
+panel_enable
 if [[ -r $state_dir/backlight ]]; then
   backlight_set "$(cat "$state_dir/backlight")" || true
 fi

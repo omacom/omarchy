@@ -217,6 +217,11 @@ omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true
 
 if omarchy-hw-clamshell && omarchy-hyprland-monitor-external-active; then
   disable_internal
+elif omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
+  # Lid shut, no external: leave the internal output alone. Stay-on hardware
+  # (15" Radeon) turns it off after this. Forcing it back on would undo that
+  # the moment Hyprland emits monitorremoved.
+  :
 else
   enable_internal
 fi
