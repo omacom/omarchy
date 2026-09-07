@@ -71,15 +71,22 @@ onboard)
   while :; do sleep 0.2; done
   ;;
 dashboard)
+  # Where the probe's stdin points: the wizard's terminal must never be it.
+  printf 'dashboard-stdin:%s\n' "$(readlink /proc/$$/fd/0)" >>"$TEST_LOG"
   [[ -f $HOME/.openclaw/openclaw.json ]] && echo '{"ok":true,"port":18789}' || { echo '{"ok":false}'; exit 1; }
   ;;
 esac
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 
+# The wrapper gets a file of its own as stdin, standing in for the terminal,
+# so the probes can be seen not to inherit it; the case of an already
+# running OpenClaw below runs on it too, since that probe comes before the
+# wizard and is skipped here.
+: >"$tmp_dir/terminal"
 start=$SECONDS
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$ROOT/bin/omarchy-openclaw-onboard" <"$tmp_dir/terminal" >/dev/null 2>&1 || rc=$?
 elapsed=$((SECONDS - start))
 
 grep -q '^openclaw:onboard --flow quickstart --install-daemon --skip-ui$' "$TEST_LOG" ||
@@ -101,6 +108,15 @@ pass "a finished onboarding hands the Omarchy theme to OpenClaw"
 grep -q '^lock-held$' "$TEST_LOG" || fail "the wrapper holds its lock while the wizard runs" "$(grep lock "$TEST_LOG" || true)"
 grep -q '^lock-free$' "$TEST_LOG" || fail "the wrapper releases its lock before the hand-over" "$(grep lock "$TEST_LOG" || true)"
 pass "the wrapper holds its lock for the wizard and releases it for the hand-over"
+
+# The gateway probe shares the wizard's terminal, and a Node process puts the
+# terminal settings it started with back when it exits. A probe that inherits
+# the terminal as stdin can therefore cancel the raw mode a prompt switched
+# on after the probe began, and arrow keys stop working at that prompt.
+grep -q '^dashboard-stdin:' "$TEST_LOG" || fail "the gateway probe ran while the wizard was up" "$(cat "$TEST_LOG")"
+! grep '^dashboard-stdin:' "$TEST_LOG" | grep -qv '^dashboard-stdin:/dev/null$' ||
+  fail "the gateway probe never inherits the wizard's terminal as stdin" "$(grep '^dashboard-stdin:' "$TEST_LOG" | sort -u)"
+pass "the gateway probe never inherits the wizard's terminal as stdin"
 
 # The wizard only starts being stopped once the gateway actually answers: a
 # stub that never writes the config is left alone and must be ended by its own
@@ -167,14 +183,20 @@ cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
 #!/bin/bash
 printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
 [[ $1 == onboard ]] && { echo wizard-ran >>"$TEST_LOG"; exit 0; }
+[[ $1 == dashboard ]] && printf 'dashboard-stdin:%s\n' "$(readlink /proc/$$/fd/0)" >>"$TEST_LOG"
 echo '{"ok":true,"port":18789}'
 SCRIPT
 chmod +x "$tmp_dir/bin/openclaw"
 rc=0
-"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 || rc=$?
+"$ROOT/bin/omarchy-openclaw-onboard" <"$tmp_dir/terminal" >/dev/null 2>&1 || rc=$?
 [[ $rc == 0 ]] || fail "an already-running OpenClaw is left alone" "rc=$rc"
 ! grep -q '^wizard-ran$' "$TEST_LOG" || fail "an already-running OpenClaw is left alone" "wizard ran anyway"
 pass "an already-running OpenClaw is left alone"
+
+grep -q '^dashboard-stdin:' "$TEST_LOG" || fail "the probe before the wizard ran" "$(cat "$TEST_LOG")"
+! grep '^dashboard-stdin:' "$TEST_LOG" | grep -qv '^dashboard-stdin:/dev/null$' ||
+  fail "the probe before the wizard never inherits the terminal as stdin either" "$(grep '^dashboard-stdin:' "$TEST_LOG" | sort -u)"
+pass "the probe before the wizard never inherits the terminal as stdin either"
 
 # Setup applied but the gateway never answers: the wizard would linger
 # forever, so it is stopped after the deadline and that is reported as failure.

@@ -26,8 +26,16 @@ settle_seconds=${OMARCHY_OPENCLAW_ONBOARD_SETTLE_SECONDS:-3}
 # setup; the prompts before that take as long as the user takes.
 gateway_timeout=${OMARCHY_OPENCLAW_ONBOARD_GATEWAY_TIMEOUT:-180}
 
+# Every probe of the gateway runs with stdin cut off from the terminal. Node
+# takes a copy of its terminal's settings when it starts and puts that copy
+# back when it exits, and the probe shares the terminal the wizard is
+# prompting on: one that starts in the moment between two prompts, when the
+# terminal is in line mode, hands line mode back a second later, after the
+# next prompt has switched to raw mode -- and from then on arrow keys do
+# nothing until Enter. With no terminal on its stdin there is nothing for
+# the probe to restore.
 gateway_answers() {
-  timeout 10 openclaw dashboard --json 2>/dev/null | jq -e '.ok == true' >/dev/null 2>&1
+  timeout 10 openclaw dashboard --json </dev/null 2>/dev/null | jq -e '.ok == true' >/dev/null 2>&1
 }
 
 # A gateway already answering means OpenClaw is set up, and this run must not
@@ -92,7 +100,7 @@ config_applied() {
 gateway_ready() {
   config_applied || return 1
   local json port listener main_pid
-  json=$(timeout 10 openclaw dashboard --json 2>/dev/null) || return 1
+  json=$(timeout 10 openclaw dashboard --json </dev/null 2>/dev/null) || return 1
   jq -e '.ok == true' <<<"$json" >/dev/null 2>&1 || return 1
   port=$(jq -r '.port // empty' <<<"$json" 2>/dev/null)
   [[ -n $port ]] || return 1
