@@ -37,10 +37,12 @@ for desktop in "$apps_dir"/*.desktop; do
 done
 
 removed_alacritty=0
-# The upgrade-installed ghost carries TryExec=alacritty. A hand-written
-# Alacritty.desktop that launches a Flatpak, wrapper, or SSH session does not.
+# The upgrade-installed ghost is byte-identical to the shipped launcher. A
+# stock copy with only Exec= rewritten (Flatpak, wrapper, SSH) is kept, even
+# when it still carries TryExec=alacritty.
+shipped_alacritty="$OMARCHY_PATH/default/alacritty/Alacritty.desktop"
 if [[ -f $apps_dir/Alacritty.desktop ]] && omarchy-cmd-missing alacritty &&
-  grep -qxF 'TryExec=alacritty' "$apps_dir/Alacritty.desktop"; then
+  cmp -s "$apps_dir/Alacritty.desktop" "$shipped_alacritty"; then
   rm -f "$apps_dir/Alacritty.desktop"
   removed_alacritty=1
 fi

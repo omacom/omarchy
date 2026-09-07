@@ -49,7 +49,7 @@ reset_home() {
 }
 
 run_migration() {
-  HOME="$home" bash -euo pipefail "$migration" >/dev/null
+  HOME="$home" OMARCHY_PATH="$ROOT" bash -euo pipefail "$migration" >/dev/null
 }
 
 reset_home
@@ -78,7 +78,8 @@ ALACRITTY_PRESENT=1 run_migration
 pass "migration keeps Alacritty.desktop when alacritty is installed"
 
 reset_home
-write_desktop "$apps/Alacritty.desktop" "Alacritty"
+cp "$ROOT/default/alacritty/Alacritty.desktop" "$apps/Alacritty.desktop"
+sed -i 's/^Exec=alacritty$/Exec=flatpak run org.alacritty.Alacritty/' "$apps/Alacritty.desktop"
 ALACRITTY_PRESENT=0 run_migration
 
 [[ -f $apps/Alacritty.desktop ]] || fail "migration keeps a custom Alacritty.desktop when alacritty is missing"
