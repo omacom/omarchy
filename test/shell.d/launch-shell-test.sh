@@ -129,21 +129,7 @@ grep -F 'exited with status 0' "$logger_log" >/dev/null || fail "the clean-exit 
 pass "an unexpected clean exit is relaunched while the compositor lives"
 
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
-# Second status is 0: after one crash relaunch, the clean follow-up also
-# relaunches once under the new policy, so expect two launches then continue
-# until the exhausted list hits the budget... wait.
-# Statuses 255 then 0: first dies 255 (relaunch), second exits 0 (relaunch again).
-# That would be more than 2 launches. Old test expected exactly 2 because status
-# 0 stopped the supervisor.
-# New: 255 then 0 then exhausted 0s → budget. Use 255 then run via background? Or
-# use compositor gone on the follow-up... can't change mid-flight.
-# Use: first 255, second exits with compositor still up but we only allow one
-# relaunch by using statuses that end the supervisor via terminating... 
-# Simplest: $'255\n0' with compositor gone on second iteration - can't.
-# Change expectation: $'255\n0' produces 2 launches then status 0 triggers
-# another relaunch cycle - actually after 2nd launch exits 0, attempts=2,
-# sleeps, 3rd launch gets default 0 from awk, etc. until 6.
-# So the old "exactly once" test must become: crash is relaunched (at least 2).
+# A follow-up clean exit is also relaunchable now, so the budget still applies.
 launch_shell $'255\n0' && fail "a shell that dies then keeps exiting cleanly is given up on"
 [[ $(launches) == 6 ]] || fail "a Wayland death still consumes the relaunch budget" "$(<"$qs_log")"
 grep -F 'exited with status 255' "$logger_log" >/dev/null || fail "the relaunch is recorded in the journal"
@@ -160,8 +146,6 @@ launch_shell $'255\n0' 1 || fail "a shell outliving the compositor exits cleanly
 pass "the shell is not relaunched once the compositor is gone"
 
 # A compositor mid-modeset can miss a query without being gone.
-# First exit 255 relaunches; second exit 0 also relaunches under the new policy
-# until the budget. Use a healthy follow-up via background + TERM instead.
 rm -f "$hyprctl_misses"
 : >"$qs_log"
 : >"$qs_env_log"
