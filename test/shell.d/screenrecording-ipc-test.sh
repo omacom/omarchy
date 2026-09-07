@@ -17,6 +17,12 @@ grep -Fq 'gsr-cli -ipc "$GSR_SOCKET" status' "$capture" ||
   fail "capture helper gates on gsr-cli status for the shared socket"
 grep -Fq 'gsr-cli -ipc "$GSR_SOCKET" stop' "$capture" ||
   fail "capture helper stops via gsr-cli on the shared socket"
+if grep -q 'RECORDING_PID_FILE' "$capture"; then
+  fail "stop does not keep a pid file beside gsr-cli"
+fi
+if grep -E 'kill[[:space:]]+(-s[[:space:]]+)?(SIGINT|-INT|-9|-KILL)' "$capture" >/dev/null; then
+  fail "stop does not kill the recorder; gsr-cli stop is enough"
+fi
 
 grep -Fq 'Quickshell.env("XDG_RUNTIME_DIR")' "$recording" ||
   fail "indicator builds the gsr socket from XDG_RUNTIME_DIR"
