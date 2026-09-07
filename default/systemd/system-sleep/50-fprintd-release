@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Stop fprintd before suspend/hibernate so the lock screen cannot open the
+# fingerprint reader inside a sleep transition that has already stopped
+# honoring new inhibitors. fprintd is Type=dbus, so it re-activates on the
+# next touch after resume.
+if [[ $1 == "pre" ]]; then
+  if systemctl is-active --quiet fprintd.service 2>/dev/null; then
+    systemctl stop fprintd.service 2>/dev/null || true
+  fi
+fi
