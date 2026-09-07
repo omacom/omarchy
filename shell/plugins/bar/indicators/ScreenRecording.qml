@@ -15,7 +15,8 @@ BarIndicator {
 
   function refresh() {
     if (!root.bar || statusProc.running) return
-    statusProc.command = ["pidof", "-q", "gpu-screen-recorder"]
+    var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"
+    statusProc.command = ["gsr-cli", "-ipc", runtimeDir + "/omarchy-gsr.sock", "status"]
     statusProc.running = true
   }
 
