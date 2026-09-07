@@ -73,7 +73,8 @@ Item {
   }
 
   function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    root.history = ClipboardHistory.trimHistory(root.history, root.historyLimit)
+    historyFile.setText(JSON.stringify(root.history, null, 2) + "\n")
   }
 
   function addClipboardEntry(entry) {
@@ -102,7 +103,7 @@ Item {
   }
 
   function confirmClearHistory() {
-    root.history = ClipboardHistory.clearHistory()
+    root.history = ClipboardHistory.clearHistory(root.history)
     root.saveHistory()
     root.selectedIndex = 0
     root.cursorActive = false
@@ -130,6 +131,23 @@ Item {
     root.rebuildDisplay()
   }
 
+  function togglePinDisplayIndex(index) {
+    if (index < 0 || index >= displayModel.count) return
+    var historyIndex = displayModel.get(index).historyIndex
+    var key = root.entryKey(root.history[historyIndex])
+    root.history = ClipboardHistory.togglePinAt(root.history, historyIndex)
+    root.saveHistory()
+    root.disarmPointer()
+    root.cursorActive = true
+    root.rebuildDisplay()
+    for (var i = 0; i < displayModel.count; i++) {
+      if (root.entryKey(root.history[displayModel.get(i).historyIndex]) === key) {
+        root.selectedIndex = i
+        break
+      }
+    }
+  }
+
   function rebuildDisplay() {
     var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50)
 
@@ -143,6 +161,7 @@ Item {
         previewImage: row.previewImage ? Util.fileUrl(row.previewImage) : "",
         path: row.path,
         mime: row.mime,
+        pinned: row.pinned,
         historyIndex: row.index
       })
     }
@@ -360,6 +379,9 @@ Item {
             if (root.filterText) root.setFilter("")
             else root.close()
             event.accepted = true
+          } else if (event.key === Qt.Key_P && event.modifiers === Qt.ControlModifier) {
+            root.togglePinDisplayIndex(root.selectedIndex)
+            event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
@@ -403,7 +425,7 @@ Item {
           anchors.fill: parent
           opened: root.clearConfirmOpen
           z: 10
-          message: "Delete entire clipboard history?"
+          message: "Delete clipboard history? Pinned items will be kept."
           confirmText: "Delete"
           background: root.background
           foreground: root.foreground
@@ -434,7 +456,8 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: pinAction.left
+            anchors.rightMargin: root.contentSpacing
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || "Search clipboard…"
             color: root.foreground
@@ -442,6 +465,25 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          Text {
+            id: pinAction
+            textFormat: Text.PlainText
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            visible: displayModel.count > 0
+            text: "Ctrl+P · " + (displayModel.count > 0 && (displayModel.get(root.selectedIndex) || {}).pinned ? "Unpin" : "Pin")
+            color: root.foreground
+            opacity: 0.7
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.togglePinDisplayIndex(root.selectedIndex)
+            }
           }
         }
 
@@ -474,6 +516,7 @@ Item {
                   required property string previewText
                   required property string fullText
                   required property string previewImage
+                  required property bool pinned
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
 
@@ -502,7 +545,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      width: parent.width - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
+                      width: Math.max(0, parent.width - (row.previewImage.length > 0 ? parent.height + parent.spacing : 0) - (pinLabel.visible ? pinLabel.width + parent.spacing : 0))
                       height: parent.height
                       text: parent.parent.previewText
                       color: parent.parent.hasCursor ? root.selectedText : root.foreground
@@ -511,6 +554,18 @@ Item {
                       opacity: parent.parent.entryType === "image" || parent.parent.entryType === "file" ? 0.72 : 1.0
                       elide: Text.ElideRight
                       wrapMode: Text.NoWrap
+                      verticalAlignment: Text.AlignVCenter
+                    }
+
+                    Text {
+                      id: pinLabel
+                      visible: row.pinned
+                      height: parent.height
+                      text: "Pinned"
+                      color: row.hasCursor ? root.selectedText : root.foreground
+                      opacity: 0.7
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
                       verticalAlignment: Text.AlignVCenter
                     }
                   }

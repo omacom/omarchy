@@ -22,3 +22,7 @@ The clipboard history is provided by the Omarchy shell and works for both text a
 You can also search the history just by starting to type:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
+
+Press `Ctrl + P` to pin or unpin the selected entry, or click the Pin/Unpin action beside the search field. Pinned text and images appear first and stay saved across restarts, even as older history expires. Copying a pinned item again keeps it pinned.
+
+Press `Delete` to remove the selected entry, including a pin. Press `Shift + Delete` to clear history after confirmation; pinned entries are kept.

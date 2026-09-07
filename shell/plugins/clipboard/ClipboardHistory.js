@@ -7,7 +7,10 @@ function normalizeEntry(value) {
   var type = String(value.type || value.kind || "")
   if (type === "text") {
     var text = String(value.text || "")
-    return text.trim().length > 0 ? { type: "text", text: text } : null
+    if (!text.trim().length) return null
+    var textEntry = { type: "text", text: text }
+    if (value.pinned === true) textEntry.pinned = true
+    return textEntry
   }
 
   if (type === "image") {
@@ -20,6 +23,7 @@ function normalizeEntry(value) {
     }
     if (value.capturedAt !== undefined && value.capturedAt !== null)
       entry.capturedAt = String(value.capturedAt)
+    if (value.pinned === true) entry.pinned = true
     return entry
   }
 
@@ -48,24 +52,54 @@ function parseHistory(raw) {
   }
 }
 
-function addEntry(history, entry, limit) {
-  var normalized = normalizeEntry(entry)
+// Pins are saved independently of the rolling limit for ordinary history.
+function trimHistory(history, limit) {
   var max = limit === undefined || limit === null ? 100 : Number(limit)
   if (isNaN(max)) max = 100
   max = Math.max(0, max)
-  if (!normalized) return Array.isArray(history) ? history.slice(0, max) : []
-  if (max === 0) return []
+  var values = Array.isArray(history) ? history : []
+  var next = []
+  var unpinned = 0
+  for (var i = 0; i < values.length; i++) {
+    var entry = normalizeEntry(values[i])
+    if (entry && (entry.pinned || unpinned < max)) {
+      next.push(entry)
+      if (!entry.pinned) unpinned++
+    }
+  }
+  return next
+}
+
+function addEntry(history, entry, limit) {
+  var normalized = normalizeEntry(entry)
+  if (!normalized) return trimHistory(history, limit)
 
   var key = entryKey(normalized)
   var next = [normalized]
   var values = Array.isArray(history) ? history : []
 
-  for (var i = 0; i < values.length && next.length < max; i++) {
+  for (var i = 0; i < values.length; i++) {
     var existing = normalizeEntry(values[i])
-    if (!existing || entryKey(existing) === key) continue
+    if (!existing) continue
+    if (entryKey(existing) === key) {
+      if (existing.pinned) normalized.pinned = true
+      continue
+    }
     next.push(existing)
   }
 
+  return trimHistory(next, limit)
+}
+
+function togglePinAt(history, index) {
+  var next = Array.isArray(history) ? history.slice() : []
+  var target = Number(index)
+  if (isNaN(target) || target % 1 !== 0 || target < 0 || target >= next.length) return next
+  var entry = normalizeEntry(next[target])
+  if (!entry) return next
+  if (entry.pinned) delete entry.pinned
+  else entry.pinned = true
+  next[target] = entry
   return next
 }
 
@@ -79,8 +113,8 @@ function removeEntryAt(history, index) {
   return next
 }
 
-function clearHistory() {
-  return []
+function clearHistory(history) {
+  return trimHistory(history, 0)
 }
 
 function parseEntryJson(line) {
@@ -180,8 +214,16 @@ function displayRows(history, query, limit) {
   if (max === 0) return []
 
   var rows = []
+  var pinnedIndexes = []
+  var unpinnedIndexes = []
+  for (var index = 0; index < values.length; index++) {
+    if (values[index] && values[index].pinned === true) pinnedIndexes.push(index)
+    else unpinnedIndexes.push(index)
+  }
+  var indexes = pinnedIndexes.concat(unpinnedIndexes)
 
-  for (var i = 0; i < values.length; i++) {
+  for (var position = 0; position < indexes.length; position++) {
+    var i = indexes[position]
     var entry = cappedEntry(normalizeEntry(values[i]))
     if (!entry) continue
     if (needle && searchableText(entry).toLowerCase().indexOf(needle) < 0) continue
@@ -197,6 +239,7 @@ function displayRows(history, query, limit) {
       previewImage: previewPath,
       path: isImage ? String(entry.path || "") : (isFile && paths.length === 1 ? paths[0] : ""),
       mime: isImage ? String(entry.mime || "image/png") : "text/plain",
+      pinned: values[i].pinned === true,
       index: i
     })
     if (rows.length >= max) break
@@ -211,6 +254,8 @@ if (typeof module !== "undefined") {
     entryKey: entryKey,
     parseHistory: parseHistory,
     addEntry: addEntry,
+    trimHistory: trimHistory,
+    togglePinAt: togglePinAt,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
     parseEntryJson: parseEntryJson,

@@ -67,6 +67,31 @@ assertDeepEqual(
 assertDeepEqual(clipboard.removeEntryAt(history, 10), history, 'clipboard removeEntryAt ignores invalid indexes')
 assertDeepEqual(clipboard.clearHistory(), [], 'clipboard clearHistory returns an empty history')
 
+const pinnedText = { type: 'text', text: 'saved', pinned: true }
+const pinnedImage = { type: 'image', path: '/tmp/saved.png', mime: 'image/png', capturedAt: 'Monday 12:00', pinned: true }
+const withPins = [history[0], pinnedText, history[1], pinnedImage]
+assertDeepEqual(clipboard.parseHistory(JSON.stringify(withPins)), withPins, 'text and image pins survive saving and reloading')
+assertDeepEqual(clipboard.normalizeEntry({ type: 'text', text: 'hello', pinned: 'false' }), { type: 'text', text: 'hello' }, 'only a boolean true marks a pin')
+assertDeepEqual(clipboard.togglePinAt(history, 1)[1], { ...history[1], pinned: true }, 'pinning marks the selected entry')
+assertDeepEqual(clipboard.togglePinAt(withPins, 1)[1], { type: 'text', text: 'saved' }, 'unpinning removes the pin')
+assertDeepEqual(withPins[1], pinnedText, 'toggling does not mutate the original entry')
+for (const index of [-1, 20, 0.5, NaN]) {
+  assertDeepEqual(clipboard.togglePinAt(withPins, index), withPins, 'invalid pin indexes leave history intact')
+}
+assertDeepEqual(clipboard.clearHistory(withPins), [pinnedText, pinnedImage], 'clearing history preserves text and image pins')
+assertDeepEqual(clipboard.removeEntryAt([pinnedText], 0), [], 'explicit deletion can remove a pinned entry')
+assertDeepEqual(clipboard.trimHistory(withPins, 1), [history[0], pinnedText, pinnedImage], 'pins do not consume the rolling history limit')
+assertDeepEqual(clipboard.addEntry(withPins, 'next', 1), [{ type: 'text', text: 'next' }, pinnedText, pinnedImage], 'new copies cannot evict old pins')
+assertDeepEqual(clipboard.addEntry(withPins, 'saved', 0), [pinnedText, pinnedImage], 'recopying text keeps its pin even with a zero history limit')
+assertDeepEqual(clipboard.addEntry(withPins, { type: 'image', path: '/tmp/saved.png' }, 1), [
+  { type: 'image', path: '/tmp/saved.png', mime: 'image/png', pinned: true }, history[0], pinnedText
+], 'recopying an image preserves its pin and removes the duplicate')
+assertDeepEqual(clipboard.displayRows(withPins, '', 3).map(row => [row.index, row.pinned]), [[1, true], [3, true], [0, false]], 'pins display first within the result limit while preserving history indexes')
+assertDeepEqual(clipboard.displayRows(withPins, 'saved', 1).map(row => row.index), [1], 'search finds pins with the original action index')
+assertDeepEqual(clipboard.displayRows(withPins, 'old', 1).map(row => row.index), [0], 'search still finds unpinned entries')
+assertEqual(clipboard.displayRows([{ type: 'text', text: 'x'.repeat(20000), pinned: true }], '', 1)[0].pinned, true, 'capping long previews preserves the pin label')
+assertDeepEqual(clipboard.displayRows(clipboard.togglePinAt(withPins, 1), '', 4).map(row => row.index), [3, 0, 1, 2], 'unpinning restores chronological order among ordinary entries')
+
 assertDeepEqual(
   clipboard.displayRows(history, 'image', 50).map(row => ({ type: row.entryType, preview: row.previewText, mime: row.mime })),
   [{ type: 'image', preview: 'Image', mime: 'image/png' }],
@@ -106,6 +131,7 @@ assertDeepEqual(
     previewImage: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     path: '/home/dhh/Videos/screenrecording-2026-05-29_13-56-43-720p.gif',
     mime: 'text/plain',
+    pinned: false,
     index: 0
   },
   'clipboard display rows show file uri entries as files'
