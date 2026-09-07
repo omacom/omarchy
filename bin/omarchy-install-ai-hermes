@@ -5,6 +5,9 @@
 
 set -e
 
+HERMES_HOME=$(omarchy-cmd-hermes-home)
+export HERMES_HOME
+
 # The package is the entry point to a writable native installation. Wait for
 # both the runtime and desktop build so the app and CLI update the same copy.
 echo "Installing Hermes Desktop..."
@@ -18,7 +21,7 @@ setsid uwsm-app -- /usr/bin/hermes-desktop >/dev/null 2>&1 &
 echo "Matching Hermes to the current theme once it is set up..."
 systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
 systemd-run --user --quiet --collect --unit=omarchy-hermes-theme \
-  --setenv="HERMES_HOME=${HERMES_HOME:-$HOME/.hermes}" omarchy-theme-set-hermes --wait
+  --setenv="HERMES_HOME=$HERMES_HOME" omarchy-theme-set-hermes --wait
 
 echo ""
 echo "Hermes Desktop has been installed."

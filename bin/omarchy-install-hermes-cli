@@ -22,6 +22,9 @@
 
 set -euo pipefail
 
+HERMES_HOME=$(omarchy-cmd-hermes-home)
+export HERMES_HOME
+
 mode=${1:-}
 
 tool='pipx:hermes-agent[extras=all]'
@@ -30,7 +33,7 @@ python='3.13'
 # The line that identifies the stub as this installer's; matched whole, so a
 # wrapper that merely mentions the command is not mistaken for ours.
 marker='# Written by omarchy-install-hermes-cli.'
-native_root="${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+native_root="$HERMES_HOME/hermes-agent"
 predecessor_receipt="$native_root/.git/omarchy-mise-predecessor"
 
 # The package, not the runtime directory: it is installed before the app has

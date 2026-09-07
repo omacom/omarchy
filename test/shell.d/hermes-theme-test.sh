@@ -16,6 +16,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 mock_bin="$test_tmp/bin"
 mkdir -p "$mock_bin"
+ln -s "$ROOT/bin/omarchy-cmd-hermes-home" "$mock_bin/omarchy-cmd-hermes-home"
 
 cat >"$mock_bin/omarchy-install-hermes-cli" <<'SH'
 #!/bin/bash
@@ -41,6 +42,7 @@ SH
 cat >"$mock_bin/hermes-stub" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_HERMES_CALLS"
+[[ ${HERMES_HOME:-} == "${OMARCHY_TEST_EXPECTED_HOME:-$HOME/.hermes}" ]] || exit 1
 if [[ $1 == "config" && $2 == "get" ]]; then
   [[ ${OMARCHY_TEST_HERMES_GET_FAILS:-0} == 0 ]] || exit 1
   printf '%s\n' "${OMARCHY_TEST_HERMES_SKIN-default}"
@@ -120,7 +122,7 @@ run_hook() {
     OMARCHY_TEST_DROP_SKINS="${OMARCHY_TEST_DROP_SKINS:-0}" \
     PATH="$mock_bin:$PATH" \
     HOME="$test_home" \
-    HERMES_HOME='' \
+    HERMES_HOME="${OMARCHY_TEST_HERMES_HOME:-}" \
     "$ROOT/bin/omarchy-theme-set-hermes" "$@"
 }
 
@@ -416,3 +418,20 @@ OMARCHY_TEST_HERMES_READY=1 run_hook --wait 2>/dev/null
 grep -q '^config set' "$hermes_calls" && fail "pending native setup must not activate through a legacy marker"
 [[ $(grep -c '^sleep 10$' "$hermes_calls") == 180 ]] || fail "pending native setup must wait for completion"
 pass "--wait does not mistake native ownership for completed setup"
+
+for shared_home in "$test_home/.hermes" "$test_home/custom hermes"; do
+  reset_home --set-up
+  if [[ $shared_home != "$hermes_home" ]]; then
+    mv "$hermes_home" "$shared_home"
+  fi
+  mkdir -p "$shared_home/hermes-agent" "$shared_home/profiles/coder" "$shared_home/profiles/reviewer"
+  echo ready >"$shared_home/hermes-agent/.omarchy-hermes-desktop"
+  OMARCHY_TEST_HERMES_HOME="$shared_home/profiles/coder/" OMARCHY_TEST_EXPECTED_HOME="$shared_home" \
+    OMARCHY_TEST_HERMES_READY=1 run_hook --wait 2>/dev/null
+  for home in "$shared_home" "$shared_home/profiles/coder" "$shared_home/profiles/reviewer"; do
+    [[ -f $home/skins/omarchy.yaml ]] || fail "profile handoff publishes the skin to the shared home and every profile"
+  done
+  grep -q '^config set display.skin omarchy$' "$hermes_calls" || fail "profile handoff activates through the shared Hermes home"
+  grep -q '^sleep 10$' "$hermes_calls" && fail "profile handoff must find the shared runtime marker"
+done
+pass "profile theme handoff follows the shared default or custom installation and all sibling profiles"

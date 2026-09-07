@@ -11,6 +11,7 @@ mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 mise_log="$test_tmp/mise-log"
 mkdir -p "$mock_bin" "$test_home/.local/bin"
+ln -s "$ROOT/bin/omarchy-cmd-hermes-home" "$mock_bin/omarchy-cmd-hermes-home"
 export OMARCHY_TEST_DESKTOP_LOG="$test_tmp/desktop-log"
 
 cat >"$mock_bin/omarchy-pkg-present" <<'SH'
@@ -164,6 +165,13 @@ OMARCHY_TEST_HERMES_HOME="$test_home/custom hermes" run_installer 1 --now || fai
 [[ -f "$test_home/custom hermes/hermes-agent/.omarchy-hermes-desktop" ]] || fail "native setup uses HERMES_HOME"
 OMARCHY_TEST_HERMES_HOME="$test_home/custom hermes" run_installer 1 --check || fail "readiness follows the custom data home"
 pass "native setup and readiness follow HERMES_HOME"
+
+for shared_home in "$test_home/.hermes" "$test_home/custom hermes"; do
+  OMARCHY_TEST_HERMES_HOME="$shared_home/profiles/coder/" run_installer 1 --now || fail "profile setup succeeds"
+  [[ -f $shared_home/hermes-agent/.omarchy-hermes-desktop && ! -e $shared_home/profiles/coder/hermes-agent ]] || fail "profile setup reuses the shared runtime"
+  OMARCHY_TEST_HERMES_HOME="$shared_home/profiles/coder/" run_installer 1 --check || fail "profile readiness follows the shared runtime"
+done
+pass "native setup and readiness use the shared installation from default and custom profiles"
 
 # A package-only setup can replace the wrapper before this helper ever runs.
 # Its exact receipt carries the predecessor ownership through a retry.

@@ -10,6 +10,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 mkdir -p "$mock_bin"
+ln -s "$ROOT/bin/omarchy-cmd-hermes-home" "$mock_bin/omarchy-cmd-hermes-home"
 
 cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 #!/bin/bash
@@ -22,6 +23,7 @@ SH
 cat >"$mock_bin/omarchy-install-hermes-cli" <<'SH'
 #!/bin/bash
 printf '%s\0' "$@" >>"$OMARCHY_TEST_INSTALLER_LOG"
+printf '%s\n' "$HERMES_HOME" >"$OMARCHY_TEST_HOME_LOG"
 exit "${OMARCHY_TEST_INSTALLER_STATUS:-0}"
 SH
 
@@ -73,6 +75,7 @@ remove() {
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
     OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
+    OMARCHY_TEST_HOME_LOG="$test_tmp/home-log" \
     OMARCHY_TEST_INSTALLER_STATUS="${OMARCHY_TEST_INSTALLER_STATUS:-0}" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
@@ -90,6 +93,7 @@ remove_tty() {
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
     OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
+    OMARCHY_TEST_HOME_LOG="$test_tmp/home-log" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     OMARCHY_TEST_GUM_STATUS="${OMARCHY_TEST_GUM_STATUS:-1}" \
@@ -309,6 +313,17 @@ OMARCHY_TEST_HERMES_HOME="$native_home" remove || fail "native removal supports 
 [[ ! -e $native_root && ! -e $desktop_entry ]] || fail "custom native runtime and launcher are removed"
 [[ -f $native_home/sessions/one.json && -f $test_home/.hermes/hermes-agent/unrelated ]] || fail "custom removal preserves user data and the default home"
 pass "native removal follows HERMES_HOME and leaves other installations alone"
+
+for shared_home in "$test_home/.hermes" "$test_home/custom hermes"; do
+  seed_native "$shared_home"
+  mkdir -p "$shared_home/profiles/coder"
+  echo 'profile chat' >"$shared_home/profiles/coder/session.json"
+  OMARCHY_TEST_HERMES_HOME="$shared_home/profiles/coder/" remove || fail "profile removal succeeds"
+  [[ ! -e $native_root && ! -e $desktop_entry ]] || fail "profile removal targets the shared runtime and generated launcher"
+  [[ -f $shared_home/profiles/coder/session.json && -f $shared_home/sessions/one.json ]] || fail "profile removal preserves root and profile data"
+  [[ $(cat "$test_tmp/home-log") == "$shared_home" ]] || fail "CLI removal receives the same shared home"
+done
+pass "profile removal targets the shared default or custom installation and preserves profile data"
 
 seed_install
 git -C "$test_home/.hermes/hermes-agent" remote set-url origin https://github.com/example/hermes-agent.git

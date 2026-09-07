@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Resolve the shared Hermes home from a root or profile session
+# omarchy:hidden=true
+
+set -euo pipefail
+
+hermes_home=${HERMES_HOME:-$HOME/.hermes}
+if [[ $hermes_home != /* ]]; then
+  echo "HERMES_HOME must name an absolute Hermes data directory." >&2
+  exit 1
+fi
+
+# Setup, removal and themes share the root above a Hermes profiles/<name> home.
+# Normalize spelling without resolving symlinks, which ownership checks retain.
+hermes_home=$(realpath -ms -- "$hermes_home")
+hermes_parent=${hermes_home%/*}
+if [[ ${hermes_parent##*/} == "profiles" ]]; then
+  hermes_home=${hermes_parent%/*}
+fi
+
+if [[ $hermes_home != /* || $hermes_home == "/" ]]; then
+  echo "HERMES_HOME must name an absolute Hermes data directory other than /." >&2
+  exit 1
+fi
+
+printf '%s\n' "$hermes_home"

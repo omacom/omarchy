@@ -6,12 +6,10 @@
 # -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
 set -euo pipefail
 
-hermes_home=${HERMES_HOME:-$HOME/.hermes}
+HERMES_HOME=$(omarchy-cmd-hermes-home)
+export HERMES_HOME
+hermes_home=$HERMES_HOME
 hermes_root="$hermes_home/hermes-agent"
-if [[ $hermes_home != /* || $hermes_home == "/" ]]; then
-  echo "HERMES_HOME must name an absolute Hermes data directory." >&2
-  exit 1
-fi
 
 omarchy-pkg-drop hermes-desktop
 
