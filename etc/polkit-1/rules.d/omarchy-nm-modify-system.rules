@@ -1,0 +1,12 @@
+// NetworkManager ships a wheel+local YES for settings.modify.system, so a
+// desktop session can rewrite system connections (DNS, VPN, routes) with no
+// prompt. That is the same class of grant we declined for the docker group.
+// Restore the action default. Personal connections (modify.own) are untouched.
+//
+// This filename sorts before org.freedesktop.NetworkManager.rules; polkit uses
+// the first returning rule.
+polkit.addRule(function(action, subject) {
+  if (action.id == "org.freedesktop.NetworkManager.settings.modify.system") {
+    return polkit.Result.AUTH_ADMIN_KEEP;
+  }
+});
