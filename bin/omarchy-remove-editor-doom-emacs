@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# omarchy:summary=Uninstall Doom Emacs and clean configuration
+
+set -euo pipefail
+
+DOOM_CORE_DIR="$HOME/.config/doom-emacs"
+DOOM_USER_DIR="$HOME/.config/doom"
+DESKTOP_ENTRY="$HOME/.local/share/applications/Doom Emacs.desktop"
+DOOM_BIN_LINK="$HOME/.local/bin/doom"
+
+echo "Uninstalling Doom Emacs..."
+
+# 1. Reset default editor if Doom was the active default
+if [[ $(omarchy-default-editor) == "doom" ]]; then
+  echo "Resetting default editor to Neovim..."
+  omarchy-default-editor nvim
+fi
+
+# 2. Remove Doom core directory
+if [[ -d $DOOM_CORE_DIR ]]; then
+  rm -rf "$DOOM_CORE_DIR"
+  echo "Removed $DOOM_CORE_DIR"
+fi
+
+# 3. Clean up desktop launcher & local bin symlink
+if [[ -f $DESKTOP_ENTRY ]]; then
+  rm -f "$DESKTOP_ENTRY"
+  update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+  echo "Removed Doom Emacs desktop entry"
+fi
+
+if [[ -L $DOOM_BIN_LINK || -f $DOOM_BIN_LINK ]]; then
+  rm -f "$DOOM_BIN_LINK"
+fi
+
+# 4. Optional user config cleanup
+if [[ -d $DOOM_USER_DIR ]]; then
+  read -p "Do you want to remove your user config in $DOOM_USER_DIR? [y/N] " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    rm -rf "$DOOM_USER_DIR"
+    echo "Removed $DOOM_USER_DIR"
+  fi
+fi
+
+# 5. Optional package removal
+if omarchy-pkg-present omarchy-emacs; then
+  read -p "Do you also want to remove the underlying omarchy-emacs package? [y/N] " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    omarchy-pkg-drop omarchy-emacs
+  fi
+fi
+
+omarchy-notification-send -g 󰗡 "Doom Emacs uninstalled"
