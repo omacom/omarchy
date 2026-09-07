@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 TryExec=alacritty
-Exec=alacritty
+Exec=omarchy-launch-alacritty
 Icon=Alacritty
 Terminal=false
 Categories=System;TerminalEmulator;
@@ -18,4 +18,4 @@ X-TerminalArgDir=--working-directory=
 
 [Desktop Action New]
 Name=New Terminal
-Exec=alacritty
+Exec=omarchy-launch-alacritty
