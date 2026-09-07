@@ -320,30 +320,15 @@ run_migration
 assert_no_privileges "an unaffected machine must need no privileges"
 pass "an unaffected machine is a successful no-op"
 
-# Setup leaves are sourced, and must not inspect/load the live ISO kernel.
+# Setup leaves are sourced. A manual rerun on an old or partially migrated
+# system must leave the fallback in place for the migration's proven cutover.
 reset_state
 bash -eE -c 'source "$1"' bash "$ROOT/install/hardware/fix-yt6801-ethernet-adapter.sh"
-[[ ! -e $TEST_STATE/package ]] || fail "hardware setup did not remove the vendor package"
-if grep -Eq '^(modinfo|modprobe|rmmod|tee) ' "$TEST_CALLS"; then
-  fail "hardware setup must not manipulate the installer kernel"
-fi
-pass "fresh setup removes the package independently of the ISO kernel"
-
-for fault in pci-fail pci-partial query-fail remove-fail; do
-  reset_state
-  TEST_FAULT=$fault
-  if bash -eE -c 'source "$1"' bash "$ROOT/install/hardware/fix-yt6801-ethernet-adapter.sh" >"$test_tmp/output" 2>&1; then
-    fail "hardware setup must fail on $fault"
-  fi
-  [[ -e $TEST_STATE/package ]] || fail "failed setup unexpectedly removed the package"
-  pass "fresh setup propagates $fault"
-done
-
-reset_state
-: >"$TEST_STATE/devices"
-bash -eE -c 'source "$1"' bash "$ROOT/install/hardware/fix-yt6801-ethernet-adapter.sh"
-assert_no_privileges "setup without target hardware must need no privileges"
-pass "fresh setup skips machines without target hardware"
+[[ -e $TEST_STATE/package && -e $TEST_STATE/vendor-loaded ]] ||
+  fail "manual hardware setup retired the YT6801 fallback"
+[[ ! -s $TEST_CALLS ]] ||
+  fail "manual hardware setup performed package, discovery, or module work" "$(cat "$TEST_CALLS")"
+pass "manual hardware setup leaves the vendor fallback for the proven migration cutover"
 
 # Exercise the real runner's completion markers and queue, without using the
 # current user's state directory or running any other repository migrations.
