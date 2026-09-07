@@ -200,6 +200,41 @@ noop = setmetatable({}, {
   __call = function()
     return noop
   end,
+  -- Stock qconsole.lua does monitor.scale <= 0 then height / scale - reserved.
+  -- Without these, Lua raises and pcall aborts the scan before user bindings.
+  __lt = function()
+    return false
+  end,
+  __le = function()
+    return false
+  end,
+  __eq = function()
+    return false
+  end,
+  __add = function()
+    return 0
+  end,
+  __sub = function()
+    return 0
+  end,
+  __mul = function()
+    return 0
+  end,
+  __div = function()
+    return 0
+  end,
+  __mod = function()
+    return 0
+  end,
+  __pow = function()
+    return 0
+  end,
+  __unm = function()
+    return 0
+  end,
+  __idiv = function()
+    return 0
+  end,
 })
 
 hl = setmetatable({
