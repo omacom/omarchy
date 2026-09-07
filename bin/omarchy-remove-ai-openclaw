@@ -65,6 +65,11 @@ if [[ -d $HOME/.openclaw && -t 0 ]] && command -v gum >/dev/null; then
   size=$(du -sh "$HOME/.openclaw" 2>/dev/null | cut -f1)
   if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, and downloaded plugins)?"; then
     rm -rf "$HOME/.openclaw"
+    # The theme hook's notes of the accents it wrote into OpenClaw's configs,
+    # the default one and any it was pointed at elsewhere: with the state gone
+    # none describes an accent Omarchy should still claim, and a config that
+    # survives outside it is then the user's until its default is restored.
+    rm -f "$HOME/.local/state/omarchy/openclaw-accent" "$HOME/.local/state/omarchy/openclaw-accent-"*
     state_removed=true
   fi
 fi

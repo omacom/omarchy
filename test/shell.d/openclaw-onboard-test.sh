@@ -11,6 +11,9 @@ mkdir -p "$tmp_dir/bin" "$tmp_dir/home"
 export TEST_LOG="$tmp_dir/log"
 export PATH="$tmp_dir/bin:$PATH"
 export HOME="$tmp_dir/home"
+# The wrapper's lock lives in the runtime directory; a real onboarding on this
+# machine must not be what the test sees.
+export XDG_RUNTIME_DIR="$tmp_dir"
 export OMARCHY_OPENCLAW_ONBOARD_SETTLE_SECONDS=0
 unit="$HOME/.config/systemd/user/openclaw-gateway.service"
 export unit
@@ -41,6 +44,16 @@ SCRIPT
 chmod +x "$tmp_dir/bin/ss"
 export OMARCHY_OPENCLAW_ONBOARD_GATEWAY_TIMEOUT=1
 
+# A finished onboarding hands the theme over; the stub records being asked,
+# and whether the wrapper had let go of its lock by then, as the hook needs.
+cat >"$tmp_dir/bin/omarchy-theme-set-openclaw" <<'SCRIPT'
+#!/bin/bash
+printf 'omarchy-theme-set-openclaw:%s\n' "$*" >>"$TEST_LOG"
+exec 8>"$XDG_RUNTIME_DIR/omarchy-openclaw-onboard.lock"
+flock -n 8 && echo lock-free >>"$TEST_LOG" || echo lock-held-at-handover >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/omarchy-theme-set-openclaw"
+
 # A wizard that configures OpenClaw, prints its outro, and then lingers forever
 # on an open handle: the 2026.9.1 --skip-ui behaviour. It "installs the
 # gateway" by writing the config a moment in, so the gateway only starts
@@ -50,6 +63,9 @@ cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
 printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
 case $1 in
 onboard)
+  # The wrapper must hold its lock for as long as the wizard runs.
+  exec 8>"$XDG_RUNTIME_DIR/omarchy-openclaw-onboard.lock"
+  flock -n 8 && echo lock-free-during-wizard >>"$TEST_LOG" || echo lock-held >>"$TEST_LOG"
   ( sleep 1; mkdir -p "$HOME/.openclaw" "${unit%/*}"; touch "$HOME/.openclaw/openclaw.json" "$unit" ) &
   trap 'echo terminated >>"$TEST_LOG"; exit 143' TERM
   while :; do sleep 0.2; done
@@ -75,6 +91,16 @@ grep -q '^terminated$' "$TEST_LOG" ||
   fail "a wizard that lingers after the gateway is up is stopped and counts as success" "wizard was never signalled"
 (( elapsed < 30 )) || fail "a wizard that lingers after the gateway is up is stopped and counts as success" "took ${elapsed}s"
 pass "a wizard that lingers after the gateway is up is stopped and counts as success"
+
+grep -q '^omarchy-theme-set-openclaw:--activate$' "$TEST_LOG" ||
+  fail "a finished onboarding hands the Omarchy theme to OpenClaw" "$(grep theme "$TEST_LOG" || true)"
+pass "a finished onboarding hands the Omarchy theme to OpenClaw"
+
+# The theme hook stays off the config while the wizard runs, told by the
+# wrapper's lock, and the wrapper lets go of it before its own hand-over.
+grep -q '^lock-held$' "$TEST_LOG" || fail "the wrapper holds its lock while the wizard runs" "$(grep lock "$TEST_LOG" || true)"
+grep -q '^lock-free$' "$TEST_LOG" || fail "the wrapper releases its lock before the hand-over" "$(grep lock "$TEST_LOG" || true)"
+pass "the wrapper holds its lock for the wizard and releases it for the hand-over"
 
 # The wizard only starts being stopped once the gateway actually answers: a
 # stub that never writes the config is left alone and must be ended by its own
@@ -221,6 +247,27 @@ rc=0
 grep -q '^finished$' "$TEST_LOG" || fail "a stale config does not start the gateway deadline" "wizard was cut short"
 ! grep -q '^terminated$' "$TEST_LOG" || fail "a stale config does not start the gateway deadline" "wizard was signalled"
 pass "a stale config does not start the gateway deadline"
+
+# A theme hook that was already writing when onboarding started holds the
+# lock; onboarding waits, and the config the hook wrote meanwhile is not read
+# as this run having applied setup: the wizard is still left to finish.
+: >"$TEST_LOG"
+rm -rf "$HOME/.openclaw" "$unit"
+mkdir -p "$HOME/.openclaw" && touch "$HOME/.openclaw/openclaw.json"
+exec 7>"$XDG_RUNTIME_DIR/omarchy-openclaw-onboard.lock"
+flock -s 7
+rc=0
+"$ROOT/bin/omarchy-openclaw-onboard" </dev/null >/dev/null 2>&1 &
+wrapper_pid=$!
+sleep 1
+! grep -q '^openclaw:onboard' "$TEST_LOG" || fail "onboarding waits for a hook that holds the lock" "wizard started under the hook's lock"
+touch "$HOME/.openclaw/openclaw.json"
+flock -u 7
+wait "$wrapper_pid" || rc=$?
+[[ $rc == 0 ]] || fail "a config the hook wrote while onboarding waited does not start the deadline" "rc=$rc"
+grep -q '^finished$' "$TEST_LOG" || fail "a config the hook wrote while onboarding waited does not start the deadline" "wizard was cut short"
+! grep -q '^terminated$' "$TEST_LOG" || fail "a config the hook wrote while onboarding waited does not start the deadline" "wizard was signalled"
+pass "onboarding waits for a hook mid-write and starts from the config it left"
 
 # ...while the same stale config being rewritten by this run does arm it.
 : >"$TEST_LOG"

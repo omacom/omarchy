@@ -39,8 +39,19 @@ if [[ -f $config ]] && gateway_answers; then
   exit 0
 fi
 
+# Held for as long as the wizard runs. The theme hook writes the config on
+# every theme switch, and a config written after this run began is what the
+# watcher below reads as the wizard having applied setup; a switch during a
+# repair pass would start the gateway deadline under a wizard still at its
+# prompts. The hook leaves a switch alone while this is held, and holds the
+# lock itself while it writes, so a write in flight lands before this waits
+# no longer.
+exec 8>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-openclaw-onboard.lock"
+flock 8
+
 # Marks when this run began, so a config left behind by an earlier, incomplete
-# setup is not mistaken for this run having applied its own: the gateway
+# setup, or written by a hook that finished while the lock above was waited
+# for, is not mistaken for this run having applied its own: the gateway
 # deadline below must not start ticking while the user is still at prompts.
 started=$(mktemp)
 trap 'rm -f "$started"' EXIT
@@ -127,4 +138,14 @@ fi
 # exited on its own, including a user who chose "Skip for now" (no config,
 # non-zero), keeps its own exit code.
 [[ $stopped == true ]] && rc=0
+
+# A set-up OpenClaw follows the Omarchy theme from its first open. This is the
+# one place every path through onboarding passes, so the hand-over lives here
+# rather than in each caller; the theme is cosmetic and never fails setup. The
+# wizard is done, so the hold above is released first.
+flock -u 8
+if (( rc == 0 )) && [[ -f $config ]]; then
+  omarchy-theme-set-openclaw --activate || true
+fi
+
 exit "$rc"

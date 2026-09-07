@@ -1,0 +1,289 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to OpenClaw's Control UI
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+# OpenClaw's desktop app is its Control UI, a web app served by the gateway,
+# and the gateway's config is where that UI gets its appearance from. So
+# Omarchy writes its colors into that config through OpenClaw's own config
+# command, and nothing Omarchy-specific goes into OpenClaw. The gateway
+# hot-reloads the ui section and tells every connected Control UI.
+#
+# What can be written depends on the OpenClaw installed, and the config schema
+# it publishes decides rather than a version number:
+#
+# - ui.prefs.accent is the accent the Control UI shows, the one Appearance
+#   edits, and the one a connected UI repaints for within seconds of a config
+#   write. Every release has it. Omarchy replaces it only while it still holds
+#   an accent Omarchy wrote there, which Omarchy keeps a note of: an accent
+#   that differs was chosen in OpenClaw and stays, and restoring the default
+#   there hands it back.
+# - ui.seamColor is OpenClaw's operator accent, the fallback under
+#   ui.prefs.accent read when the UI loads. Every release has it too, and it
+#   always carries the current theme, so a restored default lands on the
+#   theme once the page loads again, or on the next switch, rather than on
+#   whatever was current when the accent was chosen.
+# - ui.customTheme is the whole palette, as proposed upstream: the token maps
+#   the Control UI's custom theme family already renders, provided by config
+#   rather than a browser import. It is published only once the installed
+#   OpenClaw's schema declares it, and selected as the theme where none was
+#   chosen in OpenClaw, on whichever theme switch first finds it accepted.
+#   Until then, and for a theme whose palette did not fully render, the same
+#   file yields the accent alone.
+#
+# Every run publishes; --activate is the install-time form, which insists on
+# a palette to publish and says what it left alone and why. Everything lands
+# in one config write, so a connected UI repaints once, and runs serialize on
+# a lock so two switches in quick succession end on the later theme.
+
+set -euo pipefail
+
+OPENCLAW_SOURCE_PATH="$HOME/.local/state/omarchy/current/theme/openclaw.json"
+# Resolved as OpenClaw resolves it, so two spellings of one file are one
+# config here too.
+OPENCLAW_CONFIG_PATH=$(realpath -m -- "${OPENCLAW_CONFIG_PATH:-$HOME/.openclaw/openclaw.json}")
+OPENCLAW_TEMPLATE_PATH="$OMARCHY_PATH/default/themed/openclaw.json.tpl"
+OPENCLAW_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-openclaw.lock"
+OPENCLAW_ONBOARD_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-openclaw-onboard.lock"
+
+# The note belongs to the config it describes; a config elsewhere gets one
+# of its own, so what Omarchy wrote into one never speaks for another.
+OPENCLAW_ACCENT_RECORD="$HOME/.local/state/omarchy/openclaw-accent"
+if [[ $OPENCLAW_CONFIG_PATH != "$(realpath -m -- "$HOME/.openclaw/openclaw.json")" ]]; then
+  OPENCLAW_ACCENT_RECORD+="-$(sha256sum <<<"$OPENCLAW_CONFIG_PATH" | cut -c1-12)"
+fi
+OPENCLAW_ACTIVATE=0
+
+usage() {
+  echo "Usage: omarchy-theme-set-openclaw [--activate]"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --activate)
+      OPENCLAW_ACTIVATE=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ ! -f $OPENCLAW_SOURCE_PATH ]]; then
+  if (( OPENCLAW_ACTIVATE == 1 )); then
+    echo "OpenClaw theme source missing: $OPENCLAW_SOURCE_PATH" >&2
+    echo "Run omarchy-theme-refresh after selecting an Omarchy theme." >&2
+    exit 1
+  fi
+
+  exit 0
+fi
+
+# Only follow an OpenClaw that has been set up: onboarding writes the config,
+# and a config set before then would be an unrecognised file to the wizard.
+if [[ ! -f $OPENCLAW_CONFIG_PATH ]]; then
+  if (( OPENCLAW_ACTIVATE == 1 )); then
+    echo "OpenClaw is not set up yet; finish onboarding, then run omarchy-theme-set-openclaw --activate." >&2
+  fi
+
+  exit 0
+fi
+
+# The command goes with the package, but the config stays behind on purpose
+# when the app is removed, so the config alone does not say OpenClaw is here.
+if omarchy-cmd-missing openclaw; then
+  if (( OPENCLAW_ACTIVATE == 1 )); then
+    echo "OpenClaw is not installed; there is nothing to hand the theme to." >&2
+  fi
+
+  exit 0
+fi
+
+# Onboarding holds its lock while the wizard runs, and reads a config written
+# after it began as the wizard having applied setup; a write now would start
+# its gateway deadline under a wizard still at its prompts. Onboarding hands
+# the theme over itself when it finishes, so this switch is left to that. The
+# lock is held shared for the rest of this run, so an onboarding that starts
+# meanwhile waits for the write to land before it begins.
+exec 8>"$OPENCLAW_ONBOARD_LOCK"
+if ! flock -s -n 8; then
+  if (( OPENCLAW_ACTIVATE == 1 )); then
+    echo "OpenClaw is being set up; the theme is handed over when that finishes." >&2
+  fi
+
+  exit 0
+fi
+
+# Two theme switches in quick succession each run this hook, and the theme
+# lock is released before hooks run; without one of its own the earlier run
+# could write after the later one. The palette is read once, under the lock,
+# so everything below works from the same theme however the file changes
+# meanwhile.
+exec 9>"$OPENCLAW_LOCK"
+flock 9
+palette=$(<"$OPENCLAW_SOURCE_PATH")
+
+# The generated file is held to the shape the template promises before any of
+# it reaches OpenClaw, because a theme may ship its own openclaw.json and a
+# theme missing a palette key renders that key empty and leaves what was
+# derived from it as a literal placeholder. The accent has to be a #rrggbb
+# color or nothing is written; the rest has to be a label and every token the
+# template names, non-empty and without braces, or the accent goes alone,
+# since the Control UI renders a custom theme only whole. OpenClaw validates
+# against its schema on the way in.
+if ! jq -e '.colors.accent | type == "string" and test("^#[0-9a-fA-F]{6}$")' <<<"$palette" >/dev/null 2>&1; then
+  echo "Skipping OpenClaw theme: $(basename "$OPENCLAW_SOURCE_PATH") is not a plain color palette." >&2
+  exit 0
+fi
+
+palette_rendered=1
+if ! jq -e --slurpfile template "$OPENCLAW_TEMPLATE_PATH" '
+  (.label | type == "string" and length > 0) and
+  (($template[0].colors | keys) - (.colors | keys) == []) and
+  ([.colors[]] | all(type == "string" and length > 0 and (test("[{}]") | not)))
+' <<<"$palette" >/dev/null 2>&1; then
+  palette_rendered=0
+fi
+
+# What OpenClaw's config holds for the UI now: the accent the UI shows and
+# the theme selected. A ui section that was never set is an error to config
+# get, told apart by its envelope, and reads as empty here. Any other failed
+# read says nothing about what the UI shows, and an accent the user chose
+# must not be taken for unset, so nothing is written.
+read_ui() {
+  local output
+
+  if output=$(openclaw config get ui --json 2>/dev/null); then
+    if jq -e 'type == "object"' <<<"$output" >/dev/null 2>&1; then
+      printf '%s\n' "$output"
+      return 0
+    fi
+  elif jq -e '.ok == false and (.error.message // "" | test("unset"))' <<<"$output" >/dev/null 2>&1; then
+    echo '{}'
+    return 0
+  fi
+
+  return 1
+}
+
+if ! ui_json=$(read_ui); then
+  echo "Could not read OpenClaw's config; the theme is left as it was. Check with: openclaw config get ui" >&2
+  exit 1
+fi
+
+# The accents Omarchy wrote into ui.prefs.accent: the one it is writing now
+# and, before that, the one it found there and judged its own. The note is
+# written before the config is, so a run that stops between the two leaves
+# the config holding an accent the note still names either way. An accent
+# shown where there is no note was never Omarchy's.
+written='[]'
+if [[ -f $OPENCLAW_ACCENT_RECORD ]]; then
+  written=$(jq -R . "$OPENCLAW_ACCENT_RECORD" | jq -cs .)
+fi
+
+# What the installed OpenClaw accepts. Asking its schema rather than trying
+# the write keeps a rejected batch, and the noise of one, off the theme switch.
+palette_supported=0
+if openclaw config schema --json 2>/dev/null | jq -e '.properties.ui.properties.customTheme' >/dev/null 2>&1; then
+  palette_supported=1
+fi
+
+if (( palette_supported == 1 && palette_rendered == 0 )); then
+  echo "OpenClaw gets the accent alone: $(basename "$OPENCLAW_SOURCE_PATH") has unresolved colors, so the palette is not published." >&2
+fi
+
+# The palette rides as the light and dark maps the custom theme family
+# expects; an Omarchy theme is one or the other, so both carry the same colors
+# and the mode the UI already follows from the desktop decides nothing.
+batch=$(jq -c \
+  --argjson ui "$ui_json" \
+  --argjson written "$written" \
+  --argjson palette "$(( palette_supported && palette_rendered ))" '
+  (($ui.seamColor // "") | ascii_downcase) as $published
+  | (($ui.prefs.accent // "") | ascii_downcase) as $shown
+  | ($written | map(ascii_downcase)) as $written
+  | ($ui.prefs.theme // "") as $selected
+  | ($shown == "" or ($shown | IN($written[]))) as $ours
+  | [{path: "ui.seamColor", value: .colors.accent}]
+  + (if $ours then [{path: "ui.prefs.accent", value: .colors.accent}] else [] end)
+  + (if $palette == 1 then
+      [{path: "ui.customTheme", value: {label: .label, light: .colors, dark: .colors}}]
+    else [] end)
+  + (if $palette == 1 and $selected == "" then
+      [{path: "ui.prefs.theme", value: "custom"}]
+    else [] end)
+' <<<"$palette")
+
+# The note is what is going into the config, taken from the batch itself:
+# the theme can change under a slow write, and a note of the new theme
+# against an accent of the old would read that accent as the user's. Behind
+# it goes the accent shown now, Omarchy's own or the batch would not carry
+# one, which is what the config keeps if the write never lands; where none
+# is shown, the accent noted before stays.
+accent_written=0
+if jq -e 'any(.[]; .path == "ui.prefs.accent")' <<<"$batch" >/dev/null; then
+  accent_written=1
+  mkdir -p "$(dirname "$OPENCLAW_ACCENT_RECORD")"
+  tmp=$(mktemp "$OPENCLAW_ACCENT_RECORD.XXXXXX")
+  jq -r --argjson ui "$ui_json" --argjson written "$written" '
+    (.[] | select(.path == "ui.prefs.accent") | .value) as $accent
+    | ($ui.prefs.accent // $written[0]) as $before
+    | ([$accent] + ([$before] - [$accent, null]))[]
+  ' <<<"$batch" >"$tmp"
+  mv "$tmp" "$OPENCLAW_ACCENT_RECORD"
+fi
+
+# A write that failed may still have landed: OpenClaw persists and then goes
+# on working before it exits, so the config is asked again. An accent that
+# landed is noted alone, as after a clean write; one that did not comes out
+# of the note again, since left there, choosing that very accent in OpenClaw
+# later would read as Omarchy's own. When even that read fails, the note
+# keeps both accents, which is right whichever the config holds.
+if ! openclaw config set --batch-json "$batch" >/dev/null; then
+  if (( accent_written == 1 )); then
+    accent=$(jq -r '.[] | select(.path == "ui.prefs.accent") | .value' <<<"$batch")
+    if after=$(read_ui); then
+      tmp=$(mktemp "$OPENCLAW_ACCENT_RECORD.XXXXXX")
+      if [[ $(jq -r '.prefs.accent // "" | ascii_downcase' <<<"$after") == "${accent,,}" ]]; then
+        printf '%s\n' "$accent" >"$tmp"
+        mv "$tmp" "$OPENCLAW_ACCENT_RECORD"
+      elif [[ $written == "[]" ]]; then
+        rm -f "$tmp" "$OPENCLAW_ACCENT_RECORD"
+      else
+        jq -r '.[]' <<<"$written" >"$tmp"
+        mv "$tmp" "$OPENCLAW_ACCENT_RECORD"
+      fi
+    fi
+  fi
+
+  echo "OpenClaw did not accept the Omarchy theme; check with: openclaw config validate" >&2
+  exit 1
+fi
+
+# Once the write has landed the accent found before is no longer Omarchy's
+# claim: left in the note, choosing it again in OpenClaw would read as
+# Omarchy's own.
+if (( accent_written == 1 )); then
+  tmp=$(mktemp "$OPENCLAW_ACCENT_RECORD.XXXXXX")
+  jq -r '.[] | select(.path == "ui.prefs.accent") | .value' <<<"$batch" >"$tmp"
+  mv "$tmp" "$OPENCLAW_ACCENT_RECORD"
+fi
+
+# A theme switch leaves a choice made in OpenClaw without comment; the
+# install-time step says what it left and how to switch.
+(( OPENCLAW_ACTIVATE == 1 )) || exit 0
+
+if (( accent_written == 0 )); then
+  echo "OpenClaw is set to an accent of its own; leaving it. Restore the default in its Appearance settings to follow the theme." >&2
+fi
+
+selected=$(jq -r '$ui.prefs.theme // ""' --argjson ui "$ui_json" -n)
+if (( palette_supported == 1 )) && [[ -n $selected && $selected != "custom" ]]; then
+  echo "OpenClaw is set to the '$selected' theme; leaving it. Switch with: openclaw config set ui.prefs.theme custom" >&2
+fi

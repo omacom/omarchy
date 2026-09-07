@@ -23,6 +23,9 @@ omarchy-webapp-install OpenClaw "http://127.0.0.1:18789" \
 # prompts, gateway as a user service, and it actually returns). A machine
 # that is already onboarded goes straight to the app.
 if [[ -f $HOME/.openclaw/openclaw.json ]]; then
+  # Onboarding hands the theme over itself; a machine that kept its OpenClaw
+  # setup through a remove and reinstall gets it here instead.
+  omarchy-theme-set-openclaw --activate || true
   echo "Opening OpenClaw..."
   setsid uwsm-app -- gtk-launch OpenClaw >/dev/null 2>&1 &
 elif omarchy-openclaw-onboard && [[ -f $HOME/.openclaw/openclaw.json ]]; then
