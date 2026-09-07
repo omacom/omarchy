@@ -47,17 +47,40 @@ if ! (LC_ALL=C; [[ $THEME_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]); then
   exit 1
 fi
 
-# Remove existing theme if present
-if [[ -d $THEME_PATH ]]; then
-  rm -rf "$THEME_PATH"
+mkdir -p "$THEMES_DIR" || exit 1
+exec 9>"$THEMES_DIR/.${THEME_NAME}.install.lock"
+if ! flock -n 9; then
+  echo "Error: '$THEME_NAME' is already being installed." >&2
+  exit 1
 fi
 
-# Clone the repo directly to ~/.config/omarchy/themes
-if ! git clone -- "$REPO_URL" "$THEME_PATH"; then
+staging=$(mktemp -d "$THEMES_DIR/.${THEME_NAME}.install.XXXXXX") || exit 1
+backup=""
+cleanup() {
+  # Restore the old path if publishing the clone failed or was interrupted.
+  if [[ -n $backup && ( -e $backup/theme || -L $backup/theme ) && ! -e $THEME_PATH && ! -L $THEME_PATH ]]; then
+    mv -T -- "$backup/theme" "$THEME_PATH" ||
+      echo "Could not restore the previous theme; it remains at $backup/theme" >&2
+  fi
+  rm -rf -- "$staging"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Finish the download before touching the existing theme or its local edits.
+if ! git clone -- "$REPO_URL" "$staging/$THEME_NAME"; then
   echo "Error: Failed to clone theme repo."
   exit 1
 fi
 
+if [[ -e $THEME_PATH || -L $THEME_PATH ]]; then
+  backup=$(mktemp -d "$THEMES_DIR/.${THEME_NAME}.backup.XXXXXX") || exit 1
+  mv -T -- "$THEME_PATH" "$backup/theme" || exit 1
+  echo "Previous theme saved at $backup/theme"
+fi
+mv -T -- "$staging/$THEME_NAME" "$THEME_PATH" || exit 1
+
 # Apply the new theme with omarchy-theme-set, which stages only the files an
 # extra theme is allowed to contribute and names anything it dropped.
-omarchy-theme-set "$THEME_NAME"
+omarchy-theme-set "$THEME_NAME" 9>&-
