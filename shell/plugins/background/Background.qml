@@ -30,6 +30,18 @@ Item {
 
   readonly property real slant: -0.18
 
+  readonly property var backgroundConfig: shell && shell.shellConfig && shell.shellConfig.background
+    ? shell.shellConfig.background : ({})
+
+  // "layout" carries one front across every output; "output" restores a wipe
+  // per output, each opening at its own centre. Anything unset means "layout".
+  readonly property bool wipeAcrossLayout: String(backgroundConfig.transition || "layout") !== "output"
+
+  // A positive transitionDuration pins the reveal; anything else derives it.
+  readonly property int configuredDuration: Number(backgroundConfig.transitionDuration) > 0
+    ? Math.round(Number(backgroundConfig.transitionDuration))
+    : 0
+
   // The wipe is one front travelling across the whole output layout rather
   // than an independent wipe per output. It starts at the centre of the output
   // the change was made on and continues onto the others according to where
@@ -55,9 +67,11 @@ Item {
   readonly property real globalReach: reachOver(Quickshell.screens, originX, originY)
   readonly property real originReach: reachOver(
     originScreen ? [originScreen] : Quickshell.screens, originX, originY)
-  readonly property int revealDuration: originReach > 0
-    ? Math.min(900, Math.round(420 * (globalReach / originReach)))
-    : 420
+  readonly property int revealDuration: {
+    if (configuredDuration > 0) return configuredDuration
+    if (!wipeAcrossLayout || originReach <= 0) return 420
+    return Math.min(900, Math.round(420 * (globalReach / originReach)))
+  }
 
   function screenByName(name) {
     if (!name) return null
@@ -426,9 +440,15 @@ Item {
         readonly property real slant: root.slant
         readonly property real dx: root.originX - (panel.screen ? panel.screen.x : 0)
         readonly property real originDy: (panel.screen ? panel.screen.y : 0) - root.originY
-        readonly property real centerTop: dx + slant * originDy
-        readonly property real centerBottom: dx + slant * (originDy + height)
-        readonly property real spread: root.globalReach * root.revealProgress
+        readonly property real localReach: width / 2 + Math.abs(slant) * height / 2 + 4
+        readonly property real centerTop: root.wipeAcrossLayout
+          ? dx + slant * originDy
+          : width / 2 - slant * height / 2
+        readonly property real centerBottom: root.wipeAcrossLayout
+          ? dx + slant * (originDy + height)
+          : width / 2 + slant * height / 2
+        readonly property real spread: (root.wipeAcrossLayout ? root.globalReach : localReach)
+          * root.revealProgress
 
         Shape {
           anchors.fill: parent
