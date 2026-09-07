@@ -89,7 +89,7 @@ SH
 chmod +x "$stub_bin/omarchy-refresh-plymouth" "$stub_bin/omarchy-refresh-sddm"
 
 : >"$calls"
-HOME="$test_home" CALLS="$calls" PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-plymouth-reset"
+HOME="$test_home" OMARCHY_PATH="$test_tmp" CALLS="$calls" PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-plymouth-reset"
 [[ ! -e $state_file ]] || fail "reset leaves the custom unlock theme remembered"
 [[ $(tr '\n' ' ' <"$calls") == "plymouth sddm " ]] || fail "reset does not refresh both unlock surfaces"
 pass "reset forgets the custom unlock theme"
