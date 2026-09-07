@@ -643,9 +643,11 @@ Panel {
     var next = Model.parseKeyValue(raw)
 
     // The stock status script classifies any routed non-wireless interface
-    // as ethernet, which mislabels the modem's netdev (cdc-wdm0). Relabel
-    // it as wwan and pin the cellular readings the hero header shows.
-    if (next.iface && wwan.netdev && next.iface === wwan.netdev) {
+    // as ethernet, which mislabels the modem's bearer interface (wwan0).
+    // Relabel it as wwan and pin the cellular readings the hero header
+    // shows — matching the IP interface, since NM names the broadband
+    // device itself by its control netdev (cdc-wdm0).
+    if (next.iface && wwan.netif && next.iface === wwan.netif) {
       next.type = "wwan"
       next.wwan_signal = wwan.signal
       next.wwan_tech = wwan.tech

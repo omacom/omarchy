@@ -11,7 +11,7 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.
 // The probe output format is a contract with Model.wwanStatusScript; parse
 // every field and both line kinds, including the empty-modem fallbacks.
 const status = network.parseWwanStatus(
-  'wwan\tregistered\t73\tlte\tCHINA MOBILE\tenabled\tcdc-wdm0\n' +
+  'wwan\tregistered\t73\tlte\tCHINA MOBILE\tenabled\tcdc-wdm0\twwan0\n' +
   'profile\tChina Mobile LTE\tfb1b894e-6bad-4383-8930-cea5be8cadf7\tno\n')
 assertEqual(status.available, true, 'a modem answering makes wwan available')
 assertEqual(status.state, 'registered', 'registration state parses')
@@ -19,7 +19,8 @@ assertEqual(status.signal, 73, 'signal quality parses as a number')
 assertEqual(status.tech, 'lte', 'access technology parses')
 assertEqual(status.operator, 'CHINA MOBILE', 'operator name parses')
 assertEqual(status.radio, 'enabled', 'radio kill switch state parses')
-assertEqual(status.netdev, 'cdc-wdm0', 'netdev parses so updateDetails can relabel it')
+assertEqual(status.netdev, 'cdc-wdm0', 'the NM control device parses for device-level actions')
+assertEqual(status.netif, 'wwan0', 'the bearer IP interface parses so updateDetails can relabel it')
 assertEqual(status.profiles.length, 1, 'one GSM profile row parses')
 assertEqual(status.profiles[0].name, 'China Mobile LTE', 'profile name parses')
 assertEqual(status.profiles[0].active, false, 'inactive profile parses')
@@ -33,10 +34,10 @@ assertEqual(none.profiles.length, 0, 'no probe output lists no profiles')
 
 // jq emits empty fields when the modem has no operator cached yet; the
 // header line keeps its column count and every field falls back cleanly.
-const sparse = network.parseWwanStatus('wwan\t\t\t\t\tenabled\tcdc-wdm0')
+const sparse = network.parseWwanStatus('wwan\t\t\t\t\tenabled\tcdc-wdm0\tcdc-wdm0')
 assertEqual(sparse.available, true, 'a modem without cached readings is still available')
 assertEqual(sparse.state, '', 'missing state falls back to empty')
-assertEqual(sparse.signal, -1, 'missing signal falls back to -1, which renders the empty-bars icon')
+assertEqual(sparse.netif, 'cdc-wdm0', 'a modem without a bearer yet falls back to the control device for netif')
 assertEqual(sparse.operator, '', 'missing operator falls back to empty')
 // Active profiles sort first so the connected row tops the section.
 const ordered = network.parseWwanStatus(
@@ -83,7 +84,7 @@ assert(/visible: root\.wwanAvailable && root\.wwanProfiles\.length > 0/.test(sec
 
 // updateDetails relabels the modem netdev the stock status script files
 // under ethernet, so the hero shows cellular state for a routed modem.
-assert(/next\.iface === wwan\.netdev/.test(panelSource), 'details relabel the modem netdev as wwan')
+assert(/next\.iface === wwan\.netif/.test(panelSource), 'details relabel the bearer interface as wwan')
 
 // Cellular state must not leak into the connection pool the wifi rows use:
 // the probe result lands on its own property.

@@ -72,6 +72,7 @@ function parseWwanStatus(raw) {
     operator: "",
     radio: "",
     netdev: "",
+    netif: "",
     profiles: []
   }
   var lines = String(raw || "").replace(/\r?\n+$/, "").split("\n")
@@ -85,7 +86,11 @@ function parseWwanStatus(raw) {
       status.tech = parts[3] || ""
       status.operator = parts[4] || ""
       status.radio = parts[5] || ""
+      // NM names the broadband device by its control netdev (cdc-wdm0), but
+      // the IP interface carrying the bearer can differ (wwan0); callers
+      // relabel details by netif and act on the device by netdev.
       status.netdev = parts[6] || ""
+      status.netif = parts[7] || parts[6] || ""
     } else if (parts[0] === "profile" && parts.length >= 4) {
       status.profiles.push({
         name: parts[1] || "",
@@ -430,10 +435,12 @@ var wwanStatusScript =
   "dev=$(nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2 == \"gsm\" { print $1; exit }'); " +
   "[ -n \"$m\" ] || [ -n \"$dev\" ] || exit 0; " +
   "radio=$(nmcli -t -f wwan radio 2>/dev/null); " +
+  "netif=$(nmcli -g GENERAL.IP-IFACE device show \"$dev\" 2>/dev/null); " +
+  "[ -n \"$netif\" ] || netif=\"$dev\"; " +
   "if [ -n \"$m\" ] && vals=$(printf '%s' \"$m\" | jq -r '[(.modem.generic.state // \"\"), (.modem.generic[\"signal-quality\"].value // -1), (.modem.generic[\"access-technologies\"][0] // \"\"), ((.modem[\"3gpp\"][\"operator-name\"] // .modem[\"3gpp\"][\"operator-code\"]) // \"\")] | @tsv' 2>/dev/null) && [ -n \"$vals\" ]; then " +
-  "printf 'wwan\\t%s\\t%s\\t%s\\n' \"$vals\" \"$radio\" \"$dev\"; " +
+  "printf 'wwan\\t%s\\t%s\\t%s\\t%s\\n' \"$vals\" \"$radio\" \"$dev\" \"$netif\"; " +
   "else " +
-  "printf 'wwan\\t\\t\\t\\t\\t%s\\t%s\\n' \"$radio\" \"$dev\"; fi; " +
+  "printf 'wwan\\t\\t\\t\\t\\t%s\\t%s\\t%s\\n' \"$radio\" \"$dev\" \"$netif\"; fi; " +
   "nmcli -t -f NAME,UUID,ACTIVE,TYPE connection show 2>/dev/null | awk '$0 ~ /:gsm$/ { line=$0; sub(/:gsm$/, \"\", line); active=line; sub(/^.*:/, \"\", active); sub(/:[^:]*$/, \"\", line); uuid=line; sub(/^.*:/, \"\", uuid); sub(/:[^:]*$/, \"\", line); name=line; gsub(/\\\\:/, \":\", name); printf \"profile\\t%s\\t%s\\t%s\\n\", name, uuid, active }'"
 
 function networkFailureReason(reason, needsCredentials, reasons) {
