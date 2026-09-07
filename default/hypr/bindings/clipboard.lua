@@ -34,8 +34,12 @@ end
 
 local function universal_clipboard_shortcut(default_mods, default_key, terminal_mods, terminal_key)
   return function()
+    local window = hl.get_active_window()
     if active_window_is_terminal() then
       send_shortcut_once(terminal_mods, terminal_key)()
+    elseif default_key == "V" and window and window.class == "chatgpt" then
+      -- Codex's embedded terminal and composer both accept Shift+Insert.
+      send_shortcut_once("SHIFT", "Insert")()
     else
       send_shortcut_once(default_mods, default_key)()
     end
