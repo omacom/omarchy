@@ -725,7 +725,13 @@ ShellRoot {
     if (!manifest || manifest.__isFirstParty) return shell
     var key = String(manifest.id || "")
     if (!key) return null
-    return shell.createScopedPluginShell(manifest, key, true, shell.pluginHasBarCapabilities(manifest))
+    // A manifest handed through a QObject model (e.g. the panel
+    // Instantiator's modelData) arrives as a QVariantMap: nested arrays are
+    // no longer JS Arrays, so kind checks would under-declare capabilities.
+    // The registry always holds the raw manifest for this id; prefer it.
+    var raw = shell.pluginRegistry ? shell.pluginRegistry.installedPlugins[key] : null
+    var resolved = raw && raw.id === key ? raw : manifest
+    return shell.createScopedPluginShell(resolved, key, true, shell.pluginHasBarCapabilities(resolved))
   }
 
   function pluginRegistryFor(manifest) {
