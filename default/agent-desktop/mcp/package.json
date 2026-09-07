@@ -1,0 +1,23 @@
+{
+  "name": "hypr-desktop-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MCP server for on-demand nested desktops on Hyprland",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/express": "^2.0.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "express": "^5.1.0",
+    "zod": "^4.0.0",
+    "@modelcontextprotocol/client": "^2.0.0"
+  }
+}
