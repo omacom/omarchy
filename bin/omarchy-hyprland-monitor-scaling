@@ -93,6 +93,8 @@ set_scale() {
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
+  local persisted_gdk_scale=false
+  local sync_failed=false
 
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
@@ -100,16 +102,36 @@ set_scale() {
   # Persist to monitors.lua if the user still has Omarchy's generic catch-all
   # defaults, so the scale survives reboots.
   if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
-    sed -i -E \
+    if sed -i -E \
       -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
       -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
-      "$monitor_lua"
+      "$monitor_lua" &&
+      grep -Fxq "local omarchy_gdk_scale = ${new_gdk_scale}" "$monitor_lua"; then
+      persisted_gdk_scale=true
+    fi
   elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
+    if sed -i -E \
       -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
       -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-      "$monitor_lua"
+      "$monitor_lua" &&
+      grep -Fxq "hl.env(\"GDK_SCALE\", \"${new_gdk_scale}\")" "$monitor_lua"; then
+      persisted_gdk_scale=true
+    fi
   fi
+
+  if [[ $persisted_gdk_scale == true ]]; then
+    if ! hyprctl eval "hl.env(\"GDK_SCALE\", \"$new_gdk_scale\")" >/dev/null; then
+      echo "Failed to update Hyprland GDK_SCALE environment" >&2
+      sync_failed=true
+    fi
+
+    if ! dbus-update-activation-environment --systemd "GDK_SCALE=$new_gdk_scale"; then
+      echo "Failed to update systemd and D-Bus GDK_SCALE environment" >&2
+      sync_failed=true
+    fi
+  fi
+
+  [[ $sync_failed == false ]]
 }
 
 scale_from_current() {

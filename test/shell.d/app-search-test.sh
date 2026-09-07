@@ -100,8 +100,8 @@ assert(
 
 assert(
   /function launch\(desktopId, name\) \{[\s\S]*?uwsm-app[\s\S]*?\n  \}/.test(appLibraryQml) &&
-    appLibraryQml.includes('Util.execDetached("uwsm-app -- gtk-launch "'),
-  'app library launches desktop entries through gtk-launch in their own scope'
+    appLibraryQml.includes('Util.execDetached("uwsm-app -t service -- gtk-launch "'),
+  'app library launches desktop entries through gtk-launch in a UWSM service'
 )
 
 assert(
