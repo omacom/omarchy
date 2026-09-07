@@ -368,11 +368,15 @@ assert(
   'bar command module only falls back to configured text when command output is absent'
 )
 assert(
+  /property var outputTooltip/.test(barSource),
+  'bar command module tooltip state starts undefined so configured tooltips render before first command output'
+)
+assert(
   /var tooltip = Util\.isPlainObject\(data\) \? data\.tooltip : undefined/.test(barSource),
   'bar command module reads tooltip only from waybar-style JSON'
 )
 assert(
-  /outputTooltip = tooltip === undefined \|\| tooltip === null \? String\(setting\("tooltip", ""\)\) : String\(tooltip\)/.test(barSource),
+  /outputTooltip = tooltip === undefined \|\| tooltip === null \? undefined : String\(tooltip\)/.test(barSource),
   'bar command module treats missing and null tooltip as absent, empty tooltip as explicit'
 )
 assert(

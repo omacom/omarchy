@@ -1784,7 +1784,7 @@ Item {
     readonly property string moduleName: root.entryId(entry)
     readonly property var settings: root.entrySettings(entry)
     property var outputText
-    property string outputTooltip: ""
+    property var outputTooltip
     property bool outputActive: false
 
     function setting(name, fallback) {
@@ -1802,7 +1802,7 @@ Item {
       outputText = text === undefined || text === null ? undefined : String(text)
 
       var tooltip = Util.isPlainObject(data) ? data.tooltip : undefined
-      outputTooltip = tooltip === undefined || tooltip === null ? String(setting("tooltip", "")) : String(tooltip)
+      outputTooltip = tooltip === undefined || tooltip === null ? undefined : String(tooltip)
 
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
