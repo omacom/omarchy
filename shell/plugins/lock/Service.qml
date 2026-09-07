@@ -20,6 +20,7 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property int fingerprintFailureCount: 0
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
@@ -130,6 +131,7 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintFailureCount = 0
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
@@ -248,6 +250,13 @@ Item {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
+    // Each fresh verify attempt is a good moment for the panel to be lit: the
+    // user is actively presenting a finger and expects to see the prompt, and
+    // this also re-arms the idle-blank countdown so a run of retries doesn't
+    // sit in the dark the whole time (fingerprint activity otherwise never
+    // resets it - see idleBlankTimer's onTriggered comment).
+    runWake()
+
     fingerprintAuthenticating = true
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
@@ -261,8 +270,21 @@ Item {
     if (result === PamResult.Success) {
       finishUnlock()
     } else if (fingerprintConfigured) {
-      fingerprintRetryTimer.restart()
+      scheduleFingerprintRetry()
     }
+  }
+
+  // Some fingerprint readers (e.g. Goodix) trip a firmware thermal-protection
+  // cutoff ("Device disabled to prevent overheating") when scanned too fast
+  // too often. Retrying at a fixed short interval regardless of how many
+  // times it just failed can hammer the sensor into that state and then spin
+  // on it forever, since every retry after that fails instantly too. Back
+  // off exponentially after a few consecutive failures instead.
+  function scheduleFingerprintRetry() {
+    fingerprintFailureCount += 1
+    var backoffSteps = Math.max(0, fingerprintFailureCount - 3)
+    fingerprintRetryTimer.interval = Math.min(250 * Math.pow(2, backoffSteps), 15000)
+    fingerprintRetryTimer.restart()
   }
 
   WlSessionLock {
@@ -390,7 +412,7 @@ Item {
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      if (root.lockRequested && root.fingerprintConfigured) root.scheduleFingerprintRetry()
     }
   }
 
