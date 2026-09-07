@@ -1670,7 +1670,6 @@ always_copy_config_files=(
   hypr/monitors.lua
   omarchy/extensions/omarchy-menu.jsonc
   omarchy/hooks/pre-refresh-pacman.d/add-custom-repo.sample
-  omarchy/shell.json
 )
 
 migrate_uwsm_env_customizations() {
@@ -2371,12 +2370,20 @@ configure_lock_authentication
 migrate_1password_beta_package
 cleanup_legacy_user_paths
 apply_system_transition
+# Existing shell settings belong to the user, including on a retry of the upgrade.
+# Remember this before missing defaults are copied by the user transition.
+preserve_shell_config=0
+if [[ -e $target_home/.config/omarchy/shell.json || -L $target_home/.config/omarchy/shell.json ]]; then
+  preserve_shell_config=1
+fi
 apply_user_transition
 apply_user_hardware_transition
 run_as_user_omarchy omarchy-refresh-applications ||
   warn "Could not refresh application launchers; run 'omarchy refresh applications' after reboot."
-run_as_user_omarchy omarchy-bar defaults ||
-  warn "Could not restore the default bar widgets; run 'omarchy bar defaults' after reboot."
+if (( ! preserve_shell_config )); then
+  run_as_user_omarchy omarchy-bar defaults ||
+    warn "Could not restore the default bar widgets; run 'omarchy bar defaults' after reboot."
+fi
 cleanup_retired_services
 ensure_sleep_lock_service
 remove_retired_default_packages
