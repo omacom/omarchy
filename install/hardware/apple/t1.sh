@@ -22,9 +22,12 @@ if [[ $sys_vendor == "Apple Inc." && $product_name =~ ^MacBookPro(13,[23]|14,[23
     "$OMARCHY_PATH/default/systemd/user/t1-touchbar.service.d/20-omarchy-desktop-provider.conf" \
     /etc/systemd/user/t1-touchbar.service.d/20-omarchy-desktop-provider.conf
 
-  # The T1 initiates xART storage over its fixed link-local protocol address.
-  # T1Bridge independently binds and validates the dynamically discovered link.
-  ufw allow in proto tcp from fe80::aede:48ff:fe33:4455 to any port 61500 \
+  # Name only the link matched by T1Bridge's driver-specific .link file.
+  # This keeps the persistent firewall exception off every other interface.
+  install -Dm644 \
+    "$OMARCHY_INSTALL/hardware/apple/20-omarchy-private-link.conf" \
+    /etc/systemd/network/50-t1bridge-ncm.link.d/20-omarchy-private-link.conf
+  ufw allow in on t1bridge0 proto tcp from fe80::aede:48ff:fe33:4455 to any port 61500 \
     comment "omarchy-t1bridge" >/dev/null
 
   install -d -m 0755 -o root -g root /var/lib/omarchy/t1bridge-import

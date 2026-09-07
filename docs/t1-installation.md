@@ -2,6 +2,8 @@
 
 T1 hardware setup installs the driver, fingerprint package pair, kernel headers, desktop provider, and first-boot importer. Users enable fingerprint authentication through the existing wizard. Custom fingerprint menus, lock-screen changes, and legacy PAM migration are separate work.
 
+A drop-in names the private T1 interface `t1bridge0`; the xART firewall rule permits only its peer on that interface.
+
 ## Before merging
 
 The ISO installs offline. Its configured repositories must supply all four T1Bridge packages in `install/omarchy-other.packages`. They currently exist in the [Standard Agents repository](https://github.com/standardagents/t1bridge#install-official-packages), but not Omarchy stable. Admit the four recipes to the selected Omarchy channel before building the ISO; the package list alone cannot make the build succeed.

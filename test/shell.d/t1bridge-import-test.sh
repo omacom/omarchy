@@ -55,7 +55,9 @@ STUB
 
 cat >"$stub_bin/ufw" <<'STUB'
 #!/bin/bash
-exit 0
+printf 'ufw' >>"$CALLS"
+printf '\t%s' "$@" >>"$CALLS"
+printf '\n' >>"$CALLS"
 STUB
 
 chmod +x "$stub_bin"/*
@@ -83,6 +85,7 @@ run_hardware_leaf() {
     -e "s|/var/lib/omarchy|$sandbox/var/lib/omarchy|g" \
     -e "s|/etc/systemd/system|$sandbox/etc/systemd/system|g" \
     -e "s|/etc/systemd/user|$sandbox/etc/systemd/user|g" \
+    -e "s|/etc/systemd/network|$sandbox/etc/systemd/network|g" \
     -e 's|install -d -m 0755 -o root -g root|install -d -m 0755|' \
     "$ROOT/install/hardware/apple/t1.sh" >"$script"
   PATH="$stub_bin:$PATH" OMARCHY_PATH="$ROOT" OMARCHY_INSTALL="$ROOT/install" \
@@ -93,12 +96,15 @@ run_hardware_leaf() {
 for model in MacBookPro13,2 MacBookPro13,3 MacBookPro14,2 MacBookPro14,3; do
   : >"$calls"
   sandbox=$(run_hardware_leaf "$model")
-  [[ $(<"$calls") == $'package\tlinux-headers\tt1bridge-dkms\tt1bridge\tlibfprint-t1bridge\tfprintd-t1bridge\nsystemctl\tdaemon-reload' ]] ||
+  [[ $(<"$calls") == $'package\tlinux-headers\tt1bridge-dkms\tt1bridge\tlibfprint-t1bridge\tfprintd-t1bridge\nufw\tallow\tin\ton\tt1bridge0\tproto\ttcp\tfrom\tfe80::aede:48ff:fe33:4455\tto\tany\tport\t61500\tcomment\tomarchy-t1bridge\nsystemctl\tdaemon-reload' ]] ||
     fail "T1 hardware setup installs the core and standard fingerprint packages" "$(<"$calls")"
   grep -qxF t1bridge "$sandbox/var/lib/omarchy/provisioning/groups" ||
     fail "T1 hardware setup records renderer socket membership"
   [[ -f $sandbox/etc/systemd/user/t1-touchbar.service.d/20-omarchy-desktop-provider.conf ]] ||
     fail "T1 hardware setup installs the desktop-provider drop-in"
+  link_override="$sandbox/etc/systemd/network/50-t1bridge-ncm.link.d/20-omarchy-private-link.conf"
+  [[ $(<"$link_override") == $'[Link]\nNamePolicy=\nName=t1bridge0' ]] ||
+    fail "T1 link naming and the scoped firewall rule must agree"
   [[ $(<"$sandbox/var/lib/omarchy/t1bridge-import/enabled") == "enabled" ]] ||
     fail "T1 hardware setup arms the automatic importer"
   [[ -f $sandbox/etc/systemd/system/omarchy-t1bridge-import.service ]] ||
