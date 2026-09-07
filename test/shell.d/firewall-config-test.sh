@@ -49,3 +49,43 @@ grep -q '^ufw-docker install$' "$TEST_LOG" || fail "ufw-docker rules are install
 grep -q '^systemctl enable ufw$' "$TEST_LOG" || fail "ufw is enabled for next boot"
 
 pass "firewall config installs ufw-docker rules without activating live UFW"
+
+# Exercise the real setup order. An enabled UFW would try to apply the
+# hardware rule to the live kernel instead of only saving target config.
+fixture="$stub_dir/setup"
+mkdir -p "$fixture"/{bin,install/{helpers,config,login,post-install}}
+cp "$ROOT/install/config/all.sh" "$fixture/install/config/all.sh"
+for leaf in "$ROOT"/install/config/*.sh; do
+  [[ $(basename "$leaf") == all.sh ]] || touch "$fixture/install/config/$(basename "$leaf")"
+done
+cat >"$fixture/install/helpers/logging.sh" <<'STUB'
+start_install_log() { :; }
+stop_install_log() { :; }
+run_logged() { source "$1"; }
+STUB
+cat >"$fixture/install/config/firewall.sh" <<'STUB'
+[[ -f $OMARCHY_PATH/hardware-rule ]] || return 1
+touch "$OMARCHY_PATH/firewall-enabled"
+STUB
+cat >"$fixture/bin/omarchy-apply-hardware" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+[[ ! -e $OMARCHY_PATH/firewall-enabled ]]
+touch "$OMARCHY_PATH/hardware-rule"
+STUB
+cat >"$fixture/install/login/all.sh" <<'STUB'
+[[ -f $OMARCHY_PATH/firewall-enabled ]] || return 1
+STUB
+touch "$fixture/install/post-install/all.sh"
+chmod +x "$fixture/bin/omarchy-apply-hardware"
+
+if (( EUID == 0 )); then
+  root_command=()
+else
+  root_command=(unshare --user --map-root-user)
+fi
+"${root_command[@]}" env OMARCHY_PATH="$fixture" OMARCHY_INSTALL="$fixture/install" \
+  bash "$ROOT/bin/omarchy-apply-system" --defer-provisioning --first-install
+[[ -f $fixture/hardware-rule && -f $fixture/firewall-enabled ]] ||
+  fail "system setup saves hardware rules before enabling UFW"
+pass "system setup finalizes the firewall after hardware rules"

@@ -96,6 +96,10 @@ else
   omarchy-apply-hardware --install-user "$install_user"
 fi
 
+# Hardware setup may add UFW rules. Save them before firewall setup marks
+# UFW enabled; otherwise ufw tries to apply them to the live chroot kernel.
+run_logged "$OMARCHY_INSTALL/config/firewall.sh"
+
 source "$OMARCHY_INSTALL/login/all.sh"
 source "$OMARCHY_INSTALL/post-install/all.sh"
 
