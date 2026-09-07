@@ -1,0 +1,202 @@
+#!/bin/bash
+
+# omarchy:summary=Stage and screenshot the current theme's terminals
+# omarchy:args=[output.png] [--site output.webp] [--ws N] [--keep] [--verbose]
+# omarchy:examples=omarchy dev theme-screenshot | omarchy dev theme-screenshot shot.png --site gallery.webp
+
+# Every theme ships a screenshot in its README and on the themes gallery, and
+# until now it was staged by hand: open the right windows, size them, hide the
+# cursor, shoot, clean up. This does that reproducibly for the CURRENT theme:
+# fastfetch on the left with the theme's active background as its sixel logo,
+# the palette preview and btop stacked on the right, floated into a fixed
+# composition on a spare workspace, captured from one monitor with grim.
+#
+# Windows are floated and placed rather than tiled because the dwindle split
+# direction depends on runtime state; a screenshot wants the same composition
+# every run. Placement order matters: an exact resize re-centres a floating
+# window, and the x+y move is absolute, so each pane is floated, then sized,
+# then moved. A workspace focus lands on whichever monitor is focused, so the
+# biggest unrotated landscape output is focused first — a half-width btop on
+# a portrait monitor is under 80 columns and refuses to draw.
+
+OUTPUT=""
+SITE_OUTPUT=""
+WS=8
+KEEP=""
+VERBOSE=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --site)
+    shift
+    SITE_OUTPUT="$1"
+    ;;
+  --ws)
+    shift
+    WS="$1"
+    ;;
+  --keep) KEEP=1 ;;
+  --verbose) VERBOSE=1 ;;
+  *) OUTPUT="$1" ;;
+  esac
+  shift
+done
+
+for cmd in hyprctl grim magick jq fastfetch btop omarchy-dev-theme-preview xdg-terminal-exec; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo "omarchy-dev-theme-screenshot requires $cmd" >&2
+    exit 1
+  fi
+done
+
+THEME_NAME=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+OUTPUT="${OUTPUT:-$PWD/${THEME_NAME:-theme}-screenshot.png}"
+
+hypr_dispatch() {
+  local lua="$1"
+  shift
+  hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null 2>&1
+}
+
+CLASS_PREFIX="org.omarchy.themeshot"
+
+addr_by_class() {
+  hyprctl clients -j | jq -r --arg c "$1" '.[] | select(.class == $c) | .address' | head -1
+}
+
+close_shot_windows() {
+  local address
+  while IFS= read -r address; do
+    [[ -n $address ]] || continue
+    hypr_dispatch "hl.dsp.window.close({ window = \"address:$address\" })" closewindow "address:$address"
+  done < <(hyprctl clients -j | jq -r --arg p "$CLASS_PREFIX" '.[] | select(.class | startswith($p)) | .address')
+}
+
+HOME_WS=$(hyprctl activeworkspace -j | jq -r '.id')
+
+cleanup() {
+  [[ -z $KEEP ]] && close_shot_windows
+  hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  hypr_dispatch "hl.dsp.focus({ workspace = $HOME_WS })" workspace "$HOME_WS"
+}
+trap cleanup EXIT
+
+# A broken earlier run can leave panes behind, some parked off-screen; start
+# from zero so the class lookups never match a leftover.
+close_shot_windows
+
+# Focus the biggest unrotated landscape monitor, then pull the workspace there.
+SHOT_MON=$(hyprctl monitors -j | jq -r '[.[] | select((.transform % 2) == 0 and .width > .height)] | sort_by(.width * .height) | last | .name')
+[[ -n $SHOT_MON && $SHOT_MON != null ]] || SHOT_MON=$(hyprctl monitors -j | jq -r '.[0].name')
+hypr_dispatch "hl.dsp.focus({ monitor = \"$SHOT_MON\" })" focusmonitor "$SHOT_MON"
+sleep 0.3
+hypr_dispatch "hl.dsp.focus({ workspace = $WS })" workspace "$WS"
+sleep 0.4
+
+# Geometry in logical coordinates, clear of reserved areas (the bar).
+read -r MX MY MW MH RES_L RES_T < <(hyprctl monitors -j | jq -r --arg m "$SHOT_MON" \
+  '.[] | select(.name == $m) | "\(.x) \(.y) \((.width / .scale) | floor) \((.height / .scale) | floor) \(.reserved[0]) \(.reserved[1])"')
+
+M=14
+LX=$((MX + RES_L + M))
+LY=$((MY + RES_T + M))
+AH=$((MH - RES_T - 2 * M))
+LW=$(((MW - RES_L - 3 * M) * 45 / 100))
+RW=$((MW - RES_L - 3 * M - LW))
+RX=$((LX + LW + M))
+PH=$(((AH - M) * 44 / 100))
+BH=$((AH - M - PH))
+BY=$((LY + PH + M))
+
+# Font sizes proportional to the monitor so the panes hold their content: the
+# palette preview needs ~26 rows, btop needs 80x24 with headroom.
+FETCH_PT=$((MH / 90))
+PALETTE_PT=$((MH / 125))
+BTOP_PT=$((MH / 95))
+
+terminal=$(xdg-terminal-exec --print-id 2>/dev/null)
+case $terminal in
+*Alacritty* | *alacritty*)
+  term_run() { setsid alacritty --class="$1" -o font.size="$2" -e bash -c "$3" >/dev/null 2>&1 & }
+  ;;
+*ghostty*)
+  term_run() { setsid ghostty --class="$1" --font-size="$2" -e bash -c "$3" >/dev/null 2>&1 & }
+  ;;
+*foot*)
+  term_run() { setsid foot --app-id="$1" --font="monospace:size=$2" bash -c "$3" >/dev/null 2>&1 & }
+  ;;
+*kitty*)
+  term_run() { setsid kitty --class="$1" --override font_size="$2" bash -c "$3" >/dev/null 2>&1 & }
+  ;;
+*)
+  echo "No supported terminal found (alacritty, ghostty, foot, kitty)" >&2
+  exit 1
+  ;;
+esac
+
+place() { # class x y w h — float it, size it, then position it, in that order
+  local class="$1" x="$2" y="$3" w="$4" h="$5" address="" i
+  for i in $(seq 25); do
+    address=$(addr_by_class "$class")
+    [[ -n $address ]] && break
+    sleep 0.1
+  done
+  if [[ -z $address ]]; then
+    echo "No window with class $class appeared" >&2
+    return 1
+  fi
+  hypr_dispatch "hl.dsp.window.float({ window = \"address:$address\", action = \"on\" })" setfloating "address:$address"
+  hypr_dispatch "hl.dsp.window.resize({ window = \"address:$address\", x = $w, y = $h })" resizewindowpixel "exact $w $h,address:$address"
+  hypr_dispatch "hl.dsp.window.move({ window = \"address:$address\", x = $x, y = $y })" movewindowpixel "exact $x $y,address:$address"
+}
+
+# Each pane draws after a delay so it renders once, at its final geometry —
+# fastfetch's sixel logo does not survive a terminal reflow. The cursor is
+# hidden after output so no pane shows a parked block.
+BACKGROUND=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+if [[ -f $BACKGROUND ]]; then
+  FETCH_CMD="sleep 1.8; clear; printf '\n'; fastfetch --logo '$BACKGROUND' --logo-type sixel --logo-width 36 --logo-padding-top 1; printf '\033[?25l'; exec sleep 900"
+else
+  FETCH_CMD="sleep 1.8; clear; printf '\n'; fastfetch; printf '\033[?25l'; exec sleep 900"
+fi
+
+term_run "$CLASS_PREFIX.fetch" "$FETCH_PT" "$FETCH_CMD"
+term_run "$CLASS_PREFIX.palette" "$PALETTE_PT" \
+  'sleep 1.8; clear; printf "\n  \033[95m❯\033[0m omarchy dev theme-preview\n\n"; omarchy-dev-theme-preview --no-osc | awk "/^ANSI palette strips/ { f = 1 } f"; printf "\033[?25l"; exec sleep 900'
+term_run "$CLASS_PREFIX.btop" "$BTOP_PT" 'sleep 1.8; exec btop'
+
+place "$CLASS_PREFIX.fetch" "$LX" "$LY" "$LW" "$AH"
+place "$CLASS_PREFIX.palette" "$RX" "$LY" "$RW" "$PH"
+place "$CLASS_PREFIX.btop" "$RX" "$BY" "$RW" "$BH"
+
+# btop needs a few ticks of history before its graphs mean anything.
+sleep 7
+
+BTOP_ADDR=$(addr_by_class "$CLASS_PREFIX.btop")
+[[ -n $BTOP_ADDR ]] && hypr_dispatch "hl.dsp.focus({ window = \"address:$BTOP_ADDR\" })" focuswindow "address:$BTOP_ADDR"
+sleep 0.4
+
+if [[ -n $VERBOSE ]]; then
+  echo "--- staging state"
+  hyprctl monitors -j | jq -r '.[] | "  \(.name) pos=\(.x),\(.y) logical=\((.width / .scale) | floor)x\((.height / .scale) | floor) focused=\(.focused) ws=\(.activeWorkspace.id)"'
+  hyprctl clients -j | jq -r --arg p "$CLASS_PREFIX" '.[] | select(.class | startswith($p)) | "  \(.class) at=\(.at) size=\(.size) ws=\(.workspace.id)"'
+  echo "  target: fetch=($LX,$LY ${LW}x$AH) palette=($RX,$LY ${RW}x$PH) btop=($RX,$BY ${RW}x$BH)"
+fi
+
+# Hide the cursor and close any latched error bar for a clean frame.
+hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
+hyprctl seterror disable >/dev/null 2>&1
+sleep 0.8
+
+grim -o "$SHOT_MON" "$OUTPUT"
+echo "Saved $OUTPUT ($(magick identify -format '%wx%h' "$OUTPUT"))"
+
+if [[ -n $SITE_OUTPUT ]]; then
+  # The themes gallery recipe: 16:9 downscaled to 1200 wide, WebP, ~100 KB.
+  magick "$OUTPUT" -strip -resize '1200>' -quality 80 "$SITE_OUTPUT"
+  bytes=$(stat -c %s "$SITE_OUTPUT")
+  echo "Saved $SITE_OUTPUT ($(magick identify -format '%wx%h' "$SITE_OUTPUT"), $((bytes / 1024)) KB)"
+  if [[ $bytes -gt 102400 ]]; then
+    echo "Warning: $SITE_OUTPUT is over the ~100 KB gallery budget" >&2
+  fi
+fi
