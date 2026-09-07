@@ -166,11 +166,30 @@ assert(
 )
 JS
 
-for pairing in 0-winding-road 3-sunset-lake; do
-  expected_hash=$(<"$ROOT/themes/tokyo-night/intros/$pairing.sha256")
-  actual_hash=$(sha256sum "$ROOT/themes/tokyo-night/backgrounds/$pairing.webp")
+packaged_pairs=0
+for expected_hash_path in "$ROOT"/themes/*/intros/*.sha256; do
+  [[ -f $expected_hash_path ]] || continue
+
+  theme_dir=${expected_hash_path%/intros/*}
+  theme_name=${theme_dir##*/}
+  pairing=${expected_hash_path##*/}
+  pairing=${pairing%.sha256}
+  background=""
+
+  for extension in jpg jpeg png gif bmp webp; do
+    candidate="$theme_dir/backgrounds/$pairing.$extension"
+    [[ -f $candidate ]] || continue
+    [[ -z $background ]] || fail "$theme_name $pairing intro has multiple matching stills"
+    background=$candidate
+  done
+
+  [[ -n $background ]] || fail "$theme_name $pairing intro has no matching still"
+  expected_hash=$(<"$expected_hash_path")
+  actual_hash=$(sha256sum "$background")
   actual_hash=${actual_hash%% *}
-  [[ $actual_hash == "$expected_hash" ]] || fail "Tokyo Night $pairing intro is bound to its exact still"
+  [[ $actual_hash == "$expected_hash" ]] || fail "$theme_name $pairing intro is bound to its exact still"
+  ((++packaged_pairs))
 done
 
-pass "packaged Tokyo Night intros match their still backgrounds"
+((packaged_pairs > 0)) || fail "no packaged theme intros were found"
+pass "packaged theme intros match their still backgrounds"
