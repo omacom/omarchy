@@ -111,8 +111,20 @@ choose_theme_background() {
     fi
   done
 
+  if (( index == -1 )) && [[ -n $current_background ]]; then
+    local current_stem="${current_background%.*}"
+    for i in "${!backgrounds[@]}"; do
+      if [[ ${backgrounds[$i]%.*} == $current_stem ]]; then
+        index=$i
+        break
+      fi
+    done
+  fi
+
   if (( index == -1 )); then
     CHOSEN_THEME_BACKGROUND="${backgrounds[0]}"
+  elif [[ ${OMARCHY_THEME_SKIP_BACKGROUND:-} == "1" ]]; then
+    CHOSEN_THEME_BACKGROUND="${backgrounds[$index]}"
   else
     next_index=$(((index + 1) % ${#backgrounds[@]}))
     CHOSEN_THEME_BACKGROUND="${backgrounds[$next_index]}"
@@ -348,9 +360,15 @@ if [[ $THEME_HEADLESS == "1" ]]; then
   # No shell/session bus exists during ISO chroot finalization, but the first
   # real login still needs a current background symlink for omarchy-shell to
   # render.
-  [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]] || set_theme_background_link || true
-elif [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]]; then
-  shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
+  if [[ ${OMARCHY_THEME_SKIP_BACKGROUND:-} != "1" ]] || [[ -L $CURRENT_BACKGROUND_LINK && ! -e $CURRENT_BACKGROUND_LINK ]]; then
+    set_theme_background_link || true
+  fi
+elif [[ ${OMARCHY_THEME_SKIP_BACKGROUND:-} == "1" ]]; then
+  if [[ ! -e $CURRENT_BACKGROUND_LINK ]]; then
+    set_theme_background
+  else
+    shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
+  fi
 else
   set_theme_background
 fi
