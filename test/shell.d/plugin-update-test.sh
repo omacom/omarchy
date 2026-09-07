@@ -13,6 +13,7 @@ git init -q -b main "$remote"
 printf '%s\n' '{"schemaVersion":1,"id":"test.plugin","name":"Test","version":"1","kinds":["service"],"entryPoints":{"service":"Service.qml"}}' > "$remote/manifest.json"
 printf '%s\n' 'import QtQuick' 'QtObject {}' > "$remote/Service.qml"
 printf '%s\n' 'original notes' > "$remote/notes.txt"
+printf '%s\n' 'ignored-*' > "$remote/.gitignore"
 git -C "$remote" add .
 git -C "$remote" commit -qm initial
 initial=$(git -C "$remote" rev-parse HEAD)
@@ -47,6 +48,11 @@ git -C "$remote" commit -qam 'valid candidate'
 if update test.plugin; then fail "local edits must prevent update"; fi
 [[ $(<"$checkout/notes.txt") == "uncommitted notes" ]] || fail "valid candidate preserves local edits"
 git -C "$remote" show "$initial:notes.txt" > "$checkout/notes.txt"
+ln -s notes.txt "$checkout/ignored-link"
+if update test.plugin; then fail "ignored local files must not bypass validation"; fi
+[[ -L $checkout/ignored-link ]] || fail "ignored local file remains intact"
+unlink "$checkout/ignored-link"
+pass "ignored local files cannot bypass the clean-checkout requirement"
 update test.plugin
 [[ $(git -C "$checkout" rev-parse HEAD) == $(git -C "$remote" rev-parse HEAD) ]] || fail "valid update fast-forwards"
 [[ $(wc -l < "$test_tmp/rescans") == 1 ]] || fail "successful update rescans once"

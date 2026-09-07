@@ -85,11 +85,12 @@ update_one() {
   rm -rf -- "$staging"
 
   # The validated tree must also be the one installed. Do not combine it with
-  # local edits or untracked files that the validator has not inspected.
+  # local edits or untracked files that the validator has not inspected,
+  # including ignored files that would still be visible to the plugin loader.
   local status
-  status=$(git -C "$dir" status --porcelain --untracked-files=all) || return 1
+  status=$(git -C "$dir" status --porcelain --untracked-files=all --ignored) || return 1
   if [[ -n $status ]]; then
-    echo "omarchy-plugin-update: '$id' has local changes in $dir; commit or stash them before updating" >&2
+    echo "omarchy-plugin-update: '$id' has local changes in $dir; save them outside the checkout before updating" >&2
     return 1
   fi
 
