@@ -18,6 +18,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Emojis        | `omarchy.emojis`          | `overlay`               | `emojis/Emojis.qml`                   |
 | Clipboard mgr | `omarchy.clipboard`       | `overlay`               | `clipboard/Clipboard.qml`             |
 | Reminders     | `omarchy.reminders`       | `overlay`               | `reminders/ReminderFlow.qml`          |
+| Fingerprint   | `omarchy.fingerprint-enroll` | `overlay`            | `fingerprint-enroll/Enroll.qml`       |
 | Omarchy menu  | `omarchy.menu`            | `menu`, `bar-widget`    | `menu/Menu.qml`, `menu/BarWidget.qml` |
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
@@ -86,6 +87,22 @@ colors, blurred wallpaper, placeholder, and Hyprland-driven corners.
 The plugin sets `keepLoaded: true` so a plugin hot-reload (for example
 an installed bar widget changing on disk) does not destroy the lock
 client while Hyprland still holds the session lock.
+
+## Fingerprint enrolment
+
+Setup > Security > Fingerprint. Drives `fprintd-enroll` and turns its
+per-stage results into a print that fills in from several directions at
+once, with a hint for where to press next, so an enrolment covers the
+finger rather than one spot ten times. `fprintd`'s `finger-present`
+property gives instant "hold still" feedback. On a first run (PAM not yet
+configured) it calls `omarchy-fingerprint-setup-helper` through `pkexec`
+to install packages and turn fingerprint login on, after one confirm
+touch; later runs open a finger picker with no prompt. Works with any
+fprintd reader.
+
+Summon with `omarchy-fingerprint-enroll` (picker) or
+`omarchy-fingerprint-enroll right-thumb` (one finger, waits for the
+result). Payload keys: `finger`, `user`, `doneFile`, `totalStages`.
 
 ## Polkit agent
 
