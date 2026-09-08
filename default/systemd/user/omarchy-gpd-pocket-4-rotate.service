@@ -5,7 +5,7 @@ Description=Automatic screen rotation (GPD Pocket 4 accelerometer via iio-sensor
 ConditionPathIsDirectory=/sys/bus/iio/devices
 ConditionEnvironment=WAYLAND_DISPLAY
 PartOf=graphical-session.target
-After=graphical-session.target
+After=graphical-session.target wayland-session-waitenv.service
 
 [Service]
 Type=simple
