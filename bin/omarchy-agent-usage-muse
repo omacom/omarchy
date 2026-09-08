@@ -13,12 +13,8 @@ Rate limits come from the client's own key endpoint
 (``POST https://api.meta.ai/muse-code/key`` with the OAuth access token from
 ``MUSE_AUTH_PATH``, else ``~/.config/muse/auth.json``), which returns
 ``subs_usage`` window/weekly percents with reset times plus the tier name —
-the same figures the TUI's ``/usage`` overlay shows. Minting is idempotent
-(the same Model API key comes back), so polling is safe. When the probe
-fails, the collector falls back to estimated meters from user-configured
-caps in ``~/.config/omarchy/agents/muse.json`` (``sessionWindowTokens`` for
-the trailing 5 hours, ``weeklyWindowTokens`` for the trailing 7 days); with
-neither, ``limits`` stays empty and the panel shows local stats only.
+the same figures the TUI's ``/usage`` overlay shows. If the probe fails,
+``limits`` stays empty and the panel continues showing local stats.
 """
 
 import argparse
@@ -47,8 +43,7 @@ def key_endpoint() -> str:
 
 
 # Recent probe results are reused for a short window so repeated panel opens
-# do not turn into a request per flick. Minting is idempotent, but there is
-# still no reason to re-ask a question whose answer moves slowly.
+# do not turn into a request per flick. Only successful probes are reused.
 PROBE_MIN_INTERVAL_SECONDS = 60
 
 # A scan this recent is only reused to dedup concurrent collector runs (the
@@ -58,26 +53,6 @@ PROBE_MIN_INTERVAL_SECONDS = 60
 # may reuse a scan for up to 15 minutes.
 SCAN_REUSE_SECONDS = 20
 LIMITS_ONLY_REUSE_SECONDS = 900
-
-# Rolling windows for the estimated quota meters, mirroring Claude's labels.
-SESSION_WINDOW_SECONDS = 5 * 3600
-WEEKLY_WINDOW_SECONDS = 7 * 24 * 3600
-
-
-def config_path() -> Path:
-  base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
-  return Path(base) / "omarchy" / "agents" / "muse.json"
-
-
-def configured_caps() -> tuple[int, int]:
-  """(sessionWindowTokens, weeklyWindowTokens); unset or invalid means 0."""
-  try:
-    data = json.loads(config_path().read_text(encoding="utf-8"))
-  except Exception:
-    return 0, 0
-  if not isinstance(data, dict):
-    return 0, 0
-  return number(data.get("sessionWindowTokens")), number(data.get("weeklyWindowTokens"))
 
 
 def data_root() -> Path:
@@ -102,8 +77,6 @@ today_total_tokens = 0
 total_prompts = 0
 total_sessions = set()
 seen_event_ids = set()
-trailing_session_tokens = 0
-trailing_weekly_tokens = 0
 
 
 def number(value):
@@ -140,19 +113,12 @@ def local_day(recorded_at, fallback_mtime):
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def add_usage(day, epoch, session_key, model, input_tokens, output_tokens, cache_read, cache_write):
+def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, cache_write):
   global today_prompts, today_total_tokens, total_prompts
-  global trailing_session_tokens, trailing_weekly_tokens
   total = input_tokens + output_tokens + cache_read + cache_write
   total_prompts += 1
   total_sessions.add(session_key)
   active_days.add(day)
-
-  window_now = time.time()
-  if epoch >= window_now - SESSION_WINDOW_SECONDS:
-    trailing_session_tokens += total
-  if epoch >= window_now - WEEKLY_WINDOW_SECONDS:
-    trailing_weekly_tokens += total
 
   bucket = model_usage.setdefault(model, {
     "inputTokens": 0,
@@ -245,9 +211,8 @@ def scan_native_muse_sessions():
           if session_key is None:
             stream = entry.get("stream") or {}
             session_key = str(stream.get("id") or path.parent.name or path)
-          epoch = event_epoch(entry.get("recorded_at"), mtime)
           day = local_day(entry.get("recorded_at"), mtime)
-          add_usage(day, epoch, session_key, model_name(event.get("model")), input_tokens, output_tokens, cache_read, cache_write)
+          add_usage(day, session_key, model_name(event.get("model")), input_tokens, output_tokens, cache_read, cache_write)
     except OSError:
       continue
 
@@ -304,7 +269,7 @@ def write_json(path, payload):
 # of a crash or a garbage record.
 def read_cached_stats(cache_file, max_age_seconds):
   cached = read_fresh_json(cache_file, max_age_seconds)
-  if not isinstance(cached, dict) or cached.get("schemaVersion") != 1:
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != 2:
     return None
   # today* fields only mean "today" on the day they were scanned. A cache
   # from another local date (midnight passed, or the clock moved) is a miss,
@@ -321,7 +286,7 @@ def read_cached_stats(cache_file, max_age_seconds):
 
 def write_cached_stats(cache_file, stats):
   try:
-    write_json(cache_file, {"schemaVersion": 1, "scanDate": today, "stats": stats})
+    write_json(cache_file, {"schemaVersion": 2, "scanDate": today, "stats": stats})
   except Exception as exc:
     print(f"omarchy-agent-usage-muse: could not write usage cache ({exc})", file=sys.stderr)
 
@@ -342,11 +307,6 @@ def local_stats():
     "activeDays": len(active_days),
     "activeDates": sorted(active_days),
     "modelUsage": model_usage,
-    # Trailing-window totals for the estimated quota meters. Only meaningful
-    # as of the scan that produced them; a reused cache reads up to its age
-    # stale, which a slow-moving meter tolerates.
-    "trailingSessionTokens": trailing_session_tokens,
-    "trailingWeeklyTokens": trailing_weekly_tokens,
   }
 
 
@@ -384,36 +344,6 @@ def _cached_local_stats(max_age):
     stats = run_local_scans()
     write_cached_stats(cache_file, stats)
     return stats
-
-
-# Estimated quota meters from user-configured caps, for when the key probe
-# cannot answer — no login, a rejected one, or an endpoint that failed. Each
-# entry reports trailing-window local usage as a share of the cap in
-# ~/.config/omarchy/agents/muse.json. A window with no configured cap is
-# omitted, not zeroed: an absent meter is honest, a 0% one would claim
-# headroom that was never measured. Rolling windows have no fixed reset
-# moment, so resetsAt stays empty (the panel tolerates that) and the title
-# marks the figure estimated.
-def estimated_limits(stats) -> list:
-  session_cap, weekly_cap = configured_caps()
-  limits = []
-  if session_cap > 0:
-    used = number(stats.get("trailingSessionTokens"))
-    limits.append({
-      "label": "Session (5-hour)",
-      "title": "Session (estimated)",
-      "percent": min(1.0, used / session_cap),
-      "resetsAt": "",
-    })
-  if weekly_cap > 0:
-    used = number(stats.get("trailingWeeklyTokens"))
-    limits.append({
-      "label": "Weekly (7-day)",
-      "title": "Weekly (estimated)",
-      "percent": min(1.0, used / weekly_cap),
-      "resetsAt": "",
-    })
-  return limits
 
 
 # ------------------------------------------------------------------ limits
@@ -549,7 +479,7 @@ def usable_cached_limits(cached: dict) -> list:
   return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
 
 
-def collect_limits(stats: dict, force: bool) -> dict:
+def collect_limits(force: bool) -> dict:
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
 
   probe_cache = None
@@ -561,61 +491,37 @@ def collect_limits(stats: dict, force: bool) -> dict:
     cached = {}
   if not isinstance(cached, dict):
     cached = {}
-  fallback = usable_cached_limits(cached)
-  fallback_tier = str(cached.get("tierLabel") or "")
-
   access_token = read_access_token()
   if access_token == "":
-    # No login to probe with. Estimated caps (if configured) still work;
-    # otherwise say so instead of hiding the section silently.
-    result["limits"] = estimated_limits(stats)
-    if not result["limits"]:
-      result["limits"] = fallback
-      result["usageStatusText"] = "Waiting for auth"
-    if fallback_tier:
-      result["tierLabel"] = fallback_tier
-    return result
-
-  fetched_at = number(cached.get("fetchedAtMs")) / 1000
-  if (fallback or fallback_tier) and not force and time.time() - fetched_at < PROBE_MIN_INTERVAL_SECONDS:
-    result["limits"] = fallback or estimated_limits(stats)
-    result["tierLabel"] = fallback_tier
-    return result
-
-  probe = probe_key(access_token)
-  if probe["ok"]:
-    result["limits"] = probe["limits"]
-    result["tierLabel"] = probe.get("tierLabel", "")
-    if probe_cache is not None:
-      try:
-        write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000),
-                                 "limits": probe["limits"], "tierLabel": result["tierLabel"]})
-      except Exception as exc:
-        print(f"omarchy-agent-usage-muse: could not write limits cache ({exc})", file=sys.stderr)
-    return result
-
-  # The first probe after login often fires before the network is up. Ask
-  # the shell to try again sooner than its regular interval.
-  if probe.get("transport"):
-    result["retryAdvised"] = True
-  if probe.get("expired"):
-    result["usageStatusText"] = "Sign-in expired"
-    result["authHelpText"] = probe["helpText"]
-    result["limits"] = estimated_limits(stats) or fallback
-    if fallback_tier:
-      result["tierLabel"] = fallback_tier
-    return result
-  estimated = estimated_limits(stats)
-  if estimated:
-    result["limits"] = estimated
-    if fallback_tier:
-      result["tierLabel"] = fallback_tier
-  elif fallback:
-    result["limits"] = fallback
-    result["tierLabel"] = fallback_tier
+    result["usageStatusText"] = "Waiting for auth"
   else:
-    result["usageStatusText"] = "Muse limits unavailable"
-    result["authHelpText"] = probe["helpText"]
+    cached_limits = usable_cached_limits(cached)
+    fetched_at = number(cached.get("fetchedAtMs")) / 1000
+    age = time.time() - fetched_at
+    if cached_limits and not force and 0 <= age < PROBE_MIN_INTERVAL_SECONDS:
+      result["limits"] = cached_limits
+      result["tierLabel"] = str(cached.get("tierLabel") or "")
+      return result
+
+    probe = probe_key(access_token)
+    if probe["ok"]:
+      result["limits"] = probe["limits"]
+      result["tierLabel"] = probe.get("tierLabel", "")
+    else:
+      result["usageStatusText"] = "Sign-in expired" if probe.get("expired") else "Muse limits unavailable"
+      result["authHelpText"] = probe["helpText"]
+      # The first probe after login can fire before the network is up.
+      if probe.get("transport"):
+        result["retryAdvised"] = True
+
+  # Replace cached successes even on failure, so a later panel refresh
+  # cannot resurrect percentages from before the failed probe.
+  if probe_cache is not None:
+    try:
+      write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000),
+                               "limits": result["limits"], "tierLabel": result["tierLabel"]})
+    except Exception as exc:
+      print(f"omarchy-agent-usage-muse: could not write limits cache ({exc})", file=sys.stderr)
   return result
 
 
@@ -632,7 +538,7 @@ def main():
 
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
   stats = cached_local_stats(max_age)
-  limits = collect_limits(stats, args.force)
+  limits = collect_limits(args.force)
 
   record = {
     "schemaVersion": 1,

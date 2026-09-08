@@ -55,7 +55,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
-| `muse` | The client's key endpoint (session + weekly percents), else estimated meters from configured caps | native Muse session logs, including subagent sessions |
+| `muse` | The client's key endpoint (session + weekly percents); hidden when unavailable | native Muse session logs, including subagent sessions |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -97,23 +97,9 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 ### Muse limits
 
-The collector asks the client's own key endpoint for the subscription's
-session and weekly percents with reset times — the same figures the TUI's
-`/usage` overlay shows. Minting is idempotent (the same Model API key comes
-back every call), so polling is safe; the token travels only in the
-`Authorization` header. When the probe fails, the collector falls back to
-estimated meters from caps in `~/.config/omarchy/agents/muse.json`:
+The collector asks the client's own key endpoint for the subscription's session and weekly percents with reset times — the same figures the TUI's `/usage` overlay shows. The OAuth token travels only in the `Authorization` header. Successful results are reused for up to 60 seconds to avoid repeated requests when opening the panel.
 
-```json
-{
-  "sessionWindowTokens": 10000000,
-  "weeklyWindowTokens": 500000000
-}
-```
-
-Set each cap to the token allowance for its trailing window (5 hours and 7
-days); a window with no cap is omitted rather than shown at 0%. With neither
-a working probe nor caps, the tab still shows token usage, just no limits.
+If authentication is missing or the probe fails, the limits and tier label are cleared. The tab keeps showing local token usage with a short status message; it does not estimate quotas or retain percentages from before a failed probe. Limits reappear when a later probe succeeds.
 
 ## Interactions
 

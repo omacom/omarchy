@@ -82,11 +82,10 @@ pass "Muse collector counts active days"
   fail "Muse collector reports active dates for cross-machine merging" "$result"
 pass "Muse collector reports active dates for cross-machine merging"
 
-# No login and no configured caps in the fake home: no meters, and the
-# record says it is waiting for auth rather than hiding the section.
+# No login in the fake home: hide meters and report the missing auth.
 [[ $(jq -c '.limits' <<<"$result") == "[]" ]] ||
-  fail "Muse collector reports no limits without credentials or caps" "$result"
-pass "Muse collector reports no limits without credentials or caps"
+  fail "Muse collector reports no limits without credentials" "$result"
+pass "Muse collector reports no limits without credentials"
 
 [[ $(jq -r '.usageStatusText' <<<"$result") == "Waiting for auth" ]] ||
   fail "Muse collector waits for auth without credentials" "$result"

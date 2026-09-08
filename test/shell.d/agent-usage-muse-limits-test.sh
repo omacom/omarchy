@@ -42,18 +42,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
     self.rfile.read(length)
     with open(seen_file, "a") as handle:
       handle.write(self.headers.get("Authorization") + "\n")
-    if stub_mode() == "unauthorized":
-      self.send_response(401)
+    mode = stub_mode()
+    if mode == "transport":
+      self.close_connection = True
+      return
+    if mode.isdigit():
+      self.send_response(int(mode))
       self.end_headers()
       return
     body = json.dumps({
       "subs_tier_name": "Muse Code Test Plan",
       "subs_usage": {
-        "window": {"used_percent": 8, "window_duration_mins": 300, "resets_at": 1788900190},
-        "weekly": {"used_percent": 15, "resets_at": 1789344000},
+        "window": {"used_percent": 8, "window_duration_mins": 300, "resets_at": int(os.environ["STUB_WINDOW_RESET"])},
+        "weekly": {"used_percent": 15, "resets_at": int(os.environ["STUB_WEEKLY_RESET"])},
         "tier": "123",
       },
     }).encode()
+    if mode == "malformed":
+      body = b"not json"
+    elif mode == "missing-usage":
+      body = b"{}"
+    elif mode == "missing-limits":
+      body = b'{"subs_usage":{}}'
     self.send_response(200)
     self.send_header("Content-Type", "application/json")
     self.send_header("Content-Length", str(len(body)))
@@ -67,6 +77,8 @@ http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
 EOF
 
 port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
+export STUB_WINDOW_RESET=$(( $(date +%s) + 3600 ))
+export STUB_WEEKLY_RESET=$(( STUB_WINDOW_RESET + 6 * 86400 ))
 export STUB_SEEN_FILE="$TEST_HOME/seen-headers"
 export STUB_MODE_FILE="$TEST_HOME/stub-mode"
 printf 'ok' >"$TEST_HOME/stub-mode"
@@ -89,11 +101,11 @@ result=$(run_collector --force)
   fail "Muse collector reports window and weekly limits from the key endpoint" "$result"
 pass "Muse collector reports window and weekly limits from the key endpoint"
 
-[[ $(jq -r '.limits[0].resetsAt' <<<"$result") == "2026-09-08T20:43:10+00:00" ]] ||
+[[ $(jq -r '.limits[0].resetsAt' <<<"$result") == "$(date -u -d "@$STUB_WINDOW_RESET" +%Y-%m-%dT%H:%M:%S+00:00)" ]] ||
   fail "Muse collector converts window reset times to ISO" "$result"
 pass "Muse collector converts window reset times to ISO"
 
-[[ $(jq -r '.limits[1].resetsAt' <<<"$result") == "2026-09-14T00:00:00+00:00" ]] ||
+[[ $(jq -r '.limits[1].resetsAt' <<<"$result") == "$(date -u -d "@$STUB_WEEKLY_RESET" +%Y-%m-%dT%H:%M:%S+00:00)" ]] ||
   fail "Muse collector converts weekly reset times to ISO" "$result"
 pass "Muse collector converts weekly reset times to ISO"
 
@@ -135,6 +147,8 @@ for malformed in '[1,2]' '"nope"' '{"providers":[]}' '{"providers":{"meta":7}}';
     fail "Muse collector survives a malformed login file" "$malformed"
   [[ $(jq -r '.usageStatusText' <<<"$garbled") == "Waiting for auth" ]] ||
     fail "Muse collector survives a malformed login file" "$malformed -> $garbled"
+  [[ $(jq -c '[.limits,.tierLabel]' <<<"$garbled") == '[[],""]' ]] ||
+    fail "Muse collector hides cached limits without credentials" "$garbled"
 done
 pass "Muse collector survives a malformed login file"
 printf '{"providers":{"meta":{"access_token":"test-token"}}}' >"$MUSE_AUTH_PATH"
@@ -155,17 +169,50 @@ uncached=$(MUSE_TEST_CACHE_HOME="$TEST_HOME/blocked-cache" run_collector --force
   fail "Muse collector fetches limits when the cache root is unavailable" "$uncached"
 pass "Muse collector fetches limits when the cache root is unavailable"
 
-# A rejected sign-in is an auth problem, not missing data: say so, and keep
-# the estimated meters when caps are configured.
-printf 'unauthorized' >"$TEST_HOME/stub-mode"
+# Even a legacy caps file cannot supply estimates. Keep local usage visible
+# through every failure, and ensure a cached success cannot reappear later.
 mkdir -p "$TEST_HOME/.config/omarchy/agents"
 printf '{"sessionWindowTokens":1000,"weeklyWindowTokens":1000}' >"$TEST_HOME/.config/omarchy/agents/muse.json"
-expired=$(run_collector --force)
+session_dir="$TEST_HOME/.local/share/muse/sessions/$(date +%Y/%m/%d)/test-session"
+mkdir -p "$session_dir"
+printf '{"payload":{"event":{"kind":"model_completed","model":"muse-test","usage":{"input_tokens":100,"output_tokens":10}}}}\n' >"$session_dir/session.jsonl"
 
-[[ $(jq -r '.usageStatusText' <<<"$expired") == "Sign-in expired" ]] ||
-  fail "Muse collector reports an expired sign-in" "$expired"
-pass "Muse collector reports an expired sign-in"
+for mode in 401 403 429 500 malformed missing-usage missing-limits transport; do
+  printf 'ok' >"$STUB_MODE_FILE"
+  seeded=$(run_collector --force)
+  [[ $(jq '.limits | length' <<<"$seeded") == 2 ]] ||
+    fail "Muse collector seeds limits before $mode failure" "$seeded"
+  printf '%s' "$mode" >"$STUB_MODE_FILE"
+  for refresh in forced cached; do
+    if [[ $refresh == "forced" ]]; then
+      failed=$(run_collector --force)
+    else
+      failed=$(run_collector)
+    fi
+    [[ $(jq -c '[.limits,.tierLabel,.ready,.todayTotalTokens]' <<<"$failed") == '[[],"",true,110]' ]] ||
+      fail "Muse collector hides limits and preserves local stats after $mode ($refresh)" "$failed"
+    if [[ $mode == "401" || $mode == "403" ]]; then
+      expected_status="Sign-in expired"
+    else
+      expected_status="Muse limits unavailable"
+    fi
+    [[ $(jq -r '.usageStatusText' <<<"$failed") == "$expected_status" ]] ||
+      fail "Muse collector reports $mode failure ($refresh)" "$failed"
+  done
+  pass "Muse collector hides limits and preserves local stats after $mode"
+done
+[[ $(jq '.retryAdvised' <<<"$failed") == true ]] ||
+  fail "Muse collector requests a retry after transport failure" "$failed"
+pass "Muse collector requests a retry after transport failure"
 
-[[ $(jq -c '[.limits[].title]' <<<"$expired") == '["Session (estimated)","Weekly (estimated)"]' ]] ||
-  fail "Muse collector falls back to estimated meters when the probe fails" "$expired"
-pass "Muse collector falls back to estimated meters when the probe fails"
+printf 'ok' >"$STUB_MODE_FILE"
+recovered=$(run_collector)
+[[ $(jq -c '[.limits,.tierLabel]' <<<"$recovered") == "$(jq -c '[.limits,.tierLabel]' <<<"$result")" ]] ||
+  fail "Muse collector restores limits when the endpoint recovers" "$recovered"
+pass "Muse collector restores limits when the endpoint recovers"
+
+rm "$MUSE_AUTH_PATH"
+missing=$(run_collector)
+[[ $(jq -c '[.limits,.tierLabel,.usageStatusText,.todayTotalTokens]' <<<"$missing") == '[[],"","Waiting for auth",110]' ]] ||
+  fail "Muse collector hides cached limits when login is removed" "$missing"
+pass "Muse collector hides cached limits when login is removed"
