@@ -20,6 +20,24 @@ Changes to `GDK_SCALE` apply to applications started after the change (and GTK o
 
 You can also quickly step through the major monitor scaling ratios (1x, 1.25x, 1.6x, 2x, 3x, 4x) using `Super + /` to go higher and `Super + Alt + /` to go lower. If you have the default configuration, these changes will also persist past reboot.
 
+### Changing the refresh rate
+
+A laptop that ships with a 144Hz panel doesn't always come up at 144Hz, and a screen that's fast when it's plugged in can drop to 60Hz on battery. Open the **Display** panel in the top bar and you'll find a **Refresh rate** row beneath the scaling presets, listing every rate your screen can run at without changing resolution. Pick one and it applies immediately. Screens with only one rate don't get the row at all.
+
+The same thing from the command line:
+
+```
+omarchy hyprland monitor refresh rate 144
+```
+
+Run it without an argument to see the rate you're on. It only accepts a rate your current resolution already supports, so it won't drop you onto a mode your screen can't display.
+
+Refresh rate changes don't survive a reboot the way scaling does. Scaling is one setting for every screen, so Omarchy can write it back to the catch-all in `~/.config/hypr/monitors.lua`; a refresh rate belongs to one screen's mode, and putting it in that same catch-all would force it on all of them. To make a rate stick, pin it to the output by hand (via _Setup > Monitors_ in the Omarchy menu):
+
+```lua
+hl.monitor({ output = "eDP-1", mode = "1920x1200@144", position = "auto", scale = 2 })
+```
+
 ### Making text bigger or smaller
 
 Monitor scaling changes the size of everything. If all you want is bigger or smaller _text_, there's a single knob for that:
