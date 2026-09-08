@@ -26,15 +26,25 @@ if ! fc-list | grep -Fqi -- "$font_name"; then
   exit 1
 fi
 
+# Terminal configs and sed rewrites treat the family as literal text. A font
+# whose name carries quotes, dollars, or XML metacharacters can close a
+# string and inject a second setting; refuse those rather than try to round
+# trip them through every format.
+if [[ $font_name == *$'\n'* || $font_name == *$'\r'* || $font_name == *['"\\`$<>;&']* ]]; then
+  echo "Font name contains characters that cannot be written into terminal configs." >&2
+  exit 1
+fi
+
+sed_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
+
 if [[ -f ~/.config/alacritty/alacritty.toml ]]; then
-  sed -i "s/family = \".*\"/family = \"$font_name\"/g" ~/.config/alacritty/alacritty.toml
+  sed -i "s/family = \".*\"/family = \"$sed_font_name\"/g" ~/.config/alacritty/alacritty.toml
 fi
 
 if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
   mkdir -p ~/.config/kitty
   if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
-    kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
-    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" ~/.config/kitty/kitty.conf
+    sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $sed_font_name/" ~/.config/kitty/kitty.conf
   else
     printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
   fi
@@ -42,12 +52,12 @@ if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
 fi
 
 if [[ -f ~/.config/ghostty/config ]]; then
-  sed -i "s/font-family = \".*\"/font-family = \"$font_name\"/g" ~/.config/ghostty/config
+  sed -i "s/font-family = \".*\"/font-family = \"$sed_font_name\"/g" ~/.config/ghostty/config
   pkill -SIGUSR2 ghostty
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
-  sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
+  sed -i "s/^font=.*/font=$sed_font_name:size=9/g" ~/.config/foot/foot.ini
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
