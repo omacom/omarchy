@@ -8,10 +8,12 @@ confirm_reboot() {
   gum confirm "$1" && { omarchy-system-reboot; exit 0; }
 }
 
+reboot_reasons=()
+modules_path=${OMARCHY_MODULES_PATH:-/usr/lib/modules}
 running_kernel=$(uname -r)
 kernel_updated=true
 
-for kernel in /usr/lib/modules/*/vmlinuz; do
+for kernel in "$modules_path"/*/vmlinuz; do
   if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
     installed_kernel=$(basename "$(dirname "$kernel")")
 
@@ -23,14 +25,22 @@ for kernel in /usr/lib/modules/*/vmlinuz; do
 done
 
 if [[ $kernel_updated == "true" ]]; then
-  confirm_reboot "Linux kernel has been updated. Reboot?"
-elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
-  confirm_reboot "Updates require reboot. Ready?"
+  reboot_reasons+=("Linux kernel update")
+fi
+
+if [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
+  reboot_reasons+=("system changes")
 fi
 
 running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
 if [[ $running_hyprland == *"(deleted)"* ]]; then
-  confirm_reboot "Hyprland has been updated. Reboot?"
+  reboot_reasons+=("Hyprland update")
+fi
+
+if (( ${#reboot_reasons[@]} > 0 )); then
+  echo "A reboot is needed to activate:"
+  printf '  - %s\n' "${reboot_reasons[@]}"
+  confirm_reboot "Reboot now to activate these updates?"
 fi
 
 for file in "$HOME"/.local/state/omarchy/restart-*-required; do
