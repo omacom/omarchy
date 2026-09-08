@@ -95,7 +95,7 @@ pass "omarchy-version-channel names the channel of every platform's templates"
 finalize_bin=$work/finalize-bin
 mkdir -p "$finalize_bin"
 printf '#!/bin/bash\necho "$PLATFORM"\n' >"$finalize_bin/omarchy-hw-platform"
-for command in omarchy-pkg-add pacman-key; do
+for command in omarchy-pkg-add omarchy-pkg-db-sync pacman-key; do
   printf '#!/bin/bash\nexit 0\n' >"$finalize_bin/$command"
 done
 chmod +x "$finalize_bin"/*

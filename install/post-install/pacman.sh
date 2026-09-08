@@ -43,3 +43,10 @@ if [[ -f $OMARCHY_PATH/etc-overrides/cups-cups-files.conf && -f /etc/cups/cups-f
   install -m 0640 -o root -g cups "$OMARCHY_PATH/etc-overrides/cups-cups-files.conf" /etc/cups/cups-files.conf
   rm -f /etc/cups/cups-files.conf.pacnew
 fi
+
+# The target installed every package from the ISO's bundled [offline] repository,
+# so the repositories configured just above arrive without a database and the
+# first `pacman -S` on the new machine would fail with "target not found". Sync
+# them here when the installer has a network; machines installed offline pick
+# this up from the package helpers on first use instead.
+omarchy-pkg-db-sync
