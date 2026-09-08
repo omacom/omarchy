@@ -7,19 +7,85 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 dropin="$ROOT/etc/systemd/system/linux-modules-cleanup.service.d/10-omarchy.conf"
 [[ -f $dropin ]] || fail "linux-modules-cleanup drop-in exists"
 
-grep -Fx '[Service]' "$dropin" >/dev/null || fail "drop-in starts with [Service]"
-grep -Fx 'ProtectSystem=strict' "$dropin" >/dev/null || fail "drop-in makes the rootfs read-only"
-grep -Fx 'ReadWritePaths=/usr/lib/modules' "$dropin" >/dev/null || fail "drop-in grants write access only to /usr/lib/modules"
-grep -Fx 'ProtectHome=yes' "$dropin" >/dev/null || fail "drop-in protects /home"
-grep -Fx 'PrivateNetwork=yes' "$dropin" >/dev/null || fail "drop-in gives the oneshot no network"
-grep -Fx 'PrivateTmp=yes' "$dropin" >/dev/null || fail "drop-in uses a private tmp"
-grep -Fx 'NoNewPrivileges=yes' "$dropin" >/dev/null || fail "drop-in forbids privilege gain"
-grep -Fx 'RestrictSUIDSGID=yes' "$dropin" >/dev/null || fail "drop-in blocks setuid/setgid binaries"
-grep -Fx 'RestrictRealtime=yes' "$dropin" >/dev/null || fail "drop-in forbids realtime scheduling"
-grep -Fx 'MemoryDenyWriteExecute=yes' "$dropin" >/dev/null || fail "drop-in denies writable-executable mappings"
-grep -Fx 'SystemCallArchitectures=native' "$dropin" >/dev/null || fail "drop-in limits syscalls to native architecture"
-grep -E '^ProtectKernelModules' "$dropin" >/dev/null &&
-  fail "drop-in must not protect /usr/lib/modules from the cleanup itself" ||
-  true
+for setting in \
+  '[Service]' \
+  'ProtectSystem=strict' \
+  'ReadWritePaths=/usr/lib/modules' \
+  'ProtectHome=yes' \
+  'PrivateNetwork=yes' \
+  'PrivateTmp=yes' \
+  'ProtectClock=yes' \
+  'ProtectKernelLogs=yes' \
+  'ProtectKernelTunables=yes' \
+  'ProtectControlGroups=yes' \
+  'ProtectHostname=yes' \
+  'NoNewPrivileges=yes' \
+  'CapabilityBoundingSet=~CAP_SYS_ADMIN CAP_SYS_MODULE' \
+  'RestrictNamespaces=yes' \
+  'RestrictSUIDSGID=yes' \
+  'RestrictRealtime=yes' \
+  'LockPersonality=yes' \
+  'MemoryDenyWriteExecute=yes' \
+  'SystemCallArchitectures=native'; do
+  grep -qxF "$setting" "$dropin" || fail "cleanup profile declares $setting"
+done
 
-pass "linux-modules-cleanup drop-in is correctly hardened"
+[[ $(grep -c '^CapabilityBoundingSet=' "$dropin") == 1 ]] ||
+  fail "later capability assignments cannot restore mount or module privileges"
+[[ $(grep -c '^ReadWritePaths=' "$dropin") == 1 ]] ||
+  fail "cleanup has one explicit persistent write allowance"
+! grep -q '^ProtectKernelModules=' "$dropin" ||
+  fail "module loading is restricted without hiding the module archive"
+pass "cleanup declares filesystem and capability restrictions (static, not runtime verification)"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+(
+  migration="$ROOT/migrations/1788839599.sh"
+  [[ -f $migration ]] || fail "existing managers reload the new cleanup profile"
+  export call_log="$test_tmp/systemctl.log"
+
+  systemctl() {
+    printf '%s\n' "$*" >> "$call_log"
+    case "$1" in
+      show)
+        if [[ ${SHOW_FAIL:-0} == "1" ]]; then return 1; fi
+        printf '%s\n' "${RELOAD_NEEDED:-yes}"
+        ;;
+      daemon-reload) return "${RELOAD_FAIL:-0}" ;;
+      *) return 99 ;;
+    esac
+  }
+
+  sudo() {
+    [[ $* == "systemctl daemon-reload" ]] || return 99
+    "$@"
+  }
+
+  export -f systemctl sudo
+  bash -euo pipefail "$migration" >/dev/null
+  [[ $(<"$call_log") == $'show --property=NeedDaemonReload --value linux-modules-cleanup.service\ndaemon-reload' ]] ||
+    fail "migration reloads only manager configuration, without starting cleanup"
+  pass "migration reloads a cached cleanup unit"
+
+  : > "$call_log"
+  RELOAD_NEEDED=no bash -euo pipefail "$migration" >/dev/null
+  [[ $(<"$call_log") == 'show --property=NeedDaemonReload --value linux-modules-cleanup.service' ]] ||
+    fail "migration no-ops when the manager already has current configuration"
+  pass "migration is idempotent across users and reboots"
+
+  if RELOAD_FAIL=1 bash -euo pipefail "$migration" >/dev/null 2>&1; then
+    fail "failed daemon reload leaves the migration pending"
+  fi
+  if SHOW_FAIL=1 bash -euo pipefail "$migration" >/dev/null 2>&1; then
+    fail "failed manager query leaves the migration pending"
+  fi
+  if RELOAD_NEEDED=unknown bash -euo pipefail "$migration" >/dev/null 2>&1; then
+    fail "unrecognized manager state leaves the migration pending"
+  fi
+  pass "manager query and reload failures are retryable"
+)
+
+require_command python3
+python3 "$ROOT/test/shell.d/fixtures/linux-modules-cleanup.py" "$dropin"
