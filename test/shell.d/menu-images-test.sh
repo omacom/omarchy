@@ -5,6 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command flock
+require_command inotifywait
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -139,3 +140,54 @@ PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPSTHUMBNAIL_CALLS_FILE="$t
 
 (( $(wc -l <"$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
 pass "image menu owns locks for exactly one generator lifetime"
+
+real_inotifywait=$(command -v inotifywait)
+cat >"$stub_bin/inotifywait" <<'EOF'
+#!/bin/bash
+
+printf 'call\n' >>"$INOTIFYWAIT_CALLS_FILE"
+exec "$REAL_INOTIFYWAIT" "$@"
+EOF
+chmod +x "$stub_bin/inotifywait"
+
+cat >"$stub_bin/omarchy-shell" <<'EOF'
+#!/bin/bash
+
+[[ $1 == "image-selector" && $2 == "open" ]] || exit 1
+selection_file=$6
+done_file=$7
+
+if [[ $IMAGE_SELECTOR_TEST_MODE == "complete" ]]; then
+  (
+    sleep 0.1
+    printf '%s\n' "$IMAGE_SELECTOR_RESULT" >"$selection_file"
+    touch "$done_file"
+  ) >/dev/null 2>&1 &
+fi
+
+printf 'ok\n'
+EOF
+chmod +x "$stub_bin/omarchy-shell"
+
+: >"$tmp/inotifywait-calls"
+selected_result=$(
+  PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+    IMAGE_SELECTOR_TEST_MODE=complete IMAGE_SELECTOR_RESULT="$images/two.png" \
+    INOTIFYWAIT_CALLS_FILE="$tmp/inotifywait-calls" REAL_INOTIFYWAIT="$real_inotifywait" \
+    "$ROOT/bin/omarchy-menu-images" "$images"
+)
+[[ $selected_result == "$images/two.png" ]] || fail "image menu returns a selection after its completion event"
+(( $(wc -l <"$tmp/inotifywait-calls") <= 2 )) || fail "image menu does not spin while waiting for completion"
+pass "image menu waits efficiently for a completion event"
+
+: >"$tmp/inotifywait-calls"
+if PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  IMAGE_SELECTOR_TEST_MODE=abandon OMARCHY_IMAGE_SELECTOR_TIMEOUT_SECONDS=1 \
+  INOTIFYWAIT_CALLS_FILE="$tmp/inotifywait-calls" REAL_INOTIFYWAIT="$real_inotifywait" \
+  "$ROOT/bin/omarchy-menu-images" "$images" >"$tmp/abandoned.out" 2>"$tmp/abandoned.err"; then
+  fail "image menu rejects an abandoned selector request"
+fi
+grep -Fxq "Image selector timed out waiting for completion" "$tmp/abandoned.err" ||
+  fail "image menu explains an abandoned selector timeout"
+(( $(wc -l <"$tmp/inotifywait-calls") <= 2 )) || fail "image menu bounds waiting without a hot process loop"
+pass "image menu bounds abandoned selector requests"

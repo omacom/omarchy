@@ -355,8 +355,27 @@ if [[ $open_result != "ok" ]]; then
   exit 1
 fi
 
+wait_started=$SECONDS
+wait_timeout_seconds=${OMARCHY_IMAGE_SELECTOR_TIMEOUT_SECONDS:-3600}
+if [[ ! $wait_timeout_seconds =~ ^[1-9][0-9]*$ ]]; then
+  wait_timeout_seconds=3600
+fi
+done_dir=${done_file%/*}
+done_name=${done_file##*/}
+done_name_pattern="/${done_name//./\\.}$"
+
 while [[ ! -e $done_file ]]; do
-  sleep 0.01
+  if (( SECONDS - wait_started >= wait_timeout_seconds )); then
+    echo "Image selector timed out waiting for completion" >&2
+    exit 1
+  fi
+
+  # Wait for this request's completion event instead of spawning 100 sleep
+  # processes per second. The one-second timeout closes the check/watch race if
+  # the done file appears just before inotifywait begins listening.
+  inotifywait --quiet --timeout 1 \
+    --event create --event close_write --event moved_to \
+    --include "$done_name_pattern" "$done_dir" >/dev/null 2>&1 || true
 done
 
 if [[ -s $selection_file ]]; then
