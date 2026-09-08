@@ -10,14 +10,27 @@ if omarchy-hw-gpd-pocket-4; then
   unit=omarchy-gpd-pocket-4-rotate.service
   unit_source="$OMARCHY_PATH/default/systemd/user/$unit"
   packaged="/usr/lib/systemd/user/$unit"
-  user_unit="$HOME/.config/systemd/user/$unit"
+  detector="$OMARCHY_PATH/bin/omarchy-hw-gpd-pocket-4"
+  rotate="$OMARCHY_PATH/bin/omarchy-hw-gpd-pocket-4-rotate"
 
-  # systemd does not search $OMARCHY_PATH. A linked checkout, and any
-  # omarchy-settings package that has not yet shipped this unit, need it
-  # on a unit path before enable can succeed.
-  if [[ ! -f $packaged && -f $unit_source ]]; then
-    mkdir -p "$HOME/.config/systemd/user"
-    ln -sfn "$unit_source" "$user_unit"
+  as_root() {
+    if (( EUID == 0 )); then
+      "$@"
+    else
+      pkexec "$@"
+    fi
+  }
+
+  # systemd and ExecStart=/usr/bin/... only see packaged paths. A linked
+  # checkout (and any omarchy-settings that has not shipped this unit yet)
+  # has to publish them once; pkexec so a GUI update can auth without a TTY.
+  if [[ ! -f $packaged || ! -x /usr/bin/omarchy-hw-gpd-pocket-4 || ! -x /usr/bin/omarchy-hw-gpd-pocket-4-rotate ]]; then
+    as_root /usr/bin/bash -c '
+      set -euo pipefail
+      if [[ -x "$1" ]]; then /usr/bin/install -Dm755 "$1" /usr/bin/omarchy-hw-gpd-pocket-4; fi
+      if [[ -x "$2" ]]; then /usr/bin/install -Dm755 "$2" /usr/bin/omarchy-hw-gpd-pocket-4-rotate; fi
+      if [[ -f "$3" ]]; then /usr/bin/install -Dm644 "$3" /usr/lib/systemd/user/omarchy-gpd-pocket-4-rotate.service; fi
+    ' bash "$detector" "$rotate" "$unit_source"
   fi
 
   systemctl --user daemon-reload >/dev/null 2>&1 || true
@@ -27,13 +40,7 @@ if omarchy-hw-gpd-pocket-4; then
   if ! systemctl --user enable "$unit" >/dev/null 2>&1; then
     wants_dir="$HOME/.config/systemd/user/graphical-session.target.wants"
     mkdir -p "$wants_dir"
-    if [[ -f $packaged ]]; then
-      ln -sfn "$packaged" "$wants_dir/$unit"
-    elif [[ -e $user_unit ]]; then
-      ln -sfn "../$unit" "$wants_dir/$unit"
-    elif [[ -f $unit_source ]]; then
-      ln -sfn "$unit_source" "$wants_dir/$unit"
-    fi
+    ln -sfn "$packaged" "$wants_dir/$unit"
   fi
 
   if systemctl --user is-active --quiet graphical-session.target; then
