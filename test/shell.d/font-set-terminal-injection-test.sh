@@ -18,7 +18,8 @@ mkdir -p "$mock_bin" \
 
 cat >"$mock_bin/fc-list" <<'SH'
 #!/bin/bash
-printf '%s\n' "CaskaydiaMono Nerd Font" "Test Font" 'Evil"; command = "id'
+printf '%s\n' "CaskaydiaMono Nerd Font" "Test Font" 'Evil"; command = "id' 'Foo$HOME'
+printf 'Two\nFamily\n'
 SH
 for stub in omarchy-restart-shell omarchy-cmd-present omarchy-hook omarchy-notification-send pkill pgrep; do
   printf '#!/bin/bash\nexit 1\n' >"$mock_bin/$stub"
