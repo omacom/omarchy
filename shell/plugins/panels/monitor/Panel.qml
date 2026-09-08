@@ -54,6 +54,15 @@ Panel {
   readonly property var scaleValues: focusedDisplay
     ? Model.availableScales(scalePresets, focusedDisplay.width, focusedDisplay.height)
     : scalePresets
+
+  // Rates the focused display's current mode can reach. A display with only
+  // one is not offering a choice, so the section stays out of the panel.
+  readonly property var refreshRateValues: focusedDisplay
+    ? Model.availableRefreshRates(focusedDisplay.modes, focusedDisplay.width, focusedDisplay.height)
+    : []
+  readonly property string monitorRefreshRate: focusedDisplay
+    ? Model.normalizeRefreshRate(focusedDisplay.refreshRate)
+    : ""
   property string focusSection: "scale"
   property int selectedIndex: 0
   property bool cursorActive: false
@@ -81,6 +90,7 @@ Panel {
     if (brightnessAvailable) list.push("brightness")
     list.push("textsize")
     list.push("scale")
+    if (refreshRateValues.length > 1) list.push("refreshrate")
     if (displays.length > 1) list.push("monitors")
     return list
   }
@@ -89,13 +99,16 @@ Panel {
     if (section === "brightness") return 0  // only the slider sentinel at -1
     if (section === "textsize") return 0    // slider sentinel at -1, like brightness
     if (section === "scale") return scaleValues.length
+    if (section === "refreshrate") return refreshRateValues.length
     if (section === "monitors") return displays.length
     return 0
   }
 
   function sectionIsSingleRow(section) {
-    // brightness and text size are lone sliders; scale presets sit horizontally.
-    return section === "brightness" || section === "textsize" || section === "scale"
+    // brightness and text size are lone sliders; scale and refresh rate
+    // presets sit horizontally.
+    return section === "brightness" || section === "textsize"
+      || section === "scale" || section === "refreshrate"
   }
 
   function sectionFirstIndex(section) {
@@ -133,14 +146,15 @@ Panel {
     }
   }
 
-  // h/l: in scale section, walks the preset row; everywhere else, no-op
-  // because adjustBrightness handles horizontal motion on the brightness
-  // slider.
+  // h/l: in the scale and refresh rate sections, walks the preset row;
+  // everywhere else, no-op because adjustBrightness handles horizontal motion
+  // on the brightness slider.
   function moveCursorH(delta) {
-    if (focusSection !== "scale") return
+    if (focusSection !== "scale" && focusSection !== "refreshrate") return
+    var count = sectionCount(focusSection)
     var next = selectedIndex + delta
     if (next < 0) next = 0
-    if (next > scaleValues.length - 1) next = scaleValues.length - 1
+    if (next > count - 1) next = count - 1
     selectedIndex = next
   }
 
@@ -153,6 +167,10 @@ Panel {
   function activateCursor() {
     if (focusSection === "scale" && selectedIndex >= 0 && selectedIndex < scaleValues.length) {
       setScale(scaleValues[selectedIndex])
+      return
+    }
+    if (focusSection === "refreshrate" && selectedIndex >= 0 && selectedIndex < refreshRateValues.length) {
+      setRefreshRate(refreshRateValues[selectedIndex])
       return
     }
     if (focusSection === "monitors" && selectedIndex >= 0 && selectedIndex < displays.length) {
@@ -172,7 +190,8 @@ Panel {
     }
     var count = sectionCount(focusSection)
     if (sectionIsSingleRow(focusSection)) {
-      // brightness/text size use the -1 sentinel; scale clamps into the presets.
+      // brightness/text size use the -1 sentinel; scale and refresh rate clamp
+      // into their presets.
       if (focusSection === "brightness" || focusSection === "textsize") selectedIndex = -1
       else if (selectedIndex < 0 || selectedIndex >= count) selectedIndex = 0
       return
@@ -217,6 +236,7 @@ Panel {
       brightnessAvailable: root.brightnessAvailable,
       focusedMonitor: root.focusedMonitor,
       scale: root.monitorScale,
+      refreshRate: root.monitorRefreshRate,
       displays: root.displays
     })
   }
@@ -305,6 +325,19 @@ Panel {
     if (!actionProc.running) actionProc.running = true
   }
 
+  function setRefreshRate(rate) {
+    actionProc.command = ["omarchy-hyprland-monitor-refresh-rate", String(rate)]
+    if (!actionProc.running) actionProc.running = true
+  }
+
+  function activeRefreshRateIndex() {
+    return Model.matchingRefreshRateIndex(refreshRateValues, monitorRefreshRate)
+  }
+
+  function refreshRateLabel(rate) {
+    return Model.refreshRateLabel(rate)
+  }
+
   // ---- Text size (shell base font + GTK text-scaling, via one CLI) ----
   function nearestTextStop(px) {
     var best = 0
@@ -367,6 +400,7 @@ Panel {
   onBrightnessAvailableChanged: clampCursor()
   onDisplaysChanged: clampCursor()
   onScaleValuesChanged: clampCursor()
+  onRefreshRateValuesChanged: clampCursor()
   onVisibleSectionsChanged: clampCursor()
 
   // Only poll while the panel is open; the bar glyph tracks monitor count via
@@ -496,7 +530,7 @@ Panel {
         else if (dx !== 0) {
           if (root.focusSection === "brightness") root.adjustBrightness(dx * 5)
           else if (root.focusSection === "textsize") root.adjustTextSize(dx)
-          else if (root.focusSection === "scale") root.moveCursorH(dx)
+          else root.moveCursorH(dx)
         }
       }
       onActivateRequested: if (root.cursorActive) root.activateCursor()
@@ -786,6 +820,50 @@ Panel {
             }
           }
 
+          // ---------- Refresh rate ----------
+          PanelSeparator {
+            visible: root.refreshRateValues.length > 1
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(10)
+            visible: root.refreshRateValues.length > 1
+
+            // No rate beside the header: the active pill already carries it,
+            // the way SCALE leaves its own presets to speak for themselves.
+            PanelSectionHeader {
+              text: "REFRESH RATE"
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+            }
+
+            Grid {
+              id: refreshRateRow
+              width: parent.width
+              columns: root.refreshRateValues.length
+              spacing: Style.spacing.xs
+
+              readonly property real cellWidth: root.refreshRateValues.length > 0
+                ? (width - spacing * (columns - 1)) / columns
+                : 0
+
+              Repeater {
+                model: root.refreshRateValues
+
+                RefreshRatePill {
+                  required property string modelData
+                  required property int index
+
+                  rateValue: modelData
+                  rateIndex: index
+                  width: refreshRateRow.cellWidth
+                }
+              }
+            }
+          }
+
           // ---------- Monitors ----------
           PanelSeparator {
             visible: root.displays.length > 1
@@ -848,6 +926,31 @@ Panel {
       root.cursorActive = true
       root.focusSection = "scale"
       root.selectedIndex = pill.scaleIndex
+    }
+  }
+
+  component RefreshRatePill: Button {
+    id: ratePill
+    required property string rateValue
+    required property int rateIndex
+
+    text: root.refreshRateLabel(rateValue) + "Hz"
+    fontSize: Style.font.caption
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.sm
+    verticalPadding: Style.spacing.controlPaddingY
+    bordered: true
+
+    active: root.activeRefreshRateIndex() === rateIndex
+    hasCursor: root.cursorActive && root.focusSection === "refreshrate" && root.selectedIndex === rateIndex
+
+    onClicked: root.setRefreshRate(rateValue)
+    onHovered: function(isHovered) {
+      if (!isHovered || root.reflowingText) return
+      root.cursorActive = true
+      root.focusSection = "refreshrate"
+      root.selectedIndex = ratePill.rateIndex
     }
   }
 

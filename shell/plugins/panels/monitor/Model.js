@@ -79,6 +79,69 @@ function availableScales(scales, width, height) {
     .map(function(candidate) { return candidate.value })
 }
 
+function normalizeRefreshRate(rate) {
+  var n = parseFloat(String(rate || ""))
+  if (!isFinite(n) || n <= 0) return ""
+  return String(Math.round(n * 100) / 100)
+}
+
+// A display is sold by its whole hertz, so that is what a rate is labelled
+// with, even where the mode itself is 143.91Hz.
+function refreshRateLabel(rate) {
+  var n = parseFloat(String(rate || ""))
+  if (!isFinite(n) || n <= 0) return ""
+  return String(Math.round(n))
+}
+
+// Rates the current mode can reach, fastest first. Modes arrive as Hyprland
+// mode strings ("2560x1440@143.91Hz"); anything at another resolution is a
+// resolution change rather than a rate, and never reaches here.
+function availableRefreshRates(modes, width, height) {
+  if (!Array.isArray(modes)) return []
+
+  var modeWidth = Number(width)
+  var modeHeight = Number(height)
+  var byLabel = {}
+
+  for (var i = 0; i < modes.length; i++) {
+    var parts = /^(\d+)x(\d+)@([0-9.]+)Hz$/.exec(String(modes[i] || ""))
+    if (!parts) continue
+    if (isFinite(modeWidth) && modeWidth > 0 && Number(parts[1]) !== modeWidth) continue
+    if (isFinite(modeHeight) && modeHeight > 0 && Number(parts[2]) !== modeHeight) continue
+
+    var rate = normalizeRefreshRate(parts[3])
+    if (rate === "") continue
+
+    // 59.94 and 60 are both sold as 60Hz. Keep the faster of the two so every
+    // pill lands on a rate the one beside it doesn't.
+    var label = refreshRateLabel(rate)
+    if (!byLabel[label] || Number(rate) > Number(byLabel[label])) byLabel[label] = rate
+  }
+
+  return Object.keys(byLabel)
+    .map(function(label) { return byLabel[label] })
+    .sort(function(a, b) { return Number(b) - Number(a) })
+}
+
+// Hyprland lists the mode as 143.91Hz and reports the live rate as 143.912, so
+// the active pill is the nearest rate rather than an equal one. Half a hertz
+// out is a mode the display is no longer in, not a rounding gap.
+function matchingRefreshRateIndex(rates, currentRate) {
+  var current = Number(currentRate)
+  if (!Array.isArray(rates) || !isFinite(current) || current <= 0) return -1
+
+  var bestIndex = -1
+  var bestDistance = Infinity
+  for (var i = 0; i < rates.length; i++) {
+    var distance = Math.abs(Number(rates[i]) - current)
+    if (distance < bestDistance) {
+      bestIndex = i
+      bestDistance = distance
+    }
+  }
+  return bestDistance <= 0.5 ? bestIndex : -1
+}
+
 function brightnessName(percent) {
   var p = Math.round(percent)
   if (p >= 95) return "Sun blast"
@@ -118,6 +181,10 @@ if (typeof module !== "undefined") {
     cleanScale: cleanScale,
     matchingScaleIndex: matchingScaleIndex,
     availableScales: availableScales,
+    normalizeRefreshRate: normalizeRefreshRate,
+    refreshRateLabel: refreshRateLabel,
+    availableRefreshRates: availableRefreshRates,
+    matchingRefreshRateIndex: matchingRefreshRateIndex,
     brightnessName: brightnessName,
     parseDisplays: parseDisplays
   }
