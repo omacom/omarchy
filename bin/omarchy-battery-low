@@ -13,5 +13,8 @@ fi
 
 level=$1
 
+# The shell's battery service dismisses this toast by summary once the charger
+# is back, so keep the headline in sync with lowBatterySummary in
+# shell/plugins/services/battery/Service.qml.
 omarchy-notification-send -g 󱐋 -u critical "Time to recharge!" "Battery is down to ${level}%" -i battery-caution -t 30000
 omarchy-hook battery-low "$level"

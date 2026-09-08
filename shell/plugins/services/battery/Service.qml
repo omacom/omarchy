@@ -11,6 +11,9 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   readonly property int batteryThreshold: 10
+  readonly property string lowBatterySummary: "Time to recharge!"
+  property bool checkedBattery: false
+  property bool pendingLowBatteryClear: false
   property string pendingPowerSource: ""
   property string activePowerProfile: ""
   readonly property bool powerSaverOnBattery: UPower.onBattery && activePowerProfile === "power-saver"
@@ -30,9 +33,11 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery, !checkedBattery)
+    checkedBattery = true
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notify) sendLowBatteryWarning(state.level)
+    else if (state.clear) clearLowBatteryWarning()
   }
 
   function sendLowBatteryWarning(level) {
@@ -42,6 +47,26 @@ Item {
       String(level)
     ]
     warningProcess.running = true
+  }
+
+  // The low-battery toast is critical urgency, so the shell never expires it on
+  // its own. Take it down once the charger is back rather than leaving a stale
+  // warning on screen; it stays in notification history either way.
+  //
+  // Wait for a warning still being posted: dismissing by summary only matches
+  // toasts the server already has, and checkBattery has cleared the notified
+  // flag by now, so a dismissal that runs too early would never be retried and
+  // the toast would linger for good. Defer rather than drop, the way
+  // pendingPowerSource does for the power-profile process.
+  function clearLowBatteryWarning() {
+    pendingLowBatteryClear = true
+    if (!warningProcess.running && !dismissProcess.running) runPendingLowBatteryClear()
+  }
+
+  function runPendingLowBatteryClear() {
+    dismissProcess.command = ["omarchy-notification-dismiss", lowBatterySummary]
+    pendingLowBatteryClear = false
+    dismissProcess.running = true
   }
 
   function applyPowerProfile() {
@@ -59,7 +84,15 @@ Item {
     if (!powerProfileReadProcess.running) powerProfileReadProcess.running = true
   }
 
-  Process { id: warningProcess }
+  Process {
+    id: warningProcess
+    onExited: if (root.pendingLowBatteryClear && !dismissProcess.running) root.runPendingLowBatteryClear()
+  }
+
+  Process {
+    id: dismissProcess
+    onExited: if (root.pendingLowBatteryClear) root.runPendingLowBatteryClear()
+  }
 
   Process {
     id: powerProfileProcess
