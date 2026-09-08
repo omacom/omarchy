@@ -3,6 +3,13 @@
 Window.SetBackgroundTopColor(0.101, 0.105, 0.149);
 Window.SetBackgroundBottomColor(0.101, 0.105, 0.149);
 
+# Colour for text the script renders itself. omarchy-plymouth-set rewrites
+# these lines together with the background colours, so they track the same
+# foreground the entry, lock and bullet images are recoloured to.
+text_color.red = 0.753;
+text_color.green = 0.792;
+text_color.blue = 0.961;
+
 logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
 logo.sprite.SetX(Window.GetWidth() / 2 - logo.image.GetWidth() / 2);
@@ -24,6 +31,8 @@ global.max_progress = 0.0;  # Track the maximum progress reached to prevent back
 
 fun refresh_callback() {
   global.animation_frame++;
+
+  update_capslock_warning();
 
   # Animate fake progress to limit over time with easing
   if (global.fake_progress_active == 1) {
@@ -76,11 +85,15 @@ fun hide_progress_bar() {
 fun show_password_dialog() {
   lock.sprite.SetOpacity(1);
   entry.sprite.SetOpacity(1);
+  global.password_visible = 1;
+  update_capslock_warning();
 }
 
 fun hide_password_dialog() {
   lock.sprite.SetOpacity(0);
   entry.sprite.SetOpacity(0);
+  global.password_visible = 0;
+  update_capslock_warning();
 
   for (index = 0; bullet.sprites[index]; index++) {
     bullet.sprites[index].SetOpacity(0);
@@ -128,6 +141,69 @@ lock.sprite.SetOpacity(0);
 
 # Bullet array
 bullet.sprites = [];
+
+#----------------------------------------- Caps Lock Warning --------------------------------
+
+# Plymouth reports the keyboard's Caps Lock state to scripts through
+# Plymouth.GetCapslockState(). Every use is guarded so a plymouthd without the
+# call, or a missing warning.png, leaves the password prompt itself untouched.
+global.capslock_supported = 0;
+if (Plymouth.GetCapslockState) global.capslock_supported = 1;
+global.capslock_visible = 0;
+global.password_visible = 0;
+
+capslock.text_sprite = Sprite();
+capslock.text_sprite.SetOpacity(0);
+capslock.icon_sprite = Sprite();
+capslock.icon_sprite.SetOpacity(0);
+capslock.icon_source = Image("warning.png");
+
+fun update_capslock_warning() {
+  if (global.capslock_supported == 1) {
+    warn = 0;
+    if (global.password_visible == 1 && Plymouth.GetCapslockState()) warn = 1;
+
+    if (warn != global.capslock_visible) {
+      global.capslock_visible = warn;
+
+      if (warn == 1) {
+        # Render lazily: the label plugin is only needed once Caps Lock is on.
+        if (!capslock.image) {
+          capslock.image = Image.Text("Caps Lock is on", text_color.red, text_color.green, text_color.blue);
+          text_w = capslock.image.GetWidth();
+          text_h = capslock.image.GetHeight();
+
+          # Scale the icon to the label height and place it to the left of the
+          # text, with the pair centred under the entry field.
+          icon_w = 0;
+          gap = 0;
+          if (capslock.icon_source) {
+            icon_h = Math.Int(text_h * 0.85);
+            if (icon_h < 8) icon_h = 8;
+            icon_w = Math.Int(icon_h * capslock.icon_source.GetWidth() / capslock.icon_source.GetHeight());
+            gap = 8;
+            capslock.icon = capslock.icon_source.Scale(icon_w, icon_h);
+            capslock.icon_sprite.SetImage(capslock.icon);
+          }
+
+          capslock.x = Window.GetWidth() / 2 - (icon_w + gap + text_w) / 2;
+          capslock.y = entry.y + entry.image.GetHeight() + 20;
+
+          if (capslock.icon) {
+            capslock.icon_sprite.SetPosition(capslock.x, capslock.y + (text_h - icon_h) / 2, 10003);
+          }
+          capslock.text_sprite.SetImage(capslock.image);
+          capslock.text_sprite.SetPosition(capslock.x + icon_w + gap, capslock.y, 10003);
+        }
+        capslock.text_sprite.SetOpacity(1);
+        if (capslock.icon) capslock.icon_sprite.SetOpacity(1);
+      } else {
+        capslock.text_sprite.SetOpacity(0);
+        capslock.icon_sprite.SetOpacity(0);
+      }
+    }
+  }
+}
 
 fun display_normal_callback() {
   hide_password_dialog();

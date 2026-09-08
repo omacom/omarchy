@@ -20,6 +20,7 @@ plymouth_theme_assets=(
   preview-unlock.png
   progress_bar.png
   progress_box.png
+  warning.png
 )
 plymouth_default_assets=("${plymouth_theme_assets[@]}" logos/oma.png)
 sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png)
@@ -455,6 +456,8 @@ for requested_umask in 022 027 077; do
   cmp -s "$test_tmp/logo.png" "$sddm/logo.png" || fail "SDDM receives the selected logo under umask $requested_umask"
   grep -Fq '#1d2021' "$sddm/Main.qml" || fail "SDDM Main.qml receives the selected background under umask $requested_umask"
   grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "Plymouth script receives the selected background under umask $requested_umask"
+  grep -Fq 'text_color.red = 0.922;' "$theme/omarchy.script" && grep -Fq 'text_color.green = 0.859;' "$theme/omarchy.script" && grep -Fq 'text_color.blue = 0.698;' "$theme/omarchy.script" ||
+    fail "Plymouth script receives the selected text colour under umask $requested_umask"
 
   cmp -s "$ROOT/default/plymouth/logos/oma.png" "$theme/logos/oma.png" || fail "theme set leaves the packaged nested logo unchanged"
   cmp -s "$ROOT/default/sddm/omarchy/metadata.desktop" "$sddm/metadata.desktop" || fail "theme set leaves packaged SDDM metadata unchanged"
