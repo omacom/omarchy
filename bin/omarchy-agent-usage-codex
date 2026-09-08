@@ -4,10 +4,10 @@
 # omarchy:hidden=true
 """Collect Codex usage into one display-ready JSON record.
 
-Local stats come from native Codex CLI session files, pi/omp sessions that
-ran through openai-codex, and opencode sessions that ran on an OpenAI
-provider; rate limits and the plan come from the Codex app-server RPC. The agents
-panel only ever reads the JSON this prints.
+Local stats come from native Codex CLI session files and opencode sessions
+that ran on an OpenAI provider; rate limits and the plan come from the Codex
+app-server RPC. Pi/OMP local stats belong to the dedicated Pi collector.
+The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
@@ -346,9 +346,9 @@ def cache_root():
 def scan_cache_paths():
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
-  # The digest covers every data path the scan reads: the codex session
-  # roots, the opencode DB, and (via Path.home()) the pi/omp session roots.
-  digest = hashlib.sha1((str(Path.home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
+  # The digest covers the codex session roots and the opencode DB; its
+  # namespace excludes caches from before Pi/OMP moved to their own collector.
+  digest = hashlib.sha1(("native-opencode\n" + str(Path.home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
   root = cache_root()
   return root / f"codex-scan-{digest}.json", root / f"codex-scan-{digest}.lock"
 
