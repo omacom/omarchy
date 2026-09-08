@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set the focused Hyprland monitor refresh rate
+# omarchy:args=[RATE]
+# omarchy:examples=omarchy hyprland monitor refresh rate | omarchy hyprland monitor refresh rate 144
+
+usage() {
+  echo "Usage: omarchy-hyprland-monitor-refresh-rate [RATE]"
+}
+
+focused_monitor() {
+  hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)'
+}
+
+normalize_rate() {
+  awk 'NR == 1 { printf "%g\n", $0 }'
+}
+
+# Rates the focused mode can reach. A mode at another resolution is a different
+# picture, not a different refresh rate, so it is not offered here.
+rates_for_mode() {
+  jq -r '
+    . as $monitor
+    | [(.availableModes // [])[]
+       | capture("^(?<width>[0-9]+)x(?<height>[0-9]+)@(?<rate>[0-9.]+)Hz$")
+       | select((.width | tonumber) == $monitor.width and (.height | tonumber) == $monitor.height)
+       | .rate | tonumber]
+    | unique
+    | reverse
+    | .[]'
+}
+
+# Hyprland lists a mode as 143.91Hz while the driver reports 143.912, so a
+# requested rate matches the nearest mode within half a hertz rather than
+# exactly. Anything further away is a mode the monitor does not have, and
+# handing it to Hyprland anyway leaves it to pick a fallback.
+match_rate() {
+  local requested="$1"
+
+  awk -v requested="$requested" '
+    {
+      distance = requested - $0
+      if (distance < 0) distance = -distance
+      if (NR == 1 || distance < best_distance) { best_distance = distance; best = $0 }
+    }
+    END { if (NR > 0 && best_distance <= 0.5) printf "%g\n", best }
+  '
+}
+
+set_refresh_rate() {
+  local requested="$1"
+  local monitor_info="$(focused_monitor)"
+  local active_monitor="$(jq -r '.name' <<<"$monitor_info")"
+  local width="$(jq -r '.width' <<<"$monitor_info")"
+  local height="$(jq -r '.height' <<<"$monitor_info")"
+  local scale="$(jq -r '.scale' <<<"$monitor_info")"
+
+  # active_monitor is written into the Lua string eval'd below, so only a plain
+  # connector name may pass; a hostile output name could execute otherwise.
+  if [[ ! $active_monitor =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Refusing unsafe monitor name" >&2
+    exit 1
+  fi
+
+  local new_rate="$(rates_for_mode <<<"$monitor_info" | match_rate "$requested")"
+  if [[ -z $new_rate ]]; then
+    echo "$active_monitor has no ${requested}Hz mode at ${width}x${height}" >&2
+    exit 1
+  fi
+
+  # Deliberately not persisted to monitors.lua. Scaling can be, because the
+  # default config carries one scale for every output; a refresh rate belongs
+  # to a single monitor's mode, and writing it into that same catch-all would
+  # force one display's rate on all of them. Pin a rate with a per-output
+  # hl.monitor entry to keep it past a reboot.
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${new_rate}\", position = \"auto\", scale = $scale })" >/dev/null
+}
+
+case "${1:-}" in
+"")
+  focused_monitor | jq -r '.refreshRate' | normalize_rate
+  ;;
+-h | --help)
+  usage
+  ;;
+*)
+  if [[ $1 =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    set_refresh_rate "$1"
+  else
+    usage >&2
+    exit 1
+  fi
+  ;;
+esac
