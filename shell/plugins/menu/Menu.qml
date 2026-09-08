@@ -5,12 +5,17 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
+import "../../i18n/zh_CN.js" as ZhCN
 
 Item {
   id: root
 
   // Injected by omarchy-shell when this plugin is summoned.
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // Set OMARCHY_UI_LANGUAGE=en to force English, or zh-CN to force Chinese.
+  // With no override, the desktop LANG is used.
+  readonly property string uiLanguage: Quickshell.env("OMARCHY_UI_LANGUAGE") || Quickshell.env("LANGUAGE") || Quickshell.env("LANG") || "en_US"
+  readonly property bool chineseUi: uiLanguage.toLowerCase().indexOf("zh") === 0
   property var shell: null
   property var manifest: null
 
@@ -237,7 +242,8 @@ Item {
   }
 
   function parseMenuJsonc(raw) {
-    return MenuModel.parseMenuJsonc(raw)
+    var parsed = MenuModel.parseMenuJsonc(raw)
+    return root.chineseUi ? ZhCN.translateItems(parsed) : parsed
   }
 
   // Merge defaults + user extension. Later entries override earlier ones
@@ -861,7 +867,8 @@ Item {
   function openDmenu(payload) {
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
-    dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
+    var prompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
+    dmenuPrompt = root.chineseUi ? ZhCN.translate(prompt) : prompt
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
     selectionFile = String(payload.selectionFile || "")
     doneFile = String(payload.doneFile || "")
@@ -1459,7 +1466,9 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet"
+            text: root.filterText
+              ? (root.chineseUi ? "没有匹配项：“" + root.filterText + "”" : "No matches for “" + root.filterText + "”")
+              : (root.chineseUi ? "这里还没有内容" : "Nothing here yet")
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
