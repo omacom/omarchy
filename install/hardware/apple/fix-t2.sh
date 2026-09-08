@@ -1,6 +1,5 @@
-# Detect T2 MacBook models using PCI IDs
-# Vendor: 106b (Apple), Device IDs: 1801 or 1802 (T2 Security Chip)
-if lspci -nn | grep "106b:180[12]" >/dev/null; then
+# Detect T2 MacBook models using the T2 PCI IDs (Apple 106b:1801/1802).
+if omarchy-hw-t2; then
   echo "Detected MacBook with T2 chip. Installing support items..."
 
   omarchy-pkg-add \
