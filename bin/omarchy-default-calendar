@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Set the default calendar for .ics files and webcal links
+# omarchy:args=[hey|google]
+# omarchy:examples=omarchy default calendar | omarchy default calendar hey | omarchy default calendar google
+
+calendar_mime_types=(
+  text/calendar
+  application/ics
+  text/x-vcalendar
+  x-scheme-handler/webcal
+)
+
+current_calendar() {
+  local desktop_id
+  desktop_id=$(xdg-mime query default text/calendar 2>/dev/null || true)
+
+  case "$desktop_id" in
+  "" | HEY.desktop) echo "hey" ;;
+  "Google Calendar.desktop") echo "google" ;;
+  *) echo "$desktop_id" ;;
+  esac
+}
+
+if (($# == 0)); then
+  current_calendar
+  exit 0
+fi
+
+case "$1" in
+hey) desktop_id="HEY.desktop"; name="HEY"; glyph=󰃭 ;;
+google) desktop_id="Google Calendar.desktop"; name="Google Calendar"; glyph=󰊭 ;;
+*)
+  echo "Usage: omarchy-default-calendar <hey|google>"
+  exit 1
+  ;;
+esac
+
+mkdir -p "$HOME/.local/share/applications"
+if [[ -f "$OMARCHY_PATH/applications/$desktop_id" ]]; then
+  cp "$OMARCHY_PATH/applications/$desktop_id" "$HOME/.local/share/applications/$desktop_id"
+  update-desktop-database "$HOME/.local/share/applications" &>/dev/null || true
+fi
+
+for mime in "${calendar_mime_types[@]}"; do
+  xdg-mime default "$desktop_id" "$mime" || exit 1
+done
+
+omarchy-notification-send -g $glyph "$name is now the default calendar"

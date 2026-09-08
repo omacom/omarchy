@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Google Calendar
+Exec=omarchy-webapp-handler-google-calendar %U
+Terminal=false
+Type=Application
+Icon=google-calendar
+StartupNotify=true
+MimeType=text/calendar;application/ics;text/x-vcalendar;x-scheme-handler/webcal

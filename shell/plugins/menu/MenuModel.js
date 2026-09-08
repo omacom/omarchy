@@ -396,6 +396,7 @@ var GUARD_READERS = [
   "omarchy-channel-current",
   "omarchy-default-agent",
   "omarchy-default-browser",
+  "omarchy-default-calendar",
   "omarchy-default-editor",
   "omarchy-default-terminal",
   "omarchy-dns"
