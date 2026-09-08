@@ -33,9 +33,12 @@ if [[ -f $tui_config ]]; then
     tmp=$(mktemp "$tui_config.XXXXXX")
     # Append the plugin; set theme so this install follows the desktop.
     # Plugin order affects initialization, so never rewrite the rest of .plugin.
-    jq --arg plugin "$plugin_target" \
+    if ! jq --arg plugin "$plugin_target" \
       '.theme = "omarchy" | .plugin = ((.plugin // []) + [$plugin])' \
-      "$tui_config" >"$tmp"
+      "$tui_config" >"$tmp"; then
+      rm -f "$tmp"
+      exit 1
+    fi
     mv "$tmp" "$tui_config"
   fi
 elif [[ -f $plugin_target ]]; then

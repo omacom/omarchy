@@ -548,6 +548,12 @@ jq -e --arg plugin "$OPENCODE_FRESH_CONFIG/tui-plugins/omarchy-theme.ts" \
   "$OPENCODE_FRESH_CONFIG/tui.json" >/dev/null
 pass "opencode theme activation generates tui.json when missing"
 
+rg -q 'omarchy-theme-set-opencode' "$ROOT/bin/omarchy-theme-set" ||
+  fail "theme-set no longer syncs OpenCode without restarting it"
+rg -q 'omarchy-restart-opencode' "$ROOT/bin/omarchy-theme-set" &&
+  fail "theme-set still restarts OpenCode, which aborts in-flight agents"
+pass "theme-set syncs OpenCode instead of sending SIGUSR2"
+
 make_tmpdir THEME_TMPDIR
 OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$THEME_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
