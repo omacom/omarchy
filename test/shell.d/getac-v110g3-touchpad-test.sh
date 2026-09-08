@@ -37,12 +37,7 @@ cat >"$stub_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 
 echo 'limine-mkinitcpio' >>"$TEST_LOG"
-SH
-
-cat >"$stub_bin/omarchy-cmd-present" <<'SH'
-#!/bin/bash
-
-(( ${LIMINE_MKINITCPIO_INSTALLED:-1} == 1 ))
+exit "${TEST_LIMINE_MKINITCPIO_STATUS:-0}"
 SH
 
 cat >"$stub_bin/omarchy-state" <<'SH'
@@ -57,6 +52,8 @@ vendor_file="$test_tmp/sys_vendor"
 product_file="$test_tmp/product_name"
 drop_in="$test_tmp/getac-v110g3-touchpad.conf"
 rebuild_marker="$test_tmp/rebuild-complete"
+running_cmdline="$test_tmp/cmdline"
+printf 'quiet splash\n' >"$running_cmdline"
 
 write_dmi() {
   printf '%s\n' "${1-GETAC}" >"$vendor_file"
@@ -135,7 +132,8 @@ run_migration() {
     OMARCHY_DMI_PRODUCT_NAME="$product_file" \
     OMARCHY_GETAC_V110G3_LIMINE_CONF="$drop_in" \
     OMARCHY_GETAC_V110G3_REBUILD_MARKER="$rebuild_marker" \
-    LIMINE_MKINITCPIO_INSTALLED="${3-1}" \
+    OMARCHY_GETAC_V110G3_RUNNING_CMDLINE="$running_cmdline" \
+    TEST_LIMINE_MKINITCPIO_STATUS="${3-0}" \
     bash -euo pipefail "$migration" >/dev/null
 }
 
@@ -168,9 +166,19 @@ run_migration "ThinkPad" "X1" || fail "the migration no-ops on other hardware"
 pass "the migration no-ops on other hardware"
 
 rm -f "$drop_in" "$rebuild_marker"
-: >"$calls"
-run_migration "GETAC" "V110G3" 0 || fail "installs without limine-mkinitcpio still write the drop-in"
-grep -Fq 'i8042.nomux=1' "$drop_in" || fail "installs without limine-mkinitcpio still write the drop-in"
-grep -Fxq 'limine-mkinitcpio' "$calls" && fail "installs without limine-mkinitcpio skip the rebuild"
-[[ -e $rebuild_marker ]] && fail "installs without limine-mkinitcpio are not marked as repaired"
-pass "the migration skips the rebuild when limine-mkinitcpio is missing"
+printf 'i8042.nomux=1 psmouse.synaptics_intertouch=1\n' >"$running_cmdline"
+run_migration || fail "an already-live cmdline still writes the drop-in"
+grep -Fq 'KERNEL_CMDLINE[default]+=" i8042.nomux=1 psmouse.synaptics_intertouch=1"' "$drop_in" ||
+  fail "an already-live cmdline still writes the drop-in"
+grep -Fxq 'limine-mkinitcpio' "$calls" && fail "an already-live cmdline skips the rebuild"
+grep -q 'state set reboot-required' "$calls" && fail "an already-live cmdline does not ask for a reboot"
+[[ -f $rebuild_marker ]] || fail "an already-live cmdline records the machine-wide repair"
+pass "the migration writes the drop-in without rebuilding when the cmdline is already live"
+
+rm -f "$drop_in" "$rebuild_marker"
+printf 'quiet splash\n' >"$running_cmdline"
+run_migration "GETAC" "V110G3" 1 && fail "a failing boot image rebuild fails the migration"
+grep -Fq 'i8042.nomux=1' "$drop_in" || fail "a failing boot image rebuild still writes the drop-in"
+grep -Fxq 'limine-mkinitcpio' "$calls" || fail "a failing boot image rebuild still attempts the rebuild"
+[[ -e $rebuild_marker ]] && fail "a failing boot image rebuild is not marked as repaired"
+pass "the migration stays pending when the boot image rebuild fails"
