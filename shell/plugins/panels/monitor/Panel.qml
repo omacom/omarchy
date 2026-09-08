@@ -27,6 +27,15 @@ Panel {
   property var displays: []
   property int enabledDisplayCount: 0
 
+  // Scale and mode belong to whichever display has focus, so almost every
+  // derived value starts by finding it.
+  readonly property var focusedDisplay: {
+    for (var i = 0; i < displays.length; i++) {
+      if (displays[i] && displays[i].focused) return displays[i]
+    }
+    return null
+  }
+
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
 
@@ -42,14 +51,9 @@ Panel {
   // Mouse hover on a target updates root state via the components' `hovered`
   // signal so keyboard cursor and pointer share one highlight.
   readonly property var scalePresets: ["1", "1.25", "1.6", "2", "3", "4"]
-  readonly property var scaleValues: {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.availableScales(scalePresets, display.width, display.height)
-    }
-    return scalePresets
-  }
+  readonly property var scaleValues: focusedDisplay
+    ? Model.availableScales(scalePresets, focusedDisplay.width, focusedDisplay.height)
+    : scalePresets
   property string focusSection: "scale"
   property int selectedIndex: 0
   property bool cursorActive: false
@@ -266,21 +270,13 @@ Panel {
   }
 
   function activeScaleIndex() {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.matchingScaleIndex(scaleValues, monitorScale, display.width, display.height)
-    }
-    return -1
+    if (!focusedDisplay) return -1
+    return Model.matchingScaleIndex(scaleValues, monitorScale, focusedDisplay.width, focusedDisplay.height)
   }
 
   function effectiveScale(scale) {
-    for (var i = 0; i < displays.length; i++) {
-      var display = displays[i]
-      if (display && display.focused)
-        return Model.cleanScale(scale, display.width, display.height)
-    }
-    return normalizeScale(scale)
+    if (!focusedDisplay) return normalizeScale(scale)
+    return Model.cleanScale(scale, focusedDisplay.width, focusedDisplay.height)
   }
 
   // Playful mood-name for a given brightness percent. Bands intentionally
