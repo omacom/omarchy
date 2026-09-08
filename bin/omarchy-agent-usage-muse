@@ -1,0 +1,641 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Muse usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Muse usage into one display-ready JSON record.
+
+Local stats come from native Muse session logs: every ``model_completed``
+event in ``<data>/sessions/**/session.jsonl`` carries the model and its
+token usage for that call. The agents panel only ever reads the JSON this
+prints.
+
+Rate limits come from the client's own key endpoint
+(``POST https://api.meta.ai/muse-code/key`` with the OAuth access token from
+``~/.config/muse/auth.json``), which returns ``subs_usage`` window/weekly
+percents with reset times plus the tier name — the same figures the TUI's
+``/usage`` overlay shows. Minting is idempotent (the same Model API key
+comes back), so polling is safe. When the probe fails, the collector falls
+back to estimated meters from user-configured caps in
+``~/.config/omarchy/agents/muse.json`` (``sessionWindowTokens`` for the
+trailing 5 hours, ``weeklyWindowTokens`` for the trailing 7 days); with
+neither, ``limits`` stays empty and the panel shows local stats only.
+"""
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import shutil
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "muse"
+AGENT_NAME = "Muse"
+AUTH_HELP = "Run `muse login` to authenticate."
+
+
+def key_endpoint() -> str:
+  # Overridable for tests, which point it at a local stub instead of Meta's
+  # key service.
+  return os.environ.get("MUSE_KEY_ENDPOINT") or "https://api.meta.ai/muse-code/key"
+# Recent probe results are reused for a short window so repeated panel opens
+# do not turn into a request per flick. Minting is idempotent, but there is
+# still no reason to re-ask a question whose answer moves slowly.
+PROBE_MIN_INTERVAL_SECONDS = 60
+
+# A scan this recent is only reused to dedup concurrent collector runs (the
+# update command backgrounds one per agent while the panel refreshes on its
+# own); every periodic widget refresh lands a real rescan, however low
+# refreshIntervalSec is set. --limits-only promises only fresh limits, so it
+# may reuse a scan for up to 15 minutes.
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+# Rolling windows for the estimated quota meters, mirroring Claude's labels.
+SESSION_WINDOW_SECONDS = 5 * 3600
+WEEKLY_WINDOW_SECONDS = 7 * 24 * 3600
+
+
+def config_path() -> Path:
+  base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
+  return Path(base) / "omarchy" / "agents" / "muse.json"
+
+
+def configured_caps() -> tuple[int, int]:
+  """(sessionWindowTokens, weeklyWindowTokens); unset or invalid means 0."""
+  try:
+    data = json.loads(config_path().read_text(encoding="utf-8"))
+  except Exception:
+    return 0, 0
+  if not isinstance(data, dict):
+    return 0, 0
+  return number(data.get("sessionWindowTokens")), number(data.get("weeklyWindowTokens"))
+
+
+def data_root() -> Path:
+  override = os.environ.get("MUSE_DATA_DIR")
+  if override:
+    return Path(os.path.expandvars(os.path.expanduser(override)))
+  base = os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")
+  return Path(base) / "muse"
+
+
+now = datetime.now()
+today = now.strftime("%Y-%m-%d")
+recent_dates = [(now - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+today_tokens_by_model = {}
+model_usage = {}
+today_sessions = set()
+active_days = set()
+
+today_prompts = 0
+today_total_tokens = 0
+total_prompts = 0
+total_sessions = set()
+seen_event_ids = set()
+trailing_session_tokens = 0
+trailing_weekly_tokens = 0
+
+
+def number(value):
+  try:
+    return int(value or 0)
+  except Exception:
+    return 0
+
+
+def model_name(raw):
+  value = str(raw or "muse")
+  return value if value else "muse"
+
+
+def event_epoch(recorded_at, fallback_mtime) -> float:
+  if recorded_at is None:
+    return fallback_mtime
+  try:
+    stamp = float(recorded_at)
+  except Exception:
+    return fallback_mtime
+  # recorded_at is usually microseconds; accept ms and seconds too.
+  if stamp >= 1e14:
+    stamp = stamp / 1_000_000
+  elif stamp >= 1e11:
+    stamp = stamp / 1_000
+  return stamp
+
+
+def local_day(recorded_at, fallback_mtime):
+  try:
+    return datetime.fromtimestamp(event_epoch(recorded_at, fallback_mtime)).strftime("%Y-%m-%d")
+  except Exception:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def add_usage(day, epoch, session_key, model, input_tokens, output_tokens, cache_read, cache_write):
+  global today_prompts, today_total_tokens, total_prompts
+  global trailing_session_tokens, trailing_weekly_tokens
+  total = input_tokens + output_tokens + cache_read + cache_write
+  total_prompts += 1
+  total_sessions.add(session_key)
+  active_days.add(day)
+
+  window_now = time.time()
+  if epoch >= window_now - SESSION_WINDOW_SECONDS:
+    trailing_session_tokens += total
+  if epoch >= window_now - WEEKLY_WINDOW_SECONDS:
+    trailing_weekly_tokens += total
+
+  bucket = model_usage.setdefault(model, {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  })
+  bucket["inputTokens"] += input_tokens
+  bucket["outputTokens"] += output_tokens
+  bucket["cacheReadInputTokens"] += cache_read
+  bucket["cacheCreationInputTokens"] += cache_write
+
+  if day in recent:
+    recent[day]["messageCount"] += total
+
+  if day == today:
+    today_prompts += 1
+    today_sessions.add(session_key)
+    today_total_tokens += total
+    today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total
+
+
+def top_level_session(path: Path) -> str | None:
+  """Top-level session id for a session log path.
+
+  Native layout is ``sessions/YYYY/MM/DD/<uuid>/session.jsonl`` with
+  subagent logs nested deeper (``.../<uuid>/subagent/<id>/session.jsonl``),
+  so the session is the directory right under the day, not the log's parent.
+  """
+  try:
+    parts = path.parts
+    anchor = parts.index("sessions")
+    candidate = parts[anchor + 4]
+  except (ValueError, IndexError):
+    return None
+  if candidate in ("subagent", "") or "/" in candidate:
+    return None
+  return candidate
+
+
+def scan_native_muse_sessions():
+  root = data_root() / "sessions"
+  if not root.is_dir():
+    return
+  try:
+    files = [p for p in root.rglob("session.jsonl") if ".msp-view" not in p.parts]
+  except OSError:
+    return
+
+  for path in files:
+    try:
+      mtime = path.stat().st_mtime
+    except OSError:
+      continue
+    try:
+      with path.open(encoding="utf-8", errors="replace") as handle:
+        for raw in handle:
+          if "model_completed" not in raw:
+            continue
+          try:
+            entry = json.loads(raw)
+          except Exception:
+            continue
+          event_id = entry.get("id")
+          if event_id and event_id in seen_event_ids:
+            continue
+          if event_id:
+            seen_event_ids.add(event_id)
+          payload = entry.get("payload") or {}
+          event = payload.get("event") or {}
+          if event.get("kind") != "model_completed":
+            continue
+          usage = event.get("usage") or {}
+          if not isinstance(usage, dict):
+            continue
+          cache_read = number(usage.get("cache_read_tokens"))
+          cache_write = number(usage.get("cache_write_tokens"))
+          # Cached tokens ride inside input_tokens (cache_read never exceeds
+          # it), and reasoning tokens ride inside output_tokens (reasoning
+          # never exceeds it across thousands of sampled calls). Keep the
+          # cache split without counting either category twice.
+          input_tokens = max(0, number(usage.get("input_tokens")) - cache_read - cache_write)
+          output_tokens = number(usage.get("output_tokens"))
+          if not (input_tokens or output_tokens or cache_read or cache_write):
+            continue
+          # Session key is the top-level session, not the subagent that made
+          # the call: subagents log under <session>/subagent/<id>/, and each
+          # of those would otherwise read as a session of its own.
+          session_key = top_level_session(path)
+          if session_key is None:
+            stream = entry.get("stream") or {}
+            session_key = str(stream.get("id") or path.parent.name or path)
+          epoch = event_epoch(entry.get("recorded_at"), mtime)
+          day = local_day(entry.get("recorded_at"), mtime)
+          add_usage(day, epoch, session_key, model_name(event.get("model")), input_tokens, output_tokens, cache_read, cache_write)
+    except OSError:
+      continue
+
+
+def cache_root():
+  root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def scan_cache_paths():
+  # The digest covers every data path the scan reads, so a moved data dir
+  # (MUSE_DATA_DIR / XDG_DATA_HOME) does not reuse a foreign scan.
+  digest = hashlib.sha1(str(data_root()).encode("utf-8")).hexdigest()[:16]
+  root = cache_root()
+  return root / f"muse-scan-{digest}.json", root / f"muse-scan-{digest}.lock"
+
+
+def read_fresh_json(path, max_age_seconds):
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    # A negative age means the mtime is in the future: the clock moved
+    # backwards since the write, so the cache's freshness cannot be trusted.
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      return json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  return None
+
+
+def write_json(path, payload):
+  # A temp name unique to this writer, not derived from the target: several
+  # collectors can run at once (the update command backgrounds one per agent,
+  # the panel refreshes on its own), and a shared temp path means the second
+  # replace finds the first one's file already moved away.
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    # mkstemp opens at 0600; nothing in the cache is sensitive, so open it
+    # up to the usual 0644.
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+# The cache payload is a versioned envelope around the local-stats dict, so a
+# corrupted or foreign-shaped file is a cache miss (rescan + rewrite) instead
+# of a crash or a garbage record.
+def read_cached_stats(cache_file, max_age_seconds):
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != 1:
+    return None
+  # today* fields only mean "today" on the day they were scanned. A cache
+  # from another local date (midnight passed, or the clock moved) is a miss,
+  # not merely old, whatever its mtime says.
+  if cached.get("scanDate") != today:
+    return None
+  stats = cached.get("stats")
+  if not isinstance(stats, dict):
+    return None
+  if not all(key in stats for key in ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")):
+    return None
+  return stats
+
+
+def write_cached_stats(cache_file, stats):
+  try:
+    write_json(cache_file, {"schemaVersion": 1, "scanDate": today, "stats": stats})
+  except Exception as exc:
+    print(f"omarchy-agent-usage-muse: could not write usage cache ({exc})", file=sys.stderr)
+
+
+def local_stats():
+  """Snapshot the aggregated local usage into the record's stats dict."""
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": [recent[day] for day in recent_dates],
+    "totalPrompts": total_prompts,
+    "totalSessions": len(total_sessions),
+    # Days with any recorded usage, for the all-time "N days" summary. The
+    # dates travel too: merging snapshots from several machines needs their
+    # union, which a count alone cannot give.
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": model_usage,
+    # Trailing-window totals for the estimated quota meters. Only meaningful
+    # as of the scan that produced them; a reused cache reads up to its age
+    # stale, which a slow-moving meter tolerates.
+    "trailingSessionTokens": trailing_session_tokens,
+    "trailingWeeklyTokens": trailing_weekly_tokens,
+  }
+
+
+def run_local_scans():
+  scan_native_muse_sessions()
+  return local_stats()
+
+
+def cached_local_stats(max_age):
+  """Local stats, with the cache as a pure optimization.
+
+  The cache must never take the collector down: any cache-layer failure
+  (unwritable cache root, lock errors, disk full) degrades to a direct scan
+  and a warning on stderr. The JSON record is the contract; the cache is not.
+  """
+  try:
+    return _cached_local_stats(max_age)
+  except Exception as exc:
+    print(f"omarchy-agent-usage-muse: cache unavailable ({exc}); scanning directly", file=sys.stderr)
+    return run_local_scans()
+
+
+def _cached_local_stats(max_age):
+  cache_file, lock_file = scan_cache_paths()
+
+  cached = read_cached_stats(cache_file, max_age)
+  if cached is not None:
+    return cached
+
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = read_cached_stats(cache_file, max_age)
+    if cached is not None:
+      return cached
+    stats = run_local_scans()
+    write_cached_stats(cache_file, stats)
+    return stats
+
+
+# Estimated quota meters from user-configured caps. Muse exposes no
+# server-side quota endpoint, so each entry reports trailing-window local
+# usage as a share of the cap in ~/.config/omarchy/agents/muse.json. A
+# window with no configured cap is omitted, not zeroed: an absent meter is
+# honest, a 0% one would claim headroom that was never measured. Rolling
+# windows have no fixed reset moment, so resetsAt stays empty (the panel
+# tolerates that) and the title marks the figure estimated.
+def estimated_limits(stats) -> list:
+  session_cap, weekly_cap = configured_caps()
+  limits = []
+  if session_cap > 0:
+    used = number(stats.get("trailingSessionTokens"))
+    limits.append({
+      "label": "Session (5-hour)",
+      "title": "Session (estimated)",
+      "percent": min(1.0, used / session_cap),
+      "resetsAt": "",
+    })
+  if weekly_cap > 0:
+    used = number(stats.get("trailingWeeklyTokens"))
+    limits.append({
+      "label": "Weekly (7-day)",
+      "title": "Weekly (estimated)",
+      "percent": min(1.0, used / weekly_cap),
+      "resetsAt": "",
+    })
+  return limits
+
+
+# ------------------------------------------------------------------ limits
+#
+# The access token is read from the CLI's login and goes nowhere but the
+# Authorization header of the key probe. Only the plan label and the usage
+# figures may travel into the printed record.
+
+
+def muse_config_dir() -> Path:
+  base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
+  return Path(base) / "muse"
+
+
+def read_access_token() -> str:
+  try:
+    data = json.loads((muse_config_dir() / "auth.json").read_text(encoding="utf-8"))
+  except Exception:
+    return ""
+  login = (data.get("providers") or {}).get("meta") or {}
+  if not isinstance(login, dict):
+    return ""
+  return str(login.get("access_token") or "")
+
+
+def normalize_reset_at(value) -> str:
+  if value is None:
+    return ""
+  try:
+    ts = float(value)
+  except Exception:
+    return ""
+  if ts <= 0:
+    return ""
+  # Epoch seconds; accept milliseconds too.
+  if ts >= 1e12:
+    ts = ts / 1000
+  try:
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat()
+  except Exception:
+    return ""
+
+
+def probe_key(access_token: str) -> dict:
+  request = urllib.request.Request(
+    key_endpoint(),
+    data=json.dumps({}).encode(),
+    method="POST",
+    headers={
+      "Authorization": "Bearer " + access_token,
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+    },
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=10) as response:
+      payload = json.loads(response.read().decode("utf-8", errors="replace"))
+  except urllib.error.HTTPError as error:
+    if error.code in (401, 403):
+      return {"ok": False, "expired": True,
+              "helpText": "Muse's saved sign-in was rejected. Run `muse login` to refresh it."}
+    return {"ok": False,
+            "helpText": f"Muse's usage endpoint returned status {error.code}. Local Muse stats are still shown."}
+  except Exception:
+    # A transport failure reached no server at all — no route, no DNS. Any
+    # real answer, including an error status, is a server we should stop
+    # pestering; this is not.
+    return {"ok": False, "transport": True,
+            "helpText": "Couldn't reach Muse's usage endpoint. Retrying shortly. Local Muse stats are still shown."}
+
+  usage = payload.get("subs_usage") if isinstance(payload, dict) else None
+  if not isinstance(usage, dict):
+    return {"ok": False, "helpText": "Muse's usage endpoint returned no usage. Local Muse stats are still shown."}
+
+  limits = []
+  window = usage.get("window") or {}
+  if isinstance(window, dict) and window.get("used_percent") is not None:
+    try:
+      percent = min(1.0, max(0.0, float(window.get("used_percent")) / 100.0))
+    except Exception:
+      percent = -1.0
+    if percent >= 0:
+      mins = number(window.get("window_duration_mins"))
+      label = "Session (5-hour)" if mins == 300 else (f"Session ({mins}m)" if mins > 0 else "Session")
+      limits.append({"label": label, "percent": percent, "resetsAt": normalize_reset_at(window.get("resets_at"))})
+  weekly = usage.get("weekly") or {}
+  if isinstance(weekly, dict) and weekly.get("used_percent") is not None:
+    try:
+      percent = min(1.0, max(0.0, float(weekly.get("used_percent")) / 100.0))
+    except Exception:
+      percent = -1.0
+    if percent >= 0:
+      limits.append({"label": "Weekly (7-day)", "percent": percent, "resetsAt": normalize_reset_at(weekly.get("resets_at"))})
+
+  if not limits:
+    return {"ok": False, "helpText": "Muse's usage endpoint returned no limits. Local Muse stats are still shown."}
+  tier = ""
+  if isinstance(payload, dict):
+    tier = str(payload.get("subs_tier_name") or "")
+  return {"ok": True, "limits": limits, "tierLabel": tier}
+
+
+def limit_window_open(entry: dict, now: datetime) -> bool:
+  # A cached percentage outlives the probe that measured it, but only until
+  # its window rolls over: past-reset figures describe a period that is over.
+  # A window with no (or an unreadable) reset time is kept.
+  raw = str(entry.get("resetsAt") or "")
+  if raw == "":
+    return True
+  try:
+    resets_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except Exception:
+    return True
+  if resets_at.tzinfo is None:
+    resets_at = resets_at.replace(tzinfo=timezone.utc)
+  return resets_at > now
+
+
+def usable_cached_limits(cached: dict) -> list:
+  entries = cached.get("limits")
+  if not isinstance(entries, list):
+    return []
+  now = datetime.now(timezone.utc)
+  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+
+
+def collect_limits(stats: dict, force: bool) -> dict:
+  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
+
+  probe_cache = cache_root() / "muse-limits.json"
+  try:
+    cached = json.loads(probe_cache.read_text(encoding="utf-8")) if probe_cache.exists() else {}
+  except Exception:
+    cached = {}
+  if not isinstance(cached, dict):
+    cached = {}
+  fallback = usable_cached_limits(cached)
+  fallback_tier = str(cached.get("tierLabel") or "")
+
+  access_token = read_access_token()
+  if access_token == "":
+    # No login to probe with. Estimated caps (if configured) still work;
+    # otherwise say so instead of hiding the section silently.
+    result["limits"] = estimated_limits(stats)
+    if not result["limits"]:
+      result["limits"] = fallback
+      result["usageStatusText"] = "Waiting for auth"
+    if fallback_tier:
+      result["tierLabel"] = fallback_tier
+    return result
+
+  fetched_at = number(cached.get("fetchedAtMs")) / 1000
+  if (fallback or fallback_tier) and not force and time.time() - fetched_at < PROBE_MIN_INTERVAL_SECONDS:
+    result["limits"] = fallback or estimated_limits(stats)
+    result["tierLabel"] = fallback_tier
+    return result
+
+  probe = probe_key(access_token)
+  if probe["ok"]:
+    result["limits"] = probe["limits"]
+    result["tierLabel"] = probe.get("tierLabel", "")
+    write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000),
+                             "limits": probe["limits"], "tierLabel": result["tierLabel"]})
+    return result
+
+  # The first probe after login often fires before the network is up. Ask
+  # the shell to try again sooner than its regular interval.
+  if probe.get("transport"):
+    result["retryAdvised"] = True
+  if probe.get("expired"):
+    result["usageStatusText"] = "Sign-in expired"
+    result["authHelpText"] = probe["helpText"]
+    result["limits"] = estimated_limits(stats) or fallback
+    if fallback_tier:
+      result["tierLabel"] = fallback_tier
+    return result
+  estimated = estimated_limits(stats)
+  if estimated:
+    result["limits"] = estimated
+    if fallback_tier:
+      result["tierLabel"] = fallback_tier
+  elif fallback:
+    result["limits"] = fallback
+    result["tierLabel"] = fallback_tier
+  else:
+    result["usageStatusText"] = "Muse limits unavailable"
+    result["authHelpText"] = probe["helpText"]
+  return result
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  # --force rescans everything and re-probes limits, ignoring caches.
+  # --limits-only is kept for CLI compatibility with the panel's
+  # refreshLimits() call: only the limits probe must be fresh, so it may
+  # reuse a scan for far longer than a normal run, whose short window
+  # exists purely to dedup concurrent collector runs.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  stats = cached_local_stats(max_age)
+  limits = collect_limits(stats, args.force)
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
+    "hasLocalStats": True,
+    "tierLabel": limits["tierLabel"],
+    "usageStatusText": limits["usageStatusText"],
+    "authHelpText": limits["authHelpText"],
+    "limits": limits["limits"],
+  }
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  if shutil.which("muse") is None and not record["ready"]:
+    record["usageStatusText"] = "Muse unavailable"
+    record["authHelpText"] = "muse not found in PATH"
+  record.update(stats)
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
