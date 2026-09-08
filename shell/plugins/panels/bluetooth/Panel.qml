@@ -55,9 +55,13 @@ Panel {
   readonly property var knownDevices: deviceGroups.known || []
   readonly property var discoveredDevices: deviceGroups.discovered || []
 
+  // No adapter reads the same as "off" here: rfkill-blocking Bluetooth drops
+  // the BlueZ adapter object entirely (confirmed via bluetoothctl show), and
+  // the disabled glyph is the only thing standing between the user and the
+  // one control that turns it back on. An empty string would zero out
+  // BarIconButton's hasVisualContent and hide the widget from the bar.
   readonly property string icon: {
-    if (!adapter) return ""
-    if (!adapter.enabled) return "󰂲"
+    if (!adapter || !adapter.enabled) return "󰂲"
     if (connectedDevices.length > 0) return "󰂱"
     return "󰂯"
   }
@@ -633,8 +637,10 @@ Panel {
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
-    if (!adapter) return
-    Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
+    // No adapter means rfkill-blocked (see the icon comment above), which
+    // reads as "off" — so the direction to ask for is "on", same as an
+    // adapter sitting there with enabled: false.
+    Quickshell.execDetached(["omarchy-bluetooth-power", adapter && adapter.enabled ? "off" : "on"])
   }
 
   IpcHandler {
