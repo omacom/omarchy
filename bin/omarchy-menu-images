@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # omarchy:summary=Open a generic image selector menu
-# omarchy:args=[--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] <image-dir>...
+# omarchy:args=[--selected <image>] [--live-selection-file <path>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] <image-dir>...
 
 selected_image=""
+live_selection_file=""
 print_name=false
 show_labels=false
 filterable=false
@@ -14,7 +15,7 @@ cache_only=false
 image_dirs=()
 
 usage() {
-  echo "Usage: omarchy-menu-images [--selected <image>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] <image-dir>..."
+  echo "Usage: omarchy-menu-images [--selected <image>] [--live-selection-file <path>] [--print-name] [--show-labels] [--filterable] [--lazy-thumbnails] [--preload] [--cache-only] <image-dir>..."
 }
 
 while (( $# > 0 )); do
@@ -26,6 +27,15 @@ while (( $# > 0 )); do
       fi
 
       selected_image="$2"
+      shift 2
+      ;;
+    --live-selection-file)
+      if (( $# < 2 )); then
+        usage >&2
+        exit 1
+      fi
+
+      live_selection_file="$2"
       shift 2
       ;;
     --print-name)
@@ -72,7 +82,15 @@ if (( ${#image_dirs[@]} == 0 )); then
   exit 1
 fi
 
-selection_file=$(mktemp)
+if [[ -n $live_selection_file ]]; then
+  selection_file="$live_selection_file"
+  if ! : >"$selection_file"; then
+    echo "Unable to write live selection file: $selection_file" >&2
+    exit 1
+  fi
+else
+  selection_file=$(mktemp)
+fi
 done_file=$(mktemp)
 pending_file=$(mktemp)
 pending_video_file=$(mktemp)

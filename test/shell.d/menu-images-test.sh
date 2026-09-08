@@ -139,3 +139,80 @@ PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPSTHUMBNAIL_CALLS_FILE="$t
 
 (( $(wc -l <"$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
 pass "image menu owns locks for exactly one generator lifetime"
+
+cat >"$stub_bin/omarchy-shell" <<'EOF'
+#!/bin/bash
+
+[[ $1 == "image-selector" && $2 == "open" ]] || exit 1
+printf '%s\n' "$OMARCHY_TEST_SELECTION" >"$6"
+: >"$7"
+printf 'ok\n'
+EOF
+chmod +x "$stub_bin/omarchy-shell"
+
+live_selection_file="$tmp/live-selection"
+selection=$(
+  PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" OMARCHY_TEST_SELECTION="$images/two.png" \
+    "$ROOT/bin/omarchy-menu-images" --live-selection-file "$live_selection_file" --print-name "$images"
+)
+
+[[ $selection == "two" ]] || fail "image menu preserves final output with a live selection file"
+[[ ! -e $live_selection_file ]] || fail "image menu removes its live selection file when it exits"
+pass "image menu exposes live selection without changing final output"
+
+theme_home="$tmp/theme-home"
+theme_root="$tmp/theme-root"
+theme_runtime="$tmp/theme-runtime"
+theme_calls="$tmp/theme-switcher-calls"
+theme_release="$tmp/theme-switcher-release"
+mkdir -p "$theme_home/.config/omarchy/themes" "$theme_root/themes" "$theme_runtime"
+
+cat >"$stub_bin/omarchy-menu-images" <<'EOF'
+#!/bin/bash
+
+printf 'interactive\n' >>"$OMARCHY_TEST_CALLS"
+for _ in {1..500}; do
+  if [[ -e $OMARCHY_TEST_RELEASE ]]; then
+    if (( $(wc -l <"$OMARCHY_TEST_CALLS") == 1 )); then
+      sleep 2 &
+    fi
+    exit 0
+  fi
+  sleep 0.01
+done
+exit 1
+EOF
+chmod +x "$stub_bin/omarchy-menu-images"
+
+PATH="$stub_bin:$PATH" HOME="$theme_home" OMARCHY_PATH="$theme_root" XDG_CACHE_HOME="$tmp/theme-cache" \
+  XDG_RUNTIME_DIR="$theme_runtime" OMARCHY_TEST_CALLS="$theme_calls" OMARCHY_TEST_RELEASE="$theme_release" \
+  "$ROOT/bin/omarchy-theme-switcher" &
+first_switcher_pid=$!
+
+for _ in {1..100}; do
+  [[ -f $theme_calls ]] && (( $(wc -l <"$theme_calls") == 1 )) && break
+  sleep 0.01
+done
+
+PATH="$stub_bin:$PATH" HOME="$theme_home" OMARCHY_PATH="$theme_root" XDG_CACHE_HOME="$tmp/theme-cache" \
+  XDG_RUNTIME_DIR="$theme_runtime" OMARCHY_TEST_CALLS="$theme_calls" OMARCHY_TEST_RELEASE="$theme_release" \
+  "$ROOT/bin/omarchy-theme-switcher"
+
+[[ $(wc -l <"$theme_calls") == 1 ]] || fail "theme switcher serializes interactive selectors"
+: >"$theme_release"
+wait "$first_switcher_pid"
+rm -f "$theme_release"
+
+PATH="$stub_bin:$PATH" HOME="$theme_home" OMARCHY_PATH="$theme_root" XDG_CACHE_HOME="$tmp/theme-cache" \
+  XDG_RUNTIME_DIR="$theme_runtime" OMARCHY_TEST_CALLS="$theme_calls" OMARCHY_TEST_RELEASE="$theme_release" \
+  "$ROOT/bin/omarchy-theme-switcher" &
+next_switcher_pid=$!
+
+for _ in {1..50}; do
+  (( $(wc -l <"$theme_calls") == 2 )) && break
+  sleep 0.01
+done
+[[ $(wc -l <"$theme_calls") == 2 ]] || fail "theme switcher releases selection ownership before menu descendants exit"
+: >"$theme_release"
+wait "$next_switcher_pid"
+pass "theme switcher keeps one process-scoped owner for its live selection file"

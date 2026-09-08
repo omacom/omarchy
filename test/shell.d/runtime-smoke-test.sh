@@ -452,9 +452,19 @@ for _ in {1..80}; do
   sleep 0.1
 done
 [[ $selector_open == "ok" ]] || fail_with_log "image selector IPC survives plugin rescan"
+for _ in {1..40}; do
+  [[ $(cat "$selector_selection_file" 2>/dev/null) == "$TMPDIR/selector.png" ]] && break
+  sleep 0.05
+done
+[[ $(cat "$selector_selection_file" 2>/dev/null) == "$TMPDIR/selector.png" ]] || fail_with_log "image selector publishes its live selection"
 shell_ipc_quiet image-selector cancel "$selector_done_file" >/dev/null
+for _ in {1..40}; do
+  [[ ! -s $selector_selection_file ]] && break
+  sleep 0.05
+done
+[[ ! -s $selector_selection_file ]] || fail_with_log "image selector clears its live selection on cancel"
 rm -f "$selector_selection_file" "$selector_done_file"
-pass "image selector IPC survives plugin rescan"
+pass "image selector IPC survives plugin rescan and publishes live selection"
 
 lock_status_after=$(shell_ipc lock status)
 jq -e '.locked | type == "boolean"' <<<"$lock_status_after" >/dev/null || fail_with_log "lock IPC survives plugin rescan"
