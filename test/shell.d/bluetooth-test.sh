@@ -20,6 +20,8 @@ assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so 
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
 
+assert(/if \(finishedConnecting\) \{[\s\S]*?scheduleAudioOutputSwitch\(found\)[\s\S]*?root\.close\(\)/.test(panelSource), 'bluetooth closes the panel after a requested connection succeeds')
+
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
 // shell, and a leaked session keeps the radio in inquiry, starving A2DP audio
