@@ -11,13 +11,13 @@ prints.
 
 Rate limits come from the client's own key endpoint
 (``POST https://api.meta.ai/muse-code/key`` with the OAuth access token from
-``~/.config/muse/auth.json``), which returns ``subs_usage`` window/weekly
-percents with reset times plus the tier name — the same figures the TUI's
-``/usage`` overlay shows. Minting is idempotent (the same Model API key
-comes back), so polling is safe. When the probe fails, the collector falls
-back to estimated meters from user-configured caps in
-``~/.config/omarchy/agents/muse.json`` (``sessionWindowTokens`` for the
-trailing 5 hours, ``weeklyWindowTokens`` for the trailing 7 days); with
+``MUSE_AUTH_PATH``, else ``~/.config/muse/auth.json``), which returns
+``subs_usage`` window/weekly percents with reset times plus the tier name —
+the same figures the TUI's ``/usage`` overlay shows. Minting is idempotent
+(the same Model API key comes back), so polling is safe. When the probe
+fails, the collector falls back to estimated meters from user-configured
+caps in ``~/.config/omarchy/agents/muse.json`` (``sessionWindowTokens`` for
+the trailing 5 hours, ``weeklyWindowTokens`` for the trailing 7 days); with
 neither, ``limits`` stays empty and the panel shows local stats only.
 """
 
@@ -44,6 +44,8 @@ def key_endpoint() -> str:
   # Overridable for tests, which point it at a local stub instead of Meta's
   # key service.
   return os.environ.get("MUSE_KEY_ENDPOINT") or "https://api.meta.ai/muse-code/key"
+
+
 # Recent probe results are reused for a short window so repeated panel opens
 # do not turn into a request per flick. Minting is idempotent, but there is
 # still no reason to re-ask a question whose answer moves slowly.
@@ -384,13 +386,14 @@ def _cached_local_stats(max_age):
     return stats
 
 
-# Estimated quota meters from user-configured caps. Muse exposes no
-# server-side quota endpoint, so each entry reports trailing-window local
-# usage as a share of the cap in ~/.config/omarchy/agents/muse.json. A
-# window with no configured cap is omitted, not zeroed: an absent meter is
-# honest, a 0% one would claim headroom that was never measured. Rolling
-# windows have no fixed reset moment, so resetsAt stays empty (the panel
-# tolerates that) and the title marks the figure estimated.
+# Estimated quota meters from user-configured caps, for when the key probe
+# cannot answer — no login, a rejected one, or an endpoint that failed. Each
+# entry reports trailing-window local usage as a share of the cap in
+# ~/.config/omarchy/agents/muse.json. A window with no configured cap is
+# omitted, not zeroed: an absent meter is honest, a 0% one would claim
+# headroom that was never measured. Rolling windows have no fixed reset
+# moment, so resetsAt stays empty (the panel tolerates that) and the title
+# marks the figure estimated.
 def estimated_limits(stats) -> list:
   session_cap, weekly_cap = configured_caps()
   limits = []

@@ -63,27 +63,9 @@ falls back to local stats only. A non-default Claude directory is honored via
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there. Muse reads the OAuth token from `MUSE_AUTH_PATH` when set, otherwise from `~/.config/muse/auth.json` (which `muse login` creates); a non-default data directory is honored via `MUSE_DATA_DIR`.
-
-### Muse limits
-
-The collector asks the client's own key endpoint for the subscription's
-session and weekly percents with reset times — the same figures the TUI's
-`/usage` overlay shows. Minting is idempotent (the same Model API key comes
-back every call), so polling is safe; the token travels only in the
-`Authorization` header. When the probe fails, the collector falls back to
-estimated meters from caps in `~/.config/omarchy/agents/muse.json`:
-
-```json
-{
-  "sessionWindowTokens": 10000000,
-  "weeklyWindowTokens": 500000000
-}
-```
-
-Set each cap to the token allowance for its trailing window (5 hours and 7
-days); a window with no cap is omitted rather than shown at 0%. With neither
-a working probe nor caps, the tab still shows token usage, just no limits.
+signed in there. Muse reads the OAuth token from `MUSE_AUTH_PATH` when set,
+otherwise from `~/.config/muse/auth.json` (which `muse login` creates); a
+non-default data directory is honored via `MUSE_DATA_DIR`.
 
 ### Fireworks balance
 
@@ -112,6 +94,26 @@ period. `accountId` only matters when one API key can access several
 accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
+
+### Muse limits
+
+The collector asks the client's own key endpoint for the subscription's
+session and weekly percents with reset times — the same figures the TUI's
+`/usage` overlay shows. Minting is idempotent (the same Model API key comes
+back every call), so polling is safe; the token travels only in the
+`Authorization` header. When the probe fails, the collector falls back to
+estimated meters from caps in `~/.config/omarchy/agents/muse.json`:
+
+```json
+{
+  "sessionWindowTokens": 10000000,
+  "weeklyWindowTokens": 500000000
+}
+```
+
+Set each cap to the token allowance for its trailing window (5 hours and 7
+days); a window with no cap is omitted rather than shown at 0%. With neither
+a working probe nor caps, the tab still shows token usage, just no limits.
 
 ## Interactions
 
