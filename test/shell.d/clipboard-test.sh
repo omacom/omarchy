@@ -163,6 +163,10 @@ assert(
   'clipboard does not select rows from containsMouse'
 )
 assert(
+  /function saveHistory\(\)[\s\S]*Quickshell\.execDetached\(\["chmod", "600", root\.historyPath\]\)/.test(clipboardQml),
+  'clipboard saveHistory chmods the history file 0600'
+)
+assert(
   clipboardQml.includes('command: ["setpriv", "--pdeathsig", "TERM", "wl-paste", "--type", "text", "--watch", root.captureScript, "text"]'),
   'clipboard text watcher dies with the shell via pdeathsig'
 )
@@ -384,6 +388,11 @@ image_path=$(jq -r '.path' <<<"$capture_output")
 jq -e '.type == "image" and .mime == "image/png" and (.capturedAt | type == "string")' <<<"$capture_output" >/dev/null || fail "clipboard capture records watched png images"
 [[ -s $image_path && $(<"$image_path") == "png-data" ]] || fail "clipboard capture stores watched png image data"
 pass "clipboard capture records watched png images"
+
+[[ $(stat -c '%a' "$TMPDIR/state/omarchy/clipboard-images") == 700 ]] || fail "clipboard capture makes the images directory 0700"
+pass "clipboard capture makes the images directory 0700"
+[[ $(stat -c '%a' "$image_path") == 600 ]] || fail "clipboard capture stores watched png images 0600"
+pass "clipboard capture stores watched png images 0600"
 
 capture_output=$(printf 'jpg-data' | XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" image/jpeg)
 image_path=$(jq -r '.path' <<<"$capture_output")
