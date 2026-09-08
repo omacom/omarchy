@@ -598,6 +598,13 @@ def merge_stats(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
       target[field] = number(target.get(field)) + number(count)
   merged["modelUsage"] = usage
 
+  # Extras grow the model totals without hourly buckets of their own, so a
+  # merged punchcard would cover less than the record it travels in. Drop
+  # the claim rather than emit grains that disagree; the reconcile gate in
+  # main() holds every printed record to exactly this.
+  if extra.get("modelUsage"):
+    merged.pop("usageByHour", None)
+
   by_date: dict[str, int] = {}
   for source in (base.get("recentDays") or [], extra.get("recentDays") or []):
     for day in source:
@@ -889,6 +896,28 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
 # -------------------------------------------------------------------- record
 
 
+def usage_grain_divergence(stats: dict[str, Any]) -> str | None:
+  # Reconcile-or-abort: usageByHour and modelUsage are two grains of one
+  # message stream, so their all-time token totals must agree exactly. A
+  # timestamp one grain placed and the other rejected, or anything else
+  # that drifts them, means the record would tell two stories — refuse it
+  # rather than print a punchcard the totals contradict. None when the
+  # record claims no punchcard at all.
+  hourly = stats.get("usageByHour")
+  if not isinstance(hourly, list):
+    return None
+  hour_total = sum(number(entry.get("tokens")) for entry in hourly if isinstance(entry, dict))
+  model_total = sum(
+    number(count)
+    for bucket in (stats.get("modelUsage") or {}).values()
+    if isinstance(bucket, dict)
+    for count in bucket.values()
+  )
+  if hour_total == model_total:
+    return None
+  return f"usageByHour tokens {hour_total} != modelUsage tokens {model_total}"
+
+
 def main() -> int:
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true", help="rescan transcripts and re-probe limits, ignoring caches")
@@ -918,6 +947,14 @@ def main() -> int:
   opencode = scan_opencode_usage(scan_age)
   if opencode is not None:
     stats = merge_stats(stats, opencode)
+
+  # The emit gate runs before anything else touches disk or network: a
+  # divergent record costs no limits probe, and omarchy-agent-usage-update
+  # keeps the last good record when this exits nonzero without printing.
+  divergence = usage_grain_divergence(stats)
+  if divergence is not None:
+    print(f"Refusing to emit a Claude usage record with disagreeing grains: {divergence}", file=sys.stderr)
+    return 1
 
   access_token, expires_at_ms, plan = oauth_login(claude_dir)
   limits = collect_limits(access_token, expires_at_ms, args.force)

@@ -46,3 +46,49 @@ jq -e '.usageByHour | all((.tokens | floor) == .tokens) and all(.tokens > 0)' <<
 pass "every bucket is a positive integer (zero and fractional cells absent)"
 
 pass "collector runs cleanly on a synthetic transcript"
+
+# A message whose timestamp no grain can place still reaches modelUsage
+# while usageByHour skips it. Grains that disagree must abort the record —
+# empty stdout, nonzero exit, the divergence named on stderr — so the
+# update writer keeps the last good record instead of shipping two
+# realities in one.
+DIVERGENT_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$DIVERGENT_HOME"' EXIT
+mkdir -p "$DIVERGENT_HOME/.claude/projects/example"
+cat >"$DIVERGENT_HOME/.claude/projects/example/session.jsonl" <<EOF
+{"type":"assistant","sessionId":"session-1","uuid":"e1","message":{"id":"m1","role":"assistant","model":"claude-test","usage":{"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":5}}}
+EOF
+
+divergent=$(HOME="$DIVERGENT_HOME" XDG_CACHE_HOME="$DIVERGENT_HOME/.cache" XDG_DATA_HOME="$DIVERGENT_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force 2>"$TEST_HOME/divergent.stderr")
+divergent_status=$?
+
+[[ $divergent_status != "0" && -z $divergent ]] ||
+  fail "hour-vs-model divergence aborts the record instead of printing it" "$divergent"
+pass "hour-vs-model divergence aborts the record instead of printing it"
+
+grep -q "usageByHour tokens 0 != modelUsage tokens 15" "$TEST_HOME/divergent.stderr" ||
+  fail "the abort names the divergence with expected vs actual" "$(cat "$TEST_HOME/divergent.stderr")"
+pass "the abort names the divergence with expected vs actual"
+
+# Pi sessions feed modelUsage but carry no hourly buckets, so a merged
+# record can no longer reconcile its punchcard — it must drop the claim,
+# not undercount it, while the model totals keep every source.
+MERGED_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$DIVERGENT_HOME" "$MERGED_HOME"' EXIT
+mkdir -p "$MERGED_HOME/.claude/projects/example" "$MERGED_HOME/.pi/agent/sessions/project"
+cp "$projects/session.jsonl" "$MERGED_HOME/.claude/projects/example/session.jsonl"
+cat >"$MERGED_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
+{"type":"message","id":"pi-1","timestamp":"$T1","message":{"role":"assistant","provider":"anthropic","api":"anthropic-messages","model":"claude-pi","usage":{"input":10,"output":4,"cacheRead":3,"cacheWrite":2,"totalTokens":19}}}
+EOF
+
+merged=$(HOME="$MERGED_HOME" XDG_CACHE_HOME="$MERGED_HOME/.cache" XDG_DATA_HOME="$MERGED_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -r '.usageByHour' <<<"$merged") == "null" ]] ||
+  fail "a merged record drops the punchcard it can no longer reconcile" "$merged"
+pass "a merged record drops the punchcard it can no longer reconcile"
+
+[[ $(jq -r '[.modelUsage[] | [.inputTokens, .outputTokens, .cacheReadInputTokens, .cacheCreationInputTokens] | add] | add' <<<"$merged") == "44" ]] ||
+  fail "merged model totals still carry every source" "$merged"
+pass "merged model totals still carry every source"
