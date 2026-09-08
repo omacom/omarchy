@@ -10,7 +10,7 @@ set -e
 echo "Installing Xbox controller Bluetooth support..."
 
 # Install xpadneo to ensure controllers work out of the box
-omarchy-pkg-add linux-headers xpadneo-dkms
+omarchy-pkg-add "$(omarchy-pkg-linux-headers)" xpadneo-dkms
 
 # Prevent xpad/xpadneo driver conflict
 echo blacklist xpad | sudo tee /etc/modprobe.d/blacklist-xpad.conf >/dev/null
