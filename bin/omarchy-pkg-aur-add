@@ -4,6 +4,7 @@
 # omarchy:args=<packages...>
 
 if omarchy-pkg-missing "$@"; then
+  omarchy-pkg-db-sync
   yay -S --noconfirm --needed "$@" || exit 1
 fi
 
