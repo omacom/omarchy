@@ -19,6 +19,7 @@ omarchy-mise-install npm:@kitlangton/ghui ghui
 omarchy-mise-install aqua:modem-dev/hunk hunk
 omarchy-mise-install github:basecamp/hey-cli hey
 omarchy-mise-install github:OpenRouterLabs/ori-releases ori
+omarchy-mise-install pipx:mistral-vibe vibe
 # Every line above writes a stub and cannot fail. This one can: it exits
 # non-zero when Hermes Desktop owns Hermes but has not finished setting it up,
 # and this leaf is sourced under `bash -eE`, so that would abort the rest of
