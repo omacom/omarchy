@@ -21,4 +21,8 @@ assert(
     /focusPrimed \? WlrKeyboardFocus\.OnDemand : WlrKeyboardFocus\.Exclusive/.test(panelQml),
   'bar panels settle on OnDemand keyboard focus so pointer input can reach an OSK'
 )
+assert(
+  /localX = x - root\.x/.test(panelQml) && /localY = y - root\.y/.test(panelQml),
+  'panel cards are positioned in the inset overlay, not double-offset by the bar exclusive zone'
+)
 JS
