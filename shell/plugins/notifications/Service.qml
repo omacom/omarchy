@@ -490,8 +490,14 @@ Item {
   // must neither hang the serialized queue nor fill the state dir.
   readonly property string copyImagesScript:
     "while (( $# >= 2 )); do\n" +
-    "  if [[ -f $1 ]] && timeout 5 head -c 5242881 -- \"$1\" > \"$2.tmp\" 2>/dev/null &&\n" +
-    "     (( $(stat -c%s -- \"$2.tmp\") <= 5242880 )); then mv -f -- \"$2.tmp\" \"$2\"; else rm -f -- \"$2.tmp\"; fi\n" +
+    "  src=$1 dest=$2\n" +
+    "  real=$(realpath -e -- \"$src\" 2>/dev/null) || { shift 2; continue; }\n" +
+    "  case $real in\n" +
+    "    /tmp/*|/var/tmp/*|/run/user/*|/usr/share/icons/*|/usr/share/pixmaps/*) ;;\n" +
+    "    *) shift 2; continue ;;\n" +
+    "  esac\n" +
+    "  if [[ -f $real && ! -L $src ]] && timeout 5 head -c 5242881 -- \"$real\" > \"$dest.tmp\" 2>/dev/null &&\n" +
+    "     (( $(stat -c%s -- \"$dest.tmp\") <= 5242880 )); then mv -f -- \"$dest.tmp\" \"$dest\"; else rm -f -- \"$dest.tmp\"; fi\n" +
     "  shift 2\n" +
     "done\n"
 
