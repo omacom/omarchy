@@ -197,6 +197,42 @@ grep -A1 -F '  enable_system_service NetworkManager.service' "$upgrade_to_quattr
   fail "Omarchy 4 upgrade retires iwd in the step that enables NetworkManager"
 pass "Omarchy 4 upgrade switches from iwd to NetworkManager atomically"
 
+wifi_import_body=$(function_body import_saved_wifi_networks)
+exercise_wifi_import() {
+  local source_exists="$1" importer_exists="$2" importer_status="$3"
+  (
+    log() { :; }
+    warn() { printf 'warning: %s\n' "$*"; }
+    as_root() {
+      if [[ $1 == "test" ]]; then
+        if [[ $2 == "-d" ]]; then
+          return "$source_exists"
+        else
+          return "$importer_exists"
+        fi
+      elif [[ $1 == "/usr/bin/python3" && $2 == "/usr/share/omarchy/install/helpers/iwd-networks.py" ]]; then
+        echo "imported"
+        return "$importer_status"
+      else
+        fail "Wi-Fi import attempted an unexpected privileged command" "$*"
+      fi
+    }
+    eval "import_saved_wifi_networks() { $wifi_import_body
+}"
+    import_saved_wifi_networks
+  )
+}
+[[ $(exercise_wifi_import 0 0 0) == "imported" ]] || fail "saved Wi-Fi networks are imported on upgrade"
+[[ -z $(exercise_wifi_import 1 0 0) ]] || fail "upgrade ignores a missing iwd store"
+[[ $(exercise_wifi_import 0 1 0) == *"omarchy network import iwd"* ]] || fail "older packages leave recovery instructions"
+if exercise_wifi_import 0 0 1 >/dev/null; then
+  fail "upgrade must report a failed Wi-Fi import"
+fi
+grep -B1 -F '  enable_system_service NetworkManager.service' "$upgrade_to_quattro" |
+  grep -Fx '  import_saved_wifi_networks' >/dev/null ||
+  fail "saved Wi-Fi import completes before the network service transition"
+pass "Omarchy 4 upgrade preserves saved Wi-Fi before switching network services"
+
 # set -e aborts silently, so only an explicit banner distinguishes a
 # half-upgraded system from a finished one.
 grep -Fx 'trap cleanup_on_exit EXIT' "$upgrade_to_quattro" >/dev/null ||

@@ -1315,6 +1315,18 @@ should_enable_sddm_autologin() {
   root_filesystem_encrypted
 }
 
+import_saved_wifi_networks() {
+  # Older packages may not ship the importer yet.
+  if as_root test -d /var/lib/iwd; then
+    if as_root test -f /usr/share/omarchy/install/helpers/iwd-networks.py; then
+      log "Preserving saved Wi-Fi networks for NetworkManager"
+      as_root /usr/bin/python3 /usr/share/omarchy/install/helpers/iwd-networks.py
+    else
+      warn "Saved Wi-Fi networks remain in /var/lib/iwd. After updating Omarchy, run 'omarchy network import iwd' to recover them."
+    fi
+  fi
+}
+
 apply_system_transition() {
   log "Applying Omarchy quattro system transition"
   [[ -d /usr/share/omarchy ]] || fail "/usr/share/omarchy was not installed."
@@ -1386,6 +1398,7 @@ EOF
   # step: a machine that boots with both enabled has two daemons fighting over
   # the Wi-Fi adapter. iwd is disabled but never stopped, so the running
   # connection survives until the reboot.
+  import_saved_wifi_networks
   enable_system_service NetworkManager.service
   as_root systemctl disable iwd.service >/dev/null 2>&1 || true
   enable_system_service bluetooth.service
