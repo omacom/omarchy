@@ -20,15 +20,54 @@ desktop_value() {
   sed -n "s/^$key=//p" "$file" | head -1
 }
 
+desktop_string_unescape() {
+  local value="$1"
+
+  value=${value//\\n/$'\n'}
+  value=${value//\\r/$'\r'}
+  value=${value//\\t/$'\t'}
+  if [[ $value == '\s'* ]]; then
+    value=" ${value:2}"
+  fi
+  value=${value//\\\\/\\}
+
+  printf '%s' "$value"
+}
+
+remove_installed_icon() {
+  local app_name="$1" slug icon_dir
+
+  [[ -z $app_name ]] && return 0
+  slug=$(safe_icon_name "$app_name")
+  [[ $slug =~ ^[[:alnum:]-]+$ ]] || return 0
+
+  for icon_dir in "$ICON_DIR" "$OLD_ICON_DIR"; do
+    shopt -s nullglob
+    rm -f "$icon_dir/$slug".*
+    shopt -u nullglob
+  done
+}
+
+launcher_label() {
+  local file="$1" name
+
+  name=$(desktop_value "$file" Name)
+  if [[ -n $name ]]; then
+    desktop_string_unescape "$name"
+  else
+    basename "${file%.desktop}"
+  fi
+}
+
 # Always index the launchers, so removal deletes the file that was found rather
 # than a path rebuilt from the displayed name. Installs predating the name
 # validation could nest the launcher inside directories, and those are exactly
 # the ones a reconstructed path cannot reach.
-TUIS=()
+TUI_LABELS=()
 TUI_PATHS=()
 while IFS= read -r -d '' file; do
   if grep -qE '^Exec=.*(\$TERMINAL|xdg-terminal-exec).*-e' "$file"; then
-    TUIS+=("$(basename "${file%.desktop}")")
+    TUI_LABELS+=("$(launcher_label "$file")")
     TUI_PATHS+=("$file")
   fi
 done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
@@ -37,18 +76,40 @@ done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
 # it (an app removed between the scan and the pick, say).
 path_for_tui() {
   local wanted="$1" i
-  for i in "${!TUIS[@]}"; do
-    if [[ ${TUIS[$i]} == "$wanted" ]]; then
+
+  for i in "${!TUI_LABELS[@]}"; do
+    if [[ ${TUI_LABELS[$i]} == "$wanted" ]]; then
+      printf '%s\n' "${TUI_PATHS[$i]}"
+      return 0
+    fi
+  done
+  for i in "${!TUI_PATHS[@]}"; do
+    if [[ $(basename "${TUI_PATHS[$i]%.desktop}") == "$wanted" ]]; then
       printf '%s\n' "${TUI_PATHS[$i]}"
       return 0
     fi
   done
 }
 
+desktop_file=""
+
 if (( $# == 0 )); then
-  if ((${#TUIS[@]})); then
-    mapfile -t SORTED_TUIS < <(printf '%s\n' "${TUIS[@]}" | sort)
-    APP_NAME=$(omarchy-menu-select "Select TUI to remove" "${SORTED_TUIS[@]}" -- --width 520 --maxheight 520)
+  if ((${#TUI_PATHS[@]})); then
+    picker_options=()
+    mapfile -d '' -t sorted_paths < <(printf '%s\0' "${TUI_PATHS[@]}" | sort -z)
+    for file in "${sorted_paths[@]}"; do
+      for i in "${!TUI_PATHS[@]}"; do
+        if [[ ${TUI_PATHS[$i]} == "$file" ]]; then
+          picker_options+=("${TUI_LABELS[$i]}"$'\t'"$file")
+          break
+        fi
+      done
+    done
+    selection=$(omarchy-menu-select "Select TUI to remove" "${picker_options[@]}" -- --width 520 --maxheight 520)
+    APP_NAME="${selection%%$'\t'*}"
+    if [[ $selection == *$'\t'* ]]; then
+      desktop_file="${selection#*$'\t'}"
+    fi
   else
     echo "No TUIs to remove."
     exit 1
@@ -62,25 +123,21 @@ if [[ -z $APP_NAME ]]; then
   exit 1
 fi
 
-icon_name=$(safe_icon_name "$APP_NAME")
-desktop_file=$(path_for_tui "$APP_NAME")
-desktop_file=${desktop_file:-$DESKTOP_DIR/$APP_NAME.desktop}
+if [[ -z $desktop_file ]]; then
+  desktop_file=$(path_for_tui "$APP_NAME")
+  desktop_file=${desktop_file:-$DESKTOP_DIR/$APP_NAME.desktop}
+fi
 
 launcher_name=""
-launcher_icon=""
 if [[ -f $desktop_file ]]; then
   launcher_name=$(desktop_value "$desktop_file" Name)
-  launcher_icon=$(desktop_value "$desktop_file" Icon)
+  launcher_name=$(desktop_string_unescape "$launcher_name")
   rm -f "$desktop_file"
 fi
 
-rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
-if [[ -n $launcher_icon ]]; then
-  rm -f "$ICON_DIR/$launcher_icon.png" "$OLD_ICON_DIR/$launcher_icon.png"
-fi
+remove_installed_icon "$APP_NAME"
 if [[ -n $launcher_name ]]; then
-  icon_name=$(safe_icon_name "$launcher_name")
-  rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$launcher_name.png" "$OLD_ICON_DIR/$launcher_name.png"
+  remove_installed_icon "$launcher_name"
 fi
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
   omarchy-notification-send -g  "TUI removed" "$APP_NAME"

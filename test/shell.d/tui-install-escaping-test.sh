@@ -82,6 +82,50 @@ inject_file="$applications/$inject_name.desktop"
   fail "a newline in the app name cannot inject a second Exec" "$(cat "$inject_file")"
 pass "a newline in the app name cannot inject a second Exec"
 
+cat >"$mock_bin/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$FAKE_PICK"
+STUB
+chmod +x "$mock_bin/omarchy-menu-select"
+
+FAKE_PICK="${inject_name}"$'\t'"${inject_file}" \
+  HOME="$HOME" PATH="$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  bash "$ROOT/bin/omarchy-tui-remove" >/dev/null
+[[ -f $inject_file ]] &&
+  fail "tui remove reaches a newline-named launcher through the picker"
+pass "tui remove reaches a newline-named launcher through the picker"
+
+install_tui "$inject_name" htop tile someicon
+inject_file="$applications/$inject_name.desktop"
+run_remove "$inject_name" >/dev/null
+[[ -f $inject_file ]] &&
+  fail "tui remove deletes a newline-named launcher from the command line"
+pass "tui remove deletes a newline-named launcher from the command line"
+
+icons_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
+mkdir -p "$icons_dir"
+touch "$icons_dir/someicon.png"
+install_tui 'Shared Icon' htop tile someicon
+run_remove 'Shared Icon' >/dev/null
+[[ -f "$icons_dir/someicon.png" ]] ||
+  fail "tui remove leaves a shared icon file it did not install"
+pass "tui remove leaves a shared icon file it did not install"
+
+mkdir -p "$icons_dir"
+touch "$HOME/.local/share/icons/hicolor/outside.png"
+cat >"$applications/Evil Icon.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Evil Icon
+Icon=../../outside
+Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
+Type=Application
+DESKTOP
+
+run_remove 'Evil Icon' >/dev/null
+[[ -f "$HOME/.local/share/icons/hicolor/outside.png" ]] ||
+  fail "tui remove does not delete icons referenced by a malicious Icon field"
+pass "tui remove does not delete icons referenced by a malicious Icon field"
+
 inject_exec=$(printf 'htop\nExec=evil')
 install_tui 'Inject Exec' "$inject_exec" tile someicon
 inject_exec_file="$applications/Inject Exec.desktop"
@@ -99,7 +143,6 @@ inject_icon_file="$applications/Inject Icon.desktop"
 pass "a newline in the icon name cannot inject a second Exec"
 
 mkdir -p "$applications/http:/127.0.0.1:4000"
-icons_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
 legacy_icon="http-127-0-0-1-4000"
 mkdir -p "$icons_dir"
 touch "$icons_dir/$legacy_icon.png"
