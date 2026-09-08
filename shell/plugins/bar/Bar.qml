@@ -1366,6 +1366,27 @@ Item {
           anchors.rightMargin: Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
         }
+
+        EmptySectionZone {
+          region: "left"
+          anchors.left: parent.left
+          width: Style.space(4)
+          height: parent.height
+        }
+
+        EmptySectionZone {
+          region: "center"
+          anchors.horizontalCenter: parent.horizontalCenter
+          width: Style.space(6)
+          height: parent.height
+        }
+
+        EmptySectionZone {
+          region: "right"
+          anchors.right: parent.right
+          width: Style.space(4)
+          height: parent.height
+        }
       }
     }
 
@@ -1387,6 +1408,27 @@ Item {
           anchors.bottom: parent.bottom
           anchors.bottomMargin: Style.space(8)
           anchors.horizontalCenter: parent.horizontalCenter
+        }
+
+        EmptySectionZone {
+          region: "left"
+          anchors.top: parent.top
+          width: parent.width
+          height: Style.space(4)
+        }
+
+        EmptySectionZone {
+          region: "center"
+          anchors.verticalCenter: parent.verticalCenter
+          width: parent.width
+          height: Style.space(6)
+        }
+
+        EmptySectionZone {
+          region: "right"
+          anchors.bottom: parent.bottom
+          width: parent.width
+          height: Style.space(4)
         }
       }
     }
@@ -2009,6 +2051,21 @@ Item {
       id: customCommandModuleComponent
       CustomCommandModule { entry: slot.entry }
     }
+  }
+
+  // Drop affordance for a bar section that currently renders no widgets. With
+  // every slot collapsed, moduleDropAtScene would otherwise see only zero-size
+  // targets, so a widget dragged out of a section could never be dragged back
+  // into it. The zone registers itself as an empty module slot, keeps a real
+  // rect for the drop marker, and hides itself once the section has widgets.
+  component EmptySectionZone: Item {
+    id: emptyZone
+
+    required property string region
+    readonly property string moduleName: ""
+
+    Component.onCompleted: root.registerModuleSlot(emptyZone)
+    Component.onDestruction: root.unregisterModuleSlot(emptyZone)
   }
 
   component CustomCommandModule: WidgetButton {
