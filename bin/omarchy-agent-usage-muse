@@ -181,9 +181,8 @@ def top_level_session(path: Path) -> str | None:
   so the session is the directory right under the day, not the log's parent.
   """
   try:
-    parts = path.parts
-    anchor = parts.index("sessions")
-    candidate = parts[anchor + 4]
+    parts = path.relative_to(data_root() / "sessions").parts
+    candidate = parts[3]
   except (ValueError, IndexError):
     return None
   if candidate in ("subagent", "") or "/" in candidate:
@@ -427,7 +426,8 @@ def muse_config_dir() -> Path:
 
 def read_access_token() -> str:
   try:
-    data = json.loads((muse_config_dir() / "auth.json").read_text(encoding="utf-8"))
+    path = Path(os.environ.get("MUSE_AUTH_PATH") or (muse_config_dir() / "auth.json")).expanduser()
+    data = json.loads(path.read_text(encoding="utf-8"))
   except Exception:
     return ""
   login = (data.get("providers") or {}).get("meta") or {}
@@ -540,10 +540,12 @@ def usable_cached_limits(cached: dict) -> list:
 def collect_limits(stats: dict, force: bool) -> dict:
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
 
-  probe_cache = cache_root() / "muse-limits.json"
+  probe_cache = None
   try:
+    probe_cache = cache_root() / "muse-limits.json"
     cached = json.loads(probe_cache.read_text(encoding="utf-8")) if probe_cache.exists() else {}
-  except Exception:
+  except Exception as exc:
+    print(f"omarchy-agent-usage-muse: could not read limits cache ({exc})", file=sys.stderr)
     cached = {}
   if not isinstance(cached, dict):
     cached = {}
@@ -572,8 +574,12 @@ def collect_limits(stats: dict, force: bool) -> dict:
   if probe["ok"]:
     result["limits"] = probe["limits"]
     result["tierLabel"] = probe.get("tierLabel", "")
-    write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000),
-                             "limits": probe["limits"], "tierLabel": result["tierLabel"]})
+    if probe_cache is not None:
+      try:
+        write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000),
+                                 "limits": probe["limits"], "tierLabel": result["tierLabel"]})
+      except Exception as exc:
+        print(f"omarchy-agent-usage-muse: could not write limits cache ({exc})", file=sys.stderr)
     return result
 
   # The first probe after login often fires before the network is up. Ask

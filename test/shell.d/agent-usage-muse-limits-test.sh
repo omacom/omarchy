@@ -1,9 +1,13 @@
 #!/bin/bash
 
+set -euo pipefail
+
 source "$(dirname "$0")/base-test.sh"
 
 require_command jq
 require_command python3
+
+unset MUSE_DATA_DIR MUSE_AUTH_PATH MUSE_TEST_CACHE_HOME
 
 TEST_HOME=$(mktemp -d)
 trap 'rm -rf "$TEST_HOME"' EXIT
@@ -74,7 +78,7 @@ for _ in $(seq 1 50); do
 done
 
 run_collector() {
-  HOME="$TEST_HOME" XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_CACHE_HOME="$TEST_HOME/.cache" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+  HOME="$TEST_HOME" XDG_DATA_HOME="$TEST_HOME/.local/share" XDG_CACHE_HOME="${MUSE_TEST_CACHE_HOME:-$TEST_HOME/.cache}" XDG_CONFIG_HOME="$TEST_HOME/.config" \
     MUSE_KEY_ENDPOINT="http://127.0.0.1:$port/key" \
     "$ROOT/bin/omarchy-agent-usage-muse" "$@"
 }
@@ -112,6 +116,32 @@ pass "Muse collector reuses a recent probe result"
 [[ $(jq -r '.tierLabel' <<<"$second") == "Muse Code Test Plan" ]] ||
   fail "Muse collector reuses the cached tier" "$second"
 pass "Muse collector reuses the cached tier"
+
+# The override must win over a different login at the default location.
+export MUSE_AUTH_PATH="$TEST_HOME/custom auth.json"
+mv "$TEST_HOME/.config/muse/auth.json" "$MUSE_AUTH_PATH"
+printf '{"providers":{"meta":{"access_token":"default-token"}}}' >"$TEST_HOME/.config/muse/auth.json"
+: >"$STUB_SEEN_FILE"
+custom=$(run_collector --force)
+[[ $(cat "$STUB_SEEN_FILE") == "Bearer test-token" ]] ||
+  fail "Muse collector honors MUSE_AUTH_PATH over the default login" "$(cat "$STUB_SEEN_FILE")"
+pass "Muse collector honors MUSE_AUTH_PATH over the default login"
+
+# Fail the limits-cache write while allowing the local scan cache to work.
+rm "$TEST_HOME/.cache/omarchy/agent-usage/muse-limits.json"
+mkdir "$TEST_HOME/.cache/omarchy/agent-usage/muse-limits.json"
+unwritable=$(run_collector --force)
+[[ $(jq -c '[.limits,.tierLabel]' <<<"$unwritable") == "$(jq -c '[.limits,.tierLabel]' <<<"$result")" ]] ||
+  fail "Muse collector preserves fresh limits when the cache write fails" "$unwritable"
+pass "Muse collector preserves fresh limits when the cache write fails"
+rmdir "$TEST_HOME/.cache/omarchy/agent-usage/muse-limits.json"
+
+# An unusable cache root must not prevent an authenticated probe either.
+touch "$TEST_HOME/blocked-cache"
+uncached=$(MUSE_TEST_CACHE_HOME="$TEST_HOME/blocked-cache" run_collector --force)
+[[ $(jq -c '[.limits,.tierLabel]' <<<"$uncached") == "$(jq -c '[.limits,.tierLabel]' <<<"$result")" ]] ||
+  fail "Muse collector fetches limits when the cache root is unavailable" "$uncached"
+pass "Muse collector fetches limits when the cache root is unavailable"
 
 # A rejected sign-in is an auth problem, not missing data: say so, and keep
 # the estimated meters when caps are configured.

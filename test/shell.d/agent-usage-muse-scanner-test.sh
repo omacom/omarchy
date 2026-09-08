@@ -1,9 +1,13 @@
 #!/bin/bash
 
+set -euo pipefail
+
 source "$(dirname "$0")/base-test.sh"
 
 require_command jq
 require_command python3
+
+unset MUSE_DATA_DIR MUSE_AUTH_PATH
 
 TEST_HOME=$(mktemp -d)
 trap 'rm -rf "$TEST_HOME"' EXIT
@@ -87,3 +91,25 @@ pass "Muse collector reports no limits without credentials or caps"
 [[ $(jq -r '.usageStatusText' <<<"$result") == "Waiting for auth" ]] ||
   fail "Muse collector waits for auth without credentials" "$result"
 pass "Muse collector waits for auth without credentials"
+
+# A parent named sessions must not be mistaken for the native log root.
+mkdir -p "$TEST_HOME/sessions"
+mv "$TEST_HOME/.local/share/muse" "$TEST_HOME/sessions/muse"
+custom_day="$TEST_HOME/sessions/muse/sessions/$(date +%Y/%m/%d)"
+mkdir "$custom_day/top-session-2"
+cat >"$custom_day/top-session-2/session.jsonl" <<EOF
+{"id":"evt-4","recorded_at":$now_us,"payload":{"event":{"kind":"model_completed","model":"muse-spark-test","usage":{"input_tokens":10,"output_tokens":5}}}}
+EOF
+custom=$(HOME="$TEST_HOME" XDG_CACHE_HOME="$TEST_HOME/.cache" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+  MUSE_DATA_DIR="$TEST_HOME/sessions/muse" "$ROOT/bin/omarchy-agent-usage-muse" --force)
+[[ $(jq -c '[.totalSessions,.todaySessions,.todayTotalTokens]' <<<"$custom") == '[3,2,1295]' ]] ||
+  fail "Muse collector preserves session counts under a custom sessions parent" "$custom"
+pass "Muse collector preserves session counts under a custom sessions parent"
+
+# Cache failures must still emit a usable record, even without credentials.
+touch "$TEST_HOME/blocked-cache"
+uncached=$(HOME="$TEST_HOME" XDG_CACHE_HOME="$TEST_HOME/blocked-cache" XDG_CONFIG_HOME="$TEST_HOME/.config" \
+  MUSE_DATA_DIR="$TEST_HOME/sessions/muse" "$ROOT/bin/omarchy-agent-usage-muse" --force)
+[[ $(jq -c '[.todayTotalTokens,.totalSessions,.usageStatusText]' <<<"$uncached") == '[1295,3,"Waiting for auth"]' ]] ||
+  fail "Muse collector emits local stats when the cache is unavailable" "$uncached"
+pass "Muse collector emits local stats when the cache is unavailable"
