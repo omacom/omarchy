@@ -98,6 +98,7 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+export XDG_STATE_HOME="$test_home/.local/state"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
@@ -713,6 +714,51 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "--pick launches once an agent is chosen"
 [[ ! -s $menu_log ]] || fail "--pick opens no menu once an agent is chosen"
 pass "--pick launches once an agent is chosen"
+
+# Agents panel is a default, not a CLI: it follows the tab the widget last
+# persisted, and Super+Shift+Ctrl+A stays omarchy-agent --pick.
+rm -f "$XDG_STATE_HOME/omarchy/agents/selected"
+: >"$mise_log"
+: >"$launch_log"
+: >"$menu_log"
+omarchy-default-agent agents-panel
+[[ $(omarchy-default-agent) == "agents-panel" ]] || fail "agents-panel can be the default agent"
+[[ ! -s $mise_log ]] || fail "agents-panel does not install a package"
+[[ ! -s $launch_log ]] || fail "agents-panel with no selected tab launches nothing"
+mapfile -d '' -t menu_args <"$menu_log"
+[[ ${#menu_args[@]} == 0 ]] || fail "agents-panel with no selected tab does not reopen the menu"
+pass "agents-panel records a follow-the-panel default without installing"
+
+: >"$launch_log"
+: >"$menu_log"
+omarchy-agent --pick
+mapfile -d '' -t menu_args <"$menu_log"
+[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+  fail "agents-panel with no selected tab opens the picker"
+[[ ! -s $launch_log ]] || fail "agents-panel --pick with no selected tab launches nothing"
+pass "agents-panel --pick with no selected tab opens the picker"
+
+mkdir -p "$XDG_STATE_HOME/omarchy/agents"
+printf '%s\n' claude >"$XDG_STATE_HOME/omarchy/agents/selected"
+: >"$launch_log"
+: >"$menu_log"
+omarchy-agent --pick
+assert_launched claude "follows the Agents panel tab" claude --permission-mode auto
+[[ ! -s $menu_log ]] || fail "agents-panel with a selected tab opens no menu"
+pass "agents-panel launches the CLI for the selected Agents panel tab"
+
+printf '%s\n' fireworks >"$XDG_STATE_HOME/omarchy/agents/selected"
+: >"$launch_log"
+: >"$menu_log"
+omarchy-agent --pick
+mapfile -d '' -t menu_args <"$menu_log"
+[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+  fail "agents-panel ignores a usage-only tab"
+[[ ! -s $launch_log ]] || fail "agents-panel does not launch a usage-only tab"
+pass "agents-panel ignores a usage-only Agents panel tab"
+
+printf '%s\n' opencode >"$agent_file"
+rm -f "$test_home/.local/state/omarchy/agents/selected"
 
 : >"$launch_log"
 omarchy agent prompt "Review this project"

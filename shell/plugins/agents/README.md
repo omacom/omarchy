@@ -94,10 +94,11 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 ## Interactions
 
-- Bar icon: left = panel, right = launch agent, middle = next subscription.
+- Bar icon: left = panel, right = launch the default agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
   Tab moves to the neighboring bar panel, Esc closes.
-- IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
+- When Setup → Defaults → Agent is **Agents panel**, right-click and Super+Shift+Ctrl+A launch the tab currently selected here.
+- IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next|launch>`.
 
 ## Settings
 
