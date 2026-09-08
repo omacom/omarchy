@@ -50,3 +50,18 @@ pass "linux-lts is preferred over linux-hardened"
 : >"$test_tmp/installed"
 [[ $(headers) == linux-headers ]] || fail "no kernel package still names linux-headers"
 pass "no kernel package still names linux-headers"
+
+for leaf in \
+  install/hardware/nvidia.sh \
+  install/hardware/fix-bcm43xx.sh \
+  install/hardware/fix-yt6801-ethernet-adapter.sh \
+  install/hardware/fix-tuxedo-backlight.sh \
+  bin/omarchy-install-gaming-xbox-controllers
+do
+  grep -q 'omarchy-pkg-linux-headers' "$ROOT/$leaf" ||
+    fail "$leaf asks the helper for kernel headers"
+  if grep -F 'linux-headers' "$ROOT/$leaf" | grep -vq 'omarchy-pkg-linux-headers'; then
+    fail "$leaf does not hardcode linux-headers next to DKMS"
+  fi
+done
+pass "DKMS installers ask the helper instead of hardcoding linux-headers"
