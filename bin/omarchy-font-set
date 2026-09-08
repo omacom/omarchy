@@ -21,17 +21,17 @@ case "$font_name" in
     ;;
 esac
 
-if ! fc-list | grep -Fqi -- "$font_name"; then
-  echo "Font '$font_name' not found."
-  exit 1
-fi
-
 # Terminal configs and sed rewrites treat the family as literal text. A font
 # whose name carries quotes, dollars, or XML metacharacters can close a
 # string and inject a second setting; refuse those rather than try to round
 # trip them through every format.
 if [[ $font_name == *$'\n'* || $font_name == *$'\r'* || $font_name == *['"\\`$<>;&']* ]]; then
   echo "Font name contains characters that cannot be written into terminal configs." >&2
+  exit 1
+fi
+
+if ! fc-list | grep -Fqi -- "$font_name"; then
+  echo "Font '$font_name' not found."
   exit 1
 fi
 
