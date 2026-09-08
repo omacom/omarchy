@@ -575,6 +575,16 @@ print_command_table() {
     (( width > max_width )) && max_width=$width
   done <<<"$rows"
 
+  # One very long usage must not push every summary off-screen: clamp the
+  # command column so at least a short summary still fits the terminal.
+  # Overlong commands simply overflow on their own row.
+  local term_width=${COLUMNS:-0}
+  [[ $term_width =~ ^[0-9]+$ ]] && (( term_width > 0 )) || term_width=$(tput cols 2>/dev/null || echo 80)
+  [[ $term_width =~ ^[0-9]+$ ]] && (( term_width > 0 )) || term_width=80
+  local cap=$(( term_width - 30 ))
+  (( cap < 20 )) && cap=20
+  (( max_width > cap )) && max_width=$cap
+
   while IFS=$'\t' read -r command rest; do
     [[ -n $command ]] || continue
 
