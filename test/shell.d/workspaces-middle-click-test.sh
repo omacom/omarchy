@@ -26,7 +26,7 @@ assert(
   'the pull dispatch asks Hyprland to show the tag on the current monitor'
 )
 assert(
-  /Hyprland\.monitors\.values/.test(qml),
-  'the clicked screen is matched against Hyprland monitor names before dispatch'
+  /Hyprland\.monitorFor/.test(qml),
+  'the clicked screen is mapped to a Hyprland monitor before dispatch'
 )
 JS

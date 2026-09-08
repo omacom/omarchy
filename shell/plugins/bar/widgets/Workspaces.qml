@@ -44,13 +44,9 @@ BarWidget {
   // layer surfaces without keyboard focus, so shift-click cannot be detected.
   function clickedMonitorName() {
     var window = root.QsWindow ? root.QsWindow.window : null
-    var screenName = window && window.screen && window.screen.name ? String(window.screen.name) : ""
-    if (!screenName) return ""
-    var monitors = Hyprland.monitors.values
-    for (var i = 0; i < monitors.length; i++) {
-      if (String(monitors[i].name || "") === screenName) return screenName
-    }
-    return ""
+    var screen = window && window.screen ? window.screen : null
+    var hypr = screen && Hyprland.monitorFor ? Hyprland.monitorFor(screen) : null
+    return hypr && hypr.name ? String(hypr.name) : ""
   }
 
   function focusWorkspaceOnClickedMonitor(id) {
