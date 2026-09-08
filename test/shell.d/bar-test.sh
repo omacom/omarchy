@@ -14,7 +14,7 @@ if perl -0ne 'exit(/drag\s*\.\s*target\s*:\s*[^;]*\bslot\b/s ? 0 : 1)' "$ROOT/sh
 fi
 pass "bar module dragging leaves layout-managed slots in place"
 
-if rg -q 'barMoveSettling|barMoveSettleTimer' "$ROOT/shell/plugins/bar/Bar.qml"; then
+if grep -qE 'barMoveSettling|barMoveSettleTimer' "$ROOT/shell/plugins/bar/Bar.qml"; then
   fail "bar move outline must clear when the pointer is released"
 fi
 pass "bar move outline has no post-release settling state"
@@ -355,34 +355,71 @@ assertEqual(
   'bar builds default custom module paths'
 )
 
-assert(
-  /var text = Util\.isPlainObject\(data\) \? data\.text : String\(raw \|\| ""\)\.trim\(\)/.test(barSource),
-  'bar command module still renders output that parses as JSON without being a waybar object'
-)
-assert(
-  /outputText = text === undefined \|\| text === null \? undefined : String\(text\)/.test(barSource),
-  'bar command module treats an empty JSON text as an explicit value and a null one as missing'
-)
-assert(
-  /text: outputText !== undefined \? outputText : String\(setting\("text", ""\)\)/.test(barSource),
-  'bar command module only falls back to configured text when command output is absent'
-)
-assert(
-  /property var outputTooltip/.test(barSource),
-  'bar command module tooltip state starts undefined so configured tooltips render before first command output'
-)
-assert(
-  /var tooltip = Util\.isPlainObject\(data\) \? data\.tooltip : undefined/.test(barSource),
-  'bar command module reads tooltip only from waybar-style JSON'
-)
-assert(
-  /outputTooltip = tooltip === undefined \|\| tooltip === null \? undefined : String\(tooltip\)/.test(barSource),
-  'bar command module treats missing and null tooltip as absent, empty tooltip as explicit'
-)
-assert(
-  /tooltipText: outputTooltip !== undefined \? outputTooltip : String\(setting\("tooltip", ""\)\)/.test(barSource),
-  'bar command module only falls back to configured tooltip when command output is absent'
-)
+const vm = require('vm')
+const utilSource = fs.readFileSync(root + '/shell/Commons/Util.qml', 'utf8')
+const commandSource = barSource.slice(barSource.indexOf('  component CustomCommandModule:'))
+
+function qmlFunction(source, name, indent) {
+  const match = source.match(new RegExp('^' + indent + 'function ' + name + '\\([^]*?^' + indent + '}', 'm'))
+  assert(match, 'command fixture loads the actual ' + name + ' function')
+  return match[0]
+}
+
+const utilFunctions = ['isPlainObject', 'parseModuleJson'].map(name => qmlFunction(utilSource, name, '  ')).join('\n')
+const commandFunctions = ['setting', 'update'].map(name => qmlFunction(commandSource, name, '    ')).join('\n')
+const stateNames = ['outputText', 'outputTooltip', 'outputActive']
+const stateDeclarations = stateNames.map(name => {
+  const match = commandSource.match(new RegExp('^    property (var|string|bool) ' + name + '(?:: (.*))?$', 'm'))
+  assert(match, 'command fixture loads the actual ' + name + ' property')
+  const initial = match[2] === undefined ? ({var: 'undefined', string: '""', bool: 'false'})[match[1]] : match[2]
+  return 'var ' + name + ' = ' + initial
+}).join('\n')
+const bindings = ['text', 'tooltipText', 'active'].map(name => {
+  const match = commandSource.match(new RegExp('^    ' + name + ': (.*)$', 'm'))
+  assert(match, 'command fixture loads the actual ' + name + ' binding')
+  return name + ': (' + match[1] + ')'
+}).join(',')
+
+function commandFixture(settings) {
+  const context = vm.createContext({ settings })
+  vm.runInContext(utilFunctions + '\nvar Util = {isPlainObject, parseModuleJson}\n' + stateDeclarations + '\n' + commandFunctions, context)
+  return {
+    render() { return JSON.parse(JSON.stringify(vm.runInContext('({' + bindings + '})', context))) },
+    update(raw) { context.raw = raw; vm.runInContext('update(raw)', context); return this.render() },
+    settings(value) { context.settings = value }
+  }
+}
+
+const fallback = {text: 'DEFAULT', tooltip: 'CONFIGURED'}
+const cases = [
+  ['explicit empty fields', '{"text":"","tooltip":"","class":"idle"}', '', '', false],
+  ['plain counter', '12', '12', 'CONFIGURED', false],
+  ['plain text', ' PLAIN\n', 'PLAIN', 'CONFIGURED', false],
+  ['array output', '["a"]', '["a"]', 'CONFIGURED', false],
+  ['quoted string output', '"hello"', '"hello"', 'CONFIGURED', false],
+  ['scalar boolean output', 'false', 'false', 'CONFIGURED', false],
+  ['missing fields', '{}', 'DEFAULT', 'CONFIGURED', false],
+  ['null fields', '{"text":null,"tooltip":null}', 'DEFAULT', 'CONFIGURED', false],
+  ['empty command output', '', 'DEFAULT', 'CONFIGURED', false],
+  ['numeric fields', '{"text":0,"tooltip":0}', '0', '0', false],
+  ['boolean fields', '{"text":false,"tooltip":false}', 'false', 'false', false],
+  ['last-line JSON', 'diagnostic\n{"text":"vpn","tooltip":"connected","class":["active"]}\n', 'vpn', 'connected', true],
+  ['active class string', '{"text":"vpn","class":"active"}', 'vpn', 'CONFIGURED', true],
+  ['malformed JSON as plain text', '{broken', '{broken', 'CONFIGURED', false]
+]
+for (const [label, raw, text, tooltipText, active] of cases) {
+  assertDeepEqual(commandFixture(fallback).update(raw), {text, tooltipText, active}, 'command module renders ' + label)
+}
+const command = commandFixture(fallback)
+assertDeepEqual(command.render(), {text: 'DEFAULT', tooltipText: 'CONFIGURED', active: false}, 'command module uses configured fields before its first result')
+command.update('{"text":"x","tooltip":"stale","class":"active"}')
+assertDeepEqual(command.update('{"text":"","tooltip":""}'), {text: '', tooltipText: '', active: false}, 'command module clears previous text, tooltip and active state')
+command.settings({text: 'NEW', tooltip: 'NEW TOOLTIP'})
+assertDeepEqual(command.render(), {text: '', tooltipText: '', active: false}, 'explicit empty fields do not regain configured defaults')
+assertDeepEqual(command.update('{"text":null,"tooltip":null}'), {text: 'NEW', tooltipText: 'NEW TOOLTIP', active: false}, 'null fields restore configured defaults after explicit output')
+command.settings({text: 'CHANGED', tooltip: 'CHANGED TOOLTIP'})
+assertDeepEqual(command.render(), {text: 'CHANGED', tooltipText: 'CHANGED TOOLTIP', active: false}, 'missing output resolves the current configured fields')
+assertDeepEqual(commandFixture({}).update('{"text":""}'), {text: '', tooltipText: '', active: false}, 'empty text stays hidden without configured fields')
 JS
 
 put_tmp=$(mktemp -d)
