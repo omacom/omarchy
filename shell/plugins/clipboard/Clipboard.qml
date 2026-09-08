@@ -201,19 +201,14 @@ Item {
   }
 
   // A plain snapshot rather than the ListModel row, so an extension holding on
-  // to it cannot be surprised by the next rebuild.
+  // to it cannot be surprised by the next rebuild. ClipboardHistory recovers
+  // the original record because the row's renderable text may be capped.
   function selectedEntry() {
     if (!root.cursorActive) return null
     if (root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return null
 
     var row = displayModel.get(root.selectedIndex)
-    return {
-      type: row.entryType,
-      text: row.fullText,
-      path: row.path,
-      mime: row.mime,
-      historyIndex: row.historyIndex
-    }
+    return ClipboardHistory.entryForAction(root.history, row.historyIndex)
   }
 
   function activateIndex(index) {
@@ -570,6 +565,7 @@ Item {
                       root.selectFromPointer(row.index, row, mouse)
                     }
                     onClicked: {
+                      if (extensions.paneOpen) return
                       root.cursorActive = true
                       root.selectedIndex = row.index
                       root.activateIndex(row.index)

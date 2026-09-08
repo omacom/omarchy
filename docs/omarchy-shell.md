@@ -46,9 +46,7 @@ A third-party replacement bar can render registered widget components, but widge
 
 ## Extensions
 
-An `extension` contributes an action into another plugin's UI instead of
-carrying a surface of its own. It names the plugin it extends and ships one
-entry point:
+An `extension` contributes an action into another plugin's UI instead of carrying a surface of its own. It names the plugin it extends and ships one entry point:
 
 ```json
 {
@@ -76,14 +74,9 @@ Item {
 }
 ```
 
-`host` is the [`PluginExtensions`](../shell/Ui/PluginExtensions.qml) slot the
-plugin offered. `host.openPane(component, entry)` puts a component of yours on
-the host's own surface, `host.closePane()` hands it back, and
-`host.requestClose()` dismisses the host. `host.paneEntry` is the entry the
-pane was opened for.
+`host` is the [`PluginExtensions`](../shell/Ui/PluginExtensions.qml) slot the plugin offered. `host.openPane(component, entry)` puts a component of yours on the host's own surface, `host.closePane()` hands it back, and `host.requestClose()` dismisses the host. `host.paneEntry` is the entry the pane was opened for.
 
-A host offers a slot by naming itself and rendering what comes back; it never
-learns what an extension does:
+A host offers a slot by naming itself and rendering what comes back; it never learns what an extension does:
 
 ```qml
 PluginExtensions {
@@ -94,16 +87,11 @@ PluginExtensions {
 }
 ```
 
-`extensions.available(entry)` is the list to draw as actions,
-`extensions.handleKey(event, entry)` claims contributed shortcuts, and
-`extensions.paneComponent` is what to mount when `extensions.paneOpen`. With
-nothing installed all three collapse to the behavior the host had before it
-offered a slot, and an extension that fails to load, or whose `supports()`
-throws, drops itself rather than the host.
+`extensions.available(entry)` is the list to draw as actions, `extensions.handleKey(event, entry)` claims contributed shortcuts, and `extensions.paneComponent` is what to mount when `extensions.paneOpen`. With nothing installed all three collapse to the behavior the host had before it offered a slot, and an extension that fails to load, or whose `supports()` throws, drops itself rather than the host.
 
-`omarchy.clipboard` is the first host: its detail pane shows contributed
-actions under the preview, and an extension can replace the preview with an
-editing surface of its own.
+The entry passed to an extension contains the complete source value even when the host caps or reshapes text for display. Hosts construct action entries from source records rather than rendered previews.
+
+`omarchy.clipboard` is the first host: its detail pane shows contributed actions under the preview, and an extension can replace the preview with an editing surface of its own.
 
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
