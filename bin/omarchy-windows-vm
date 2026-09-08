@@ -619,34 +619,55 @@ restore_all_shared_privacy() {
 # Unprivileged: samba.sh runs only after dockur's ISO download (10-15 minutes
 # on a fresh install). Do not hold a polkit session open for that. Watch the
 # caller's own share and chmod it as the owner once it becomes 2777.
-schedule_share_privacy_restore() {
-  local dir="$HOME/Windows"
+watch_share_privacy() {
+  local dir="$1" i mode result
   [[ -e $dir ]] || return 0
-  (
-    # disown only keeps bash from hupping this on exit. The watcher is in the
-    # install terminal's foreground process group, so closing that terminal
-    # still hangs it up from the kernel side, seconds after install returns.
-    trap '' HUP
-    local i mode
-    # 2x the documented 10-15 minute download is a thin margin on a slow link,
-    # so budget an hour; on expiry the final restore below still closes the
-    # 2777 window for anything that happened before it.
-    for i in {1..3600}; do
-      mode=$(stat -Lc '%a' "$dir" 2>/dev/null) || mode=""
-      if [[ $mode == 2777 || $mode == 777 ]]; then
-        chmod_private_dir "$dir" 2>/dev/null || true
-        # Do not exit on a failed chmod: a transient failure (a swapped path,
-        # an unwritable moment) must not end the watcher permanently while the
-        # share is still exposed. Leave only once the mode is really 700.
-        [[ $(stat -Lc '%a' "$dir" 2>/dev/null) == 700 ]] && exit 0
-      fi
-      sleep 1
-    done
+  # 2x the documented 10-15 minute download is a thin margin on a slow link,
+  # so budget an hour; on expiry restore only if the share is still exposed.
+  for i in {1..3600}; do
+    mode=$(stat -Lc '%a' "$dir" 2>/dev/null) || mode=""
+    if [[ $mode == 2777 || $mode == 777 ]]; then
+      chmod_private_dir "$dir" 2>/dev/null || true
+      # Do not exit on a failed chmod: a transient failure (a swapped path,
+      # an unwritable moment) must not end the watcher permanently while the
+      # share is still exposed. Leave only once the mode is really 700.
+      [[ $(stat -Lc '%a' "$dir" 2>/dev/null) == 700 ]] && return 0
+    fi
+    sleep 1
+  done
+  mode=$(stat -Lc '%a' "$dir" 2>/dev/null) || mode=""
+  if [[ $mode == 2777 || $mode == 777 ]]; then
     chmod_private_dir "$dir" 2>/dev/null || true
-    # The subshell output goes to /dev/null, so the only visible trace of an
-    # expiry is this journal entry.
-    logger -t omarchy-windows-vm \
-      "share privacy watcher timed out; applied a final restore to $dir" 2>/dev/null || true
+  fi
+  result=$(stat -Lc '%a' "$dir" 2>/dev/null) || result="missing"
+  logger -t omarchy-windows-vm \
+    "share privacy watcher timed out; $dir mode is $result" 2>/dev/null || true
+}
+
+schedule_share_privacy_restore() {
+  local dir="$HOME/Windows" self
+  [[ -e $dir ]] || return 0
+  self=$(readlink -f -- "${BASH_SOURCE[0]}") || self="${BASH_SOURCE[0]}"
+  # install runs inside omarchy-launch-floating-terminal-with-presentation,
+  # which is a uwsm-app systemd scope. Dismissing that window SIGTERMs leftover
+  # cgroup members; trap '' HUP does not cover that. A user unit is outside
+  # the scope, so the wait survives the terminal.
+  if command -v systemd-run >/dev/null; then
+    systemctl --user reset-failed omarchy-windows-share-privacy.service 2>/dev/null || true
+    systemctl --user stop omarchy-windows-share-privacy.service 2>/dev/null || true
+    if systemd-run --user --quiet --collect \
+      --unit=omarchy-windows-share-privacy \
+      --description="Restore ~/Windows mode after dockur samba.sh" \
+      /bin/bash -c 'set -- help; source "$1" >/dev/null; watch_share_privacy "$2"' \
+      bash "$self" "$dir"; then
+      return 0
+    fi
+  fi
+  # No user bus (tests, a stripped session): ignore HUP/TERM so a closing
+  # terminal cannot kill the wait the way the scope would.
+  (
+    trap '' HUP TERM
+    watch_share_privacy "$dir"
   ) >/dev/null 2>&1 &
   disown || true
 }
@@ -1004,7 +1025,7 @@ __priv_down() {
     # the root-owned boundary tree the caller cannot rename, and while the
     # bind exists it is the caller's own inode, so the owner chmod succeeds.
     # If the bind is gone (fresh reboot) the chmod fails and the next launch
-    # re-hardens through prepare_user_mount_sources instead. Best-effort: the
+    # re-hardens through prepare_caller_mounts instead. Best-effort: the
     # container is already down, so a failed restore must not fail the stop.
     if resolve_caller; then
       restore_shared_privacy

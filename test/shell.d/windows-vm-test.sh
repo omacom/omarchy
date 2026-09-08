@@ -81,19 +81,34 @@ pass "user mount sources with leftover setgid harden to exactly 700"
 
 # install runs in a floating terminal that closes as soon as it returns, while
 # dockur is still ten minutes from the chmod 2777 the watcher exists to undo.
-# script(1) reproduces that shape: a pty whose controlling process exits.
+# Production leaves that wait in a user unit so dismissing the uwsm-app scope
+# cannot SIGTERM it. script(1) plus a systemd-run stub that still dies with the
+# pty proves the fallback also outlives the terminal.
 (
   test_home=$(mktemp -d)
   trap 'rm -rf "$test_home"' EXIT
-  mkdir -p "$test_home/Windows"
+  mkdir -p "$test_home/Windows" "$test_home/bin"
   chmod 700 "$test_home/Windows"
+  cat >"$test_home/bin/systemd-run" <<'EOF'
+#!/bin/bash
+printf 'systemd-run' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
+exit 1
+EOF
+  chmod +x "$test_home/bin/systemd-run"
   cat >"$test_home/install.sh" <<EOF
-HOME=$test_home
+export HOME=$test_home
+export PATH=$test_home/bin:\$PATH
+export TEST_LOG=$test_home/systemd-run.log
+: >"\$TEST_LOG"
 set -- help
 source "$windows_vm_command" >/dev/null
 schedule_share_privacy_restore
 EOF
   script -q -c "bash $test_home/install.sh" /dev/null >/dev/null 2>&1
+  grep -q '^systemd-run' "$test_home/systemd-run.log" ||
+    fail "the install share watcher did not try to leave the terminal scope"
   chmod 2777 "$test_home/Windows"
   for _ in {1..40}; do
     [[ $(stat -Lc '%a' "$test_home/Windows") == 700 ]] && break
