@@ -3,7 +3,7 @@
 # omarchy:summary=Sync Omarchy theme colors to Zen Browser chrome
 # omarchy:hidden=true
 
-ZEN_THEME_CSS="$HOME/.config/omarchy/current/theme/zen-browser.css"
+ZEN_THEME_CSS="$HOME/.local/state/omarchy/current/theme/zen-browser.css"
 ZEN_PROFILES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zen"
 USER_CHROME_IMPORT='@import url("omarchy.css");'
 USER_CHROME_PREF='user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
