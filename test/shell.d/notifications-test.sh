@@ -448,9 +448,32 @@ assertEqual(
   '/tmp/scoped_dir/logo a.png',
   'notifications resolve file URLs to copyable paths'
 )
-assertEqual(notifications.localImageFile('/tmp/avatar.png'), '/tmp/avatar.png', 'notifications treat absolute paths as copyable')
+assertEqual(notifications.localImageFile('/tmp/avatar.png'), '/tmp/avatar.png', 'notifications treat /tmp paths as copyable')
 assertEqual(notifications.localImageFile('mail'), '', 'notifications leave themed icon names uncopied')
 assertEqual(notifications.localImageFile('image://notifs/1'), '', 'notifications cannot copy in-process image URLs')
+assertEqual(
+  notifications.localImageFile('file:///etc/passwd'),
+  '',
+  'notifications refuse to snapshot /etc paths named as notification images'
+)
+assertEqual(
+  notifications.localImageFile('file:///home/user/.ssh/id_rsa'),
+  '',
+  'notifications refuse to snapshot ssh keys named as notification images'
+)
+assertEqual(
+  notifications.localImageFile('/tmp/../etc/passwd'),
+  '',
+  'notifications refuse a /tmp path that climbs out with ..'
+)
+assert(
+  notifications.isCopyableImagePath('/usr/share/icons/hicolor/48x48/apps/mail.png'),
+  'notifications may snapshot packaged icon files'
+)
+assert(
+  !notifications.isCopyableImagePath('/home/user/.gnupg/private-keys-v1.d/key'),
+  'notifications refuse gnupg paths named as notification images'
+)
 
 const persistable = notifications.persistablePopup(
   { id: 9, originalId: 9, timestamp: 2000, appIcon: 'file:///tmp/scoped/logo.png', image: 'image://notifs/9', summary: 'Hi' },
@@ -467,7 +490,17 @@ assertEqual(
   'notifications persist the image copy instead of the sender-owned original'
 )
 assertEqual(persistable.entry.image, '', 'notifications drop dead in-process image URLs from persisted entries')
-assertEqual(persistable.entry.summary, 'Hi', 'notifications leave the rest of the persisted entry untouched')
+assertEqual(
+  persistable.entry.summary, 'Hi', 'notifications leave the rest of the persisted entry untouched'
+)
+
+const stolen = notifications.persistablePopup(
+  { id: 3, originalId: 3, timestamp: 9, appIcon: 'file:///home/user/.ssh/id_rsa', image: 'file:///etc/shadow' },
+  '/state/images/'
+)
+assertEqual(stolen.copies.length, 0, 'notifications queue no copy jobs for paths outside the allowlist')
+assertEqual(stolen.entry.appIcon, '', 'notifications drop an ssh path from persisted history JSON')
+assertEqual(stolen.entry.image, '', 'notifications drop an /etc path from persisted history JSON')
 
 const repersisted = notifications.persistablePopup(persistable.entry, '/state/images/')
 assertDeepEqual(repersisted.copies, [], 'notifications do not re-copy an entry already pointing at its copies')
@@ -612,8 +645,12 @@ assert(
   'notifications service copies images before writing the JSON that references them'
 )
 assert(
-  /timeout 5 head -c 5242881 -- \\"\$1\\" > \\"\$2\.tmp\\"[\s\S]{0,120}?mv -f -- \\"\$2\.tmp\\" \\"\$2\\"/.test(serviceQml),
+  /timeout 5 head -c 5242881 -- \\"\$real\\" > \\"\$dest\.tmp\\"[\s\S]{0,160}?mv -f -- \\"\$dest\.tmp\\" \\"\$dest\\"/.test(serviceQml),
   'notifications service bounds image copies through a validated temp file'
+)
+assert(
+  /realpath -e -- \\"\$src\\"/.test(serviceQml) && /\/tmp\/\*\|\/var\/tmp\/\*/.test(serviceQml),
+  'notifications service re-checks image copy sources against the allowlist'
 )
 assert(
   /rm -f \\"\$1\/\$2\.json\\" \\"\$3\/\$2\\"-\*/.test(serviceQml),
