@@ -102,6 +102,16 @@ def apply_transform(monitor, touch_device, transform):
     print(f"applied transform {transform}", flush=True)
 
 
+def dbus_unpack(value):
+    # g-properties-changed hands PyGObject either a Variant or an already
+    # unpacked Python value depending on GI version. Calling .unpack() on a
+    # str raises AttributeError and rotation silently dies.
+    if value is None:
+        return None
+    unpack = getattr(value, "unpack", None)
+    return unpack() if callable(unpack) else value
+
+
 def main():
     ensure_hyprland_env()
     monitor = detect_monitor()
@@ -109,11 +119,11 @@ def main():
     offset = load_offset()
 
     def on_properties_changed(proxy, changed, invalidated):
-        props = changed.unpack()
-        orientation = props.get("AccelerometerOrientation")
+        props = dbus_unpack(changed) or {}
+        orientation = dbus_unpack(props.get("AccelerometerOrientation"))
         if orientation is None:
             return
-        base = ORIENTATION_TO_TRANSFORM.get(orientation.unpack())
+        base = ORIENTATION_TO_TRANSFORM.get(orientation)
         if base is not None:
             apply_transform(monitor, touch_device, (base + offset) % 4)
 
@@ -130,8 +140,8 @@ def main():
         print(f"iio-sensor-proxy not reachable: {error.message}", file=sys.stderr, flush=True)
         return 0
 
-    has_accelerometer = proxy.get_cached_property("HasAccelerometer")
-    if not has_accelerometer or not has_accelerometer.unpack():
+    has_accelerometer = dbus_unpack(proxy.get_cached_property("HasAccelerometer"))
+    if not has_accelerometer:
         print("no accelerometer exposed by iio-sensor-proxy", file=sys.stderr, flush=True)
         return 0
 
@@ -141,9 +151,9 @@ def main():
     except GLib.Error as error:
         print(f"ClaimAccelerometer failed: {error.message}", file=sys.stderr, flush=True)
         return 0
-    initial = proxy.get_cached_property("AccelerometerOrientation")
+    initial = dbus_unpack(proxy.get_cached_property("AccelerometerOrientation"))
     if initial is not None:
-        base = ORIENTATION_TO_TRANSFORM.get(initial.unpack())
+        base = ORIENTATION_TO_TRANSFORM.get(initial)
         if base is not None:
             apply_transform(monitor, touch_device, (base + offset) % 4)
     print("watching accelerometer orientation...", flush=True)
