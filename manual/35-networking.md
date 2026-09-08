@@ -43,3 +43,9 @@ Installing it also adds a web app for the Tailscale admin console.
 ## When it stops working
 
 Before rebooting, try restarting the offending piece on its own. _Update > Hardware_ has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up most "it worked five minutes ago" situations. See [troubleshooting](45-troubleshooting.md).
+
+### Saved networks missing after upgrading to Omarchy 4
+
+Run `omarchy network import iwd` to recover open and personal Wi-Fi networks saved before the upgrade. It preserves passwords, hidden networks, and the automatic connection preference, leaves existing NetworkManager connections alone, and keeps the original profiles in `/var/lib/iwd`. The upgrade also runs this import before switching network services.
+
+Enterprise networks and profiles with custom addressing, MAC, or security policies need manual setup in the network panel. The import reports these separately. It does not interrupt your current connection.
