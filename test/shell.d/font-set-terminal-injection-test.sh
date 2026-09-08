@@ -70,3 +70,11 @@ grep -Fq 'cannot be written into terminal configs' "$test_tmp/err" ||
 grep -Fq 'family = "CaskaydiaMono Nerd Font"' "$test_home/.config/alacritty/alacritty.toml" ||
   fail "font-set leaves terminal configs unchanged after a refused name"
 pass "font-set refuses a quoted font name that would inject terminal settings"
+
+if run_font_set $'Two\nFamily' 2>"$test_tmp/err"; then
+  fail "font-set refuses a family name with a newline"
+fi
+if run_font_set 'Foo$HOME' 2>"$test_tmp/err"; then
+  fail "font-set refuses a family name with a dollar sign"
+fi
+pass "font-set refuses newline and dollar metacharacters in a family name"
