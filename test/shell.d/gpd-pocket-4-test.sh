@@ -47,7 +47,39 @@ grep -q 'nvtk0603' "$rotate" ||
   fail "the rotate daemon does not prefer the GPD digitizer over other tablets"
 grep -q 'ClaimAccelerometer failed' "$rotate" ||
   fail "a failed accelerometer claim would crash-loop the user unit"
+grep -q 'orientation.unpack()' "$rotate" &&
+  fail "properties-changed treats unpacked dbus strings as Variants, so rotation dies"
 pass "the rotate daemon finds Hyprland, claims the sensor, and prefers the GPD digitizer"
+
+python3 - "$rotate" <<'PY'
+import importlib.machinery
+import importlib.util
+import sys
+
+loader = importlib.machinery.SourceFileLoader("gpd_rotate", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+mod = importlib.util.module_from_spec(spec)
+loader.exec_module(mod)
+
+class Variant:
+    def __init__(self, value):
+        self._value = value
+
+    def unpack(self):
+        return self._value
+
+if mod.dbus_unpack("right-up") != "right-up":
+    raise SystemExit("dbus_unpack must accept an already-unpacked string")
+if mod.dbus_unpack(Variant("left-up")) != "left-up":
+    raise SystemExit("dbus_unpack must unpack a Variant")
+if mod.dbus_unpack(None) is not None:
+    raise SystemExit("dbus_unpack must pass None through")
+if mod.dbus_unpack(Variant({"AccelerometerOrientation": "bottom-up"})) != {
+    "AccelerometerOrientation": "bottom-up"
+}:
+    raise SystemExit("dbus_unpack must unpack a properties dict Variant")
+PY
+pass "properties-changed accepts both Variant and unpacked dbus values"
 
 grep -q 'sudo tee /etc/limine-entry-tool.d/gpd-pocket4-orientation.conf' "$leaf" ||
   fail "the install leaf writes kernel cmdline as root"
