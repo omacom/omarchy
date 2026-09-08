@@ -127,6 +127,18 @@ custom=$(run_collector --force)
   fail "Muse collector honors MUSE_AUTH_PATH over the default login" "$(cat "$STUB_SEEN_FILE")"
 pass "Muse collector honors MUSE_AUTH_PATH over the default login"
 
+# A login file that parses but is not the expected shape is a missing
+# credential, not a crash.
+for malformed in '[1,2]' '"nope"' '{"providers":[]}' '{"providers":{"meta":7}}'; do
+  printf '%s' "$malformed" >"$MUSE_AUTH_PATH"
+  garbled=$(run_collector --force) ||
+    fail "Muse collector survives a malformed login file" "$malformed"
+  [[ $(jq -r '.usageStatusText' <<<"$garbled") == "Waiting for auth" ]] ||
+    fail "Muse collector survives a malformed login file" "$malformed -> $garbled"
+done
+pass "Muse collector survives a malformed login file"
+printf '{"providers":{"meta":{"access_token":"test-token"}}}' >"$MUSE_AUTH_PATH"
+
 # Fail the limits-cache write while allowing the local scan cache to work.
 rm "$TEST_HOME/.cache/omarchy/agent-usage/muse-limits.json"
 mkdir "$TEST_HOME/.cache/omarchy/agent-usage/muse-limits.json"

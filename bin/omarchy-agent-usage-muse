@@ -185,7 +185,7 @@ def top_level_session(path: Path) -> str | None:
     candidate = parts[3]
   except (ValueError, IndexError):
     return None
-  if candidate in ("subagent", "") or "/" in candidate:
+  if candidate in ("subagent", ""):
     return None
   return candidate
 
@@ -195,7 +195,8 @@ def scan_native_muse_sessions():
   if not root.is_dir():
     return
   try:
-    files = [p for p in root.rglob("session.jsonl") if ".msp-view" not in p.parts]
+    files = [p for p in root.rglob("session.jsonl")
+             if not any(part.startswith(".msp-view") for part in p.parts)]
   except OSError:
     return
 
@@ -430,7 +431,15 @@ def read_access_token() -> str:
     data = json.loads(path.read_text(encoding="utf-8"))
   except Exception:
     return ""
-  login = (data.get("providers") or {}).get("meta") or {}
+  # Every level is checked: json.loads is guarded, but a login file that
+  # parses to a list — or one whose `providers` is not an object — would
+  # otherwise take the whole collector down on the next .get().
+  if not isinstance(data, dict):
+    return ""
+  providers = data.get("providers")
+  if not isinstance(providers, dict):
+    return ""
+  login = providers.get("meta")
   if not isinstance(login, dict):
     return ""
   return str(login.get("access_token") or "")
