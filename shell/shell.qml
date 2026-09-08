@@ -347,8 +347,17 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    if (!manifest || manifest.kinds == null) return false
+    var kinds = manifest.kinds
+    // Instantiator modelData turns nested JS arrays into QVariantList:
+    // Array.isArray is false, but length + index access still work.
+    if (typeof kinds.indexOf === "function") return kinds.indexOf(kind) !== -1
+    var n = kinds.length
+    if (typeof n !== "number") return false
+    for (var i = 0; i < n; i++) {
+      if (kinds[i] === kind) return true
+    }
+    return false
   }
 
   function pluginHasBarCapabilities(manifest) {
