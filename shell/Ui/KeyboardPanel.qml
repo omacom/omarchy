@@ -158,12 +158,27 @@ PanelWindow {
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
-  readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barW + gap + margin : margin * 2))
-    : 0
-  readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barH + gap + margin : margin * 2))
-    : 0
+  // ExclusionMode.Auto with all four anchors sets exclusiveZone 0: the
+  // compositor insets this overlay around the bar/OSK reserved bands.
+  // Prefer the surface size when we have it so a tall panel cannot extend
+  // into those bands; fall back to screen size minus the bar when the
+  // window is still fullscreen (Ignore, or Auto before the first map).
+  readonly property real availableCardWidth: {
+    var surface = width > 0 ? width : screenW
+    if (surface <= 0) return 0
+    var barReserve = 0
+    if ((barPos === "left" || barPos === "right") && (width <= 0 || Math.abs(width - screenW) < 1))
+      barReserve = barW + gap
+    return Math.max(120, surface - barReserve - margin * 2)
+  }
+  readonly property real availableCardHeight: {
+    var surface = height > 0 ? height : screenH
+    if (surface <= 0) return 0
+    var barReserve = 0
+    if ((barPos === "top" || barPos === "bottom") && (height <= 0 || Math.abs(height - screenH) < 1))
+      barReserve = barH + gap
+    return Math.max(120, surface - barReserve - margin * 2)
+  }
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
   function fittedContentWidth(width, cap) {
@@ -223,7 +238,16 @@ PanelWindow {
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
     y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
-    return Qt.point(Math.round(x), Math.round(y))
+    // Screen-space origin is relative to the output. Auto-mode exclusive
+    // zone 0 insets this surface around the bar/OSK, so translate into
+    // the window; Ignore-mode (x=y=0) is a no-op.
+    var localX = x - root.x
+    var localY = y - root.y
+    var surfaceW = width > 0 ? width : screenW
+    var surfaceH = height > 0 ? height : screenH
+    localX = Math.max(margin, Math.min(localX, surfaceW - contentWidth - margin))
+    localY = Math.max(margin, Math.min(localY, surfaceH - contentHeight - margin))
+    return Qt.point(Math.round(localX), Math.round(localY))
   }
 
 
