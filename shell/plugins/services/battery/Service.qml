@@ -10,6 +10,16 @@ Item {
   property var shell: null
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
+  readonly property var notificationsService: {
+    if (!shell) return null
+    var services = shell.services
+    return shell.firstPartyServiceFor("omarchy.notifications")
+  }
+  // Older replacement plugins predate the readiness signal; retain their
+  // existing best-effort behavior rather than disabling battery warnings.
+  readonly property bool notificationsReady: !!notificationsService && (!("popupsRestored" in notificationsService) || notificationsService.popupsRestored)
+  onNotificationsReadyChanged: if (notificationsReady) Qt.callLater(root.checkBattery)
+
   readonly property int batteryThreshold: 10
   property string pendingPowerSource: ""
   property string pendingWarningArg: ""
@@ -37,6 +47,10 @@ Item {
   }
 
   function checkBattery() {
+    // A dismiss before restoration sees no popup, and a send can race the
+    // old popup back onto the screen. Keep the latch untouched until both
+    // the disk read and deferred model insertion have finished.
+    if (!notificationsReady) return
     var state = BatteryModel.lowBatteryWarningState(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery, staleWarningSwept)
     persisted.notifiedLowBattery = state.notifiedLowBattery
     staleWarningSwept = state.staleWarningSwept

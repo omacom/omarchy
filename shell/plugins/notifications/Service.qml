@@ -718,6 +718,10 @@ Item {
     }
   }
 
+  // Consumers that replace or dismiss restored alerts must wait until those
+  // alerts have reached the model, not just until the disk read has ended.
+  property bool popupsRestored: false
+
   function restorePopups(raw) {
     var entries = NotificationLogic.parsePopupFiles(raw, NotificationUrgency.Normal)
     var now = Date.now()
@@ -745,8 +749,6 @@ Item {
       }
       live.push(entry)
     }
-    if (live.length === 0) return
-
     Qt.callLater(function() {
       for (var j = 0; j < live.length; j++) {
         var restored = live[j]
@@ -773,6 +775,7 @@ Item {
         service.restoredPopups[NotificationLogic.popupFileName(restored)] = true
         popupModel.append(restored)
       }
+      service.popupsRestored = true
     })
   }
 
