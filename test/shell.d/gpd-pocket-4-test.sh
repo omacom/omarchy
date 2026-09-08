@@ -21,20 +21,16 @@ grep -q 'source "$OMARCHY_PATH/install/hardware/gpd-pocket-4.sh"' "$migration" |
   fail "the migration reuses the install leaf"
 grep -q 'systemctl --user enable --now omarchy-gpd-pocket-4-rotate.service' "$migration" &&
   fail "the GPD migration enable --now fails when systemd has not seen the unit yet"
-grep -q 'ln -sfn "$unit_source" "$user_unit"' "$migration" ||
-  fail "the GPD migration does not publish the unit from OMARCHY_PATH"
+grep -q 'pkexec "$@"' "$migration" ||
+  fail "the GPD migration cannot publish packaged paths without a TTY"
 pass "a migration enables GPD Pocket 4 setup on existing installs"
 
 grep -q 'omarchy-gpd-pocket-4-rotate.service' "$first_run_units" ||
   fail "first-run does not enable the GPD Pocket 4 rotate unit"
 pass "first-run enables the GPD Pocket 4 rotate unit"
 
-grep -Fx 'ExecCondition=${OMARCHY_PATH}/bin/omarchy-hw-gpd-pocket-4' "$unit" >/dev/null ||
+grep -Fx 'ExecCondition=/usr/bin/omarchy-hw-gpd-pocket-4' "$unit" >/dev/null ||
   fail "the rotate unit starts on machines without the hardware"
-grep -Fx 'ExecStart=${OMARCHY_PATH}/bin/omarchy-hw-gpd-pocket-4-rotate' "$unit" >/dev/null ||
-  fail "the rotate unit runs the packaged /usr/bin copy that a linked checkout does not have"
-grep -Fx 'ConditionEnvironment=OMARCHY_PATH' "$unit" >/dev/null ||
-  fail "the rotate unit can start before OMARCHY_PATH is imported"
 grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$unit" >/dev/null ||
   fail "the rotate unit can start without a Wayland display"
 grep -F 'wayland-session-waitenv.service' "$unit" >/dev/null ||
