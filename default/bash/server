@@ -1,0 +1,16 @@
+# Only interactive login shells may enter the server front door.
+# Returning from the menu resumes this shell, without nesting login shells.
+omarchy_server_should_greet() {
+  [[ -t 0 && -t 1 ]] || return 1
+  [[ $- == *i* ]] || return 1
+  shopt -q login_shell || return 1
+  [[ -z ${SSH_ORIGINAL_COMMAND+x} ]] || return 1
+  [[ -z ${TMUX-} ]] || return 1
+  [[ -n ${TERM-} && ${TERM-} != "dumb" ]] || return 1
+  case ${0##*/} in scp | sftp | rsync) return 1 ;; esac
+  omarchy-edition server
+}
+
+if omarchy_server_should_greet; then
+  omarchy-server-menu
+fi

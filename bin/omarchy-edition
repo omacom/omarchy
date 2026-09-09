@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Print or test the installed Omarchy edition
+# omarchy:args=[desktop|server]
+# omarchy:examples=omarchy edition | omarchy edition server
+# omarchy:hidden=true
+
+set -euo pipefail
+
+edition_file=/etc/omarchy-edition
+edition=desktop
+
+if [[ -r $edition_file ]]; then
+  edition=$(<"$edition_file")
+fi
+
+case ${1-} in
+"" | print)
+  printf '%s\n' "$edition"
+  ;;
+desktop | server)
+  [[ $edition == "$1" ]]
+  ;;
+-h | --help | help)
+  printf '%s\n' "Usage: omarchy edition [desktop|server]"
+  ;;
+*)
+  printf 'omarchy-edition: unknown edition %s\n' "$1" >&2
+  exit 2
+  ;;
+esac

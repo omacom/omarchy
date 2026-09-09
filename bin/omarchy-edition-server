@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Succeed only on Omarchy Server
+# omarchy:hidden=true
+
+exec omarchy-edition server

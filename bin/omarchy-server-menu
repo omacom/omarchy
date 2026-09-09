@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# omarchy:summary=Open the Omarchy Server home menu
+
+set -uo pipefail
+
+if ! omarchy-edition server; then
+  printf 'omarchy-server-menu is for the server edition.\n' >&2
+  exit 1
+fi
+
+while true; do
+  choice=$(gum choose "Status" "Docker" "Services" "Update" "Logs" "Network" "Theme" "[Q] Shell") || exit 0
+
+  case $choice in
+  Status) btop ;;
+  Docker) lazydocker ;;
+  Services) systemctl list-units --type=service --state=running | less ;;
+  Update) omarchy-update ;;
+  Logs)
+    if omarchy-cmd-present lazyjournal; then
+      lazyjournal
+    else
+      journalctl -xe | less
+    fi
+    ;;
+  Network)
+    echo "hostname: $(hostname)"
+    ip -br addr
+    sudo ufw status
+    read -r -p "Enter to return..."
+    ;;
+  Theme) omarchy theme ;;
+  "[Q] Shell" | "") exit 0 ;;
+  esac
+done
