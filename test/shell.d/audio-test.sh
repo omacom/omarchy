@@ -19,6 +19,14 @@ assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted outp
 
 assertDeepEqual(audio.parseSinkAvailability('alsa_output\t1\nhdmi_output\t0\n'), { alsa_output: true, hdmi_output: false }, 'audio parses sink availability')
 assertEqual(audio.friendlyDeviceLabel('Built-in Audio Speakers Output'), 'Speakers', 'audio cleans device labels')
+
+assertDeepEqual(
+  audio.parseCardOutputs('alsa_card.pci\tHiFi (Mic1, Speaker)\tSpeaker\t[Out] Speaker\n'),
+  [{ isProfileOutput: true, card: 'alsa_card.pci', profile: 'HiFi (Mic1, Speaker)', description: 'Speaker', name: '[Out] Speaker' }],
+  'audio parses outputs reachable only by switching card profile'
+)
+assertDeepEqual(audio.parseCardOutputs(''), [], 'audio parses no card outputs when every profile output already has a sink')
+assertDeepEqual(audio.parseCardOutputs('\nalsa_card.pci\tHiFi\n'), [], 'audio ignores card output rows missing fields')
 assertEqual(
   audio.nodeLabel({ ready: true, properties: { 'node.nick': 'Built-in Audio Microphones Input' }, name: 'alsa_input' }),
   'Microphone',
