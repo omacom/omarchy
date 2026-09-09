@@ -65,7 +65,7 @@ falls back to local stats only. A non-default Claude directory is honored via
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
 
-Cursor is an additional collector, not a replacement: Claude, Codex, and Fireworks keep their own tabs. Cursor limits need a signed-in Cursor CLI (`agent login` / `cursor-agent login`); without credentials the panel says Waiting for auth, matching Claude. The collector reads the CLI session, then `~/.config/cursor/auth.json`, then the Cursor IDE login as a fallback. It never prints tokens. Cursor numbers are account-global (`scope: account`). Cursor's Grok Bot weekly quota is a separate chat allowance, not the Agent week window, so an unused 0% Grok Bot row is omitted.
+Cursor limits need a signed-in Cursor CLI (`agent login` / `cursor-agent login`); without credentials the panel says Waiting for auth, matching Claude. The collector reads the CLI session, then `~/.config/cursor/auth.json`, then the Cursor IDE login as a fallback. It never prints tokens. Cursor numbers are account-global (`scope: account`). Cursor's Grok Bot weekly quota is a separate chat allowance, not the Agent week window, so an unused 0% Grok Bot row is omitted.
 
 ### Fireworks balance
 
