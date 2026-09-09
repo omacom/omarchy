@@ -10,7 +10,7 @@ if ! omarchy-edition server; then
 fi
 
 while true; do
-  choice=$(gum choose "Status" "Docker" "Services" "Update" "Logs" "Network" "Theme" "[Q] Shell") || exit 0
+  choice=$(gum choose "Status" "Docker" "Services" "Update" "Logs" "Network" "Theme" "Shell") || exit 0
 
   case $choice in
   Status) btop ;;
@@ -31,6 +31,6 @@ while true; do
     read -r -p "Enter to return..."
     ;;
   Theme) omarchy theme ;;
-  "[Q] Shell" | "") exit 0 ;;
+  "Shell" | "") exit 0 ;;
   esac
 done

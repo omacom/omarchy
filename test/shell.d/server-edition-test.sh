@@ -81,7 +81,7 @@ with tempfile.TemporaryDirectory() as directory:
   check(not greet(), 'desktop login does not greet')
 
   marker.write_text('server\n')
-  (tmp / 'gum').write_text('#!/bin/bash\nif [[ ! -e $SERVER_TEST_STATE ]]; then\n  touch "$SERVER_TEST_STATE"\n  echo Status\nelse\n  echo "[Q] Shell"\nfi\n')
+  (tmp / 'gum').write_text('#!/bin/bash\nif [[ ! -e $SERVER_TEST_STATE ]]; then\n  touch "$SERVER_TEST_STATE"\n  echo Status\nelse\n  echo "Shell"\nfi\n')
   (tmp / 'btop').write_text('#!/bin/bash\necho STATUS_DOOR\nexit 1\n')
   for name in ['gum', 'btop']:
     (tmp / name).chmod(0o755)

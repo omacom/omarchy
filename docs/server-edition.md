@@ -6,6 +6,6 @@ This implements the first building blocks of [Phase 1](../plans/server.md#rollou
 
 `install/omarchy-server.packages` is a candidate package list for installer integration. It is not consumed by the current installation pipeline. lazyjournal remains optional; the menu falls back to journalctl.
 
-The Bash rc sources `default/bash/server`. Only interactive login shells with terminal input and output, a usable TERM, no SSH_ORIGINAL_COMMAND (including an empty set value), and no tmux session enter the menu. Non-login shells and file-transfer command names skip it. Selecting Shell or cancelling the menu returns to the existing shell. Commands that fail return to the menu for another selection.
+The Bash rc sources `default/bash/server`. Only interactive login shells with terminal input and output, a usable TERM, no SSH_ORIGINAL_COMMAND (including an empty set value), and no tmux session enter the menu. Non-login shells and file-transfer command names skip it. Use arrow keys and Enter to select an entry; selecting Shell or cancelling with Escape returns to the existing shell. The planned single-key BBS shortcuts are not implemented yet. Commands that fail return to the menu for another selection.
 
 The Theme entry currently displays the existing CLI theme commands. Applying themes and running updates are not yet guaranteed headless: the edition gates and terminal theme bridge are still pending. This starter should be exercised in a disposable Linux VM before installation use.
