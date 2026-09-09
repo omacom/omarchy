@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.flight-mode",
+  "name": "Flight Mode",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Block or unblock all wireless radios",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "FlightMode.qml"
+  },
+  "barWidget": {
+    "displayName": "Flight Mode",
+    "description": "Block or unblock all wireless radios",
+    "category": "Network",
+    "allowMultiple": false
+  }
+}
