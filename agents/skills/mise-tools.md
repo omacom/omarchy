@@ -1,6 +1,6 @@
 # mise-managed tools
 
-Read this before adding or changing a mise-managed tool, including entries in `install/user/mise.sh` and calls to `omarchy-mise-install`.
+Read this before adding or changing a mise-managed tool, including declarations in `default/mise/config.toml`. Declare default tools there with `lazy = true` and use their registry shorthands. `install/user/mise.sh` builds mise's native shims; do not add handwritten wrappers for ordinary tools. Hermes keeps its custom installer for its Python pin and Desktop ownership checks.
 
 When a tool is available through `github:` or `aqua:`, use its mise registry shorthand such as `codex` or `hey-cli` instead of spelling out the backend. Other explicit backends, such as `pipx:`, may be used when their backend-specific behavior or options are required.
 

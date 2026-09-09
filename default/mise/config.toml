@@ -23,3 +23,6 @@ ghui = { version = "latest", lazy = true, minimum_release_age = "0s" }
 hunk = { version = "latest", lazy = true, minimum_release_age = "0s" }
 hey-cli = { version = "latest", lazy = true, minimum_release_age = "0s" }
 ori = { version = "latest", lazy = true, minimum_release_age = "0s" }
+cursor-agent = { version = "latest", lazy = true, minimum_release_age = "0s" }
+muse = { version = "latest", lazy = true, minimum_release_age = "0s" }
+basecamp = { version = "latest", lazy = true, minimum_release_age = "0s" }

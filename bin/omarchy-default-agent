@@ -36,11 +36,7 @@ openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-op
 agy | antigravity | antigravity-cli | gemini | gemini-cli) agent="agy"; name="Antigravity"; agent_package="antigravity-cli" ;;
 hermes) agent="hermes"; name="Hermes"; agent_installer="omarchy-install-hermes-cli" ;;
 copilot | github-copilot) agent="copilot"; name="GitHub Copilot" ;;
-muse | muse-code | musecode)
-  agent="muse"; name="Muse Code"
-  # Meta's launcher verifies and updates the native binary for this platform.
-  agent_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
-  ;;
+muse | muse-code | musecode) agent="muse"; name="Muse Code" ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 *)
   echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"

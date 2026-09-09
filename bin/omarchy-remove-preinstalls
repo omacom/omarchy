@@ -14,8 +14,10 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
 
   # Remove Omarchy's lazy mise declarations and their bootstrap shims.
   MISE_CONFIG_PATH="${OMARCHY_MISE_CONFIG_PATH:-/etc/mise/config.toml}"
-  sudo rm -f "$MISE_CONFIG_PATH"
-  mise reshim --system
+  sudo rm -f "$MISE_CONFIG_PATH" || exit 1
+  # The removed config supplied this path; keep using the same shim farm while
+  # retiring its lazy tools rather than falling back to the root-owned farm.
+  MISE_SYSTEM_SHIMS_DIR="$HOME/.local/share/mise/shims" mise reshim --system || exit 1
 
   # Remove wrappers left by older Omarchy releases.
   rm -f ~/.local/bin/codex ~/.local/bin/claude ~/.local/bin/agy ~/.local/bin/copilot \
@@ -31,7 +33,7 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
 
   # Preserve a user-managed Muse launcher at the same path.
   if [[ -f ~/.local/bin/muse && ! -L ~/.local/bin/muse ]] &&
-    grep -Eq '^mise use -g .*"http:muse\[' ~/.local/bin/muse; then
+    grep -Eq '^mise use -g .*"(muse"|http:muse\[)' ~/.local/bin/muse; then
     rm -f ~/.local/bin/muse
   fi
 
