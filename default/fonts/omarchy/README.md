@@ -16,6 +16,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E90B` — Perplexity, from <https://simpleicons.org/icons/perplexity.svg>
 - `U+E90C` — OpenClaw, traced from the lobster mascot the openclaw package ships as `dist/control-ui/favicon.svg`, since upstream publishes no monochrome SVG
 - `U+E90D` — Cursor, from <https://simpleicons.org/icons/cursor.svg>
+- `U+E90E` — Kiro CLI, traced from the app icon at <https://kiro.dev/icon.svg> (eyes cut from the blob as holes), since upstream publishes no monochrome SVG
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.

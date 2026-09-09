@@ -84,7 +84,7 @@ fi
 # Dev-aware skill symlinks. Cannot live in /etc/skel because OMARCHY_PATH may
 # point at a dev checkout (omarchy dev link) where the target differs.
 # Loops every skill directory, so shipping a new one needs no edit here.
-mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/.gemini/config/skills ~/.hermes/skills
+mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/.gemini/config/skills ~/.hermes/skills ~/.kiro/skills
 for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   skill=${skill%/}
   name=${skill##*/}
@@ -94,6 +94,10 @@ for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   ln -sfn "$skill" ~/.pi/agent/skills/"$name"
   ln -sfn "$skill" ~/.gemini/config/skills/"$name"
   ln -sfn "$skill" ~/.hermes/skills/"$name"
+  # Kiro's built-in default agent already resolves skill:///~/.kiro/skills/*/SKILL.md
+  # (confirmed by exporting it with `kiro-cli agent create --from kiro_default`), so
+  # a symlink here needs no agent config of our own to be picked up.
+  ln -sfn "$skill" ~/.kiro/skills/"$name"
   if [[ -d ~/.hermes/profiles ]]; then
     for profile in ~/.hermes/profiles/*/; do
       [[ -d $profile ]] || continue

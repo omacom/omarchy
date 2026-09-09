@@ -653,6 +653,7 @@ assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this pro
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
+assert_launch kiro-cli kiro-cli chat -a "Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -681,6 +682,7 @@ assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
+assert_bypass kiro-cli kiro-cli chat -a
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"
@@ -801,3 +803,48 @@ mapfile -d '' -t launch_args <"$launch_log"
   ${launch_args[4]} == "Review this project" ]] ||
   fail "OpenClaw receives prompts through --message" "argv: ${launch_args[*]}"
 pass "OpenClaw receives prompts through --message"
+
+# Kiro CLI ships no mise-resolvable release and self-updates in place, so
+# choosing it must route through omarchy-install-kiro-cli's vendor installer
+# and never touch a mise environment. The real omarchy-install-kiro-cli runs
+# here (it is not mocked); only its own dependencies are.
+cat >"$mock_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+[[ $1 == kiro-cli && ${OMARCHY_TEST_KIRO_INSTALLED:-false} == "true" ]]
+SH
+cat >"$mock_bin/curl" <<'SH'
+#!/bin/bash
+printf '%s\n' "curl $*" >>"$OMARCHY_TEST_STUB_LOG"
+echo 'printf "%s\n" "kiro-cli installer ran" >>"$OMARCHY_TEST_STUB_LOG"'
+SH
+cat >"$mock_bin/kiro-cli" <<'SH'
+#!/bin/bash
+printf '%s\0' kiro-cli "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+SH
+chmod +x "$mock_bin/omarchy-cmd-present" "$mock_bin/curl" "$mock_bin/kiro-cli"
+
+: >"$terminal_log"
+: >"$mise_history"
+OMARCHY_TEST_KIRO_INSTALLED=true omarchy-default-agent kiro-cli
+read -r chosen <"$agent_file"
+[[ $chosen == kiro-cli ]] || fail "choosing an installed Kiro CLI records it as the default agent"
+[[ ! -s $terminal_log ]] || fail "an installed Kiro CLI needs no install terminal"
+! grep -q 'use -g' "$mise_history" || fail "Kiro CLI never installs through mise"
+pass "choosing an installed Kiro CLI records it as the default agent without mise"
+
+: >"$terminal_log"
+OMARCHY_TEST_KIRO_INSTALLED=false omarchy-default-agent kiro-cli
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-agent --install kiro-cli" ]] ||
+  fail "a missing Kiro CLI routes through the install terminal"
+pass "a missing Kiro CLI routes through the install terminal"
+
+: >"$stub_log"
+: >"$inline_log"
+OMARCHY_TEST_KIRO_INSTALLED=false omarchy-default-agent --install kiro-cli >/dev/null
+grep -Fx "kiro-cli installer ran" "$stub_log" >/dev/null ||
+  fail "installing Kiro CLI as default agent runs the vendor installer"
+mapfile -d '' -t inline_args <"$inline_log"
+[[ ${inline_args[*]} == "kiro-cli chat -a" ]] ||
+  fail "installing Kiro CLI as default agent launches it inline"
+pass "installing Kiro CLI as default agent runs the vendor installer and launches it"

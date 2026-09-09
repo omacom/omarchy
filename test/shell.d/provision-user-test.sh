@@ -38,6 +38,10 @@ for skill in omarchy diagnose-crash; do
   link="$test_tmp/home/.hermes/profiles/james/skills/$skill"
   [[ -L $link && $(readlink "$link") == "$ROOT/default/agents/skills/$skill" ]] ||
     fail "omarchy-provision-user provisions the $skill skill for a Hermes profile"
+
+  link="$test_tmp/home/.kiro/skills/$skill"
+  [[ -L $link && $(readlink "$link") == "$ROOT/default/agents/skills/$skill" ]] ||
+    fail "omarchy-provision-user provisions the $skill skill for Kiro CLI"
 done
 
-pass "omarchy-provision-user provisions Antigravity and Hermes skills"
+pass "omarchy-provision-user provisions Antigravity, Hermes, and Kiro CLI skills"
