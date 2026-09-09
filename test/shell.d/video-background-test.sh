@@ -417,21 +417,21 @@ printf 'refresh\n' >>"$MIGRATION_CALLS"
 SH
 chmod +x "$migration_bin/omarchy-theme-refresh"
 
-printf 'tokyo-night\n' >"$migration_home/.local/state/omarchy/current/theme.name"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" \
+printf 'catppuccin\n' >"$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
   bash -euo pipefail "$migration" >/dev/null
-[[ $(<"$migration_calls") == "refresh" ]] || fail "boot intro migration refreshes an active Tokyo Night theme"
+[[ $(<"$migration_calls") == "refresh" ]] || fail "boot intro migration refreshes an active theme with packaged intros"
 [[ -s $migration_home/.local/state/omarchy/background-intro.boot-id ]] || fail "boot intro migration records the current boot after refreshing"
 
 : >"$migration_calls"
-printf 'catppuccin\n' >"$migration_home/.local/state/omarchy/current/theme.name"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" \
+printf 'custom-theme\n' >"$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
   bash -euo pipefail "$migration" >/dev/null
-[[ ! -s $migration_calls ]] || fail "boot intro migration leaves another active theme alone"
+[[ ! -s $migration_calls ]] || fail "boot intro migration leaves a theme without packaged intros alone"
 
 rm "$migration_home/.local/state/omarchy/current/theme.name"
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" \
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
   bash -euo pipefail "$migration" >/dev/null
 [[ ! -s $migration_calls ]] || fail "boot intro migration tolerates missing theme state"
 
-pass "boot intro migration stages assets only for an active Tokyo Night theme"
+pass "boot intro migration stages assets only for an active theme with packaged intros"

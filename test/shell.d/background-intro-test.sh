@@ -132,15 +132,15 @@ migration_home="$test_tmp/migration-home"
 migration_bin="$test_tmp/migration-bin"
 migration_calls="$test_tmp/migration-calls"
 mkdir -p "$migration_home/.local/state/omarchy/current" "$migration_bin"
-printf 'tokyo-night\n' >"$migration_home/.local/state/omarchy/current/theme.name"
+printf 'catppuccin\n' >"$migration_home/.local/state/omarchy/current/theme.name"
 cat >"$migration_bin/omarchy-theme-refresh" <<'SH'
 #!/bin/bash
 printf 'refresh\n' >>"$MIGRATION_CALLS"
 SH
 chmod +x "$migration_bin/omarchy-theme-refresh"
 
-HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_BOOT_ID=migration-boot bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
-[[ $(<"$migration_calls") == "refresh" ]] || fail "the migration refreshes an active Tokyo Night theme"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" OMARCHY_BOOT_ID=migration-boot bash -euo pipefail "$ROOT/migrations/1788281348.sh" >/dev/null
+[[ $(<"$migration_calls") == "refresh" ]] || fail "the migration refreshes an active theme with packaged intros"
 [[ $(<"$migration_home/.local/state/omarchy/background-intro.boot-id") == "migration-boot" ]] || fail "the migration defers a newly installed intro until the next boot"
 
 pass "the migration does not start a boot intro during an update"
