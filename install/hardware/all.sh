@@ -30,6 +30,7 @@ run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
 # Rebuilds the boot image, so it has to follow the Panther Lake kernel swap
 # above rather than sit with the other Dell leaf at the top of this file.
 run_logged "$OMARCHY_INSTALL/hardware/dell-xps13-sidecar-amps.sh"
+run_logged "$OMARCHY_INSTALL/hardware/dell-xps-oled-display-backlight.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-display-backlight.sh"
 run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-ptl-b9406-display.sh"
