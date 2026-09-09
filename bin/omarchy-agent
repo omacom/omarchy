@@ -130,6 +130,12 @@ pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
+qwen)
+  # A bare positional prompt is one-shot here, so seeding a session that stays
+  # open is --prompt-interactive; -p is deprecated upstream.
+  command=(qwen --yolo)
+  [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1
