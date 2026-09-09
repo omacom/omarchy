@@ -52,17 +52,25 @@ Panel {
   readonly property color dim: Util.alpha(foreground, 0.55)
 
   function refresh() { if (!poll.running) poll.running = true }
-  function act(args) { if (busy || action.running) return; pending = true; pendingTimeout.restart(); action.command = [cli].concat(args); action.running = true }
-  function take(json) { try { snap = JSON.parse(json); if (working || snap.error) pending = false; tick() } catch (e) {} }
+  // load and unload hand off to a worker, so pending lasts until a snapshot shows it (or the
+  // timeout); every other verb finishes when its process exits, and the card must not stay dead
+  // for 20 seconds after a GPU pick or an agent launch.
+  property string lastVerb: ""
+  property bool actionDone: false
+  function act(args) { if (busy || action.running) return; lastVerb = args[0]; actionDone = false; pending = true; pendingTimeout.restart(); action.command = [cli].concat(args); action.running = true }
+  function take(json) { try { snap = JSON.parse(json); if (working || snap.error || (actionDone && lastVerb !== "load" && lastVerb !== "unload")) pending = false; tick() } catch (e) {} }
   function tick() {
     var t = Date.parse(operation.startedAt || "")
     elapsed = working && !isNaN(t) ? Math.max(0, Math.round((Date.now() - t) / 1000)) : 0
   }
   function mmss(s) { return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60) }
+  // the running pair may belong to another recipe than the card's (a different card was picked,
+  // or the vendored file moved on): the card names its recipe, and says a different model is up
+  readonly property bool otherRunning: hasRunning && !!snap.running && !snap.running.current
   function title() {
-    if (loaded && model) return model.name
-    if (hasRunning && snap.running && !snap.running.current) return "Older model running"
-    return model ? model.name : "Local AI"
+    if (model) return model.name
+    if (otherRunning) return "Older model running"
+    return "Local AI"
   }
   function status() {
     if (snap.error && !pending) return snap.error
@@ -71,6 +79,7 @@ Panel {
       + (elapsed > 0 ? " · " + mmss(elapsed) + (expected > 0 ? " of about " + mmss(expected) : "") : "")
       + (progress > 0 ? " · " + progress + "%" : "")
     if (snap.reason) return snap.reason
+    if (otherRunning) return "a different model is running · Start replaces it"
     if (loaded && model) return model.engine + " · " + Math.round(model.ctxTokens / 1024) + "K context"
     return ""
   }
@@ -103,7 +112,7 @@ Panel {
     command: [root.cli, "snapshot"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: { if (text.length <= 262144) root.take(text) } }
   }
-  Process { id: action; onExited: root.refresh() }
+  Process { id: action; onExited: { root.actionDone = true; root.refresh() } }
   Process { id: agentLaunch; onExited: function(code) { root.refresh(); if (code === 0) root.close() } }
   // Poll fast while something runs, whether or not the panel is open, so the bar icon starts and
   // stops moving with the operation; slow when idle. The file watch above makes this a backstop.
@@ -242,7 +251,7 @@ Panel {
           }
           Link { visible: !!root.snap.gpuPinned; width: content.width; text: "  auto (largest card with a recipe)"; onTriggered: { root.gpusOpen = false; root.act(["gpu", "auto"]) } }
         }
-        Link { visible: !root.loaded || (!!root.snap.error && !root.busy); enabled: !root.busy && !!root.model && root.snap.reason === ""; text: root.loaded ? "Restart" : root.startLabel(); onTriggered: root.act(["load"]) }
+        Link { visible: !root.loaded || root.otherRunning || (!!root.snap.error && !root.busy); enabled: !root.busy && !!root.model && root.snap.reason === ""; text: root.loaded && !root.otherRunning ? "Restart" : root.startLabel(); onTriggered: root.act(["load"]) }
         Link { visible: root.loaded && root.agentList.length > 0; text: "Open agent · " + root.agentSel + (root.agentsOpen ? "  ^" : "  v"); onTriggered: root.agentsOpen = !root.agentsOpen }
         Text { visible: root.loaded && root.agentList.length === 0; width: parent.width; textFormat: Text.PlainText; text: "No installed agent can use this model"; color: root.dim; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
         Column {
