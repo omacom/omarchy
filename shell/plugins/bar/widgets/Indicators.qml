@@ -158,12 +158,12 @@ BarWidget {
 
   onIndicatorEntriesChanged: syncActiveIndicatorOrder()
 
-  implicitWidth: root.vertical
-    ? Math.max(activeVerticalBlock.implicitWidth, inactiveVerticalArea.implicitWidth)
-    : activeHorizontalBlock.implicitWidth + inactiveHorizontalArea.implicitWidth
-  implicitHeight: root.vertical
-    ? activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
-    : Math.max(activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
+  // Only the tree for the current orientation exists (see orientationLoader
+  // below); its wrapper keeps the stock sizing expressions, so the root's
+  // implicit size still follows the blocks synchronously rather than waiting
+  // on a positioner's polish.
+  implicitWidth: orientationLoader.item ? orientationLoader.item.implicitWidth : 0
+  implicitHeight: orientationLoader.item ? orientationLoader.item.implicitHeight : 0
 
   IpcHandler {
     target: "omarchy.indicators"
@@ -184,89 +184,117 @@ BarWidget {
 
   Component.onCompleted: root.refreshRequested()
 
-  Row {
-    id: horizontalIndicators
+  // Instantiating both orientation trees and toggling `visible` doubled every
+  // indicator per bar (and every process an indicator spawns, once per
+  // monitor). Load only the tree that matches the bar orientation instead.
+  Loader {
+    id: orientationLoader
+    sourceComponent: root.vertical ? verticalIndicatorsTree : horizontalIndicatorsTree
+  }
 
-    visible: !root.vertical
-    spacing: 0
-
-    HoverHandler {
-      onHoveredChanged: root.setIndicatorAreaHovered(hovered)
-    }
+  Component {
+    id: horizontalIndicatorsTree
 
     Item {
-      id: inactiveHorizontalArea
-
-      implicitWidth: root.revealInactiveIndicators ? inactiveHorizontalBlock.implicitWidth : 0
-      implicitHeight: Math.max(inactiveHorizontalBlock.implicitHeight, root.barSize)
+      implicitWidth: activeHorizontalBlock.implicitWidth + inactiveHorizontalArea.implicitWidth
+      implicitHeight: Math.max(activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
       width: implicitWidth
       height: implicitHeight
-      clip: true
 
-      IndicatorBlock {
-        id: inactiveHorizontalBlock
-        anchors.verticalCenter: parent.verticalCenter
-        indicatorsModule: root
-        indicatorEntries: root.indicatorEntries
-        indicatorBlock: "inactive"
-        horizontal: true
-        reportActiveState: !root.vertical
+      Row {
+        id: horizontalIndicators
+
+        spacing: 0
+
+        HoverHandler {
+          onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+        }
+
+        Item {
+          id: inactiveHorizontalArea
+
+          implicitWidth: root.revealInactiveIndicators ? inactiveHorizontalBlock.implicitWidth : 0
+          implicitHeight: Math.max(inactiveHorizontalBlock.implicitHeight, root.barSize)
+          width: implicitWidth
+          height: implicitHeight
+          clip: true
+
+          IndicatorBlock {
+            id: inactiveHorizontalBlock
+            anchors.verticalCenter: parent.verticalCenter
+            indicatorsModule: root
+            indicatorEntries: root.indicatorEntries
+            indicatorBlock: "inactive"
+            horizontal: true
+            reportActiveState: !root.vertical
+          }
+
+          HoverHandler {
+            onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+          }
+        }
+
+        ActiveIndicatorBlock {
+          id: activeHorizontalBlock
+          indicatorsModule: root
+          indicatorModel: activeIndicatorModel
+          horizontal: true
+          reportActiveState: !root.vertical
+        }
       }
-
-      HoverHandler {
-        onHoveredChanged: root.setIndicatorAreaHovered(hovered)
-      }
-    }
-
-    ActiveIndicatorBlock {
-      id: activeHorizontalBlock
-      indicatorsModule: root
-      indicatorModel: activeIndicatorModel
-      horizontal: true
-      reportActiveState: !root.vertical
     }
   }
 
-  Column {
-    id: verticalIndicators
-
-    visible: root.vertical
-    spacing: 0
-
-    HoverHandler {
-      onHoveredChanged: root.setIndicatorAreaHovered(hovered)
-    }
+  Component {
+    id: verticalIndicatorsTree
 
     Item {
-      id: inactiveVerticalArea
-
-      implicitWidth: Math.max(inactiveVerticalBlock.implicitWidth, root.barSize)
-      implicitHeight: root.revealInactiveIndicators ? inactiveVerticalBlock.implicitHeight : 0
+      implicitWidth: Math.max(activeVerticalBlock.implicitWidth, inactiveVerticalArea.implicitWidth)
+      implicitHeight: activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
       width: implicitWidth
       height: implicitHeight
-      clip: true
 
-      IndicatorBlock {
-        id: inactiveVerticalBlock
-        anchors.horizontalCenter: parent.horizontalCenter
-        indicatorsModule: root
-        indicatorEntries: root.indicatorEntries
-        indicatorBlock: "inactive"
-        horizontal: false
-        reportActiveState: root.vertical
+      Column {
+        id: verticalIndicators
+
+        spacing: 0
+
+        HoverHandler {
+          onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+        }
+
+        Item {
+          id: inactiveVerticalArea
+
+          implicitWidth: Math.max(inactiveVerticalBlock.implicitWidth, root.barSize)
+          implicitHeight: root.revealInactiveIndicators ? inactiveVerticalBlock.implicitHeight : 0
+          width: implicitWidth
+          height: implicitHeight
+          clip: true
+
+          IndicatorBlock {
+            id: inactiveVerticalBlock
+            anchors.horizontalCenter: parent.horizontalCenter
+            indicatorsModule: root
+            indicatorEntries: root.indicatorEntries
+            indicatorBlock: "inactive"
+            horizontal: false
+            reportActiveState: root.vertical
+          }
+
+          HoverHandler {
+            onHoveredChanged: root.setIndicatorAreaHovered(hovered)
+          }
+        }
+
+        ActiveIndicatorBlock {
+          id: activeVerticalBlock
+          indicatorsModule: root
+          indicatorModel: activeIndicatorModel
+          horizontal: false
+          reportActiveState: root.vertical
+        }
       }
-
-      HoverHandler {
-        onHoveredChanged: root.setIndicatorAreaHovered(hovered)
-      }
-    }
-
-    ActiveIndicatorBlock {
-      id: activeVerticalBlock
-      indicatorsModule: root
-      indicatorModel: activeIndicatorModel
-      horizontal: false
-      reportActiveState: root.vertical
     }
   }
 

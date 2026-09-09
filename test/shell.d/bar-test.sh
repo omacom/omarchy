@@ -30,6 +30,14 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# Both bar orientations used to be instantiated and toggled with `visible`,
+# doubling every indicator (and every process an indicator spawns) per bar.
+if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizontalIndicatorsTree' \
+  "$ROOT/shell/plugins/bar/widgets/Indicators.qml"; then
+  fail "indicators instantiate only the tree for the current bar orientation"
+fi
+pass "indicators instantiate only the tree for the current bar orientation"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
