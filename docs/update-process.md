@@ -111,35 +111,40 @@ and restores the session's previous `misc.disable_autoreload` and
 High-level flow:
 
 ```text
-omarchy-update
+omarchy-update [--yes|-y|--non-interactive] [--hooks=run|skip] [--aur=run|skip] [--mise=run|skip] [--orphans=ask|keep|remove] [--reboot=ask|never|if-needed] [--restarts=run|skip]
+  ├─ parse/validate CLI flags (misuse exits 2 before transcript, lock, or side effects) and normalize/export unattended policy env
+  ├─ unattended only: re-exec through omarchy-update-run to install scoped privilege adapters (before transcript, lock, and free-space checks)
   ├─ ensure transcript logging through script(1) → /tmp/omarchy-update.log
   ├─ omarchy-update-lock
   │    └─ acquire the update lock and run omarchy-update inside it
   ├─ omarchy-update-requires-free-space
   │    └─ abort below the configured free-space threshold on /
-  ├─ confirm unless -y
+  ├─ interactive: omarchy-update-confirm; unattended: print Unattended update (full|strict) summary plus destructive-policy lines, no confirmation prompt
   ├─ omarchy-update-pkg-prune
-  │    └─ trim the pacman cache to two versions per package, deliberately
-  │       before the snapshot since the cache lives on the snapshotted subvolume
-  ├─ create snapper snapshot (skipped silently without snapper; snapper
-  │  installed but unconfigured fails the snapshot loudly, pointing at
-  │  install/config/snapper.sh, and the update continues without one)
+  │    └─ trim the pacman cache to two versions per package, deliberately before the snapshot since the cache lives on the snapshotted subvolume
+  ├─ create snapper snapshot (skipped silently without snapper; snapper installed but unconfigured fails the snapshot loudly, pointing at install/config/snapper.sh, and the update continues without one)
   ├─ omarchy-update-stay-awake start
-  ├─ run package updates, migrations, hooks, and log analysis
+  ├─ run package updates, migrations, policy-gated hooks/AUR/mise, orphan handling, and log analysis
   ├─ omarchy-update-status
   │    └─ refresh or clear the shell update indicator
   ├─ omarchy-update-stay-awake stop
-  │    └─ release the sleep inhibitor and restore shell idle state, if changed
-  └─ omarchy-update-restart
+  │    └─ release the sleep inhibitor and restore shell idle state, if changed (released before restart so an automatic reboot cannot strand it)
+  └─ omarchy-update-restart (policy-gated reboot and service/shell restarts)
 ```
 
 Important behavior:
 
 - In dev-link mode, `omarchy update` fast-forwards the active checkout from its
   configured upstream before changing system packages or running migrations.
-- `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` — a promise not to ask anything.
-  Steps that would prompt (orphan removal, conflict handoff) report and skip
-  instead of blocking.
+- CLI contract: `omarchy update [--yes|-y|--non-interactive] [--hooks=run|skip] [--aur=run|skip] [--mise=run|skip] [--orphans=ask|keep|remove] [--reboot=ask|never|if-needed] [--restarts=run|skip]`. No arguments keeps current interactive behavior. `-y` and `--yes` are identical unattended first-party full-pipeline modes. `--non-interactive` is unattended strict mode. `-y`/`--yes` plus `--non-interactive` may combine; strict wins regardless of order. Only exact `--name=value` forms are accepted. Repeating the same policy with the same value is allowed; contradictory repeats fail with exit 2. `ask` with either unattended mode fails with exit 2 regardless of flag order. Unknown args, missing/invalid values, and positional args fail with exit 2 before any transcript, lock, or side effects. If `-h`/`--help` is present anywhere, usage is printed with exit 0 without validating other args or running any steps.
+- Mode defaults: interactive (no flags) uses hooks/aur/mise/restarts=run with orphans=ask and reboot=ask; `-y`/`--yes` (full) uses hooks/aur/mise/restarts=run with orphans=keep and reboot=never; `--non-interactive` (strict) uses hooks/aur/mise=skip with restarts=run, orphans=keep, and reboot=never. Explicit `--hooks`/`--aur`/`--mise`/`--orphans`/`--reboot`/`--restarts` values override the mode defaults order-independently.
+- Policy env (normalized from argv before transcript/lock/privilege/space work; public flags are authoritative and stale inherited policy values never leak): `OMARCHY_UPDATE_UNATTENDED=1` for either unattended mode and unset when interactive; `OMARCHY_UPDATE_STRICT=1` only for strict mode and unset otherwise; always-exported `OMARCHY_UPDATE_HOOKS`/`OMARCHY_UPDATE_AUR`/`OMARCHY_UPDATE_MISE` (`run|skip`), `OMARCHY_UPDATE_ORPHANS` (`ask|keep|remove`), `OMARCHY_UPDATE_REBOOT` (`ask|never|if-needed`), and `OMARCHY_UPDATE_RESTARTS` (`run|skip`). Helpers called directly with only `OMARCHY_UPDATE_UNATTENDED=1` keep safe defaults (`OMARCHY_UPDATE_ORPHANS` falls back to `keep`, `OMARCHY_UPDATE_REBOOT` falls back to `never`, `OMARCHY_UPDATE_RESTARTS` falls back to `run`).
+- Scoped privilege environment: unattended runs re-exec through hidden `bin/omarchy-update-run` (`omarchy-update-run <command> [args...]`) before transcript/lock work; interactive runs never touch the runner and inherited `OMARCHY_UPDATE_UNATTENDED`/`OMARCHY_UPDATE_ENV_READY` cannot turn an interactive invocation unattended. The runner captures the original real sudo absolute path from `PATH` before prepending `$OMARCHY_PATH/default/omarchy/update-bin`, exports `OMARCHY_UPDATE_REAL_SUDO` plus `OMARCHY_UPDATE_ENV_READY=1`, and execs the command argv without eval/shell interpolation. Re-entry uses `OMARCHY_UPDATE_RUN_REEXEC=1` and refuses to continue when the environment is still not ready. Missing/unusable adapter installs or sudo paths fail nonzero with an actionable message. The `sudo` adapter execs the captured real sudo as `exec "$real_sudo" -n "$@"`, preserves stdin/stdout/stderr and the child exit status, rejects prompt-enabling options (`-S`/`--stdin`, `-A`/`--askpass`, `-p`/`--prompt`, including combined short clusters), never adds password/askpass/stdin-auth fallbacks, and never consumes piped data meant for the child. The `pkexec` adapter always fails closed with exit 1 and never execs the real pkexec, so no graphical auth dialog can appear. The adapter directory is subprocess-scoped `PATH` prepend only: it is not installed as system `sudo`, it covers only normal `PATH` resolution, and it is explicitly not a security boundary. Absolute-path sudo, cleared-`PATH` callers, custom credential programs, package-maintainer hooks, and other arbitrary scripts bypass it.
+- Policy-gated steps: `OMARCHY_UPDATE_HOOKS=skip` prints `Skipping post-update hooks (--hooks=skip)` instead of running `omarchy-hook post-update`; `OMARCHY_UPDATE_AUR=skip` prints `Skipping AUR package updates (--aur=skip)` instead of running `omarchy-update-aur-pkgs`; `OMARCHY_UPDATE_MISE=skip` prints `Skipping mise updates (--mise=skip)` instead of running `omarchy-update-mise`. Opting into external execution in strict mode still runs but first prints a guarantee-relaxation warning to stderr (`Warning: --hooks=run in strict mode relaxes the non-interactive guarantee; arbitrary hook code may prompt`, and the matching `--aur=run`/`--mise=run` lines). Unattended runs print `Unattended update (full): hooks=..., aur=..., mise=..., orphans=..., reboot=..., restarts=...` (or the `(strict)` form), plus `Orphan policy: remove -- orphaned packages will be removed without confirmation` when `--orphans=remove` and `Reboot policy: if-needed -- system will reboot automatically when required (may close unsaved applications)` when `--reboot=if-needed`. Migrations stay compulsory and ordered; a deferred/failed migration exits nonzero, stays pending, and stops later migrations/steps/reboot. Package-vs-package conflicts exit nonzero with `This upgrade needs an answer. Run omarchy update interactively to give it.` when unattended or headless instead of prompting.
+- Keyring unattended precheck: `omarchy-update-keyring` runs `sudo -n true` first when `OMARCHY_UPDATE_UNATTENDED=1`; when that probe fails it prints `omarchy-update-keyring: unattended update cannot authenticate with sudo (sudo -n failed); run interactively or refresh sudo credentials before retrying` and exits 1 before privileged work. Required-operation failures propagate (`set -euo pipefail`); `Keys are correct` prints only on success.
+- Inhibitor: `omarchy-update-stay-awake start` uses `sudo -n` (with a best-effort `sudo -n -v` probe) when `OMARCHY_UPDATE_UNATTENDED=1` and never selects `pkexec` unattended, even with a PTY. Background inhibitor startup is observed with `kill -0` plus zombie rejection; when acquisition fails it prints `Warning: sleep inhibitor failed to start; continuing without sleep inhibition.`, removes the pid file, and continues with exit 0 rather than recording a stale success. PID ownership, lock-FD closure, cancellation/cleanup, and interactive behavior are unchanged.
+- Git unattended env: `omarchy-update-dev` (before `pull --ff-only`) and `omarchy-update-available` (before `fetch --quiet`) export `GIT_TERMINAL_PROMPT=0`, empty `GIT_ASKPASS=`, and `GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"` when `OMARCHY_UPDATE_UNATTENDED=1`. Empty `GIT_ASKPASS` falls back to terminal prompts, which `GIT_TERMINAL_PROMPT=0` then disables, so auth failures fail closed instead of hanging; `GIT_SSH_COMMAND` in env wins over `core.sshCommand`, so a user custom `sshCommand` program is never executed unattended while an explicit `GIT_SSH_COMMAND` is preserved. No new host keys are auto-accepted (`BatchMode` fails closed on unknown hosts). User credential helpers remain an external-execution boundary.
+- Exit codes: `0` means selected mandatory work completed while deliberately skipped optional work was reported (it does not mean every possible component updated). `2` means CLI misuse (unknown/missing/invalid/positional args, contradictory repeats, `ask` under unattended, invalid helper policy values). Other nonzero means a required update/migration/explicit-removal/explicit-reboot step failed; downstream destructive work is not run and existing transaction failure codes propagate where possible. Optional prune/snapshot keep warn-and-continue behavior. Interactive no-argument behavior is otherwise unchanged.
 - The free-space requirement uses a 10 GiB threshold and stops the update before
   confirmation when it is not met. If free space cannot be determined, the
   check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
@@ -283,7 +288,7 @@ scripts.
 | `omarchy-update-available` | Update checker for shell widget and post-update refresh. | **Keep.** Could eventually be renamed `omarchy-update-check`, but current name matches widget semantics. |
 | `omarchy-update-aur-pkgs` | Updates AUR packages with `yay -Sua` if foreign packages exist and AUR is reachable. | **Question.** Omarchy is package-backed now, but users may still install AUR packages. Keep for now. |
 | `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
-| `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal; noninteractive mode never removes. | **Keep for now.** Safe because it is prompt-only. |
+| `omarchy-update-orphan-pkgs` | Lists orphans and applies the orphan policy: `ask` prompts interactively, `keep` lists and retains, `remove` removes without confirmation via `sudo pacman -Rns --noconfirm`. | **Keep for now.** Safe because unattended defaults to `keep` and removal requires explicit `--orphans=remove`. |
 | `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
 | `omarchy-update-restart` | Prompts for reboot after kernel/Hyprland updates, restarts components with `restart-*-required` markers, and always restarts the shell. | **Keep.** Important final step; may eventually include service-restart checks. |
 | `omarchy-update-firmware` | Manual firmware update command using fwupd. Not part of the normal update pipeline. | **Keep separate.** Firmware is not a routine system update step. |
@@ -309,7 +314,7 @@ scripts.
    - `omarchy-update-mise` intentionally runs as part of `omarchy update`.
 
 5. **Orphan cleanup stays in the update path for now**
-   - It is prompt-only and never removes packages noninteractively.
+   - Interactive `ask` still prompts before removal; unattended modes default to `keep`, and only explicit `--orphans=remove` removes without confirmation.
 
 6. **Direct pacman user follow-up is based on actual migration state**
    - Direct `sudo pacman -Syu` no longer uses a fake user-update marker.
