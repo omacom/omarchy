@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Rebind the ASUS ASUP1206 I2C touchpad after a failed s2idle resume.
+#
+# On affected systems, i2c_hid_acpi can leave the touchpad present but
+# unresponsive after reporting -121 from its resume callback. Rebinding only
+# this device forces a fresh HID probe without disturbing other I2C devices.
+
+device=i2c-ASUP1206:00
+driver=/sys/bus/i2c/drivers/i2c_hid_acpi
+
+if [[ $1 == "post" && -e $driver/$device ]]; then
+  echo "$device" > "$driver/unbind" || exit 0
+  sleep 1
+  echo "$device" > "$driver/bind" || true
+fi
