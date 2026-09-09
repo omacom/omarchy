@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Ensure Kiro CLI is installed for the default agent
+# omarchy:args=[--check|--now]
+
+# Kiro CLI is not a mise tool: it ships no versioned release artifact mise's
+# aqua or github backends can resolve, and the binary carries its own
+# self-updater, which would fight a mise-managed copy over the same file. The
+# vendor's own install script is the one source of truth, so the default-agent
+# flow talks to it through the same --check/--now contract mise-backed agents
+# get from mise itself.
+
+set -euo pipefail
+
+case "${1:---now}" in
+--check)
+  omarchy-cmd-present kiro-cli
+  ;;
+--now)
+  if ! omarchy-cmd-present kiro-cli; then
+    echo "Installing Kiro CLI..."
+    curl -fsSL https://cli.kiro.dev/install | bash
+  fi
+  ;;
+*)
+  echo "Usage: omarchy-install-kiro-cli [--check|--now]" >&2
+  exit 1
+  ;;
+esac
