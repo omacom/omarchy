@@ -271,9 +271,19 @@ Item {
 
   // A resume noticed while a backed-off wait is pending: retry the fresh
   // reader now, instead of after the remaining wait or the next keypress.
+  // An attempt still in flight is worse than a pending wait: the hook has
+  // restarted fprintd under it, so it sits on a dead conversation that
+  // pam_fprintd takes ~25s to give up on (#8747) while the icon invites
+  // touches that cannot work. Abort it and settle -- inside the grace
+  // window, so the kill never counts toward the notice -- and the settle
+  // arms the fast retry itself.
   function restartFingerprintAfterSleep() {
     noteFingerprintResumed()
-    if (fingerprintAuthenticating || fingerprintPam.active) return
+    if (fingerprintAuthenticating || fingerprintPam.active) {
+      if (fingerprintPam.active) fingerprintPam.abort()
+      settleFingerprintAttempt()
+      return
+    }
     if (!fingerprintRetryTimer.running) return
     armFingerprintRetry(FingerprintModel.MATCH_RETRY_MS)
   }
