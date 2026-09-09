@@ -17,8 +17,7 @@ o.bind_toggle("SUPER + SHIFT + SPACE", "Toggle top bar", "bar")
 o.bind("SUPER + CTRL + SPACE", "Background switcher", "omarchy-menu toggle background")
 o.bind("SUPER + SHIFT + CTRL + SPACE", "Theme menu", "omarchy-menu toggle theme")
 
-local function active_window_is_terminal()
-  local window = hl.get_active_window()
+local function active_window_is_terminal(window)
   if not window then
     return false
   end
@@ -32,9 +31,16 @@ local function active_window_is_terminal()
   return false
 end
 
+local deleting_line = false
+
 local function delete_to_beginning_of_line()
+  local window = hl.get_active_window()
+  if deleting_line or not window then
+    return
+  end
+
   local events
-  if active_window_is_terminal() then
+  if active_window_is_terminal(window) then
     events = {
       { mods = "CTRL", key = "U", state = "down" },
       { mods = "CTRL", key = "U", state = "up" },
@@ -48,12 +54,22 @@ local function delete_to_beginning_of_line()
     }
   end
 
+  deleting_line = true
   local function send(index)
+    -- Always release an injected key, but never start the next key press
+    -- after focus moves to another window. Ignore overlapping invocations.
+    local active = hl.get_active_window()
+    if events[index].state == "down" and (not active or active.address ~= window.address) then
+      deleting_line = false
+      return
+    end
     hl.dispatch(hl.dsp.send_key_state(events[index]))
     if index < #events then
       hl.timer(function()
         send(index + 1)
       end, { timeout = 25, type = "oneshot" })
+    else
+      deleting_line = false
     end
   end
 

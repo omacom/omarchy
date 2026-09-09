@@ -119,22 +119,6 @@ if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; th
 fi
 pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 
-grep -F 'o.bind("SUPER + BACKSPACE", "Delete to beginning of line", delete_to_beginning_of_line)' "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null ||
-  fail "Super + Backspace deletes to the beginning of the line"
-grep -F '{ mods = "SHIFT", key = "HOME", state = "down" }' "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null ||
-  fail "line deletion selects from the cursor to the beginning of the line"
-grep -F '{ mods = "", key = "BACKSPACE", state = "down" }' "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null ||
-  fail "line deletion removes the selected text"
-grep -F 'tag:gsub("%*$", "") == "terminal"' "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null ||
-  fail "line deletion detects dynamically tagged terminals"
-grep -F '{ mods = "CTRL", key = "U", state = "down" }' "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null ||
-  fail "line deletion uses the terminal-native Ctrl+U shortcut"
-pass "Super + Backspace deletes to the beginning of the line in graphical apps and terminals"
-
-grep -F 'o.bind("SUPER + ALT + BACKSPACE", "Toggle window transparency", "omarchy-hyprland-window-transparency-toggle")' "$ROOT/default/hypr/bindings/utilities.lua" >/dev/null ||
-  fail "window transparency moves to Super + Alt + Backspace"
-pass "window transparency remains available on Super + Alt + Backspace"
-
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"

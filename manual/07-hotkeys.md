@@ -138,6 +138,8 @@ Change/add bindings in `~/.config/hypr/bindings.lua`.
 
 Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal and `Ctrl + C/V` to do it everywhere else. These Omarchy unified clipboard hotkeys work everywhere.
 
+Line deletion sends `Ctrl + U` in terminal windows and `Shift + Home`, then `Backspace`, in other applications. Its effect follows the application's keybindings, including how Home handles indentation and wrapped lines. Embedded terminals use their host application's route; terminal programs and shell editing modes may interpret `Ctrl + U` differently.
+
 ## Capture
 
 | Hotkey              | Function                       |
