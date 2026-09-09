@@ -14,7 +14,7 @@ mise_config="$test_tmp/etc/mise/config.toml"
 pkg_log="$test_tmp/packages"
 mkdir -p "$mock_bin" "$test_home/.local/state/omarchy"
 
-for command in omarchy-webapp-remove-all omarchy-tui-remove-all omarchy-refresh-applications hyprctl mise; do
+for command in omarchy-webapp-remove-all omarchy-tui-remove-all omarchy-refresh-applications hyprctl; do
   printf '#!/bin/bash\nexit 0\n' >"$mock_bin/$command"
 done
 
@@ -35,8 +35,30 @@ cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 printf '%s\n' "$@" >"$OMARCHY_TEST_PKG_LOG"
 SH
 
+cat >"$mock_bin/mise" <<'SH'
+#!/bin/bash
+if [[ $* == 'reshim --system' ]]; then
+  exit "${OMARCHY_TEST_RESHIM_STATUS:-0}"
+fi
+exit 0
+SH
+
+cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+exit 1
+SH
+
+cat >"$mock_bin/omarchy-install-hermes-cli" <<'SH'
+#!/bin/bash
+if [[ $# == 0 && ${OMARCHY_TEST_HERMES_STATUS:-0} != 0 ]]; then
+  exit "$OMARCHY_TEST_HERMES_STATUS"
+fi
+exec "$OMARCHY_PATH/bin/omarchy-install-hermes-cli" "$@"
+SH
+
 cat >"$mock_bin/sudo" <<'SH'
 #!/bin/bash
+[[ ${OMARCHY_TEST_SUDO_STATUS:-0} == 0 ]] || exit "$OMARCHY_TEST_SUDO_STATUS"
 exec "$@"
 SH
 
@@ -59,6 +81,8 @@ mapfile -t shipped < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$RO
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 mapfile -t restored <"$pkg_log"
 cmp -s "$ROOT/default/mise/config.toml" "$mise_config" || fail "Install Preinstalls restores the system mise config"
+"$ROOT/bin/omarchy-install-hermes-cli" --owns || fail "Install Preinstalls restores the custom Hermes wrapper"
+pass "Install Preinstalls restores lazy tools and the custom Hermes wrapper"
 
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 mapfile -t dropped <"$pkg_log"
@@ -89,6 +113,16 @@ OMARCHY_TEST_PKG_ADD_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 (( status == 1 )) || fail "restore reports a failed package transaction" "exit status was $status"
 [[ -f $marker ]] || fail "restore keeps the opt-out marker when packages fail to install"
 pass "restore keeps the opt-out marker when packages fail to install"
+
+for failure in OMARCHY_TEST_SUDO_STATUS OMARCHY_TEST_RESHIM_STATUS OMARCHY_TEST_HERMES_STATUS; do
+  touch "$marker"
+  : >"$pkg_log"
+  env "$failure=1" "$ROOT/bin/omarchy-install-preinstalls" >/dev/null && status=0 || status=$?
+  (( status == 1 )) || fail "restore reports a failed tool setup" "$failure returned $status"
+  [[ -f $marker ]] || fail "restore keeps the opt-out marker after failed tool setup" "$failure"
+  [[ ! -s $pkg_log ]] || fail "restore stops before installing packages when tool setup fails" "$failure"
+done
+pass "restore stops and preserves opt-out when config, shims, or Hermes setup fails"
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ ! -e $marker ]] || fail "restore clears the opt-out marker once the packages are back"
