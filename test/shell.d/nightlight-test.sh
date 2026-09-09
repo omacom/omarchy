@@ -47,12 +47,28 @@ cat >"$TMPDIR/bin/omarchy-shell" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_SHELL_LOG"
 SH
 
-chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
+# Hardware that cannot apply a CTM is the interesting second case, so make the
+# capability probe switchable rather than assuming it always answers yes.
+cat >"$TMPDIR/bin/omarchy-hw-nightlight" <<'SH'
+#!/bin/bash
+exit "${NIGHTLIGHT_SUPPORTED:-0}"
+SH
+
+cat >"$TMPDIR/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$NOTIFICATION_LOG"
+SH
+
+NOTIFICATIONS="$TMPDIR/notifications"
+
+chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell" \
+  "$TMPDIR/bin/omarchy-hw-nightlight" "$TMPDIR/bin/omarchy-notification-send"
 
 nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
+  NOTIFICATION_LOG="$NOTIFICATIONS" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
 
@@ -90,3 +106,21 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+# On a display pipeline with no CTM support hyprsunset still answers "ok" and
+# echoes the temperature back, so the toggle has to refuse up front rather than
+# run its retry loop and claim a success the panel never showed.
+printf '6500\n' >"$STATE"
+: >"$NOTIFICATIONS"
+
+NIGHTLIGHT_SUPPORTED=1 nightlight_cli >/dev/null 2>&1 &&
+  fail "nightlight toggle exits non-zero on hardware that cannot apply a temperature"
+[[ $(<"$STATE") == 6500 ]] ||
+  fail "nightlight toggle leaves the temperature alone on unsupported hardware"
+grep -Fq 'Nightlight unavailable' "$NOTIFICATIONS" ||
+  fail "nightlight toggle tells the user why it did nothing"
+pass "nightlight toggle refuses on hardware that cannot apply a temperature"
+
+[[ $(NIGHTLIGHT_SUPPORTED=1 nightlight_status 4000 | jq -r .enabled) == "false" ]] ||
+  fail "nightlight status reports disabled on unsupported hardware"
+pass "nightlight status reports disabled on unsupported hardware"
