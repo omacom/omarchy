@@ -654,7 +654,7 @@ dispatch_binding() {
 
 if [[ $1 == "--print" || $1 == "-p" ]]; then
   output_keybindings
-else
+elif [[ $(omarchy-shell shell call omarchy.menu closeDmenu Keybindings) != "ok" ]]; then
   records=$(output_binding_records)
   selection=$(cut -f1 <<<"$records" |
     omarchy-menu-select 'Keybindings' -- --width 800 --height 500)
