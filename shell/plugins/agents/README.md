@@ -55,6 +55,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `cursor` | Cursor dashboard included monthly usage; Grok Bot weekly only when that quota is in use | Cursor dashboard aggregated and filtered usage events (account-wide) |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -63,6 +64,8 @@ falls back to local stats only. A non-default Claude directory is honored via
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
+
+Cursor is an additional collector, not a replacement: Claude, Codex, and Fireworks keep their own tabs. Cursor limits need a signed-in Cursor CLI (`agent login` / `cursor-agent login`); without credentials the panel says Waiting for auth, matching Claude. The collector reads the CLI session, then `~/.config/cursor/auth.json`, then the Cursor IDE login as a fallback. It never prints tokens. Cursor numbers are account-global (`scope: account`). Cursor's Grok Bot weekly quota is a separate chat allowance, not the Agent week window, so an unused 0% Grok Bot row is omitted.
 
 ### Fireworks balance
 
@@ -128,7 +131,8 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "cursor": { "enabled": true }
 }' --json
 ```
 
