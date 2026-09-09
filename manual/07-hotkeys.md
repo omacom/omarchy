@@ -126,7 +126,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 
 Change/add bindings in `~/.config/hypr/bindings.lua`.
 
-## Universal clipboard
+## Universal clipboard and editing
 
 | Hotkey                  | Function              |
 | ----------------------- | --------------------- |
@@ -134,6 +134,7 @@ Change/add bindings in `~/.config/hypr/bindings.lua`.
 | `Super + X`           | Cut (not in terminal)    |
 | `Super + V`           | Paste    |
 | `Super + Ctrl + V`           | Clipboard manager    |
+| `Super + Backspace` | Delete to beginning of line (`Ctrl + U` in terminals) |
 
 Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal and `Ctrl + C/V` to do it everywhere else. These Omarchy unified clipboard hotkeys work everywhere.
 
@@ -173,7 +174,7 @@ All capture options are also accessible under _Trigger > Capture_ in the Omarchy
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Shift + Space` | Pick a new theme  |
 | `Super + Ctrl + Space` | Pick theme background |
-| `Super + Backspace` | Toggle transparency on a window |
+| `Super + Alt + Backspace` | Toggle transparency on a window |
 | `Super + Ctrl + Backspace` | Toggle single-window square aspect |
 
 Extra background images live in `~/.config/omarchy/backgrounds/<theme name>`. Also available via _Install > Style > Background_ in the Omarchy menu.
