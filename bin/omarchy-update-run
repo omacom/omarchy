@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# omarchy:summary=Run a command with the unattended update privilege environment
+# omarchy:args=<command> [args...]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+if (( $# == 0 )); then
+  echo "Usage: omarchy-update-run <command> [args...]" >&2
+  exit 2
+fi
+
+if [[ ${OMARCHY_UPDATE_UNATTENDED:-} != "1" ]]; then
+  exec "$@"
+fi
+
+adapter_dir="${OMARCHY_PATH:-/usr/share/omarchy}/default/omarchy/update-bin"
+adapter_sudo="$adapter_dir/sudo"
+adapter_pkexec="$adapter_dir/pkexec"
+
+if [[ ! -x $adapter_sudo ]]; then
+  echo "omarchy-update-run: sudo adapter is not installed/executable: $adapter_sudo" >&2
+  exit 1
+fi
+
+if [[ ! -x $adapter_pkexec ]]; then
+  echo "omarchy-update-run: pkexec adapter is not installed/executable: $adapter_pkexec" >&2
+  exit 1
+fi
+
+canonical_adapter_sudo=$(readlink -f "$adapter_sudo" 2>/dev/null || true)
+canonical_adapter_dir=$(readlink -f "$adapter_dir" 2>/dev/null || true)
+
+is_adapter_path() {
+  local candidate="$1"
+  local canonical_candidate=""
+
+  if [[ $candidate == "$adapter_sudo" ]]; then
+    return 0
+  fi
+  if [[ $candidate == "$adapter_dir/"* ]]; then
+    return 0
+  fi
+  canonical_candidate=$(readlink -f "$candidate" 2>/dev/null || true)
+  if [[ -n $canonical_candidate && -n $canonical_adapter_sudo ]]; then
+    if [[ $canonical_candidate == "$canonical_adapter_sudo" ]]; then
+      return 0
+    fi
+  fi
+  if [[ -n $canonical_candidate && -n $canonical_adapter_dir ]]; then
+    if [[ $canonical_candidate == "$canonical_adapter_dir/"* ]]; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+real_sudo="${OMARCHY_UPDATE_REAL_SUDO:-}"
+
+if [[ -n $real_sudo ]]; then
+  if [[ $real_sudo != /* ]]; then
+    echo "omarchy-update-run: OMARCHY_UPDATE_REAL_SUDO is not an absolute path: $real_sudo" >&2
+    exit 1
+  fi
+  if is_adapter_path "$real_sudo"; then
+    echo "omarchy-update-run: OMARCHY_UPDATE_REAL_SUDO points at the sudo adapter, refusing recursion: $real_sudo" >&2
+    exit 1
+  fi
+  if [[ ! -x $real_sudo ]]; then
+    echo "omarchy-update-run: OMARCHY_UPDATE_REAL_SUDO is not executable: $real_sudo" >&2
+    exit 1
+  fi
+else
+  real_sudo=$(type -P sudo 2>/dev/null || true)
+  if [[ -z $real_sudo ]]; then
+    echo "omarchy-update-run: no sudo found on PATH for unattended update" >&2
+    exit 1
+  fi
+  if [[ $real_sudo != /* ]]; then
+    echo "omarchy-update-run: captured sudo is not an absolute path: $real_sudo" >&2
+    exit 1
+  fi
+  if is_adapter_path "$real_sudo"; then
+    echo "omarchy-update-run: captured sudo resolves to the adapter itself, refusing recursion: $real_sudo" >&2
+    exit 1
+  fi
+  if [[ ! -x $real_sudo ]]; then
+    echo "omarchy-update-run: captured sudo is not executable: $real_sudo" >&2
+    exit 1
+  fi
+fi
+
+clean_path=":${PATH:-}:"
+clean_path="${clean_path//:$adapter_dir:/:}"
+clean_path="${clean_path#:}"
+clean_path="${clean_path%:}"
+if [[ -z $clean_path ]]; then
+  PATH="$adapter_dir"
+else
+  PATH="$adapter_dir:$clean_path"
+fi
+export PATH
+export OMARCHY_UPDATE_REAL_SUDO="$real_sudo"
+export OMARCHY_UPDATE_ENV_READY=1
+exec "$@"
