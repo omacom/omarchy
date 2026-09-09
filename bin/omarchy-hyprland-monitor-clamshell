@@ -250,3 +250,7 @@ if omarchy-hw-clamshell && omarchy-hyprland-monitor-external-active; then
 else
   enable_internal
 fi
+
+# HDMI on NVIDIA can fail the post-DPMS modeset while Hyprland still reports
+# the output as on. Recover that desync without waking lock-screen blanks.
+omarchy-hyprland-monitor-recover-outputs >/dev/null 2>&1 || true

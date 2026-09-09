@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# omarchy:summary=Re-DPMS outputs Hyprland reports on while the kernel connector is off
+# omarchy:args=[--print]
+# omarchy:hidden=true
+
+# After lid close or idle DPMS on hybrid NVIDIA, HDMI can fail an atomic
+# modeset. Hyprland then leaves dpmsStatus true, so mouse-move DPMS is a no-op
+# and the panel stays dark. Cycle DPMS only for that desync; lock-screen
+# blanking (hypr dpmsStatus false) is left alone.
+
+DRM_PATH="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+COOLDOWN_SEC=15
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+LOCK="$RUNTIME_DIR/omarchy-hyprland-monitor-recover-outputs.lock"
+
+safe_name() {
+  [[ $1 =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+hypr_truthy() {
+  [[ $1 == "true" || $1 == "1" ]]
+}
+
+connector_dir() {
+  local name="$1" candidate
+
+  for candidate in "$DRM_PATH"/card*-"$name"; do
+    [[ -e $candidate/status ]] || continue
+    [[ $(<"$candidate/status") == "connected" ]] || continue
+    printf '%s\n' "$candidate"
+    return 0
+  done
+  return 1
+}
+
+kernel_off() {
+  local sysfs="$1" enabled kdpms
+
+  enabled=$(cat "$sysfs/enabled") || return 1
+  kdpms=$(cat "$sysfs/dpms") || return 1
+  [[ $enabled == "disabled" || $kdpms == "Off" ]]
+}
+
+cycle_dpms() {
+  local name="$1"
+
+  hyprctl dispatch "hl.dsp.dpms({ action = \"off\", monitor = \"$name\" })" >/dev/null 2>&1 || true
+  hyprctl dispatch "hl.dsp.dpms({ action = \"on\", monitor = \"$name\" })" >/dev/null 2>&1 || true
+}
+
+cooled_down() {
+  local stamp="$RUNTIME_DIR/omarchy-output-recover.$1" age
+
+  [[ -f $stamp ]] || return 1
+  age=$(( $(date +%s) - $(stat -c %Y "$stamp") ))
+  (( age < COOLDOWN_SEC ))
+}
+
+mark_cycled() {
+  : >"$RUNTIME_DIR/omarchy-output-recover.$1"
+}
+
+stuck_names() {
+  local json name disabled dpms sysfs
+
+  json=$(hyprctl monitors all -j 2>/dev/null) || return 0
+  [[ -n $json ]] || return 0
+
+  while IFS=$'\t' read -r name disabled dpms; do
+    safe_name "$name" || continue
+    hypr_truthy "$disabled" && continue
+    hypr_truthy "$dpms" || continue
+    sysfs=$(connector_dir "$name") || continue
+    kernel_off "$sysfs" || continue
+    printf '%s\n' "$name"
+  done < <(printf '%s\n' "$json" | jq -r '.[] | [.name, (.disabled|tostring), (.dpmsStatus|tostring)] | @tsv')
+}
+
+recover_once() {
+  local name
+
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    cooled_down "$name" && continue
+    mark_cycled "$name"
+    logger -t omarchy-hyprland-monitor-recover-outputs "cycling DPMS on $name (hypr on, kernel off)"
+    cycle_dpms "$name"
+  done < <(stuck_names)
+}
+
+case "${1:-}" in
+  --print)
+    stuck_names
+    ;;
+  *)
+    exec 9>"$LOCK"
+    flock -n 9 || exit 0
+    recover_once
+    ;;
+esac
