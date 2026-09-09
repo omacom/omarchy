@@ -114,7 +114,7 @@ OMARCHY_TEST_PKG_ADD_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ -f $marker ]] || fail "restore keeps the opt-out marker when packages fail to install"
 pass "restore keeps the opt-out marker when packages fail to install"
 
-for failure in OMARCHY_TEST_SUDO_STATUS OMARCHY_TEST_RESHIM_STATUS OMARCHY_TEST_HERMES_STATUS; do
+for failure in OMARCHY_TEST_SUDO_STATUS OMARCHY_TEST_RESHIM_STATUS; do
   touch "$marker"
   : >"$pkg_log"
   env "$failure=1" "$ROOT/bin/omarchy-install-preinstalls" >/dev/null && status=0 || status=$?
@@ -122,7 +122,12 @@ for failure in OMARCHY_TEST_SUDO_STATUS OMARCHY_TEST_RESHIM_STATUS OMARCHY_TEST_
   [[ -f $marker ]] || fail "restore keeps the opt-out marker after failed tool setup" "$failure"
   [[ ! -s $pkg_log ]] || fail "restore stops before installing packages when tool setup fails" "$failure"
 done
-pass "restore stops and preserves opt-out when config, shims, or Hermes setup fails"
+pass "restore stops and preserves opt-out when config or shim setup fails"
+
+touch "$marker"
+OMARCHY_TEST_HERMES_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null || fail "an unfinished Hermes Desktop setup blocks restoring other preinstalls"
+[[ ! -e $marker ]] || fail "an unfinished Hermes Desktop setup leaves restored preinstalls opted out"
+pass "restore tolerates an unfinished Hermes Desktop setup like user finalization"
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ ! -e $marker ]] || fail "restore clears the opt-out marker once the packages are back"
