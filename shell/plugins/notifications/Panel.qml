@@ -73,6 +73,7 @@ Item {
   }
 
   function ensureSelection() {
+    if (!root.filteredApplications) return
     if (root.filteredApplications.length === 0) {
       root.selectedKey = ""
       return
@@ -178,6 +179,7 @@ Item {
 
               Text {
                 width: parent.width
+                textFormat: Text.PlainText
                 text: !root.settingsLoaded
                   ? "Loading notification settings..."
                   : (root.settingsWritable
@@ -324,6 +326,7 @@ Item {
 
                       Text {
                         anchors.centerIn: parent
+                        textFormat: Text.PlainText
                         text: String(applicationRow.modelData.label || applicationRow.modelData.app || "?").charAt(0).toUpperCase()
                         color: root.dimForeground
                         font.family: Style.font.menuFamily
@@ -346,6 +349,7 @@ Item {
 
                       Text {
                         Layout.fillWidth: true
+                        textFormat: Text.PlainText
                         text: applicationRow.modelData.label || applicationRow.modelData.app || "Unknown application"
                         color: root.foreground
                         font.family: Style.font.menuFamily
@@ -357,6 +361,7 @@ Item {
                       Text {
                         visible: applicationRow.subtitle !== ""
                         Layout.fillWidth: true
+                        textFormat: Text.PlainText
                         text: applicationRow.subtitle
                         color: root.dimForeground
                         font.family: Style.font.menuFamily
@@ -383,6 +388,7 @@ Item {
                   anchors.centerIn: parent
                   width: Math.max(0, parent.width - Style.spacing.xl * 2)
                   visible: root.filteredApplications.length === 0
+                  textFormat: Text.PlainText
                   text: !root.catalogLoaded
                     ? "Loading applications..."
                     : (root.applications.length === 0
@@ -418,6 +424,7 @@ Item {
 
                 Text {
                   Layout.fillWidth: true
+                  textFormat: Text.PlainText
                   text: root.selectedApplication ? root.selectedApplication.label : ""
                   color: root.foreground
                   font.family: Style.font.menuFamily
@@ -429,6 +436,7 @@ Item {
                 Text {
                   visible: root.applicationSubtitle(root.selectedApplication) !== ""
                   Layout.fillWidth: true
+                  textFormat: Text.PlainText
                   text: root.applicationSubtitle(root.selectedApplication)
                   color: root.dimForeground
                   font.family: Style.font.menuFamily
@@ -477,6 +485,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.leftMargin: Style.spacing.controlPaddingX
                     Layout.rightMargin: Style.spacing.controlPaddingX
+                    textFormat: Text.PlainText
                     text: modelData.description
                     color: root.dimForeground
                     font.family: Style.font.menuFamily
@@ -492,6 +501,7 @@ Item {
                 visible: !root.selectedApplication
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                textFormat: Text.PlainText
                 text: root.applications.length === 0
                   ? "No applications available."
                   : "Select an application to change its delivery mode."

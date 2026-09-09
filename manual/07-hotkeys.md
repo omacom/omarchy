@@ -10,7 +10,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Alt + Space` | Apps menu |
 | `Super + Escape` | System menu (suspend, restart, etc)  |
 | `Super + Ctrl + L` | Lock computer |
-| `Super + W`               | Close window             |
+| `Super + W` or `Super + Q` | Close window             |
 | `Ctrl + Alt + Del` | Close all windows |
 | `Super + T`               | Toggle window between tiling/floating             |
 | `Super + J` | Toggle window position (horizontal/vertical) |
@@ -192,6 +192,7 @@ All style options are also accessible under _Style_ in the Omarchy menu (`Super 
 | `Shift + Mute` | Switch to next audio output |
 | `Shift + Play` | Switch to next media source |
 | `Super + Shift + Backspace` | Toggle window gaps |
+| `Super + Ctrl + Alt + F` | Toggle full screen desktop (top bar + window gaps) |
 
 ## Reminders
 
