@@ -91,6 +91,12 @@ cat >"$fake_bin/omarchy-hw-laptop" <<'SH'
 exit 1
 SH
 
+cat >"$fake_bin/omarchy-display-text-size" <<'SH'
+#!/bin/bash
+
+exit 0
+SH
+
 cat >"$fake_bin/omarchy-hyprland-monitor-clamshell" <<'SH'
 #!/bin/bash
 

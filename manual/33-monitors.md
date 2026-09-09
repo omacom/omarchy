@@ -30,6 +30,8 @@ omarchy display text size 14
 
 That takes a pixel size between 9 and 20, and moves the Omarchy shell, GTK applications, and your terminal together, so the whole desktop stays in proportion. Run it without an argument to see where you're at, and `omarchy display text size reset` to go back to the default. Foot is the one straggler: it has no way to reload its config, so running terminals keep their old size until you open a new one.
 
+The size sticks to the displays you set it with. A laptop screen sits close and a desk monitor sits further back, so pick a size on the laptop, pick another once the monitor is connected, and Omarchy switches between the two whenever you dock and undock. A monitor you plug in for the first time keeps whatever size you're already using.
+
 ### Extending and mirroring laptop displays
 
 When you connect an external screen to your laptop, the display is automatically extended. But you can change that to mirroring instead using _Trigger > Hardware_ in the Omarchy menu or `Super + Ctrl + Alt + Delete`. This is especially helpful if that external screen is a projector, and you want to show something while working.
