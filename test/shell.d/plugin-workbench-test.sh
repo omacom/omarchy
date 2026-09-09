@@ -35,12 +35,12 @@ function assert(condition, message) {
 assert(/moduleName: "omarchy\.plugin-workbench"/.test(widget), 'Workbench widget owns the first-party IPC target')
 assert(/helperPath: "\/usr\/bin\/omarchy-plugin-workbench"/.test(widget), 'Workbench uses the packaged helper')
 assert(/moduleName: "omarchy\.plugin-workbench"/.test(panel), 'Workbench panel matches the widget IPC target')
-assert(/Qt\.Key_Down/.test(panel) && /Qt\.Key_Up/.test(panel), 'Workbench feed supports arrow-key scrolling')
-assert(/Qt\.Key_PageDown/.test(panel) && /Qt\.Key_PageUp/.test(panel), 'Workbench feed supports page-key scrolling')
-assert(/Qt\.Key_4/.test(panel) && /root\.setViewMode\("build"\)/.test(panel), 'Workbench exposes Build as its fourth workspace')
+assert(/onMoveRequested: function\(dx, dy\)/.test(panel), 'Workbench routes directional navigation through the host key catcher')
+assert(/Navigation\.js/.test(panel), 'Workbench includes the shared navigation model')
+assert(!/Qt\.Key_4/.test(panel) && /root\.setViewMode\("build"\)/.test(panel), 'Workbench exposes Build without intercepting typed numbers')
 assert(/title: "1  DISCOVER"/.test(panel) && /title: "2  INSTALLED"/.test(panel) && /title: "3  UPDATES"/.test(panel) && /title: "4  BUILD"/.test(panel), 'Workbench keeps the four plugin workflows explicit')
 assert(!/selectFlavor|discoveryFlavor/.test(panel), 'Workbench stays focused on plugins')
-assert(/reuseItems: true/.test(panel) && /cacheBuffer: height/.test(panel), 'Workbench virtualizes its scrolling feeds')
+assert(/reuseItems: true/.test(panel) && /cacheBuffer: 0/.test(panel), 'Workbench virtualizes its scrolling feeds')
 assert(
   /o\.bind\("SUPER \+ ALT \+ P", "Plugin Workbench", "omarchy-shell shell toggle omarchy\.plugin-workbench"\)/.test(bindings),
   'Super Alt P opens Workbench through the shell'

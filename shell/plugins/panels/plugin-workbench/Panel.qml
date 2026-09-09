@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Navigation.js" as Navigation
 
 Panel {
   id: root
@@ -13,12 +14,40 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   property string helperPath: ""
+  property bool helperCompatible: false
+  property string protocolOutput: ""
+  onHelperPathChanged: {
+    helperCompatible = false
+    if (helperPath && !protocolProcess.running) {
+      protocolProcess.command = [helperPath, "protocol", "--json"]
+      protocolProcess.running = true
+    }
+  }
+  onHelperCompatibleChanged: if (helperCompatible) Qt.callLater(root.ensureViewLoaded)
+
+  property var drawerState: ({supported: false, profiles: []})
+  property string drawerOutput: ""
+  property bool drawerQuery: true
+
+  function drawerRequest(profile) {
+    if ((!root.helperPath || !root.helperCompatible) || drawerProcess.running) return
+    root.drawerQuery = profile === undefined
+    root.drawerOutput = ""
+    drawerProcess.command = profile === undefined ? [root.helperPath, "drawer-status", "--json"]
+      : profile === null ? [root.helperPath, "drawer-open", "--json"]
+      : [root.helperPath, "drawer-profile", profile, "--json"]
+    drawerProcess.running = true
+  }
+
   property var projects: []
   property var pluginUpdates: []
   property var installedPlugins: []
   property string installedQuery: ""
   property bool updatesChecked: false
   property bool portfolioLoaded: false
+  property bool marketplaceAttempted: false
+  property bool portfolioAttempted: false
+  property bool projectsAttempted: false
   property string viewMode: "discover"
   property bool marketplaceLoaded: false
   property var marketplaceResults: []
@@ -39,6 +68,9 @@ Panel {
   property bool showBuilderSetup: false
   property bool createProjectOpen: true
   property string newPluginKind: "panel"
+  property string navigationLevel: "sections"
+  property var navigationItem: null
+  property string detailKey: ""
   property string pendingAction: ""
   readonly property int projectCount: projects.length
   readonly property bool buildOpen: viewMode === "build"
@@ -60,15 +92,14 @@ Panel {
     return { kind: "marketplace", update: null, plugin: plugin }
   }))
   readonly property var installedRows: installedPlugins.map(function(plugin) {
-    var update = null
-    for (var index = 0; index < pluginUpdates.length; index += 1) {
-      if (pluginUpdates[index].id === plugin.id) {
-        update = pluginUpdates[index]
-        break
-      }
-    }
+    var update = updatesById[plugin.id] || null
     return { plugin: plugin, update: update }
   })
+  readonly property var updatesById: {
+    var result = Object.create(null)
+    pluginUpdates.forEach(function(update) { result[update.id] = update })
+    return result
+  }
   readonly property int installedCount: installedRows.length
   readonly property var visibleInstalledRows: installedRows.filter(function(row) {
     var query = root.installedQuery.trim().toLowerCase()
@@ -85,9 +116,22 @@ Panel {
   readonly property color accentWash: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.14)
 
   function open() {
+    root.navigationLevel = "sections"
+    root.navigationItem = null
     root.controller.show()
-    refreshView()
+    ensureViewLoaded()
   }
+
+  // Opening and navigation only read local data. Network work is explicit.
+  // Keep successful results in memory and avoid retry loops after failures.
+  function ensureViewLoaded() {
+    if (!root.opened || root.busy || root.pendingAction || (!root.helperPath || !root.helperCompatible)) return
+    if (root.marketplaceOpen && !root.marketplaceAttempted) searchMarketplace()
+    else if ((root.installedOpen || root.updatesOpen) && !root.portfolioAttempted) loadPortfolio()
+    else if (root.buildOpen && !root.projectsAttempted) refresh()
+  }
+
+  onBusyChanged: if (!root.busy) Qt.callLater(root.ensureViewLoaded)
 
   function close() {
     root.controller.hide()
@@ -104,8 +148,125 @@ Panel {
     return false
   }
 
+  function switchSection(direction) {
+    var sections = ["discover", "installed", "updates", "build"]
+    var index = sections.indexOf(root.viewMode)
+    if (index < 0) index = 0
+    root.setViewMode(sections[(index + direction + sections.length) % sections.length])
+    root.navigationLevel = "sections"
+    root.navigationItem = null
+    keyCatcher.forceActiveFocus()
+  }
+
+  function returnToSections() {
+    root.navigationLevel = "sections"
+    root.navigationItem = null
+    keyCatcher.forceActiveFocus()
+  }
+
+  function isSectionItem(item) {
+    return item && "workbenchSection" in item && item.workbenchSection === true
+  }
+
+  function focusContentItem(item) {
+    if (!item || root.isSectionItem(item)) return false
+    root.navigationLevel = "content"
+    root.navigationItem = item
+    item.forceActiveFocus()
+    var row = item
+    while (row && !row.workbenchFeed) row = row.parent
+    if (row) row.workbenchFeed.positionViewAtIndex(row.workbenchIndex, ListView.Contain)
+    return true
+  }
+
+  function enterContent() {
+    var tabs = {discover: discoverTab, installed: installedTab, updates: updatesTab, build: buildTab}
+    var target = Navigation.nearest(navigationTargets(), navigationRect(tabs[root.viewMode]), 0, 1)
+    return target ? focusContentItem(target) : false
+  }
+
+  function navigationRect(item) {
+    var point = item.mapToItem(keyCatcher, 0, 0)
+    return {item: item, x: point.x, y: point.y, width: item.width, height: item.height,
+      cx: point.x + item.width / 2, cy: point.y + item.height / 2}
+  }
+
+  function navigationTargets() {
+    var targets = []
+    function visit(item) {
+      if (!item.visible || !item.enabled) return
+      if (item.workbenchControl === true && item.width > 0 && item.height > 0)
+        targets.push(navigationRect(item))
+      for (var i = 0; i < item.children.length; ++i) visit(item.children[i])
+    }
+    visit(keyCatcher)
+    return targets
+  }
+
+  function moveContent(dx, dy) {
+    if (!root.navigationItem || !root.navigationItem.activeFocus) {
+      root.enterContent()
+      return
+    }
+    var current = root.navigationItem
+    // Row traversal uses the list model, including delegates not yet created.
+    if (current.workbenchFeed && dy !== 0) {
+      var feed = current.workbenchFeed
+      var index = current.workbenchIndex + dy
+      if (index >= 0 && index < feed.count) {
+        feed.currentIndex = index
+        feed.positionViewAtIndex(index, ListView.Contain)
+        // Complete delegate creation before moving focus. Deferring this can
+        // lose focus when the previously selected row is recycled offscreen.
+        feed.forceLayout()
+        var target = feed.itemAtIndex(index)
+        if (target) root.focusContentItem(target)
+        return
+      }
+    }
+    var candidate = Navigation.nearest(navigationTargets(), navigationRect(current), dx, dy)
+    if (candidate) focusContentItem(candidate)
+    else if (dy < 0) returnToSections()
+  }
+
+  function activateContent() {
+    var item = root.navigationItem
+    if (item && item.openDetails && !item.expanded) {
+      item.openDetails()
+      return
+    }
+    if (item && item.workbenchFeed) {
+      var targets = navigationTargets()
+      for (var i = 0; i < targets.length; ++i) {
+        var parent = targets[i].item.parent
+        while (parent && parent !== item) parent = parent.parent
+        if (parent === item) { focusContentItem(targets[i].item); return }
+      }
+      return
+    }
+    if (item && "activateFromKeyboard" in item)
+      item.activateFromKeyboard()
+  }
+
+  function editorOwnsKeyboard() {
+    var item = root.navigationItem
+    return Boolean(item && "workbenchEditor" in item
+      && item.workbenchEditor === true && item.activeFocus)
+  }
+
+  function navigateBack() {
+    var row = root.navigationItem
+    while (row && !row.openDetails) row = row.parent
+    if (row && row.expanded) {
+      root.detailKey = ""
+      focusContentItem(row)
+    } else if (root.navigationLevel === "content") returnToSections()
+    else close()
+  }
+
   function refresh() {
-    if (!root.helperPath || refreshProcess.running) return
+    if ((!root.helperPath || !root.helperCompatible) || refreshProcess.running) return
+    root.projectsAttempted = true
     root.refreshOutput = ""
     refreshProcess.command = [root.helperPath, "status", "--json"]
     refreshProcess.running = true
@@ -119,19 +280,20 @@ Panel {
   }
 
   function setViewMode(mode) {
-    if (root.busy || root.viewMode === mode) return
+    if (root.viewMode === mode) return
+    root.detailKey = ""
+    root.navigationLevel = "sections"
+    root.navigationItem = null
     root.viewMode = mode
+    if (!root.busy) {
+      root.message = ""
+      root.messageError = false
+    }
     root.marketplaceConfirmation = ""
-    if (mode === "installed") loadPortfolio()
-    else if (mode === "updates") refreshUpdates()
-    else if (mode === "discover") {
-      if (root.marketplaceLoaded) searchMarketplace()
-      else refreshMarketplace()
-    } else refresh()
+    ensureViewLoaded()
   }
 
   function refreshInstalled() {
-    checkUpdates()
     loadPortfolio()
   }
 
@@ -141,7 +303,8 @@ Panel {
   }
 
   function loadPortfolio() {
-    if (!root.helperPath || portfolioProcess.running) return
+    if ((!root.helperPath || !root.helperCompatible) || portfolioProcess.running) return
+    root.portfolioAttempted = true
     root.portfolioOutput = ""
     portfolioProcess.command = [root.helperPath, "installed", "--json"]
     portfolioProcess.running = true
@@ -152,6 +315,7 @@ Panel {
       var parsed = JSON.parse(root.portfolioOutput || "{}")
       root.installedPlugins = Array.isArray(parsed.plugins) ? parsed.plugins : []
       root.portfolioLoaded = true
+      root.drawerRequest()
     } catch (error) {
       root.message = "Could not parse installed plugin portfolio: " + error
       root.messageError = true
@@ -173,7 +337,7 @@ Panel {
   }
 
   function runAction(action, projectId) {
-    if (root.busy || !root.helperPath) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible)) return
     root.actionOutput = ""
     root.actionError = ""
     root.message = action + " · " + projectId
@@ -184,7 +348,7 @@ Panel {
   }
 
   function runInstalledAction(action, pluginId) {
-    if (root.busy || !root.helperPath) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible)) return
     root.actionOutput = ""
     root.actionError = ""
     root.message = (action === "installed-enable" ? "Enabling " : "Disabling ") + pluginId + "…"
@@ -242,7 +406,7 @@ Panel {
   }
 
   function checkUpdates() {
-    if (root.busy || !root.helperPath) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible)) return
     root.actionOutput = ""
     root.actionError = ""
     root.message = "Fetching installed plugin updates…"
@@ -253,7 +417,7 @@ Panel {
   }
 
   function applyUpdate(pluginId, revision) {
-    if (root.busy || !root.helperPath) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible)) return
     root.actionOutput = ""
     root.actionError = ""
     root.message = "Updating " + pluginId + " through Omarchy…"
@@ -264,7 +428,7 @@ Panel {
   }
 
   function applyAllUpdates() {
-    if (root.busy || !root.helperPath || root.availableUpdateCount === 0) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible) || root.availableUpdateCount === 0) return
     root.actionOutput = ""
     root.actionError = ""
     root.message = "Applying " + root.availableUpdateCount + " reviewed update(s)…"
@@ -287,7 +451,7 @@ Panel {
   }
 
   function refreshMarketplace() {
-    if (root.busy || !root.helperPath) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible)) return
     root.actionOutput = ""
     root.actionError = ""
     root.message = "Refreshing the official marketplace catalogue…"
@@ -298,7 +462,8 @@ Panel {
   }
 
   function searchMarketplace() {
-    if (root.busy || !root.helperPath) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible)) return
+    root.marketplaceAttempted = true
     root.actionOutput = ""
     root.actionError = ""
     root.message = "Searching the cached marketplace…"
@@ -319,7 +484,7 @@ Panel {
   }
 
   function installMarketplace(plugin) {
-    if (root.busy || !root.helperPath || !plugin.installable) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible) || !plugin.installable) return
     root.actionOutput = ""
     root.actionError = ""
     root.message = "Installing reviewed snapshot of " + plugin.name + "…"
@@ -332,7 +497,7 @@ Panel {
   }
 
   function updateMarketplace(plugin) {
-    if (root.busy || !root.helperPath || !plugin.managed || !plugin.updateAvailable) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible) || !plugin.managed || !plugin.updateAvailable) return
     root.pendingAction = "marketplace-update"
     root.message = "Applying reviewed marketplace update for " + plugin.name + "…"
     root.messageError = false
@@ -342,7 +507,7 @@ Panel {
   }
 
   function updateManagedPlugin(plugin) {
-    if (root.busy || !root.helperPath || !plugin.updateAvailable || !plugin.catalogueRevision) return
+    if (root.busy || (!root.helperPath || !root.helperCompatible) || !plugin.updateAvailable || !plugin.catalogueRevision) return
     root.pendingAction = "marketplace-update"
     root.message = "Applying reviewed marketplace update for " + plugin.id + "…"
     root.messageError = false
@@ -405,7 +570,17 @@ Panel {
     root.message = parsed && parsed.error ? parsed.error
       : parsed && parsed.message ? parsed.message
       : errorText || text || (exitCode === 0 ? "Action completed" : "Action failed")
+    if (root.pendingAction === "marketplace-search" && root.message.indexOf("not cached") !== -1) {
+      root.message = "No saved catalogue yet. Click Refresh to download marketplace listings."
+      root.messageError = false
+    }
     if (exitCode === 0) {
+      // Mutations can change the other views; reload them on their next visit.
+      root.portfolioAttempted = false
+      root.projectsAttempted = false
+      root.marketplaceAttempted = false
+      root.pluginUpdates = []
+      root.updatesChecked = false
       pathInput.text = ""
       if (root.pendingAction === "new") {
         newNameInput.text = ""
@@ -449,6 +624,40 @@ Panel {
   }
 
   Process {
+    id: protocolProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.protocolOutput = String(text || "")
+    }
+    onExited: function(exitCode) {
+      Qt.callLater(function() {
+        try { root.helperCompatible = exitCode === 0 && JSON.parse(root.protocolOutput).protocol === 1 }
+        catch (error) { root.helperCompatible = false }
+        if (!root.helperCompatible) { root.message = "Install a Workbench helper supporting protocol 1"; root.messageError = true }
+      })
+    }
+  }
+
+  Process {
+    id: drawerProcess
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.drawerOutput = String(text || "")
+    }
+    onExited: function(exitCode) {
+      Qt.callLater(function() {
+        if (root.drawerQuery) {
+          try { root.drawerState = exitCode === 0 ? JSON.parse(root.drawerOutput) : ({supported: false, profiles: []}) }
+          catch (error) { root.drawerState = ({supported: false, profiles: []}) }
+        } else {
+          if (exitCode !== 0) { root.message = "Drawer could not apply that request"; root.messageError = true }
+          root.drawerRequest()
+        }
+      })
+    }
+  }
+
+  Process {
     id: portfolioProcess
     command: []
     stdout: StdioCollector {
@@ -485,7 +694,10 @@ Panel {
       onStreamFinished: root.actionError = String(text || "")
     }
     onExited: function(exitCode) {
-      Qt.callLater(function() { root.completeAction(exitCode) })
+      Qt.callLater(function() {
+        root.completeAction(exitCode)
+        Qt.callLater(root.ensureViewLoaded)
+      })
     }
   }
 
@@ -495,41 +707,31 @@ Panel {
     owner: root.hostWidget || root
     bar: root.bar
     open: root.opened
+    focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(720))
     contentHeight: panel.fittedContentHeight(Style.space(540))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      onCloseRequested: root.close()
+      blocked: root.editorOwnsKeyboard()
+      onMoveRequested: function(dx, dy) {
+        if (root.navigationLevel === "sections") {
+          if (dx !== 0) root.switchSection(dx)
+          else if (dy > 0) root.enterContent()
+        } else root.moveContent(dx, dy)
+      }
+      onActivateRequested: {
+        if (root.navigationLevel === "sections") root.enterContent()
+        else root.activateContent()
+      }
+      onCloseRequested: {
+        root.navigateBack()
+      }
       onTabRequested: function(direction) { root.switchPanel(direction) }
-      Keys.onPressed: function(event) {
-        if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_1) {
-          root.setViewMode("discover")
-        } else if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_2) {
-          root.setViewMode("installed")
-        } else if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_3) {
-          root.setViewMode("updates")
-        } else if (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_4) {
-          root.setViewMode("build")
-        } else if (event.modifiers !== Qt.NoModifier) {
-          return
-        } else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
-          root.scrollFeed(Style.space(56))
-        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
-          root.scrollFeed(-Style.space(56))
-        } else if (event.key === Qt.Key_PageDown) {
-          root.scrollFeed(root.activeFeed().height * 0.82)
-        } else if (event.key === Qt.Key_PageUp) {
-          root.scrollFeed(-root.activeFeed().height * 0.82)
-        } else if (event.key === Qt.Key_Home) {
-          root.scrollFeedEdge(false)
-        } else if (event.key === Qt.Key_End) {
-          root.scrollFeedEdge(true)
-        } else {
-          return
-        }
-        event.accepted = true
+      onTextKey: function(text) {
+        if (text === "[") root.switchSection(-1)
+        else if (text === "]") root.switchSection(1)
       }
 
       Rectangle {
@@ -558,7 +760,7 @@ Panel {
               }
               Text {
                 text: root.marketplaceOpen
-                  ? root.marketplaceMatched + " of " + root.marketplaceTotal + " official catalogue listings"
+                  ? root.marketplaceResults.length + " shown · " + root.marketplaceMatched + " catalogue matches"
                   : root.installedOpen
                     ? root.installedCount + " plugins discovered by Omarchy"
                     : root.updatesOpen
@@ -585,6 +787,7 @@ Panel {
             spacing: Style.space(6)
 
             ModeTab {
+              id: discoverTab
               width: (lifecycleRail.width - Style.space(18)) / 4
               title: "1  DISCOVER"
               detail: root.marketplaceLoaded
@@ -593,6 +796,7 @@ Panel {
               onTriggered: root.setViewMode("discover")
             }
             ModeTab {
+              id: installedTab
               width: (lifecycleRail.width - Style.space(18)) / 4
               title: "2  INSTALLED"
               detail: root.installedCount + " plugins"
@@ -600,6 +804,7 @@ Panel {
               onTriggered: root.setViewMode("installed")
             }
             ModeTab {
+              id: updatesTab
               width: (lifecycleRail.width - Style.space(18)) / 4
               title: "3  UPDATES"
               detail: root.totalUpdateCount > 0
@@ -608,6 +813,7 @@ Panel {
               onTriggered: root.setViewMode("updates")
             }
             ModeTab {
+              id: buildTab
               width: (lifecycleRail.width - Style.space(18)) / 4
               title: "4  BUILD"
               detail: root.projectCount + (root.projectCount === 1 ? " project" : " projects")
@@ -733,6 +939,9 @@ Panel {
 
               TextInput {
                 id: marketplaceSearchInput
+                property bool workbenchControl: true
+                property bool workbenchEditor: true
+                activeFocusOnTab: true
                 width: parent.width - marketplaceSearchButton.width - marketplaceRefreshButton.width - Style.space(16)
                 height: parent.height
                 color: root.barForeground
@@ -743,6 +952,15 @@ Panel {
                 clip: true
                 selectByMouse: true
                 onAccepted: root.searchMarketplace()
+                onActiveFocusChanged: {
+                  if (activeFocus) {
+                    root.navigationLevel = "content"
+                    root.navigationItem = marketplaceSearchInput
+                  }
+                }
+                Keys.onEscapePressed: root.returnToSections()
+                Keys.onDownPressed: root.moveContent(0, 1)
+                Keys.onUpPressed: root.moveContent(0, -1)
 
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
@@ -900,7 +1118,7 @@ Panel {
 
           Item {
             width: parent.width
-            height: parent.height - y
+            height: Math.max(0, parent.height - y)
 
             ListView {
               id: marketplaceList
@@ -910,13 +1128,22 @@ Panel {
               spacing: Style.space(8)
               boundsBehavior: Flickable.StopAtBounds
               reuseItems: true
-              cacheBuffer: height
-              model: root.marketplaceResults
+              cacheBuffer: 0
+              model: root.marketplaceOpen ? root.marketplaceResults : []
 
-              delegate: MarketplaceCard {
+              delegate: ResultRow {
+                id: marketplaceRow
+                required property int index
+                property var workbenchFeed: marketplaceList
+                property int workbenchIndex: index
                 required property var modelData
                 width: marketplaceList.width
-                plugin: modelData
+                rowKey: "discover:" + modelData.id
+                title: modelData.name
+                summary: modelData.builtIn ? "Built in" : modelData.installed ? "Installed" : modelData.category
+                detailComponent: Component {
+                  MarketplaceCard { plugin: marketplaceRow.modelData; workbenchControl: false }
+                }
               }
             }
 
@@ -942,13 +1169,22 @@ Panel {
               spacing: Style.space(8)
               boundsBehavior: Flickable.StopAtBounds
               reuseItems: true
-              cacheBuffer: height
-              model: root.visibleInstalledRows
+              cacheBuffer: 0
+              model: root.installedOpen ? root.visibleInstalledRows : []
 
-              delegate: InstalledCard {
+              delegate: ResultRow {
+                id: installedRow
+                required property int index
+                property var workbenchFeed: installedList
+                property int workbenchIndex: index
                 required property var modelData
                 width: installedList.width
-                row: modelData
+                rowKey: "installed:" + modelData.plugin.id
+                title: modelData.plugin.name || modelData.plugin.id
+                summary: (modelData.plugin.enabled ? "Enabled" : "Disabled") + " · " + modelData.plugin.management
+                detailComponent: Component {
+                  InstalledCard { row: installedRow.modelData; workbenchControl: false }
+                }
               }
             }
 
@@ -960,13 +1196,22 @@ Panel {
               spacing: Style.space(8)
               boundsBehavior: Flickable.StopAtBounds
               reuseItems: true
-              cacheBuffer: height
-              model: root.reviewUpdateRows
+              cacheBuffer: 0
+              model: root.updatesOpen ? root.reviewUpdateRows : []
 
-              delegate: UpdateCard {
+              delegate: ResultRow {
+                id: updateRow
+                required property int index
+                property var workbenchFeed: updateList
+                property int workbenchIndex: index
                 required property var modelData
                 width: updateList.width
-                entry: modelData
+                rowKey: "updates:" + (modelData.kind === "git" ? modelData.update.id : modelData.plugin.id)
+                title: modelData.kind === "git" ? modelData.update.id : (modelData.plugin.name || modelData.plugin.id)
+                summary: modelData.kind === "git" ? modelData.update.state : "Marketplace update"
+                detailComponent: Component {
+                  UpdateCard { entry: updateRow.modelData; workbenchControl: false }
+                }
               }
 
               footer: Column {
@@ -1032,13 +1277,22 @@ Panel {
               spacing: Style.space(8)
               boundsBehavior: Flickable.StopAtBounds
               reuseItems: true
-              cacheBuffer: height
-              model: root.projects
+              cacheBuffer: 0
+              model: root.buildOpen ? root.projects : []
 
-              delegate: ProjectCard {
+              delegate: ResultRow {
+                id: projectRow
+                required property int index
+                property var workbenchFeed: projectList
+                property int workbenchIndex: index
                 required property var modelData
                 width: projectList.width
-                project: modelData
+                rowKey: "build:" + modelData.id
+                title: modelData.name || modelData.id
+                summary: modelData.deployment || "Not deployed"
+                detailComponent: Component {
+                  ProjectCard { project: projectRow.modelData; workbenchControl: false }
+                }
               }
 
               footer: Column {
@@ -1103,6 +1357,8 @@ Panel {
   component WorkbenchButton: Rectangle {
     id: actionButton
     property string label: ""
+    property bool workbenchSection: false
+    property bool workbenchControl: true
     signal triggered()
     activeFocusOnTab: true
     implicitWidth: buttonLabel.implicitWidth + Style.space(18)
@@ -1114,6 +1370,17 @@ Panel {
       ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.30)
       : Qt.rgba(root.barForeground.r, root.barForeground.g, root.barForeground.b, 0.09)
     opacity: enabled ? 1 : 0.45
+
+    function activateFromKeyboard() {
+      if (actionButton.enabled) actionButton.triggered()
+    }
+
+    onActiveFocusChanged: {
+      if (activeFocus) {
+        root.navigationLevel = "content"
+        root.navigationItem = actionButton
+      }
+    }
 
     Text {
       id: buttonLabel
@@ -1146,6 +1413,7 @@ Panel {
     property string title: ""
     property string detail: ""
     property bool active: false
+    property bool workbenchSection: true
     signal triggered()
     activeFocusOnTab: true
     implicitHeight: Style.space(48)
@@ -1157,6 +1425,13 @@ Panel {
       : active ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.46) : root.borderSubtle
     border.width: 1
     radius: Style.cornerRadius
+
+    onActiveFocusChanged: {
+      if (activeFocus) {
+        root.navigationLevel = "sections"
+        root.navigationItem = null
+      }
+    }
 
     Column {
       anchors.centerIn: parent
@@ -1182,14 +1457,14 @@ Panel {
 
     Keys.onPressed: function(event) {
       if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-        modeTab.triggered()
+        root.setViewMode(modeTab === discoverTab ? "discover" : modeTab === installedTab ? "installed" : modeTab === updatesTab ? "updates" : "build")
+        root.enterContent()
         event.accepted = true
       } else event.accepted = false
     }
     HoverHandler { id: modeHover }
     TapHandler {
       id: modeTap
-      enabled: !root.busy
       onTapped: {
         modeTab.forceActiveFocus()
         modeTab.triggered()
@@ -1211,6 +1486,9 @@ Panel {
 
     TextInput {
       id: fieldInput
+      property bool workbenchControl: true
+      property bool workbenchEditor: true
+      activeFocusOnTab: true
       anchors.fill: parent
       anchors.leftMargin: Style.space(8)
       anchors.rightMargin: Style.space(8)
@@ -1222,6 +1500,15 @@ Panel {
       clip: true
       selectByMouse: true
       onAccepted: field.accepted()
+      onActiveFocusChanged: {
+        if (activeFocus) {
+          root.navigationLevel = "content"
+          root.navigationItem = fieldInput
+        }
+      }
+      Keys.onEscapePressed: root.returnToSections()
+      Keys.onDownPressed: root.moveContent(0, 1)
+      Keys.onUpPressed: root.moveContent(0, -1)
 
       Text {
         anchors.verticalCenter: parent.verticalCenter
@@ -1234,7 +1521,104 @@ Panel {
     }
   }
 
-  component InstalledCard: Rectangle {
+  component ResultRow: NavigationCard {
+    id: resultRow
+    required property string rowKey
+    required property string title
+    required property string summary
+    required property Component detailComponent
+    readonly property bool expanded: root.detailKey === rowKey
+    implicitHeight: Style.space(48) + (expanded ? details.height + Style.space(6) : 0)
+    radius: Style.cornerRadius
+    color: activeFocus ? root.accentWash : root.surfaceSubtle
+    border.width: 1
+    border.color: root.borderSubtle
+
+    function openDetails() {
+      root.detailKey = rowKey
+      root.focusContentItem(resultRow)
+    }
+
+    Item {
+      width: parent.width
+      height: Style.space(48)
+      Column {
+        anchors.left: parent.left
+        anchors.right: chevron.left
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: Style.space(10)
+        anchors.rightMargin: Style.space(10)
+        spacing: Style.space(2)
+        Text {
+          width: parent.width
+          text: resultRow.title
+          textFormat: Text.PlainText
+          elide: Text.ElideRight
+          color: root.barForeground
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.body
+          font.bold: true
+        }
+        Text {
+          width: parent.width
+          text: resultRow.summary
+          textFormat: Text.PlainText
+          elide: Text.ElideRight
+          color: root.textMuted
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+      }
+      Text {
+        id: chevron
+        anchors.right: parent.right
+        anchors.rightMargin: Style.space(12)
+        anchors.verticalCenter: parent.verticalCenter
+        text: resultRow.expanded ? "⌄" : "›"
+        color: root.textMuted
+      }
+      TapHandler {
+        onTapped: {
+          if (resultRow.expanded) root.detailKey = ""
+          else resultRow.openDetails()
+          root.focusContentItem(resultRow)
+        }
+      }
+    }
+    Loader {
+      id: details
+      y: Style.space(48)
+      width: parent.width
+      active: resultRow.expanded
+      sourceComponent: active ? resultRow.detailComponent : null
+      onLoaded: Qt.callLater(function() {
+        if (resultRow.expanded) root.focusContentItem(resultRow)
+      })
+    }
+  }
+
+  component NavigationCard: Rectangle {
+    id: navigationCard
+    property bool workbenchControl: true
+    activeFocusOnTab: workbenchControl
+    onActiveFocusChanged: {
+      if (activeFocus) {
+        root.navigationLevel = "content"
+        root.navigationItem = navigationCard
+      }
+    }
+    Rectangle {
+      anchors.fill: parent
+      color: "transparent"
+      border.color: Color.accent
+      border.width: 2
+      radius: parent.radius
+      visible: parent.activeFocus
+      z: 10
+    }
+  }
+
+  component InstalledCard: NavigationCard {
     id: installedCard
     required property var row
     readonly property var plugin: row.plugin
@@ -1242,7 +1626,9 @@ Panel {
     readonly property bool marketplaceManaged: plugin.management === "marketplace"
     readonly property bool updateReady: marketplaceManaged
       ? Boolean(plugin.updateAvailable) : Boolean(update && update.updateable)
-    readonly property string state: marketplaceManaged
+    readonly property string state: plugin.management === "drifted" ? "drifted"
+      : plugin.management === "unverified-snapshot" ? "unverified"
+      : marketplaceManaged
       ? String(plugin.managedState || "current")
       : update ? String(update.state || "unknown")
       : Boolean(plugin.enabled) ? "enabled" : "disabled"
@@ -1251,6 +1637,10 @@ Panel {
     readonly property string sourceLabel: plugin.management === "first-party" ? "OMARCHY"
       : plugin.management === "marketplace" ? "MARKETPLACE MANAGED"
       : plugin.management === "live-link" ? "LIVE DEVELOPMENT LINK"
+      : plugin.management === "snapshot" ? "VERIFIED SNAPSHOT"
+      : plugin.management === "unverified-snapshot" ? "UNVERIFIED SNAPSHOT"
+      : plugin.management === "drifted" ? "DEPLOYMENT DRIFT"
+      : plugin.management === "unmanaged-link" ? "UNMANAGED LINK"
       : plugin.management === "git" ? "DIRECT GIT CHECKOUT"
       : "LOCAL PLUGIN"
     implicitHeight: installedContent.implicitHeight + Style.space(18)
@@ -1344,6 +1734,26 @@ Panel {
         }
       }
 
+      Flow {
+        width: parent.width
+        spacing: Style.space(5)
+        visible: installedCard.plugin.id === "spencerbull.drawer" && root.drawerState.supported === true
+        WorkbenchButton {
+          label: "Open Drawer"
+          enabled: !drawerProcess.running
+          onTriggered: root.drawerRequest(null)
+        }
+        Repeater {
+          model: parent.visible ? root.drawerState.profiles : []
+          WorkbenchButton {
+            required property var modelData
+            label: (root.drawerState.activeProfile === modelData.id ? "✓ " : "") + modelData.name
+            enabled: !drawerProcess.running
+            onTriggered: root.drawerRequest(modelData.id)
+          }
+        }
+      }
+
       Text {
         width: parent.width
         text: installedCard.marketplaceManaged
@@ -1382,7 +1792,7 @@ Panel {
     }
   }
 
-  component ProjectCard: Rectangle {
+  component ProjectCard: NavigationCard {
     id: card
     required property var project
     property bool expanded: false
@@ -1563,7 +1973,7 @@ Panel {
     }
   }
 
-  component UpdateCard: Rectangle {
+  component UpdateCard: NavigationCard {
     id: updateCard
     required property var entry
     readonly property bool marketplaceManaged: entry.kind === "marketplace"
@@ -1681,7 +2091,7 @@ Panel {
     }
   }
 
-  component MarketplaceCard: Rectangle {
+  component MarketplaceCard: NavigationCard {
     id: marketplaceCard
     required property var plugin
     implicitHeight: marketplaceCardContent.implicitHeight + Style.space(18)

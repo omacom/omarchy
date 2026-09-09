@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/tcballard/omarchy-plugin-workbench",
+  "baseCommit": "9dce628d7e597a25f7abffa8498575f924761d97",
+  "workingTreeModified": false,
+  "sourceSha256": {
+    "BarWidget.qml": "b201e6170eef2f9e724dce294ce93111eb548457e4a574b2238fd20a29d04a61",
+    "Panel.qml": "b863d1b46e31ca5d2c07dbd5ef86668eb24e3c870ebe158115c2e6fe143998d7",
+    "Navigation.js": "2455dbd31573af8865ee9ffd3b3d53ecfe341036a5e58a49e09036cde2196287"
+  },
+  "helperProtocol": 1
+}
