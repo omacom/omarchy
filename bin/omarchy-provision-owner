@@ -651,6 +651,9 @@ user_form() {
 
   step "Let's set your timezone..."
   omarchy_prompt_timezone || return $?
+
+  step "Let's set your language..."
+  omarchy_prompt_language || return $?
 }
 
 confirm_form() {
@@ -663,7 +666,8 @@ Password,$(printf "%${#password}s" | tr ' ' '*')
 Full name,${full_name:-[Skipped]}
 Email address,${email_address:-[Skipped]}
 Hostname,${hostname:-omarchy}
-Timezone,${timezone:-UTC}" |
+Timezone,${timezone:-UTC}
+Language,${language_label:-American English (United States)}" |
     gum table -s "," -p | sed "s/^/${PADDING_LEFT_SPACES}/"
 
   echo
@@ -829,6 +833,25 @@ configure_timezone() {
   # /etc/localtime at nothing and break every localtime read afterward.
   [[ -e /usr/share/zoneinfo/$timezone ]] &&
     ln -sf "/usr/share/zoneinfo/$timezone" /etc/localtime 2>&1 || true
+}
+
+# Apply the owner's language, deferred to first boot with the rest of the user
+# step. systemd-firstboot writes /etc/locale.conf; localectl is the fallback,
+# and it is also what generates a locale nobody has generated yet, so a machine
+# whose owner does not speak the image's language still gets a working one. A
+# locale glibc does not know keeps the default rather than failing setup over
+# a language.
+configure_language() {
+  [[ -n ${language:-} ]] || return 0
+
+  if ! omarchy-locale-list | awk -F'\t' -v want="$language" '$1 == want { found = 1 } END { exit !found }'; then
+    log_step "locale $language unknown to glibc; keeping the default"
+    return 0
+  fi
+
+  systemd-firstboot --locale="$language" --force 2>&1 ||
+    localectl set-locale "LANG=$language" 2>&1 ||
+    log_step "could not persist locale $language"
 }
 
 finalize_user() {
@@ -1009,6 +1032,7 @@ run_provisioning() {
 
   log_step "setting timezone to ${timezone:-UTC}"
   configure_timezone
+  configure_language
 
   log_step "finalizing user"
   echo finalize >"$STATE_FILE"

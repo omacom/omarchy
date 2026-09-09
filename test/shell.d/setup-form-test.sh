@@ -70,10 +70,12 @@ printf 'full_name=%s\n' "${full_name:-}"
 printf 'email_address=%s\n' "${email_address:-}"
 printf 'hostname=%s\n' "${hostname:-}"
 printf 'timezone=%s\n' "${timezone:-}"
+printf 'language=%s\n' "${language:-}"
+printf 'language_label=%s\n' "${language_label:-}"
 EOF
 
 chmod +x "$tmp_dir/gum" "$tmp_dir/tzupdate" "$tmp_dir/timedatectl" "$tmp_dir/driver"
-export PATH="$tmp_dir:$PATH"
+export PATH="$tmp_dir:$PATH:$ROOT/bin"
 export GUM_DIR="$tmp_dir" GUM_SCRIPT="$tmp_dir/script" GUM_ARGS="$tmp_dir/args" GUM_COUNT="$tmp_dir/count"
 export NOTICES="$tmp_dir/notices" MARKER="$tmp_dir/marker"
 
@@ -208,6 +210,29 @@ run_prompt omarchy_prompt_hostname "1:"
 assert_status "$OMARCHY_FORM_BACK" "hostname prompt reports Esc as back"
 assert_returned "hostname prompt survives Esc under set -e"
 pass "hostname prompt propagates Esc without dying under set -e"
+
+# Language
+
+run_prompt omarchy_prompt_language "0:Slovenian (Slovenia)"
+assert_status 0 "language prompt accepts a choice"
+[[ $(field language) == "sl_SI.UTF-8" ]] || fail "language prompt maps the label back to the locale glibc names"
+[[ $(field language_label) == "Slovenian (Slovenia)" ]] || fail "language prompt keeps the label for the summary"
+[[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "language prompt filters rather than paging three hundred options"
+pass "language prompt returns the locale name behind the label"
+
+run_prompt omarchy_prompt_language "0:"
+assert_status 0 "language prompt accepts an empty selection"
+[[ $(field language) == "en_US.UTF-8" ]] || fail "language prompt falls back to the default language"
+pass "language prompt falls back to English when nothing is selected"
+
+run_prompt omarchy_prompt_language "1:"
+assert_status "$OMARCHY_FORM_BACK" "language prompt reports Esc as back"
+assert_returned "language prompt survives Esc under set -e"
+
+run_prompt omarchy_prompt_language "130:"
+assert_status "$OMARCHY_FORM_SIGNAL" "language prompt reports Ctrl+C as the caller's signal"
+assert_returned "language prompt survives Ctrl+C under set -e"
+pass "language prompt propagates Esc and Ctrl+C without dying under set -e"
 
 # Timezone
 

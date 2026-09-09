@@ -357,6 +357,7 @@
   "update.firmware": {"icon":"","label":"Firmware","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},
   "update.password": {"icon":"","label":"Password"},
   "update.timezone": {"icon":"","label":"Timezone","action":"omarchy-menu-timezone"},
+  "update.language": {"icon":"󰗊","label":"Language","aliases":["locale"],"action":"omarchy-menu-language"},
   "update.time": {"icon":"","label":"Time","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-time"},
   "update.channel.stable": {"icon":"🟢","label":"Stable","checked":"[[ \"$(omarchy-channel-current)\" == \"stable\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-channel-set stable'"},
   "update.channel.rc": {"icon":"🟡","label":"RC","checked":"[[ \"$(omarchy-channel-current)\" == \"rc\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-channel-set rc'"},

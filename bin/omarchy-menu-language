@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Select and set the system language
+# omarchy:group=menu
+# omarchy:name=language
+
+set -e
+
+current=$(localectl status 2>/dev/null | sed -n 's/.*LANG=\([^ ]*\).*/\1/p' | head -1 || true)
+
+# "<glyph>\t<label>\t<subtext>": the menu shows the glyph and never returns it,
+# and hands back "<label>\t<subtext>", so the locale name rides along as the
+# subtext and comes back as the stable key.
+language=$(omarchy-locale-list |
+  awk -F'\t' -v current="$current" '
+    {
+      label = $2 ($3 != "" ? " (" $3 ")" : "")
+      printf "%s\t%s\t%s\n", ($1 == current ? "󰄬" : "󰗊"), label, $1
+    }' |
+  sort -t$'\t' -k2,2 |
+  omarchy-menu-select "Set language" -- --width 520 --maxheight 520) || exit 1
+
+language=${language##*$'\t'}
+[[ -n $language ]] || exit 1
+
+# localectl generates the locale on the way through when nobody has yet.
+localectl set-locale "LANG=$language"
+
+# LANG is read at login, so this is the one setting that cannot finish here.
+omarchy-notification-send "Language is now set to $language" "Log out and back in to apply it"
