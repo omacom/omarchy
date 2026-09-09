@@ -14,6 +14,7 @@ run_logged "$OMARCHY_INSTALL/hardware/vulkan.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/video-acceleration.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/lpmd.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/thermald.sh"
+run_logged "$OMARCHY_INSTALL/hardware/intel/cpu-profile-limits.sh"
 # Swap in the Panther Lake kernel before anything pulls DKMS modules in.
 # intel-ipu7-camera drags in ipu7-drivers, vision-drivers and v4l2loopback,
 # and building all three against the stock kernel only to rebuild them against

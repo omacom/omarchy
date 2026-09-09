@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# omarchy:summary=Apply CPU frequency limits for a power profile
+# omarchy:args=[performance|balanced|power-saver]
+# omarchy:hidden=true
+
+# On Intel CPUs without HWP (pre-Skylake) there is no energy_performance_preference
+# for power-profiles-daemon to write, so every profile leaves the CPU identical and
+# turbo stays unrestricted on battery. Supply the missing backend by mapping each
+# profile onto no_turbo and scaling_max_freq.
+
+CPU_ROOT="${OMARCHY_CPU_ROOT:-/sys/devices/system/cpu}"
+PSTATE="$CPU_ROOT/intel_pstate"
+
+if [[ ! -w $PSTATE/no_turbo ]]; then
+  exit 0
+fi
+
+profile="${1:-}"
+
+if [[ -z $profile ]]; then
+  profile=$(busctl get-property net.hadess.PowerProfiles /net/hadess/PowerProfiles \
+    net.hadess.PowerProfiles ActiveProfile 2>/dev/null | awk '{gsub(/"/, ""); print $2}')
+fi
+
+if [[ -z $profile ]]; then
+  exit 0
+fi
+
+# This unconditionally overwrites scaling_max_freq, which sounds like it could
+# fight a thermal daemon (thermald's Processor cooling devices, RAPL power
+# limits) that lowered it independently. It doesn't: those act as an
+# additional, separate ceiling via the kernel's cpufreq QoS layer, which the
+# governor intersects with whatever is written here -- the lower of the two
+# always wins, so this can only ever request a limit, never actually exceed a
+# thermal one.
+set_max_freq() {
+  local cpu
+  for cpu in "$CPU_ROOT"/cpu[0-9]*/cpufreq/scaling_max_freq; do
+    echo "$1" >"$cpu" 2>/dev/null
+  done
+}
+
+# Ask the kernel for the base clock rather than deriving it from a model table:
+# with turbo disabled scaling_max_freq reports the non-turbo maximum.
+max_freq=$(<"$CPU_ROOT/cpu0/cpufreq/cpuinfo_max_freq")
+echo 1 >"$PSTATE/no_turbo"
+base_freq=$(<"$CPU_ROOT/cpu0/cpufreq/scaling_max_freq")
+
+case $profile in
+  performance)
+    echo 0 >"$PSTATE/no_turbo"
+    set_max_freq "$max_freq"
+    ;;
+  balanced)
+    # Midway between base and full turbo: keeps headroom while trimming the top
+    # of the voltage curve, where the last few hundred MHz cost the most power.
+    echo 0 >"$PSTATE/no_turbo"
+    set_max_freq $(((base_freq + max_freq) / 2))
+    ;;
+  power-saver)
+    # no_turbo already clamps scaling_max_freq to the base clock.
+    set_max_freq "$max_freq"
+    ;;
+  *)
+    echo "Unknown power profile: $profile" >&2
+    exit 1
+    ;;
+esac
+
+logger -t omarchy-powerprofiles-intel-no-hwp \
+  "profile=$profile no_turbo=$(<"$PSTATE/no_turbo") max_freq=$(<"$CPU_ROOT/cpu0/cpufreq/scaling_max_freq")"
