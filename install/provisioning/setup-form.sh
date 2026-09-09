@@ -58,7 +58,6 @@ Italian|it
 Japanese|jp106
 Kazakh|kazakh
 Kyrgyz|kyrgyz
-Lao|la-latin1
 Latvian|lv
 Lithuanian|lt
 Macedonian|mk-utf
