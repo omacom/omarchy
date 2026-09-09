@@ -95,10 +95,26 @@ pass "webapp install refuses a slashed name before fetching its icon"
 run_install "Example App" "https://example.com" hey >/dev/null
 [[ -f "$apps_dir/Example App.desktop" ]] ||
   fail "webapp install writes the launcher for an ordinary name"
+grep -Fxq 'X-Omarchy-WebApp=true' "$apps_dir/Example App.desktop" ||
+  fail "webapp install marks an ordinary launcher" "$(cat "$apps_dir/Example App.desktop")"
 run_remove "Example App" >/dev/null
 [[ -f "$apps_dir/Example App.desktop" ]] &&
   fail "webapp remove deletes the launcher it installed"
 pass "webapp install and remove round-trip an ordinary name"
+
+# Default-browser launchers only carry the marker (Exec is xdg-open). Removal
+# must still find them the same way the Omarchy menu does.
+cat >"$apps_dir/Default Browser App.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Default Browser App
+Exec=xdg-open "https://example.com/"
+Type=Application
+X-Omarchy-WebApp=true
+DESKTOP
+run_remove "Default Browser App" >/dev/null
+[[ -f "$apps_dir/Default Browser App.desktop" ]] &&
+  fail "webapp remove deletes a marker-only default-browser launcher"
+pass "webapp remove finds marker-only default-browser launchers"
 
 # Anything installed by an older version can still be nested. Removal has to
 # reach it, which a path rebuilt from the displayed name never could.
