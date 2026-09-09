@@ -606,8 +606,10 @@ def opencode_database_auth(database):
   try:
     connection = sqlite3.connect(f"{database.resolve().as_uri()}?mode=ro", uri=True, timeout=0.25)
     try:
+      columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(credential)")}
+      order = "COALESCE(active, 0) DESC, time_updated DESC" if "active" in columns else "time_updated DESC"
       row = connection.execute(
-        "SELECT value FROM credential WHERE integration_id = ? ORDER BY time_updated DESC LIMIT 1",
+        f"SELECT value FROM credential WHERE integration_id = ? ORDER BY {order} LIMIT 1",
         ("openai",),
       ).fetchone()
     finally:

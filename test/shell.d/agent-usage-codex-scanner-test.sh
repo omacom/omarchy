@@ -675,6 +675,9 @@ while read -r request; do
       if [[ $(jq -r '.params.accessToken == "secret-database-token" and .params.chatgptAccountId == "database-account"' <<<"$request") == "true" ]]; then
         printf 'credential:database\n' >>"$RPC_LOG"
       fi
+      if [[ $(jq -r '.params.accessToken == "secret-active-token" and .params.chatgptAccountId == "active-account"' <<<"$request") == "true" ]]; then
+        printf 'credential:active\n' >>"$RPC_LOG"
+      fi
       if [[ ${FAIL_EXTERNAL_LOGIN:-false} == "true" ]]; then
         jq -cn --argjson id "$id" '{id: $id, error: {message: "login failed"}}'
       else
@@ -826,3 +829,46 @@ RPC_LOG="$LIMITS_HOME/rpc.log" result=$(HOME="$LIMITS_HOME" CODEX_HOME="$LIMITS_
 [[ $result != *"secret-database-token"* && $result != *"secret-database-refresh"* && $result != *"database-account"* ]] ||
   fail "Codex collector keeps database-backed OpenCode credentials out of its record" "$result"
 pass "Codex collector reads database-backed OpenCode credentials"
+
+# OpenCode can retain an inactive credential beside its replacement. Prefer
+# the active row even when both carry the same update timestamp, while the
+# preceding fixture proves compatibility with schemas that lack active.
+python3 - "$LIMITS_HOME/.local/share/opencode/opencode.db" <<'PY'
+import json
+import sqlite3
+import sys
+
+db = sys.argv[1]
+conn = sqlite3.connect(db)
+conn.execute("ALTER TABLE credential ADD COLUMN active integer")
+updated = conn.execute("SELECT time_updated FROM credential WHERE id = 'cred_openai'").fetchone()[0]
+conn.execute("UPDATE credential SET active = 0 WHERE id = 'cred_openai'")
+conn.execute("INSERT INTO credential VALUES (?, ?, ?, ?, ?, ?, ?)", (
+  "cred_active",
+  "openai",
+  "OpenAI",
+  json.dumps({
+    "type": "oauth",
+    "access": "secret-active-token",
+    "refresh": "secret-active-refresh",
+    "metadata": {"accountID": "active-account"},
+  }),
+  updated,
+  updated,
+  1,
+))
+conn.commit()
+conn.close()
+PY
+: >"$LIMITS_HOME/rpc.log"
+
+RPC_LOG="$LIMITS_HOME/rpc.log" result=$(HOME="$LIMITS_HOME" CODEX_HOME="$LIMITS_HOME/.codex" XDG_DATA_HOME="$LIMITS_HOME/.local/share" \
+  RPC_LOG="$LIMITS_HOME/rpc.log" PATH="$LIMITS_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --opencode-openai-limits)
+
+[[ $(grep -c '^credential:active$' "$LIMITS_HOME/rpc.log") == "1" ]] ||
+  fail "Codex collector selects the active OpenCode credential" "$(<$LIMITS_HOME/rpc.log)"
+[[ $(grep -c '^credential:database$' "$LIMITS_HOME/rpc.log") == "0" ]] ||
+  fail "Codex collector ignores inactive OpenCode credentials" "$(<$LIMITS_HOME/rpc.log)"
+[[ $result != *"secret-active-token"* && $result != *"secret-active-refresh"* && $result != *"active-account"* ]] ||
+  fail "Codex collector keeps the active OpenCode credential out of its record" "$result"
+pass "Codex collector prefers the active OpenCode credential"
