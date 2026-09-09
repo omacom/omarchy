@@ -30,6 +30,21 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# Every click target registration used to resync every plugin api inline. With
+# six monitors' worth of widgets that is hundreds of full walks at startup, so
+# the change handlers coalesce into one deferred resync and ownership lookups
+# are keyed by target instead of scanning an array.
+if ! rg -q 'onClickTargetsChanged: schedulePluginBarApiSync\(\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar coalesces plugin api resyncs instead of running one per click target change"
+fi
+if ! rg -q 'Qt\.callLater\(root\.syncAllPluginBarApiObjects\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar defers the coalesced plugin api resync to the event loop"
+fi
+if ! rg -q 'pluginObjectOwners\.get\(target\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar looks plugin object ownership up by target instead of scanning"
+fi
+pass "bar coalesces plugin api resyncs and looks ownership up by target"
+
 # Both bar orientations used to be instantiated and toggled with `visible`,
 # doubling every indicator (and every process an indicator spawns) per bar.
 if ! rg -q 'sourceComponent: root\.vertical \? verticalIndicatorsTree : horizontalIndicatorsTree' \
