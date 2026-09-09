@@ -5,22 +5,155 @@
 
 set -e
 
-# No CLI is installed here on purpose. Hermes Desktop only runs against a
-# runtime built from its own commit, so it provisions one itself under
-# ~/.hermes on first launch, which takes a few minutes and shows its own
-# progress. Handing it the mise CLI instead fails: PyPI trails the tags, and
-# the version gap fails the app's readiness probe with a 401.
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
 echo "Installing Hermes Desktop..."
 omarchy-pkg-add hermes-desktop
+
+if [[ ! -r /usr/share/hermes-desktop/install.sh || ! -r /usr/share/hermes-desktop/runtime.patch ]] ||
+  ! release_commit=$(jq -er 'select(.branch == "main") | .commit | select(test("^[0-9a-f]{40}$"))' /opt/hermes-desktop/resources/install-stamp.json 2>/dev/null); then
+  echo "The installed Hermes package cannot prepare in-app updates. Run 'omarchy update', then try again." >&2
+  exit 1
+fi
 
 # If Hermes was already installed for the terminal, the app supersedes it: one
 # machine, one Hermes. This drops that copy so the terminal, the default agent
 # and the app all end up on the app's installation.
 omarchy-install-hermes-cli || true
 
+# Keep the runtime at the root even when invoked from a Hermes profile.
+HERMES_HOME=$(realpath -ms -- "${HERMES_HOME:-$HOME/.hermes}")
+home_parent=$(dirname -- "$HERMES_HOME")
+if [[ ${home_parent##*/} == [Pp][Rr][Oo][Ff][Ii][Ll][Ee][Ss] ]]; then
+  HERMES_HOME=$(dirname -- "$home_parent")
+fi
+export HERMES_HOME
+
+runtime="$HERMES_HOME/hermes-agent"
+native_app="$runtime/apps/desktop/release/linux-unpacked"
+
+runtime_ready() {
+  [[ -f $runtime/.hermes-bootstrap-complete && -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes && -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] &&
+    timeout 15 "$runtime/venv/bin/hermes" --version >/dev/null 2>&1
+}
+
+check_main() {
+  local main_commit
+  main_commit=$(git -C "$runtime" rev-parse --verify refs/heads/main 2>/dev/null || true)
+  if [[ -n $main_commit && $main_commit != "$release_commit" && $main_commit != "$(git -C "$runtime" rev-parse --verify refs/remotes/origin/main 2>/dev/null)" ]]; then
+    echo "Hermes main has local commits. Keep that work and prepare the desktop with 'hermes desktop --build-only'." >&2
+    return 1
+  fi
+}
+
+if ! runtime_ready; then
+  # The upstream installer can reset an existing checkout. Do not pin a newer
+  # or modified runtime back to the package release while repairing setup.
+  if [[ -e $runtime || -L $runtime ]]; then
+    if [[ $(git -C "$runtime" rev-parse HEAD 2>/dev/null) != "$release_commit" ]] ||
+      [[ -n $(git -C "$runtime" status --porcelain --untracked-files=all) ]]; then
+      echo "Hermes setup is incomplete at $runtime. Repair that installation before trying again; existing files have been kept." >&2
+      exit 1
+    fi
+    check_main
+  fi
+
+  # Upstream replaces these commands, including foreign files and symlinks.
+  # Keep their original bytes/links before handing the names to the desktop.
+  command_backup=""
+  for command in hermes hermes-agent hermes-acp; do
+    command_path="$HOME/.local/bin/$command"
+    if [[ -e $command_path || -L $command_path ]]; then
+      if [[ ! -f $command_path && ! -L $command_path ]]; then
+        echo "Cannot replace $command_path: move it aside before installing Hermes Desktop." >&2
+        exit 1
+      fi
+      if [[ -z $command_backup ]]; then
+        command_backup=$(mktemp -d "$HOME/.local/bin/.hermes-before-desktop.XXXXXX")
+        echo "Saving existing Hermes commands in $command_backup"
+      fi
+      cp -a -- "$command_path" "$command_backup/"
+    fi
+  done
+
+  echo "Setting up the Hermes runtime..."
+  bash /usr/share/hermes-desktop/install.sh --skip-setup --branch main --commit "$release_commit" --force-commit --dir "$runtime" --hermes-home "$HERMES_HOME"
+  if ! runtime_ready; then
+    echo "Hermes runtime setup did not complete. Re-run this command after resolving the installer error." >&2
+    exit 1
+  fi
+fi
+
+runtime_commit=$(git -C "$runtime" rev-parse HEAD)
+if [[ $runtime_commit == "$release_commit" ]]; then
+  # The updater switches to main before checking for changes. Start main at
+  # the packaged release, with enough history for its first fast-forward.
+  check_main
+  if [[ $(git -C "$runtime" rev-parse --is-shallow-repository) == "true" ]]; then
+    git -C "$runtime" fetch --unshallow origin main
+  fi
+  git -C "$runtime" switch -C main "$release_commit"
+
+  if git -C "$runtime" apply --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1; then
+    git -C "$runtime" apply /usr/share/hermes-desktop/runtime.patch
+  elif ! git -C "$runtime" apply --reverse --check /usr/share/hermes-desktop/runtime.patch >/dev/null 2>&1; then
+    echo "The Hermes Linux runtime patch conflicts with local changes. Existing files have been kept." >&2
+    exit 1
+  fi
+fi
+
+if [[ -e $native_app || -L $native_app ]]; then
+  if [[ ! -f $native_app/Hermes || ! -x $native_app/Hermes || ! -f $native_app/resources/app.asar || ! -f $native_app/resources/install-stamp.json ]]; then
+    echo "The Hermes desktop app at $native_app is incomplete. Repair it with 'hermes desktop --build-only' before trying again." >&2
+    exit 1
+  fi
+else
+  if [[ $runtime_commit != "$release_commit" ]]; then
+    echo "The Hermes runtime has moved beyond the packaged desktop release. Run 'hermes desktop --build-only', then try again." >&2
+    exit 1
+  fi
+  desktop_changes=$(git -C "$runtime" status --porcelain --untracked-files=all -- apps/desktop package.json package-lock.json)
+  if [[ -n $desktop_changes ]]; then
+    echo "Hermes desktop sources have local changes. Run 'hermes desktop --build-only', then try again; existing files have been kept." >&2
+    exit 1
+  fi
+
+  mkdir -p -- "${native_app%/*}"
+  staging=$(mktemp -d "${native_app%/*}/.linux-unpacked.XXXXXX")
+  trap 'rm -rf -- "$staging"' EXIT
+  cp -a /opt/hermes-desktop/. "$staging/"
+  chmod 0755 "$staging/chrome-sandbox"
+  mv -T --no-clobber -- "$staging" "$native_app"
+  if [[ -e $staging ]]; then
+    echo "A Hermes desktop app appeared during setup. It has been kept; please try again." >&2
+    exit 1
+  fi
+  trap - EXIT
+
+  # Record this matching prebuilt app using the CLI's own content hash, so
+  # subsequent menu launches do not rebuild an app that is already current.
+  env -u PYTHONPATH -u PYTHONHOME "$runtime/venv/bin/python" - "$runtime" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+from hermes_cli.main import _write_desktop_build_stamp
+
+_write_desktop_build_stamp(Path(sys.argv[1]), source_mode=False)
+PY
+fi
+
 echo "Opening Hermes Desktop..."
 setsid uwsm-app -- /usr/bin/hermes-desktop >/dev/null 2>&1 &
 
+# Only a running Hermes can be told which skin to show; a unit outlives this
+# terminal and reports to the journal.
+echo "Matching Hermes to the current theme once it is set up..."
+systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
+systemd-run --user --quiet --collect --unit=omarchy-hermes-theme omarchy-theme-set-hermes --wait
+
 echo ""
 echo "Hermes Desktop has been installed."
-echo "Its first launch installs the Hermes runtime, which takes a few minutes."

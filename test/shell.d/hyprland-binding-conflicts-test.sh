@@ -40,6 +40,13 @@ hl = setmetatable({
       release = opts.release == true,
     })
   end,
+  unbind = function(keys)
+    for index = #bindings, 1, -1 do
+      if bindings[index].keys == keys then
+        table.remove(bindings, index)
+      end
+    end
+  end,
   config = function() end,
   env = function() end,
   monitor = function() end,
@@ -188,3 +195,17 @@ probe=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
 grep -Fqx "ALT+SHIFT+SUPER+RIGHT" <<<"$probe" ||
   fail "the conflict check ignores modifier order"
 pass "the conflict check catches collisions across keycodes and modifier order"
+
+rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
+  'o.rebind("SUPER + SHIFT + F", "Flea", { launch = "flea" })' | \
+  awk -F'\t' '$1 == "SHIFT+SUPER+F"')
+[[ $rebound == $'SHIFT+SUPER+F\tSUPER + SHIFT + F\tFlea' ]] ||
+  fail "rebinding replaces the default file manager without stacking actions" "$rebound"
+pass "rebinding replaces the default file manager without stacking actions"
+
+rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
+  'o.rebind("F9", "Dictation on release", "voxtype record toggle", { release = true })' | \
+  awk -F'\t' '$2 == "F9"')
+[[ $rebound == $'F9 (release)\tF9\tDictation on release' ]] ||
+  fail "rebinding replaces all bindings for a key and preserves binding options" "$rebound"
+pass "rebinding replaces all bindings for a key and preserves binding options"

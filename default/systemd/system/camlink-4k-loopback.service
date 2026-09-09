@@ -1,0 +1,9 @@
+[Unit]
+Description=Create the Cam Link 4K virtual camera
+After=systemd-modules-load.service
+
+[Service]
+# Reruns on every relay start, so a deleted or unloaded device comes back.
+Type=oneshot
+ExecStart=/usr/bin/modprobe v4l2loopback
+ExecStart=/bin/sh -c 'grep -qsx "Cam Link 4K" /sys/devices/virtual/video4linux/*/name || exec v4l2loopback-ctl add -n "Cam Link 4K" -x 1'
