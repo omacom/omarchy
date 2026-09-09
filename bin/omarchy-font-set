@@ -41,9 +41,7 @@ if [[ -f ~/.config/ghostty/config ]]; then
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
-  # Preserve the existing :size=N (set by omarchy display text size) so a
-  # family change never resets the terminal font size. Fall back to the
-  # default 9pt when no size is present.
+  # Preserve the configured size; Foot defaults to 9 when none is present.
   foot_size="$(sed -n 's/^font=.*:size=\([0-9.]\+\).*/\1/p' ~/.config/foot/foot.ini | head -1)"
   if [[ -z $foot_size ]]; then
     foot_size=9
