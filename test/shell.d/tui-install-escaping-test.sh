@@ -84,11 +84,19 @@ pass "a newline in the app name cannot inject a second Exec"
 
 cat >"$mock_bin/omarchy-menu-select" <<'STUB'
 #!/bin/bash
-printf '%s\n' "$FAKE_PICK"
+pick="$FAKE_PICK"
+if [[ $pick == $'\t'* ]]; then
+  pick=${pick#$'\t'}
+  label=${pick%%$'\t'*}
+  path=${pick#*$'\t'}
+  printf '%s\t%s\n' "$label" "$path"
+else
+  printf '%s\n' "$pick"
+fi
 STUB
 chmod +x "$mock_bin/omarchy-menu-select"
 
-FAKE_PICK="${inject_name}"$'\t'"${inject_file}" \
+FAKE_PICK=$'\t'"${inject_name}"$'\t'"${inject_file}" \
   HOME="$HOME" PATH="$PATH" OMARCHY_REMOVE_NOTIFY=false \
   bash "$ROOT/bin/omarchy-tui-remove" >/dev/null
 [[ -f $inject_file ]] &&
@@ -111,20 +119,53 @@ run_remove 'Shared Icon' >/dev/null
   fail "tui remove leaves a shared icon file it did not install"
 pass "tui remove leaves a shared icon file it did not install"
 
+touch "$icons_dir/my-app.svg"
+install_tui 'My App' htop tile my-app
+run_remove 'My App' >/dev/null
+[[ -f "$icons_dir/my-app.svg" ]] ||
+  fail "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
+pass "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
+
+touch "$icons_dir/example.png"
+run_remove 'No Such App' >/dev/null 2>&1 || true
+[[ -f "$icons_dir/example.png" ]] ||
+  fail "tui remove deletes no icons when no launcher was found"
+pass "tui remove deletes no icons when no launcher was found"
+
 mkdir -p "$icons_dir"
 touch "$HOME/.local/share/icons/hicolor/outside.png"
-cat >"$applications/Evil Icon.desktop" <<'DESKTOP'
+cat >"$applications/Evil Owned.desktop" <<'DESKTOP'
 [Desktop Entry]
-Name=Evil Icon
-Icon=../../outside
+Name=Evil Owned
+X-Omarchy-OwnedIcon=../../outside.png
 Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
 Type=Application
 DESKTOP
 
-run_remove 'Evil Icon' >/dev/null
+run_remove 'Evil Owned' >/dev/null
 [[ -f "$HOME/.local/share/icons/hicolor/outside.png" ]] ||
-  fail "tui remove does not delete icons referenced by a malicious Icon field"
-pass "tui remove does not delete icons referenced by a malicious Icon field"
+  fail "tui remove does not delete icons named by a malicious owned-icon field"
+pass "tui remove does not delete icons named by a malicious owned-icon field"
+
+cat >"$applications/Beta.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Alpha
+Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
+Type=Application
+DESKTOP
+cat >"$applications/Alpha.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Beta
+Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
+Type=Application
+DESKTOP
+
+run_remove Beta >/dev/null
+[[ -f "$applications/Beta.desktop" ]] &&
+  fail "tui remove deletes the launcher whose desktop id was requested"
+[[ -f "$applications/Alpha.desktop" ]] ||
+  fail "tui remove does not delete a different launcher that shares the display name"
+pass "tui remove prefers the desktop id over a duplicate display name"
 
 inject_exec=$(printf 'htop\nExec=evil')
 install_tui 'Inject Exec' "$inject_exec" tile someicon

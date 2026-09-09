@@ -100,6 +100,7 @@ DESKTOP_DIR="$HOME/.local/share/applications"
 DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
 mkdir -p "$DESKTOP_DIR"
 
+owned_icon=""
 if [[ $ICON_REF =~ ^https?:// ]]; then
   ICON_VALUE=$(safe_icon_name "$APP_NAME")
   mkdir -p "$ICON_DIR"
@@ -108,8 +109,13 @@ if [[ $ICON_REF =~ ^https?:// ]]; then
     exit 1
   fi
   gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+  owned_icon="$ICON_VALUE.png"
 elif [[ -f $ICON_REF ]]; then
-  ICON_VALUE=$(install_user_icon "$ICON_REF" "$(safe_icon_name "$APP_NAME")")
+  icon_slug=$(safe_icon_name "$APP_NAME")
+  icon_ext="${ICON_REF##*.}"
+  [[ $icon_ext == "$ICON_REF" ]] && icon_ext="png"
+  ICON_VALUE=$(install_user_icon "$ICON_REF" "$icon_slug")
+  owned_icon="$icon_slug.$icon_ext"
 else
   # Bundled Omarchy icons are package-owned under /usr/share/icons/hicolor.
   ICON_VALUE=$(icon_name_from_ref "$ICON_REF")
@@ -138,6 +144,10 @@ Type=Application
 Icon=$icon_field
 StartupNotify=true
 EOF
+
+if [[ -n $owned_icon ]]; then
+  printf 'X-Omarchy-OwnedIcon=%s\n' "$owned_icon" >>"$DESKTOP_FILE"
+fi
 
 chmod +x "$DESKTOP_FILE"
 
