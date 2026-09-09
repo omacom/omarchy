@@ -17,7 +17,10 @@ Use an isolated Linux checkout with Bash 5, Node, Python, and the normal Omarchy
 ```bash
 export OMARCHY_PATH="$PWD"
 export LC_ALL=C.UTF-8
+export PYTHONDONTWRITEBYTECODE=1
 env -u WAYLAND_DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE ./test/all
 ```
 
 This runs the CLI and shell suites headlessly; it does not run graphical acceptance tests or prove a full server installation works. The focused guard tests create their own pseudo-terminals and redirect the edition marker in a disposable helper copy, without writing `/etc/omarchy-edition`.
+
+Start from a clean checkout: Python bytecode left by earlier runs under `bin/__pycache__/` can cause the locate test’s text scan to fail. Disabling bytecode generation prevents that interference.
