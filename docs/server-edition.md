@@ -12,7 +12,7 @@ The Theme entry currently displays the existing CLI theme commands. Applying the
 
 ## Validation over SSH
 
-Use an isolated Linux checkout with Bash 5, Node, Python, and the normal Omarchy test dependencies. The config suite also requires an `omarchy-pkgs` checkout, either as a sibling directory or via `OMARCHY_PKGS_PATH`. Set the UTF-8 locale and runtime path explicitly because a noninteractive SSH session may not load Omarchy's shell environment:
+Use an isolated Linux checkout with Bash 5, Node, Python, and the normal Omarchy test dependencies. The config suite also requires an `omarchy-pkgs` checkout, and the snapshot tests require `omarchy-iso`. Place them as sibling directories or set `OMARCHY_PKGS_PATH` and `OMARCHY_ISO_PATH`. Set the UTF-8 locale and runtime path explicitly because a noninteractive SSH session may not load Omarchy's shell environment:
 
 ```bash
 export OMARCHY_PATH="$PWD"
