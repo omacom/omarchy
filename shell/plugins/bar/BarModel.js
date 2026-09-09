@@ -1,3 +1,58 @@
+// Keep delegates alive across layout edits. Reserve exact matches first so
+// changing one of several instances does not steal an unchanged instance.
+// JSON stays a string role: ListModel otherwise turns nested settings arrays
+// into nested models, changing the widget settings contract.
+function syncEntries(model, entries) {
+  var rows = []
+  var used = []
+  var nextKey = 0
+  for (var i = 0; i < model.count; i++) {
+    var row = model.get(i)
+    rows.push({ key: row.instanceKey, json: row.entryJson, id: entryId(JSON.parse(row.entryJson)) })
+    nextKey = Math.max(nextKey, row.instanceKey + 1)
+  }
+  var wanted = entries.map(function(entry) {
+    return { id: entryId(entry), json: JSON.stringify(entry), match: -1 }
+  })
+  for (var exact = 0; exact < wanted.length; exact++) {
+    for (var old = 0; old < rows.length; old++) {
+      if (!used[old] && rows[old].json === wanted[exact].json) {
+        wanted[exact].match = old
+        used[old] = true
+        break
+      }
+    }
+  }
+  for (var n = 0; n < wanted.length; n++) {
+    var item = wanted[n]
+    if (item.match < 0) {
+      for (var candidate = 0; candidate < rows.length; candidate++) {
+        if (!used[candidate] && rows[candidate].id === item.id) {
+          item.match = candidate
+          used[candidate] = true
+          break
+        }
+      }
+    }
+    item.key = item.match < 0 ? nextKey++ : rows[item.match].key
+  }
+  for (var remove = rows.length - 1; remove >= 0; remove--) {
+    if (!used[remove]) model.remove(remove)
+  }
+  for (var target = 0; target < wanted.length; target++) {
+    var entry = wanted[target]
+    var source = target
+    while (source < model.count && model.get(source).instanceKey !== entry.key) source++
+    if (source === model.count) {
+      model.insert(target, { instanceKey: entry.key, entryJson: entry.json })
+    } else {
+      if (source !== target) model.move(source, target, 1)
+      if (model.get(target).entryJson !== entry.json)
+        model.setProperty(target, "entryJson", entry.json)
+    }
+  }
+}
+
 function isPlainObject(value) {
   return !!value && typeof value === "object" && !Array.isArray(value)
 }
@@ -63,42 +118,6 @@ function entriesBefore(entries, name) {
 function entriesAfter(entries, name) {
   var index = entryIndex(entries, name)
   return index === -1 ? [] : entries.slice(index + 1)
-}
-
-// A shell.json write that only changes inline widget settings (the battery
-// percentage toggle, a clock format change) must not rebuild the bar.
-// Compare two normalized layouts: when the structure is unchanged — same
-// entry ids in the same order per region — return the settings-only changes
-// as {region, index, entry}. Return null when the change is structural, or
-// touches an entry a live settings push cannot safely reach: custom modules
-// read their entry directly rather than an injected settings property, and
-// a duplicated id makes the push ambiguous.
-function inlineSettingsDelta(current, next) {
-  if (!isPlainObject(current) || !isPlainObject(next)) return null
-  var regions = ["left", "center", "right"]
-  var counts = {}
-  for (var r = 0; r < regions.length; r++) {
-    var entries = Array.isArray(next[regions[r]]) ? next[regions[r]] : []
-    for (var i = 0; i < entries.length; i++) {
-      var id = entryId(entries[i])
-      counts[id] = (counts[id] || 0) + 1
-    }
-  }
-  var changes = []
-  for (var s = 0; s < regions.length; s++) {
-    var region = regions[s]
-    var a = Array.isArray(current[region]) ? current[region] : []
-    var b = Array.isArray(next[region]) ? next[region] : []
-    if (a.length !== b.length) return null
-    for (var j = 0; j < a.length; j++) {
-      if (entryId(a[j]) !== entryId(b[j])) return null
-      if (JSON.stringify(a[j]) === JSON.stringify(b[j])) continue
-      if (customModuleType(a[j]) || customModuleType(b[j])) return null
-      if (counts[entryId(b[j])] > 1) return null
-      changes.push({ region: region, index: j, entry: b[j] })
-    }
-  }
-  return changes
 }
 
 function expandPath(value, home) {
@@ -210,6 +229,7 @@ function nearestDropTarget(candidates, point, vertical) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    syncEntries: syncEntries,
     isDrawnSlot: isDrawnSlot,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
@@ -222,7 +242,6 @@ if (typeof module !== "undefined") {
     entryIndex: entryIndex,
     entriesBefore: entriesBefore,
     entriesAfter: entriesAfter,
-    inlineSettingsDelta: inlineSettingsDelta,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
     customModuleType: customModuleType,
