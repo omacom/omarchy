@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+# omarchy-monitor-base — Stable monitor→base allocator.
+#
+# Usage:
+#   omarchy-monitor-base            Print all entries: one "name base" line each
+#   omarchy-monitor-base sync       Read current monitors from hyprctl, auto-assign
+#                                   bases to any new names, persist, then print all
+#
+# The base for a monitor name is its permanent workspace offset (multiples of 10).
+# It is assigned on first-seen and never changes, even if Hyprland reassigns the
+# monitor's numeric id across hotplug cycles.
+#
+# Storage: ~/.local/state/omarchy/monitor-bases.json
+# Format:  { "eDP-1": 0, "HDMI-1": 10, "DP-2": 20 }
+#
+# Assignment is deterministic: within a single "sync" call, new monitors are
+# assigned in the order hyprctl reports them (sorted by current id ascending),
+# so re-running with the same monitors is always a no-op.
+
+import json, os, subprocess, sys, tempfile
+
+STATE_DIR = os.path.expanduser("~/.local/state/omarchy")
+BASES_FILE = os.path.join(STATE_DIR, "monitor-bases.json")
+STRIDE = 10  # workspace slots per monitor
+
+
+def load() -> dict:
+    try:
+        with open(BASES_FILE) as f:
+            data = json.load(f)
+        return {k: int(v) for k, v in data.items()}
+    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+        return {}
+
+
+def save(bases: dict) -> None:
+    """Atomically write bases to disk. Uses a temp file + os.replace() so a
+    mid-write kill never leaves a truncated/corrupt JSON file, and so QML's
+    FileView watcher sees a complete file on every change notification."""
+    os.makedirs(STATE_DIR, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=STATE_DIR, prefix=".monitor-bases-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(bases, f, indent=2, sort_keys=True)
+            f.write("\n")
+        os.replace(tmp, BASES_FILE)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def next_free_base(bases: dict) -> int:
+    used = set(bases.values())
+    candidate = 0
+    while candidate in used:
+        candidate += STRIDE
+    return candidate
+
+
+def sync() -> dict:
+    """Query hyprctl for current monitors, allocate bases for any unseen names."""
+    try:
+        out = subprocess.check_output(
+            ["hyprctl", "monitors", "-j"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        monitors = json.loads(out)
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        return load()
+
+    bases = load()
+    changed = False
+
+    # Sort by current Hyprland id so new monitors are assigned bases in a
+    # stable, deterministic order within a single sync call.
+    for mon in sorted(monitors, key=lambda m: m.get("id", 0)):
+        name = mon.get("name", "")
+        if not name or name in bases:
+            continue
+        bases[name] = next_free_base(bases)
+        changed = True
+
+    if changed:
+        save(bases)
+
+    return bases
+
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "sync":
+        bases = sync()
+    else:
+        bases = load()
+
+    for name, base in sorted(bases.items(), key=lambda x: x[1]):
+        print(f"{name} {base}")
+
+
+if __name__ == "__main__":
+    main()

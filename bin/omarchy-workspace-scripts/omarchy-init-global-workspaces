@@ -1,0 +1,43 @@
+#!/bin/bash
+# Initialize all global workspace slots on first activation.
+# Run once per session when global mode is first enabled.
+
+set -euo pipefail
+
+# Load monitor bases
+BASES_JSON="${HOME}/.local/state/omarchy/monitor-bases.json"
+if [[ ! -f "$BASES_JSON" ]]; then
+  exit 0
+fi
+
+declare -A bases
+while IFS=' ' read -r mon_name mon_base; do
+  [[ -n "$mon_name" ]] && bases["$mon_name"]="$mon_base"
+done < <(jq -r 'to_entries[] | "\(.key) \(.value)"' "$BASES_JSON" 2>/dev/null) || exit 0
+
+# Get connected monitors
+declare -A monitors
+while IFS=' ' read -r mon_name; do
+  monitors["$mon_name"]=1
+done < <(hyprctl monitors -j 2>/dev/null | jq -r '.[].name') || exit 0
+
+# For each monitor, create workspace slots 1-10 by dispatching focus
+# (Hyprland creates workspaces on first access)
+for mon_name in "${!monitors[@]}"; do
+  base="${bases[$mon_name]:-0}"
+  for slot in 1 2 3 4 5 6 7 8 9 10; do
+    ws_id=$((base + slot))
+    hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = '$ws_id' }))" >/dev/null 2>&1 || true
+    # Small delay between dispatches to let Hyprland keep up
+    sleep 0.02
+  done
+done
+
+# Return focus to ws 1
+hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = '1' }))" >/dev/null 2>&1
+
+# Mark that initialization is complete (so we don't run again)
+touch "${HOME}/.local/state/omarchy/toggles/hypr/.global-workspaces-initialized"
+
+# Refresh bars
+qs ipc call omarchy.workspaces refresh &>/dev/null &

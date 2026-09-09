@@ -1,0 +1,94 @@
+#!/bin/bash
+# omarchy:summary=Recover windows stranded after monitor disconnect
+#
+# When an external monitor disconnects, windows on its workspaces become
+# inaccessible. This script rescues them using modular arithmetic.
+#
+# For each orphaned workspace (on a now-absent monitor), we move its windows
+# to the same LOGICAL SLOT on an available monitor (preferring the laptop panel).
+#
+# Formula: slot = (ws_id - 1) % 10 + 1
+#   This gives the slot 1-10 from any workspace ID, without knowing the base.
+#
+# Related: isaac30503's comment on PR #10199, Issue #8
+
+set -euo pipefail
+
+BASES_JSON="${HOME}/.local/state/omarchy/monitor-bases.json"
+
+# Find an available "home" monitor to rescue to.
+# Try laptop panel first (eDP-1), then any available external monitor.
+find_home_monitor() {
+  local mons
+  mons=$(hyprctl monitors -j 2>/dev/null | jq -r '.[].name' || echo "")
+  
+  for preferred in eDP-1 HDMI-1 DP-1 DP-2 DP-3 DP-4; do
+    if echo "$mons" | grep -q "^$preferred$"; then
+      echo "$preferred"
+      return 0
+    fi
+  done
+  
+  # Fallback: just use the first available
+  echo "$mons" | head -1
+}
+
+# Parse monitor name → base
+declare -A bases
+if [[ -f "$BASES_JSON" ]]; then
+  while IFS=' ' read -r mon_name mon_base; do
+    [[ -n "$mon_name" ]] && bases["$mon_name"]="$mon_base"
+  done < <(jq -r 'to_entries[] | "\(.key) \(.value)"' "$BASES_JSON" 2>/dev/null) || true
+fi
+
+# Get currently connected monitors
+declare -A current_mons
+while IFS=' ' read -r mon_name; do
+  [[ -n "$mon_name" ]] && current_mons["$mon_name"]=1
+done < <(hyprctl monitors -j 2>/dev/null | jq -r '.[].name' || echo "") || true
+
+home_mon=$(find_home_monitor)
+if [[ -z "$home_mon" ]]; then
+  echo "Error: no connected monitors found" >&2
+  exit 1
+fi
+
+home_base="${bases[$home_mon]:-0}"
+echo "Rescuing windows stranded on disconnected monitors..."
+echo "  Target monitor: '$home_mon' (base = $home_base)"
+echo
+
+count_moved=0
+
+# List all workspaces, find those on disconnected monitors
+hyprctl workspaces -j 2>/dev/null | jq -r '.[] | select(.monitor != null) | "\(.id) \(.monitor.name)"' 2>/dev/null | while read -r ws_id mon_name; do
+  # Skip if this monitor is still connected
+  [[ -n "${current_mons[$mon_name]:-}" ]] && continue
+  
+  # This workspace is orphaned (monitor is gone)
+  # Calculate the slot without needing to know the disappeared monitor's base
+  slot=$(( (ws_id - 1) % 10 + 1 ))
+  target_ws=$(( home_base + slot ))
+  
+  echo "  WS $ws_id (monitor '$mon_name' gone) → moving windows to WS $target_ws (slot $slot)"
+  
+  # Move all windows from the orphaned workspace
+  hyprctl clients -j 2>/dev/null | jq -r ".[] | select(.workspace.id == $ws_id) | .address" 2>/dev/null | while read -r addr; do
+    [[ -z "$addr" ]] && continue
+    hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = '$target_ws', window = 'address:$addr', follow = false }))" \
+      >/dev/null 2>&1 || true
+    ((count_moved++)) || true
+  done
+done
+
+echo
+if [[ "$count_moved" -gt 0 ]]; then
+  echo "✓ Moved $count_moved window(s). Switch to monitor '$home_mon' to see them."
+else
+  echo "  No stranded windows found."
+fi
+
+# Refresh the bars to update occupancy indicators
+{ qs ipc call omarchy.workspaces refresh &>/dev/null; } &
+disown 2>/dev/null || true
+

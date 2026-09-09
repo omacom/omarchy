@@ -1,0 +1,25 @@
+#!/bin/bash
+# omarchy-switch-to-aw <slot 1-10>
+#
+# Switch to AW slot N, respecting the global/local toggle at runtime.
+#
+# GLOBAL MODE (workspace-global.lua flag present):
+#   Calls omarchy-hyprland-workspace-global-switch N.
+#   All monitors switch to their slot-N Hyprland workspace simultaneously.
+#
+# LOCAL MODE (flag absent):
+#   Focuses raw Hyprland workspace N on the current monitor only.
+
+SLOT="${1:-}"
+if [[ -z "$SLOT" || ! "$SLOT" =~ ^([1-9]|10)$ ]]; then
+  echo "Usage: $0 <slot 1-10>" >&2
+  exit 1
+fi
+
+GLOBAL_FLAG="$HOME/.local/state/omarchy/toggles/hypr/workspace-global.lua"
+
+if [[ -f "$GLOBAL_FLAG" ]]; then
+  exec omarchy-hyprland-workspace-global-switch "$SLOT"
+else
+  exec hyprctl dispatch workspace "$SLOT"
+fi

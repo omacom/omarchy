@@ -1,0 +1,28 @@
+#!/bin/bash
+# omarchy-move-window-to-aw <slot 1-10>
+#
+# Move the focused window to AW slot N, respecting the global/local toggle.
+#
+# GLOBAL MODE (workspace-global.lua flag present):
+#   Calls omarchy-hyprland-workspace-global-move-window N.
+#   That script reads the active window's monitor name, looks up its stable
+#   base, and silently moves the window to WS(base+N). The display does not
+#   change — press SUPER+N to follow the window to that slot.
+#
+# LOCAL MODE (flag absent):
+#   Moves the focused window to raw Hyprland workspace N on the current monitor,
+#   silently (no focus/display change), using hyprctl movetoworkspacesilent.
+
+SLOT="${1:-}"
+if [[ -z "$SLOT" || ! "$SLOT" =~ ^([1-9]|10)$ ]]; then
+  echo "Usage: $0 <slot 1-10>" >&2
+  exit 1
+fi
+
+GLOBAL_FLAG="$HOME/.local/state/omarchy/toggles/hypr/workspace-global.lua"
+
+if [[ -f "$GLOBAL_FLAG" ]]; then
+  exec omarchy-hyprland-workspace-global-move-window "$SLOT"
+else
+  exec hyprctl dispatch movetoworkspacesilent "$SLOT"
+fi
