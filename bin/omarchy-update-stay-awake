@@ -91,7 +91,10 @@ start() {
 
   if omarchy-cmd-present systemd-inhibit; then
     if (( EUID != 0 )); then
-      if [[ -t 0 ]]; then
+      if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+        sudo -n -v 2>/dev/null || true
+        inhibit_runner=(sudo -n)
+      elif [[ -t 0 ]]; then
         sudo -v
         inhibit_runner=(sudo)
       else
@@ -115,9 +118,19 @@ start() {
         sleep infinity >/dev/null 2>&1 &
     fi
     inhibit_pid=$!
-    inhibit_start_time=$(process_start_time "$inhibit_pid" 2>/dev/null || true)
-    if [[ -n $inhibit_start_time ]]; then
-      printf '%s %s\n' "$inhibit_pid" "$inhibit_start_time" >"$inhibit_pid_file"
+    sleep 0.2 || true
+    if ! kill -0 "$inhibit_pid" 2>/dev/null || [[ $(process_state "$inhibit_pid" 2>/dev/null || true) == "Z" ]]; then
+      wait "$inhibit_pid" 2>/dev/null || true
+      echo "Warning: sleep inhibitor failed to start; continuing without sleep inhibition." >&2
+      rm -f "$inhibit_pid_file"
+    else
+      inhibit_start_time=$(process_start_time "$inhibit_pid" 2>/dev/null || true)
+      if [[ -n $inhibit_start_time ]]; then
+        printf '%s %s\n' "$inhibit_pid" "$inhibit_start_time" >"$inhibit_pid_file"
+      else
+        echo "Warning: sleep inhibitor failed to start; continuing without sleep inhibition." >&2
+        rm -f "$inhibit_pid_file"
+      fi
     fi
   fi
 
