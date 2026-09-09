@@ -172,11 +172,10 @@ assert(
   'the lock screen stops playback once displays go dark or power-saver is active'
 )
 assert(
-  batteryService.includes('property string activePowerProfile') &&
-    batteryService.includes('UPower.onBattery && activePowerProfile === "power-saver"') &&
-    batteryService.includes('["powerprofilesctl", "get"]') &&
-    batteryService.includes('interval: 2000'),
-  'the battery service tracks the active power-saver profile'
+  batteryService.includes('UPower.onBattery && PowerProfiles.profile === PowerProfile.PowerSaver') &&
+    !batteryService.includes('powerprofilesctl') &&
+    !batteryService.includes('interval: 2000'),
+  'the battery service tracks native power-saver changes without spawning profile readers'
 )
 assert(
   themeSwitcher.includes("-iname '*.mp4'") &&
