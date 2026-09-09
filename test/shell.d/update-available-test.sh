@@ -9,7 +9,9 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
 git_log="$test_tmp/git.log"
+git_env_log="$test_tmp/git.env.log"
 mkdir -p "$stub_bin"
+: >"$git_env_log"
 
 cat >"$stub_bin/checkupdates" <<'SH'
 #!/bin/bash
@@ -63,6 +65,9 @@ shift 2
 
 case "$1" in
   fetch)
+    printf 'GIT_TERMINAL_PROMPT=%s\n' "${GIT_TERMINAL_PROMPT-<unset>}" >>"$TEST_GIT_ENV_LOG"
+    printf 'GIT_ASKPASS=%s\n' "${GIT_ASKPASS-<unset>}" >>"$TEST_GIT_ENV_LOG"
+    printf 'GIT_SSH_COMMAND=%s\n' "${GIT_SSH_COMMAND-<unset>}" >>"$TEST_GIT_ENV_LOG"
     [[ ${TEST_GIT_FETCH:-ok} == "ok" ]]
     ;;
   rev-parse)
@@ -93,6 +98,7 @@ chmod +x "$stub_bin/git"
 run_checker() {
   OMARCHY_PATH="${TEST_OMARCHY_PATH:-/usr/share/omarchy}" \
     TEST_GIT_LOG="$git_log" \
+    TEST_GIT_ENV_LOG="$git_env_log" \
     PATH="$stub_bin:$PATH" \
     "$ROOT/bin/omarchy-update-available"
 }
@@ -211,3 +217,89 @@ grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/n
   fail "update checker reports cached dev commits after a fetch failure" "$(cat "$stdout")"
 [[ ! -s $stderr ]] || fail "update checker keeps dev fetch failures quiet" "$(cat "$stderr")"
 pass "update checker uses cached dev state when fetching is unavailable"
+
+: >"$git_log"
+: >"$git_env_log"
+unset OMARCHY_UPDATE_UNATTENDED GIT_TERMINAL_PROMPT GIT_ASKPASS GIT_SSH_COMMAND || true
+if capture_checker "$stdout" "$stderr" \
+  TEST_CHECKUPDATES=none \
+  TEST_INSTALLED_PACKAGE=none \
+  TEST_OMARCHY_PATH="$test_tmp/checkout" \
+  TEST_GIT_BEHIND=0; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 1 ]] || fail "interactive fetch path exits 1 when current" "$status"
+grep -Fx -- "-C $test_tmp/checkout fetch --quiet" "$git_log" >/dev/null ||
+  fail "interactive fetch still runs" "$(cat "$git_log")"
+grep -Fx "GIT_TERMINAL_PROMPT=0" "$git_env_log" >/dev/null ||
+  fail "interactive fetch keeps inline GIT_TERMINAL_PROMPT=0" "$(cat "$git_env_log")"
+grep -Fx "GIT_ASKPASS=<unset>" "$git_env_log" >/dev/null ||
+  fail "interactive fetch exports no new GIT_ASKPASS" "$(cat "$git_env_log")"
+grep -Fx "GIT_SSH_COMMAND=<unset>" "$git_env_log" >/dev/null ||
+  fail "interactive fetch exports no new GIT_SSH_COMMAND" "$(cat "$git_env_log")"
+pass "interactive fetch unchanged"
+
+: >"$git_log"
+: >"$git_env_log"
+unset GIT_TERMINAL_PROMPT GIT_ASKPASS GIT_SSH_COMMAND || true
+if capture_checker "$stdout" "$stderr" \
+  TEST_CHECKUPDATES=none \
+  TEST_INSTALLED_PACKAGE=none \
+  TEST_OMARCHY_PATH="$test_tmp/checkout" \
+  TEST_GIT_BEHIND=2 \
+  OMARCHY_UPDATE_UNATTENDED=1; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 0 ]] || fail "unattended fetch reports dev commits" "$status"
+grep -Fx 'omarchy-dev-checkout 2 new commits on origin/quattro' "$stdout" >/dev/null ||
+  fail "unattended behind-count behavior unchanged" "$(cat "$stdout")"
+grep -Fx "GIT_TERMINAL_PROMPT=0" "$git_env_log" >/dev/null ||
+  fail "unattended fetch disables terminal prompts" "$(cat "$git_env_log")"
+grep -Fx "GIT_ASKPASS=" "$git_env_log" >/dev/null ||
+  fail "unattended fetch clears GIT_ASKPASS to fail closed" "$(cat "$git_env_log")"
+grep -F "GIT_SSH_COMMAND=" "$git_env_log" | grep -F -- "-oBatchMode=yes" >/dev/null ||
+  fail "unattended fetch forces SSH BatchMode" "$(cat "$git_env_log")"
+pass "unattended fetch exports nonprompting git transport env"
+
+: >"$git_log"
+: >"$git_env_log"
+unset GIT_TERMINAL_PROMPT GIT_ASKPASS || true
+if capture_checker "$stdout" "$stderr" \
+  TEST_CHECKUPDATES=none \
+  TEST_INSTALLED_PACKAGE=none \
+  TEST_OMARCHY_PATH="$test_tmp/checkout" \
+  TEST_GIT_BEHIND=2 \
+  OMARCHY_UPDATE_UNATTENDED=1 \
+  GIT_SSH_COMMAND=custom-ssh; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 0 ]] || fail "unattended custom-ssh fetch reports dev commits" "$status"
+grep -Fx "GIT_SSH_COMMAND=custom-ssh" "$git_env_log" >/dev/null ||
+  fail "explicit user GIT_SSH_COMMAND is preserved unattended" "$(cat "$git_env_log")"
+pass "unattended fetch preserves explicit user GIT_SSH_COMMAND"
+
+: >"$git_log"
+: >"$git_env_log"
+unset GIT_TERMINAL_PROMPT GIT_ASKPASS GIT_SSH_COMMAND || true
+if capture_checker "$stdout" "$stderr" \
+  TEST_CHECKUPDATES=none \
+  TEST_INSTALLED_PACKAGE=none \
+  TEST_OMARCHY_PATH="$test_tmp/checkout" \
+  TEST_GIT_BEHIND=1 \
+  TEST_GIT_FETCH=fail \
+  OMARCHY_UPDATE_UNATTENDED=1; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 0 ]] || fail "unattended fetch failure uses cached state" "$status"
+grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/null ||
+  fail "unattended fetch failure reports cached dev commits" "$(cat "$stdout")"
+[[ ! -s $stderr ]] || fail "unattended fetch failure stays quiet" "$(cat "$stderr")"
+pass "unattended fetch failure stays quiet with cached state"

@@ -9,6 +9,16 @@ updates=()
 if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
   upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
   if [[ -n $upstream ]]; then
+    if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+      # Unattended fetch must never prompt (terminal/askpass/SSH). GIT_ASKPASS=
+      # (empty) falls back to terminal prompts, which GIT_TERMINAL_PROMPT=0 disables,
+      # so auth failures fail closed. GIT_SSH_COMMAND env wins over core.sshCommand,
+      # so a custom sshCommand program is never executed unattended; an explicit
+      # GIT_SSH_COMMAND in the environment is preserved.
+      export GIT_TERMINAL_PROMPT=0
+      export GIT_ASKPASS=
+      export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
+    fi
     GIT_TERMINAL_PROMPT=0 timeout 10 git -C "$OMARCHY_PATH" fetch --quiet 2>/dev/null || true
 
     behind=$(git -C "$OMARCHY_PATH" rev-list --count "HEAD..$upstream" 2>/dev/null || echo 0)
