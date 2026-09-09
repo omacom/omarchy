@@ -37,9 +37,24 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 
 The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models.
 
+Keep an ethernet cable handy on the older models. The ISO carries no `b43` firmware, so the pre-2012 Macs have no wireless until the Broadcom driver is installed — see [Pre-2012 Intel Macs](#pre-2012-intel-macs) below.
+
 ### Known Limitations
 
 Members of the community are constantly working on solutions to these challenges so if these are problematic for you, join #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY) and see if there's any up-to-date methods for resolving these.
+
+#### Pre-2012 Intel Macs
+
+The 2006–2011 Intel Macs run Omarchy, but their graphics sit exactly at the edge of what Hyprland supports rather than comfortably inside it. Verified end to end on an iMac7,1 (2007, Core 2 Duo, Radeon HD 2400 XT), where Hyprland, Quickshell and the Omarchy shell all come up.
+
+- **Graphics work, with little headroom.** These machines have pre-GCN AMD GPUs (TeraScale and older) on the `radeon` driver, which tops out at OpenGL ES 3.0 — precisely Hyprland's floor since it dropped the legacy renderer in 0.50. Hyprland fails to create a GLES 3.2 context, falls back to 3.0, and runs normally from there. Blur, shadows and animations cost roughly 28% of GPU throughput on that iMac and it still holds 60 Hz at 1680x1050, so the shipped defaults are usable.
+- **No atomic modesetting.** The `radeon` driver has no atomic KMS. Aquamarine detects this and falls back to the legacy DRM interface on its own — no environment variables needed — and hardware cursors still work.
+- **No Vulkan.** RADV only drives GPUs bound to `amdgpu`. On these machines `vulkan-radeon` installs an ICD that never enumerates a device, so treat anything gated on Vulkan as unavailable.
+- **Night light does nothing.** `hyprsunset` applies its temperature as a colour transform matrix, and aquamarine submits a CTM only on the atomic path. The request is accepted and silently dropped: `hyprctl` reports success, the temperature reads back, and the panel never changes.
+- **Wi-Fi needs the Broadcom driver.** These models ship a BCM4321 (`14e4:4328`), which `broadcom-wl-dkms` covers. Install over ethernet, since the ISO has no `b43` firmware.
+- **RAM is the real ceiling, not the GPU.** The compositor and shell together sit at roughly 400 MB. On a 3 GB machine that leaves plenty for the desktop and not much for a modern browser.
+
+Full-disk encryption is worth a thought on these too: you cannot type the passphrase on a Bluetooth keyboard at boot, and Apple shipped one with most of these machines.
 
 #### Devices with T1 Chip
 
