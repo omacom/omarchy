@@ -36,9 +36,9 @@ English (US, Colemak)|colemak
 Azerbaijani|azerty
 Belarusian|by
 Belgian|be-latin1
-Bulgarian|bg-cp1251
+Bulgarian|bg_bds-utf8
 Croatian|croat
-Czech|cz
+Czech|cz-lat2
 Danish|dk-latin1
 Dutch|nl
 Estonian|et
@@ -48,7 +48,7 @@ French (Canada)|cf
 French (Switzerland)|fr_CH
 Georgian|ge
 German|de
-German (Switzerland)|de_CH-latin1
+German (Switzerland)|sg-latin1
 Greek|gr
 Hebrew|il
 Hungarian|hu
@@ -62,8 +62,8 @@ Lao|la-latin1
 Latvian|lv
 Lithuanian|lt
 Macedonian|mk-utf
-Norwegian|no-latin1
-Polish|pl
+Norwegian|no
+Polish|pl2
 Portuguese|pt-latin1
 Portuguese (Brazil)|br-abnt2
 Romanian|ro
@@ -76,7 +76,7 @@ Spanish (Latin American)|la-latin1
 Swedish|sv-latin1
 Tajik|tj_alt-UTF8
 Turkish|trq
-Ukrainian|ua'
+Ukrainian|ua-utf'
 
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
 OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
