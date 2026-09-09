@@ -8,6 +8,8 @@ omarchy_server_should_greet() {
   [[ -z ${TMUX-} ]] || return 1
   [[ -n ${TERM-} && ${TERM-} != "dumb" ]] || return 1
   case ${0##*/} in scp | sftp | rsync) return 1 ;; esac
+  # This rc file may arrive before the edition helper during an update.
+  command -v omarchy-edition >/dev/null 2>&1 || return 1
   omarchy-edition server
 }
 

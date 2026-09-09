@@ -1,6 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Open the Omarchy Server home menu
+# omarchy:group=server
+# omarchy:examples=omarchy server menu
 
 set -uo pipefail
 
@@ -10,7 +12,7 @@ if ! omarchy-edition server; then
 fi
 
 while true; do
-  choice=$(gum choose "Status" "Docker" "Services" "Update" "Logs" "Network" "Theme" "Shell") || exit 0
+  choice=$(gum choose "Status" "Docker" "Services" "Update" "Logs" "Network" "Shell") || exit 0
 
   case $choice in
   Status) btop ;;
@@ -27,10 +29,9 @@ while true; do
   Network)
     echo "hostname: $(hostname)"
     ip -br addr
-    sudo ufw status
+    printf '%s\n' "firewall: run omarchy setup security"
     read -r -p "Enter to return..."
     ;;
-  Theme) omarchy theme ;;
   "Shell" | "") exit 0 ;;
   esac
 done

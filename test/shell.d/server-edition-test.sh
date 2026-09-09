@@ -37,6 +37,10 @@ with tempfile.TemporaryDirectory() as directory:
     for predicate in ['desktop', 'server']:
       result = subprocess.run([bash, str(root / ('bin/omarchy-edition-' + predicate))], env=env, capture_output=True)
       check(result.returncode == (0 if value == predicate else 1) and not result.stdout, 'quiet predicate: ' + value + '/' + predicate)
+  for value in [' server\r\n', '\t desktop \r\n', '\n server \n']:
+    marker.write_text(value)
+    expected = value.strip()
+    check(edition().stdout == expected + '\n' and edition(expected).returncode == 0, 'edition trims surrounding whitespace: ' + repr(value))
   check(edition('invalid').returncode == 2, 'invalid argument exits 2')
   marker.write_text('server\n')
   menu = tmp / 'omarchy-server-menu'
@@ -71,9 +75,13 @@ with tempfile.TemporaryDirectory() as directory:
         if slave is not None:
           os.close(slave)
         os.close(master)
+      check(b'command not found' not in result.stderr, 'login hook does not invoke a missing helper')
       return b'GREETED' in output
     result = subprocess.run(args, executable=bash, env=child_env, capture_output=True, timeout=5)
     return b'GREETED' in result.stdout
+  helper.rename(tmp / 'saved-edition')
+  check(not greet(PATH=str(tmp)), 'half-updated login without edition helper is inert')
+  (tmp / 'saved-edition').rename(helper)
   check(greet(), 'interactive login with PTY greets')
   for options in [dict(interactive=False), dict(login=False), dict(terminal=False), dict(SSH_ORIGINAL_COMMAND='uptime'), dict(SSH_ORIGINAL_COMMAND=''), dict(TMUX='/tmp/tmux'), dict(TERM='dumb'), dict(name='scp'), dict(name='sftp'), dict(name='rsync')]:
     check(not greet(**options), 'greeting guard: ' + str(options))
@@ -87,7 +95,32 @@ with tempfile.TemporaryDirectory() as directory:
     (tmp / name).chmod(0o755)
   result = subprocess.run([bash, str(root / 'bin/omarchy-server-menu')], env=dict(env, SERVER_TEST_STATE=str(tmp / 'state')), capture_output=True, text=True, timeout=5)
   check(result.returncode == 0 and 'STATUS_DOOR' in result.stdout, 'failed door returns to menu and Shell returns to caller')
+  (tmp / 'gum').write_text('#!/bin/bash\nprintf "%s\\n" "$@" >"$SERVER_TEST_CHOICES"\nif [[ ! -e $SERVER_TEST_STATE ]]; then\n  touch "$SERVER_TEST_STATE"\n  echo Network\nelse\n  echo Shell\nfi\n')
+  (tmp / 'ip').write_text('#!/bin/bash\necho INTERFACES\n')
+  (tmp / 'sudo').write_text('#!/bin/bash\necho UNEXPECTED_SUDO >&2\nexit 1\n')
+  for name in ['ip', 'sudo']:
+    (tmp / name).chmod(0o755)
+  choices = tmp / 'choices'
+  result = subprocess.run([bash, str(root / 'bin/omarchy-server-menu')], env=dict(env, SERVER_TEST_STATE=str(tmp / 'network-state'), SERVER_TEST_CHOICES=str(choices)), input='\n', capture_output=True, text=True, timeout=5)
+  check(result.returncode == 0 and 'INTERFACES' in result.stdout and 'firewall: run omarchy setup security' in result.stdout and 'UNEXPECTED_SUDO' not in result.stderr, 'Network provides guidance without requesting privilege')
+  check('Theme' not in choices.read_text().splitlines(), 'menu hides Theme until the terminal bridge exists')
   (tmp / 'gum').write_text('#!/bin/bash\nexit 130\n')
   result = subprocess.run([bash, str(root / 'bin/omarchy-server-menu')], env=env, capture_output=True, timeout=5)
   check(result.returncode == 0, 'menu cancellation returns to shell')
 PY
+
+python3 - <<'PY_PACKAGES'
+import os
+from pathlib import Path
+root = Path(os.environ['ROOT'])
+def packages(path):
+  return {line for line in path.read_text().splitlines() if line and not line.startswith('#')}
+base = packages(root / 'install/omarchy-base.packages')
+path = root / 'install/omarchy-server.packages'
+server = packages(path)
+dropped = {line.removeprefix('# dropped: ') for line in path.read_text().splitlines() if line.startswith('# dropped: ')}
+assert server - base == {'openssh'}, 'only openssh is a server-only addition'
+assert not server & dropped, 'a package cannot be both retained and dropped'
+assert base == (server - {'openssh'}) | dropped, 'every base package needs a retain/drop decision'
+print('ok - server package subtraction accounts for every base package')
+PY_PACKAGES

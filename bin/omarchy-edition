@@ -12,6 +12,8 @@ edition=desktop
 
 if [[ -r $edition_file ]]; then
   edition=$(<"$edition_file")
+  edition=${edition#"${edition%%[![:space:]]*}"}
+  edition=${edition%"${edition##*[![:space:]]}"}
 fi
 
 case ${1-} in
