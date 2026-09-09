@@ -145,3 +145,105 @@ pass "the install share watcher outlives the terminal install ran in"
   [[ -e $test_home/elevated ]] || fail "priv did not reach pkexec with a matching privileged copy"
 )
 pass "elevation refuses a mismatched privileged copy and accepts an identical one"
+
+# Domain settings validation, shared by the wizard prompts and the privileged
+# writer. Pure functions, so no runtime or mount setup is involved.
+(
+  set -- help
+  source "$windows_vm_command" >/dev/null
+
+  valid_domain corp.example.com || fail "valid_domain rejected an FQDN"
+  valid_domain a.co || fail "valid_domain rejected a two-label FQDN"
+  valid_domain "a-1.b-2.corp.example.com" || fail "valid_domain rejected hyphenated labels"
+  valid_domain not_a_domain && fail "valid_domain accepted an underscore"
+  valid_domain nodot && fail "valid_domain accepted a single label"
+  valid_domain "-bad.com" && fail "valid_domain accepted a leading hyphen"
+  valid_domain "bad-.com" && fail "valid_domain accepted a trailing label hyphen"
+  valid_domain "a..com" && fail "valid_domain accepted an empty label"
+  valid_domain "-.com" && fail "valid_domain accepted a hyphen-only label"
+  long_domain=$(printf 'a%.0s' {1..63})
+  valid_domain "$long_domain.$long_domain.$long_domain.$long_domain.$long_domain" &&
+    fail "valid_domain accepted a name over 255 characters"
+
+  valid_username 'john.doe' || fail "valid_username rejected a period"
+  valid_username 'a.b-c_d' || fail "valid_username rejected mixed separators"
+  valid_username 'john.doe.' && fail "valid_username accepted a trailing period"
+  valid_username '...' && fail "valid_username accepted an all-period name"
+  valid_username '.' && fail "valid_username accepted a lone period"
+  valid_username 'a b' && fail "valid_username accepted a space"
+  valid_username 'john.doe@x' && fail "valid_username accepted an at sign"
+  long_local=$(printf 'a%.0s' {1..21})
+  valid_username "$long_local" && fail "valid_username accepted more than 20 characters"
+
+  valid_ou 'OU=Computers,DC=corp,DC=example,DC=com' || fail "valid_ou rejected a standard DN"
+  valid_ou 'OU=C"omp\,DC=x,$DC=y' || fail "valid_ou rejected escapable characters"
+  valid_ou 'OU=X;drop' && fail "valid_ou accepted a semicolon"
+  valid_ou $'OU=X\ndrop' && fail "valid_ou accepted a newline"
+
+  valid_join_account 'admin@corp.example.com' || fail "valid_join_account rejected a UPN"
+  valid_join_account 'john.doe@corp.example.com' || fail "valid_join_account rejected a dotted UPN"
+  valid_join_account 'jane.roe.smith@corp.example.com' || fail "valid_join_account rejected a long dotted UPN"
+  long_upn=$(printf 'a%.0s' {1..256})
+  valid_join_account "$long_upn@corp.example.com" || fail "valid_join_account rejected a 256-character domain account"
+  long_upn=$(printf 'a%.0s' {1..257})
+  valid_join_account "$long_upn@corp.example.com" && fail "valid_join_account accepted more than 256 characters"
+  valid_join_account 'jdoe' || fail "valid_join_account rejected a bare name"
+  valid_join_account 'john.doe' || fail "valid_join_account rejected a dotted bare name"
+  valid_join_account 'corp\admin' && fail "valid_join_account accepted the backslash form"
+  valid_join_account 'admin@nodot' && fail "valid_join_account accepted a single-label UPN suffix"
+  valid_join_account 'admin@' && fail "valid_join_account accepted an empty UPN suffix"
+  valid_join_account 'john.doe.@corp.example.com' && fail "valid_join_account accepted a trailing period"
+  valid_join_account 'john.doe@corp.example' || fail "valid_join_account rejected a two-label domain"
+
+  valid_rdp_username 'alice' || fail "valid_rdp_username rejected a bare name"
+  valid_rdp_username 'alice@corp.example.com' || fail "valid_rdp_username rejected a UPN"
+  valid_rdp_username 'CORP\alice' || fail "valid_rdp_username rejected the NetBIOS form"
+  valid_rdp_username 'CORP\john.doe' || fail "valid_rdp_username rejected a dotted NetBIOS name"
+  valid_rdp_username '\alice' && fail "valid_rdp_username accepted an empty NetBIOS domain"
+  valid_rdp_username 'CORP\' && fail "valid_rdp_username accepted an empty NetBIOS user"
+  valid_rdp_username 'alice' || fail "valid_rdp_username rejected a bare name"
+)
+pass "domain, OU, join account, and RDP username validation is strict"
+
+# The Kerberos config handed to FreeRDP follows the VM's domain state: a
+# realm-less stub for local accounts (NTLM straight through), and a
+# DNS-discovering realm for a domain join.
+(
+  test_home=$(mktemp -d)
+  trap 'rm -rf "$test_home"' EXIT
+  set -- help
+  source "$windows_vm_command" >/dev/null
+  conf="$test_home/windows/krb5.conf"
+
+  write_krb5_conf "$conf" "" || fail "write_krb5_conf failed without a domain"
+  grep -q 'dns_lookup_kdc = false' "$conf" || fail "local krb5 config must not look for a KDC"
+  grep -q 'default_realm' "$conf" && fail "local krb5 config must not set a realm"
+
+  write_krb5_conf "$conf" "cs.local" || fail "write_krb5_conf failed with a domain"
+  grep -q 'default_realm = CS.LOCAL' "$conf" || fail "domain krb5 config must set the realm"
+  grep -q 'dns_lookup_kdc = true' "$conf" || fail "domain krb5 config must discover the KDC over DNS"
+  grep -qF '  .cs.local = CS.LOCAL' "$conf" || fail "domain krb5 config must map the domain"
+  grep -q 'rdns = false' "$conf" || fail "domain krb5 config must skip reverse lookups"
+  grep -q 'udp_preference_limit = 0' "$conf" || fail "domain krb5 config must force TCP"
+)
+pass "the Kerberos config follows the VM's domain state"
+
+# RDP credentials keep the domain so the launcher can build that config even
+# when the root-owned compose is unreadable.
+(
+  test_home=$(mktemp -d)
+  trap 'rm -rf "$test_home"' EXIT
+  set -- help
+  source "$windows_vm_command" >/dev/null
+  CREDENTIALS_FILE="$test_home/credentials"
+
+  write_credentials 'first.last@cs.local' 'pw' 'cs.local' || fail "write_credentials rejected a domain"
+  [[ $(read_credential DOMAIN) == cs.local ]] || fail "credentials did not keep the domain"
+  [[ $(read_credential USERNAME) == first.last@cs.local ]] || fail "credentials lost the username"
+  write_credentials 'alice' 'pw' '' || fail "write_credentials rejected an empty domain"
+  [[ -z $(read_credential DOMAIN) ]] || fail "credentials kept a stale domain"
+  write_credentials 'alice' 'pw2' || fail "write_credentials without a domain argument failed"
+  [[ $(read_credential PASSWORD) == pw2 && -z $(read_credential DOMAIN) ]] ||
+    fail "credentials round-trip broke without a domain argument"
+)
+pass "RDP credentials carry the domain for Kerberos configuration"

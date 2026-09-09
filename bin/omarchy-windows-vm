@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install, launch, stop, inspect, or remove the Windows VM
-# omarchy:args=<install|remove|launch|stop|status> [options]
+# omarchy:args=<install|remove|launch|stop|status|credentials> [options]
 # omarchy:requires-sudo=true
 
 # The Windows VM runs a privileged container (KVM, /dev/net/tun, NET_ADMIN), so
@@ -158,9 +158,72 @@ with_vm_lock() {
 valid_ram() { [[ $1 =~ ^[0-9]{1,3}G$ ]]; }
 valid_cores() { [[ $1 =~ ^[0-9]{1,2}$ ]] && ((10#$1 >= 1)); }
 valid_disk() { [[ $1 =~ ^[0-9]{1,4}G$ ]]; }
-valid_username() { [[ $1 =~ ^[A-Za-z0-9_-]{1,20}$ ]]; }
+# Windows allows periods inside account names (john.doe), but not a trailing
+# one, and never a name made only of periods. The 20-character cap is what
+# Windows itself enforces for local accounts and sAMAccountNames.
+valid_username() {
+  [[ $1 =~ ^[A-Za-z0-9_.-]{1,20}$ ]] || return 1
+  [[ $1 != *"." ]] || return 1
+  ! [[ $1 =~ ^\.+$ ]]
+}
 valid_tz() { [[ $1 =~ ^[A-Za-z0-9_/.+-]{1,64}$ ]]; }
 valid_password() { [[ $1 =~ ^[[:print:]]{1,64}$ ]]; }
+# The guest-side command dockur runs at the end of an automatic installation.
+valid_command() { [[ $1 =~ ^[[:print:]]{1,512}$ ]]; }
+
+# An AD domain as an FQDN (corp.example.com). Regexes are kept in quoted
+# variables: an unquoted bracket expression makes bash word-split the pattern.
+valid_domain() {
+  local label='[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+  local re="^${label}(\.${label}){1,7}$"
+  [[ ${#1} -le 255 && $1 =~ $re ]]
+}
+
+# An organizational unit distinguished name, e.g.
+# OU=Computers,DC=corp,DC=example,DC=com. Escaped characters (backslash), the
+# enclosing quotes the compose needs, and interpolation specials ($, because
+# docker compose rewrites $$) are accepted here and escaped by the writer.
+valid_ou() {
+  local re='^[A-Za-z0-9=,+."_\\$ /()-]{1,255}$'
+  [[ $1 =~ $re ]]
+}
+
+# A domain join account: a bare sAMAccountName or a UPN (user@domain). The
+# backslash form is deliberately rejected -- unattended setup stores the domain
+# separately from the credential username, matching dockur's own check. A UPN
+# user part is a domain account, which Windows caps at 256 characters rather
+# than the 20-character sAMAccountName limit.
+valid_join_account() {
+  local account="$1" qualifier="" re='^[A-Za-z0-9_.-]{1,256}$'
+  if [[ $1 == *@* ]]; then
+    account="${1%%@*}"
+    qualifier="${1#*@}"
+    valid_domain "$qualifier" || return 1
+    [[ $account =~ $re && $account != *"." ]] || return 1
+    return 0
+  fi
+  valid_username "$account"
+}
+
+# What launch hands FreeRDP: a bare local name, DOMAIN\user (NetBIOS form),
+# or user@domain. Accepting more than the join account is intentional -- the
+# credentials subcommand may target a local VM or a NetBIOS domain.
+valid_rdp_username() {
+  local re='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
+  case $1 in
+  *@*)
+    valid_join_account "$1"
+    ;;
+  *\\*)
+    local domain="${1%%\\*}" user="${1#*\\}"
+    [[ -n $domain && -n $user ]] || return 1
+    valid_username "$user" && [[ $domain =~ $re ]]
+    ;;
+  *)
+    valid_username "$1"
+    ;;
+  esac
+}
 
 # The only privileged sub-actions __priv may dispatch. A bash command name
 # containing a slash is executed as a path, so validating the action here — not
@@ -788,7 +851,8 @@ rollback_new_caller_mounts() {
 
 write_compose_atomically() (
   local ram="$1" cores="$2" disk="$3" username="$4" password="$5" tz="$6"
-  local tmp="" rc esc_password
+  local domain="$7" ou="$8" autologin="$9" guest_command="${10}"
+  local tmp="" rc esc_password esc_ou esc_command env_extras=""
   cleanup_writer() {
     rc=$?
     trap - EXIT
@@ -808,6 +872,34 @@ write_compose_atomically() (
   esc_password=${password//\\/\\\\}
   esc_password=${esc_password//\"/\\\"}
   esc_password=${esc_password//\$/\$\$}
+  # The OU goes through the same escaping: distinguished names may contain
+  # escaped characters, quotes, and $.
+  esc_ou=${ou//\\/\\\\}
+  esc_ou=${esc_ou//\"/\\\"}
+  esc_ou=${esc_ou//\$/\$\$}
+  # The guest-side command goes through the same escaping: it is an arbitrary
+  # printable string that must reach the container environment verbatim.
+  esc_command=${guest_command//\\/\\\\}
+  esc_command=${esc_command//\"/\\\"}
+  esc_command=${esc_command//\$/\$\$}
+
+  # Optional settings, pre-built so the heredoc below keeps a fixed shape.
+  # Empty for a default local install, leaving the compose byte-identical to
+  # the previous output. A domain triggers the unattended join (no local
+  # account exists, so a console autologin could not work); AUTOLOGIN="N" can
+  # also be requested on its own to drop the local console autologin.
+  if [[ -n $domain ]]; then
+    env_extras='      DOMAIN: "'"$domain"'"'$'\n'
+    if [[ -n $ou ]]; then
+      env_extras+='      DOMAIN_OU: "'"$esc_ou"'"'$'\n'
+    fi
+  fi
+  if [[ $autologin == "N" ]]; then
+    env_extras+='      AUTOLOGIN: "N"'$'\n'
+  fi
+  if [[ -n $guest_command ]]; then
+    env_extras+='      COMMAND: "'"$esc_command"'"'$'\n'
+  fi
 
   tmp=$(mktemp "$RUNTIME_DIR/.compose.XXXXXX") || exit 1
   # omarchy:heredoc-expands paths=EXPECTED_STORAGE,EXPECTED_SHARED -- both are
@@ -827,7 +919,7 @@ services:
       USERNAME: "$username"
       PASSWORD: "$esc_password"
       PROTECT: "Y"
-      TZ: "$tz"
+${env_extras}      TZ: "$tz"
       ARGUMENTS: "-rtc base=localtime,clock=host,driftfix=slew"
     devices:
       - /dev/kvm
@@ -857,9 +949,12 @@ EOF
 # compose atomically as root. Re-validation here is the security boundary: the
 # writer refuses rather than emit a compose an attacker could have influenced.
 # Only these fixed keys are honored; image, container name, devices, caps, and
-# port bindings are hard-coded and never taken from input.
+# port bindings are hard-coded and never taken from input. DOMAIN, DOMAIN_OU
+# and AUTOLOGIN are optional domain-join settings; when DOMAIN is set the
+# username/password pair becomes the unattended join credential, mirroring the
+# semantics of the underlying dockur/windows image.
 __priv_write_compose() {
-  local ram cores disk username password tz key value
+  local ram="" cores="" disk="" username="" password="" tz="" domain="" ou="" autologin="" guest_command="" key value
 
   while IFS='=' read -r key value; do
     case "$key" in
@@ -869,19 +964,56 @@ __priv_write_compose() {
     USERNAME) username="$value" ;;
     PASSWORD) password="$value" ;;
     TZ) tz="$value" ;;
+    DOMAIN) domain="$value" ;;
+    DOMAIN_OU) ou="$value" ;;
+    AUTOLOGIN) autologin="$value" ;;
+    COMMAND) guest_command="$value" ;;
     esac
   done
 
   valid_ram "$ram" || { echo "invalid RAM: $ram" >&2; exit 2; }
   valid_cores "$cores" || { echo "invalid CPU cores: $cores" >&2; exit 2; }
   valid_disk "$disk" || { echo "invalid disk size: $disk" >&2; exit 2; }
-  valid_username "$username" || { echo "invalid username: $username" >&2; exit 2; }
   valid_password "$password" || { echo "invalid password" >&2; exit 2; }
   valid_tz "$tz" || tz="UTC"
+  [[ -z $guest_command ]] || valid_command "$guest_command" || {
+    echo "invalid COMMAND" >&2
+    exit 2
+  }
+  [[ -z $autologin || $autologin == "N" ]] || {
+    echo "invalid AUTOLOGIN: $autologin (only N is supported)" >&2
+    exit 2
+  }
+
+  if [[ -n $domain ]]; then
+    valid_domain "$domain" || { echo "invalid domain: $domain" >&2; exit 2; }
+    valid_join_account "$username" || {
+      echo "invalid domain join account: $username" >&2
+      exit 2
+    }
+    [[ $username != "docker" ]] || {
+      echo "the join account must not stay at its default value when joining a domain" >&2
+      exit 2
+    }
+    [[ $password != "admin" ]] || {
+      echo "the join password must not stay at its default value when joining a domain" >&2
+      exit 2
+    }
+    if [[ $username == *@* && ${username#*@} != "${domain,,}" ]]; then
+      echo "the domain in the join account must match DOMAIN: $domain" >&2
+      exit 2
+    fi
+    [[ -z $ou ]] || valid_ou "$ou" || { echo "invalid OU: $ou" >&2; exit 2; }
+  else
+    valid_username "$username" || { echo "invalid username: $username" >&2; exit 2; }
+    [[ -z $ou ]] || { echo "DOMAIN_OU requires DOMAIN" >&2; exit 2; }
+  fi
+
   prepare_caller_mounts || exit 2
   # Readable by root and the docker group only. Any failure after mounting rolls
   # back just the binds this writer created and leaves an old compose untouched.
-  write_compose_atomically "$ram" "$cores" "$disk" "$username" "$password" "$tz" || exit 2
+  write_compose_atomically "$ram" "$cores" "$disk" "$username" "$password" "$tz" \
+    "$domain" "$ou" "$autologin" "$guest_command" || exit 2
 }
 
 # Read the host source of a bind mount out of the compose (e.g. /storage).
@@ -1173,12 +1305,30 @@ available_storage_gb() {
   df -P -- "$path" | awk 'NR==2 {print int($4/1024/1024)}'
 }
 
-# Feed the collected settings to the elevated writer.
+# Feed the collected settings to the elevated writer. The domain settings are
+# optional: DOMAIN (empty for a local-account install), DOMAIN_OU (only sent
+# with a domain) and AUTOLOGIN (only "N", to drop the console autologin).
+# COMMAND is an optional guest-side command dockur runs at the end of the
+# automatic installation (used to grant the login user RDP access).
 write_compose() {
   local ram="$1" cores="$2" disk="$3" username="$4" password="$5" tz="$6"
-  printf 'RAM=%s\nCORES=%s\nDISK=%s\nUSERNAME=%s\nPASSWORD=%s\nTZ=%s\n' \
-    "$ram" "$cores" "$disk" "$username" "$password" "$tz" |
-    priv write_compose
+  local domain="${7:-}" ou="${8:-}" autologin="${9:-}" guest_command="${10:-}"
+  local settings="RAM=$ram
+CORES=$cores
+DISK=$disk
+USERNAME=$username
+PASSWORD=$password
+TZ=$tz
+"
+  [[ -n $domain ]] && settings+="DOMAIN=$domain
+"
+  [[ -n $ou ]] && settings+="DOMAIN_OU=$ou
+"
+  [[ -n $autologin ]] && settings+="AUTOLOGIN=$autologin
+"
+  [[ -n $guest_command ]] && settings+="COMMAND=$guest_command
+"
+  printf '%s' "$settings" | priv write_compose
 }
 
 # Reverse, in the opposite order, the escaping __priv_write_compose applied to
@@ -1194,16 +1344,18 @@ unescape() {
 
 # Store the RDP credentials privately for the user (0600) so the plaintext
 # password is not world-readable. The password is one validated printable line
-# (no newline), so plain KEY=VALUE is safe.
+# (no newline), so plain KEY=VALUE is safe. The optional domain records what
+# launch needs for its Kerberos config without depending on the root-owned
+# compose being readable.
 write_credentials() {
-  local username="$1" password="$2" old_umask dir tmp
+  local username="$1" password="$2" domain="${3:-}" old_umask dir tmp
   dir=$(dirname -- "$CREDENTIALS_FILE")
   mkdir -p "$dir" || return 1
   chmod_private_dir "$dir" || return 1
   old_umask=$(umask)
   umask 077
   tmp=$(mktemp "$dir/.credentials.XXXXXX") || { umask "$old_umask"; return 1; }
-  if ! printf 'USERNAME=%s\nPASSWORD=%s\n' "$username" "$password" >"$tmp" ||
+  if ! printf 'USERNAME=%s\nPASSWORD=%s\nDOMAIN=%s\n' "$username" "$password" "$domain" >"$tmp" ||
     ! chmod 0600 "$tmp" || ! mv -fT -- "$tmp" "$CREDENTIALS_FILE"; then
     rm -f -- "$tmp"
     umask "$old_umask"
@@ -1224,6 +1376,42 @@ read_credential() {
     }
   done <"$CREDENTIALS_FILE"
   return 1
+}
+
+# Build the Kerberos config FreeRDP is pointed at through KRB5_CONFIG. FreeRDP
+# 3 tries Kerberos before NTLM for NLA. A local account has no realm, so a
+# realm-less config falls straight through to NTLM; a domain-joined VM must
+# instead locate its domain controllers, which MIT krb5 does over DNS SRV
+# records once dns_lookup_kdc is on -- the same discovery a Windows client
+# performs. Rewritten on every launch so it always matches the VM's domain
+# state (and never the /etc/krb5.conf MIT sample that ships with krb5).
+write_krb5_conf() {
+  local file="$1" domain="$2" realm=""
+  mkdir -p "$(dirname -- "$file")"
+  if [[ -z $domain ]]; then
+    printf '[libdefaults]\n  dns_lookup_kdc = false\n  dns_lookup_realm = false\n' >"$file"
+    return 0
+  fi
+  realm=$(printf '%s' "$domain" | tr '[:lower:]' '[:upper:]')
+  {
+    printf '[libdefaults]\n'
+    printf '  default_realm = %s\n' "$realm"
+    printf '  dns_lookup_kdc = true\n'
+    printf '  dns_lookup_realm = false\n'
+    # Modern MIT krb5 validates that an AS reply echoes the requested client
+    # name; AD canonicalizes UPNs to the account form, so ask for
+    # canonicalization or the reply is discarded ("KDC reply did not match
+    # expectations") even though the password was accepted.
+    printf '  canonicalize = true\n'
+    # AD deployments do not publish PTR records for every DC; without this,
+    # MIT krb5 can refuse a KDC whose reverse lookup does not round-trip.
+    printf '  rdns = false\n'
+    # Kerberos over UDP times out behind some firewalls; 0 forces TCP.
+    printf '  udp_preference_limit = 0\n'
+    printf '\n[domain_realm]\n'
+    printf '  .%s = %s\n' "$domain" "$realm"
+    printf '  %s = %s\n' "$domain" "$realm"
+  } >"$file"
 }
 
 read_compose_value() {
@@ -1251,10 +1439,11 @@ migrate_legacy_compose() {
     echo "Could not validate the existing Windows VM data directories." >&2
     return 1
   }
-  write_credentials "$username" "$password" || return 1
+  write_credentials "$username" "$password" "" || return 1
   # The elevated writer derives both mount anchors from the authenticated uid;
-  # it never consumes volume paths from this user-owned legacy file.
-  if ! write_compose "$ram" "$cores" "$disk" "$username" "$password" "$tz"; then
+  # it never consumes volume paths from this user-owned legacy file. Legacy
+  # composes predate domain support, so no join settings are carried over.
+  if ! write_compose "$ram" "$cores" "$disk" "$username" "$password" "$tz" "" "" "" ""; then
     echo "Could not migrate the existing configuration automatically." >&2
     echo "Re-run: omarchy-windows-vm install" >&2
     return 1
@@ -1399,30 +1588,148 @@ EOF
   # Re-check prerequisites with selected disk size
   check_prerequisites "$DISK_SIZE_NUM"
 
-  # Prompt for username and password
-  USERNAME=$(gum input --placeholder="Username (Press enter to use default: docker)" --header="Enter Windows username:")
-  if [[ -z $USERNAME ]]; then
-    USERNAME="docker"
-  fi
-  if ! valid_username "$USERNAME"; then
-    echo "Invalid username (use letters, digits, - or _, up to 20 chars). Using default: docker"
-    USERNAME="docker"
-  fi
+  # Domain join is optional. When a domain is set, the underlying image performs
+  # an unattended join during installation: the username/password pair becomes
+  # the join credential, no local account is created, and the console autologin
+  # is dropped. The RDP login user is stored separately in the private
+  # credentials file.
+  DOMAIN="" DOMAIN_OU="" AUTOLOGIN="" RDP_USER="" RDP_PASS=""
+  if gum confirm "Join a Windows domain?"; then
+    DOMAIN=$(gum input --placeholder="corp.example.com" --header="Enter the Active Directory domain to join (FQDN):")
+    if [[ -z $DOMAIN ]]; then
+      echo "Installation cancelled by user"
+      exit 1
+    fi
+    while ! valid_domain "$DOMAIN"; do
+      echo "Invalid domain (use an FQDN like corp.example.com)"
+      DOMAIN=$(gum input --placeholder="corp.example.com" --header="Enter the Active Directory domain to join (FQDN):")
+      if [[ -z $DOMAIN ]]; then
+        echo "Installation cancelled by user"
+        exit 1
+      fi
+    done
 
-  PASSWORD=$(gum input --placeholder="Password (Press enter to use default: admin)" --password --header="Enter Windows password:")
-  if [[ -z $PASSWORD ]]; then
-    PASSWORD="admin"
-    PASSWORD_DISPLAY="(default)"
+    DOMAIN_OU=$(gum input --placeholder="Optional, press enter to skip: OU=Computers,DC=corp,DC=example,DC=com" --header="Organizational unit for the computer account:")
+    while [[ -n $DOMAIN_OU ]] && ! valid_ou "$DOMAIN_OU"; do
+      echo "Invalid OU (distinguished name like OU=Computers,DC=corp,DC=example,DC=com)"
+      DOMAIN_OU=$(gum input --placeholder="Optional, press enter to skip: OU=Computers,DC=corp,DC=example,DC=com" --header="Organizational unit for the computer account:")
+    done
+
+    echo "The join account needs rights to create computer objects in the domain."
+    USERNAME=$(gum input --placeholder="admin@$DOMAIN" --header="Domain account used to join the domain:")
+    if [[ -z $USERNAME ]]; then
+      echo "Installation cancelled by user"
+      exit 1
+    fi
+    while ! valid_join_account "$USERNAME" ||
+      [[ $USERNAME == "docker" ]] ||
+      [[ $USERNAME == *@* && ${USERNAME#*@} != "${DOMAIN,,}" ]]; do
+      echo "Invalid join account (bare name or user@$DOMAIN, not the default)"
+      USERNAME=$(gum input --placeholder="admin@$DOMAIN" --header="Domain account used to join the domain:")
+      if [[ -z $USERNAME ]]; then
+        echo "Installation cancelled by user"
+        exit 1
+      fi
+    done
+
+    PASSWORD=$(gum input --password --header="Password for the join account:")
+    if [[ -z $PASSWORD ]]; then
+      echo "Installation cancelled by user"
+      exit 1
+    fi
+    while ! valid_password "$PASSWORD" || [[ $PASSWORD == "admin" ]]; do
+      echo "Invalid password (printable characters, up to 64, not the default)"
+      PASSWORD=$(gum input --password --header="Password for the join account:")
+      if [[ -z $PASSWORD ]]; then
+        echo "Installation cancelled by user"
+        exit 1
+      fi
+    done
+
+    echo "The domain user to sign in with over RDP (join account is not reused)."
+    RDP_USER=$(gum input --placeholder="yourname@$DOMAIN" --header="Domain user to log in with:")
+    if [[ -z $RDP_USER ]]; then
+      echo "Installation cancelled by user"
+      exit 1
+    fi
+    while ! valid_join_account "$RDP_USER" || [[ $RDP_USER == "docker" ]]; do
+      echo "Invalid user (bare name or user@$DOMAIN)"
+      RDP_USER=$(gum input --placeholder="yourname@$DOMAIN" --header="Domain user to log in with:")
+      if [[ -z $RDP_USER ]]; then
+        echo "Installation cancelled by user"
+        exit 1
+      fi
+    done
+    # FreeRDP authenticates a bare name against the local machine, so qualify
+    # it with the domain for the RDP session.
+    [[ $RDP_USER == *@* ]] || RDP_USER="$RDP_USER@$DOMAIN"
+
+    RDP_PASS=$(gum input --password --header="Password for $RDP_USER:")
+    if [[ -z $RDP_PASS ]]; then
+      echo "Installation cancelled by user"
+      exit 1
+    fi
+    while ! valid_password "$RDP_PASS"; do
+      echo "Invalid password (printable characters, up to 64)"
+      RDP_PASS=$(gum input --password --header="Password for $RDP_USER:")
+      if [[ -z $RDP_PASS ]]; then
+        echo "Installation cancelled by user"
+        exit 1
+      fi
+    done
+
+    PASSWORD_DISPLAY="(join account)"
+    AUTOLOGIN="N"
   else
-    PASSWORD_DISPLAY="(user-defined)"
-  fi
-  if ! valid_password "$PASSWORD"; then
-    echo "Invalid password (printable characters, up to 64). Using default: admin"
-    PASSWORD="admin"
-    PASSWORD_DISPLAY="(default)"
+    # Prompt for username and password
+    USERNAME=$(gum input --placeholder="Username (Press enter to use default: docker)" --header="Enter Windows username:")
+    if [[ -z $USERNAME ]]; then
+      USERNAME="docker"
+    fi
+    if ! valid_username "$USERNAME"; then
+      echo "Invalid username (letters, digits, . - or _, up to 20 chars, no trailing dot). Using default: docker"
+      USERNAME="docker"
+    fi
+
+    PASSWORD=$(gum input --placeholder="Password (Press enter to use default: admin)" --password --header="Enter Windows password:")
+    if [[ -z $PASSWORD ]]; then
+      PASSWORD="admin"
+      PASSWORD_DISPLAY="(default)"
+    else
+      PASSWORD_DISPLAY="(user-defined)"
+    fi
+    if ! valid_password "$PASSWORD"; then
+      echo "Invalid password (printable characters, up to 64). Using default: admin"
+      PASSWORD="admin"
+      PASSWORD_DISPLAY="(default)"
+    fi
+
+    RDP_USER=$USERNAME
+    RDP_PASS=$PASSWORD
+    if ! gum confirm --default=yes "Sign in automatically when the VM starts?"; then
+      AUTOLOGIN="N"
+    fi
   fi
 
   # Display configuration summary
+  if [[ -n $DOMAIN ]]; then
+    SUMMARY_DOMAIN_LINE="Domain:    $DOMAIN"
+    if [[ -n $DOMAIN_OU ]]; then
+      SUMMARY_DOMAIN_LINE+=" ($DOMAIN_OU)"
+    fi
+    SUMMARY_LINES=(
+      "$SUMMARY_DOMAIN_LINE"
+      "Join acct: $USERNAME"
+      "Login user: $RDP_USER"
+      "Autologin: disabled"
+    )
+  else
+    SUMMARY_LINES=(
+      "Username:  $USERNAME"
+      "Password:  $PASSWORD_DISPLAY"
+      "Autologin: $([[ $AUTOLOGIN == N ]] && echo disabled || echo enabled)"
+    )
+  fi
   gum style \
     --border normal \
     --padding "1 2" \
@@ -1434,8 +1741,7 @@ EOF
     "RAM:       $SELECTED_RAM" \
     "CPU:       $SELECTED_CORES cores" \
     "Disk:      $SELECTED_DISK" \
-    "Username:  $USERNAME" \
-    "Password:  $PASSWORD_DISPLAY"
+    "${SUMMARY_LINES[@]}"
 
   # Ask for confirmation
   echo ""
@@ -1447,15 +1753,29 @@ EOF
   local tz
   tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo UTC)
 
+  # Console logon on a domain machine works for every domain user, but RDP is
+  # gated by the Remote Desktop Services right, which only Administrators and
+  # the local Remote Desktop Users group hold. Grant the right to all
+  # authenticated accounts so signing in over RDP behaves like walking up to
+  # the machine. The VM's ports are bound to localhost only, and a narrower
+  # grant can be applied later by removing the well-known group member.
+  GUEST_COMMAND=""
+  if [[ -n $DOMAIN ]]; then
+    # Add-LocalGroupMember binds names, not SecurityIdentifier objects or SID
+    # strings (observed on Windows 11 24H2), so pass the well-known name.
+    GUEST_COMMAND="powershell -NoProfile -Command \"Add-LocalGroupMember -Group 'Remote Desktop Users' -Member 'NT AUTHORITY\\Authenticated Users'\""
+  fi
+
   # Write the root-owned compose from the validated settings (one prompt if
   # sudoless Docker is off). The writer pins the familiar home directories (or
   # their legitimate symlink targets) into root-protected bind anchors.
   write_compose "$SELECTED_RAM" "$SELECTED_CORES" "$SELECTED_DISK" \
-    "$USERNAME" "$PASSWORD" "$tz" || {
+    "$USERNAME" "$PASSWORD" "$tz" "$DOMAIN" "$DOMAIN_OU" "$AUTOLOGIN" \
+    "$GUEST_COMMAND" || {
     echo "❌ Failed to write the Windows VM configuration."
     exit 1
   }
-  write_credentials "$USERNAME" "$PASSWORD" || {
+  write_credentials "$RDP_USER" "$RDP_PASS" "$DOMAIN" || {
     echo "❌ Failed to store private RDP credentials." >&2
     exit 1
   }
@@ -1577,14 +1897,23 @@ To stop: omarchy-windows-vm stop"
   # FreeRDP 3 tries Kerberos before NTLM for NLA, and krb5 ships /etc/krb5.conf
   # as the MIT sample with default_realm = ATHENA.MIT.EDU. Every connect then
   # goes looking for MIT's KDC: with internet up it fails fast, but off the
-  # network each attempt blocks ~23s and no RDP window is ever drawn. The VM
-  # authenticates against a local Windows account, so point FreeRDP at a
-  # realm-less config and let it fall straight through to NTLM.
-  KRB5_CONF="$HOME/.config/windows/krb5.conf"
-  mkdir -p "$(dirname "$KRB5_CONF")"
-  if [[ ! -f $KRB5_CONF ]]; then
-    printf '[libdefaults]\n  dns_lookup_kdc = false\n  dns_lookup_realm = false\n' >"$KRB5_CONF"
+  # network each attempt blocks ~23s and no RDP window is ever drawn. The
+  # config below is realm-less for a local account (fall straight through to
+  # NTLM) and maps the AD realm for a domain-joined VM so the KDC is found
+  # over DNS SRV records. The domain comes from the private credentials file,
+  # falling back to the compose only when that is readable (sudoless mode).
+  # Credentials written before the domain line existed are covered by a UPN
+  # login, which names its own realm.
+  WIN_DOMAIN=$(read_credential DOMAIN 2>/dev/null) || WIN_DOMAIN=""
+  if [[ -z $WIN_DOMAIN && -r $COMPOSE_FILE ]]; then
+    WIN_DOMAIN=$(read_compose_value DOMAIN "$COMPOSE_FILE")
   fi
+  if [[ -z $WIN_DOMAIN ]]; then
+    local_win_user=$(read_credential USERNAME 2>/dev/null) || local_win_user=""
+    [[ $local_win_user == *@* ]] && WIN_DOMAIN="${local_win_user##*@}"
+  fi
+  KRB5_CONF="$HOME/.config/windows/krb5.conf"
+  write_krb5_conf "$KRB5_CONF" "$WIN_DOMAIN"
   export KRB5_CONFIG="$KRB5_CONF"
 
   # Detect display scale from Hyprland
@@ -1617,8 +1946,20 @@ To stop: omarchy-windows-vm stop"
     RDP_ARGS+=("$RDP_SCALE")
   fi
 
-  # Connect with RDP in fullscreen (auto-detects resolution). The arguments go
-  # in over stdin rather than on the command line: /proc/<pid>/cmdline is
+  # Connect with RDP in fullscreen (auto-detects resolution).
+  # Domain-joined guests log on inside the session over a TLS transport
+  # (/sec:tls) instead of NLA: CredSSP must validate the logon against the
+  # domain controller, and on a high-latency path (relayed VPN) the client's
+  # transport read budget expires before the guest answers, killing the
+  # connection. A TLS transport carries no pre-logon exchange; the Windows
+  # logon screen appears inside the session and waits however long it takes.
+  if [[ -n $WIN_DOMAIN ]]; then
+    RDP_ARGS+=("/sec:tls")
+  else
+    RDP_ARGS+=("/sec:nla")
+  fi
+
+  # The arguments go in over stdin rather than on the command line: /proc/<pid>/cmdline is
   # world-readable, so passing the VM password as /p:"$WIN_PASS" would show it
   # to every other user on the machine for as long as the session is open.
   # /args-from must stay the only argument here — FreeRDP rejects it outright
@@ -1694,17 +2035,75 @@ status_windows() {
   fi
 }
 
+# Update the RDP sign-in credentials launch uses. For a domain-joined VM this
+# is how the login user changes after a join; the credentials only affect what
+# FreeRDP submits -- no Windows, domain, or AD password is changed here.
+update_credentials() {
+  migrate_legacy_compose 2>/dev/null || true
+  if [[ ! -f $COMPOSE_FILE ]]; then
+    echo "Windows VM not configured. Please run: omarchy-windows-vm install"
+    exit 1
+  fi
+
+  gum style \
+    --border normal \
+    --padding "1 2" \
+    --margin "1" \
+    --align left \
+    "Windows VM sign-in credentials" \
+    "" \
+    "These are what 'omarchy-windows-vm launch' submits over RDP." \
+    "They do not change any Windows, local, or domain account password." \
+    "Accepted forms: name, DOMAIN\\name, or name@domain."
+
+  local current username password
+  current=$(read_credential USERNAME) || current=""
+  [[ -n $current ]] || current=$(unescape "$(read_compose_value USERNAME "$COMPOSE_FILE" 2>/dev/null)")
+
+  username=$(gum input --value="$current" --header="RDP username:")
+  if [[ -z $username ]]; then
+    echo "Cancelled by user"
+    exit 1
+  fi
+  if ! valid_rdp_username "$username"; then
+    echo "❌ Invalid username (use name, DOMAIN\\name, or name@domain)"
+    exit 1
+  fi
+
+  password=$(gum input --password --header="RDP password:")
+  if [[ -z $password ]]; then
+    echo "Cancelled by user"
+    exit 1
+  fi
+  if ! valid_password "$password"; then
+    echo "❌ Invalid password (printable characters, up to 64)"
+    exit 1
+  fi
+
+  # The VM's domain state does not change here; carry it into the rewritten
+  # credentials so the launcher's Kerberos config stays correct.
+  local existing_domain
+  existing_domain=$(read_credential DOMAIN 2>/dev/null) || existing_domain=""
+  write_credentials "$username" "$password" "$existing_domain" || {
+    echo "❌ Failed to store private RDP credentials." >&2
+    exit 1
+  }
+  echo "RDP credentials updated. Use 'omarchy-windows-vm launch' to connect."
+}
+
 show_usage() {
   echo "Usage: omarchy-windows-vm [command] [options]"
   echo ""
   echo "Commands:"
   echo "  install              Install and configure Windows VM"
+  echo "                       (offers joining a Windows domain during setup)"
   echo "  remove               Remove Windows VM and optionally its data"
   echo "  launch [options]     Start Windows VM (if needed) and connect via RDP"
   echo "                       Options:"
   echo "                         --keep-alive, -k   Keep VM running after RDP closes"
   echo "  stop                 Stop the running Windows VM"
   echo "  status               Show current VM status"
+  echo "  credentials          Update the RDP sign-in credentials used by launch"
   echo "  help                 Show this help message"
   echo ""
   echo "Examples:"
@@ -1712,6 +2111,7 @@ show_usage() {
   echo "  omarchy-windows-vm launch            # Connect to VM (auto-stop on exit)"
   echo "  omarchy-windows-vm launch -k         # Connect to VM (keep running)"
   echo "  omarchy-windows-vm stop              # Shut down the VM"
+  echo "  omarchy-windows-vm credentials       # Change the RDP login user or password"
 }
 
 # Main command dispatcher
@@ -1743,6 +2143,9 @@ stop | down)
   ;;
 status)
   status_windows
+  ;;
+credentials | credential | creds)
+  update_credentials
   ;;
 help | --help | -h | "")
   show_usage
