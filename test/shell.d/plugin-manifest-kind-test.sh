@@ -18,10 +18,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-require_compositor "plugin manifest kind test"
-
-require_command jq
-
 # Static guards: shell.qml delegates to the shared check, and the shared check
 # duck-types the list, so a future inlining of Array.isArray reddens here even
 # if the runtime fixture below were skipped.
@@ -39,6 +35,10 @@ pass "shell.qml delegates manifest kind checks to the shared helper"
 qml_matches "$ROOT/shell/Commons/Util.qml" 'typeof kinds\.indexOf === "function"' ||
   fail "Util.hasKind no longer duck-types the kind list"
 pass "Util.hasKind duck-types the kind list"
+
+require_compositor "plugin manifest kind runtime test"
+
+require_command jq
 
 TMPDIR=$(mktemp -d)
 result="$TMPDIR/result.json"
