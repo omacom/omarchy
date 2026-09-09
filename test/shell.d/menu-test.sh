@@ -366,6 +366,7 @@ assert(
 )
 
 const pluginPicker = fs.readFileSync(path.join(root, 'bin/omarchy-menu-plugin'), 'utf8')
+const menuSelect = fs.readFileSync(path.join(root, 'bin/omarchy-menu-select'), 'utf8')
 assert(
   /enable\).*\(\.enabled \| not\)/.test(pluginPicker) && /disable\).*\.canDisable and \.enabled/.test(pluginPicker),
   'plugin picker offers what each verb can act on'
@@ -406,9 +407,66 @@ assert(
   /var icon = parts\.length > 1 \? parts\.shift\(\) : ""\s*\n\s*var label = parts\.shift\(\) \|\| ""\s*\n\s*var detail = parts\.join\("\\t"\)/.test(menuQml),
   'menu select mode reads a leading icon and a trailing subtext off an option'
 )
+// The rows and the answer must read an option the same way, or a ticked row
+// comes back as something the caller never offered.
 assert(
-  /omarchy-launch-floating-terminal-with-presentation "omarchy-plugin-remove/.test(pluginPicker),
-  'plugin picker removes where the confirmation and backup path are visible'
+  (menuQml.match(/parseDmenuOption\(/g) || []).length === 3,
+  'menu select mode has one parser for the option format, read by both the rows and the answer'
+)
+assert(
+  /omarchy-plugin-remove \$\(printf '%q' "\$id"\)/.test(pluginPicker)
+    && /omarchy-launch-floating-terminal-with-presentation "\$command"/.test(pluginPicker),
+  'plugin picker removes where the confirmation and backup path are visible, one command per plugin'
+)
+
+// Enable, disable and remove are all things people do to a handful of plugins
+// in one sitting. Clone drops into an editor on the way out, so it stays one.
+assert(
+  /enable\) filter='\(\.enabled \| not\)'; multi=1/.test(pluginPicker)
+    && /disable\) filter='\.canDisable and \.enabled'; multi=1/.test(pluginPicker)
+    && /remove\) filter='\(\.firstParty \| not\)'; multi=1/.test(pluginPicker)
+    && /clone\) filter='[^\n]*'; multi=0/.test(pluginPicker)
+    && /menu_args=\(-- --multi\)/.test(pluginPicker),
+  'plugin picker picks many to enable, disable or remove, and one to clone'
+)
+assert(
+  /\$payload->\{multiSelect\} = JSON::PP::true if \$ARGV\[6\]/.test(menuSelect)
+    && /--multi\)\s*\n\s*menu_multi=1/.test(menuSelect),
+  'menu select passes --multi through to the shell as a payload flag'
+)
+
+// A tick is keyed by the value its row hands back -- the same string the
+// caller asked to have same-named rows told apart by -- so it survives the
+// list being refiltered underneath it. The answer reads back in the order the
+// caller supplied rather than the order rows were ticked.
+const menuFunctions = names => {
+  const host = {}
+  const sources = names.map(name => menuQml.match(new RegExp(`  function ${name}\\([\\s\\S]*?\\n  \\}`))[0])
+  const attach = names.map(name => `root.${name} = ${name}`).join('; ')
+  new Function('root', `${sources.join('\n')}\n${attach}`)(host)
+  return host
+}
+
+const menuSelection = menuFunctions(['parseDmenuOption', 'dmenuValue', 'checkedSelection'])
+menuSelection.dmenuOptions = [
+  '\uf017\tClock\tomarchy.clock',
+  '\uf017\tClock\ttester.clock',
+  '\uf017\tWeather\tacme.weather'
+]
+menuSelection.checkedValues = { 'Weather\tacme.weather': true, 'Clock\ttester.clock': true }
+assertEqual(
+  menuSelection.checkedSelection(),
+  'Clock\ttester.clock\nWeather\tacme.weather',
+  'multi-select returns the ticked rows, by id, in the order the caller passed them'
+)
+assert(
+  /function confirmMultiSelection\(\)[\s\S]*?if \(root\.checkedCount > 0\)[\s\S]*?var picked = displayModel\.get\(root\.cursorActive \? root\.selectedIndex : 0\)/.test(menuQml),
+  'confirming a multi-select with nothing ticked returns the row under the cursor'
+)
+assert(
+  /root\.multiActive && \(event\.key === Qt\.Key_Tab \|\| event\.key === Qt\.Key_Backtab\)\) \{\s*\n\s*root\.toggleCheckedAt/.test(menuQml)
+    && /else if \(root\.multiActive\) root\.confirmMultiSelection\(\)/.test(menuQml),
+  'multi-select ticks the row under the cursor with Tab and confirms with Enter'
 )
 
 // A font installed since the shell started should show up without a restart.
