@@ -251,7 +251,7 @@ Panel {
           }
           Link { visible: !!root.snap.gpuPinned; width: content.width; text: "  auto (largest card with a recipe)"; onTriggered: { root.gpusOpen = false; root.act(["gpu", "auto"]) } }
         }
-        Link { visible: !root.loaded || root.otherRunning || (!!root.snap.error && !root.busy); enabled: !root.busy && !!root.model && root.snap.reason === ""; text: root.loaded && !root.otherRunning ? "Restart" : root.startLabel(); onTriggered: root.act(["load"]) }
+        Link { visible: (!root.loaded && (!root.busy || root.state === "download" || root.state === "starting")) || root.otherRunning || (!!root.snap.error && !root.busy); enabled: !root.busy && !!root.model && root.snap.reason === ""; text: root.loaded && !root.otherRunning ? "Restart" : root.startLabel(); onTriggered: root.act(["load"]) }
         Link { visible: root.loaded && root.agentList.length > 0; text: "Open agent · " + root.agentSel + (root.agentsOpen ? "  ^" : "  v"); onTriggered: root.agentsOpen = !root.agentsOpen }
         Text { visible: root.loaded && root.agentList.length === 0; width: parent.width; textFormat: Text.PlainText; text: "No installed agent can use this model"; color: root.dim; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall }
         Column {
