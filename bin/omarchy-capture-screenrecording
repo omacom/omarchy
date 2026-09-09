@@ -268,7 +268,13 @@ finalize_recording() {
     # Hard-mute the first 400ms to drop the PipeWire capture-open pop (a near-clipping
     # transient around 130-200ms that a gentle fade-in can't attenuate enough), then a
     # 50ms fade avoids a click at the boundary before loudnorm normalizes the rest.
-    args+=(-af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11")
+    #
+    # -ar is required: loudnorm analyses at 192 kHz and declares that as its output
+    # rate, so without it the AAC encoder negotiates down to its own 96 kHz ceiling
+    # rather than back to the 48 kHz gpu-screen-recorder captured. 96 kHz AAC is rare
+    # enough that some NLEs (DaVinci Resolve among them) read the stream metadata but
+    # decode no samples, giving a silent clip with a blank waveform.
+    args+=(-af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11" -ar 48000)
   fi
 
   local processed="${latest%.mp4}-processed.mp4"
