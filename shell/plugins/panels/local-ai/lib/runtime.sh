@@ -141,6 +141,10 @@ accept() {
     tps=$(( toks * 1000000000 / (t1 - t0 + 1) )); (( tps > best )) && best=$tps
   done
   tps=$best
+  # a reasoning model whose engine is not splitting: the closing think tag lands in the answer text,
+  # and every agent renders the model's thinking as its reply (a tester's finding on TabbyAPI)
+  jq -e '(.choices[0].message.content//"")|test("</think>|<\\|end_of_thought\\|>")' >/dev/null <<<"$reply" \
+    && { fail "reasoning leaks into the answer: the engine's reasoning parser is off for this model"; return 1; }
   floor=$(jq -r '[3, ((.speed.tps//0)/10|floor)]|max' <<<"$r")
   (( toks < 16 || tps >= floor )) || { fail "decode ${tps} tok/s is below the ${floor} tok/s floor: the GPU is not being used (driver too old for this image?)"; return 1; }
   apis='["chat"]'

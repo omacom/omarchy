@@ -79,6 +79,7 @@ case $url in
     elif [[ $data == *"Count from 1 to 80"* ]]; then # the speed probe: 80 words, usage optional, an optional delay to look like a CPU
       [[ -n ${SHIM_SLOW:-} ]] && sleep "$SHIM_SLOW"
       words=$(seq -s ' ' 1 80)
+      [[ ${SHIM_LEAK_THINK:-} == 1 ]] && words="I should count.</think>$words"   # a reasoning model with the parser off
       if [[ ${SHIM_NO_USAGE:-} == 1 ]]; then echo "{\"choices\":[{\"message\":{\"content\":\"$words\"}}]}"
       else echo "{\"choices\":[{\"message\":{\"content\":\"$words\"}}],\"usage\":{\"completion_tokens\":${SHIM_TOKENS:-60}}}"; fi
     else echo "{\"choices\":[{\"message\":{\"content\":\"${SHIM_REPLY:-LOCAL_AI_READY}\"}}],\"usage\":{\"completion_tokens\":${SHIM_TOKENS:-12}}}"; fi ;;
@@ -100,7 +101,7 @@ case "$*" in
   serve*) echo "Access denied: serve config denied. Use 'sudo tailscale set --operator=\$USER' to not require root." >&2; exit 1 ;;
 esac
 EOF
-for a in pi claude codex; do printf '#!/usr/bin/env bash\necho "$0 $* ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-} ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-} LOCAL_AI_KEY=${LOCAL_AI_KEY:-}"\n' >"$TMP/bin/$a"; done
+for a in pi claude codex; do printf '#!/usr/bin/env bash\necho "$0 $* ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-} ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-} LOCAL_AI_KEY=${LOCAL_AI_KEY:-}"\n' >"$TMP/bin/$a"; done
 printf '#!/usr/bin/env bash\necho "launch $*"\n' >"$TMP/bin/omarchy-launch-tui"
 printf '#!/usr/bin/env bash\necho pi\n' >"$TMP/bin/omarchy-default-agent"
 find "$TMP/bin" -type f -exec chmod +x {} +   # not the jq symlink: its target is not ours to chmod on CI
@@ -151,7 +152,7 @@ grep -rq -- "$k" "$OMARCHY_AI_STATE/ledger.json" "$OMARCHY_AI_STATE/snapshot.jso
 for f in ledger.json snapshot.json log gateway.key; do m=$(mode "$OMARCHY_AI_STATE/$f"); [[ $m == 600 ]] || fail "mode of $f" "$m"; done; pass "ledger, snapshot, log, and key are 0600"
 [[ $(mode "$OMARCHY_AI_STATE/assets/cfg.yml") == 644 ]] || fail "asset mode"; pass "mounted assets stay world-readable for the engine's uid"
 argv=$("$CLI" open-agent claude); [[ $argv != *"$(cat "$OMARCHY_AI_STATE/gateway.key")"* ]] || fail "key in claude argv" "$argv"; pass "open-agent claude: the key is not in the launch argv"
-out=$(eval "$argv"); [[ $out == *ANTHROPIC_BASE_URL=http://127.0.0.1:12434* && $out == *ANTHROPIC_API_KEY=$(cat "$OMARCHY_AI_STATE/gateway.key")* ]] || fail "claude launch env" "$out"; pass "open-agent claude: endpoint and key in the environment, nothing on disk"
+out=$(eval "$argv"); [[ $out == *ANTHROPIC_BASE_URL=http://127.0.0.1:12434* && $out == *ANTHROPIC_AUTH_TOKEN=$(cat "$OMARCHY_AI_STATE/gateway.key")* ]] || fail "claude launch env" "$out"; pass "open-agent claude: endpoint and key in the environment, nothing on disk"
 argv=$("$CLI" open-agent codex); out=$(eval "$argv"); [[ $out == *wire_api=responses* && $out == *model=Test-Model* && $out == *LOCAL_AI_KEY=$(cat "$OMARCHY_AI_STATE/gateway.key")* && $argv != *"$(cat "$OMARCHY_AI_STATE/gateway.key")"* ]] || fail "codex launch" "$out"; pass "open-agent codex: responses provider by flags, key by environment only"
 grep -q -- "$(cat "$OMARCHY_AI_STATE/gateway.key")" "$SHIM/curl.log" && fail "key in curl argv" "$(grep -c . "$SHIM/curl.log") calls"; grep -q -- "-H @$OMARCHY_AI_STATE/gateway.auth" "$SHIM/curl.log" || fail "auth header file not used"; [[ $(mode "$OMARCHY_AI_STATE/gateway.auth") == 600 ]] || fail "auth file mode"; pass "acceptance GET and POST: the key is never in curl's argv; the header comes from a 0600 file"
 [[ ! -e $OMARCHY_AI_USER_HOME/.claude.json && ! -e $OMARCHY_AI_USER_HOME/.codex ]] || fail "no user files touched"; pass "no user config files were created or edited"
@@ -198,6 +199,8 @@ SHIM_REPLY="nope" "$CLI" load
 SHIM_SLOW=12 "$CLI" load; [[ $(snap .error) == *"below the 6 tok/s floor"* ]] || fail "slow decode refused" "$(snap .state) $(snap .error)"; pass "a CPU-speed decode fails the speed floor and says so"
 SHIM_NO_USAGE=1 "$CLI" load; [[ $(snap .state) == ready ]] || fail "no usage" "$(snap .error)"; grep -q "tps=[1-9]" "$OMARCHY_AI_STATE/log" || fail "tps measured without usage"; pass "speed is measured from the words written when the engine reports no usage"
 SHIM_TOKENS=4 "$CLI" load; [[ $(snap .state) == ready ]] || fail "short replies skip the floor"; pass "speed floor ignores replies under 16 tokens"
+SHIM_LEAK_THINK=1 "$CLI" load; [[ $(snap .error) == *"reasoning leaks into the answer"* ]] || fail "think leak" "$(snap .error)"; pass "a reasoning model whose thinking leaks into the answer is refused"
+"$CLI" load; [[ $(snap .state) == ready && $(snap .error) == "" ]] || fail "recover after leak"
 
 # missing dialects hide agents
 SHIM_APIS=chat "$CLI" load; [[ $(snap '.agents.launchable|join(",")') == "pi" ]] || fail "launchable filtered" "$(snap .agents.launchable)"; pass "agents whose dialect failed acceptance are hidden"

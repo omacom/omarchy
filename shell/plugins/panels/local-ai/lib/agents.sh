@@ -43,7 +43,10 @@ agent_command() {
   key=$(cat "$key_file")   # for the files written below only; it goes into no argument
   case $name in
     claude)
-      with_key ANTHROPIC_API_KEY
+      # a bearer token, not an API key: Claude Code asks "use this API key?" for every new
+      # ANTHROPIC_API_KEY and remembers a refusal, while ANTHROPIC_AUTH_TOKEN is its documented form
+      # for gateways and is used as-is. The gateway accepts Authorization: Bearer.
+      with_key ANTHROPIC_AUTH_TOKEN
       printf '%s\0' env "ANTHROPIC_BASE_URL=$ENDPOINT" "ANTHROPIC_MODEL=$model" \
         "ANTHROPIC_DEFAULT_SONNET_MODEL=$model" "ANTHROPIC_DEFAULT_OPUS_MODEL=$model" "ANTHROPIC_DEFAULT_HAIKU_MODEL=$model" \
         "$bin" --model "$model" ;;
