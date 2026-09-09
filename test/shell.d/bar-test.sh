@@ -354,6 +354,111 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// Bar drag-reorder moves the exact instance when multiple widgets share a module ID
+const s1 = { id: 'omarchy.spacer', minWidth: 20 }
+const s2 = { id: 'omarchy.spacer', minWidth: 80 }
+
+// 1. Moving second duplicate widget across sections
+const crossSectionLayout = {
+  bar: {
+    layout: {
+      left: ['omarchy.menu', s1, 'omarchy.workspaces', s2],
+      right: []
+    }
+  }
+}
+assertEqual(
+  bar.moveModuleInConfig(crossSectionLayout, 'left', 'omarchy.spacer', 'right', null, 3, 0),
+  true,
+  'moves second duplicate widget across sections'
+)
+assertEqual(crossSectionLayout.bar.layout.left.length, 3, 'source section loses moved widget')
+assertEqual(crossSectionLayout.bar.layout.left[1].minWidth, 20, 'first duplicate instance remains untouched at index 1')
+assertEqual(crossSectionLayout.bar.layout.right[0].minWidth, 80, 'second duplicate instance lands in destination section')
+
+// 2. Moving second duplicate widget before first
+const reorderBeforeLayout = {
+  bar: {
+    layout: {
+      left: ['omarchy.menu', s1, 'omarchy.workspaces', s2]
+    }
+  }
+}
+assertEqual(
+  bar.moveModuleInConfig(reorderBeforeLayout, 'left', 'omarchy.spacer', 'left', null, 3, 1),
+  true,
+  'moves second duplicate widget before first'
+)
+assertEqual(reorderBeforeLayout.bar.layout.left[1].minWidth, 80, 'second duplicate widget placed before first')
+assertEqual(reorderBeforeLayout.bar.layout.left[2].minWidth, 20, 'first duplicate widget shifted after second')
+
+// 3. Moving first duplicate widget after second
+const reorderAfterLayout = {
+  bar: {
+    layout: {
+      left: ['omarchy.menu', s1, 'omarchy.workspaces', s2]
+    }
+  }
+}
+assertEqual(
+  bar.moveModuleInConfig(reorderAfterLayout, 'left', 'omarchy.spacer', 'left', null, 1, 4),
+  true,
+  'moves first duplicate widget after second'
+)
+assertEqual(reorderAfterLayout.bar.layout.left[2].minWidth, 80, 'second duplicate widget shifted forward')
+assertEqual(reorderAfterLayout.bar.layout.left[3].minWidth, 20, 'first duplicate widget placed after second')
+
+// 4. Self-drop before itself
+const selfDropLayout = {
+  bar: {
+    layout: {
+      left: ['omarchy.menu', s1, 'omarchy.workspaces', s2]
+    }
+  }
+}
+assertEqual(
+  bar.moveModuleInConfig(selfDropLayout, 'left', 'omarchy.spacer', 'left', null, 1, 1),
+  false,
+  'self-drop before itself is a no-op'
+)
+assertEqual(selfDropLayout.bar.layout.left[1].minWidth, 20, 'layout untouched on self-drop before itself')
+
+// 5. Self-drop after itself
+assertEqual(
+  bar.moveModuleInConfig(selfDropLayout, 'left', 'omarchy.spacer', 'left', null, 1, 2),
+  false,
+  'self-drop after itself is a no-op'
+)
+assertEqual(selfDropLayout.bar.layout.left[1].minWidth, 20, 'layout untouched on self-drop after itself')
+
+// 6. Normal unique-widget movement
+const uniqueLayout = {
+  bar: {
+    layout: {
+      left: ['omarchy.menu', 'omarchy.workspaces', 'omarchy.clock'],
+      right: []
+    }
+  }
+}
+assertEqual(
+  bar.moveModuleInConfig(uniqueLayout, 'left', 'omarchy.clock', 'right', null),
+  true,
+  'normal unique-widget moves across sections by name'
+)
+assertDeepEqual(uniqueLayout.bar.layout.left, ['omarchy.menu', 'omarchy.workspaces'], 'source loses moved unique widget')
+assertDeepEqual(uniqueLayout.bar.layout.right, ['omarchy.clock'], 'destination gains moved unique widget')
+assertEqual(
+  bar.moveModuleInConfig(uniqueLayout, 'left', 'omarchy.workspaces', 'left', 'omarchy.menu'),
+  true,
+  'normal unique-widget moves before target by name'
+)
+assertDeepEqual(uniqueLayout.bar.layout.left, ['omarchy.workspaces', 'omarchy.menu'], 'unique widgets reordered by name')
+
+assert(
+  /BarModel\.moveModuleInConfig\(config, fromRegion, fromName, toRegion, beforeName, fromIndex, toIndex\)/.test(barSource),
+  'bar delegates module movement to BarModel with explicit indices'
+)
 JS
 
 put_tmp=$(mktemp -d)
