@@ -240,7 +240,7 @@
   "install.terminal.foot": {"icon":"","label":"Foot","disabled":"omarchy-pkg-present foot","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal foot'"},
   "install.terminal.ghostty": {"icon":"","label":"Ghostty","disabled":"omarchy-pkg-present ghostty","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal ghostty'"},
   "install.terminal.kitty": {"icon":"","label":"Kitty","disabled":"omarchy-pkg-present kitty","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-terminal kitty'"},
-  "install.ai.bionic": {"icon":"","iconFont":"omarchy","label":"LM Studio Bionic","disabled":"omarchy-pkg-present lmstudio-bionic","action":"omarchy-install-app 'LM Studio Bionic' lmstudio-bionic"},
+  "install.ai.bionic": {"icon":"","iconFont":"omarchy","label":"LM Studio Bionic","disabled":"omarchy-pkg-present lmstudio-bionic","action":"omarchy-install-and-launch 'LM Studio Bionic' lmstudio-bionic ai.elementlabs.bionic"},
   "install.ai.chatgpt": {"icon":"","iconFont":"omarchy","label":"ChatGPT Desktop","disabled":"omarchy-pkg-present openai-codex-desktop","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-ai-chatgpt"},
   "install.ai.dictation": {"icon":"","label":"Dictation","disabled":"omarchy-pkg-present voxtype-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-voxtype-install"},
   "install.ai.grok-bot": {"icon":"","iconFont":"omarchy","label":"Grok Bot","disabled":"omarchy-pkg-present grok-bot","action":"omarchy-install-and-launch 'Grok Bot' grok-bot grok-bot"},
