@@ -253,6 +253,131 @@ format_record = json.loads(captured.getvalue())
 assert format_record["usageStatusText"] == "Page format changed", "unrecognised HTML is reported as a format change, not auth failure"
 assert format_record["retryAdvised"] is True, "format change advises retry in case it was transient"
 
+# --- usage-list paging ---------------------------------------------------
+#
+# The usage page SSR renders only the newest 50 records; older days are
+# fetched page-by-page through the usage-list server function. A refresh that
+# stops at the first page would make every day that scrolled past it vanish
+# from the record, so the walk must reach back through the trailing week.
+
+assert module.seroval_args(["wrk_cccccccccccccccccccccccccc", 0]) == {
+    "t": {"t": 9, "i": 0, "l": 2,
+          "a": [{"t": 1, "s": "wrk_cccccccccccccccccccccccccc"}, {"t": 0, "s": 0}],
+          "o": 0},
+    "f": 31,
+    "m": [],
+}, "seroval encodes the SPA's (workspace, page) arguments"
+
+six_days_ago = today - dt.timedelta(days=6)
+week_cutoff = today - dt.timedelta(days=8)
+
+
+def page_html(rows):
+    return "<script>" + ",".join(rows) + "</script>"
+
+
+def fill(day, n):
+    return [rec("usg_01ZZZ%03d" % i, day, "deepseek-v4-flash", 1, 1, 0, 0, "null", "null")
+            for i in range(n)]
+
+
+fetched_pages = []
+
+
+def fake_chunk(cookie, workspace, page, instance):
+    fetched_pages.append(page)
+    if page == 0:
+        return page_html(fill(today, 50))
+    if page == 1:
+        return page_html(fill(yesterday, 50))
+    if page == 2:
+        return page_html(fill(six_days_ago, 50))
+    # Out of window: the walk must stop here without keeping these.
+    return page_html(fill(week_cutoff, 50))
+
+
+module.fetch_usage_chunk = fake_chunk
+walk = module.fetch_usage_records("cookie", "wrk_cccccccccccccccccccccccccc")
+assert fetched_pages == [0, 1, 2, 3], "usage walk pages newest-first until past the window"
+walk_days = {record["day"] for record in walk}
+assert today.isoformat() in walk_days, "today survives a later refresh"
+assert yesterday.isoformat() in walk_days, "yesterday survives a later refresh"
+assert week_cutoff.isoformat() not in walk_days, "records outside the trailing week are dropped"
+assert len(walk) == 150, "walk keeps exactly the in-window records"
+
+# The console's usage list pages back through retained history, and new
+# records land while a refresh walks it, so an interior page can come back
+# short without being the last one. Ending the walk on a short page dropped
+# whole days (yesterday scrolled off the newest page and vanished); only an
+# empty page — the list's oldest — or a page whose oldest record predates the
+# week ends it.
+
+fetched_pages.clear()
+
+def fake_short_mid(cookie, workspace, page, instance):
+    fetched_pages.append(page)
+    if page == 0:
+        return page_html(fill(today, 50))
+    if page == 1:
+        return page_html(fill(today, 10))  # short page, but not the last
+    if page == 2:
+        return page_html(fill(yesterday, 50))
+    return page_html(fill(week_cutoff, 50))
+
+
+module.fetch_usage_chunk = fake_short_mid
+walk = module.fetch_usage_records("cookie", "wrk_x")
+assert fetched_pages == [0, 1, 2, 3], "an interior short page does not end the walk"
+assert yesterday.isoformat() in {record["day"] for record in walk}, "yesterday survives a short page mid-history"
+assert len(walk) == 110, "interior short pages keep their records"
+
+# A mid-walk failure keeps the pages already parsed; a failed first page
+# yields the old empty-records shape.
+fetched_pages.clear()
+
+def fake_flaky(cookie, workspace, page, instance):
+    fetched_pages.append(page)
+    if page == 1:
+        raise urllib.error.URLError("no route")
+    return page_html(fill(today, 50))
+
+
+module.fetch_usage_chunk = fake_flaky
+walk = module.fetch_usage_records("cookie", "wrk_cccccccccccccccccccccccccc")
+assert fetched_pages == [0, 1], "a failed page stops the walk"
+assert len(walk) == 50, "pages already parsed survive a mid-walk failure"
+
+module.fetch_usage_chunk = lambda cookie, workspace, page, instance: "<script></script>"
+assert module.fetch_usage_records("cookie", "wrk_x") == [], "an empty list page ends the walk"
+
+fetched_pages.clear()
+
+def fake_always(cookie, workspace, page, instance):
+    fetched_pages.append(page)
+    return page_html(fill(today, 50))
+
+
+module.fetch_usage_chunk = fake_always
+walk = module.fetch_usage_records("cookie", "wrk_x")
+assert len(fetched_pages) == module.MAX_USAGE_PAGES, "a walk that never leaves the window is capped"
+assert len(walk) == module.MAX_USAGE_PAGES * 50, "the cap truncates instead of hanging"
+
+# --- healthy main(): meters plus a window walk that includes yesterday -----
+module.fetch_page = lambda cookie, path: go_page
+module.fetch_usage_chunk = fake_chunk
+captured = io.StringIO()
+with contextlib.redirect_stdout(captured):
+    exit_code = module.main()
+assert exit_code == 0, "main returns 0 on a healthy run"
+healthy = json.loads(captured.getvalue())
+by_day = {entry["date"]: entry["messageCount"] for entry in healthy["recentDays"]}
+assert by_day.get(today.isoformat(), 0) > 0, "healthy record keeps today's tokens"
+assert by_day.get(yesterday.isoformat(), 0) > 0, "healthy record keeps yesterday's tokens"
+assert by_day.get(week_cutoff.isoformat(), 0) == 0, "healthy record drops out-of-window days"
+assert healthy["ready"] is True, "healthy record stays ready"
+assert healthy["usageStatusText"] == "", "healthy record carries no status card"
+assert healthy["limits"] != [], "healthy record carries fresh meters"
+
 print(json.dumps({
     "plan": plan,
     "limits": limits,

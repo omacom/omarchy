@@ -70,12 +70,14 @@ signed in there.
 OpenCode Go is opencode.ai's Go subscription plan: three credit windows — a
 rolling 5-hour, a weekly, and a monthly — each reported as a percentage with
 a reset time. There is no usage API, so the collector reads the workspace
-console pages: the meters from `/workspace/<id>/go` and the recent
-per-request token records from `/workspace/<id>/usage`, using the `auth`
-session cookie Firefox or Zen Browser stores for opencode.ai. The usage
-page embeds the last ~50 requests, so the all-time totals describe that
-window rather than the account's whole history. Session counts are not
-exposed, so the panel hides the prompt/session line. A workspace is
+console pages: the meters from `/workspace/<id>/go` and the per-request
+token records from the usage list, using the `auth` session cookie Firefox or
+Zen Browser stores for opencode.ai. The console renders only the newest 50
+requests in HTML and fetches older pages on demand, so the collector pages
+through them and keeps the trailing 7 local days — "tokens by day" and
+"tokens by model" both describe that week, and a day survives a later
+refresh once it has left the newest page. Session counts are not exposed, so
+the panel hides the prompt/session line. A workspace is
 required: set `workspaceId` in `~/.config/omarchy/agents/opencode-go.json`
 (or `OPENCODE_WORKSPACE`) when the session has more than one. With no
 sign-in and no previously recorded meters the provider stays hidden — the

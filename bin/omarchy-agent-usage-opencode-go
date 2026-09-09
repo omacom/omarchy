@@ -6,10 +6,20 @@
 
 OpenCode Go (the opencode.ai Go plan) exposes no usage API; the web console
 scrapes its own pages. This collector reads the rolling 5-hour / weekly /
-monthly meters from the workspace page and the recent per-request token
-records from the usage page, using the auth session cookie Firefox or Zen
-Browser stores for opencode.ai. The panel only ever reads the JSON this
-prints; it never talks to disk formats or endpoints.
+monthly meters from the workspace page and the per-request token records
+from the usage list, using the auth session cookie Firefox or Zen Browser
+stores for opencode.ai. The console renders only the newest page of that
+list in HTML, so the collector pages the rest through the SPA's usage-list
+server function and keeps the trailing 7 local days — a refresh that never
+paged would permanently lose every day that scrolled past the newest page.
+The panel only ever reads the JSON this prints; it never talks to disk
+formats or endpoints.
+
+Metrics scoped in code:
+- limits: account truth from the workspace meters (rolling / weekly / monthly).
+- per-request stats (today*, recentDays, modelUsage): the trailing 7 local
+  days, window-bounded so the "tokens by day" and "tokens by model"
+  sections describe the same period.
 """
 
 from __future__ import annotations
@@ -38,6 +48,21 @@ SITE = "https://opencode.ai"
 # opencode.ai changes the SPA, this constant must be refreshed from the
 # workspace-*.js asset referenced by any /workspace/<id> page.
 WORKSPACES_SERVER_FN_ID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
+# SolidStart server-function id backing the SPA's usage-list pagination
+# (getUsageInfo in the workspace route chunk). The usage page SSR renders only
+# the newest page of per-request records; the client fetches older pages by
+# POSTing its (workspace, page) arguments to /_server. Refreshed the same way
+# as WORKSPACES_SERVER_FN_ID when the SPA changes.
+USAGE_SERVER_FN_ID = "bfd684bfc2e4eed05cd0b518f5e4eafd3f3376e3938abb9e536e7c03df831e5c"
+USAGE_PAGE_SIZE = 50
+# The usage walk pages newest-first and stops once the trailing window is
+# covered; per-request stats are bounded by this window so the panel's
+# "tokens by day" chart and "tokens by model" section describe the same
+# period. Pages older than the window are never requested.
+STATS_WINDOW_DAYS = 7
+# Safety valve: a week of very heavy usage at USAGE_PAGE_SIZE records a page
+# must not turn a refresh into an unbounded crawl.
+MAX_USAGE_PAGES = 40
 FETCH_TIMEOUT_SECONDS = 15
 USER_AGENT = "omarchy-agent-usage-opencode-go/1.0"
 
@@ -266,6 +291,100 @@ def fetch_page(cookie_header: str, path: str, retries: int = 1) -> str:
         continue
       raise
   raise last_error or RuntimeError("fetch_page exhausted retries")
+
+
+def seroval_args(args: list[Any]) -> dict[str, Any]:
+  """Serialize plain arguments the way the SPA's SolidStart client does.
+
+  The client POSTs its server-function arguments to /_server as a
+  seroval-encoded tree; the shape below was captured from the bundled client
+  (node types: 9 array, 1 string, 0 number). Only the string/int arguments
+  this collector sends are supported; anything else raises."""
+  def node(value: Any) -> dict[str, Any]:
+    if isinstance(value, str):
+      return {"t": 1, "s": value}
+    if isinstance(value, int):
+      return {"t": 0, "s": value}
+    raise TypeError(f"unsupported seroval argument: {value!r}")
+  return {
+    "t": {"t": 9, "i": 0, "l": len(args), "a": [node(a) for a in args], "o": 0},
+    "f": 31,
+    "m": [],
+  }
+
+
+def fetch_usage_chunk(cookie_header: str, workspace: str, page: int, instance: str, retries: int = 1) -> str:
+  """POST the usage-list server function for one page of per-request records.
+
+  Mirrors fetch_page's retry policy: no retry on 4xx, one retry on transport
+  failures and 5xx. The response body carries the same serialized records the
+  usage page SSR embeds, so parse_usage_records reads it unchanged."""
+  body = json.dumps(seroval_args([workspace, page]), separators=(",", ":")).encode("utf-8")
+  request = urllib.request.Request(
+    SITE + "/_server",
+    method="POST",
+    data=body,
+    headers={
+      "Cookie": cookie_header,
+      "User-Agent": USER_AGENT,
+      "Accept": "*/*",
+      "Content-Type": "application/json",
+      "X-Server-Id": USAGE_SERVER_FN_ID,
+      "X-Server-Instance": instance,
+    },
+  )
+  last_error: Exception | None = None
+  for attempt in range(retries + 1):
+    try:
+      with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
+        return response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as error:
+      last_error = error
+      if 500 <= error.code < 600 and attempt < retries:
+        time.sleep(1)
+        continue
+      raise FetchError(error.code) from error
+    except urllib.error.URLError:
+      last_error = sys.exc_info()[1]
+      if attempt < retries:
+        time.sleep(1)
+        continue
+      raise
+  raise last_error or RuntimeError("fetch_usage_chunk exhausted retries")
+
+
+def fetch_usage_records(cookie_header: str, workspace: str) -> list[dict[str, Any]]:
+  """Page the workspace usage list back through the trailing week.
+
+  The console's usage page renders only the newest page of per-request
+  records and fetches the rest by page index; a collector that stopped at
+  that page would permanently lose every day that scrolled past it. The
+  pages are contiguous newest-first, so the walk ends when a page comes back
+  empty (the list's oldest page) or when a full page's oldest record
+  predates the trailing window — everything older is out of window and never
+  requested. Page size is not a stop signal: new records land while the walk
+  runs, so an interior page can come back short without being the last, and
+  ending on ``len < 50`` dropped entire days.
+
+  A page that fails mid-walk keeps the pages already parsed (the most
+  recent days stay complete); failing the very first page degrades to the
+  empty-records shape, exactly like the old single-page read."""
+  records: list[dict[str, Any]] = []
+  window_start = (dt.date.today() - dt.timedelta(days=STATS_WINDOW_DAYS - 1)).strftime("%Y-%m-%d")
+  for page in range(MAX_USAGE_PAGES):
+    try:
+      html = fetch_usage_chunk(cookie_header, workspace, page, f"server-fn:{page + 20}")
+    except Exception:
+      break
+    chunk = parse_usage_records(html)
+    if not chunk:
+      # An empty page is the list's last page: the account history ends.
+      break
+    records.extend(chunk)
+    if min(record["day"] for record in chunk) < window_start:
+      # The trailing window is covered; every further page is older.
+      break
+  return [record for record in records if record["day"] >= window_start]
 
 
 # ------------------------------------------------------------------- parse
@@ -582,15 +701,13 @@ def main() -> int:
     return 0
 
   # Meters parsed — this is the healthy answer of record, so the cache is
-  # refreshed before the (optional) usage page fetch.
+  # refreshed before the (optional) usage list walk.
   write_limits_cache(build_limits(meters))
 
-  records: list[dict[str, Any]] = []
   try:
-    usage_html = fetch_page(cookie, f"/workspace/{workspace}/usage")
-    records = parse_usage_records(usage_html)
+    # Limits are the point; a usage walk that fails entirely still shows them.
+    records = fetch_usage_records(cookie, workspace)
   except Exception:
-    # Limits are the point; a missing usage page still shows them.
     records = []
 
   print_record(build_record(meters, plan, records))
