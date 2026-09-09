@@ -23,7 +23,19 @@ QtObject {
   property bool foregroundAnimationEnabled: true
   property bool centerSectionRevealHeld: false
   property bool _centerHoverRevealSuppressed: false
-  readonly property bool centerHoverRevealSuppressed: _centerHoverRevealSuppressed
+  // Writable on purpose. 4.0.3 made this readonly and third-party close()
+  // still assigned it; the TypeError aborted hide() and KeyboardPanel kept
+  // Exclusive focus, locking the session. Forward the write to the setter
+  // so Bar's binding on the backing store stays intact. Bar.qml mirrors
+  // host changes back onto this property.
+  property bool centerHoverRevealSuppressed: false
+
+  onCenterHoverRevealSuppressedChanged: {
+    if (centerHoverRevealSuppressed === _centerHoverRevealSuppressed)
+      return
+    setCenterHoverRevealSuppressed(centerHoverRevealSuppressed)
+  }
+
   property var activePopout: null
   property var clickTargets: []
   property var layoutConfig: ({})
