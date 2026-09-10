@@ -57,6 +57,10 @@ Capture commands — Screenshots and screen recording:
 
 Every command takes `--help` too, whether you ask a whole group (`omarchy capture --help`) or a single command (`omarchy capture screenshot --help`).
 
+### Reading the Omarchy Doctrine
+
+Run `omarchy doctrine` to read the ten principles behind Omarchy, or `omarchy doctrine --full` for DHH's explanations of each principle. Both work offline. The published doctrine is at [omarchy.org/doctrine](https://omarchy.org/doctrine/).
+
 ### Opening the menu from the terminal
 
 The Omarchy menu is scriptable as well, which is handy for your own keybindings. `omarchy menu` opens it at the root, and you can jump straight to any point in the tree by naming it: `omarchy menu summon style.theme` goes right to the theme picker, `omarchy menu toggle system` opens the system menu and closes it again if it's already up, and `omarchy menu close` puts it away.

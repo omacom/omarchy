@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Read the Omarchy Doctrine by DHH
+# omarchy:args=[--full]
+# omarchy:examples=omarchy doctrine | omarchy doctrine --full
+
+set -euo pipefail
+
+if (( $# > 1 )) || [[ ${1:-} != "" && ${1:-} != "--full" ]]; then
+  echo "Usage: omarchy doctrine [--full]" >&2
+  exit 2
+fi
+
+doctrine="$OMARCHY_PATH/default/omarchy/doctrine.md"
+
+printf 'The Omarchy Doctrine\nBy DHH\n\n'
+
+if [[ ${1:-} == "--full" ]]; then
+  awk '{ sub(/^## /, ""); print }' "$doctrine" | fmt -w 80
+else
+  awk '/^## / { sub(/^## /, ""); printf "%2d. %s\n", ++number, $0 }' "$doctrine"
+fi
+
+printf '\nhttps://omarchy.org/doctrine/\n'
