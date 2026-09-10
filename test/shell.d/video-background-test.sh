@@ -48,13 +48,27 @@ assert(
     videoQml.includes('interval: 1000') &&
     videoQml.includes('interval: 50') &&
     videoQml.includes('frameReceived') &&
+    videoQml.includes('signal firstFramePrimed()') &&
     videoQml.includes('output.clearOutput()') &&
     !videoQml.includes('KeepLastFrame') &&
-    /onPlaybackEnabledChanged:[\s\S]*?if \(playbackEnabled\) player\.play\(\)[\s\S]*?else player\.pause\(\)/.test(videoQml) &&
+    /restartFromPrimedFrame[\s\S]*?player\.position = 0[\s\S]*?player\.play\(\)[\s\S]*?player\.pause\(\)/.test(videoQml) &&
     videoQml.includes('primingGeneration') &&
     videoQml.includes('player.play()') &&
     videoQml.includes('player.pause()'),
   'paused video sources are primed to display their first frame'
+)
+assert(
+  mediaQml.includes('signal firstFramePrimed()') &&
+    mediaQml.includes('function onFirstFramePrimed()') &&
+    backgroundQml.includes('property bool bootIntroResolving: false') &&
+    backgroundQml.includes('bootIntroResolveTimer.restart()') &&
+    backgroundQml.includes('visible: root.bootIntroResolving || (root.bootIntroActive && !panel.bootIntroPlaybackStarted)') &&
+    backgroundQml.includes('color: Color.background') &&
+    backgroundQml.includes('id: bootIntroMedia') &&
+    backgroundQml.includes('onFirstFramePrimed: panel.maybeStartBootIntro()') &&
+    backgroundQml.includes('playbackEnabled: root.bootIntroActive && panel.bootIntroPlaybackStarted') &&
+    backgroundQml.includes('if (root.bootIntroActive && !panel.bootIntroPlaybackStarted) root.cancelBootIntro()'),
+  'boot intros cover the still until a primed first frame can start from zero'
 )
 assert(
   videoQml.includes('mediaStatus === MediaPlayer.EndOfMedia') &&

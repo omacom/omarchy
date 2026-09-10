@@ -29,6 +29,7 @@ Item {
   readonly property url videoUrl: path && Util.isVideoPath(path) ? Util.fileUrl(path) : ""
 
   signal finished()
+  signal firstFramePrimed()
 
   Loader {
     id: imageLoader
@@ -94,6 +95,9 @@ Item {
     target: videoLoader.item
     function onFinished() {
       root.finished()
+    }
+    function onFirstFramePrimed() {
+      root.firstFramePrimed()
     }
   }
 
