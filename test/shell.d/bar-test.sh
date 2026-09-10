@@ -485,3 +485,25 @@ put_output=$(PATH="$put_tmp/bin:$ROOT/bin:$PATH" \
   fail "put places a widget through a ready shell" "$put_output"
 [[ $put_output == "omarchy.keyboard-layout is on the bar" ]] || fail "put reports the placed widget" "$put_output"
 pass "put places a widget through a ready shell"
+
+# A panel left open when the session goes idle is a layer-shell surface drawn
+# above the fullscreen screensaver, which leaves the widget's contents on a
+# screen meant to conceal the session.
+if ! rg -q 'resolveEnabledId\("omarchy\.idle"\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar follows the enabled idle service, including a user clone"
+fi
+pass "bar follows the enabled idle service, including a user clone"
+
+if ! rg -q 'onScreensaverActiveChanged: if \(screensaverActive\) closeActivePopout\(\)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "an open bar panel closes while the screensaver is active"
+fi
+pass "an open bar panel closes while the screensaver is active"
+
+# Third-party plugin panels register through the same popout coordinator, so
+# closing whatever owns the popout covers them without naming plugin ids.
+if ! perl -0ne 'exit(/function closeActivePopout\(\)\s*\{[^}]*?"close" in activePopout[^}]*?\}/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "closing the popout goes through whichever owner registered it"
+fi
+pass "closing the popout goes through whichever owner registered it"

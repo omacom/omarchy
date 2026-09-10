@@ -26,6 +26,19 @@ Item {
   // Injected by the host shell. Used for shell-wide actions such as opening
   // settings and persisting inline widget state.
   property var shell: null
+  // An open panel is a layer-shell surface anchored to the bar, while the
+  // fullscreen screensaver is a normal Wayland client, so the compositor draws
+  // the panel above it and leaves whatever the widget was showing on a screen
+  // meant to conceal the session. Close the panel whenever the enabled idle
+  // service reports a screensaver window. Resolve through the registry so this
+  // also follows a user-cloned idle service.
+  readonly property string idleServiceId: shell && shell.pluginRegistry
+    ? shell.pluginRegistry.resolveEnabledId("omarchy.idle")
+    : "omarchy.idle"
+  readonly property var idleService: shell && typeof shell.serviceFor === "function"
+    ? shell.serviceFor(idleServiceId) : null
+  readonly property bool screensaverActive: !!idleService && idleService.screensaverWindowCount > 0
+  onScreensaverActiveChanged: if (screensaverActive) closeActivePopout()
   // Manifest for the active bar option. Present for custom bars and useful for
   // diagnostics; the built-in bar does not otherwise need it.
   property var manifest: null
@@ -550,6 +563,14 @@ Item {
 
   function releasePopout(owner) {
     if (activePopout === owner) activePopout = null
+  }
+
+  // Close whatever popout is open, whoever owns it. Built-in panels and
+  // third-party plugin panels both register here, so both are covered.
+  function closeActivePopout() {
+    if (!activePopout) return
+    if ("close" in activePopout) activePopout.close()
+    releasePopout(activePopout)
   }
 
   readonly property bool vertical: position === "left" || position === "right"
