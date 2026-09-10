@@ -104,6 +104,15 @@ assert(!menu.matchesQuery(entry, 'missing', true), 'menu rejects missing terms')
 assert(!menu.matchesQuery(entry, 'theme', false), 'menu hides invisible matches')
 assert(menu.searchScore(merged.items, entry, 'theme') < menu.searchScore(merged.items, entry, 'appearance'), 'menu scores name matches above description matches')
 
+const xhs = menu.normalizeItem('apps.rednote', { label: '小红书' })
+const douyin = menu.normalizeItem('apps.douyin', { label: '抖音' })
+const wechat = menu.normalizeItem('apps.wechat-universal', { label: '微信 Universal' })
+assertEqual(menu.pinyinInitials('小红书'), 'xhs', 'menu computes pinyin initials for Chinese names')
+assert(menu.matchesQuery(xhs, 'xhs', true), 'menu finds Chinese app names by pinyin initials')
+assert(menu.matchesQuery(douyin, 'dy', true), 'menu finds Chinese app names by pinyin initials')
+assert(menu.matchesQuery(wechat, 'wx', true), 'menu finds mixed Chinese labels by pinyin initials')
+assert(!menu.matchesQuery(xhs, 'wx', true), 'menu rejects unrelated pinyin initials')
+
 assertDeepEqual(
   menu.displayRow(merged.items, merged.itemOrder, {}, {}, entry, 'Style', 12, 'search'),
   {
