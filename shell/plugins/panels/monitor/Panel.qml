@@ -14,9 +14,15 @@ Panel {
 
   // manageIpc: false so this panel can own the single IpcHandler the target
   // permits — needed for the brightness + state methods below.
+
+  // Brightness is written optimistically: the slider moves first and
+  // `omarchy-brightness-display` verifies afterwards. brightnessPercent is both
+  // what the slider shows and the value the hardware still owes us,
+  // sentBrightnessPercent is what the write in flight is verifying, and
+  // confirmedBrightnessPercent is the last percentage the hardware accepted.
   property int brightnessPercent: 0
-  property int pendingBrightnessPercent: 0
-  property bool brightnessSetQueued: false
+  property int sentBrightnessPercent: 0
+  property int confirmedBrightnessPercent: 0
   property bool brightnessOsdPending: false
   property bool brightnessAvailable: false
   property string internalMonitor: ""
@@ -205,7 +211,7 @@ Panel {
   function brightnessIpc(percent) {
     var value = Number(percent)
     root.setBrightness(value)
-    return "got " + root.pendingBrightnessPercent
+    return "got " + root.brightnessPercent
   }
 
   function stateIpc() {
@@ -237,14 +243,14 @@ Panel {
   function setBrightness(value) {
     var percent = Model.clampBrightness(value)
     root.brightnessPercent = percent
-    root.pendingBrightnessPercent = percent
 
-    if (setBrightnessProc.running) {
-      root.brightnessSetQueued = true
-      return
-    }
+    // A write is already in flight. brightnessPercent now differs from the
+    // percentage that write is verifying, which is how onExited knows to send
+    // this one after it finishes -- so a drag coalesces into a single trailing
+    // write instead of one write per step.
+    if (setBrightnessProc.running) return
 
-    root.brightnessSetQueued = false
+    root.sentBrightnessPercent = percent
     setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", root.focusedMonitor, percent + "%"]
     setBrightnessProc.running = true
   }
@@ -393,7 +399,12 @@ Panel {
         var lines = String(text || "").split("\n")
         var brightness = String(lines[0] || "").trim()
         root.brightnessAvailable = brightness !== "unavailable" && brightness !== ""
-        root.brightnessPercent = root.brightnessAvailable ? Math.max(0, Math.min(100, parseInt(brightness, 10))) : 0
+        var read = root.brightnessAvailable ? Math.max(0, Math.min(100, parseInt(brightness, 10))) : 0
+        if (root.brightnessAvailable) root.confirmedBrightnessPercent = read
+        // A poll that lands mid-write read the hardware before the write got
+        // there, so it is already stale. brightnessPercent is the value we are
+        // still writing; let the write settle it rather than fighting the slider.
+        if (!setBrightnessProc.running) root.brightnessPercent = read
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
@@ -423,19 +434,27 @@ Panel {
     // brightness changes are still picked up by the 5s periodic refresh,
     // the open-time refresh, and Component.onCompleted.
     //
-    // A failed set is verified wrong, so drop the queue and refresh to snap
-    // the slider back. The OSD is only shown once a write is verified.
+    // A failed set is verified wrong, so snap the slider back to the last
+    // percentage the hardware confirmed. That revert is local
+    // for the same reason: refresh() here would race the read path and an empty
+    // result clears brightnessAvailable, which hides the slider until the next
+    // poll. The OSD is only shown once a write is verified.
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        root.brightnessSetQueued = false
         root.brightnessOsdPending = false
-        root.refresh()
+        root.brightnessPercent = root.confirmedBrightnessPercent
         return
       }
-      if (root.brightnessSetQueued) {
-        root.setBrightness(root.pendingBrightnessPercent)
+
+      root.confirmedBrightnessPercent = root.sentBrightnessPercent
+
+      // The slider moved on while this write was in flight, so send what the
+      // hardware still owes us and let that write finish the burst.
+      if (root.brightnessPercent !== root.sentBrightnessPercent) {
+        root.setBrightness(root.brightnessPercent)
         return
       }
+
       if (root.brightnessOsdPending) {
         root.brightnessOsdPending = false
         root.showBrightnessOsd(root.brightnessPercent)
