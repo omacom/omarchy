@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Require authentication for Omarchy's normally passwordless system actions
+# omarchy:requires-sudo=true
+
+set -e
+
+if omarchy-sudo-authentication enabled; then
+  echo "Authentication is already required for Omarchy's three system convenience actions."
+  exit 0
+fi
+
+cat <<'EOF'
+
+Omarchy normally allows three tightly scoped system actions without a password:
+changing the DNS provider, syncing browser theme policy, and setting the timezone.
+
+Requiring authentication disables those convenience rules. The actions still
+work, but they may show a sudo or graphical authentication prompt instead.
+This setting persists across Omarchy updates.
+
+EOF
+
+if gum confirm "Require authentication for these three system actions?"; then
+  omarchy-sudo-authentication enable
+  echo "Authentication is now required for Omarchy's three system convenience actions."
+else
+  echo "Cancelled. Omarchy's scoped passwordless sudo rules remain enabled."
+fi

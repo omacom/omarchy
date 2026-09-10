@@ -31,6 +31,12 @@ for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
 '
 
+write_stub omarchy-sudo-authentication '#!/bin/bash
+printf "sudo-authentication" >>"$OMARCHY_CHANNEL_TEST_LOG"
+for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
+printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
+'
+
 write_stub omarchy-dev-unlink '#!/bin/bash
 printf "unlink" >>"$OMARCHY_CHANNEL_TEST_LOG"
 for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
@@ -107,6 +113,7 @@ assert_log_line() {
 run_channel stable
 assert_log_line $'refresh\tstable' "stable refreshes the stable pacman channel"
 assert_log_line $'sudo\tenv\tOMARCHY_UPDATE_PACMAN=1\tpacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy\tomarchy-settings' "stable installs stable Omarchy packages"
+assert_log_line $'sudo-authentication\tapply' "stable reapplies the sudo authentication policy after changing packages"
 assert_log_line $'unlink\t--no-reboot' "stable restores the package-backed Omarchy path without an early reboot prompt"
 assert_log_line $'update\t-y\tOMARCHY_PATH=/usr/share/omarchy' "stable runs the normal update pipeline from the package-backed path"
 if grep -q $'^state\tset\treboot-required$' "$log_file"; then
@@ -126,7 +133,7 @@ assert_log_line $'sudo\tenv\tOMARCHY_UPDATE_PACMAN=1\tpacman\t-S\t--needed\t--no
 assert_log_line $'unlink\t--no-reboot' "edge unlinks dev without an early reboot prompt"
 assert_log_line $'state\tset\treboot-required' "edge marks reboot required when leaving dev"
 assert_log_line $'update\t-y\tOMARCHY_PATH=/usr/share/omarchy' "edge runs the normal update pipeline from the package-backed path"
-[[ $(grep -E '^(unlink|state|update)' "$log_file") == $'unlink\t--no-reboot\nstate\tset\treboot-required\nupdate\t-y\tOMARCHY_PATH=/usr/share/omarchy' ]] ||
+[[ $(grep -E '^(sudo-authentication|unlink|state|update)' "$log_file") == $'sudo-authentication\tapply\nunlink\t--no-reboot\nstate\tset\treboot-required\nupdate\t-y\tOMARCHY_PATH=/usr/share/omarchy' ]] ||
   fail "edge defers the reboot prompt until the update restart stage" "$(cat "$log_file")"
 pass "edge defers the reboot prompt until the update restart stage"
 
@@ -151,7 +158,7 @@ assert_log_line $'git\tclone\thttps://github.com/basecamp/omarchy.git\t'"$checko
 assert_log_line $'link\t'"$checkout"$'\t--no-reboot' "dev links ~/omarchy without an early reboot prompt"
 assert_log_line $'state\tset\treboot-required' "dev defers the reboot prompt to the update pipeline"
 assert_log_line $'update\t-y\tOMARCHY_PATH='"$checkout" "dev runs the normal update pipeline from the source checkout"
-[[ $(grep -E '^(git|link|state|refresh|sudo|update)' "$log_file") == $'git\tclone\thttps://github.com/basecamp/omarchy.git\t'"$checkout"$'\nlink\t'"$checkout"$'\t--no-reboot\nstate\tset\treboot-required\nrefresh\tedge\nsudo\tenv\tOMARCHY_UPDATE_PACMAN=1\tpacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev\nupdate\t-y\tOMARCHY_PATH='"$checkout" ]] ||
+[[ $(grep -E '^(git|link|state|refresh|sudo|sudo-authentication|update)' "$log_file") == $'git\tclone\thttps://github.com/basecamp/omarchy.git\t'"$checkout"$'\nlink\t'"$checkout"$'\t--no-reboot\nstate\tset\treboot-required\nrefresh\tedge\nsudo\tenv\tOMARCHY_UPDATE_PACMAN=1\tpacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev\nsudo-authentication\tapply\nupdate\t-y\tOMARCHY_PATH='"$checkout" ]] ||
   fail "dev activates the checkout before changing or updating packages" "$(cat "$log_file")"
 pass "dev activates the checkout before changing or updating packages"
 

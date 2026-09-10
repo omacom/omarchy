@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Restore Omarchy's scoped passwordless sudo rules
+# omarchy:requires-sudo=true
+
+set -e
+
+if ! omarchy-sudo-authentication enabled; then
+  echo "Omarchy's scoped passwordless sudo rules are already enabled."
+  exit 0
+fi
+
+omarchy-sudo-authentication disable
+echo "Restored Omarchy's scoped passwordless sudo rules."
