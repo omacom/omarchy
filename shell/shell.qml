@@ -815,11 +815,14 @@ ShellRoot {
       var shellApi = _pluginShellApis[shellKey]
       var descriptor = _pluginShellApiDescriptors[shellKey]
       var manifest = descriptor ? plugins[descriptor.pluginId] : null
-      // A missing manifest usually means the registry is mid-rebuild, not
-      // that the plugin vanished: judging capabilities against the hole
-      // revoked healthy facades under live plugins. Leave the entry alone;
-      // the pass after the scan settles judges it for real.
-      if (!manifest) continue
+      if (!manifest) {
+        // Mid-scan the registry can be between states; judge nothing until
+        // it settles. Outside a scan, a missing manifest means the plugin is
+        // gone, and its cache entry should go with it.
+        if (shell.pluginRegistry.scanning) continue
+        shell.revokePluginShellApi(shellKey)
+        continue
+      }
       var barCapabilities = descriptor.allowOwnService
         && shell.pluginHasBarCapabilities(manifest)
       var expectedProfile = shell.pluginShellCapabilityProfile(manifest, descriptor.allowOwnService, barCapabilities)
