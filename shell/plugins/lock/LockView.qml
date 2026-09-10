@@ -10,6 +10,10 @@ Item {
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool authenticatingPassword: false
+  // Bumped by the service on every rejected fingerprint read; the view turns
+  // it into a brief flash of the hint icon.
+  property int fingerprintFailureTick: 0
+  property bool fingerprintError: false
   property string failureMessage: ""
   property int failedAttempts: 0
   property bool inputEnabled: true
@@ -67,6 +71,11 @@ Item {
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
+  onFingerprintFailureTickChanged: {
+    if (fingerprintFailureTick <= 0) return
+    fingerprintError = true
+    fingerprintErrorTimer.restart()
+  }
   Component.onCompleted: {
     syncPasswordText()
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
@@ -80,6 +89,12 @@ Item {
     font.pixelSize: root.passwordDotFontSize
     font.letterSpacing: root.passwordDotLetterSpacing
     text: "●".repeat(passwordInput.text.length)
+  }
+
+  Timer {
+    id: fingerprintErrorTimer
+    interval: 1000
+    onTriggered: root.fingerprintError = false
   }
 
   Rectangle {
@@ -210,7 +225,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: "󰈷"
-        color: Color.lock.placeholder
+        color: root.fingerprintError ? Color.lock.textError : Color.lock.placeholder
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter

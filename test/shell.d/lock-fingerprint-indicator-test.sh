@@ -70,4 +70,4 @@ if ! jq -e '.ok == true' "$result" >/dev/null; then
   fail "fingerprint indicator tracks the configured sensor"
 fi
 
-pass "fingerprint indicator tracks the configured sensor"
+pass "fingerprint indicator tracks the configured sensor and flashes on rejected reads"
