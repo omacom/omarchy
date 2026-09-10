@@ -34,8 +34,14 @@ if [[ ${1:-} == "--status" ]]; then
   exit 0
 fi
 
+# Drop overlapping toggle events so concurrent invocations do not race
+exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-toggle-nightlight.lock"
+flock -n "$lock_fd" || exit 0
+
 # Ensure hyprsunset is running
+was_running=true
 if ! pgrep -x hyprsunset >/dev/null; then
+  was_running=false
   setsid uwsm-app -- hyprsunset &
 fi
 
@@ -48,12 +54,16 @@ else
   TARGET_TEMP=$OFF_TEMP
 fi
 
-# A freshly-started hyprsunset applies its default temperature at the end of
-# its boot, overriding anything set before then — so resend until it sticks
-for _ in {1..10}; do
+if [[ $was_running == "false" ]]; then
+  # A freshly-started hyprsunset applies its default temperature at the end of
+  # its boot, overriding anything set before then — so resend until it sticks
+  for _ in {1..10}; do
+    hyprctl hyprsunset temperature $TARGET_TEMP >/dev/null 2>&1
+    sleep 0.2
+    [[ $(current_temp) == "$TARGET_TEMP" ]] && break
+  done
+else
   hyprctl hyprsunset temperature $TARGET_TEMP >/dev/null 2>&1
-  sleep 0.2
-  [[ $(current_temp) == "$TARGET_TEMP" ]] && break
-done
+fi
 
 omarchy-shell -q nightlight refresh
