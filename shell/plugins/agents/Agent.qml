@@ -12,6 +12,7 @@ Item {
   property string agentId: ""
   property string path: ""
   property var record: null
+  readonly property var dailyUsage: record && record.dailyUsage ? record.dailyUsage : null
 
   FileView {
     path: root.path

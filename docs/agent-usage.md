@@ -1,0 +1,35 @@
+# Agent usage records
+
+`omarchy-agent-usage-update` writes each collector's JSON record atomically to the usage directory. `shell/plugins/agents/Agent.qml` watches those files. The top-level record keeps `schemaVersion: 1` and the established numeric fields for existing consumers.
+
+## Native Codex daily data
+
+The Codex collector additionally emits `dailyUsage`, an independently versioned consumption contract. Prices and subscription limits do not belong to this object. A consumer must not derive money from the legacy `recentDays.messageCount` field: its units depend on the provider/source.
+
+| Field | Meaning |
+| --- | --- |
+| `schemaVersion` | `1`; consumers must reject unsupported versions |
+| `unit` | `tokens` |
+| `fromDate`, `throughDate` | Inclusive local calendar dates covered by the scan, currently the last 30 dates including today |
+| `complete` | Whether every collected contribution has a verified date, token split and accounting identity; false is never evidence of zero use |
+| `issues` | Scan-wide coverage problems that cannot be confined to a dated bucket |
+| `unallocatedTokens` | Known measured tokens whose day/model cannot safely be assigned; not added to an invented day |
+| `days` | Ascending local dates with `buckets`; an empty bucket list is meaningful only together with coverage and the recorded date range |
+
+Each bucket contains `rawModel`, `source`, `sourceId`, `tariff`, `tokens`, `totalTokens` and `issues`. `sourceId` hashes the native session identity, or the existing legacy source identity, without exposing transcript paths. It is not a cross-device deduplication contract. Model identifiers are preserved rather than normalized into a pricing family. Missing, empty or non-string native identifiers are `null` with `missing-model`; only the legacy display name falls back to `codex`. `tariff` retains observed `service_tier`, `speed`, `fast_mode` and `cache_duration` attributes; their presence does not establish an applicable price. Missing attributes require a disclosed standard-tariff estimate when pricing becomes possible.
+
+`tokens` has four disjoint fields: `inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheCreationInputTokens`. A nonnegative JSON integer is measured; `null` means unverified, not zero. Native input already includes cache reads and writes; the collector subtracts those categories once. Output already contains reasoning. Missing cache categories also make the remaining uncached input unknown. `totalTokens` can still be known from the source's input-plus-output quantities when the split is incomplete. Invalid JSON numbers, strings, booleans, negative quantities and inconsistent cache splits cannot substantiate complete cost coverage.
+
+Native events retain their file-local model/tariff context and are reconciled per session in absolute timestamp order, independently of live/archive filenames and overlapping file traversal. Equal timestamps are ordered by measured cumulative quantity. Native cumulative counters act as session high-water marks. Repeated snapshots do not add usage, growing snapshots contribute only their increments, and a repeated archived copy sharing `session_meta.id` is deduplicated. Counter regressions are reported rather than treated as new requests. An initial cumulative history larger than the separately reported last request cannot be assigned wholesale to the latest model/day. Last-only records without a cumulative meter are explicitly marked as having unverified event identity. Missing current or previous cumulative cache fields can be filled from request fields only if the measured input and output increment equals the entire request; explicit invalid fields are not treated as omitted. A growing partial request cannot justify reusing its entire cache amount for an increment.
+
+At unchanged measured input-plus-output totals, changes to quantities or cache classification add no consumption. Because a session-level correction cannot identify the affected historical day/request/model, `cumulative-correction` withdraws the category split of already collected session buckets (`null`) while preserving their measured `totalTokens`. Subsequent increments use the updated meter baseline. Existing numeric legacy category aggregates retain their prior split for compatibility; they are not pricing evidence, and their summed consumption does not grow on correction. Reasoning-only updates add neither tokens nor empty buckets/prompts. Independently known categories survive in numeric legacy fields even when the overall total is unknown; the daily contract retains `null` for unmeasured categories and total.
+
+Native event dates come from valid timestamps converted to local calendar dates. Invalid timestamps never fall back to today or file mtime. Old file mtimes do not hide valid in-window events. Invalid undated usage makes scan-wide coverage incomplete. Consumers shifting a calendar window after midnight/resume must account for the scan's date range; they cannot assume that absent future dates have complete zero activity.
+
+Legacy Codex sources keep their existing numeric records but contribute `source: legacy` buckets with unknown cost categories and `source-not-covered`. Their presence must not make a native-only subtotal appear complete. Likewise, older records or synchronized snapshots without `dailyUsage` have unavailable cost coverage; do not reuse a local cost total for a different synchronized token total. No original session history is rewritten. Native directory traversal reports errors explicitly; failed reads, malformed native records and errors from the existing Pi search make coverage incomplete. Rate-limit-only `token_count` notifications with `info: null` do not imply new usage. An absent source directory is distinct from an existing unreadable source. Pi parsing remains limited to the existing matching-provider search, and OpenCode remains the existing legacy adapter; this does not claim full coverage of sources deferred to later tickets.
+
+The local scan cache retains envelope `schemaVersion: 1` and adds `collectorRevision: 2` to invalidate pre-reconciliation scans. Both public record and daily contract remain version 1. Cache reads validate versions, types, nonnegative safe integer quantities, complete-coverage claims, all 30 calendar dates, bucket structure and corresponding numeric legacy totals. Foreign record metadata inside cached stats is rejected. Unsupported, stale, future-dated or malformed caches cause a scan; scan/read/parse failures prevent cache writes so repaired sources are retried immediately. Legitimately partial token-category data may be cached with its coverage markers.
+
+## Tests
+
+`bash test/shell.d/agent-usage-codex-daily-test.sh` supplies synthetic native JSONL and runs the actual collector through `omarchy-agent-usage-update`, reading the resulting consumer-facing record. A test launcher substitutes only the clock and an inert Codex RPC peer; usage, output and cache paths live in a temporary home. The existing `agent-usage-codex-scanner-test.sh` checks compatibility with other supported sources and the local scan cache.

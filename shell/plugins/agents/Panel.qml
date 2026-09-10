@@ -37,7 +37,14 @@ Panel {
   property double nowMs: Date.now()
 
   readonly property var limits: limitWindows(provider)
-  readonly property var models: modelRows(provider)
+  readonly property var modelPresentation: usage.pricing.modelWindowPresentation(provider, nowMs)
+  readonly property var models: provider && provider.providerId === "codex"
+    && modelPresentation.available === true
+    ? pricedModelRows(modelPresentation.models) : modelRows(provider)
+  readonly property var modelSummaries: provider && provider.providerId === "codex"
+    && modelPresentation.available === true
+    ? pricedSummaryRows(modelPresentation.summaries) : []
+  readonly property var pricedDailyRows: usage.pricing.dailyRows(provider, nowMs)
   readonly property var headline: bindingWindow(provider)
   readonly property var balance: provider ? (provider.balance || null) : null
   // A prepaid account runs low the way a subscription window fills up: the
@@ -219,13 +226,14 @@ Panel {
     if (today && provider && provider.hasPromptStats !== false)
       text += " · " + Number(provider.todayPrompts || 0) + " prompts · "
         + Number(provider.todaySessions || 0) + " sessions"
+    if (day.pricingEnabled === true)
+      text += "\n" + usage.pricing.dailyTooltipDetails(day)
     return text
   }
 
-  function weekPeak(p) {
-    var days = p ? (p.recentDays || []) : []
+  function weekPeak(days) {
     var peak = 0
-    for (var i = 0; i < days.length; i++) peak = Math.max(peak, Number(days[i].messageCount || 0))
+    for (var i = 0; i < days.length; i++) peak = Math.max(peak, Number(days[i].messageCount || days[i].tokens || 0))
     return peak
   }
 
@@ -251,8 +259,49 @@ Panel {
     return rows.slice(0, 4)
   }
 
+  function pricedModelRows(rows) {
+    var result = []
+    var values = rows || []
+    for (var i = 0; i < values.length; i++) {
+      var row = values[i]
+      result.push({
+        id: row.id,
+        name: row.id === "(unknown model)" ? row.id : usage.friendlyModelName(row.id),
+        total: row.tokens,
+        value: row.value,
+        tooltip: row.tooltip,
+        pricingPresentation: true
+      })
+    }
+    return result
+  }
+
+  function pricedSummaryRows(rows) {
+    var result = []
+    var values = rows || []
+    for (var i = 0; i < values.length; i++) {
+      var row = values[i]
+      result.push({
+        name: row.label,
+        total: row.tokens,
+        value: row.value,
+        tooltip: row.tooltip,
+        pricingPresentation: true
+      })
+    }
+    return result
+  }
+
+  function modelPresentationHasPartial() {
+    var rows = (modelPresentation.models || []).concat(modelPresentation.summaries || [])
+    for (var i = 0; i < rows.length; i++)
+      if (rows[i].cost && rows[i].cost.status === "partial") return true
+    return false
+  }
+
   function modelTooltip(row) {
     if (!row) return ""
+    if (row.pricingPresentation === true) return String(row.tooltip || "")
     return "In " + usage.formatTokenCount(row.input)
       + " · out " + usage.formatTokenCount(row.output)
       + " · cache read " + usage.formatTokenCount(row.cacheRead)
@@ -313,6 +362,7 @@ Panel {
   Main {
     id: usage
     settings: root.settings
+    pricingActive: root.opened
   }
 
   // Cheap enough to keep running: it only re-evaluates text bindings, and a
@@ -623,12 +673,14 @@ Panel {
             width: parent.width
             spacing: Style.spacing.md
 
-            readonly property var days: root.provider ? (root.provider.recentDays || []) : []
-            readonly property real peak: Math.max(1, root.weekPeak(root.provider))
+            readonly property var days: root.provider && root.provider.providerId === "codex"
+              ? root.pricedDailyRows
+              : (root.provider ? (root.provider.recentDays || []) : [])
+            readonly property real peak: Math.max(1, root.weekPeak(days))
 
             PanelSectionHeader {
               width: parent.width
-              text: "TOKENS BY DAY"
+              text: usage.pricing.dailyHeading(root.provider, usageSection.days)
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -642,7 +694,7 @@ Panel {
 
                 width: usageSection.width
                 day: modelData
-                ratio: Number(modelData.messageCount || 0) / usageSection.peak
+                ratio: Number(modelData.messageCount || modelData.tokens || 0) / usageSection.peak
                 // By date, not by position: the Claude stats-cache fallback can
                 // hand us a window that stops short of today.
                 today: String(modelData.date || "") === root.todayDate()
@@ -664,7 +716,9 @@ Panel {
 
             PanelSectionHeader {
               width: parent.width
-              text: "TOKENS BY MODEL"
+              text: root.provider && root.provider.providerId === "codex"
+                && root.modelPresentation.available === true
+                ? "TOKENS / API COST BY MODEL (30 DAYS)" : "TOKENS BY MODEL"
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -680,6 +734,28 @@ Panel {
                 // the same scale-to-peak the weekly chart uses for its busiest day.
                 share: modelData.total / Math.max(1, root.models[0].total)
               }
+            }
+
+            Repeater {
+              model: root.modelSummaries
+
+              ModelRow {
+                required property var modelData
+                width: modelSection.width
+                row: modelData
+                share: 0
+                summary: true
+              }
+            }
+
+            Text {
+              visible: root.modelPresentationHasPartial()
+              width: parent.width
+              text: "* known API-cost subtotal; hover for priced-token coverage"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
             }
           }
 
@@ -845,7 +921,9 @@ Panel {
     Text {
       id: dayValue
       textFormat: Text.PlainText
-      text: usage.formatTokenCount(dayRow.day ? Number(dayRow.day.messageCount || 0) : 0)
+      text: dayRow.day && dayRow.day.value
+        ? dayRow.day.value
+        : usage.formatTokenCount(dayRow.day ? Number(dayRow.day.messageCount || 0) : 0)
       color: dayRow.today ? root.foreground : root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -853,7 +931,7 @@ Panel {
       horizontalAlignment: Text.AlignRight
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      width: Style.space(52)
+      width: dayRow.day && dayRow.day.pricingEnabled === true ? Style.space(112) : Style.space(52)
     }
 
     MouseArea {
@@ -876,13 +954,14 @@ Panel {
     id: modelRow
     property var row: null
     property real share: 0
+    property bool summary: false
 
     implicitHeight: modelName.implicitHeight + Style.spacing.lg
 
     Rectangle {
       anchors.fill: parent
       radius: Style.cornerRadius
-      color: root.alpha(root.foreground, 0.05)
+      color: root.alpha(root.foreground, modelRow.summary ? 0.09 : 0.05)
     }
 
     Rectangle {
@@ -916,7 +995,10 @@ Panel {
     Text {
       id: modelTokens
       textFormat: Text.PlainText
-      text: modelRow.row ? usage.formatTokenCount(modelRow.row.total) : ""
+      text: modelRow.row
+        ? (modelRow.row.pricingPresentation === true ? modelRow.row.value
+          : usage.formatTokenCount(modelRow.row.total))
+        : ""
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -924,6 +1006,8 @@ Panel {
       anchors.right: parent.right
       anchors.rightMargin: Style.space(8)
       anchors.verticalCenter: parent.verticalCenter
+      width: modelRow.row && modelRow.row.pricingPresentation === true ? Style.space(112) : implicitWidth
+      horizontalAlignment: Text.AlignRight
     }
 
     MouseArea {

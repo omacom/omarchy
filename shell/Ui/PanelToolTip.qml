@@ -23,11 +23,13 @@ ToolTip {
   property color panelBorder: Color.tooltip.border
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.bodySmall
+  property real maximumWidth: Style.space(480)
 
   readonly property var panelBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", panelBorder, Color.tooltip.border, Style.normalBorderWidth)
 
   delay: 400
   padding: 0
+  implicitWidth: Math.min(contentItem.implicitWidth, maximumWidth)
 
   background: BorderSurface {
     color: root.panelBackground
@@ -41,6 +43,7 @@ ToolTip {
     color: root.panelForeground
     font.family: root.fontFamily
     font.pixelSize: root.fontSize
+    wrapMode: Text.Wrap
     leftPadding: Border.left(root.panelBorderSpec) + Style.spacing.controlPaddingX
     rightPadding: Border.right(root.panelBorderSpec) + Style.spacing.controlPaddingX
     topPadding: Border.top(root.panelBorderSpec) + Style.spacing.controlPaddingY
