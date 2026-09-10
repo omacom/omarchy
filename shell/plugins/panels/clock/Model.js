@@ -173,8 +173,12 @@ function yearProgressPercent(year, month, day) {
 
 // Memento mori. The default span is a round number rather than anything from
 // an actuarial table: the point of the bar is the reminder, not the
-// arithmetic, and whoever wants a different number can say so.
+// arithmetic, and whoever wants a different number can say so. The upper
+// bound is only a field-width sanity cap — a personal target, not a medical
+// prediction — so a value like 369 is kept rather than silently replaced
+// with ninety.
 var DEFAULT_LIFE_EXPECTANCY = 90
+var MAX_LIFE_EXPECTANCY = 9999
 
 // A birth year rather than an age, so the bar keeps counting on its own
 // instead of going stale the moment it is entered. 0 means "not set", which
@@ -213,7 +217,7 @@ function parseLifeExpectancy(value) {
   var text = String(value === undefined || value === null ? "" : value).replace(/^\s+|\s+$/g, "")
   if (!/^\d+$/.test(text)) return DEFAULT_LIFE_EXPECTANCY
   var years = parseInt(text, 10)
-  if (!isFinite(years) || years <= 0 || years > 150) return DEFAULT_LIFE_EXPECTANCY
+  if (!isFinite(years) || years <= 0 || years > MAX_LIFE_EXPECTANCY) return DEFAULT_LIFE_EXPECTANCY
   return years
 }
 
