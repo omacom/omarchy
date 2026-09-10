@@ -126,6 +126,13 @@ run_remove 'My App' >/dev/null
   fail "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
 pass "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
 
+touch "$icons_dir/my-app.png"
+install_tui 'My App Png' htop tile my-app
+run_remove 'My App Png' >/dev/null
+[[ -f "$icons_dir/my-app.png" ]] ||
+  fail "tui remove leaves a pre-existing shared png that shares the bundled icon slug"
+pass "tui remove leaves a pre-existing shared png that shares the bundled icon slug"
+
 touch "$icons_dir/example.png"
 run_remove 'No Such App' >/dev/null 2>&1 || true
 [[ -f "$icons_dir/example.png" ]] ||
@@ -197,6 +204,44 @@ DESKTOP
 run_remove "127.0.0.1:4000" >/dev/null
 [[ -f "$applications/http:/127.0.0.1:4000/.desktop" ]] &&
   fail "tui remove deletes a launcher left nested by an older install"
-[[ -f "$icons_dir/$legacy_icon.png" ]] &&
-  fail "tui remove deletes the icon named for the launcher's full Name field"
-pass "tui remove reaches a nested legacy launcher and its icon"
+[[ -f "$icons_dir/$legacy_icon.png" ]] ||
+  fail "tui remove leaves a legacy icon untouched when no ownership marker is present"
+pass "tui remove reaches a nested legacy launcher without deleting its icon"
+
+multiline_name=$(printf 'Line One\nLine Two')
+icon_src="$test_tmp/icon.png"
+printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d >"$icon_src"
+install_tui "$multiline_name" htop tile "$icon_src"
+multiline_file="$applications/$multiline_name.desktop"
+multiline_slug=line-one-line-two
+
+(( $(grep -c '^X-Omarchy-OwnedIcon=' "$multiline_file") == 1 )) ||
+  fail "a multiline name writes one owned-icon line" "$(grep X-Omarchy-OwnedIcon "$multiline_file" || true)"
+[[ -f "$icons_dir/$multiline_slug.png" ]] ||
+  fail "a multiline name installs its icon under a single-line slug"
+if command -v desktop-file-validate >/dev/null; then
+  desktop-file-validate "$multiline_file" >/dev/null ||
+    fail "a multiline name still validates as a desktop entry"
+fi
+run_remove "$multiline_name" >/dev/null
+[[ -f "$icons_dir/$multiline_slug.png" ]] &&
+  fail "tui remove deletes an owned icon installed for a multiline name"
+pass "a multiline name round-trips owned-icon metadata and removal"
+
+literal_name=$(printf 'Literal\\tSequence')
+literal_file="$applications/$literal_name.desktop"
+install_tui "$literal_name" htop tile someicon
+run_remove "$literal_name" >/dev/null
+[[ -f $literal_file ]] &&
+  fail "tui remove deletes a literal backslash-t name from the command line"
+pass "tui remove deletes a literal backslash-t name from the command line"
+
+install_tui "$literal_name" htop tile someicon
+literal_file="$applications/$literal_name.desktop"
+literal_row_label=$(printf 'Literal\\tSequence')
+FAKE_PICK=$'\t'"${literal_row_label}"$'\t'"${literal_file}" \
+  HOME="$HOME" PATH="$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  bash "$ROOT/bin/omarchy-tui-remove" >/dev/null
+[[ -f $literal_file ]] &&
+  fail "tui remove deletes a literal backslash-t name through the picker"
+pass "tui remove deletes a literal backslash-t name through the picker"

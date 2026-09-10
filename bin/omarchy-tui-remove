@@ -9,12 +9,6 @@ ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
 OLD_ICON_DIR="$HOME/.local/share/applications/icons"
 DESKTOP_DIR="$HOME/.local/share/applications/"
 
-safe_icon_name() {
-  printf '%s\n' "$1" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//'
-}
-
 desktop_value() {
   local file="$1" key="$2"
   sed -n "s/^$key=//p" "$file" | head -1
@@ -23,15 +17,11 @@ desktop_value() {
 desktop_string_unescape() {
   local value="$1"
 
-  value=${value//\\n/$'\n'}
-  value=${value//\\r/$'\r'}
-  value=${value//\\t/$'\t'}
   if [[ $value == '\s'* ]]; then
     value=" ${value:2}"
   fi
-  value=${value//\\\\/\\}
 
-  printf '%s' "$value"
+  perl -pe 's/\\(.)/$1 eq "\\" ? "\\" : $1 eq "n" ? "\n" : $1 eq "r" ? "\r" : $1 eq "t" ? "\t" : "\\$1"/ge' <<<"$value"
 }
 
 remove_owned_icon() {
@@ -44,16 +34,13 @@ remove_owned_icon() {
   done
 }
 
-remove_legacy_icon() {
-  local launcher_name="$1" slug icon_dir
+picker_row_label() {
+  local label="$1"
 
-  [[ -z $launcher_name ]] && return 0
-  slug=$(safe_icon_name "$launcher_name")
-  [[ $slug =~ ^[[:alnum:]-]+$ ]] || return 0
-
-  for icon_dir in "$ICON_DIR" "$OLD_ICON_DIR"; do
-    rm -f "$icon_dir/$slug.png"
-  done
+  label=${label//$'\t'/ }
+  label=${label//$'\n'/ }
+  label=${label//$'\r'/ }
+  printf '%s' "$label"
 }
 
 launcher_label() {
@@ -108,7 +95,8 @@ if (( $# == 0 )); then
     for file in "${sorted_paths[@]}"; do
       for i in "${!TUI_PATHS[@]}"; do
         if [[ ${TUI_PATHS[$i]} == "$file" ]]; then
-          picker_options+=($'\t'"${TUI_LABELS[$i]}"$'\t'"$file")
+          row_label=$(picker_row_label "${TUI_LABELS[$i]}")
+          picker_options+=($'\t'"$row_label"$'\t'"$file")
           break
         fi
       done
@@ -137,22 +125,20 @@ if [[ -z $desktop_file ]]; then
 fi
 
 launcher_removed=false
+has_owned_marker=false
 owned_icon=""
-launcher_name=""
 if [[ -f $desktop_file ]]; then
-  owned_icon=$(desktop_value "$desktop_file" X-Omarchy-OwnedIcon)
-  launcher_name=$(desktop_value "$desktop_file" Name)
-  launcher_name=$(desktop_string_unescape "$launcher_name")
+  if grep -q '^X-Omarchy-OwnedIcon=' "$desktop_file"; then
+    has_owned_marker=true
+    owned_icon=$(desktop_value "$desktop_file" X-Omarchy-OwnedIcon)
+    owned_icon=$(desktop_string_unescape "$owned_icon")
+  fi
   rm -f "$desktop_file"
   launcher_removed=true
 fi
 
-if [[ $launcher_removed == true ]]; then
-  if [[ -n $owned_icon ]]; then
-    remove_owned_icon "$owned_icon"
-  elif [[ -n $launcher_name ]]; then
-    remove_legacy_icon "$launcher_name"
-  fi
+if [[ $launcher_removed == true && $has_owned_marker == true && -n $owned_icon ]]; then
+  remove_owned_icon "$owned_icon"
 fi
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
   omarchy-notification-send -g  "TUI removed" "$APP_NAME"

@@ -13,6 +13,10 @@ safe_icon_name() {
     | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//'
 }
 
+owned_icon_slug() {
+  safe_icon_name "$1" | tr '\n' '-' | sed 's/-\+/-/g; s/^-//; s/-$//'
+}
+
 require_plain_name() {
   # The name becomes a filename. A slash would turn it into directory levels, so
   # the launcher lands somewhere omarchy-tui-remove cannot address and the app
@@ -100,20 +104,21 @@ DESKTOP_DIR="$HOME/.local/share/applications"
 DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
 mkdir -p "$DESKTOP_DIR"
 
+icon_slug=$(owned_icon_slug "$APP_NAME")
 owned_icon=""
 if [[ $ICON_REF =~ ^https?:// ]]; then
-  ICON_VALUE=$(safe_icon_name "$APP_NAME")
+  ICON_VALUE=$icon_slug
   mkdir -p "$ICON_DIR"
-  if ! download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
+  if ! download_icon "$ICON_REF" "$ICON_DIR/$icon_slug.png"; then
     echo "Error: Failed to download icon."
     exit 1
   fi
   gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
-  owned_icon="$ICON_VALUE.png"
+  owned_icon="$icon_slug.png"
 elif [[ -f $ICON_REF ]]; then
-  icon_slug=$(safe_icon_name "$APP_NAME")
   icon_ext="${ICON_REF##*.}"
   [[ $icon_ext == "$ICON_REF" ]] && icon_ext="png"
+  [[ $icon_ext =~ ^[[:alnum:]]+$ ]] || icon_ext="png"
   ICON_VALUE=$(install_user_icon "$ICON_REF" "$icon_slug")
   owned_icon="$icon_slug.$icon_ext"
 else
@@ -145,9 +150,7 @@ Icon=$icon_field
 StartupNotify=true
 EOF
 
-if [[ -n $owned_icon ]]; then
-  printf 'X-Omarchy-OwnedIcon=%s\n' "$owned_icon" >>"$DESKTOP_FILE"
-fi
+printf 'X-Omarchy-OwnedIcon=%s\n' "$(desktop_string_escape "$owned_icon")" >>"$DESKTOP_FILE"
 
 chmod +x "$DESKTOP_FILE"
 
