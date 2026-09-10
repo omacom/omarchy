@@ -230,6 +230,7 @@ const expectedAgents = {
   crush: { icon: '󰋑', label: 'Crush' },
   muse: { icon: '󰛤', label: 'Muse Code' },
   'cursor-agent': { icon: '\ue90d', iconFont: 'omarchy', label: 'Cursor CLI' },
+  kilo: { icon: '󰚩', label: 'kilo' },
 
 }
 assert(
@@ -245,11 +246,16 @@ assert(
   }),
   'menu exposes every supported coding agent with its own glyph under Defaults > Agent'
 )
+assert(
+  !defaultById['setup.default.agent.kilo'].aliases.length,
+  'menu lists kilo under its own name only, without aliases'
+)
+assert(!defaultById['install.ai.kilo'], 'menu keeps kilo a default-agent choice rather than an Install > AI entry')
 assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'kilo', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {

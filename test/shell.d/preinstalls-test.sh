@@ -132,3 +132,55 @@ ln -s "$test_home/nowhere/hermes" "$hermes"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -L $hermes ]] || fail "Remove Preinstalls keeps a foreign hermes link"
 pass "Remove Preinstalls keeps a foreign hermes link"
+
+# Only the mise wrapper omarchy-mise-install wrote is a preinstall: the kilo
+# stub line identifies it, and anything else at the same path is the user's,
+# including the configuration and state the runtime keeps elsewhere.
+kilo="$test_home/.local/bin/kilo"
+mkdir -p "$test_home/.kilo"
+printf '%s\n' '{}' >"$test_home/.kilo/tui.json"
+
+"$ROOT/bin/omarchy-mise-install" npm:@kilocode/cli kilo
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ ! -e $kilo ]] || fail "Remove Preinstalls deletes the Omarchy kilo wrapper"
+[[ -f $test_home/.kilo/tui.json ]] || fail "Remove Preinstalls keeps kilo's configuration and state"
+pass "Remove Preinstalls deletes the Omarchy kilo wrapper and nothing else"
+
+printf '#!/bin/bash\necho user-kilo\n' >"$kilo"
+chmod +x "$kilo"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ $("$kilo") == "user-kilo" ]] || fail "Remove Preinstalls keeps a user-managed kilo"
+pass "Remove Preinstalls keeps a user-managed kilo install"
+
+printf '#!/bin/bash\n# replaced: mise use -g --quiet "npm:@kilocode/cli"\nexec /opt/apps/kilo "$@"\n' >"$kilo"
+chmod +x "$kilo"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ -x $kilo ]] || fail "Remove Preinstalls keeps a wrapper that merely mentions the kilo package"
+pass "Remove Preinstalls keeps a wrapper that merely mentions the kilo package"
+
+rm -f "$kilo"
+ln -s "$test_home/nowhere/kilo" "$kilo"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ -L $kilo ]] || fail "Remove Preinstalls keeps a foreign kilo link"
+rm -f "$kilo"
+pass "Remove Preinstalls keeps a foreign kilo link"
+
+# Restore reaches the mise provisioning script through application refresh, so
+# with the real refresher in place, the stub Remove Preinstalls deleted comes
+# back. mise and the command probes stay mocked, so nothing downloads and no
+# settings change.
+rm -f "$mock_bin/omarchy-refresh-applications"
+printf '#!/bin/bash\nexec "$OMARCHY_TEST_REAL_REFRESH" "$@"\n' >"$mock_bin/omarchy-refresh-applications"
+printf '#!/bin/bash\n[[ $1 == ${OMARCHY_TEST_MISSING_COMMAND:-} ]]\n' >"$mock_bin/omarchy-cmd-missing"
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/mise"
+chmod +x "$mock_bin/omarchy-refresh-applications" "$mock_bin/omarchy-cmd-missing" "$mock_bin/mise"
+export OMARCHY_TEST_REAL_REFRESH="$ROOT/bin/omarchy-refresh-applications"
+export OMARCHY_PATH="$ROOT"
+export OMARCHY_TEST_MISSING_COMMAND=kilo
+
+"$ROOT/bin/omarchy-install-preinstalls" >/dev/null
+[[ -x $kilo ]] || fail "Install Preinstalls recreates the kilo lazy stub"
+grep -Fq 'mise use -g --quiet "npm:@kilocode/cli"' "$kilo" ||
+  fail "the restored kilo stub selects its npm package"
+[[ ! -f $marker ]] || fail "Install Preinstalls clears the kilo stub's opt-out marker"
+pass "Install Preinstalls recreates the kilo lazy stub through application refresh"

@@ -30,6 +30,12 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
     rm -f ~/.local/bin/muse
   fi
 
+  # Preserve a user-managed kilo launcher at the same path, such as kilo-bin.
+  if [[ -f ~/.local/bin/kilo && ! -L ~/.local/bin/kilo ]] &&
+    grep -Eq '^mise use -g .*"npm:@kilocode/cli"' ~/.local/bin/kilo; then
+    rm -f ~/.local/bin/kilo
+  fi
+
   # Only the wrapper omarchy-install-hermes-cli wrote is a preinstall. Hermes
   # Desktop's command, an official install, or anything else at that path is
   # the user's, so it is the installer that decides whether the wrapper is its
