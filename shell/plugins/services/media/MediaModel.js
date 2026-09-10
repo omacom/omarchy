@@ -150,6 +150,26 @@ function mostRecentlyActivePlayer(players, lastActiveAt) {
   return best
 }
 
+// Orders the two paused-player fallbacks by which signal is newer. An explicit
+// preference (a media-key target or a player picked from the menu) normally
+// wins, but it goes stale: if the headphones paused Spotify hours ago and you
+// then watched (and paused) a browser video, a play/pause key should resume
+// the browser, not Spotify. So when another player was observed playing after
+// the preference was set, that player is tried first. `preferredAt` is the
+// timestamp the preference was set; `lastActiveAt` maps playerKey() ->
+// last-observed-playing timestamp. Nulls are dropped from the result.
+function recencyOrderedFallbacks(preferred, preferredAt, recentlyActive, lastActiveAt) {
+  var active = lastActiveAt || {}
+  if (!preferred || !recentlyActive) return [preferred || recentlyActive].filter(function (p) { return !!p })
+
+  var key = playerKey(recentlyActive)
+  if (key === playerKey(preferred)) return [preferred]
+
+  var at = key ? active[key] : undefined
+  if (at !== undefined && at > (preferredAt || 0)) return [recentlyActive, preferred]
+  return [preferred, recentlyActive]
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isProxyPlayer: isProxyPlayer,
@@ -169,6 +189,7 @@ if (typeof module !== "undefined") {
     trackChanged: trackChanged,
     labelFor: labelFor,
     osdMessage: osdMessage,
-    mostRecentlyActivePlayer: mostRecentlyActivePlayer
+    mostRecentlyActivePlayer: mostRecentlyActivePlayer,
+    recencyOrderedFallbacks: recencyOrderedFallbacks
   }
 }

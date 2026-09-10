@@ -65,4 +65,34 @@ assertEqual(
   null,
   'media excludes proxy players from recency selection'
 )
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, browser, { [media.playerKey(browser)]: 50 }),
+  [spotify, browser],
+  'media keeps a preference that is newer than the other player\'s last playback'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, browser, { [media.playerKey(browser)]: 200 }),
+  [browser, spotify],
+  'media demotes a stale preference behind a player that played more recently'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, spotify, { [media.playerKey(spotify)]: 200 }),
+  [spotify],
+  'media collapses preference and recency when they name the same player'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(null, 0, browser, { [media.playerKey(browser)]: 50 }),
+  [browser],
+  'media falls back to recency alone when nothing is preferred'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, null, {}),
+  [spotify],
+  'media falls back to the preference alone when nothing was observed playing'
+)
+assertDeepEqual(
+  media.recencyOrderedFallbacks(spotify, 100, browser, {}),
+  [spotify, browser],
+  'media keeps the preference first when the other player has no recorded recency'
+)
 JS
