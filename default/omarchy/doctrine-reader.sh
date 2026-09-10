@@ -5,11 +5,12 @@ set -euo pipefail
 
 index_layout='right,65%,wrap-word,border-left,<60(down,60%,border-top)'
 read_layout='default,up,99%,wrap-word,border-bottom'
+doctrine_url="https://omarchy.org/doctrine/"
 reader='bash "$OMARCHY_PATH/default/omarchy/doctrine-reader.sh"'
 
 website() {
   local number=$1 title slug
-  printf 'https://omarchy.org/doctrine/'
+  printf '%s' "$doctrine_url"
   if (( number <= 10 )); then
     title=$(sed -n 's/^## //p' "$OMARCHY_PATH/default/omarchy/doctrine.md" | sed -n "${number}p")
     slug=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]//g; s/ /-/g')
@@ -38,7 +39,32 @@ render() {
     }
     number == 11 || section == number { print }
   ' "$OMARCHY_PATH/default/omarchy/doctrine.md" | fmt -w "$width"
-  printf '\n%s\n' "$(website "$number")"
+}
+
+header() {
+  local number=$1 mode
+  mode=$(cat "$OMARCHY_DOCTRINE_STATE/mode")
+  printf 'THE OMARCHY DOCTRINE · By DHH\n'
+  if [[ $mode == "index" ]]; then
+    printf 'Index · 10 principles\n\033[1;7m[ Index ]\033[0m [ Full ] [ Website ↗ ]'
+  elif (( number == 11 )); then
+    printf 'Reading the full doctrine\n[‹ Back ] \033[1;7m[ Full ]\033[0m [ Website ↗ ]'
+  else
+    printf 'Reading principle %02d / 10\n[‹ Back ] [ Full ] [ Website ↗ ]' "$number"
+  fi
+}
+
+footer() {
+  local number=$1 mode
+  mode=$(cat "$OMARCHY_DOCTRINE_STATE/mode")
+  printf '\033[4m%s\033[0m\n' "$doctrine_url"
+  if [[ $mode == "index" ]]; then
+    printf '↑↓ Choose · Enter Read · f Full\nEsc/q Exit · w Website'
+  elif (( number == 11 )); then
+    printf '↑↓ Scroll · PgUp/PgDn Page\nEsc Back · q Exit · w Website'
+  else
+    printf '↑↓ Principles · PgUp/PgDn/Space Scroll\nEsc Back · q Exit · f Full · w Website'
+  fi
 }
 
 index_view() {
@@ -55,19 +81,39 @@ action() {
   local event=$1 number=${2:-1} mode target
   mode=$(cat "$OMARCHY_DOCTRINE_STATE/mode")
   case "$event" in
-    read) read_view ;;
+    read)
+      if (( number == 11 )); then
+        action full "$number"
+      else
+        read_view
+      fi
+      ;;
+    focus)
+      if (( number <= 10 )); then
+        echo "$number" > "$OMARCHY_DOCTRINE_STATE/focused"
+      fi
+      ;;
     index)
       index_view
       if [[ -f $OMARCHY_DOCTRINE_STATE/previous ]]; then
         if (( number == 11 )); then
           printf '+pos(%s)' "$(cat "$OMARCHY_DOCTRINE_STATE/previous")"
         fi
-        rm "$OMARCHY_DOCTRINE_STATE/previous"
+        rm -f "$OMARCHY_DOCTRINE_STATE/previous" "$OMARCHY_DOCTRINE_STATE/previous-mode"
       fi
       ;;
     back)
       if [[ $mode == "index" ]]; then
         printf accept
+      elif (( number == 11 )) && [[ -f $OMARCHY_DOCTRINE_STATE/previous ]]; then
+        target=$(cat "$OMARCHY_DOCTRINE_STATE/previous")
+        if [[ $(cat "$OMARCHY_DOCTRINE_STATE/previous-mode") == "read" ]]; then
+          read_view
+        else
+          index_view
+        fi
+        printf '+pos(%s)' "$target"
+        rm "$OMARCHY_DOCTRINE_STATE/previous" "$OMARCHY_DOCTRINE_STATE/previous-mode"
       else
         action index "$number"
       fi
@@ -75,6 +121,10 @@ action() {
     full)
       if (( number != 11 )); then
         echo "$number" > "$OMARCHY_DOCTRINE_STATE/previous"
+        echo "$mode" > "$OMARCHY_DOCTRINE_STATE/previous-mode"
+      elif [[ ! -f $OMARCHY_DOCTRINE_STATE/previous ]]; then
+        cat "$OMARCHY_DOCTRINE_STATE/focused" > "$OMARCHY_DOCTRINE_STATE/previous"
+        echo "$mode" > "$OMARCHY_DOCTRINE_STATE/previous-mode"
       fi
       printf 'pos(11)+'
       read_view
@@ -82,13 +132,17 @@ action() {
     up | down)
       if [[ $mode == "index" ]]; then
         printf '%s' "$event"
-      else
+      elif (( number == 11 )); then
         printf 'preview-%s' "$event"
+      elif [[ $event == "up" ]]; then
+        action previous "$number"
+      else
+        action next "$number"
       fi
       ;;
     space)
       if [[ $mode == "index" ]]; then
-        read_view
+        action read "$number"
       else
         printf preview-page-down
       fi
@@ -126,15 +180,25 @@ action() {
       fi
       ;;
     header)
-      case "${FZF_CLICK_HEADER_WORD:-}" in
-        Index) action index "$number" ;;
-        Full) action full "$number" ;;
-        Website) action web "$number" ;;
-      esac
+      # Include each button's brackets and padding in its click target.
+      if (( ${FZF_CLICK_HEADER_LINE:-0} == 3 )); then
+        local column=${FZF_CLICK_HEADER_COLUMN:-0}
+        if (( column >= 1 && column <= 9 )); then
+          if [[ $mode == "index" ]]; then
+            action index "$number"
+          else
+            action back "$number"
+          fi
+        elif (( column >= 11 && column <= 18 )); then
+          action full "$number"
+        elif (( column >= 20 && column <= 32 )); then
+          action web "$number"
+        fi
+      fi
       ;;
     footer)
-      if [[ ${FZF_CLICK_FOOTER_LINE:-0} == "1" ]]; then
-        action web "$number"
+      if (( ${FZF_CLICK_FOOTER_LINE:-0} == 1 && ${FZF_CLICK_FOOTER_COLUMN:-0} >= 1 && ${FZF_CLICK_FOOTER_COLUMN:-0} <= ${#doctrine_url} )); then
+        action web 11
       fi
       ;;
   esac
@@ -146,13 +210,15 @@ start() {
   export OMARCHY_DOCTRINE_STATE
   trap 'rm -rf "$OMARCHY_DOCTRINE_STATE"' EXIT
   echo index > "$OMARCHY_DOCTRINE_STATE/mode"
+  echo 1 > "$OMARCHY_DOCTRINE_STATE/focused"
+  local update_controls="transform-header($reader header {1})+transform-footer($reader footer {1})"
   local bindings=(
-    --bind "enter:transform($reader action read {1}),double-click:transform($reader action read {1})"
-    --bind "esc:transform($reader action back {1}),q:accept"
-    --bind "f:transform($reader action full {1}),w:transform($reader action web {1})"
-    --bind "click-header:transform($reader action header {1}),click-footer:transform($reader action footer {1})"
-    --bind "pgdn:transform($reader action page-down {1}),pgup:transform($reader action page-up {1}),space:transform($reader action space {1})"
-    --bind "focus:change-preview-label(Doctrine)+refresh-preview"
+    --bind "enter:transform($reader action read {1})+$update_controls,double-click:transform($reader action read {1})+$update_controls"
+    --bind "esc:transform($reader action back {1})+$update_controls,q:accept"
+    --bind "f:transform($reader action full {1})+$update_controls,w:transform($reader action web {1})"
+    --bind "click-header:transform($reader action header {1})+$update_controls,click-footer:transform($reader action footer {1})"
+    --bind "pgdn:transform($reader action page-down {1}),pgup:transform($reader action page-up {1}),space:transform($reader action space {1})+$update_controls"
+    --bind "focus:transform($reader action focus {1})+change-preview-label(Doctrine)+refresh-preview+preview-top+$update_controls"
   )
   for key in up k down j left h right l home end; do
     case "$key" in
@@ -167,15 +233,20 @@ start() {
   for key in {1..9}; do bindings+=(--bind "$key:pos($key)"); done
   bindings+=(--bind '0:pos(10)')
   if (( initial > 0 )); then
-    bindings+=(--bind "start:pos($initial)+transform($reader action read $initial)")
+    bindings+=(--bind "start:pos($initial)+transform($reader action read $initial)+$update_controls")
   fi
   {
-    sed -n 's/^## //p' "$OMARCHY_PATH/default/omarchy/doctrine.md" | awk '{ printf "%02d  %s\n", NR, $0 }'
-    printf '11  Read the full doctrine\n'
+    local number=0 title
+    while IFS= read -r title; do
+      (( number += 1 ))
+      printf '%02d\t%02d  %s\0' "$number" "$number" "$title"
+    done < <(sed -n 's/^## //p' "$OMARCHY_PATH/default/omarchy/doctrine.md")
+    # The internal identifier is hidden; the full text is a separate action.
+    printf '11\t\n    Read the full doctrine\0'
   } | fzf --with-shell='bash -c' --no-sort --no-input --info=hidden --layout=reverse \
-    --border=rounded --padding=1,2 --ansi --cycle \
-    --header=$'THE OMARCHY DOCTRINE · By DHH\n\nIndex    Full    Website' --header-border=bottom \
-    --footer=$'https://omarchy.org/doctrine/\n↑↓ move · Enter read · f full · w web\n←→ switch · Esc index · q quit' \
+    --border=rounded --padding=1,2 --ansi --cycle --read0 --delimiter=$'\t' --with-nth=2.. \
+    --header="$(header 1)" --header-border=bottom \
+    --footer="$(footer 1)" \
     --footer-border=top --preview "$reader preview {1}" --preview-window "$index_layout" \
     --color "border:${BORDER_FOREGROUND:-4},pointer:${BORDER_FOREGROUND:-4},hl:${BORDER_FOREGROUND:-4},hl+:${BORDER_FOREGROUND:-4}" \
     "${bindings[@]}" >/dev/null || status=$?
@@ -184,6 +255,8 @@ start() {
 
 case "${1:-}" in
   start) start "${2:-0}" ;;
+  footer) footer "$((10#${2:-01}))" ;;
+  header) header "$((10#${2:-01}))" ;;
   preview) render "$((10#${2:-01}))" ;;
   url) website "$2" ;;
   action) action "$2" "$((10#${3:-01}))" ;;

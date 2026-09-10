@@ -19,7 +19,7 @@ def check(condition, message):
   print('ok - ' + message, flush=True)
 
 
-def terminal_session(interrupt=False):
+def terminal_session(interrupt=False, exit_key=b'q'):
   pid, master = pty.fork()
   if pid == 0:
     os.environ['TERM'] = 'xterm-256color'
@@ -54,6 +54,8 @@ def terminal_session(interrupt=False):
     while b'PRINCIPLE' not in output and time.monotonic() < deadline:
       receive(0.1)
     check(b'PRINCIPLE' in output, 'the real fzf reader displays a live preview')
+    check(b'Read the full doctrine' in output and b'11  Read' not in output,
+          'the full-document action is visible without a principle number')
     if interrupt:
       send(b'\x03')
     else:
@@ -62,12 +64,21 @@ def terminal_session(interrupt=False):
       send(b'\x1b[<0;10;9M\x1b[<0;10;9m')
       send(b'w')
       check(log.read_text().splitlines()[-1].endswith('#have-some-fun'), 'the real mouse selects a principle and updates the browser target')
+      output.clear()
+      send(b'\x1b[<0;17;5M\x1b[<0;17;5m')
+      check(b'Reading the full doctrine' in output, 'clicking the Full button border opens the full view')
+      send(b'\x1b')
+      send(b'\x1b[<0;17;32M\x1b[<0;17;32m')
+      check(log.read_text().splitlines()[-1] == 'https://omarchy.org/doctrine/',
+            'the real footer URL opens its displayed destination')
       send(b'1')
       send(b'j')
       send(b'\r')
-      send(b'l')
+      send(b'\x1b[B')
       send(b'w')
       check(log.read_text().splitlines()[-1].endswith('#have-some-fun'), 'live keyboard navigation opens the correct principle online')
+      send(b'h')
+      send(b'l')
       send(b'f')
       check(b'The Omarchy Doctrine' in output, 'the full-document action renders the doctrine')
       send(b' ')
@@ -77,7 +88,8 @@ def terminal_session(interrupt=False):
       send(b'\x1b')
       send(b'w')
       check(log.read_text().splitlines()[-1].endswith('#have-some-fun'), 'resize and returning from the full document preserve the selected principle')
-      send(b'q')
+      send(b'\x1b')
+      send(exit_key)
     receive(1)
     completed, status = os.waitpid(pid, os.WNOHANG)
     reaped = completed == pid
@@ -93,3 +105,4 @@ def terminal_session(interrupt=False):
 if __name__ == "__main__":
   terminal_session()
   terminal_session(interrupt=True)
+  terminal_session(exit_key=b'\x1b')
