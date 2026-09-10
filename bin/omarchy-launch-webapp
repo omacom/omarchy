@@ -6,7 +6,7 @@
 browser=$(xdg-settings get default-web-browser)
 
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium* | org.ecosia.Browser* | ecosia*) ;;
 *) browser="chromium.desktop" ;;
 esac
 
