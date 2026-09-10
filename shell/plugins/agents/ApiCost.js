@@ -11,6 +11,12 @@ var TOKEN_FIELDS = [
 var NON_COST_BUCKET_ISSUES = {
   "event-identity-unverified": true
 }
+var CODEX_PRICED_SOURCES = {
+  "codex-native": true,
+  "pi": true,
+  "omp": true,
+  "opencode": true
+}
 
 var OPENAI_PRICING_SOURCE = {
   name: "OpenAI API pricing",
@@ -319,7 +325,7 @@ function priceBucket(providerId, bucket, rawOverrides) {
     if (NON_COST_BUCKET_ISSUES[issue] === true) uniquePush(result.uncertainties, issue)
     else uniquePush(result.missing, "Usage coverage: " + issue)
   }
-  if (String(bucket.source || "") !== "codex-native") {
+  if (CODEX_PRICED_SOURCES[String(bucket.source || "")] !== true) {
     result.missing.push("Usage source " + String(bucket.source || "unknown") + " has no verified pricing contract")
     return result
   }
@@ -463,7 +469,7 @@ function hasLocalizedCoverageIssue(dailyUsage) {
     var buckets = Array.isArray(days[dayIndex] && days[dayIndex].buckets) ? days[dayIndex].buckets : []
     for (var bucketIndex = 0; bucketIndex < buckets.length; bucketIndex++) {
       var bucket = buckets[bucketIndex]
-      if (!isPlainObject(bucket) || String(bucket.source || "") !== "codex-native") return true
+      if (!isPlainObject(bucket) || CODEX_PRICED_SOURCES[String(bucket.source || "")] !== true) return true
       if (Array.isArray(bucket.issues) && bucket.issues.length > 0) return true
       if (bucket.rawModel === null || tokenNumber(bucket.totalTokens) === null) return true
       var tokens = isPlainObject(bucket.tokens) ? bucket.tokens : {}

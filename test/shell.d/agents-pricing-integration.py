@@ -4,6 +4,7 @@ import json
 import math
 import os
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -21,8 +22,12 @@ const rows = pricing.buildDailyRows(
   'codex', payload.record.dailyUsage, payload.record.recentDays,
   Date.parse(payload.now), overrides, true
 )
+const presentation = pricing.buildModelWindowPresentation(
+  'codex', payload.record.dailyUsage, Date.parse(payload.now), overrides, true
+)
 process.stdout.write(JSON.stringify({
   rows,
+  presentation,
   tooltips: rows.map(row => pricing.dailyTooltip(row)),
   overrideErrors: overrides.errors
 }))
@@ -55,7 +60,7 @@ def event(at="2026-09-09T10:00:00Z", last=None, total=None):
   }
 
 
-def collect(sessions, now="2026-09-09T12:00:00+02:00", raw_files=None):
+def collect(sessions, now="2026-09-09T12:00:00+02:00", raw_files=None, extras=None):
   with tempfile.TemporaryDirectory(prefix="omarchy-agents-pricing-native-") as temp:
     home = Path(temp)
     fake_bin = home / "omarchy/bin"
@@ -94,6 +99,8 @@ for line in sys.stdin:
       path = home / ".codex" / name
       path.parent.mkdir(parents=True, exist_ok=True)
       path.write_bytes(content)
+    if extras:
+      extras(home)
 
     path_value = str(fake_bin) + ":" + os.environ["PATH"]
     env = {
@@ -337,3 +344,283 @@ check([item["date"] for item in dst_result["rows"]][-3:]
 check(row(dst_result, "2026-03-29")["tokens"] == 1050
       and row(dst_result, "2026-03-30")["tokens"] == 1050,
       "native events on both sides of the DST boundary keep their measured day amounts")
+
+
+def additional_codex_sources(home):
+  pi = home / ".pi/agent/sessions/project/pi.jsonl"
+  pi.parent.mkdir(parents=True)
+  pi_row = {"type": "message", "id": "pi-priced", "timestamp": "2026-09-30T10:00:00Z",
+            "message": {"role": "assistant", "provider": "openai-codex",
+                        "api": "openai-codex-responses", "model": "gpt-5.6",
+                        "usage": {"input": 100, "output": 20, "cacheRead": 30,
+                                  "cacheWrite": 10, "totalTokens": 160}}}
+  excluded_pi = {"type": "message", "id": "pi-foreign", "timestamp": "2026-09-30T10:00:00Z",
+                 "message": {"role": "assistant", "provider": "anthropic", "model": "gpt-5.6",
+                             "usage": {"input": 9000, "output": 9000, "cacheRead": 0,
+                                       "cacheWrite": 0, "totalTokens": 18000}}}
+  pi.write_text("\n".join(json.dumps(item) for item in (pi_row, pi_row, excluded_pi)) + "\n")
+
+  omp = home / ".omp/agent/sessions/project/omp.jsonl"
+  omp.parent.mkdir(parents=True)
+  omp.write_text(json.dumps({
+    "type": "message", "id": "omp-priced", "timestamp": "2026-09-24T10:00:00Z",
+    "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.4",
+                "usage": {"input": 200, "output": 20, "cacheRead": 40,
+                          "cacheWrite": 0, "totalTokens": 260}},
+  }) + "\n")
+
+  db = home / ".local/share/opencode/opencode.db"
+  db.parent.mkdir(parents=True)
+  connection = sqlite3.connect(db)
+  connection.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, "
+                     "time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+
+  def opencode_message(identifier, provider, model, created, role="assistant", **tokens):
+    data = {"role": role, "providerID": provider, "modelID": model,
+            "tokens": {"input": tokens.get("input", 0), "output": tokens.get("output", 0),
+                       "reasoning": tokens.get("reasoning", 0),
+                       "cache": {"read": tokens.get("read", 0), "write": tokens.get("write", 0)}},
+            "time": {"created": created}}
+    return (identifier, "opencode-session", created, created, json.dumps(data))
+
+  sep1 = 1788256800000
+  sep30 = 1790762400000
+  connection.executemany("INSERT INTO message VALUES (?, ?, ?, ?, ?)", [
+    opencode_message("openai-priced", "openai", "gpt-5.2", sep1,
+                     input=300, output=40, reasoning=10, read=50, write=0),
+    opencode_message("openai-unknown", "openai", "future-codex-model", sep30, input=5),
+    opencode_message("openai-local-excluded", "openai-local", "gpt-5.2", sep30, input=7000),
+    opencode_message("anthropic-excluded", "anthropic", "gpt-5.2", sep30, input=8000),
+    opencode_message("user-excluded", "openai", "gpt-5.2", sep30, role="user", input=9000),
+  ])
+  connection.commit()
+  connection.close()
+
+
+source_record = collect({"sessions/native.jsonl": [
+  context(), event(at="2026-09-30T10:00:00Z", last=usage(), total=usage()),
+]}, now="2026-09-30T12:00:00+02:00", extras=additional_codex_sources)
+source_result = format_record(source_record, now="2026-09-30T12:00:00+02:00")
+source_buckets = [bucket for day in source_record["dailyUsage"]["days"] for bucket in day["buckets"]]
+check({bucket["source"] for bucket in source_buckets} == {"codex-native", "pi", "omp", "opencode"},
+      "native, Pi, OMP, and exact OpenCode OpenAI usage share one Codex daily contract")
+check(sum(bucket["totalTokens"] for bucket in source_buckets) == 1875
+      and sum(day["messageCount"] for day in source_record["recentDays"]) == 1475,
+      "source filters and per-source replay rules preserve the collector's exact token scope")
+check(next(bucket for bucket in source_buckets if bucket["source"] == "pi")["tokens"]
+      == {"inputTokens": 100, "outputTokens": 20, "cacheReadInputTokens": 30,
+          "cacheCreationInputTokens": 10},
+      "Pi cache categories remain disjoint through updater storage")
+check(next(bucket for bucket in source_buckets if bucket["source"] == "opencode" and bucket["rawModel"] == "gpt-5.2")["tokens"]
+      == {"inputTokens": 300, "outputTokens": 50, "cacheReadInputTokens": 50,
+          "cacheCreationInputTokens": 0},
+      "OpenCode reasoning and cache categories remain disjoint through updater storage")
+check(row(source_result, "2026-09-30")["tokens"] == 1215
+      and row(source_result, "2026-09-24")["tokens"] == 260
+      and next(day for day in source_record["dailyUsage"]["days"] if day["date"] == "2026-09-01")
+        ["buckets"][0]["totalTokens"] == 400
+      and len(source_result["rows"]) == 7,
+      "the public daily formatter keeps matching source token windows")
+presentation = source_result["presentation"]
+omp_tooltip = next(tooltip for item, tooltip in zip(source_result["rows"], source_result["tooltips"])
+                   if item["date"] == "2026-09-24")
+check(close(row(source_result, "2026-09-24")["cost"]["total"], 0.00081)
+      and close(next(model for model in presentation["models"] if model["id"] == "gpt-5.2")
+                ["cost"]["total"], 0.00123375)
+      and "bundled fallback" in omp_tooltip and "price as of 2026-09-09" in omp_tooltip,
+      "Pi/OMP and OpenCode known models use their bundled fallback tariffs")
+check([model["id"] for model in presentation["models"]]
+      == ["gpt-6-astra", "gpt-5.2", "gpt-5.4", "gpt-5.6"]
+      and presentation["missingPriceModels"] == ["future-codex-model"],
+      "the shared 30-day table includes the four heaviest models across Codex sources")
+check([summary["tokens"] for summary in presentation["summaries"]] == [1215, 1475, 1875]
+      and all(summary["cost"]["status"] == "partial" for summary in presentation["summaries"]),
+      "Today, 7-day, and 30-day totals include hidden unknown-price source models")
+
+manual_source_result = format_record(source_record, now="2026-09-30T12:00:00+02:00",
+  override_text=json.dumps({"models": {"pi-rate": {
+    "input": 1, "output": 2, "cacheRead": 0.1, "cacheWrite": 1,
+  }}, "aliases": {"gpt-5.6": "pi-rate"}}))
+manual_today = row(manual_source_result, "2026-09-30")
+check(close(manual_today["cost"]["total"], 0.011103)
+      and any(rate["origin"] == "user-override" and rate.get("alias") == "gpt-5.6"
+              for rate in manual_today["cost"]["rates"]),
+      "a manual alias remains authoritative for Pi usage at the public formatter")
+
+moved_sources = format_record(source_record, now="2026-10-01T12:00:00+02:00")["presentation"]
+check([summary["tokens"] for summary in moved_sources["summaries"]] == [0, 1215, 1475],
+      "a clock jump shifts source-backed Today, 7-day, and 30-day windows without new usage")
+
+
+def incomplete_codex_sources(home):
+  pi = home / ".pi/agent/sessions/project/pi.jsonl"
+  pi.parent.mkdir(parents=True)
+  pi.write_text(json.dumps({
+    "type": "message", "id": "pi-undated",
+    "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.6-sol",
+                "usage": {"input": 5, "output": 0, "cacheRead": 0,
+                          "cacheWrite": 0, "totalTokens": 5}},
+  }) + "\n")
+  omp = home / ".omp/agent/sessions/project/omp.jsonl"
+  omp.parent.mkdir(parents=True)
+  omp.write_text(json.dumps({
+    "type": "message", "id": "omp-partial", "timestamp": "2026-09-30T10:00:00Z",
+    "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.6-sol",
+                "usage": {"input": 10, "output": 2, "cacheRead": 1, "totalTokens": 13}},
+  }) + "\n")
+
+  db = home / ".local/share/opencode/opencode.db"
+  db.parent.mkdir(parents=True)
+  connection = sqlite3.connect(db)
+  connection.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, "
+                     "time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+  created = 1790762400000
+  data = {"role": "assistant", "providerID": "openai", "modelID": "gpt-5.2",
+          "tokens": {"input": 7, "output": 3, "cache": {"read": 2, "write": 1}},
+          "time": {"created": created}}
+  connection.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+                     ("opencode-partial", "partial-session", created, created, json.dumps(data)))
+  connection.commit()
+  connection.close()
+
+
+incomplete_record = collect({}, now="2026-09-30T12:00:00+02:00", extras=incomplete_codex_sources)
+incomplete_buckets = incomplete_record["dailyUsage"]["days"][-1]["buckets"]
+check(incomplete_record["dailyUsage"]["unallocatedTokens"] == 5
+      and "invalid-timestamp" in incomplete_record["dailyUsage"]["issues"]
+      and all(bucket["source"] != "pi" for bucket in incomplete_buckets),
+      "an undated Pi amount stays unallocated instead of becoming today's usage")
+omp_partial = next(bucket for bucket in incomplete_buckets if bucket["source"] == "omp")
+opencode_partial = next(bucket for bucket in incomplete_buckets if bucket["source"] == "opencode")
+check(omp_partial["totalTokens"] == 13
+      and omp_partial["tokens"]["cacheCreationInputTokens"] is None
+      and opencode_partial["totalTokens"] is None
+      and opencode_partial["tokens"]["outputTokens"] is None,
+      "absent Pi/OMP and OpenCode categories remain unknown in the public record")
+incomplete_result = format_record(incomplete_record, now="2026-09-30T12:00:00+02:00")
+incomplete_today = row(incomplete_result, "2026-09-30")
+incomplete_tooltip = next(tooltip for item, tooltip in zip(incomplete_result["rows"], incomplete_result["tooltips"])
+                          if item["date"] == "2026-09-30")
+check(incomplete_today["tokens"] == 26 and incomplete_today["cost"]["status"] == "partial"
+      and "token count is unverified" in incomplete_tooltip,
+      "known source tokens survive while missing category and time coverage stays explicit")
+
+
+def special_tariff_source(home):
+  pi = home / ".pi/agent/sessions/project/pi.jsonl"
+  pi.parent.mkdir(parents=True)
+  pi.write_text(json.dumps({
+    "type": "message", "id": "pi-priority", "timestamp": "2026-09-30T10:00:00Z",
+    "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.6-sol",
+                "service_tier": "priority",
+                "usage": {"input": 10, "output": 2, "cacheRead": 1,
+                          "cacheWrite": 0, "totalTokens": 13}},
+  }) + "\n")
+  db = home / ".local/share/opencode/opencode.db"
+  db.parent.mkdir(parents=True)
+  connection = sqlite3.connect(db)
+  connection.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, "
+                     "time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+  created = 1790762400000
+  data = {"role": "assistant", "providerID": "openai", "modelID": "gpt-5.2",
+          "speed": "fast",
+          "tokens": {"input": 7, "output": 3, "reasoning": 0,
+                     "cache": {"read": 2, "write": 1}},
+          "time": {"created": created}}
+  connection.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+                     ("opencode-fast", "special-session", created, created, json.dumps(data)))
+  connection.commit()
+  connection.close()
+
+
+tariff_record = collect({}, now="2026-09-30T12:00:00+02:00", extras=special_tariff_source)
+tariff_buckets = tariff_record["dailyUsage"]["days"][-1]["buckets"]
+tariff_bucket = next(bucket for bucket in tariff_buckets if bucket["source"] == "pi")
+opencode_tariff_bucket = next(bucket for bucket in tariff_buckets if bucket["source"] == "opencode")
+tariff_today = row(format_record(tariff_record, now="2026-09-30T12:00:00+02:00"), "2026-09-30")
+check(tariff_bucket["tariff"] == {"service_tier": "priority"}
+      and opencode_tariff_bucket["tariff"] == {"speed": "fast"}
+      and tariff_today["tokens"] == 26 and tariff_today["cost"]["status"] == "unknown",
+      "observed unsupported Pi and OpenCode tariff metadata preserves tokens without standard prices")
+
+
+def pi_total_edge_sources(home):
+  path = home / ".pi/agent/sessions/project/pi.jsonl"
+  path.parent.mkdir(parents=True)
+  rows = [
+    {"type": "message", "id": "total-only", "timestamp": "2026-09-30T10:00:00Z",
+     "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.6-sol",
+                 "usage": {"totalTokens": 100}}},
+    {"type": "message", "id": "contradictory", "timestamp": "2026-09-30T10:00:01Z",
+     "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.2",
+                 "usage": {"input": 40, "output": 10, "cacheRead": 0, "cacheWrite": 0,
+                           "totalTokens": 100}}},
+  ]
+  path.write_text("\n".join(json.dumps(item) for item in rows) + "\n")
+
+
+edge_record = collect({}, now="2026-09-30T12:00:00+02:00", extras=pi_total_edge_sources)
+edge_buckets = edge_record["dailyUsage"]["days"][-1]["buckets"]
+total_only = next(bucket for bucket in edge_buckets if bucket["rawModel"] == "gpt-5.6-sol")
+contradictory = next(bucket for bucket in edge_buckets if bucket["rawModel"] == "gpt-5.2")
+edge_today = row(format_record(edge_record, now="2026-09-30T12:00:00+02:00"), "2026-09-30")
+check(edge_record["todayTotalTokens"] == 150 and total_only["totalTokens"] == 100
+      and all(value is None for value in total_only["tokens"].values()),
+      "Pi total-only fallback keeps legacy tokens without inventing zero categories")
+check(contradictory["totalTokens"] == 50
+      and all(value is None for value in contradictory["tokens"].values())
+      and "inconsistent-total" in contradictory["issues"]
+      and edge_today["tokens"] == 150 and edge_today["cost"]["status"] == "unknown",
+      "contradictory Pi totals keep day scope aligned and withdraw category pricing")
+
+
+def namespaced_opencode_source(home):
+  db = home / ".local/share/opencode/opencode.db"
+  db.parent.mkdir(parents=True)
+  connection = sqlite3.connect(db)
+  connection.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, "
+                     "time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+  created = 1790762400000
+  data = {"role": "assistant", "providerID": "openai", "modelID": "openai/gpt-5.2",
+          "tokens": {"input": 100, "output": 10, "reasoning": 0,
+                     "cache": {"read": 20, "write": 0}}, "time": {"created": created}}
+  connection.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+                     ("namespaced", "model-change-session", created, created, json.dumps(data)))
+  connection.commit()
+  connection.close()
+
+
+namespaced_record = collect({}, now="2026-09-30T12:00:00+02:00", extras=namespaced_opencode_source)
+namespaced_bucket = namespaced_record["dailyUsage"]["days"][-1]["buckets"][0]
+namespaced_default = row(format_record(namespaced_record, now="2026-09-30T12:00:00+02:00"), "2026-09-30")
+namespaced_manual = row(format_record(namespaced_record, now="2026-09-30T12:00:00+02:00",
+  override_text=json.dumps({"aliases": {"openai/gpt-5.2": "gpt-5.2"}})), "2026-09-30")
+check(namespaced_bucket["rawModel"] == "openai/gpt-5.2"
+      and namespaced_record["modelUsage"]["gpt-5.2"]["inputTokens"] == 100
+      and namespaced_default["cost"]["status"] == "unknown",
+      "OpenCode preserves literal model identity without silently pricing its namespace")
+check(namespaced_manual["cost"]["status"] == "complete"
+      and namespaced_manual["cost"]["rates"][0]["alias"] == "openai/gpt-5.2",
+      "a manual alias can explicitly price the literal OpenCode model identity")
+
+
+def pi_dst_midnight_source(home):
+  path = home / ".pi/agent/sessions/project/pi.jsonl"
+  path.parent.mkdir(parents=True)
+  rows = [
+    {"type": "message", "id": "before-midnight", "timestamp": "2026-03-28T22:59:59Z",
+     "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.6-sol",
+                 "usage": {"input": 10, "output": 0, "cacheRead": 0, "cacheWrite": 0}}},
+    {"type": "message", "id": "after-midnight", "timestamp": "2026-03-28T23:00:00Z",
+     "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-5.4",
+                 "usage": {"input": 20, "output": 0, "cacheRead": 0, "cacheWrite": 0}}},
+  ]
+  path.write_text("\n".join(json.dumps(item) for item in rows) + "\n")
+
+
+pi_dst_record = collect({}, now="2026-03-30T12:00:00+02:00", extras=pi_dst_midnight_source)
+check(next(day for day in pi_dst_record["dailyUsage"]["days"] if day["date"] == "2026-03-28")
+        ["buckets"][0]["rawModel"] == "gpt-5.6-sol"
+      and next(day for day in pi_dst_record["dailyUsage"]["days"] if day["date"] == "2026-03-29")
+        ["buckets"][0]["rawModel"] == "gpt-5.4",
+      "Pi model changes in one session stay on either side of local midnight before DST")

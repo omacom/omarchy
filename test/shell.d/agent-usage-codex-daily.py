@@ -154,10 +154,54 @@ def pi_source(home):
 record = collect({"sessions/native.jsonl": [context(), event(last=usage(), total=usage())]}, extras=pi_source)
 check(record["todayTotalTokens"] == 1155,
       "adding the native contract preserves existing pi token accounting")
-check(not record["dailyUsage"]["complete"]
-      and any(b["source"] == "legacy" and "source-not-covered" in b["issues"]
-              for b in record["dailyUsage"]["days"][-1]["buckets"]),
-      "sources reserved for later tickets are explicitly unpriced instead of complete zero")
+pi_bucket = next(b for b in record["dailyUsage"]["days"][-1]["buckets"] if b["source"] == "pi")
+check(pi_bucket["rawModel"] == "gpt-6-astra" and pi_bucket["totalTokens"] == 105
+      and pi_bucket["tokens"] == {
+        "inputTokens": 100, "outputTokens": 5,
+        "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0,
+      } and pi_bucket["issues"] == [],
+      "pi OpenAI-Codex usage reaches the public daily contract with measured categories")
+
+def append_pi_source(home):
+  path = home / ".pi/agent/sessions/project/pi.jsonl"
+  with path.open("a") as stream:
+    stream.write(json.dumps({"type": "message", "id": "pi-fixture-2", "timestamp": "2026-09-09T10:00:01Z",
+      "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-6-astra",
+                  "usage": {"input": 100, "output": 5, "cacheRead": 0, "cacheWrite": 0}}}) + "\n")
+
+cached_pi = collect({}, extras=pi_source, between=append_pi_source, force=False)
+check(cached_pi["todayTotalTokens"] == 105
+      and cached_pi["dailyUsage"]["days"][-1]["buckets"][0]["source"] == "pi",
+      "a fresh Pi daily contract remains valid when reused from the collector cache")
+
+def pi_total_edges(home):
+  path = home / ".pi/agent/sessions/project/totals.jsonl"
+  path.parent.mkdir(parents=True)
+  records = [
+    {"type": "message", "id": "total-only", "timestamp": "2026-09-09T10:00:00Z",
+     "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-6-astra",
+                 "usage": {"totalTokens": 100}}},
+    {"type": "message", "id": "contradictory", "timestamp": "2026-09-09T10:00:01Z",
+     "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-6-astra",
+                 "usage": {"input": 40, "output": 10, "cacheRead": 0, "cacheWrite": 0,
+                           "totalTokens": 100}}},
+  ]
+  path.write_text("\n".join(json.dumps(record) for record in records) + "\n")
+
+
+def append_total_edge(home):
+  path = home / ".pi/agent/sessions/project/totals.jsonl"
+  with path.open("a") as stream:
+    stream.write(json.dumps({"type": "message", "id": "after-cache", "timestamp": "2026-09-09T10:00:02Z",
+      "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-6-astra",
+                  "usage": {"input": 999, "output": 0, "cacheRead": 0, "cacheWrite": 0}}}) + "\n")
+
+
+cached_edges = collect({}, extras=pi_total_edges, between=append_total_edge, force=False)
+edge_buckets = cached_edges["dailyUsage"]["days"][-1]["buckets"]
+check(cached_edges["todayTotalTokens"] == 150 and len(edge_buckets) == 2
+      and "inconsistent-total" in edge_buckets[1]["issues"],
+      "partial Pi total reconciliation remains valid and unchanged when reused from cache")
 
 # Stale file mtimes cannot decide the event's calendar day.
 def old_mtime(home):
@@ -302,6 +346,7 @@ for label, mutate in (
   ("old collector envelope", lambda d: d.pop("collectorRevision", None)),
   ("unsupported envelope version", lambda d: d.update(schemaVersion=2)),
   ("boolean collector revision", lambda d: d.update(collectorRevision=True)),
+  ("previous source-contract revision", lambda d: d.update(collectorRevision=3)),
   ("boolean daily version", lambda d: d["stats"]["dailyUsage"].update(schemaVersion=True)),
   ("future daily version", lambda d: d["stats"]["dailyUsage"].update(schemaVersion=2)),
   ("wrong token unit", lambda d: d["stats"]["dailyUsage"].update(unit="messages")),
