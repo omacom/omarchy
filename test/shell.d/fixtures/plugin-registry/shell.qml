@@ -162,6 +162,8 @@ ShellRoot {
     root.assertTrue(!registry.isEnabled("third.bar"), "third-party bar options start inactive")
     root.assertTrue(!registry.isEnabled("third.panel"), "third-party plugins start disabled")
     root.assertEqual(registry.resolveEnabledId("omarchy.first-widget"), "omarchy.first-widget", "inactive clones do not replace their source id")
+    root.assertTrue(!registry.setEnabled("does.not.exist", true), "enabling an unknown plugin is refused")
+    root.assertTrue(!registry.setEnabled("does.not.exist", false), "disabling an unknown plugin is refused")
 
     registry.setEnabled("third.bar", true)
     root.assertEqual(root.config.bar.id, "third.bar", "enabling third-party bar options writes bar id")
@@ -176,6 +178,10 @@ ShellRoot {
     root.assertTrue(registry.isEnabled("third.panel"), "enabled third-party panels are found")
     registry.setEnabled("third.panel", false)
     root.assertDeepEqual(root.config.plugins, [], "disabling third-party panels removes plugins array entry")
+    root.config.plugins = [{ id: "ghost.panel" }]
+    root.assertTrue(registry.setEnabled("ghost.panel", false), "disabling an uninstalled plugin cleans up config")
+    root.assertDeepEqual(root.config.plugins, [], "uninstalled plugin entry is removed from config")
+    root.assertTrue(!registry.setEnabled("ghost.panel", false), "disabling a cleaned up uninstalled plugin is refused")
 
     registry.setEnabled("third.widget", true)
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "enabling bar widgets uses their default section")
