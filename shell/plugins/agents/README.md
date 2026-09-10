@@ -85,6 +85,13 @@ panel only lists providers that have produced data. Once meters have been
 recorded, a stale or missing sign-in keeps the last meters visible with a
 status card until their windows reset.
 
+A meter the console has flipped to `rate-limited` is the binding constraint,
+not a gap: the collector reports it at its percentage and reset time (so the
+panel shows a full window with "resets in" countdown) instead of dropping
+it, and the status card says what happens next — requests are blocked until
+spend ages out, or, when the workspace's "Use balance" option is on and Zen
+credits remain, the overage bills the Zen balance with the amount left.
+
 ### Fireworks balance
 
 The collector first asks the account's `:getBalance` endpoint for the real

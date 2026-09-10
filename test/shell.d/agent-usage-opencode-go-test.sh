@@ -119,6 +119,55 @@ stats = module.build_stats(records)
 full_record = module.build_record(meters, plan, records)
 limits_only = module.build_record(meters, plan, [])
 
+# --- rate-limited meters and the Zen-balance fallback ------------------
+#
+# A meter the console flipped to 'rate-limited' is the binding constraint:
+# requests for that window block (or bill the Zen balance when 'Use balance'
+# is on). The collector must report it with its percentage and reset time,
+# and the record must say which of the two behaviours applies.
+
+rl_go_page = (
+    '<html><body><script>'
+    'rollingUsage:$R[1]={status:"ok",resetInSec:8073,usagePercent:1.0,usage:12000000,limit:1200000000},'
+    'weeklyUsage:$R[2]={status:"ok",resetInSec:101069,usagePercent:60,usage:1800000000,limit:3000000000},'
+    'monthlyUsage:$R[3]={status:"rate-limited",resetInSec:133420,usagePercent:100.1,usage:6007226480,limit:6000000000},'
+    'balance:996544169,reload:null,'
+    'liteSubscriptionID:"sub_test",'
+    'lite:$R[33]={useBalance:!0}'
+    '</script></body></html>'
+)
+
+rl_meters, _ = module.parse_meters(rl_go_page)
+rl_limits = module.build_limits(rl_meters)
+assert len(rl_limits) == 3, "build_limits keeps a rate-limited meter"
+rl_monthly = [entry for entry in rl_limits if entry["label"] == "Monthly"][0]
+assert rl_monthly["percent"] == 1.0, "percent clamps at full"
+assert rl_monthly["status"] == "rate-limited", "rate-limited meter carries its status"
+assert "status" not in rl_limits[0], "healthy meters carry no status field"
+
+assert module.parse_go_config(rl_go_page) == {"useBalance": True, "balance": 996544169}, \
+    "go config reads useBalance and the Zen balance before lite:"
+assert module.parse_go_config('<script>lite:$R[7]={useBalance:!1}</script>') == {"useBalance": False, "balance": None}, \
+    "useBalance off parses as false with no balance"
+assert module.parse_go_config('<script>no config here</script>') == {"useBalance": False, "balance": None}, \
+    "missing lite block parses as defaults"
+
+note_hero, note_help = module.rate_limited_note(rl_limits, {"useBalance": True, "balance": 996544169})
+assert note_hero == "Monthly limit reached", "hero names the exhausted window"
+assert "$9.97" in note_help and "Zen balance" in note_help, "help bills the Zen balance with the amount left"
+_, note_help = module.rate_limited_note(rl_limits, {"useBalance": False, "balance": None})
+assert "Zen balance" not in note_help and "blocked" in note_help, "without Use balance, requests block"
+_, note_help = module.rate_limited_note(rl_limits, {"useBalance": True, "balance": None})
+assert "empty" in note_help, "Use balance with no credits still blocks"
+assert module.rate_limited_note(limits, {}) == ("", ""), "healthy meters carry no rate-limit note"
+
+rl_record = module.build_record(rl_meters, "Go", [], {"useBalance": True, "balance": 996544169})
+assert rl_record["ready"] is True, "a rate-limited meter is still a ready record"
+assert rl_record["usageStatusText"] == "Monthly limit reached", "record hero announces the limit"
+assert "Zen balance" in rl_record["authHelpText"], "record help explains the fallback"
+rl_blocked = module.build_record(rl_meters, "Go", [])
+assert rl_blocked["authHelpText"] == "Requests blocked until the window resets", "default is a hard block"
+
 # --- extract_all_cookies fixture -------------------------------------------
 fixture_dir = tempfile.mkdtemp()
 cookie_db = os.path.join(fixture_dir, "cookies.sqlite")
@@ -385,6 +434,8 @@ print(json.dumps({
     "stats": stats,
     "record": full_record,
     "limitsOnly": limits_only,
+    "rlRecord": rl_record,
+    "rlMonthly": rl_monthly,
 }))
 PY
 )
@@ -446,3 +497,11 @@ pass "OpenCode Go collector keeps limits and zero-shaped stats when usage record
 [[ $(jq -r '.record.scope' <<<"$result") == "account" ]] ||
   fail "OpenCode Go collector marks account-scoped records" "$result"
 pass "OpenCode Go collector marks account-scoped records"
+
+[[ $(jq -r '.rlMonthly.status + ":" + (.rlMonthly.percent | tostring)' <<<"$result") == "rate-limited:1.0" ]] ||
+  fail "OpenCode Go collector reports a rate-limited meter at full percentage" "$result"
+pass "OpenCode Go collector reports a rate-limited meter at full percentage"
+
+[[ $(jq -c '.rlRecord | {ready, usageStatusText, authHelpText}' <<<"$result") == '{"ready":true,"usageStatusText":"Monthly limit reached","authHelpText":"Billing the Zen balance ($9.97 left) until the window resets"}' ]] ||
+  fail "OpenCode Go collector announces a rate-limited window and the Zen-balance fallback" "$result"
+pass "OpenCode Go collector announces a rate-limited window and the Zen-balance fallback"

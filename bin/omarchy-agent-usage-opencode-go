@@ -16,7 +16,12 @@ The panel only ever reads the JSON this prints; it never talks to disk
 formats or endpoints.
 
 Metrics scoped in code:
-- limits: account truth from the workspace meters (rolling / weekly / monthly).
+- limits: account truth from the workspace meters (rolling / weekly /
+  monthly), including meters the console has flipped to "rate-limited" —
+  a full window is the binding constraint, not data to hide.
+- fallback state: the workspace's "Use balance" option and the Zen credits
+  left decide whether an exhausted window blocks requests or bills the
+  balance; the record's status card says which.
 - per-request stats (today*, recentDays, modelUsage): the trailing 7 local
   days, window-bounded so the "tokens by day" and "tokens by model"
   sections describe the same period.
@@ -399,6 +404,28 @@ def parse_meters(html: str) -> tuple[dict[str, dict[str, Any]], str]:
   return meters, plan
 
 
+def parse_go_config(html: str) -> dict[str, Any]:
+  """Read the workspace's Go fallback state off the page.
+
+  ``useBalance`` is the console's 'Use balance' option: when true and credits
+  exist, an exhausted window bills the workspace's Zen balance instead of
+  hard blocking. ``balance`` is the credits left, an integer in 1e-8-dollar
+  units (a $10 top-up reads ~1e9; the meter limits use the same unit — $60
+  is 6e9). ``lite:`` carries useBalance; the balance field sits in the same
+  enclosing workspace object, just before it. An absent block parses as
+  defaults (no fallback)."""
+  config: dict[str, Any] = {"useBalance": False, "balance": None}
+  match = re.search(r'\blite:(?:\$R\[\d+\]=)?\{([^}]*)\}', html)
+  if not match:
+    return config
+  config["useBalance"] = "useBalance:!0" in match.group(1) or "useBalance:true" in match.group(1)
+  prefix = html[:match.start()]
+  balance = re.findall(r'\bbalance:(\d+)', prefix)
+  if balance:
+    config["balance"] = int(balance[-1])
+  return config
+
+
 def parse_usage_records(html: str) -> list[dict[str, Any]]:
   records: list[dict[str, Any]] = []
   for match in USAGE_RECORD_RE.finditer(html):
@@ -554,16 +581,24 @@ def build_limits(meters: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
   limits: list[dict[str, Any]] = []
   for key, label in order:
     meter = meters.get(key)
-    if not meter or meter.get("status") != "ok":
+    if not meter:
       continue
     percent = float(meter.get("usagePercent") or 0) / 100.0
     if not (percent >= 0):
       continue
-    limits.append({
+    limit: dict[str, Any] = {
       "label": label,
       "percent": min(1.0, percent),
       "resetsAt": resets_at(int(meter.get("resetInSec") or 0)),
-    })
+    }
+    # A meter that stopped accepting requests is the binding constraint, not
+    # a gap in the data: 'rate-limited' means requests for that window block
+    # (or bill the Zen balance, when useBalance is on). Carrying the status
+    # lets the record tell those apart from a merely full window.
+    status = str(meter.get("status") or "")
+    if status != "ok":
+      limit["status"] = status
+    limits.append(limit)
   return limits
 
 
@@ -608,12 +643,38 @@ def failure_record(
   return base_record(**overrides)
 
 
-def build_record(meters: dict[str, dict[str, Any]], plan: str, records: list[dict[str, Any]]) -> dict[str, Any]:
+def rate_limited_note(limits: list[dict[str, Any]], go_config: dict[str, Any]) -> tuple[str, str]:
+  """(hero, help) texts for an exhausted window, or ("", "") when none is
+  throttled. The hero is the short headline the panel's hero meta shows; the
+  help is the status-card body, which explains whether requests block or bill
+  the Zen balance until the window resets."""
+  throttled = [limit for limit in limits if limit.get("status") == "rate-limited"]
+  if not throttled:
+    return "", ""
+  headline = ", ".join(limit["label"] for limit in throttled) + " limit reached"
+  if go_config.get("useBalance") and go_config.get("balance") is not None:
+    remaining = go_config["balance"] / 1e8
+    return headline, f"Billing the Zen balance (${remaining:,.2f} left) until the window resets"
+  if go_config.get("useBalance"):
+    return headline, "Zen balance is empty — requests blocked until the window resets"
+  return headline, "Requests blocked until the window resets"
+
+
+def build_record(
+  meters: dict[str, dict[str, Any]],
+  plan: str,
+  records: list[dict[str, Any]],
+  go_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+  go_config = go_config or {}
   limits = build_limits(meters)
+  status_text, auth_help = rate_limited_note(limits, go_config)
   record = base_record(
     ready=bool(limits),
     tierLabel=plan or "Go",
     limits=limits,
+    usageStatusText=status_text,
+    authHelpText=auth_help,
   )
   # Stats always ride along, zero-shaped when no usage records parsed: the
   # panel keys off their presence for the today/total lines and merges them
@@ -683,6 +744,7 @@ def main() -> int:
     return 0
 
   meters, plan = parse_meters(go_html)
+  go_config = parse_go_config(go_html)
   if not meters:
     if debug:
       print(f"DEBUG: fetched {len(go_html)} chars from /workspace/{workspace}/go", file=sys.stderr)
@@ -710,7 +772,7 @@ def main() -> int:
   except Exception:
     records = []
 
-  print_record(build_record(meters, plan, records))
+  print_record(build_record(meters, plan, records, go_config))
   return 0
 
 
