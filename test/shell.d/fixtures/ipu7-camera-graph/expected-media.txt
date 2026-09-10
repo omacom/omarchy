@@ -1,0 +1,19 @@
+Media controller API version 7.2.3
+
+Media device information
+------------------------
+driver          intel-ipu7
+model           ipu7
+
+Device topology
+- entity 129: Intel IPU7 CSI2 0 (9 pads, 1 link, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+              device node name /dev/v4l-subdev0
+  pad0: SINK,MUST_CONNECT
+    <- "ov08x40 16-0036":0 [ENABLED,IMMUTABLE]
+
+- entity 169: ov08x40 16-0036 (1 pad, 1 link)
+              type V4L2 subdev subtype Sensor flags 0
+              device node name /dev/v4l-subdev4
+  pad0: SOURCE
+    -> "Intel IPU7 CSI2 0":0 [ENABLED,IMMUTABLE]

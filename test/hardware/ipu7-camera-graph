@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Read captured diagnostics only. This does not open, configure or stream a camera.
+set -euo pipefail
+
+if (( $# != 2 )); then
+  echo "Usage: bash test/hardware/ipu7-camera-graph PENDING_FILE MEDIA_FILE" >&2
+  exit 2
+fi
+
+pending=$1
+media=$2
+for input in "$pending" "$media"; do
+  if [[ ! -f $input || ! -r $input ]]; then
+    echo "inconclusive - cannot read $input" >&2
+    exit 2
+  fi
+done
+
+if ! grep -Eq '^model[[:space:]]+ipu7[[:space:]]*$' "$media" ||
+  ! grep -Eq '^- entity [0-9]+: Intel IPU7 CSI2 ' "$media"; then
+  echo "inconclusive - expected a complete IPU7 media topology" >&2
+  exit 2
+fi
+
+# An empty ipu7 notifier is valid. Its absence gives us no registration evidence.
+if ! grep -qx 'ipu7:' "$pending"; then
+  echo "inconclusive - no ipu7 notifier in pending diagnostics" >&2
+  exit 2
+fi
+
+ipu7_pending=$(awk '
+  /^[^[:space:]].*:$/ { ipu7 = ($0 == "ipu7:"); next }
+  ipu7 && /[^[:space:]]/ { print }
+' "$pending")
+
+if [[ -n $ipu7_pending ]]; then
+  if grep -Eq 'node=INTC10E[12]-[0-9]+/port@[0-9]+/endpoint@[0-9]+' <<< "$ipu7_pending"; then
+    echo "not ok - IPU7 is waiting for an unregistered Panther Lake CVS endpoint"
+  else
+    echo "not ok - IPU7 still has pending subdevices"
+  fi
+  printf '%s\n' "$ipu7_pending"
+  exit 1
+fi
+
+if ! awk '
+  /^- entity / { sensor = ($0 ~ /^- entity [0-9]+: ov08x40 [^ ]+ \(/) }
+  sensor && /device node name \/dev\/v4l-subdev[0-9]+/ { found = 1 }
+  END { exit !found }
+' "$media"; then
+  echo "not ok - OV08X40 has no registered subdevice in the IPU7 media topology"
+  exit 1
+fi
+
+echo "ok - IPU7 notifier complete and OV08X40 subdevice registered (streaming untested)"

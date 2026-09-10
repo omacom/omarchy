@@ -1,0 +1,7 @@
+# IPU7 graph fixtures
+
+`observed-media.txt` contains the complete output, with trailing whitespace normalised, of a read-only `media-ctl -p -d /dev/media0` query on a Dell XPS with Linux 7.2.3 on 10 September 2026. `observed-pending.txt` reproduces the same machine's `/sys/kernel/debug/v4l2-async/pending_async_subdevices` output. The graph has 32 capture entities and four CSI2 entities, but no OV08X40 sensor entity. The IPU7 notifier waits for `INTC10E1-0/port@1/endpoint@0`.
+
+The capture machine was configured for edge with `intel-ipu7-camera 1.0.5-2`. This is not a physical test of stable. At the time of the audit stable and RC published Linux 7.2.3 and `intel-ipu7-camera 1.0.5-1`; edge's `1.0.5-2` rebuild addressed jsoncpp linkage, not the kernel graph. Stable's matching failure is independently reported in [Omarchy #10948](https://github.com/omacom/omarchy/issues/10948).
+
+`expected-pending.txt` and `expected-media.txt` are synthetic parser expectations, not a capture from a repaired machine. They describe the minimum registration evidence this check accepts: a completed IPU7 notifier and an OV08X40 subdevice node in the IPU7 graph. The reduced media fixture illustrates a direct sensor link; the checker does not prescribe that graph arrangement. Tests using it do not establish that a proposed kernel change works, that links are configured correctly, or that streaming succeeds.

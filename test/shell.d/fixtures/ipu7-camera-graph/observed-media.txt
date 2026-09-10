@@ -1,0 +1,283 @@
+Media controller API version 7.2.3
+
+Media device information
+------------------------
+driver          intel-ipu7
+model           ipu7
+serial
+bus info        PCI:0000:00:05.0
+hw revision     0x10280db9
+driver version  7.2.3
+
+Device topology
+- entity 1: Intel IPU7 ISYS Capture 0 (1 pad, 1 link)
+            type Node subtype V4L flags 0
+            device node name /dev/video0
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":1 []
+
+- entity 5: Intel IPU7 ISYS Capture 1 (1 pad, 1 link)
+            type Node subtype V4L flags 0
+            device node name /dev/video1
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":2 []
+
+- entity 9: Intel IPU7 ISYS Capture 2 (1 pad, 1 link)
+            type Node subtype V4L flags 0
+            device node name /dev/video2
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":3 []
+
+- entity 13: Intel IPU7 ISYS Capture 3 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video3
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":4 []
+
+- entity 17: Intel IPU7 ISYS Capture 4 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video4
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":5 []
+
+- entity 21: Intel IPU7 ISYS Capture 5 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video5
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":6 []
+
+- entity 25: Intel IPU7 ISYS Capture 6 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video6
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":7 []
+
+- entity 29: Intel IPU7 ISYS Capture 7 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video7
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 0":8 []
+
+- entity 33: Intel IPU7 ISYS Capture 8 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video8
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":1 []
+
+- entity 37: Intel IPU7 ISYS Capture 9 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video9
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":2 []
+
+- entity 41: Intel IPU7 ISYS Capture 10 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video10
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":3 []
+
+- entity 45: Intel IPU7 ISYS Capture 11 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video11
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":4 []
+
+- entity 49: Intel IPU7 ISYS Capture 12 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video12
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":5 []
+
+- entity 53: Intel IPU7 ISYS Capture 13 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video13
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":6 []
+
+- entity 57: Intel IPU7 ISYS Capture 14 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video14
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":7 []
+
+- entity 61: Intel IPU7 ISYS Capture 15 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video15
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 1":8 []
+
+- entity 65: Intel IPU7 ISYS Capture 16 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video16
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":1 []
+
+- entity 69: Intel IPU7 ISYS Capture 17 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video17
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":2 []
+
+- entity 73: Intel IPU7 ISYS Capture 18 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video18
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":3 []
+
+- entity 77: Intel IPU7 ISYS Capture 19 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video19
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":4 []
+
+- entity 81: Intel IPU7 ISYS Capture 20 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video20
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":5 []
+
+- entity 85: Intel IPU7 ISYS Capture 21 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video21
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":6 []
+
+- entity 89: Intel IPU7 ISYS Capture 22 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video22
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":7 []
+
+- entity 93: Intel IPU7 ISYS Capture 23 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video23
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 2":8 []
+
+- entity 97: Intel IPU7 ISYS Capture 24 (1 pad, 1 link)
+             type Node subtype V4L flags 0
+             device node name /dev/video24
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":1 []
+
+- entity 101: Intel IPU7 ISYS Capture 25 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video25
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":2 []
+
+- entity 105: Intel IPU7 ISYS Capture 26 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video26
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":3 []
+
+- entity 109: Intel IPU7 ISYS Capture 27 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video27
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":4 []
+
+- entity 113: Intel IPU7 ISYS Capture 28 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video28
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":5 []
+
+- entity 117: Intel IPU7 ISYS Capture 29 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video29
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":6 []
+
+- entity 121: Intel IPU7 ISYS Capture 30 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video30
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":7 []
+
+- entity 125: Intel IPU7 ISYS Capture 31 (1 pad, 1 link)
+              type Node subtype V4L flags 0
+              device node name /dev/video31
+	pad0: SINK,MUST_CONNECT
+		<- "Intel IPU7 CSI2 3":8 []
+
+- entity 129: Intel IPU7 CSI2 0 (9 pads, 8 links, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+	pad0: SINK,MUST_CONNECT
+	pad1: SOURCE
+		-> "Intel IPU7 ISYS Capture 0":0 []
+	pad2: SOURCE
+		-> "Intel IPU7 ISYS Capture 1":0 []
+	pad3: SOURCE
+		-> "Intel IPU7 ISYS Capture 2":0 []
+	pad4: SOURCE
+		-> "Intel IPU7 ISYS Capture 3":0 []
+	pad5: SOURCE
+		-> "Intel IPU7 ISYS Capture 4":0 []
+	pad6: SOURCE
+		-> "Intel IPU7 ISYS Capture 5":0 []
+	pad7: SOURCE
+		-> "Intel IPU7 ISYS Capture 6":0 []
+	pad8: SOURCE
+		-> "Intel IPU7 ISYS Capture 7":0 []
+
+- entity 139: Intel IPU7 CSI2 1 (9 pads, 8 links, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+	pad0: SINK,MUST_CONNECT
+	pad1: SOURCE
+		-> "Intel IPU7 ISYS Capture 8":0 []
+	pad2: SOURCE
+		-> "Intel IPU7 ISYS Capture 9":0 []
+	pad3: SOURCE
+		-> "Intel IPU7 ISYS Capture 10":0 []
+	pad4: SOURCE
+		-> "Intel IPU7 ISYS Capture 11":0 []
+	pad5: SOURCE
+		-> "Intel IPU7 ISYS Capture 12":0 []
+	pad6: SOURCE
+		-> "Intel IPU7 ISYS Capture 13":0 []
+	pad7: SOURCE
+		-> "Intel IPU7 ISYS Capture 14":0 []
+	pad8: SOURCE
+		-> "Intel IPU7 ISYS Capture 15":0 []
+
+- entity 149: Intel IPU7 CSI2 2 (9 pads, 8 links, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+	pad0: SINK,MUST_CONNECT
+	pad1: SOURCE
+		-> "Intel IPU7 ISYS Capture 16":0 []
+	pad2: SOURCE
+		-> "Intel IPU7 ISYS Capture 17":0 []
+	pad3: SOURCE
+		-> "Intel IPU7 ISYS Capture 18":0 []
+	pad4: SOURCE
+		-> "Intel IPU7 ISYS Capture 19":0 []
+	pad5: SOURCE
+		-> "Intel IPU7 ISYS Capture 20":0 []
+	pad6: SOURCE
+		-> "Intel IPU7 ISYS Capture 21":0 []
+	pad7: SOURCE
+		-> "Intel IPU7 ISYS Capture 22":0 []
+	pad8: SOURCE
+		-> "Intel IPU7 ISYS Capture 23":0 []
+
+- entity 159: Intel IPU7 CSI2 3 (9 pads, 8 links, 0 routes)
+              type V4L2 subdev subtype Unknown flags 0
+	pad0: SINK,MUST_CONNECT
+	pad1: SOURCE
+		-> "Intel IPU7 ISYS Capture 24":0 []
+	pad2: SOURCE
+		-> "Intel IPU7 ISYS Capture 25":0 []
+	pad3: SOURCE
+		-> "Intel IPU7 ISYS Capture 26":0 []
+	pad4: SOURCE
+		-> "Intel IPU7 ISYS Capture 27":0 []
+	pad5: SOURCE
+		-> "Intel IPU7 ISYS Capture 28":0 []
+	pad6: SOURCE
+		-> "Intel IPU7 ISYS Capture 29":0 []
+	pad7: SOURCE
+		-> "Intel IPU7 ISYS Capture 30":0 []
+	pad8: SOURCE
+		-> "Intel IPU7 ISYS Capture 31":0 []

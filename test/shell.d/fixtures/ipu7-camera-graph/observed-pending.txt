@@ -1,0 +1,3 @@
+ov08x40 16-0036:
+ipu7:
+ [fwnode] dev=nil, node=INTC10E1-0/port@1/endpoint@0
