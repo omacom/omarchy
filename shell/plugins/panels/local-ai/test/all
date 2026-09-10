@@ -9,7 +9,7 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export OMARCHY_AI_USER_HOME="$TMP/home" OMARCHY_AI_STATE="$TMP/state" OMARCHY_AI_RECIPES="$TMP/recipes.json" \
   OMARCHY_AI_MODEL_ROOT="$TMP/home/.cache/omarchy/local-ai/models" OMARCHY_AI_CACHE_ROOT="$TMP/home/.cache/omarchy/local-ai/cache" \
   OMARCHY_AI_HF_HOME="$TMP/home/.cache/huggingface" OMARCHY_AI_PORT=12434 OMARCHY_AI_POLL=0 OMARCHY_AI_TIMEOUT=5 \
-  OMARCHY_AI_FOREGROUND=1 OMARCHY_AI_NO_HOST_HF=1 SHIM="$TMP/shim" \
+  OMARCHY_AI_FOREGROUND=1 OMARCHY_AI_NO_HOST_HF=1 OMARCHY_AI_DOCKER=direct SHIM="$TMP/shim" \
   PATH="$TMP/bin:/usr/bin:/bin"   # shims plus the base system only; the developer's own agents must not leak in
 mkdir -p "$TMP/bin" "$TMP/home" "$SHIM"
 ln -s "$(PATH="$PATH:/opt/homebrew/bin:/usr/local/bin" command -v jq)" "$TMP/bin/jq"
@@ -34,7 +34,8 @@ echo "docker $*" >>"$SHIM/docker.log"
 case "$1" in
   network) [[ $2 == inspect ]] && { [[ -f $SHIM/net ]] && exit 0 || exit 1; }; [[ $2 == create ]] && touch "$SHIM/net"; exit 0 ;;
   image) [[ $2 == inspect ]] && { grep -qxF "$3" "$SHIM/images" 2>/dev/null; exit $?; }; exit 0 ;;
-  pull) [[ ${SHIM_PULL_FAIL:-} == 1 ]] && exit 1; echo "$2" >>"$SHIM/images"; exit 0 ;;
+  info) [[ -n ${SHIM_DOCKER_DOWN:-} ]] && { echo "$SHIM_DOCKER_DOWN" >&2; exit 1; }; echo "Runtimes: io.containerd.runc.v2 ${SHIM_RUNTIMES:-nvidia} runc"; exit 0 ;;
+  pull) [[ ${SHIM_PULL_FAIL:-} == 1 ]] && { echo "${SHIM_PULL_ERR:-error pulling image configuration: no space left on device}" >&2; exit 1; }; echo "$2" >>"$SHIM/images"; exit 0 ;;
   run)
     name=""; labels=""; role=""; args=("$@")
     for ((i=0;i<${#args[@]};i++)); do
@@ -101,6 +102,14 @@ case "$*" in
   serve*) echo "Access denied: serve config denied. Use 'sudo tailscale set --operator=\$USER' to not require root." >&2; exit 1 ;;
 esac
 EOF
+cat >"$TMP/bin/pkexec" <<'EOF'
+#!/usr/bin/env bash
+# polkit: the prompt was dismissed when SHIM_PKEXEC_FAIL=1; otherwise the command runs, marked as the root side
+echo "pkexec $*" >>"$SHIM/pkexec.log"
+[[ ${SHIM_PKEXEC_FAIL:-} == 1 ]] && { echo "Error executing command as another user: Request dismissed" >&2; exit 126; }
+export OMARCHY_AI_TEST_ROOT=1 SHIM_ROOT=1; exec "$@"
+EOF
+for tk in pacman nvidia-ctk systemctl; do printf '#!/usr/bin/env bash\necho "%s $*" >>"$SHIM/toolkit.log"\n' "$tk" >"$TMP/bin/$tk"; done
 for a in pi claude codex; do printf '#!/usr/bin/env bash\necho "$0 $* ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-} ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-} LOCAL_AI_KEY=${LOCAL_AI_KEY:-}"\n' >"$TMP/bin/$a"; done
 printf '#!/usr/bin/env bash\necho "launch $*"\n' >"$TMP/bin/omarchy-launch-tui"
 printf '#!/usr/bin/env bash\necho pi\n' >"$TMP/bin/omarchy-default-agent"
@@ -187,7 +196,8 @@ SHIM_TS=newip "$CLI" share; "$CLI" snapshot >/dev/null; [[ $(snap .share.active)
 : >"$SHIM/docker.log"; "$CLI" load
 [[ $(snap .state) == ready ]] || fail "reload ready"; pass "load again: reuses weights and image"
 grep -q "rename omarchy-local-ai-engine omarchy-local-ai-engine-previous" "$SHIM/docker.log" || fail "set aside"; pass "previous pair is set aside during the switch"
-[[ ! -d $SHIM/containers/omarchy-local-ai-engine-previous ]] || fail "previous dropped"; pass "previous pair dropped after acceptance"
+[[ -d $SHIM/containers/omarchy-local-ai-engine-previous && $(cat "$SHIM/containers/omarchy-local-ai-engine-previous/state") == stopped ]] || fail "previous kept" "$(ls $SHIM/containers)"; pass "the previous pair stays set aside, stopped, after acceptance (no second prompt on success)"
+"$CLI" load; [[ ! -d $SHIM/containers/omarchy-local-ai-engine-previous || $(cat "$SHIM/containers/omarchy-local-ai-engine-previous/state") == stopped ]] || fail "stale previous"; pass "the next Start drops the stale pair before setting the current one aside"
 
 # acceptance failure rolls back to the previous pair
 SHIM_REPLY="nope" "$CLI" load
@@ -289,13 +299,47 @@ rm -f "$OMARCHY_AI_STATE/gateway.recipe.json"   # a gateway started by an older 
 SHIM_KEYLESS_GATEWAY=1 "$CLI" load
 [[ $(snap .state) == error && $(snap .error) == *"without the key"* ]] || fail "keyless gateway refused" "$(snap .state) $(snap .error)"; pass "a gateway that answers without the key is refused at acceptance"
 
+# docker trouble is said in the words that fix it, before anything is pulled
+SHIM_DOCKER_DOWN="permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock" "$CLI" load
+[[ $(snap .error) == *"usermod -aG docker"* ]] || fail "docker group hint" "$(snap .error)"; pass "a user outside the docker group is told the exact command"
+SHIM_RUNTIMES=runc SHIM_PKEXEC_FAIL=1 "$CLI" load
+[[ $(snap .error) == *"NVIDIA container toolkit"* ]] || fail "toolkit hint" "$(snap .error)"; pass "a missing NVIDIA container toolkit, with the prompt dismissed, is named with its install steps"
+SHIM_DOCKER_DOWN="Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?" "$CLI" load
+[[ $(snap .error) == *"Docker is not running"* ]] || fail "daemon down hint" "$(snap .error)"; pass "a stopped daemon is named as such"
+"$CLI" unload >/dev/null; rm -f "$SHIM/images"; SHIM_PULL_FAIL=1 "$CLI" load
+[[ $(snap .error) == *"out of disk space"* ]] || fail "pull disk hint" "$(snap .error)"; pass "a failed pull says why in docker's words, translated"
+SHIM_PULL_FAIL=1 SHIM_PULL_ERR="Error response from daemon: Get https://ghcr.io/v2/: dial tcp: i/o timeout" "$CLI" load
+[[ $(snap .error) == *"no route to the image registry"* ]] || fail "pull network hint" "$(snap .error)"; pass "a pull without network says so"
+"$CLI" load; [[ $(snap .state) == ready ]] || fail "recover after pull errors" "$(snap .error)"
+
+# Omarchy keeps users out of the docker group: with the socket unwritable, one Start is ONE pkexec, the
+# card's refresh makes no docker call, Stop and share are one pkexec each, and a failed acceptance
+# costs one more for the rollback
+"$CLI" unload >/dev/null; rm -f "$SHIM/images" "$OMARCHY_AI_STATE"/weights/*.json; : >"$SHIM/pkexec.log"
+export OMARCHY_AI_DOCKER=prompt
+n0=$(grep -c . "$SHIM/docker.log"); "$CLI" snapshot >/dev/null; [[ $(grep -c . "$SHIM/docker.log") == "$n0" ]] || fail "snapshot touched docker in prompt mode"; pass "prompt mode: the card's refresh makes no docker call"
+"$CLI" load; [[ $(snap .state) == ready ]] || fail "prompt load" "$(snap .error)"; pass "prompt mode: a Start from nothing reaches ready"
+[[ $(grep -c "pkexec" "$SHIM/pkexec.log") == 1 ]] || fail "one prompt per Start" "$(cat "$SHIM/pkexec.log")"; pass "prompt mode: images, weights, and both containers behind one password prompt"
+grep -q "_root start" "$SHIM/pkexec.log" && grep -q -- "--user $(id -u):$(id -g)" "$SHIM/docker.log" || fail "root phase ran the gateway as the user"; pass "prompt mode: the gateway still runs as the user, not root"
+[[ $(snap .share.active) == false ]] || fail "share state"; : >"$SHIM/pkexec.log"; "$CLI" share; [[ $(snap .share.active) == true && $(grep -c pkexec "$SHIM/pkexec.log") == 1 ]] || fail "prompt share" "$(snap .share) $(cat "$SHIM/pkexec.log")"; pass "prompt mode: share is one prompt"
+"$CLI" share; : >"$SHIM/pkexec.log"; "$CLI" unload; [[ $(snap .state) == idle && $(grep -c pkexec "$SHIM/pkexec.log") == 1 ]] || fail "prompt unload" "$(snap .state)"; pass "prompt mode: Stop is one prompt"
+"$CLI" load; : >"$SHIM/pkexec.log"; SHIM_REPLY=nope "$CLI" load; [[ $(snap .error) == *"chat acceptance failed"* && $(grep -c pkexec "$SHIM/pkexec.log") == 2 ]] || fail "prompt rollback" "$(snap .error) $(cat "$SHIM/pkexec.log")"; pass "prompt mode: a failed acceptance costs one more prompt to bring the previous model back"
+[[ $(snap .state) == ready ]] || fail "prompt restore" "$(snap .state)"; pass "prompt mode: the previous model is back and ready"
+SHIM_PKEXEC_FAIL=1 "$CLI" unload; [[ $(snap .error) != "" ]] || fail "dismissed prompt"; pass "prompt mode: a dismissed prompt is a reason on the card"
+"$CLI" unload >/dev/null; SHIM_RUNTIMES=runc "$CLI" load; grep -q "pacman -S --noconfirm --needed nvidia-container-toolkit" "$SHIM/toolkit.log" && grep -q "nvidia-ctk runtime configure" "$SHIM/toolkit.log" || fail "toolkit setup" "$(cat "$SHIM/toolkit.log" 2>/dev/null)"; pass "prompt mode: a missing NVIDIA container toolkit is installed inside the same prompt"
+export OMARCHY_AI_DOCKER=direct
+: >"$SHIM/toolkit.log"; "$CLI" unload >/dev/null; SHIM_RUNTIMES=runc "$CLI" load; grep -q "pacman" "$SHIM/toolkit.log" || fail "direct toolkit"; pass "direct mode: a missing toolkit is set up behind one prompt, then Start continues"
+"$CLI" load; [[ $(snap .state) == ready ]] || fail "recover" "$(snap .error)"
+
+# a worker that dies on something unforeseen leaves a reason, not a silent idle or a stale "starting"
+
 # a worker that dies on something unforeseen leaves a reason, not a silent idle or a stale "starting"
 SHIM_RUN_FAIL=omarchy-local-ai-engine OMARCHY_AI_MODEL_ROOT=/nonexistent-root/x "$CLI" load 2>/dev/null || true
-[[ $(snap .state) == error && $(snap .error) != "" ]] || fail "unexpected death recorded" "$(snap .state) '$(snap .error)'"; pass "an unforeseen worker failure ends in error with a reason"
+[[ $(snap .error) != "" ]] || fail "unexpected death recorded" "$(snap .state) '$(snap .error)'"; pass "an unforeseen worker failure leaves a reason (and the previous model, when there was one)"
 
 # failures during start are logged and rolled back
 SHIM_RUN_FAIL=omarchy-local-ai-engine "$CLI" load
-[[ $(snap .state) == error ]] || fail "start failure"; pass "engine start failure is an error"
+[[ $(snap .error) == *"engine failed to start"* || $(snap .error) == *"engine exited"* ]] || fail "start failure" "$(snap .state) $(snap .error)"; pass "engine start failure is reported (the previous model restored when there was one)"
 grep -q "rollback" "$OMARCHY_AI_STATE/log" || fail "logged"; pass "every worker step is in the log"
 
 echo "1..$n"

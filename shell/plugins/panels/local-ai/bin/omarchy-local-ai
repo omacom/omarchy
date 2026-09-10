@@ -10,6 +10,8 @@ HERE=$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || pri
 SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
 # shellcheck source=../lib/common.sh
 source "$HERE/../lib/common.sh"
+# shellcheck source=../lib/priv.sh
+source "$HERE/../lib/priv.sh"
 # shellcheck source=../lib/hardware.sh
 source "$HERE/../lib/hardware.sh"
 # shellcheck source=../lib/recipes.sh
@@ -56,21 +58,32 @@ w_load() {
   op download "" "checking the GPU and recipe" 0
   r=$(current_recipe 2>"$STATE/gate.err") || oops "$(sed -n '$s/^local-ai: //p' "$STATE/gate.err")"
   id=$(jq -r .id <<<"$r")
+  if docker_direct; then # the daemon answers this user: say now what would stop a pull; a missing NVIDIA runtime is set up behind one prompt
+    if ! why=$(docker_ok "$(jq -r .match.backend <<<"$r")"); then
+      [[ $why == *"NVIDIA container toolkit"* ]] || oops "$why"
+      op download "$id" "setting up the NVIDIA container toolkit (your password)" 0
+      elevated toolkit >"$STATE/phase.out" 2>>"$LOGFILE" || oops "$why"
+    fi
+  fi
   op download "$id" "checking" 0
-  ensure_image "$(jq -r .launch.image <<<"$r")" "$id"
-  ensure_image "$(gateway_image)" "$id"
-  weights_present "$r" || download_weights "$r"
+  local need=0; weights_present "$r" || need=1
+  weights_plan "$r" 2>"$STATE/gate.err" || oops "$(sed -n '$s/^local-ai: //p' "$STATE/gate.err")"
+  mount_dirs "$r"; write_assets "$r"; ensure_key
+  printf '%s\n' "$r" >"$STATE/recipe.json"; printf '%s\n' "$r" >"$STATE/gateway.recipe.json"
+  if (( need )) && host_hf >/dev/null; then # the host's own hf, as this user, no docker and no prompt
+    download_host "$r" 2>"$STATE/gate.err" || oops "$(sed -n '$s/^local-ai: //p' "$STATE/gate.err")"; weights_mark "$r"; need=0
+  fi
   t0=$SECONDS
-  op starting "$id" "setting aside the previous model" 0
-  set_aside || oops "could not set aside the running containers"
-  op starting "$id" "starting" 0
-  if ! start_pair "$r" || ! accept "$r" 2>"$STATE/accept.err"; then
+  # every docker call of this Start in one phase: images, weights when still needed, set aside, engine, gateway
+  PHASE_EXPECT_BYTES=$WEXP PHASE_WEIGHTS_DIR=$WBASE phase_run start download "$id" "$STATE/recipe.json" "$need" || oops "$PHASE_REASON"
+  (( need )) && weights_mark "$r"
+  if ! accept "$r" 2>"$STATE/accept.err"; then
     local why; why=$(sed -n '$s/^local-ai: //p' "$STATE/accept.err" 2>/dev/null); [[ -n $why ]] || why="engine failed to start (see $LOGFILE)"
     log "rollback: $why"; op starting "$id" "rolling back" 0
-    restore_previous
+    privileged restore >"$STATE/phase.out" 2>>"$LOGFILE" || true
     oops "$why"
   fi
-  drop_previous
+  # the previous pair stays set aside (stopped) until the next Start or Stop drops it: no second prompt on success
   # how long Start took from the first container step to accepted: the next Start's progress bar
   lwrite '.lastStartSeconds=($s|tonumber)' --arg s "$((SECONDS - t0))"
   op_done; log "ready $id"
@@ -81,7 +94,8 @@ w_unload() {
   trap worker_exit EXIT
   op unload "" "stopping" 0
   share_forget
-  stop_all
+  docker_direct || op unload "" "waiting for your password" 0
+  privileged stop >"$STATE/phase.out" 2>>"$LOGFILE" || { why=$(grep '^reason ' "$STATE/phase.out" | tail -1 | cut -c8-); oops "${why:-Stop failed (see $LOGFILE)}"; }
   lwrite '.accepted={recipeId:"",servedModel:"",registry:"",apis:[]}'
   op_done; log "unloaded"
 }
@@ -112,6 +126,9 @@ case $cmd in
             state_dir; printf '%s' "$1" >"$STATE/gpu"; log "gpu $1" ;;
        esac; snapshot_write; jq -c '.gpus' "$SNAPSHOT" ;;
   agent-dir) [[ -d ${1:-} ]] && { (cd "$1" && pwd) >"$STATE/agent-dir"; log "agent-dir $1"; } || { fail "agent-dir: not a directory: ${1:-}"; exit 1; } ;;
+  _root) # a phase run as root by pkexec (see lib/priv.sh); never spawned by anything but this script's own privileged()
+         [[ $(id -u) == 0 || -n ${OMARCHY_AI_TEST_ROOT:-} ]] || { fail "_root is for pkexec"; exit 1; }
+         [[ -n ${1:-} ]] || { fail "_root <phase>"; exit 1; }; p=$1; shift; "phase_$p" "$@" ;;
   _worker-load) w_load ;;
   _worker-unload) w_unload ;;
   help|-h|--help) usage ;;

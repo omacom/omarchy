@@ -19,9 +19,14 @@ snapshot_write() {
   ledger=$(lread); match=$(match_hardware); hw_id=$(jq -r .hardwareId <<<"$match"); reason=$(jq -r .reason <<<"$match")
   rec=$(recipe_for "$hw_id"); [[ -n $rec ]] && rec=$(jq -c --argjson m "$match" '. + {gpuIndex:$m.gpu.index, match:{backend:$m.gpu.backend}}' <<<"$rec")
   pid=$(busy_pid); [[ -n $pid ]] && busy=true
-  if owned "$ENGINE" && running "$ENGINE"; then engine_up=true; running_recipe=$(container_recipe "$ENGINE"); fi
-  if $engine_up && owned "$GATEWAY" && running "$GATEWAY"; then
-    served=$(api models 2 2>/dev/null | jq -r '.data[0].id // empty' || true); [[ -n $served ]] && answering=true
+  if docker_direct; then
+    if owned "$ENGINE" && running "$ENGINE"; then engine_up=true; running_recipe=$(container_recipe "$ENGINE"); fi
+    if $engine_up && owned "$GATEWAY" && running "$GATEWAY"; then
+      served=$(api models 2 2>/dev/null | jq -r '.data[0].id // empty' || true); [[ -n $served ]] && answering=true
+    fi
+  else # docker would prompt: the gateway answering is the evidence, and the recipe it was started from is on file
+    served=$(api models 2 2>/dev/null | jq -r '.data[0].id // empty' || true)
+    if [[ -n $served ]]; then answering=true; engine_up=true; running_recipe=$(jq -r '.id // ""' "$STATE/gateway.recipe.json" 2>/dev/null || true); fi
   fi
   if $busy; then state=$(jq -r .op.name <<<"$ledger")
   elif $answering; then state=ready
@@ -30,7 +35,7 @@ snapshot_write() {
   else state=idle; fi
   # a running recipe that the vendored file no longer carries is still ours: say so instead of hiding it
   local running_known=true; [[ -n $running_recipe && $running_recipe != "$(jq -r '.id // ""' <<<"$rec")" ]] && running_known=false
-  local downloaded=false; [[ -n $rec ]] && weights_present "$rec" && docker image inspect "$(jq -r .launch.image <<<"$rec")" >/dev/null 2>&1 && downloaded=true
+  local downloaded=false; [[ -n $rec ]] && weights_present "$rec" && { ! docker_direct || docker image inspect "$(jq -r .launch.image <<<"$rec")" >/dev/null 2>&1; } && downloaded=true
   local gate=""; [[ -n $rec ]] && gate=$(gate_reason "$rec")
   local driver_min driver_have; driver_have=$(hardware_json | jq -r .driver); driver_min=$(jq -r '.minDriver // ""' <<<"${rec:-null}")
   [[ -n $rec && -z $gate ]] && ! driver_ok "$driver_have" "$driver_min" && gate="needs NVIDIA driver $driver_min or newer (have ${driver_have:-none})"

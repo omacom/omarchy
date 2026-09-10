@@ -31,7 +31,7 @@ LEDGER_EMPTY='{"schemaVersion":"omarchy-local-ai/ledger/1","op":{"name":"","reci
 # Directories other users' containers must traverse (weights, caches, mounted assets) are made
 # with mkdir_shared under the ordinary umask.
 umask 077
-state_dir() { mkdir -p "$STATE" && chmod 700 "$STATE"; chmod 600 "$LEDGER" "$SNAPSHOT" "$LOGFILE" 2>/dev/null || true; chmod -R go-rwx "$STATE/agents" 2>/dev/null || true; }   # older installs wrote them 0644
+state_dir() { [[ -n ${OMARCHY_AI_ROOT_PHASE:-} ]] && return 0; mkdir -p "$STATE" && chmod 700 "$STATE"; chmod 600 "$LEDGER" "$SNAPSHOT" "$LOGFILE" 2>/dev/null || true; chmod -R go-rwx "$STATE/agents" 2>/dev/null || true; }   # older installs wrote them 0644
 mkdir_shared() { (umask 022; mkdir -p "$@"); }
 
 fail() { printf 'local-ai: %s\n' "$*" >&2; return 1; }
@@ -40,7 +40,7 @@ fail() { printf 'local-ai: %s\n' "$*" >&2; return 1; }
 # live worker whose op record is authoritative.
 refuse() { printf 'local-ai: %s\n' "$*" >&2; log "error: $*"; lwrite '.error=$e' --arg e "$*"; snapshot_write; return 1; }
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
-log() { state_dir; printf '%s %s\n' "$(now)" "$*" >>"$LOGFILE"; }
+log() { if [[ -n ${OMARCHY_AI_ROOT_PHASE:-} ]]; then printf '%s %s\n' "$(now)" "$*" >&2; else state_dir; printf '%s %s\n' "$(now)" "$*" >>"$LOGFILE"; fi; }   # a root phase's stderr is the user's log
 bin_of() { [[ -x $HOME_DIR/.local/bin/$1 ]] && printf '%s\n' "$HOME_DIR/.local/bin/$1" || command -v "$1"; }
 canon() { # canonicalize, resolving symlinks even for not-yet-existing leaf paths
   local p=$1 rest=""

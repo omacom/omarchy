@@ -45,8 +45,11 @@ omarchy local ai agent-args <name> [-- flags]  extra flags for one agent
 
 ## Requirements
 
-- Docker, with the user in the `docker` group
-- An NVIDIA GPU with the container toolkit, or an Intel Arc Pro B70
+- Docker. The user need not be in the `docker` group: Start, Stop, and Share
+  each ask for the password once through Omarchy's polkit prompt, the way
+  `omarchy-launch-docker-tui` does; with Sudoless Docker enabled there is no
+  prompt. A missing NVIDIA container toolkit is installed inside that prompt.
+- An NVIDIA GPU or an Intel Arc Pro B70
 - `jq`, `curl`; `tailscale` for sharing
 
 State lives in `~/.local/state/omarchy/local-ai/` (0700; `log` records every

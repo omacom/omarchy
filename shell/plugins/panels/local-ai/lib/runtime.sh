@@ -12,6 +12,7 @@ owned() { [[ $(docker inspect -f "{{index .Config.Labels \"$LABEL\"}}" "$1" 2>/d
 exists() { docker inspect "$1" >/dev/null 2>&1; }
 running() { [[ $(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null) == true ]]; }
 container_recipe() { docker inspect -f "{{index .Config.Labels \"$LABEL.recipe\"}}" "$1" 2>/dev/null; }
+gateway_up() { if docker_direct; then owned "$GATEWAY" && running "$GATEWAY"; else api models 2 >/dev/null 2>&1; fi; }
 ensure_network() { docker network inspect "$NET" >/dev/null 2>&1 || docker network create --label "$LABEL=1" "$NET" >/dev/null; }
 
 # write_assets <recipe>: config files the recipe mounts, from recipes.json, into a plugin-owned dir
@@ -40,8 +41,8 @@ engine_argv() { # engine_argv <recipe> -> NUL-separated docker argv
   while IFS=$'\t' read -r src tgt mode; do
     [[ -n $src && -n $tgt ]] || continue
     case $src in
-      '${MODEL_ROOT}/'*|'${CACHE_ROOT}/'*) real=$(canon "$(expand_mount "$src")"); mkdir_shared "$real" ;;
-      '~/.cache/huggingface'*) real=$(canon "$HOME_DIR/${src#\~/}"); mkdir_shared "$real" ;;
+      '${MODEL_ROOT}/'*|'${CACHE_ROOT}/'*) real=$(canon "$(expand_mount "$src")"); [[ -n ${OMARCHY_AI_ROOT_PHASE:-} ]] || mkdir_shared "$real" ;;
+      '~/.cache/huggingface'*) real=$(canon "$HOME_DIR/${src#\~/}"); [[ -n ${OMARCHY_AI_ROOT_PHASE:-} ]] || mkdir_shared "$real" ;;
       asset/*) real="$STATE/assets/${src#asset/}"; mode=":ro" ;;
       /dev/dri/by-path) real=$src ;;
       *) fail "mount outside boundary: $src"; return 1 ;;
@@ -60,7 +61,7 @@ gateway_argv() { # gateway_argv <recipe>
   # as this user: the image's own uid (10001) cannot read the 0600 key file, and a gateway that
   # cannot read its key silently serves keyless. Port 12434 needs no root.
   printf '%s\0' docker run --detach --name "$GATEWAY" --restart unless-stopped --network "$NET" \
-    --user "$(id -u):$(id -g)" --publish "127.0.0.1:$PORT:12434" --label "$LABEL=1" --label "$LABEL.recipe=$(jq -r .id <<<"$r")" \
+    --user "$RUN_AS" --publish "127.0.0.1:$PORT:12434" --label "$LABEL=1" --label "$LABEL.recipe=$(jq -r .id <<<"$r")" \
     --label "$LABEL.registry=$(registry_commit)" --label "$LABEL.role=gateway"
   share_publish_argv   # the tailnet address too, while sharing is on
   printf '%s\0' --env "UPSTREAM=http://engine:$(jq -r .launch.containerPort <<<"$r")" --env "MODEL=$(jq -r .model.servedName <<<"$r")" \
@@ -75,21 +76,21 @@ read_argv() { # read_argv <builder> <recipe> -> ARGV (no namerefs: the suite run
   ARGV=(); local v; while IFS= read -r -d '' v; do ARGV+=("$v"); done <"$f"; rm -f "$f"
   ((${#ARGV[@]}))
 }
-start_gateway() { # start_gateway <recipe>; remembers the recipe so the gateway can be restarted alone
+start_gateway() { # start_gateway <recipe>: the gateway container (the caller records the recipe it was started from)
   local r=$1; local -a argv=()
   read_argv gateway_argv "$r" || { fail "could not build the gateway command"; return 1; }; argv=("${ARGV[@]}")
-  printf '%s\n' "$r" >"$STATE/gateway.recipe.json"
   log "gateway: ${argv[*]}"
-  run_child "${argv[@]}" >>"$LOGFILE" 2>&1
+  run_child "${argv[@]}" >&2 2>&1
 }
-restart_gateway() { # same recipe, fresh publish list (share on/off); the engine is untouched
+restart_gateway() { # same recipe, fresh publish list (share on/off); the engine is untouched. User side: one privileged phase.
   local r; r=$(cat "$STATE/gateway.recipe.json" 2>/dev/null || true)
   if [[ -z $r ]]; then # started before this file existed: the machine's recipe, if it is the one running
     r=$(current_recipe 2>/dev/null) || r=""
-    [[ -n $r && $(jq -r .id <<<"$r") == "$(container_recipe "$GATEWAY")" ]] || { fail "no gateway to restart"; return 1; }
+    [[ -n $r ]] || { fail "no gateway to restart"; return 1; }
+    if docker_direct; then [[ $(jq -r .id <<<"$r") == "$(container_recipe "$GATEWAY")" ]] || { fail "no gateway to restart"; return 1; }; fi
+    printf '%s\n' "$r" >"$STATE/gateway.recipe.json"
   fi
-  exists "$GATEWAY" && owned "$GATEWAY" && docker rm -f "$GATEWAY" >/dev/null 2>&1
-  start_gateway "$r" || return 1
+  privileged restart_gateway "$STATE/gateway.recipe.json" >"$STATE/phase.out" 2>>"$LOGFILE" || { local why; why=$(grep '^reason ' "$STATE/phase.out" | tail -1 | cut -c8-); fail "${why:-the gateway did not restart (see $LOGFILE)}"; return 1; }
   local i; for ((i=0; i<15; i++)); do api models 2 >/dev/null 2>&1 && return 0; sleep "${POLL:-1}"; done
   api models 2 >/dev/null 2>&1
 }
@@ -198,11 +199,11 @@ restore_previous() {
 drop_previous() { local c; for c in "$ENGINE" "$GATEWAY"; do exists "$c-previous" && owned "$c-previous" && docker rm -f "$c-previous" >/dev/null 2>&1; done; return 0; }
 stop_all() { local c; for c in "$ENGINE" "$GATEWAY" "$ENGINE-previous" "$GATEWAY-previous"; do exists "$c" && owned "$c" && docker rm -f "$c" >/dev/null 2>&1; done; return 0; }
 
-start_pair() { # start_pair <recipe>: engine then gateway; returns non-zero on any failure
+start_pair() { # start_pair <recipe>: engine then gateway; returns non-zero on any failure. Assets and key exist already.
   local r=$1; local -a argv=()
-  ensure_network; ensure_key; write_assets "$r"
+  ensure_network
   read_argv engine_argv "$r" || { fail "could not build the engine command (see $LOGFILE)"; return 1; }; argv=("${ARGV[@]}")
   log "engine: ${argv[*]}"
-  run_child "${argv[@]}" >>"$LOGFILE" 2>&1 || return 1
+  run_child "${argv[@]}" >&2 2>&1 || return 1
   start_gateway "$r" || return 1
 }

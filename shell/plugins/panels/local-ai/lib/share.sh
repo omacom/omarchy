@@ -56,7 +56,7 @@ share_state() { # -> {available,active,url,keyFile,error}; read from tailscale a
   local self ip dns online active=false url="" err bound; err=$(cat "$SHARE_ERROR" 2>/dev/null || true)
   self=$(tailnet_self); ip=$(jq -r .ip <<<"$self"); dns=$(jq -r .dns <<<"$self"); online=$(jq -r .online <<<"$self")
   if [[ -z $ip ]]; then jq -nc --arg k "$KEY_FILE" --arg e "$err" '{available:false,active:false,url:"",keyFile:$k,error:$e}'; return; fi
-  if share_wanted && owned "$GATEWAY" && running "$GATEWAY"; then
+  if share_wanted && gateway_up; then
     bound=$(cat "$SHARE_MARK" 2>/dev/null || true)
     if [[ -z $bound || $bound == "$ip" ]]; then active=true
     elif [[ -z $err ]]; then err="tailnet address changed; share again"; fi   # the gateway still binds the old one
@@ -67,7 +67,7 @@ share_state() { # -> {available,active,url,keyFile,error}; read from tailscale a
 }
 
 share_on() { state_dir; : >"$SHARE_MARK"; restart_gateway; }
-share_off() { rm -f "$SHARE_MARK"; owned "$GATEWAY" && running "$GATEWAY" && restart_gateway; return 0; }
+share_off() { rm -f "$SHARE_MARK"; gateway_up && restart_gateway; return 0; }
 share_forget() { rm -f "$SHARE_MARK"; }
 docker_last_error() { # the last line docker wrote to the log, trimmed to what a card can show
   local l; l=$(grep -i "error\|cannot\|denied\|address" "$LOGFILE" 2>/dev/null | tail -1 | sed 's/^.*Error response from daemon: //; s/^docker: //' | cut -c1-140)
