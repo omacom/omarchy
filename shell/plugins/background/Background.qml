@@ -21,6 +21,7 @@ Item {
   property string bootIntroPath: ""
   property bool bootIntroActive: false
   property bool bootIntroChecked: false
+  property bool bootIntroResolving: false
   property string incomingBackground: ""
   property string oldBackground: ""
   property bool finishingTransition: false
@@ -79,11 +80,15 @@ Item {
   function checkBootIntro() {
     if (bootIntroChecked || bootIntroProc.running) return
     bootIntroChecked = true
+    bootIntroResolving = true
     bootIntroRequestVersion = backgroundVersion
+    bootIntroResolveTimer.restart()
     bootIntroProc.running = true
   }
 
   function finishBootIntro() {
+    bootIntroResolveTimer.stop()
+    bootIntroResolving = false
     bootIntroRequestVersion = -1
     bootIntroFinishedScreens = 0
     bootIntroActive = false
@@ -210,10 +215,15 @@ Item {
           return
         }
         root.bootIntroRequestVersion = -1
-        if (!path) return
+        if (!path) {
+          root.finishBootIntro()
+          return
+        }
         root.bootIntroFinishedScreens = 0
         root.bootIntroPath = path
         root.bootIntroActive = true
+        bootIntroResolveTimer.stop()
+        root.bootIntroResolving = false
       }
     }
   }
@@ -251,6 +261,13 @@ Item {
     function onScreensChanged() {
       if (root.bootIntroActive && root.bootIntroFinishedScreens >= Quickshell.screens.length) root.finishBootIntro()
     }
+  }
+
+  Timer {
+    id: bootIntroResolveTimer
+    interval: 3000
+    repeat: false
+    onTriggered: if (root.bootIntroResolving) root.cancelBootIntro()
   }
 
   Timer {
@@ -317,6 +334,7 @@ Item {
 
       property bool maskReady: false
       property bool bootIntroFinished: false
+      property bool bootIntroPlaybackStarted: false
       property bool fullscreenReported: false
 
       Component.onDestruction: {
@@ -335,8 +353,15 @@ Item {
 
       function handleBootIntroFinished() {
         if (bootIntroFinished || !root.bootIntroActive) return
+        bootIntroPrimeTimer.stop()
         bootIntroFinished = true
         root.markBootIntroFinished()
+      }
+
+      function maybeStartBootIntro() {
+        if (!root.bootIntroActive || bootIntroPlaybackStarted) return
+        bootIntroPrimeTimer.stop()
+        bootIntroPlaybackStarted = true
       }
 
       function maybeStartReveal() {
@@ -370,18 +395,36 @@ Item {
         }
       }
 
+      // The base still is ready first, but showing it before Qt Multimedia has
+      // decoded the intro's first frame makes startup flash the final image.
+      // Hold the theme color over it through resolution and paused priming.
+      Rectangle {
+        anchors.fill: parent
+        color: Color.background
+        visible: root.bootIntroResolving || (root.bootIntroActive && !panel.bootIntroPlaybackStarted)
+      }
+
       // The still background remains decoded underneath this one-shot layer,
       // so a matching final frame can disappear without a reload or flash.
       BackgroundMedia {
+        id: bootIntroMedia
         anchors.fill: parent
         path: root.bootIntroActive ? root.bootIntroPath : ""
-        playbackEnabled: root.bootIntroActive && !root.sessionObscured && !panel.fullscreenHere
+        playbackEnabled: root.bootIntroActive && panel.bootIntroPlaybackStarted && !root.sessionObscured && !panel.fullscreenHere
         audioEnabled: false
         loop: false
         fadeOutDuration: 750
         opacity: 1 - fadeOutProgress
-        visible: root.bootIntroActive && opacity > 0
+        visible: root.bootIntroActive && panel.bootIntroPlaybackStarted && opacity > 0
+        onFirstFramePrimed: panel.maybeStartBootIntro()
         onFinished: panel.handleBootIntroFinished()
+      }
+
+      Timer {
+        id: bootIntroPrimeTimer
+        interval: 3000
+        repeat: false
+        onTriggered: if (root.bootIntroActive && !panel.bootIntroPlaybackStarted) root.cancelBootIntro()
       }
 
       Image {
@@ -458,7 +501,14 @@ Item {
           panel.maybeStartReveal()
         }
         function onBootIntroActiveChanged() {
-          if (root.bootIntroActive) panel.bootIntroFinished = false
+          if (root.bootIntroActive) {
+            panel.bootIntroFinished = false
+            panel.bootIntroPlaybackStarted = false
+            bootIntroPrimeTimer.restart()
+          } else {
+            bootIntroPrimeTimer.stop()
+            panel.bootIntroPlaybackStarted = false
+          }
         }
       }
 
