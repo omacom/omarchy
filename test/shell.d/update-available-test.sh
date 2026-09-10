@@ -224,4 +224,4 @@ fi
 [[ $status -eq 0 ]] || fail "update checker still reports package updates without OMARCHY_PATH"
 grep -q '^omarchy ' "$stdout" || fail "update checker still reports package updates without OMARCHY_PATH" "$(cat "$stdout")"
 [[ ! -s $git_log ]] || fail "an unset OMARCHY_PATH checks no dev checkout" "$(cat "$git_log")"
-pass "an unset OMARCHY_PATH means the package install"
+pass "the update checker reports package updates without OMARCHY_PATH"

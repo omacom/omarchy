@@ -6,6 +6,17 @@
 
 set -e
 
+# sudo's env_reset drops OMARCHY_PATH, so resolve it from the root-owned
+# /etc/omarchy.conf that omarchy-dev-link writes. Otherwise the hint below
+# prints a bare /install/config path on a sudo-run update.
+if [[ -z ${OMARCHY_PATH:-} ]]; then
+  if [[ -f /etc/omarchy.conf ]]; then
+    # shellcheck disable=SC1091
+    . /etc/omarchy.conf
+  fi
+  OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+fi
+
 COMMAND="$1"
 
 if [[ -z $COMMAND ]]; then
