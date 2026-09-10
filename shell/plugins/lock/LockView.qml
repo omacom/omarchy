@@ -23,7 +23,8 @@ Item {
   property bool syncingPasswordText: false
 
   readonly property string placeholderText: "Enter Password"
-  readonly property int fieldWidth: 381
+  // Clamped so the field cannot outgrow a narrow screen.
+  readonly property int fieldWidth: root.width > 0 ? Math.min(381, root.width - Style.gapsOut * 2) : 381
   readonly property int fieldHeight: 67
   readonly property int outlineThickness: 3
   readonly property int fieldFontSize: Math.round(Style.font.heading * 1.125)
