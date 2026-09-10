@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # omarchy:summary=Print the OpenCode Go usage record as JSON
 # omarchy:args=[--force] [--limits-only]
 # omarchy:hidden=true
@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,29 @@ AGENT_ID = "opencode-go"
 AGENT_NAME = "OpenCode Go"
 AUTH_HELP = "Run `opencode` and use /connect to set up OpenCode Go, or set OPENCODE_GO_API_KEY."
 USAGE_API_URL = "https://opencode.ai/zen/go/v1/usage"
+
+
+def runtime_env():
+    """Return a copy of the environment with expanded PATH for tool discovery."""
+    home = str(Path.home())
+    path_parts = [
+        os.environ.get("PATH", ""),
+        f"{home}/.local/bin",
+        f"{home}/.npm-global/bin",
+        f"{home}/.local/share/mise/shims",
+    ]
+    env = os.environ.copy()
+    env["PATH"] = os.pathsep.join(part for part in path_parts if part)
+    return env
+
+
+ENV = runtime_env()
+
+
+def find_command(name: str) -> str | None:
+    """Find a command on the expanded PATH."""
+    return shutil.which(name, path=ENV.get("PATH"))
+
 
 # Scan reuse window: avoids redundant Pi + SQLite scans on rapid panel refreshes.
 # --limits-only reuses for up to 15 minutes; normal runs dedup for 20 seconds.
@@ -274,19 +298,27 @@ def fetch_usage_api(key: str) -> dict[str, Any]:
     Cloudflare-protected endpoints.
     """
     try:
-        result = subprocess.run(
-            [
-                "curl", "-s", "-f",
-                "-H", f"Authorization: Bearer {key}",
-                "-H", "Accept: application/json",
-                "-H", "Origin: https://opencode.ai",
-                "-H", "Referer: https://opencode.ai/",
-                USAGE_API_URL,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
+        # Write auth header to a temp file so the key is not visible in
+        # /proc/*/cmdline while curl is running.
+        header_fd, header_path = tempfile.mkstemp(suffix=".hdr", prefix="ocgo-")
+        try:
+            with os.fdopen(header_fd, "w") as hf:
+                hf.write(f"Authorization: Bearer {key}\n")
+            result = subprocess.run(
+                [
+                    "curl", "-s", "-f",
+                    "-H", f"@{header_path}",
+                    "-H", "Accept: application/json",
+                    "-H", "Origin: https://opencode.ai",
+                    "-H", "Referer: https://opencode.ai/",
+                    USAGE_API_URL,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        finally:
+            os.unlink(header_path)
         if result.returncode != 0:
             raise RuntimeError(f"OpenCode Go API request failed (exit {result.returncode})")
         payload = json.loads(result.stdout)
@@ -463,50 +495,43 @@ def scan_pi_sessions() -> dict[str, Any]:
         Path.home() / ".omp" / "agent" / "sessions",
     ]
 
-    # Try ripgrep for speed, fall back to manual scan
-    rg = None
-    for path in ["/usr/bin/rg", "/usr/local/bin/rg"]:
-        if os.path.exists(path):
-            rg = path
-            break
+    rg = find_command("rg") or "rg"
 
     for root in roots:
         if not root.exists():
             continue
 
-        if rg:
-            # Use ripgrep with JSON output for fast searching
-            try:
-                proc = subprocess.Popen(
-                    [rg, "--json", "-e", r'"opencode-go"', "-e", r'"opencode"', str(root)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.DEVNULL,
-                    text=True,
-                    errors="replace",
-                )
-                assert proc.stdout is not None
-                for raw in proc.stdout:
-                    try:
-                        event = json.loads(raw)
-                        if event.get("type") != "match":
-                            continue
-                        line = event.get("data", {}).get("lines", {}).get("text", "")
-                        path = event.get("data", {}).get("path", {}).get("text", "pi-session")
-                        entry = json.loads(line)
-                    except Exception:
+        # Use ripgrep with JSON output for fast searching
+        try:
+            proc = subprocess.Popen(
+                [rg, "--json", "-e", r'"opencode-go"', "-e", r'"opencode"', str(root)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                errors="replace",
+                env=ENV,
+            )
+            assert proc.stdout is not None
+            for raw in proc.stdout:
+                try:
+                    event = json.loads(raw)
+                    if event.get("type") != "match":
                         continue
-                    p, t_today, t_total = _process_session_entry(
-                        entry, path, seen_messages, today, recent_dates, recent,
-                        today_by_model, model_usage, active_dates, total_sessions
-                    )
-                    today_prompts += p
-                    today_total_tokens += t_today
-                    total_prompts += t_total
-                proc.wait(timeout=2)
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
-        else:
-            # Manual scan: iterate JSONL files
+                    line = event.get("data", {}).get("lines", {}).get("text", "")
+                    path = event.get("data", {}).get("path", {}).get("text", "pi-session")
+                    entry = json.loads(line)
+                except Exception:
+                    continue
+                p, t_today, t_total = _process_session_entry(
+                    entry, path, seen_messages, today, recent_dates, recent,
+                    today_by_model, model_usage, active_dates, total_sessions
+                )
+                today_prompts += p
+                today_total_tokens += t_today
+                total_prompts += t_total
+            proc.wait(timeout=2)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            # rg not found or timed out — fall back to manual JSONL scan
             for jsonl_path in root.rglob("*.jsonl"):
                 try:
                     with jsonl_path.open(errors="replace") as f:
@@ -540,7 +565,7 @@ def scan_pi_sessions() -> dict[str, Any]:
     }
 
 
-def scan_opencode_sessions() -> dict[str, Any]:
+def scan_opencode_sessions() -> tuple[bool, dict[str, Any]]:
     """Scan OpenCode database for OpenCode Go usage.
 
     OpenCode stores per-message provider, model, and token usage in its
@@ -651,10 +676,11 @@ def _run_local_scans() -> dict[str, Any]:
     # Start with pi_stats, then merge opencode_stats
     merged = dict(pi_stats)
 
-    # Merge todayPrompts, todayTotalTokens, totalPrompts (take max)
-    merged["todayPrompts"] = max(pi_stats.get("todayPrompts", 0), opencode_stats.get("todayPrompts", 0))
-    merged["todayTotalTokens"] = max(pi_stats.get("todayTotalTokens", 0), opencode_stats.get("todayTotalTokens", 0))
-    merged["totalPrompts"] = max(pi_stats.get("totalPrompts", 0), opencode_stats.get("totalPrompts", 0))
+    # Merge counters (max — a message should only appear in one source,
+    # but max is safe if duplicates slip through).
+    for key in ("todayPrompts", "todayTotalTokens", "todaySessions",
+                "totalPrompts", "totalSessions"):
+        merged[key] = max(pi_stats.get(key, 0), opencode_stats.get(key, 0))
 
     # Merge activeDates (union)
     pi_dates = set(pi_stats.get("activeDates", []))
@@ -760,7 +786,9 @@ def main() -> int:
     # Scan local sources for token stats with caching
     max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
     local_stats = cached_local_stats(max_age)
-    if local_stats.get("todayTotalTokens", 0) > 0:
+    if (local_stats.get("todayTotalTokens", 0) > 0
+            or local_stats.get("totalPrompts", 0) > 0
+            or local_stats.get("modelUsage")):
         record.update(local_stats)
 
     print(json.dumps(record, separators=(",", ":")))

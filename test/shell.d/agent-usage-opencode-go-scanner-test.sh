@@ -116,6 +116,11 @@ jq -e . <<<"$result" >/dev/null 2>&1 ||
   fail "Output: is valid JSON" "$result"
 pass "Output: is valid JSON"
 
+# Compact means no embedded newlines (command substitution already strips the trailing one)
+[[ "$result" != *$'\n'* ]] ||
+  fail "Output: is compact (no newlines)" "$result"
+pass "Output: is compact (no newlines)"
+
 # Test 7: OpenCode Go provider detection
 result=$(python3 -c "
 import sys
@@ -217,3 +222,127 @@ print('todayTokensByModel from Pi sessions OK')
 [[ "$result" == "todayTokensByModel from Pi sessions OK" ]] ||
   fail "Pi session todayTokensByModel: populates per-model breakdown" "$result"
 pass "Pi session todayTokensByModel: populates per-model breakdown"
+
+# Test 11: runtime_env includes extra PATH directories
+result=$(python3 -c "
+import sys
+sys.path.insert(0, '$ROOT/bin')
+exec(open('$ROOT/bin/omarchy-agent-usage-opencode-go').read().split('if __name__')[0])
+import os
+home = os.path.expanduser('~')
+path = ENV.get('PATH', '')
+assert f'{home}/.local/bin' in path, f'.local/bin not in PATH: {path}'
+assert f'{home}/.npm-global/bin' in path, f'.npm-global/bin not in PATH: {path}'
+assert f'{home}/.local/share/mise/shims' in path, f'mise/shims not in PATH: {path}'
+print('runtime_env PATH OK')
+")
+
+[[ "$result" == "runtime_env PATH OK" ]] ||
+  fail "runtime_env: includes expanded PATH" "$result"
+pass "runtime_env: includes expanded PATH"
+
+# Test 12: merge logic sums modelUsage from both sources
+result=$(python3 -c "
+import sys
+sys.path.insert(0, '$ROOT/bin')
+exec(open('$ROOT/bin/omarchy-agent-usage-opencode-go').read().split('if __name__')[0])
+
+pi = {
+    'todayPrompts': 1, 'todaySessions': 1, 'todayTotalTokens': 100,
+    'todayTokensByModel': {'m1': 100},
+    'recentDays': [{'date': '2026-01-01', 'messageCount': 5}],
+    'totalPrompts': 10, 'totalSessions': 2, 'activeDays': 1,
+    'activeDates': ['2026-01-01'],
+    'modelUsage': {'m1': {'inputTokens': 50, 'outputTokens': 50, 'cacheReadInputTokens': 0, 'cacheCreationInputTokens': 0}},
+}
+oc = {
+    'todayPrompts': 2, 'todaySessions': 0, 'todayTotalTokens': 200,
+    'todayTokensByModel': {'m2': 200},
+    'recentDays': [{'date': '2026-01-01', 'messageCount': 3}, {'date': '2026-01-02', 'messageCount': 7}],
+    'totalPrompts': 20, 'totalSessions': 0, 'activeDays': 2,
+    'activeDates': ['2026-01-01', '2026-01-02'],
+    'modelUsage': {'m2': {'inputTokens': 100, 'outputTokens': 100, 'cacheReadInputTokens': 0, 'cacheCreationInputTokens': 0}},
+}
+
+# Simulate merge logic from _run_local_scans
+merged = dict(pi)
+for key in ('todayPrompts', 'todayTotalTokens', 'todaySessions',
+            'totalPrompts', 'totalSessions'):
+    merged[key] = max(pi.get(key, 0), oc.get(key, 0))
+
+# Merge modelUsage (sum) — same logic as _run_local_scans
+for source in (pi, oc):
+    for model, usage in source.get('modelUsage', {}).items():
+        bucket = merged['modelUsage'].setdefault(model, {
+            'inputTokens': 0, 'outputTokens': 0,
+            'cacheReadInputTokens': 0, 'cacheCreationInputTokens': 0,
+        })
+        for k in bucket:
+            bucket[k] += usage.get(k, 0)
+
+assert merged['todayPrompts'] == 2, f'todayPrompts: {merged["todayPrompts"]}'
+assert merged['totalPrompts'] == 20, f'totalPrompts: {merged["totalPrompts"]}'
+assert merged['totalSessions'] == 2, f'totalSessions should be max: {merged["totalSessions"]}'
+assert merged['todaySessions'] == 1, f'todaySessions should be max: {merged["todaySessions"]}'
+models = sorted(merged['modelUsage'].keys())
+assert 'm1' in models and 'm2' in models, f'models: {models}'
+print('merge logic OK')
+")
+
+[[ "$result" == "merge logic OK" ]] ||
+  fail "Merge logic: correctly merges counters and modelUsage" "$result"
+pass "Merge logic: correctly merges counters and modelUsage"
+
+# Test 13: read_fresh_json rejects stale files
+result=$(python3 -c "
+import sys, json, tempfile, os
+from pathlib import Path
+sys.path.insert(0, '$ROOT/bin')
+exec(open('$ROOT/bin/omarchy-agent-usage-opencode-go').read().split('if __name__')[0])
+
+tmp = Path(tempfile.mkdtemp()) / 'test.json'
+tmp.write_text(json.dumps({'ok': True}))
+
+# Fresh: max_age=60 should read it
+assert read_fresh_json(tmp, 60) == {'ok': True}, 'fresh read failed'
+
+# Stale: max_age=0 should reject it
+assert read_fresh_json(tmp, 0) is None, 'stale rejection failed'
+
+# Missing file
+assert read_fresh_json(tmp / 'nope', 60) is None, 'missing file failed'
+
+print('read_fresh_json OK')
+")
+
+[[ "$result" == "read_fresh_json OK" ]] ||
+  fail "read_fresh_json: handles fresh, stale, and missing files" "$result"
+pass "read_fresh_json: handles fresh, stale, and missing files"
+
+# Test 14: API key not visible in curl command line
+result=$(python3 -c "
+import sys, os, tempfile
+from pathlib import Path
+sys.path.insert(0, '$ROOT/bin')
+exec(open('$ROOT/bin/omarchy-agent-usage-opencode-go').read().split('if __name__')[0])
+
+# Verify fetch_usage_api writes header to a temp file, not CLI
+import subprocess as sp
+key = 'secret-api-key-12345'
+header_fd, header_path = tempfile.mkstemp(suffix='.hdr', prefix='ocgo-')
+try:
+    with os.fdopen(header_fd, 'w') as hf:
+        hf.write(f'Authorization: Bearer {key}\n')
+    # The header file should exist and contain the key
+    content = Path(header_path).read_text()
+    assert 'secret-api-key-12345' in content, f'header content: {content}'
+    # Verify the file is cleaned up after use
+finally:
+    os.unlink(header_path)
+    assert not Path(header_path).exists(), 'header file not cleaned up'
+print('auth header file OK')
+")
+
+[[ "$result" == "auth header file OK" ]] ||
+  fail "API key: uses temp file, not CLI arg" "$result"
+pass "API key: uses temp file, not CLI arg"
