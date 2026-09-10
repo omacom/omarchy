@@ -33,9 +33,11 @@ root_env() { # the plugin's paths, handed to the root phase since pkexec starts 
     "OMARCHY_AI_DOCKER=direct" "OMARCHY_AI_ROOT_PHASE=1"
 }
 elevated() { # elevated <phase> [args]: always through pkexec (root is needed regardless of the socket)
-  local -a env=(); local v; while IFS= read -r v; do env+=("$v"); done < <(root_env)
   command -v pkexec >/dev/null 2>&1 || { printf 'reason this needs a password prompt, and pkexec is not installed\n'; return 1; }
-  local rc=0; pkexec /usr/bin/env "${env[@]}" "$SELF" _root "$@" || rc=$?
+  # the paths travel in a 0600 file this user writes, not on the command line: the prompt then reads
+  # as this script and a verb ("omarchy-local-ai _root stop"), and root reads only OMARCHY_AI_* lines
+  state_dir; root_env >"$STATE/root.env"
+  local rc=0; pkexec "$SELF" _root "$STATE/root.env" "$@" || rc=$?
   (( rc == 126 || rc == 127 )) && printf 'reason the password prompt was dismissed; nothing was changed\n'   # polkit: 126 dismissed, 127 not authorized
   return $rc
 }

@@ -126,9 +126,15 @@ case $cmd in
             state_dir; printf '%s' "$1" >"$STATE/gpu"; log "gpu $1" ;;
        esac; snapshot_write; jq -c '.gpus' "$SNAPSHOT" ;;
   agent-dir) [[ -d ${1:-} ]] && { (cd "$1" && pwd) >"$STATE/agent-dir"; log "agent-dir $1"; } || { fail "agent-dir: not a directory: ${1:-}"; exit 1; } ;;
-  _root) # a phase run as root by pkexec (see lib/priv.sh); never spawned by anything but this script's own privileged()
+  _root) # a phase run as root by pkexec (see lib/priv.sh); never spawned by anything but this script's own privileged().
+         # Its environment comes from the user's 0600 file, OMARCHY_AI_* assignments only, then this script re-executes itself.
          [[ $(id -u) == 0 || -n ${OMARCHY_AI_TEST_ROOT:-} ]] || { fail "_root is for pkexec"; exit 1; }
-         [[ -n ${1:-} ]] || { fail "_root <phase>"; exit 1; }; p=$1; shift; "phase_$p" "$@" ;;
+         [[ -f ${1:-} && -n ${2:-} ]] || { fail "_root <env-file> <phase>"; exit 1; }
+         if [[ -z ${OMARCHY_AI_ROOT_PHASE:-} ]]; then
+           envf=$1; shift; while IFS= read -r line; do [[ $line =~ ^OMARCHY_AI_[A-Z_]+=[^$\x60]*$ ]] && export "$line"; done <"$envf"
+           export OMARCHY_AI_ROOT_PHASE=1; exec "$SELF" _root "$envf" "$@"
+         fi
+         shift; p=$1; shift; "phase_$p" "$@" ;;
   _worker-load) w_load ;;
   _worker-unload) w_unload ;;
   help|-h|--help) usage ;;
