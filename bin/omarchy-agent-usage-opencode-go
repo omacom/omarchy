@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import re
 import shutil
@@ -68,6 +69,11 @@ STATS_WINDOW_DAYS = 7
 # Safety valve: a week of very heavy usage at USAGE_PAGE_SIZE records a page
 # must not turn a refresh into an unbounded crawl.
 MAX_USAGE_PAGES = 40
+# The walk is best-effort and must never anchor the update runner for
+# minutes: a slow server that keeps every page alive to its timeout would
+# otherwise stretch MAX_USAGE_PAGES pages and their retries into a ~20-minute
+# crawl inside one refresh.
+USAGE_WALK_SECONDS = 60
 FETCH_TIMEOUT_SECONDS = 15
 USER_AGENT = "omarchy-agent-usage-opencode-go/1.0"
 
@@ -103,7 +109,9 @@ def agent_config() -> dict[str, Any]:
 def number(value: Any) -> int:
   try:
     n = float(value or 0)
-    return round(n) if n == n else 0
+    # round(inf) raises OverflowError; a token count the server serializes as
+    # an extreme value must read as zero, never crash the whole parse.
+    return round(n) if math.isfinite(n) else 0
   except Exception:
     return 0
 
@@ -208,7 +216,11 @@ def resolve_session(cfg: dict[str, Any]) -> str:
   if not all_cookies:
     return ""
   # Send every opencode.ai cookie, just like the browser does.
-  # De-duplicate by name so the most recently accessed value wins.
+  # De-duplicate by name so the most recently accessed value wins. Each
+  # database is ordered by lastAccessed internally, but the same cookie name
+  # can exist in several profiles; ordering is only trustworthy once the
+  # lists are merged and re-sorted together.
+  all_cookies.sort(key=lambda cookie: cookie[2], reverse=True)
   return build_cookie_header(all_cookies)
 
 
@@ -263,21 +275,13 @@ class FetchError(Exception):
     super().__init__(f"opencode.ai returned status {status_code}")
 
 
-def fetch_page(cookie_header: str, path: str, retries: int = 1) -> str:
-  """GET a workspace page. HTTP status errors become FetchError; transport
-  failures raise urllib.error.URLError unchanged.
+def _request_with_retries(request: urllib.request.Request, label: str, retries: int = 1) -> str:
+  """Run a request, retrying once on transport failures and 5xx server
+  errors with a 1-second pause between attempts.
 
-  Retries once on transport failures (no route, timeout) and on 5xx server
-  errors, with a 1-second pause between attempts.  4xx errors are not
-  retried — they are client-side and unlikely to change on a second try."""
-  request = urllib.request.Request(
-    SITE + path,
-    headers={
-      "Cookie": cookie_header,
-      "User-Agent": USER_AGENT,
-      "Accept": "text/html",
-    },
-  )
+  HTTP status errors become FetchError; transport failures raise
+  urllib.error.URLError unchanged. 4xx errors are not retried — they are
+  client-side and unlikely to change on a second try."""
   last_error: Exception | None = None
   for attempt in range(retries + 1):
     try:
@@ -295,7 +299,20 @@ def fetch_page(cookie_header: str, path: str, retries: int = 1) -> str:
         time.sleep(1)
         continue
       raise
-  raise last_error or RuntimeError("fetch_page exhausted retries")
+  raise last_error or RuntimeError(f"{label} exhausted retries")
+
+
+def fetch_page(cookie_header: str, path: str, retries: int = 1) -> str:
+  """GET a workspace page; see _request_with_retries for the retry policy."""
+  request = urllib.request.Request(
+    SITE + path,
+    headers={
+      "Cookie": cookie_header,
+      "User-Agent": USER_AGENT,
+      "Accept": "text/html",
+    },
+  )
+  return _request_with_retries(request, "fetch_page", retries)
 
 
 def seroval_args(args: list[Any]) -> dict[str, Any]:
@@ -338,24 +355,7 @@ def fetch_usage_chunk(cookie_header: str, workspace: str, page: int, instance: s
       "X-Server-Instance": instance,
     },
   )
-  last_error: Exception | None = None
-  for attempt in range(retries + 1):
-    try:
-      with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
-        return response.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as error:
-      last_error = error
-      if 500 <= error.code < 600 and attempt < retries:
-        time.sleep(1)
-        continue
-      raise FetchError(error.code) from error
-    except urllib.error.URLError:
-      last_error = sys.exc_info()[1]
-      if attempt < retries:
-        time.sleep(1)
-        continue
-      raise
-  raise last_error or RuntimeError("fetch_usage_chunk exhausted retries")
+  return _request_with_retries(request, "fetch_usage_chunk", retries)
 
 
 def fetch_usage_records(cookie_header: str, workspace: str) -> list[dict[str, Any]]:
@@ -376,12 +376,22 @@ def fetch_usage_records(cookie_header: str, workspace: str) -> list[dict[str, An
   empty-records shape, exactly like the old single-page read."""
   records: list[dict[str, Any]] = []
   window_start = (dt.date.today() - dt.timedelta(days=STATS_WINDOW_DAYS - 1)).strftime("%Y-%m-%d")
+  # The walk is best-effort, so give it a wall-clock budget as well as a page
+  # cap, and treat a page that will not parse like a page that fails to
+  # fetch: the pages already read stay, and the walk stops instead of one
+  # bad record discarding everything.
+  deadline = time.time() + USAGE_WALK_SECONDS
   for page in range(MAX_USAGE_PAGES):
+    if time.time() >= deadline:
+      break
     try:
       html = fetch_usage_chunk(cookie_header, workspace, page, f"server-fn:{page + 20}")
     except Exception:
       break
-    chunk = parse_usage_records(html)
+    try:
+      chunk = parse_usage_records(html)
+    except Exception:
+      break
     if not chunk:
       # An empty page is the list's last page: the account history ends.
       break
@@ -419,8 +429,26 @@ def parse_go_config(html: str) -> dict[str, Any]:
   if not match:
     return config
   config["useBalance"] = "useBalance:!0" in match.group(1) or "useBalance:true" in match.group(1)
-  prefix = html[:match.start()]
-  balance = re.findall(r'\bbalance:(\d+)', prefix)
+  # The Zen credits sit in the same enclosing workspace object as lite:, not
+  # scattered across the page. Bound the search to that object: walking
+  # backwards from the lite block, the brace that brings the nesting depth
+  # back to zero is its opening, so an unrelated balance: elsewhere on the
+  # page can never be attributed to this workspace.
+  depth = 0
+  start = -1
+  pos = match.start() - 1
+  while pos >= 0:
+    if html[pos] == "}":
+      depth += 1
+    elif html[pos] == "{":
+      if depth == 0:
+        start = pos
+        break
+      depth -= 1
+    pos -= 1
+  if start < 0:
+    return config
+  balance = re.findall(r'\bbalance:(\d+)', html[start:match.start()])
   if balance:
     config["balance"] = int(balance[-1])
   return config
@@ -537,7 +565,10 @@ def write_limits_cache(limits: list[dict[str, Any]]) -> None:
       # world-readable before.
       tmp.chmod(0o644)
       tmp.replace(cache_root() / "opencode-go-limits.json")
-    except BaseException:
+    finally:
+      # The temp name is ours alone. Clean up on the way out whatever
+      # happened; the outer Exception handler still lets interrupts
+      # propagate rather than swallowing them.
       tmp.unlink(missing_ok=True)
   except Exception:
     pass
@@ -558,7 +589,9 @@ def limit_window_open(entry: dict[str, Any], now: dt.datetime) -> bool:
     return True
   if resets_at.tzinfo is None:
     resets_at = resets_at.replace(tzinfo=dt.timezone.utc)
-  return resets_at > now
+  # Keep the window through its reset instant: dropping it at exactly the
+  # reset time would hide a meter whose refresh landed on the boundary.
+  return resets_at >= now
 
 
 def usable_cached_limits(cached: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -577,9 +610,17 @@ def resets_at(reset_in_sec: int) -> str:
 
 
 def build_limits(meters: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-  order = [("rollingUsage", "Rolling (5-hour)"), ("weeklyUsage", "Weekly"), ("monthlyUsage", "Monthly")]
+  # Each window travels with an explicit title as well as its label: the
+  # panel prefers a collector-declared title to reading one back out of the
+  # label, and "Rolling (5-hour)" would otherwise parse as a generic
+  # session window.
+  order = [
+    ("rollingUsage", "Rolling", "Rolling (5-hour)"),
+    ("weeklyUsage", "Weekly", "Weekly"),
+    ("monthlyUsage", "Monthly", "Monthly"),
+  ]
   limits: list[dict[str, Any]] = []
-  for key, label in order:
+  for key, title, label in order:
     meter = meters.get(key)
     if not meter:
       continue
@@ -587,6 +628,7 @@ def build_limits(meters: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     if not (percent >= 0):
       continue
     limit: dict[str, Any] = {
+      "title": title,
       "label": label,
       "percent": min(1.0, percent),
       "resetsAt": resets_at(int(meter.get("resetInSec") or 0)),
@@ -688,13 +730,15 @@ def print_record(record: dict[str, Any]) -> None:
 
 
 def main() -> int:
-  # --force and --limits-only arrive from the update runner, which passes both
-  # to every collector. They are deliberate no-ops here: meters are fetched
-  # fresh on every run, and the limits cache is a failure fallback, not a
-  # freshness shortcut the flags could bypass.
+  # --force and --limits-only arrive from the update runner. --force is a
+  # deliberate no-op: meters are fetched fresh on every run, and the limits
+  # cache is a failure fallback, not a freshness shortcut the flag could
+  # bypass. --limits-only is honored: the panel opens with a cheap
+  # limits-only refresh, and paging the usage history is exactly the walk
+  # the flag exists to skip.
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true", help="accepted no-op (update-runner compatibility; no cache reuse to bypass)")
-  parser.add_argument("--limits-only", action="store_true", help="accepted no-op (update-runner compatibility; limits are always fresh)")
+  parser.add_argument("--limits-only", action="store_true", help="skip the usage walk; report fresh meters only")
   parser.add_argument("--debug", action="store_true", help="dump fetched HTML to stderr when meter parsing fails")
   args = parser.parse_args()
   debug = args.debug
@@ -766,11 +810,14 @@ def main() -> int:
   # refreshed before the (optional) usage list walk.
   write_limits_cache(build_limits(meters))
 
-  try:
-    # Limits are the point; a usage walk that fails entirely still shows them.
-    records = fetch_usage_records(cookie, workspace)
-  except Exception:
-    records = []
+  # Limits are the point; a usage walk that fails entirely still shows them.
+  # A limits-only refresh (the panel opening) skips the walk altogether.
+  records = []
+  if not args.limits_only:
+    try:
+      records = fetch_usage_records(cookie, workspace)
+    except Exception:
+      records = []
 
   print_record(build_record(meters, plan, records, go_config))
   return 0

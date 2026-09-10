@@ -20,7 +20,7 @@ assert(!/if \(buttonCode === Qt\.RightButton\) root\.refreshNow\(\)/.test(panelS
 // it stopped writing. Two refresh intervals leave room for a single missed
 // run without crying wolf.
 assert(/2 \* usage\.refreshIntervalSec \* 1000/.test(panelSource), 'agents panel flags records older than two refresh intervals')
-assert(/function formatAge\(/.test(panelSource), 'agents panel formats the stale-record age')
+assert(/function formatDuration\(ms, compact\)/.test(panelSource), 'agents panel formats the stale-record age')
 assert(/detail: root\.staleText/.test(panelSource), 'agents panel shows the stale marker in the hero detail pill')
 assert(/detailAlarming: root\.stale/.test(panelSource), 'agents panel paints the stale marker as an alarm')
 assert(/updatedAtMs: Number\(new Date\(String\(record\.updatedAt/.test(mainSource), 'agents panel carries the record timestamp for staleness')

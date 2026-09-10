@@ -119,6 +119,12 @@ stats = module.build_stats(records)
 full_record = module.build_record(meters, plan, records)
 limits_only = module.build_record(meters, plan, [])
 
+assert module.number("null") == 0 and module.number("inf") == 0 and module.number("1e999") == 0, \
+    "number() maps null and non-finite values to zero, never crashing the parse"
+
+assert [entry["title"] for entry in limits] == ["Rolling", "Weekly", "Monthly"], \
+    "limits carry explicit window titles for the panel"
+
 # --- rate-limited meters and the Zen-balance fallback ------------------
 #
 # A meter the console flipped to 'rate-limited' is the binding constraint:
@@ -128,12 +134,16 @@ limits_only = module.build_record(meters, plan, [])
 
 rl_go_page = (
     '<html><body><script>'
+    # The serialized page wraps the workspace fields (meters, balance, lite:)
+    # in one $R object; parse_go_config bounds its balance search to it.
+    '$R[31]={'
     'rollingUsage:$R[1]={status:"ok",resetInSec:8073,usagePercent:1.0,usage:12000000,limit:1200000000},'
     'weeklyUsage:$R[2]={status:"ok",resetInSec:101069,usagePercent:60,usage:1800000000,limit:3000000000},'
     'monthlyUsage:$R[3]={status:"rate-limited",resetInSec:133420,usagePercent:100.1,usage:6007226480,limit:6000000000},'
     'balance:996544169,reload:null,'
     'liteSubscriptionID:"sub_test",'
     'lite:$R[33]={useBalance:!0}'
+    '}'
     '</script></body></html>'
 )
 
@@ -149,6 +159,11 @@ assert module.parse_go_config(rl_go_page) == {"useBalance": True, "balance": 996
     "go config reads useBalance and the Zen balance before lite:"
 assert module.parse_go_config('<script>lite:$R[7]={useBalance:!1}</script>') == {"useBalance": False, "balance": None}, \
     "useBalance off parses as false with no balance"
+assert module.parse_go_config(
+    '<script>customerID:"x",balance:777,'  # unrelated: outside the workspace object
+    '$R[9]={balance:996544169,lite:$R[2]={useBalance:!0}}'
+    '</script>'
+) == {"useBalance": True, "balance": 996544169}, "balance search is bounded to the workspace object"
 assert module.parse_go_config('<script>no config here</script>') == {"useBalance": False, "balance": None}, \
     "missing lite block parses as defaults"
 
@@ -225,7 +240,38 @@ assert result == [
 header = module.build_cookie_header(result)
 assert header == "auth=fresh-token; oc_locale=en", "build_cookie_header de-duplicates by name keeping freshest"
 
-# --- resolve_workspace precedence, never touching the network -------------
+# --- resolve_session profile discovery and cross-profile freshness -------
+discovery_home = os.path.join(fixture_dir, "home")
+profile_a = os.path.join(discovery_home, ".mozilla", "firefox", "profile1")
+profile_b = os.path.join(discovery_home, ".mozilla", "firefox", "profile2")
+for profile_dir in (profile_a, profile_b):
+    os.makedirs(profile_dir, exist_ok=True)
+    conn = sqlite3.connect(os.path.join(profile_dir, "cookies.sqlite"))
+    conn.execute(
+        "CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT, expiry INTEGER, "
+        "lastAccessed INTEGER, creationTime INTEGER)"
+    )
+    conn.commit()
+    conn.close()
+conn = sqlite3.connect(os.path.join(profile_a, "cookies.sqlite"))
+conn.execute("INSERT INTO moz_cookies VALUES ('.opencode.ai', 'auth', 'stale-token', 9999999999, 1000, 1000)")
+conn.commit()
+conn.close()
+conn = sqlite3.connect(os.path.join(profile_b, "cookies.sqlite"))
+conn.execute("INSERT INTO moz_cookies VALUES ('.opencode.ai', 'auth', 'fresh-token', 9999999999, 9000, 1000)")
+conn.commit()
+conn.close()
+
+old_home = os.environ.get("HOME")
+os.environ["HOME"] = discovery_home
+try:
+    session = module.resolve_session({})
+finally:
+    if old_home is None:
+        del os.environ["HOME"]
+    else:
+        os.environ["HOME"] = old_home
+assert session == "auth=fresh-token", "resolve_session discovers profiles and picks the most recently accessed cookie across them"
 
 # --- resolve_workspace precedence, never touching the network -------------
 os.environ["OPENCODE_WORKSPACE"] = "wrk_eeeeeeeeeeeeeeeeeeeeeeeeee"
@@ -400,6 +446,27 @@ module.fetch_usage_chunk = lambda cookie, workspace, page, instance: "<script></
 assert module.fetch_usage_records("cookie", "wrk_x") == [], "an empty list page ends the walk"
 
 fetched_pages.clear()
+real_parse = module.parse_usage_records
+
+def fake_chunk_boom(cookie, workspace, page, instance):
+    fetched_pages.append(page)
+    if page == 0:
+        return page_html(fill(today, 50))
+    return "<script>boom</script>"
+
+def fake_parse_boom(html):
+    if html == "<script>boom</script>":
+        raise ValueError("unparsable page")
+    return real_parse(html)
+
+module.fetch_usage_chunk = fake_chunk_boom
+module.parse_usage_records = fake_parse_boom
+walk = module.fetch_usage_records("cookie", "wrk_x")
+assert fetched_pages == [0, 1], "an unparsable page stops the walk"
+assert len(walk) == 50, "pages already parsed survive a page that refuses to parse"
+module.parse_usage_records = real_parse
+
+fetched_pages.clear()
 
 def fake_always(cookie, workspace, page, instance):
     fetched_pages.append(page)
@@ -427,6 +494,28 @@ assert healthy["ready"] is True, "healthy record stays ready"
 assert healthy["usageStatusText"] == "", "healthy record carries no status card"
 assert healthy["limits"] != [], "healthy record carries fresh meters"
 
+cache_file = os.path.join(cache_root_dir, "omarchy", "agent-usage", "opencode-go-limits.json")
+assert os.path.exists(cache_file), "a healthy run writes the limits cache"
+with open(cache_file, encoding="utf-8") as handle:
+    cached_limits = json.load(handle)["limits"]
+assert len(cached_limits) == 3 and cached_limits[0]["title"] == "Rolling", \
+    "the limits cache carries the fresh meters with their window titles"
+
+# --- main() with --limits-only: fresh meters, no usage walk ----------------
+module.fetch_page = lambda cookie, path: go_page
+module.fetch_usage_chunk = fake_chunk
+fetched_pages.clear()
+sys.argv = ["omarchy-agent-usage-opencode-go", "--limits-only"]
+captured = io.StringIO()
+with contextlib.redirect_stdout(captured):
+    exit_code = module.main()
+assert exit_code == 0, "main returns 0 for a limits-only run"
+limits_only_run = json.loads(captured.getvalue())
+assert fetched_pages == [], "--limits-only skips the usage walk"
+assert limits_only_run["ready"] is True, "a limits-only run stays ready"
+assert limits_only_run["todayTotalTokens"] == 0, "a limits-only run yields zero-shaped stats"
+assert len(limits_only_run["limits"]) == 3, "a limits-only run keeps the fresh meters"
+
 print(json.dumps({
     "plan": plan,
     "limits": limits,
@@ -451,6 +540,10 @@ pass "OpenCode Go collector labels the rolling window"
 [[ $(jq -c '[.limits[].percent]' <<<"$result") == '[0.01,0.6,0.3]' ]] ||
   fail "OpenCode Go collector reports percent-scale meters as fractions" "$result"
 pass "OpenCode Go collector reports percent-scale meters as fractions"
+
+[[ $(jq -c '[.limits[].title]' <<<"$result") == '["Rolling","Weekly","Monthly"]' ]] ||
+  fail "OpenCode Go collector titles its windows" "$result"
+pass "OpenCode Go collector titles its windows"
 
 [[ $(jq -r '.limits[0].resetsAt' <<<"$result") > "$(date -u -d 'now + 2 hours' +%Y-%m-%dT%H:%M)" ]] ||
   fail "OpenCode Go collector stamps a future resetsAt" "$result"

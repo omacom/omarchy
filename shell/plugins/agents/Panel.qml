@@ -56,7 +56,7 @@ Panel {
     ? root.nowMs - provider.updatedAtMs
     : -1
   readonly property bool stale: root.staleAgeMs > 2 * usage.refreshIntervalSec * 1000
-  readonly property string staleText: root.stale ? "stale · " + root.formatAge(root.staleAgeMs) : ""
+  readonly property string staleText: root.stale ? "stale · " + root.formatDuration(root.staleAgeMs, true) : ""
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -150,25 +150,19 @@ Panel {
     return isFinite(ms) ? ms - root.nowMs : -1
   }
 
-  function formatDuration(ms) {
-    if (!(ms > 0)) return "now"
+  // Countdowns ("2h 5m") keep the minute detail; the compact form is for
+  // the stale pill, where "12h 0m" would read as noise next to the provider
+  // name. A falsy ms renders "now", or the empty string when compact.
+  function formatDuration(ms, compact) {
+    if (!(ms > 0)) return compact ? "" : "now"
     var minutes = Math.floor(ms / 60000)
     var hours = Math.floor(minutes / 60)
     var days = Math.floor(hours / 24)
     if (days > 0) return days + "d " + (hours % 24) + "h"
-    if (hours > 0) return hours + "h " + (minutes % 60) + "m"
-    return Math.max(1, minutes) + "m"
-  }
-
-  // Compact age for the stale pill, where "12h 0m" would read as noise next
-  // to the provider name. Countdowns keep the minute detail; ages drop it.
-  function formatAge(ms) {
-    if (!(ms > 0)) return ""
-    var minutes = Math.floor(ms / 60000)
-    var hours = Math.floor(minutes / 60)
-    var days = Math.floor(hours / 24)
-    if (days > 0) return days + "d " + (hours % 24) + "h"
-    if (hours > 0) return hours + "h"
+    if (hours > 0) {
+      if (compact) return hours + "h"
+      return hours + "h " + (minutes % 60) + "m"
+    }
     return Math.max(1, minutes) + "m"
   }
 
