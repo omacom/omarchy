@@ -230,7 +230,7 @@ const expectedAgents = {
   crush: { icon: '󰋑', label: 'Crush' },
   muse: { icon: '󰛤', label: 'Muse Code' },
   'cursor-agent': { icon: '\ue90d', iconFont: 'omarchy', label: 'Cursor CLI' },
-
+  qwen: { icon: '\ue90e', iconFont: 'omarchy', label: 'Qwen' },
 }
 assert(
   Object.entries(expectedAgents).every(([agent, expected]) => {
@@ -249,7 +249,7 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi', 'Qwen'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {
@@ -641,5 +641,5 @@ assert(
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")
-[[ $font_charset == *"e900-e90d"* ]] || fail "Omarchy icon font includes every custom menu glyph"
+[[ $font_charset == *"e900-e90e"* ]] || fail "Omarchy icon font includes every custom menu glyph"
 pass "Omarchy icon font includes the official agent marks"
