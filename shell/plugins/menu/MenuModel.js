@@ -10,6 +10,10 @@ function normalizeAliases(value) {
   return []
 }
 
+function kindFor(value) {
+  return value.action ? "action" : (value.target ? "link" : "menu")
+}
+
 function normalizeItem(id, raw) {
   var value = raw || {}
   var aliases = normalizeAliases(value.aliases)
@@ -18,9 +22,15 @@ function normalizeItem(id, raw) {
     parent = id.indexOf(".") >= 0 ? id.split(".").slice(0, -1).join(".") : "root"
   if (id === "root") parent = ""
 
-  var kind = value.action ? "action" : (value.target ? "link" : "menu")
+  var kind = kindFor(value)
+
+  // Every field below is materialized with a default, so an overlay onto a
+  // shipped row has to know which of them the author actually wrote. Without
+  // that, a one-field override carries the other thirteen defaults with it.
+  var declared = Object.keys(value)
 
   return {
+    declared: declared,
     id: id,
     parent: parent,
     kind: kind,
@@ -73,11 +83,23 @@ function mergeMenuSources(defaultItems, userItems) {
     for (var i = 0; i < src.length; i++) {
       var entry = src[i]
       if (!entry || !entry.id) continue
-      if (!nextItems[entry.id]) nextOrder.push(entry.id)
-      var prior = nextItems[entry.id] || {}
+      var prior = nextItems[entry.id]
+      if (!prior) {
+        nextOrder.push(entry.id)
+        nextItems[entry.id] = entry
+        continue
+      }
+
+      // Reusing a shipped id overlays only the fields the author declared, so
+      // retitling a row keeps its action and icon. kind is derived, so it is
+      // recomputed from whatever action or target survived the overlay.
       var merged = {}
       for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      var declared = entry.declared || []
+      for (var d = 0; d < declared.length; d++) {
+        if (declared[d] in entry) merged[declared[d]] = entry[declared[d]]
+      }
+      merged.kind = kindFor(merged)
       merged.id = entry.id
       nextItems[entry.id] = merged
     }
@@ -496,6 +518,7 @@ if (typeof module !== "undefined") {
     guardScript: guardScript,
     stripJsonc: stripJsonc,
     normalizeAliases: normalizeAliases,
+    kindFor: kindFor,
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
     mergeMenuSources: mergeMenuSources,

@@ -30,6 +30,7 @@ assertEqual(parsed.length, 3, 'menu parses JSONC with comments and trailing comm
 assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
+    declared: ['label', 'aliases', 'description', 'action'],
     id: 'style.theme',
     parent: 'style',
     kind: 'action',
@@ -57,6 +58,19 @@ const merged = menu.mergeMenuSources(parsed, user)
 assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entries override default entries')
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
+
+// The override above declares every field it asserts. An extension that
+// retitles or re-icons a shipped row declares one, and the rest of that row
+// has to survive — docs/menu.md and the shipped sample extension both say so.
+const partial = menu.mergeMenuSources(parsed, [menu.normalizeItem('style.theme', { label: 'Just the label' })])
+assertEqual(partial.items['style.theme'].label, 'Just the label', 'menu applies a one-field override')
+assertEqual(partial.items['style.theme'].action, 'omarchy-theme-set', 'menu keeps the shipped action under a one-field override')
+assertEqual(partial.items['style.theme'].kind, 'action', 'menu keeps a one-field override actionable')
+assertDeepEqual(partial.items['style.theme'].aliases, ['theme'], 'menu keeps shipped aliases under a one-field override')
+
+// kind is derived, so it has to follow whatever action survived the overlay.
+const unactioned = menu.mergeMenuSources(parsed, [menu.normalizeItem('style.theme', { action: '' })])
+assertEqual(unactioned.items['style.theme'].kind, 'menu', 'menu re-derives kind when an override clears the action')
 
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
