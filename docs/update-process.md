@@ -95,8 +95,16 @@ the guard with:
 sudo env OMARCHY_ALLOW_DIRECT_PACMAN=1 pacman -Syu
 ```
 
-The guard does not start `omarchy update` itself because pacman is already in a
-transaction setup path; it only aborts with instructions.
+The guard does not start `omarchy update` itself because pacman is already in a transaction setup path; it only aborts with instructions.
+
+The `omarchy` package also installs an ALPM post-transaction hook that re-applies the `powerprofilesctl` system python3 shebang fix after every `power-profiles-daemon` install or upgrade:
+
+```text
+/usr/share/libalpm/hooks/70-omarchy-powerprofilesctl-shebang.hook
+/usr/share/omarchy/install/config/fix-powerprofilesctl-shebang.sh
+```
+
+The daemon package owns `/usr/bin/powerprofilesctl`, and its upgrades restore the packaged `#!/usr/bin/env python3` shebang. Leaving that shebang in place breaks the CLI wherever `mise` supplies `python3` without PyGObject on `PATH`.
 
 The `omarchy` package also installs ALPM hooks for `omarchy-settings` /
 `omarchy-settings-dev` installs and upgrades. The pre-transaction hook runs
