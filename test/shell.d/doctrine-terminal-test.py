@@ -51,7 +51,7 @@ def terminal_session(interrupt=False, exit_key=b'q'):
   try:
     fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack('HHHH', 36, 120, 0, 0))
     deadline = time.monotonic() + 5
-    while b'PRINCIPLE' not in output and time.monotonic() < deadline:
+    while (b'PRINCIPLE' not in output or b'Read the full doctrine' not in output) and time.monotonic() < deadline:
       receive(0.1)
     check(b'PRINCIPLE' in output, 'the real fzf reader displays a live preview')
     check(b'Read the full doctrine' in output and b'11  Read' not in output,
@@ -59,18 +59,18 @@ def terminal_session(interrupt=False, exit_key=b'q'):
     if interrupt:
       send(b'\x03')
     else:
-      send(b'\x1b[<0;27;5M\x1b[<0;27;5m')
+      send(b'\x1b[<0;33;5M\x1b[<0;33;5m')
       check(log.read_text().splitlines()[-1].endswith('#unite-the-nerds'), 'the real header mouse control opens the website')
       send(b'\x1b[<0;10;9M\x1b[<0;10;9m')
       send(b'w')
       check(log.read_text().splitlines()[-1].endswith('#have-some-fun'), 'the real mouse selects a principle and updates the browser target')
       output.clear()
-      send(b'\x1b[<0;17;5M\x1b[<0;17;5m')
-      check(b'Reading the full doctrine' in output, 'clicking the Full button border opens the full view')
+      send(b'\x1b[<0;19;5M\x1b[<0;19;5m')
+      check(b'The Omarchy Doctrine' in output, 'clicking the Full button border opens the full view')
       send(b'\x1b')
       send(b'\x1b[<0;17;32M\x1b[<0;17;32m')
-      check(log.read_text().splitlines()[-1] == 'https://omarchy.org/doctrine/',
-            'the real footer URL opens its displayed destination')
+      check(log.read_text().splitlines()[-1] == 'https://omarchy.org/doctrine/#have-some-fun',
+            'the real footer link opens the selected principle')
       send(b'1')
       send(b'j')
       send(b'\r')

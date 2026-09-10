@@ -43,6 +43,12 @@ action() {
   bash "$ROOT/default/omarchy/doctrine-reader.sh" action "$@"
 }
 
+click_header() {
+  local line=1
+  if [[ $(cat "$OMARCHY_DOCTRINE_STATE/mode") == "index" ]]; then line=3; fi
+  FZF_CLICK_HEADER_LINE="$line" FZF_CLICK_HEADER_COLUMN="$1" action header "$2"
+}
+
 short=$(doctrine)
 full=$(doctrine --full)
 mapfile -t titles < <(sed -n 's/^## //p' "$ROOT/default/omarchy/doctrine.md")
@@ -84,31 +90,31 @@ action full 03 >/dev/null
 assert_contains "$(action back 11)" "pos(3)" "leaving the full doctrine restores the previous principle"
 assert_equal "$(action previous 01)" "pos(10)" "previous wraps to the last principle"
 assert_equal "$(action next 10)" "pos(1)" "next wraps to the first principle"
-FZF_CLICK_HEADER_LINE=3 FZF_CLICK_HEADER_COLUMN=24 action header 10 >/dev/null
+click_header 28 10 >/dev/null
 assert_equal "$(tail -n 1 "$DOCTRINE_BROWSER_LOG")" "https://omarchy.org/doctrine/#youre-somebody-now" "clicking Website opens the selected section"
 FZF_CLICK_FOOTER_LINE=1 FZF_CLICK_FOOTER_COLUMN=1 action footer 11 >/dev/null
 assert_equal "$(tail -n 1 "$DOCTRINE_BROWSER_LOG")" "https://omarchy.org/doctrine/" "clicking the footer in the full view opens the whole doctrine"
-FZF_CLICK_HEADER_LINE=3 FZF_CLICK_HEADER_COLUMN=14 action header 03 >/dev/null
+click_header 16 03 >/dev/null
 assert_equal "$(cat "$OMARCHY_DOCTRINE_STATE/mode")" "read" "the Full header control enters reading mode"
-FZF_CLICK_HEADER_LINE=3 FZF_CLICK_HEADER_COLUMN=4 action header 11 >/dev/null
+click_header 4 11 >/dev/null
 assert_equal "$(cat "$OMARCHY_DOCTRINE_STATE/mode")" "read" "Back from the full text restores principle reading"
-FZF_CLICK_HEADER_LINE=3 FZF_CLICK_HEADER_COLUMN=4 action header 03 >/dev/null
+click_header 4 03 >/dev/null
 assert_equal "$(cat "$OMARCHY_DOCTRINE_STATE/mode")" "index" "Back from a principle returns to navigation"
 
 header=$(bash "$ROOT/default/omarchy/doctrine-reader.sh" header 03)
 assert_contains "$header" $'\033[1;7m[ Index ]\033[0m' "the index button identifies the active view"
 action read 03 >/dev/null
 header=$(bash "$ROOT/default/omarchy/doctrine-reader.sh" header 03)
-assert_contains "$header" "Reading principle 03 / 10" "focused reading identifies the selected principle"
+assert_equal "$header" "[‹ Back ]   [ Full ]   [ Website ↗ ]" "focused reading keeps only the navigation controls"
 action full 03 >/dev/null
 header=$(bash "$ROOT/default/omarchy/doctrine-reader.sh" header 11)
 assert_contains "$header" $'\033[1;7m[ Full ]\033[0m' "the full button identifies the active view"
-FZF_CLICK_HEADER_LINE=3 FZF_CLICK_HEADER_COLUMN=1 action header 11 >/dev/null
+click_header 1 11 >/dev/null
 assert_equal "$(cat "$OMARCHY_DOCTRINE_STATE/mode")" "read" "the Back button brackets restore the previous reading view"
 action back 03 >/dev/null
 FZF_CLICK_HEADER_LINE=2 FZF_CLICK_HEADER_COLUMN=14 action header 03 >/dev/null
 assert_equal "$(cat "$OMARCHY_DOCTRINE_STATE/mode")" "index" "the status line does not activate a button"
-FZF_CLICK_HEADER_LINE=3 FZF_CLICK_HEADER_COLUMN=11 action header 03 >/dev/null
+click_header 13 03 >/dev/null
 assert_equal "$(cat "$OMARCHY_DOCTRINE_STATE/mode")" "read" "the Full button brackets are clickable"
 
 assert_contains "$(bash "$ROOT/default/omarchy/doctrine-reader.sh" header 11)" "[‹ Back ]" "reading views have a visible Back button"
@@ -121,9 +127,11 @@ assert_contains "$(action read 11)" "pos(11)" "the unnumbered list action opens 
 assert_contains "$(action back 11)" "pos(10)" "Back from the list action restores the last principle"
 assert_equal "$(cat "$OMARCHY_DOCTRINE_STATE/mode")" "index" "Back from the list action restores the index"
 
-assert_contains "$(bash "$ROOT/default/omarchy/doctrine-reader.sh" footer 03)" $'\033[4mhttps://omarchy.org/doctrine/\033[0m' "the source URL is visibly underlined"
+assert_contains "$(bash "$ROOT/default/omarchy/doctrine-reader.sh" footer 03)" $'\033[4mRead this principle online ↗\033[0m' "the principle link is visibly underlined"
 FZF_CLICK_FOOTER_LINE=1 FZF_CLICK_FOOTER_COLUMN=10 action footer 03 >/dev/null
-assert_equal "$(tail -n 1 "$DOCTRINE_BROWSER_LOG")" "https://omarchy.org/doctrine/" "the footer opens exactly the displayed source URL"
+assert_equal "$(tail -n 1 "$DOCTRINE_BROWSER_LOG")" "https://omarchy.org/doctrine/#have-some-fun" "the footer opens the selected principle online"
+
+assert_contains "$(bash "$ROOT/default/omarchy/doctrine-reader.sh" footer 03)" $'\033]8;;https://omarchy.org/doctrine/#have-some-fun\033\\' "the native hyperlink targets the selected principle"
 
 for width in 30 48 80 120; do
   preview=$(FZF_PREVIEW_COLUMNS="$width" bash "$ROOT/default/omarchy/doctrine-reader.sh" preview 03)

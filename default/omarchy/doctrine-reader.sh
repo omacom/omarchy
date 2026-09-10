@@ -3,7 +3,7 @@
 # The reader uses fzf's preview and input handling, as the package pickers do.
 set -euo pipefail
 
-index_layout='right,65%,wrap-word,border-left,<60(down,60%,border-top)'
+index_layout='right,60%,wrap-word,border-left,<60(down,60%,border-top)'
 read_layout='default,up,99%,wrap-word,border-bottom'
 doctrine_url="https://omarchy.org/doctrine/"
 reader='bash "$OMARCHY_PATH/default/omarchy/doctrine-reader.sh"'
@@ -44,20 +44,29 @@ render() {
 header() {
   local number=$1 mode
   mode=$(cat "$OMARCHY_DOCTRINE_STATE/mode")
-  printf 'THE OMARCHY DOCTRINE · By DHH\n'
   if [[ $mode == "index" ]]; then
-    printf 'Index · 10 principles\n\033[1;7m[ Index ]\033[0m [ Full ] [ Website ↗ ]'
+    printf '\033[1mOMARCHY DOCTRINE\033[0m\033[2m · DHH\033[0m\n\n'
+    printf '\033[1;7m[ Index ]\033[0m   [ Full ]   [ Website ↗ ]'
   elif (( number == 11 )); then
-    printf 'Reading the full doctrine\n[‹ Back ] \033[1;7m[ Full ]\033[0m [ Website ↗ ]'
+    printf '[‹ Back ]   \033[1;7m[ Full ]\033[0m   [ Website ↗ ]'
   else
-    printf 'Reading principle %02d / 10\n[‹ Back ] [ Full ] [ Website ↗ ]' "$number"
+    printf '[‹ Back ]   [ Full ]   [ Website ↗ ]'
+  fi
+}
+
+link_label() {
+  if (( $1 == 11 )); then
+    printf 'Read the doctrine online ↗'
+  else
+    printf 'Read this principle online ↗'
   fi
 }
 
 footer() {
   local number=$1 mode
   mode=$(cat "$OMARCHY_DOCTRINE_STATE/mode")
-  printf '\033[4m%s\033[0m\n' "$doctrine_url"
+  printf '\033]8;;%s\033\\\033[4m%s\033[0m\033]8;;\033\\\n' "$(website "$number")" "$(link_label "$number")"
+  printf '\033[2m'
   if [[ $mode == "index" ]]; then
     printf '↑↓ Choose · Enter Read · f Full\nEsc/q Exit · w Website'
   elif (( number == 11 )); then
@@ -65,6 +74,7 @@ footer() {
   else
     printf '↑↓ Principles · PgUp/PgDn/Space Scroll\nEsc Back · q Exit · f Full · w Website'
   fi
+  printf '\033[0m'
 }
 
 index_view() {
@@ -181,7 +191,9 @@ action() {
       ;;
     header)
       # Include each button's brackets and padding in its click target.
-      if (( ${FZF_CLICK_HEADER_LINE:-0} == 3 )); then
+      local button_line=1
+      if [[ $mode == "index" ]]; then button_line=3; fi
+      if (( ${FZF_CLICK_HEADER_LINE:-0} == button_line )); then
         local column=${FZF_CLICK_HEADER_COLUMN:-0}
         if (( column >= 1 && column <= 9 )); then
           if [[ $mode == "index" ]]; then
@@ -189,16 +201,18 @@ action() {
           else
             action back "$number"
           fi
-        elif (( column >= 11 && column <= 18 )); then
+        elif (( column >= 13 && column <= 20 )); then
           action full "$number"
-        elif (( column >= 20 && column <= 32 )); then
+        elif (( column >= 24 && column <= 36 )); then
           action web "$number"
         fi
       fi
       ;;
     footer)
-      if (( ${FZF_CLICK_FOOTER_LINE:-0} == 1 && ${FZF_CLICK_FOOTER_COLUMN:-0} >= 1 && ${FZF_CLICK_FOOTER_COLUMN:-0} <= ${#doctrine_url} )); then
-        action web 11
+      local label
+      label=$(link_label "$number")
+      if (( ${FZF_CLICK_FOOTER_LINE:-0} == 1 && ${FZF_CLICK_FOOTER_COLUMN:-0} >= 1 && ${FZF_CLICK_FOOTER_COLUMN:-0} <= ${#label} )); then
+        action web "$number"
       fi
       ;;
   esac
@@ -218,7 +232,7 @@ start() {
     --bind "f:transform($reader action full {1})+$update_controls,w:transform($reader action web {1})"
     --bind "click-header:transform($reader action header {1})+$update_controls,click-footer:transform($reader action footer {1})"
     --bind "pgdn:transform($reader action page-down {1}),pgup:transform($reader action page-up {1}),space:transform($reader action space {1})+$update_controls"
-    --bind "focus:transform($reader action focus {1})+change-preview-label(Doctrine)+refresh-preview+preview-top+$update_controls"
+    --bind "focus:transform($reader action focus {1})+change-preview-label()+refresh-preview+preview-top+$update_controls"
   )
   for key in up k down j left h right l home end; do
     case "$key" in
