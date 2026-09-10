@@ -59,7 +59,9 @@ Every command takes `--help` too, whether you ask a whole group (`omarchy captur
 
 ### Reading the Omarchy Doctrine
 
-Run `omarchy doctrine` to read the ten principles behind Omarchy, or `omarchy doctrine --full` for DHH's explanations of each principle. Both work offline. The published doctrine is at [omarchy.org/doctrine](https://omarchy.org/doctrine/).
+Run `omarchy doctrine` to explore the ten principles behind Omarchy. Use the arrow keys or click a principle to preview its explanation, then press `Enter` to read it. Press `f` for the full doctrine, `w` or click the website link to open the current section online, `Esc` to return to the index, and `q` to quit. In reading views, use the up/down arrows or mouse wheel to scroll and the left/right arrows to move between principles. The reader follows your terminal colours and adapts to its size.
+
+You can start with a particular principle (`omarchy doctrine 3`), read the whole document (`omarchy doctrine --full`), or open the website (`omarchy doctrine --web`). Reading works offline; opening the website uses your browser. Use `omarchy doctrine --plain` for the short text version. Piping the command produces plain text automatically, including `omarchy doctrine --full | less` for the complete doctrine.
 
 ### Opening the menu from the terminal
 
