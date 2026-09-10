@@ -13,7 +13,7 @@ var NON_COST_BUCKET_ISSUES = {
 }
 var PRICED_SOURCES = {
   codex: { "codex-native": true, "pi": true, "omp": true, "opencode": true },
-  claude: { "claude-native": true },
+  claude: { "claude-native": true, "pi": true, "omp": true, "opencode": true },
   kimi: { "kimi-native": true }
 }
 
@@ -237,7 +237,7 @@ function bundledRate(providerId, id) {
     priceAsOf: entry.source.priceAsOf,
     source: clone(entry.source),
     assumptions: [providerId === "claude"
-      ? "Standard short-context tariff estimate; absent cache-duration metadata assumes 5-minute cache writes"
+      ? "Standard short-context tariff estimate"
       : "Standard short-context tariff estimate; request-level input size is not retained in daily aggregation"]
   }
 }
@@ -342,18 +342,66 @@ function affectedTariffComponents(providerId, bucket) {
     affected = ["input", "output", "cacheRead", "cacheWrite"]
     assumptions.push("Observed fast_mode has no validated applicable bundled tariff")
   }
-  if (inferenceGeo !== "" && inferenceGeo !== "standard" && inferenceGeo !== "global") {
+  if (tariff.inference_geo !== undefined && tariff.inference_geo !== null
+      && (typeof tariff.inference_geo !== "string" || inferenceGeo !== "global")) {
     affected = ["input", "output", "cacheRead", "cacheWrite"]
     assumptions.push("Observed inference_geo=" + inferenceGeo + " has no validated applicable bundled tariff")
   }
   var cacheDuration = exactId(tariff.cache_duration)
   if (tariff.cache_duration !== undefined && tariff.cache_duration !== null
       && (typeof tariff.cache_duration !== "string" || cacheDuration !== "")
-      && !(exactId(providerId) === "claude" && cacheDuration === "5m")) {
+      && !(exactId(providerId) === "claude" && ["5m", "1h", "mixed-5m-1h"].indexOf(cacheDuration) >= 0)) {
     uniquePush(affected, "cacheWrite")
     assumptions.push("Observed cache_duration=" + String(tariff.cache_duration) + " has no validated cache-write tariff")
   }
   return { affected: affected, assumptions: assumptions }
+}
+
+// Shared Claude tariff metadata for native and future verified extra-source adapters.
+// The four public token categories remain unchanged; this only allocates cache writes.
+function claudeCacheWrite(bucket, rate) {
+  var tariff = isPlainObject(bucket.tariff) ? bucket.tariff : {}
+  var total = tokenNumber(bucket.tokens && bucket.tokens.cacheCreationInputTokens)
+  var duration = exactId(tariff.cache_duration)
+  if (tariff.cache_duration !== undefined && tariff.cache_duration !== null
+      && (typeof tariff.cache_duration !== "string"
+        || ["5m", "1h", "mixed-5m-1h"].indexOf(duration) < 0))
+    return { cost: null, note: "Recorded cache duration has no validated cache-write tariff" }
+  var five = total
+  var hour = 0
+  if (Object.prototype.hasOwnProperty.call(tariff, "cache_creation")) {
+    var split = tariff.cache_creation
+    five = tokenNumber(split && split.ephemeral_5m_input_tokens)
+    hour = tokenNumber(split && split.ephemeral_1h_input_tokens)
+    if (!isPlainObject(split) || five === null || hour === null || total === null
+        || five + hour !== total || (duration === "5m" && hour > 0)
+        || (duration === "1h" && five > 0))
+      return { cost: null, note: "Cache creation duration split is invalid or does not reconcile with cache-write tokens" }
+  } else if (duration === "1h") {
+    five = 0
+    hour = total
+  } else if (duration === "mixed-5m-1h") {
+    return { cost: null, note: "Mixed cache duration requires a reconciled numeric split" }
+  }
+  if (total === null) return { cost: null, note: "Cache-write total is unverified" }
+  if (total === 0) return { cost: 0, note: "" }
+  if (rate.origin === "user-override") {
+    return { cost: validRateNumber(rate.rates.cacheWrite) ? total * rate.rates.cacheWrite / rate.denominator : null,
+      note: "User-configured cache-write rate is assumed applicable to the observed cache duration; no bundled duration rate overrides it" }
+  }
+  if ((five > 0 && !validRateNumber(rate.rates.cacheWrite))
+      || (hour > 0 && !validRateNumber(rate.rates.cacheWrite1h)))
+    return { cost: null, note: "Applicable cache-duration rate is not published" }
+  var note = duration === "" && !Object.prototype.hasOwnProperty.call(tariff, "cache_creation")
+    ? "Absent cache-duration metadata assumes 5-minute cache writes"
+    : five > 0 && hour > 0
+      ? "Cache writes use an observed mixed 5-minute/1-hour duration split"
+      : hour > 0
+        ? "Cache writes use the observed 1-hour duration"
+        : "Cache writes use the observed 5-minute duration"
+  return { cost: ((five ? five * rate.rates.cacheWrite : 0)
+      + (hour ? hour * rate.rates.cacheWrite1h : 0)) / rate.denominator,
+    note: note }
 }
 
 function priceBucket(providerId, bucket, rawOverrides) {
@@ -396,6 +444,11 @@ function priceBucket(providerId, bucket, rawOverrides) {
     uniquePush(result.assumptions, tariffState.assumptions[ta])
 
   var tokens = isPlainObject(bucket.tokens) ? bucket.tokens : {}
+  var cacheWrite = exactId(providerId) === "claude" ? claudeCacheWrite(bucket, rate) : null
+  if (cacheWrite) {
+    uniquePush(result.assumptions, cacheWrite.note)
+    if (cacheWrite.cost === null) uniquePush(tariffState.affected, "cacheWrite")
+  }
   var knownPositive = 0
   var unknownPositive = 0
   var anyPositive = false
@@ -422,7 +475,8 @@ function priceBucket(providerId, bucket, rawOverrides) {
       unknownPositive++
       continue
     }
-    var componentCost = count * componentRate / rate.denominator
+    var componentCost = cacheWrite && rateField === "cacheWrite"
+      ? cacheWrite.cost : count * componentRate / rate.denominator
     if (!isFinite(componentCost) || componentCost < 0) {
       result.missing.push(label + " cost could not be calculated")
       unknownPositive++

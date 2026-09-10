@@ -156,7 +156,7 @@ def collect():
     recent[day]["sessions"] = len(daily_sessions[day])
   buckets = [bucket for day in days.values() for bucket in day["buckets"]]
   return {
-    "schemaVersion": 1, "id": "kimi", "name": "Kimi CLI",
+    "schemaVersion": 1, "id": "kimi", "name": "Kimi CLI", "tierLabel": "Local usage",
     "updatedAt": now.isoformat(), "ready": bool(sessions), "hasLocalStats": bool(sessions),
     "hasPromptStats": False, "limits": [], "totalPrompts": 0, "todayPrompts": 0,
     "totalSessions": len(sessions), "todaySessions": len(today_sessions), "activeDays": len(active),

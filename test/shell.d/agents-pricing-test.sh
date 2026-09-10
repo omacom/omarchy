@@ -50,8 +50,10 @@ const claudeKinds = { inputTokens: 1000000, outputTokens: 1000000,
   cacheReadInputTokens: 1000000, cacheCreationInputTokens: 1000000 }
 assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { cache_duration: '5m' }), {}).total,
   36.75, 'observed Claude 5-minute cache writes use the verified standard tariff')
-assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { cache_duration: '1h' }), {}).status,
-  'partial', 'observed Claude 1-hour cache writes stay unknown until their split is represented')
+assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { cache_duration: '1h' }), {}).total,
+  40.5, 'observed Claude 1-hour cache writes use the verified duration rate')
+assertEqual(pricing.priceBucket(' Claude ', claudeBucket('claude-opus-5', claudeKinds, { cache_duration: '1h' }), {}).total,
+  40.5, 'the Claude cache-duration helper uses the normalized exact provider ID')
 assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { inference_geo: 'global' }), {}).status,
   'complete', 'recorded global Claude inference keeps the standard tariff')
 assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { inference_geo: 'us' }), {}).status,

@@ -35,7 +35,7 @@ AGENT_NAME = "Claude Code"
 AUTH_HELP = "Run `claude auth login` to restore authoritative usage."
 USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
 PROBE_MIN_INTERVAL_SECONDS = 15
-SCAN_CACHE_REVISION = 2
+SCAN_CACHE_REVISION = 3
 TOKEN_FIELDS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
 
 
@@ -175,16 +175,13 @@ def transcript_tariff(message: dict[str, Any], usage: dict[str, Any]) -> dict[st
     for key in ("service_tier", "speed", "fast_mode", "cache_duration", "inference_geo"):
       if key in record and record[key] is not None:
         tariff[key] = record[key]
-  creation = usage.get("cache_creation")
-  if isinstance(creation, dict):
-    five = verified_count(creation.get("ephemeral_5m_input_tokens")) or 0
-    hour = verified_count(creation.get("ephemeral_1h_input_tokens")) or 0
-    if five > 0 and hour > 0:
-      tariff["cache_duration"] = "mixed-5m-1h"
-    elif hour > 0:
-      tariff["cache_duration"] = "1h"
-    elif five > 0:
-      tariff["cache_duration"] = "5m"
+  if "cache_creation" in usage:
+    creation = usage["cache_creation"]
+    # Preserve only the numeric attribution, never the original arbitrary payload.
+    tariff["cache_creation"] = {
+      key: verified_count(creation.get(key)) if isinstance(creation, dict) else None
+      for key in ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
+    }
   return tariff
 
 
@@ -465,8 +462,8 @@ def today_prompts_from_history(claude_dir: Path) -> tuple[int, int]:
 
 def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
   roots = [
-    Path.home() / ".pi" / "agent" / "sessions",
-    Path.home() / ".omp" / "agent" / "sessions",
+    ("pi", Path.home() / ".pi" / "agent" / "sessions"),
+    ("omp", Path.home() / ".omp" / "agent" / "sessions"),
   ]
   cache_file = cache_root() / "claude-pi-sessions.json"
   cached = read_fresh_json(cache_file, max_age_seconds)
@@ -488,7 +485,7 @@ def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
   today_token_total = 0
   daily = daily_contract()
 
-  for root in roots:
+  for source_name, root in roots:
     files = root.rglob("*.jsonl") if root.is_dir() else []
     for path in files:
       try:
@@ -521,13 +518,25 @@ def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
                 continue
               model = str(message.get("model") or "claude")
               day = verified_local_date(entry.get("timestamp") or message.get("timestamp"))
+              daily_tokens = {
+                "inputTokens": verified_count(usage.get("input")) if "input" in usage else None,
+                "outputTokens": verified_count(usage.get("output")) if "output" in usage else None,
+                "cacheReadInputTokens": verified_count(usage.get("cacheRead")) if "cacheRead" in usage else None,
+                "cacheCreationInputTokens": verified_count(usage.get("cacheWrite")) if "cacheWrite" in usage else None,
+              }
+              daily_issues = []
+              declared_total = verified_count(usage.get("totalTokens")) if "totalTokens" in usage else None
+              if declared_total is not None and None not in daily_tokens.values() \
+                  and declared_total != sum(daily_tokens.values()):
+                daily_tokens = {key: None for key in TOKEN_FIELDS}
+                daily_issues.append("inconsistent-total")
             except Exception:
               continue
 
             session_key = str(path)
             add_daily(daily, day,
-                      session_key, message.get("model"), total, {key: None for key in TOKEN_FIELDS},
-                      "legacy", ["source-not-covered"])
+                      session_key, message.get("model"), total, daily_tokens,
+                      source_name, daily_issues, transcript_tariff(message, usage))
             sessions.add(session_key)
             if day is not None:
               active_days.add(day)
@@ -635,11 +644,22 @@ def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
         day = verified_local_date(created)
         raw_model = entry.get("modelID") if isinstance(entry.get("modelID"), str) else ""
         model = str(raw_model or "claude").rstrip("/").split("/")[-1]
+        measured_output = verified_count(tokens.get("output")) if "output" in tokens else None
+        measured_reasoning = verified_count(tokens.get("reasoning")) if "reasoning" in tokens else None
+        daily_tokens = {
+          "inputTokens": verified_count(tokens.get("input")) if "input" in tokens else None,
+          "outputTokens": measured_output + measured_reasoning
+            if measured_output is not None and measured_reasoning is not None else None,
+          "cacheReadInputTokens": verified_count(cache.get("read"))
+            if isinstance(cache, dict) and "read" in cache else None,
+          "cacheCreationInputTokens": verified_count(cache.get("write"))
+            if isinstance(cache, dict) and "write" in cache else None,
+        }
       except Exception:
         continue
       session_key = "opencode:" + str(session_id)
       add_daily(daily, day, session_key, raw_model, total,
-                {key: None for key in TOKEN_FIELDS}, "legacy", ["source-not-covered"])
+                daily_tokens, "opencode", tariff=transcript_tariff(entry, tokens))
       sessions.add(session_key)
       if day is not None:
         active_days.add(day)
