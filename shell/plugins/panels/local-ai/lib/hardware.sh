@@ -6,8 +6,8 @@ hardware_json() {
   [[ -n ${OMARCHY_AI_HARDWARE_JSON:-} ]] && { jq -c . <<<"$OMARCHY_AI_HARDWARE_JSON"; return; }
   local rows='' nvidia='[]' driver=''
   if command -v nvidia-smi >/dev/null 2>&1; then
-    rows=$(nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free --format=csv,noheader,nounits 2>/dev/null || true)
-    driver=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 | tr -d ' ' || true)
+    rows=$(deadline 10 nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free --format=csv,noheader,nounits 2>/dev/null || true)
+    driver=$(deadline 10 nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 | tr -d ' ' || true)
   fi
   [[ -n $rows ]] && nvidia=$(jq -Rsc 'split("\n")|map(select(length>0)|split(",")|map(gsub("^ +| +$";"")))
     |map({backend:"nvidia",index:(.[0]|tonumber),product:.[1],totalMiB:(.[2]|tonumber),usedMiB:(.[3]|tonumber),freeMiB:(.[4]|tonumber)})' <<<"$rows")
@@ -25,8 +25,6 @@ intel_gpus() { # Intel Arc Pro B70 by PCI id, only when a render node exists for
   printf '%s' "$out"
 }
 
-# normalize a product name the way the registry export does, so a match is a string compare
-norm() { tr '[:upper:]' '[:lower:]' <<<"$1" | sed -E 's/nvidia|geforce|intel|amd|radeon|generation|workstation|edition|[0-9]+gb|[^a-z0-9]//g'; }
 
 driver_ok() { # driver_ok <have> <min>  (dotted versions; empty min means no requirement)
   [[ -z $2 ]] && return 0

@@ -51,13 +51,14 @@ canon() { # canonicalize, resolving symlinks even for not-yet-existing leaf path
 
 # ---------------------------------------------------------------- ledger
 lread() { [[ -f $LEDGER ]] && cat "$LEDGER" || printf '%s\n' "$LEDGER_EMPTY"; }
+deadline() { if command -v timeout >/dev/null 2>&1; then timeout "$@"; else shift; "$@"; fi; }   # <secs> <cmd...>: a probe that hangs must not hang the card
 HAVE_FLOCK=0; command -v flock >/dev/null 2>&1 && HAVE_FLOCK=1   # Omarchy has util-linux; the mkdir path is for tests elsewhere
 lwrite() { # lwrite <jq-filter> [jq-args...]: atomic read-modify-write under a short file lock
   local f=$1; shift; state_dir
   if ((HAVE_FLOCK)); then
     { flock 9; jq -c "$@" "$f" <<<"$(lread)" >"$LEDGER.tmp.$$" && mv "$LEDGER.tmp.$$" "$LEDGER"; } 9>"$STATE/ledger.lock"
   else
-    until mkdir "$STATE/ledger.lockd" 2>/dev/null; do sleep 0.02; done
+    local n=0; until mkdir "$STATE/ledger.lockd" 2>/dev/null; do sleep 0.02; n=$((n+1)); (( n < 1500 )) || { fail "the ledger stayed locked for 30s (see $LOGFILE)"; return 1; }; done
     jq -c "$@" "$f" <<<"$(lread)" >"$LEDGER.tmp.$$" && mv "$LEDGER.tmp.$$" "$LEDGER"
     rmdir "$STATE/ledger.lockd" 2>/dev/null || true
   fi
@@ -66,7 +67,7 @@ op() { lwrite '.op={name:$n,recipeId:$r,pid:($p|tonumber),startedAt:(if .op.star
   --arg n "$1" --arg r "$2" --arg p "$$" --arg t "$(now)" --arg d "${3:-}" --arg c "${4:-0}"; log "op $1 ${3:-}"; snapshot_write; }
 # op_pending <name> <pid>: the parent verb records the worker it just spawned so the very next
 # snapshot is busy; the worker overwrites this with its own op as soon as it holds the lock.
-op_pending() { lwrite '.op={name:$n,recipeId:"",pid:($p|tonumber),startedAt:$t,detail:"starting",percent:0} | .error=""' --arg n "$1" --arg p "$2" --arg t "$(now)"; snapshot_write; }
+op_pending() { lwrite '.op=(if .op.pid==0 then {name:$n,recipeId:"",pid:($p|tonumber),startedAt:$t,detail:"starting",percent:0} else .op end) | .error=""' --arg n "$1" --arg p "$2" --arg t "$(now)"; snapshot_write; }   # never over a worker that already wrote
 op_done() { lwrite '.op={name:"",recipeId:"",pid:0,startedAt:"",detail:"",percent:0} | .error=""'; snapshot_write; } # a finished op supersedes any refusal written while it ran
 oops() { log "error: $1"; lwrite '.error=$e | .op={name:"",recipeId:"",pid:0,startedAt:"",detail:"",percent:0}' --arg e "$1"; snapshot_write; exit 1; }
 

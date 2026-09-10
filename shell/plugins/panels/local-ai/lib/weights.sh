@@ -82,13 +82,13 @@ download_run() {
   local r=$1 id repo rev img err
   id=$(jq -r .id <<<"$r"); repo=$(jq -r .model.repository <<<"$r"); rev=$(jq -r .model.revision <<<"$r"); img=$(jq -r .launch.image <<<"$r")
   weights_dest_vars "$r"
-  local py="from huggingface_hub import snapshot_download as d; d('$repo', revision='$rev'"
-  [[ -n $WPATTERN ]] && py+=", allow_patterns=['$WPATTERN', '*mmproj*']"
+  local py="import os; from huggingface_hub import snapshot_download as d; d(os.environ['HF_REPO'], revision=os.environ['HF_REV']"
+  [[ -n $WPATTERN ]] && py+=", allow_patterns=[os.environ['HF_PATTERN'], '*mmproj*']"
   if [[ $WKIND == dir ]]; then py+=", local_dir='/weights')"; else py+=")"; fi
   # HF_HOME must be writable for the hub cache and xet chunks: the mounted /hf in hub mode, /tmp in dir mode
   local -a cmd=(docker run --rm --user "$RUN_AS" --label "$LABEL.download=1" --network bridge
        --env HF_HOME="$([[ $WKIND == dir ]] && echo /tmp/hf || echo /hf)" --env HOME=/tmp
-       ${HF_TOKEN:+--env HF_TOKEN}
+       ${HF_TOKEN:+--env HF_TOKEN} --env "HF_REPO=$repo" --env "HF_REV=$rev" ${WPATTERN:+--env "HF_PATTERN=$WPATTERN"}
        --volume "$WBASE:$([[ $WKIND == dir ]] && echo /weights || echo /hf)"
        --entrypoint python3 "$img" -c "$py")
   log "download: ${cmd[*]}"

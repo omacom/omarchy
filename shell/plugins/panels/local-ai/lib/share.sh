@@ -23,8 +23,10 @@ ensure_key() {
   [[ -s $KEY_FILE ]] && return 0
   state_dir; head -c 24 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-32 >"$KEY_FILE"; rm -f "$STATE/gateway.auth"
 }
-set_key() {
-  [[ ${#1} -ge 16 ]] || { fail "key must be at least 16 characters"; return; }
+set_key() { # set_key <value|-> ("-" reads the key from stdin, so it never sits in a command line)
+  local k=$1; [[ $k == - ]] && IFS= read -r k
+  [[ $k =~ ^[A-Za-z0-9._-]{16,128}$ ]] || { fail "key must be 16 to 128 letters, digits, . _ or -"; return; }
+  set -- "$k"
   state_dir; printf '%s\n' "$1" >"$KEY_FILE"; rm -f "$STATE/gateway.auth"
   # every copy of the old key goes with it: agent launch configs are regenerated at the next launch
   local d; for d in "$STATE"/agents/*/; do [[ ${d%/} == "$STATE/agents/args" ]] || rm -rf "$d"; done
@@ -34,9 +36,10 @@ set_key() {
 
 tailnet_self() { # -> {ip,dns,online}; empty ip when tailscale is off. IPv4 first, IPv6 when that is all there is.
   local b; b=$(ts_bin) || { printf '{"ip":"","dns":"","online":false}'; return; }
-  "$b" status --json 2>/dev/null | jq -c '
+  deadline 5 "$b" status --json 2>/dev/null | jq -c '
     (.Self.TailscaleIPs // []) as $ips
-    | {ip: (($ips | map(select(test("^[0-9.]+$"))) | .[0]) // ($ips | map(select(test(":"))) | .[0]) // ""),
+    | {ip: (($ips | map(select(test("^100\\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\\.[0-9]{1,3}\\.[0-9]{1,3}$"))) | .[0])   # only a tailnet address is ever bound
+            // ($ips | map(select(test("^fd7a:115c:a1e0:[0-9a-f:]+$"))) | .[0]) // ""),
        dns: ((.Self.DNSName // "") | rtrimstr(".")),
        online: ((.Self.Online // false) and ((.BackendState // "Running") == "Running"))}' 2>/dev/null \
     || printf '{"ip":"","dns":"","online":false}'
@@ -67,7 +70,11 @@ share_state() { # -> {available,active,url,keyFile,error}; read from tailscale a
 }
 
 share_on() { state_dir; : >"$SHARE_MARK"; restart_gateway; }
-share_off() { rm -f "$SHARE_MARK"; gateway_up && restart_gateway; return 0; }
+share_off() { # the marker goes only when the published gateway is really replaced; otherwise the card keeps saying shared
+  local was; was=$(cat "$SHARE_MARK" 2>/dev/null || true); rm -f "$SHARE_MARK"
+  gateway_up || return 0
+  restart_gateway || { printf '%s' "$was" >"$SHARE_MARK"; return 1; }
+}
 share_forget() { rm -f "$SHARE_MARK"; }
 docker_last_error() { # the last line docker wrote to the log, trimmed to what a card can show
   local l; l=$(grep -i "error\|cannot\|denied\|address" "$LOGFILE" 2>/dev/null | tail -1 | sed 's/^.*Error response from daemon: //; s/^docker: //' | cut -c1-140)
@@ -84,10 +91,10 @@ share_toggle() { # share [--key value]
   [[ $(jq -r .state "$SNAPSHOT" 2>/dev/null) == ready ]] || { share_refuse "load a model first"; return; }
   if jq -e '.active' >/dev/null <<<"$(share_state)"; then
     op share "" "stopping the tailnet route" 0   # an op, so the card shows the toggle in progress
-    share_off || { share_refuse "could not restart the gateway (see $LOGFILE)"; return; }; log "share off"
+    share_off || { share_refuse "still shared: could not restart the gateway (see $LOGFILE)"; return; }; log "share off"
   else
     op share "" "publishing on the tailnet" 0
-    share_on || { rm -f "$SHARE_MARK"; restart_gateway || true; share_refuse "could not publish on the tailnet: $(docker_last_error)"; return; }; log "share on"
+    share_on || { rm -f "$SHARE_MARK"; share_refuse "could not publish on the tailnet: $(docker_last_error)"; return; }; log "share on"
   fi
   rm -f "$SHARE_ERROR"; op_done
 }

@@ -12,8 +12,12 @@ owned() { [[ $(docker inspect -f "{{index .Config.Labels \"$LABEL\"}}" "$1" 2>/d
 exists() { docker inspect "$1" >/dev/null 2>&1; }
 running() { [[ $(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null) == true ]]; }
 container_recipe() { docker inspect -f "{{index .Config.Labels \"$LABEL.recipe\"}}" "$1" 2>/dev/null; }
+live() { docker inspect -f "{{.State.Running}}|{{index .Config.Labels \"$LABEL\"}}|{{index .Config.Labels \"$LABEL.recipe\"}}" "$1" 2>/dev/null; }   # "true|1|<recipe>" when ours and running
 gateway_up() { if docker_direct; then owned "$GATEWAY" && running "$GATEWAY"; else api models 2 >/dev/null 2>&1; fi; }
-ensure_network() { docker network inspect "$NET" >/dev/null 2>&1 || docker network create --label "$LABEL=1" "$NET" >/dev/null; }
+ensure_network() { # ours, or created; a same-named network of someone else's is refused, since the engine is reachable on it
+  local l; if l=$(docker network inspect -f "{{index .Labels \"$LABEL\"}}" "$NET" 2>/dev/null); then [[ $l == 1 ]] || { fail "docker network $NET exists but is not managed by this plugin"; return 1; }
+  else docker network create --label "$LABEL=1" "$NET" >/dev/null; fi
+}
 
 # write_assets <recipe>: config files the recipe mounts, from recipes.json, into a plugin-owned dir
 write_assets() {
@@ -71,7 +75,7 @@ gateway_argv() { # gateway_argv <recipe>
 # field missing); a process substitution would hand docker the truncated half. Build into a file
 # and check the builder's own status first.
 read_argv() { # read_argv <builder> <recipe> -> ARGV (no namerefs: the suite runs on bash 3.2 too)
-  local f; f=$(mktemp "$STATE/argv.XXXXXX") || return 1
+  local f; f=$(mktemp) || return 1
   if ! "$1" "$2" >"$f"; then rm -f "$f"; return 1; fi
   ARGV=(); local v; while IFS= read -r -d '' v; do ARGV+=("$v"); done <"$f"; rm -f "$f"
   ((${#ARGV[@]}))
@@ -115,7 +119,7 @@ accept() {
     served=$(api models 5 2>/dev/null | jq -r '.data[0].id // empty' || true)
     [[ -n $served ]] && break
     (( SECONDS < deadline )) || { fail "engine did not answer within ${TIMEOUT}s"; return 1; }
-    running "$ENGINE" || { fail "engine exited during startup (docker logs $ENGINE)"; return 1; }
+    if docker_direct; then running "$ENGINE" || { fail "engine exited during startup (docker logs $ENGINE)"; return 1; }; fi   # behind a prompt, the deadline decides
     op starting "$id" "loading the model" "$(start_percent)"; sleep "$POLL"
   done
   [[ $served == "$want" || $want == */* && $served == *"${want##*/}"* ]] || { fail "served model $served is not $want"; return 1; }
@@ -188,20 +192,23 @@ set_aside() { # current pair -> *-previous (removing any older previous)
     docker rename "$c" "$c-previous" >/dev/null || { fail "could not set aside $c"; return 1; }
   done
 }
-restore_previous() {
-  local c
+restore_previous() { # non-zero when a set-aside container could not be brought back
+  local c ok=0
   for c in "$ENGINE" "$GATEWAY"; do
     exists "$c" && owned "$c" && docker rm -f "$c" >/dev/null 2>&1
-    exists "$c-previous" && owned "$c-previous" && { docker rename "$c-previous" "$c" >/dev/null 2>&1; docker start "$c" >/dev/null 2>&1; }
+    if exists "$c-previous" && owned "$c-previous"; then docker rename "$c-previous" "$c" >/dev/null 2>&1 && docker start "$c" >/dev/null 2>&1 || ok=1; fi
   done
-  return 0
+  return $ok
 }
 drop_previous() { local c; for c in "$ENGINE" "$GATEWAY"; do exists "$c-previous" && owned "$c-previous" && docker rm -f "$c-previous" >/dev/null 2>&1; done; return 0; }
-stop_all() { local c; for c in "$ENGINE" "$GATEWAY" "$ENGINE-previous" "$GATEWAY-previous"; do exists "$c" && owned "$c" && docker rm -f "$c" >/dev/null 2>&1; done; return 0; }
+stop_all() { # non-zero when one of ours is still there afterwards
+  local c; for c in "$ENGINE" "$GATEWAY" "$ENGINE-previous" "$GATEWAY-previous"; do exists "$c" && owned "$c" && docker rm -f "$c" >/dev/null 2>&1; done
+  for c in "$ENGINE" "$GATEWAY"; do exists "$c" && owned "$c" && { fail "$c could not be removed"; return 1; }; done; return 0
+}
 
 start_pair() { # start_pair <recipe>: engine then gateway; returns non-zero on any failure. Assets and key exist already.
   local r=$1; local -a argv=()
-  ensure_network
+  ensure_network || return 1
   read_argv engine_argv "$r" || { fail "could not build the engine command (see $LOGFILE)"; return 1; }; argv=("${ARGV[@]}")
   log "engine: ${argv[*]}"
   run_child "${argv[@]}" >&2 2>&1 || return 1

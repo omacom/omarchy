@@ -31,8 +31,9 @@ cat >"$TMP/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 # a docker that remembers containers in $SHIM/containers/<name> and images in $SHIM/images
 echo "docker $*" >>"$SHIM/docker.log"
+[[ ${OMARCHY_AI_DOCKER:-} == prompt && ${SHIM_ROOT:-} != 1 ]] && { echo "permission denied while trying to connect to the Docker daemon socket" >&2; exit 1; }   # not in the docker group
 case "$1" in
-  network) [[ $2 == inspect ]] && { [[ -f $SHIM/net ]] && exit 0 || exit 1; }; [[ $2 == create ]] && touch "$SHIM/net"; exit 0 ;;
+  network) [[ $2 == inspect ]] && { [[ -f $SHIM/net ]] && { echo 1; exit 0; } || exit 1; }; [[ $2 == create ]] && touch "$SHIM/net"; exit 0 ;;
   image) [[ $2 == inspect ]] && { grep -qxF "$3" "$SHIM/images" 2>/dev/null; exit $?; }; exit 0 ;;
   info) [[ -n ${SHIM_DOCKER_DOWN:-} ]] && { echo "$SHIM_DOCKER_DOWN" >&2; exit 1; }; echo "Runtimes: io.containerd.runc.v2 ${SHIM_RUNTIMES:-nvidia} runc"; exit 0 ;;
   pull) [[ ${SHIM_PULL_FAIL:-} == 1 ]] && { echo "${SHIM_PULL_ERR:-error pulling image configuration: no space left on device}" >&2; exit 1; }; echo "$2" >>"$SHIM/images"; exit 0 ;;
@@ -54,6 +55,7 @@ case "$1" in
     for a in "$@"; do case $a in -f) ;; '{{'*) fmt=$a ;; inspect) ;; *) name=$a ;; esac; done
     [[ -d $SHIM/containers/$name ]] || exit 1
     case $fmt in
+      *'|'*) [[ $(cat "$SHIM/containers/$name/state") == running ]] && r=true || r=false; echo "$r|$(grep -E "^io.omarchy.local-ai=" "$SHIM/containers/$name/labels" | head -1 | cut -d= -f2-)|$(grep -E "^io.omarchy.local-ai.recipe=" "$SHIM/containers/$name/labels" | head -1 | cut -d= -f2-)" ;;
       *Labels*) key=${fmt#*\"}; key=${key%%\"*}; grep -E "^$key=" "$SHIM/containers/$name/labels" | head -1 | cut -d= -f2- ;;
       *Running*) [[ $(cat "$SHIM/containers/$name/state") == running ]] && echo true || echo false ;;
       *) echo "[]" ;;
@@ -107,7 +109,9 @@ cat >"$TMP/bin/pkexec" <<'EOF'
 # polkit: the prompt was dismissed when SHIM_PKEXEC_FAIL=1; otherwise the command runs, marked as the root side
 echo "pkexec $*" >>"$SHIM/pkexec.log"
 [[ ${SHIM_PKEXEC_FAIL:-} == 1 ]] && { echo "Error executing command as another user: Request dismissed" >&2; exit 126; }
-export OMARCHY_AI_TEST_ROOT=1 SHIM_ROOT=1; exec "$@"
+# real pkexec starts from a clean environment: only what the plugin's env file carries reaches the root phase
+args=(); for v in "${!SHIM_@}"; do args+=("$v=${!v}"); done
+exec env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" SHIM="$SHIM" OMARCHY_AI_TEST_ROOT=1 SHIM_ROOT=1 "${args[@]}" "$@"
 EOF
 for tk in pacman nvidia-ctk systemctl; do printf '#!/usr/bin/env bash\necho "%s $*" >>"$SHIM/toolkit.log"\n' "$tk" >"$TMP/bin/$tk"; done
 for a in pi claude codex; do printf '#!/usr/bin/env bash\necho "$0 $* ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-} ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-} LOCAL_AI_KEY=${LOCAL_AI_KEY:-}"\n' >"$TMP/bin/$a"; done
@@ -234,6 +238,10 @@ write_recipes "$(recipe hostnet true asset | jq '.launch.networkMode="host"')"; 
 [[ $(snap .reason) == *"host networking"* ]] || fail "gate reason" "$(snap .reason)"; pass "gate: host networking refused with the reason"
 write_recipes "$(recipe evil true asset | jq '.launch.mounts[0].source="${MODEL_ROOT}/../../etc"')"; "$CLI" snapshot >/dev/null
 [[ $(snap .reason) == *"unsafe host path"* ]] || fail "gate mount"; pass "gate: mount escaping the model root refused"
+write_recipes "$(recipe evil2 true asset | jq '.weights.subdir="../../escape"')"; "$CLI" snapshot >/dev/null
+[[ $(snap .reason) == *"invalid weights directory"* ]] || fail "gate subdir" "$(snap .reason)"; pass "gate: a weights directory that climbs out is refused"
+write_recipes "$(recipe evil3 true asset | jq '.model.repository="org/x'"'"'); import os; os.system(\"id\")"')"; "$CLI" snapshot >/dev/null
+[[ $(snap .reason) == *"invalid model repository"* ]] || fail "gate repo" "$(snap .reason)"; pass "gate: a repository name that is not a name is refused"
 write_recipes "$(recipe unpinned true asset | jq '.launch.image="ghcr.io/x/engine:latest"')"; "$CLI" snapshot >/dev/null
 [[ $(snap .reason) == *"not digest-pinned"* ]] || fail "gate digest"; pass "gate: unpinned image refused"
 write_recipes "$(recipe ipc true asset | jq '.launch.ipc="host"')"; "$CLI" snapshot >/dev/null
@@ -270,7 +278,7 @@ write_recipes "$(recipe good true asset)"
 ( sleep 2 ) & holder=$!; sleep 0.2   # a live pid in the ledger is what "busy" means
 jq '.op.pid='"$holder"' | .op.name="download"' "$OMARCHY_AI_STATE/ledger.json" >"$TMP/l.json" && mv "$TMP/l.json" "$OMARCHY_AI_STATE/ledger.json"
 [[ $("$CLI" load 2>&1 || true) == *"another operation is running"* ]] || fail "busy refused"; pass "a second operation while busy is refused"
-wait $holder; "$CLI" snapshot >/dev/null; [[ $(snap .state) == idle ]] || fail "dead pid clears busy" "$(snap .state)"; pass "busy clears when the worker pid is gone, no stale string"
+wait $holder; "$CLI" snapshot >/dev/null; [[ $(snap .state) == error && $(snap .error) == *"stopped unexpectedly"* && $(snap .operation.name) == "" ]] || fail "dead pid" "$(snap .state) $(snap .error)"; pass "busy clears when the worker pid is gone, and the card says the worker stopped"
 
 # progress: a successful Start records how long it took, and the next Start reports against it
 "$CLI" load; [[ $(jq -r .lastStartSeconds "$OMARCHY_AI_STATE/ledger.json") =~ ^[0-9]+$ ]] || fail "lastStartSeconds recorded"; pass "a successful Start records its duration for the next progress bar"
@@ -285,6 +293,10 @@ wait $holder; "$CLI" unload
 "$CLI" load; [[ $(snap .state) == ready && $(snap .error) == "" ]] || fail "op clears refusal"; pass "a finished operation clears an earlier refusal"
 "$CLI" open-agent nope >/dev/null 2>&1 || true; [[ $(snap .state) == ready && $(snap .error) != "" ]] || fail "refusal beside ready" "$(snap .state) $(snap .error)"; pass "a refused agent launch keeps a running model ready and shows the reason"
 OMARCHY_AI_FOREGROUND=0 "$CLI" open-agent pi >/dev/null; [[ $(snap .error) == "" ]] || fail "launch clears refusal"; pass "a launch that works clears the earlier refusal"
+[[ $("$CLI" agent-args ../../x -- a 2>&1 || true) == *"one of:"* ]] || fail "agent-args name"; "$CLI" agent-args pi -- --yolo "--name=a b" >/dev/null; argv=$("$CLI" open-agent pi); [[ $argv == *"--yolo --name=a\\ b"* ]] || fail "agent-args" "$argv"; "$CLI" agent-args pi >/dev/null; argv=$("$CLI" open-agent pi); [[ $argv != *yolo* ]] || fail "agent-args clear"; pass "agent-args adds the person's flags to that agent, and clears them"
+mkdir -p "$TMP/work"; "$CLI" agent-dir "$TMP/work" >/dev/null; [[ $(cat "$OMARCHY_AI_STATE/agent-dir") == "$TMP/work" ]] || fail "agent-dir"; [[ $("$CLI" agent-dir "$TMP/nope" 2>&1 || true) == *"not a directory"* ]] || fail "agent-dir refusal"; pass "agent-dir records a directory and refuses a missing one"
+jq '.op={name:"starting",recipeId:"x",pid:999999,startedAt:"t",detail:"loading the model",percent:0}' "$OMARCHY_AI_STATE/ledger.json" >"$TMP/l" && cat "$TMP/l" >"$OMARCHY_AI_STATE/ledger.json"
+"$CLI" snapshot >/dev/null; [[ $(snap .error) == *"stopped unexpectedly while loading the model"* && $(snap .operation.name) == "" ]] || fail "vanished worker" "$(snap .error)"; pass "a worker killed without its exit trap is reported by the next refresh, not shown as starting forever"
 # an older install: key copied into the ledger, files world-readable; the next snapshot scrubs and tightens
 jq '.share={key:"leaked-old-key"}' "$OMARCHY_AI_STATE/ledger.json" >"$TMP/l.json" && mv "$TMP/l.json" "$OMARCHY_AI_STATE/ledger.json"; chmod 644 "$OMARCHY_AI_STATE/ledger.json" "$OMARCHY_AI_STATE/snapshot.json"
 "$CLI" snapshot >/dev/null; grep -q leaked-old-key "$OMARCHY_AI_STATE/ledger.json" && fail "old key not scrubbed"
@@ -318,10 +330,11 @@ SHIM_PULL_FAIL=1 SHIM_PULL_ERR="Error response from daemon: Get https://ghcr.io/
 "$CLI" unload >/dev/null; rm -f "$SHIM/images" "$OMARCHY_AI_STATE"/weights/*.json; : >"$SHIM/pkexec.log"
 export OMARCHY_AI_DOCKER=prompt
 n0=$(grep -c . "$SHIM/docker.log"); "$CLI" snapshot >/dev/null; [[ $(grep -c . "$SHIM/docker.log") == "$n0" ]] || fail "snapshot touched docker in prompt mode"; pass "prompt mode: the card's refresh makes no docker call"
-"$CLI" load; [[ $(snap .state) == ready ]] || fail "prompt load" "$(snap .error)"; pass "prompt mode: a Start from nothing reaches ready"
+OMARCHY_AI_RUN_AS=1006:1006 "$CLI" load; [[ $(snap .state) == ready ]] || fail "prompt load" "$(snap .error)"; pass "prompt mode: a Start from nothing reaches ready"
 [[ $(grep -c "pkexec" "$SHIM/pkexec.log") == 1 ]] || fail "one prompt per Start" "$(cat "$SHIM/pkexec.log")"; pass "prompt mode: images, weights, and both containers behind one password prompt"
-grep -q "_root .* start" "$SHIM/pkexec.log" && grep -q -- "--user $(id -u):$(id -g)" "$SHIM/docker.log" || fail "root phase ran the gateway as the user"; pass "prompt mode: the gateway still runs as the user, not root"
+grep -q "_root .* start" "$SHIM/pkexec.log" && grep -q -- "--user 1006:1006" "$SHIM/docker.log" || fail "root phase ran the gateway as the user" "$(grep -- --user "$SHIM/docker.log" | tail -1)"; pass "prompt mode: the user id crosses into the root phase, so the gateway runs as the user, not root"
 [[ $(snap .share.active) == false ]] || fail "share state"; : >"$SHIM/pkexec.log"; "$CLI" share; [[ $(snap .share.active) == true && $(grep -c pkexec "$SHIM/pkexec.log") == 1 ]] || fail "prompt share" "$(snap .share) $(cat "$SHIM/pkexec.log")"; pass "prompt mode: share is one prompt"
+SHIM_PKEXEC_FAIL=1 "$CLI" share || true; [[ $(snap .share.active) == true && $(snap .share.error) == *"still shared"* ]] || fail "share off dismissed" "$(snap .share)"; pass "prompt mode: a dismissed Stop-sharing prompt keeps the card saying shared, with the reason"
 "$CLI" share; : >"$SHIM/pkexec.log"; "$CLI" unload; [[ $(snap .state) == idle && $(grep -c pkexec "$SHIM/pkexec.log") == 1 ]] || fail "prompt unload" "$(snap .state)"; pass "prompt mode: Stop is one prompt"
 "$CLI" load; : >"$SHIM/pkexec.log"; SHIM_REPLY=nope "$CLI" load; [[ $(snap .error) == *"chat acceptance failed"* && $(grep -c pkexec "$SHIM/pkexec.log") == 2 ]] || fail "prompt rollback" "$(snap .error) $(cat "$SHIM/pkexec.log")"; pass "prompt mode: a failed acceptance costs one more prompt to bring the previous model back"
 [[ $(snap .state) == ready ]] || fail "prompt restore" "$(snap .state)"; pass "prompt mode: the previous model is back and ready"
@@ -331,15 +344,18 @@ export OMARCHY_AI_DOCKER=direct
 : >"$SHIM/toolkit.log"; "$CLI" unload >/dev/null; SHIM_RUNTIMES=runc "$CLI" load; grep -q "pacman" "$SHIM/toolkit.log" || fail "direct toolkit"; pass "direct mode: a missing toolkit is set up behind one prompt, then Start continues"
 "$CLI" load; [[ $(snap .state) == ready ]] || fail "recover" "$(snap .error)"
 
+# nothing can run without the recipe file, but the card still gets a sentence
+echo '{"broken":' >"$TMP/broken.json"; out=$(OMARCHY_AI_RECIPES="$TMP/broken.json" "$CLI" snapshot 2>/dev/null || true)
+[[ $(jq -r .state <<<"$out") == error && $(jq -r .error <<<"$out") == *"recipes.json"* ]] || fail "broken recipes" "$out"; pass "a broken recipes.json still prints an error state for the card"
 # a worker that dies on something unforeseen leaves a reason, not a silent idle or a stale "starting"
 
-# a worker that dies on something unforeseen leaves a reason, not a silent idle or a stale "starting"
 SHIM_RUN_FAIL=omarchy-local-ai-engine OMARCHY_AI_MODEL_ROOT=/nonexistent-root/x "$CLI" load 2>/dev/null || true
 [[ $(snap .error) != "" ]] || fail "unexpected death recorded" "$(snap .state) '$(snap .error)'"; pass "an unforeseen worker failure leaves a reason (and the previous model, when there was one)"
 
 # failures during start are logged and rolled back
 SHIM_RUN_FAIL=omarchy-local-ai-engine "$CLI" load
-[[ $(snap .error) == *"engine failed to start"* || $(snap .error) == *"engine exited"* ]] || fail "start failure" "$(snap .state) $(snap .error)"; pass "engine start failure is reported (the previous model restored when there was one)"
+[[ $(snap .error) == *"engine failed to start"* || $(snap .error) == *"engine exited"* ]] || fail "start failure" "$(snap .state) $(snap .error)"
+[[ $(cat "$SHIM/containers/omarchy-local-ai-engine/state") == running && $(cat "$SHIM/containers/omarchy-local-ai-gateway/state") == running && ! -d $SHIM/containers/omarchy-local-ai-engine-previous ]] || fail "start failure rollback" "$(ls "$SHIM/containers")" pass "engine start failure is reported (the previous model restored when there was one)"
 grep -q "rollback" "$OMARCHY_AI_STATE/log" || fail "logged"; pass "every worker step is in the log"
 
 echo "1..$n"

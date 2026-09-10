@@ -27,10 +27,18 @@ source "$HERE/../lib/agents.sh"
 # shellcheck source=../lib/snapshot.sh
 source "$HERE/../lib/snapshot.sh"
 
-recipes_ok || fail "recipes.json is missing or not the expected schema" || exit 1
+# tools or the recipe file missing: say so where the card reads it, even though nothing else can run
+missing=""; for t in jq curl; do command -v "$t" >/dev/null 2>&1 || missing+=" $t"; done
+if [[ -n $missing ]]; then broken="missing tool:$missing (sudo pacman -S$missing)"
+elif ! recipes_ok; then broken="recipes.json is missing or broken: reinstall the plugin"; fi
+if [[ -n ${broken:-} ]]; then
+  fail "$broken" || :
+  [[ ${1:-snapshot} == snapshot ]] && printf '{"state":"error","error":"%s","operation":{},"model":null,"reason":"","share":{},"agents":{}}\n' "$broken"
+  exit 1
+fi
 
 spawn() { # spawn <op-name> <worker-verb>: detach a worker; it takes the lock itself and reports through the ledger
-  local name=$1; shift
+  local name=$1; shift; state_dir
   if [[ ${OMARCHY_AI_FOREGROUND:-0} == 1 ]]; then "$SELF" "$@" >/dev/null 2>>"$LOGFILE" || true; return; fi
   # the worker is its own session so closing the panel's process never kills it; its pid goes into
   # the ledger right away so the panel turns busy on the next snapshot, not a second later
@@ -46,13 +54,13 @@ current_recipe() { # the one recipe for this machine, gated; prints json or fail
   r=$(recipe_for "$id") || return 1
   r=$(jq -c --argjson m "$m" '. + {gpuIndex:$m.gpu.index, match:{backend:$m.gpu.backend}}' <<<"$r")
   gate=$(gate_reason "$r"); [[ -z $gate ]] || { fail "recipe refused: $gate"; return 1; }
-  driver_ok "$(hardware_json | jq -r .driver)" "$(jq -r '.minDriver // ""' <<<"$r")" \
+  driver_ok "$(jq -r .driver <<<"$m")" "$(jq -r '.minDriver // ""' <<<"$r")" \
     || { fail "needs NVIDIA driver $(jq -r .minDriver <<<"$r") or newer"; return 1; }
   printf '%s\n' "$r"
 }
 
 w_load() {
-  guard || oops "another operation is running"
+  guard || { log "error: another operation is running"; exit 1; }
   trap worker_exit EXIT   # a step that dies unexpectedly still leaves a reason on the card, never a silent idle
   local r id t0
   op download "" "checking the GPU and recipe" 0
@@ -80,7 +88,7 @@ w_load() {
   if ! accept "$r" 2>"$STATE/accept.err"; then
     local why; why=$(sed -n '$s/^local-ai: //p' "$STATE/accept.err" 2>/dev/null); [[ -n $why ]] || why="engine failed to start (see $LOGFILE)"
     log "rollback: $why"; op starting "$id" "rolling back" 0
-    privileged restore >"$STATE/phase.out" 2>>"$LOGFILE" || true
+    privileged restore >"$STATE/phase.out" 2>>"$LOGFILE" || why+="; the previous model could not be restored (see $LOGFILE)"
     oops "$why"
   fi
   # the previous pair stays set aside (stopped) until the next Start or Stop drops it: no second prompt on success
@@ -90,12 +98,12 @@ w_load() {
 }
 
 w_unload() {
-  guard || oops "another operation is running"
+  guard || { log "error: another operation is running"; exit 1; }
   trap worker_exit EXIT
   op unload "" "stopping" 0
-  share_forget
   docker_direct || op unload "" "waiting for your password" 0
   privileged stop >"$STATE/phase.out" 2>>"$LOGFILE" || { why=$(grep '^reason ' "$STATE/phase.out" | tail -1 | cut -c8-); oops "${why:-Stop failed (see $LOGFILE)}"; }
+  share_forget   # only once the published gateway is really gone
   lwrite '.accepted={recipeId:"",servedModel:"",registry:"",apis:[]}'
   op_done; log "unloaded"
 }
@@ -118,8 +126,8 @@ case $cmd in
   load) [[ -z $(busy_pid) ]] || fail "another operation is running" || exit 1; spawn download _worker-load ;;
   unload) [[ -z $(busy_pid) ]] || fail "another operation is running" || exit 1; spawn unload _worker-unload ;;
   open-agent) snapshot_write; open_agent "${1:-}" 2>"$STATE/agent.err" || { m=$(sed -n '$s/^local-ai: //p' "$STATE/agent.err"); refuse "${m:-agent launch failed (see $LOGFILE)}"; exit 1; } ;;
-  share) share_toggle "$@" ;;
-  agent-args) [[ -n ${1:-} ]] || { fail "agent-args <name> [-- flags...]"; exit 1; }; n=$1; shift; [[ ${1:-} == -- ]] && shift; mkdir -p "$STATE/agents/args"; if (( $# )); then printf '%s\0' "$@" >"$STATE/agents/args/$n"; else rm -f "$STATE/agents/args/$n"; fi; log "agent-args $n: $*" ;;
+  share) guard || exit 1; share_toggle "$@" ;;
+  agent-args) [[ -n ${1:-} ]] && printf '%s\n' "${AGENTS[@]}" | grep -qx -- "$1" || { fail "agent-args <agent> [-- flags...], one of: ${AGENTS[*]}"; exit 1; }; n=$1; shift; [[ ${1:-} == -- ]] && shift; mkdir -p "$STATE/agents/args"; if (( $# )); then printf '%s\0' "$@" >"$STATE/agents/args/$n"; else rm -f "$STATE/agents/args/$n"; fi; log "agent-args $n: $*" ;;
   gpu) case ${1:-} in
          ""|auto) rm -f "$STATE/gpu"; log "gpu auto" ;;
          *) [[ $1 =~ ^[a-z-]+:[0-9]+$ ]] || { fail "gpu <backend:index>, as listed in the snapshot"; exit 1; }
@@ -131,7 +139,8 @@ case $cmd in
          [[ $(id -u) == 0 || -n ${OMARCHY_AI_TEST_ROOT:-} ]] || { fail "_root is for pkexec"; exit 1; }
          [[ -f ${1:-} && -n ${2:-} ]] || { fail "_root <env-file> <phase>"; exit 1; }
          if [[ -z ${OMARCHY_AI_ROOT_PHASE:-} ]]; then
-           envf=$1; shift; while IFS= read -r line; do [[ $line =~ ^OMARCHY_AI_[A-Z_]+=[^$\x60]*$ ]] && export "$line"; done <"$envf"
+           envf=$1; shift; re='^(OMARCHY_AI_[A-Z_]+|HF_TOKEN|https?_proxy|HTTPS?_PROXY|no_proxy|NO_PROXY)=[^$`]*$'
+           while IFS= read -r line; do [[ $line =~ $re ]] && export "$line"; done <"$envf"
            export OMARCHY_AI_ROOT_PHASE=1; exec "$SELF" _root "$envf" "$@"
          fi
          shift; p=$1; shift; "phase_$p" "$@" ;;

@@ -117,11 +117,13 @@ open_agent() { # open_agent [name]: default agent when omitted; refuses out loud
   # it is detached and its exit is not the launch result. It goes through uwsm's fast app daemon,
   # which can wedge ("Timed out waiting for pipes", ten seconds per call): a two-second ping decides,
   # and a wedged daemon gets the same terminal command through the plain uwsm client instead.
+  local -a detach=(); command -v setsid >/dev/null 2>&1 && detach=(setsid)   # its own session where util-linux is there (Omarchy always)
   if ! command -v uwsm-app >/dev/null 2>&1 || timeout 2 uwsm-app ping >/dev/null 2>&1; then
-    setsid omarchy-launch-tui --app-id=org.omarchy.agent "${argv[@]}" >/dev/null 2>>"$LOGFILE" </dev/null & disown
+    command -v omarchy-launch-tui >/dev/null 2>&1 || { fail "could not open a terminal for $name: omarchy-launch-tui is missing"; return 1; }
+    "${detach[@]}" omarchy-launch-tui --app-id=org.omarchy.agent "${argv[@]}" >/dev/null 2>>"$LOGFILE" </dev/null & disown
   elif command -v uwsm >/dev/null 2>&1 && command -v xdg-terminal-exec >/dev/null 2>&1; then
     log "uwsm app daemon is not answering; opening $name through uwsm app"
-    setsid uwsm app -- xdg-terminal-exec --app-id=org.omarchy.agent -e "${argv[@]}" >/dev/null 2>>"$LOGFILE" </dev/null & disown
+    "${detach[@]}" uwsm app -- xdg-terminal-exec --app-id=org.omarchy.agent -e "${argv[@]}" >/dev/null 2>>"$LOGFILE" </dev/null & disown
   else fail "could not open a terminal for $name: the uwsm app daemon is not answering"; return 1; fi
   lwrite '.error=""'; snapshot_write   # a launch that worked retires an earlier refusal
 }

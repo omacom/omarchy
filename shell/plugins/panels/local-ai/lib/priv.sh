@@ -24,20 +24,21 @@ docker_direct() { # this process can drive docker without a prompt
   case ${OMARCHY_AI_DOCKER:-} in direct) return 0 ;; prompt) return 1 ;; esac
   [[ $(id -u) == 0 || -w $DOCKER_SOCKET ]]
 }
-docker_mode() { docker_direct && printf direct || printf prompt; }
 
 root_env() { # the plugin's paths, handed to the root phase since pkexec starts from a clean environment
   printf '%s\n' "OMARCHY_AI_USER_HOME=$HOME_DIR" "OMARCHY_AI_STATE=$STATE" "OMARCHY_AI_MODEL_ROOT=$MODEL_ROOT" \
     "OMARCHY_AI_CACHE_ROOT=$CACHE_ROOT" "OMARCHY_AI_HF_HOME=$HF_HOME_DIR" "OMARCHY_AI_PORT=$PORT" "OMARCHY_AI_NETWORK=$NET" \
     "OMARCHY_AI_CONTAINER=$CTR" "OMARCHY_AI_RECIPES=$RECIPES" "OMARCHY_AI_RUN_AS=$RUN_AS" "OMARCHY_AI_POLL=$POLL" \
     "OMARCHY_AI_DOCKER=direct" "OMARCHY_AI_ROOT_PHASE=1"
+  local v; for v in HF_TOKEN http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY; do   # gated downloads and proxies work behind the prompt too
+    [[ -n ${!v:-} ]] && printf '%s=%s\n' "$v" "${!v}"; done; return 0
 }
 elevated() { # elevated <phase> [args]: always through pkexec (root is needed regardless of the socket)
   command -v pkexec >/dev/null 2>&1 || { printf 'reason this needs a password prompt, and pkexec is not installed\n'; return 1; }
   # the paths travel in a 0600 file this user writes, not on the command line: the prompt then reads
   # as this script and a verb ("omarchy-local-ai _root stop"), and root reads only OMARCHY_AI_* lines
   state_dir; root_env >"$STATE/root.env"
-  local rc=0; pkexec "$SELF" _root "$STATE/root.env" "$@" || rc=$?
+  local rc=0; pkexec "$SELF" _root "$STATE/root.env" "$@" 8>&- 9>&- || rc=$?   # never hands the op lock to root
   (( rc == 126 || rc == 127 || rc >= 128 )) && printf 'reason the password prompt was dismissed; nothing was changed\n'   # polkit: 126 dismissed, 127 not authorized; 128+ the prompt was closed by a signal
   return $rc
 }
@@ -54,6 +55,9 @@ phase_toolkit() { toolkit_install || { printf 'reason the NVIDIA container toolk
 
 phase_start() { # phase_start <recipe-file> <download 0|1>: images, weights when asked, set aside, engine, gateway
   local r id why; r=$(cat "$1") || return 1; id=$(jq -r .id <<<"$r")
+  # what root is about to run is re-checked here, not trusted from the user's file
+  [[ $RUN_AS =~ ^[0-9]+:[0-9]+$ ]] || { printf 'reason internal: the user id did not reach the root phase\n'; return 1; }
+  why=$(gate_reason "$r"); [[ -z $why ]] || { printf 'reason recipe refused: %s\n' "$why"; return 1; }
   echo "step checking docker"
   if ! why=$(docker_ok "$(jq -r .match.backend <<<"$r")"); then
     if [[ $why == *"NVIDIA container toolkit"* && -n ${OMARCHY_AI_ROOT_PHASE:-} ]]; then   # a root phase can set it up; the user side asks for one prompt instead
@@ -69,14 +73,16 @@ phase_start() { # phase_start <recipe-file> <download 0|1>: images, weights when
   drop_previous
   set_aside || { printf 'reason could not set aside the running containers\n'; return 1; }
   echo "step starting"
-  start_pair "$r" || { printf 'reason engine failed to start (see %s)\n' "$LOGFILE"; return 1; }
+  start_pair "$r" || { restore_previous || true; printf 'reason engine failed to start (see %s)\n' "$LOGFILE"; return 1; }   # the previous model comes back in this same prompt
 }
-phase_restore() { restore_previous; }
-phase_stop() { stop_all; }
+phase_restore() { restore_previous || { printf 'reason the previous model could not be restored (see %s)\n' "$LOGFILE"; return 1; }; }
+phase_stop() { stop_all || { printf 'reason the containers could not be removed (see %s)\n' "$LOGFILE"; return 1; }; }
 phase_restart_gateway() { # phase_restart_gateway <recipe-file>: the gateway alone, with a fresh publish list
   local r; r=$(cat "$1") || return 1
   exists "$GATEWAY" && owned "$GATEWAY" && docker rm -f "$GATEWAY" >/dev/null 2>&1
-  start_gateway "$r" || { printf 'reason the gateway did not start (see %s)\n' "$LOGFILE"; return 1; }
+  start_gateway "$r" && return 0
+  if [[ -f $SHARE_MARK ]]; then rm -f "$SHARE_MARK"; start_gateway "$r" >/dev/null 2>&1 || true; fi   # back to loopback in this same prompt
+  printf 'reason the gateway did not start (see %s)\n' "$LOGFILE"; return 1
 }
 
 # The user's side of a phase: run it, keep the card current, collect the outcome.

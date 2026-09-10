@@ -3,7 +3,7 @@
 
 RECIPES="${OMARCHY_AI_RECIPES:-$HERE/../recipes.json}"
 
-recipes_ok() { jq -e '.schemaVersion=="omarchy-local-ai/recipes/1" and (.hardware|type=="object")' "$RECIPES" >/dev/null 2>&1; }
+recipes_ok() { jq -e '.schemaVersion=="omarchy-local-ai/recipes/1" and (.hardware|type=="object") and (.gateway.image|type=="string" and test("@sha256:[0-9a-f]{64}$"))' "$RECIPES" >/dev/null 2>&1; }
 registry_commit() { jq -r '.registryCommit' "$RECIPES"; }
 gateway_image() { jq -r '.gateway.image // empty' "$RECIPES"; }
 
@@ -31,7 +31,7 @@ match_hardware() {
     | ([$gpus[]|select(.key==$pick)]|.[0]) as $pinned
     | ([$gpus[]|select(.hardwareId!="")] | sort_by(-.totalMiB, .order) | .[0]) as $auto
     | ($pinned // $auto) as $use
-    | {hardwareId:($use.hardwareId // ""),
+    | {hardwareId:($use.hardwareId // ""), driver:($hw.driver // ""),
        gpu:(if $use==null then null else ($use|del(.hardwareId,.key,.order,.vramGb,.chosen)) end),
        reason:(if $use!=null and $use.hardwareId!="" then ""
                elif ($gpus|length)==0 then "no supported GPU detected"
@@ -48,7 +48,11 @@ gate_reason() {
   local r=$1 reason src tgt ro plug_root hf_root real
   plug_root=$(canon "$(dirname "$MODEL_ROOT")"); hf_root=$(canon "$HF_HOME_DIR")
   reason=$(jq -r '
-    if (.launch.image|test("@sha256:[0-9a-f]{64}$")|not) then "image is not digest-pinned"
+    if (.id|test("^[a-z0-9][a-z0-9-]*$")|not) then "invalid recipe id"
+    elif (.model.repository|test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")|not) then "invalid model repository"
+    elif ((.weights.subdir//"")|test("^([A-Za-z0-9_-][A-Za-z0-9_.-]*(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*)?$")|not) then "invalid weights directory"
+    elif ((.model.servedName//"")|test("[\"\\\\\\x27]")) then "invalid served model name"
+    elif (.launch.image|test("@sha256:[0-9a-f]{64}$")|not) then "image is not digest-pinned"
     elif (.model.revision|test("^[0-9a-f]{40,64}$")|not) then "model revision is not pinned"
     elif ((.launch.networkMode//"bridge")!="bridge") then "requires \(.launch.networkMode) networking"
     elif ((.launch.ipc//"")=="host") then "requires host IPC"

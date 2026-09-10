@@ -58,7 +58,11 @@ Panel {
   property string lastVerb: ""
   property bool actionDone: false
   function act(args) { if (busy || action.running) return; lastVerb = args[0]; actionDone = false; pending = true; pendingTimeout.restart(); action.command = [cli].concat(args); action.running = true }
-  function take(json) { try { snap = JSON.parse(json); if (working || snap.error || (actionDone && lastVerb !== "load" && lastVerb !== "unload")) pending = false; tick() } catch (e) {} }
+  property string localError: ""
+  function take(json) {
+    try { snap = JSON.parse(json); localError = ""; if (working || snap.error || (actionDone && lastVerb !== "load" && lastVerb !== "unload")) pending = false; tick() }
+    catch (e) { if (json.trim() === "") { localError = "the plugin did not answer (see " + stateDir + "/log)"; pending = false } }
+  }
   function tick() {
     var t = Date.parse(operation.startedAt || "")
     elapsed = working && !isNaN(t) ? Math.max(0, Math.round((Date.now() - t) / 1000)) : 0
@@ -68,11 +72,12 @@ Panel {
   // or the vendored file moved on): the card names its recipe, and says a different model is up
   readonly property bool otherRunning: hasRunning && !!snap.running && !snap.running.current
   function title() {
-    if (model) return model.name
     if (otherRunning) return "Older model running"
+    if (model) return model.name
     return "Local AI"
   }
   function status() {
+    if (localError) return localError
     if (snap.error && !pending) return snap.error
     if (pending && !working) return spinner() + " starting"
     if (busy) return spinner() + " " + (operation.detail || state)
@@ -238,7 +243,7 @@ Panel {
           }
         }
         Text { width: parent.width; textFormat: Text.PlainText; text: root.title(); color: root.foreground; font.family: root.bar.fontFamily; font.pixelSize: Style.font.heading; font.weight: Font.Medium; elide: Text.ElideRight }
-        Text { width: parent.width; textFormat: Text.PlainText; visible: root.status() !== ""; text: root.status(); color: root.snap.error ? (root.bar ? root.bar.urgent : root.foreground) : root.dim; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap; maximumLineCount: 3 }
+        Text { width: parent.width; textFormat: Text.PlainText; visible: root.status() !== ""; text: root.status(); color: (root.snap.error || root.localError) ? (root.bar ? root.bar.urgent : root.foreground) : root.dim; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall; wrapMode: Text.WordWrap; maximumLineCount: 3 }
         // What was detected, and which card the recipe is for. One card is a plain line; more than
         // one is a picker, since the person may want the smaller card left free or a different one tried.
         Text { visible: root.gpus.length <= 1; width: parent.width; textFormat: Text.PlainText; text: "GPU · " + root.gpuLine(); color: root.dim; font.family: root.bar.fontFamily; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }

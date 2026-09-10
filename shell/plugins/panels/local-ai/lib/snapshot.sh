@@ -15,13 +15,18 @@ snapshot_write() {
   state_dir
   # a ledger written by an older plugin carries the key under .share: scrub it once, here, where every path passes
   [[ -f $LEDGER ]] && jq -e 'has("share")' "$LEDGER" >/dev/null 2>&1 && lwrite 'del(.share)'
-  local ledger match rec hw_id gpu reason state="" pid running_recipe="" served="" busy=false answering=false engine_up=false
+  local ledger match rec hw_id reason state="" note="" pid running_recipe="" served="" busy=false answering=false engine_up=false
   ledger=$(lread); match=$(match_hardware); hw_id=$(jq -r .hardwareId <<<"$match"); reason=$(jq -r .reason <<<"$match")
   rec=$(recipe_for "$hw_id"); [[ -n $rec ]] && rec=$(jq -c --argjson m "$match" '. + {gpuIndex:$m.gpu.index, match:{backend:$m.gpu.backend}}' <<<"$rec")
   pid=$(busy_pid); [[ -n $pid ]] && busy=true
+  if ! $busy && [[ $(jq -r .op.pid <<<"$ledger") -gt 0 ]]; then # the op's worker is gone without a word (killed): say so, once
+    log "error: worker $(jq -r .op.pid <<<"$ledger") vanished during $(jq -r .op.name <<<"$ledger")"
+    lwrite '.error=$e | .op={name:"",recipeId:"",pid:0,startedAt:"",detail:"",percent:0}' --arg e "stopped unexpectedly while $(jq -r .op.detail <<<"$ledger"); press Start again (see $LOGFILE)"
+    ledger=$(lread)
+  fi
   if docker_direct; then
-    if owned "$ENGINE" && running "$ENGINE"; then engine_up=true; running_recipe=$(container_recipe "$ENGINE"); fi
-    if $engine_up && owned "$GATEWAY" && running "$GATEWAY"; then
+    local e; e=$(live "$ENGINE" || true); [[ $e == "true|1|"* ]] && { engine_up=true; running_recipe=${e#true|1|}; }
+    if $engine_up && [[ $(live "$GATEWAY") == "true|1|"* ]]; then
       served=$(api models 2 2>/dev/null | jq -r '.data[0].id // empty' || true); [[ -n $served ]] && answering=true
     fi
   else # docker would prompt: the gateway answering is the evidence, and the recipe it was started from is on file
@@ -29,20 +34,21 @@ snapshot_write() {
     if [[ -n $served ]]; then answering=true; engine_up=true; running_recipe=$(jq -r '.id // ""' "$STATE/gateway.recipe.json" 2>/dev/null || true); fi
   fi
   if $busy; then state=$(jq -r .op.name <<<"$ledger")
-  elif $answering; then state=ready
+  elif $answering && [[ $(jq -r '.accepted.recipeId // ""' <<<"$ledger") == "$running_recipe" || $(jq -r '(.accepted.recipeId // "") + .error' <<<"$ledger") == "" ]]; then state=ready   # verified, or adopted with nothing against it
+  elif $answering; then state=error; note="the running model was never verified; press Start"   # a worker died between the gateway answering and acceptance
   elif [[ $(jq -r .error <<<"$ledger") != "" ]]; then state=error
-  elif $engine_up; then state=starting
+  elif $engine_up; then state=error; note="the gateway is not answering; press Start or Stop"   # no worker is bringing it up
   else state=idle; fi
   # a running recipe that the vendored file no longer carries is still ours: say so instead of hiding it
   local running_known=true; [[ -n $running_recipe && $running_recipe != "$(jq -r '.id // ""' <<<"$rec")" ]] && running_known=false
   local downloaded=false; [[ -n $rec ]] && weights_present "$rec" && { ! docker_direct || docker image inspect "$(jq -r .launch.image <<<"$rec")" >/dev/null 2>&1; } && downloaded=true
   local gate=""; [[ -n $rec ]] && gate=$(gate_reason "$rec")
-  local driver_min driver_have; driver_have=$(hardware_json | jq -r .driver); driver_min=$(jq -r '.minDriver // ""' <<<"${rec:-null}")
+  local driver_min driver_have; driver_have=$(jq -r .driver <<<"$match"); driver_min=$(jq -r '.minDriver // ""' <<<"${rec:-null}")
   [[ -n $rec && -z $gate ]] && ! driver_ok "$driver_have" "$driver_min" && gate="needs NVIDIA driver $driver_min or newer (have ${driver_have:-none})"
   jq -nc --argjson l "$ledger" --argjson rec "${rec:-null}" --argjson match "$match" --arg state "$state" --arg reason "$reason" --arg gate "$gate" \
     --arg hw "$hw_id" --arg served "$served" --arg rr "$running_recipe" --argjson known "$running_known" --argjson dl "$downloaded" \
-    --argjson agents "$(agents_json)" --argjson share "$(share_state)" --arg reg "$(registry_commit)" --arg t "$(now)" '
-    {schemaVersion:"omarchy-local-ai/snapshot/7", updatedAt:$t, state:$state, error:$l.error, lastStartSeconds:($l.lastStartSeconds//0),
+    --argjson agents "$(agents_json)" --argjson share "$(share_state)" --arg reg "$(registry_commit)" --arg t "$(now)" --arg note "$note" '
+    {schemaVersion:"omarchy-local-ai/snapshot/7", updatedAt:$t, state:$state, error:(if $l.error!="" then $l.error else $note end), lastStartSeconds:($l.lastStartSeconds//0),
      operation:{name:$l.op.name, detail:$l.op.detail, percent:$l.op.percent, startedAt:$l.op.startedAt,
        expectedSeconds:(if $l.op.name=="starting" then ($l.lastStartSeconds//0) else 0 end)},
      hardwareId:$hw, registry:$reg, gpus:$match.gpus, gpuPinned:$match.pinned,
