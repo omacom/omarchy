@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Read the Omarchy Doctrine by DHH
-# omarchy:args=[--full|--interactive|--web]
+# omarchy:args=[--plain|--full|--interactive|--web|1-10]
 # omarchy:examples=omarchy doctrine | omarchy doctrine --full | omarchy doctrine --interactive | omarchy doctrine --web
 
 set -euo pipefail
 
 usage() {
-  echo "Usage: omarchy doctrine [--full|--interactive|--web]"
+  echo "Usage: omarchy doctrine [--plain|--full|--interactive|--web|1-10]"
 }
 
 if (( $# > 1 )); then
@@ -17,7 +17,7 @@ fi
 
 mode=${1:-}
 case "$mode" in
-  "" | --full | --interactive | --web) ;;
+  "" | --plain | --full | --interactive | --web | [1-9] | 10) ;;
   --help | -h)
     usage
     exit 0
@@ -45,57 +45,20 @@ print_doctrine() {
 
 if [[ $mode == "--web" ]]; then
   omarchy-launch-browser "$website"
-elif [[ $mode == "--interactive" ]]; then
+elif [[ $mode == "--interactive" || $mode =~ ^[0-9]+$ ]]; then
   if [[ ! -t 0 || ! -t 1 || ${TERM:-dumb} == "dumb" ]]; then
-    echo "The interactive reader needs a terminal. Use 'omarchy doctrine' or 'omarchy doctrine --full'." >&2
-    exit 2
+    if [[ $mode =~ ^[0-9]+$ ]]; then
+      website=$(bash "$OMARCHY_PATH/default/omarchy/doctrine-reader.sh" url "$mode")
+      print_doctrine "$mode"
+    else
+      echo "The interactive reader needs a terminal. Use 'omarchy doctrine' or 'omarchy doctrine --full'." >&2
+      exit 2
+    fi
+  else
+    initial=0
+    [[ $mode == "--interactive" ]] || initial=$mode
+    bash "$OMARCHY_PATH/default/omarchy/doctrine-reader.sh" start "$initial"
   fi
-
-  options=()
-  for index in "${!titles[@]}"; do
-    printf -v option '%02d  %s' "$((index + 1))" "${titles[index]}"
-    options+=("$option")
-  done
-  options+=("Read the full doctrine" "Open the website" "Quit")
-  selected=${options[0]}
-
-  gum style --border normal --padding "1 2" "The Omarchy Doctrine" "By DHH"
-  echo
-
-  while selected=$(gum choose --header "Choose a principle to read" --height=13 --selected="$selected" "${options[@]}"); do
-    website="https://omarchy.org/doctrine/"
-    case "$selected" in
-      "Quit") break ;;
-      "Open the website")
-        omarchy-launch-browser "$website"
-        ;;
-      *)
-        number=0
-        if [[ $selected != "Read the full doctrine" ]]; then
-          number=$((10#${selected:0:2}))
-          slug=$(printf '%s' "${titles[number - 1]}" | tr '[:upper:]' '[:lower:]' | sed "s/[^a-z0-9 ]//g; s/ /-/g")
-          website+="#$slug"
-        fi
-        while true; do
-          read -r terminal_rows terminal_columns < <(stty size)
-          width=$((terminal_columns - 10))
-          if (( width > 80 )); then
-            width=80
-          elif (( width < 20 )); then
-            width=20
-          fi
-          print_doctrine "$number" "$width" | gum pager --show-line-numbers=false
-          action=$(gum choose --header "$selected" "Back to principles" "Read again" "Open in browser") || break
-          if [[ $action == "Back to principles" ]]; then
-            break
-          elif [[ $action == "Open in browser" ]]; then
-            omarchy-launch-browser "$website"
-            break
-          fi
-        done
-        ;;
-    esac
-  done
 elif [[ $mode == "--full" ]]; then
   print_doctrine
 else

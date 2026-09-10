@@ -59,9 +59,11 @@ Every command takes `--help` too, whether you ask a whole group (`omarchy captur
 
 ### Reading the Omarchy Doctrine
 
-Run `omarchy doctrine` to print the ten principles behind Omarchy, or `omarchy doctrine --full` to print DHH's explanations. Both work offline and produce plain text you can copy or pipe into another command.
+Run `omarchy doctrine` (or `omarchy doctrine --plain`) to print the ten principles behind Omarchy, or `omarchy doctrine --full` to print DHH's explanations. Both work offline and produce plain text you can copy or pipe into another command.
 
-Use `omarchy doctrine --interactive` to explore the doctrine with Omarchy's themed Gum menus and pager. Choose a principle or the full document, scroll to read, then press `q` to leave the pager. The next menu lets you return to the principles, read again, or open the corresponding section in your browser. Press `Esc` to leave a menu. You can also open the published doctrine directly with `omarchy doctrine --web`.
+Use `omarchy doctrine --interactive` for a reader with live previews, built with the same Bash and fzf tools as Omarchy's package pickers. Arrow keys, Vim keys, number keys (`0` for ten), and mouse selection navigate the principles. Press `Enter` or double-click to focus on an explanation, `f` for the whole doctrine, and `Esc` to return to the index. In reading views, up/down arrows and the mouse wheel scroll, and left/right arrows switch principles. Press `q` to quit. The preview moves below the index in narrow terminals.
+
+Click **Index**, **Full**, or **Website** in the reader's header, or click its footer URL to open the current section online. The `w` key also opens that section. `omarchy doctrine --web` opens the published doctrine directly. `omarchy doctrine 3` opens the third principle; when piped, it prints that explanation as plain text instead.
 
 ### Opening the menu from the terminal
 
