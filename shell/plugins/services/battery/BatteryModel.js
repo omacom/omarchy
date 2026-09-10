@@ -4,7 +4,7 @@ function batteryPercentage(device) {
 }
 
 function isDischarging(device, onBattery, dischargingState) {
-  return !!(device && device.isPresent && onBattery && device.state === dischargingState)
+  return !!(device && device.isPresent && device.state === dischargingState)
 }
 
 function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, alreadyNotified) {
