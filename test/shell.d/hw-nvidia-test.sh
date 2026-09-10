@@ -97,3 +97,34 @@ assert_detects "a non-display NVIDIA function is not a GPU" no no no
 
 write_pci_devices
 assert_detects "a machine with no PCI devices detects nothing" no no no
+
+assert_only() {
+  local description="$1" expected="$2"
+
+  local actual=no
+  hw_nvidia nvidia-only && actual=yes
+
+  [[ $actual == "$expected" ]] ||
+    fail "$description" "omarchy-hw-nvidia-only: expected $expected, got $actual"
+
+  pass "$description"
+}
+
+# NVIDIA GB203 [RTX 5080] on its own.
+write_pci_devices 0x10de:0x2c02:0x030000
+assert_only "a machine with only an NVIDIA GPU is NVIDIA-only" yes
+
+# NVIDIA GB206M [RTX 5070 Mobile] alongside AMD HawkPoint integrated graphics.
+write_pci_devices 0x1002:0x1900:0x030000 0x10de:0x2d59:0x030000
+assert_only "a hybrid laptop is not NVIDIA-only" no
+
+# The GA106 audio function is not a GPU, so it does not make a hybrid.
+write_pci_devices 0x10de:0x2560:0x030200 0x10de:0x228e:0x040300
+assert_only "a non-display NVIDIA function does not break NVIDIA-only" yes
+
+# AMD Cezanne integrated graphics.
+write_pci_devices 0x1002:0x15e7:0x030000
+assert_only "a machine without an NVIDIA GPU is not NVIDIA-only" no
+
+write_pci_devices
+assert_only "a machine with no PCI devices is not NVIDIA-only" no

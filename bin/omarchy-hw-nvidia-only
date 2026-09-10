@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether an NVIDIA GPU is the only GPU in the computer.
+
+# Read the cached sysfs IDs rather than lspci, which reads PCI config space and
+# resumes runtime-suspended GPUs.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+nvidia=false
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/class") == 0x03* ]] || continue
+
+  if [[ $(< "$device/vendor") == "0x10de" ]]; then
+    nvidia=true
+  else
+    exit 1
+  fi
+done
+
+[[ $nvidia == true ]]
