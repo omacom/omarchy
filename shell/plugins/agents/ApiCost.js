@@ -63,6 +63,9 @@ var BUNDLED_CODEX_MODELS = {
 }
 
 var BUNDLED_CODEX_ALIASES = {
+  // User-authorized estimate, 2026-09-10; not a proven current billing alias.
+  // Basis: https://alignment.openai.com/auto-review/ (2026-04-30).
+  "codex-auto-review": "gpt-5.4",
   "gpt-5.6": "gpt-5.6-sol",
   "gpt-daybreak-blue-latest": "gpt-5.6-sol"
 }
@@ -231,6 +234,10 @@ function resolveRate(providerId, modelId, rawOverrides) {
     if (bundledAliased) {
       bundledAliased.alias = id
       bundledAliased.aliasOrigin = "documented-provider-alias"
+      if (id === "codex-auto-review") {
+        bundledAliased.aliasOrigin = "user-authorized-estimate"
+        bundledAliased.assumptions.push("Provisional GPT-5.4 mapping chosen 2026-09-10 from OpenAI's 2026-04-30 Auto-review article; not proof of the current underlying or billed model")
+      }
       return bundledAliased
     }
   }

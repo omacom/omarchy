@@ -70,6 +70,28 @@ assertDeepEqual(allKindsCost.components, { input: 10, output: 50, cacheRead: 1, 
 assert(allKindsCost.assumptions.join(' ').includes('Standard short-context'),
   'missing request tariff metadata is disclosed as a standard estimate')
 
+const guardian = pricing.resolveRate('codex', 'codex-auto-review', {})
+assertEqual(guardian.modelId, 'gpt-5.4', 'guardian uses the explicitly provisional GPT-5.4 estimate')
+assertDeepEqual(guardian.rates, { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: null },
+  'guardian standard rates retain unknown cache-write pricing')
+assertEqual(guardian.aliasOrigin, 'user-authorized-estimate', 'guardian alias is not labeled provider-proven')
+assert(guardian.assumptions.join(' ').includes('2026-09-10')
+  && guardian.assumptions.join(' ').includes('not proof'), 'guardian uncertainty is disclosed through existing assumptions')
+const guardianBucket = bucket('codex-auto-review', {
+  inputTokens: 1000000, outputTokens: 1000000, cacheReadInputTokens: 1000000, cacheCreationInputTokens: 0
+})
+assertEqual(pricing.priceBucket('codex', guardianBucket, {}).total, 17.75, 'guardian prices measured categories at GPT-5.4 standard rates')
+assertEqual(guardianBucket.rawModel, 'codex-auto-review', 'pricing leaves recorded model identity untouched')
+assertEqual(pricing.resolveRate('codex', 'codex-auto-review', pricing.parseOverrides(JSON.stringify({ models: {
+  'codex-auto-review': { input: 7, output: 8, cacheRead: 0, cacheWrite: 0 }
+} }))).rates.input, 7, 'direct manual guardian rates override the provisional pin')
+assertEqual(pricing.resolveRate('codex', 'codex-auto-review', pricing.parseOverrides(JSON.stringify({
+  aliases: { 'codex-auto-review': 'gpt-6-astra' }
+}))).modelId, 'gpt-6-astra', 'manual guardian alias overrides the provisional pin')
+assertEqual(pricing.priceBucket('codex', bucket('codex-auto-review', {
+  inputTokens: 0, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 10
+}), {}).status, 'unknown', 'unknown guardian cache-write tariff is not forced complete')
+
 const special = bucket('gpt-5.6-sol', {
   inputTokens: 1000000, outputTokens: 1000000,
   cacheReadInputTokens: 0, cacheCreationInputTokens: 0
