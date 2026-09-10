@@ -489,10 +489,21 @@ pass "put places a widget through a ready shell"
 # A panel left open when the session goes idle is a layer-shell surface drawn
 # above the fullscreen screensaver, which leaves the widget's contents on a
 # screen meant to conceal the session.
-if ! rg -q 'resolveEnabledId\("omarchy\.idle"\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+# Enabling a clone changes config without touching installedPlugins, so the
+# binding only re-resolves if it reads the registry revision.
+if ! perl -0ne 'exit(/idleServiceId: \{[^}]*?registryRevision[^}]*?resolveEnabledId\("omarchy\.idle"\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
   fail "bar follows the enabled idle service, including a user clone"
 fi
 pass "bar follows the enabled idle service, including a user clone"
+
+# Services register asynchronously; shell.services is the binding dependency
+# that re-resolves the idle service once it appears.
+if ! rg -q 'idleService: shell && shell\.services \? shell\.serviceFor\(idleServiceId\)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar picks up the idle service once it registers"
+fi
+pass "bar picks up the idle service once it registers"
 
 if ! rg -q 'onScreensaverActiveChanged: if \(screensaverActive\) closeActivePopout\(\)' \
   "$ROOT/shell/plugins/bar/Bar.qml"; then
@@ -500,9 +511,16 @@ if ! rg -q 'onScreensaverActiveChanged: if \(screensaverActive\) closeActivePopo
 fi
 pass "an open bar panel closes while the screensaver is active"
 
+if ! perl -0ne 'exit(/onActivePopoutChanged: \{[^}]*?if \(screensaverActive && activePopout\) Qt\.callLater\(closeActivePopout\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "a bar panel opened while the screensaver is up closes"
+fi
+pass "a bar panel opened while the screensaver is up closes"
+
 # Third-party plugin panels register through the same popout coordinator, so
-# closing whatever owns the popout covers them without naming plugin ids.
-if ! perl -0ne 'exit(/function closeActivePopout\(\)\s*\{[^}]*?"close" in activePopout[^}]*?\}/s ? 0 : 1)' \
+# closing whatever owns the popout covers them without naming plugin ids. Like
+# requestPopout, it falls back to closeForPopoutSwitch for owners without close.
+if ! perl -0ne 'exit(/function closeActivePopout\(\)\s*\{[^}]*?"close" in activePopout[^}]*?"closeForPopoutSwitch" in activePopout[^}]*?\}/s ? 0 : 1)' \
   "$ROOT/shell/plugins/bar/Bar.qml"; then
   fail "closing the popout goes through whichever owner registered it"
 fi

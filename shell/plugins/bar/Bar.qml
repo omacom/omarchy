@@ -31,12 +31,14 @@ Item {
   // the panel above it and leaves whatever the widget was showing on a screen
   // meant to conceal the session. Close the panel whenever the enabled idle
   // service reports a screensaver window. Resolve through the registry so this
-  // also follows a user-cloned idle service.
-  readonly property string idleServiceId: shell && shell.pluginRegistry
-    ? shell.pluginRegistry.resolveEnabledId("omarchy.idle")
-    : "omarchy.idle"
-  readonly property var idleService: shell && typeof shell.serviceFor === "function"
-    ? shell.serviceFor(idleServiceId) : null
+  // also follows a user-cloned idle service; enabling a clone only bumps the
+  // registry revision, so the binding has to read it.
+  readonly property string idleServiceId: {
+    if (!shell || !shell.pluginRegistry) return "omarchy.idle"
+    var revision = shell.pluginRegistry.registryRevision
+    return shell.pluginRegistry.resolveEnabledId("omarchy.idle")
+  }
+  readonly property var idleService: shell && shell.services ? shell.serviceFor(idleServiceId) : null
   readonly property bool screensaverActive: !!idleService && idleService.screensaverWindowCount > 0
   onScreensaverActiveChanged: if (screensaverActive) closeActivePopout()
   // Manifest for the active bar option. Present for custom bars and useful for
@@ -326,7 +328,12 @@ Item {
     pluginBarApis = next
   }
 
-  onActivePopoutChanged: syncAllPluginBarApiObjects()
+  onActivePopoutChanged: {
+    syncAllPluginBarApiObjects()
+    // A panel can also be opened while the screensaver is already up (over
+    // IPC, say), when screensaverActive has no change left to report.
+    if (screensaverActive && activePopout) Qt.callLater(closeActivePopout)
+  }
   onClickTargetsChanged: syncAllPluginBarApiObjects()
   onLayoutConfigChanged: syncAllPluginBarApiObjects()
   onModuleSlotsChanged: Qt.callLater(prunePluginBarApis)
@@ -570,6 +577,7 @@ Item {
   function closeActivePopout() {
     if (!activePopout) return
     if ("close" in activePopout) activePopout.close()
+    else if ("closeForPopoutSwitch" in activePopout) activePopout.closeForPopoutSwitch()
     releasePopout(activePopout)
   }
 
