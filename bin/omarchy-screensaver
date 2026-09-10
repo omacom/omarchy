@@ -35,6 +35,20 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# The compositor can map the screensaver window before focus has settled on it,
+# which would trip the focus check below a moment after launch and dismiss the
+# screensaver immediately. Wait until the window has focus (or a short grace
+# period elapses) before arming that check.
+wait_for_focus() {
+  local deadline=$((SECONDS + 3))
+  while ((SECONDS < deadline)); do
+    screensaver_in_focus && return 0
+    sleep 0.1
+  done
+}
+
+wait_for_focus
+
 logo="$HOME/.config/omarchy/branding/screensaver.txt"
 [[ -f $logo ]] || logo="$OMARCHY_PATH/logo.txt"
 
