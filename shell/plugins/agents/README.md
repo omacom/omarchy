@@ -9,8 +9,12 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 ## Panel
 
-- **Hero** — the mark, the tool, and the plan it runs on ("Max 20x", "Pro").
-  Auth and endpoint problems replace the plan line and repeat in a card.
+- **Hero** — the mark, the tool, and the plan it runs on ("Max 20x", "Pro",
+  "Go"). Auth and endpoint problems replace the plan line and repeat in a
+  card; so does an exhausted rate-limit window, which explains what happens
+  next (blocked, or billed to the Zen balance). A record that survives a
+  refresh cycle without being rewritten earns a `stale` detail pill — the
+  collector behind it stopped running.
 - **Subscription switch** — one chip per enabled agent (`h`/`l` or click).
   It appears only when more than one agent is enabled.
 - **Limits** — the percentage of each allowance used, a matching meter, and
@@ -55,7 +59,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
-| `opencode-go` | Rolling 5-hour, weekly, and monthly Go-plan meters scraped from the opencode.ai workspace page | Server-side per-request records from the workspace usage page, grouped by day and model |
+| `opencode-go` | Rolling 5-hour, weekly, and monthly Go-plan meters scraped from the opencode.ai workspace page (rate-limited windows reported at full with a status card) | Server-side per-request records from the workspace usage page, grouped by day and model |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -71,26 +75,37 @@ OpenCode Go is opencode.ai's Go subscription plan: three credit windows — a
 rolling 5-hour, a weekly, and a monthly — each reported as a percentage with
 a reset time. There is no usage API, so the collector reads the workspace
 console pages: the meters from `/workspace/<id>/go` and the per-request
-token records from the usage list, using the `auth` session cookie any browser
-on the machine stores for opencode.ai. Firefox and Zen keep cookies in
-plaintext sqlite; Chrome-family profiles (Chrome, Chromium, Brave, Edge,
-Vivaldi, Opera — including Flatpak and snap layouts) are read the same way,
-deciphering their encrypted values with the browser's own SafeStorage
-password from the Secret Service (`secret-tool` must exist and the same
-user's keyring must be unlocked). Old `v10`-prefixed rows and the
-keyringless "peanuts" fallback are handled too; newer app-bound (`v20+`)
-rows cannot be deciphered outside the browser and are skipped, as are
-stores on machines without the `cryptography` Python module — the collector
-keeps working from the other browsers either way. The console renders only the newest 50
-requests in HTML and fetches older pages on demand, so the collector pages
-through them and keeps the trailing 7 local days — "tokens by day" and
-"tokens by model" both describe that week, and a day survives a later
-refresh once it has left the newest page. Session counts are not exposed, so
-the panel hides the prompt/session line. A workspace is
-required: set `workspaceId` in `~/.config/omarchy/agents/opencode-go.json`
-(or `OPENCODE_WORKSPACE`) when the session has more than one. With no
-sign-in and no previously recorded meters the provider stays hidden — the
-panel only lists providers that have produced data. Once meters have been
+token records from the usage list, using the `auth` session cookie any
+browser on the machine stores for opencode.ai.
+
+Cookies come from every browser on the machine:
+- Firefox and Zen keep them in plaintext sqlite; the collector reads those
+  profiles directly.
+- Chrome-family browsers (Chrome, Chromium, Brave, Edge, Vivaldi, Opera —
+  including Flatpak and snap layouts) encrypt their values with the
+  browser's SafeStorage password. The collector deciphers them with that
+  same password from the Secret Service (`secret-tool` must exist and the
+  same user's keyring must be unlocked), covering both the modern `v11`
+  fixed-IV layout and the legacy `v10` layout via the keyringless "peanuts"
+  fallback. Newer app-bound (`v20+`) rows cannot be deciphered outside the
+  browser and are skipped, as are stores on machines without the
+  `cryptography` Python module — the collector keeps working from the other
+  browsers either way.
+- When several browsers hold a session for opencode.ai, the one used most
+  recently wins.
+
+The console renders only the newest 50 requests in HTML and fetches older
+pages on demand, so the collector pages through them and keeps the trailing
+7 local days — "tokens by day" and "tokens by model" both describe that
+week, and a day survives a later refresh once it has left the newest page.
+Opening the panel runs a limits-only refresh: the meters are fetched fresh,
+the usage walk is skipped, and the previous record's stats stay on the
+chart rather than blanking out. Session counts are not exposed, so the
+panel hides the prompt/session line. A workspace is required: set
+`workspaceId` in `~/.config/omarchy/agents/opencode-go.json` (or
+`OPENCODE_WORKSPACE`) when the session has more than one. With no sign-in
+and no previously recorded meters the provider stays hidden — the panel
+only lists providers that have produced data. Once meters have been
 recorded, a stale or missing sign-in keeps the last meters visible with a
 status card until their windows reset.
 
@@ -178,8 +193,9 @@ the last 7 days, and the all-time totals cover every machine you code on —
 active days are unioned by date rather than summed. Rate limits stay
 per-account and are never merged. A record may declare `"scope": "account"`
 when its stats are account-global rather than machine-local (Fireworks'
-billing API); those merge by taking the widest value instead of summing, so
-the same account synced from two machines is not counted twice.
+billing API and OpenCode Go's server-side usage); those merge by taking the
+widest value instead of summing, so the same account synced from two
+machines is not counted twice.
 
 One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
