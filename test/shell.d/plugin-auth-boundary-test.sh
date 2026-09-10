@@ -62,6 +62,20 @@ assert(
   !store.has('omarchy.lock') && store.isTrusted('omarchy.lock'),
   'authentication classification survives service teardown'
 )
+
+const shellSource = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const fnMatch = shellSource.match(/function manifestHasKind\(manifest, kind\) \{[\s\S]*?\n {2}\}/)
+assert(fnMatch, 'manifestHasKind found in shell.qml')
+const manifestHasKind = new Function('manifest', 'kind', fnMatch[0].replace(/^function manifestHasKind\([^)]*\) \{/, '').replace(/\}$/, ''))
+
+assert(manifestHasKind({ kinds: ['menu', 'bar-widget'] }, 'menu') === true, 'manifestHasKind accepts array kinds')
+assert(manifestHasKind({ kinds: ['menu', 'bar-widget'] }, 'panel') === false, 'manifestHasKind rejects unmatched array kinds')
+const qvariantList = { 0: 'menu', 1: 'bar-widget', length: 2 }
+assert(Array.isArray(qvariantList) === false, 'qvariantList is not Array.isArray')
+assert(manifestHasKind({ kinds: qvariantList }, 'menu') === true, 'manifestHasKind accepts QVariantList / array-like kinds')
+assert(manifestHasKind({ kinds: qvariantList }, 'panel') === false, 'manifestHasKind rejects unmatched QVariantList kinds')
+assert(manifestHasKind(null, 'menu') === false, 'manifestHasKind handles null manifest')
+assert(manifestHasKind({}, 'menu') === false, 'manifestHasKind handles missing kinds')
 JS
 
 qml_matches "$shell_qml" 'inst\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||
