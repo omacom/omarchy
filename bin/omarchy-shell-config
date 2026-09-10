@@ -44,6 +44,12 @@ NORMALIZE='
 # Apply a jq program to the source file and atomically write the result to the
 # user config, then refresh the running shell. Extra args after the program are
 # forwarded to jq (e.g. --arg/--argjson).
+#
+# The config is often a symlink into a dotfiles repo (the manual recommends
+# Stow), so stage the result beside the resolved target and rename onto that.
+# A rename onto the path itself would swap the link for a regular file, and a
+# staging file in /tmp usually sits on another filesystem, so the "atomic" mv
+# was a copy anyway.
 _SHELL_CONFIG_TMP=""
 cleanup_shell_config_tmp() {
   if [[ -n $_SHELL_CONFIG_TMP ]]; then rm -f "$_SHELL_CONFIG_TMP"; fi
@@ -53,10 +59,14 @@ trap cleanup_shell_config_tmp EXIT
 commit() {
   local program="$1"
   shift
-  mkdir -p "$(dirname "$CONFIG_FILE")"
-  _SHELL_CONFIG_TMP=$(mktemp)
+  local target
+  target=$(readlink -m -- "$CONFIG_FILE")
+  mkdir -p "$(dirname "$target")"
+  _SHELL_CONFIG_TMP=$(mktemp -p "$(dirname "$target")" .shell.json.XXXXXX)
   jq -S -e "$@" "$program" "$(source_file)" >"$_SHELL_CONFIG_TMP" || fail "could not update shell config"
-  mv "$_SHELL_CONFIG_TMP" "$CONFIG_FILE"
+  # mktemp creates 0600; keep the mode the config already had (0644 for a new one).
+  chmod --reference="$target" "$_SHELL_CONFIG_TMP" 2>/dev/null || chmod 644 "$_SHELL_CONFIG_TMP"
+  mv -- "$_SHELL_CONFIG_TMP" "$target"
   _SHELL_CONFIG_TMP=""
   refresh_shell_config
 }
