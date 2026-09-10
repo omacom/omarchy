@@ -525,6 +525,40 @@ def build_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
   }
 
 
+# The field names build_stats emits; previous_stats reuses exactly this set
+# so a limits-only record never loses or fabricates a stat the panel reads.
+STATS_FIELDS = [
+  "todayPrompts", "todaySessions", "todayTotalTokens", "todayTokensByModel",
+  "recentDays", "modelUsage", "totalPrompts", "totalSessions",
+  "activeDays", "activeDates",
+]
+
+
+def previous_stats() -> dict[str, Any]:
+  """Stats from the record the last run left for the panel.
+
+  A limits-only refresh (the panel opening) has no walk to tally stats from,
+  but it must not blank the chart that the last full run drew: Claude and
+  Codex reuse their recent scans in this mode, and the state record is the
+  only recent scan this collector has. When there is no previous record —
+  or one without the full stats shape — the zero-shape stands in, exactly as
+  if no run had written yet.
+  """
+  root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "omarchy" / "agents" / "usage"
+  try:
+    data = json.loads((root / f"{AGENT_ID}.json").read_text(encoding="utf-8"))
+  except Exception:
+    return build_stats([])
+  if not isinstance(data, dict) or data.get("id") != AGENT_ID:
+    return build_stats([])
+  stats = {key: data[key] for key in STATS_FIELDS if key in data}
+  if len(stats) != len(STATS_FIELDS):
+    # A partial (e.g. older) record would leave the panel without the
+    # sections it keys off; a full zero-shape is safer than a partial one.
+    return build_stats([])
+  return stats
+
+
 # ------------------------------------------------------------ limits cache
 #
 # The meters scraped on a healthy run are cached so a later refresh failure
@@ -707,6 +741,7 @@ def build_record(
   plan: str,
   records: list[dict[str, Any]],
   go_config: dict[str, Any] | None = None,
+  stats: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
   go_config = go_config or {}
   limits = build_limits(meters)
@@ -718,10 +753,11 @@ def build_record(
     usageStatusText=status_text,
     authHelpText=auth_help,
   )
-  # Stats always ride along, zero-shaped when no usage records parsed: the
-  # panel keys off their presence for the today/total lines and merges them
-  # across providers.
-  record.update(build_stats(records))
+  # Stats always ride along: freshly tallied from the usage walk, or reused
+  # from the previous record when a limits-only refresh had no walk to tally
+  # from. The panel keys off their presence for the today/total lines and
+  # merges them across providers.
+  record.update(stats if stats is not None else build_stats(records))
   return record
 
 
@@ -811,15 +847,20 @@ def main() -> int:
   write_limits_cache(build_limits(meters))
 
   # Limits are the point; a usage walk that fails entirely still shows them.
-  # A limits-only refresh (the panel opening) skips the walk altogether.
+  # A limits-only refresh (the panel opening) skips the walk and keeps the
+  # last record's stats — the chart must not blank out every time the panel
+  # opens, pending the next full refresh.
   records = []
-  if not args.limits_only:
+  stats = None
+  if args.limits_only:
+    stats = previous_stats()
+  else:
     try:
       records = fetch_usage_records(cookie, workspace)
     except Exception:
       records = []
 
-  print_record(build_record(meters, plan, records, go_config))
+  print_record(build_record(meters, plan, records, go_config, stats))
   return 0
 
 

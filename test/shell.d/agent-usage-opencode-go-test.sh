@@ -502,6 +502,15 @@ assert len(cached_limits) == 3 and cached_limits[0]["title"] == "Rolling", \
     "the limits cache carries the fresh meters with their window titles"
 
 # --- main() with --limits-only: fresh meters, no usage walk ----------------
+# The panel opens every time with a limits-only refresh: the walk must be
+# skipped, and the chart must keep the stats the last full run recorded
+# instead of blanking out. A hermetic state dir keeps prior-record reads away
+# from the real user's state.
+state_root = os.path.join(fixture_dir, "state")
+state_usage_dir = os.path.join(state_root, "omarchy", "agents", "usage")
+os.makedirs(state_usage_dir, exist_ok=True)
+os.environ["XDG_STATE_HOME"] = state_root
+
 module.fetch_page = lambda cookie, path: go_page
 module.fetch_usage_chunk = fake_chunk
 fetched_pages.clear()
@@ -513,8 +522,30 @@ assert exit_code == 0, "main returns 0 for a limits-only run"
 limits_only_run = json.loads(captured.getvalue())
 assert fetched_pages == [], "--limits-only skips the usage walk"
 assert limits_only_run["ready"] is True, "a limits-only run stays ready"
-assert limits_only_run["todayTotalTokens"] == 0, "a limits-only run yields zero-shaped stats"
+assert limits_only_run["todayTotalTokens"] == 0, "a limits-only run with no prior record yields zero-shaped stats"
 assert len(limits_only_run["limits"]) == 3, "a limits-only run keeps the fresh meters"
+
+with open(os.path.join(state_usage_dir, "opencode-go.json"), "w", encoding="utf-8") as handle:
+    json.dump({
+        "schemaVersion": 1, "id": "opencode-go", "ready": True,
+        "todayPrompts": 126, "todaySessions": 0, "todayTotalTokens": 3120000,
+        "todayTokensByModel": {"deepseek-v4-flash": 3120000},
+        "recentDays": [{"date": today.isoformat(), "messageCount": 3120000}],
+        "modelUsage": {"deepseek-v4-flash": {"inputTokens": 100, "outputTokens": 50}},
+        "totalPrompts": 400, "totalSessions": 0, "activeDays": 3,
+        "activeDates": [today.isoformat()],
+    }, handle)
+fetched_pages.clear()
+captured = io.StringIO()
+with contextlib.redirect_stdout(captured):
+    exit_code = module.main()
+assert exit_code == 0, "main returns 0 for a limits-only run with prior stats"
+reused = json.loads(captured.getvalue())
+assert fetched_pages == [], "the walk stays skipped even with a prior record"
+assert reused["todayPrompts"] == 126, "limits-only keeps the prior record's today stats"
+assert reused["recentDays"][-1]["messageCount"] == 3120000, "limits-only keeps the prior chart"
+assert reused["modelUsage"]["deepseek-v4-flash"]["inputTokens"] == 100, "limits-only keeps the prior model rows"
+assert len(reused["limits"]) == 3, "limits-only still refreshes the meters"
 
 print(json.dumps({
     "plan": plan,
