@@ -593,14 +593,16 @@ def oauth_login(claude_dir: Path) -> tuple[str, int, str]:
   return str(login.get("accessToken") or ""), number(login.get("expiresAt")), plan
 
 
+# The rate-limit tier names the ceiling, not the plan: a Team premium seat
+# runs on `default_claude_max_5x` while paying for Team. Lead with the
+# subscription and keep the multiplier as its qualifier, so Max still reads
+# "Max 5x" and a Team seat reads "Team 5x" rather than passing as Max.
 def plan_label(tier: str, subscription: str) -> str:
-  if tier:
-    match = re.search(r"max_(\d+x)", tier, re.IGNORECASE)
-    if match:
-      return "Max " + match.group(1)
-  if subscription:
-    return subscription[0].upper() + subscription[1:]
-  return ""
+  plan = subscription[0].upper() + subscription[1:] if subscription else ""
+  match = re.search(r"max_(\d+x)", tier, re.IGNORECASE) if tier else None
+  if not match:
+    return plan
+  return (plan or "Max") + " " + match.group(1)
 
 
 def parse_utilization(value: Any) -> float:
