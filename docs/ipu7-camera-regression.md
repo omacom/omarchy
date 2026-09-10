@@ -8,11 +8,19 @@ The captured [fixtures](../test/shell.d/fixtures/ipu7-camera-graph/README.md) sh
 
 On 10 September 2026, the published [stable](https://pkgs.omarchy.org/stable/x86_64/omarchy.db), [RC](https://pkgs.omarchy.org/rc/x86_64/omarchy.db) and [edge](https://pkgs.omarchy.org/edge/x86_64/omarchy.db) package databases all contained `linux-ptl 7.2.3.arch1-1`. Stable and RC published `intel-ipu7-camera 1.0.5-1`; edge published `1.0.5-2`. The latter is the jsoncpp rebuild in [omarchy-pkgs #361](https://github.com/omacom/omarchy-pkgs/pull/361), not a camera graph fix. No fix for #10948 was identified in the reviewed Omarchy or package development branches. The [dev channel](https://github.com/omacom/omarchy/blob/quattro/bin/omarchy-channel-set) uses a linked source checkout over edge packages, not a fourth package repository. These are dated audit observations, not permanent assertions about channel contents.
 
-## Proposed package correction
+## Origin and implementation
 
-Resolve the contract between the kernel's `ipu-bridge` CVS endpoint discovery and the separately packaged `intel_cvs` driver in `omacom/omarchy-pkgs`. IPU7 must not await a V4L2 endpoint which that driver does not register. A maintainer-reviewed compatibility change could preserve the previous sensor graph for the affected Panther Lake IDs until the packaged CVS driver implements the required subdevice. An alternative is to supply that matching driver support. The scope and choice belong with the package maintainers, including checking other CVS hardware before changing discovery.
+Linux 7.2 introduced the native CVS V4L2 driver in [8e2b43d2c10b](https://github.com/torvalds/linux/commit/8e2b43d2c10b1b5f42805810c6854470d8774e60), immediately followed by the CVS-aware IPU graph in [c6b1b34b5090](https://github.com/torvalds/linux/commit/c6b1b34b509032c7e7cef9efc63cab55c2ad309e). The intended path is sensor → CVS → IPU. Omarchy adopted the new graph with Linux 7.2.3 while leaving `CONFIG_VIDEO_INTEL_CVS` unset and retaining its legacy `vision-drivers` DKMS module. That older `intel_cvs` does not register the V4L2 endpoint awaited by IPU7.
 
-This draft supplies diagnostic coverage and acceptance criteria only. It changes no installed configuration, package, module, service, sleep hook or kernel, and does not claim a working kernel fix.
+The coordinated implementation is [omarchy-pkgs #382](https://github.com/omacom/omarchy-pkgs/pull/382), which changes both package definitions:
+
+- Enable the kernel's native CVS driver and prevent the same-named legacy DKMS module from shadowing it. A new camera stack source-directory version lets the normal package removal hook retire the old DKMS registration; legacy kernels retain the legacy driver when native CVS is not configured.
+- Integrate Intel's [native CVS HAL support](https://github.com/intel/ipu7-camera-hal/commit/f167239b3ecf242ae081767892cb0a4c54bad496). Extend the existing sensor-format propagation to the native video-interface bridge and propagate configuration errors. This keeps the current IPU75XA sensor configuration and supports direct sensor connections as well as CVS connections.
+- Preserve Omarchy's existing firmware-owned sensor-power policy specifically for Synaptics `06cb:0701` with Panther Lake ACPI ID `INTC10E1`. Keep native behaviour on other devices and leave privacy ownership unchanged pending hardware validation.
+
+This implements the candidate native transition using the upstream sensor → CVS → IPU graph. The package candidate has separate build and behavioural tests; the graph check here is its hardware registration acceptance component. No installer migration is needed solely to duplicate the normal package upgrade hooks.
+
+The candidate is not yet hardware-accepted. Native driver compilation and offline HAL/power-policy tests cannot establish video delivery, privacy LED behaviour or suspend recovery. Installation and boot tests require a separately agreed test plan.
 
 ## Reproduce the registration failure
 
