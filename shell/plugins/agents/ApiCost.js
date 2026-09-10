@@ -400,7 +400,7 @@ function formatCombined(tokens, cost, pricingEnabled) {
   var tokenText = formatTokenCount(tokens)
   if (pricingEnabled !== true) return tokenText
   if (!cost || cost.status === "unknown") return tokenText + "/—"
-  return tokenText + "/" + formatCost(cost.total) + (cost.status === "partial" ? "*" : "")
+  return tokenText + "/" + formatCost(cost.total)
 }
 
 function dailyHeading(providerId, rows) {
@@ -409,7 +409,7 @@ function dailyHeading(providerId, rows) {
   for (var i = 0; i < values.length; i++) {
     var cost = values[i] && values[i].cost
     if (cost && (cost.status === "complete" || cost.status === "partial"))
-      return "TOKENS / API COST EST. (USD)"
+      return "TOKENS / KNOWN API COST EST. (USD)"
   }
   return "TOKENS / API COST UNAVAILABLE"
 }
@@ -755,6 +755,11 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
     if (b.tokens !== a.tokens) return b.tokens - a.tokens
     return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0)
   })
+  var missingPriceModels = []
+  for (var missingIndex = 0; missingIndex < models.length; missingIndex++) {
+    if (!resolveRate(provider, models[missingIndex].id, overrides))
+      missingPriceModels.push(models[missingIndex].id)
+  }
   var globalMissing = globalCoverageMessages(dailyUsage)
   var summaries = [
     { key: "today", label: "Today", aggregate: windows.today },
@@ -771,7 +776,13 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
     summary.tooltip = presentationTooltip(summary)
     delete summary.aggregate
   }
-  return { available: true, models: models.slice(0, 4), summaries: summaries, modelCount: models.length }
+  return {
+    available: true,
+    models: models.slice(0, 4),
+    summaries: summaries,
+    modelCount: models.length,
+    missingPriceModels: missingPriceModels
+  }
 }
 
 if (typeof module !== "undefined") module.exports = {

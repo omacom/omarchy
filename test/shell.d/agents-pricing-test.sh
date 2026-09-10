@@ -105,8 +105,8 @@ assertEqual(pricing.priceBucket('codex', bucket('gpt-6-astra-preview', {
 assertEqual(pricing.formatTokenCount(2400000), '2.4M', 'daily values keep the established token abbreviation')
 assertEqual(pricing.formatCombined(2400000, { status: 'complete', total: 8.2 }, true), '2.4M/$8.20',
   'complete daily cost uses the compact no-space separator')
-assertEqual(pricing.formatCombined(2400000, { status: 'partial', total: 8.2 }, true), '2.4M/$8.20*',
-  'partial daily cost marks the known subtotal')
+assertEqual(pricing.formatCombined(2400000, { status: 'partial', total: 8.2 }, true), '2.4M/$8.20',
+  'partial daily cost stays a known subtotal without an unexplained marker')
 assertEqual(pricing.formatCombined(2400000, { status: 'unknown', total: 0 }, true), '2.4M/—',
   'fully unknown daily cost uses a dash rather than zero')
 assertEqual(pricing.formatCombined(2400000, { status: 'unknown', total: 0 }, false), '2.4M',
@@ -123,7 +123,7 @@ assertEqual(rows.length, 7, 'pricing presentation preserves exactly seven daily 
 assertEqual(rows[0].date + '/' + rows[6].date, '2026-09-03/2026-09-09',
   'daily rows retain oldest-to-newest local calendar order')
 assertEqual(rows[5].value, '4.0M/$73.50', 'daily row aggregates its own models and token categories')
-assertEqual(rows[6].value, '110.0K/$5.00*', 'daily row presents partial category coverage without dropping tokens')
+assertEqual(rows[6].value, '110.0K/$5.00', 'daily row presents partial category coverage without dropping tokens')
 
 const moved = pricing.buildDailyRows('codex', dailyUsage, [], new Date('2026-09-10T12:00:00+02:00').getTime(), {}, true)
 assertEqual(moved[6].date + '/' + moved[6].value, '2026-09-10/0/—',
@@ -186,16 +186,16 @@ assertEqual(legacyRows[6].value, '1.2K/—', 'synchronized or legacy-only tokens
 assertEqual(pricing.dailyHeading('codex', legacyRows), 'TOKENS / API COST UNAVAILABLE',
   'all-unknown Codex cost scope has an honest heading without hiding token rows')
 assertEqual(pricing.dailyHeading('codex', [{ cost: { status: 'complete', total: 0 } }]),
-  'TOKENS / API COST EST. (USD)', 'a known zero cost still keeps the USD estimate heading')
+  'TOKENS / KNOWN API COST EST. (USD)', 'a known zero cost still keeps the USD estimate heading')
 assertEqual(pricing.dailyHeading('codex', [{ cost: { status: 'partial', total: 0.25 } }]),
-  'TOKENS / API COST EST. (USD)', 'a known subtotal keeps the USD estimate heading')
+  'TOKENS / KNOWN API COST EST. (USD)', 'a known subtotal keeps the USD estimate heading')
 assertEqual(pricing.dailyHeading('claude', []), 'TOKENS BY DAY',
   'providers outside pricing scope retain their original daily heading')
 
 const mismatchedRows = pricing.buildDailyRows('codex', dailyUsage,
   [{ date: '2026-09-08', messageCount: 5000000 }],
   new Date('2026-09-09T12:00:00+02:00').getTime(), {}, true)
-assertEqual(mismatchedRows[5].value, '5.0M/$73.50*',
+assertEqual(mismatchedRows[5].value, '5.0M/$73.50',
   'the visible legacy day amount wins while a mismatched priced scope becomes partial')
 assert(pricing.dailyTooltip(mismatchedRows[5]).includes('Displayed token total does not match daily pricing coverage'),
   'a priced-scope mismatch is explicit in the public tooltip')
@@ -268,7 +268,7 @@ const incompleteUsage = JSON.parse(JSON.stringify(dailyUsage))
 incompleteUsage.complete = false
 incompleteUsage.issues = ['native-read-error']
 const incompleteRow = pricing.buildDailyRows('codex', incompleteUsage, [], new Date('2026-09-09T12:00:00+02:00').getTime(), {}, true)[5]
-assertEqual(incompleteRow.value, '4.0M/$73.50*', 'incomplete scan coverage marks an otherwise known subtotal')
+assertEqual(incompleteRow.value, '4.0M/$73.50', 'incomplete scan coverage preserves an otherwise known subtotal')
 assert(pricing.dailyTooltip(incompleteRow).includes('native-read-error'),
   'scan-wide coverage failure is disclosed in the day tooltip')
 

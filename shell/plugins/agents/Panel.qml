@@ -292,11 +292,33 @@ Panel {
     return result
   }
 
-  function modelPresentationHasPartial() {
+  function pricingLimitationText() {
+    if (!provider || provider.providerId !== "codex") return ""
+    var incomplete = false
+    var days = pricedDailyRows || []
+    for (var i = 0; i < days.length; i++) {
+      if (Number(days[i].tokens || 0) > 0 && days[i].cost && days[i].cost.status !== "complete") {
+        incomplete = true
+        break
+      }
+    }
     var rows = (modelPresentation.models || []).concat(modelPresentation.summaries || [])
-    for (var i = 0; i < rows.length; i++)
-      if (rows[i].cost && rows[i].cost.status === "partial") return true
-    return false
+    for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      if (Number(rows[rowIndex].tokens || 0) > 0
+          && rows[rowIndex].cost && rows[rowIndex].cost.status !== "complete")
+        incomplete = true
+    }
+    if (!incomplete) return ""
+    var text = "Costs exclude usage with missing prices or token details."
+    var missing = modelPresentation.missingPriceModels || []
+    if (missing.length > 0) {
+      var names = []
+      for (var missingIndex = 0; missingIndex < missing.length; missingIndex++)
+        names.push(missing[missingIndex] === "(unknown model)"
+          ? missing[missingIndex] : usage.friendlyModelName(missing[missingIndex]))
+      text += " Missing prices: " + names.join(", ") + "."
+    }
+    return text
   }
 
   function modelTooltip(row) {
@@ -700,6 +722,16 @@ Panel {
                 today: String(modelData.date || "") === root.todayDate()
               }
             }
+
+            Text {
+              visible: root.pricingLimitationText() !== ""
+              width: parent.width
+              text: root.pricingLimitationText()
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
           }
 
           // ---------- Models ----------
@@ -718,7 +750,7 @@ Panel {
               width: parent.width
               text: root.provider && root.provider.providerId === "codex"
                 && root.modelPresentation.available === true
-                ? "TOKENS / API COST BY MODEL (30 DAYS)" : "TOKENS BY MODEL"
+                ? "TOKENS / KNOWN API COST EST. BY MODEL (30 DAYS)" : "TOKENS BY MODEL"
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -748,15 +780,6 @@ Panel {
               }
             }
 
-            Text {
-              visible: root.modelPresentationHasPartial()
-              width: parent.width
-              text: "* known API-cost subtotal; hover for priced-token coverage"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              wrapMode: Text.WordWrap
-            }
           }
 
           Text {

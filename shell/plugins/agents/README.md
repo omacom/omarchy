@@ -19,7 +19,7 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.
 - **Tokens by day** — one row per day for the last week, with today bolded at the bottom. Native local Codex rows append estimated API-equivalent USD cost to the token value; hover a row for component prices, provenance, assumptions, and missing coverage.
-- **Tokens by model** — non-Codex providers retain their token-only model rows. Codex uses its native 30-local-day buckets for one combined token/API-cost table: the four heaviest models followed by Today, 7 days, and 30 days summaries. Window totals include every model even when only four fit on screen. A trailing `*` means a known subtotal; hover for the priced-token percentage and missing coverage.
+- **Tokens by model** — non-Codex providers retain their token-only model rows. Codex uses its native 30-local-day buckets for one combined token/known-API-cost-estimate table: the four heaviest models followed by Today, 7 days, and 30 days summaries. Window totals include every model even when only four fit on screen. A visible note names excluded missing-price models when known; hover retains detailed priced-token coverage.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
@@ -56,7 +56,7 @@ light surfaces — and the bar glyph stands in when there is none.
 
 Prices are maintained manually. Edit the JSON file below for local changes; maintain the bundled table and its source/date metadata in `ApiCost.js` when updating shipped defaults. No scraper, network price lookup, or background price import runs.
 
-Native Codex `dailyUsage` records use the shared public `ApiCost.js` interface to build the seven displayed calendar-day rows. Each value keeps the existing token abbreviation and adds a no-space cost suffix: `2.4M/$8.20` for complete cost coverage, `2.4M/$8.20*` for a known subtotal with missing components, or `2.4M/—` when no cost can be established. A known zero tariff remains `$0.00`. Labels and token-based bars preserve the corresponding numeric `recentDays` total even when one native bucket has only independently measured categories and a null total; `dailyUsage` then supplies the explicitly partial price rather than replacing or shrinking the visible consumption.
+Native Codex `dailyUsage` records use the shared public `ApiCost.js` interface to build the seven displayed calendar-day rows. Each value keeps the existing token abbreviation and adds a no-space cost suffix: `2.4M/$8.20` for a known amount or known subtotal, or `2.4M/—` when no cost can be established. When any amount is incomplete, a visible note says costs exclude usage with missing prices or token details. A known zero tariff remains `$0.00`. Labels and token-based bars preserve the corresponding numeric `recentDays` total even when one native bucket has only independently measured categories and a null total; `dailyUsage` then supplies the explicitly partial price rather than replacing or shrinking the visible consumption.
 
 The daily heading says `API COST UNAVAILABLE` when every displayed cost is unknown, while retaining the token values and `/—` markers. A known zero or any known subtotal keeps the USD estimate heading.
 

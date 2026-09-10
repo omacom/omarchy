@@ -47,8 +47,10 @@ assert(/function modelWindowPresentation\(provider, nowMs\)/.test(pricingSource)
   && /usage\.pricing\.modelWindowPresentation\(provider, nowMs\)/.test(panelSource)
   && /model: root\.modelSummaries/.test(panelSource),
   'Codex model and window rows use the same reload-aware public pricing object')
-assert(/\* known API-cost subtotal; hover for priced-token coverage/.test(panelSource),
-  'the combined model section explains its partial-cost marker once')
+assert(/TOKENS \/ KNOWN API COST EST\. BY MODEL \(30 DAYS\)/.test(panelSource)
+  && /Costs exclude usage with missing prices or token details\./.test(panelSource)
+  && !/known API-cost subtotal/.test(panelSource),
+  'Codex cost sections explain incomplete known costs without a star legend')
 assert(/var text = label \+ " · " \+ usage\.formatTokenCount/.test(panelSource)
   && /Number\(provider\.todaySessions[\s\S]*text \+= "\\n" \+ usage\.pricing\.dailyTooltipDetails\(day\)/.test(panelSource)
   && !/return pricedText/.test(panelSource),

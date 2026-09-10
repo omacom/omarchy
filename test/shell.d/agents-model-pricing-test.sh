@@ -51,6 +51,8 @@ assertEqual(result.available, true, 'valid native daily usage enables the 30-day
 assertEqual(result.models.length, 4, 'model presentation shows only the four heaviest 30-day models')
 assert(!result.models.some(row => row.id === 'codex-auto-review'),
   'an unpriced fifth model can be hidden by the top-four display cut')
+assertDeepEqual(result.missingPriceModels, ['codex-auto-review'],
+  'presentation exposes existing unpriced model ids for the visible limitation note')
 assert(result.models.every(row => row.cost.status === 'complete'),
   'an unknown hidden model does not mark unrelated priced model rows partial')
 
@@ -65,7 +67,7 @@ assert(Math.abs(today.cost.total - 1) < 1e-12 && Math.abs(seven.cost.total - 5) 
   'window arithmetic remains unrounded until presentation')
 assertEqual(today.cost.status + '/' + seven.cost.status + '/' + thirty.cost.status,
   'partial/partial/partial', 'an unpriced model makes each containing window an explicit subtotal')
-assert(today.value.endsWith('*') && today.tooltip.includes('Priced-token coverage: 99% priced')
+assert(!today.value.includes('*') && today.tooltip.includes('Priced-token coverage: 99% priced')
   && today.tooltip.includes('1.0M of 1.0M assigned local tokens')
   && today.tooltip.includes('No exact tariff for codex-auto-review'),
   'partial compact values disclose priced-token coverage and the missing exact tariff')
