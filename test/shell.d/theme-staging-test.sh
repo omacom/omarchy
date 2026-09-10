@@ -248,6 +248,38 @@ assert_not_staged Alacritty.TOML "the denied names are matched case-insensitivel
 
 pass "denied files are matched without regard to case"
 
+# bash's ${x,,} folds by the caller's LC_CTYPE. In a Turkish or Azeri locale
+# "I" folds to a dotless "ı", so KITTY.CONF becomes "kıtty.conf" and no longer
+# equals "kitty.conf": the uppercase file stages, and on a casefold filesystem a
+# later open of kitty.conf finds it. The denylist has to fold the same way
+# whoever runs omarchy-theme-set.
+turkish_locale=$(locale -a 2>/dev/null | grep -iE '^(tr_TR|az_AZ)\.utf-?8$' | head -1 || true)
+
+if [[ -n $turkish_locale ]]; then
+  # Positive control: confirm this locale really does the dotless fold, so that
+  # a pass below means the denylist withstood it, not that nothing folded.
+  probe=$(LC_ALL="$turkish_locale" bash -c 'x=KITTY.CONF; printf "%s" "${x,,}"')
+  [[ $probe == "kıtty.conf" ]] ||
+    fail "the $turkish_locale probe folds I to a dotless i" "got: $probe"
+
+  dotless="$themes/dotless"
+  mkdir -p "$dotless/.git"
+  write_colors "$dotless/colors.toml"
+  printf 'os.execute("%s")\n' "$marker" >"$dotless/KITTY.CONF"
+  printf '[terminal.shell]\nprogram = "%s"\n' "$marker" >"$dotless/FOOT.INI"
+  printf 'png\n' >"$dotless/ART.PNG"
+
+  LC_ALL="$turkish_locale" set_theme dotless ||
+    fail "omarchy-theme-set applies a theme under $turkish_locale"
+  assert_not_staged KITTY.CONF "a terminal config is denied when the locale folds I to a dotless i"
+  assert_not_staged FOOT.INI "foot.ini is denied when the locale folds I to a dotless i"
+  assert_staged ART.PNG "colour is still staged under $turkish_locale"
+
+  pass "the denylist folds case under a fixed locale, not the caller's"
+else
+  pass "no Turkish or Azeri locale installed; skipping the case-fold locale check"
+fi
+
 # A denylist is only correct while someone adding a template classifies what it
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.

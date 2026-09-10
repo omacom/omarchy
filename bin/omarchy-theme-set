@@ -141,6 +141,11 @@ is_denied_installed_file() {
   # Match without regard to case: the loaders ask for the lowercase name, but a
   # casefold or case-insensitive filesystem would answer a request for
   # hyprland.lua with a staged hyprland.LUA.
+  #
+  # Fold under a fixed C locale, not the caller's: bash's ${x,,} follows
+  # LC_CTYPE, and in a Turkish or Azeri locale "I" folds to a dotless "ı", so
+  # KITTY.CONF becomes "kıtty.conf" and never matches "kitty.conf".
+  local LC_ALL=C
   local lower=${name,,}
 
   [[ $lower == *.lua ]] && return 0
