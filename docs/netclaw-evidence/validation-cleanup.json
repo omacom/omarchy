@@ -1,0 +1,532 @@
+{
+  "timestamp": "2026-09-10T18:01:50.830471+00:00",
+  "scope": "Only exact records in NetClaw PR-validation creation ledgers; screenshots and readback retained",
+  "records": [
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/task_ci",
+      "id": "3425e9f0931b035086f0fef7dd03d69e",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/task_ci",
+      "id": "cd252df0931b035086f0fef7dd03d6c9",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/task_ci",
+      "id": "cd252df0931b035086f0fef7dd03d6cf",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/task_ci",
+      "id": "c9252df0931b035086f0fef7dd03d6d5",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/cmdb_rel_ci",
+      "id": "ce1569f0931b035086f0fef7dd03d66f",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/cmdb_rel_ci",
+      "id": "2615e9f0931b035086f0fef7dd03d65e",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/cmdb_rel_ci",
+      "id": "6215e9f0931b035086f0fef7dd03d697",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/change_request",
+      "id": "478465b0931b035086f0fef7dd03d644",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/cmdb_ci_ip_router",
+      "id": "24d4edb0931b035086f0fef7dd03d679",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/cmdb_ci_ip_router",
+      "id": "41d421f0931b035086f0fef7dd03d6d5",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/cmdb_ci_ip_switch",
+      "id": "98e4e1f0931b035086f0fef7dd03d648",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/cmdb_ci_ip_switch",
+      "id": "14e4e1f0931b035086f0fef7dd03d650",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "servicenow",
+      "endpoint": "/api/now/table/core_company",
+      "id": "55c4edb0931b035086f0fef7dd03d66f",
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/cables/",
+      "id": 135,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/cables/",
+      "id": 134,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/cables/",
+      "id": 133,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 228,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 227,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 226,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 225,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 224,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 223,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 222,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 221,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 220,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 219,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 218,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/ip-addresses/",
+      "id": 217,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2085,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2084,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2083,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2082,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2081,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2080,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2079,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2078,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2077,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2076,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2075,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2074,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2073,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2072,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2071,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2070,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2069,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2068,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2067,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2066,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2065,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2064,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2063,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2062,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2061,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/interfaces/",
+      "id": 2060,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/devices/",
+      "id": 140,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/devices/",
+      "id": 139,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/devices/",
+      "id": 138,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/devices/",
+      "id": 137,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/prefixes/",
+      "id": 112,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/prefixes/",
+      "id": 111,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/prefixes/",
+      "id": 110,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/prefixes/",
+      "id": 109,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/prefixes/",
+      "id": 108,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/prefixes/",
+      "id": 107,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/prefixes/",
+      "id": 106,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/vlans/",
+      "id": 71,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/vlans/",
+      "id": 70,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/vlans/",
+      "id": 69,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/vlans/",
+      "id": 68,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/vlans/",
+      "id": 67,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/device-types/",
+      "id": 24,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/device-types/",
+      "id": 23,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/ipam/vrfs/",
+      "id": 10,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/dcim/sites/",
+      "id": 28,
+      "delete_status": 204,
+      "readback_status": 404
+    },
+    {
+      "system": "netbox",
+      "endpoint": "/api/tenancy/tenants/",
+      "id": 15,
+      "delete_status": 204,
+      "readback_status": 404
+    }
+  ],
+  "completed": true
+}

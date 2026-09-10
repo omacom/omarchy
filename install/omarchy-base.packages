@@ -84,9 +84,11 @@ mpv-mpris
 nautilus
 nautilus-python
 gnome-disk-utility
+nodejs
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
+npm
 nss-mdns
 nvim
 obs-studio
@@ -95,6 +97,7 @@ omacalc
 omacut
 omawrite
 omarchy-nvim
+openclaw
 pacman-contrib
 pamixer
 pinta
@@ -102,6 +105,7 @@ plocate
 plymouth
 postgresql-libs
 power-profiles-daemon
+python
 python-gobject
 python-poetry-core
 ttfx
@@ -134,6 +138,7 @@ ufw
 ufw-docker
 unzip
 usage
+uv
 uwsm
 vi
 whois

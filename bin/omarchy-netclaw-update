@@ -1,0 +1,38 @@
+#!/bin/bash
+# omarchy:summary=Update NetClaw to the distro's pinned revision and refresh installed integrations
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+# shellcheck source=default/netclaw/runtime.sh
+source "$OMARCHY_PATH/default/netclaw/runtime.sh"
+omarchy-netclaw-prepare
+exec 8>"$netclaw_state/setup.lock"
+flock -n 8 || { echo "NetClaw setup is already running." >&2; exit 1; }
+revision=$(cat "$OMARCHY_PATH/default/netclaw/revision")
+if [[ -n $(git -C "$netclaw_dir" status --porcelain --untracked-files=no) ]]; then
+  echo "NetClaw has tracked local changes. Commit or back them up before updating: $netclaw_dir" >&2
+  exit 1
+fi
+old_revision=$(git -C "$netclaw_dir" rev-parse HEAD)
+if [[ $old_revision != "$revision" ]]; then
+  git -C "$netclaw_dir" fetch --depth 1 origin "$revision"
+  git -C "$netclaw_dir" checkout --detach "$revision"
+  printf '%s\n' "$old_revision" > "$netclaw_state/previous-revision"
+  rm -f "$netclaw_state/configured"
+fi
+# Both the upstream source and Omarchy's adapters must match before skipping setup.
+if [[ -f $netclaw_state/configured && $(cat "$netclaw_state/configured") == "$revision" && -f $netclaw_state/integration-revision && $(cat "$netclaw_state/integration-revision") == "$(netclaw_integration_revision)" ]]; then
+  echo "NetClaw is already configured at $revision."
+  exit 0
+fi
+components=""
+if [[ -f $HOME/.openclaw/netclaw-components.conf ]]; then
+  components=$(awk 'NF && !/^#/ {printf "%s ", $0}' "$HOME/.openclaw/netclaw-components.conf")
+fi
+flock -u 8
+exec 8>&-
+if [[ -n $components ]]; then
+  exec omarchy-netclaw-setup --add "$components"
+else
+  exec omarchy-netclaw-setup
+fi

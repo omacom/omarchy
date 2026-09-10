@@ -1,0 +1,21 @@
+#!/bin/bash
+# omarchy:summary=Open NetClaw's OpenClaw dashboard
+
+set -euo pipefail
+# shellcheck source=default/netclaw/runtime.sh
+source "$OMARCHY_PATH/default/netclaw/runtime.sh"
+if [[ -f $netclaw_state/configured ]]; then
+  exec omarchy-launch-openclaw
+else
+  # Keep failure handling inside the terminal's shell.
+  # shellcheck disable=SC2016
+  exec omarchy-launch-terminal -e bash -c '
+    omarchy-netclaw-setup && omarchy-netclaw-dashboard
+    result=$?
+    if (( result != 0 )); then
+      printf "\nNetClaw Dashboard could not open. See the error above.\n"
+      read -r -p "Press Enter to close. "
+    fi
+    exit "$result"
+  '
+fi

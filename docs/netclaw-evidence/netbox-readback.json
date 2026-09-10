@@ -1,0 +1,541 @@
+{
+  "timestamp": "2026-09-10T17:25:39.986616+00:00",
+  "method": "Independent REST read-back of the actual NetClaw creation ledger; no writes or deletes",
+  "namespace": "Omarchy PR Validation 20260910-1158",
+  "objects": [
+    {
+      "object_type": "tenancy.tenant",
+      "id": 15,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Omarchy PR Validation 20260910-1158",
+      "url": "https://demo.netbox.dev/tenancy/tenants/15/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.site",
+      "id": 28,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Omarchy PR Validation 20260910-1158",
+      "url": "https://demo.netbox.dev/dcim/sites/28/",
+      "name_matches": true
+    },
+    {
+      "object_type": "ipam.vrf",
+      "id": 10,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Mgmt-intf",
+      "url": "https://demo.netbox.dev/ipam/vrfs/10/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.devicetype",
+      "id": 23,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "CML IOS-XE IOL Router (virtual)",
+      "url": "https://demo.netbox.dev/dcim/device-types/23/"
+    },
+    {
+      "object_type": "dcim.devicetype",
+      "id": 24,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "CML IOS-XE IOL Switch (virtual)",
+      "url": "https://demo.netbox.dev/dcim/device-types/24/"
+    },
+    {
+      "object_type": "ipam.vlan",
+      "id": 67,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "HostVLAN10 (10)",
+      "url": "https://demo.netbox.dev/ipam/vlans/67/",
+      "name_matches": true
+    },
+    {
+      "object_type": "ipam.vlan",
+      "id": 68,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "HostVLAN20 (20)",
+      "url": "https://demo.netbox.dev/ipam/vlans/68/",
+      "name_matches": true
+    },
+    {
+      "object_type": "ipam.vlan",
+      "id": 69,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "HostVLAN30 (30)",
+      "url": "https://demo.netbox.dev/ipam/vlans/69/",
+      "name_matches": true
+    },
+    {
+      "object_type": "ipam.vlan",
+      "id": 70,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "HostVLAN40 (40)",
+      "url": "https://demo.netbox.dev/ipam/vlans/70/",
+      "name_matches": true
+    },
+    {
+      "object_type": "ipam.vlan",
+      "id": 71,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Native999-unused (999)",
+      "url": "https://demo.netbox.dev/ipam/vlans/71/",
+      "name_matches": true
+    },
+    {
+      "object_type": "ipam.prefix",
+      "id": 106,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.10.0/24",
+      "url": "https://demo.netbox.dev/ipam/prefixes/106/"
+    },
+    {
+      "object_type": "ipam.prefix",
+      "id": 107,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.20.0/24",
+      "url": "https://demo.netbox.dev/ipam/prefixes/107/"
+    },
+    {
+      "object_type": "ipam.prefix",
+      "id": 108,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.30.0/24",
+      "url": "https://demo.netbox.dev/ipam/prefixes/108/"
+    },
+    {
+      "object_type": "ipam.prefix",
+      "id": 109,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.40.0/24",
+      "url": "https://demo.netbox.dev/ipam/prefixes/109/"
+    },
+    {
+      "object_type": "ipam.prefix",
+      "id": 110,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.255.255.0/31",
+      "url": "https://demo.netbox.dev/ipam/prefixes/110/"
+    },
+    {
+      "object_type": "ipam.prefix",
+      "id": 111,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.255.0.1/32",
+      "url": "https://demo.netbox.dev/ipam/prefixes/111/"
+    },
+    {
+      "object_type": "ipam.prefix",
+      "id": 112,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.255.0.2/32",
+      "url": "https://demo.netbox.dev/ipam/prefixes/112/"
+    },
+    {
+      "object_type": "dcim.device",
+      "id": 137,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "R1",
+      "url": "https://demo.netbox.dev/dcim/devices/137/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.device",
+      "id": 138,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "R2",
+      "url": "https://demo.netbox.dev/dcim/devices/138/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.device",
+      "id": 139,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "SW1",
+      "url": "https://demo.netbox.dev/dcim/devices/139/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.device",
+      "id": 140,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "SW2",
+      "url": "https://demo.netbox.dev/dcim/devices/140/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2060,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2060/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2061,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0.10",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2061/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2062,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0.20",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2062/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2063,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0.999",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2063/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2064,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/1",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2064/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2065,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/2",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2065/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2066,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/3",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2066/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2067,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Loopback0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2067/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2068,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2068/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2069,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0.30",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2069/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2070,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0.40",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2070/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2071,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0.999",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2071/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2072,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/1",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2072/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2073,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/2",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2073/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2074,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/3",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2074/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2075,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Loopback0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2075/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2076,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2076/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2077,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/1",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2077/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2078,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/2",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2078/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2079,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/3",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2079/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2080,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Loopback0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2080/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2081,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2081/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2082,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/1",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2082/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2083,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/2",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2083/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2084,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Ethernet0/3",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2084/",
+      "name_matches": true
+    },
+    {
+      "object_type": "dcim.interface",
+      "id": 2085,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "Loopback0",
+      "url": "https://demo.netbox.dev/dcim/interfaces/2085/",
+      "name_matches": true
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 217,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.10.1/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/217/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 218,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.20.1/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/218/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 219,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.255.255.0/31",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/219/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 220,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.10.20.171/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/220/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 221,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.255.0.1/32",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/221/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 222,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.30.1/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/222/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 223,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.100.40.1/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/223/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 224,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.255.255.1/31",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/224/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 225,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.10.20.172/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/225/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 226,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.255.0.2/32",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/226/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 227,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.10.20.173/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/227/"
+    },
+    {
+      "object_type": "ipam.ipaddress",
+      "id": 228,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "10.10.20.174/24",
+      "url": "https://demo.netbox.dev/ipam/ip-addresses/228/"
+    },
+    {
+      "object_type": "dcim.cable",
+      "id": 133,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "#133",
+      "url": "https://demo.netbox.dev/dcim/cables/133/"
+    },
+    {
+      "object_type": "dcim.cable",
+      "id": 134,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "#134",
+      "url": "https://demo.netbox.dev/dcim/cables/134/"
+    },
+    {
+      "object_type": "dcim.cable",
+      "id": 135,
+      "http_status": 200,
+      "id_matches": true,
+      "display": "#135",
+      "url": "https://demo.netbox.dev/dcim/cables/135/"
+    }
+  ]
+}

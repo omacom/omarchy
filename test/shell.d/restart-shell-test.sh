@@ -24,6 +24,12 @@ cat >"$wrapper_bin/qs" <<'SH'
 #!/bin/bash
 
 [[ -n ${OMARCHY_TEST_QS_ARGS:-} ]] && printf '%s\n' "$*" >"$OMARCHY_TEST_QS_ARGS"
+if [[ -n ${OMARCHY_TEST_QS_CALLS:-} ]]; then
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_CALLS"
+fi
+if [[ -n ${OMARCHY_TEST_QS_MISSING_PATH:-} && $4 == "$OMARCHY_TEST_QS_MISSING_PATH/shell" ]]; then
+  exit 1
+fi
 
 if [[ ${OMARCHY_TEST_QS_HANG:-0} == 1 ]]; then
   sleep 5
@@ -34,6 +40,16 @@ else
 fi
 SH
 chmod +x "$wrapper_bin/qs"
+
+cat >"$wrapper_bin/systemctl" <<'SH'
+#!/bin/bash
+if [[ -n ${OMARCHY_TEST_SESSION_PATH:-} ]]; then
+  printf 'OMARCHY_PATH=%s\n' "$OMARCHY_TEST_SESSION_PATH"
+else
+  exit 1
+fi
+SH
+chmod +x "$wrapper_bin/systemctl"
 
 wrapper_error=$(PATH="$wrapper_bin:$PATH" \
   OMARCHY_PATH="$wrapper_root" \
@@ -66,6 +82,37 @@ OMARCHY_TEST_QS_ARGS="$wrapper_args" \
 
 grep -F -- 'ipc -n -p' "$wrapper_args" >/dev/null || fail "shell IPC targets the newest live Quickshell instance"
 pass "shell IPC targets the newest live Quickshell instance"
+
+session_root="$test_tmp/running desktop"
+mkdir -p "$session_root/shell"
+touch "$session_root/shell/shell.qml"
+wrapper_calls="$test_tmp/wrapper-calls"
+payload='{"menu":"netclaw","label":"Network tools"}'
+PATH="$wrapper_bin:$PATH" OMARCHY_PATH="$wrapper_root" \
+OMARCHY_TEST_QS_MISSING_PATH="$wrapper_root" \
+OMARCHY_TEST_SESSION_PATH="$session_root" OMARCHY_TEST_QS_CALLS="$wrapper_calls" \
+  "$ROOT/bin/omarchy-shell" shell toggle omarchy.menu "$payload" >/dev/null
+(( $(wc -l < "$wrapper_calls") == 2 )) || fail "IPC tries the running desktop after a dev-link mismatch"
+grep -Fx "ipc -n -p $session_root/shell call -- shell toggle omarchy.menu $payload" "$wrapper_calls" >/dev/null ||
+  fail "IPC preserves the menu route and session path when falling back"
+pass "menu IPC reaches the running desktop after a development path change"
+
+: >"$wrapper_calls"
+PATH="$wrapper_bin:$PATH" OMARCHY_PATH="$wrapper_root" \
+OMARCHY_TEST_SESSION_PATH="$session_root" OMARCHY_TEST_QS_CALLS="$wrapper_calls" \
+  "$ROOT/bin/omarchy-shell" shell ping >/dev/null
+(( $(wc -l < "$wrapper_calls") == 1 )) || fail "a reachable explicit shell is not replaced by the session shell"
+pass "IPC preserves explicitly targeted running shells"
+
+: >"$wrapper_calls"
+if PATH="$wrapper_bin:$PATH" OMARCHY_PATH="$wrapper_root" \
+  OMARCHY_TEST_SESSION_PATH="$session_root" OMARCHY_TEST_QS_CALLS="$wrapper_calls" \
+  OMARCHY_TEST_QS_HANG=1 OMARCHY_SHELL_IPC_TIMEOUT=0.1s \
+  "$ROOT/bin/omarchy-shell" shell toggle omarchy.menu "$payload" >/dev/null 2>&1; then
+  fail "a timed-out toggle fails"
+fi
+(( $(wc -l < "$wrapper_calls") == 1 )) || fail "a timed-out toggle must not be repeated"
+pass "IPC never retries a timed-out menu toggle"
 
 restart_root="$test_tmp/restart-root"
 restart_bin="$restart_root/bin"

@@ -1,0 +1,14 @@
+#!/bin/bash
+# omarchy:summary=Open NetClaw in an Omarchy terminal
+
+# Expand arguments and the result in the terminal's shell.
+# shellcheck disable=SC2016
+exec omarchy-launch-terminal -e bash -c '
+  omarchy-netclaw-chat "$@"
+  result=$?
+  if (( result != 0 )); then
+    printf "\nNetClaw could not open. See the error above.\n"
+    read -r -p "Press Enter to close. "
+  fi
+  exit "$result"
+' omarchy-netclaw "$@"

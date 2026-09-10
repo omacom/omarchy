@@ -59,6 +59,18 @@ ipc_timeout=${OMARCHY_SHELL_IPC_TIMEOUT:-2s}
 output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "$@" 2>/dev/null)
 ipc_status=$?
 
+# A login shell reads a new dev-link path immediately, while the desktop keeps
+# its original path until the next session. If that checkout has no running
+# shell, address the desktop using the environment imported at session start.
+# Do not retry timeouts: the first call may already have toggled a surface.
+if (( ipc_status != 0 && ipc_status != 124 && ipc_status != 137 )); then
+  session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^OMARCHY_PATH=//p' | tail -n 1)
+  if [[ -n $session_omarchy_path && $session_omarchy_path != "$OMARCHY_PATH" && -f $session_omarchy_path/shell/shell.qml ]]; then
+    output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$session_omarchy_path/shell" call -- "$@" 2>/dev/null)
+    ipc_status=$?
+  fi
+fi
+
 if (( ipc_status == 124 || ipc_status == 137 )); then
   fail "omarchy-shell is not responding"
 elif (( ipc_status != 0 )); then
