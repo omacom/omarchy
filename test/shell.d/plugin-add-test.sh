@@ -7,6 +7,11 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
+# Keep every add here offline: an empty local catalog lists nothing, so GitHub
+# URLs take the unlisted path without asking the real marketplace.
+printf '{"plugins":[]}\n' >"$TMPDIR/catalog.json"
+export OMARCHY_PLUGIN_CATALOG_URL="file://$TMPDIR/catalog.json"
+
 write_plugin() {
   local dir="$1"
   local id="$2"
