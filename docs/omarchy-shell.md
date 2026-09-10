@@ -43,7 +43,8 @@ Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open
 
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
 
-Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
+Shell-loading schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
+The CLI also validates optional [pre-removal cleanup metadata](../shell/README.md#pre-removal-cleanup).
 
 ## Installing a third-party plugin
 
@@ -78,7 +79,9 @@ one replaces the active bar, and it is therefore never offered under Disable.
 Bar widgets may set `barWidget.defaultSection` to `left`, `center`, or `right`;
 widgets that omit it default to `center`.
 
-Plugins run as **unsandboxed code** inside `omarchy-shell`. Adding warns you before cloning, plugins land disabled so you can review the code before `omarchy plugin enable`, and updates show a diff before touching anything. Commands confirm in a terminal even when given arguments; without one they refuse rather than guess. Add `--yes` to skip every prompt (the path for scripts and agents). The scoped interfaces remove direct access to authentication services and avoid handing generic cross-plugin service factories to replacement bars, but visual plugins can still traverse ordinary objects in their shared QML scene. Plugin code also has the same user-level file and process access as the shell.
+Plugins run as **unsandboxed code** inside `omarchy-shell`. Adding warns you before cloning, plugins land disabled so you can review the code before `omarchy plugin enable`, and updates show a diff before touching anything. Commands confirm in a terminal even when given arguments; without one they refuse rather than guess. Add `--yes` to skip ordinary confirmation prompts; removal hooks need separate execution authorization (see below). The scoped interfaces remove direct access to authentication services and avoid handing generic cross-plugin service factories to replacement bars, but visual plugins can still traverse ordinary objects in their shared QML scene. Plugin code also has the same user-level file and process access as the shell.
+
+Plugins may declare `hooks.preRemove` to clean up owned state outside their checkout. Removal asks separately for permission to run the current executable, then runs it before disabling the plugin or deleting, unlinking, or backing up the checkout. Scripts must explicitly pass `--yes --run-pre-remove`; `--yes` alone does not authorize plugin code, including for never-enabled plugins. Changes to the resolved checkout identity, manifest contents, or hook identity or contents abort removal. Cleanup runs in a transient systemd user service with a 60-second deadline and 5-second stop grace period. Failure or timeout retains the checkout for recovery. See the [pre-removal contract](../shell/README.md#pre-removal-cleanup) for execution limits and retry responsibilities.
 
 You can still install by hand: drop a plugin into
 `~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then
