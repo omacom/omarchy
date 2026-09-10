@@ -273,6 +273,121 @@ finally:
         os.environ["HOME"] = old_home
 assert session == "auth=fresh-token", "resolve_session discovers profiles and picks the most recently accessed cookie across them"
 
+# --- chrome-family cookies: v11 decryption, v10 legacy, app-bound skip ----
+import hashlib as _hashlib
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import hashes as _hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC as _PBKDF2
+
+
+def _chrome_key(secret):
+    if isinstance(secret, str):
+        secret = secret.encode("utf-8")
+    return _PBKDF2(algorithm=_hashes.SHA1(), length=16, salt=b"saltysalt",
+                   iterations=1).derive(secret)
+
+
+def _pad7(bs):
+    pad = 16 - len(bs) % 16
+    return bs + bytes([pad]) * pad
+
+
+def _v11_blob(host, value, secret):
+    # The modern store: b"v11" + AES-128-CBC with the fixed all-space IV,
+    # plaintext prefixed with SHA256(host_key) as the wrong-key check.
+    key = _chrome_key(secret)
+    plain = _hashlib.sha256(host.encode()).digest()[:32] + value
+    enc = Cipher(algorithms.AES(key), modes.CBC(b" " * 16)).encryptor()
+    return b"v11" + enc.update(_pad7(plain)) + enc.finalize()
+
+
+def _v10_blob(host, value):
+    # The legacy store: b"v10" + random IV + ciphertext, keyed by the
+    # keyringless "peanuts" fallback passphrase.
+    key = _chrome_key(b"peanuts")
+    iv = bytes(range(16))
+    plain = _hashlib.sha256(host.encode()).digest()[:32] + value
+    enc = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
+    return b"v10" + iv + enc.update(_pad7(plain)) + enc.finalize()
+
+
+chrome_home = os.path.join(fixture_dir, "chrome-home")
+chrome_profile = os.path.join(chrome_home, ".config", "chromium", "Default")
+os.makedirs(chrome_profile, exist_ok=True)
+now_us = int(dt.datetime.now(dt.timezone.utc).timestamp() * 1e6)
+filetime = now_us + module.FILETIME_EPOCH_UNIX_US
+chrome_db = os.path.join(chrome_profile, "Cookies")
+conn = sqlite3.connect(chrome_db)
+conn.execute(
+    "CREATE TABLE cookies (host_key TEXT, name TEXT, value TEXT, "
+    "encrypted_value BLOB, last_access_utc INTEGER)"
+)
+conn.executemany(
+    "INSERT INTO cookies VALUES (?,?,?,?,?)",
+    [
+        (".opencode.ai", "auth", "", _v11_blob(".opencode.ai", b"jwt-token", "S3cRet!"), filetime),
+        ("opencode.ai", "oc_locale", "en", b"", filetime),
+        # Subdomain-scoped: must never be sent to the main site.
+        ("login.opencode.ai", "sid", "", _v11_blob("login.opencode.ai", b"sub-token", "S3cRet!"), filetime),
+        # App-bound (v20+) and unknown schemes: skipped, never fatal.
+        ("opencode.ai", "appbound", "", b"v20 app-bound-blob", filetime),
+        # A legacy v10 row must decrypt through the peanuts fallback.
+        (".opencode.ai", "legacy", "", _v10_blob(".opencode.ai", b"old-token"), filetime),
+    ],
+)
+conn.commit()
+conn.close()
+
+real_chrome_secret = module.chrome_secret
+module.chrome_secret = lambda app: "S3cRet!"
+try:
+    chrome_cookies = module.extract_chrome_cookies(chrome_db, "chromium")
+finally:
+    module.chrome_secret = real_chrome_secret
+chrome_by_name = {name: (value, accessed) for name, value, accessed in chrome_cookies}
+assert chrome_by_name["auth"][0] == "jwt-token", "v11 rows decrypt to their value"
+assert chrome_by_name["oc_locale"][0] == "en", "plaintext value column rides through"
+assert chrome_by_name["legacy"][0] == "old-token", "legacy v10 rows decrypt via the peanuts fallback"
+assert "sid" not in chrome_by_name, "subdomain-scoped cookies are excluded"
+assert "appbound" not in chrome_by_name, "app-bound and unknown schemes are skipped"
+assert chrome_by_name["auth"][1] == now_us, "FILETIME last_access_utc normalizes to Unix microseconds"
+
+# resolve_session integration across browsers: discovery through HOME, merge,
+# and the freshest value per name wins across stores.
+firefox_dir = os.path.join(chrome_home, ".mozilla", "firefox", "profile1")
+os.makedirs(firefox_dir, exist_ok=True)
+conn = sqlite3.connect(os.path.join(firefox_dir, "cookies.sqlite"))
+conn.execute(
+    "CREATE TABLE moz_cookies (host TEXT, name TEXT, value TEXT, expiry INTEGER, "
+    "lastAccessed INTEGER, creationTime INTEGER)"
+)
+# Firefox's auth was used 10 minutes after chrome's; the freshest must win.
+conn.execute("INSERT INTO moz_cookies VALUES ('.opencode.ai', 'auth', 'ff-fresher-token', 9999999999, ?, 1000)",
+             (now_us + 600_000_000,))
+conn.execute("INSERT INTO moz_cookies VALUES ('.opencode.ai', 'oc_locale', 'en-GB', 9999999999, ?, 1000)",
+             (now_us + 600_000_000,))
+conn.commit()
+conn.close()
+
+old_home = os.environ.get("HOME")
+os.environ["HOME"] = chrome_home
+try:
+    assert [(str(db.name), app) for db, app in module.find_chrome_cookie_dbs()] == [("Cookies", "chromium")], \
+        "chrome-family profiles are discovered through HOME"
+    real_secret = module.chrome_secret
+    module.chrome_secret = lambda app: "S3cRet!"
+    try:
+        session = module.resolve_session({})
+    finally:
+        module.chrome_secret = real_secret
+finally:
+    if old_home is None:
+        del os.environ["HOME"]
+    else:
+        os.environ["HOME"] = old_home
+assert session == "auth=ff-fresher-token; oc_locale=en-GB; legacy=old-token", \
+    "resolve_session merges browsers and picks the most recently accessed cookie per name"
+
 # --- resolve_workspace precedence, never touching the network -------------
 os.environ["OPENCODE_WORKSPACE"] = "wrk_eeeeeeeeeeeeeeeeeeeeeeeeee"
 assert module.resolve_workspace({"workspaceId": "wrk_cccccccccccccccccccccccccc"}, "") == (

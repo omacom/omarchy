@@ -71,8 +71,17 @@ OpenCode Go is opencode.ai's Go subscription plan: three credit windows — a
 rolling 5-hour, a weekly, and a monthly — each reported as a percentage with
 a reset time. There is no usage API, so the collector reads the workspace
 console pages: the meters from `/workspace/<id>/go` and the per-request
-token records from the usage list, using the `auth` session cookie Firefox or
-Zen Browser stores for opencode.ai. The console renders only the newest 50
+token records from the usage list, using the `auth` session cookie any browser
+on the machine stores for opencode.ai. Firefox and Zen keep cookies in
+plaintext sqlite; Chrome-family profiles (Chrome, Chromium, Brave, Edge,
+Vivaldi, Opera — including Flatpak and snap layouts) are read the same way,
+deciphering their encrypted values with the browser's own SafeStorage
+password from the Secret Service (`secret-tool` must exist and the same
+user's keyring must be unlocked). Old `v10`-prefixed rows and the
+keyringless "peanuts" fallback are handled too; newer app-bound (`v20+`)
+rows cannot be deciphered outside the browser and are skipped, as are
+stores on machines without the `cryptography` Python module — the collector
+keeps working from the other browsers either way. The console renders only the newest 50
 requests in HTML and fetches older pages on demand, so the collector pages
 through them and keeps the trailing 7 local days — "tokens by day" and
 "tokens by model" both describe that week, and a day survives a later

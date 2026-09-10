@@ -7,8 +7,11 @@
 OpenCode Go (the opencode.ai Go plan) exposes no usage API; the web console
 scrapes its own pages. This collector reads the rolling 5-hour / weekly /
 monthly meters from the workspace page and the per-request token records
-from the usage list, using the auth session cookie Firefox or Zen Browser
-stores for opencode.ai. The console renders only the newest page of that
+from the usage list, using the auth session cookie any browser on the
+machine stores for opencode.ai — Firefox and Zen keep it plaintext in
+sqlite; Chrome-family stores (Chrome, Chromium, Brave, Edge, Vivaldi,
+Opera) encrypt it with their SafeStorage password, which the collector
+deciphers from the same Secret Service item the browser reads. The console renders only the newest page of that
 list in HTML, so the collector pages the rest through the SPA's usage-list
 server function and keeps the trailing 7 local days — a refresh that never
 paged would permanently lose every day that scrolled past the newest page.
@@ -31,12 +34,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import math
 import os
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -44,6 +49,16 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+# Chrome-family stores encrypt their cookie values; deciphering them needs
+# PBKDF2 + AES from the cryptography wheel. The collector is fully functional
+# without it (Firefox/Zen cookies are plaintext in sqlite); Chrome rows are
+# only skipped when the wheel is absent, never fatal.
+try:
+  import cryptography  # noqa: F401  (presence probe)
+  _HAS_CRYPTO = True
+except Exception:
+  _HAS_CRYPTO = False
 
 AGENT_ID = "opencode-go"
 AGENT_NAME = "OpenCode Go"
@@ -76,6 +91,30 @@ MAX_USAGE_PAGES = 40
 USAGE_WALK_SECONDS = 60
 FETCH_TIMEOUT_SECONDS = 15
 USER_AGENT = "omarchy-agent-usage-opencode-go/1.0"
+# Chrome-family config dir -> the browser's SafeStorage "application" name
+# (the attribute secret-tool searches for the keyring password it uses).
+CHROME_CONFIG_DIRS = {
+  "google-chrome": "chrome",
+  "google-chrome-beta": "chrome",
+  "google-chrome-unstable": "chrome",
+  "chromium": "chromium",
+  "brave-browser": "brave",
+  "microsoft-edge": "microsoft-edge",
+  "vivaldi": "vivaldi",
+  "opera": "opera",
+  "ungoogled-chromium": "ungoogled-chromium",
+}
+# Flatpak package ids map onto a config dir under their data root.
+CHROME_FLATPAK_ROOTS = {
+  "com.google.Chrome": "google-chrome",
+  "org.chromium.Chromium": "chromium",
+  "com.brave.Browser": "brave-browser",
+  "com.microsoft.Edge": "microsoft-edge",
+}
+# Chrome timestamps (last_access_utc, …) count microseconds since 1601-01-01
+# (FILETIME), Firefox's since 1970-01-01; the drift keeps cross-browser
+# freshness comparisons honest.
+FILETIME_EPOCH_UNIX_US = 11644473600000000
 
 METER_RE = re.compile(
     r'(rollingUsage|weeklyUsage|monthlyUsage):\$R\[\d+\]=\{status:"([^"]+)",resetInSec:(\d+),usagePercent:([\d.]+)[^}]*\}'
@@ -188,6 +227,219 @@ def extract_all_cookies(cookie_db: Path) -> list[tuple[str, str, int]]:
     shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+# ---------------------------------------------------------------- chrome
+
+
+def chrome_roots() -> dict[Path, str]:
+  """Config roots for every Chrome-family browser on the machine.
+
+  Maps a profile root to the application name the browser's SafeStorage
+  password lives under in the Secret Service. Covers the classic ~/.config
+  layout, Flatpak data dirs, and the snap chromium profile root."""
+  home = Path.home()
+  roots: dict[Path, str] = {}
+  for config_dir, application in CHROME_CONFIG_DIRS.items():
+    roots[home / ".config" / config_dir] = application
+  for pkg, config_dir in CHROME_FLATPAK_ROOTS.items():
+    roots[home / ".var/app" / pkg / "config" / config_dir] = CHROME_CONFIG_DIRS[config_dir]
+  snap = home / "snap/chromium/common/chromium"
+  if snap.is_dir():
+    roots[snap] = "chromium"
+  return roots
+
+
+def find_chrome_cookie_dbs() -> list[tuple[Path, str]]:
+  """Discover (Cookies db, application) pairs for every profile.
+
+  Each profile dir carries either a top-level `Cookies` or a
+  `Network/Cookies` (newer Chrome layouts). One database wins per profile."""
+  found: list[tuple[Path, str]] = []
+  for root, application in chrome_roots().items():
+    if not root.is_dir():
+      continue
+    for profile in sorted(root.iterdir()):
+      for candidate in (profile / "Cookies", profile / "Network" / "Cookies"):
+        if candidate.is_file():
+          found.append((candidate, application))
+          break
+  return found
+
+
+_chrome_secret_cache: dict[str, str] = {}
+
+
+def chrome_secret(application: str) -> str | None:
+  """The SafeStorage password for one browser, from the Secret Service.
+
+  This is the same item the browser itself reads ("Chromium Safe Storage",
+  schema chrome_libsecret_os_crypt_password_v2, keyed by the application
+  attribute). None when the service is unreachable, the item is missing, or
+  the keyring is locked — callers then leave that browser's cookie rows
+  undecrypted instead of failing. Cached per process because every profile
+  of one browser shares the password."""
+  if application in _chrome_secret_cache:
+    return _chrome_secret_cache[application] or None
+  secret = ""
+  secret_tool = shutil.which("secret-tool")
+  if secret_tool:
+    try:
+      result = subprocess.run(
+        [secret_tool, "lookup", "application", application],
+        capture_output=True, text=True, timeout=5,
+      )
+      if result.returncode == 0:
+        secret = result.stdout.strip()
+    except Exception:
+      secret = ""
+  _chrome_secret_cache[application] = secret
+  return secret or None
+
+
+def chrome_derived_key(secret: str) -> bytes | None:
+  """AES-128 key the browser derives from its SafeStorage password:
+  PBKDF2-HMAC-SHA1(password, salt="saltysalt", 1 iteration, 16 bytes)."""
+  if not _HAS_CRYPTO:
+    return None
+  try:
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    return PBKDF2HMAC(
+      algorithm=hashes.SHA1(), length=16, salt=b"saltysalt", iterations=1
+    ).derive(secret.encode("utf-8"))
+  except Exception:
+    return None
+
+
+def chrome_decryption_keys(application: str) -> list[bytes]:
+  """Candidate AES keys for one browser, strongest first."""
+  keys: list[bytes] = []
+  secret = chrome_secret(application)
+  derived = chrome_derived_key(secret) if secret else None
+  if derived:
+    keys.append(derived)
+  # Keyringless legacy builds fell back to the constant "peanuts" passphrase
+  # (and briefly the empty one, crbug.com/40055416). Try both so old Chrome
+  # v10 stores still decrypt on a machine without a keyring item.
+  for fallback in (b"peanuts", b""):
+    key = chrome_derived_key(fallback.decode("latin-1"))
+    if key:
+      keys.append(key)
+  return keys
+
+
+def _aes_cbc_decrypt(key: bytes, iv: bytes, ciphertext: bytes) -> bytes | None:
+  try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    decryptor = Cipher(algorithms.AES(key), modes.CBC(iv)).decryptor()
+    plain = decryptor.update(ciphertext) + decryptor.finalize()
+  except Exception:
+    return None
+  if not plain:
+    return plain
+  pad = plain[-1]
+  if pad < 1 or pad > 16 or plain[-pad:] != bytes([pad]) * pad:
+    return None
+  return plain[:-pad]
+
+
+def chrome_decrypt_value(encrypted_value: bytes, host_key: str, keys: list[bytes]) -> str | None:
+  """One Chrome-family cookie cell's value, or None when unreadable.
+
+  Current Chromium wraps values as b"v11" + AES-128-CBC ciphertext with a
+  fixed all-space IV (async os_crypt, key = PBKDF2 of the SafeStorage
+  password); older stores use b"v10" + random IV + ciphertext. The store
+  prepends SHA256(host_key) to the plaintext when encrypting, as a wrong-key
+  check, and strips it on load; we do the same. Unknown or app-bound
+  (v20+) schemes, and every wrong key, come back None."""
+  if encrypted_value[:3] == b"v10":
+    iv, ciphertext = encrypted_value[3:19], encrypted_value[19:]
+  elif encrypted_value[:3] == b"v11":
+    iv, ciphertext = b" " * 16, encrypted_value[3:]
+  else:
+    return None
+  digest = hashlib.sha256(host_key.encode("utf-8")).digest()[:32]
+  for key in keys:
+    plain = _aes_cbc_decrypt(key, iv, ciphertext)
+    if plain is None:
+      continue
+    candidate = plain[32:] if plain.startswith(digest) else plain
+    try:
+      return candidate.decode("utf-8")
+    except UnicodeDecodeError:
+      return candidate.decode("latin-1")
+  return None
+
+
+def _chrome_plaintext_value(raw: object) -> str:
+  if isinstance(raw, bytes):
+    try:
+      return raw.decode("utf-8")
+    except UnicodeDecodeError:
+      return raw.decode("latin-1")
+  return str(raw or "")
+
+
+def extract_chrome_cookies(cookie_db: Path, application: str) -> list[tuple[str, str, int]]:
+  """Read every opencode.ai cookie from a Chrome-family cookies database.
+
+  Mirrors extract_all_cookies: the database is copied to a temp dir first
+  (WAL and file locks), host scoping matches only the main opencode.ai
+  domain, and entries come back as (name, value, lastAccessed) tuples with
+  lastAccessed in Unix microseconds so the cross-browser freshness sort and
+  de-duplication behave. Rows the browser itself would drop — both a
+  plaintext and an encrypted value, or an encrypted row no candidate key
+  decodes — are skipped, never fatal. The SafeStorage password is only
+  fetched when a row actually needs deciphering, so a store without
+  opencode.ai cookies (or with everything in plaintext) never touches the
+  Secret Service."""
+  tmpdir = Path(tempfile.mkdtemp())
+  try:
+    db = tmpdir / "Cookies"
+    for suffix in ("", "-wal", "-shm"):
+      source = Path(str(cookie_db) + suffix)
+      if source.is_file():
+        shutil.copy2(source, Path(str(db) + suffix))
+    try:
+      conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+      try:
+        rows = conn.execute(
+          "SELECT host_key, name, value, encrypted_value, last_access_utc "
+          "FROM cookies WHERE host_key IN ('.opencode.ai','opencode.ai')"
+        ).fetchall()
+      finally:
+        conn.close()
+    except sqlite3.Error:
+      return []
+    needs_keys = any(
+      encrypted_value if isinstance(encrypted_value, (bytes, bytearray)) else b""
+      for _, _, _, encrypted_value, _ in rows
+    )
+    keys = chrome_decryption_keys(application) if needs_keys else []
+    out: list[tuple[str, str, int]] = []
+    for host_key, name, plain_value, encrypted_value, last_access_utc in rows:
+      encrypted = encrypted_value if isinstance(encrypted_value, (bytes, bytearray)) else b""
+      if plain_value and encrypted:
+        # Chrome treats a row carrying both as corrupt and drops the cookie.
+        continue
+      if plain_value:
+        value = _chrome_plaintext_value(plain_value)
+      elif encrypted:
+        value = chrome_decrypt_value(bytes(encrypted), str(host_key), keys)
+      else:
+        continue
+      if not value:
+        continue
+      accessed = int(last_access_utc or 0)
+      if accessed > 0:
+        accessed -= FILETIME_EPOCH_UNIX_US
+      out.append((str(name), value, accessed))
+    return out
+  except (OSError, PermissionError):
+    return []
+  finally:
+    shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 def build_cookie_header(cookies: list[tuple[str, str, int]]) -> str:
   """Format cookies as a `Cookie` header value, de-duplicating by name so
   the most recently accessed value wins (browser behavior)."""
@@ -213,6 +465,8 @@ def resolve_session(cfg: dict[str, Any]) -> str:
   all_cookies: list[tuple[str, str, int]] = []
   for db in find_cookie_dbs():
     all_cookies.extend(extract_all_cookies(db))
+  for db, application in find_chrome_cookie_dbs():
+    all_cookies.extend(extract_chrome_cookies(db, application))
   if not all_cookies:
     return ""
   # Send every opencode.ai cookie, just like the browser does.
