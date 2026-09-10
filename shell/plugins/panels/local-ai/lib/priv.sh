@@ -38,7 +38,7 @@ elevated() { # elevated <phase> [args]: always through pkexec (root is needed re
   # as this script and a verb ("omarchy-local-ai _root stop"), and root reads only OMARCHY_AI_* lines
   state_dir; root_env >"$STATE/root.env"
   local rc=0; pkexec "$SELF" _root "$STATE/root.env" "$@" || rc=$?
-  (( rc == 126 || rc == 127 )) && printf 'reason the password prompt was dismissed; nothing was changed\n'   # polkit: 126 dismissed, 127 not authorized
+  (( rc == 126 || rc == 127 || rc >= 128 )) && printf 'reason the password prompt was dismissed; nothing was changed\n'   # polkit: 126 dismissed, 127 not authorized; 128+ the prompt was closed by a signal
   return $rc
 }
 privileged() { # privileged <phase> [args]: in-process when docker is direct, one pkexec otherwise
