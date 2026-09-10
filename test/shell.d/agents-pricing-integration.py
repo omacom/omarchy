@@ -624,3 +624,59 @@ check(next(day for day in pi_dst_record["dailyUsage"]["days"] if day["date"] == 
       and next(day for day in pi_dst_record["dailyUsage"]["days"] if day["date"] == "2026-03-29")
         ["buckets"][0]["rawModel"] == "gpt-5.4",
       "Pi model changes in one session stay on either side of local midnight before DST")
+
+# Conditional special tariffs: identical physical consumption, one local window,
+# through the collector and updater; no invented surcharge or request-size rule.
+def special_record(attributes, source="native"):
+  if source == "native":
+    measured = usage(input_tokens=18, read=6, write=2, output=4, reasoning=0)
+    return collect({"sessions/special.jsonl": [
+      meta, context(**attributes), event(last=measured, total=measured),
+    ]})
+
+  def omp(home):
+    target = home / ".omp/agent/sessions/project/special.jsonl"
+    target.parent.mkdir(parents=True)
+    target.write_text(json.dumps({
+      "type": "message", "id": "special-omp", "timestamp": "2026-09-09T10:00:00Z",
+      "message": {"role": "assistant", "provider": "openai-codex", "model": "gpt-6-astra",
+                  **attributes, "usage": {"input": 10, "output": 4, "cacheRead": 6,
+                                           "cacheWrite": 2, "totalTokens": 22}},
+    }) + "\n")
+  return collect({}, extras=omp)
+
+
+special_cases = [
+  ("absent", {}, "complete", 0.000331),
+  ("standard", {"service_tier": "standard", "speed": "standard", "fast_mode": False}, "complete", 0.000331),
+  ("default", {"service_tier": "default"}, "complete", 0.000331),
+  ("fast", {"fast_mode": True}, "unknown", 0),
+  ("priority", {"service_tier": "priority"}, "unknown", 0),
+  ("cache duration", {"cache_duration": "24h"}, "partial", 0.000306),
+  ("invalid service number", {"service_tier": 7}, "unknown", 0),
+  ("invalid speed boolean", {"speed": False}, "unknown", 0),
+  ("invalid speed object", {"speed": {}}, "unknown", 0),
+  ("invalid cache array", {"cache_duration": []}, "partial", 0.000306),
+]
+manual_special = json.dumps({"models": {"gpt-6-astra": {
+  "input": 1, "output": 1, "cacheRead": 1, "cacheWrite": 1,
+}}})
+for source, cases in (("native", special_cases), ("omp", special_cases[1:6])):
+  for name, attributes, status, amount in cases:
+    recorded = special_record(attributes, source)
+    bucket = recorded["dailyUsage"]["days"][-1]["buckets"][0]
+    check(bucket["tariff"] == attributes and bucket["totalTokens"] == 22,
+          source + " " + name + " metadata and disjoint tokens survive collection")
+    formatted = format_record(recorded)
+    views = [row(formatted, "2026-09-09"), *formatted["presentation"]["models"],
+             *formatted["presentation"]["summaries"]]
+    check(len(views) == 5 and all(item["tokens"] == 22 and item["cost"]["status"] == status
+                                and close(item["cost"]["total"], amount) for item in views),
+          source + " " + name + " has one tariff decision across daily/model/Today7/30")
+    changed = format_record(recorded, override_text=manual_special)
+    changed_views = [row(changed, "2026-09-09"), *changed["presentation"]["models"],
+                     *changed["presentation"]["summaries"]]
+    manual_amount = 0.000022 if status == "complete" else (0.000020 if status == "partial" else 0)
+    check(all(item["tokens"] == 22 and item["cost"]["status"] == status
+              and close(item["cost"]["total"], manual_amount) for item in changed_views),
+          source + " " + name + " manual rates retain observed special-tariff limits")

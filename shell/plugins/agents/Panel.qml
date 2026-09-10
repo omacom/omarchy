@@ -38,10 +38,10 @@ Panel {
 
   readonly property var limits: limitWindows(provider)
   readonly property var modelPresentation: usage.pricing.modelWindowPresentation(provider, nowMs)
-  readonly property var models: provider && provider.providerId === "codex"
+  readonly property var models: providerSupportsPricing(provider)
     && modelPresentation.available === true
     ? pricedModelRows(modelPresentation.models) : modelRows(provider)
-  readonly property var modelSummaries: provider && provider.providerId === "codex"
+  readonly property var modelSummaries: providerSupportsPricing(provider)
     && modelPresentation.available === true
     ? pricedSummaryRows(modelPresentation.summaries) : []
   readonly property var pricedDailyRows: usage.pricing.dailyRows(provider, nowMs)
@@ -55,6 +55,9 @@ Panel {
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
+  function providerSupportsPricing(value) {
+    return !!value && (value.providerId === "codex" || value.providerId === "claude" || value.providerId === "kimi")
+  }
 
   function selectProvider(index) {
     if (providers.length === 0) return
@@ -293,7 +296,7 @@ Panel {
   }
 
   function pricingLimitationText() {
-    if (!provider || provider.providerId !== "codex") return ""
+    if (!providerSupportsPricing(provider)) return ""
     var incomplete = false
     var days = pricedDailyRows || []
     for (var i = 0; i < days.length; i++) {
@@ -695,7 +698,7 @@ Panel {
             width: parent.width
             spacing: Style.spacing.md
 
-            readonly property var days: root.provider && root.provider.providerId === "codex"
+            readonly property var days: root.providerSupportsPricing(root.provider)
               ? root.pricedDailyRows
               : (root.provider ? (root.provider.recentDays || []) : [])
             readonly property real peak: Math.max(1, root.weekPeak(days))
@@ -749,7 +752,7 @@ Panel {
 
             PanelSectionHeader {
               width: parent.width
-              text: root.provider && root.provider.providerId === "codex"
+              text: root.providerSupportsPricing(root.provider)
                 && root.modelPresentation.available === true
                 ? "TOKENS / KNOWN API COST EST. BY MODEL (30 DAYS)" : "TOKENS BY MODEL"
               foreground: root.foreground

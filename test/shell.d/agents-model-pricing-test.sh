@@ -80,7 +80,7 @@ const moved = pricing.buildModelWindowPresentation('codex', usage,
   new Date('2026-10-01T12:00:00+02:00').getTime(), overrides, true)
 assertEqual(moved.summaries[0].tokens, 0, 'today summary rolls over without requiring new usage')
 assertEqual(moved.summaries[2].tokens, 3000500, '30-day local window drops the expired boundary day')
-assertEqual(pricing.buildModelWindowPresentation('claude', usage, now, overrides, true).models.length, 0,
+assertEqual(pricing.buildModelWindowPresentation('gemini', usage, now, overrides, true).models.length, 0,
   'the new local pricing presentation does not alter other providers')
 assertEqual(pricing.buildModelWindowPresentation('codex', null, now, overrides, true).available, false,
   'missing native daily usage requests the existing token-model fallback')

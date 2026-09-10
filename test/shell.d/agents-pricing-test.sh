@@ -28,6 +28,44 @@ assertEqual(pricing.resolveRate('codex', 'gpt-6-astra-preview', {}), null,
 assertEqual(pricing.resolveRate('codex', 'gpt-5.6', {}).modelId, 'gpt-5.6-sol',
   'only the documented exact Sol alias resolves automatically')
 
+const claudeOpus = pricing.resolveRate('claude', 'claude-opus-5', {})
+assertDeepEqual(claudeOpus.rates, { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25, cacheWrite1h: 10 },
+  'Claude Opus 5 uses the independently recorded standard 5-minute-cache tariff')
+assertEqual(claudeOpus.priceAsOf + '/' + claudeOpus.source.url,
+  '2026-09-10/https://platform.claude.com/docs/en/about-claude/pricing',
+  'Claude bundled pricing retains its primary provenance and price date')
+assertDeepEqual(pricing.resolveRate('claude', 'claude-sonnet-5', {}).rates,
+  { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 },
+  'Claude Sonnet 5 retains the confirmed standard price after the cancelled increase')
+assertEqual(pricing.resolveRate('claude', 'claude-sonnet-4-5', {}).modelId,
+  'claude-sonnet-4-5-20250929', 'the one documented Claude model alias resolves exactly')
+assertEqual(pricing.resolveRate('claude', 'claude-opus-5-preview', {}), null,
+  'unknown Claude suffixes do not inherit a nearby bundled tariff')
+
+function claudeBucket(model, tokens, tariff, source) {
+  return { rawModel: model, source: source || 'claude-native', sourceId: 'fixture', tariff: tariff || {},
+    tokens, totalTokens: Object.values(tokens).filter(Number.isFinite).reduce((a, b) => a + b, 0), issues: [] }
+}
+const claudeKinds = { inputTokens: 1000000, outputTokens: 1000000,
+  cacheReadInputTokens: 1000000, cacheCreationInputTokens: 1000000 }
+assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { cache_duration: '5m' }), {}).total,
+  36.75, 'observed Claude 5-minute cache writes use the verified standard tariff')
+assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { cache_duration: '1h' }), {}).status,
+  'partial', 'observed Claude 1-hour cache writes stay unknown until their split is represented')
+assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { inference_geo: 'global' }), {}).status,
+  'complete', 'recorded global Claude inference keeps the standard tariff')
+assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { inference_geo: 'us' }), {}).status,
+  'unknown', 'recorded non-global Claude inference is not silently standard-priced')
+assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, {}, 'codex-native'), {}).status,
+  'unknown', 'Claude never blanket-trusts a foreign provider source bucket')
+const manualClaude = pricing.parseOverrides(JSON.stringify({ models: {
+  'claude-opus-5': { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 }
+} }))
+assertEqual(pricing.resolveRate('claude', 'claude-opus-5', manualClaude).rates.input, 1,
+  'an exact manual Claude rate remains authoritative over the bundled catalog')
+assertEqual(pricing.dailyHeading('claude', [{ cost: { status: 'complete' } }]),
+  'TOKENS / KNOWN API COST EST. (USD)', 'Claude uses the shared known-cost heading')
+
 const explicit = pricing.parseOverrides(JSON.stringify({
   models: { 'gpt-6-astra': { input: 1, output: 2, cacheRead: 0, cacheWrite: 0 } }
 }))
@@ -211,7 +249,7 @@ assertEqual(pricing.dailyHeading('codex', [{ cost: { status: 'complete', total: 
   'TOKENS / KNOWN API COST EST. (USD)', 'a known zero cost still keeps the USD estimate heading')
 assertEqual(pricing.dailyHeading('codex', [{ cost: { status: 'partial', total: 0.25 } }]),
   'TOKENS / KNOWN API COST EST. (USD)', 'a known subtotal keeps the USD estimate heading')
-assertEqual(pricing.dailyHeading('claude', []), 'TOKENS BY DAY',
+assertEqual(pricing.dailyHeading('gemini', []), 'TOKENS BY DAY',
   'providers outside pricing scope retain their original daily heading')
 
 const mismatchedRows = pricing.buildDailyRows('codex', dailyUsage,

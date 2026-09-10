@@ -11,11 +11,10 @@ var TOKEN_FIELDS = [
 var NON_COST_BUCKET_ISSUES = {
   "event-identity-unverified": true
 }
-var CODEX_PRICED_SOURCES = {
-  "codex-native": true,
-  "pi": true,
-  "omp": true,
-  "opencode": true
+var PRICED_SOURCES = {
+  codex: { "codex-native": true, "pi": true, "omp": true, "opencode": true },
+  claude: { "claude-native": true },
+  kimi: { "kimi-native": true }
 }
 
 var OPENAI_PRICING_SOURCE = {
@@ -34,6 +33,14 @@ var ASTRA_SOURCE = {
   sha256: "593f63fcc87cced8695f56b828fcb5fe5a77adb59ab51ac57a5639cd9abd826f"
 }
 
+var ANTHROPIC_PRICING_SOURCE = {
+  name: "Claude Platform pricing",
+  url: "https://platform.claude.com/docs/en/about-claude/pricing",
+  retrievedAt: "2026-09-10T20:27:21Z",
+  priceAsOf: "2026-09-10",
+  sha256: "6f077b5dfa21aec36b69f97dd2cd7d9d35c94ecd037104a9af585c619fc7fdf8"
+}
+
 function publishedRate(input, output, cacheRead, cacheWrite, source) {
   return {
     rates: { input: input, output: output, cacheRead: cacheRead, cacheWrite: cacheWrite },
@@ -42,6 +49,12 @@ function publishedRate(input, output, cacheRead, cacheWrite, source) {
     tariff: "standard-short-context",
     source: source || OPENAI_PRICING_SOURCE
   }
+}
+
+function publishedClaudeRate(input, output, cacheRead, cacheWrite5m, cacheWrite1h) {
+  var entry = publishedRate(input, output, cacheRead, cacheWrite5m, ANTHROPIC_PRICING_SOURCE)
+  entry.rates.cacheWrite1h = cacheWrite1h
+  return entry
 }
 
 // Exact published IDs only. A null rate means the provider published no value;
@@ -76,6 +89,21 @@ var BUNDLED_CODEX_ALIASES = {
   "gpt-daybreak-blue-latest": "gpt-5.6-sol"
 }
 
+var BUNDLED_CLAUDE_MODELS = {
+  "claude-opus-5": publishedClaudeRate(5, 25, 0.5, 6.25, 10),
+  "claude-opus-4-6": publishedClaudeRate(5, 25, 0.5, 6.25, 10),
+  "claude-opus-4-7": publishedClaudeRate(5, 25, 0.5, 6.25, 10),
+  "claude-opus-4-8": publishedClaudeRate(5, 25, 0.5, 6.25, 10),
+  "claude-sonnet-5": publishedClaudeRate(2, 10, 0.2, 2.5, 4),
+  "claude-sonnet-4-6": publishedClaudeRate(3, 15, 0.3, 3.75, 6),
+  "claude-sonnet-4-5-20250929": publishedClaudeRate(3, 15, 0.3, 3.75, 6),
+  "claude-haiku-4-5-20251001": publishedClaudeRate(1, 5, 0.1, 1.25, 2)
+}
+
+var BUNDLED_CLAUDE_ALIASES = {
+  "claude-sonnet-4-5": "claude-sonnet-4-5-20250929"
+}
+
 var BUNDLED_CATALOG = {
   schemaVersion: 1,
   currency: "USD",
@@ -87,6 +115,11 @@ var BUNDLED_CATALOG = {
       source: OPENAI_PRICING_SOURCE,
       models: BUNDLED_CODEX_MODELS,
       aliases: BUNDLED_CODEX_ALIASES
+    },
+    claude: {
+      source: ANTHROPIC_PRICING_SOURCE,
+      models: BUNDLED_CLAUDE_MODELS,
+      aliases: BUNDLED_CLAUDE_ALIASES
     }
   }
 }
@@ -203,7 +236,9 @@ function bundledRate(providerId, id) {
     origin: "bundled-fallback",
     priceAsOf: entry.source.priceAsOf,
     source: clone(entry.source),
-    assumptions: ["Standard short-context tariff estimate; request-level input size is not retained in daily aggregation"]
+    assumptions: [providerId === "claude"
+      ? "Standard short-context tariff estimate; absent cache-duration metadata assumes 5-minute cache writes"
+      : "Standard short-context tariff estimate; request-level input size is not retained in daily aggregation"]
   }
 }
 
@@ -219,6 +254,8 @@ function resolveRate(providerId, modelId, rawOverrides) {
 
   var directManual = manualRate(id, overrides)
   if (directManual) return directManual
+  // Kimi has no proven historical alias mapping or bundled price.
+  if (provider === "kimi") return null
 
   var manualTarget = overrides.aliases[id]
   if (manualTarget) {
@@ -271,7 +308,7 @@ function tokenNumber(value) {
   return typeof value === "number" && isFinite(value) && value >= 0 && Math.floor(value) === value ? value : null
 }
 
-function affectedTariffComponents(bucket) {
+function affectedTariffComponents(providerId, bucket) {
   var affected = []
   var assumptions = []
   if (bucket && bucket.tariff !== undefined && bucket.tariff !== null && !isPlainObject(bucket.tariff)) {
@@ -281,8 +318,17 @@ function affectedTariffComponents(bucket) {
     }
   }
   var tariff = isPlainObject(bucket && bucket.tariff) ? bucket.tariff : {}
+  // Present non-string values are invalid evidence, not an absent standard tier.
+  var invalidTier = (tariff.service_tier !== undefined && tariff.service_tier !== null
+      && typeof tariff.service_tier !== "string")
+    || (tariff.speed !== undefined && tariff.speed !== null && typeof tariff.speed !== "string")
+  if (invalidTier) {
+    affected = ["input", "output", "cacheRead", "cacheWrite"]
+    assumptions.push("Recorded service_tier or speed metadata is invalid")
+  }
   var serviceTier = exactId(tariff.service_tier)
   var speed = exactId(tariff.speed)
+  var inferenceGeo = exactId(tariff.inference_geo)
 
   if (serviceTier !== "" && serviceTier !== "default" && serviceTier !== "standard") {
     affected = ["input", "output", "cacheRead", "cacheWrite"]
@@ -296,8 +342,14 @@ function affectedTariffComponents(bucket) {
     affected = ["input", "output", "cacheRead", "cacheWrite"]
     assumptions.push("Observed fast_mode has no validated applicable bundled tariff")
   }
+  if (inferenceGeo !== "" && inferenceGeo !== "standard" && inferenceGeo !== "global") {
+    affected = ["input", "output", "cacheRead", "cacheWrite"]
+    assumptions.push("Observed inference_geo=" + inferenceGeo + " has no validated applicable bundled tariff")
+  }
+  var cacheDuration = exactId(tariff.cache_duration)
   if (tariff.cache_duration !== undefined && tariff.cache_duration !== null
-      && String(tariff.cache_duration).trim() !== "") {
+      && (typeof tariff.cache_duration !== "string" || cacheDuration !== "")
+      && !(exactId(providerId) === "claude" && cacheDuration === "5m")) {
     uniquePush(affected, "cacheWrite")
     assumptions.push("Observed cache_duration=" + String(tariff.cache_duration) + " has no validated cache-write tariff")
   }
@@ -325,7 +377,8 @@ function priceBucket(providerId, bucket, rawOverrides) {
     if (NON_COST_BUCKET_ISSUES[issue] === true) uniquePush(result.uncertainties, issue)
     else uniquePush(result.missing, "Usage coverage: " + issue)
   }
-  if (CODEX_PRICED_SOURCES[String(bucket.source || "")] !== true) {
+  var providerSources = PRICED_SOURCES[exactId(providerId)] || {}
+  if (providerSources[String(bucket.source || "")] !== true) {
     result.missing.push("Usage source " + String(bucket.source || "unknown") + " has no verified pricing contract")
     return result
   }
@@ -338,7 +391,7 @@ function priceBucket(providerId, bucket, rawOverrides) {
   result.rate = rate
   result.assumptions = clone(rate.assumptions || [])
 
-  var tariffState = affectedTariffComponents(bucket)
+  var tariffState = affectedTariffComponents(providerId, bucket)
   for (var ta = 0; ta < tariffState.assumptions.length; ta++)
     uniquePush(result.assumptions, tariffState.assumptions[ta])
 
@@ -417,7 +470,7 @@ function formatCombined(tokens, cost, pricingEnabled) {
 }
 
 function dailyHeading(providerId, rows) {
-  if (exactId(providerId) !== "codex") return "TOKENS BY DAY"
+  if (exactId(providerId) !== "codex" && exactId(providerId) !== "claude" && exactId(providerId) !== "kimi") return "TOKENS BY DAY"
   var values = Array.isArray(rows) ? rows : []
   for (var i = 0; i < values.length; i++) {
     var cost = values[i] && values[i].cost
@@ -463,13 +516,14 @@ function validDailyUsage(value) {
     && Array.isArray(value.days) && typeof value.fromDate === "string" && typeof value.throughDate === "string"
 }
 
-function hasLocalizedCoverageIssue(dailyUsage) {
+function hasLocalizedCoverageIssue(providerId, dailyUsage) {
   var days = Array.isArray(dailyUsage && dailyUsage.days) ? dailyUsage.days : []
   for (var dayIndex = 0; dayIndex < days.length; dayIndex++) {
     var buckets = Array.isArray(days[dayIndex] && days[dayIndex].buckets) ? days[dayIndex].buckets : []
     for (var bucketIndex = 0; bucketIndex < buckets.length; bucketIndex++) {
       var bucket = buckets[bucketIndex]
-      if (!isPlainObject(bucket) || CODEX_PRICED_SOURCES[String(bucket.source || "")] !== true) return true
+      var sources = PRICED_SOURCES[exactId(providerId)] || {}
+      if (!isPlainObject(bucket) || sources[String(bucket.source || "")] !== true) return true
       if (Array.isArray(bucket.issues) && bucket.issues.length > 0) return true
       if (bucket.rawModel === null || tokenNumber(bucket.totalTokens) === null) return true
       var tokens = isPlainObject(bucket.tokens) ? bucket.tokens : {}
@@ -480,7 +534,7 @@ function hasLocalizedCoverageIssue(dailyUsage) {
   return false
 }
 
-function globalCoverageMessages(dailyUsage) {
+function globalCoverageMessages(providerId, dailyUsage) {
   var messages = []
   var issues = Array.isArray(dailyUsage && dailyUsage.issues) ? dailyUsage.issues : []
   for (var issueIndex = 0; issueIndex < issues.length; issueIndex++)
@@ -489,7 +543,7 @@ function globalCoverageMessages(dailyUsage) {
   if (unallocated !== null && unallocated > 0)
     uniquePush(messages, formatTokenCount(unallocated) + " tokens cannot be assigned to a day")
   if (dailyUsage && dailyUsage.complete !== true && messages.length === 0
-      && !hasLocalizedCoverageIssue(dailyUsage))
+      && !hasLocalizedCoverageIssue(providerId, dailyUsage))
     uniquePush(messages, "Daily usage coverage is incomplete for an unreported scope")
   return messages
 }
@@ -527,7 +581,7 @@ function dayCost(providerId, buckets, rawOverrides, dailyUsage, displayedTokens)
     else bucketTotal += measured
   }
 
-  var globalMessages = globalCoverageMessages(dailyUsage)
+  var globalMessages = globalCoverageMessages(providerId, dailyUsage)
   for (var messageIndex = 0; messageIndex < globalMessages.length; messageIndex++)
     uniquePush(result.missing, globalMessages[messageIndex])
 
@@ -551,7 +605,7 @@ function dayCost(providerId, buckets, rawOverrides, dailyUsage, displayedTokens)
 
 function buildDailyRows(providerId, dailyUsage, recentDays, nowMs, rawOverrides, scopeCompatible) {
   var provider = exactId(providerId)
-  var pricedProvider = provider === "codex"
+  var pricedProvider = provider === "codex" || provider === "claude" || provider === "kimi"
   var dates = recentDateStrings(nowMs, 7)
   var legacy = legacyDayMap(recentDays)
   var overrides = parseOverrides(rawOverrides || "")
@@ -604,7 +658,8 @@ function rateDetail(rate) {
     + "\nRates per 1M: input " + formatRate(rates.input)
     + " · output " + formatRate(rates.output)
     + " · cache read " + formatRate(rates.cacheRead)
-    + " · cache write " + formatRate(rates.cacheWrite)
+    + " · cache write" + (validRateNumber(rates.cacheWrite1h) ? " 5m" : "") + " " + formatRate(rates.cacheWrite)
+    + (validRateNumber(rates.cacheWrite1h) ? " · cache write 1h " + formatRate(rates.cacheWrite1h) : "")
     + "\nSource: " + String(rate.source && rate.source.name || "unknown")
     + (rate.source && rate.source.url ? " · " + rate.source.url : "")
 }
@@ -722,7 +777,7 @@ function presentationTooltip(row) {
 
 function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverrides, scopeCompatible) {
   var provider = exactId(providerId)
-  if (provider !== "codex" || !validDailyUsage(dailyUsage) || scopeCompatible === false)
+  if ((provider !== "codex" && provider !== "claude" && provider !== "kimi") || !validDailyUsage(dailyUsage) || scopeCompatible === false)
     return { available: false, models: [], summaries: [] }
   var overrides = parseOverrides(rawOverrides || "")
   var dates30 = recentDateStrings(nowMs, 30)
@@ -773,7 +828,7 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
     if (!resolveRate(provider, models[missingIndex].id, overrides))
       missingPriceModels.push(models[missingIndex].id)
   }
-  var globalMissing = globalCoverageMessages(dailyUsage)
+  var globalMissing = globalCoverageMessages(provider, dailyUsage)
   var summaries = [
     { key: "today", label: "Today", aggregate: windows.today },
     { key: "seven", label: "7 days", aggregate: windows.seven },

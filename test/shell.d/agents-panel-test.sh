@@ -46,7 +46,11 @@ assert(/usage\.pricing\.dailyRows\(provider, nowMs\)/.test(panelSource)
 assert(/function modelWindowPresentation\(provider, nowMs\)/.test(pricingSource)
   && /usage\.pricing\.modelWindowPresentation\(provider, nowMs\)/.test(panelSource)
   && /model: root\.modelSummaries/.test(panelSource),
-  'Codex model and window rows use the same reload-aware public pricing object')
+  'priced model and window rows use the same reload-aware public pricing object')
+assert(/function providerSupportsPricing\(value\)/.test(panelSource)
+  && /value\.providerId === "codex" \|\| value\.providerId === "claude" \|\| value\.providerId === "kimi"/.test(panelSource)
+  && /readonly property var days: root\.providerSupportsPricing\(root\.provider\)/.test(panelSource),
+  'Claude, Codex, and Kimi share the pricing-backed day, model, heading, and limitation gates')
 assert(/TOKENS \/ KNOWN API COST EST\. BY MODEL \(30 DAYS\)/.test(panelSource)
   && /Costs exclude usage with missing prices or token details\./.test(panelSource)
   && !/known API-cost subtotal/.test(panelSource),
