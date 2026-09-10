@@ -727,6 +727,7 @@ Panel {
               visible: root.pricingLimitationText() !== ""
               width: parent.width
               text: root.pricingLimitationText()
+              textFormat: Text.PlainText
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
