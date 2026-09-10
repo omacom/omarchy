@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Effects
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -21,6 +22,9 @@ Item {
   property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
+  // Name of the currently active fcitx5 input method, refreshed by the poll
+  // below. Empty when fcitx5 is not running so the indicator stays off.
+  property string currentIm: ""
 
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
@@ -32,6 +36,24 @@ Item {
   // Space to keep clear on each side of the field for the fingerprint icon
   // (icon width plus a gap) so the centered dots never run under it.
   readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  // Short label for the IME indicator. Empty for the bare keyboard layouts
+  // (anything starting with `keyboard-`) so the indicator stays off when the
+  // user is already in Latin mode. The named mappings cover the IMs users
+  // are most likely to lock themselves out with; anything else falls back to
+  // the first four letters of the IM name so the field still shows something.
+  readonly property string currentImLabel: {
+    const name = root.currentIm
+    if (name === "" || name.indexOf("keyboard-") === 0) return ""
+    if (name === "pinyin" || name === "libpinyin") return "中"
+    if (name === "anthy") return "あ"
+    if (name === "hangul") return "한"
+    if (name === "rime") return "默"
+    return name.slice(0, 4)
+  }
+  readonly property bool showImIndicator: root.currentImLabel !== ""
+  // Mirror fingerprintReserve on the left so the centered dots stay symmetric
+  // when the IME indicator is visible.
+  readonly property real imReserve: showImIndicator ? Math.round(imIndicator.implicitWidth + 12) : 0
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
@@ -80,6 +102,35 @@ Item {
     font.pixelSize: root.passwordDotFontSize
     font.letterSpacing: root.passwordDotLetterSpacing
     text: "●".repeat(passwordInput.text.length)
+  }
+
+  // Polls fcitx5-remote for the active input method so the lock screen can
+  // warn the user that the password field is not in Latin mode. A short
+  // interval is fine because the command is a single D-Bus roundtrip and
+  // only runs while the lock UI is on screen.
+  Timer {
+    id: imPoll
+    interval: 750
+    repeat: true
+    running: root.inputEnabled
+    triggeredOnStart: true
+    onTriggered: imQuery.running = true
+  }
+
+  Process {
+    id: imQuery
+    command: ["fcitx5-remote", "-n"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        const name = String(text || "").trim()
+        // fcitx5-remote prints "No input method" when the daemon has shut
+        // down; treat anything that does not match a known layout name as
+        // an off state so the indicator disappears rather than freeze on
+        // the last reading.
+        root.currentIm = (name === "" || name === "No input method") ? "" : name
+      }
+    }
   }
 
   Rectangle {
@@ -137,9 +188,12 @@ Item {
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
         // dots stay symmetric and never slide under the icon as they grow.
-        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
+        // The IME indicator sits on the left edge of the field, so its
+        // reserve is added to the left margin (and mirrored to the right
+        // margin to keep the dots centered when the indicator is visible).
+        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve + root.imReserve
         anchors.bottomMargin: inputField.borderBottom
-        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve
+        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve + root.imReserve
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
@@ -210,6 +264,25 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: "󰈷"
+        color: Color.lock.placeholder
+        font.family: Style.font.family
+        font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+      }
+
+      // Input method indicator pinned inside the field's left edge when the
+      // active fcitx5 IM is not a bare keyboard layout, so the user can see
+      // why the password field is not accepting Latin keystrokes as-is.
+      Text {
+        id: imIndicator
+        objectName: "imeIndicator"
+        anchors.left: parent.left
+        anchors.leftMargin: inputField.borderLeft + 18
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.showImIndicator
+        textFormat: Text.PlainText
+        text: root.currentImLabel
         color: Color.lock.placeholder
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
