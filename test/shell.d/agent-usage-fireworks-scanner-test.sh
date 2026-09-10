@@ -56,6 +56,9 @@ os.environ["TZ"] = "UTC"
 time.tzset()
 os.environ.pop("FIREWORKS_ACCOUNT_ID", None)
 
+# Keep the load from dropping a bytecode cache beside the collector: a stray
+# bin/__pycache__ is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 loader = importlib.machinery.SourceFileLoader("fireworks_collector", collector_path)
 spec = importlib.util.spec_from_loader(loader.name, loader)
 scanner = importlib.util.module_from_spec(spec)
