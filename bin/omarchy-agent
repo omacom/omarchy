@@ -53,7 +53,12 @@ fi
 
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
+# Axon uses its shipped agent's own permission policy.
 case "$agent" in
+axon)
+  command=(axon @axon/zeno)
+  [[ -n ${prompt:-} ]] && command+=(-p "$prompt")
+  ;;
 opencode)
   command=(opencode --auto)
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
