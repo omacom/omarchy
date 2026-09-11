@@ -125,6 +125,12 @@ ShellRoot {
         fail("icon canvas does not match the shared canvas")
         return
       }
+      // Vector icons size themselves under the canvas (like the font-sized
+      // status icons); the bar must see that size, not a full canvas.
+      if (!(vector.iconContentItem && vector.iconContentItem.implicitWidth === 12)) {
+        fail("vector icon content is not measurable through the button")
+        return
+      }
       console.log("RESULT pass")
       Qt.quit()
     }
@@ -153,6 +159,13 @@ ShellRoot {
       WidgetButton { id: pill; bar: testBar; text: "X" }
       BarIconButton { id: glyph; bar: testBar; text: "x" }
       BarIconButton { id: overflow; bar: testBar; text: "x" }
+      BarIconButton {
+        id: vector
+        bar: testBar
+        iconComponent: Component {
+          Rectangle { implicitWidth: 12; implicitHeight: 12 }
+        }
+      }
     }
   }
 }
