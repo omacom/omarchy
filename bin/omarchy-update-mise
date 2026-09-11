@@ -2,8 +2,44 @@
 
 # omarchy:summary=Update mise-managed tools
 
+retarget_iso_node_pin() {
+  local config_file="${MISE_CONFIG_FILE:-$HOME/.config/mise/config.toml}"
+  local package_dir="${OMARCHY_PROVISIONING_PACKAGES_DIR:-/var/lib/omarchy/provisioning/packages}"
+  local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  local migrated_marker="$state_dir/iso-node-mise-policy-migrated"
+  local bundled_tarball=""
+  local node_version=""
+
+  [[ -f $migrated_marker || ! -f $config_file || ! -d $package_dir ]] && return 0
+
+  bundled_tarball=$(find "$package_dir" -maxdepth 1 -type f -name 'node-v*-linux-x64.tar.gz' -print -quit 2>/dev/null)
+  [[ -n $bundled_tarball ]] || return 0
+
+  node_version=$(sed -nE 's/^[[:space:]]*node[[:space:]]*=[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*$/\1/p' "$config_file" | head -n1)
+
+  if [[ -n $node_version && -f $package_dir/node-v${node_version}-linux-x64.tar.gz ]]; then
+    echo "Retarget bundled ISO Node $node_version to latest"
+    if ! mise use -g node@latest; then
+      echo "Warning: could not retarget the bundled Node pin yet; will retry on the next update" >&2
+      return 0
+    fi
+  fi
+
+  # The provisioning package directory is retained after first boot. Once this
+  # machine has passed through the policy check, never reinterpret a later
+  # user-authored exact Node pin as an ISO pin just because it matches that old
+  # bundled tarball.
+  mkdir -p "$state_dir"
+  : >"$migrated_marker"
+}
+
 if omarchy-cmd-present mise; then
   echo -e "\e[32m\nUpdate mise tools\e[0m"
+
+  # Offline ISO provisioning uses its bundled Node version exactly so first boot
+  # does not need the network. The first normal update then converges that
+  # Omarchy-owned pin onto the same moving `latest` policy as network installs.
+  retarget_iso_node_pin
 
   # mise withholds releases younger than its cooldown, so tools stay behind for
   # days after they ship. Running omarchy update is the user asking for current
