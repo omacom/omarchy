@@ -22,6 +22,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -817,13 +818,14 @@ def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
   return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
 
 
-def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[str, Any]:
+def collect_limits(access_token: str, expires_at_ms: int, force: bool, claude_dir: Path) -> dict[str, Any]:
   result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP}
 
   # A panel that is opened and shut repeatedly must not turn into a request
   # per flick, so recent probe results are reused for a short window — and
   # kept as the answer of record when a later probe fails.
-  probe_cache = cache_root() / "claude-limits.json"
+  digest = hashlib.sha1(str(claude_dir).encode("utf-8")).hexdigest()[:16]
+  probe_cache = cache_root() / f"claude-limits-{digest}.json"
   cached = read_fresh_json(probe_cache, float("inf")) or {}
   fallback = usable_cached_limits(cached)
 
@@ -875,6 +877,88 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
 # -------------------------------------------------------------------- record
 
 
+def notify_state_path() -> Path:
+  root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omarchy" / "agents"
+  root.mkdir(parents=True, exist_ok=True)
+  return root / "limit-notified.json"
+
+
+def other_claude_logins() -> list[str]:
+  helper = Path(os.environ.get("OMARCHY_PATH") or "/usr/share/omarchy") / "bin" / "omarchy-agent-account"
+  cmd = [str(helper) if helper.is_file() else "omarchy-agent-account", "list", "--json"]
+  try:
+    raw = subprocess.check_output(cmd, text=True, timeout=8)
+    data = json.loads(raw)
+  except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+    return []
+  if not isinstance(data, dict):
+    return []
+  active = str(data.get("activeId") or "")
+  emails = []
+  for row in data.get("accounts") or []:
+    if not isinstance(row, dict):
+      continue
+    account_id = str(row.get("id") or "")
+    if not account_id or account_id == active:
+      continue
+    emails.append(str(row.get("email") or row.get("label") or account_id))
+  return emails
+
+
+def notify_exhausted(plan: str, limits: list[Any]) -> None:
+  if os.environ.get("OMARCHY_AGENT_USAGE_NOTIFY") == "0":
+    return
+  spent = []
+  for entry in limits:
+    if not isinstance(entry, dict):
+      continue
+    if number(entry.get("percent")) < 1:
+      continue
+    label = str(entry.get("title") or entry.get("label") or "limit")
+    spent.append((label, str(entry.get("resetsAt") or "")))
+  if not spent:
+    return
+  path = notify_state_path()
+  previous = read_fresh_json(path, float("inf")) or {}
+  last = previous.get("claude") if isinstance(previous.get("claude"), dict) else {}
+  fresh = []
+  remembered = dict(last)
+  for label, resets_at in spent:
+    if last.get(label) == resets_at and resets_at != "":
+      continue
+    fresh.append(label)
+    remembered[label] = resets_at
+  if not fresh:
+    return
+  others = other_claude_logins()
+  who = plan.strip() or "Claude"
+  windows = ", ".join(fresh)
+  headline = f"{who} {windows} used up"
+  if others:
+    body = "Another Claude login is saved. Switch from the agents icon."
+  else:
+    body = "No other Claude login is saved on this machine."
+  try:
+    subprocess.run(
+      [
+        "omarchy-notification-send",
+        "--app-name", "Claude",
+        "-g", "󰀦",
+        "-u", "normal",
+        headline,
+        body,
+        "--exec", "omarchy-shell", "-q", "omarchy.agents", "open",
+      ],
+      check=False,
+      stdout=subprocess.DEVNULL,
+      stderr=subprocess.DEVNULL,
+      timeout=8,
+    )
+  except (OSError, subprocess.TimeoutExpired):
+    return
+  write_json(path, {"claude": remembered})
+
+
 def main() -> int:
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true", help="rescan transcripts and re-probe limits, ignoring caches")
@@ -906,7 +990,7 @@ def main() -> int:
     stats = merge_stats(stats, opencode)
 
   access_token, expires_at_ms, plan = oauth_login(claude_dir)
-  limits = collect_limits(access_token, expires_at_ms, args.force)
+  limits = collect_limits(access_token, expires_at_ms, args.force, claude_dir)
 
   record = {
     "schemaVersion": 1,
@@ -923,6 +1007,10 @@ def main() -> int:
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
   record.update(stats)
+  try:
+    notify_exhausted(str(plan or ""), limits["limits"])
+  except Exception:
+    pass
   print(json.dumps(record, separators=(",", ":"), sort_keys=True))
   return 0
 

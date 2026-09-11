@@ -16,4 +16,6 @@ assert(/else root\.toggle\(\)/.test(panelSource), 'agents left click still toggl
 assert(!/if \(buttonCode === Qt\.RightButton\) root\.refreshNow\(\)/.test(panelSource), 'agents right click no longer refreshes')
 assert(/activeProviderId === "claude"/.test(panelSource), 'claude account chips are scoped to the Claude tab')
 assert(/omarchy-agent-account/.test(fs.readFileSync(root + '/shell/plugins/agents/Accounts.qml', 'utf8')), 'account chips call omarchy-agent-account')
+assert(/reloadFromDisk/.test(fs.readFileSync(root + '/shell/plugins/agents/Agent.qml', 'utf8')), 'usage records can be reloaded after a switch')
+assert(fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8').includes('providerId) === "claude"'), 'empty Claude accounts stay on the bar')
 JS
