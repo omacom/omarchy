@@ -140,6 +140,9 @@ KEEP = "yes"
 
 [tools]
 ruby = "latest"
+
+[other]
+_.path = "{{ cwd }}/bin"
 TOML
 cp "$custom_config" "$test_dir/custom-original"
 cat >"$test_dir/custom-expected" <<'TOML'
@@ -149,6 +152,9 @@ KEEP = "yes"
 
 [tools]
 ruby = "latest"
+
+[other]
+_.path = "{{ cwd }}/bin"
 TOML
 chmod 600 "$custom_config"
 run_mise "$custom_home" trust "$custom_config" >/dev/null
