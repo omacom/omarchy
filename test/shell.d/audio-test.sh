@@ -5,7 +5,24 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const audio = requireFromRoot('shell/plugins/panels/audio/Model.js')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/audio/Panel.qml', 'utf8')
+
+function qmlObject(source, type, id) {
+  const startPattern = new RegExp(type + ' \\{\\s*id: ' + id + '\\b')
+  const match = startPattern.exec(source)
+  if (!match) fail(`audio panel contains ${id}`)
+
+  const start = match.index
+  const open = source.indexOf('{', start)
+  let depth = 0
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth++
+    if (source[i] === '}' && --depth === 0) return source.slice(start, i + 1)
+  }
+  fail(`audio panel closes ${id}`)
+}
 
 assert(audio.isPlaybackStream({ isStream: true, isSink: true }), 'audio detects sink-backed playback streams')
 assert(audio.isPlaybackStream({ isStream: true, type: 'Stream/Output/Audio' }), 'audio detects typed playback streams')
@@ -16,6 +33,20 @@ assert(audio.isAudioSource({ type: 'Audio/Source' }), 'audio detects typed sourc
 assertEqual(audio.outputVolumeName(0, false), 'Silenced', 'audio labels silent output')
 assertEqual(audio.outputVolumeName(0.9, false), 'Party mode', 'audio labels loud output')
 assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted output')
+
+assert(/if \(focusSection === "header"\) \{ toggleOutputMute\(\); return \}/.test(panelSource), 'audio hero keyboard activation toggles output')
+assert(/onPressed: function\(b\) \{\s*if \(b === Qt\.RightButton\) root\.toggleOutputMute\(\)/.test(panelSource), 'audio bar right-click toggles output')
+const heroSwitch = qmlObject(panelSource, 'ToggleSwitch', 'powerSwitch')
+const heroCheckedExpression = heroSwitch.match(/checked: (.+)/)[1]
+const heroChecked = new Function('root', `return ${heroCheckedExpression}`)
+assert(!heroChecked({ hasOutput: true, outputMuted: true, inputMuted: false }), 'audio hero stays off when output is muted and input is audible')
+assert(heroChecked({ hasOutput: true, outputMuted: false, inputMuted: true }), 'audio hero turns on when output is audible')
+assert(!heroChecked({ hasOutput: false, outputMuted: false, inputMuted: false }), 'audio hero stays off without an output')
+assert(/onToggled: root\.toggleOutputMute\(\)/.test(heroSwitch), 'audio hero switch controls output')
+assert(/text: root\.outputMuted \? "Unmute output" : "Mute output"/.test(heroSwitch), 'audio hero tooltip describes output mute')
+const inputSwitch = qmlObject(panelSource, 'ToggleSwitch', 'inputMuteSwitch')
+assert(/text: root\.inputMuted \? "Unmute microphone" : "Mute microphone"/.test(inputSwitch), 'audio microphone tooltip stays shortcut-neutral')
+assert(!/toggleAllMuted|anyAudible|toggleHint/.test(panelSource), 'audio panel removes global mute state')
 
 assertDeepEqual(audio.parseSinkAvailability('alsa_output\t1\nhdmi_output\t0\n'), { alsa_output: true, hdmi_output: false }, 'audio parses sink availability')
 assertEqual(audio.friendlyDeviceLabel('Built-in Audio Speakers Output'), 'Speakers', 'audio cleans device labels')

@@ -168,13 +168,8 @@ Panel {
   // "header" is a virtual section for the hero output mute toggle; it sits
   // above the output section so the speaker can be muted from the keyboard.
   readonly property bool headerHasCursor: cursorActive && focusSection === "header"
-  // Only channels that actually exist get a vote. A box with no default source
-  // would otherwise report "input unmuted" forever, leaving the hero switch
-  // able to mute but never to unmute.
   readonly property bool hasOutput: !!(volumeSink && volumeSink.audio)
   readonly property bool hasInput: !!(source && source.audio)
-  readonly property bool anyAudible: (hasOutput && !outputMuted) || (hasInput && !inputMuted)
-  readonly property string toggleHint: anyAudible ? "Mute" : "Unmute"
 
   readonly property color hoverFill: bar
     ? Style.hoverFillFor(bar.foreground, Color.accent)
@@ -288,7 +283,7 @@ Panel {
 
   // Enter/Space: activate whatever the cursor is on.
   function activateCursor() {
-    if (focusSection === "header") { toggleAllMuted(); return }
+    if (focusSection === "header") { toggleOutputMute(); return }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
       var sink = displayAudioSinks[selectedIndex]
@@ -449,15 +444,6 @@ Panel {
 
   function toggleInputMute() {
     if (source && source.audio) source.audio.muted = !source.audio.muted
-  }
-
-  // The hero switch is the whole panel's on/off, so it carries both channels
-  // at once. It reads as on while anything is still audible, which keeps
-  // muting a single channel from the row below flipping the master switch.
-  function toggleAllMuted() {
-    var mute = anyAudible
-    if (hasOutput) volumeSink.audio.muted = mute
-    if (hasInput) source.audio.muted = mute
   }
 
   function setDefaultSink(node) {
@@ -633,7 +619,7 @@ Panel {
     bar: root.bar
     text: root.outputIcon()
     onPressed: function(b) {
-      if (b === Qt.RightButton) root.toggleAllMuted()
+      if (b === Qt.RightButton) root.toggleOutputMute()
       else root.toggle()
     }
 
@@ -721,22 +707,21 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
 
-            // Compact on/off switch on the trailing edge of the hero, and the
-            // header's only cursor target. Checked means something is still
-            // audible, so muting everything reads as switching audio off.
+            // Compact output switch on the trailing edge of the hero, and the
+            // header's only cursor target. Checked means output is audible.
             ToggleSwitch {
               id: powerSwitch
-              checked: root.anyAudible
+              checked: root.hasOutput && !root.outputMuted
               hasCursor: root.headerHasCursor
               foreground: root.bar.foreground
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               onHovered: function(on) { if (on) root.setHeaderCursor() }
-              onToggled: root.toggleAllMuted()
+              onToggled: root.toggleOutputMute()
 
               PanelToolTip {
                 visible: powerSwitch.containsMouse
-                text: root.toggleHint
+                text: root.outputMuted ? "Unmute output" : "Mute output"
                 fontFamily: root.bar.fontFamily
               }
             }
@@ -789,14 +774,29 @@ Panel {
 
             Item {
               width: parent.width
-              implicitHeight: Math.max(outputHeader.implicitHeight, outputPercent.implicitHeight)
+              implicitHeight: Math.max(outputHeader.implicitHeight, outputPercent.implicitHeight, outputMuteSwitch.implicitHeight)
+
+              Text {
+                id: outputMuteGlyph
+                text: root.hasOutput && !root.outputMuted ? "󰓃" : ""
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+                // Reserve the same glyph overshoot the section headers do
+                // (PanelSectionHeader), so this glyph's painted outline lines
+                // up with the header text beside it.
+                topPadding: Math.ceil(Style.font.title * 0.15)
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
 
               PanelSectionHeader {
                 id: outputHeader
                 text: "OUTPUT"
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
-                anchors.left: parent.left
+                anchors.left: outputMuteGlyph.right
+                anchors.leftMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
               }
 
@@ -808,10 +808,28 @@ Panel {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
+                anchors.right: root.hasOutput ? outputMuteSwitch.left : parent.right
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                opacity: root.outputMuted ? 0.5 : 1.0
+              }
+
+              // Visible output mute toggle, matching the hero switch above.
+              ToggleSwitch {
+                id: outputMuteSwitch
+                checked: root.hasOutput && !root.outputMuted
+                visible: root.hasOutput
+                foreground: root.bar.foreground
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
-                opacity: root.outputMuted ? 0.5 : 1.0
+                onToggled: root.toggleOutputMute()
+
+                PanelToolTip {
+                  visible: outputMuteSwitch.containsMouse
+                  text: root.outputMuted ? "Unmute output" : "Mute output"
+                  fontFamily: root.bar.fontFamily
+                }
               }
             }
 
@@ -876,14 +894,29 @@ Panel {
 
             Item {
               width: parent.width
-              implicitHeight: Math.max(microphoneHeader.implicitHeight, microphonePercent.implicitHeight)
+              implicitHeight: Math.max(microphoneHeader.implicitHeight, microphonePercent.implicitHeight, inputMuteSwitch.implicitHeight)
+
+              Text {
+                id: inputMuteGlyph
+                text: root.hasInput && !root.inputMuted ? "󰍬" : "󰍭"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+                // Reserve the same glyph overshoot the section headers do
+                // (PanelSectionHeader), so this glyph's painted outline lines
+                // up with the header text beside it.
+                topPadding: Math.ceil(Style.font.title * 0.15)
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
 
               PanelSectionHeader {
                 id: microphoneHeader
                 text: "INPUT"
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
-                anchors.left: parent.left
+                anchors.left: inputMuteGlyph.right
+                anchors.leftMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
               }
 
@@ -895,10 +928,30 @@ Panel {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
+                anchors.right: root.hasInput ? inputMuteSwitch.left : parent.right
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                opacity: root.inputMuted ? 0.5 : 1.0
+              }
+
+              // Visible input mute toggle — the microphone previously had no
+              // on-screen mute control (only right-click on the slider and the
+              // 'm' key). Mirrors the hero output switch: checked = audible.
+              ToggleSwitch {
+                id: inputMuteSwitch
+                checked: root.hasInput && !root.inputMuted
+                visible: root.hasInput
+                foreground: root.bar.foreground
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
-                opacity: root.inputMuted ? 0.5 : 1.0
+                onToggled: root.toggleInputMute()
+
+                PanelToolTip {
+                  visible: inputMuteSwitch.containsMouse
+                  text: root.inputMuted ? "Unmute microphone" : "Mute microphone"
+                  fontFamily: root.bar.fontFamily
+                }
               }
             }
 
