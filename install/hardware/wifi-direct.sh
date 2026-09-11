@@ -1,23 +1,23 @@
 # Only augment Arch's stock service. Replacing a customized ExecStart would
 # discard administrator flags or an existing -m configuration.
 configure_wifi_direct() {
-  local config=/etc/wpa_supplicant/swaybeam-p2p.conf
-  local dropin=/etc/systemd/system/wpa_supplicant.service.d/50-swaybeam-p2p.conf
+  local config=/etc/wpa_supplicant/wifi-direct-pc.conf
+  local dropin=/etc/systemd/system/wpa_supplicant.service.d/50-wifi-direct-pc.conf
   local defaults="$OMARCHY_PATH/default"
   local stock='ExecStart=/usr/bin/wpa_supplicant -u -s -O /run/wpa_supplicant'
   local file
 
-  if cmp -s "$config" "$defaults/wpa_supplicant/swaybeam-p2p.conf" &&
-    cmp -s "$dropin" "$defaults/systemd/wpa_supplicant.service.d/50-swaybeam-p2p.conf"; then
+  if cmp -s "$config" "$defaults/wpa_supplicant/wifi-direct-pc.conf" &&
+    cmp -s "$dropin" "$defaults/systemd/wpa_supplicant.service.d/50-wifi-direct-pc.conf"; then
     return 0
   fi
 
   for file in "$config" "$dropin"; do
     if [[ -e $file || -L $file ]]; then
-      if [[ $file == "$config" && ! -L $file ]] && cmp -s "$file" "$defaults/wpa_supplicant/swaybeam-p2p.conf"; then
+      if [[ $file == "$config" && ! -L $file ]] && cmp -s "$file" "$defaults/wpa_supplicant/wifi-direct-pc.conf"; then
         continue
       fi
-      if [[ $file == "$dropin" && ! -L $file ]] && cmp -s "$file" "$defaults/systemd/wpa_supplicant.service.d/50-swaybeam-p2p.conf"; then
+      if [[ $file == "$dropin" && ! -L $file ]] && cmp -s "$file" "$defaults/systemd/wpa_supplicant.service.d/50-wifi-direct-pc.conf"; then
         continue
       fi
       echo "Preserving existing Wi-Fi Direct configuration: $file"
@@ -45,8 +45,8 @@ configure_wifi_direct() {
     fi
   done
 
-  install -Dm644 "$defaults/wpa_supplicant/swaybeam-p2p.conf" "$config"
-  install -Dm644 "$defaults/systemd/wpa_supplicant.service.d/50-swaybeam-p2p.conf" "$dropin"
+  install -Dm644 "$defaults/wpa_supplicant/wifi-direct-pc.conf" "$config"
+  install -Dm644 "$defaults/systemd/wpa_supplicant.service.d/50-wifi-direct-pc.conf" "$dropin"
   echo "Wi-Fi Direct PC identity installed; reboot to activate it."
   echo "To activate now, run sudo systemctl daemon-reload and sudo systemctl restart wpa_supplicant. Restarting temporarily disconnects Wi-Fi."
 }

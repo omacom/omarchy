@@ -16,13 +16,13 @@ sed -e "s|/etc/|$scratch/etc/|g" \
   "$ROOT/install/hardware/wifi-direct.sh" > "$scratch/setup.sh"
 mkdir -p "$scratch/usr/lib/systemd/system" "$scratch/etc/systemd/system"
 printf 'ExecStart=/usr/bin/wpa_supplicant -u -s -O %s/run/wpa_supplicant\n' "$scratch" > "$scratch/usr/lib/systemd/system/wpa_supplicant.service"
-config="$scratch/etc/wpa_supplicant/swaybeam-p2p.conf"
-dropin="$scratch/etc/systemd/system/wpa_supplicant.service.d/50-swaybeam-p2p.conf"
+config="$scratch/etc/wpa_supplicant/wifi-direct-pc.conf"
+dropin="$scratch/etc/systemd/system/wpa_supplicant.service.d/50-wifi-direct-pc.conf"
 
 run_setup() { bash -euo pipefail "$scratch/setup.sh"; }
 run_setup
-cmp -s "$config" "$ROOT/default/wpa_supplicant/swaybeam-p2p.conf" || fail "PC identity installed"
-cmp -s "$dropin" "$ROOT/default/systemd/wpa_supplicant.service.d/50-swaybeam-p2p.conf" || fail "tested service flags installed"
+cmp -s "$config" "$ROOT/default/wpa_supplicant/wifi-direct-pc.conf" || fail "PC identity installed"
+cmp -s "$dropin" "$ROOT/default/systemd/wpa_supplicant.service.d/50-wifi-direct-pc.conf" || fail "tested service flags installed"
 pass "fresh install uses tested files"
 run_setup
 pass "repeated setup succeeds"
