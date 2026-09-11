@@ -51,6 +51,7 @@ canon() { # canonicalize, resolving symlinks even for not-yet-existing leaf path
 
 # ---------------------------------------------------------------- ledger
 lread() { [[ -f $LEDGER ]] && cat "$LEDGER" || printf '%s\n' "$LEDGER_EMPTY"; }
+sha_of() { printf '%s' "$1" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-64; }   # of a string
 deadline() { if command -v timeout >/dev/null 2>&1; then timeout "$@"; else shift; "$@"; fi; }   # <secs> <cmd...>: a probe that hangs must not hang the card
 HAVE_FLOCK=0; command -v flock >/dev/null 2>&1 && HAVE_FLOCK=1   # Omarchy has util-linux; the mkdir path is for tests elsewhere
 lwrite() { # lwrite <jq-filter> [jq-args...]: atomic read-modify-write under a short file lock

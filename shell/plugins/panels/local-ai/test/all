@@ -111,7 +111,7 @@ echo "pkexec $*" >>"$SHIM/pkexec.log"
 [[ ${SHIM_PKEXEC_FAIL:-} == 1 ]] && { echo "Error executing command as another user: Request dismissed" >&2; exit 126; }
 # real pkexec starts from a clean environment: only what the plugin's env file carries reaches the root phase
 args=(); for v in "${!SHIM_@}"; do args+=("$v=${!v}"); done
-exec env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" SHIM="$SHIM" OMARCHY_AI_TEST_ROOT=1 SHIM_ROOT=1 "${args[@]}" "$@"
+exec env -i PATH="$PATH" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" SHIM="$SHIM" OMARCHY_AI_TEST_ROOT=1 SHIM_ROOT=1 PKEXEC_UID="${SHIM_PKEXEC_UID:-$(id -u)}" "${args[@]}" "$@"
 EOF
 for tk in pacman nvidia-ctk systemctl; do printf '#!/usr/bin/env bash\necho "%s $*" >>"$SHIM/toolkit.log"\n' "$tk" >"$TMP/bin/$tk"; done
 for a in pi claude codex; do printf '#!/usr/bin/env bash\necho "$0 $* ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-} ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-} LOCAL_AI_KEY=${LOCAL_AI_KEY:-}"\n' >"$TMP/bin/$a"; done
@@ -330,9 +330,14 @@ SHIM_PULL_FAIL=1 SHIM_PULL_ERR="Error response from daemon: Get https://ghcr.io/
 "$CLI" unload >/dev/null; rm -f "$SHIM/images" "$OMARCHY_AI_STATE"/weights/*.json; : >"$SHIM/pkexec.log"
 export OMARCHY_AI_DOCKER=prompt
 n0=$(grep -c . "$SHIM/docker.log"); "$CLI" snapshot >/dev/null; [[ $(grep -c . "$SHIM/docker.log") == "$n0" ]] || fail "snapshot touched docker in prompt mode"; pass "prompt mode: the card's refresh makes no docker call"
-OMARCHY_AI_RUN_AS=1006:1006 "$CLI" load; [[ $(snap .state) == ready ]] || fail "prompt load" "$(snap .error)"; pass "prompt mode: a Start from nothing reaches ready"
+SHIM_PKEXEC_UID=1006 "$CLI" load; [[ $(snap .state) == ready ]] || fail "prompt load" "$(snap .error)"; pass "prompt mode: a Start from nothing reaches ready"
 [[ $(grep -c "pkexec" "$SHIM/pkexec.log") == 1 ]] || fail "one prompt per Start" "$(cat "$SHIM/pkexec.log")"; pass "prompt mode: images, weights, and both containers behind one password prompt"
-grep -q "_root .* start" "$SHIM/pkexec.log" && grep -q -- "--user 1006:1006" "$SHIM/docker.log" || fail "root phase ran the gateway as the user" "$(grep -- --user "$SHIM/docker.log" | tail -1)"; pass "prompt mode: the user id crosses into the root phase, so the gateway runs as the user, not root"
+grep -q "_root .* start" "$SHIM/pkexec.log" && grep -q -- "--user 1006:1006" "$SHIM/docker.log" || fail "root phase ran the gateway as the user" "$(grep -- --user "$SHIM/docker.log" | tail -1)"; pass "prompt mode: the gateway runs as the uid pkexec reports, never as root and never as a uid from a user-owned file"
+sha() { printf '%s' "$1" | { command -v sha256sum >/dev/null 2>&1 && sha256sum || shasum -a 256; } | cut -c1-64; }
+out=$(OMARCHY_AI_TEST_ROOT=1 PKEXEC_UID=$(id -u) "$CLI" _root "$OMARCHY_AI_STATE/root.env" 0000 stop 2>&1 || true); [[ $out == *"changed while the password prompt was open"* ]] || fail "env pin" "$out"; pass "root phase: an env file that is not what the prompt was raised for runs nothing"
+command cp -f "$OMARCHY_AI_STATE/recipe.json" "$TMP/recipe.orig"; jq '.launch.mounts[0].source="${MODEL_ROOT}/../../../etc"' "$TMP/recipe.orig" >"$OMARCHY_AI_STATE/recipe.json"
+out=$(OMARCHY_AI_TEST_ROOT=1 PKEXEC_UID=$(id -u) "$CLI" _root "$OMARCHY_AI_STATE/root.env" "$(sha "$(cat "$OMARCHY_AI_STATE/root.env")")" start "$OMARCHY_AI_STATE/recipe.json" 0 2>&1 || true); [[ $out == *"recipe.json changed while the password prompt was open"* ]] || fail "recipe pin" "$out"; pass "root phase: a recipe swapped under the prompt runs nothing"
+command cp -f "$TMP/recipe.orig" "$OMARCHY_AI_STATE/recipe.json"
 [[ $(snap .share.active) == false ]] || fail "share state"; : >"$SHIM/pkexec.log"; "$CLI" share; [[ $(snap .share.active) == true && $(grep -c pkexec "$SHIM/pkexec.log") == 1 ]] || fail "prompt share" "$(snap .share) $(cat "$SHIM/pkexec.log")"; pass "prompt mode: share is one prompt"
 SHIM_PKEXEC_FAIL=1 "$CLI" share || true; [[ $(snap .share.active) == true && $(snap .share.error) == *"still shared"* ]] || fail "share off dismissed" "$(snap .share)"; pass "prompt mode: a dismissed Stop-sharing prompt keeps the card saying shared, with the reason"
 "$CLI" share; : >"$SHIM/pkexec.log"; "$CLI" unload; [[ $(snap .state) == idle && $(grep -c pkexec "$SHIM/pkexec.log") == 1 ]] || fail "prompt unload" "$(snap .state)"; pass "prompt mode: Stop is one prompt"

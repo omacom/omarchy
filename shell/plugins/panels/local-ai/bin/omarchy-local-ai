@@ -137,13 +137,25 @@ case $cmd in
   _root) # a phase run as root by pkexec (see lib/priv.sh); never spawned by anything but this script's own privileged().
          # Its environment comes from the user's 0600 file, OMARCHY_AI_* assignments only, then this script re-executes itself.
          [[ $(id -u) == 0 || -n ${OMARCHY_AI_TEST_ROOT:-} ]] || { fail "_root is for pkexec"; exit 1; }
-         [[ -f ${1:-} && -n ${2:-} ]] || { fail "_root <env-file> <phase>"; exit 1; }
+         [[ -f ${1:-} && -n ${2:-} && -n ${3:-} ]] || { fail "_root <env-file> <sha> <phase>"; exit 1; }
          if [[ -z ${OMARCHY_AI_ROOT_PHASE:-} ]]; then
-           envf=$1; shift; re='^(OMARCHY_AI_[A-Z_]+|HF_TOKEN|https?_proxy|HTTPS?_PROXY|no_proxy|NO_PROXY)=[^$`]*$'
-           while IFS= read -r line; do [[ $line =~ $re ]] && export "$line"; done <"$envf"
-           export OMARCHY_AI_ROOT_PHASE=1; exec "$SELF" _root "$envf" "$@"
+           envf=$1; want=$2; shift 2; envs=$(cat "$envf")   # read once; hash what was read, not the file again
+           [[ $(sha_of "$envs") == "$want" ]] || { printf 'reason the settings changed while the password prompt was open; nothing was run\n'; exit 1; }
+           real=1; [[ $(id -u) == 0 && -z ${OMARCHY_AI_TEST_ROOT:-} ]] || real=0
+           re='^(OMARCHY_AI_[A-Z_]+|HF_TOKEN|https?_proxy|HTTPS?_PROXY|no_proxy|NO_PROXY)=[^$`]*$'
+           while IFS= read -r line; do
+             [[ $line =~ $re ]] || continue
+             if (( real )); then case ${line%%=*} in OMARCHY_AI_USER_HOME|OMARCHY_AI_STATE|OMARCHY_AI_MODEL_ROOT|OMARCHY_AI_CACHE_ROOT|OMARCHY_AI_HF_HOME|OMARCHY_AI_RECIPES|OMARCHY_AI_RUN_AS) continue ;; esac; fi   # root decides these itself
+             export "$line"
+           done <<<"$envs"
+           # who asked: pkexec says, and that user's home is where everything root touches must live
+           [[ ${PKEXEC_UID:-} =~ ^[0-9]+$ && ${PKEXEC_UID:-0} -gt 0 ]] || { printf 'reason this must run through pkexec\n'; exit 1; }
+           export OMARCHY_AI_RUN_AS="$PKEXEC_UID:$(id -g "$PKEXEC_UID" 2>/dev/null || printf '%s' "$PKEXEC_UID")"
+           if (( real )); then home=$(getent passwd "$PKEXEC_UID" | cut -d: -f6); [[ -d $home ]] || { printf 'reason no home directory for uid %s\n' "$PKEXEC_UID"; exit 1; }
+             export OMARCHY_AI_USER_HOME=$home; unset OMARCHY_AI_STATE OMARCHY_AI_MODEL_ROOT OMARCHY_AI_CACHE_ROOT OMARCHY_AI_HF_HOME OMARCHY_AI_RECIPES; fi
+           export OMARCHY_AI_ROOT_PHASE=1; exec "$SELF" _root "$envf" "$want" "$@"
          fi
-         shift; p=$1; shift; "phase_$p" "$@" ;;
+         shift 2; p=$1; shift; "phase_$p" "$@" ;;
   _worker-load) w_load ;;
   _worker-unload) w_unload ;;
   help|-h|--help) usage ;;

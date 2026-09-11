@@ -16,6 +16,11 @@
 # A root phase creates no file under the user's state (root-owned files there would lock the user
 # out of their own plugin): it reads the recipe and assets, drives docker, and reports through
 # stdout ("step …" progress, "reason …" on failure) and stderr, both owned by the user's worker.
+# Root trusts nothing a user-owned file says about who the user is or where their files are: the
+# uid comes from pkexec (PKEXEC_UID), every root is derived from that user's home, and the env file
+# and recipe file are pinned by hashes on pkexec's own command line, which no other process can
+# change once the prompt is up. A same-uid process swapping a file while the prompt is open gets
+# "nothing was run", not a root container on paths of its choosing.
 
 DOCKER_SOCKET="${OMARCHY_DOCKER_SOCKET:-/var/run/docker.sock}"
 RUN_AS="${OMARCHY_AI_RUN_AS:-$(id -u):$(id -g)}"   # the uid the gateway and downloader run as, even when docker is driven by root
@@ -30,6 +35,7 @@ root_env() { # the plugin's paths, handed to the root phase since pkexec starts 
     "OMARCHY_AI_CACHE_ROOT=$CACHE_ROOT" "OMARCHY_AI_HF_HOME=$HF_HOME_DIR" "OMARCHY_AI_PORT=$PORT" "OMARCHY_AI_NETWORK=$NET" \
     "OMARCHY_AI_CONTAINER=$CTR" "OMARCHY_AI_RECIPES=$RECIPES" "OMARCHY_AI_RUN_AS=$RUN_AS" "OMARCHY_AI_POLL=$POLL" \
     "OMARCHY_AI_DOCKER=direct" "OMARCHY_AI_ROOT_PHASE=1"
+  local f; for f in recipe gateway.recipe; do [[ -f $STATE/$f.json ]] && printf 'OMARCHY_AI_%s_SHA=%s\n' "$(tr a-z. A-Z_ <<<"$f")" "$(sha_of "$(cat "$STATE/$f.json")")"; done   # pins what a phase may read
   local v; for v in HF_TOKEN http_proxy https_proxy no_proxy HTTP_PROXY HTTPS_PROXY NO_PROXY; do   # gated downloads and proxies work behind the prompt too
     [[ -n ${!v:-} ]] && printf '%s=%s\n' "$v" "${!v}"; done; return 0
 }
@@ -38,12 +44,18 @@ elevated() { # elevated <phase> [args]: always through pkexec (root is needed re
   # the paths travel in a 0600 file this user writes, not on the command line: the prompt then reads
   # as this script and a verb ("omarchy-local-ai _root stop"), and root reads only OMARCHY_AI_* lines
   state_dir; root_env >"$STATE/root.env"
-  local rc=0; pkexec "$SELF" _root "$STATE/root.env" "$@" 8>&- 9>&- || rc=$?   # never hands the op lock to root
+  local rc=0; pkexec "$SELF" _root "$STATE/root.env" "$(sha_of "$(cat "$STATE/root.env")")" "$@" 8>&- 9>&- || rc=$?   # the hash rides on argv; the op lock never reaches root
   (( rc == 126 || rc == 127 || rc >= 128 )) && printf 'reason the password prompt was dismissed; nothing was changed\n'   # polkit: 126 dismissed, 127 not authorized; 128+ the prompt was closed by a signal
   return $rc
 }
 privileged() { # privileged <phase> [args]: in-process when docker is direct, one pkexec otherwise
   if docker_direct; then "phase_$1" "${@:2}"; else elevated "$@"; fi
+}
+
+pinned_read() { # pinned_read <file> <sha or empty> -> the file's content, only if it is what the user's own process wrote
+  local c; c=$(cat "$1") || return 1
+  [[ -z ${2:-} || $(sha_of "$c") == "$2" ]] || { printf 'reason %s changed while the password prompt was open; nothing was run\n' "$(basename "$1")"; return 1; }
+  printf '%s' "$c"
 }
 
 # ---------------------------------------------------------------- the phases (run as root in prompt mode)
@@ -54,7 +66,7 @@ toolkit_install() { # the NVIDIA container runtime, from Omarchy's own package m
 phase_toolkit() { toolkit_install || { printf 'reason the NVIDIA container toolkit could not be set up (see %s)\n' "$LOGFILE"; return 1; }; }
 
 phase_start() { # phase_start <recipe-file> <download 0|1>: images, weights when asked, set aside, engine, gateway
-  local r id why; r=$(cat "$1") || return 1; id=$(jq -r .id <<<"$r")
+  local r id why; r=$(pinned_read "$1" "${OMARCHY_AI_RECIPE_SHA:-}") || { printf '%s\n' "$r"; return 1; }; id=$(jq -r .id <<<"$r")
   # what root is about to run is re-checked here, not trusted from the user's file
   [[ $RUN_AS =~ ^[0-9]+:[0-9]+$ ]] || { printf 'reason internal: the user id did not reach the root phase\n'; return 1; }
   why=$(gate_reason "$r"); [[ -z $why ]] || { printf 'reason recipe refused: %s\n' "$why"; return 1; }
@@ -78,7 +90,7 @@ phase_start() { # phase_start <recipe-file> <download 0|1>: images, weights when
 phase_restore() { restore_previous || { printf 'reason the previous model could not be restored (see %s)\n' "$LOGFILE"; return 1; }; }
 phase_stop() { stop_all || { printf 'reason the containers could not be removed (see %s)\n' "$LOGFILE"; return 1; }; }
 phase_restart_gateway() { # phase_restart_gateway <recipe-file>: the gateway alone, with a fresh publish list
-  local r; r=$(cat "$1") || return 1
+  local r; r=$(pinned_read "$1" "${OMARCHY_AI_GATEWAY_RECIPE_SHA:-}") || { printf '%s\n' "$r"; return 1; }
   exists "$GATEWAY" && owned "$GATEWAY" && docker rm -f "$GATEWAY" >/dev/null 2>&1
   start_gateway "$r" && return 0
   if [[ -f $SHARE_MARK ]]; then rm -f "$SHARE_MARK"; start_gateway "$r" >/dev/null 2>&1 || true; fi   # back to loopback in this same prompt
