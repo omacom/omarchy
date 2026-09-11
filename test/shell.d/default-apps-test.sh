@@ -96,7 +96,7 @@ omarchy-install-editor-*)
   printf 'editor:%s\n' "$editor" >>"$OMARCHY_TEST_INSTALL_LOG"
   case $editor in
   vscode) command=code ;;
-  zed) command=zeditor ;;
+  zed) command=zed ;;
   helix) command=helix ;;
   emacs) command=emacs ;;
   esac
@@ -168,7 +168,7 @@ terminal_cases=(
 editor_cases=(
   'code code editor:vscode'
   'cursor cursor pkg:cursor-bin'
-  'zed zeditor editor:zed'
+  'zed zed editor:zed'
   'sublime_text sublime_text pkg:sublime-text-4'
   'helix helix editor:helix'
   'vim vim pkg:vim'
@@ -312,3 +312,8 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+mkdir -p "$test_home/.local/state/omarchy/defaults"
+printf 'zeditor\n' >"$test_home/.local/state/omarchy/defaults/editor"
+[[ $(omarchy-default-editor) == "zed" ]] || fail "legacy zeditor default resolves to zed"
+pass "legacy zeditor default resolves to zed"
