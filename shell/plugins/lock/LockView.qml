@@ -226,6 +226,9 @@ Item {
         visible: root.fingerprintConfigured
         text: "󰈷"
         color: root.fingerprintError ? Color.lock.textError : Color.lock.placeholder
+        // Dim as well as recolor, so a rejected read stays noticeable on
+        // themes where the error color is close to the normal one.
+        opacity: root.fingerprintError ? 0.2 : 1.0
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter

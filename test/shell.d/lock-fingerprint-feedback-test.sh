@@ -41,4 +41,9 @@ assert(
   /color: root\.fingerprintError \? Color\.lock\.textError : Color\.lock\.placeholder/.test(lockViewQml),
   'the hint icon uses the error color while the flash is active'
 )
+
+assert(
+  /opacity: root\.fingerprintError \? 0\.2 : 1\.0/.test(lockViewQml),
+  'the hint icon dims as well as recolors so the flash survives low-contrast themes'
+)
 JS
