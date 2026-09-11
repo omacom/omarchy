@@ -16,25 +16,67 @@ grep -F '%wheel ALL=(root) NOPASSWD: /usr/bin/timedatectl ^set-timezone [A-Za-z0
 ! grep -F 'tzupdate' "$sudoers_file" >/dev/null ||
   fail "timezone sudoers rule does not grant passwordless tzupdate"
 
-grep -F 'sudo timedatectl set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
-  fail "timezone menu uses the passwordless sudoers timedatectl rule"
+grep -F 'sudo -n -l -l "$TIMEDATECTL" set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
+  fail "timezone menu checks whether its exact command has a passwordless sudo grant"
 
-! grep -F 'pkexec timedatectl set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
-  fail "timezone menu does not wrap timedatectl in pkexec"
+grep -F 'sudo "$TIMEDATECTL" set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
+  fail "timezone menu uses sudo when the scoped passwordless rule is active"
 
-! grep -F 'pkexec /usr/bin/timedatectl set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
-  fail "timezone menu does not wrap timedatectl in pkexec"
-
-! grep -F 'sudo /usr/bin/timedatectl set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
-  fail "timezone menu lets sudo resolve timedatectl from its secure path"
-
-! grep -Fx 'timedatectl set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
-  fail "timezone menu does not use bare timedatectl, which triggers polkit"
+grep -F 'pkexec "$TIMEDATECTL" set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
+  fail "timezone menu falls back to graphical authentication without the sudoers rule"
 
 grep -F 'omarchy-shell -q omarchy.clock refresh' "$timezone_menu" >/dev/null ||
   fail "timezone menu refreshes the namespaced clock IPC target"
 
-! grep -F 'omarchy-shell -q Clock refresh' "$timezone_menu" >/dev/null ||
-  fail "timezone menu no longer refreshes the retired Clock IPC target"
-
 pass "timezone menu refreshes clock after timezone changes"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+stub_bin="$test_tmp/bin"
+mkdir -p "$stub_bin"
+
+cat >"$stub_bin/omarchy-menu-select" <<'SH'
+#!/bin/bash
+echo America/Chicago
+SH
+
+for command in omarchy-shell omarchy-notification-send; do
+  cat >"$stub_bin/$command" <<'SH'
+#!/bin/bash
+:
+SH
+  chmod +x "$stub_bin/$command"
+done
+
+cat >"$stub_bin/sudo" <<'SH'
+#!/bin/bash
+if [[ $1 == -n && $2 == -l ]]; then
+  if [[ ${SUDO_GRANTED:-1} == 1 ]]; then
+    echo "    Options: !authenticate"
+  fi
+  exit 0
+fi
+printf 'sudo %s\n' "$*" >"$ELEVATION_LOG"
+SH
+
+cat >"$stub_bin/pkexec" <<'SH'
+#!/bin/bash
+printf 'pkexec %s\n' "$*" >"$ELEVATION_LOG"
+SH
+chmod +x "$stub_bin"/*
+
+run_timezone() {
+  : >"$test_tmp/elevation"
+  ELEVATION_LOG="$test_tmp/elevation" \
+    SUDO_GRANTED="$1" \
+    PATH="$stub_bin:$PATH" \
+    bash "$timezone_menu" >/dev/null
+  cat "$test_tmp/elevation"
+}
+
+[[ $(run_timezone 1) == "sudo /usr/bin/timedatectl set-timezone America/Chicago" ]] ||
+  fail "timezone uses sudo while its passwordless grant is active"
+[[ $(run_timezone 0) == "pkexec /usr/bin/timedatectl set-timezone America/Chicago" ]] ||
+  fail "timezone uses polkit when required sudo authentication disables the grant"
+
+pass "timezone chooses an authentication path that works with either policy"

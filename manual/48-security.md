@@ -18,6 +18,12 @@ If you're handing your machine over to someone else, you don't have to reinstall
 
 It works by restoring the baseline snapshot the installer takes, so it's only available on machines installed from the Omarchy ISO. And on a drive without encryption, a reset is deletion rather than a secure erase, so if the data was sensitive, do a fresh install instead.
 
+## Requiring sudo authentication
+
+Omarchy normally allows three tightly scoped actions without a password so they work from menus that cannot carry a terminal prompt: selecting a stock DNS provider, syncing the current theme to browser policy, and setting the timezone. On managed devices whose security policy prohibits every `NOPASSWD` rule, choose _Setup > Security > Require Sudo Authentication_. Omarchy removes those three rules and reapplies the setting after updates; the actions continue to work through graphical authentication prompts. Restore the standard behavior from _Remove > Security > Required Sudo Authentication_.
+
+This compliance option does not affect the temporary, explicitly requested passwordless mode described below.
+
 ## Passwordless sudo
 
 Sometimes you want `sudo` to stop asking, most often when an AI agent is doing a long stretch of system work for you. _Setup > Security > Passwordless Sudo_ turns that off for 15 minutes and then puts it back automatically. Run it again before the timer runs out to end it early, and pass your own number of minutes with `omarchy-sudo-passwordless 30` if 15 isn't enough. A restart removes the passwordless sudo rule as well.

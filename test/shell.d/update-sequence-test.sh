@@ -22,6 +22,7 @@ steps=(
   omarchy-update-dev
   omarchy-update-keyring
   omarchy-update-system-pkgs
+  omarchy-sudo-authentication
   omarchy-migrate
   omarchy-hook
   omarchy-update-aur-pkgs
@@ -35,7 +36,11 @@ steps=(
 for step in "${steps[@]}"; do
   cat >"$stub_bin/$step" <<'STUB'
 #!/bin/bash
-printf '%s unattended=%s\n' "${0##*/}" "${OMARCHY_UPDATE_UNATTENDED:-}" >>"$STEP_LOG"
+if [[ ${0##*/} == "omarchy-sudo-authentication" ]]; then
+  printf '%s unattended=%s args=%s\n' "${0##*/}" "${OMARCHY_UPDATE_UNATTENDED:-}" "$*" >>"$STEP_LOG"
+else
+  printf '%s unattended=%s\n' "${0##*/}" "${OMARCHY_UPDATE_UNATTENDED:-}" >>"$STEP_LOG"
+fi
 [[ ${FAILING_STEP:-} != "${0##*/}" ]] || exit 1
 STUB
   chmod +x "$stub_bin/$step"
@@ -69,6 +74,7 @@ expected_steps() {
     omarchy-update-dev \
     omarchy-update-keyring \
     omarchy-update-system-pkgs \
+    omarchy-sudo-authentication \
     omarchy-migrate \
     omarchy-hook \
     omarchy-update-aur-pkgs \
@@ -87,6 +93,8 @@ pass "an update where every step works runs all of them, in order"
 
 grep -q '^omarchy-update-system-pkgs unattended=1$' "$test_tmp/steps" ||
   fail "-y does not mark the update unattended"
+grep -q '^omarchy-sudo-authentication unattended=1 args=apply$' "$test_tmp/steps" ||
+  fail "update does not apply the sudo authentication policy after packages"
 run_update </dev/null || fail "a confirmed update reports a failure"
 diff <(expected_steps confirmed) <(steps_run) >"$test_tmp/order" ||
   fail "a confirmed update runs a different set of steps" "$(cat "$test_tmp/order")"
@@ -100,7 +108,7 @@ pass "-y is what marks an update unattended, not the update itself"
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-sudo-authentication omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi

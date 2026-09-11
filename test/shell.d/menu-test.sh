@@ -325,6 +325,13 @@ assert(
   'menu places Passwordless Sudo under Setup > Security'
 )
 assert(
+  defaultById['setup.security.sudo-authentication'].when === '! omarchy-sudo-authentication enabled'
+    && defaultById['setup.security.sudo-authentication'].action.includes('omarchy-setup-security-sudo-authentication')
+    && defaultById['remove.security.sudo-authentication'].when === 'omarchy-sudo-authentication enabled'
+    && defaultById['remove.security.sudo-authentication'].action.includes('omarchy-remove-security-sudo-authentication'),
+  'menu offers reversible required sudo authentication under Security'
+)
+assert(
   !defaultById['trigger.toggle.direct-boot'] && !defaultById['trigger.toggle.passwordless-sudo'],
   'menu removes the relocated toggles from Trigger > Toggle'
 )

@@ -1,0 +1,303 @@
+#!/bin/bash
+
+# omarchy:summary=Manage the opt-in policy disabling Omarchy's persistent passwordless sudo rules
+# omarchy:args=<enable|disable|apply|enabled|status>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+PACKAGED_PATH=/usr/bin/omarchy-sudo-authentication
+SECURITY_DIR=${OMARCHY_SECURITY_DIR:-/etc/omarchy/security}
+SUDOERS_DIR=${OMARCHY_SUDOERS_DIR:-/etc/sudoers.d}
+POLICY_MARKER=$SECURITY_DIR/require-sudo-authentication
+DISABLED_DIR=$SECURITY_DIR/disabled-sudoers
+SUDOERS_FILES=(
+  omarchy-dns
+  omarchy-theme-browser
+  omarchy-tzupdate
+)
+
+usage() {
+  echo "Usage: omarchy-sudo-authentication <enable|disable|apply|enabled|status>" >&2
+}
+
+fail() {
+  echo "omarchy-sudo-authentication: $*" >&2
+  return 1
+}
+
+policy_enabled() {
+  [[ -f $POLICY_MARKER ]]
+}
+
+require_root() {
+  if (( EUID != 0 )); then
+    exec sudo "$PACKAGED_PATH" "$@"
+  fi
+}
+
+prepare_security_dirs() {
+  if [[ -L $SECURITY_DIR || ( -e $SECURITY_DIR && ! -d $SECURITY_DIR ) ]]; then
+    fail "refusing unsafe security path: $SECURITY_DIR"
+    return
+  fi
+
+  if ! install -d -m 0755 -o root -g root "$SECURITY_DIR"; then
+    fail "could not create security directory: $SECURITY_DIR"
+    return
+  fi
+
+  if [[ -L $DISABLED_DIR || ( -e $DISABLED_DIR && ! -d $DISABLED_DIR ) ]]; then
+    fail "refusing unsafe disabled-sudoers path: $DISABLED_DIR"
+    return
+  fi
+
+  if ! install -d -m 0700 -o root -g root "$DISABLED_DIR"; then
+    fail "could not create disabled-sudoers directory: $DISABLED_DIR"
+    return
+  fi
+}
+
+validate_rule() {
+  local path=$1
+  local validation
+
+  if [[ -L $path || ! -f $path ]]; then
+    fail "refusing unsafe sudoers file: $path"
+    return
+  fi
+
+  if ! validation=$(visudo -cf "$path" 2>&1); then
+    [[ -z $validation ]] || echo "$validation" >&2
+    fail "refusing invalid sudoers file: $path"
+    return
+  fi
+}
+
+rule_is_still_packaged() {
+  local name=$1
+  local path=$SUDOERS_DIR/$name
+  local package
+  local package_found=0
+
+  if [[ -n ${OMARCHY_SHIPPED_SUDOERS_DIR:-} ]]; then
+    [[ -f $OMARCHY_SHIPPED_SUDOERS_DIR/$name && ! -L $OMARCHY_SHIPPED_SUDOERS_DIR/$name ]]
+    return
+  fi
+
+  for package in omarchy-settings omarchy-settings-dev; do
+    if pacman -Qq "$package" >/dev/null 2>&1; then
+      package_found=1
+      if pacman -Qlq "$package" 2>/dev/null | grep -Fx "$path" >/dev/null; then
+        return 0
+      fi
+    fi
+  done
+
+  (( package_found )) || return 2
+  return 1
+}
+
+remove_retired_backup() {
+  local name=$1
+  local backup=$DISABLED_DIR/$name
+  local packaged_status
+
+  [[ -e $backup || -L $backup ]] || return 0
+
+  if rule_is_still_packaged "$name"; then
+    return 0
+  else
+    packaged_status=$?
+  fi
+
+  if (( packaged_status == 2 )); then
+    fail "could not determine whether $name is still package-owned"
+    return
+  fi
+
+  if ! rm -f -- "$backup"; then
+    fail "could not remove retired sudoers backup: $backup"
+    return
+  fi
+
+  echo "Removed retired sudoers backup: $backup"
+}
+
+disable_rule() {
+  local name=$1
+  local source=$SUDOERS_DIR/$name
+  local disabled=$DISABLED_DIR/$name
+  local staged=$DISABLED_DIR/.$name.new
+
+  if [[ ! -e $source && ! -L $source ]]; then
+    remove_retired_backup "$name"
+    return
+  fi
+
+  validate_rule "$source" || return
+
+  if ! rm -f -- "$staged"; then
+    fail "could not clear staged sudoers backup: $staged"
+    return
+  fi
+  if ! install -m 0440 -o root -g root -T "$source" "$staged"; then
+    fail "could not stage sudoers backup: $source"
+    return
+  fi
+  if [[ -L $staged || ! -f $staged ]] || ! cmp -s "$source" "$staged"; then
+    rm -f -- "$staged" || true
+    fail "staged sudoers backup did not match: $source"
+    return
+  fi
+  if ! mv -fT -- "$staged" "$disabled"; then
+    rm -f -- "$staged" || true
+    fail "could not publish sudoers backup: $disabled"
+    return
+  fi
+  if [[ -L $disabled || ! -f $disabled ]] || ! cmp -s "$source" "$disabled"; then
+    fail "published sudoers backup did not match: $disabled"
+    return
+  fi
+  if ! rm -f -- "$source"; then
+    fail "could not disable sudoers rule: $source"
+    return
+  fi
+  if [[ -e $source || -L $source ]]; then
+    fail "sudoers rule remained active after removal: $source"
+    return
+  fi
+
+  echo "Disabled passwordless sudo rule: $source"
+}
+
+apply_policy() {
+  policy_enabled || return 0
+  prepare_security_dirs || return
+
+  local name
+  local failed=0
+  for name in "${SUDOERS_FILES[@]}"; do
+    disable_rule "$name" || failed=1
+  done
+
+  (( failed == 0 ))
+}
+
+restore_rule() {
+  local name=$1
+  local source=$DISABLED_DIR/$name
+  local destination=$SUDOERS_DIR/$name
+  local staged=$SUDOERS_DIR/.${name}.new
+
+  [[ -e $source || -L $source ]] || return 0
+  validate_rule "$source" || return
+
+  if [[ -e $destination || -L $destination ]]; then
+    validate_rule "$destination" || return
+  else
+    if ! rm -f -- "$staged"; then
+      fail "could not clear staged sudoers rule: $staged"
+      return
+    fi
+    if ! install -m 0440 -o root -g root -T "$source" "$staged"; then
+      fail "could not stage restored sudoers rule: $destination"
+      return
+    fi
+    if [[ -L $staged || ! -f $staged ]] || ! cmp -s "$source" "$staged"; then
+      rm -f -- "$staged" || true
+      fail "staged sudoers rule did not match: $source"
+      return
+    fi
+    if ! mv -fT -- "$staged" "$destination"; then
+      rm -f -- "$staged" || true
+      fail "could not publish restored sudoers rule: $destination"
+      return
+    fi
+    if [[ -L $destination || ! -f $destination ]] || ! cmp -s "$source" "$destination"; then
+      fail "restored sudoers rule did not match: $destination"
+      return
+    fi
+  fi
+
+  if ! rm -f -- "$source"; then
+    fail "could not remove preserved sudoers rule after restoration: $source"
+    return
+  fi
+  if [[ -e $source || -L $source ]]; then
+    fail "preserved sudoers rule remained after restoration: $source"
+    return
+  fi
+
+  echo "Restored passwordless sudo rule: $destination"
+}
+
+restore_policy() {
+  local name
+  local failed=0
+
+  for name in "${SUDOERS_FILES[@]}"; do
+    if [[ -e $DISABLED_DIR/$name || -L $DISABLED_DIR/$name ]]; then
+      validate_rule "$DISABLED_DIR/$name" || failed=1
+    fi
+  done
+
+  if (( failed == 0 )); then
+    for name in "${SUDOERS_FILES[@]}"; do
+      restore_rule "$name" || failed=1
+    done
+  fi
+
+  if (( failed != 0 )); then
+    echo "omarchy-sudo-authentication: could not safely restore the default sudoers rules" >&2
+    apply_policy || true
+    return 1
+  fi
+
+  if ! rm -f -- "$POLICY_MARKER"; then
+    echo "omarchy-sudo-authentication: restored the rules but could not remove $POLICY_MARKER" >&2
+    apply_policy || true
+    return 1
+  fi
+
+  rmdir "$DISABLED_DIR" 2>/dev/null || true
+  rmdir "$SECURITY_DIR" 2>/dev/null || true
+}
+
+command=${1:-status}
+case "$command" in
+enabled)
+  policy_enabled
+  ;;
+status)
+  if policy_enabled; then
+    echo "Authentication is required for Omarchy's three system convenience actions."
+  else
+    echo "Omarchy's three scoped passwordless sudo rules are enabled."
+  fi
+  ;;
+enable)
+  require_root enable
+  prepare_security_dirs
+  install -m 0644 -o root -g root /dev/null "$POLICY_MARKER"
+  apply_policy
+  ;;
+apply)
+  policy_enabled || exit 0
+  require_root apply
+  apply_policy
+  ;;
+disable)
+  policy_enabled || exit 0
+  require_root disable
+  restore_policy
+  ;;
+*)
+  usage
+  exit 2
+  ;;
+esac
