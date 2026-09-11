@@ -1,0 +1,112 @@
+#!/bin/bash
+
+# omarchy:summary=Select the Default or Amiga screensaver
+# omarchy:args=[default|amiga|--is-default|--is-amiga] [--install|--pack <zip>]
+
+set -euo pipefail
+
+state="$HOME/.config/omarchy/screensaver"
+
+amiga_message() {
+  local key=$1 locale=${LANGUAGE:-${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}}
+  locale=${locale%%:*}
+  locale=${locale%%.*}
+  locale=${locale%%_*}
+  case "$locale:$key" in
+  es:unsupported) printf '%s\n' "Amiga: arquitectura no compatible: $(uname -m)." >&2 ;;
+  es:unavailable) printf '%s\n' "Amiga: el paquete omarchy-amiga todavía no está publicado para esta arquitectura." >&2 ;;
+  es:install) printf '%s\n' "Amiga: no se pudo instalar omarchy-amiga; se conservó la selección anterior." >&2 ;;
+  es:verify) printf '%s\n' "Amiga: falló la verificación del runtime o del paquete Top; se conservó la selección anterior." >&2 ;;
+  fr:unsupported) printf '%s\n' "Amiga : architecture non prise en charge : $(uname -m)." >&2 ;;
+  fr:unavailable) printf '%s\n' "Amiga : le paquet omarchy-amiga n'est pas encore publié pour cette architecture." >&2 ;;
+  fr:install) printf '%s\n' "Amiga : l'installation de omarchy-amiga a échoué ; la sélection précédente est conservée." >&2 ;;
+  fr:verify) printf '%s\n' "Amiga : la vérification du runtime ou du pack Top a échoué ; la sélection précédente est conservée." >&2 ;;
+  de:unsupported) printf '%s\n' "Amiga: nicht unterstützte Architektur: $(uname -m)." >&2 ;;
+  de:unavailable) printf '%s\n' "Amiga: Das Paket omarchy-amiga ist für diese Architektur noch nicht veröffentlicht." >&2 ;;
+  de:install) printf '%s\n' "Amiga: omarchy-amiga konnte nicht installiert werden; die vorherige Auswahl bleibt erhalten." >&2 ;;
+  de:verify) printf '%s\n' "Amiga: Runtime- oder Top-Paket-Verifizierung fehlgeschlagen; die vorherige Auswahl bleibt erhalten." >&2 ;;
+  ru:unsupported) printf '%s\n' "Amiga: неподдерживаемая архитектура: $(uname -m)." >&2 ;;
+  ru:unavailable) printf '%s\n' "Amiga: пакет omarchy-amiga ещё не опубликован для этой архитектуры." >&2 ;;
+  ru:install) printf '%s\n' "Amiga: не удалось установить omarchy-amiga; предыдущий выбор сохранён." >&2 ;;
+  ru:verify) printf '%s\n' "Amiga: проверка среды или пакета Top завершилась ошибкой; предыдущий выбор сохранён." >&2 ;;
+  *:unsupported) printf '%s\n' "Amiga: unsupported architecture: $(uname -m)." >&2 ;;
+  *:unavailable) printf '%s\n' "Amiga: omarchy-amiga is not published for this architecture yet." >&2 ;;
+  *:install) printf '%s\n' "Amiga: omarchy-amiga installation failed; the previous selection was preserved." >&2 ;;
+  *:verify) printf '%s\n' "Amiga: runtime or Top pack verification failed; the previous selection was preserved." >&2 ;;
+  esac
+}
+
+choice="text"
+if [[ -f $state ]] && [[ $(<"$state") == "amiga" ]]; then
+  choice="amiga"
+elif [[ -f $state ]] && [[ $(<"$state") == "default" ]]; then
+  choice="default"
+fi
+
+case "${1:-}" in
+"") printf '%s\n' "$choice" ;;
+--is-text | --is-default) [[ $choice != "amiga" ]] ;;
+--is-amiga) [[ $choice == "amiga" ]] ;;
+default | text | amiga)
+  if [[ $1 == "amiga" ]]; then
+    if omarchy-screensaver-amiga --check; then
+      if (( $# == 1 )); then
+        : # Installed and checksum-verified: selection is an idempotent no-op.
+      elif (( $# == 2 )) && [[ $2 == "--install" ]]; then
+        : # Installer-side recheck closes the preflight/install race.
+      else
+        echo "Usage: omarchy-setup-screensaver amiga [--install|--pack <zip>]" >&2
+        exit 1
+      fi
+    else
+      if (( $# == 1 )); then
+        # Silent preflight runs before a window exists. Only the not-ready path
+        # opens the interactive package transaction, which rechecks internally.
+        exec omarchy-launch-floating-terminal-with-presentation 'omarchy-setup-screensaver amiga --install'
+      fi
+      case "$(uname -m)" in
+      x86_64 | aarch64 | arm64) ;;
+      *)
+        amiga_message unsupported
+        exit 1
+        ;;
+      esac
+      if [[ ${2:-} == "--pack" && -n ${3:-} && $# == 3 ]]; then
+        # Explicit development seam for a reviewed local Top archive. Production
+        # installation is the single omarchy-amiga package contract below.
+        if ! omarchy-screensaver-amiga --install-pack "$3"; then
+          amiga_message install
+          exit 1
+        fi
+      elif [[ ${2:-} == "--install" && $# == 2 ]]; then
+        if ! pacman -Si omarchy-amiga &>/dev/null; then
+          amiga_message unavailable
+          exit 1
+        elif ! omarchy-pkg-add omarchy-amiga; then
+          amiga_message install
+          exit 1
+        fi
+      else
+        echo "Usage: omarchy-setup-screensaver amiga [--install|--pack <zip>]" >&2
+        exit 1
+      fi
+      # The bundle owns the target-native runtime and minimal Top pack. Its
+      # readiness command validates architecture, runtime hashes, catalog count
+      # and every declared content checksum before selection is persisted.
+      if ! omarchy-screensaver-amiga --check; then
+        amiga_message verify
+        exit 1
+      fi
+    fi
+  fi
+  mkdir -p "${state%/*}"
+  temporary=$(mktemp "${state}.XXXXXX")
+  trap 'rm -f "$temporary"' EXIT
+  printf '%s\n' "$1" > "$temporary"
+  mv -f "$temporary" "$state"
+  ;;
+*)
+  echo "Usage: omarchy-setup-screensaver [text|amiga|--is-text|--is-amiga]" >&2
+  exit 1
+  ;;
+esac
