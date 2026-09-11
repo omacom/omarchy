@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Run the validated local model for this GPU and open coding agents on it
+# omarchy:args=<snapshot|load|unload|open-agent [name]|share [--key value]|gpu [auto|key]|agent-dir <path>|agent-args <name> [-- flags]>
+# omarchy:examples=omarchy local ai load | omarchy local ai open-agent claude | omarchy local ai share
+
+# The panel lives beside this router. $OMARCHY_PATH normally names the same tree; when it names a
+# tree without the panel (a dev-linked checkout run beside the package), the router's own tree wins.
+self="$(cd -- "$(dirname -- "$0")/.." && pwd)"
+root="${OMARCHY_PATH:-$self}"
+[[ -x "$root/shell/plugins/panels/local-ai/bin/omarchy-local-ai" ]] || root="$self"
+exec "$root/shell/plugins/panels/local-ai/bin/omarchy-local-ai" "$@"

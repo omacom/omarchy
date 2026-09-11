@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# The derived read model. Sourced; do not run.
+#
+# snapshot_write derives everything from the ledger + reality (owned containers, the gateway's
+# /v1/models, tailscale, installed agents) + recipes.json, and rewrites $SNAPSHOT. It never edits
+# the ledger. Workers call it after every step so the panel, which watches the file, updates live;
+# the panel also asks for one on a slow timer so a container that died outside an op shows up.
+#
+# State rule: busy while the op's pid is alive; else ready when an owned engine+gateway run and
+# the gateway answers; else error when the ledger has one; else starting when they run but do
+# not answer yet; else idle. Reality outranks the message: a model that answers is ready even
+# when the last verb was refused (the error text still shows beside it).
+
+snapshot_write() {
+  state_dir
+  # a ledger written by an older plugin carries the key under .share: scrub it once, here, where every path passes
+  [[ -f $LEDGER ]] && jq -e 'has("share")' "$LEDGER" >/dev/null 2>&1 && lwrite 'del(.share)'
+  local ledger match rec hw_id reason state="" note="" pid running_recipe="" served="" busy=false answering=false engine_up=false
+  ledger=$(lread); match=$(match_hardware); hw_id=$(jq -r .hardwareId <<<"$match"); reason=$(jq -r .reason <<<"$match")
+  rec=$(recipe_for "$hw_id"); [[ -n $rec ]] && rec=$(jq -c --argjson m "$match" '. + {gpuIndex:$m.gpu.index, match:{backend:$m.gpu.backend}}' <<<"$rec")
+  pid=$(busy_pid); [[ -n $pid ]] && busy=true
+  if ! $busy && [[ $(jq -r .op.pid <<<"$ledger") -gt 0 ]]; then # the op's worker is gone without a word (killed): say so, once
+    log "error: worker $(jq -r .op.pid <<<"$ledger") vanished during $(jq -r .op.name <<<"$ledger")"
+    lwrite '.error=$e | .op={name:"",recipeId:"",pid:0,startedAt:"",detail:"",percent:0}' --arg e "stopped unexpectedly while $(jq -r .op.detail <<<"$ledger"); press Start again (see $LOGFILE)"
+    ledger=$(lread)
+  fi
+  if docker_direct; then
+    local e; e=$(live "$ENGINE" || true); [[ $e == "true|1|"* ]] && { engine_up=true; running_recipe=${e#true|1|}; }
+    if $engine_up && [[ $(live "$GATEWAY") == "true|1|"* ]]; then
+      served=$(api models 2 2>/dev/null | jq -r '.data[0].id // empty' || true); [[ -n $served ]] && answering=true
+    fi
+  else # docker would prompt: the gateway answering is the evidence, and the recipe it was started from is on file
+    served=$(api models 2 2>/dev/null | jq -r '.data[0].id // empty' || true)
+    if [[ -n $served ]]; then answering=true; engine_up=true; running_recipe=$(jq -r '.id // ""' "$STATE/gateway.recipe.json" 2>/dev/null || true); fi
+  fi
+  if $busy; then state=$(jq -r .op.name <<<"$ledger")
+  elif $answering && [[ $(jq -r '.accepted.recipeId // ""' <<<"$ledger") == "$running_recipe" || $(jq -r '(.accepted.recipeId // "") + .error' <<<"$ledger") == "" ]]; then state=ready   # verified, or adopted with nothing against it
+  elif $answering; then state=error; note="the running model was never verified; press Start"   # a worker died between the gateway answering and acceptance
+  elif [[ $(jq -r .error <<<"$ledger") != "" ]]; then state=error
+  elif $engine_up; then state=error; note="the gateway is not answering; press Start or Stop"   # no worker is bringing it up
+  else state=idle; fi
+  # a running recipe that the vendored file no longer carries is still ours: say so instead of hiding it
+  local running_known=true; [[ -n $running_recipe && $running_recipe != "$(jq -r '.id // ""' <<<"$rec")" ]] && running_known=false
+  local downloaded=false; [[ -n $rec ]] && weights_present "$rec" && { ! docker_direct || docker image inspect "$(jq -r .launch.image <<<"$rec")" >/dev/null 2>&1; } && downloaded=true
+  local gate=""; [[ -n $rec ]] && gate=$(gate_reason "$rec")
+  local driver_min driver_have; driver_have=$(jq -r .driver <<<"$match"); driver_min=$(jq -r '.minDriver // ""' <<<"${rec:-null}")
+  [[ -n $rec && -z $gate ]] && ! driver_ok "$driver_have" "$driver_min" && gate="needs NVIDIA driver $driver_min or newer (have ${driver_have:-none})"
+  jq -nc --argjson l "$ledger" --argjson rec "${rec:-null}" --argjson match "$match" --arg state "$state" --arg reason "$reason" --arg gate "$gate" \
+    --arg hw "$hw_id" --arg served "$served" --arg rr "$running_recipe" --argjson known "$running_known" --argjson dl "$downloaded" \
+    --argjson agents "$(agents_json)" --argjson share "$(share_state)" --arg reg "$(registry_commit)" --arg t "$(now)" --arg note "$note" '
+    {schemaVersion:"omarchy-local-ai/snapshot/7", updatedAt:$t, state:$state, error:(if $l.error!="" then $l.error else $note end), lastStartSeconds:($l.lastStartSeconds//0),
+     operation:{name:$l.op.name, detail:$l.op.detail, percent:$l.op.percent, startedAt:$l.op.startedAt,
+       expectedSeconds:(if $l.op.name=="starting" then ($l.lastStartSeconds//0) else 0 end)},
+     hardwareId:$hw, registry:$reg, gpus:$match.gpus, gpuPinned:$match.pinned,
+     model:(if $rec==null then null else
+       {recipeId:$rec.id, name:$rec.model.name, servedName:(if $served!="" then $served else $rec.model.servedName end),
+        engine:$rec.engine, ctxTokens:$rec.serving.ctxTokens, tps:$rec.speed.tps, sizeGb:$rec.model.sizeGb, downloaded:$dl,
+        endpoint:("http://127.0.0.1:"+($ENV.OMARCHY_AI_PORT // "12434")+"/v1")} end),
+     reason:(if $gate!="" then ("recipe refused: "+$gate) elif $rec==null then $reason else "" end),
+     running:(if $rr=="" then null else {recipeId:$rr, current:$known} end),
+     apis:$l.accepted.apis, agents:$agents, share:$share}' >"$SNAPSHOT.tmp.$$" && mv "$SNAPSHOT.tmp.$$" "$SNAPSHOT"
+}

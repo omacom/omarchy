@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.local-ai",
+  "name": "Local AI",
+  "version": "4.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Run the validated local model for your GPU and open any coding agent on it.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Local AI",
+    "description": "One model for your GPU: Start, Stop, open an agent on it, share it on your tailnet.",
+    "category": "AI",
+    "aliases": [
+      "local-ai",
+      "local-model"
+    ],
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
