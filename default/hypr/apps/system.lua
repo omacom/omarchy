@@ -31,10 +31,24 @@ o.window("dev.tensaku.Tensaku", { float = true })
 o.window("dev.tensaku.Tensaku", { center = true })
 o.window("omacalc", { float = true })
 
--- Fullscreen screensaver.
-o.window("org.omarchy.screensaver", { fullscreen = true })
-o.window("org.omarchy.screensaver", { float = true })
-o.window("org.omarchy.screensaver", { animation = "slide" })
+-- Screensaver covers each monitor as a floating overlay. Compositor fullscreen
+-- mode would replace any maximized / full-width window underneath, so idle lock
+-- left people tiled after unlock. Float + pin keeps that state intact; Hyprland
+-- raises floating windows over fullscreen without demoting it. Session lock
+-- still provides security and kills these terminals on the way in.
+o.window("org.omarchy.screensaver", {
+  float = true,
+  pin = true,
+  size = { "monitor_w", "monitor_h" },
+  move = { 0, 0 },
+  border_size = 0,
+  rounding = 0,
+  tag = "-default-opacity",
+  opacity = "1 1",
+  opaque = true,
+  no_dim = true,
+  animation = "slide",
+})
 
 -- No transparency on media windows.
 o.window(
