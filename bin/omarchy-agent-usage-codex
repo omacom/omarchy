@@ -28,6 +28,30 @@ from pathlib import Path
 AGENT_ID = "codex"
 AGENT_NAME = "Codex"
 AUTH_HELP = "Run `codex login` to authenticate."
+API_TIER_LABEL = "API Platform"
+
+
+def opencode_auth_path():
+  data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+  return data_home / "opencode" / "auth.json"
+
+
+# An OpenAI API-key user never logs the Codex CLI in, so without an explicit
+# signal they are indistinguishable from a signed-out subscriber. The key
+# itself is that signal: a set OPENAI_API_KEY, or an openai entry in
+# opencode's auth store. Only the key's presence is read — never its value —
+# and nothing secret travels into the printed record.
+def has_openai_api_key():
+  if str(os.environ.get("OPENAI_API_KEY") or "").strip():
+    return True
+  try:
+    data = json.loads(opencode_auth_path().read_text(encoding="utf-8"))
+  except Exception:
+    return False
+  entry = data.get("openai") if isinstance(data, dict) else None
+  if not isinstance(entry, dict):
+    return False
+  return str(entry.get("key") or "").strip() != ""
 
 # A scan this recent is only reused to dedup concurrent collector runs (the
 # update command backgrounds one per agent while the panel refreshes on its
@@ -585,6 +609,17 @@ def main():
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
   stats = cached_local_stats(max_age)
   rpc = fetch_codex_rpc()
+
+  # API billing has no subscription windows, so a key holder whose RPC yields
+  # no plan is labelled as such instead of falling through to the panel's
+  # "Subscription" default. Local stats silence a failed probe the same way:
+  # subscription windows are irrelevant to API billing. A holder of both
+  # (mixed usage) keeps the subscription record: a plan in the RPC answer
+  # means this branch never runs.
+  if not rpc.get("tierLabel") and has_openai_api_key():
+    rpc["tierLabel"] = API_TIER_LABEL
+    if number(stats.get("totalPrompts")) > 0:
+      rpc["usageStatusText"] = ""
 
   record = {
     "schemaVersion": 1,
