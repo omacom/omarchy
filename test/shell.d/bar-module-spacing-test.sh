@@ -13,7 +13,7 @@ gutter_count=$(rg -c 'spacing: 0' "$ROOT/shell/plugins/bar/Bar.qml" || true)
 [[ $gutter_count == "2" ]] || fail "bar module lists leave spacing to the slots" "spacing: 0 occurrences: $gutter_count"
 pass "bar module lists leave spacing to the slots"
 
-for anchor in 'paintHalfGap' 'paintIntrude' 'slotPad' 'paintedExtent' 'labelTightWidth' 'BarModel\.slotPad\(' 'omarchy\.spacer'; do
+for anchor in 'paintHalfGap' 'paintIntrude' 'slotPad' 'paintedExtent' 'paintChild' 'paintItem' 'labelTightWidth' 'iconContentItem' 'BarModel\.slotPad\(' 'BarModel\.paintChild\(activeItem\)' 'omarchy\.spacer'; do
   rg -q "$anchor" "$ROOT/shell/plugins/bar/Bar.qml" || fail "bar normalizes slot spacing from painted widths" "$anchor"
 done
 pass "bar normalizes slot spacing from painted widths"
@@ -51,6 +51,20 @@ function pairGap(spanA, paintedA, spanB, paintedB, half, cap) {
 assertEqual(pairGap(27, 11, 27, 11, 6, 3), 12, 'two icons land on the uniform gap')
 assertEqual(pairGap(27, 11, 30, 13, 6, 3), 12, 'icon and pill land on the uniform gap')
 assertEqual(pairGap(27, 43, 27, 11, 6, 3), 12, 'overflowing paint and icon land on the uniform gap')
+
+// The bar measures the button inside the widget root: paint metrics live
+// on the button, never on the root, while popup buttons nest deeper.
+const bareButton = { labelWidth: 40, children: [] }
+assertEqual(bar.paintChild(bareButton), bareButton, 'a root that is the button measures itself')
+const service = { refresh: function() {} }
+const button = { glyphPaintedWidth: 43 }
+const widget = { children: [service, button] }
+assertEqual(bar.paintChild(widget), button, 'a button child of the root is measured')
+assertEqual(bar.paintChild({ children: [{ children: [button] }] }), null, 'popup-depth buttons are never measured')
+assertEqual(bar.paintChild({ children: [service] }), null, 'a root without metrics measures nothing')
+assertEqual(bar.paintChild(null), null, 'a missing widget measures nothing')
+assertEqual(bar.hasPaintMetrics(button), true, 'glyph paint is a metric')
+assertEqual(bar.hasPaintMetrics(service), false, 'service objects carry no metrics')
 JS
 
 if ! command -v quickshell >/dev/null 2>&1; then
