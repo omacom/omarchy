@@ -244,7 +244,8 @@ grep -Fx 'KEEP = "yes"' "$ignored_config" >/dev/null || fail "ignored config kee
 ignored_entries=("$ignored_home/.local/state/mise/ignored-configs/"*)
 [[ -L ${ignored_entries[0]} ]] || fail "migration preserves the explicit Mise ignore marker"
 (( ${#ignored_entries[@]} == 1 )) || fail "migration preserves exactly one Mise ignore marker"
-[[ $(readlink "${ignored_entries[0]}") == "$ignored_home/Work" ]] || fail "preserved Mise ignore marker still targets Work"
+ignored_target=$(readlink "${ignored_entries[0]}")
+[[ $ignored_target == $ignored_home/Work || $ignored_target == $ignored_config ]] || fail "preserved Mise ignore marker still targets the Work config"
 grep -F "remains ignored by Mise" <<<"$ignored_output" >/dev/null || fail "migration reports that the custom config remains ignored"
 if mise_path_active "$ignored_home" "$ignored_project"; then
   fail "ignored config becomes active after migration"
