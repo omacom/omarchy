@@ -97,7 +97,8 @@ Entry points may declare `omarchyPath`, `shell`, `manifest`, `pluginRegistry`, a
 
 Widgets rendered by a third-party replacement bar receive a service-less entry facade with target-scoped lifecycle and settings operations. Their live service objects are available only when the trusted built-in bar hosts them; otherwise the replacement bar could request and retain any configured widget's service.
 
-The full schema lives in `services/PluginRegistry.qml`.
+The shell-loading schema lives in `services/PluginRegistry.qml`. The CLI also
+validates optional [pre-removal cleanup](#pre-removal-cleanup) metadata.
 
 ## Installing a third-party plugin
 
@@ -114,10 +115,7 @@ omarchy plugin remove acme.weather
 
 > ⚠️ **Plugins run as unsandboxed code inside `omarchy-shell`.** Adding warns you before cloning, plugins land disabled so you can review the code before enabling, and updates show a diff of the changes before touching anything. The scoped QML interfaces remove direct authentication-service and generic replacement-bar service lookups, but visual plugins still share and can traverse the ordinary host scene. Only add repos whose code you are willing to run.
 
-Each command is **interactive** when run bare in a terminal (gum pickers,
-confirmation, a diff to review) and fully **non-interactive** when given
-arguments. Pass `--yes` to skip every prompt — this is the path for scripts and
-AI agents:
+Commands use terminal pickers and confirmations when needed. Pass `--yes` to skip ordinary confirmation prompts in scripts and AI agents. Removal hooks require separate execution authorization, described below:
 
 ```bash
 omarchy plugin add https://github.com/acme/omarchy-weather.git --enable --yes
@@ -128,6 +126,34 @@ The installer never runs plugin code, install hooks, or sudo — it only clones
 files, validates the manifest, and toggles enabled state over shell IPC. Since
 an installed plugin is a plain git checkout, anything beyond add/update
 (pinning a ref, switching branches) is ordinary git in the plugin directory.
+
+### Pre-removal cleanup
+
+A plugin that owns registrations or other state outside its checkout can declare one optional executable in `manifest.json`:
+
+```json
+{
+  "hooks": {
+    "preRemove": "bin/cleanup"
+  }
+}
+```
+
+The path must name an executable regular file within the checkout. Absolute paths, `..`, control characters, and symlinks in the hook path are rejected. The installed plugin directory itself may be a symlink to a development checkout. `omarchy plugin validate <folder>` checks the declaration and file without executing plugin code. Removal records the checkout identity, manifest contents, and hook identity and contents before prompting, then checks them again before execution. A change aborts removal, including an added or removed hook.
+
+After confirmation, `omarchy plugin remove` runs the hook **before disabling the plugin or deleting, unlinking, or moving its checkout**. It also runs for disabled plugins, including plugins that have never been enabled. The terminal asks separately for permission to execute cleanup code. `--yes` skips the ordinary removal confirmation, but does not authorize code execution. After reviewing the current hook, scripts can authorize both steps explicitly:
+
+```bash
+omarchy plugin remove <plugin-id> --yes --run-pre-remove
+```
+
+Declining either confirmation leaves the checkout in place without running cleanup. With no declaration, removal behaves as before and needs no execution authorization or systemd user manager.
+
+The executable runs directly, respecting its shebang, with the physical checkout as its working directory, no arguments, the caller's environment and privileges, and standard input connected to `/dev/null`. Omarchy does not invoke `sudo`. Cleanup must be noninteractive. A transient systemd user service supervises the hook and its inherited cgroup, waiting for remaining processes even if the hook leader exits. After 60 seconds, it sends TERM to the group, followed by KILL after a 5-second stop grace period. Running a hook requires a reachable systemd user manager; validation does not.
+
+An invalid declaration, changed snapshot, failure to start, nonzero exit, or timeout aborts removal before the CLI disables the plugin or removes the checkout. Inspect any partial cleanup effects, correct the cause, and retry. Cleanup must be safely retryable: failure does not roll back completed effects. An entirely absent manifest remains removable for recovery of old or broken installations; a present but malformed manifest blocks removal.
+
+Hooks run as **unsandboxed plugin code**, even if the plugin was never enabled. Review the current executable before authorizing it. Path and snapshot checks detect intervening changes, but are not atomic protection against hostile concurrent edits. Process supervision is not a sandbox: hooks must not move cleanup into other services or otherwise escape the supervised cgroup. Hooks must clean up only state they own, wait for their cleanup work to finish, and return zero only when cleanup is complete. If a hook cannot be trusted or repaired, retain the checkout and recover manually; moving it can break external registrations that still point into it.
 
 ### Installing by hand
 

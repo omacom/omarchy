@@ -115,3 +115,95 @@ output=$(validate "$dir") && fail "validate refuses an entry point file that is 
 grep -qF "entry point file not found" <<<"$output" \
   || fail "validate reports a missing file as a missing file" "$output"
 pass "validate refuses an entry point file that is not there"
+
+# Pre-remove metadata is checked by the CLI without executing trusted plugin
+# code. Use a real executable whose only effect would be an external marker.
+hook_dir=$(write_plugin "cleanup-hook" '["service"]' '{"service": "Service.qml"}')
+mkdir -p "$hook_dir/bin"
+cat >"$hook_dir/bin/cleanup" <<'HOOK'
+#!/bin/bash
+touch "$HOME/cleanup-ran"
+HOOK
+chmod +x "$hook_dir/bin/cleanup"
+hook_home="$TMPDIR/hook-home"
+mkdir -p "$hook_home"
+
+set_hooks() {
+  jq --argjson hooks "$1" '.hooks = $hooks' "$hook_dir/manifest.json" >"$TMPDIR/hook-manifest"
+  mv "$TMPDIR/hook-manifest" "$hook_dir/manifest.json"
+}
+
+validate_hook() {
+  HOME="$hook_home" validate "$hook_dir"
+}
+
+set_hooks '{"preRemove":"bin/cleanup"}'
+output=$(validate_hook) || fail "validate accepts executable pre-remove hook" "$output"
+[[ ! -e $hook_home/cleanup-ran ]] || fail "validate must not execute pre-remove hook"
+pass "validate accepts executable pre-remove metadata without executing code"
+
+# A caller may have dot in PATH. Validating another directory must not turn its
+# jq into a host utility just because the hook checker inspects that checkout.
+cat >"$hook_dir/jq" <<'HOOK'
+#!/bin/bash
+printf 'executed\n' >"$HOME/plugin-jq-ran"
+exit 99
+HOOK
+chmod +x "$hook_dir/jq"
+output=$(cd "$hook_home" && PATH=".:$PATH" validate_hook) \
+  || fail "validate safely accepts caller PATH containing dot" "$output"
+[[ ! -e $hook_home/plugin-jq-ran && ! -e $hook_home/cleanup-ran ]] \
+  || fail "validate never executes plugin-owned jq or cleanup"
+pass "validate does not resolve host utilities inside the plugin checkout"
+
+set_hooks '{}'
+output=$(validate_hook) || fail "validate accepts empty hook declarations" "$output"
+pass "validate accepts empty hooks"
+
+# These files really exist, so rejection must not depend on a missing file.
+for suffix in $'\n' $'\t' $'\177'; do
+  cp "$hook_dir/bin/cleanup" "$hook_dir/bin/cleanup$suffix"
+done
+
+while IFS= read -r hooks; do
+  set_hooks "$hooks"
+  output=$(validate_hook) && fail "validate rejects invalid hook declaration: $hooks" "$output"
+  [[ ! -e $hook_home/cleanup-ran ]] || fail "invalid hook validation must not execute code"
+done <<'JSON'
+null
+[]
+"bin/cleanup"
+{"preRemove":null}
+{"preRemove":7}
+{"preRemove":false}
+{"preRemove":[]}
+{"preRemove":{}}
+{"preRemove":""}
+{"preRemove":"/bin/true"}
+{"preRemove":"../bin/cleanup"}
+{"preRemove":"bin/../bin/cleanup"}
+{"preRemove":"bin/clean\u0000up"}
+{"preRemove":"bin/cleanup\n"}
+{"preRemove":"bin/cleanup\t"}
+{"preRemove":"bin/cleanup\u007f"}
+JSON
+pass "validate rejects invalid hook types, traversal, absolute paths, NUL, and control characters"
+
+set_hooks '{"preRemove":"bin/missing"}'
+output=$(validate_hook) && fail "validate rejects missing hook executable" "$output"
+set_hooks '{"preRemove":"bin/cleanup"}'
+chmod -x "$hook_dir/bin/cleanup"
+output=$(validate_hook) && fail "validate rejects nonexecutable hook" "$output"
+chmod +x "$hook_dir/bin/cleanup"
+pass "validate rejects hooks that are missing or nonexecutable"
+
+mv "$hook_dir/bin/cleanup" "$TMPDIR/outside-cleanup"
+ln -s "$TMPDIR/outside-cleanup" "$hook_dir/bin/cleanup"
+output=$(validate_hook) && fail "validate rejects symlink hook executable" "$output"
+rm "$hook_dir/bin/cleanup"
+mv "$TMPDIR/outside-cleanup" "$hook_dir/bin/cleanup"
+mv "$hook_dir/bin" "$TMPDIR/outside-bin"
+ln -s "$TMPDIR/outside-bin" "$hook_dir/bin"
+output=$(validate_hook) && fail "validate rejects symlink parent escape" "$output"
+[[ ! -e $hook_home/cleanup-ran ]] || fail "filesystem hook validation must not execute code"
+pass "validate rejects symlink executables and symlink parent escapes without executing code"
