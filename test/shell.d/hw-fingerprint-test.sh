@@ -103,3 +103,14 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+# FocalTech match-on-chip readers name no function in their product string, so
+# the vendor list is the only way to find them.
+write_usb_devices '2808:a57a:FocalTech FT9365 ESS'
+assert_detects "a FocalTech match-on-chip reader is detected by vendor"
+
+# ...and the driver check is what keeps FocalTech's touch controllers, which
+# share the vendor ID, out of the match.
+write_usb_devices '2808:a57a:FocalTech FT9365 ESS'
+bind_driver '1-0/1-0:1.0' usbhid
+assert_rejects "a FocalTech device bound to a kernel driver is rejected"
