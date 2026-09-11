@@ -13,7 +13,7 @@ PermitTunnel no
 PermitUserEnvironment no
 ClientAliveInterval 300
 ClientAliveCountMax 2
-LoginGraceTime 20
+LoginGraceTime 60
 StrictModes yes
 AuthenticationMethods publickey
 KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512

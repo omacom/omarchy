@@ -121,9 +121,9 @@ EOF
 
 if pacman -Q apparmor &>/dev/null; then
     sudo systemctl enable apparmor.service
-    sudo aa-enforce /usr/sbin/sshd 2>/dev/null || true
-    sudo aa-enforce /usr/bin/sudo 2>/dev/null || true
-    sudo aa-enforce /usr/sbin/useradd 2>/dev/null || true
-    sudo aa-enforce /usr/bin/curl 2>/dev/null || true
-    sudo aa-enforce /usr/bin/wget 2>/dev/null || true
+    sudo aa-enforce /usr/sbin/sshd 2>/dev/null
+    sudo aa-enforce /usr/bin/sudo 2>/dev/null
+    sudo aa-enforce /usr/sbin/useradd 2>/dev/null
+    sudo aa-enforce /usr/bin/curl 2>/dev/null
+    sudo aa-enforce /usr/bin/wget 2>/dev/null
 fi

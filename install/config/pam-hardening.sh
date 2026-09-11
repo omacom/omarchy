@@ -17,7 +17,9 @@ EOF
 
 sudo tee /etc/security/access.conf >/dev/null <<'EOF'
 +:root:LOCAL
++:root:ALL
 +:wheel:LOCAL
++:wheel:ALL
 -:ALL:ALL
 EOF
 

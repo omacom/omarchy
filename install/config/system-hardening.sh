@@ -1,5 +1,5 @@
 if ! grep -q '^tmpfs /run/shm tmpfs' /etc/fstab; then
-    echo 'tmpfs /run/shm tmpfs defaults,noexec,nosuid,mode=1777 0 0' | sudo tee -a /etc/fstab
+    echo 'tmpfs /run/shm tmpfs defaults,nosuid,nodev,mode=1777 0 0' | sudo tee -a /etc/fstab
 fi
 
 sudo tee /etc/profile.d/omarchy-umask.sh >/dev/null <<'EOF'

@@ -6,13 +6,7 @@ ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
 RestrictSUIDSGID=yes
-ReadWritePaths=/etc/ssh/sshd_config.d /var/log /var/run/sshd /run/sshd
-EOF
-
-sudo mkdir -p /etc/systemd/system/docker.service.d
-sudo tee /etc/systemd/system/docker.service.d/99-omarchy-hardening.conf >/dev/null <<'EOF'
-[Service]
-NoNewPrivileges=yes
+ReadWritePaths=/etc/ssh /var/log /var/run/sshd /run/sshd
 EOF
 
 sudo mkdir -p /etc/systemd/system/NetworkManager.service.d
@@ -34,7 +28,7 @@ ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
 RestrictSUIDSGID=yes
-ReadWritePaths=/var/run/avahi-daemon
+ReadWritePaths=/var/run/avahi-daemon /var/lib/avahi
 EOF
 
 for svc in avahi-daemon cups cups-browsed; do
