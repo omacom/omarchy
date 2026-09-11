@@ -46,7 +46,68 @@ Item {
   property int skewOffset: 28
   property int bottomChromeHeight: showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)
 
-  onOpenedChanged: if (!opened) layoutSettled = false
+  onOpenedChanged: {
+    if (!opened) {
+      layoutSettled = false
+      wheelAccumulator = 0
+    }
+  }
+
+  property real wheelAccumulator: 0
+
+  Timer {
+    id: wheelResetTimer
+    interval: 350
+    onTriggered: root.wheelAccumulator = 0
+  }
+
+  function handleWheelScroll(wheel) {
+    if (!root.opened || !root.imagesLoaded || !root.layoutSettled || root.imageArray.length === 0) return
+
+    var dy = (wheel && wheel.angleDelta && wheel.angleDelta.y !== 0) ? wheel.angleDelta.y : ((wheel && wheel.pixelDelta) ? wheel.pixelDelta.y : 0)
+    var dx = (wheel && wheel.angleDelta && wheel.angleDelta.x !== 0) ? wheel.angleDelta.x : ((wheel && wheel.pixelDelta) ? wheel.pixelDelta.x : 0)
+
+    // Bi-directional scroll:
+    // Vertical:
+    //   dy > 0 (scroll up / away)      -> previous item (-1)
+    //   dy < 0 (scroll down / towards) -> next item (+1)
+    // Horizontal:
+    //   dx > 0 (scroll right / pan right)-> next item (+1)
+    //   dx < 0 (scroll left / pan left)  -> previous item (-1)
+    var delta = 0
+    if (Math.abs(dx) > Math.abs(dy)) {
+      delta = dx
+    } else {
+      delta = -dy
+    }
+
+    if (delta === 0) return
+
+    // Reversing direction clears partial accumulator immediately
+    if ((wheelAccumulator > 0 && delta < 0) || (wheelAccumulator < 0 && delta > 0)) {
+      wheelAccumulator = 0
+    }
+
+    if (Math.abs(delta) >= 120) {
+      root.selectAdjacent(delta > 0 ? 1 : -1)
+      wheelAccumulator = 0
+    } else {
+      wheelAccumulator += delta
+      var step = 80
+
+      while (wheelAccumulator >= step) {
+        root.selectAdjacent(1)
+        wheelAccumulator -= step
+      }
+      while (wheelAccumulator <= -step) {
+        root.selectAdjacent(-1)
+        wheelAccumulator += step
+      }
+    }
+
+    wheelResetTimer.restart()
+  }
+
 
   function scriptPath(name) {
     return omarchyPath + "/shell/plugins/image-picker/" + name
@@ -380,6 +441,9 @@ Item {
       anchors.fill: parent
       enabled: root.opened && root.imagesLoaded
       onClicked: root.cancel()
+      onWheel: function(wheel) {
+        root.handleWheelScroll(wheel)
+      }
     }
 
     Item {
@@ -389,7 +453,13 @@ Item {
       height: root.expandedHeight + Style.space(30) + root.bottomChromeHeight
       anchors.centerIn: parent
 
-        MouseArea { anchors.fill: parent; onClicked: {} }
+        MouseArea {
+          anchors.fill: parent
+          onClicked: {}
+          onWheel: function(wheel) {
+            root.handleWheelScroll(wheel)
+          }
+        }
 
         Item {
           id: carousel
@@ -538,6 +608,9 @@ Item {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: item.selected ? root.applySelected() : root.select(index)
+                onWheel: function(wheel) {
+                  root.handleWheelScroll(wheel)
+                }
               }
             }
           }
