@@ -297,19 +297,34 @@ rebuild_next_boot() {
   umount "$next$esp_mount"
 }
 
+# Both the staged system and the retained baseline must lose the old hashes.
+scrub_factory_accounts() {
+  local root="$1" user users
+
+  users=$(awk -F: '$3 >= 1000 && $3 < 60000 { print $1 }' "$root/etc/passwd") || return 1
+  for user in $users; do
+    userdel --root "$root" "$user" 2>>"$LOG_FILE" || return 1
+    rm -rf "${root:?}/home/$user" || return 1
+  done
+
+  # passwd --lock preserves the hash. Replace it, then remove the backups
+  # that userdel and usermod leave behind.
+  usermod --root "$root" --password '!' root >>"$LOG_FILE" 2>&1 || return 1
+  rm -f "$root/etc/"{shadow-,gshadow-,passwd-,group-,subuid-,subgid-}
+}
+
 # Remove the seller's account material and machine identity from the retained
 # @factory baseline so it can neither be mounted for recovery nor restore the
 # seller's account on a future reset. Idempotent (a scrubbed baseline has no
 # uid>=1000 accounts left to remove).
 sanitize_factory_baseline() {
-  local factory="$1" user
+  local factory="$1"
   btrfs property set -ts "$factory" ro false
 
-  for user in $(awk -F: '$3 >= 1000 && $3 < 60000 { print $1 }' "$factory/etc/passwd"); do
-    userdel --root "$factory" "$user" 2>>"$LOG_FILE" || true
-    rm -rf "${factory:?}/home/$user"
-  done
-  passwd --root "$factory" --lock root >>"$LOG_FILE" 2>&1 || true
+  if ! scrub_factory_accounts "$factory"; then
+    btrfs property set -ts "$factory" ro true
+    fail "could not remove account credentials from the factory baseline (see $LOG_FILE)"
+  fi
   rm -f "$factory"/etc/ssh/ssh_host_*
   rm -f "$factory"/etc/NetworkManager/system-connections/*
   rm -rf "$factory"/var/lib/NetworkManager/* "$factory/var/lib/tailscale" "$factory/var/lib/iwd"
@@ -337,17 +352,13 @@ stage_full_reset() {
   rm -rf "$next"/var/lib/NetworkManager/* "$next/var/lib/tailscale" "$next/var/lib/iwd"
   rm -f "$next/var/lib/sddm/state.conf" "$next/etc/sddm.conf.d/autologin.conf"
 
-  # A factory snapshot from a normal (normal) install contains the original
+  # A factory snapshot from a normal install contains the original
   # user account; first-boot setup must start from none. A leftover account
   # would keep its password hash and group memberships (including wheel), so
   # failure here has to abort the reset, not be shrugged off.
-  local user
-  for user in $(awk -F: '$3 >= 1000 && $3 < 60000 { print $1 }' "$next/etc/passwd"); do
-    log "Removing user $user from the factory system"
-    userdel --root "$next" "$user" 2>>"$LOG_FILE" ||
-      fail "could not remove user $user from the factory system (see $LOG_FILE)"
-  done
-  passwd --root "$next" --lock root >>"$LOG_FILE" 2>&1 || true
+  log "Removing account credentials from the factory system"
+  scrub_factory_accounts "$next" ||
+    fail "could not remove account credentials from the factory system (see $LOG_FILE)"
 
   # @factory itself survives the wipe as the baseline for future resets. If it
   # came from a normal install it still holds the seller's account and
