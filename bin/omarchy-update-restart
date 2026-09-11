@@ -28,10 +28,18 @@ elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
   confirm_reboot "Updates require reboot. Ready?"
 fi
 
-running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
-if [[ $running_hyprland == *"(deleted)"* ]]; then
-  confirm_reboot "Hyprland has been updated. Reboot?"
-fi
+# Reinstalling an identical package also unlinks the running executable. Only
+# ask when its replacement differs (or cannot be compared), and ignore other
+# users' compositors, including the login greeter.
+while read -r hyprland_pid; do
+  running_exe="/proc/$hyprland_pid/exe"
+  running_hyprland=$(readlink "$running_exe" 2>/dev/null)
+  if [[ $running_hyprland == *" (deleted)" ]] &&
+    ! cmp -s "$running_exe" "${running_hyprland% (deleted)}"; then
+    confirm_reboot "Hyprland has been updated. Reboot?"
+    break
+  fi
+done < <(pgrep -u "$(id -u)" -x Hyprland)
 
 for file in "$HOME"/.local/state/omarchy/restart-*-required; do
   if [[ -f $file ]]; then
