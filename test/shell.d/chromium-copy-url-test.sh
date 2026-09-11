@@ -59,9 +59,10 @@ pass "copy-url extension is clickable from the toolbar"
 
 TMPDIR=$(mktemp -d)
 test_home="$TMPDIR/home"
+export HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config"
 native_manifest="$test_home/.config/chromium/NativeMessagingHosts/com.omarchy.copy_url.json"
 
-HOME="$test_home" OMARCHY_PATH="$ROOT" omarchy-install-chromium-copy-url
+HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" OMARCHY_PATH="$ROOT" omarchy-install-chromium-copy-url
 
 [[ -f $native_manifest ]] || fail "copy-url native host installer creates fresh Chromium profile root"
 jq -e --arg path "$ROOT/bin/omarchy-chromium-copy-url-host" '
@@ -82,7 +83,7 @@ grep -q 'user/chromium.sh' "$ROOT/install/user/all.sh" ||
   fail "user install runs the Chromium native messaging host setup"
 
 fresh_home="$TMPDIR/fresh-install"
-HOME="$fresh_home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+HOME="$fresh_home" XDG_CONFIG_HOME="$fresh_home/.config" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
   bash -euo pipefail -c 'source "$ROOT/install/user/chromium.sh"'
 
 [[ -f $fresh_home/.config/chromium/NativeMessagingHosts/com.omarchy.copy_url.json ]] ||

@@ -121,6 +121,7 @@ done
 for setup_command in \
   omarchy-install-chromium-copy-url \
   omarchy-install-chromium-ytdlp \
+  omarchy-install-chromium-theme-sync \
   omarchy-theme-set-browser; do
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
@@ -128,6 +129,7 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+export XDG_CONFIG_HOME="$test_home/.config"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
@@ -223,9 +225,19 @@ grep -Fxq 'omarchy-install-chromium-copy-url:' "$setup_log" ||
   fail "Chromium browser installer registers the Copy URL host"
 grep -Fxq 'omarchy-install-chromium-ytdlp:' "$setup_log" ||
   fail "Chromium browser installer registers the yt-dlp host"
+grep -Fxq "omarchy-install-chromium-theme-sync:$XDG_CONFIG_HOME/chromium-flags.conf" "$setup_log" ||
+  fail "Chromium browser installer registers Theme Sync and merges the selected flags file"
 grep -Fxq 'omarchy-theme-set-browser:' "$setup_log" ||
   fail "Chromium browser installer applies the current theme"
 pass "Chromium browser installer restores the complete Omarchy setup"
+
+printf '%s\n' '# User flags' '--custom-option=keep' >"$test_home/.config/chromium-flags.conf"
+cp "$test_home/.config/chromium-flags.conf" "$test_tmp/custom-flags"
+rm -f "$installed_dir/chromium"
+OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install chromium >/dev/null
+cmp -s "$test_tmp/custom-flags" "$test_home/.config/chromium-flags.conf" ||
+  fail "Chromium browser reinstall does not overwrite existing flags before the merge"
+pass "Chromium browser reinstall preserves user flags"
 
 : >"$install_log"
 : >"$setup_log"
@@ -275,6 +287,14 @@ fi
 grep -Fq 'Installing Chromium' "$test_tmp/browser-install-failure" ||
   fail "failed Chromium setup keeps progress visible in the terminal"
 pass "failed Chromium setup preserves the current default"
+
+rm -f "$installed_dir/chromium"
+if OMARCHY_TEST_REAL_BROWSER_INSTALL=true OMARCHY_TEST_SETUP_FAIL=omarchy-install-chromium-theme-sync \
+  omarchy-default-browser --install chromium >"$test_tmp/theme-sync-install-failure" 2>&1; then
+  fail "failed Theme Sync registration returns an error"
+fi
+[[ $(omarchy-default-browser) == "zen" ]] || fail "failed Theme Sync registration preserves the default browser"
+pass "failed Theme Sync registration prevents default-browser selection"
 
 for entry in "${terminal_cases[@]}"; do
   read -r selection desktop_id <<<"$entry"

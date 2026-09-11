@@ -1,0 +1,151 @@
+#!/bin/bash
+
+# omarchy:summary=Native messaging host: stream the current theme palette to the browser extension
+# omarchy:hidden=true
+
+# No `set -e`: this is a long-lived port. A failed read or a theme directory that
+# briefly does not exist mid-swap must not take the host down, or the extension
+# loses the palette until the browser restarts.
+set -uo pipefail
+
+# jq -a keeps every payload pure ASCII, so the 4-byte length prefix can be
+# computed from ${#payload} without the locale deciding whether that counts
+# bytes or characters. A theme name with an accent in it would otherwise be
+# framed one byte short and desync the port for good.
+export LC_ALL=C
+
+STATE_DIR="$HOME/.local/state/omarchy/current"
+COLORS_FILE="$STATE_DIR/theme/colors.toml"
+NAME_FILE="$STATE_DIR/theme.name"
+
+# The only request this host understands is a resync, so a legitimate frame is
+# a few bytes long. The cap bounds what a misbehaving peer can make bash buffer.
+MAX_REQUEST_BYTES=1048576
+MAX_RESPONSE_BYTES=1048576
+MAX_PALETTE_BYTES=65536
+MAX_THEME_NAME_CHARS=64
+
+# Every frame written to stdout takes this lock. The inotify loop and the stdin
+# reader are separate processes sharing one stdout, and a length prefix
+# interleaved with another message's body desyncs the port permanently. Each
+# emit opens the file fresh so parent and child get distinct open file
+# descriptions -- reusing one inherited fd would be the same lock to both and
+# exclude nothing.
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-browser-theme-host.$$.lock"
+
+cleanup() { rm -f "$LOCK_FILE"; }
+trap cleanup EXIT
+
+# colors.toml is a flat `key = "value"` table. Anything that is not that shape
+# (the `mode` line aside, which is the same shape) is not colour and is skipped
+# rather than guessed at.
+palette_json() {
+  [[ -f $COLORS_FILE ]] || { printf '{}'; return; }
+
+  local source
+  source=$(head -c "$((MAX_PALETTE_BYTES + 1))" -- "$COLORS_FILE" && printf '.') || { printf '{}'; return; }
+  source=${source%.}
+  (( ${#source} <= MAX_PALETTE_BYTES )) || { printf '{}'; return; }
+
+  printf '%s' "$source" |
+    sed -n 's/^[[:space:]]*\([a-z_][a-z0-9_]*\)[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1\t\2/p' |
+    jq -R -s -a 'split("\n") | map(select(length > 0) | split("\t") | {(.[0]): .[1]}) | add // {}' 2>/dev/null ||
+    printf '{}'
+}
+
+theme_message() {
+  local name=""
+  if [[ -f $NAME_FILE ]]; then
+    name=$(head -c "$MAX_THEME_NAME_CHARS" -- "$NAME_FILE")
+    name=${name%%$'\n'*}
+  fi
+
+  palette_json | jq -c -a --arg name "$name" \
+    '{type: "palette", name: $name, mode: (.mode // "dark"), colors: del(.mode)}' 2>/dev/null
+}
+
+emit() {
+  local payload=$1 len
+  len=${#payload}
+  (( len > 0 && len <= MAX_RESPONSE_BYTES )) || return 0
+
+  {
+    flock 9 || return 1
+    # Native messaging frame: 4-byte little-endian length, then UTF-8 JSON.
+    printf "$(printf '\\x%02x\\x%02x\\x%02x\\x%02x' \
+      $((len & 255)) $(((len >> 8) & 255)) $(((len >> 16) & 255)) $(((len >> 24) & 255)))"
+    printf '%s' "$payload"
+  } 9>"$LOCK_FILE"
+}
+
+emit_palette() {
+  local message
+  message=$(theme_message) || return 0
+  emit "$message"
+}
+
+# EOF is the browser closing the port. It is the only shutdown signal the host
+# gets, and without acting on it the host would watch the theme forever after
+# the browser is gone. Every well-formed frame is a resync request. The host
+# only ever answers with the palette, so there is no request type to dispatch on.
+read_requests() {
+  local header length payload
+
+  while true; do
+    header=$(head -c4 | od -An -v -tx1 | tr -d ' \n') || break
+    [[ ${#header} == 8 ]] || break
+    length=$((16#${header:6:2}${header:4:2}${header:2:2}${header:0:2}))
+    (( length > 0 && length <= MAX_REQUEST_BYTES )) || break
+    # The sentinel preserves trailing newlines; Bash drops NUL bytes, which
+    # also makes the exact byte-count check fail instead of accepting them.
+    payload=$(head -c "$length" && printf '.') || break
+    payload=${payload%.}
+    (( ${#payload} == length )) || break
+    jq -e -s 'length == 1 and (.[0] | type == "object")' <<<"$payload" >/dev/null 2>&1 || break
+
+    emit_palette
+  done
+
+  kill -TERM "$MAIN_PID" 2>/dev/null
+}
+
+MAIN_PID=$$
+trap 'exit 0' TERM INT
+
+main() {
+  # Push once up front so a freshly connected extension has the palette without
+  # waiting for the next theme switch.
+  emit_palette
+
+  read_requests <&0 &
+
+  # omarchy-theme-set replaces the theme directory wholesale (rm -rf + mv), so a
+  # watch on colors.toml would follow the deleted inode and go deaf after one
+  # switch. Watching the parent survives the swap.
+  mkdir -p "$STATE_DIR" 2>/dev/null
+
+  # inotifywait prints "<dir> <events> <filename>". Filtering on the filename
+  # matters: omarchy-theme-set stages into next-theme, which lives inside this
+  # same directory, so an unfiltered watch fires repeatedly during staging and
+  # pushes the *old* palette before the swap has happened.
+  local file
+  while read -r _ _ file; do
+    case $file in
+    theme | theme.name) ;;
+    *) continue ;;
+    esac
+
+    # rm -rf, mv, and the theme.name write arrive as a burst; coalesce it so the
+    # extension gets one update per theme switch and never reads a half-swap.
+    while read -r -t 0.2 _ _ _; do :; done
+    emit_palette
+  done < <(inotifywait -m -q -e create,moved_to,close_write,delete,move_self "$STATE_DIR" 2>/dev/null)
+
+  # inotifywait died (or was never available). Keep the port open so the browser
+  # keeps the palette it already has instead of tearing the connection down.
+  wait
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
