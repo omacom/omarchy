@@ -42,6 +42,7 @@ cat >"$session" <<EOF
 {"timestamp":"$timestamp","type":"turn_context","payload":{"model":"gpt-test"}}
 {"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":60,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120},"last_token_usage":{"input_tokens":100,"cached_input_tokens":60,"output_tokens":20,"reasoning_output_tokens":5,"total_tokens":120}}}}
 {"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":180,"cached_input_tokens":110,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":210},"last_token_usage":{"input_tokens":80,"cached_input_tokens":50,"output_tokens":10,"reasoning_output_tokens":3,"total_tokens":90}}}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":180,"cached_input_tokens":110,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":210},"last_token_usage":{"input_tokens":80,"cached_input_tokens":50,"output_tokens":10,"reasoning_output_tokens":3,"total_tokens":90}},"rate_limits":{"primary":{"used_percent":10}}}}
 EOF
 
 result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" CODEX_ARGS_FILE="$TEST_HOME/codex-args" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
@@ -59,6 +60,10 @@ pass "Codex collector uses the supported approval policy"
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "210" ]] ||
   fail "Codex collector counts each turn once" "$result"
 pass "Codex collector counts each turn once"
+
+[[ $(jq -r '.todayPrompts' <<<"$result") == "2" ]] ||
+  fail "Codex collector does not count repeated quota notifications as prompts" "$result"
+pass "Codex collector does not count repeated quota notifications as prompts"
 
 [[ $(jq -c '.modelUsage["gpt-test"]' <<<"$result") == '{"inputTokens":70,"outputTokens":30,"cacheReadInputTokens":110,"cacheCreationInputTokens":0}' ]] ||
   fail "Codex collector does not double-count cache or reasoning tokens" "$result"
@@ -188,9 +193,19 @@ cache_file=$(ls "$CACHE_HOME/.cache/omarchy/agent-usage/"/codex-scan-*.json 2>/d
   fail "Codex collector leaves a cache file behind" "$result"
 [[ $(stat -c %a "$cache_file") == "644" ]] ||
   fail "Codex collector keeps cache files readable" "$result"
-[[ $(jq -r '.schemaVersion' "$cache_file") == "1" && $(jq -r '.stats.todayTotalTokens' "$cache_file") == "5" ]] ||
+[[ $(jq -r '.schemaVersion' "$cache_file") == "2" && $(jq -r '.stats.todayTotalTokens' "$cache_file") == "5" ]] ||
   fail "Codex collector writes a versioned cache envelope" "$result"
 pass "Codex collector writes a local-stats cache on first scan"
+
+# A still-fresh cache from before native notification deduplication must not
+# restore inflated counts, even when only quota limits were requested.
+jq '.schemaVersion = 1 | .stats.todayTotalTokens = 999' "$cache_file" >"$CACHE_HOME/old-cache.json"
+mv "$CACHE_HOME/old-cache.json" "$cache_file"
+result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
+  PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" && $(jq -r '.schemaVersion' "$cache_file") == "2" ]] ||
+  fail "Codex collector invalidates pre-deduplication cached totals" "$result"
+pass "Codex collector invalidates pre-deduplication cached totals"
 
 # A corrupt-but-parseable cache (wrong shape) is a cache miss: rescan and
 # rewrite instead of emitting a garbage record.
@@ -200,7 +215,7 @@ result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CAC
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "5" ]] ||
   fail "Codex collector recovers from a corrupt cache file" "$result"
-[[ $(jq -r '.schemaVersion' "$cache_file") == "1" ]] ||
+[[ $(jq -r '.schemaVersion' "$cache_file") == "2" ]] ||
   fail "Codex collector rewrites the cache after a corrupt read" "$result"
 pass "Codex collector recovers from a corrupt cache file"
 
