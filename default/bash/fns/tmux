@@ -1,13 +1,13 @@
 # Create a Tmux Dev Layout with editor, ai, and terminal
-# Usage: tdl <c|cx|codex|other_ai> [<second_ai>]
+# Usage: tdl [<c|cx|codex|other_ai>] [<second_ai>]
+# Without an agent, the AI pane runs the default agent set with `omarchy default agent`
 tdl() {
-  [[ -z $1 ]] && { echo "Usage: tdl <c|cx|codex|other_ai> [<second_ai>]"; return 1; }
   [[ -z $TMUX ]] && { echo "You must start tmux to use tdl."; return 1; }
 
   local current_dir="${PWD}"
   local editor_pane ai_pane ai2_pane
-  local ai="$1"
-  local ai2="$2"
+  local ai="${1:-omarchy-agent --inline}"
+  local ai2="${2:-}"
 
   # Use TMUX_PANE for the pane we're running in (stable even if active window changes)
   editor_pane="$TMUX_PANE"
@@ -34,17 +34,18 @@ tdl() {
   tmux send-keys -t "$editor_pane" "$EDITOR ." C-m
 
   # Select the nvim pane for focus
-  tmux select-pane -t "$opencode_pane"
+  tmux select-pane -t "$editor_pane"
 }
 
-# Create a Tmux Dev Square layout with editor, diff watch, terminal, and opencode
-# Usage: tds
+# Create a Tmux Dev Square layout with editor, diff watch, terminal, and ai
+# Usage: tds [<c|cx|codex|other_ai>]
+# Without an agent, the AI pane runs the default agent set with `omarchy default agent`
 tds() {
-  [[ -n $1 ]] && { echo "Usage: tds"; return 1; }
   [[ -z $TMUX ]] && { echo "You must start tmux to use tds."; return 1; }
 
   local current_dir="${PWD}"
-  local editor_pane diff_pane terminal_pane opencode_pane
+  local editor_pane diff_pane terminal_pane ai_pane
+  local ai="${1:-omarchy-agent --inline}"
 
   editor_pane="$TMUX_PANE"
 
@@ -52,28 +53,28 @@ tds() {
 
   terminal_pane=$(tmux split-window -v -p 50 -t "$editor_pane" -c "$current_dir" -P -F '#{pane_id}')
   diff_pane=$(tmux split-window -h -p 50 -t "$editor_pane" -c "$current_dir" -P -F '#{pane_id}')
-  opencode_pane=$(tmux split-window -h -p 50 -t "$terminal_pane" -c "$current_dir" -P -F '#{pane_id}')
+  ai_pane=$(tmux split-window -h -p 50 -t "$terminal_pane" -c "$current_dir" -P -F '#{pane_id}')
 
   tmux send-keys -t "$editor_pane" -l "nvim ."
   tmux send-keys -t "$editor_pane" C-m
   tmux send-keys -t "$diff_pane" -l "hunk diff --watch"
   tmux send-keys -t "$diff_pane" C-m
-  tmux send-keys -t "$opencode_pane" -l "opencode"
-  tmux send-keys -t "$opencode_pane" C-m
+  tmux send-keys -t "$ai_pane" -l "$ai"
+  tmux send-keys -t "$ai_pane" C-m
 
   tmux select-pane -t "$editor_pane"
 }
 
 # Create multiple tdl windows with one per subdirectory in the current directory
-# Usage: tdlm <c|cx|codex|other_ai> [<second_ai>]
+# Usage: tdlm [<c|cx|codex|other_ai>] [<second_ai>]
 tdlm() {
-  [[ -z $1 ]] && { echo "Usage: tdlm <c|cx|codex|other_ai> [<second_ai>]"; return 1; }
   [[ -z $TMUX ]] && { echo "You must start tmux to use tdlm."; return 1; }
 
-  local ai="$1"
-  local ai2="$2"
+  local ai="${1:-}"
+  local ai2="${2:-}"
   local base_dir="$PWD"
   local first=true
+  local tdl_command
 
   # Rename the session to the current directory name (replace dots/colons which tmux disallows)
   tmux rename-session "$(basename "$base_dir" | tr '.:' '--')"
@@ -82,13 +83,18 @@ tdlm() {
     [[ -d $dir ]] || continue
     local dirpath="${dir%/}"
 
+    tdl_command="tdl"
+    [[ -n $ai ]] && printf -v tdl_command '%s %q' "$tdl_command" "$ai"
+    [[ -n $ai2 ]] && printf -v tdl_command '%s %q' "$tdl_command" "$ai2"
+
     if $first; then
       # Reuse the current window for the first project
-      tmux send-keys -t "$TMUX_PANE" "cd '$dirpath' && tdl $ai $ai2" C-m
+      printf -v tdl_command 'cd %q && %s' "$dirpath" "$tdl_command"
+      tmux send-keys -t "$TMUX_PANE" "$tdl_command" C-m
       first=false
     else
       local pane_id=$(tmux new-window -c "$dirpath" -P -F '#{pane_id}')
-      tmux send-keys -t "$pane_id" "tdl $ai $ai2" C-m
+      tmux send-keys -t "$pane_id" "$tdl_command" C-m
     fi
   done
 }
