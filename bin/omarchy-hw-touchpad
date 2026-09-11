@@ -2,5 +2,7 @@
 
 # omarchy:summary=Print the detected Hyprland touchpad or trackpad device name
 
-device=$(hyprctl devices -j | jq -r '[.mice[] | .name | select(test("touchpad|trackpad"; "i"))] | first // empty')
+# Hyprland reports most touchpads under a name containing touchpad/trackpad,
+# but Apple's bcm5974 driver reports the bare driver name, so match that too.
+device=$(hyprctl devices -j | jq -r '[.mice[] | .name | select(test("touchpad|trackpad|bcm5974"; "i"))] | first // empty')
 [[ -n $device ]] && echo "$device"
