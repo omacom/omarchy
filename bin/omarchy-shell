@@ -20,8 +20,8 @@ if (( $# == 0 )) || [[ $1 == "-h" || $1 == "--help" ]]; then
   cat <<USAGE
 Usage: omarchy-shell [-q] <target> <method> [args...]
 
-Forwards an IPC call to the running Omarchy shell. The shell is expected
-to already be running; this command does not start it.
+Forwards an IPC call to the running Omarchy shell. The lock target goes
+directly to the separate locker. This command does not start either process.
 
 Options:
   -q  Quiet best-effort mode. Suppress output and return success even when
@@ -38,7 +38,13 @@ fi
 
 (( $# >= 2 )) || fail "Usage: omarchy-shell <target> <method> [args...]"
 [[ -n ${OMARCHY_PATH:-} ]] || fail "OMARCHY_PATH is not set"
-[[ -f $OMARCHY_PATH/shell/shell.qml ]] || fail "omarchy-shell config not found: $OMARCHY_PATH/shell/shell.qml"
+config="$OMARCHY_PATH/shell"
+if [[ $1 == "lock" ]]; then
+  config="$OMARCHY_PATH/shell/lock.qml"
+  [[ -f $config ]] || fail "omarchy-lock config not found: $config"
+else
+  [[ -f $config/shell.qml ]] || fail "omarchy-shell config not found: $config/shell.qml"
+fi
 
 # qs matches instances by display, and a caller from outside the session (an
 # ssh or TTY omarchy-restart-shell, and the migrations it runs for) has none,
@@ -52,11 +58,19 @@ if [[ $1 == "shell" && ( $2 == "summon" || $2 == "toggle" ) ]] && (( $# == 3 ));
   set -- "$1" "$2" "$3" "{}"
 fi
 
+# Both theme paths carry the same payload. Keep the resident locker in sync
+# even when the main shell is unavailable. Its reply is not the caller's reply.
+if [[ $1 == "shell" && $2 == "applyTheme" && $# == 4 ]]; then
+  "$0" -q lock applyTheme "$3" "$4"
+elif [[ $1 == "background" && $2 == "themeTransition" && $# == 7 ]]; then
+  "$0" -q lock applyTheme "$6" "$7"
+fi
+
 # The -- keeps function names that shadow qs subcommands (e.g. show) as
 # positionals. qs reports connection failures with a nonzero exit, but IPC-level
 # failures (unknown target/function, bad arguments) go to stdout with exit 0.
 ipc_timeout=${OMARCHY_SHELL_IPC_TIMEOUT:-2s}
-output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "$@" 2>/dev/null)
+output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$config" call -- "$@" 2>/dev/null)
 ipc_status=$?
 
 if (( ipc_status == 124 || ipc_status == 137 )); then

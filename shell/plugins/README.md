@@ -33,7 +33,6 @@ User-installed plugins live alongside these conceptually but on disk under
 | Battery       | `omarchy.battery`         | `service`               | `services/battery/Service.qml`        |
 | Idle          | `omarchy.idle`            | `service`               | `services/idle/Service.qml`           |
 | Night light   | `omarchy.nightlight`      | `service`               | `services/nightlight/Service.qml`     |
-| Lock screen   | `omarchy.lock`            | `service`               | `lock/Service.qml`                    |
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
 
@@ -75,17 +74,6 @@ clears it without writing a selection.
 
 The plugin has `keepLoaded: true` so the layer-shell window survives
 between summons within a single shell session.
-
-## Lock screen
-
-Session-lock surface using Quickshell's native `WlSessionLock` and two
-separate PAM services: `omarchy-lock-password` for password auth and,
-only when fingerprints are enrolled, `omarchy-lock-fingerprint` for
-fingerprint auth. It mirrors the previous lock screen field dimensions,
-colors, blurred wallpaper, placeholder, and Hyprland-driven corners.
-The plugin sets `keepLoaded: true` so a plugin hot-reload (for example
-an installed bar widget changing on disk) does not destroy the lock
-client while Hyprland still holds the session lock.
 
 ## Polkit agent
 

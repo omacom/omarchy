@@ -2,12 +2,16 @@
 
 Read this before editing the Quickshell desktop under `shell/`.
 
-The Quickshell desktop runs as a single long-running process out of
-`shell/`. Hyprland autostart launches it directly with `quickshell -n -p`;
-do not start additional standalone Quickshell instances for individual
-components.
+The main Quickshell desktop runs from `shell/shell.qml`. The locker is the
+one independent component: `shell/lock.qml` owns the session lock and password
+prompt. Hyprland starts both through `omarchy-launch-shell` (with `--lock` for
+the locker), with separate configuration identities and supervisors. Other
+components belong in the main shell as plugins.
 
-Run `omarchy-restart-shell` after making changes to QML files.
+`omarchy-restart-shell` replaces only the main shell. Never kill all Quickshell
+processes to reload it. Locker code changes take effect at the next graphical
+login; leave a running locker alone while locked. Test lock/restart behavior
+in an isolated graphical session, never on the user's locked desktop.
 
 ## Plugin contract
 

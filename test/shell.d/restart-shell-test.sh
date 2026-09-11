@@ -76,29 +76,36 @@ dispatch_log="$test_tmp/dispatch.log"
 ipc_log="$test_tmp/ipc.log"
 runtime_dir="$test_tmp/runtime"
 mkdir -p "$restart_root/shell" "$restart_bin" "$runtime_dir"
-touch "$restart_root/shell/shell.qml"
+touch "$restart_root/shell/shell.qml" "$restart_root/shell/lock.qml"
 ln -s "$ROOT/bin/omarchy-shell" "$restart_bin/omarchy-shell"
 ln -s "$ROOT/bin/omarchy-launch-shell" "$restart_bin/omarchy-launch-shell"
-ln -s "$ROOT/bin/omarchy-cmd-missing" "$restart_bin/omarchy-cmd-missing"
 ln -s "$ROOT/bin/omarchy-hyprland-session-locked" "$restart_bin/omarchy-hyprland-session-locked"
 
 cat >"$restart_bin/qs" <<'SH'
 #!/bin/bash
-
 printf '%s\n' "$*" >>"$OMARCHY_TEST_IPC_LOG"
-
 case "$*" in
   *'shell ping')
-    [[ $* == *"-p $OMARCHY_TEST_SESSION_PATH/shell"* ]] &&
-      grep -Fx '303' "$OMARCHY_TEST_QS_STATE" >/dev/null &&
-      printf 'ok\n'
+    grep -Fx 'fresh' "$OMARCHY_TEST_QS_STATE" >/dev/null || exit 1
+    printf 'ok\n'
     ;;
   *'lock lock')
+    grep -q '^kill ' "$OMARCHY_TEST_QS_LOG" && exit 1
     touch "$OMARCHY_TEST_QS_STATE.locked"
     printf 'ok\n'
     ;;
   *'lock status')
-    if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
+    if [[ $* != *'/lock.qml '* ]]; then
+      if [[ -f $OMARCHY_TEST_QS_STATE.legacy ]]; then
+        printf '{"secure": false, "requested": true}\n'
+      else
+        printf 'Target not found.\n'
+      fi
+    elif [[ ! -f $OMARCHY_TEST_QS_STATE.locker ]]; then
+      exit 1
+    elif [[ -f $OMARCHY_TEST_QS_STATE.pending ]]; then
+      printf '{"secure": false, "requested": true}\n'
+    elif [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
       printf '{"secure": true, "requested": true}\n'
     else
       printf '{"secure": false, "requested": false}\n'
@@ -109,50 +116,54 @@ SH
 
 cat >"$restart_bin/quickshell" <<'SH'
 #!/bin/bash
-
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
-
 case " $* " in
   *' kill -p '*)
+    if [[ $* == *'/lock.qml '* ]]; then
+      kill "$OMARCHY_TEST_LOCKER_PID"
+      exit 1
+    fi
     pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
     [[ $pid =~ ^[0-9]+$ ]] || exit 1
     kill "$pid" 2>/dev/null
     while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
-    awk 'NR > 1' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
+    sed '1d' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
     mv "$OMARCHY_TEST_QS_STATE.next" "$OMARCHY_TEST_QS_STATE"
     ;;
   *' -n -p '*)
-    printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
-    printf '303\n' >"$OMARCHY_TEST_QS_STATE"
+    if [[ $* == *'/lock.qml' ]]; then
+      touch "$OMARCHY_TEST_QS_STATE.locker"
+    else
+      printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
+      printf 'fresh\n' >"$OMARCHY_TEST_QS_STATE"
+    fi
     ;;
 esac
 SH
 
 cat >"$restart_bin/hyprctl" <<'SH'
 #!/bin/bash
-
 if [[ ${1:-} == "-j" && ${2:-} == "monitors" ]]; then
-  # Hyprland reports an active session lock as a reason the monitor cannot hand
-  # a client the whole screen, not as a workspace.
   if [[ ${OMARCHY_TEST_SESSION_LOCKED:-0} == 1 ]]; then
-    printf '[{"name":"eDP-1","solitaryBlockedBy":["WINDOWED","LOCK","CANDIDATE"]}]\n'
+    printf '[{"name":"eDP-1","solitaryBlockedBy":["LOCK"]}]\n'
   else
-    printf '[{"name":"eDP-1","solitaryBlockedBy":["WINDOWED","CANDIDATE"]}]\n'
+    printf '[{"name":"eDP-1","solitaryBlockedBy":[]}]\n'
   fi
 elif [[ ${1:-} == "dispatch" && ${2:-} == hl.dsp.exec_cmd* ]]; then
-  printf '%s\n' "${2:-}" >>"$OMARCHY_TEST_DISPATCH_LOG"
-  OMARCHY_PATH="$OMARCHY_TEST_SESSION_PATH" \
-    env -u OMARCHY_TEST_TRANSIENT_ENV omarchy-launch-shell
+  printf '%s\n' "$2" >>"$OMARCHY_TEST_DISPATCH_LOG"
+  if [[ $2 == *'--lock'* ]]; then
+    env -u OMARCHY_TEST_TRANSIENT_ENV OMARCHY_PATH="$OMARCHY_TEST_SESSION_PATH" omarchy-launch-shell --lock
+  else
+    env -u OMARCHY_TEST_TRANSIENT_ENV OMARCHY_PATH="$OMARCHY_TEST_SESSION_PATH" omarchy-launch-shell
+  fi
   printf 'ok\n'
-elif [[ ${1:-} == "dispatch" ]]; then
+else
   exit 1
 fi
 SH
 
-# Keep the test hermetic where journald has no usable stream socket.
 cat >"$restart_bin/systemd-cat" <<'SH'
 #!/bin/bash
-
 while (( $# > 0 )); do
   [[ $1 == "--" ]] && { shift; break; }
   shift
@@ -162,7 +173,6 @@ SH
 
 cat >"$restart_bin/systemctl" <<'SH'
 #!/bin/bash
-
 if [[ ${1:-} == "--user" && ${2:-} == "show-environment" ]]; then
   printf 'OMARCHY_PATH=%s\n' "$OMARCHY_TEST_SESSION_PATH"
 elif [[ ${1:-} == "--user" && ${2:-} == "try-restart" ]]; then
@@ -171,97 +181,89 @@ else
   exit 1
 fi
 SH
-
 chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl"
-
-sleep 30 &
-restart_pid_one=$!
-sleep 30 &
-restart_pid_two=$!
-printf '%s\n%s\n' "$restart_pid_one" "$restart_pid_two" >"$restart_state"
 
 caller_root="$test_tmp/caller-root"
 mkdir -p "$caller_root/shell"
 touch "$caller_root/shell/shell.qml"
+export PATH="$restart_bin:$PATH"
+export OMARCHY_PATH="$caller_root" XDG_RUNTIME_DIR="$runtime_dir"
+export OMARCHY_TEST_QS_STATE="$restart_state" OMARCHY_TEST_QS_LOG="$restart_log"
+export OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" OMARCHY_TEST_DISPATCH_LOG="$dispatch_log"
+export OMARCHY_TEST_IPC_LOG="$ipc_log" OMARCHY_TEST_SESSION_PATH="$restart_root"
+export OMARCHY_TEST_TRANSIENT_ENV=leaked
 
-PATH="$restart_bin:$PATH" \
-OMARCHY_PATH="$caller_root" \
-XDG_RUNTIME_DIR="$runtime_dir" \
-OMARCHY_TEST_QS_STATE="$restart_state" \
-OMARCHY_TEST_QS_LOG="$restart_log" \
-OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
-OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
-OMARCHY_TEST_IPC_LOG="$ipc_log" \
-OMARCHY_TEST_SESSION_PATH="$restart_root" \
-OMARCHY_TEST_TRANSIENT_ENV=leaked \
-  timeout 5 "$ROOT/bin/omarchy-restart-shell"
+# Stand in for a separate locker with a real process. The kill stub will kill
+# it if the restart ever targets its configuration, and the assertion catches it.
+sleep 60 &
+locker_pid=$!
+export OMARCHY_TEST_LOCKER_PID="$locker_pid"
+trap 'kill "$locker_pid" 2>/dev/null || true; wait "$locker_pid" 2>/dev/null || true; cleanup' EXIT
+sleep 60 &
+restart_pid_one=$!
+sleep 60 &
+restart_pid_two=$!
+printf '%s\n%s\n' "$restart_pid_one" "$restart_pid_two" >"$restart_state"
+touch "$restart_state.locker" "$restart_state.locked"
 
-if kill -0 "$restart_pid_one" 2>/dev/null; then
-  fail "restart stops the first matching shell instance"
-fi
-if kill -0 "$restart_pid_two" 2>/dev/null; then
-  fail "restart stops duplicate matching shell instances"
-fi
+OMARCHY_TEST_SESSION_LOCKED=1 timeout 5 "$ROOT/bin/omarchy-restart-shell"
+kill -0 "$locker_pid" || fail "the separate locker survives a shell restart while locked"
+kill -0 "$restart_pid_one" 2>/dev/null && fail "restart stops the first matching shell instance"
+kill -0 "$restart_pid_two" 2>/dev/null && fail "restart stops duplicate matching shell instances"
 wait "$restart_pid_one" 2>/dev/null || true
 wait "$restart_pid_two" 2>/dev/null || true
 restart_pid_one=""
 restart_pid_two=""
-[[ $(<"$restart_state") == 303 ]] || fail "restart leaves exactly one fresh shell instance"
-[[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "restart launches one fresh shell process"
-grep -F "kill -p $restart_root/shell --any-display" "$restart_log" >/dev/null || fail "restart stops the shell from the session checkout"
-[[ $(<"$restart_env_log") == "unset" ]] || fail "restart uses the Hyprland session environment for the fresh shell"
-grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell")' "$dispatch_log" >/dev/null || fail "restart launches the fresh shell through Hyprland"
-grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null || fail "restart checks readiness in the session checkout"
-pass "restart replaces duplicate shell instances from the session checkout"
-
-: >"$restart_log"
-printf '303\n' >"$restart_state"
-touch "$restart_state.locked"
-
-locked_error=$(PATH="$restart_bin:$PATH" \
-  OMARCHY_PATH="$restart_root" \
-  XDG_RUNTIME_DIR="$runtime_dir" \
-  OMARCHY_TEST_SESSION_LOCKED=1 \
-  OMARCHY_TEST_QS_STATE="$restart_state" \
-  OMARCHY_TEST_QS_LOG="$restart_log" \
-  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
-  OMARCHY_TEST_IPC_LOG="$ipc_log" \
-  OMARCHY_TEST_SESSION_PATH="$restart_root" \
-  "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses while the shell lock is active"
-
-[[ $locked_error == "Refusing to restart Omarchy shell while the session is locked." ]] || fail "locked restart explains why it was refused" "$locked_error"
-[[ $(<"$restart_state") == 303 ]] || fail "locked restart preserves the running shell"
-[[ ! -s $restart_log ]] || fail "locked restart does not stop or launch Quickshell"
-pass "restart preserves the shell while its lock is active"
-
-# A LOCK session without an active locker — dead shell or a crash-handler
-# relaunch holding no lock — is the failsafe: restart must proceed,
-# re-acquire the session lock, and wait for it to report secure.
-sleep 30 &
-restart_pid_one=$!
-printf '%s\n' "$restart_pid_one" >"$restart_state"
-rm -f "$restart_state.locked"
-: >"$restart_log"
-: >"$ipc_log"
-
-PATH="$restart_bin:$PATH" \
-OMARCHY_PATH="$restart_root" \
-XDG_RUNTIME_DIR="$runtime_dir" \
-OMARCHY_TEST_SESSION_LOCKED=1 \
-OMARCHY_TEST_QS_STATE="$restart_state" \
-OMARCHY_TEST_QS_LOG="$restart_log" \
-OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
-OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
-OMARCHY_TEST_IPC_LOG="$ipc_log" \
-OMARCHY_TEST_SESSION_PATH="$restart_root" \
-  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "locked restart recovers when the lock client is dead"
-
-if kill -0 "$restart_pid_one" 2>/dev/null; then
-  fail "dead-lock recovery stops the stale shell instance"
+[[ $(<"$restart_state") == fresh ]] || fail "restart leaves one fresh shell"
+[[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "restart only launches the main shell"
+grep -Fx "kill -p $restart_root/shell --any-display" "$restart_log" >/dev/null || fail "restart targets the session checkout"
+[[ $(<"$restart_env_log") == unset ]] || fail "restart uses the session environment"
+grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell")' "$dispatch_log" >/dev/null || fail "restart launches through Hyprland"
+if grep -F 'call -- lock lock' "$ipc_log"; then
+  fail "restart does not reset an existing lock or authentication attempt"
 fi
-wait "$restart_pid_one" 2>/dev/null || true
-restart_pid_one=""
-[[ $(<"$restart_state") == 303 ]] || fail "dead-lock recovery leaves one fresh shell instance"
-grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "dead-lock recovery re-acquires the session lock"
-grep -F "ipc -n -p $restart_root/shell call -- lock status" "$ipc_log" >/dev/null || fail "dead-lock recovery waits for the lock to become secure"
-pass "restart recovers a locked session whose lock client died"
+pass "restart while locked replaces the shell and preserves the separate locker"
+
+# An older shell may still own the lock after an upgrade. A pending request is
+# protected too, before Hyprland reports LOCK on a monitor.
+: >"$restart_log"
+: >"$dispatch_log"
+touch "$restart_state.legacy"
+locked_error=$(OMARCHY_TEST_SESSION_LOCKED=0 "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart preserves an integrated locker"
+[[ $locked_error == *'integrated locker is active'* ]] || fail "legacy refusal explains how to proceed" "$locked_error"
+[[ ! -s $restart_log && ! -s $dispatch_log ]] || fail "legacy refusal stops before changing either process"
+kill -0 "$locker_pid" || fail "legacy refusal preserves the separate locker too"
+pass "restart preserves a legacy lock, including a pending lock request"
+rm "$restart_state.legacy"
+
+# A missing locker is started independently and reclaims an orphaned lock.
+rm "$restart_state.locker" "$restart_state.locked"
+: >"$ipc_log"
+: >"$restart_log"
+OMARCHY_TEST_SESSION_LOCKED=1 timeout 5 "$ROOT/bin/omarchy-restart-shell"
+grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell --lock")' "$dispatch_log" >/dev/null || fail "restart starts a missing locker through Hyprland"
+grep -F "ipc -n -p $restart_root/shell/lock.qml call -- lock lock" "$ipc_log" >/dev/null || fail "recovery requests the separate lock"
+[[ -f $restart_state.locked ]] || fail "recovery waits for a secure lock"
+kill -0 "$locker_pid" || fail "recovery never kills a separate locker"
+pass "restart starts a missing locker and recovers an orphaned session lock"
+
+# An unavailable legacy IPC endpoint is not proof that the old lock is dead.
+# The separate process must own the compositor lock before the shell is stopped.
+: >"$restart_log"
+: >"$dispatch_log"
+touch "$restart_state.pending"
+waiting_status=0
+OMARCHY_TEST_SESSION_LOCKED=1 timeout 1 "$ROOT/bin/omarchy-restart-shell" || waiting_status=$?
+[[ $waiting_status == 124 ]] || fail "restart waits for secure lock ownership"
+[[ ! -s $restart_log && ! -s $dispatch_log ]] || fail "restart does not change processes while lock ownership is unresolved"
+pass "restart preserves the shell while the independent lock is still pending"
+rm "$restart_state.pending"
+
+rm "$restart_state.locker" "$restart_state.locked"
+: >"$ipc_log"
+OMARCHY_TEST_SESSION_LOCKED=0 timeout 5 "$ROOT/bin/omarchy-restart-shell"
+grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell --lock")' "$dispatch_log" >/dev/null || fail "unlocked restart starts the independent locker"
+if grep -F 'call -- lock lock' "$ipc_log"; then
+  fail "an unlocked restart does not lock the session"
+fi
+pass "unlocked restart starts a missing locker without locking"
