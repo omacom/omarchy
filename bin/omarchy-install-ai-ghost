@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Install Ghost and start it for this login
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Ghost..."
+omarchy-pkg-add ghost
+
+# The package carries the daemon, the HUD, the CLI, the browser relay, and the
+# computer-use helper; only the two user units need this login's hand.
+echo "Starting Ghost for this login..."
+systemctl --user daemon-reload
+systemctl --user enable --now ghostd.service ghost-shell.service
+
+echo ""
+echo "Ghost has been installed. Press Super + Ctrl + G to summon it."

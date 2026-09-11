@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Ghost, keeping every ghost home and credential in place.
+# omarchy:requires-sudo=true
+
+set -e
+
+# The units hold the daemon and HUD open, so they go before the package.
+systemctl --user disable --now ghost-shell.service ghostd.service 2>/dev/null || true
+systemctl --user daemon-reload
+
+omarchy-pkg-drop ghost
+
+echo ""
+echo "Ghost has been removed. Your ghosts (~/ghosts), settings, and state are still there."

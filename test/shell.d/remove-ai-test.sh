@@ -349,3 +349,32 @@ rc=0
 ! grep -q '^drop:openclaw$' "$TEST_LOG" ||
   fail "OpenClaw removal aborts when systemd cannot be reached" "package dropped anyway"
 pass "OpenClaw removal aborts when systemd cannot be reached"
+
+# Ghost's removal takes the package and its units and nothing of the owner's:
+# ghost homes, credentials, and daemon state stay where they are.
+cat >"$tmp_dir/bin/systemctl" <<'SCRIPT'
+#!/bin/bash
+printf 'systemctl:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/systemctl"
+cat >"$tmp_dir/bin/omarchy-pkg-present" <<'SCRIPT'
+#!/bin/bash
+[[ $1 == ghost ]]
+SCRIPT
+chmod +x "$tmp_dir/bin/omarchy-pkg-present"
+
+: >"$TEST_LOG"
+fresh_home
+mkdir -p "$HOME/ghosts/casper" "$HOME/.config/ghost" "$HOME/.local/state/ghost"
+"$ROOT/bin/omarchy-remove-ai-ghost" >/dev/null
+
+grep -q '^drop:ghost$' "$TEST_LOG" || fail "Ghost removal drops the package"
+pass "Ghost removal drops the package"
+
+grep -q '^systemctl:--user disable --now ghost-shell.service ghostd.service$' "$TEST_LOG" ||
+  fail "Ghost removal stops the user units before the package goes"
+pass "Ghost removal stops the user units before the package goes"
+
+[[ -d $HOME/ghosts/casper && -d $HOME/.config/ghost && -d $HOME/.local/state/ghost ]] ||
+  fail "Ghost removal keeps ghost homes, settings, and state"
+pass "Ghost removal keeps ghost homes, settings, and state"
