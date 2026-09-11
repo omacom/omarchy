@@ -12,12 +12,13 @@ migration="$ROOT/migrations/1789095456.sh"
 run_migration() {
   local test_home="$1"
 
-  env \
+  env -i \
     HOME="$test_home" \
     XDG_CACHE_HOME="$test_home/.cache" \
     XDG_CONFIG_HOME="$test_home/.config" \
     XDG_DATA_HOME="$test_home/.local/share" \
     XDG_STATE_HOME="$test_home/.local/state" \
+    MISE_PARANOID="${OMARCHY_TEST_MISE_PARANOID:-false}" \
     PATH=/usr/bin \
     bash -euo pipefail "$migration"
 }
@@ -26,12 +27,13 @@ run_mise() {
   local test_home="$1"
   shift
 
-  env \
+  env -i \
     HOME="$test_home" \
     XDG_CACHE_HOME="$test_home/.cache" \
     XDG_CONFIG_HOME="$test_home/.config" \
     XDG_DATA_HOME="$test_home/.local/share" \
     XDG_STATE_HOME="$test_home/.local/state" \
+    MISE_PARANOID="${OMARCHY_TEST_MISE_PARANOID:-false}" \
     PATH=/usr/bin \
     mise "$@"
 }
@@ -151,9 +153,10 @@ TOML
 chmod 600 "$custom_config"
 run_mise "$custom_home" trust "$custom_config" >/dev/null
 
-run_migration "$custom_home" >/dev/null
+custom_output=$(run_migration "$custom_home")
 cmp -s "$test_dir/custom-expected" "$custom_config" || fail "migration preserves unrelated custom Mise settings"
 [[ $(stat -c %a "$custom_config") == "600" ]] || fail "migration preserves custom config permissions"
+grep -F "mise trust $custom_config" <<<"$custom_output" >/dev/null || fail "migration explains how to review and re-trust a custom config"
 custom_backups=("$custom_config".bak.*)
 [[ -f ${custom_backups[0]} ]] || fail "migration backs up a customized Mise config"
 (( ${#custom_backups[@]} == 1 )) || fail "migration creates one custom config backup"
@@ -197,6 +200,25 @@ if mise_path_active "$absent_home" "$absent_project"; then
   fail "deleted Work directory retains its stale trust grant"
 fi
 pass "migration leaves unrelated configs alone and revokes dangling Work trust"
+
+paranoid_home="$test_dir/paranoid-home"
+paranoid_work="$paranoid_home/Work"
+paranoid_config="$paranoid_work/.mise.toml"
+paranoid_project="$paranoid_work/tries/untrusted-repository"
+mkdir -p "$paranoid_project/bin"
+printf '[env]\n_.path = "{{ cwd }}/bin"\n' >"$paranoid_config"
+OMARCHY_TEST_MISE_PARANOID=true run_mise "$paranoid_home" trust "$paranoid_config" >/dev/null
+OMARCHY_TEST_MISE_PARANOID=true mise_path_active "$paranoid_home" "$paranoid_project" || fail "paranoid legacy config prepends the repository bin directory"
+rm -r "$paranoid_work"
+
+OMARCHY_TEST_MISE_PARANOID=true run_migration "$paranoid_home" >/dev/null
+[[ ! -e $paranoid_work ]] || fail "paranoid migration removes its temporary Work directory"
+mkdir -p "$paranoid_project/bin"
+printf '[env]\n_.path = "{{ cwd }}/bin"\n' >"$paranoid_config"
+if OMARCHY_TEST_MISE_PARANOID=true mise_path_active "$paranoid_home" "$paranoid_project"; then
+  fail "paranoid migration retains content-bound trust for the deleted legacy config"
+fi
+pass "migration revokes stale content-bound trust in Mise paranoid mode"
 
 symlink_home="$test_dir/symlink-home"
 symlink_config="$symlink_home/Work/.mise.toml"
