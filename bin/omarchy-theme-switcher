@@ -114,6 +114,7 @@ for extension in png jpg jpeg webp gif bmp mp4 m4v mov webm mkv avi; do
   fi
 done
 menu_args=(
+  --context theme
   --print-name
   --show-labels
   --filterable
