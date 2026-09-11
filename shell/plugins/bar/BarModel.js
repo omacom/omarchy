@@ -213,15 +213,20 @@ function nearestDropTarget(candidates, point, vertical) {
 // `halfGap` from each slot edge, so neighbours always land 2*halfGap apart.
 // Negative bearings (paint wider than the slot) pad extra instead of
 // touching the neighbour. Zero spans stay collapsed so hidden widgets keep
-// contributing no gap.
-function slotPad(contentSpan, paintedExtent, halfGap) {
+// contributing no gap. `maxIntrude` lets the padding go negative into the
+// widget's own empty margins to enforce gaps smaller than the widest
+// bearing; it never reaches paint, but neighbouring hit areas overlap by
+// that much, so keep it small.
+function slotPad(contentSpan, paintedExtent, halfGap, maxIntrude) {
   var span = Number(contentSpan)
   if (!isFinite(span) || span <= 0) return 0
   var half = Number(halfGap)
   if (!isFinite(half) || half <= 0) return 0
   var painted = Number(paintedExtent)
   if (!isFinite(painted) || painted < 0) painted = span
-  return Math.max(0, half - (span - painted) / 2)
+  var cap = Number(maxIntrude)
+  if (!isFinite(cap) || cap < 0) cap = 0
+  return Math.max(-cap, half - (span - painted) / 2)
 }
 
 if (typeof module !== "undefined") {

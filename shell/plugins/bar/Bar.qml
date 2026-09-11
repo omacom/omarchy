@@ -1820,7 +1820,11 @@ Item {
     // Adjacent slots then land exactly 2*paintHalfGap ink-to-ink, whatever
     // each widget paints — icon slots, text pills, and paint that overflows
     // its slot all end up on the same rhythm.
-    readonly property int paintHalfGap: Style.space(9)
+    readonly property int paintHalfGap: Style.space(6)
+    // How far slot padding may intrude into a widget's own empty margins to
+    // enforce the gap above when a widget demands wider bearings. Never
+    // reaches paint, but neighbouring hit areas overlap by up to this much.
+    readonly property int paintIntrude: Style.space(3)
     // Size the slot lays out for its content (what implicitWidth used to be).
     readonly property real contentWidth: activeItem && activeItem.visible
       ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
@@ -1850,7 +1854,7 @@ Item {
       var span = root.vertical ? contentHeight : contentWidth
       if (!(span > 0)) return 0
       if (root.canonicalWidgetId(moduleName) === "omarchy.spacer") return 0
-      return BarModel.slotPad(span, paintedExtent, paintHalfGap)
+      return BarModel.slotPad(span, paintedExtent, paintHalfGap, paintIntrude)
     }
     implicitWidth: contentWidth + (root.vertical ? 0 : 2 * slotPad)
     implicitHeight: contentHeight + (root.vertical ? 2 * slotPad : 0)

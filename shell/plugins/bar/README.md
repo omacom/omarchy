@@ -181,13 +181,15 @@ and place third-party plugins with `omarchy-shell shell rescanPlugins`,
 
 ## Widget spacing contract
 
-Bar sections keep ink-to-ink gaps uniform at 18px: every module slot
+Bar sections keep ink-to-ink gaps uniform at 12px: every module slot
 measures its own painted width (icon glyphs, button labels, icon
-canvases) and pads itself symmetrically so its paint sits 9px from each
+canvases) and pads itself symmetrically so its paint sits 6px from each
 slot edge. Paint that overflows its slot gets extra compensation instead
-of touching its neighbour; hidden widgets collapse to zero and
-contribute no gap. The Row/Column itself uses no spacing — the slots
-carry it all, and `omarchy.spacer` keeps its authored span exempt.
+of touching its neighbour; padding may intrude up to 3px into a widget's
+own empty margins to enforce the gap against wider widget bearings, never
+into paint. Hidden widgets collapse to zero and contribute no gap. The
+Row/Column itself uses no spacing — the slots carry it all, and
+`omarchy.spacer` keeps its authored span exempt.
 
 Widget authors should still follow the shared geometry so the
 compensation stays small (custom `Item` modules expose no paint metrics,
