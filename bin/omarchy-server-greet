@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Choose what an interactive login lands on
+# omarchy:args=[splash|menu|off]
+# omarchy:examples=omarchy server greet | omarchy server greet menu | omarchy server greet off
+
+# Per user and per machine, because the answer differs for the person who lives
+# on the box and the one who arrives once a month.
+
+set -euo pipefail
+
+mode_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/server-greet"
+
+usage() {
+  echo "Usage: omarchy server greet [splash|menu|off]"
+}
+
+if (( $# > 1 )) || [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage >&2
+  exit 1
+fi
+
+if (( $# == 0 )); then
+  if [[ -r $mode_file ]]; then
+    read -r mode <"$mode_file" || mode=""
+    printf '%s\n' "${mode:-splash}"
+  else
+    printf 'splash\n'
+  fi
+  exit 0
+fi
+
+case "$1" in
+  splash | menu | off) ;;
+  *)
+    echo "omarchy-server-greet: unknown mode: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
+mkdir -p "$(dirname "$mode_file")"
+printf '%s\n' "$1" >"$mode_file"
+
+case "$1" in
+  splash) echo "Logins land on the splash." ;;
+  menu)   echo "Logins land on the menu." ;;
+  off)    echo "Logins land on a shell." ;;
+esac

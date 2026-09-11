@@ -28,3 +28,8 @@ if command -v fzf &> /dev/null; then
 fi
 
 source "$OMARCHY_PATH/default/bash/completions"
+
+# Last, so a greeting that takes over the screen does so with the shell fully
+# set up behind it. Guards itself down to a no-op on the desktop edition and on
+# every non-interactive shell.
+source "$OMARCHY_PATH/default/bash/server-greet"

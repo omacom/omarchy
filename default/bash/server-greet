@@ -1,0 +1,68 @@
+# The server edition's BBS greeting, sourced from default/bash/init on every
+# bash startup - including all the ones that must stay silent.
+#
+# Getting this wrong does not produce a cosmetic bug. A single byte written to
+# stdout breaks scp, sftp and rsync, which parse the stream as protocol, and a
+# blocking read breaks `ssh host <command>` for anything automated. So the
+# guards are exhaustive and they run before anything else, cheapest first.
+
+omarchy_server_greet() {
+  # Not interactive: scp, sftp, rsync, ssh host <command>, and every script
+  # that starts a shell. The single most important guard in the file.
+  [[ $- == *i* ]] || return 0
+
+  # Already inside the front door. The menu's shell door drops the caller back
+  # into this same shell, and a nested login shell should not greet again.
+  [[ -z ${OMARCHY_BBS_SESSION:-} ]] || return 0
+
+  # A forced command or an explicit remote command. Interactive-looking, but
+  # the caller asked for something specific and is not here to read a banner.
+  [[ -z ${SSH_ORIGINAL_COMMAND:-} ]] || return 0
+
+  # Attaching to tmux is a reconnection, not an arrival.
+  [[ -z ${TMUX:-} ]] || return 0
+
+  # Nothing to draw on, or nowhere to read a keypress from.
+  [[ -t 0 && -t 1 ]] || return 0
+
+  # SSH without a pty. SSH_CONNECTION is set for every ssh session; SSH_TTY
+  # only when one was allocated, so this catches `ssh -T` and friends.
+  if [[ -n ${SSH_CONNECTION:-} && -z ${SSH_TTY:-} ]]; then
+    return 0
+  fi
+
+  # The desktop edition ships no marker at all, so the overwhelmingly common
+  # case costs one stat and not a single subprocess. Read the file directly
+  # rather than calling the predicate, for the same reason.
+  local edition_file=${OMARCHY_EDITION_FILE:-/etc/omarchy-edition}
+  [[ -r $edition_file ]] || return 0
+
+  local edition=""
+  read -r edition <"$edition_file" 2>/dev/null || return 0
+  [[ $edition == "server" ]] || return 0
+
+  local mode_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/server-greet"
+  local mode="splash"
+  [[ -r $mode_file ]] && read -r mode <"$mode_file" 2>/dev/null
+
+  case "$mode" in
+    off)
+      return 0
+      ;;
+    menu)
+      OMARCHY_BBS_SESSION=1 omarchy-server-menu
+      ;;
+    *)
+      # The splash exits 0 when the caller chose the menu and non-zero when
+      # they chose a shell, so a splash that cannot run lands them in a shell.
+      if OMARCHY_BBS_SESSION=1 omarchy-server-splash; then
+        OMARCHY_BBS_SESSION=1 omarchy-server-menu
+      fi
+      ;;
+  esac
+
+  return 0
+}
+
+omarchy_server_greet
+unset -f omarchy_server_greet

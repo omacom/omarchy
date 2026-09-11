@@ -7,7 +7,9 @@ run_logged "$OMARCHY_INSTALL/hardware/network.sh"
 run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-fkeys.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-synaptic-touchpad.sh"
-run_logged "$OMARCHY_INSTALL/hardware/bluetooth.sh"
+if omarchy-edition-desktop; then
+  run_logged "$OMARCHY_INSTALL/hardware/bluetooth.sh"
+fi
 run_logged "$OMARCHY_INSTALL/hardware/nvidia.sh"
 run_logged "$OMARCHY_INSTALL/hardware/vulkan.sh"
 

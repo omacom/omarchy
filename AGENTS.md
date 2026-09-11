@@ -63,6 +63,14 @@ guidance does not drift from the router.
 - `$OMARCHY_PATH` is set at the top level by the uwsm session environment and is always available to Omarchy runtime code.
 - Commands in `bin/` and Quickshell QML should rely on `$OMARCHY_PATH` / `Quickshell.env("OMARCHY_PATH")`; do not derive fallback paths from `HOME`, `Quickshell.shellDir`, or re-export/default `OMARCHY_PATH` manually.
 
+# Editions
+
+Omarchy ships a desktop edition and a headless server edition from this repo. The edition is chosen at install time and recorded in `/etc/omarchy-edition`; read it with `omarchy-edition` or gate on the `omarchy-edition-server` / `omarchy-edition-desktop` predicates.
+
+A new migration or refresh command that touches the compositor, the shell, or GUI config must gate on the edition. Anything the two editions share must not.
+
+[`docs/editions.md`](docs/editions.md) covers the marker, the two package lists, and the gating rules.
+
 # Privileged Commands
 
 - Follow the "Privilege Escalation" section of `default/agents/skills/omarchy/SKILL.md`. It draws the

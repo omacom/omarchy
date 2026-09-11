@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# omarchy:summary=Render the themed pre-login banner into /etc/issue
+# omarchy:args=[--print] [--file <colors.toml>]
+# omarchy:examples=omarchy server issue --print
+# omarchy:requires-sudo=true
+
+# Even the getty should say who is answering. agetty expands its own escapes
+# every time it draws this file, so the hostname, address, and tty stay correct
+# without anything regenerating them:
+#
+#   \n  nodename    \4  first IPv4 address    \l  tty
+#
+# Only the colors are baked in, which is why omarchy-theme-set calls this.
+#
+# The console is the only consumer: SSH reads /etc/issue.net, not this file. So
+# the glyphs are plain ASCII, because a console font missing box drawing
+# substitutes characters and wrecks the alignment. The colors are still full
+# truecolor, because an SGR parameter a console cannot render is approximated or
+# ignored rather than printed, and a themed banner is the whole point.
+
+set -euo pipefail
+
+PRINT_ONLY=0
+COLORS_ARGS=()
+
+usage() {
+  echo "Usage: omarchy-server-issue [--print] [--file <colors.toml>]"
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --print)
+      PRINT_ONLY=1
+      shift
+      ;;
+    --file)
+      COLORS_ARGS=(--file "${2:-}")
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+issue_file=${OMARCHY_ISSUE_FILE:-/etc/issue}
+backup_file="$issue_file.omarchy-orig"
+
+# Escalate only when the target needs it, so the installer can call this as root
+# from the ISO chroot where there is no terminal to answer a password prompt in.
+write_issue() {
+  local content="$1"
+  local issue_dir
+  issue_dir=$(dirname "$issue_file")
+
+  if [[ -w $issue_file ]] || { [[ ! -e $issue_file && -w $issue_dir ]]; }; then
+    printf '%s\n' "$content" >"$issue_file"
+  else
+    printf '%s\n' "$content" | sudo tee "$issue_file" >/dev/null
+  fi
+}
+
+# Called from omarchy-theme-set on every machine, so the desktop edition has to
+# be handled here rather than guarded at each call site. Restoring matters
+# because the edition marker is writable: a machine that was a server long
+# enough to get a banner would otherwise keep greeting people as one.
+if ! omarchy-edition-server; then
+  if [[ -e $backup_file ]]; then
+    if [[ -w $issue_file && -w $backup_file ]]; then
+      mv -f "$backup_file" "$issue_file"
+    else
+      sudo mv -f "$backup_file" "$issue_file"
+    fi
+  fi
+  exit 0
+fi
+
+eval "$(OMARCHY_BBS_UNICODE=0 omarchy-server-palette --truecolor --console ${COLORS_ARGS[@]+"${COLORS_ARGS[@]}"})"
+
+rule=$(printf '%.0s=' {1..78})
+
+banner=$(
+  printf '%s' "$OMARCHY_BBS_CONSOLE_PALETTE"
+  printf '%s%s%s\n' "$OMARCHY_BBS_RULE" "$rule" "$OMARCHY_BBS_RESET"
+  printf ' %s%sOMARCHY SERVER%s   %snode%s %s\\n%s   %sip%s %s\\4%s   %stty%s %s\\l%s\n' \
+    "$OMARCHY_BBS_BOLD" "$OMARCHY_BBS_TITLE" "$OMARCHY_BBS_RESET" \
+    "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_BRIGHT" "$OMARCHY_BBS_RESET" \
+    "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_BRIGHT" "$OMARCHY_BBS_RESET" \
+    "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET" "$OMARCHY_BBS_BRIGHT" "$OMARCHY_BBS_RESET"
+  printf '%s%s%s\n' "$OMARCHY_BBS_RULE" "$rule" "$OMARCHY_BBS_RESET"
+  printf '\n'
+)
+
+if (( PRINT_ONLY )); then
+  printf '%s\n' "$banner"
+  exit 0
+fi
+
+# Keep whatever the distribution shipped, once, so switching back to the desktop
+# edition restores it rather than leaving a server banner behind.
+if [[ -e $issue_file && ! -e $backup_file ]]; then
+  if [[ -w $(dirname "$backup_file") ]]; then
+    cp -a "$issue_file" "$backup_file"
+  else
+    sudo cp -a "$issue_file" "$backup_file"
+  fi
+fi
+
+write_issue "$banner"

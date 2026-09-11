@@ -766,6 +766,20 @@ install_authorized_keys() {
 }
 
 configure_login() {
+  # The server's counterpart of the encrypted-install SDDM autologin below:
+  # behind a LUKS prompt, tty1 logs straight into the BBS greeting.
+  if omarchy-edition-server; then
+    if encrypted_install; then
+      mkdir -p /etc/systemd/system/getty@tty1.service.d
+      cat >/etc/systemd/system/getty@tty1.service.d/autologin.conf <<CONF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty -o '-p -f -- \\\\u' --noclear --autologin $username %I \$TERM
+CONF
+    fi
+    return 0
+  fi
+
   mkdir -p /var/lib/sddm
   printf '[Last]\nSession=omarchy.desktop\nUser=%s\n' "$username" >/var/lib/sddm/state.conf
   chown -R sddm:sddm /var/lib/sddm 2>/dev/null || true
