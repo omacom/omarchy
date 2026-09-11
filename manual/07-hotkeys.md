@@ -123,6 +123,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + X`           | X |
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
+| `Super + Shift + Alt + Y`           | YouTube TUI (xytz) |
 
 Change/add bindings in `~/.config/hypr/bindings.lua`.
 
