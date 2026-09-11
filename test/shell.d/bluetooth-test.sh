@@ -17,8 +17,16 @@ assert(/IpcHandler[\s\S]*?function toggleBluetooth\(\) \{ root\.toggleBluetooth\
 assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so it can extend the target methods')
 
 // Writing adapter.enabled sets BlueZ Powered, which does not survive a reboot.
-assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
+assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter && adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
+
+// rfkill-blocking Bluetooth drops the BlueZ adapter object entirely (bluetoothctl
+// show reports "No default controller available"), which used to blank the icon
+// and hide the bar widget via BarIconButton's hasVisualContent — locking out the
+// only control that turns it back on. No adapter has to read as "off" instead.
+assert(!/return ""/.test(panelSource.match(/readonly property string icon: \{[\s\S]*?\n {2}\}/)[0]), 'bluetooth never blanks the bar icon, even with no adapter')
+assert(/if \(!adapter \|\| !adapter\.enabled\) return "󰂲"/.test(panelSource), 'bluetooth shows the disabled glyph instead of hiding when there is no adapter')
+assert(/execDetached\(\["omarchy-bluetooth-power", adapter && adapter\.enabled/.test(panelSource), 'bluetooth still offers to turn on when there is no adapter')
 
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
