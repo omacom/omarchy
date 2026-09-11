@@ -48,4 +48,15 @@ PATH="$stub_dir:$PATH" bash -eE -c 'source "$1"' bash "$ROOT/install/config/fire
 grep -q '^ufw-docker install$' "$TEST_LOG" || fail "ufw-docker rules are installed"
 grep -q '^systemctl enable ufw$' "$TEST_LOG" || fail "ufw is enabled for next boot"
 
+if grep -qE '^ufw allow 53317/' "$TEST_LOG"; then
+  fail "LocalSend is not allowed from anywhere" "$(grep 53317 "$TEST_LOG")"
+fi
+for cidr in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 fe80::/10 fc00::/7; do
+  grep -q "ufw allow in proto udp from $cidr to any port 53317" "$TEST_LOG" ||
+    fail "LocalSend UDP is allowed from $cidr"
+  grep -q "ufw allow in proto tcp from $cidr to any port 53317" "$TEST_LOG" ||
+    fail "LocalSend TCP is allowed from $cidr"
+done
+
 pass "firewall config installs ufw-docker rules without activating live UFW"
+pass "LocalSend 53317 is limited to private networks"
