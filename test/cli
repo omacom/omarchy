@@ -510,6 +510,96 @@ HOME="$PI_TMPDIR" CLAUDE_CONFIG_DIR="$CLAUDE_TEST_CONFIG" "$ROOT/bin/omarchy-the
 jq -e '.theme == "custom:omarchy" and .model == "keep-me"' "$CLAUDE_TEST_CONFIG/settings.json" >/dev/null
 pass "claude theme activation preserves configured settings"
 
+make_tmpdir GROK_TMPDIR
+GROK_HOME_DIR="$GROK_TMPDIR/grok"
+
+HOME="$GROK_TMPDIR" GROK_HOME="$GROK_HOME_DIR" "$ROOT/bin/omarchy-theme-set-grok"
+[[ ! -f $GROK_HOME_DIR/config.toml ]] || fail "grok theme sync is a no-op before activate"
+pass "grok theme sync is a no-op before activate"
+
+HOME="$GROK_TMPDIR" GROK_HOME="$GROK_TMPDIR/no-such-grok" "$ROOT/bin/omarchy-theme-set-grok" --activate
+[[ -f $GROK_TMPDIR/no-such-grok/config.toml ]] || fail "grok activate writes config when Grok home is missing"
+awk '
+  /^\[features\]$/ { in_features = 1; in_ui = 0; next }
+  /^\[ui\]$/ { in_ui = 1; in_features = 0; next }
+  /^\[/ { in_ui = 0; in_features = 0 }
+  in_features && $0 == "terminal_theme = true" { flag = 1 }
+  in_ui && $0 == "theme = \"terminal\"" { theme = 1 }
+  END { exit(flag && theme ? 0 : 1) }
+' "$GROK_TMPDIR/no-such-grok/config.toml" || fail "grok activate enables the terminal theme"
+pass "grok activate writes the terminal theme"
+
+mkdir -p "$GROK_HOME_DIR"
+cat >"$GROK_HOME_DIR/config.toml" <<'EOF'
+[cli]
+installer = "internal"
+
+[marketplace]
+default_skills_installs_purged = true
+official_marketplace_auto_installed = true
+
+[[marketplace.sources]]
+name = "xAI Official"
+git = "https://github.com/xai-org/plugin-marketplace.git"
+
+[ui]
+max_thoughts_width = 120
+fork_secondary_model = "grok-4.6"
+yolo = false
+EOF
+HOME="$GROK_TMPDIR" GROK_HOME="$GROK_HOME_DIR" "$ROOT/bin/omarchy-theme-set-grok"
+awk '
+  /^\[cli\]$/ { in_cli = 1; in_ui = 0; in_src = 0; in_features = 0; next }
+  /^\[marketplace\]$/ { in_mkt = 1; in_cli = 0; in_ui = 0; in_src = 0; in_features = 0; next }
+  /^\[\[marketplace\.sources\]\]$/ { in_src = 1; in_mkt = 0; in_cli = 0; in_ui = 0; in_features = 0; next }
+  /^\[ui\]$/ { in_ui = 1; in_cli = 0; in_mkt = 0; in_src = 0; in_features = 0; next }
+  /^\[features\]$/ { in_features = 1; in_cli = 0; in_mkt = 0; in_src = 0; in_ui = 0; next }
+  /^\[/ { in_ui = 0; in_cli = 0; in_mkt = 0; in_src = 0; in_features = 0 }
+  in_cli && $0 == "installer = \"internal\"" { cli = 1 }
+  in_mkt && $0 == "official_marketplace_auto_installed = true" { mkt = 1 }
+  in_src && $0 == "name = \"xAI Official\"" { src_name = 1 }
+  in_src && index($0, "plugin-marketplace") { src_git = 1 }
+  in_ui && $0 == "max_thoughts_width = 120" { width = 1 }
+  in_ui && $0 == "fork_secondary_model = \"grok-4.6\"" { model = 1 }
+  in_ui && $0 == "theme = \"terminal\"" { theme = 1 }
+  in_features && $0 == "terminal_theme = true" { flag = 1 }
+  END { exit(cli && mkt && src_name && src_git && width && model && theme && flag ? 0 : 1) }
+' "$GROK_HOME_DIR/config.toml" || fail "grok follow writes terminal theme without dropping marketplace tables"
+pass "grok follow writes terminal theme without dropping marketplace tables"
+
+cat >"$GROK_HOME_DIR/config.toml" <<'EOF'
+[ui]
+theme = "tokyonight"
+max_thoughts_width = 120
+EOF
+HOME="$GROK_TMPDIR" GROK_HOME="$GROK_HOME_DIR" "$ROOT/bin/omarchy-theme-set-grok"
+awk '
+  /^\[ui\]$/ { in_ui = 1; next }
+  /^\[/ { in_ui = 0 }
+  in_ui && $0 == "theme = \"tokyonight\"" { kept = 1 }
+  in_ui && $0 == "theme = \"terminal\"" { overwritten = 1 }
+  END { exit(kept && !overwritten ? 0 : 1) }
+' "$GROK_HOME_DIR/config.toml" || fail "grok follow leaves a manual theme alone"
+pass "grok follow leaves a manual theme alone"
+
+HOME="$GROK_TMPDIR" GROK_HOME="$GROK_HOME_DIR" "$ROOT/bin/omarchy-theme-set-grok" --activate
+awk '
+  /^\[ui\]$/ { in_ui = 1; in_features = 0; next }
+  /^\[features\]$/ { in_features = 1; in_ui = 0; next }
+  /^\[/ { in_ui = 0; in_features = 0 }
+  in_ui && $0 == "theme = \"terminal\"" { theme = 1 }
+  in_ui && $0 == "max_thoughts_width = 120" { width = 1 }
+  in_features && $0 == "terminal_theme = true" { flag = 1 }
+  END { exit(theme && width && flag ? 0 : 1) }
+' "$GROK_HOME_DIR/config.toml" || fail "grok activate replaces a manual theme"
+pass "grok activate replaces a manual theme"
+
+ln -s "$GROK_HOME_DIR/config.toml" "$GROK_TMPDIR/linked.toml"
+HOME="$GROK_TMPDIR" GROK_HOME="$GROK_HOME_DIR" GROK_CONFIG_PATH="$GROK_TMPDIR/linked.toml" \
+  "$ROOT/bin/omarchy-theme-set-grok" --activate
+[[ -L $GROK_TMPDIR/linked.toml ]] || fail "grok theme write keeps a config symlink"
+pass "grok theme write keeps a config symlink"
+
 make_tmpdir THEME_TMPDIR
 OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$THEME_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)
