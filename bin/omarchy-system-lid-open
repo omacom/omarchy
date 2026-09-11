@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Reconcile displays when the laptop lid opens
+# omarchy:group=system
+# omarchy:hidden=true
+
+# Drop the 15" persist-disable flag before clamshell reloads, or the toggle
+# would turn the internal panel back off.
+omarchy-hw-apple-mbp15-lid open >/dev/null 2>&1 || true
+
+omarchy-hyprland-monitor-clamshell

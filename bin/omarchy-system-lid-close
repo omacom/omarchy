@@ -18,3 +18,9 @@ if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
 fi
 
 omarchy-hyprland-monitor-clamshell
+
+# After clamshell: 15" Radeon disables the internal output so the 560 stops
+# scanning out. Must follow clamshell, or reconciliation turns the panel back on.
+if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
+  omarchy-hw-apple-mbp15-lid close >/dev/null 2>&1 || true
+fi
