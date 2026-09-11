@@ -13,34 +13,54 @@ if [[ ! -e $work_dir ]]; then
   remove_empty_work_dir=true
 fi
 
+was_ignored=false
 if [[ -d $work_dir ]]; then
-  # Normal Mise trust is recorded against the config-root directory, while
-  # paranoid trust is recorded against the file and its contents. Stage an
-  # empty, inert config when the legacy file is gone so either trust mode can
-  # resolve and revoke the original grant.
-  remove_empty_mise_config=false
-  if [[ ! -e $mise_config && ! -L $mise_config ]]; then
-    if (set -o noclobber; : >"$mise_config") 2>/dev/null; then
-      remove_empty_mise_config=true
+  mise_state_dir=${MISE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/mise}
+  ignored_configs_dir="$mise_state_dir/ignored-configs"
+  work_target=$(readlink -m "$work_dir")
+  config_path_target="$work_target/.mise.toml"
+  config_target=$(readlink -m "$mise_config")
+
+  if [[ -d $ignored_configs_dir ]]; then
+    for ignored_entry in "$ignored_configs_dir"/*; do
+      [[ -L $ignored_entry ]] || continue
+      ignored_target=$(readlink "$ignored_entry")
+      if [[ $ignored_target == $work_target || $ignored_target == $config_path_target || $ignored_target == $config_target ]]; then
+        was_ignored=true
+        break
+      fi
+    done
+  fi
+
+  if [[ $was_ignored == "false" ]]; then
+    # Normal Mise trust is recorded against the config-root directory, while
+    # paranoid trust is recorded against the file and its contents. Stage an
+    # empty, inert config when the legacy file is gone so either trust mode can
+    # resolve and revoke the original grant.
+    remove_empty_mise_config=false
+    if [[ ! -e $mise_config && ! -L $mise_config ]]; then
+      if (set -o noclobber; : >"$mise_config") 2>/dev/null; then
+        remove_empty_mise_config=true
+      fi
     fi
-  fi
 
-  untrust_target="$work_dir"
-  if [[ -f $mise_config ]]; then
-    untrust_target="$mise_config"
-  fi
+    untrust_target="$work_dir"
+    if [[ -f $mise_config ]]; then
+      untrust_target="$mise_config"
+    fi
 
-  if mise trust --untrust "$untrust_target"; then
-    :
-  else
+    if mise trust --untrust "$untrust_target"; then
+      :
+    else
+      if [[ $remove_empty_mise_config == "true" ]]; then
+        rm -f -- "$mise_config"
+      fi
+      exit 1
+    fi
+
     if [[ $remove_empty_mise_config == "true" ]]; then
       rm -f -- "$mise_config"
     fi
-    exit 1
-  fi
-
-  if [[ $remove_empty_mise_config == "true" ]]; then
-    rm -f -- "$mise_config"
   fi
 fi
 
@@ -60,9 +80,13 @@ if [[ -f $mise_config ]]; then
 fi
 
 if [[ -f $mise_config ]]; then
-  printf '\n%s\n  %s\n' \
-    "Mise trust for this custom config was revoked. Review it before trusting it again:" \
-    "mise trust $mise_config"
+  if [[ $was_ignored == "true" ]]; then
+    printf '\n%s\n' "This custom config remains ignored by Mise."
+  else
+    printf '\n%s\n  %s\n' \
+      "Mise trust for this custom config was revoked. Review it before trusting it again:" \
+      "mise trust $mise_config"
+  fi
 fi
 
 if [[ $remove_empty_work_dir == "true" ]]; then

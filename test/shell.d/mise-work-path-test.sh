@@ -220,6 +220,31 @@ if OMARCHY_TEST_MISE_PARANOID=true mise_path_active "$paranoid_home" "$paranoid_
 fi
 pass "migration revokes stale content-bound trust in Mise paranoid mode"
 
+ignored_home="$test_dir/ignored-home"
+ignored_config="$ignored_home/Work/.mise.toml"
+ignored_project="$ignored_home/Work/tries/untrusted-repository"
+mkdir -p "$ignored_project/bin"
+cat >"$ignored_config" <<'TOML'
+[env]
+_.path = "{{ cwd }}/bin"
+KEEP = "yes"
+TOML
+run_mise "$ignored_home" trust "$ignored_config" >/dev/null
+run_mise "$ignored_home" trust --ignore "$ignored_config" >/dev/null
+
+ignored_output=$(run_migration "$ignored_home")
+grep -F '{{ cwd }}/bin' "$ignored_config" >/dev/null && fail "ignored config retains the unsafe path"
+grep -Fx 'KEEP = "yes"' "$ignored_config" >/dev/null || fail "ignored config keeps unrelated settings"
+ignored_entries=("$ignored_home/.local/state/mise/ignored-configs/"*)
+[[ -L ${ignored_entries[0]} ]] || fail "migration preserves the explicit Mise ignore marker"
+(( ${#ignored_entries[@]} == 1 )) || fail "migration preserves exactly one Mise ignore marker"
+[[ $(readlink "${ignored_entries[0]}") == "$ignored_home/Work" ]] || fail "preserved Mise ignore marker still targets Work"
+grep -F "remains ignored by Mise" <<<"$ignored_output" >/dev/null || fail "migration reports that the custom config remains ignored"
+if mise_path_active "$ignored_home" "$ignored_project"; then
+  fail "ignored config becomes active after migration"
+fi
+pass "migration preserves an explicit decision to ignore the Work config"
+
 symlink_home="$test_dir/symlink-home"
 symlink_config="$symlink_home/Work/.mise.toml"
 symlink_target="$test_dir/dotfiles-mise.toml"
