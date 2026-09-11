@@ -116,6 +116,7 @@ omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
 agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
+afk_package="forgejo:mooglest/public[api_url=https://git.mooglest.com/api/v1]"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
 
@@ -128,7 +129,7 @@ assert_lazy_stub() {
   "$test_home/.local/bin/$command" --version
   mapfile -t mise_calls <"$mise_history"
 
-  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "x $package -- $command --version" ]] ||
+  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[-1]} == "x $package -- $command --version" ]] ||
     fail "$command lazy stub preserves its mise package"
 }
 
@@ -136,6 +137,9 @@ assert_lazy_stub "$grok_package" grok
 assert_lazy_stub "$omp_package" omp
 assert_lazy_stub "$crush_package" crush
 assert_lazy_stub "$ori_package" ori
+assert_lazy_stub "$afk_package" afk
+! grep -q 'omarchy-afk-plugin-install' "$test_home/.local/bin/afk" ||
+  fail "AFK lazy stub does not install third-party shell plugins"
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 assert_lazy_stub "$muse_package" muse
 pass "custom agent lazy stubs preserve their mise packages"
@@ -178,6 +182,10 @@ grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "Oh My Pi migration c
 : >"$stub_log"
 source "$ROOT/migrations/1787342993.sh" >/dev/null
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "Ori migration creates a working lazy stub"
+
+: >"$stub_log"
+source "$ROOT/migrations/1787709254.sh" >/dev/null
+grep -Fx "$afk_package afk" "$stub_log" >/dev/null || fail "AFK migration creates a working lazy stub"
 
 : >"$stub_log"
 export OMARCHY_TEST_MISSING_COMMAND=cursor-agent
