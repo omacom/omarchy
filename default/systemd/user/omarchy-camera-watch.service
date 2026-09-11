@@ -1,0 +1,15 @@
+[Unit]
+Description=Warn when an app takes a camera over V4L2 and locks everyone else out
+# Needs the session bus to notify, which is up only after graphical-session.target.
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-camera-watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

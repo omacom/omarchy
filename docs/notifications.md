@@ -173,6 +173,13 @@ Everything goes through the same sender contract, so the pieces are small:
   hostile process name stays a discrete argument). It waits for the
   server first: a shell crash takes the notification server down with it, and
   that crash is the one most worth reporting.
+- **Camera locked** — `omarchy-camera-watch` watches `/dev` for camera opens and,
+  once the burst settles, reads `/proc` for any process of this user with a
+  `/dev/video*` node mapped — a running V4L2 stream, which locks every other
+  app out of that camera. PipeWire's own node is skipped as the shared path.
+  It announces the holder (deduped per program for five minutes) as a critical
+  toast that names the camera and the `WebRtcPipeWireCamera` flag that lets
+  Chromium and Electron apps share it instead.
 - **Pending migrations** — `omarchy-migrate-notify` (from its user service
   after `graphical-session.target`) waits for the server, then sends a
   critical toast whose click opens a terminal running `omarchy-migrate`,

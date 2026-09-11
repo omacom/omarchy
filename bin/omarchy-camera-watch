@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# omarchy:summary=Warn when an app takes a camera over V4L2 and locks everyone else out
+# omarchy:hidden=true
+
+# A V4L2 camera streams to one process at a time: the first to map its buffers
+# owns it, and every other app then reports "no camera" with no hint why, which
+# reads like a broken webcam rather than a busy one. PipeWire lifts the limit by
+# opening the device once and fanning the frames out to any number of clients,
+# but only apps that ask for the camera through the portal go that way. So when
+# a process maps a camera itself, name it: that is the moment the rest of the
+# desktop lost the camera, and the toast says who to close and how to fix it.
+
+set -uo pipefail
+
+# nf-fa-video_camera, the glyph the capture menu uses for the webcam, escaped so
+# this file reads without a Nerd Font.
+readonly CAMERA_GLYPH=$'\uf03d'
+
+# Starting a stream is a burst of opens and closes, and Chromium enumerates by
+# opening every node in turn; let it settle before reading who holds what.
+readonly settle_seconds=${OMARCHY_CAMERA_WATCH_SETTLE_SECONDS:-1}
+
+# A call app keeps its pid across calls, so tracking holders alone would
+# announce it at the start of every call. Announce a program at most once a
+# window.
+readonly dedupe_seconds=${OMARCHY_CAMERA_WATCH_DEDUPE_SECONDS:-300}
+
+# Extended regex of process names never worth announcing.
+readonly ignore_pattern=${OMARCHY_CAMERA_WATCH_IGNORE:-}
+
+declare -A holding last_notified
+
+camera_name() {
+  local node=${1#/dev/} name=""
+
+  [[ -r /sys/class/video4linux/$node/name ]] && name=$(</sys/class/video4linux/"$node"/name)
+  echo "${name:-$1}"
+}
+
+announce() {
+  local comm=$1 device=$2 name
+
+  name=$(camera_name "$device")
+
+  omarchy-notification-wait || return 1
+
+  omarchy-notification-send \
+    --urgency critical \
+    --glyph "$CAMERA_GLYPH" \
+    "Camera locked by $comm" \
+    "$comm took $name over V4L2, so every other app gets no camera, or a black one, until it lets go. Chromium and Electron apps can share a camera through PipeWire instead: start them with --enable-features=WebRtcPipeWireCamera."
+}
+
+# Who is streaming from a camera right now, one "pid device comm" per line.
+#
+# A process with the node open but not mapped is only looking (enumerating,
+# probing formats); mapped buffers mean a running stream, and that is what
+# locks the device. PipeWire's own node is the shared path, never the problem.
+# Only this user's processes are readable under /proc, and only this user's
+# apps are the ones the toast can ask to close.
+exclusive_holders() {
+  local fd_dir link pid device comm
+  local -A seen=()
+
+  while read -r fd_dir link; do
+    pid=${fd_dir#/proc/}
+    pid=${pid%%/*}
+    device=$link
+
+    [[ -n ${seen[$pid $device]+x} ]] && continue
+    seen[$pid $device]=1
+
+    [[ -r /proc/$pid/comm ]] || continue
+    comm=$(<"/proc/$pid/comm")
+    [[ -n $comm && $comm != "pipewire" ]] || continue
+
+    grep -qF "$device" "/proc/$pid/maps" 2>/dev/null || continue
+
+    printf '%s %s %s\n' "$pid" "$device" "$comm"
+  done < <(find /proc/[0-9]*/fd -maxdepth 1 -lname '/dev/video[0-9]*' -printf '%h %l\n' 2>/dev/null)
+}
+
+scan() {
+  local pid device comm key now
+  local -A current=()
+
+  while read -r pid device comm; do
+    key="$pid $device"
+    current[$key]=$comm
+
+    [[ -n ${holding[$key]+x} ]] && continue
+    holding[$key]=$comm
+
+    [[ -n $ignore_pattern && $comm =~ $ignore_pattern ]] && continue
+
+    now=$EPOCHSECONDS
+    (((now - ${last_notified[$comm]:-0}) < dedupe_seconds)) && continue
+
+    # Only a delivered toast starts the dedupe window; a failed send that
+    # counted would silence the next lock for five minutes.
+    announce "$comm" "$device" && last_notified[$comm]=$now
+  done < <(exclusive_holders)
+
+  # A holder that let go can be announced again when it takes the camera back.
+  for key in "${!holding[@]}"; do
+    [[ -n ${current[$key]+x} ]] || unset "holding[$key]"
+  done
+}
+
+# Whoever already holds a camera when this starts locked it before anyone was
+# watching, and is just as much the reason the next call sees no camera.
+scan
+
+# Watch /dev itself rather than the nodes, so a camera plugged in later is
+# covered without a restart; --include keeps the rest of /dev's traffic (every
+# open of /dev/null) from ever reaching the loop.
+while IFS= read -r _; do
+  while IFS= read -r -t "$settle_seconds" _; do :; done
+  scan
+done < <(inotifywait -m -q -e open,close,create,delete --include '/dev/video[0-9]+$' --format '%w%f' /dev)
