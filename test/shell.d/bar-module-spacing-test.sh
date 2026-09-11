@@ -13,7 +13,7 @@ gutter_count=$(rg -c 'spacing: 0' "$ROOT/shell/plugins/bar/Bar.qml" || true)
 [[ $gutter_count == "2" ]] || fail "bar module lists leave spacing to the slots" "spacing: 0 occurrences: $gutter_count"
 pass "bar module lists leave spacing to the slots"
 
-for anchor in 'paintHalfGap' 'slotPad' 'paintedExtent' 'BarModel\.slotPad\(' 'omarchy\.spacer'; do
+for anchor in 'paintHalfGap' 'slotPad' 'paintedExtent' 'labelTightWidth' 'BarModel\.slotPad\(' 'omarchy\.spacer'; do
   rg -q "$anchor" "$ROOT/shell/plugins/bar/Bar.qml" || fail "bar normalizes slot spacing from painted widths" "$anchor"
 done
 pass "bar normalizes slot spacing from painted widths"
@@ -76,28 +76,51 @@ ShellRoot {
   }
 
   Component.onCompleted: Qt.callLater(function() {
-    var narrow = pill.labelWidth
+    narrowWidth = pill.labelWidth
+    narrowTight = pill.labelTightWidth
     pill.text = "OpenCode · 82%"
-    if (!(pill.labelWidth > narrow)) {
-      fail("pill paint width does not track content")
-      return
-    }
-    if (!(glyph.glyphPaintedWidth > 0 && glyph.glyphPaintedWidth < Style.bar.iconSlot)) {
-      fail("icon paint width is not inside its slot")
-      return
-    }
     overflow.text = "X 100%"
-    if (!(overflow.glyphPaintedWidth > Style.bar.iconSlot)) {
-      fail("overflowing paint is not visible past its slot")
-      return
-    }
-    if (overflow.opticalSize !== Style.bar.iconCanvas) {
-      fail("icon canvas does not match the shared canvas")
-      return
-    }
-    console.log("RESULT pass")
-    Qt.quit()
+    settle.restart()
   })
+
+  property real narrowWidth: 0
+  property real narrowTight: 0
+
+  Timer {
+    id: settle
+    interval: 300
+    onTriggered: {
+      if (!(pill.labelWidth > narrowWidth)) {
+        fail("pill paint width does not track content")
+        return
+      }
+      if (!(pill.labelTightWidth > narrowTight)) {
+        fail("pill tight width does not track content")
+        return
+      }
+      // Tight bounds exclude the font side bearings, so pills pad from ink
+      // like tight-measured icon glyphs. Ink may overshoot the advance
+      // slightly, so allow a small tolerance around the label width.
+      if (!(pill.labelTightWidth > 0 && Math.abs(pill.labelTightWidth - pill.labelWidth) <= 5)) {
+        fail("pill tight width is not a sane measure of its label")
+        return
+      }
+      if (!(glyph.glyphPaintedWidth > 0 && glyph.glyphPaintedWidth < Style.bar.iconSlot)) {
+        fail("icon paint width is not inside its slot")
+        return
+      }
+      if (!(overflow.glyphPaintedWidth > Style.bar.iconSlot)) {
+        fail("overflowing paint is not visible past its slot")
+        return
+      }
+      if (overflow.opticalSize !== Style.bar.iconCanvas) {
+        fail("icon canvas does not match the shared canvas")
+        return
+      }
+      console.log("RESULT pass")
+      Qt.quit()
+    }
+  }
 
   QtObject {
     id: testBar
