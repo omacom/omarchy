@@ -9,4 +9,4 @@ require_command jq
 require_command flock
 
 node --test "$ROOT/test/shell.d/fixtures/chromium-theme-sync/"*.test.mjs
-pass "theme sync worker, page bridge, and native host security regressions"
+pass "theme sync worker, page API, and native host regressions"

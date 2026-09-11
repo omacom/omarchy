@@ -3,47 +3,12 @@
 // Every accessor reads the live DOM rather than caching a payload, so this is
 // immune to the injection-order race between the isolated and main worlds: there
 // is no first message to miss, only <html> to look at whenever the page asks.
+//
+// The API is read-only. A page can observe the palette, but it cannot set or
+// install desktop themes through this extension.
 
 (() => {
   const VAR_PREFIX = '--omarchy-';
-
-  // One round trip to the isolated world, which relays to the service worker.
-  // detail is a JSON string on purpose: strings clone cleanly between worlds,
-  // plain objects are realm-sensitive.
-  function request(payload, onTimeout, timeoutMs) {
-    return new Promise((resolve) => {
-      const id = 'r' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-
-      const onResponse = (event) => {
-        let message;
-        try {
-          message = JSON.parse(event.detail);
-        } catch (error) {
-          return;
-        }
-        if (!message || message.id !== id) return;
-        cleanup();
-        resolve(message.result);
-      };
-
-      const timer = setTimeout(() => {
-        cleanup();
-        resolve(onTimeout);
-      }, timeoutMs || 20000);
-
-      function cleanup() {
-        clearTimeout(timer);
-        document.removeEventListener('__omarchy_response', onResponse);
-      }
-
-      document.addEventListener('__omarchy_response', onResponse);
-      document.dispatchEvent(
-        new CustomEvent('__omarchy_request', {
-          detail: JSON.stringify(Object.assign({ id }, payload)),
-        })
-      );
-    });
-  }
 
   function colors() {
     const style = document.documentElement && document.documentElement.style;
@@ -75,65 +40,6 @@
       color(name) {
         return colors()[String(name).replace(/-/g, '_')] || null;
       },
-      // Whether this origin may set themes. Resolves to { allowed, origin }.
-      // Check this before rendering a theme picker rather than finding out from
-      // a failed click.
-      canSetTheme() {
-        return request({ kind: 'can-set' }, { allowed: false, origin: null, error: 'no response from extension' })
-          .then((result) => {
-            // A worker that never answered returns an error object with no
-            // `allowed` field. Reporting that as "not allowed" would blame the
-            // origin for what is really an unreachable worker, so keep the two
-            // apart: `error` set means the question was never answered.
-            if (result && typeof result.allowed === 'boolean') return result;
-            return {
-              allowed: false,
-              origin: null,
-              error: (result && result.error) || 'no response from extension',
-            };
-          });
-      },
-
-      // Ask Omarchy to switch themes. Resolves to { ok, name, error }.
-      // Only origins the extension allows will succeed; everything else comes
-      // back with ok:false and a reason rather than throwing.
-      setTheme(name) {
-        return request({ kind: 'set', name: String(name) }, {
-          ok: false,
-          error: 'no response from extension',
-        });
-      },
-
-      // Install validated colors and optional images, never arbitrary theme files.
-      // backgroundUrl remains the legacy single-image form; use backgroundUrls
-      // for an ordered collection. All image URLs must use allowed HTTPS hosts.
-      // Existing names are never replaced; use setTheme to apply an installed theme.
-      // Resolves to { ok, name, error }.
-      installTheme(theme) {
-        const spec = theme || {};
-        const fields = ['name', 'colors', 'backgroundUrl', 'backgroundUrls', 'mode',
-          'iconsTheme', 'previewUrl', 'previewUnlockUrl', 'unlockUrl'];
-        if (typeof spec !== 'object' || Array.isArray(spec) || Object.keys(spec).some((key) => !fields.includes(key))) {
-          return Promise.resolve({ ok: false, error: 'unsupported theme specification' });
-        }
-        return request(
-          {
-            kind: 'install',
-            name: String(spec.name || ''),
-            colors: spec.colors && typeof spec.colors === 'object' ? spec.colors : {},
-            backgroundUrl: spec.backgroundUrl === undefined ? undefined : (spec.backgroundUrl ? String(spec.backgroundUrl) : ''),
-            backgroundUrls: spec.backgroundUrls,
-            mode: spec.mode,
-            iconsTheme: spec.iconsTheme,
-            previewUrl: spec.previewUrl,
-            previewUnlockUrl: spec.previewUnlockUrl,
-            unlockUrl: spec.unlockUrl,
-          },
-          { ok: false, error: 'no response from extension' },
-          120000
-        );
-      },
-
       onChange(handler) {
         if (typeof handler !== 'function') return () => {};
         const listener = () => handler(Object.freeze(colors()));

@@ -38,8 +38,5 @@
       "all_frames": true,
       "world": "MAIN"
     }
-  ],
-  "host_permissions": [
-    "https://wallpapers.hel1.your-objectstorage.com/*"
   ]
 }
