@@ -21,7 +21,7 @@ case "$font_name" in
     ;;
 esac
 
-if ! fc-list | grep -Fqi -- "$font_name"; then
+if ! fc-list ":family=$font_name" | grep -Fqi -- "$font_name"; then
   echo "Font '$font_name' not found."
   exit 1
 fi
