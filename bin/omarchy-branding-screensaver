@@ -3,8 +3,8 @@
 # omarchy:summary=Edit, set, or reset screensaver branding
 # omarchy:group=branding
 # omarchy:name=screensaver
-# omarchy:args=<image|text|reset>
-# omarchy:examples=omarchy branding screensaver image | omarchy branding screensaver text | omarchy branding screensaver reset
+# omarchy:args=<image|square|text|reset>
+# omarchy:examples=omarchy branding screensaver image | omarchy branding screensaver square | omarchy branding screensaver text | omarchy branding screensaver reset
 
 set -euo pipefail
 
@@ -18,11 +18,14 @@ image)
 text)
   omarchy-launch-editor ~/.config/omarchy/branding/screensaver.txt >/dev/null 2>&1 && omarchy-launch-screensaver force >/dev/null 2>&1
   ;;
+square)
+  cp "$OMARCHY_PATH/logo-square.txt" ~/.config/omarchy/branding/screensaver.txt && omarchy-launch-screensaver force >/dev/null 2>&1
+  ;;
 reset)
   cp "$OMARCHY_PATH/logo.txt" ~/.config/omarchy/branding/screensaver.txt && omarchy-launch-screensaver force >/dev/null 2>&1
   ;;
 *)
-  echo "Usage: omarchy-branding-screensaver <image|text|reset>" >&2
+  echo "Usage: omarchy-branding-screensaver <image|square|text|reset>" >&2
   exit 1
   ;;
 esac
