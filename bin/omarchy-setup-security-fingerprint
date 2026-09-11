@@ -74,17 +74,14 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
-# Install required packages
-echo "Installing required packages..."
-
-# libfprint-git provides+conflicts libfprint; pacman -S --noconfirm
-# defaults the conflict prompt to N and aborts. Pre-remove it (deps-only,
-# so an installed fprintd stays put) so stock libfprint installs cleanly.
-if pacman -Q libfprint-git &>/dev/null; then
-  sudo pacman -Rdd --noconfirm libfprint-git
+# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
+# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
+# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
+# one transaction, so a failed install leaves the existing driver in place.
+if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+  echo "Installing required packages..."
+  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
 fi
-
-omarchy-pkg-add libfprint fprintd usbutils
 
 # Enroll first fingerprint
 echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"

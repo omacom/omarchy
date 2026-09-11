@@ -12,6 +12,10 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E907` — Ollama, from <https://simpleicons.org/icons/ollama.svg>
 - `U+E908` — T3 Code, traced from the app icon in <https://aur.archlinux.org/cgit/aur.git/plain/t3code-icon.png?h=t3code-bin>, since upstream publishes no monochrome SVG
 - `U+E909` — Ori, from <https://openrouter.ai/brand/v2/openrouter-glyph-dark.svg>, OpenRouter's own mark: Ori ships no separate logo and its product page uses this one
+- `U+E90A` — Hermes, traced from the [official desktop app portrait](https://raw.githubusercontent.com/NousResearch/hermes-agent/2237be355906fbe6065ce1815711eee52b2d646e/apps/desktop/assets/icon.png), the same artwork shipped by `hermes-desktop`. The monochrome trace is kept in [hermes.svg](hermes.svg).
+- `U+E90B` — Perplexity, from <https://simpleicons.org/icons/perplexity.svg>
+- `U+E90C` — OpenClaw, traced from the lobster mascot the openclaw package ships as `dist/control-ui/favicon.svg`, since upstream publishes no monochrome SVG
+- `U+E90D` — Cursor, from <https://simpleicons.org/icons/cursor.svg>
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
