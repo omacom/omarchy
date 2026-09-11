@@ -3,13 +3,13 @@ if ! grep -q '^tmpfs /run/shm tmpfs' /etc/fstab; then
 fi
 
 sudo tee /etc/profile.d/omarchy-umask.sh >/dev/null <<'EOF'
-umask 027
+umask 077
 EOF
 
 sudo mkdir -p /etc/systemd/system.conf.d
 sudo tee /etc/systemd/system.conf.d/99-omarchy-umask.conf >/dev/null <<'EOF'
 [Manager]
-UMask=027
+UMask=077
 EOF
 
 sudo mkdir -p /etc/systemd/journald.conf.d

@@ -1,4 +1,4 @@
-SECURITY_PKGS=(usbguard apparmor aide fail2ban)
+SECURITY_PKGS=(usbguard apparmor aide fail2ban lynis rkhunter)
 for pkg in "${SECURITY_PKGS[@]}"; do
     if pacman -Si "$pkg" &>/dev/null; then
         sudo pacman -S --noconfirm --needed "$pkg"
@@ -32,6 +32,18 @@ ignoreip = 127.0.0.1/8 ::1
 enabled = true
 port = ssh
 filter = sshd
+maxretry = 3
+
+[pam-sudo]
+enabled = true
+filter = pam-sudo
+logpath = /var/log/auth.log
+maxretry = 3
+
+[pam-unix]
+enabled = true
+filter = pam-unix
+logpath = /var/log/auth.log
 maxretry = 3
 EOF
     sudo systemctl enable fail2ban.service

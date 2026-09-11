@@ -14,8 +14,12 @@ run_logged $OMARCHY_INSTALL/config/pam-hardening.sh
 run_logged $OMARCHY_INSTALL/config/sudo-hardening.sh
 run_logged $OMARCHY_INSTALL/config/file-permissions.sh
 run_logged $OMARCHY_INSTALL/config/audit-rules.sh
+run_logged $OMARCHY_INSTALL/config/firewall-hardening.sh
 run_logged $OMARCHY_INSTALL/config/service-hardening.sh
 run_logged $OMARCHY_INSTALL/config/security-tools.sh
+run_logged $OMARCHY_INSTALL/config/apparmor-hardening.sh
+run_logged $OMARCHY_INSTALL/config/tmp-hardening.sh
+run_logged $OMARCHY_INSTALL/config/kernel-lockdown.sh
 run_logged $OMARCHY_INSTALL/config/system-hardening.sh
 run_logged $OMARCHY_INSTALL/config/ssh-flakiness.sh
 run_logged $OMARCHY_INSTALL/config/increase-file-watchers.sh
