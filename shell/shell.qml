@@ -1298,7 +1298,7 @@ ShellRoot {
       if (!shell.pluginRegistry.isEnabled(id)) continue
       var kind = m.kinds.indexOf("panel") !== -1 ? "panel"
         : (m.kinds.indexOf("overlay") !== -1 ? "overlay" : "menu")
-      out.push({ id: id, manifest: m, kind: kind, keepLoaded: m.keepLoaded === true })
+      out.push({ id: id, kind: kind, keepLoaded: m.keepLoaded === true })
     }
     return out
   }
@@ -1316,7 +1316,8 @@ ShellRoot {
       id: panelEntry
       required property var modelData
       readonly property string pluginId: modelData.id
-      readonly property var manifest: modelData.manifest
+      // Read the registry's manifest rather than carrying it through the model
+      readonly property var manifest: shell.pluginRegistry.installedPlugins[pluginId] || null
       readonly property string entryKind: modelData.kind
       readonly property bool keepLoaded: modelData.keepLoaded === true
       readonly property string sourceUrl: shell.pluginRegistry.entryPointUrl(manifest, entryKind)
