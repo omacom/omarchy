@@ -85,7 +85,7 @@ remove() {
     OMARCHY_TEST_INSTALLER_STATUS="${OMARCHY_TEST_INSTALLER_STATUS:-0}" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
-    HOME="$test_home" PATH="$mock_bin:$PATH" \
+    HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
     bash "$test_tmp/remover" </dev/null >"$test_tmp/output" 2>&1
 }
 
@@ -100,7 +100,7 @@ remove_tty() {
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     OMARCHY_TEST_GUM_STATUS="${OMARCHY_TEST_GUM_STATUS:-1}" \
-    HOME="$test_home" PATH="$mock_bin:$PATH" \
+    HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
     script -qec "bash '$test_tmp/remover'" /dev/null >"$test_tmp/output" 2>&1
 }
 
@@ -141,6 +141,71 @@ pass "removal keeps the user's data unasked when there is no terminal"
 
 [[ ! -e $test_home/.local/bin/hermes ]] || fail "the app's own hermes command is removed"
 pass "removal takes the command the app installed"
+
+# The runtime registers a launcher entry pointing at the wrapper the app wrote,
+# and once that wrapper is gone the entry launches nothing. The launcher only
+# re-reads its hidden entries when a .desktop file changes, so a dead entry left
+# in place would stay on offer until something else changed one.
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
+  >"$test_home/.local/bin/hermes"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s" desktop\n' "$test_home/.local/bin/hermes" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with the runtime's launcher entry present"
+[[ ! -e $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "the launcher entry pointing at the removed command is deleted"
+pass "removal deletes the launcher entry the runtime registered"
+
+# An entry that still launches something is not the runtime's, and survives.
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '#!/bin/bash\nexit 0\n' >"$test_home/my-hermes"
+chmod +x "$test_home/my-hermes"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec=%s desktop\n' "$test_home/my-hermes" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with a working launcher entry present"
+[[ -f $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry whose command still exists survives removal"
+pass "removal leaves a launcher entry that still launches something"
+
+# An Exec naming a bare command is resolved on PATH, as the launcher resolves
+# it; one that resolves is a working entry, whoever wrote it.
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '#!/bin/bash\nexit 0\n' >"$mock_bin/my-hermes"
+chmod +x "$mock_bin/my-hermes"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec=my-hermes desktop\n' \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with a launcher entry naming a command on PATH"
+[[ -f $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry naming a command found on PATH survives removal"
+rm -f "$mock_bin/my-hermes"
+pass "removal resolves a bare Exec command on PATH before judging the entry"
+
+# A relative Exec resolves against the entry's own Path=, which the remover
+# does not read, so the entry is never judged dead and never deleted.
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nPath=%s\nExec=./launch desktop\n' "$test_home" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with a launcher entry using a relative command"
+[[ -f $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry with a relative command survives removal"
+pass "removal leaves a launcher entry whose command is relative to its own Path"
+
+# A desktop-entry escape in the command, \s for a space, is decoded by the
+# launcher and not by the remover, so such an entry is never judged dead.
+seed_install
+mkdir -p "$test_home/.local/share/applications" "$test_home/Hermes Desktop/bin"
+: >"$test_home/Hermes Desktop/bin/hermes"
+chmod +x "$test_home/Hermes Desktop/bin/hermes"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s/Hermes\\sDesktop/bin/hermes" desktop\n' "$test_home" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with a launcher entry using an escaped path"
+[[ -f $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry whose command carries a desktop-entry escape survives removal"
+pass "removal leaves a launcher entry whose command it cannot decode"
 
 # Removal also asks the installer to tear down a mise CLI the app superseded, so
 # a copy left from before the app took over does not linger once Hermes is gone.

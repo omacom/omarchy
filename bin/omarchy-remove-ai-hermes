@@ -50,6 +50,33 @@ if holders:
 PY
 }
 
+# The first word of an entry's Exec, quoted or bare, is the command it
+# launches: an absolute path is checked where it points and a bare name on
+# PATH, the way the launcher runs it. A relative path resolves against the
+# entry's own Path= and an escape such as \s is decoded by the launcher;
+# neither is read here, so both are taken as live.
+launcher_entry_runs() {
+  local exec_line target
+
+  exec_line=$(grep -m1 '^Exec=' "$1" 2>/dev/null) || return 1
+  target=${exec_line#Exec=}
+  if [[ $target == \"*\"* ]]; then
+    target=${target#\"}
+    target=${target%%\"*}
+  else
+    target=${target%%[[:space:]]*}
+  fi
+  [[ -n $target ]] || return 1
+  [[ $target == *\\* ]] && return 0
+  if [[ $target == /* ]]; then
+    [[ -e $target ]]
+  elif [[ $target == */* ]]; then
+    return 0
+  else
+    omarchy-cmd-present "$target"
+  fi
+}
+
 # Removing an open SQLite WAL leaves a live writer on a deleted generation.
 ensure_hermes_stopped
 omarchy-pkg-drop hermes-desktop
@@ -105,6 +132,14 @@ if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
     fi
   done
 
+  # The runtime registers its own launcher entry, pointing at the wrapper or
+  # the venv that just went. The launcher re-reads its hidden entries only when
+  # a .desktop file changes, so an entry left pointing at nothing would stay on
+  # offer until something else changed one; deleting it is that change.
+  entry="$HOME/.local/share/applications/hermes.desktop"
+  if [[ -f $entry ]] && ! launcher_entry_runs "$entry"; then
+    rm -f "$entry"
+  fi
 fi
 
 # What survives to here is the user's: the chats, memories and skills in

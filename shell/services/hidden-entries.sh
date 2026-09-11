@@ -92,6 +92,45 @@ scan_dir() {
   done < <(find "$dir" -type f -name '*.desktop' -print0 2>/dev/null | sort -z)
 }
 
+# The first word of an entry's Exec, quoted or bare, is the command it
+# launches: an absolute path is checked where it points and a bare name on
+# PATH, the way the launcher runs it. A relative path resolves against the
+# entry's own Path= and an escape such as \s is decoded by the launcher;
+# neither is read here, so both are taken as live.
+exec_target_exists() {
+  local target=${1#Exec=}
+
+  if [[ $target == \"*\"* ]]; then
+    target=${target#\"}
+    target=${target%%\"*}
+  else
+    target=${target%%[[:space:]]*}
+  fi
+  [[ -n $target ]] || return 1
+  [[ $target == *\\* ]] && return 0
+  if [[ $target == /* ]]; then
+    [[ -e $target ]]
+  elif [[ $target == */* ]]; then
+    return 0
+  else
+    omarchy-cmd-present "$target"
+  fi
+}
+
+# The upstream runtime registers its own Hermes launcher, and the packaged
+# desktop app supersedes it while the package Omarchy installed owns Hermes.
+# An entry whose Exec target is gone -- a runtime deleted by hand, a removal
+# that never reached the entry -- stays hidden too: a launcher that cannot
+# launch is only search noise.
+if omarchy-pkg-present hermes-desktop; then
+  printf '%s\n' hermes
+elif [[ -f $HOME/.local/share/applications/hermes.desktop ]]; then
+  exec_line=$(grep -m1 '^Exec=' "$HOME/.local/share/applications/hermes.desktop" 2>/dev/null) || true
+  if ! exec_target_exists "$exec_line"; then
+    printf '%s\n' hermes
+  fi
+fi
+
 scan_dir "$HOME/.local/share/applications"
 
 IFS=":" read -ra data_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
