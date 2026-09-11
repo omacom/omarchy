@@ -57,8 +57,8 @@ assert_line_count() {
 }
 
 extended='[
-  { "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": false, "width": 1920, "height": 1080 },
-  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+  { "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": false, "width": 1920, "height": 1080, "refreshRate": 60.00000, "availableModes": ["1920x1080@60.00Hz"] },
+  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440, "refreshRate": 143.912, "availableModes": ["2560x1440@143.91Hz", "2560x1440@60.00Hz", "1920x1080@120.00Hz"] }
 ]'
 
 # Omarchy mirrors by pointing the external at the internal, so `mirrorOf` lands
@@ -76,7 +76,7 @@ reverse_mirrored='[
 
 clamshell='[
   { "name": "eDP-1", "mirrorOf": "none", "disabled": true, "focused": false, "width": 0, "height": 0 },
-  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440, "refreshRate": 143.912, "availableModes": ["2560x1440@143.91Hz", "2560x1440@60.00Hz"] }
 ]'
 
 monitor_state "$extended"
@@ -109,9 +109,16 @@ assert_line 4 "" "monitor state reports no mirror while clamshelled"
 pass "monitor state separates a disabled internal monitor from a missing one"
 
 monitor_state "$extended"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080,"refreshRate":60,"modes":["1920x1080@60.00Hz"]},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440,"refreshRate":143.912,"modes":["2560x1440@143.91Hz","2560x1440@60.00Hz"]}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 monitor_state "$clamshell"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0,"refreshRate":0,"modes":[]},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440,"refreshRate":143.912,"modes":["2560x1440@143.91Hz","2560x1440@60.00Hz"]}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state lists every display with its enabled and focused state"
+
+# A 1920x1080 mode on a 2560x1440 display is a resolution change, not a rate
+# the panel can offer, so it must not reach the display list.
+monitor_state "$extended"
+[[ ${state_lines[7]-} != *"1920x1080@120.00Hz"* ]] ||
+  fail "monitor state drops modes at another resolution" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state lists only the modes at each display's own resolution"

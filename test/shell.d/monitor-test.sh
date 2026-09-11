@@ -54,6 +54,43 @@ assertDeepEqual(
   'monitor keeps presets until display dimensions are known'
 )
 
+assertEqual(monitor.normalizeRefreshRate('60.00000'), '60', 'monitor normalizes a whole refresh rate')
+assertEqual(monitor.normalizeRefreshRate('143.912'), '143.91', 'monitor normalizes a fractional refresh rate')
+assertEqual(monitor.normalizeRefreshRate(0), '', 'monitor rejects a missing refresh rate')
+assertEqual(monitor.refreshRateLabel('143.91'), '144', 'monitor labels a rate by its whole hertz')
+
+assertDeepEqual(
+  monitor.availableRefreshRates(
+    ['2880x1800@143.91Hz', '2880x1800@60.00Hz', '1920x1080@120.00Hz'],
+    2880,
+    1800
+  ),
+  ['143.91', '60'],
+  'monitor offers the rates the current mode can reach, fastest first'
+)
+assertDeepEqual(
+  monitor.availableRefreshRates(['2880x1800@59.94Hz', '2880x1800@60.00Hz'], 2880, 1800),
+  ['60'],
+  'monitor collapses rates that share a whole hertz'
+)
+assertDeepEqual(
+  monitor.availableRefreshRates(['2880x1800@60.00Hz'], 0, 0),
+  ['60'],
+  'monitor keeps rates until display dimensions are known'
+)
+assertDeepEqual(monitor.availableRefreshRates(null, 2880, 1800), [], 'monitor handles a missing mode list')
+
+assertEqual(
+  monitor.matchingRefreshRateIndex(['143.91', '60'], 143.912),
+  0,
+  'monitor matches the rate the driver reports to its listed mode'
+)
+assertEqual(
+  monitor.matchingRefreshRateIndex(['143.91', '60'], 90),
+  -1,
+  'monitor matches no rate while the display is in another mode'
+)
+
 assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
 assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
 
