@@ -1047,7 +1047,34 @@ function cachedModelWindowPresentation(cache, provider, nowMs, overrides, revisi
   return cachedPresentation(cache, "models", provider, nowMs, overrides, revision)
 }
 
+// The original record stays on disk. Only its equivalent compact presentation
+// crosses into QML, so parsing request histories never blocks the GUI thread.
+function parseDisplayRecord(content) {
+  var record = JSON.parse(String(content || ""))
+  if (!isPlainObject(record)) return null
+  // A legacy helper can embed its full scan cache here. Main reads the flat
+  // display fields; this duplicate history must not cross the GUI boundary.
+  delete record.stats
+  if (validDailyUsage(record.dailyUsage)) {
+    var days = record.dailyUsage.days
+    for (var i = 0; i < days.length; i++) {
+      if (isPlainObject(days[i]) && Array.isArray(days[i].buckets))
+        days[i].buckets = compactPricingBuckets(days[i].buckets)
+    }
+  }
+  return record
+}
+
+if (typeof WorkerScript !== "undefined" && typeof WorkerScript.sendMessage === "function") {
+  WorkerScript.onMessage = function(message) {
+    var record = null
+    try { record = parseDisplayRecord(message.content) } catch (error) {}
+    WorkerScript.sendMessage({ generation: message.generation, record: record })
+  }
+}
+
 if (typeof module !== "undefined") module.exports = {
+  parseDisplayRecord: parseDisplayRecord,
   bundledCatalog: bundledCatalog,
   parseOverrides: parseOverrides,
   resolveRate: resolveRate,

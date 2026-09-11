@@ -119,6 +119,7 @@ Item {
   // -------------------------------------------------------------- refresh
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
+  property double lastUpdateStartedMs: 0
   property string pendingUpdateKind: ""
 
   Timer {
@@ -168,6 +169,7 @@ Item {
       if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
       return
     }
+    lastUpdateStartedMs = Date.now()
     updateProcess.command = updateCommand(kind, agentIds)
     updateProcess.running = true
   }
@@ -178,7 +180,11 @@ Item {
   // Opening the panel wants the numbers that go stale on the wire, not
   // another walk over every transcript on disk — the collectors reuse their
   // recent scans in this mode.
-  function refreshLimits() { runUpdate("limits") }
+  function refreshLimits() {
+    // Reopening during the collector's 15-second reuse window needs no new job.
+    if (updateProcess.running || Date.now() - lastUpdateStartedMs < 15000) return
+    runUpdate("limits")
+  }
 
   // ------------------------------------------------------------- providers
 
@@ -198,7 +204,7 @@ Item {
       var id = String(record.id)
       localIds[id] = true
       if (!providerEnabled(id)) continue
-      var display = displayProvider(record, agent.dailyUsage)
+      var display = displayProvider(record, record.dailyUsage)
       if (providerHasData(display)) result.push(display)
     }
     // An agent that only ever ran on another machine has no local record, but

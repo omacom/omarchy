@@ -1,0 +1,44 @@
+import QtQuick
+import QtTest
+import QtQml.WorkerScript
+Item {
+  id: testRoot; width:100; height:100
+  property int ticks:0
+  property var versions:[]
+  Timer { interval:1; running:true; repeat:true; onTriggered:testRoot.ticks++ }
+  COMPONENT
+  AgentUnderTest { id: subject; onRecordChanged: if(record) testRoot.versions.push(record.version) }
+  TestCase {
+    name:"AsyncUsageRecord"; when:windowShown
+    function raw(version, count) {
+      var buckets=[]
+      for(var i=0;i<count;i++) buckets.push({rawModel:"gpt-6-astra",source:"codex-native",sourceId:"request-"+i,
+        totalTokens:1,tokens:{inputTokens:1,outputTokens:0,cacheReadInputTokens:0,cacheCreationInputTokens:0},tariff:{},issues:[]})
+      return JSON.stringify({id:"codex",version:version,recentDays:[{date:"2026-09-11",messageCount:count}],
+        dailyUsage:{schemaVersion:1,unit:"tokens",fromDate:"2026-09-11",throughDate:"2026-09-11",complete:true,days:[{date:"2026-09-11",buckets:buckets}]}})
+    }
+    function test_backgroundAndFreshness() {
+      var content=raw(1,12000), start=testRoot.ticks
+      subject.parse(content)
+      tryVerify(function(){return subject.record && subject.record.version===1},5000)
+      verify(testRoot.ticks>start,"GUI event loop keeps running while usage is parsed")
+      compare(subject.record.dailyUsage.days[0].buckets.length,1,"only compact usage reaches GUI")
+      compare(subject.record.dailyUsage.days[0].buckets[0].totalTokens,12000)
+      var daily=subject.record.dailyUsage,days=subject.record.recentDays
+      subject.parse(raw(2,12000))
+      tryVerify(function(){return subject.record && subject.record.version===2},5000)
+      compare(subject.record.dailyUsage,daily,"unchanged usage preserves pricing-cache identity")
+      compare(subject.record.recentDays,days)
+      subject.parse(raw(3,12000));subject.parse(raw(4,2));subject.parse(raw(5,3))
+      tryVerify(function(){return subject.record && subject.record.version===5},5000)
+      verify(testRoot.versions.indexOf(3)<0 && testRoot.versions.indexOf(4)<0,"obsolete results never replace newer input")
+      subject.parse(raw(6,12000))
+      subject.removeFile()
+      compare(subject.record,null)
+      tryVerify(function(){return !subject.parserBusy},5000)
+      compare(subject.record,null,"a removed file cannot be resurrected by an old worker reply")
+      subject.parse("{")
+      tryCompare(subject,"record",null,5000)
+    }
+  }
+}

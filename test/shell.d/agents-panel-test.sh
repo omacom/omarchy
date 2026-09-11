@@ -35,23 +35,23 @@ assert(/property bool pricingActive: false/.test(mainSource)
   && /pricingActive: root\.opened/.test(panelSource),
   'agents panel passes only its open lifecycle to pricing fallback refresh')
 assert(/readonly property var dailyUsage: record && record\.dailyUsage/.test(agentSource)
-  && /displayProvider\(record, agent\.dailyUsage\)/.test(mainSource),
+  && /displayProvider\(record, record\.dailyUsage\)/.test(mainSource),
   'agents daily usage flows through Agent and Main to the panel provider')
 assert(/costScopeCompatible: !synced/.test(mainSource),
   'agents do not pair synchronized legacy tokens with local-only costs')
-assert(/usage\.pricing\.dailyRows\(provider, nowMs\)/.test(panelSource)
-  && /usage\.pricing\.dailyHeading\(root\.provider, usageSection\.days\)/.test(panelSource)
+assert(/usage\.pricing\.dailyRows\(provider, root\.nowMs\)/.test(panelSource)
+  && /usage\.pricing\.dailyHeading\(page\.provider, usageSection\.days\)/.test(panelSource)
   && /dayRow\.day\.value/.test(panelSource),
   'agents panel renders shared compact pricing rows and their availability-aware heading')
 assert(/function modelWindowPresentation\(provider, nowMs\)/.test(pricingSource)
   && /cachedModelWindowPresentation\(presentationCache, provider, nowMs, overrides, rev\)/.test(pricingSource)
   && /cachedDailyRows\(presentationCache, provider, nowMs, overrides, rev\)/.test(pricingSource)
-  && /usage\.pricing\.modelWindowPresentation\(provider, nowMs\)/.test(panelSource)
-  && /model: root\.modelSummaries/.test(panelSource),
+  && /usage\.pricing\.modelWindowPresentation\(provider, root\.nowMs\)/.test(panelSource)
+  && /model: page\.modelSummaries/.test(panelSource),
   'priced model and window rows use the same reload-aware public pricing object')
 assert(/function providerSupportsPricing\(value\)/.test(panelSource)
   && /value\.providerId === "codex" \|\| value\.providerId === "claude" \|\| value\.providerId === "kimi"/.test(panelSource)
-  && /readonly property var days: root\.providerSupportsPricing\(root\.provider\)/.test(panelSource),
+  && /readonly property var days: root\.providerSupportsPricing\(page\.provider\)/.test(panelSource),
   'Claude, Codex, and Kimi share the pricing-backed day, model, heading, and limitation gates')
 assert(/TOKENS \/ KNOWN API COST EST\. BY MODEL \(30 DAYS\)/.test(panelSource)
   && /Costs exclude usage with missing prices or token details\./.test(panelSource)

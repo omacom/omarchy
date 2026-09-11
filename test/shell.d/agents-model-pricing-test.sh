@@ -215,4 +215,24 @@ assert(Math.abs(mixedDay.cost.total - 0.000315) < 1e-14
 assert(mixedResult.summaries[0].tooltip.includes('Priced-token coverage: 75% priced')
   && mixedResult.summaries[0].cost.assumptions.some(reason => reason.includes('metadata is invalid')),
   'merged presentation retains per-bucket priced coverage and malformed metadata disclosure')
+
+const displayInput = JSON.stringify({
+  id: 'claude', stats: { duplicateHistory: ['unused'] },
+  dailyUsage: mixedUsage, recentDays: [{ date: '2026-09-30', tokens: 44 }]
+})
+const displayRecord = pricing.parseDisplayRecord(displayInput)
+assertEqual(displayRecord.dailyUsage.days[0].buckets.length, 3,
+  'background display parsing compacts equivalent buckets before QML transfer')
+assertEqual(displayRecord.stats, undefined, 'unused legacy scan cache is not transferred to QML')
+assertDeepEqual(pricing.buildDailyRows('claude', displayRecord.dailyUsage, [], now, {}, true)[6], mixedDay,
+  'background parsing preserves all daily values, coverage and tooltip details')
+assertDeepEqual(pricing.buildModelWindowPresentation('claude', displayRecord.dailyUsage, now, {}, true), mixedResult,
+  'background parsing preserves every model and window presentation')
+assertEqual(JSON.parse(displayInput).dailyUsage.days[0].buckets.length, 5,
+  'display compaction leaves the original serialized usage unchanged')
+assertDeepEqual(displayRecord.recentDays, [{ date: '2026-09-30', tokens: 44 }],
+  'display parsing preserves legacy token totals')
+assertEqual(pricing.parseDisplayRecord('[]'), null, 'array-shaped usage records are rejected')
+assertDeepEqual(pricing.parseDisplayRecord('{"id":"codex","dailyUsage":{"schemaVersion":99}}').dailyUsage,
+  {schemaVersion:99}, 'unknown usage versions retain their unavailable-data semantics')
 JS

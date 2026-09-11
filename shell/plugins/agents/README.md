@@ -21,6 +21,8 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 - **Tokens by day** — one row per day for the last week, with today bolded at the bottom. Local Codex, Claude, and Kimi rows append estimated API-equivalent USD cost when an exact tariff is available; hover a row for component prices, provenance, assumptions, and missing coverage.
 - **Tokens by model** — providers without local pricing coverage retain their token-only model rows. Local Codex, Claude, and Kimi sources use 30-local-day buckets for one combined token/known-API-cost-estimate table: the four heaviest models followed by Today, 7 days, and 30 days summaries. Window totals include every model even when only four fit on screen. A visible note names excluded missing-price models when known; hover retains detailed priced-token coverage.
 
+Token and cost values use fixed, right-aligned columns, including one- through five-digit amounts. The panel uses the height of the largest provider page so switching subscriptions does not resize it; scrolling is needed only when the available screen cannot fit that content. Usage records are parsed and compacted in a background worker, and tab labels never traverse the full usage history. Reopening within 15 seconds reuses the current refresh; an explicit refresh still requests fresh data.
+
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
 there is no switch row at all; with none, the module leaves the bar entirely
