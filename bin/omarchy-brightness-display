@@ -52,7 +52,13 @@ if (( $# == 0 )); then
     exit
   fi
 
-  device="$(omarchy-hw-display)" || exit 1
+  if ! device="$(omarchy-hw-display)"; then
+    if monitor_is_internal; then
+      omarchy-brightness-display-soft get
+      exit
+    fi
+    exit 1
+  fi
   backlight_brightness "$device"
   exit
 fi
@@ -86,8 +92,20 @@ elif use_ddc_display; then
   brightness="$(omarchy-brightness-display-ddc "$monitor" "$step")" || exit 1
   (( no_osd )) || omarchy-osd -i brightness -p "$brightness"
 else
-  # Current device highlighted
-  device="$(omarchy-hw-display)" || exit 1
+  # Current device highlighted. When the kernel exposes no DRM backlight
+  # (notably older Apple + nouveau systems where GMUX is detected but never
+  # binds), fall back to software brightness on internal panels.
+  if ! device="$(omarchy-hw-display)"; then
+    if monitor_is_internal; then
+      if (( no_osd )); then
+        omarchy-brightness-display-soft --no-osd "$step"
+      else
+        omarchy-brightness-display-soft "$step"
+      fi
+      exit
+    fi
+    exit 1
+  fi
 
   # Current brightness percentage
   current=$(backlight_brightness "$device") || exit 1
