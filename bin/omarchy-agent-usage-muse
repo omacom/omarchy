@@ -1,0 +1,777 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Muse (Meta) usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Muse (Meta Muse Spark) local usage plus subscription windows.
+
+Local metering (always available, no network): token counts, prompt and
+session counts, per-day and per-model breakdowns. Sources (all local):
+  - native `muse` CLI sessions in $XDG_DATA_HOME/muse/sessions, defaulting to
+    ~/.local/share/muse/sessions (`model_completed` events carry usage),
+  - opencode sessions with providerID == "meta" (any Muse Spark model),
+  - opencode sessions with providerID == "opencode" whose modelID contains
+    "muse-spark" (e.g. muse-spark-1.3-contributor-free via the opencode proxy).
+
+Subscription windows (additive, authoritative only): when the CLI is signed
+in via `muse login`, the collector probes the client's own key endpoint
+(`POST https://api.meta.ai/muse-code/key` with the OAuth token from
+`MUSE_AUTH_PATH`, else `~/.config/muse/auth.json`) for `subs_usage`
+session (5-hour) + weekly percents with reset times plus `subs_tier_name` —
+the same figures the TUI's `/usage` overlay shows. Minting is idempotent so
+polling is safe; the token travels only in the Authorization header and
+neither it nor the returned API key is persisted. Pay-as-you-go accounts
+have no subscription windows, so limits stay empty and local metering still
+shows. No estimated meters from manual caps: without an authoritative probe
+the panel shows measured usage only. The agents panel only ever reads the
+JSON this prints.
+"""
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import re
+import sqlite3
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "muse"
+AGENT_NAME = "Muse"
+
+# Model ids and session files are read from local data but flow into the
+# panel JSON, so bound them: overlong model names fail the row closed, and
+# symlinked or gigantic session files are skipped instead of followed.
+MAX_MODEL_NAME_LEN = 120
+MAX_SESSION_BYTES = 512 * 1024 * 1024
+
+# Cache schema version. Bump when the cached stats shape changes so old
+# caches are rescanned instead of trusted.
+CACHE_SCHEMA_VERSION = 2
+
+# Same cache semantics as the codex collector: a scan this recent only dedups
+# concurrent collector runs; --limits-only may reuse a scan for 15 minutes.
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+# Subscription probe reuse: polling mints the same key (idempotent) but the
+# answer moves slowly, so repeated panel opens reuse a recent probe.
+PROBE_MIN_INTERVAL_SECONDS = 60
+
+
+def key_endpoint() -> str:
+  # Overridable for tests, which point it at a local stub instead of Meta's
+  # key service.
+  return os.environ.get("MUSE_KEY_ENDPOINT") or "https://api.meta.ai/muse-code/key"
+
+
+def number(value):
+  try:
+    return int(float(value or 0))
+  except Exception:
+    return 0
+
+
+def token_number(value):
+  return max(0, number(value))
+
+
+def model_name(raw):
+  value = str(raw or "muse-spark").rstrip("/").split("/")[-1]
+  if not value:
+    value = "muse-spark"
+  # Model ids flow into the panel JSON: cap the length so a crafted session
+  # file or DB row cannot bloat the record or the UI. Callers skip the row
+  # when this returns None (fail closed).
+  if len(value) > MAX_MODEL_NAME_LEN:
+    return None
+  return value
+
+
+def local_day(value):
+  """Normalize assorted timestamps to a local YYYY-MM-DD date string."""
+  # bool is an int subclass: True would otherwise file under 1970.
+  if value is None or isinstance(value, bool):
+    return datetime.now().astimezone().date().isoformat()
+  if isinstance(value, (int, float)):
+    seconds = float(value)
+    # Native muse recorded_at is microseconds; opencode created is millis;
+    # codex-style seconds also possible.
+    if seconds > 10_000_000_000_000:
+      seconds = seconds / 1_000_000
+    elif seconds > 10_000_000_000:
+      seconds = seconds / 1000
+    try:
+      return datetime.fromtimestamp(seconds).astimezone().date().isoformat()
+    except Exception:
+      return datetime.now().astimezone().date().isoformat()
+  text = str(value).strip()
+  try:
+    # Some writers emit the epoch as a string: route micro/milli/second
+    # magnitudes through the numeric branch instead of misfiling them as today.
+    return local_day(float(text))
+  except ValueError:
+    pass
+  try:
+    if text.endswith("Z"):
+      dt = datetime.fromisoformat(text[:-1] + "+00:00")
+    else:
+      dt = datetime.fromisoformat(text)
+    if dt.tzinfo is not None:
+      dt = dt.astimezone()
+    return dt.strftime("%Y-%m-%d")
+  except Exception:
+    return datetime.now().astimezone().date().isoformat()
+
+
+now = datetime.now().astimezone()
+today = now.date().isoformat()
+recent_dates = [(now.date() - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+recent = {day: 0 for day in recent_dates}
+today_tokens_by_model = {}
+model_usage = {}
+today_sessions = set()
+active_days = set()
+
+today_prompts = 0
+today_total_tokens = 0
+total_prompts = 0
+total_sessions = set()
+
+
+def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, cache_write):
+  global today_prompts, today_total_tokens, total_prompts
+  total = input_tokens + output_tokens + cache_read + cache_write
+  if total <= 0:
+    return
+  total_prompts += 1
+  total_sessions.add(session_key)
+  active_days.add(day)
+
+  bucket = model_usage.setdefault(model, {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  })
+  bucket["inputTokens"] += input_tokens
+  bucket["outputTokens"] += output_tokens
+  bucket["cacheReadInputTokens"] += cache_read
+  bucket["cacheCreationInputTokens"] += cache_write
+
+  if day in recent:
+    recent[day] += total
+  if day == today:
+    today_prompts += 1
+    today_sessions.add(session_key)
+    today_total_tokens += total
+    today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total
+
+
+def muse_sessions_root():
+  override = (os.environ.get("MUSE_DATA_DIR") or "").strip()
+  if override:
+    base = Path(os.path.expandvars(os.path.expanduser(override)))
+  else:
+    base = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "muse"
+  return base / "sessions"
+
+
+def iter_native_events(path):
+  """Yield (event_dict, recorded_at, event_id) tuples from a native session.jsonl file.
+
+  Handles both plain event lines and retained_frame wrappers whose children
+  carry record_json payloads.
+  """
+  try:
+    with path.open(errors="replace") as handle:
+      for raw in handle:
+        raw = raw.strip()
+        if not raw:
+          continue
+        try:
+          entry = json.loads(raw)
+        except Exception:
+          continue
+        if not isinstance(entry, dict):
+          continue
+        candidates = [entry]
+        children = entry.get("children")
+        if isinstance(children, list):
+          for child in children:
+            if not isinstance(child, dict):
+              continue
+            nested = child.get("record_json")
+            if not nested:
+              continue
+            try:
+              parsed = json.loads(nested)
+            except Exception:
+              continue
+            if isinstance(parsed, dict):
+              candidates.append(parsed)
+        for event in candidates:
+          payload = event.get("payload") or {}
+          if not isinstance(payload, dict):
+            continue
+          yield payload, event.get("recorded_at"), event.get("id")
+  except OSError:
+    return
+
+
+def scan_native_muse_sessions():
+  root = muse_sessions_root()
+  if not root.exists():
+    return
+  # Full history, no mtime cutoff: all-time totals and active days need every
+  # session still on disk (the same tradeoff the claude collector makes).
+  # Session files are small JSONL and the scan cache dedups concurrent runs,
+  # so each refresh pays one linear pass at most.
+  try:
+    resolved_root = root.resolve()
+  except OSError:
+    return
+  files = []
+  try:
+    # Session views contain copies of the same history. Check only paths
+    # below the sessions root, so a custom data parent is not excluded.
+    files = [p for p in root.rglob("session.jsonl")
+             if not any(part.startswith(".msp-view") for part in p.relative_to(root).parts[:-1])
+             and p.is_file()]
+  except OSError:
+    return
+  seen_event_ids = set()
+  for path in files:
+    try:
+      # Fail closed on entries that could escape the sessions tree or stall
+      # the scan: symlinked files are never followed (even when their target
+      # sits inside the tree, so a link cannot double-count a session), files
+      # reached via a symlinked directory are rejected by the resolve check,
+      # and gigantic files are skipped.
+      if path.is_symlink():
+        continue
+      if not path.resolve().is_relative_to(resolved_root):
+        continue
+      st = path.stat()
+      if st.st_size > MAX_SESSION_BYTES:
+        continue
+      mtime_day = local_day(st.st_mtime)
+    except OSError:
+      continue
+    current_model = ""
+    for payload, recorded_at, event_id in iter_native_events(path):
+      kind = payload.get("kind")
+      if kind == "metadata":
+        record = payload.get("record") or {}
+        if isinstance(record, dict) and record.get("model_id"):
+          current_model = model_name(record.get("model_id"))
+        continue
+      if kind == "run_model":
+        record = payload.get("record") or {}
+        if isinstance(record, dict) and record.get("model_id"):
+          current_model = model_name(record.get("model_id"))
+        continue
+      if kind != "run":
+        continue
+      event = payload.get("event") or {}
+      if not isinstance(event, dict):
+        continue
+      if event.get("kind") != "model_completed":
+        continue
+      usage = event.get("usage") or {}
+      if not isinstance(usage, dict):
+        continue
+      raw_model = event.get("model")
+      # An oversized metadata model is an explicit rejection, not a reason to
+      # silently put the following completion in the generic fallback bucket.
+      if not raw_model and current_model is None:
+        continue
+      model = model_name(raw_model or current_model)
+      if model is None:
+        continue
+      input_tokens = token_number(usage.get("input_tokens"))
+      # Native Muse reports reasoning as a subset of output_tokens.
+      output_tokens = token_number(usage.get("output_tokens"))
+      cache_read = token_number(usage.get("cache_read_tokens", usage.get("cached_tokens")))
+      cache_write = token_number(usage.get("cache_write_tokens"))
+      # Cached tokens are a subset of input: keep the split without double
+      # counting (same convention as the codex collector).
+      input_tokens = max(0, input_tokens - cache_read - cache_write)
+      if not (input_tokens or output_tokens or cache_read or cache_write):
+        continue
+      # Native record IDs survive copies and retained-frame wrapping. Claim
+      # only valid completions: metadata or malformed usage must not suppress
+      # a later usable record. Missing/malformed IDs cannot identify duplicates.
+      if isinstance(event_id, str) and event_id:
+        if event_id in seen_event_ids:
+          continue
+        seen_event_ids.add(event_id)
+      day = local_day(recorded_at) if recorded_at else mtime_day
+      # Subagent trees roll up into their parent session: normalize both the
+      # main session.jsonl and any subagent/.../session.jsonl to the session
+      # directory, so one user session counts once however many subagents
+      # it spawned.
+      session_key = "muse:" + re.sub(r"(/subagent/.*)?/session\.jsonl$", "", str(path))
+      add_usage(day, session_key, model,
+                input_tokens, output_tokens, cache_read, cache_write)
+
+
+def scan_opencode_sessions():
+  """opencode rows for meta provider Muse models + opencode-proxied muse-spark.
+
+  Returns True when the scan ran to completion (safe to cache).
+  """
+  db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
+  if not db.is_file():
+    return True
+  try:
+    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return False
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    # LIKE gates are pure acceleration (see the codex collector for the full
+    # rationale); the json_extract gates match the Python filter below, which
+    # stays the authority for the rows that reach it. The provider gate keeps
+    # assistant rows from other providers — including ones that merely mention
+    # muse-spark in their text — out of the Python parse.
+    query = (
+      "SELECT session_id, data FROM message"
+      " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
+      " AND (data LIKE '%\"providerID\"%:%\"meta\"%' OR data LIKE '%muse-spark%')"
+      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END IN ('meta', 'opencode')"
+    )
+    for session_id, raw in conn.execute(query):
+      try:
+        entry = json.loads(raw)
+        if not isinstance(entry, dict) or entry.get("role") != "assistant":
+          continue
+        provider = str(entry.get("providerID") or "")
+        model = model_name(entry.get("modelID"))
+        if model is None:
+          continue
+        if provider == "meta":
+          # The meta provider only serves Muse Spark models, so any model on
+          # it counts (muse-spark 1.1/1.2/1.3, ...).
+          pass
+        elif provider == "opencode" and "muse-spark" in model.lower():
+          pass  # opencode-proxied Muse Spark (e.g. 1.3-contributor-free)
+        else:
+          continue
+        tokens = entry.get("tokens")
+        if not isinstance(tokens, dict):
+          tokens = {}
+        cache = tokens.get("cache")
+        if not isinstance(cache, dict):
+          cache = {}
+        # opencode reports input exclusive of cache: keep the token buckets
+        # separate, no subtraction.
+        input_tokens = token_number(tokens.get("input"))
+        output_tokens = token_number(tokens.get("output")) + token_number(tokens.get("reasoning"))
+        cache_read = token_number(cache.get("read"))
+        cache_write = token_number(cache.get("write"))
+        if not (input_tokens or output_tokens or cache_read or cache_write):
+          continue
+        # A malformed time object must not drop the row's valid tokens:
+        # non-dict shapes fall back to today via local_day(None).
+        stamped = entry.get("time")
+        created = stamped.get("created") if isinstance(stamped, dict) else None
+        day = local_day(created)
+        add_usage(day, "opencode:" + str(session_id), model,
+                  input_tokens, output_tokens, cache_read, cache_write)
+      except Exception:
+        continue
+  except sqlite3.Error:
+    return False
+  finally:
+    try:
+      conn.close()
+    except Exception:
+      pass
+  return True
+
+
+# ------------------------------------------------------------------ limits
+#
+# Additive subscription windows only. Local metering above always runs; this
+# section only fills `limits`/`tierLabel`/status when the authoritative key
+# probe answers. Pay-as-you-go has no subscription windows: no token or a
+# probe with no subs_usage means limits stay empty (never estimated, never
+# zeroed) and local metering still shows. The OAuth token goes nowhere but
+# the Authorization header; only plan label + usage figures enter the record.
+
+
+def muse_config_dir() -> Path:
+  base = os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")
+  return Path(base) / "muse"
+
+
+def read_access_token() -> str:
+  try:
+    raw = (os.environ.get("MUSE_AUTH_PATH") or "").strip()
+    path = Path(os.path.expandvars(os.path.expanduser(raw))) if raw else (muse_config_dir() / "auth.json")
+    data = json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return ""
+  # Every level checked: a login file that parses to a list, or whose
+  # `providers` is not an object, is a missing credential, not a crash.
+  if not isinstance(data, dict):
+    return ""
+  providers = data.get("providers")
+  if not isinstance(providers, dict):
+    return ""
+  login = providers.get("meta")
+  if not isinstance(login, dict):
+    return ""
+  return str(login.get("access_token") or "")
+
+
+def normalize_reset_at(value) -> str:
+  if value is None:
+    return ""
+  try:
+    ts = float(value)
+  except Exception:
+    return ""
+  if ts <= 0:
+    return ""
+  # Epoch seconds; accept milliseconds too.
+  if ts >= 1e12:
+    ts = ts / 1000
+  try:
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat()
+  except Exception:
+    return ""
+
+
+def probe_key(access_token: str) -> dict:
+  request = urllib.request.Request(
+    key_endpoint(),
+    data=json.dumps({}).encode(),
+    method="POST",
+    headers={
+      "Authorization": "Bearer " + access_token,
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+    },
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=10) as response:
+      raw_body = response.read().decode("utf-8", errors="replace")
+  except urllib.error.HTTPError as error:
+    if error.code in (401, 403):
+      return {"ok": False, "expired": True,
+              "helpText": "Muse's saved sign-in was rejected. Run `muse login` to refresh it."}
+    return {"ok": False,
+            "helpText": f"Muse's usage endpoint returned status {error.code}. Local Muse stats are still shown."}
+  except Exception:
+    return {"ok": False, "transport": True,
+            "helpText": "Couldn't reach Muse's usage endpoint. Retrying shortly. Local Muse stats are still shown."}
+
+  try:
+    payload = json.loads(raw_body)
+  except Exception:
+    # The server answered but not with JSON: a shape change, not a network
+    # failure. No retryAdvised — re-asking won't fix the parser.
+    return {"ok": False, "helpText": "Muse's usage endpoint returned an unreadable response. Local Muse stats are still shown."}
+
+  usage = payload.get("subs_usage") if isinstance(payload, dict) else None
+  if not isinstance(usage, dict):
+    # PAYG account: key mints fine but there is no subscription window to
+    # meter (live shape: is_subs_active=false, subs_tier_name=null, no
+    # subs_usage). Local metering is the whole story — stay silent, not an
+    # error.
+    if isinstance(payload, dict) and payload.get("is_subs_active") is False:
+      return {"ok": False, "payg": True}
+    tier_hint = str(payload.get("subs_tier_name") or "") if isinstance(payload, dict) else ""
+    return {"ok": False, "tierLabel": tier_hint,
+            "helpText": "Muse's usage endpoint returned no usage. Local Muse stats are still shown."}
+
+  limits = []
+  window = usage.get("window") or {}
+  if isinstance(window, dict) and window.get("used_percent") is not None:
+    try:
+      percent = min(1.0, max(0.0, float(window.get("used_percent")) / 100.0))
+    except Exception:
+      percent = -1.0
+    if percent >= 0:
+      mins = number(window.get("window_duration_mins"))
+      label = "Session (5-hour)" if mins == 300 else (f"Session ({mins}m)" if mins > 0 else "Session")
+      limits.append({"label": label, "percent": percent, "resetsAt": normalize_reset_at(window.get("resets_at"))})
+  weekly = usage.get("weekly") or {}
+  if isinstance(weekly, dict) and weekly.get("used_percent") is not None:
+    try:
+      percent = min(1.0, max(0.0, float(weekly.get("used_percent")) / 100.0))
+    except Exception:
+      percent = -1.0
+    if percent >= 0:
+      limits.append({"label": "Weekly (7-day)", "percent": percent, "resetsAt": normalize_reset_at(weekly.get("resets_at"))})
+
+  if not limits:
+    tier_hint = str(payload.get("subs_tier_name") or "") if isinstance(payload, dict) else ""
+    return {"ok": False, "tierLabel": tier_hint,
+            "helpText": "Muse's usage endpoint returned no limits. Local Muse stats are still shown."}
+  tier = ""
+  if isinstance(payload, dict):
+    tier = str(payload.get("subs_tier_name") or "")
+  return {"ok": True, "limits": limits, "tierLabel": tier}
+
+
+def limit_window_open(entry: dict, now: datetime) -> bool:
+  # A cached percentage lives only until its window rolls over; past-reset
+  # figures describe a period that is over. No (or unreadable) reset is kept.
+  raw = str(entry.get("resetsAt") or "")
+  if raw == "":
+    return True
+  try:
+    resets_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except Exception:
+    return True
+  if resets_at.tzinfo is None:
+    resets_at = resets_at.replace(tzinfo=timezone.utc)
+  return resets_at > now
+
+
+def usable_cached_limits(cached: dict) -> list:
+  entries = cached.get("limits")
+  if not isinstance(entries, list):
+    return []
+  now = datetime.now(timezone.utc)
+  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+
+
+def collect_limits(force: bool) -> dict:
+  result = {"limits": [], "tierLabel": "Account", "usageStatusText": "", "authHelpText": ""}
+
+  probe_cache = None
+  try:
+    probe_cache = cache_root() / "muse-limits.json"
+    cached = json.loads(probe_cache.read_text(encoding="utf-8")) if probe_cache.exists() else {}
+  except Exception as exc:
+    print(f"omarchy-agent-usage-muse: could not read limits cache ({exc})", file=sys.stderr)
+    cached = {}
+  if not isinstance(cached, dict):
+    cached = {}
+  fallback = usable_cached_limits(cached)
+  fallback_tier = str(cached.get("tierLabel") or "")
+
+  access_token = read_access_token()
+  if access_token == "":
+    # No login: PAYG or signed-out. Never estimated, never an auth nag —
+    # local metering is valid on its own. Reuse unexpired cached windows if
+    # a previous subscription probe left any.
+    if fallback:
+      result["limits"] = fallback
+    if fallback_tier:
+      result["tierLabel"] = fallback_tier
+    return result
+
+  fetched_at = number(cached.get("fetchedAtMs")) / 1000
+  if (fallback or fallback_tier) and not force and time.time() - fetched_at < PROBE_MIN_INTERVAL_SECONDS:
+    result["limits"] = fallback
+    if fallback_tier:
+      result["tierLabel"] = fallback_tier
+    return result
+
+  probe = probe_key(access_token)
+  if probe["ok"]:
+    result["limits"] = probe["limits"]
+    if probe.get("tierLabel"):
+      result["tierLabel"] = probe["tierLabel"]
+    elif fallback_tier:
+      result["tierLabel"] = fallback_tier
+    if probe_cache is not None:
+      try:
+        write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000),
+                                 "limits": probe["limits"], "tierLabel": result["tierLabel"]})
+      except Exception as exc:
+        print(f"omarchy-agent-usage-muse: could not write limits cache ({exc})", file=sys.stderr)
+    return result
+
+  if probe.get("transport"):
+    result["retryAdvised"] = True
+  if probe.get("payg"):
+    # Authenticated PAYG: no subscription windows exist. Keep local metering
+    # only, silent — not an error, not expired.
+    return result
+  if probe.get("expired"):
+    result["usageStatusText"] = "Sign-in expired"
+    result["authHelpText"] = probe["helpText"]
+    result["limits"] = fallback
+    if fallback_tier:
+      result["tierLabel"] = fallback_tier
+    return result
+  if fallback:
+    result["limits"] = fallback
+    if fallback_tier:
+      result["tierLabel"] = fallback_tier
+    elif probe.get("tierLabel"):
+      result["tierLabel"] = probe["tierLabel"]
+  else:
+    result["usageStatusText"] = "Muse limits unavailable"
+    result["authHelpText"] = probe["helpText"]
+    if probe.get("tierLabel"):
+      result["tierLabel"] = probe["tierLabel"]
+  return result
+
+
+def cache_root():
+  root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def scan_cache_paths():
+  db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
+  digest = hashlib.sha1(
+    (str(Path.home()) + "\n" + str(muse_sessions_root()) + "\n" + str(db)).encode("utf-8")
+  ).hexdigest()[:16]
+  root = cache_root()
+  return root / f"muse-scan-{digest}.json", root / f"muse-scan-{digest}.lock"
+
+
+def read_fresh_json(path, max_age_seconds):
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      return json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  return None
+
+
+def write_json(path, payload):
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def read_cached_stats(cache_file, max_age_seconds):
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != CACHE_SCHEMA_VERSION:
+    return None
+  if cached.get("scanDate") != today:
+    return None
+  stats = cached.get("stats")
+  if not isinstance(stats, dict):
+    return None
+  required = (
+    "todayPrompts", "todaySessions", "todayTotalTokens", "todayTokensByModel",
+    "recentDays", "totalPrompts", "totalSessions", "activeDays", "activeDates",
+    "modelUsage",
+  )
+  if not all(key in stats for key in required):
+    return None
+  return stats
+
+
+def write_cached_stats(cache_file, stats):
+  try:
+    write_json(cache_file, {"schemaVersion": CACHE_SCHEMA_VERSION, "scanDate": today, "stats": stats})
+  except Exception as exc:
+    print(f"omarchy-agent-usage-muse: could not write usage cache ({exc})", file=sys.stderr)
+
+
+def local_stats():
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
+    "totalPrompts": total_prompts,
+    "totalSessions": len(total_sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": model_usage,
+  }
+
+
+def run_local_scans():
+  scan_native_muse_sessions()
+  complete = scan_opencode_sessions()
+  return local_stats(), complete
+
+
+def cached_local_stats(max_age):
+  try:
+    return _cached_local_stats(max_age)
+  except Exception as exc:
+    print(f"omarchy-agent-usage-muse: cache unavailable ({exc}); scanning directly", file=sys.stderr)
+    stats, _ = run_local_scans()
+    return stats
+
+
+def _cached_local_stats(max_age):
+  cache_file, lock_file = scan_cache_paths()
+  cached = read_cached_stats(cache_file, max_age)
+  if cached is not None:
+    return cached
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = read_cached_stats(cache_file, max_age)
+    if cached is not None:
+      return cached
+    stats, complete = run_local_scans()
+    if complete:
+      write_cached_stats(cache_file, stats)
+    return stats
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true", help="rescan sessions, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent scan; kept for CLI compatibility with the panel refresh")
+  args = parser.parse_args()
+
+  max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  stats = cached_local_stats(max_age)
+  limits = collect_limits(args.force)
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
+    "hasLocalStats": True,
+    # Prompts and sessions are counted, so the panel shows them in tooltips.
+    "hasPromptStats": True,
+    "todayPrompts": number(stats.get("todayPrompts")),
+    "todaySessions": number(stats.get("todaySessions", len(today_sessions))),
+    "todayTotalTokens": number(stats.get("todayTotalTokens")),
+    "todayTokensByModel": stats.get("todayTokensByModel") or {},
+    "recentDays": stats.get("recentDays") or [],
+    "totalPrompts": number(stats.get("totalPrompts")),
+    "totalSessions": number(stats.get("totalSessions", len(total_sessions))),
+    "activeDays": number(stats.get("activeDays")),
+    "activeDates": stats.get("activeDates") or [],
+    "modelUsage": stats.get("modelUsage") or {},
+    "tierLabel": limits["tierLabel"],
+    "limits": limits["limits"],
+    "usageStatusText": limits["usageStatusText"],
+    "authHelpText": limits["authHelpText"],
+  }
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

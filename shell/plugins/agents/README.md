@@ -25,15 +25,15 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
   the same way the weekly chart scales to its busiest day. Hover for the
   input / output / cache split.
 
-A subscription appears only when it is enabled in settings and has actually
-recorded usage — on this machine or on a synced one. With one such agent
+A subscription appears only when it is enabled in settings and has recorded
+usage, limits, or a balance — on this machine or on a synced one. With one such agent
 there is no switch row at all; with none, the module leaves the bar entirely
 rather than sitting there with nothing to say. A CLI installed mid-session
 shows up at the next refresh, so nothing polls the disk waiting for it.
 
 That self-hiding is why the widget ships in the default bar layout: a machine
-that has never run an AI coding agent draws nothing, and the icon arrives on
-its own the first time a scan finds usage. Drop it with
+with no agent usage, limits, or balance draws nothing, and the icon arrives on
+its own the first time a collector finds data. Drop it with
 `omarchy plugin disable omarchy.agents`.
 
 ## Data
@@ -55,14 +55,9 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `muse` | The client's key endpoint (session + weekly percents), else local metering only — never estimated | native `muse` CLI session files plus opencode sessions on the `meta` provider or `muse-spark` models |
 
-Claude limits need a signed-in CLI; without credentials the panel says so and
-falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads
-`FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
-`~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
-opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+Claude limits need a signed-in CLI; without credentials the panel says so and falls back to local stats only. A non-default Claude directory is honored via `CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Muse reads native CLI sessions from `$XDG_DATA_HOME/muse/sessions` (defaulting to `~/.local/share/muse/sessions`, and overridable via `MUSE_DATA_DIR`) plus opencode sessions on the `meta` provider or `muse-spark` models; with no recorded usage anywhere the tab stays hidden until the first session lands. Muse reads the OAuth token from `MUSE_AUTH_PATH` when set, otherwise from `~/.config/muse/auth.json` (which `muse login` creates). Fireworks reads `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is signed in there.
 
 ### Fireworks balance
 
@@ -91,6 +86,18 @@ period. `accountId` only matters when one API key can access several
 accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
+
+### Muse limits
+
+The collector asks the client's own key endpoint for the subscription's
+session and weekly percents with reset times — the same figures the TUI's
+`/usage` overlay shows. Minting is idempotent (the same Model API key comes
+back every call), so polling is safe; the token travels only in the
+`Authorization` header and neither it nor the returned key is persisted.
+Pay-as-you-go accounts have no subscription windows, so the tab shows
+measured local usage with no meters — never estimated, never zeroed. With
+neither a working probe nor a subscription, the tab still shows token usage,
+just no limits.
 
 ## Interactions
 
@@ -128,7 +135,8 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "muse": { "enabled": true }
 }' --json
 ```
 
@@ -146,5 +154,5 @@ the same account synced from two machines is not counted twice.
 
 One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
-billing API, so their totals and day counts cover that window. Claude's cover
-every transcript still on disk.
+billing API, so their totals and day counts cover that window. Claude's and
+Muse's cover every session still on disk.
