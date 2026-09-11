@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 setup="$ROOT/bin/omarchy-setup-security-fido2"
 security_functions="$ROOT/bin/omarchy-security-functions"
+router="$ROOT/bin/omarchy"
 
 test_tmp=$(mktemp -d)
 stub_bin="$test_tmp/bin"
@@ -28,6 +29,23 @@ cleanup() {
   return 0
 }
 trap cleanup EXIT
+
+[[ $(head -n 1 "$router") == '#!/bin/bash -p' ]] ||
+  fail "the public Omarchy router requests privileged Bash at the kernel boundary"
+router_poison="$test_tmp/router-bash-env"
+router_poison_calls="$test_tmp/router-poison-calls"
+cat >"$router_poison" <<'SH'
+printf '%s\n' router-bash-env >>"$TEST_ROUTER_POISON_CALLS"
+SH
+BASH_ENV="$router_poison" TEST_ROUTER_POISON_CALLS="$router_poison_calls" OMARCHY_PATH="$ROOT" \
+  "$router" setup security fido2 --help >/dev/null
+[[ ! -e $router_poison_calls ]] ||
+  fail "the public Omarchy router executes an inherited Bash startup hook" "$(<"$router_poison_calls")"
+unsafe_router_status=0
+/usr/bin/bash "$router" -p >/dev/null 2>&1 || unsafe_router_status=$?
+(( unsafe_router_status == 126 )) ||
+  fail "the public Omarchy router rejects an ordinary Bash launch with a decoy -p argument" "got status $unsafe_router_status"
+pass "the public Omarchy router reaches FIDO2 dispatch without inherited Bash startup hooks"
 
 # The setup installs to an absolute path no unprivileged suite can write, and an
 # environment override in the shipped command would hand its privileged install

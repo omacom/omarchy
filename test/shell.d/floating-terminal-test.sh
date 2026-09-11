@@ -48,7 +48,7 @@ gum_state=$(
 pass "gum theme loading cannot replace execution-control environment variables"
 
 launcher="$ROOT/bin/omarchy-launch-floating-terminal-with-presentation"
-cold_root="$tmp_dir/omarchy"
+cold_root="$tmp_dir/omarchy root"
 launcher_copy="$cold_root/bin/omarchy-launch-floating-terminal-with-presentation"
 sudo_invalidated="$tmp_dir/sudo-invalidated"
 mkdir -p "$cold_root/bin"
@@ -75,6 +75,19 @@ OMARCHY_PATH="$tmp_dir/mismatched-root" /usr/bin/bash -p "$launcher_copy" >/dev/
 (( mismatched_root_status == 126 )) ||
   fail "presentation wrapper rejects a mismatched Omarchy source root" "got status $mismatched_root_status"
 pass "presentation wrapper binds runtime helpers to its own source root"
+
+linked_root="$tmp_dir/linked Omarchy root"
+ln -s "$cold_root" "$linked_root"
+normalized_root=$(
+  OMARCHY_PATH="$linked_root" /usr/bin/bash -p -c '
+    source "$1"
+    omarchy_security_require_source_root "$2"
+    printf "%s\n" "$OMARCHY_PATH"
+  ' omarchy-source-root-test "$cold_root/bin/omarchy-security-functions" "$launcher_copy"
+)
+[[ $normalized_root == "$cold_root" ]] ||
+  fail "presentation wrapper accepts a matching symlinked runtime root" "$normalized_root"
+pass "presentation wrapper normalizes a matching symlinked runtime root"
 
 cat >"$tmp_dir/sudo" <<'SCRIPT'
 #!/bin/bash
@@ -109,12 +122,16 @@ SCRIPT
   TEST_SUDO_INVALIDATED="$sudo_invalidated" OMARCHY_PATH="$cold_root" \
   BASH_ENV="$startup_poison" ENV="$startup_poison" \
   'BASH_FUNC_printf%%=() { if [[ -e $TEST_SUDO_INVALIDATED ]]; then builtin echo exported-printf-after-sudo-invalidation >>"$TEST_POISON_CALLS"; fi; builtin printf "$@"; }' \
-  "$launcher_copy" --cold-sudo "echo hello"
+  "$launcher_copy" --cold-sudo "$cold_root/bin/omarchy-setup-security-fido2" "argument with spaces"
 
 mapfile -t calls <"$TEST_LOG"
 [[ ${calls[0]:-} == $'sudo\t-k' ]] || fail "cold presentation launch invalidates sudo first" "$(<"$TEST_LOG")"
 [[ ${calls[1]:-} == "restart-gum" ]] || fail "cold presentation launch invalidates sudo before theming" "$(<"$TEST_LOG")"
 [[ ${calls[2]:-} == $'setsid\t'* ]] || fail "cold presentation launch invalidates sudo before terminal launch" "$(<"$TEST_LOG")"
+printf -v escaped_setup '%q' "$cold_root/bin/omarchy-setup-security-fido2"
+printf -v escaped_argument '%q' "argument with spaces"
+[[ ${calls[2]:-} == *"$escaped_setup $escaped_argument;"* ]] ||
+  fail "cold presentation launch preserves command arguments and paths with spaces" "${calls[2]:-}"
 [[ ! -s $poison_calls ]] ||
   fail "cold presentation launch preserves inherited Bash callbacks" "$(<"$poison_calls")"
-pass "cold presentation launch sanitizes Bash state and revokes sudo before pre-entry callbacks"
+pass "cold presentation launch sanitizes Bash state, preserves argv, and revokes sudo before pre-entry callbacks"

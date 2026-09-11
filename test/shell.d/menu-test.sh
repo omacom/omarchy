@@ -40,6 +40,7 @@ assertDeepEqual(
     target: '',
     description: 'appearance colors',
     action: 'omarchy-theme-set',
+    actionArgv: [],
     provider: '',
     aliases: ['theme'],
     when: '',
@@ -59,6 +60,14 @@ assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order
 assert(merged.items.root, 'menu injects root when merging sources')
 
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
+assertDeepEqual(
+  menu.expandActionArgv(
+    ['$OMARCHY_PATH/bin/command', '--flag', 'argument with spaces'],
+    '/tmp/Omarchy root'
+  ),
+  ['/tmp/Omarchy root/bin/command', '--flag', 'argument with spaces'],
+  'menu expands the runtime root without collapsing command arguments'
+)
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')
 assert(menu.isDescendantOf(merged.items, 'style.theme', 'style'), 'menu detects descendants')
@@ -324,10 +333,15 @@ assert(
   defaultById['setup.security.passwordless-sudo'].action.includes('omarchy-sudo-passwordless'),
   'menu places Passwordless Sudo under Setup > Security'
 )
-assertEqual(
-  defaultById['setup.security.fido2'].action,
-  '"$OMARCHY_PATH/bin/omarchy-launch-floating-terminal-with-presentation" --cold-sudo "$OMARCHY_PATH/bin/omarchy-setup-security-fido2"',
-  'menu revokes cached sudo before any FIDO2 presentation callback'
+assertDeepEqual(
+  defaultById['setup.security.fido2'].actionArgv,
+  ['$OMARCHY_PATH/bin/omarchy-launch-floating-terminal-with-presentation', '--cold-sudo', '$OMARCHY_PATH/bin/omarchy-setup-security-fido2'],
+  'menu preserves the FIDO2 launch as command arguments'
+)
+assert(
+  !defaultById['setup.security.fido2'].action
+    && /if \(argv\.length > 0\) \{\s*Quickshell\.execDetached\(argv\)/.test(menuQml),
+  'menu launches FIDO2 directly without an outer login shell callback'
 )
 assert(
   !defaultById['trigger.toggle.direct-boot'] && !defaultById['trigger.toggle.passwordless-sudo'],

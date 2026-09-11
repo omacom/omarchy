@@ -10,15 +10,31 @@ function normalizeAliases(value) {
   return []
 }
 
+function normalizeActionArgv(value) {
+  if (!Array.isArray(value)) return []
+  return value.filter(function(argument) { return typeof argument === "string" && argument.length > 0 })
+}
+
+function expandActionArgv(value, omarchyPath) {
+  var argv = normalizeActionArgv(value)
+  var token = "$OMARCHY_PATH"
+  return argv.map(function(argument) {
+    if (argument === token || argument.indexOf(token + "/") === 0)
+      return String(omarchyPath || "") + argument.slice(token.length)
+    return argument
+  })
+}
+
 function normalizeItem(id, raw) {
   var value = raw || {}
   var aliases = normalizeAliases(value.aliases)
+  var actionArgv = normalizeActionArgv(value.actionArgv)
   var parent = value.parent
   if (parent === undefined)
     parent = id.indexOf(".") >= 0 ? id.split(".").slice(0, -1).join(".") : "root"
   if (id === "root") parent = ""
 
-  var kind = value.action ? "action" : (value.target ? "link" : "menu")
+  var kind = value.action || actionArgv.length > 0 ? "action" : (value.target ? "link" : "menu")
 
   return {
     id: id,
@@ -31,6 +47,7 @@ function normalizeItem(id, raw) {
     target: value.target || "",
     description: value.description || "",
     action: value.action || "",
+    actionArgv: actionArgv,
     provider: value.provider || "",
     aliases: aliases,
     when: value.when || "",
@@ -84,7 +101,7 @@ function mergeMenuSources(defaultItems, userItems) {
   }
 
   if (!nextItems.root) {
-    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
+    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", actionArgv: [], provider: "" }
     nextOrder.unshift("root")
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
@@ -496,6 +513,8 @@ if (typeof module !== "undefined") {
     guardScript: guardScript,
     stripJsonc: stripJsonc,
     normalizeAliases: normalizeAliases,
+    normalizeActionArgv: normalizeActionArgv,
+    expandActionArgv: expandActionArgv,
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
     mergeMenuSources: mergeMenuSources,

@@ -45,15 +45,30 @@ omarchy_security_sanitize_bash_environment() {
 }
 
 omarchy_security_require_source_root() {
-  local command_source command_name=${1##*/}
+  local command_source command_name=${1##*/} package_command="" runtime_command="" runtime_root=""
   command_source=$(/usr/bin/readlink -e -- "$1") || return 1
+  runtime_root=$(/usr/bin/realpath -e -- "${OMARCHY_PATH:-}" 2>/dev/null) || runtime_root=""
+  if [[ -n $runtime_root ]]; then
+    runtime_command=$(/usr/bin/readlink -e -- "$runtime_root/bin/$command_name" 2>/dev/null) || runtime_command=""
+  fi
+  package_command=$(/usr/bin/readlink -e -- "/usr/share/omarchy/bin/$command_name" 2>/dev/null) || package_command=""
 
-  # A runtime root selects the code used by this invocation. Accept the
-  # canonical checkout containing the entrypoint or the package's bin links.
-  if [[ ${OMARCHY_PATH:-} != /* || $(/usr/bin/realpath -e -- "$OMARCHY_PATH") != "$OMARCHY_PATH" ]] ||
-    ! { [[ $command_source == "$OMARCHY_PATH/bin/$command_name" ]] ||
-      [[ $OMARCHY_PATH == "/usr/share/omarchy" && $command_source == "/usr/bin/$command_name" ]]; }; then
+  # The Quattro live-upgrade shim leaves existing sessions pointing at a
+  # user-owned compatibility tree whose bin entries resolve to /usr/bin.
+  # Accept that alias only when it resolves to this exact packaged command,
+  # then discard the mutable alias before any runtime helpers are selected.
+  if [[ $runtime_command != "$command_source" ]]; then
     echo "OMARCHY_PATH does not match this Omarchy command." >&2
     return 1
   fi
+
+  if [[ $command_source == "/usr/bin/$command_name" && $package_command == "$command_source" ]]; then
+    OMARCHY_PATH=/usr/share/omarchy
+  elif [[ $command_source == "$runtime_root/bin/$command_name" ]]; then
+    OMARCHY_PATH="$runtime_root"
+  else
+    echo "OMARCHY_PATH does not match this Omarchy command." >&2
+    return 1
+  fi
+  export OMARCHY_PATH
 }

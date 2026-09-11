@@ -134,11 +134,15 @@ Item {
     resultProc.running = true
   }
 
-  function runAction(action) {
-    var command = String(action || "")
-    if (!command) return
-
-    Util.execDetached(command)
+  function runAction(action, actionArgv) {
+    var argv = MenuModel.expandActionArgv(actionArgv, root.omarchyPath)
+    if (argv.length > 0) {
+      Quickshell.execDetached(argv)
+    } else {
+      var command = String(action || "")
+      if (!command) return
+      Util.execDetached(command)
+    }
   }
 
   // Menu rows only surface their detail while a search is narrowing them;
@@ -822,10 +826,11 @@ Item {
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
+    var entry = root.item(id)
     applySerial = requestSerial
     opened = false
     filterText = ""
-    root.runAction(action)
+    root.runAction(action, entry ? entry.actionArgv : [])
   }
 
   function cancel() {
@@ -898,9 +903,9 @@ Item {
     // If the resolved id is an action (i.e. the user invoked an alias for
     // a leaf, e.g. `omarchy menu summon screenrecord-stop`), run it directly
     // instead of opening an action with no children.
-    if (entry && entry.kind === "action" && entry.action) {
+    if (entry && entry.kind === "action") {
       root.cancel()
-      root.runAction(entry.action)
+      root.runAction(entry.action, entry.actionArgv)
       return "ok"
     }
     // If it's a link (a redirect to another menu), follow the link.

@@ -1,7 +1,7 @@
 #!/bin/bash -p
 
 # omarchy:summary=Launch a floating terminal with the Omarchy presentation wrapper
-# omarchy:args=[--cold-sudo] <command>
+# omarchy:args=[--cold-sudo] <command> [args...]
 
 # The shebang's -p must take effect before Bash can process inherited startup
 # hooks that would otherwise run ahead of cold-sudo invalidation.
@@ -35,7 +35,12 @@ fi
 # even after a theme switch (the inherited environment is captured at login).
 source "$OMARCHY_PATH/bin/omarchy-restart-gum"
 
-cmd="$*"
+if [[ ${cold_sudo:-false} == "true" ]]; then
+  printf -v cmd '%q ' "$@"
+  cmd=${cmd% }
+else
+  cmd="$*"
+fi
 logo_command=$(printf '%q' "$OMARCHY_PATH/bin/omarchy-show-logo")
 done_command=$(printf '%q' "$OMARCHY_PATH/bin/omarchy-show-done")
 presentation_script="$logo_command; $cmd; if (( \$? != 130 )); then $done_command; fi"

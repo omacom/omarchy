@@ -26,7 +26,7 @@ is no separate parent field to keep in sync — where an entry appears follows
 from what it is called (an explicit `parent` is accepted but nothing shipped
 uses one).
 
-Kind is inferred rather than declared: an entry with `action` is an action,
+Kind is inferred rather than declared: an entry with `action` or `actionArgv` is an action,
 one with `target` is a link to another submenu, and anything else is a
 submenu. The fields:
 
@@ -37,11 +37,14 @@ submenu. The fields:
 | `label` | Visible row title; defaults to the id |
 | `title` | Header text when the submenu is open; defaults to `label`. Lets a row read "Browser" under Defaults while the open menu says "Default Browser" |
 | `action` | Shell command to run, detached, when selected |
+| `actionArgv` | Command and arguments to run directly without a shell; a leading `$OMARCHY_PATH` token in an argument expands to the runtime root |
 | `target` | Existing submenu id to open; makes the row a link |
 | `provider` | Runtime row source for this submenu (see Providers) |
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
 | `description` | Subtitle shown while searching, and extra search text matched by whole word |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
+
+Use `actionArgv` for fixed security-sensitive commands that must not run login-shell startup files before their own entrypoint. Each array element remains one argument, including paths with spaces.
 
 Do not add `aliases` to new entries. They are reserved for established
 alternate names users already type (`power-menu`, `settings`), kept for
