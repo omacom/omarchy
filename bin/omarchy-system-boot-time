@@ -1,0 +1,209 @@
+#!/bin/bash
+
+# omarchy:summary=Show how long this boot took, from power-on to desktop
+# omarchy:group=system
+# omarchy:args=[--record|--notify]
+# omarchy:examples=omarchy system boot time
+
+set -euo pipefail
+
+state_file="$HOME/.local/state/omarchy/boot-time"
+boot_id=$(</proc/sys/kernel/random/boot_id)
+glyph=󰔛
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-system-boot-time [--record|--notify]
+
+Prints how long this boot took, from power-on to the desktop starting.
+
+  --record  Stamp the moment the desktop started. Only the first start after a
+            boot is kept, so a logout and login does not overwrite the figure.
+  --notify  Stamp if not yet stamped, then send the boot-time notification once
+            the notification server is up. Shows once per boot; run from
+            Hyprland autostart.
+USAGE
+}
+
+# systemd's monotonic timestamps are microseconds since kernel entry, the same
+# clock /proc/uptime reports in seconds. Firmware and loader are only known on
+# EFI boots where the loader hands them over; elsewhere they read 0 and the
+# figure can only be counted from kernel start.
+systemd_us() {
+  local value
+
+  value=$(systemctl show -p "$1" --value 2>/dev/null) || value=0
+  [[ $value =~ ^[0-9]+$ ]] || value=0
+  echo "$value"
+}
+
+uptime_seconds() {
+  local uptime _idle
+
+  read -r uptime _idle </proc/uptime
+  echo "$uptime"
+}
+
+# The state file is one key=value per line. Read it into the variables below
+# rather than sourcing it, so a stray line in the user's state directory is
+# ignored instead of executed.
+state_boot_id=""
+firmware_us=0
+loader_us=0
+userspace_us=0
+finish_us=0
+desktop_uptime=""
+notified=0
+
+load_state() {
+  local key value
+
+  [[ -f $state_file ]] || return 1
+
+  while IFS='=' read -r key value; do
+    case $key in
+      boot_id) state_boot_id=$value ;;
+      firmware_us | loader_us | userspace_us | finish_us)
+        [[ $value =~ ^[0-9]+$ ]] && printf -v "$key" '%s' "$value"
+        ;;
+      desktop_uptime)
+        [[ $value =~ ^[0-9]+(\.[0-9]+)?$ ]] && desktop_uptime=$value
+        ;;
+      notified)
+        [[ $value == "1" ]] && notified=1
+        ;;
+    esac
+  done <"$state_file"
+
+  [[ $state_boot_id == "$boot_id" && -n $desktop_uptime ]]
+}
+
+write_state() {
+  mkdir -p "$(dirname "$state_file")"
+  cat >"$state_file" <<STATE
+boot_id=$boot_id
+firmware_us=$firmware_us
+loader_us=$loader_us
+userspace_us=$userspace_us
+finish_us=$finish_us
+desktop_uptime=$desktop_uptime
+notified=$notified
+STATE
+}
+
+record() {
+  # hyprland.start fires on every compositor start, not only the first after a
+  # boot. Keep the first stamp of this boot; a later login is not a boot.
+  if load_state; then
+    return 0
+  fi
+
+  firmware_us=$(systemd_us FirmwareTimestampMonotonic)
+  loader_us=$(systemd_us LoaderTimestampMonotonic)
+  userspace_us=$(systemd_us UserspaceTimestampMonotonic)
+  finish_us=$(systemd_us FinishTimestampMonotonic)
+  desktop_uptime=$(uptime_seconds)
+  notified=0
+  write_state
+}
+
+# Two lines: the headline, then the per-phase breakdown. The total is what the
+# user asked for; the breakdown is what makes a slow number actionable. When
+# the desktop moment was never recorded this boot, the figure stops where
+# systemd finished starting and says so.
+report() {
+  local recorded=$1
+
+  awk -v firmware_us="$firmware_us" -v loader_us="$loader_us" \
+    -v userspace_us="$userspace_us" -v finish_us="$finish_us" \
+    -v desktop_uptime="$desktop_uptime" -v recorded="$recorded" '
+    BEGIN {
+      prekernel = firmware_us / 1e6
+      loader = loader_us / 1e6
+      firmware = prekernel - loader
+      kernel = userspace_us / 1e6
+      finish = finish_us / 1e6
+      if (recorded) {
+        end = desktop_uptime + 0
+      } else {
+        end = finish
+      }
+
+      total = prekernel + end
+      headline = sprintf("Time taken to boot: %ds", int(total + 0.5))
+      if (prekernel == 0) {
+        headline = headline " (since kernel start)"
+      }
+      if (!recorded) {
+        headline = headline " (to system startup; desktop not recorded)"
+      }
+      print headline
+
+      parts = ""
+      if (prekernel > 0) {
+        parts = sprintf("firmware %.1fs · loader %.1fs", firmware, loader)
+      }
+      if (finish > kernel && finish <= end) {
+        parts = parts (parts ? " · " : "") sprintf("kernel %.1fs · system %.1fs", kernel, finish - kernel)
+        if (recorded) {
+          parts = parts sprintf(" · desktop %.1fs", end - finish)
+        }
+      } else {
+        parts = parts (parts ? " · " : "") sprintf("kernel %.1fs · system %.1fs", kernel, end - kernel)
+      }
+      print parts
+    }'
+}
+
+notify() {
+  local headline breakdown
+
+  # Stamp here rather than from a separate autostart line: Hyprland dispatches
+  # its exec lines without waiting, so a notify started alongside a record
+  # would look for the stamp before it was written.
+  record
+  (( notified == 0 )) || exit 0
+
+  { read -r headline; read -r breakdown; } < <(report 1)
+
+  # Autostart reaches this before the shell has claimed the notification bus
+  # name; without the wait the toast is sent into the void. The shell is
+  # usually up within a second, but give a slow disk room.
+  omarchy-notification-wait 30 || true
+
+  omarchy-notification-send -u low -g "$glyph" "$headline" "$breakdown"
+  notified=1
+  write_state
+}
+
+show() {
+  if load_state; then
+    report 1
+  else
+    firmware_us=$(systemd_us FirmwareTimestampMonotonic)
+    loader_us=$(systemd_us LoaderTimestampMonotonic)
+    userspace_us=$(systemd_us UserspaceTimestampMonotonic)
+    finish_us=$(systemd_us FinishTimestampMonotonic)
+    desktop_uptime=$(uptime_seconds)
+    report 0
+  fi
+}
+
+case "${1:-}" in
+  "")
+    show
+    ;;
+  --record)
+    record
+    ;;
+  --notify)
+    notify
+    ;;
+  -h | --help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

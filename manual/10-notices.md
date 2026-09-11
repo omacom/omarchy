@@ -21,3 +21,9 @@ The location is detected from your IP address, which is usually close enough, bu
 `Super + Ctrl + Alt + B`
 
  ![notice-battery](images/notice-battery.webp)
+
+### Boot time
+
+Every boot, once the desktop is up, Omarchy shows a notice with the time taken from power-on to the desktop starting, broken down by phase: firmware, boot loader, kernel, system startup, and desktop. It appears once per boot, so logging out and back in does not repeat it. Run `omarchy system boot time` in a terminal to see the figure again later.
+
+If your disk is encrypted and you type the passphrase during boot, the time you spend typing it is counted in the kernel phase; there is no way to measure boot without it. On machines whose firmware does not report its own timing, the figure is counted from kernel start and the notice says so.
