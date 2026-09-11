@@ -33,6 +33,27 @@ mise_environment() {
   )
 }
 
+assert_unsafe_variant_removed() {
+  local variant="$1"
+  local assignment="$2"
+  local variant_home="$test_dir/$variant-home"
+  local variant_config="$variant_home/Work/.mise.toml"
+  local variant_project="$variant_home/Work/tries/untrusted-repository"
+  local before after
+
+  mkdir -p "$variant_project/bin"
+  printf '[env]\n%s\n' "$assignment" >"$variant_config"
+
+  before=$(mise_environment "$variant_home" "$variant_project")
+  grep -F "$variant_project/bin" <<<"$before" >/dev/null || fail "$variant legacy config prepends the repository bin directory"
+
+  run_migration "$variant_home" >/dev/null
+  after=$(mise_environment "$variant_home" "$variant_project")
+  if grep -F "$variant_project/bin" <<<"$after" >/dev/null; then
+    fail "$variant repository bin directory remains in PATH after migration"
+  fi
+}
+
 install_home="$test_dir/install-home"
 install_log="$test_dir/install-mise.log"
 mkdir -p "$install_home" "$test_dir/bin"
@@ -75,6 +96,10 @@ fi
 run_migration "$stock_home" >/dev/null
 [[ ! -e $stock_config ]] || fail "stock migration is idempotent"
 pass "migration explicitly removes the repository bin directory from Mise PATH"
+
+assert_unsafe_variant_removed inline-comment '_.path = "{{ cwd }}/bin" # Omarchy default'
+assert_unsafe_variant_removed single-quoted "_.path = '{{ cwd }}/bin'"
+pass "migration removes annotated and single-quoted project bin paths"
 
 custom_home="$test_dir/custom-home"
 custom_config="$custom_home/Work/.mise.toml"
