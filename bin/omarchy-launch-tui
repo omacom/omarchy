@@ -1,13 +1,45 @@
 #!/bin/bash
 
 # omarchy:summary=Launch a TUI command in the default terminal with Omarchy styling
-# omarchy:args=[--app-id=<app-id>] <command> [args...]
+# omarchy:args=[--app-id=<app-id>] [--title=<title>] <command> [args...]
 
-if [[ ${1:-} == --app-id=* ]]; then
-  APP_ID="${1#--app-id=}"
-  shift
-else
-  APP_ID="org.omarchy.$(basename $1)"
+app_id=""
+title=""
+
+while [[ ${1:-} == --* ]]; do
+  case "$1" in
+    --app-id=*)
+      app_id="${1#--app-id=}"
+      shift
+      ;;
+    --title=*)
+      title="${1#--title=}"
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [[ -z $app_id ]]; then
+  app_id="org.omarchy.$(basename "$1")"
 fi
 
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=$APP_ID -e "$1" "${@:2}"
+if [[ -n $title ]]; then
+  # Ghostty's --title locks the title and ignores later updates from the TUI.
+  # Set an initial title inside the terminal so session renames still propagate.
+  # Pass both the title and command as arguments, never interpolated shell code.
+  set -- bash -c '
+    title=${1//[[:cntrl:]]/}
+    shift
+    printf "\033]0;%s\007" "$title"
+    exec "$@"
+  ' omarchy-launch-tui "$title" "$@"
+fi
+
+exec setsid uwsm-app -- xdg-terminal-exec --app-id="$app_id" -e "$@"

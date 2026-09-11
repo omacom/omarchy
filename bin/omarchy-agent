@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
+# omarchy:args=[--inline] [--pick] [--title=<title>]
 # omarchy:examples=omarchy agent | omarchy agent --inline
 
 inline=false
 pick=false
+title_override=""
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -22,6 +23,14 @@ while (($#)); do
     --prompt)
       prompt=${2:?--prompt needs a value}
       shift 2
+      ;;
+    --title)
+      title_override=${2:?--title needs a value}
+      shift 2
+      ;;
+    --title=*)
+      title_override="${1#--title=}"
+      shift
       ;;
     *)
       echo "Unexpected argument: $1" >&2
@@ -136,10 +145,20 @@ pi)
   ;;
 esac
 
+if [[ -n ${title_override:-} ]]; then
+  title="$title_override"
+elif [[ -n ${prompt:-} ]]; then
+  prompt_title="${prompt%%$'\n'*}"
+  title="$agent: $prompt_title"
+else
+  title="$agent: $(basename "$PWD")"
+fi
+
 if [[ $inline == "true" ]]; then
+  [[ -t 1 ]] && printf '\033]0;%s\007' "$title"
   exec "${command[@]}"
 else
   # A fixed app-id rather than the default org.omarchy.<binary>, so every agent
   # window shares one class for window rules and themes to single out.
-  exec omarchy-launch-tui --app-id=org.omarchy.agent "${command[@]}"
+  exec omarchy-launch-tui --app-id=org.omarchy.agent --title="$title" "${command[@]}"
 fi
