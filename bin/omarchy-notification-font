@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# omarchy:summary=Configure the notification text font
+# omarchy:args=[show | default | system | set <font-name> | list]
+# omarchy:examples=omarchy notification font system | omarchy notification font set "Inter" | omarchy notification font default
+
+set -euo pipefail
+
+source omarchy-shell-config
+
+DEFAULT_FONT="Liberation Sans"
+
+usage() {
+  cat <<USAGE
+Usage: omarchy notification font [show | default | system | set <font-name> | list]
+
+  show                Show the current notification font mode
+  default             Use the built-in notification font ($DEFAULT_FONT)
+  system              Follow the system monospace font (omarchy font set)
+  set <font-name>     Use a specific installed font family
+  list                List available font families
+
+Examples:
+  omarchy notification font system
+  omarchy notification font set "Inter"
+  omarchy notification font default
+USAGE
+}
+
+current_mode() {
+  jq -r '.notifications.font // "default"' "$(source_file)"
+}
+
+resolved_family() {
+  local mode="$1" raw line
+  case "$mode" in
+    default) printf '%s\n' "$DEFAULT_FONT" ;;
+    system)
+      # No pipeline: under `pipefail`, `head -n1` exits before fc-match
+      # finishes writing, and the SIGPIPE failure would poison the status.
+      raw=$(fc-match monospace -f '%{family}\n' 2>/dev/null)
+      line=${raw%%$'\n'*}
+      printf '%s\n' "${line%%,*}"
+      ;;
+    *) printf '%s\n' "$mode" ;;
+  esac
+}
+
+cmd_show() {
+  (( $# == 0 )) || fail "show takes no arguments"
+  local mode
+  mode=$(current_mode)
+  printf 'mode: %s\nfamily: %s\n' "$mode" "$(resolved_family "$mode")"
+}
+
+cmd_default() {
+  (( $# == 0 )) || fail "default takes no arguments"
+  commit "$NORMALIZE | .notifications.font = \"default\""
+  echo "Notification font set to default ($DEFAULT_FONT)"
+}
+
+cmd_system() {
+  (( $# == 0 )) || fail "system takes no arguments"
+  commit "$NORMALIZE | .notifications.font = \"system\""
+  echo "Notification font follows the system monospace font ($(resolved_family system))"
+}
+
+cmd_set() {
+  local font_name="${1:-}" matches
+  (( $# == 1 )) || fail "set takes a single font family name"
+  # grep -c reads the whole input, so fc-list never takes a SIGPIPE
+  # the way it would with `grep -q` under `pipefail`.
+  matches=$(fc-list 2>/dev/null | grep -Fic -- "$font_name")
+  if (( matches == 0 )); then
+    echo "Font '$font_name' not found." >&2
+    exit 1
+  fi
+  commit "$NORMALIZE | .notifications.font = \$font" --arg font "$font_name"
+  echo "Notification font set to $font_name"
+}
+
+cmd_list() {
+  (( $# == 0 )) || fail "list takes no arguments"
+  omarchy-font-list
+}
+
+cmd="${1:-show}"
+shift || true
+case "$cmd" in
+  -h | --help) usage ;;
+  show) cmd_show "$@" ;;
+  default) cmd_default "$@" ;;
+  system) cmd_system "$@" ;;
+  set) cmd_set "$@" ;;
+  list) cmd_list "$@" ;;
+  *) fail "unknown font command: $cmd (see 'omarchy notification font --help')" ;;
+esac

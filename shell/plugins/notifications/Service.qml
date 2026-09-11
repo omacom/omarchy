@@ -51,6 +51,24 @@ Item {
   readonly property int liveBarSize: shell && shell.bar && !shell.bar.barHidden ? Math.max(0, shell.bar.barSize) : defaultBarSize
   readonly property int barClearance: liveBarSize + Style.gapsOut
 
+  // Text font for notification summary/body, from shell.json `notifications.font`
+  // (see `omarchy notification font`). "default" is the built-in proportional
+  // font, "system" follows the live system monospace family, and anything else
+  // is a custom installed family name. shellConfig is reactive, so edits apply
+  // without a shell restart; "system" stays live through the bar binding.
+  readonly property string notificationFontSetting: {
+    var cfg = shell && shell.shellConfig ? shell.shellConfig.notifications : null
+    var f = cfg ? cfg.font : null
+    return (typeof f === "string" && f.length > 0) ? f : "default"
+  }
+  readonly property string notificationTextFontFamily: {
+    if (service.notificationFontSetting === "system")
+      return (shell && shell.bar && shell.bar.fontFamily) || Style.font.family
+    if (service.notificationFontSetting === "default")
+      return "Liberation Sans"
+    return service.notificationFontSetting
+  }
+
   // Live Notification objects by originalId, kept OUT of the ListModels: a
   // QObject stored in a model role becomes a dangling C++ pointer when the
   // server destroys the notification (sender close, DND untrack, dismiss),
@@ -1050,6 +1068,7 @@ Item {
               timestamp: cardSlot.timestamp
               cornerRadius: service.cornerRadius
               fontFamily: service.shell && service.shell.bar ? service.shell.bar.fontFamily : ""
+              textFontFamily: service.notificationTextFontFamily
               glyph: cardSlot.glyph
 
               onCloseRequested: service.dismissPopup(cardSlot.index)
