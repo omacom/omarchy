@@ -29,9 +29,16 @@ pass "Claude collector counts each API message once"
   fail "Claude collector keeps mutually exclusive token categories" "$result"
 pass "Claude collector keeps mutually exclusive token categories"
 
-[[ $(jq -r '.id + "/" + .usageStatusText' <<<"$result") == "claude/Waiting for auth" ]] ||
-  fail "Claude collector identifies itself and reports missing auth" "$result"
-pass "Claude collector identifies itself and reports missing auth"
+[[ $(jq -r '.id' <<<"$result") == "claude" ]] ||
+  fail "Claude collector identifies itself" "$result"
+pass "Claude collector identifies itself"
+
+# An API-key user has local usage but never an OAuth token: no cached limits
+# to explain, so the collector stays silent instead of nagging for a login —
+# the way the Codex collector does when its RPC yields no windows.
+[[ $(jq -r '.usageStatusText' <<<"$result") == "" ]] ||
+  fail "Claude collector stays silent for API usage without cached limits" "$result"
+pass "Claude collector stays silent for API usage without cached limits"
 
 # A machine with no transcripts and no stats-cache still gets today's counts
 # from history.jsonl alone.
