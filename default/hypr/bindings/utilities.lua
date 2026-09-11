@@ -15,6 +15,7 @@ o.bind("XF86Calculator", "Calculator", "omacalc")
 
 o.bind_toggle("SUPER + SHIFT + SPACE", "Toggle top bar", "bar")
 o.bind("SUPER + CTRL + SPACE", "Background switcher", "omarchy-menu toggle background")
+o.bind("SUPER + CTRL + ALT + SPACE", "All backgrounds", "omarchy-menu toggle style.background-all")
 o.bind("SUPER + SHIFT + CTRL + SPACE", "Theme menu", "omarchy-menu toggle theme")
 o.bind("SUPER + BACKSPACE", "Toggle window transparency", "omarchy-hyprland-window-transparency-toggle")
 o.bind("SUPER + SHIFT + BACKSPACE", "Toggle window gaps", "omarchy-hyprland-window-gaps-toggle")
