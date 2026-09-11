@@ -635,8 +635,7 @@ Panel {
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
-    if (!adapter) return
-    Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
+    Quickshell.execDetached(["omarchy-bluetooth-power", adapter && adapter.enabled ? "off" : "on"])
   }
 
   IpcHandler {
@@ -714,7 +713,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
-            visible: !!root.adapter
+            visible: true
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
             foreground: root.bar.foreground
