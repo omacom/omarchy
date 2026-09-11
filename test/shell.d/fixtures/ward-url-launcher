@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Synthetic launch helper: emulate the stock webapp launcher's setsid fork.
+exec setsid /bin/bash -c 'sleep 0.2; printf "%s" "$1" > "$2"' -- "$1" "${0%/*}/../record"

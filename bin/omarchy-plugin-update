@@ -12,6 +12,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
 UPDATED_ANY=0
+UPDATED_LEGACY=0
 
 fail() {
   echo "omarchy-plugin-update: $*" >&2
@@ -39,6 +40,24 @@ valid_plugin_id() {
 update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
+  local sandboxed=false
+  local installation installation_error origin candidate next_id mode
+  installation=$(omarchy-plugin-installation list | jq -c --arg id "$id" 'first(.[] | select(.id == $id)) // null') || return 1
+  installation_error=$(jq -r '.error // empty' <<<"$installation")
+  if [[ -n $installation_error ]]; then
+    echo "omarchy-plugin-update: $installation_error" >&2
+    return 1
+  fi
+  origin=$(git -C "$dir" config --local --get remote.origin.url) || return 1
+  omarchy-git-url-check "$origin" || return 1
+  if ! git -C "$dir" diff --quiet || ! git -C "$dir" diff --cached --quiet; then
+    echo "omarchy-plugin-update: commit or stash local changes in $dir before updating" >&2
+    return 1
+  fi
+  if omarchy-plugin-isolation | jq -e --arg id "$id" 'index($id) != null' >/dev/null \
+    || jq -e 'has("sandbox")' "$dir/manifest.json" >/dev/null; then
+    sandboxed=true
+  fi
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
@@ -49,6 +68,32 @@ update_one() {
     echo "$id is up to date."
     return 0
   fi
+
+  if [[ $sandboxed == "true" ]] && ! git -C "$dir" show FETCH_HEAD:manifest.json | jq -e 'has("sandbox")' >/dev/null; then
+    echo "omarchy-plugin-update: refusing to turn sandbox plugin '$id' into in-process code" >&2
+    return 1
+  fi
+  next_id=$(git -C "$dir" show FETCH_HEAD:manifest.json | jq -r '.id') || return 1
+  if [[ $next_id != "$id" ]]; then
+    echo "omarchy-plugin-update: refusing an update that changes plugin identity" >&2
+    return 1
+  fi
+  mode=$(jq -r '.mode // "legacy-trusted"' <<<"$installation")
+  if [[ $mode != "ward" && $mode != "legacy-trusted" ]] \
+    && git -C "$dir" show FETCH_HEAD:manifest.json | jq -e 'has("sandbox")' >/dev/null; then
+    echo "omarchy-plugin-update: trusted installation now declares Ward; reinstall in Ward mode" >&2
+    return 1
+  fi
+  # Validate candidate bytes before touching the live checkout. Never reset a
+  # user's checkout to roll back a rejected or racing update.
+  candidate=$(mktemp -d)
+  if ! git -C "$dir" archive FETCH_HEAD | tar -xf - -C "$candidate" \
+    || ! omarchy-plugin-validate "$candidate"; then
+    rm -rf -- "$candidate"
+    echo "omarchy-plugin-update: candidate failed validation; checkout unchanged" >&2
+    return 1
+  fi
+  rm -rf -- "$candidate"
 
   if (( ! ASSUME_YES )); then
     echo "Changes for $id:"
@@ -64,18 +109,26 @@ update_one() {
     }
   fi
 
+  if [[ $(git -C "$dir" config --local --get remote.origin.url) != "$origin" ]]; then
+    echo "omarchy-plugin-update: source changed during update; checkout unchanged" >&2
+    return 1
+  fi
   if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
     echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
 
-  if ! omarchy-plugin-validate "$dir"; then
-    git -C "$dir" reset --hard ORIG_HEAD >/dev/null
-    echo "omarchy-plugin-update: update of '$id' failed validation; rolled back" >&2
-    return 1
+  if [[ $installation != "null" ]]; then
+    omarchy-plugin-installation record "$id" "$mode" "$(jq -r '.sourceKind' <<<"$installation")" "$origin" "$(git -C "$dir" rev-parse HEAD)" || return 1
   fi
 
   echo "Updated $id."
+  if jq -e 'has("sandbox")' "$dir/manifest.json" >/dev/null; then
+    echo "Checkout only; any approved revision and its grants are unchanged."
+    echo "Review the update with: omarchy plugin review $id"
+  else
+    UPDATED_LEGACY=1
+  fi
   UPDATED_ANY=1
 }
 
@@ -128,6 +181,10 @@ for id in "${targets[@]}"; do
 done
 
 if (( UPDATED_ANY )); then
-  omarchy-shell shell rescanPlugins >/dev/null
+  if (( UPDATED_LEGACY )); then
+    omarchy-shell shell rescanPlugins >/dev/null
+  else
+    omarchy-shell -q shell rescanPlugins >/dev/null
+  fi
 fi
 exit $rc

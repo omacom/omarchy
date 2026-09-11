@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# omarchy:summary=Call the native Ward plugin management backend
+# omarchy:hidden=true
+
+# JSON on stdin/stdout; only trusted commands and the future review UI call it.
+# Overrides are for explicitly built development runtimes, not plugin manifests.
+set -euo pipefail
+
+runtime="${OMARCHY_WARD_HOST:-$OMARCHY_PATH/lib/omarchy-ward}"
+store="${OMARCHY_WARD_STORE:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/ward}"
+
+[[ $runtime == /* ]] || { echo "omarchy-ward-runtime: runtime path must be absolute" >&2; exit 1; }
+[[ $store == /* ]] || { echo "omarchy-ward-runtime: store path must be absolute" >&2; exit 1; }
+
+request=$(head -c 65537)
+(( ${#request} <= 65536 )) || { echo "omarchy-ward-runtime: request too large" >&2; exit 1; }
+if [[ ! -x $runtime ]]; then
+  # A stock installation can remove a checkout before Ward has ever created
+  # its store. A missing executable alone says nothing about past approvals.
+  if jq -e 'type == "object" and (keys == ["id", "operation"])
+      and (.operation == "remove" or .operation == "revoke")
+      and (.id | type == "string" and length > 0 and length <= 96
+        and test("^[A-Za-z0-9][A-Za-z0-9._-]*$") and (contains("..") | not))' <<<"$request" >/dev/null \
+    && python3 - "$store" <<'PY'
+import os
+import sys
+
+try:
+  os.lstat(sys.argv[1])
+except FileNotFoundError:
+  sys.exit(0)
+except OSError:
+  pass
+sys.exit(1)
+PY
+  then
+    echo 'null'
+    exit 0
+  fi
+  echo "omarchy-ward-runtime: native sandbox runtime is not installed; existing or unverifiable Ward state requires the runtime for safe cleanup. Restore the installed binary or set OMARCHY_WARD_HOST to an explicitly built development binary." >&2
+  exit 1
+fi
+if [[ $(jq -r '.operation' <<<"$request") == "import" ]]; then
+  mkdir -p "$(dirname "$store")"
+fi
+response=$(printf '%s' "$request" | "$runtime" --manage "$store")
+if jq -e '.ok == true' <<<"$response" >/dev/null; then
+  jq -c '.value' <<<"$response"
+else
+  jq -r '.error // "native management failed"' <<<"$response" >&2
+  exit 1
+fi

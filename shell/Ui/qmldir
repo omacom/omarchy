@@ -2,6 +2,7 @@ module qs.Ui
 
 BarIndicator 1.0 BarIndicator.qml
 BarIconButton 1.0 BarIconButton.qml
+BarToolTip 1.0 BarToolTip.qml
 BarWidget 1.0 BarWidget.qml
 BackgroundMedia 1.0 BackgroundMedia.qml
 BackgroundVideo 1.0 BackgroundVideo.qml

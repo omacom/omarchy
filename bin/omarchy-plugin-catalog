@@ -10,7 +10,14 @@
 # single source of truth used by bar selection and plugin enable/clone, so
 # those commands never re-implement manifest walking.
 
-set -o pipefail
+set -euo pipefail
+
+if ! identities=$(omarchy-plugin-isolation 2>/dev/null) \
+  || ! retained=$(omarchy-plugin-isolation retained 2>/dev/null) \
+  || ! installations=$(omarchy-plugin-installation list 2>/dev/null); then
+  echo "omarchy-plugin-catalog: plugin isolation/provenance state is unavailable; refusing third-party loading. Check installed plugin helpers and state-directory permissions." >&2
+  exit 1
+fi
 
 paths=()
 
@@ -19,32 +26,48 @@ while IFS= read -r manifest; do
 done < <(find "$OMARCHY_PATH/shell/plugins" -mindepth 2 -maxdepth 4 -type f \( -name manifest.json -o -name '*.manifest.json' \) | sort)
 
 user_dir="$HOME/.config/omarchy/plugins"
+checkouts='[]'
 if [[ -d $user_dir ]]; then
+  # Keep broken checkouts manageable, but distinguish them from retained
+  # security identities whose installed files have already been removed.
+  checkouts=$(find "$user_dir" -mindepth 1 -maxdepth 1 ! -name '.*' -printf '%f\0' | jq -Rs 'split("\u0000") | map(select(length > 0))')
   while IFS= read -r manifest; do
     paths+=("$manifest")
   done < <(find -L "$user_dir" -mindepth 2 -maxdepth 2 -type f -name manifest.json \
     ! -path "$user_dir/.*/*" 2>/dev/null | sort)
 fi
 
-if (( ${#paths[@]} == 0 )); then
-  echo "[]"
-  exit 0
-fi
-
-jq -n '
+{
+  for manifest in "${paths[@]}"; do
+    # One malformed checkout must not hide other plugins or native identities.
+    jq -c --arg path "$manifest" '{manifest: ., path: $path}' "$manifest" ||
+      echo "omarchy-plugin-catalog: invalid manifest: $manifest" >&2
+  done
+} | jq -n --argjson identities "$identities" --argjson retained "$retained" --argjson installations "$installations" --argjson checkouts "$checkouts" --arg bundled "$OMARCHY_PATH/shell/plugins/" --arg user "$user_dir/" '
   [ inputs
-    | . as $manifest
-    | input_filename as $manifestPath
+    | .manifest as $manifest
+    | .path as $manifestPath
     | ($manifestPath | sub("/manifest.json$"; "") | sub("/[^/]+\\.manifest\\.json$"; "")) as $sourceDir
+    | ($manifestPath | startswith($bundled)) as $firstParty
+    | ($sourceDir | split("/") | last) as $directoryId
+    | (first($installations[] | select(.id == $directoryId)) // {}) as $installation
+    | select($firstParty or ($manifest.id | startswith("omarchy.") | not))
     | {
         id: ($manifest.id // ""),
         name: ($manifest.name // $manifest.id // ""),
         description: ($manifest.description // ""),
         kinds: ($manifest.kinds // []),
-        firstParty: (($manifest.id // "") | startswith("omarchy.")),
+        firstParty: $firstParty,
+        installed: true,
         manifestPath: $manifestPath,
         sourceDir: $sourceDir,
         entryPoints: ($manifest.entryPoints // {}),
+        sandbox: ($manifest.sandbox // null),
+        sandboxed: (($manifest | has("sandbox")) or ($identities | index($manifest.id) != null or index($directoryId) != null)),
+        wardIdentity: (($manifest | has("sandbox")) or ($retained | index($manifest.id) != null or index($directoryId) != null)),
+        executionMode: (if $firstParty then "first-party" else $installation.mode // (if ($manifest | has("sandbox")) then "ward" else "legacy-trusted" end) end),
+        installation: (if $firstParty then null else $installation end),
+        error: (if $firstParty then null else $installation.error // null end),
         barWidget: ($manifest.barWidget // null),
         bar: ($manifest.bar // null)
       }
@@ -58,5 +81,10 @@ jq -n '
         else null end)
     | select(.id != "")
   ]
+  | . as $catalog
+  | . + [$identities[] as $id | select(all($catalog[]; .id != $id)) |
+      {id: $id, name: $id, sandboxed: true, wardIdentity: ($retained | index($id) != null), firstParty: false, kinds: [], entryPoints: {}, executionMode: "blocked",
+       sourceDir: ($user + $id), manifestPath: null, sandbox: null, installed: ($checkouts | index($id) != null),
+       error: "Isolated plugin checkout is missing or invalid"}]
   | unique_by(.id)
-' "${paths[@]}"
+'

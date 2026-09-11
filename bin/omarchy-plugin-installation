@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Read and record host-owned plugin installation provenance
+# omarchy:hidden=true
+
+set -euo pipefail
+exec python3 "$OMARCHY_PATH/default/omarchy/plugin-installation.py" "$@"

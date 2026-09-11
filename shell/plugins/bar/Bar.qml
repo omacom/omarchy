@@ -1283,68 +1283,13 @@ Item {
       }
     }
 
-    PopupWindow {
-      id: tooltipWindow
-
+    BarToolTip {
       visible: root.tooltipShown && root.tooltipTarget !== null && root.tooltipText !== "" && root.targetBelongsToWindow(root.tooltipTarget, barWindow)
-      color: "transparent"
-      implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
-      implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
-
-      anchor {
-        id: tooltipAnchor
-        window: barWindow
-        adjustment: PopupAdjustment.Slide
-        edges: Edges.Top | Edges.Left
-        gravity: Edges.Bottom | Edges.Right
-        rect.width: 1
-        rect.height: 1
-
-        onAnchoring: {
-          var target = root.tooltipTarget
-          if (!root.targetBelongsToWindow(target, barWindow)) return
-
-          var popupWidth = tooltipWindow.implicitWidth
-          var popupHeight = tooltipWindow.implicitHeight
-          var localX = target.width / 2 - popupWidth / 2
-          var localY = target.height + 6
-
-          if (root.position === "bottom") {
-            localY = -popupHeight - 6
-          } else if (root.position === "left") {
-            localX = target.width + 6
-            localY = target.height / 2 - popupHeight / 2
-          } else if (root.position === "right") {
-            localX = -popupWidth - 6
-            localY = target.height / 2 - popupHeight / 2
-          }
-
-          var point = barWindow.contentItem.mapFromItem(target, localX, localY)
-          tooltipAnchor.rect.x = Math.round(point.x)
-          tooltipAnchor.rect.y = Math.round(point.y)
-        }
-      }
-
-      BorderSurface {
-        id: tooltipBubble
-        implicitWidth: tooltipLabel.implicitWidth + 20
-        implicitHeight: tooltipLabel.implicitHeight + 14
-        color: Color.tooltip.background
-        borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
-        radius: Style.cornerRadius
-
-        Text {
-          id: tooltipLabel
-          textFormat: Text.PlainText
-          anchors.centerIn: parent
-          text: root.tooltipText
-          color: Color.tooltip.text
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          horizontalAlignment: Text.AlignHCenter
-          verticalAlignment: Text.AlignVCenter
-        }
-      }
+      target: root.tooltipTarget
+      text: root.tooltipText
+      ownerWindow: barWindow
+      position: root.position
+      fontFamily: root.fontFamily
     }
 
     Component {

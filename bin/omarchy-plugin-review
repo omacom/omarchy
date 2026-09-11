@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# omarchy:summary=Review an installed Ward plugin revision and its requested permissions
+# omarchy:args=<id> [--json|--ui]
+# omarchy:examples=omarchy plugin review acme.weather
+
+set -euo pipefail
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy plugin review <id> [--json|--ui]"
+  exit 0
+fi
+
+id="${1:-}"
+[[ -n $id ]] || { echo "omarchy-plugin-review: plugin id is required" >&2; exit 1; }
+shift
+if (( $# > 1 )) || { (( $# == 1 )) && [[ $1 != "--json" && $1 != "--ui" ]]; }; then
+  echo "omarchy-plugin-review: expected --json or --ui after the id" >&2
+  exit 1
+fi
+
+plugin=$(omarchy-plugin-catalog | jq -ce --arg id "$id" 'map(select(.id == $id))[0] // empty') || {
+  echo "omarchy-plugin-review: plugin '$id' is not installed; use omarchy plugin add first" >&2
+  exit 1
+}
+jq -e '.sandbox != null' <<<"$plugin" >/dev/null || {
+  echo "omarchy-plugin-review: '$id' has no sandbox entry point; it uses the existing trusted in-process workflow" >&2
+  exit 1
+}
+source_dir=$(jq -r '.sourceDir' <<<"$plugin")
+if [[ ${1:-} == "--ui" ]]; then
+  payload=$(jq -cn --arg id "$id" '{id: $id}')
+  result=$(omarchy-shell shell summon omarchy.plugin-review "$payload")
+  [[ $result == "ok" ]] || { echo "omarchy-plugin-review: review panel is unavailable; restart the updated shell" >&2; exit 1; }
+  exit 0
+fi
+review=$(jq -cn --arg path "$source_dir" '{operation: "import", path: $path}' | omarchy-ward-runtime)
+# Import records isolation before approval. Refresh the live loader's identity
+# snapshot even when this review never proceeds to enable.
+omarchy-shell -q shell rescanPlugins >/dev/null 2>&1 || true
+
+if [[ ${1:-} == "--json" ]]; then
+  printf '%s\n' "$review"
+else
+  jq -r '
+    def requirement: if type == "object" and .required == true then "required" else "optional" end;
+    . as $review | .requests as $requests |
+    "\(.name) (\(.id)) — \(.version)",
+    "Revision: \(.revision)", "", "Requested permissions:",
+    (($requests.filesystem // [])[] |
+      "  \(if .target == "file" then "File" else "Folder" end) \(.name): \(if .access == "readwrite" then "read-write" else "read-only" end), \(requirement)",
+      "    \($review.paths[.name])"),
+    (($requests.http // {}) | to_entries[] |
+      "  HTTP \(.key): \(.value.scope.method) \(.value.scope.origin)\(.value.scope.path)\(if .value.scope.subtree then " (subtree)" else "" end), \(.value | requirement)",
+      "    Query: \(.value.scope.query | tojson)", "    JSON body: \(.value.scope.body | tojson)"),
+    (($requests.exec // {}) | to_entries[] |
+      "  Host executable \(.key): \(.value.executable)",
+      "    Required leaves: \(.value.required | tojson)",
+      "    Command tree: \(.value.tree | tojson)",
+      "    Uses existing host accounts, files and network; completed effects cannot be undone by revocation."),
+    ([
+      {key: "network", label: "Internet and local network"},
+      {key: "networkProxy", label: "Public Internet connections, including opaque TCP tunnels and data transmission; no local services or per-URL restrictions"},
+      {key: "media", label: "Control media player: \($requests.media.service // "")"},
+      {key: "notifications", label: "Send text notifications"},
+      {key: "audioPlayback", label: "Play audio on the default output; no recording"},
+      {key: "microphone", label: "Record the default input (microphone or user-selected virtual source)"},
+      {key: "audioCapture", label: "Record the default output monitor, including audio from other applications"},
+      {key: "desktopGeometry", label: "Read window and screen layout; no titles, contents or window control"},
+      {key: "openUrls", label: "Open HTTP(S) links in browser sessions"},
+      {key: "storage", label: "Save plugin data; revoking permission keeps saved data"}
+    ][] | . as $capability | $requests[$capability.key] | select(. != null and . != false) |
+      "  \($capability.label) (\(requirement))"),
+    ($requests.settings as $settings | ["read", "write"][] as $operation |
+      ($settings[$operation] // [])[] | "  Own setting \(.): \($operation), \($settings | requirement)"),
+    (if (($requests.filesystem // []) | length) == 0
+      and (($requests.http // {}) | length) == 0
+      and (($requests.exec // {}) | length) == 0
+      and (($requests.settings.read // []) | length) == 0 and (($requests.settings.write // []) | length) == 0
+      and ([$requests.network, $requests.networkProxy, $requests.media, $requests.notifications, $requests.audioPlayback, $requests.microphone, $requests.audioCapture, $requests.desktopGeometry, $requests.openUrls, $requests.storage] | any(. != null and . != false) | not)
+      then "  None" else empty end),
+    "", "Reviewing permissions does not start the plugin or change its current approval.",
+    "Approve this exact revision with:",
+    "  omarchy plugin approve \(.id) --revision \(.revision)"
+  ' <<<"$review"
+fi

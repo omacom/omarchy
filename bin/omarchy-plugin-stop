@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# omarchy:summary=Stop a running Ward plugin without disabling its approval
+# omarchy:group=plugin
+# omarchy:args=<id>
+
+set -euo pipefail
+
+fail() {
+  echo "omarchy-plugin-stop: $*" >&2
+  exit 1
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy plugin stop <id>"
+  echo "Stops the running instance and keeps the reviewed approval enabled, so"
+  echo "the plugin can be re-approved and re-enabled without a destructive revoke."
+  echo "The worker (and any owned host commands) is stopped; nothing is unapproved."
+  exit 0
+fi
+
+id="${1:-}"
+[[ -n $id ]] || fail "plugin id is required"
+
+catalog=$(omarchy-plugin-catalog)
+if jq -e --arg id "$id" 'any(.[]; .id == $id and .sandboxed)' <<<"$catalog" >/dev/null; then
+  jq -cn --arg id "$id" '{operation: "stop", id: $id}' | omarchy-ward-runtime >/dev/null
+  # The stop operation stops the controller/worker and clears the active unit
+  # (so a re-approval, which requires no running instance, can follow) while
+  # leaving enabled=true in place. It is the non-destructive companion to
+  # revoke: use it before re-approving a changed/reviewed revision.
+else
+  fail "plugin '$id' is not a Ward-sandboxed plugin; use: omarchy plugin disable"
+fi
+
+echo "Stopped $id (approval kept enabled)"

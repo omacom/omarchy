@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Review, publish or discard a temporary Ward plugin checkout
+# omarchy:hidden=true
+
+set -euo pipefail
+exec python3 "$OMARCHY_PATH/default/omarchy/plugin-stage.py" "$@"

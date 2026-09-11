@@ -1,0 +1,4 @@
+#!/bin/bash
+# Omarchy's adapter bootstrap runs only after Ward applies worker restrictions.
+export OMARCHY_PATH=/runtime
+exec /usr/bin/quickshell --no-color -p /runtime/shell/worker.qml

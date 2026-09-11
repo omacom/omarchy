@@ -46,6 +46,7 @@ PanelWindow {
   property int contentHeight: Style.space(200)
   property var borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
   property bool centerOnBar: false
+  property bool centerOnScreen: false
   property bool open: false
   property int gap: Style.gapsOut  // distance between bar edge and panel
   property bool popoutSwitching: false
@@ -192,6 +193,7 @@ PanelWindow {
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
   readonly property point cardOrigin: {
+    if (centerOnScreen) return Qt.point(Math.round(Math.max(margin, (screenW - contentWidth) / 2)), Math.round(Math.max(margin, (screenH - contentHeight) / 2)))
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {

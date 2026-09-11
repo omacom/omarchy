@@ -19,6 +19,20 @@ ShellRoot {
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
+  property SandboxedPlugins sandboxedPlugins: SandboxedPlugins {
+    bar: shell.bar
+    onChanged: shell.pluginRegistry.pluginsChanged()
+  }
+  property SandboxedPluginActivation sandboxActivation: SandboxedPluginActivation {
+    manager: shell.sandboxedPlugins
+    registry: shell.pluginRegistry
+    config: shell.shellConfig
+    writeConfig: next => shell.persistShellConfig(next)
+  }
+  readonly property var sandboxPresentationConfig: sandboxActivation.previewConfig
+  property PluginSecurityFeedback pluginSecurityFeedback: PluginSecurityFeedback {
+    manager: shell.sandboxedPlugins
+  }
 
   property string home: Quickshell.env("HOME")
 
@@ -70,6 +84,16 @@ ShellRoot {
     pluginRegistry.pluginsChanged()
   }
 
+  onSandboxPresentationConfigChanged: {
+    var config = sandboxPresentationConfig
+    var layout = config.bar && config.bar.layout ? config.bar.layout : {}
+    var barEntries = []
+    for (var section of ["left", "center", "right"]) {
+      if (Array.isArray(layout[section])) barEntries = barEntries.concat(layout[section])
+    }
+    sandboxedPlugins.sync(Array.isArray(config.plugins) ? config.plugins : [], barEntries)
+  }
+
   function applyShellConfig() {
     // Decide which source is canonical: a valid user shell.json overrides
     // defaults entirely; otherwise fall back to defaults. We do not deep-merge.
@@ -113,7 +137,7 @@ ShellRoot {
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
-  readonly property var barConfig: shellConfig && Util.isPlainObject(shellConfig.bar) ? shellConfig.bar : builtinShellConfig.bar
+  readonly property var barConfig: renderingBarConfig(sandboxPresentationConfig && Util.isPlainObject(sandboxPresentationConfig.bar) ? sandboxPresentationConfig.bar : builtinShellConfig.bar)
   onBarConfigChanged: {
     if (bar && "barConfig" in bar)
       bar.barConfig = shell.barConfigFor(shell.activeBarManifest)
@@ -320,6 +344,19 @@ ShellRoot {
     delete copy.__sourceDir
     delete copy.__isFirstParty
     delete copy.__hostCapabilities
+    return copy
+  }
+
+  function renderingBarConfig(config) {
+    var copy = JSON.parse(JSON.stringify(config || {}))
+    var layout = copy.layout || {}
+    for (var section of ["left", "center", "right"]) {
+      if (!Array.isArray(layout[section])) continue
+      layout[section] = layout[section].map(entry => entry && entry.sandbox === true
+        ? { id: entry.id, sandbox: true } : entry)
+    }
+    // Native settings go to the worker, never the bar's legacy command/QML
+    // dispatch. This also protects trusted replacement bars with older code.
     return copy
   }
 
@@ -1141,6 +1178,7 @@ ShellRoot {
   function summon(pluginId, payloadJson) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
     if (!id) return false
+    if (shell.pluginRegistry.isSandboxed(id)) return shell.sandboxedPlugins.show(id, payloadJson)
     var plugins = shell.pluginRegistry.installedPlugins
     if (!plugins[id]) {
       console.warn("summon: unknown plugin", id)
@@ -1160,6 +1198,7 @@ ShellRoot {
       if (!summoned) console.warn("summon: no live bar widget for:", id)
       return summoned === true
     }
+    shell.sandboxedPlugins.dismissAll()
     var next = ({})
     for (var k in openPanelIds) next[k] = openPanelIds[k]
     next[id] = true
@@ -1181,6 +1220,7 @@ ShellRoot {
   function hide(pluginId) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
     if (!id) return false
+    if (shell.pluginRegistry.isSandboxed(id)) return shell.sandboxedPlugins.hide(id)
     if (shell.isBarWidgetPanelPlugin(id)) {
       var hidden = shell.bar && typeof shell.bar.hideBarWidget === "function"
         && shell.bar.hideBarWidget(id)
@@ -1197,6 +1237,7 @@ ShellRoot {
 
   function isPluginOpen(pluginId) {
     var id = shell.pluginRegistry.resolveEnabledId(pluginId)
+    if (shell.pluginRegistry.isSandboxed(id)) return shell.sandboxedPlugins.isOpen(id)
     if (shell.isBarWidgetPanelPlugin(id)) {
       return shell.bar && typeof shell.bar.isBarWidgetOpen === "function"
         ? shell.bar.isBarWidgetOpen(id)
@@ -1224,19 +1265,36 @@ ShellRoot {
     deliverIfLoaded(pluginId)
   }
 
-  function unregisterPanelLoader(pluginId) {
-    if (!panelLoaders[pluginId]) return
+  function unregisterPanelLoader(pluginId, loader) {
+    if (panelLoaders[pluginId] !== loader) return
     var next = ({})
     for (var k in panelLoaders) if (k !== pluginId) next[k] = panelLoaders[k]
     panelLoaders = next
   }
 
   function unloadPanels() {
-    for (var id in panelLoaders) hide(id)
-    panelEntries = []
-    panelLoaders = ({})
-    pendingPayloads = ({})
-    openPanelIds = ({})
+    // Local plugin discovery must not destroy the installer/reviewer that
+    // initiated it. Bundled code changes require a shell restart; only user
+    // panel code needs unloading before clearing the component cache.
+    for (var i = panelEntries.count - 1; i >= 0; i--) {
+      var id = panelEntries.get(i).pluginId
+      var manifest = shell.pluginRegistry.installedPlugins[id]
+      if (manifest && manifest.__isFirstParty === true) continue
+      retirePanel(id)
+      panelEntries.remove(i)
+    }
+  }
+
+  function retirePanel(id) {
+    // Disabled/removed IDs no longer resolve through hide(). Clear their
+    // queued state directly so a later enable cannot reopen a retired panel.
+    invokeIfLoaded(id, "close", null)
+    var open = ({})
+    for (var k in openPanelIds) if (k !== id) open[k] = openPanelIds[k]
+    openPanelIds = open
+    var pending = ({})
+    for (var p in pendingPayloads) if (p !== id) pending[p] = pendingPayloads[p]
+    pendingPayloads = pending
   }
 
   function deliverIfLoaded(pluginId) {
@@ -1282,7 +1340,10 @@ ShellRoot {
   // One Loader per discoverable panel/overlay/menu plugin. Active when the
   // host marks it open. The Loader holds onto the instance while active so the
   // plugin's FloatingWindow + state survive between summons within a session.
-  property var panelEntries: []
+  // A keyed, incrementally updated model preserves Loader identity when
+  // unrelated plugins/configuration change. Replacing a JS array recreates
+  // every delegate, including open panels and their in-flight commands.
+  property ListModel panelEntries: ListModel { }
 
   function computePanelEntries() {
     var out = []
@@ -1303,9 +1364,25 @@ ShellRoot {
     return out
   }
 
+  function syncPanelEntries() {
+    var desired = computePanelEntries()
+    var ids = desired.map(entry => entry.id)
+    var existing = ({})
+    for (var i = panelEntries.count - 1; i >= 0; i--) {
+      var id = panelEntries.get(i).pluginId
+      if (ids.indexOf(id) === -1) {
+        retirePanel(id)
+        panelEntries.remove(i)
+      } else existing[id] = true
+    }
+    for (var j = 0; j < ids.length; j++) {
+      if (!existing[ids[j]]) panelEntries.append({ pluginId: ids[j] })
+    }
+  }
+
   Connections {
     target: shell.pluginRegistry
-    function onPluginsChanged() { if (!shell.pluginReloading) shell.panelEntries = shell.computePanelEntries() }
+    function onPluginsChanged() { if (!shell.pluginReloading) shell.syncPanelEntries() }
   }
 
   Instantiator {
@@ -1314,11 +1391,11 @@ ShellRoot {
 
     delegate: QtObject {
       id: panelEntry
-      required property var modelData
-      readonly property string pluginId: modelData.id
-      readonly property var manifest: modelData.manifest
-      readonly property string entryKind: modelData.kind
-      readonly property bool keepLoaded: modelData.keepLoaded === true
+      required property string pluginId
+      readonly property var manifest: shell.pluginRegistry.installedPlugins[pluginId] || null
+      readonly property string entryKind: manifest && manifest.kinds.indexOf("panel") !== -1 ? "panel"
+        : manifest && manifest.kinds.indexOf("overlay") !== -1 ? "overlay" : "menu"
+      readonly property bool keepLoaded: manifest && manifest.keepLoaded === true
       readonly property string sourceUrl: shell.pluginRegistry.entryPointUrl(manifest, entryKind)
 
       property Loader panelLoader: Loader {
@@ -1349,7 +1426,7 @@ ShellRoot {
             shell.hide(panelEntry.pluginId)
           }
         }
-        Component.onDestruction: shell.unregisterPanelLoader(panelEntry.pluginId)
+        Component.onDestruction: shell.unregisterPanelLoader(panelEntry.pluginId, this)
       }
     }
   }
@@ -1366,6 +1443,9 @@ ShellRoot {
   }
 
   property var pluginWidgetComponents: ({})
+  property Component sandboxedBarWidget: Component {
+    SandboxedBarWidget { manager: shell.sandboxedPlugins }
+  }
 
   function syncPluginWidgets() {
     var plugins = shell.pluginRegistry.installedPlugins
@@ -1374,14 +1454,15 @@ ShellRoot {
     for (var pluginId in plugins) {
       var manifest = plugins[pluginId]
       if (!manifest || !manifest.kinds || manifest.kinds.indexOf("bar-widget") === -1) continue
-      if (!shell.pluginRegistry.isEnabled(pluginId)) continue
+      var sandboxed = shell.pluginRegistry.isSandboxed(pluginId)
+      if (sandboxed ? !shell.sandboxedPlugins.instances[pluginId] : !shell.pluginRegistry.isEnabled(pluginId)) continue
 
       var registryKey = String(manifest.id)
       seen[registryKey] = true
 
       // Already loaded with matching source — leave it alone.
       var existing = pluginWidgetComponents[registryKey]
-      var url = shell.pluginRegistry.entryPointUrl(manifest, "barWidget")
+      var url = sandboxed ? "ward:bar-widget" : shell.pluginRegistry.entryPointUrl(manifest, "barWidget")
       if (!url) {
         console.warn("Plugin " + manifest.id + " has no barWidget entry point")
         continue
@@ -1391,14 +1472,20 @@ ShellRoot {
         displayName: meta.displayName || manifest.name,
         description: meta.description || manifest.description,
         category: meta.category || "Plugin",
-        allowMultiple: meta.allowMultiple === true,
+        allowMultiple: !sandboxed && meta.allowMultiple === true,
         defaults: meta.defaults || {},
-        settingsForm: meta.settingsForm || "",
+        settingsForm: sandboxed ? "" : meta.settingsForm || "",
         schema: meta.schema || [],
         pluginId: manifest.id,
-        sourceDir: manifest.__sourceDir || "",
+        sourceDir: sandboxed ? "" : manifest.__sourceDir || "",
         source: "plugin",
         firstParty: !!manifest.__isFirstParty
+      }
+
+      if (sandboxed) {
+        shell.barWidgetRegistry.register(registryKey, shell.sandboxedBarWidget, meta)
+        shell.setPluginWidgetComponent(registryKey, { url: url, component: shell.sandboxedBarWidget })
+        continue
       }
 
       // A load already in flight for this URL registers itself when it
@@ -1426,6 +1513,8 @@ ShellRoot {
       if (!pluginWidgetComponents[id]) continue
       if (!seen[id]) {
         shell.barWidgetRegistry.unregister(id)
+        var retired = pluginWidgetComponents[id].component
+        if (retired && retired !== shell.sandboxedBarWidget) retired.destroy()
         var next = ({})
         for (var k in pluginWidgetComponents) if (k !== id) next[k] = pluginWidgetComponents[k]
         pluginWidgetComponents = next
@@ -1434,7 +1523,11 @@ ShellRoot {
   }
 
   function unloadPluginWidgets() {
-    for (var id in pluginWidgetComponents) shell.barWidgetRegistry.unregister(id)
+    for (var id in pluginWidgetComponents) {
+      shell.barWidgetRegistry.unregister(id)
+      var retired = pluginWidgetComponents[id].component
+      if (retired && retired !== shell.sandboxedBarWidget) retired.destroy()
+    }
     pluginWidgetComponents = ({})
   }
 
@@ -1475,7 +1568,7 @@ ShellRoot {
       }
       shell.pluginReloading = false
       shell._syncServices()
-      shell.panelEntries = shell.computePanelEntries()
+      shell.syncPanelEntries()
       shell.syncPluginWidgets()
     }
   }
@@ -1488,14 +1581,22 @@ ShellRoot {
   }
 
   function loadPluginWidget(registryKey, url, meta) {
+    var previous = pluginWidgetComponents[registryKey]
+    if (previous && previous.component && previous.component !== shell.sandboxedBarWidget) previous.component.destroy()
     // Claim the key before the component exists. Qt.createComponent is
     // asynchronous and syncPluginWidgets runs several times while the shell
     // starts, so without a marker the later passes cannot tell a load in
     // flight from one that never happened.
     setPluginWidgetComponent(registryKey, { url: url, component: null })
 
-    var comp = Qt.createComponent(url, Component.Asynchronous)
+    // Keep the component's lifetime independent of the first bar Loader that
+    // instantiates it. A replacement bar must reuse the catalogue component.
+    var comp = Qt.createComponent(url, Component.Asynchronous, shell)
     function finalize() {
+      if (!pluginWidgetComponents[registryKey] || pluginWidgetComponents[registryKey].url !== url) {
+        comp.destroy()
+        return
+      }
       if (comp.status === Component.Ready) {
         shell.barWidgetRegistry.register(registryKey, comp, meta)
         shell.setPluginWidgetComponent(registryKey, { url: url, component: comp })
@@ -1504,6 +1605,7 @@ ShellRoot {
         // Drop the claim so a later rescan can retry.
         shell.setPluginWidgetComponent(registryKey, null)
         shell.pluginRegistry.pluginLoadFailed(registryKey, comp.errorString())
+        comp.destroy()
       }
     }
     if (comp.status === Component.Loading) {
@@ -1607,16 +1709,58 @@ ShellRoot {
     }
 
     function setPluginEnabled(id: string, enabled: string): string {
+      if (shell.pluginRegistry.isSandboxed(id)) {
+        if (enabled === "true") return "use omarchy plugin enable after approving a revision"
+        shell.sandboxActivation.disable(id)
+      }
       return shell.pluginRegistry.setEnabled(id, enabled === "true") ? "ok" : "unknown"
     }
 
     function enablePlugin(id: string, placementJson: string): string {
       try {
         var placement = JSON.parse(placementJson || "{}")
+        if (shell.pluginRegistry.isSandboxed(id)) {
+          return shell.sandboxActivation.enable(id, placement)
+        }
         if (shell.pluginRegistry.setEnabled(id, true, placement)) return "ok"
         return shell.pluginRegistry.lastEnableError || "unknown"
       } catch (e) {
         return "invalid placement: " + e
+      }
+    }
+
+    function pluginStatus(id: string): string {
+      return JSON.stringify(shell.sandboxActivation.status(id))
+    }
+
+    function saveSandboxSettings(id: string, settingsJson: string): string {
+      var locations = []
+      var config = shell.shellConfig
+      var sections = ["left", "center", "right", "plugins"]
+      for (var section of sections) {
+        var values = section === "plugins" ? config.plugins : config.bar?.layout?.[section]
+        if (!Array.isArray(values)) continue
+        values.forEach((entry, index) => {
+          if (entry && entry.id === id && entry.sandbox === true) locations.push({section: section, index: index})
+        })
+      }
+      var state = shell.sandboxedPlugins.status(id).state
+      if (locations.length !== 1 || (state !== "starting" && state !== "running")) return "plugin is not active"
+      try {
+        if (settingsJson.length > 65536) return "settings are too large"
+        var settings = JSON.parse(settingsJson)
+        if (!Util.isPlainObject(settings)
+          || ["id", "sandbox", "sandboxPresentation", "__proto__", "constructor", "prototype"].some(function(key) { return Object.prototype.hasOwnProperty.call(settings, key) }))
+          return "invalid settings"
+        // Only the marked native entry, never a legacy command/QML widget.
+        var copy = JSON.parse(JSON.stringify(shell.shellConfig))
+        var location = locations[0]
+        var entries = location.section === "plugins" ? copy.plugins : copy.bar.layout[location.section]
+        entries[location.index] = Object.assign({}, entries[location.index], settings)
+        if (JSON.stringify(copy) !== JSON.stringify(shell.shellConfig)) shell.persistShellConfig(copy)
+        return "ok"
+      } catch (e) {
+        return "invalid settings: " + e
       }
     }
 
@@ -1667,7 +1811,8 @@ ShellRoot {
           kinds: kinds,
           // What `omarchy plugin enable/disable` toggles: for a widget that is
           // its place in the bar, not whether its component is loadable.
-          enabled: isBarOption ? active
+          enabled: shell.pluginRegistry.isSandboxed(id) ? shell.sandboxedPlugins.status(id).state === "running"
+            : isBarOption ? active
             : (isBarWidget ? shell.pluginRegistry.inBar(id) : shell.pluginRegistry.isEnabled(id)),
           active: active,
           // A bar has no off, only a successor: you leave one by enabling
@@ -1676,8 +1821,21 @@ ShellRoot {
           // work it out again.
           canDisable: !isBarOption,
           firstParty: !!plugins[id].__isFirstParty,
+          executionMode: plugins[id].__isFirstParty ? "first-party" : plugins[id].__executionMode || "legacy-trusted",
+          sandboxed: shell.pluginRegistry.isSandboxed(id),
+          error: plugins[id].__installationError || null,
           clonedFrom: clonedFrom
         })
+      }
+      // A missing checkout must not hide a still-live native session. Runtime
+      // state comes from the host instance, never an approval's unit string.
+      for (var id of Object.keys(shell.sandboxedPlugins.instances)) {
+        if (plugins[id]) continue
+        var status = shell.sandboxedPlugins.status(id)
+        out.push({id: id, name: id, kinds: [], firstParty: false,
+          sandboxed: true, executionMode: "ward", canDisable: true,
+          enabled: status.state === "running", active: false,
+          error: "Isolated plugin checkout is missing or invalid"})
       }
       // Consumers should not each invent their own presentation order.
       out.sort(function(left, right) {

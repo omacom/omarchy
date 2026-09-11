@@ -1,0 +1,29 @@
+#!/bin/bash
+# omarchy:hidden=true
+# omarchy:summary=Stage Omarchy's trusted Ward worker adapter
+# omarchy:args=<new-runtime-directory>
+
+set -euo pipefail
+
+if (( $# != 1 )) || [[ $1 != /* || -e $1 || -L $1 ]]; then
+  echo "Usage: omarchy-ward-stage-runtime <new-absolute-runtime-directory>" >&2
+  exit 1
+fi
+
+# Stage a new versioned directory; never overwrite assets used by a session.
+# Publication/selection belongs to the caller's packaging workflow.
+runtime_dir=$1
+adapter_dir="$OMARCHY_PATH/shell/ward-runtime"
+mkdir -m 755 -- "$runtime_dir"
+install -Dm755 "$adapter_dir/worker" "$runtime_dir/worker"
+install -Dm644 "$adapter_dir/worker.qml" "$runtime_dir/shell/worker.qml"
+install -m644 "$adapter_dir/WidgetView.qml" "$runtime_dir/shell/WidgetView.qml"
+cp -R -- "$adapter_dir/Ward" "$OMARCHY_PATH/shell/Commons" "$OMARCHY_PATH/shell/Ui" "$runtime_dir/shell/"
+install -Dm644 "$OMARCHY_PATH/shell/services/PluginShellApi.qml" "$runtime_dir/shell/Services/PluginShellApi.qml"
+install -Dm755 "$adapter_dir/open-url" "$runtime_dir/bin/omarchy-launch-browser"
+install -Dm755 "$adapter_dir/open-url" "$runtime_dir/bin/omarchy-launch-webapp"
+install -Dm755 "$adapter_dir/http" "$runtime_dir/bin/omarchy-ward-http"
+install -Dm755 "$adapter_dir/exec" "$runtime_dir/bin/omarchy-ward-exec"
+install -Dm755 "$adapter_dir/play" "$runtime_dir/bin/omarchy-ward-play"
+# A partial staging failure has no selectable manifest.
+install -Dm644 "$adapter_dir/runtime.json" "$runtime_dir/runtime.json"

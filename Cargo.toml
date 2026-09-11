@@ -1,0 +1,6 @@
+[workspace]
+resolver = "3"
+members = [
+  "native/ward",
+  "test/shell.d/fixtures/ward-integration",
+]

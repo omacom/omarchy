@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.24)
+project(plugin_media_fixture LANGUAGES CXX)
+find_package(Qt6 REQUIRED COMPONENTS Core DBus)
+set(CMAKE_CXX_STANDARD 17)
+add_executable(media-player media-player.cpp)
+target_link_libraries(media-player PRIVATE Qt6::Core Qt6::DBus)
+target_compile_options(media-player PRIVATE -Wall -Wextra -Werror)

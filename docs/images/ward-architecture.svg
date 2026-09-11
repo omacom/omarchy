@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1120" viewBox="0 0 1440 1120" role="img" aria-labelledby="title description">
+  <title id="title">Ward: plugin isolation and dataflow</title>
+  <desc id="description">Review snapshots a plugin and stores revision-bound selected grants. The existing trusted Quickshell desktop launches a per-plugin Rust controller in a resource-limited systemd service. The controller owns a private Wayland compositor and resource brokers. Untrusted Quickshell plugin code runs inside a Bubblewrap, Landlock and seccomp worker sandbox in that service. The host sends bounded input and context, and receives composited DMA-BUF frames and bounded state. Approved host commands run in child cgroups outside the worker sandbox. Filesystem mounts, brokered effects and explicitly granted networking are separate resource paths. Trusted first-party and explicitly trusted local plugins remain in-process. Registry routing and final multi-monitor behavior are unfinished.</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#28618a"/></marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a45b20"/></marker>
+    <style>
+      text { font-family: "DejaVu Sans", sans-serif; fill: #192b39; }
+      .title { font-size: 34px; font-weight: 700; letter-spacing: -0.7px; }
+      .subtitle { font-size: 18px; fill: #526574; }
+      .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 1.5px; fill: #526574; }
+      .heading { font-size: 22px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .small { font-size: 14px; fill: #526574; }
+      .label { font-size: 13px; fill: #28618a; text-anchor: middle; }
+      .trusted { fill: #fff; stroke: #a9c1d0; stroke-width: 1.5; }
+      .blue-line { fill: none; stroke: #28618a; stroke-width: 2; marker-end: url(#arrow-blue); }
+      .amber-line { fill: none; stroke: #a45b20; stroke-width: 2; marker-end: url(#arrow-amber); }
+    </style>
+  </defs>
+  <rect width="1440" height="1120" fill="#f6f8fa"/>
+  <text x="48" y="64" class="title">Ward</text>
+  <text x="160" y="64" class="subtitle">Plugin isolation and dataflow</text>
+  <text x="48" y="97" class="small">Development preview · trust comes from installation and review, never a downloaded claim</text>
+
+  <text x="48" y="141" class="eyebrow">01  REVIEW BEFORE EXECUTION</text>
+  <rect x="48" y="158" width="330" height="113" rx="10" class="trusted"/>
+  <text x="70" y="191" class="heading">Review + select grants</text>
+  <text x="70" y="221" class="body">CLI / first-party review panel</text>
+  <text x="70" y="247" class="small">Snapshot bundle; run no plugin code</text>
+
+  <path d="M 378 211 H 508" class="blue-line"/>
+  <text x="443" y="198" class="label">exact revision</text>
+
+  <rect x="508" y="158" width="355" height="113" rx="10" class="trusted"/>
+  <text x="530" y="191" class="heading">Private approval store</text>
+  <text x="530" y="221" class="body">Reviewed bytes + selected grants</text>
+  <text x="530" y="247" class="small">Signed record; live epoch / unit admission</text>
+
+  <text x="998" y="185" class="eyebrow">SEPARATE TRUSTED PATH</text>
+  <text x="998" y="215" class="body">First-party + explicitly trusted</text>
+  <text x="998" y="241" class="body">user-local plugins stay in-process.</text>
+
+  <text x="48" y="327" class="eyebrow">02  HOST OWNS THE DESKTOP</text>
+  <rect x="478" y="302" width="898" height="528" rx="14" fill="#edf3f7" stroke="#8aa6b8" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <path d="M 685 271 V 360" class="blue-line"/>
+  <rect x="496" y="289" width="463" height="26" fill="#f6f8fa"/>
+  <text x="508" y="308" class="eyebrow">ONE SYSTEMD USER SERVICE PER ACTIVE PLUGIN</text>
+  <rect x="598" y="322" width="174" height="23" fill="#edf3f7"/>
+  <text x="685" y="339" class="label">admit before launch</text>
+
+  <rect x="48" y="360" width="330" height="300" rx="10" class="trusted"/>
+  <text x="70" y="397" class="heading">Existing Quickshell shell</text>
+  <text x="70" y="428" class="body">Trusted QML + native Qt view</text>
+  <line x1="70" y1="448" x2="356" y2="448" stroke="#d5e0e7"/>
+  <text x="70" y="478" class="body">Real windows and bar slots</text>
+  <text x="70" y="507" class="body">Focus, dismissal, input clipping</text>
+  <text x="70" y="536" class="body">DMA-BUF scene-graph import</text>
+  <text x="70" y="585" class="small">No isolated plugin QML is loaded</text>
+  <text x="70" y="609" class="small">into this process.</text>
+
+  <rect x="508" y="360" width="355" height="300" rx="10" class="trusted"/>
+  <text x="530" y="397" class="heading">Rust controller</text>
+  <text x="530" y="428" class="body">Trusted, per-plugin process</text>
+  <line x1="530" y1="448" x2="841" y2="448" stroke="#d5e0e7"/>
+  <text x="530" y="478" class="body">Private Wayland compositor</text>
+  <text x="530" y="507" class="body">Frame / region validation</text>
+  <text x="530" y="536" class="body">Grant checks + resource brokers</text>
+  <text x="530" y="585" class="small">Rechecks authority; filters context;</text>
+  <text x="530" y="609" class="small">supervises worker and owned jobs.</text>
+
+  <rect x="998" y="360" width="345" height="300" rx="10" fill="#fff8ef" stroke="#bc7948" stroke-width="2"/>
+  <text x="1020" y="396" class="heading">Untrusted worker</text>
+  <text x="1020" y="427" class="body">Separate Quickshell process</text>
+  <line x1="1020" y1="448" x2="1321" y2="448" stroke="#e7cdb6"/>
+  <text x="1020" y="478" class="body">Reviewed QML + own helpers</text>
+  <text x="1020" y="507" class="body">Packaged shared UI / runtime</text>
+  <text x="1020" y="549" class="body" style="font-weight:700;fill:#914c1a">Bubblewrap · Landlock · seccomp</text>
+  <text x="1020" y="585" class="small">Private display, home and runtime;</text>
+  <text x="1020" y="609" class="small">no direct host desktop connection.</text>
+
+  <path d="M 378 453 H 508" class="blue-line"/>
+  <text x="443" y="421" class="label">bounded input</text>
+  <text x="443" y="439" class="label">+ context</text>
+  <path d="M 508 562 H 378" class="blue-line"/>
+  <text x="443" y="581" class="label">frames + state</text>
+  <text x="443" y="599" class="label">DMA-BUF FDs</text>
+
+  <path d="M 863 453 H 998" class="blue-line" marker-start="url(#arrow-blue)"/>
+  <text x="930" y="421" class="label">private Wayland</text>
+  <text x="930" y="439" class="label">+ read-only context</text>
+  <path d="M 998 562 H 863" class="blue-line" marker-start="url(#arrow-blue)"/>
+  <text x="930" y="581" class="label">explicit requests</text>
+  <text x="930" y="599" class="label">bounded replies</text>
+
+  <path d="M 685 660 V 707" class="amber-line"/>
+  <rect x="508" y="707" width="355" height="96" rx="8" fill="#fff" stroke="#b6c8d3"/>
+  <text x="530" y="738" class="body" style="font-weight:700">Approved host CLI jobs</text>
+  <text x="530" y="764" class="small">Child cgroups; outside worker sandbox</text>
+  <text x="530" y="787" class="small">CLI retains host account / file / network access</text>
+
+  <text x="998" y="720" class="eyebrow">COMBINED SERVICE LIMITS</text>
+  <text x="998" y="749" class="body">512 MiB · no swap · 128 tasks</text>
+  <text x="998" y="777" class="body">50% CPU · watchdog + host lease</text>
+  <text x="48" y="715" class="small">The host launches and authenticates</text>
+  <text x="48" y="739" class="small">the controller via a session thread.</text>
+  <text x="48" y="781" class="small">Dashed boundary: resource / lifetime scope.</text>
+  <text x="48" y="805" class="small">Orange boundary: worker sandbox.</text>
+
+  <path d="M 863 624 H 903 V 862 H 1100 V 910" class="amber-line"/>
+  <rect x="934" y="848" width="204" height="25" fill="#f6f8fa"/>
+  <text x="1036" y="865" class="small" text-anchor="middle">granted broker / proxy effects</text>
+  <path d="M 508 755 H 455 V 878 H 302 V 910" class="amber-line"/>
+  <text x="296" y="863" class="small" text-anchor="middle">approved CLI effects</text>
+
+  <text x="48" y="890" class="eyebrow">03  EXPLICIT RESOURCE ACCESS</text>
+  <rect x="48" y="910" width="1328" height="108" rx="10" fill="#fff" stroke="#c4cfd6"/>
+  <text x="70" y="946" class="body" style="font-weight:700">Host files and services</text>
+  <text x="70" y="975" class="body">Selected directories · private persistent data · HTTP · notifications · settings · URL handoff · one MPRIS player</text>
+  <text x="70" y="1001" class="small">Files use admitted mounts; broad network uses an explicit namespace grant. These are separate from broker requests.</text>
+
+  <text x="48" y="1057" class="small">Current host policy: one worker canvas on the largest logical output. Registry routing and final multi-monitor acceptance remain unfinished.</text>
+  <text x="48" y="1084" class="small">Approval signatures use a same-account key. No security-audit claim; revocation cannot undo completed external effects.</text>
+</svg>

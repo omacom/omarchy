@@ -4,6 +4,10 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# Exercise the default and explicit NO_COLOR cases below independently of
+# the test runner's own terminal-output preference.
+unset NO_COLOR
+
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 

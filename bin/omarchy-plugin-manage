@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Open the graphical plugin manager
+# omarchy:args=[--add]
+
+set -euo pipefail
+case "${1:-}" in
+  "") payload='{}' ;;
+  --add) payload='{"add":true}' ;;
+  -h | --help) echo "Usage: omarchy plugin manage [--add]"; exit 0 ;;
+  *) echo "omarchy-plugin-manage: expected --add or no arguments" >&2; exit 1 ;;
+esac
+(( $# <= 1 )) || exit 1
+result=$(omarchy-shell shell summon omarchy.plugins "$payload")
+if [[ $result != "ok" ]]; then
+  echo "omarchy-plugin-manage: $result" >&2
+  exit 1
+fi

@@ -31,6 +31,8 @@ A full bar plugin has no off state at all. There's always exactly one bar, so yo
 
 ## Adding a plugin from git
 
+Omarchy calls its isolated plugin security system Ward. Ward plugins declare the existing `sandbox` manifest entry, then go through exact-revision review and explicit access approval before they run.
+
 A third-party plugin is just a git repo with a `manifest.json` at its root.
 
 ```

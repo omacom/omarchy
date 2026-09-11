@@ -63,6 +63,13 @@ HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
 grep -F 'https://example.test/authorize' "$launch_log" >/dev/null || fail "browser launcher passes through the URL"
 grep -Fx '^chromium.*$' "$focus_log" >/dev/null || fail "browser launcher focuses the default browser window"
 
+literal_url='https://example.test/--private?next=--private&value=quoted%20text'
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" --private "$literal_url"
+grep -F -- "$literal_url" "$launch_log" >/dev/null || fail "browser launcher preserves flag-like text inside a URL"
+grep -F -- '--incognito' "$launch_log" >/dev/null || fail "browser launcher still translates an exact private flag"
+
 rm -f "$focus_log" "$xdg_settings_browser"
 
 HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \

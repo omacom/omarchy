@@ -78,7 +78,7 @@ ShellRoot {
   }
 
   function runChecks() {
-    var scan = ""
+    var scan = block("isolation", "host", [])
     scan += block("firstparty", "/first/widgets/clock", manifest("omarchy.first-widget", ["bar-widget"], { barWidget: "Widget.qml" }))
     scan += block("firstparty", "/first/bar", manifest("omarchy.bar", ["bar"], { bar: "Bar.qml" }))
     scan += block("firstparty", "/first/panels/grouped", manifest("omarchy.grouped-panel", ["panel"], { panel: "Panel.qml" }))
@@ -457,7 +457,58 @@ ShellRoot {
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/.git/index"), "", "plugin git metadata is ignored")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/.clone.abc123/manifest.json"), "", "hidden staging and backup dirs are ignored")
 
+    var sandboxed = manifest("third.sandbox", ["panel"], { panel: "worker.qml" })
+    sandboxed.sandbox = { version: 1, entryPoint: "worker.qml", requests: {} }
+    sandboxed.__sourceDir = "/third/sandbox"
+    sandboxed.__isFirstParty = false
+    var withSandbox = Object.assign({}, registry.installedPlugins)
+    withSandbox["third.sandbox"] = sandboxed
+    registry.installedPlugins = withSandbox
+    root.config.plugins = [{ id: "third.sandbox" }]
+    root.assertEqual(registry.entryPointUrl(sandboxed, "panel"), "", "sandbox entry points have no in-process URL")
+    root.assertTrue(!registry.isEnabled("third.sandbox"), "shell config cannot enable a sandbox in-process")
+    root.assertTrue(!registry.setEnabled("third.sandbox", true), "normal enable refuses sandbox entry points")
+    root.assertTrue(registry.lastEnableError.indexOf("native host") !== -1, "enable explains the required native host")
+    root.config.plugins = [{ id: "third.sandbox", sandbox: true }]
+    delete sandboxed.sandbox
+    root.assertTrue(registry.isSandboxed("third.sandbox"), "saved native activation survives a changed checkout")
+    root.assertEqual(registry.entryPointUrl(sandboxed, "panel"), "", "saved native activation never loads changed QML in-process")
+    root.assertTrue(!registry.isEnabled("third.sandbox"), "saved native activation is not legacy activation")
+
+    sandboxed.kinds = ["bar-widget"]
+    sandboxed.entryPoints = {barWidget: "Widget.qml"}
+    sandboxed.barWidget = {defaultSection: "right"}
+    root.config.plugins[0].volume = 0.5
+    root.assertEqual(registry.placeSandboxedWidgetIn(root.config, "third.sandbox", {}), "", "native activation places a host-owned bar slot")
+    root.assertEqual(root.config.plugins.length, 0, "moving a preview entry leaves one canonical settings record")
+    root.assertDeepEqual(root.config.bar.layout.right, [{id: "third.sandbox", sandbox: true, volume: 0.5}], "bar placement preserves settings and native marker")
+    root.assertEqual(registry.entryPointUrl(sandboxed, "barWidget"), "", "bar slot cannot fall back to plugin QML")
+    root.assertEqual(registry.placeSandboxedWidgetIn(root.config, "third.sandbox", {section: "left", index: 0}), "", "native widget uses ordinary relative placement")
+    root.assertEqual(root.config.bar.layout.right.length, 0, "native move does not duplicate the widget")
+    root.assertEqual(root.config.bar.layout.left[0].volume, 0.5, "moving native widget preserves inline settings")
+    root.assertTrue(!registry.isEnabled("third.sandbox"), "native bar slot is never an in-process activation")
+
     root.assertTrue(changeCount > 0, "registry emits change notifications")
+    // A Ward identity survives checkout edits until explicit full removal.
+    config = {plugins: [], bar: {layout: {left: [], center: [], right: []}}}
+    var isolated = manifest("third.isolated", ["panel"], {panel: "Panel.qml"})
+    registry.parseScanOutput(block("isolation", "host", ["third.isolated"])
+      + block("thirdparty", "/third/third.isolated", isolated))
+    root.assertTrue(registry.isSandboxed("third.isolated"), "host identity survives a removed sandbox declaration without config")
+    root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.isolated"], "panel"), "", "identity blocks trusted QML URL")
+    isolated.id = "third.renamed"
+    registry.parseScanOutput(block("isolation", "host", ["third.isolated"])
+      + block("thirdparty", "/third/third.isolated", isolated))
+    root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.renamed"], "panel"), "", "changing the manifest id cannot escape installation identity")
+    registry.parseScanOutput(block("isolation", "host", ["third.isolated"]))
+    root.assertTrue(registry.isSandboxed("third.isolated"), "missing checkout retains isolated identity")
+    registry.parseScanOutput(block("thirdparty", "/third/panel", manifest("third.panel", ["panel"], {panel: "Panel.qml"})))
+    root.assertTrue(registry.isSandboxed("third.panel"), "unavailable identity discovery fails closed")
+    registry.scanning = true
+    registry.rescan()
+    root.assertTrue(registry.rescanPending, "review/approval refresh is not discarded during a concurrent scan")
+    registry.rescanPending = false
+    registry.scanning = false
     writeResult()
   }
 

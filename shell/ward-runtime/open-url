@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if (( $# != 1 )); then
+  exit 1
+fi
+case ${0##*/} in
+  omarchy-launch-browser) mode=browser ;;
+  omarchy-launch-webapp) mode=webapp ;;
+  *) exit 1 ;;
+esac
+if result=$(/bootstrap --json --open-url "$mode" "$1"); then
+  exit 0
+else
+  status=$(jq -r 'if .version == 1 then .status else "unknown" end' <<<"$result" 2>/dev/null) || status=unknown
+  timeout 1s qs ipc -n -p /runtime/shell/worker.qml call -- ward-runtime linkFailed "$status" >/dev/null 2>&1
+  exit 1
+fi

@@ -8,6 +8,8 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 mkdir -p "$TMPDIR/home/.config/omarchy" "$TMPDIR/bin"
 CALLS="$TMPDIR/calls"
+export XDG_STATE_HOME="$TMPDIR/state"
+export OMARCHY_WARD_STORE="$TMPDIR/ward"
 
 cat >"$TMPDIR/bin/omarchy-shell" <<'SH'
 #!/bin/bash

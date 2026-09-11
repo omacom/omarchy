@@ -24,10 +24,19 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  property bool rescanPending: false
+  property var isolatedIdentities: ({})
+  property bool isolationAvailable: false
   property string lastEnableError: ""
 
   signal pluginsChanged()
   signal scanFinished()
+  onScanFinished: {
+    if (rescanPending) {
+      rescanPending = false
+      Qt.callLater(rescan)
+    }
+  }
   signal pluginLoadFailed(string id, string error)
   signal localPluginChanged(string id)
 
@@ -117,6 +126,9 @@ QtObject {
 
   function entryPointUrl(manifest, kind) {
     if (!Util.isPlainObject(manifest)) return ""
+    // A declared sandbox entry point must never fall back to in-process QML,
+    // including when the optional native runtime is absent or cannot start.
+    if (manifest.sandbox !== undefined || isSandboxed(manifest.id)) return ""
     var ep = manifest.entryPoints ? manifest.entryPoints[kind] : null
     if (!ep) return ""
     var dir = manifest.__sourceDir || ""
@@ -145,9 +157,24 @@ QtObject {
   //     summon them was a footgun: a stock shell.json with `plugins: []` would
   //     silently make `omarchy launch bar-settings` a no-op. Turning one off
   //     is therefore recorded the other way round, in `disabledPlugins[]`.
+  function isSandboxed(id) {
+    var manifest = installedPlugins[String(id)]
+    if (isolatedIdentities[String(id)]) return true
+    if (manifest && !manifest.__isFirstParty
+        && isolatedIdentities[String(manifest.__sourceDir || "").split("/").pop()]) return true
+    if (!isolationAvailable && !(manifest && manifest.__isFirstParty)) return true
+    if (manifest && manifest.sandbox !== undefined) return true
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    var location = findEntryLocation(config, String(id))
+    if (location.kind === "plugin") return config.plugins[location.index].sandbox === true
+    if (location.kind === "bar") return config.bar.layout[location.section][location.index].sandbox === true
+    return false
+  }
+
   function isEnabled(id) {
     var key = String(id)
     var manifest = installedPlugins[key]
+    if (isSandboxed(key)) return false
     var config = shellConfigProvider ? shellConfigProvider() : null
     if (manifest) {
       if (Array.isArray(manifest.kinds) && manifest.kinds.indexOf("bar") !== -1) {
@@ -471,6 +498,34 @@ QtObject {
     setCloneShouldRestoreSource(config, cloneId, false)
   }
 
+  // Used for both provisional presentation and the final saved placement.
+  // This edits only the caller's copy; it never writes config or grants trust.
+  function placeSandboxedWidgetIn(config, id, placement) {
+    var manifest = installedPlugins[id]
+    if (!manifest || !isSandboxed(id)) return "unknown sandbox plugin"
+    ensureConfigShape(config)
+    if (placement.before || placement.after) {
+      var relative = String(placement.before || placement.after)
+      if (!findRelativeBarLocation(config, relative, String(placement.section || "")).found)
+        return "could not find target widget " + relative
+    }
+    var location = findEntryLocation(config, id)
+    if (location.kind === "bar") {
+      config.bar.layout[location.section][location.index].sandbox = true
+      if (Object.keys(placement).length) {
+        var error = moveBarEntry(config, id, placement)
+        if (error) return error
+      }
+    } else {
+      var entry = location.kind === "plugin" ? config.plugins.splice(location.index, 1)[0] : { id: id }
+      entry.sandbox = true
+      var target = barTarget(config, placement, defaultBarWidgetSection(manifest))
+      config.bar.layout[target.section].splice(target.index, 0, entry)
+    }
+    removeDisabled(config, id)
+    return ""
+  }
+
   function setEnabled(id, value, placement) {
     var key = Util.canonicalWidgetId(String(id))
     lastEnableError = ""
@@ -481,6 +536,10 @@ QtObject {
     var manifest = installedPlugins[key]
     if (value && !manifest) {
       console.warn("PluginRegistry.setEnabled: unknown plugin " + key)
+      return false
+    }
+    if (value && isSandboxed(key)) {
+      lastEnableError = "sandbox plugins require the native host; review with: omarchy plugin review " + key
       return false
     }
     var isBarOption = manifest && Array.isArray(manifest.kinds) && manifest.kinds.indexOf("bar") !== -1
@@ -580,12 +639,31 @@ QtObject {
     var currentSource = null
     var currentKind = null
     var currentJson = []
+    var identities = null
+    var installations = {}
 
     function flush() {
       if (!currentSource) return
       var raw = currentJson.join("\n").trim()
       try {
         var manifest = JSON.parse(raw)
+        if (currentKind === "isolation") {
+          if (!Array.isArray(manifest)) throw new Error("invalid isolation identities")
+          identities = {}
+          for (var identity of manifest) identities[String(identity)] = true
+          currentSource = null
+          currentKind = null
+          currentJson = []
+          return
+        }
+        if (currentKind === "installations") {
+          if (!Array.isArray(manifest)) throw new Error("invalid installation records")
+          for (var installation of manifest) installations[String(installation.id)] = installation
+          currentSource = null
+          currentKind = null
+          currentJson = []
+          return
+        }
         manifest.__sourceDir = currentSource
         manifest.__isFirstParty = (currentKind === "firstparty")
         var validated = validateManifest(manifest, currentSource + "/manifest.json")
@@ -619,6 +697,23 @@ QtObject {
     }
     flush()
 
+    if (identities === null) {
+      isolationAvailable = false
+      var retained = {}
+      for (var retainedId in installedPlugins) {
+        if (installedPlugins[retainedId].__isFirstParty) retained[retainedId] = installedPlugins[retainedId]
+      }
+      installedPlugins = retained
+      registryRevision++
+      scanning = false
+      console.warn("PluginRegistry: isolation identity unavailable; refusing third-party loading")
+      pluginsChanged()
+      scanFinished()
+      return
+    }
+    isolatedIdentities = identities
+    isolationAvailable = true
+
     stampHostCapabilities(firstParty, thirdParty)
 
     var merged = {}
@@ -632,6 +727,10 @@ QtObject {
           + " rejected: id is reserved for first-party Omarchy plugins")
         continue
       }
+      var directoryId = String(thirdParty[tk].__sourceDir).split("/").pop()
+      var record = installations[directoryId]
+      thirdParty[tk].__executionMode = record ? record.mode : (thirdParty[tk].sandbox !== undefined || identities[tk] || identities[directoryId] ? "ward" : "legacy-trusted")
+      thirdParty[tk].__installationError = record ? String(record.error || "") : ""
       merged[tk] = thirdParty[tk]
     }
 
@@ -644,6 +743,10 @@ QtObject {
 
   property Process scanProcess: Process {
     onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        registry.parseScanOutput("")
+        return
+      }
       var output = scanStdout.text || ""
       registry.parseScanOutput(output)
     }
@@ -687,7 +790,10 @@ QtObject {
   }
 
   function rescan() {
-    if (scanning) return
+    if (scanning) {
+      rescanPending = true
+      return
+    }
     scanning = true
     // $0 = first-party dir, $1 = third-party dir. Some bash versions need the explicit -- separator.
     // First-party plugins may be grouped one level deeper, e.g. panels/audio
@@ -700,7 +806,7 @@ QtObject {
       + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
       + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"$(dirname -- \"$manifest\")\"; fi; "
       + "  printf '===%s::%s===\\n' \"$kind\" \"$sub\"; "
-      + "  cat \"$manifest\"; "
+      + "  jq -c . \"$manifest\"; "
       + "  printf '\\n=== EOM ===\\n'; "
       + "}; "
       + "scan_firstparty() { local dir=\"$1\"; "
@@ -714,6 +820,10 @@ QtObject {
       + "    emit_manifest thirdparty \"$sub/manifest.json\"; "
       + "  done; "
       + "}; "
+      + "identities=$(omarchy-plugin-isolation) || exit 1; "
+      + "installations=$(omarchy-plugin-installation list) || exit 1; "
+      + "printf '===isolation::host===\\n%s\\n=== EOM ===\\n' \"$identities\"; "
+      + "printf '===installations::host===\\n%s\\n=== EOM ===\\n' \"$installations\"; "
       + "scan_firstparty \"$0\"; "
       + "scan_thirdparty \"$1\""
     scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.pluginsDir]

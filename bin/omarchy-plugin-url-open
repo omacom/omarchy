@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Launch an admitted plugin's web link through a fixed browser helper
+# omarchy:hidden=true
+# omarchy:args=<id> <browser|webapp> <url>
+
+set -euo pipefail
+
+if (( $# != 3 )); then
+  echo "Expected plugin id, browser mode and URL" >&2
+  exit 1
+fi
+case $2 in
+  browser) helper="$OMARCHY_PATH/bin/omarchy-launch-browser" ;;
+  webapp) helper="$OMARCHY_PATH/bin/omarchy-launch-webapp" ;;
+  *) echo "Unknown browser mode" >&2; exit 1 ;;
+esac
+
+# An accepted navigation belongs to the user's browser, not to the plugin's
+# cgroup. Acknowledgement is bounded; it does not wait for the browser to close.
+# Webapp helpers may detach with setsid. Track their whole cgroup so the
+# service manager does not kill the child when the initial launcher exits.
+systemd-run --user --quiet --collect --service-type=exec \
+  --property=ExitType=cgroup \
+  --description="Plugin $1 opened a web link" \
+  --property=StandardOutput=null --property=StandardError=journal \
+  -- "$helper" "$3"

@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Apply an admitted plugin's own inline settings through the shell
+# omarchy:hidden=true
+# omarchy:args=<id> <settings-json>
+
+set -euo pipefail
+
+if (( $# != 2 )); then
+  echo "Expected plugin id and settings JSON" >&2
+  exit 1
+fi
+result=$(omarchy-shell shell saveSandboxSettings "$1" "$2")
+if [[ $result != "ok" ]]; then
+  echo "Plugin settings were not saved: $result" >&2
+  exit 1
+fi
