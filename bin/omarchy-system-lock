@@ -24,3 +24,6 @@ pkill -x ttfx 2>/dev/null || true
 # ttfx handles SIGTERM asynchronously, so keep its terminal alive until it exits.
 timeout 1s pidwait -x ttfx 2>/dev/null || true
 pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null || true
+# Idle lock kills the screensaver before unlock; restore fullscreen modes now so
+# they are already correct when the session lock surface goes away.
+omarchy-hyprland-fullscreen-snapshot restore || true
