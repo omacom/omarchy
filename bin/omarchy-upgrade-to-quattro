@@ -1923,6 +1923,52 @@ repair_chromium_copy_url_extension_flags
 # remove old symlinks that pointed ~/.config/omarchy/themes/* back into the
 # pre-quattro checkout. Omarchy quattro reads stock themes from /usr/share/omarchy/themes.
 legacy_omarchy_backup="$HOME/.local/share/omarchy.omarchy-upgrade-to-quattro.$BACKUP_SUFFIX.bak"
+
+# The .conf -> Lua transition deliberately leaves the old user files in place
+# for reference. Compare them with the stock files from the exact legacy checkout
+# this machine upgraded from so only non-stock state is called out; warning on
+# every surviving .conf would tell an untouched Omarchy 3 install to migrate
+# settings it never customized.
+legacy_hypr_config_changes() {
+  local legacy_backup="$1" name user_conf reference
+  local -a names=(autostart bindings envs hyprland input looknfeel monitors)
+
+  [[ -d $legacy_backup ]] || return 0
+
+  for name in "${names[@]}"; do
+    user_conf="$HOME/.config/hypr/$name.conf"
+    if [[ $name == envs ]]; then
+      reference="$legacy_backup/default/hypr/envs.conf"
+    else
+      reference="$legacy_backup/config/hypr/$name.conf"
+    fi
+
+    [[ -f $user_conf && -f $reference ]] || continue
+    cmp -s -- "$user_conf" "$reference" || printf '%s.conf\n' "$name"
+  done
+}
+
+mapfile -t legacy_hypr_changes < <(legacy_hypr_config_changes "$legacy_omarchy_backup")
+if (( ${#legacy_hypr_changes[@]} )); then
+  printf '\n\033[33mWarning:\033[0m legacy Hyprland config differs from the pre-upgrade Omarchy defaults:\n' >&2
+  printf '  %s\n' "${legacy_hypr_changes[@]}" >&2
+  printf 'These .conf files are kept for reference, but Quattro no longer loads them. Port wanted settings to the corresponding ~/.config/hypr/*.lua files.\n' >&2
+
+  legacy_hypr_list=$(printf '%s, ' "${legacy_hypr_changes[@]}")
+  legacy_hypr_list=${legacy_hypr_list%, }
+  warning_hook="$HOME/.config/omarchy/hooks/post-boot.d/quattro-legacy-hypr-config-warning"
+  mkdir -p "$(dirname "$warning_hook")"
+  cat >"$warning_hook" <<WARNING_HOOK
+#!/bin/bash
+set -euo pipefail
+
+if omarchy-notification-send -u critical \
+  "Legacy Hyprland settings need review" \
+  "Quattro found non-stock legacy settings in: $legacy_hypr_list. The old .conf files are kept for reference but are no longer loaded; port wanted settings to ~/.config/hypr/*.lua."; then
+  rm -f "\$0"
+fi
+WARNING_HOOK
+fi
 if [[ -d $legacy_omarchy_backup/themes && -d $legacy_omarchy_backup/.git ]]; then
   (
     cd "$legacy_omarchy_backup"
