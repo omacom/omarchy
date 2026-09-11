@@ -1844,6 +1844,16 @@ Item {
       if ("glyphPaintedWidth" in item && item.glyphPaintedWidth > 0) return item.glyphPaintedWidth
       if ("labelTightWidth" in item && item.labelTightWidth > 0) return item.labelTightWidth
       if ("labelWidth" in item && item.labelWidth > 0) return item.labelWidth
+      // Vector icons size themselves under the canvas (usually to the icon
+      // font); measure the loaded item instead of assuming a full canvas,
+      // capped at the canvas so an over-reporting component cannot shrink
+      // its padding.
+      if ("iconContentItem" in item && item.iconContentItem
+          && item.iconContentItem.implicitWidth > 0) {
+        if ("opticalSize" in item && item.opticalSize > 0)
+          return Math.min(item.iconContentItem.implicitWidth, item.opticalSize)
+        return item.iconContentItem.implicitWidth
+      }
       if ("opticalSize" in item && item.opticalSize > 0) return item.opticalSize
       return contentWidth
     }
