@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# omarchy:summary=Link a skill directory into every agent's skills directory, or take those links back
+# omarchy:args=<skill-dir> [--remove]
+# omarchy:examples=omarchy agent skill-link $OMARCHY_PATH/default/agents/optional-skills/cua-omarchy | omarchy agent skill-link $OMARCHY_PATH/default/agents/optional-skills/cua-omarchy --remove
+
+# omarchy-provision-user links every skill under default/agents/skills for
+# everyone. A skill that only makes sense once the tool it describes is on the
+# machine lives under default/agents/optional-skills instead, and the tool's
+# install flow links it here into the same agent directories; the matching
+# remove flow takes the links back with --remove.
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-agent-skill-link <skill-dir> [--remove]" >&2
+  exit 1
+}
+
+skill_dir=""
+remove=false
+for arg in "$@"; do
+  case $arg in
+    --remove) remove=true ;;
+    -*) usage ;;
+    *) skill_dir=$arg ;;
+  esac
+done
+
+[[ -n $skill_dir ]] || usage
+
+if [[ $remove == false && ! -f $skill_dir/SKILL.md ]]; then
+  echo "No skill at $skill_dir: expected a directory holding a SKILL.md." >&2
+  exit 1
+fi
+
+skill_dir=$(realpath -m -- "$skill_dir")
+name=${skill_dir##*/}
+
+# Hermes profiles are only linked when they already exist; nothing here
+# creates one.
+agent_dirs=(
+  "$HOME/.agents/skills"
+  "$HOME/.claude/skills"
+  "$HOME/.codex/skills"
+  "$HOME/.pi/agent/skills"
+  "$HOME/.gemini/config/skills"
+  "$HOME/.hermes/skills"
+)
+for profile in "$HOME"/.hermes/profiles/*/; do
+  [[ -d $profile ]] && agent_dirs+=("${profile}skills")
+done
+
+for dir in "${agent_dirs[@]}"; do
+  link="$dir/$name"
+
+  if [[ $remove == true ]]; then
+    # Only a link to this skill: a skill of the same name the user keeps
+    # there themselves is not ours to remove.
+    if [[ -L $link && $(realpath -m -- "$link") == "$skill_dir" ]]; then
+      rm -- "$link"
+    fi
+  elif [[ -e $link && ! -L $link ]]; then
+    # ln would otherwise drop the link inside the directory that is there.
+    echo "Leaving $link alone: it is not a symlink." >&2
+  elif [[ -L $link && -e $link && $(realpath -m -- "$link") != "$skill_dir" ]]; then
+    # A live link to some other skill is the user's choice; only a dangling
+    # one, or one already pointing here, gets replaced.
+    echo "Leaving $link alone: it points elsewhere." >&2
+  else
+    mkdir -p -- "$dir"
+    ln -sfn -- "$skill_dir" "$link"
+  fi
+done
