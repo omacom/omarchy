@@ -17,6 +17,20 @@ Item {
       return JSON.stringify({id:"codex",version:version,recentDays:[{date:"2026-09-11",messageCount:count}],
         dailyUsage:{schemaVersion:1,unit:"tokens",fromDate:"2026-09-11",throughDate:"2026-09-11",complete:true,days:[{date:"2026-09-11",buckets:buckets}]}})
     }
+    function test_largeRefreshKeepsProvider() {
+      var record=JSON.parse(raw(20,1))
+      record.id="claude"
+      subject.parse(JSON.stringify(record))
+      tryVerify(function(){return subject.record && subject.record.version===20},5000)
+      record.version=21
+      record.stats={padding:"x".repeat(16*1024*1024)}
+      subject.parse(JSON.stringify(record))
+      tryVerify(function(){return !subject.parserBusy},5000)
+      verify(subject.record !== null,"a large valid Claude refresh must not remove its provider")
+      compare(subject.record.id,"claude")
+      compare(subject.record.version,21,"large records must actually update, not retain stale usage")
+      compare(subject.record.stats,undefined,"duplicate history stays outside the display record")
+    }
     function test_backgroundAndFreshness() {
       var content=raw(1,12000), start=testRoot.ticks
       subject.parse(content)

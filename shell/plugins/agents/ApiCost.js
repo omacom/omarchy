@@ -1068,7 +1068,7 @@ function parseDisplayRecord(content) {
 if (typeof WorkerScript !== "undefined" && typeof WorkerScript.sendMessage === "function") {
   WorkerScript.onMessage = function(message) {
     var record = null
-    try { record = parseDisplayRecord(message.content) } catch (error) {}
+    try { record = parseDisplayRecord(message.chunks.join("")) } catch (error) {}
     WorkerScript.sendMessage({ generation: message.generation, record: record })
   }
 }

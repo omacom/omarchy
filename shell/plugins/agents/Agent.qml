@@ -54,7 +54,13 @@ Item {
   function dispatchParse() {
     if (!parser.ready || parserBusy || pendingGeneration === 0) return
     parserBusy = true
-    parser.sendMessage({ generation: pendingGeneration, content: pendingContent })
+    // WorkerScript cannot transport one string of 16 Mi characters or more.
+    // Keep each part below that limit; join and parse only in the worker.
+    var chunkSize = 1024 * 1024
+    var chunks = []
+    for (var offset = 0; offset < pendingContent.length; offset += chunkSize)
+      chunks.push(pendingContent.slice(offset, offset + chunkSize))
+    parser.sendMessage({ generation: pendingGeneration, chunks: chunks })
     pendingGeneration = 0
     pendingContent = ""
   }
