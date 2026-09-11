@@ -1,4 +1,6 @@
-if lspci | grep -qi 'nvidia'; then
+# omarchy-hw-nvidia reads sysfs IDs. lspci would walk PCI config space and
+# wake a runtime-suspended GPU, and Hyprland already uses the same helper.
+if omarchy-hw-nvidia; then
   # Check which kernel is installed and set appropriate headers package
   KERNEL_PACKAGE=$(pacman -Qqs '^linux(-zen|-lts|-hardened|-t2|-ptl)?$' | head -1 || true)
   [[ -n $KERNEL_PACKAGE ]] && omarchy-pkg-add "$KERNEL_PACKAGE-headers"
