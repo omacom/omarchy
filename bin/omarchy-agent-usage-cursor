@@ -1,0 +1,561 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Cursor usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Cursor usage into one display-ready JSON record.
+
+Limits come from Cursor's dashboard RPCs (included monthly plan usage, and
+Grok Bot weekly only when that quota is actually in use). Token stats come
+from aggregated and filtered usage events for the last seven days. The
+agents panel only ever reads the JSON this prints.
+
+Credentials are read from the Cursor CLI session, then
+~/.config/cursor/auth.json, then the Cursor IDE login. The access token is
+used for the dashboard request and is never written to the record, the
+cache, or stdout.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "cursor"
+AGENT_NAME = "Cursor"
+AUTH_HELP = "Run agent login (or cursor-agent login) to restore authoritative usage."
+API_ROOT = "https://api2.cursor.sh"
+PERIOD_PATH = "/aiserver.v1.DashboardService/GetCurrentPeriodUsage"
+SAND_PATH = "/aiserver.v1.DashboardService/GetSandUsageStatus"
+PLAN_PATH = "/aiserver.v1.DashboardService/GetPlanInfo"
+AGG_PATH = "/aiserver.v1.DashboardService/GetAggregatedUsageEvents"
+EVENTS_PATH = "/aiserver.v1.DashboardService/GetFilteredUsageEvents"
+PROBE_MIN_INTERVAL_SECONDS = 15
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+EVENTS_PAGE_SIZE = 500
+EVENTS_MAX_PAGES = 20
+
+
+def expand_path(value):
+  return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def cache_root():
+  xdg = os.environ.get("XDG_CACHE_HOME")
+  root = (Path(xdg) if xdg else Path.home() / ".cache") / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def runtime_env():
+  home = str(Path.home())
+  parts = [os.environ.get("PATH", ""), home + "/.local/bin"]
+  env = os.environ.copy()
+  env["PATH"] = os.pathsep.join(part for part in parts if part)
+  return env
+
+
+ENV = runtime_env()
+
+
+def recent_date_strings():
+  today = datetime.now().date()
+  return [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+
+
+def number(value):
+  try:
+    return max(0, round(float(value or 0)))
+  except (TypeError, ValueError):
+    return 0
+
+
+def local_date_from_timestamp(value):
+  if value is None:
+    return datetime.now().strftime("%Y-%m-%d")
+  try:
+    ts = float(value)
+  except (TypeError, ValueError):
+    return datetime.now().strftime("%Y-%m-%d")
+  if ts > 10000000000:
+    ts = ts / 1000.0
+  try:
+    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+  except Exception:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def parse_utilization(value):
+  try:
+    return float(str(value).strip().replace("%", ""))
+  except Exception:
+    return float("nan")
+
+
+def normalize_percent(value, percent_scale):
+  n = parse_utilization(value)
+  if not (n >= 0):
+    return -1.0
+  if percent_scale or n > 1:
+    return min(1.0, n / 100.0)
+  return min(1.0, n)
+
+
+def normalize_reset_at(value):
+  if value is None:
+    return ""
+  raw = str(value).strip()
+  if raw == "" or not raw.isdigit():
+    try:
+      return datetime.fromisoformat(raw.replace("Z", "+00:00")).isoformat() if raw else ""
+    except Exception:
+      return raw
+  ts = int(raw)
+  if ts < 1e12:
+    ts *= 1000
+  try:
+    return datetime.fromtimestamp(ts / 1000.0, timezone.utc).isoformat()
+  except Exception:
+    return raw
+
+
+def empty_bucket():
+  return {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0}
+
+
+def empty_stats():
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+  }
+
+
+def read_fresh_json(path, max_age_seconds):
+  try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  if not isinstance(payload, dict):
+    return None
+  fetched = number(payload.get("fetchedAtMs")) / 1000.0
+  if fetched <= 0 or time.time() - fetched > max_age_seconds:
+    return None
+  return payload
+
+
+def write_json(path, payload):
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, temporary_name = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
+  temporary = Path(temporary_name)
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle, separators=(",", ":"))
+      handle.write("\n")
+    os.replace(temporary, path)
+  except Exception:
+    temporary.unlink(missing_ok=True)
+    raise
+
+
+def string_token(value):
+  if isinstance(value, str) and len(value) > 20 and value not in ("true", "false"):
+    return value
+  return ""
+
+
+def token_from_mapping(payload):
+  if not isinstance(payload, dict):
+    return ""
+  for key in ("accessToken", "access_token"):
+    found = string_token(payload.get(key))
+    if found:
+      return found
+  auth = payload.get("auth")
+  if isinstance(auth, dict):
+    return token_from_mapping(auth)
+  return ""
+
+
+def config_home():
+  override = os.environ.get("XDG_CONFIG_HOME")
+  return expand_path(override) if override else Path.home() / ".config"
+
+
+def find_cursor_cli():
+  for name in ("agent", "cursor-agent"):
+    found = shutil.which(name, path=ENV.get("PATH"))
+    if found:
+      return found
+  return None
+
+
+def cli_access_token():
+  executable = find_cursor_cli()
+  if not executable:
+    return ""
+  try:
+    result = subprocess.run(
+      [executable, "status", "--format", "json"],
+      check=False,
+      capture_output=True,
+      text=True,
+      timeout=10,
+      env=ENV,
+    )
+  except (OSError, subprocess.SubprocessError):
+    return ""
+  if result.returncode != 0 or not result.stdout:
+    return ""
+  try:
+    return token_from_mapping(json.loads(result.stdout))
+  except json.JSONDecodeError:
+    return ""
+
+
+def cli_auth_file_token():
+  try:
+    return token_from_mapping(json.loads((config_home() / "cursor" / "auth.json").read_text(encoding="utf-8")))
+  except Exception:
+    return ""
+
+
+def ide_access_token():
+  override = os.environ.get("CURSOR_USAGE_STATE_DB")
+  if override:
+    path = expand_path(override)
+  elif platform.system() == "Darwin":
+    path = Path.home() / "Library" / "Application Support" / "Cursor" / "User" / "globalStorage" / "state.vscdb"
+  elif platform.system() == "Windows":
+    path = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "Cursor" / "User" / "globalStorage" / "state.vscdb"
+  else:
+    path = config_home() / "Cursor" / "User" / "globalStorage" / "state.vscdb"
+  if not path.is_file():
+    return ""
+  try:
+    connection = sqlite3.connect("file:" + str(path) + "?mode=ro", uri=True, timeout=2)
+    try:
+      row = connection.execute("SELECT value FROM ItemTable WHERE key = ? LIMIT 1", ("cursorAuth/accessToken",)).fetchone()
+    finally:
+      connection.close()
+  except sqlite3.Error:
+    return ""
+  return string_token(row[0] if row else "")
+
+
+def get_access_token():
+  return cli_access_token() or cli_auth_file_token() or ide_access_token()
+
+
+def dashboard_request(path, token, body=None):
+  request = urllib.request.Request(
+    API_ROOT + path,
+    data=json.dumps(body or {}).encode("utf-8"),
+    method="POST",
+    headers={
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json",
+      "Connect-Protocol-Version": "1",
+      "User-Agent": "omarchy-agent-usage-cursor/1.0",
+    },
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=15) as response:
+      payload = json.loads(response.read().decode("utf-8", errors="replace"))
+  except urllib.error.HTTPError as error:
+    if error.code in (401, 403):
+      return {"ok": False, "auth": True, "helpText": "Cursor access token is no longer accepted. Run agent login and try again."}
+    return {"ok": False, "helpText": "Cursor usage API returned status %s." % error.code}
+  except Exception:
+    return {"ok": False, "transport": True, "helpText": "Couldn't reach Cursor's usage endpoint. Retrying shortly."}
+  if not isinstance(payload, dict):
+    return {"ok": False, "helpText": "Cursor usage API returned an unexpected response."}
+  return {"ok": True, "payload": payload}
+
+
+def usage_bucket(payload, key):
+  bucket = payload.get(key)
+  return bucket if isinstance(bucket, dict) else None
+
+
+def limit_entry(label, title, percent, resets_at):
+  return {"label": label, "title": title, "percent": percent, "resetsAt": resets_at}
+
+
+def limits_from_payloads(period, sand, plan):
+  limits = []
+  grok_label = str(sand.get("grokPlanLabel") or "").strip()
+  plan_info = plan.get("planInfo") if isinstance(plan.get("planInfo"), dict) else {}
+  plan_name = str(plan_info.get("planName") or "").strip()
+  # The subscription the Agent runs on is the plan name (Pro, Pro+). Grok Bot
+  # is a separate chat quota and must not replace that as the hero tier.
+  tier = plan_name or grok_label
+  sand_percent = normalize_percent(sand.get("usagePercent"), True)
+  # Grok Bot weekly is not Agent weekly. Skip an unused 0% row so it is not
+  # drawn as a missing Claude-style week window.
+  if sand_percent > 0 and (grok_label or sand.get("hasNonZeroIncludedLimit") is True):
+    limits.append(limit_entry(
+      (grok_label or "Grok Bot") + " (weekly)",
+      "Grok Bot",
+      sand_percent,
+      normalize_reset_at(sand.get("nextResetTimestampUtc")),
+    ))
+  plan_usage = usage_bucket(period, "planUsage") or {}
+  included = normalize_percent(plan_usage.get("totalPercentUsed"), True)
+  if included < 0:
+    included = normalize_percent(plan_usage.get("autoPercentUsed"), True)
+  if included >= 0 and (plan_usage.get("limit") is not None or plan_usage.get("totalPercentUsed") is not None):
+    reset = normalize_reset_at(period.get("billingCycleEnd") or plan_info.get("billingCycleEnd"))
+    limits.append(limit_entry((plan_name or "Included usage") + " (monthly)", "Monthly", included, reset))
+  spend = usage_bucket(period, "spendLimitUsage") or {}
+  spend_percent = normalize_percent(spend.get("totalPercentUsed") or spend.get("percent_used"), True)
+  if spend_percent >= 0 and spend.get("limit") is not None:
+    limits.append(limit_entry("Spend limit", "Monthly", spend_percent, normalize_reset_at(period.get("billingCycleEnd"))))
+  return limits, tier
+
+
+def limit_window_open(entry, now):
+  raw = str(entry.get("resetsAt") or "")
+  if raw == "":
+    return True
+  try:
+    resets_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except Exception:
+    return True
+  if resets_at.tzinfo is None:
+    resets_at = resets_at.replace(tzinfo=timezone.utc)
+  return resets_at > now
+
+
+def usable_cached_limits(cached):
+  entries = cached.get("limits")
+  if not isinstance(entries, list):
+    return []
+  now = datetime.now(timezone.utc)
+  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+
+
+def add_model_usage(model_usage, model, input_tokens, output_tokens, cache_read, cache_write):
+  bucket = model_usage.setdefault(model or "cursor", empty_bucket())
+  bucket["inputTokens"] += input_tokens
+  bucket["outputTokens"] += output_tokens
+  bucket["cacheReadInputTokens"] += cache_read
+  bucket["cacheCreationInputTokens"] += cache_write
+
+
+def collect_limits(token, force):
+  result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP, "tierLabel": ""}
+  probe_cache = cache_root() / "cursor-limits.json"
+  cached = read_fresh_json(probe_cache, float("inf")) or {}
+  fallback = usable_cached_limits(cached)
+  cached_tier = str(cached.get("tierLabel") or "")
+  if token == "":
+    result["limits"] = fallback
+    result["tierLabel"] = cached_tier
+    result["usageStatusText"] = "Waiting for auth"
+    return result
+  fetched_at = number(cached.get("fetchedAtMs")) / 1000.0
+  if fallback and not force and time.time() - fetched_at < PROBE_MIN_INTERVAL_SECONDS:
+    result["limits"] = fallback
+    result["tierLabel"] = cached_tier
+    return result
+  period = dashboard_request(PERIOD_PATH, token)
+  sand = dashboard_request(SAND_PATH, token)
+  plan = dashboard_request(PLAN_PATH, token)
+  if period.get("auth") or sand.get("auth") or plan.get("auth"):
+    result["limits"] = fallback
+    result["tierLabel"] = cached_tier
+    result["usageStatusText"] = "Sign-in expired"
+    result["authHelpText"] = "Cursor saved sign-in is no longer accepted. Run agent login to refresh it."
+    return result
+  if period.get("transport") or sand.get("transport") or plan.get("transport"):
+    result["retryAdvised"] = True
+    if fallback:
+      result["limits"] = fallback
+      result["tierLabel"] = cached_tier
+      return result
+    result["usageStatusText"] = "Cursor limits unavailable"
+    result["authHelpText"] = str(period.get("helpText") or sand.get("helpText") or plan.get("helpText") or AUTH_HELP)
+    return result
+  period_payload = period.get("payload") if period.get("ok") and isinstance(period.get("payload"), dict) else {}
+  sand_payload = sand.get("payload") if sand.get("ok") and isinstance(sand.get("payload"), dict) else {}
+  plan_payload = plan.get("payload") if plan.get("ok") and isinstance(plan.get("payload"), dict) else {}
+  limits, tier = limits_from_payloads(period_payload, sand_payload, plan_payload)
+  if not limits:
+    if fallback:
+      result["limits"] = fallback
+      result["tierLabel"] = cached_tier
+      return result
+    result["usageStatusText"] = "Cursor limits unavailable"
+    result["authHelpText"] = "Cursor usage endpoint returned no limits."
+    return result
+  result["limits"] = limits
+  result["tierLabel"] = tier
+  write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000), "limits": limits, "tierLabel": tier})
+  return result
+
+
+def stats_from_dashboard(token):
+  stats = empty_stats()
+  today = datetime.now().strftime("%Y-%m-%d")
+  recent_dates = recent_date_strings()
+  recent = {day: 0 for day in recent_dates}
+  model_usage = {}
+  today_by_model = {}
+  active_dates = set()
+  today_total = 0
+  aggregated = dashboard_request(AGG_PATH, token)
+  if aggregated.get("ok"):
+    payload = aggregated["payload"]
+    rows = payload.get("aggregations")
+    if isinstance(rows, list):
+      for row in rows:
+        if not isinstance(row, dict):
+          continue
+        add_model_usage(
+          model_usage,
+          str(row.get("modelIntent") or row.get("model") or "cursor"),
+          number(row.get("inputTokens")),
+          number(row.get("outputTokens")),
+          number(row.get("cacheReadTokens") or row.get("cacheReadInputTokens")),
+          number(row.get("cacheWriteTokens") or row.get("cacheCreationInputTokens")),
+        )
+    if not model_usage:
+      total_in = number(payload.get("totalInputTokens"))
+      total_out = number(payload.get("totalOutputTokens"))
+      total_cache = number(payload.get("totalCacheReadTokens"))
+      if total_in or total_out or total_cache:
+        add_model_usage(model_usage, "cursor", total_in, total_out, total_cache, 0)
+  oldest = (datetime.now().date() - timedelta(days=6)).isoformat()
+  page = 1
+  while page <= EVENTS_MAX_PAGES:
+    events = dashboard_request(EVENTS_PATH, token, {"page": page, "pageSize": EVENTS_PAGE_SIZE})
+    if not events.get("ok"):
+      if page == 1 and events.get("transport"):
+        stats["retryAdvised"] = True
+      break
+    rows = events["payload"].get("usageEventsDisplay")
+    if not isinstance(rows, list) or not rows:
+      break
+    stop = False
+    for row in rows:
+      if not isinstance(row, dict):
+        continue
+      day = local_date_from_timestamp(row.get("timestamp"))
+      if day < oldest:
+        stop = True
+        continue
+      if day not in recent:
+        continue
+      usage = row.get("tokenUsage") if isinstance(row.get("tokenUsage"), dict) else {}
+      total = (
+        number(usage.get("inputTokens"))
+        + number(usage.get("outputTokens"))
+        + number(usage.get("cacheReadTokens") or usage.get("cacheReadInputTokens"))
+        + number(usage.get("cacheWriteTokens") or usage.get("cacheCreationInputTokens"))
+      )
+      if total <= 0:
+        continue
+      recent[day] += total
+      active_dates.add(day)
+      if day == today:
+        today_total += total
+        model = str(row.get("model") or "cursor")
+        today_by_model[model] = today_by_model.get(model, 0) + total
+    if stop or len(rows) < EVENTS_PAGE_SIZE:
+      break
+    page += 1
+  stats["recentDays"] = [{"date": day, "messageCount": recent[day]} for day in recent_dates]
+  stats["todayTotalTokens"] = today_total
+  stats["todayTokensByModel"] = today_by_model
+  stats["modelUsage"] = model_usage
+  stats["activeDates"] = sorted(active_dates)
+  stats["activeDays"] = len(active_dates)
+  stats["hasPromptStats"] = False
+  return stats
+
+
+def collect_stats(token, force, limits_only):
+  stats_cache = cache_root() / "cursor-stats.json"
+  reuse = 0 if force else (LIMITS_ONLY_REUSE_SECONDS if limits_only else SCAN_REUSE_SECONDS)
+  if reuse:
+    cached = read_fresh_json(stats_cache, reuse)
+    if cached and isinstance(cached.get("stats"), dict):
+      return cached["stats"]
+  if token == "":
+    return empty_stats()
+  stats = stats_from_dashboard(token)
+  write_json(stats_cache, {"fetchedAtMs": round(time.time() * 1000), "stats": stats})
+  return stats
+
+
+def base_record(**overrides):
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": False,
+    "hasLocalStats": False,
+    "scope": "account",
+    "hasPromptStats": False,
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": AUTH_HELP,
+    "limits": [],
+  }
+  record.update(empty_stats())
+  record.update(overrides)
+  return record
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+  token = get_access_token()
+  limits = collect_limits(token, args.force)
+  stats = collect_stats(token, args.force, args.limits_only)
+  ready = len(limits["limits"]) > 0 or number(stats.get("todayTotalTokens")) > 0 or bool(stats.get("modelUsage"))
+  record = base_record(
+    ready=ready,
+    hasLocalStats=ready,
+    hasPromptStats=False,
+    scope="account",
+    tierLabel=str(limits.get("tierLabel") or ""),
+    usageStatusText=str(limits.get("usageStatusText") or ""),
+    authHelpText=str(limits.get("authHelpText") or AUTH_HELP),
+    limits=limits["limits"],
+  )
+  if limits.get("retryAdvised") or stats.get("retryAdvised"):
+    record["retryAdvised"] = True
+  for key in empty_stats():
+    if key in stats:
+      record[key] = stats[key]
+  print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
