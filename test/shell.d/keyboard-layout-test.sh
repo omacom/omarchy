@@ -86,6 +86,11 @@ assertEqual(model.shortLabel('English (US)', {}), 'ENG', 'the label survives an 
 assertEqual(model.shortLabel('constructor', {}), 'CON', 'a description naming a built-in still falls back')
 assertEqual(model.shortLabel('', briefs), '', 'no keymap means no label')
 
+assertEqual(model.inputMethodLabel('hangul'), 'KO', 'the Hangul input method has a Korean label')
+assertEqual(model.inputMethodLabel('keyboard-us'), 'EN', 'the Fcitx keyboard input method has an English label')
+assertEqual(model.inputMethodLabel('mozc'), 'MOZ', 'other input methods retain a compact visible label')
+assertEqual(model.inputMethodLabel(''), '', 'an unavailable input method leaves the XKB label alone')
+
 // The seat as hyprctl reports it, virtual keyboards already filtered out: the
 // buttons libinput calls keyboards sit beside the one being typed on, and the
 // main flag lands on either, or on the virtual keyboard that isn't here.

@@ -54,6 +54,16 @@ function shortLabel(description, briefs) {
   return label.substring(0, 3).toUpperCase()
 }
 
+// Fcitx5 input methods are separate from Hyprland's XKB layouts. In
+// particular, Korean uses `hangul` while the compositor remains on `us`, so
+// the regular XKB label alone cannot say which language is being typed.
+function inputMethodLabel(inputMethod) {
+  var method = String(inputMethod || "").toLowerCase()
+  if (method === "hangul") return "KO"
+  if (method === "keyboard" || method.indexOf("keyboard-") === 0) return "EN"
+  return method.substring(0, 3).toUpperCase()
+}
+
 // Hyprland's activelayout event pairs the keyboard that switched with the layout
 // it moved to. Quickshell cuts the event into that many fields, so a description
 // carrying a comma of its own stays in one piece; a binding old enough to hand
@@ -118,6 +128,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     eventKeyboardName: eventKeyboardName,
     isTypedKeyboard: isTypedKeyboard,
+    inputMethodLabel: inputMethodLabel,
     layoutBriefs: layoutBriefs,
     selectKeyboard: selectKeyboard,
     shortLabel: shortLabel

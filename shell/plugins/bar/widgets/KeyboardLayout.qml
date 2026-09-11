@@ -12,6 +12,11 @@ BarWidget {
 
 
   property string layoutFull: ""
+  // Fcitx5 owns input-method switching independently from Hyprland's XKB
+  // layouts. For example, Korean input keeps XKB on `us`, which would normally
+  // make this widget hide as a single-layout setup.
+  property string inputMethodName: ""
+  readonly property string inputMethodLabel: KeyboardLayoutModel.inputMethodLabel(inputMethodName)
   // The keyboard the last reading spoke for, which is the one a click switches,
   // and separately the one activelayout named as being typed on. A reading
   // confirms the first is really there, so the click has a keyboard to reach
@@ -36,6 +41,7 @@ BarWidget {
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
   readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  readonly property string displayLabel: inputMethodLabel || layoutLabel
 
   // A query already in flight was started before this event, so it may read the
   // layout the switch replaced. Remember the request and re-run once it lands
@@ -98,6 +104,7 @@ BarWidget {
 
   Component.onCompleted: {
     briefsProc.running = true
+    inputMethodProc.running = true
     refresh()
   }
 
@@ -194,10 +201,31 @@ BarWidget {
     }
   }
 
+  // Fcitx5 does not emit a Hyprland layout event when its input method changes,
+  // so refresh its lightweight command-line status periodically. If Fcitx5 is
+  // unavailable, the empty result leaves the normal XKB behavior unchanged.
+  Process {
+    id: inputMethodProc
+    command: ["fcitx5-remote", "-n"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.inputMethodName = String(text || "").trim()
+    }
+  }
+
   Timer {
     id: refreshTimer
     interval: 600
     onTriggered: root.refresh()
+  }
+
+  Timer {
+    interval: 1000
+    running: true
+    repeat: true
+    onTriggered: {
+      if (!inputMethodProc.running) inputMethodProc.running = true
+    }
   }
 
   // A query that never returns would freeze the label until the shell restarts,
@@ -228,7 +256,7 @@ BarWidget {
     onTriggered: root.refresh()
   }
 
-  visible: layoutLabel !== "" && multipleLayouts
+  visible: displayLabel !== "" && (inputMethodLabel !== "" || multipleLayouts)
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -236,10 +264,13 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.layoutLabel
+    text: root.displayLabel
     fontSize: Style.font.caption
     horizontalMargin: 6
-    tooltipText: root.layoutFull
-    onPressed: function() { root.cycleLayout() }
+    tooltipText: root.inputMethodName ? "Fcitx5: " + root.inputMethodName : root.layoutFull
+    onPressed: function() {
+      if (root.inputMethodLabel) root.bar.run("fcitx5-remote -t")
+      else root.cycleLayout()
+    }
   }
 }
