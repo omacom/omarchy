@@ -7,7 +7,7 @@ ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
 RestrictSUIDSGID=yes
-ReadWritePaths=/etc/ssh/sshd_config.d /var/log
+ReadWritePaths=/etc/ssh/sshd_config.d /var/log /var/run/sshd /run/sshd
 EOF
 
 sudo mkdir -p /etc/systemd/system/docker.service.d

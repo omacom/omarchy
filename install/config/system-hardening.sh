@@ -15,25 +15,15 @@ sudo tee /etc/systemd/system.conf.d/99-omarchy-umask.conf >/dev/null <<'EOF'
 UMask=027
 EOF
 
-# Log protection
-sudo tee /etc/logrotate.d/omarchy-security >/dev/null <<'EOF'
-/var/log/auth.log
-/var/log/syslog
-/var/log/kern.log
-/var/log/ufw.log
-{
-    daily
-    rotate 30
-    compress
-    delaycompress
-    notifempty
-    create 640 root adm
-    sharedscripts
-    postrotate
-        /usr/bin/systemctl kill -s HUP systemd-journald 2>/dev/null || true
-    endscript
-}
+# Log protection: retain security logs for 30 days via journald
+sudo mkdir -p /etc/systemd/journald.conf.d
+sudo tee /etc/systemd/journald.conf.d/99-omarchy-security.conf >/dev/null <<'EOF'
+[Journal]
+SystemMaxUse=500M
+SystemMaxRetentionSec=30day
+Compress=yes
 EOF
+sudo systemctl restart systemd-journald 2>/dev/null || true
 
 # NetworkManager security
 sudo mkdir -p /etc/NetworkManager/conf.d
