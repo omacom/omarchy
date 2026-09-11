@@ -8,7 +8,6 @@ run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-fkeys.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-synaptic-touchpad.sh"
 run_logged "$OMARCHY_INSTALL/hardware/bluetooth.sh"
-run_logged "$OMARCHY_INSTALL/hardware/nvidia.sh"
 run_logged "$OMARCHY_INSTALL/hardware/vulkan.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/intel/video-acceleration.sh"
@@ -18,7 +17,9 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/thermald.sh"
 # intel-ipu7-camera drags in ipu7-drivers, vision-drivers and v4l2loopback,
 # and building all three against the stock kernel only to rebuild them against
 # linux-ptl and tear the first set down again cost ~25s of the install.
+# nvidia-open-dkms is the same class of work and used to run before this swap.
 run_logged "$OMARCHY_INSTALL/hardware/intel/ptl-kernel.sh"
+run_logged "$OMARCHY_INSTALL/hardware/nvidia.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/ipu7-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fred.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-wifi7-eht.sh"
