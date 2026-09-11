@@ -18,6 +18,9 @@ else
   editor="nvim"
 fi
 
+# Older state files stored "zeditor"; the binary Arch ships is "zed".
+[[ $editor == "zeditor" ]] && editor="zed"
+
 omarchy-cmd-present "$editor" || editor="nvim"
 
 case "${editor##*/}" in
