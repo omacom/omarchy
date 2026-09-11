@@ -11,6 +11,10 @@ WidgetButton {
   property bool debugOpticalBounds: Quickshell.env("OMARCHY_DEBUG_BAR_ICONS") === "1"
   readonly property real opticalCenterErrorX: glyph.visible ? glyph.paintedCenterX - opticalCanvas.width / 2 : 0
   readonly property real glyphPaintedWidth: glyph.visible ? glyph.tightWidth : 0
+  // Forwards the loaded vector icon, if any. Loader.item is statically
+  // QObject (reading .implicitWidth off it trips missing-property), so the
+  // bar measures through this untyped alias instead. Null on the glyph path.
+  readonly property var iconContentItem: iconLoader.item
   readonly property real glyphBaselineY: glyph.visible ? glyph.baselineY : 0
   readonly property int glyphFontSize: glyph.visible ? glyph.renderedFontSize : 0
 
@@ -39,6 +43,7 @@ WidgetButton {
     }
 
     Loader {
+      id: iconLoader
       anchors.fill: parent
       visible: root.iconComponent !== null
       sourceComponent: root.iconComponent
