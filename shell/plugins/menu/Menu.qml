@@ -1126,7 +1126,7 @@ Item {
             return
           }
 
-          if (event.key === Qt.Key_Delete) {
+          if (event.key === Qt.Key_Delete || (event.modifiers === Qt.ControlModifier && event.key === Qt.Key_D)) {
             root.requestDeleteSelected()
             event.accepted = true
           } else if (event.key === Qt.Key_Escape) {
