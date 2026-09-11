@@ -1737,7 +1737,13 @@ Item {
       id: horizontalModuleList
 
       Row {
-        spacing: 0
+        // Uniform gutter between adjacent modules. Each widget self-sizes
+        // (BarIconButton slots, WidgetButton text pills, third-party customs),
+        // so with spacing 0 the visual gap is whatever two neighbours happen
+        // to add up to — icon/icon pairs sit tighter than icon/text pairs,
+        // and custom widgets with no side bearing touch outright. A central
+        // minimum gutter keeps the rhythm consistent whatever is installed.
+        spacing: Style.space(2)
 
         Repeater {
           model: moduleListRoot.entries
@@ -1755,7 +1761,9 @@ Item {
       id: verticalModuleList
 
       Column {
-        spacing: 0
+        // As above: uniform gutter so vertical-bar modules keep the same
+        // minimum rhythm regardless of widget-internal padding.
+        spacing: Style.space(2)
 
         Repeater {
           model: moduleListRoot.entries

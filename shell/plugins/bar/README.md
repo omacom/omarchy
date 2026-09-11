@@ -178,3 +178,17 @@ declaring `kinds: ["bar-widget"]` and a `barWidget` entry point. See
 [../../README.md](../../README.md) for the manifest schema. Rescan, enable,
 and place third-party plugins with `omarchy-shell shell rescanPlugins`,
 `omarchy plugin enable`, and `omarchy bar move`.
+
+## Widget spacing contract
+
+Each bar section lays its modules out with a uniform 2px gutter between
+adjacent slots, but widgets still own their internal padding — so consistent
+visual spacing needs widgets to follow the shared geometry:
+
+- Icon widgets: extend `BarIconButton` from `qs.Ui` (default `slotSize`
+  `Style.bar.iconSlot`, 16px optical canvas). Compact status icons use
+  `slotSize: Style.bar.statusSlot`.
+- Text pills: extend `WidgetButton` with the default `horizontalMargin`
+  (8.5). Custom widths should keep equivalent side bearings.
+- Fully custom `Item` modules must include their own side padding; the bar
+  gutter is a minimum, not a substitute for it.
