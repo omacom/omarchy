@@ -43,10 +43,16 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+function missingScreensaverAction(idleEnabled, idledThisCycle, screensaverStartedThisCycle, screensaverWindowCount, monitorIsIdle, locked) {
+  if (!idleEnabled || !idledThisCycle || !screensaverStartedThisCycle || screensaverWindowCount !== 0 || monitorIsIdle) return "none"
+  return locked ? "clear" : "wake"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    missingScreensaverAction: missingScreensaverAction
   }
 }
