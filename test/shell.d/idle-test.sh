@@ -10,6 +10,9 @@ const idle = requireFromRoot('shell/plugins/services/idle/IdleModel.js')
 assertEqual(idle.secondsFromConfig('42.9', 10), 42, 'idle floors configured seconds')
 assertEqual(idle.secondsFromConfig('-1', 10), 10, 'idle rejects negative seconds')
 assertEqual(idle.secondsFromConfig('nope', 10), 10, 'idle rejects invalid seconds')
+assertEqual(idle.secondsFromConfig(999999999, 300), 2147483, 'idle clamps seconds to the int32 millisecond range')
+assertEqual(idle.secondsFromConfig(2147483, 300), 2147483, 'idle keeps the largest safe seconds value')
+assertEqual(idle.secondsFromConfig(2147484, 300), 2147483, 'idle clamps just past the largest safe seconds value')
 
 assertDeepEqual(idle.eventParts({ data: 'a,b,c' }, 2), ['a', 'b', 'c'], 'idle parses raw event data')
 assertDeepEqual(
