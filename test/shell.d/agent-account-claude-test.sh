@@ -77,9 +77,14 @@ work_path=$(jq -r '.current.path' <<<"$listed")
 pass "add creates an isolated Claude config dir and points at it"
 
 [[ -f $HOME/.claude/.credentials.json ]] || fail "add does not remove the original ~/.claude credentials"
-original_token=$(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json")
+personal_canon="$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/$personal_id/.credentials.json"
+[[ -f $personal_canon ]] || fail "the original login keeps a canonical credentials file" "$personal_canon"
+original_token=$(jq -r '.claudeAiOauth.accessToken' "$personal_canon")
 [[ $original_token == "personal-token" ]] || fail "add does not copy over the original OAuth" "$original_token"
-pass "add leaves the original ~/.claude session in place"
+[[ -L $HOME/.claude/.credentials.json ]] || fail "home credentials become a symlink to the active account"
+[[ $(readlink -f "$HOME/.claude/.credentials.json") == "$work_path/.credentials.json" ]] ||
+  fail "home credentials point at the new account after add"
+pass "add leaves the original session saved and points ~/.claude credentials at the active login"
 
 work_id=$(jq -r '.current.id' <<<"$listed")
 omarchy-agent-account use claude "$personal_id" >/dev/null
@@ -89,6 +94,8 @@ omarchy-agent-account use claude "$personal_id" >/dev/null
   fail "dir follows the pointer after use"
 [[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "work-token" ]] ||
   fail "use does not rewrite the unused account's credentials"
+[[ $(readlink -f "$HOME/.claude/.credentials.json") == "$personal_canon" ]] ||
+  fail "use points ~/.claude credentials at the selected account"
 pass "use switches the pointer without copying OAuth"
 
 if omarchy-agent-account list codex >/dev/null 2>&1; then

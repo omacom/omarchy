@@ -5,8 +5,9 @@
 """Isolated Claude Code accounts behind a pointer file.
 
 Each extra login gets its own CLAUDE_CONFIG_DIR. Switching writes the active
-id; it does not copy OAuth into ~/.claude. The default ~/.claude directory
-can itself be a registered account so the first login does not move.
+id and points ~/.claude/.credentials.json at that account's credentials so
+Hermes (which hardcodes that path) follows the chip. The rest of ~/.claude
+stays put.
 """
 
 from __future__ import annotations
@@ -52,6 +53,53 @@ def pending_add_path() -> Path:
 
 def isolated_dir(account_id: str) -> Path:
   return state_dir() / "accounts" / account_id
+
+
+def home_credentials_path() -> Path:
+  return Path.home() / ".claude" / ".credentials.json"
+
+
+def canonical_credentials_path(account_id: str) -> Path:
+  return isolated_dir(account_id) / ".credentials.json"
+
+
+def ensure_canonical_credentials(account_id: str, account_path: Path) -> Path | None:
+  dest = canonical_credentials_path(account_id)
+  dest.parent.mkdir(parents=True, exist_ok=True)
+  os.chmod(dest.parent, 0o700)
+  if dest.is_file() and not dest.is_symlink():
+    return dest
+  src = account_path / ".credentials.json"
+  if src.is_symlink():
+    try:
+      src = src.resolve()
+    except OSError:
+      return dest if dest.is_file() else None
+  if not src.is_file() or src == dest:
+    return dest if dest.is_file() else None
+  shutil.copy2(src, dest)
+  os.chmod(dest, 0o600)
+  return dest
+
+
+def point_home_credentials(account_id: str, account_path: Path) -> None:
+  canonical = ensure_canonical_credentials(account_id, account_path)
+  if canonical is None or not canonical.is_file():
+    return
+  home = home_credentials_path()
+  home.parent.mkdir(parents=True, exist_ok=True)
+  try:
+    if home.is_symlink() and home.resolve() == canonical.resolve():
+      return
+  except OSError:
+    pass
+  tmp = home.parent / ".credentials.json.linktmp"
+  try:
+    tmp.unlink()
+  except FileNotFoundError:
+    pass
+  tmp.symlink_to(canonical)
+  os.replace(tmp, home)
 
 
 def die(message: str, code: int = 1) -> None:
@@ -263,6 +311,11 @@ def cmd_list(as_json: bool) -> int:
       if live is not None:
         index = upsert_account(index, live, active=True)
       payload = public_index(index, live)
+    current = payload.get("current") or {}
+    current_id = str(current.get("id") or "")
+    current_path = str(current.get("path") or "")
+    if current_id and current_path:
+      point_home_credentials(current_id, expand_path(current_path))
   emit(payload, as_json)
   return 0
 
@@ -301,6 +354,7 @@ def cmd_use(account_id: str, as_json: bool) -> int:
       die(f"no saved Claude account '{account_id}'")
     index["activeId"] = account_id
     write_index(index)
+    point_home_credentials(account_id, expand_path(str(match["path"])))
     payload = public_index(index, identity_in(expand_path(str(match["path"]))))
   notify_switched(payload.get("current") or {})
   refresh_usage()
@@ -365,6 +419,7 @@ def cmd_add(as_json: bool) -> int:
       ident["path"] = str(dest)
     index = load_index()
     index = upsert_account(index, ident, active=True)
+    point_home_credentials(ident["id"], expand_path(ident["path"]))
     pending_add_path().unlink(missing_ok=True)
     payload = public_index(index, ident)
   refresh_usage()
@@ -396,10 +451,17 @@ def notify_switched(meta: dict[str, Any]) -> None:
 
 
 def refresh_usage() -> None:
+  env = os.environ.copy()
+  path = active_path(load_index())
+  if path is not None:
+    env["CLAUDE_CONFIG_DIR"] = str(path)
+  updater = Path(os.environ.get("OMARCHY_PATH") or "/usr/share/omarchy") / "bin" / "omarchy-agent-usage-update"
+  command = [str(updater) if updater.is_file() else "omarchy-agent-usage-update", "--force", "claude"]
   try:
     subprocess.run(
-      ["omarchy-agent-usage-update", "--force", "claude"],
+      command,
       check=False,
+      env=env,
       stdout=subprocess.DEVNULL,
       stderr=subprocess.DEVNULL,
     )
