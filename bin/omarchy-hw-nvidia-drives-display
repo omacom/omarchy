@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether an NVIDIA GPU is driving the screen the session renders on, rather than merely being present.
+
+# Read sysfs rather than shelling out to lspci or nvidia-smi, both of which
+# resume a runtime-suspended GPU. A connector's status file is served from the
+# driver's cached state, so asking does not power the card up.
+drm_class_path="${OMARCHY_DRM_CLASS_PATH:-/sys/class/drm}"
+
+shopt -s nullglob
+
+nvidia_connected=0
+foreign_panel=0
+
+for card in "$drm_class_path"/card[0-9]*; do
+  [[ ${card##*/} == *-* ]] && continue
+  [[ -r $card/device/vendor ]] || continue
+
+  vendor=$(<"$card/device/vendor")
+
+  for connector in "$card"-*; do
+    [[ -r $connector/status ]] || continue
+    [[ $(<"$connector/status") == "connected" ]] || continue
+
+    if [[ $vendor == "0x10de" ]]; then
+      nvidia_connected=1
+      continue
+    fi
+
+    # A built-in panel on another card means the compositor is rendering there,
+    # and these variables are session-wide. On a laptop whose external ports are
+    # wired to the discrete card, docking lights up an NVIDIA connector without
+    # moving the rendering off the integrated GPU.
+    name=${connector##*/}
+    case ${name#card*-} in
+      eDP* | LVDS* | DSI*) foreign_panel=1 ;;
+    esac
+  done
+done
+
+((nvidia_connected && !foreign_panel))

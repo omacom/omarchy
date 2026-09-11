@@ -97,3 +97,96 @@ assert_detects "a non-display NVIDIA function is not a GPU" no no no
 
 write_pci_devices
 assert_detects "a machine with no PCI devices detects nothing" no no no
+
+# Whether an NVIDIA card is present and whether it is driving a screen are
+# different questions. On a hybrid laptop the panel hangs off the integrated GPU
+# and the discrete card sits in runtime suspend, and naming NVIDIA in the session
+# environment there wakes it for every GL client.
+#
+# Connector status is read from the driver's cached state, so the detector can
+# ask without powering the card up. That is the whole point of it.
+write_drm_cards() {
+  rm -rf "$tmp_dir/drm"
+  mkdir -p "$tmp_dir/drm"
+
+  local spec card vendor connector status
+  for spec in "$@"; do
+    IFS='|' read -r card vendor connector status <<<"$spec"
+    mkdir -p "$tmp_dir/drm/$card/device"
+    printf '%s\n' "$vendor" >"$tmp_dir/drm/$card/device/vendor"
+    if [[ -n $connector ]]; then
+      mkdir -p "$tmp_dir/drm/$card-$connector"
+      printf '%s\n' "$status" >"$tmp_dir/drm/$card-$connector/status"
+    fi
+  done
+}
+
+drives_display() {
+  OMARCHY_DRM_CLASS_PATH="$tmp_dir/drm" "$ROOT/bin/omarchy-hw-nvidia-drives-display"
+}
+
+# A hybrid laptop: the panel is on the Intel card, the NVIDIA card has an unused
+# output. This is the case that was setting the variables.
+write_drm_cards 'card0|0x10de|HDMI-A-1|disconnected' 'card1|0x8086|eDP-1|connected'
+if drives_display; then
+  fail "an NVIDIA card with no connected output is not driving the display"
+fi
+pass "an idle discrete NVIDIA card does not count as driving the display"
+
+# Docking that laptop lights up an NVIDIA connector, but the panel is still on
+# the Intel card and the compositor still renders there. hl.env is session-wide,
+# so naming NVIDIA would charge the internal display for the external one.
+write_drm_cards 'card0|0x10de|HDMI-A-1|connected' 'card1|0x8086|eDP-1|connected'
+if drives_display; then
+  fail "a built-in panel on another card keeps the session off NVIDIA"
+fi
+pass "docking a hybrid laptop does not move the session onto NVIDIA"
+
+# A laptop whose panel is wired to the NVIDIA card has nowhere else to render.
+write_drm_cards 'card0|0x10de|eDP-1|connected' 'card1|0x8086||'
+drives_display || fail "a panel on the NVIDIA card is driven by NVIDIA"
+pass "a panel on the NVIDIA card still names NVIDIA"
+
+# A desktop: an integrated card is present but drives nothing, and the monitor
+# hangs off NVIDIA. No built-in panel is involved, so nothing changes here.
+write_drm_cards 'card0|0x10de|DP-1|connected' 'card1|0x8086|DP-1|disconnected'
+drives_display || fail "an idle integrated card does not keep the session off NVIDIA"
+pass "a desktop with an unused integrated card still names NVIDIA"
+
+write_drm_cards 'card0|0x10de|DP-1|connected' 'card1|0x8086|DP-2|connected'
+drives_display || fail "a monitor on the integrated card is not a built-in panel"
+pass "a desktop driving monitors from both cards still names NVIDIA"
+
+write_drm_cards 'card0|0x10de|DP-1|connected'
+drives_display || fail "a single NVIDIA card with a connected output is driving the display"
+pass "an NVIDIA-only machine still names NVIDIA"
+
+# No NVIDIA at all, and an NVIDIA card carrying no connectors whatsoever.
+write_drm_cards 'card0|0x8086|eDP-1|connected'
+if drives_display; then
+  fail "a machine without an NVIDIA card is not driving a display with one"
+fi
+pass "a machine with no NVIDIA card answers no"
+
+write_drm_cards 'card0|0x10de||'
+if drives_display; then
+  fail "an NVIDIA card with no connectors is not driving a display"
+fi
+pass "an NVIDIA card with no connectors answers no"
+
+# Telling a card from a connector is a name comparison, so a dash further up the
+# path must not hide every card from it.
+mkdir -p "$tmp_dir/drm-alt/card0/device" "$tmp_dir/drm-alt/card0-DP-1"
+printf '0x10de\n' >"$tmp_dir/drm-alt/card0/device/vendor"
+printf 'connected\n' >"$tmp_dir/drm-alt/card0-DP-1/status"
+OMARCHY_DRM_CLASS_PATH="$tmp_dir/drm-alt" "$ROOT/bin/omarchy-hw-nvidia-drives-display" ||
+  fail "a dash in the sysfs path does not hide the card"
+pass "the detector reads cards from a path containing a dash"
+
+# The gate itself: nvidia.lua must require both answers before it names NVIDIA
+# for the whole session.
+grep -q 'omarchy-hw-nvidia-drives-display' "$ROOT/default/hypr/nvidia.lua" ||
+  fail "nvidia.lua asks whether NVIDIA drives the display"
+grep -qE 'shell_succeeds\(o\.shell_quote\(nvidia\)\) and o\.shell_succeeds\(o\.shell_quote\(nvidia_drives_display\)\)' "$ROOT/default/hypr/nvidia.lua" ||
+  fail "nvidia.lua requires both a present NVIDIA card and one driving the display"
+pass "nvidia.lua only names NVIDIA when NVIDIA drives the display"
