@@ -103,3 +103,16 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+hw_fingerprint_path() {
+  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$ROOT/bin/omarchy-hw-fingerprint" --device-path
+}
+
+write_usb_devices '1234:5678:Goodix Fingerprint USB Device'
+output=$(hw_fingerprint_path) || fail "--device-path still detects the reader"
+[[ $output == "$tmp_dir/devices/1-0" ]] || fail "--device-path prints the matched device's own sysfs directory" "got: $output"
+pass "--device-path prints the matched device's own sysfs directory"
+
+output=$(hw_fingerprint) || fail "plain invocation still detects the reader"
+[[ -z $output ]] || fail "plain invocation stays silent" "got: $output"
+pass "plain invocation prints nothing, only --device-path does"

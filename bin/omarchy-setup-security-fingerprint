@@ -65,6 +65,36 @@ account    include                     system-local-login
 EOF
 }
 
+# Many USB fingerprint readers (Goodix's included) come back from USB
+# autosuspend in a state libfprint can't re-claim, so verifying fails on every
+# lock screen after the first suspend/resume until the device is replugged or
+# fprintd restarted. Pin the enrolled reader's own power/control to "on" so it
+# is never asked to autosuspend in the first place.
+disable_usb_autosuspend() {
+  local rule="${OMARCHY_FINGERPRINT_UDEV_RULE_PATH:-/etc/udev/rules.d/90-omarchy-fingerprint-no-autosuspend.rules}"
+  local dev vendor product
+
+  # The detector only understands USB readers found under sysfs; anything it
+  # can't point back at a device (not found, or found some other way) skips
+  # this hardening step. PAM is already configured either way.
+  dev=$(omarchy-hw-fingerprint --device-path) || return 0
+  [[ -r "$dev/idVendor" && -r "$dev/idProduct" ]] || return 0
+
+  vendor=$(<"$dev/idVendor")
+  product=$(<"$dev/idProduct")
+
+  echo "Disabling USB autosuspend for the fingerprint reader..."
+  sudo tee "$rule" >/dev/null <<EOF
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="$vendor", ATTR{idProduct}=="$product", TEST=="power/control", ATTR{power/control}="on"
+EOF
+
+  # Apply to the device already plugged in, so today's session benefits
+  # without a reboot or a replug.
+  if [[ -e "$dev/power/control" ]]; then
+    echo on | sudo tee "$dev/power/control" >/dev/null
+  fi
+}
+
 
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
@@ -100,6 +130,7 @@ if sudo fprintd-enroll "$USER"; then
     # pam_fprintd with nothing to match.
     setup_pam_config
     setup_lock_fingerprint_pam
+    disable_usb_autosuspend
     echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
     echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
   else

@@ -27,11 +27,21 @@ remove_lock_fingerprint_pam() {
   fi
 }
 
+remove_usb_autosuspend_rule() {
+  local rule="${OMARCHY_FINGERPRINT_UDEV_RULE_PATH:-/etc/udev/rules.d/90-omarchy-fingerprint-no-autosuspend.rules}"
+
+  if [[ -f $rule ]]; then
+    echo "Removing fingerprint USB autosuspend override..."
+    sudo rm -f "$rule"
+  fi
+}
+
 
 echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 
 remove_pam_config
 remove_lock_fingerprint_pam
+remove_usb_autosuspend_rule
 
 echo "Removing fingerprint packages..."
 omarchy-pkg-drop fprintd libfprint libfprint-git
