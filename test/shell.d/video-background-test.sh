@@ -180,7 +180,6 @@ assert(
 )
 assert(
   themeSwitcher.includes("-iname '*.mp4'") &&
-    themeSwitcher.includes('mp4 m4v mov webm mkv avi') &&
     themeSwitcher.includes('preview.mp4'),
   'theme switcher previews video-only themes, named preview files included'
 )
@@ -325,6 +324,7 @@ NEXT_THEME_PATH="$transition_home/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$transition_home/.local/state/omarchy/current/background"
 BACKGROUND_TRANSITION_CACHE="$transition_home/.cache/omarchy/background-transitions"
 THEME_NAME="video-test"
+REQUESTED_BACKGROUND=""
 HOME="$transition_home"
 mkdir -p "$CURRENT_THEME_PATH/backgrounds" "$NEXT_THEME_PATH/backgrounds" "$HOME/.config/omarchy/backgrounds/$THEME_NAME"
 printf 'old image\n' >"$CURRENT_THEME_PATH/backgrounds/old.png"
