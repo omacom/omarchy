@@ -2,13 +2,6 @@
 mkdir -p "$HOME/Work"
 mkdir -p "$HOME/Work/tries"
 
-cat >"$HOME/Work/.mise.toml" <<'EOF'
-[env]
-_.path = "{{ cwd }}/bin"
-EOF
-
-mise trust ~/Work/.mise.toml
-
 # Offline installs unpack the Node tarball bundled by the ISO: from
 # /opt/packages in the ISO chroot, or from the copy staged in provisioning state when
 # omarchy-provision-owner finalizes the user at first boot.
