@@ -7,6 +7,7 @@ TOGGLES_DIR="$HOME/.local/state/omarchy/toggles/hypr"
 CLAMSHELL_FLAG="$TOGGLES_DIR/internal-monitor-clamshell.lua"
 MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
+POSITION_STATE="$TOGGLES_DIR/internal-monitor-position"
 MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
@@ -126,6 +127,34 @@ remember_internal_scale() {
   store_internal_scale "$scale"
 }
 
+valid_position() {
+  [[ $1 =~ ^-?[0-9]+x-?[0-9]+$ ]]
+}
+
+# "auto" is order-dependent, not identity-based: it appends a panel after
+# whatever else is already positioned. Toggling the internal panel off then
+# back on with "auto" can therefore swap places with a monitor that stayed
+# up the whole time, so its live position is captured here, before it goes
+# down, the same way current_internal_scale captures the scale.
+current_internal_position() {
+  [[ -n $INTERNAL ]] || return 0
+  hyprctl monitors all -j | jq -r --arg internal "$INTERNAL" '.[] | select(.name == $internal and .disabled != true) | "\(.x)x\(.y)"' | head -1
+}
+
+store_internal_position() {
+  local position="$1"
+  valid_position "$position" || return 0
+
+  mkdir -p "$TOGGLES_DIR"
+  printf '%s\n' "$position" >"$POSITION_STATE"
+}
+
+remember_internal_position() {
+  local position
+  position=$(current_internal_position)
+  store_internal_position "$position"
+}
+
 # $1 is the configured scale when the caller has already read it, so one sync
 # does not parse the config twice.
 read_monitor_scale() {
@@ -159,6 +188,14 @@ read_monitor_position() {
   if [[ $position =~ ^[-[:alnum:]_.+]+$ ]]; then
     echo "$position"
     return
+  fi
+
+  if [[ -f $POSITION_STATE ]]; then
+    position=$(<"$POSITION_STATE")
+    if valid_position "$position"; then
+      echo "$position"
+      return
+    fi
   fi
 
   echo auto
@@ -232,6 +269,7 @@ disable_internal() {
 
   mkdir -p "$TOGGLES_DIR"
   remember_internal_scale
+  remember_internal_position
 
   local config
   config=$(printf 'hl.monitor({ output = "%s", disabled = true })' "$INTERNAL")
