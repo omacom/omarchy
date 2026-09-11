@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Open the background switcher across every theme
+# omarchy:group=theme
+# omarchy:name=bg-switcher-all
+
+current_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
+
+dirs=()
+for d in \
+  "$HOME/.config/omarchy/themes"/*/backgrounds \
+  "$OMARCHY_PATH/themes"/*/backgrounds \
+  "$HOME/.config/omarchy/backgrounds"/*; do
+  [[ -d $d ]] && dirs+=("$d")
+done
+
+omarchy-menu-images --selected "$current_background" "${dirs[@]}"
