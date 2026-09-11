@@ -312,7 +312,10 @@ Panel {
       if (finishedConnecting
           || (action === "disconnecting" && found && !found.connected)
           || (action === "forgetting" && (!found || (!found.paired && !found.bonded && !found.trusted)))) {
-        if (finishedConnecting) scheduleAudioOutputSwitch(found)
+        if (finishedConnecting) {
+          scheduleAudioOutputSwitch(found)
+          root.close()
+        }
         delete next[address]
         changed = true
       }
