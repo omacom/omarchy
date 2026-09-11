@@ -3,13 +3,33 @@
 # omarchy:summary=Launch the default browser as determined by xdg-settings.
 # omarchy:args=[url]
 
+set -euo pipefail
+
 default_browser=$(env -u BROWSER xdg-settings get default-web-browser)
 if [[ -z $default_browser ]]; then
   default_browser=$(xdg-mime query default x-scheme-handler/https)
 fi
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
-if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+if [[ $default_browser != *.desktop || $default_browser == */* || $default_browser == *..* ]]; then
+  default_browser=chromium.desktop
+fi
+
+browser_exec=""
+for desktop in \
+  "$HOME/.local/share/applications/$default_browser" \
+  "$HOME/.nix-profile/share/applications/$default_browser" \
+  "/usr/share/applications/$default_browser"; do
+  [[ -f $desktop ]] || continue
+  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$desktop" | head -1)
+  [[ -n $browser_exec ]] && break
+done
+
+if [[ -z $browser_exec ]]; then
+  echo "Error: no default web browser is installed." >&2
+  exit 1
+fi
+
+if "$browser_exec" --help 2>/dev/null | grep -q MOZ_LOG; then
   private_flag="--private-window"
 elif [[ $browser_exec =~ edge ]]; then
   private_flag="--inprivate"
@@ -17,17 +37,33 @@ else
   private_flag="--incognito"
 fi
 
-systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-  --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
-
+launch_args=()
 url=""
 for argument in "$@"; do
-  if [[ $argument != "--private" ]]; then
-    url=$argument
-    break
+  if [[ $argument == --private ]]; then
+    launch_args+=("$private_flag")
+    continue
   fi
+  if [[ $argument == --* ]]; then
+    echo "Error: browser launcher only accepts a URL and --private." >&2
+    exit 1
+  fi
+  if [[ -n $url ]]; then
+    echo "Error: browser launcher accepts a single URL." >&2
+    exit 1
+  fi
+  url_lc=$(printf '%s' "$argument" | tr '[:upper:]' '[:lower:]')
+  if [[ $argument =~ [[:space:]] ]] || [[ ! $url_lc =~ ^https?:// ]]; then
+    echo "Error: browser URL must be http or https." >&2
+    exit 1
+  fi
+  url=$argument
+  launch_args+=("$url")
 done
+
+systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+  --property=StandardOutput=null --property=StandardError=null \
+  uwsm-app -- "$browser_exec" "${launch_args[@]}"
 
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
