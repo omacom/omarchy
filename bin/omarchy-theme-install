@@ -1,15 +1,40 @@
 #!/bin/bash
 
 # omarchy:summary=Install a theme from a git repository
-# omarchy:args=[git-repo-url]
+# omarchy:args=[git-repo-url] [--keep-shader]
 # omarchy:examples=omarchy theme install https://github.com/example/omarchy-example-theme.git
 # omarchy:examples=omarchy theme install git@github.com:example/omarchy-example-theme.git
 
-if [[ -z $1 ]]; then
+KEEP_SHADER=0
+REPO_URL=""
+
+while (( $# > 0 )); do
+  case "$1" in
+    --keep-shader)
+      KEEP_SHADER=1
+      ;;
+    --no-shader)
+      # Keep the old spelling as a harmless compatibility alias.
+      KEEP_SHADER=0
+      ;;
+    --help | -h)
+      echo "Usage: omarchy theme install <git-repo-url> [--keep-shader]"
+      exit 0
+      ;;
+    *)
+      if [[ -n $REPO_URL ]]; then
+        echo "Usage: omarchy theme install <git-repo-url> [--keep-shader]" >&2
+        exit 1
+      fi
+      REPO_URL="$1"
+      ;;
+  esac
+  shift
+done
+
+if [[ -z $REPO_URL ]]; then
   echo -e "\e[32mSee https://omarchy.org/themes/\n\e[0m"
   REPO_URL=$(gum input --placeholder="Git repo URL (https or git@host:org/repo.git)" --header="")
-else
-  REPO_URL="$1"
 fi
 
 if [[ -z $REPO_URL ]]; then
@@ -56,6 +81,23 @@ fi
 if ! git clone -- "$REPO_URL" "$THEME_PATH"; then
   echo "Error: Failed to clone theme repo."
   exit 1
+fi
+
+shader_files=()
+for shader_name in screen-shader.frag screen-shader.glsl; do
+  if [[ -f $THEME_PATH/$shader_name && ! -L $THEME_PATH/$shader_name ]]; then
+    shader_files+=("$shader_name")
+  fi
+done
+
+if (( ${#shader_files[@]} > 0 )); then
+  echo "Warning: ${shader_files[*]} is a full-screen shader and may keep the GPU busy, increasing power use and temperature."
+  if (( KEEP_SHADER )); then
+    echo "Keeping the screen shader because --keep-shader was specified."
+  else
+    rm -f -- "${shader_files[@]/#/$THEME_PATH/}"
+    echo "Screen shader disabled for '$THEME_NAME'. Pass --keep-shader to enable it."
+  fi
 fi
 
 # Apply the new theme with omarchy-theme-set, which stages only the files an

@@ -18,7 +18,13 @@ mkdir -p "$mock_bin"
 cat >"$mock_bin/git" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_GIT_CALLS"
-[[ $1 == "clone" ]] && mkdir -p "${*: -1}"
+if [[ $1 == "clone" ]]; then
+  destination="${*: -1}"
+  mkdir -p "$destination"
+  if [[ ${OMARCHY_TEST_SHADER:-} == 1 ]]; then
+    printf 'void main() {}\n' >"$destination/screen-shader.frag"
+  fi
+fi
 exit 0
 SH
 
@@ -42,6 +48,7 @@ install_theme() {
 
   HOME="$test_tmp/home" PATH="${2-$mock_bin:$ROOT/bin:$PATH}" \
     OMARCHY_TEST_GIT_CALLS="$git_calls" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+    OMARCHY_TEST_SHADER="${3:-}" \
     bash "$ROOT/bin/omarchy-theme-install" "$1" >"$test_tmp/out" 2>&1 || return $?
 }
 
@@ -189,6 +196,35 @@ grep -Fq "/themes/cool" "$git_calls" || fail "omarchy-theme-install derives the 
 grep -Fxq "cool" "$theme_calls" || fail "omarchy-theme-install applies the theme it installed" "$(cat "$theme_calls")"
 
 pass "an ordinary theme URL still clones and applies"
+
+: >"$git_calls"
+: >"$theme_calls"
+HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  OMARCHY_TEST_GIT_CALLS="$git_calls" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+  OMARCHY_TEST_SHADER=1 \
+  bash "$ROOT/bin/omarchy-theme-install" "https://github.com/example/omarchy-shader-theme.git" \
+  >"$test_tmp/out" 2>&1 || fail "--no-shader installs a theme without its shader"
+
+shader_theme="$test_tmp/home/.config/omarchy/themes/shader"
+[[ ! -e $shader_theme/screen-shader.frag ]] || fail "shader installation removes the .frag shader by default"
+grep -q 'may keep the GPU busy' "$test_tmp/out" || fail "shader installation prints the GPU warning"
+grep -q "Screen shader disabled for 'shader'. Pass --keep-shader" "$test_tmp/out" || fail "default shader removal is reported"
+
+pass "theme installation warns about shader GPU cost and removes it by default"
+
+: >"$git_calls"
+: >"$theme_calls"
+HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" \
+  OMARCHY_TEST_GIT_CALLS="$git_calls" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+  OMARCHY_TEST_SHADER=1 \
+  bash "$ROOT/bin/omarchy-theme-install" "https://github.com/example/omarchy-shader-theme.git" --keep-shader \
+  >"$test_tmp/out" 2>&1 || fail "--keep-shader installs a theme with its shader"
+
+[[ -f $shader_theme/screen-shader.frag ]] || fail "--keep-shader keeps the .frag shader"
+grep -q 'Keeping the screen shader because --keep-shader was specified.' "$test_tmp/out" ||
+  fail "--keep-shader reports that the shader was retained"
+
+pass "--keep-shader explicitly enables a theme shader"
 
 # omarchy-theme-remove joins its argument into the path it deletes.
 remove_theme() {
