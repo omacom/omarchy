@@ -1,7 +1,11 @@
 function secondsFromConfig(value, fallback) {
   var n = Number(value)
   if (!isFinite(n) || n < 0) return fallback
-  return Math.floor(n)
+  // QML Timer.interval is a 32-bit signed int in milliseconds, so clamp to
+  // the largest whole seconds that survive the seconds-to-ms conversion.
+  // Anything larger (e.g. a lock timeout meant as "never") overflowed into a
+  // negative interval, which Qt clamps to 1ms and spams the log forever.
+  return Math.min(Math.floor(n), 2147483)
 }
 
 function eventParts(event, count) {
