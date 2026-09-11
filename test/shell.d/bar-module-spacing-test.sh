@@ -4,28 +4,57 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# The bar lays modules out with a uniform gutter instead of relying on
-# widget-internal padding, so adjacent widgets keep the same rhythm whatever
-# is installed. Lock the gutter in both orientations: with spacing 0 the
-# visual gap is whatever two neighbours happen to add up to, and widgets
-# that change size never move their neighbours apart.
-gutter_count=$(rg -c 'spacing: Style\.space\(4\)' "$ROOT/shell/plugins/bar/Bar.qml" || true)
-[[ $gutter_count == "2" ]] || fail "bar module lists use the uniform gutter" "spacing: Style.space(4) occurrences: $gutter_count"
-pass "bar module lists use the uniform gutter"
+# Bar sections keep ink-to-ink gaps uniform by padding every module slot
+# from its own painted width, instead of a fixed positioner spacing that
+# stacks on top of the widest widget bearings. Lock the mechanism in:
+# per-slot compensation driven by paint metrics, zero positioner spacing,
+# and the pure-gap spacer exempt.
+gutter_count=$(rg -c 'spacing: 0' "$ROOT/shell/plugins/bar/Bar.qml" || true)
+[[ $gutter_count == "2" ]] || fail "bar module lists leave spacing to the slots" "spacing: 0 occurrences: $gutter_count"
+pass "bar module lists leave spacing to the slots"
+
+for anchor in 'paintHalfGap' 'slotPad' 'paintedExtent' 'BarModel\.slotPad\(' 'omarchy\.spacer'; do
+  rg -q "$anchor" "$ROOT/shell/plugins/bar/Bar.qml" || fail "bar normalizes slot spacing from painted widths" "$anchor"
+done
+pass "bar normalizes slot spacing from painted widths"
+
+run_node_test <<'JS'
+const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
+
+// Standard icon: 27px slot, ~11px of tight glyph paint.
+assertEqual(bar.slotPad(27, 11, 9), 1, 'an icon slot pads to the half gap')
+// Text pill: 30px slot, ~13px label.
+assertEqual(bar.slotPad(30, 13, 9), 0.5, 'a text pill pads to the half gap')
+// Overflowing paint (icon + percentage in an icon slot) pads extra
+// instead of touching its neighbour.
+assertEqual(bar.slotPad(27, 43, 9), 17, 'overflowing paint is compensated, not clipped')
+// Hidden widgets stay collapsed and contribute no gap.
+assertEqual(bar.slotPad(0, 0, 9), 0, 'a zero span stays collapsed')
+assertEqual(bar.slotPad(-4, 0, 9), 0, 'a negative span stays collapsed')
+assertEqual(bar.slotPad(27, 11, 0), 0, 'a zero half gap pads nothing')
+
+// The identity the bar relies on: pad + own bearing on both sides of a
+// pair always sums to the full uniform gap.
+function pairGap(spanA, paintedA, spanB, paintedB, half) {
+  const bearing = (span, painted) => (span - painted) / 2
+  return bar.slotPad(spanA, paintedA, half) + bearing(spanA, paintedA)
+    + bar.slotPad(spanB, paintedB, half) + bearing(spanB, paintedB)
+}
+assertEqual(pairGap(27, 11, 27, 12, 9), 18, 'two icons land on the uniform gap')
+assertEqual(pairGap(27, 11, 30, 13, 9), 18, 'icon and pill land on the uniform gap')
+assertEqual(pairGap(27, 43, 27, 11, 9), 18, 'overflowing paint and icon land on the uniform gap')
+JS
 
 if ! command -v quickshell >/dev/null 2>&1; then
   pass "quickshell not installed; skipping bar module spacing runtime test"
   exit 0
 fi
 
-# The bar's ModuleSlot sizes itself from the widget's implicitWidth, so the
-# row only reflows on resize when widgets report content-driven widths.
-# Exercise the real kit buttons the bar depends on: a text pill that grows
-# with its label and an icon button that follows its slot, side by side in
-# a row with the bar gutter, and prove the sibling moves.
-#
-# Positioner reflow needs a rendered scene, so the fixture opens a window on
-# the offscreen platform: no compositor required, nothing maps on screen.
+# The compensation above only works when the kit reports truthful paint
+# metrics, including text painted wider than its slot. Exercise the real
+# buttons the bar measures. Positioner reflow needs a rendered scene, so
+# the fixture opens a window on the offscreen platform: no compositor
+# required, nothing maps on screen.
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
@@ -46,45 +75,29 @@ ShellRoot {
     Qt.quit()
   }
 
-  function checkReflow() {
-    var gap = Style.space(4)
-    if (row.spacing !== gap) {
-      fail("row does not use the bar gutter")
-      return false
-    }
-    var expected = pill.x + pill.width + gap
-    if (icon.x !== expected) {
-      fail("sibling did not reflow: " + icon.x + " vs " + expected)
-      return false
-    }
-    return true
-  }
-
   Component.onCompleted: Qt.callLater(function() {
-    var narrow = pill.implicitWidth
+    var narrow = pill.labelWidth
     pill.text = "OpenCode · 82%"
-    if (!(pill.implicitWidth > narrow)) {
-      fail("pill width does not track content")
+    if (!(pill.labelWidth > narrow)) {
+      fail("pill paint width does not track content")
       return
     }
-    var single = icon.implicitWidth
-    icon.slotSize = Style.bar.iconSlot * 2
-    if (!(icon.implicitWidth > single)) {
-      fail("icon slot does not track slotSize")
+    if (!(glyph.glyphPaintedWidth > 0 && glyph.glyphPaintedWidth < Style.bar.iconSlot)) {
+      fail("icon paint width is not inside its slot")
       return
     }
-    settle.restart()
+    overflow.text = "X 100%"
+    if (!(overflow.glyphPaintedWidth > Style.bar.iconSlot)) {
+      fail("overflowing paint is not visible past its slot")
+      return
+    }
+    if (overflow.opticalSize !== Style.bar.iconCanvas) {
+      fail("icon canvas does not match the shared canvas")
+      return
+    }
+    console.log("RESULT pass")
+    Qt.quit()
   })
-
-  Timer {
-    id: settle
-    interval: 300
-    onTriggered: {
-      if (!root.checkReflow()) return
-      console.log("RESULT pass")
-      Qt.quit()
-    }
-  }
 
   QtObject {
     id: testBar
@@ -106,11 +119,9 @@ ShellRoot {
     height: 60
 
     Row {
-      id: row
-      anchors.centerIn: parent
-      spacing: Style.space(4)
       WidgetButton { id: pill; bar: testBar; text: "X" }
-      BarIconButton { id: icon; bar: testBar; text: "x" }
+      BarIconButton { id: glyph; bar: testBar; text: "x" }
+      BarIconButton { id: overflow; bar: testBar; text: "x" }
     }
   }
 }
@@ -126,7 +137,7 @@ output=$(QT_QPA_PLATFORM=offscreen timeout 15 env \
 
 if ! grep -q 'RESULT pass' <<<"$output"; then
   printf '%s\n' "$output" >&2
-  fail "bar modules reflow when item sizes change"
+  fail "bar paint metrics track content for slot compensation"
 fi
 
-pass "bar modules reflow when item sizes change"
+pass "bar paint metrics track content for slot compensation"
