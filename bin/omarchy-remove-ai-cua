@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Cua Driver, the Cua Hyprland plugin, and the agent skills they installed.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+# The driver knows which agent directories it linked its skill pack into, so
+# it takes those links back before the package providing the command goes;
+# --all removes the local copy too. A machine that never installed the skills
+# has nothing to undo, and the driver says so without failing.
+if omarchy-cmd-present cua-driver; then
+  cua-driver skills uninstall --all
+fi
+omarchy-agent-skill-link "$OMARCHY_PATH/default/agents/optional-skills/cua-omarchy" --remove
+
+plugin_removed=false
+if omarchy-pkg-present cua-hyprland-plugin; then
+  omarchy-pkg-drop cua-hyprland-plugin
+  plugin_removed=true
+fi
+omarchy-pkg-drop cua-driver-bin
+
+# Installation and telemetry identity, update checks, and the daemon's socket
+# and logs: nothing here is the user's work. Recordings land wherever the
+# recording was started, which is none of these.
+rm -rf \
+  "$HOME/.cua-driver" \
+  "$HOME/.config/cua" \
+  "$HOME/.cache/cua-driver"
+
+echo ""
+echo "Cua Driver has been removed."
+if [[ $plugin_removed == true ]]; then
+  echo "A loaded Hyprland plugin stays in memory until this session ends."
+fi

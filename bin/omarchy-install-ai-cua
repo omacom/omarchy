@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Install Cua Driver, its agent skills, and the Cua Hyprland plugin
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+echo "Installing Cua Driver..."
+omarchy-pkg-add cua-driver-bin
+
+# The skill pack is what teaches an agent the driver's snapshot-then-act loop:
+# the driver fetches the release matching its own version and links it into
+# every agent skills directory that exists, and Omarchy's companion adds the
+# package and Hyprland specifics upstream cannot know. A skill is read into
+# every session of every agent on the machine, so it is offered rather than
+# imposed. Without a terminal to ask in, the driver alone is the answer.
+skills_installed=false
+if [[ -t 0 ]]; then
+  echo ""
+  echo "Cua ships skills that teach Claude Code, Codex, Hermes, and the other"
+  echo "agents on this machine how to drive apps through the driver."
+  if gum confirm "Install the Cua agent skills?"; then
+    echo "Installing the Cua agent skills..."
+    if cua-driver skills install; then
+      omarchy-agent-skill-link "$OMARCHY_PATH/default/agents/optional-skills/cua-omarchy"
+      skills_installed=true
+    else
+      echo "The Cua skills did not install. Run 'cua-driver skills install' later to try again." >&2
+    fi
+  fi
+fi
+
+# The Hyprland plugin gives the driver a compositor route for input. It is
+# built against one exact Hyprland release and only published on the channels
+# where that pairing was qualified, so it can be absent or unresolvable here,
+# and neither undoes the driver install above. Installing it loads nothing:
+# activation is a deliberate per-session step the package documents.
+plugin_installed=false
+if pacman -Si cua-hyprland-plugin &>/dev/null; then
+  echo ""
+  echo "Installing the Cua Hyprland plugin..."
+  if omarchy-pkg-add cua-hyprland-plugin; then
+    plugin_installed=true
+  else
+    echo "The Cua Hyprland plugin did not install: it needs the exact Hyprland release it was built for. Cua Driver works without it." >&2
+  fi
+else
+  echo ""
+  echo "The Cua Hyprland plugin is not available in your package channel; Cua Driver works without it."
+fi
+
+echo ""
+echo "Cua Driver has been installed."
+if [[ $skills_installed == true ]]; then
+  echo "Agents pick up the Cua skills in their next session."
+fi
+if [[ $plugin_installed == true ]]; then
+  echo "The Hyprland plugin is installed but not loaded; activation is documented at"
+  echo "https://github.com/omacom/omarchy-pkgs/tree/master/pkgbuilds/cua-hyprland-plugin"
+  echo "It pins the exact Hyprland release, so updates that move Hyprland wait until it is removed."
+fi
