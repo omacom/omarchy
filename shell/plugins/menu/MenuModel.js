@@ -11,8 +11,11 @@ function normalizeAliases(value) {
 }
 
 function normalizeActionArgv(value) {
-  if (!Array.isArray(value)) return []
-  return value.filter(function(argument) { return typeof argument === "string" && argument.length > 0 })
+  if (!Array.isArray(value) || typeof value[0] !== "string" || !value[0]) return []
+  for (var i = 0; i < value.length; i++) {
+    if (typeof value[i] !== "string") return []
+  }
+  return value.slice()
 }
 
 function expandActionArgv(value, omarchyPath) {
@@ -37,6 +40,7 @@ function normalizeItem(id, raw) {
   var kind = value.action || actionArgv.length > 0 ? "action" : (value.target ? "link" : "menu")
 
   return {
+    _definedFields: Object.keys(value),
     id: id,
     parent: parent,
     kind: kind,
@@ -91,11 +95,24 @@ function mergeMenuSources(defaultItems, userItems) {
       var entry = src[i]
       if (!entry || !entry.id) continue
       if (!nextItems[entry.id]) nextOrder.push(entry.id)
-      var prior = nextItems[entry.id] || {}
+      var prior = nextItems[entry.id] || null
       var merged = {}
-      for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      if (prior) {
+        for (var k in prior) merged[k] = prior[k]
+      }
+
+      if (s === 1 && prior && Array.isArray(entry._definedFields)) {
+        for (var f = 0; f < entry._definedFields.length; f++) {
+          var field = entry._definedFields[f]
+          if (field !== "kind" && Object.prototype.hasOwnProperty.call(entry, field)) merged[field] = entry[field]
+        }
+      } else {
+        for (var k2 in entry) merged[k2] = entry[k2]
+      }
+
+      delete merged._definedFields
       merged.id = entry.id
+      merged.kind = merged.action || normalizeActionArgv(merged.actionArgv).length > 0 ? "action" : (merged.target ? "link" : "menu")
       nextItems[entry.id] = merged
     }
   }
