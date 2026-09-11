@@ -23,7 +23,7 @@ omarchy plugin enable omarchy.tailscale
 omarchy plugin disable omarchy.weather
 ```
 
-Or use the menu: _Setup > Plugins_ has Enable, Disable, Add, Clone, and Remove, each with a picker that only offers the plugins that make sense for that action.
+Or use the menu: _Setup > Plugins > Update Plugin_ lists the git-managed plugins with changes available — fetching fresh from git as it opens — and picking one opens a floating terminal where you can choose whether to review the diff before confirming the update.
 
 Enabled state is stored in `~/.config/omarchy/shell.json`, and the rule differs slightly for the two kinds of plugin. A third-party plugin is enabled exactly when its id appears somewhere in that file — as a bar layout entry, as an entry in `plugins[]`, or as `bar.id`. First-party plugins that aren't bar widgets are the other way around: they're on by default and only turn off by being listed in `disabledPlugins[]`.
 
@@ -50,7 +50,7 @@ omarchy plugin update acme.weather
 omarchy plugin update
 ```
 
-With no id it updates every git-managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation.
+With no id it updates every git-managed plugin you have. Interactively, you can review each diff or skip straight to confirmation; `--yes` applies updates unattended without showing diffs. The command refuses updates it can't fast-forward and rolls back a new revision that fails validation.
 
 ```
 omarchy plugin remove acme.weather
