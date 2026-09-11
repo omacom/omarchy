@@ -1,0 +1,134 @@
+#!/bin/bash
+
+# omarchy:summary=Point Grok Build at the Omarchy terminal palette
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+# Grok has no custom theme file. Its terminal theme paints no canvas of its
+# own and uses the terminal's default colors, which Omarchy already retints.
+# Activate once so following is the default; a later /theme choice in Grok
+# is left alone until --activate runs again.
+
+set -euo pipefail
+
+GROK_HOME="${GROK_HOME:-$HOME/.grok}"
+GROK_CONFIG_PATH="${GROK_CONFIG_PATH:-$GROK_HOME/config.toml}"
+GROK_ACTIVATE=0
+
+usage() {
+  echo "Usage: omarchy-theme-set-grok [--activate]"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --activate)
+      GROK_ACTIVATE=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if (( GROK_ACTIVATE == 0 )) && [[ ! -d $GROK_HOME ]]; then
+  exit 0
+fi
+
+write_terminal_theme() {
+  local force="$1"
+
+  python3 - "$GROK_CONFIG_PATH" "$force" <<'PY'
+import pathlib
+import re
+import sys
+import tomllib
+
+path = pathlib.Path(sys.argv[1])
+force = sys.argv[2] == "1"
+terminal_themes = {"terminal", "terminal-default", "transparent", "native"}
+section_re = re.compile(r"^\[([^]]+)\]\s*(#.*)?$")
+key_re = re.compile(r"^([A-Za-z0-9_.-]+)\s*=")
+
+
+def current_theme(data):
+  ui = data.get("ui")
+  if isinstance(ui, dict) and "theme" in ui:
+    value = ui["theme"]
+    return "" if value is None else str(value)
+  if "theme" in data:
+    value = data["theme"]
+    return "" if value is None else str(value)
+  return ""
+
+
+def upsert(text, table, key, assignment):
+  raw = text.splitlines()
+  current = None
+  at_root = True
+  table_header = None
+  key_line = None
+  dotted_line = None
+  dotted = f"{table}.{key}"
+
+  for index, line in enumerate(raw):
+    stripped = line.strip()
+    if stripped == "" or stripped.startswith("#"):
+      continue
+
+    match = section_re.match(stripped)
+    if match:
+      at_root = False
+      current = match.group(1).strip()
+      if current == table:
+        table_header = index
+      continue
+
+    match = key_re.match(stripped)
+    if match is None:
+      continue
+
+    name = match.group(1)
+    if at_root and name == dotted:
+      dotted_line = index
+    elif current == table and name == key:
+      key_line = index
+
+  rhs = assignment.split("=", 1)[1].strip()
+  if key_line is not None:
+    raw[key_line] = assignment
+  elif dotted_line is not None:
+    raw[dotted_line] = f"{dotted} = {rhs}"
+  elif table_header is not None:
+    raw.insert(table_header + 1, assignment)
+  else:
+    if raw and raw[-1].strip() != "":
+      raw.append("")
+    raw.append(f"[{table}]")
+    raw.append(assignment)
+
+  return ("\n".join(raw) + "\n") if raw else f"[{table}]\n{assignment}\n"
+
+
+text = path.read_text() if path.is_file() else ""
+try:
+  data = tomllib.loads(text) if text.strip() else {}
+except tomllib.TOMLDecodeError:
+  data = {}
+
+theme = current_theme(data).strip().lower()
+if not force and theme and theme not in terminal_themes:
+  raise SystemExit(0)
+
+text = upsert(text, "features", "terminal_theme", "terminal_theme = true")
+text = upsert(text, "ui", "theme", 'theme = "terminal"')
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(text)
+PY
+}
+
+write_terminal_theme "$GROK_ACTIVATE"
