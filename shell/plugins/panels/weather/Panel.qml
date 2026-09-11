@@ -72,6 +72,7 @@ Panel {
   // Parsed wttr.in j1 response. Kept on failure so stale data stays visible.
   property var report: null
   property var dailyForecastReport: null
+  property var airQualityReport: null
   property string wttrLocation: ""
 
   // Configured location, read from the weather.json state file (owned by
@@ -89,8 +90,10 @@ Panel {
     if (savingLocation) savingLocationQueryStarted = true
     forecastRetries = 0
     dailyForecastRetries = 0
+    airQualityRetries = 0
     forecastProc.running = false
     dailyForecastProc.running = false
+    airQualityProc.running = false
     Qt.callLater(refresh)
   }
 
@@ -115,6 +118,7 @@ Panel {
 
   property int forecastRetries: 0
   property int dailyForecastRetries: 0
+  property int airQualityRetries: 0
 
   // Click-to-edit state for the location label.
   property bool editingLocation: false
@@ -148,6 +152,19 @@ Panel {
   readonly property string reportFeels:     current ? formatTemp(useImperial ? current.FeelsLikeF : current.FeelsLikeC) : ""
   readonly property string reportWind:      current ? (useImperial ? (current.windspeedMiles + " mph") : (current.windspeedKmph + " km/h")) : ""
   readonly property string reportHumidity:  current ? (current.humidity + "%") : ""
+  readonly property var airAqi: {
+    var report = airQualityReport
+    if (!report) return null
+    return useImperial ? (report.us || report.eu) : (report.eu || report.us)
+  }
+  readonly property string reportAqi: airAqi ? (airAqi.label + " " + airAqi.value) : "—"
+  readonly property bool airAqiAlarming: !!(airAqi && airAqi.level >= 3)
+
+  function forecastArea(sourceReport) {
+    return sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0]
+      ? sourceReport.nearest_area[0]
+      : root.areaInfo
+  }
 
   function refresh() {
     // Each full refresh cycle gets a fresh retry budget, so an earlier
@@ -155,36 +172,54 @@ Panel {
     // starve retries for the rest of the session.
     forecastRetries = 0
     dailyForecastRetries = 0
+    airQualityRetries = 0
     if (!forecastProc.running) forecastProc.running = true
     if (root.locationQuery === "" && !locationProc.running) locationProc.running = true
     // With stored coordinates this fetches open-meteo right away — no need
     // to wait for the slow wttr response. Without them it's a no-op until
     // wttr reports the detected area.
     refreshDailyForecast(null)
+    refreshAirQuality(null)
   }
 
   function refreshDailyForecast(sourceReport) {
     if (dailyForecastProc.running) return
 
-    var lat = parseFloat(String(root.configuredLocationState.latitude))
-    var lon = parseFloat(String(root.configuredLocationState.longitude))
-    if (isNaN(lat) || isNaN(lon)) {
-      var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : root.areaInfo
-      if (!area) return
-      lat = parseFloat(String(area.latitude || ""))
-      lon = parseFloat(String(area.longitude || ""))
-    }
-    if (isNaN(lat) || isNaN(lon)) return
+    var coords = Model.openMeteoCoordinates(
+      root.configuredLocationState.latitude,
+      root.configuredLocationState.longitude,
+      root.forecastArea(sourceReport)
+    )
+    if (!coords) return
 
     var url = "https://api.open-meteo.com/v1/forecast"
-      + "?latitude=" + encodeURIComponent(String(lat))
-      + "&longitude=" + encodeURIComponent(String(lon))
+      + "?latitude=" + encodeURIComponent(String(coords.lat))
+      + "&longitude=" + encodeURIComponent(String(coords.lon))
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
     dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
     dailyForecastProc.running = true
+  }
+
+  function refreshAirQuality(sourceReport) {
+    if (airQualityProc.running) return
+
+    var coords = Model.openMeteoCoordinates(
+      root.configuredLocationState.latitude,
+      root.configuredLocationState.longitude,
+      root.forecastArea(sourceReport)
+    )
+    if (!coords) return
+
+    var url = "https://air-quality-api.open-meteo.com/v1/air-quality"
+      + "?latitude=" + encodeURIComponent(String(coords.lat))
+      + "&longitude=" + encodeURIComponent(String(coords.lon))
+      + "&current=us_aqi,european_aqi"
+      + "&timezone=auto"
+    airQualityProc.command = ["curl", "-fsS", "--max-time", "5", url]
+    airQualityProc.running = true
   }
 
   // ---- Location editing. Clicking the location label swaps it for a search
@@ -351,8 +386,10 @@ Panel {
             root.finishSavingLocation()
           // Stored coordinates already drove the fast open-meteo fetch from
           // refresh(); only auto-detect needs the area wttr reported.
-          if (isNaN(parseFloat(String(root.configuredLocationState.latitude))))
+          if (isNaN(parseFloat(String(root.configuredLocationState.latitude)))) {
             root.refreshDailyForecast(parsed)
+            root.refreshAirQuality(parsed)
+          }
         } catch (e) {
           // Keep last-good report visible, but try again shortly.
           root.scheduleForecastRetry()
@@ -388,6 +425,39 @@ Panel {
     id: dailyForecastRetryTimer
     interval: 2500
     onTriggered: root.refreshDailyForecast(null)
+  }
+
+  function scheduleAirQualityRetry() {
+    if (airQualityRetries >= 3) return
+    airQualityRetries++
+    airQualityRetryTimer.restart()
+  }
+
+  Timer {
+    id: airQualityRetryTimer
+    interval: 2500
+    onTriggered: root.refreshAirQuality(null)
+  }
+
+  Process {
+    id: airQualityProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var raw = String(text || "").trim()
+        if (!raw) {
+          root.scheduleAirQualityRetry()
+          return
+        }
+        var parsed = Model.parseAirQuality(raw)
+        if (!parsed) {
+          root.scheduleAirQualityRetry()
+          return
+        }
+        root.airQualityReport = parsed
+        root.airQualityRetries = 0
+      }
+    }
   }
 
   Process {
@@ -446,8 +516,10 @@ Panel {
         root.savingLocationQueryStarted = true
         root.forecastRetries = 0
         root.dailyForecastRetries = 0
+        root.airQualityRetries = 0
         forecastProc.running = false
         dailyForecastProc.running = false
+        airQualityProc.running = false
         Qt.callLater(root.refresh)
       }
     }
@@ -729,6 +801,25 @@ Panel {
                 textFormat: Text.PlainText
                 text: root.reportHumidity
                 color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+              }
+            }
+
+            Column {
+              visible: !!root.airQualityReport
+              spacing: Style.space(5)
+              Text {
+                text: "AIR"
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.letterSpacing: 1
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: root.reportAqi
+                color: root.airAqiAlarming ? Color.urgent : root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
               }
