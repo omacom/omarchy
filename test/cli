@@ -498,6 +498,9 @@ jq -e '.name == "Omarchy" and .base == "light" and .overrides.text == "#ffffff"'
 pass "claude theme template is generated from standard themed templates"
 cp "$NEXT_THEME/claude.json" "$CURRENT_THEME/claude.json"
 
+jq -e '.base == "github-light-default" and .background == "#000000" and .text == "#ffffff" and .accentMuted == "#1a334d" and .syntaxScopes.comment == "#111111"' "$NEXT_THEME/hunk.json" >/dev/null
+pass "hunk theme template is generated from standard themed templates"
+
 CLAUDE_TEST_CONFIG="$PI_TMPDIR/.claude-work"
 mkdir -p "$CLAUDE_TEST_CONFIG"
 HOME="$PI_TMPDIR" CLAUDE_CONFIG_DIR="$CLAUDE_TEST_CONFIG" "$ROOT/bin/omarchy-theme-set-claude"

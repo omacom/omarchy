@@ -1,0 +1,172 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to Hunk
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+# Hunk defines themes inline in its config, so the palette is published as a
+# file that a small Hunk extension registers under the id "omarchy". Only the
+# one-line theme selection ever touches the user's config.toml.
+
+set -euo pipefail
+
+HUNK_SOURCE_PATH="$HOME/.local/state/omarchy/current/theme/hunk.json"
+HUNK_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hunk"
+HUNK_CONFIG_PATH="$HUNK_CONFIG_DIR/config.toml"
+HUNK_THEME_PATH="$HUNK_CONFIG_DIR/themes/omarchy.json"
+HUNK_EXTENSION_SOURCE="$OMARCHY_PATH/config/hunk/extensions/omarchy.js"
+HUNK_EXTENSION_PATH="$HUNK_CONFIG_DIR/extensions/omarchy.js"
+HUNK_THEME_ID="omarchy"
+HUNK_ACTIVATE=0
+
+usage() {
+  echo "Usage: omarchy-theme-set-hunk [--activate]"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --activate)
+      HUNK_ACTIVATE=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+# A theme switch runs this beside a dozen other hooks; only --activate explains.
+note() {
+  if (( HUNK_ACTIVATE == 1 )); then
+    echo "$*" >&2
+  fi
+}
+
+if [[ ! -f $HUNK_SOURCE_PATH ]]; then
+  if (( HUNK_ACTIVATE == 1 )); then
+    echo "Hunk theme source missing: $HUNK_SOURCE_PATH" >&2
+    echo "Run omarchy-theme-refresh after selecting an Omarchy theme." >&2
+    exit 1
+  fi
+
+  exit 0
+fi
+
+# Only follow an install that exists. Hunk is preinstalled, but a machine that
+# removed it should not get a config directory for it.
+if ! omarchy-cmd-present hunk; then
+  if (( HUNK_ACTIVATE == 1 )); then
+    echo "Hunk is not installed." >&2
+    exit 1
+  fi
+
+  exit 0
+fi
+
+# Hunk rejects a theme whole when any color is not #rrggbb, so a palette a
+# theme left unresolved or off-format is held back and the previous one stays.
+# The keys are the ones Hunk's theme tables accept; anything else is not colour.
+theme_is_well_formed() {
+  jq -e '
+    def hex: type == "string" and test("^#[0-9a-fA-F]{6}$");
+    def color_keys: [
+      "background", "panel", "panelAlt", "border", "accent", "accentMuted", "text", "muted",
+      "addedBg", "removedBg", "movedAddedBg", "movedRemovedBg", "contextBg",
+      "addedContentBg", "removedContentBg", "contextContentBg",
+      "addedSignColor", "removedSignColor", "lineNumberBg", "lineNumberFg", "selectedHunk",
+      "badgeAdded", "badgeRemoved", "badgeNeutral",
+      "fileNew", "fileDeleted", "fileRenamed", "fileModified", "fileUntracked",
+      "noteBorder", "noteBackground", "noteTitleBackground", "noteTitleText"
+    ];
+    type == "object"
+    and (keys - color_keys - ["base", "syntaxScopes"] | length == 0)
+    and ((has("base") | not) or (.base | type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$")))
+    and ([to_entries[] | select(.key != "base" and .key != "syntaxScopes") | .value | hex] | all)
+    and ((.syntaxScopes // {}) | type == "object" and ([.[] | hex] | all))
+    and ([to_entries[] | select(.key != "base" and .key != "syntaxScopes")] | length > 0)
+  ' "$1" >/dev/null 2>&1
+}
+
+if ! theme_is_well_formed "$HUNK_SOURCE_PATH"; then
+  echo "Skipping Hunk theme: $(basename "$HUNK_SOURCE_PATH") is not a plain color palette." >&2
+  exit 0
+fi
+
+# Hunk reads the palette whole at startup, so the write is atomic.
+mkdir -p "$(dirname "$HUNK_THEME_PATH")"
+tmp=$(mktemp "$HUNK_THEME_PATH.XXXXXX")
+cp "$HUNK_SOURCE_PATH" "$tmp"
+mv "$tmp" "$HUNK_THEME_PATH"
+
+# The extension is Omarchy's, but a copy the user has changed is theirs to keep.
+if [[ ! -f $HUNK_EXTENSION_PATH ]]; then
+  mkdir -p "$(dirname "$HUNK_EXTENSION_PATH")"
+  tmp=$(mktemp "$HUNK_EXTENSION_PATH.XXXXXX")
+  cp "$HUNK_EXTENSION_SOURCE" "$tmp"
+  mv "$tmp" "$HUNK_EXTENSION_PATH"
+fi
+
+# The theme Hunk is on: the top-level key, which ends at the first table
+# header. A theme set under a command table is that command's and stays.
+current_theme() {
+  local value
+
+  [[ -f $HUNK_CONFIG_PATH ]] || return 0
+
+  value=$(awk '
+    /^[[:space:]]*\[/ { exit }
+    /^[[:space:]]*theme[[:space:]]*=/ { sub(/^[^=]*=[[:space:]]*/, ""); print; exit }
+  ' "$HUNK_CONFIG_PATH")
+
+  value=${value%%#*}
+  value=${value%"${value##*[![:space:]]}"}
+  value=${value#[\"\']}
+  value=${value%[\"\']}
+  printf '%s' "$value"
+}
+
+# Replace the top-level theme line, or add one where top-level keys belong:
+# before the first table header, or at the end of a file that has none.
+write_setting_theme() {
+  local tmp
+
+  mkdir -p "$HUNK_CONFIG_DIR"
+  tmp=$(mktemp "$HUNK_CONFIG_PATH.XXXXXX")
+
+  if [[ -f $HUNK_CONFIG_PATH ]]; then
+    awk -v line="theme = \"$HUNK_THEME_ID\"" '
+      !done && /^[[:space:]]*\[/ { print line; print ""; done = 1 }
+      !done && /^[[:space:]]*theme[[:space:]]*=/ { print line; done = 1; next }
+      { print }
+      END { if (!done) print line }
+    ' "$HUNK_CONFIG_PATH" >"$tmp"
+  else
+    printf 'theme = "%s"\n' "$HUNK_THEME_ID" >"$tmp"
+  fi
+
+  mv "$tmp" "$HUNK_CONFIG_PATH"
+}
+
+current=$(current_theme)
+
+if [[ $current == "$HUNK_THEME_ID" ]]; then
+  note "Hunk is on the Omarchy theme."
+  exit 0
+fi
+
+# A theme switch only replaces Hunk's default, so a theme chosen in Hunk's
+# config stays; --activate is asked for by name and replaces it.
+if [[ -n $current ]] && (( HUNK_ACTIVATE == 0 )); then
+  exit 0
+fi
+
+if [[ -n $current ]]; then
+  note "Hunk was on the '$current' theme; switching it to the Omarchy theme."
+fi
+
+write_setting_theme
+note "Hunk is on the Omarchy theme. Open sessions pick it up when relaunched."
