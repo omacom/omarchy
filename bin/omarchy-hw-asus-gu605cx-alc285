@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Detect ASUS GU605CX laptops with the ALC285 idle audio pop issue.
+
+dmi_path="${OMARCHY_DMI_PATH:-/sys/class/dmi/id}"
+hda_devices_path="${OMARCHY_HDA_DEVICES_PATH:-/sys/bus/hdaudio/devices}"
+
+grep -qxF "ASUSTeK COMPUTER INC." "$dmi_path/board_vendor" 2>/dev/null &&
+  grep -qxF "GU605CX" "$dmi_path/board_name" 2>/dev/null || exit 1
+
+# These cached IDs do not wake the codec, unlike reading /proc/asound codecs.
+shopt -s nullglob
+for codec in "$hda_devices_path"/*; do
+  if grep -qxF "0x10ec0285" "$codec/vendor_id" 2>/dev/null &&
+    grep -qxF "0x10431034" "$codec/subsystem_id" 2>/dev/null; then
+    exit 0
+  fi
+done
+
+exit 1
