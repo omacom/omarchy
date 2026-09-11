@@ -19,6 +19,12 @@ grep -F '%wheel ALL=(root) NOPASSWD: /usr/bin/timedatectl ^set-timezone [A-Za-z0
 grep -F 'sudo timedatectl set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
   fail "timezone menu uses the passwordless sudoers timedatectl rule"
 
+grep -F '/usr/share/zoneinfo/zone.tab' "$timezone_menu" >/dev/null ||
+  fail "timezone menu lists zones from zone.tab"
+
+! grep -F 'timedatectl list-timezones |' "$timezone_menu" >/dev/null ||
+  fail "timezone menu does not list tzdata backward-compatibility aliases"
+
 ! grep -F 'pkexec timedatectl set-timezone "$timezone"' "$timezone_menu" >/dev/null ||
   fail "timezone menu does not wrap timedatectl in pkexec"
 

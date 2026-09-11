@@ -166,6 +166,14 @@ omarchy_prompt_hostname() {
   done
 }
 
+# `timedatectl list-timezones` builds its list from tzdata.zi, which carries the
+# backward-compatibility links alongside the zones they point at, so the picker
+# offered Asia/Ashkhabad right under Asia/Ashgabat. zone.tab is one row per
+# country per zone and holds none of those obsolete aliases; UTC is not in it.
+omarchy_timezones() {
+  { echo UTC; awk '!/^#/ && NF { print $3 }' /usr/share/zoneinfo/zone.tab; } | sort
+}
+
 # A fresh machine often hasn't joined a network yet, so the geo guess fails
 # often; guard it or a `set -e` caller dies before the filter fallback.
 omarchy_prompt_timezone() {
@@ -173,9 +181,9 @@ omarchy_prompt_timezone() {
   guess=$(tzupdate -p 2>/dev/null) || guess=""
 
   if [[ -n $guess ]]; then
-    timezone=$(timedatectl list-timezones | gum choose --height 10 --selected "$guess" --header "Timezone") && status=0 || status=$?
+    timezone=$(omarchy_timezones | gum choose --height 10 --selected "$guess" --header "Timezone") && status=0 || status=$?
   else
-    timezone=$(timedatectl list-timezones | gum filter --height 10 --header "Timezone") && status=0 || status=$?
+    timezone=$(omarchy_timezones | gum filter --height 10 --header "Timezone") && status=0 || status=$?
   fi
   ((status == 0)) || return $status
 
