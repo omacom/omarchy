@@ -113,4 +113,106 @@ assert(qmlBoundaryTooltip.includes('model-a') && qmlBoundaryTooltip.includes('fi
   && qmlBoundaryTooltip.includes('fixture uncertainty')
   && qmlBoundaryTooltip.includes('fixture override warning'),
   'QML-style indexable sequences retain every tooltip detail group')
+
+for (const malformedTariff of [[], 'invalid', 7]) {
+  const malformedBucket = bucket('model-a', zeros('inputTokens', 10), 10)
+  malformedBucket.tariff = malformedTariff
+  const malformedUsage = { schemaVersion: 1, unit: 'tokens', fromDate: '2026-09-01', throughDate: '2026-09-30',
+    complete: true, issues: [], unallocatedTokens: 0,
+    days: [{ date: '2026-09-30', buckets: [malformedBucket] }] }
+  const malformedDay = pricing.buildDailyRows('codex', malformedUsage, [], now, overrides, true)[6]
+  const malformedModel = pricing.buildModelWindowPresentation('codex', malformedUsage, now, overrides, true)
+  assertEqual(malformedDay.cost.status + '/' + malformedModel.models[0].cost.status
+    + '/' + malformedModel.summaries[0].cost.status, 'unknown/unknown/unknown',
+    'malformed non-object tariff metadata stays unknown through daily and model/window presentation')
+}
+
+let tokenReads = 0
+const countedTokens = {}
+for (const name of ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens'])
+  Object.defineProperty(countedTokens, name, { enumerable: true, get() { tokenReads++; return 1 } })
+const countedUsage = { schemaVersion: 1, unit: 'tokens', fromDate: '2026-09-01', throughDate: '2026-09-30',
+  complete: true, issues: [], unallocatedTokens: 0,
+  days: [{ date: '2026-09-30', buckets: [bucket('model-a', countedTokens, 4)] }] }
+pricing.buildModelWindowPresentation('codex', countedUsage, now, overrides, true)
+assertEqual(tokenReads, 4, 'model/window aggregation prices each bucket once instead of once per destination')
+
+let rateReads = 0
+const countedRates = {}
+for (const name of ['input', 'output', 'cacheRead', 'cacheWrite'])
+  Object.defineProperty(countedRates, name, { enumerable: true, get() { rateReads++; return 1 } })
+const countedOverrides = { schemaVersion: 1, aliases: {}, errors: [], models: {
+  'model-a': { rates: countedRates, assumptions: [] }
+} }
+const repeatedUsage = { schemaVersion: 1, unit: 'tokens', fromDate: '2026-09-01', throughDate: '2026-09-30',
+  complete: true, issues: [], unallocatedTokens: 0,
+  days: [{ date: '2026-09-30', buckets: Array.from({ length: 20 }, () =>
+    bucket('model-a', zeros('inputTokens', 1), 1)) }] }
+pricing.buildModelWindowPresentation('codex', repeatedUsage, now, countedOverrides, true)
+assertEqual(rateReads, 4, 'one formatter pass resolves each distinct model tariff once')
+
+let modelReads = 0
+const repeatedBuckets = Array.from({ length: 20 }, () => {
+  const item = bucket('model-a', zeros('inputTokens', 1), 1)
+  Object.defineProperty(item, 'rawModel', { enumerable: true, get() { modelReads++; return 'model-a' } })
+  return item
+})
+pricing.buildModelWindowPresentation('codex', { ...repeatedUsage,
+  days: [{ date: '2026-09-30', buckets: repeatedBuckets }] }, now, countedOverrides, true)
+assertEqual(modelReads, 20, 'equivalent pricing buckets are compacted before model/window evaluation')
+
+const rawIdentityUsage = { ...repeatedUsage, days: [{ date: '2026-09-30', buckets: [
+  bucket('Unknown-X', zeros('inputTokens', 1), 1),
+  bucket(' unknown-x ', zeros('inputTokens', 1), 1)
+] }] }
+const rawIdentity = pricing.buildModelWindowPresentation('codex', rawIdentityUsage, now, {}, true)
+assert(rawIdentity.models[0].cost.missing.includes('No exact tariff for Unknown-X')
+  && rawIdentity.models[0].cost.missing.includes('No exact tariff for  unknown-x '),
+  'compaction preserves distinct raw model IDs in missing-price details')
+
+let mergedSourceReads = 0
+function sameKeyBucket(sourceId, input, write) {
+  const item = { rawModel: 'claude-opus-5', source: 'claude-native', issues: [], totalTokens: input + write,
+    tariff: { cache_duration: '1h', cache_creation: {
+      ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: write } },
+    tokens: { inputTokens: input, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: write } }
+  if (sourceId === null) Object.defineProperty(item, 'sourceId',
+    { enumerable: true, get() { mergedSourceReads++; return 'must-not-be-read' } })
+  else item.sourceId = sourceId
+  return item
+}
+function sameFastBucket(sourceId, input) {
+  const item = { rawModel: 'claude-sonnet-5', source: 'claude-native', issues: [], totalTokens: input,
+    tariff: { fast_mode: true },
+    tokens: { inputTokens: input, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } }
+  if (sourceId === null) Object.defineProperty(item, 'sourceId',
+    { enumerable: true, get() { mergedSourceReads++; return 'must-not-be-read' } })
+  else item.sourceId = sourceId
+  return item
+}
+const mixedBuckets = [
+  sameKeyBucket('first', 1, 10),
+  { rawModel: 'claude-opus-5', source: 'claude-native', sourceId: 'bypass', issues: [], totalTokens: 7,
+    tariff: 'invalid', tokens: { inputTokens: 7, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } },
+  sameKeyBucket(null, 2, 20),
+  sameFastBucket('zero', 0),
+  sameFastBucket(null, 4)
+]
+const mixedUsage = { ...repeatedUsage, days: [{ date: '2026-09-30', buckets: mixedBuckets }] }
+const mixedDay = pricing.buildDailyRows('claude', mixedUsage, [], now, {}, true)[6]
+const mixedResult = pricing.buildModelWindowPresentation('claude', mixedUsage, now, {}, true)
+const opus = mixedResult.models.find(row => row.id === 'claude-opus-5')
+const fast = mixedResult.models.find(row => row.id === 'claude-sonnet-5')
+assertEqual(mergedSourceReads, 0,
+  'non-adjacent same-key and zero/positive same-tariff buckets actually merge')
+assertEqual(mixedDay.tokens + '/' + mixedResult.summaries[0].tokens, '44/44',
+  'merged and bypassed buckets preserve daily and window token scope')
+assert(Math.abs(mixedDay.cost.total - 0.000315) < 1e-14
+  && Math.abs(opus.cost.total - 0.000315) < 1e-14
+  && mixedDay.cost.status === 'partial' && opus.cost.status === 'partial'
+  && fast.cost.status === 'unknown' && fast.cost.total === 0,
+  'valid 1h splits retain their independent subtotal while unsupported positive usage stays unknown')
+assert(mixedResult.summaries[0].tooltip.includes('Priced-token coverage: 75% priced')
+  && mixedResult.summaries[0].cost.assumptions.some(reason => reason.includes('metadata is invalid')),
+  'merged presentation retains per-bucket priced coverage and malformed metadata disclosure')
 JS

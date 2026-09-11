@@ -284,6 +284,7 @@ special_cases = [
   ("unknown ttl", None, {"cache_duration": "24h"}, "partial", .000005),
   ("conflicting ttl", split(4, 6), {"cache_duration": "5m"}, "partial", .000005),
   ("global", split(0, 10), {"inference_geo": "global"}, "complete", .000105),
+  ("geo unavailable", None, {"inference_geo": "not_available"}, "complete", .0000675),
   ("fake geo alias", None, {"inference_geo": "standard"}, "unknown", 0),
   ("invalid geo", None, {"inference_geo": False}, "unknown", 0),
   ("fast", split(0, 10), {"fast_mode": True}, "unknown", 0),

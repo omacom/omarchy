@@ -56,6 +56,17 @@ assertEqual(pricing.priceBucket(' Claude ', claudeBucket('claude-opus-5', claude
   40.5, 'the Claude cache-duration helper uses the normalized exact provider ID')
 assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { inference_geo: 'global' }), {}).status,
   'complete', 'recorded global Claude inference keeps the standard tariff')
+const unavailableGeo = pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds,
+  { inference_geo: 'not_available' }), {})
+assertEqual(unavailableGeo.status, 'complete', 'the exact unavailable-geo sentinel permits a disclosed standard estimate')
+assert(unavailableGeo.assumptions.join(' ').includes('does not claim global routing'),
+  'the unavailable-geo estimate does not misstate the observed route')
+assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds,
+  { inference_geo: ' NOT_AVAILABLE ' }), {}).status, 'unknown',
+  'the unavailable-geo policy matches only the exact recorded sentinel')
+assertEqual(pricing.priceBucket('codex', bucket('gpt-6-astra', claudeKinds,
+  { inference_geo: 'not_available' }), {}).status, 'unknown',
+  'the Anthropic unavailable-geo evidence does not exempt another provider')
 assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, { inference_geo: 'us' }), {}).status,
   'unknown', 'recorded non-global Claude inference is not silently standard-priced')
 assertEqual(pricing.priceBucket('claude', claudeBucket('claude-opus-5', claudeKinds, {}, 'codex-native'), {}).status,
@@ -339,4 +350,30 @@ unsupportedUsage.schemaVersion = 2
 const unsupportedRow = pricing.buildDailyRows('codex', unsupportedUsage, [{ date: '2026-09-09', messageCount: 99 }],
   new Date('2026-09-09T12:00:00+02:00').getTime(), {}, true)[6]
 assertEqual(unsupportedRow.value, '99/—', 'unsupported daily schema never prices legacy compatibility fields')
+
+const presentationCache = pricing.createPresentationCache()
+const cachedProvider = { providerId: 'codex', dailyUsage, recentDays: [], costScopeCompatible: true }
+const cacheNow = new Date('2026-09-09T12:00:00+02:00').getTime()
+const cacheOverrides = {}
+const cachedDaily = pricing.cachedDailyRows(presentationCache, cachedProvider, cacheNow, cacheOverrides, 0)
+const cachedModels = pricing.cachedModelWindowPresentation(presentationCache, cachedProvider, cacheNow, cacheOverrides, 0)
+assert(pricing.cachedDailyRows(presentationCache, cachedProvider, cacheNow + 1000, cacheOverrides, 0) === cachedDaily
+  && pricing.cachedModelWindowPresentation(presentationCache, cachedProvider, cacheNow + 1000, cacheOverrides, 0) === cachedModels,
+  'provider switching reuses daily and model presentation work within one local day')
+assert(pricing.cachedDailyRows(presentationCache, { ...cachedProvider }, cacheNow, cacheOverrides, 0) === cachedDaily,
+  'an unrelated refresh can rebuild the provider wrapper without repeating presentation work')
+assert(pricing.cachedDailyRows(presentationCache,
+  { ...cachedProvider, dailyUsage: { ...dailyUsage } }, cacheNow, cacheOverrides, 0) !== cachedDaily,
+  'a changed daily-usage reference invalidates cached presentation work')
+assert(pricing.cachedDailyRows(presentationCache,
+  { ...cachedProvider, recentDays: [{}] }, cacheNow, cacheOverrides, 0) !== cachedDaily,
+  'a changed recent-days reference invalidates cached daily presentation work')
+assert(pricing.cachedModelWindowPresentation(presentationCache,
+  { ...cachedProvider, costScopeCompatible: false }, cacheNow, cacheOverrides, 0) !== cachedModels,
+  'a changed cost scope invalidates cached model presentation work')
+assert(pricing.cachedModelWindowPresentation(presentationCache, cachedProvider,
+  cacheNow + 24 * 3600 * 1000, cacheOverrides, 0) !== cachedModels,
+  'a new local day invalidates cached model windows')
+assert(pricing.cachedDailyRows(presentationCache, cachedProvider, cacheNow, cacheOverrides, 1) !== cachedDaily,
+  'an override revision invalidates cached daily pricing')
 JS

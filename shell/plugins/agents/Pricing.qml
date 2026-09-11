@@ -19,6 +19,7 @@ Item {
   property string overrideState: JSON.stringify(overrides)
   property bool active: false
   property bool overrideAvailable: false
+  property var presentationCache: ApiCost.createPresentationCache()
 
   onActiveChanged: if (active) overrideFile.reload()
 
@@ -61,8 +62,7 @@ Item {
   function dailyRows(provider, nowMs) {
     var rev = revision
     if (!provider) return []
-    return ApiCost.buildDailyRows(provider.providerId, provider.dailyUsage,
-      provider.recentDays, nowMs, overrides, provider.costScopeCompatible)
+    return ApiCost.cachedDailyRows(presentationCache, provider, nowMs, overrides, rev)
   }
 
   function dailyHeading(provider, rows) {
@@ -75,7 +75,6 @@ Item {
   function modelWindowPresentation(provider, nowMs) {
     var rev = revision
     if (!provider) return ({ models: [], summaries: [] })
-    return ApiCost.buildModelWindowPresentation(provider.providerId, provider.dailyUsage,
-      nowMs, overrides, provider.costScopeCompatible)
+    return ApiCost.cachedModelWindowPresentation(presentationCache, provider, nowMs, overrides, rev)
   }
 }

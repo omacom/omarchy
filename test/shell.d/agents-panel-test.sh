@@ -44,6 +44,8 @@ assert(/usage\.pricing\.dailyRows\(provider, nowMs\)/.test(panelSource)
   && /dayRow\.day\.value/.test(panelSource),
   'agents panel renders shared compact pricing rows and their availability-aware heading')
 assert(/function modelWindowPresentation\(provider, nowMs\)/.test(pricingSource)
+  && /cachedModelWindowPresentation\(presentationCache, provider, nowMs, overrides, rev\)/.test(pricingSource)
+  && /cachedDailyRows\(presentationCache, provider, nowMs, overrides, rev\)/.test(pricingSource)
   && /usage\.pricing\.modelWindowPresentation\(provider, nowMs\)/.test(panelSource)
   && /model: root\.modelSummaries/.test(panelSource),
   'priced model and window rows use the same reload-aware public pricing object')

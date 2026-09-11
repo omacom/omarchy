@@ -287,6 +287,14 @@ function resolveRate(providerId, modelId, rawOverrides) {
   return null
 }
 
+function resolvedRate(providerId, modelId, rawOverrides, cache) {
+  if (!cache) return resolveRate(providerId, modelId, rawOverrides)
+  var key = exactId(modelId)
+  if (Object.prototype.hasOwnProperty.call(cache, key)) return cache[key]
+  cache[key] = resolveRate(providerId, modelId, rawOverrides)
+  return cache[key]
+}
+
 function uniquePush(values, value) {
   if (value !== "" && values.indexOf(value) < 0) values.push(value)
 }
@@ -342,10 +350,13 @@ function affectedTariffComponents(providerId, bucket) {
     affected = ["input", "output", "cacheRead", "cacheWrite"]
     assumptions.push("Observed fast_mode has no validated applicable bundled tariff")
   }
-  if (tariff.inference_geo !== undefined && tariff.inference_geo !== null
-      && (typeof tariff.inference_geo !== "string" || inferenceGeo !== "global")) {
-    affected = ["input", "output", "cacheRead", "cacheWrite"]
-    assumptions.push("Observed inference_geo=" + inferenceGeo + " has no validated applicable bundled tariff")
+  if (tariff.inference_geo !== undefined && tariff.inference_geo !== null) {
+    if (exactId(providerId) === "claude" && tariff.inference_geo === "not_available") {
+      assumptions.push("Recorded inference geography is unavailable; the standard tariff estimate does not claim global routing")
+    } else if (typeof tariff.inference_geo !== "string" || inferenceGeo !== "global") {
+      affected = ["input", "output", "cacheRead", "cacheWrite"]
+      assumptions.push("Observed inference_geo=" + inferenceGeo + " has no validated applicable bundled tariff")
+    }
   }
   var cacheDuration = exactId(tariff.cache_duration)
   if (tariff.cache_duration !== undefined && tariff.cache_duration !== null
@@ -404,7 +415,7 @@ function claudeCacheWrite(bucket, rate) {
     note: note }
 }
 
-function priceBucket(providerId, bucket, rawOverrides) {
+function priceBucket(providerId, bucket, rawOverrides, rateCache) {
   var result = {
     status: "unknown",
     total: 0,
@@ -431,7 +442,7 @@ function priceBucket(providerId, bucket, rawOverrides) {
     return result
   }
 
-  var rate = resolveRate(providerId, bucket.rawModel, rawOverrides)
+  var rate = resolvedRate(providerId, bucket.rawModel, rawOverrides, rateCache)
   if (!rate) {
     result.missing.push("No exact tariff for " + String(bucket.rawModel || "unknown model"))
     return result
@@ -620,16 +631,17 @@ function mergeBucketCost(target, priced) {
   if (priced.status !== "complete") target.incompleteBuckets++
 }
 
-function dayCost(providerId, buckets, rawOverrides, dailyUsage, displayedTokens) {
+function dayCost(providerId, buckets, rawOverrides, dailyUsage, displayedTokens, rateCache) {
   var result = {
     status: "unknown", total: 0,
     components: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     missing: [], uncertainties: [], assumptions: [], rates: [], rateKeys: {}, pricedTokens: 0, incompleteBuckets: 0
   }
+  buckets = compactPricingBuckets(buckets)
   var bucketTotal = 0
   var bucketTotalsKnown = true
   for (var i = 0; i < buckets.length; i++) {
-    mergeBucketCost(result, priceBucket(providerId, buckets[i], rawOverrides))
+    mergeBucketCost(result, priceBucket(providerId, buckets[i], rawOverrides, rateCache))
     var measured = tokenNumber(buckets[i] && buckets[i].totalTokens)
     if (measured === null) bucketTotalsKnown = false
     else bucketTotal += measured
@@ -665,6 +677,7 @@ function buildDailyRows(providerId, dailyUsage, recentDays, nowMs, rawOverrides,
   var overrides = parseOverrides(rawOverrides || "")
   var daily = validDailyUsage(dailyUsage) && scopeCompatible !== false ? dailyUsage : null
   var dailyByDate = {}
+  var rateCache = {}
   if (daily) {
     for (var dayIndex = 0; dayIndex < daily.days.length; dayIndex++) {
       var item = daily.days[dayIndex]
@@ -686,7 +699,7 @@ function buildDailyRows(providerId, dailyUsage, recentDays, nowMs, rawOverrides,
         if (measured !== null) bucketTokens += measured
       }
       if (!hasLegacyTokens) tokens = bucketTokens
-      cost = dayCost(provider, day.buckets, overrides, daily, hasLegacyTokens ? tokens : null)
+      cost = dayCost(provider, day.buckets, overrides, daily, hasLegacyTokens ? tokens : null, rateCache)
     } else if (pricedProvider) {
       if (scopeCompatible === false) cost.missing.push("Synchronized or legacy-only totals have no matching daily pricing coverage")
       else cost.missing.push("No versioned daily usage coverage for " + date)
@@ -781,11 +794,107 @@ function measuredBucketTokens(bucket) {
   }
 }
 
-function addPresentationBucket(target, providerId, bucket, overrides) {
-  var measured = measuredBucketTokens(bucket)
+// Request provenance stays in the record. Presentation arithmetic is linear,
+// so buckets with the same pricing decision can be summed before tariff work.
+function compactPricingBuckets(rawBuckets) {
+  var buckets = Array.isArray(rawBuckets) ? rawBuckets : []
+  var result = []
+  var groups = {}
+  var tariffKeys = ["service_tier", "speed", "fast_mode", "cache_duration", "inference_geo"]
+  for (var index = 0; index < buckets.length; index++) {
+    var bucket = buckets[index]
+    var tokens = isPlainObject(bucket && bucket.tokens) ? bucket.tokens : null
+    var rawTariff = bucket ? bucket.tariff : undefined
+    var tariff = isPlainObject(rawTariff) ? rawTariff : {}
+    var issues = Array.isArray(bucket && bucket.issues) ? bucket.issues : null
+    var model = bucket && bucket.rawModel
+    if (!tokens || !issues || !(model === null || typeof model === "string")
+        || (rawTariff !== undefined && rawTariff !== null && !isPlainObject(rawTariff))) {
+      result.push(bucket)
+      continue
+    }
+    var safe = true
+    var values = {}
+    var known = []
+    for (var fieldIndex = 0; fieldIndex < TOKEN_FIELDS.length; fieldIndex++) {
+      var field = TOKEN_FIELDS[fieldIndex][0]
+      var rawValue = tokens[field]
+      var value = tokenNumber(rawValue)
+      if (value === null && rawValue !== null && rawValue !== undefined) safe = false
+      values[field] = value
+      known.push(value !== null)
+    }
+    var total = tokenNumber(bucket.totalTokens)
+    if (total === null && bucket.totalTokens !== null && bucket.totalTokens !== undefined) safe = false
+    var issueValues = []
+    for (var issueIndex = 0; issueIndex < issues.length; issueIndex++) {
+      if (typeof issues[issueIndex] !== "string") safe = false
+      issueValues.push(String(issues[issueIndex]))
+    }
+    for (var tariffName in tariff) {
+      if (tariffKeys.indexOf(tariffName) < 0 && tariffName !== "cache_creation") safe = false
+    }
+    var tariffValues = []
+    var compactTariff = {}
+    for (var tariffIndex = 0; tariffIndex < tariffKeys.length; tariffIndex++) {
+      var name = tariffKeys[tariffIndex]
+      var present = Object.prototype.hasOwnProperty.call(tariff, name)
+      var tariffValue = tariff[name]
+      if (present && tariffValue !== null && typeof tariffValue !== "string"
+          && typeof tariffValue !== "boolean" && typeof tariffValue !== "number") safe = false
+      tariffValues.push([present, tariffValue])
+      if (present) compactTariff[name] = tariffValue
+    }
+    var splitClass = "none"
+    if (Object.prototype.hasOwnProperty.call(tariff, "cache_creation")) {
+      var split = tariff.cache_creation
+      var five = tokenNumber(split && split.ephemeral_5m_input_tokens)
+      var hour = tokenNumber(split && split.ephemeral_1h_input_tokens)
+      var duration = exactId(tariff.cache_duration)
+      if (!isPlainObject(split) || five === null || hour === null
+          || values.cacheCreationInputTokens === null
+          || five + hour !== values.cacheCreationInputTokens
+          || (duration === "5m" && hour > 0) || (duration === "1h" && five > 0)) {
+        safe = false
+      } else {
+        splitClass = (five > 0 ? "5" : "0") + (hour > 0 ? "1" : "0")
+        compactTariff.cache_creation = {
+          ephemeral_5m_input_tokens: five,
+          ephemeral_1h_input_tokens: hour
+        }
+      }
+    }
+    if (!safe) {
+      result.push(bucket)
+      continue
+    }
+    var key = JSON.stringify([model, String(bucket.source || ""), issueValues,
+      known, total !== null, tariffValues, splitClass])
+    var group = groups[key]
+    if (!group) {
+      group = { rawModel: model, source: String(bucket.source || ""), sourceId: String(bucket.sourceId || ""),
+        tariff: compactTariff, totalTokens: total, tokens: values, issues: issueValues }
+      groups[key] = group
+      result.push(group)
+      continue
+    }
+    if (total !== null) group.totalTokens += total
+    for (var mergeIndex = 0; mergeIndex < TOKEN_FIELDS.length; mergeIndex++) {
+      var mergeField = TOKEN_FIELDS[mergeIndex][0]
+      if (values[mergeField] !== null) group.tokens[mergeField] += values[mergeField]
+    }
+    if (splitClass !== "none") {
+      group.tariff.cache_creation.ephemeral_5m_input_tokens += compactTariff.cache_creation.ephemeral_5m_input_tokens
+      group.tariff.cache_creation.ephemeral_1h_input_tokens += compactTariff.cache_creation.ephemeral_1h_input_tokens
+    }
+  }
+  return result
+}
+
+function addPresentationBucket(target, measured, priced) {
   target.tokens += measured.total
   if (measured.note !== "") uniquePush(target.tokenCoverage, measured.note)
-  mergeBucketCost(target.cost, priceBucket(providerId, bucket, overrides))
+  mergeBucketCost(target.cost, priced)
 }
 
 function finishPresentation(target, extraMissing) {
@@ -848,23 +957,26 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
     seven: presentationAggregate(),
     thirty: presentationAggregate()
   }
+  var rateCache = {}
   var days = dailyUsage.days || []
   for (var dayIndex = 0; dayIndex < days.length; dayIndex++) {
     var day = days[dayIndex] || {}
     if (inThirty[String(day.date || "")] !== true) continue
-    var buckets = Array.isArray(day.buckets) ? day.buckets : []
+    var buckets = compactPricingBuckets(day.buckets)
     for (var bucketIndex = 0; bucketIndex < buckets.length; bucketIndex++) {
       var bucket = buckets[bucketIndex]
+      var measured = measuredBucketTokens(bucket)
+      var priced = priceBucket(provider, bucket, overrides, rateCache)
       var id = exactId(bucket && bucket.rawModel)
       var key = id === "" ? "(unknown model)" : id
       if (!modelMap[key]) {
         modelMap[key] = presentationAggregate()
         modelMap[key].id = key
       }
-      addPresentationBucket(modelMap[key], provider, bucket, overrides)
-      addPresentationBucket(windows.thirty, provider, bucket, overrides)
-      if (inSeven[day.date] === true) addPresentationBucket(windows.seven, provider, bucket, overrides)
-      if (day.date === today) addPresentationBucket(windows.today, provider, bucket, overrides)
+      addPresentationBucket(modelMap[key], measured, priced)
+      addPresentationBucket(windows.thirty, measured, priced)
+      if (inSeven[day.date] === true) addPresentationBucket(windows.seven, measured, priced)
+      if (day.date === today) addPresentationBucket(windows.today, measured, priced)
     }
   }
   var models = []
@@ -879,7 +991,7 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
   })
   var missingPriceModels = []
   for (var missingIndex = 0; missingIndex < models.length; missingIndex++) {
-    if (!resolveRate(provider, models[missingIndex].id, overrides))
+    if (!resolvedRate(provider, models[missingIndex].id, overrides, rateCache))
       missingPriceModels.push(models[missingIndex].id)
   }
   var globalMissing = globalCoverageMessages(provider, dailyUsage)
@@ -907,6 +1019,34 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
   }
 }
 
+function createPresentationCache() {
+  return { daily: {}, models: {} }
+}
+
+function cachedPresentation(cache, kind, provider, nowMs, overrides, revision) {
+  if (!cache || !provider) return kind === "daily" ? [] : { available: false, models: [], summaries: [] }
+  var id = exactId(provider.providerId)
+  var store = cache[kind] || (cache[kind] = {})
+  var stamp = localDateString(nowMs) + "|" + String(revision)
+  var entry = store[id]
+  if (entry && entry.dailyUsage === provider.dailyUsage && entry.recentDays === provider.recentDays
+      && entry.costScopeCompatible === provider.costScopeCompatible && entry.stamp === stamp) return entry.value
+  var value = kind === "daily"
+    ? buildDailyRows(id, provider.dailyUsage, provider.recentDays, nowMs, overrides, provider.costScopeCompatible)
+    : buildModelWindowPresentation(id, provider.dailyUsage, nowMs, overrides, provider.costScopeCompatible)
+  store[id] = { dailyUsage: provider.dailyUsage, recentDays: provider.recentDays,
+    costScopeCompatible: provider.costScopeCompatible, stamp: stamp, value: value }
+  return value
+}
+
+function cachedDailyRows(cache, provider, nowMs, overrides, revision) {
+  return cachedPresentation(cache, "daily", provider, nowMs, overrides, revision)
+}
+
+function cachedModelWindowPresentation(cache, provider, nowMs, overrides, revision) {
+  return cachedPresentation(cache, "models", provider, nowMs, overrides, revision)
+}
+
 if (typeof module !== "undefined") module.exports = {
   bundledCatalog: bundledCatalog,
   parseOverrides: parseOverrides,
@@ -920,6 +1060,9 @@ if (typeof module !== "undefined") module.exports = {
   localDateString: localDateString,
   recentDateStrings: recentDateStrings,
   buildDailyRows: buildDailyRows,
+  createPresentationCache: createPresentationCache,
+  cachedDailyRows: cachedDailyRows,
+  cachedModelWindowPresentation: cachedModelWindowPresentation,
   dailyTooltipDetails: dailyTooltipDetails,
   dailyTooltip: dailyTooltip,
   buildModelWindowPresentation: buildModelWindowPresentation,
