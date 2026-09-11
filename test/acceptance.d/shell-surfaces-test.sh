@@ -55,6 +55,27 @@ screenshot "success-system-menu"
 wtype -k Escape
 wait_until "system menu closes" 15 layer_absent "omarchy-menu"
 
+# Travel from the live desktop into both halves of SpaceBeach. A reused test
+# home may already have consent, so only choose the session voyage when asked.
+omarchy-shell shell summon omarchy.spacebeach >/dev/null
+wait_until "SpaceBeach opens" 15 layer_present "omarchy-spacebeach"
+wait_until "SpaceBeach title is visible" 15 screen_contains "SPACEBEACH"
+spacebeach_state_loaded() {
+  omarchy-shell spacebeach status | jq -e '.stateLoaded == true'
+}
+wait_until "SpaceBeach local state is loaded" 15 spacebeach_state_loaded
+if omarchy-shell spacebeach status | jq -e '.consentRequired == true' >/dev/null; then
+  wait_until "SpaceBeach consent is visible" 15 screen_contains "CHOOSE A VOYAGE"
+  wtype "1"
+fi
+wait_until "SpaceBeach Chronicle is visible" 15 screen_contains "LIVE SHORE"
+screenshot "success-spacebeach-chronicle"
+wtype "g"
+wait_until "SpaceBeach Tide Run is visible" 15 screen_contains "RUN LOG"
+screenshot "success-spacebeach-tide-run"
+wtype -k Escape
+wait_until "SpaceBeach closes" 15 layer_absent "omarchy-spacebeach"
+
 # Preview both visual selectors and cancel without changing user state. These
 # cover thumbnail generation, the image-grid overlay, and current selection.
 launch_app "omarchy-theme-bg-switcher"
