@@ -8,7 +8,11 @@
 # ship fingerprint readers; multi-purpose vendors (e.g. Elan/STMicro, which
 # also make USB touchscreens) are left out to avoid nagging laptops with no
 # reader — those still match on the product string below when present.
-fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
+# FocalTech (2808) belongs in the list even though it also makes touch
+# controllers: its match-on-chip readers name no function ("FocalTech FT9365
+# ESS"), so the product string can never carry them, while its touch devices
+# bind usbhid/i2c-hid and are rejected by the driver check below.
+fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e 2808 "
 usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
 
 # libfprint drives every reader it supports from userspace over libusb, so a
