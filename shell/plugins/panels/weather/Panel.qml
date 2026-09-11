@@ -308,7 +308,7 @@ Panel {
   }
 
   function dayName(dateString) {
-    return Model.dayName(dateString, function(date) { return Qt.formatDate(date, "dddd") })
+    return Model.dayName(dateString, function(date) { return date.toLocaleDateString(Qt.locale(), "dddd") })
   }
 
   // Bare degree value (no unit letter), used in the forecast row.
