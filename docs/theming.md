@@ -22,7 +22,7 @@ A theme installed from a git repo is held to a much shorter list; see [What an i
 
 1. Copy the first-party theme from `themes/<name>/`.
 2. Overlay `~/.config/omarchy/themes/<name>/`, in full when the user wrote it and filtered when it came from a git repo, naming anything it dropped on stderr.
-3. If needed, generate `colors.toml` from `alacritty.toml`.
+3. If needed, generate `colors.toml` from `alacritty.toml`. A theme that still has no palette is refused here, before anything is swapped in.
 4. Run `omarchy-theme-set-templates` to render templates into the staging
    theme.
 5. Move the staging theme into `~/.local/state/omarchy/current/theme`, write
