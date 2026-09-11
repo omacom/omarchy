@@ -57,6 +57,14 @@ Capture commands — Screenshots and screen recording:
 
 Every command takes `--help` too, whether you ask a whole group (`omarchy capture --help`) or a single command (`omarchy capture screenshot --help`).
 
+### Reading the Omarchy Doctrine
+
+Run `omarchy doctrine` (or `omarchy doctrine --plain`) to print the ten principles behind Omarchy, or `omarchy doctrine --full` to print DHH's explanations. Both work offline and produce plain text you can copy or pipe into another command.
+
+Use `omarchy doctrine --interactive` for a reader with live previews, built with the same Bash and fzf tools as Omarchy's package pickers. Arrow keys, Vim keys, number keys (`0` for ten), and mouse selection navigate the principles. Press `Enter` or double-click to focus on an explanation, `f` for the whole doctrine, and `Esc` to go back. Up/down arrows move between principles in both the index and individual reading views; left/right arrows remain available too. Use Page Up/Page Down or Space to scroll an explanation. In the full document, up/down arrows scroll. Press `q` to quit, or `Esc` from the index. The preview moves below the index in narrow terminals.
+
+The full-document action is separated from the ten numbered principles. The header highlights the active Index or Full view and shows a **Back** button while reading; returning from the full text restores the view you opened it from. Click **Full** to read the complete text, or **Website** to open the current section online. The `w` key also opens that section. The underlined **Read this principle online** link opens the selected principle with a single click; the full view links to the complete doctrine. The reader inherits your terminal’s font and text size. `omarchy doctrine --web` opens the published doctrine directly. `omarchy doctrine 3` opens the third principle; when piped, it prints that explanation as plain text instead.
+
 ### Opening the menu from the terminal
 
 The Omarchy menu is scriptable as well, which is handy for your own keybindings. `omarchy menu` opens it at the root, and you can jump straight to any point in the tree by naming it: `omarchy menu summon style.theme` goes right to the theme picker, `omarchy menu toggle system` opens the system menu and closes it again if it's already up, and `omarchy menu close` puts it away.
