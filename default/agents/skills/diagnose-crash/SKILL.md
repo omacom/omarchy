@@ -61,7 +61,7 @@ trap 'rm -f "$core"' EXIT
 coredumpctl dump <pid> --output="$core"
 DEBUGINFOD_URLS="https://debuginfod.archlinux.org" \
   gdb -q <executable> "$core" \
-  -batch -ex 'set debuginfod enabled on' -ex 'bt'
+  -batch -iex 'set debuginfod enabled on' -ex 'bt'
 ```
 
 A core is a verbatim copy of the process's memory and can hold passwords, tokens,
