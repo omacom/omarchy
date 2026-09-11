@@ -11,8 +11,14 @@ const discharging = 1
 assertEqual(battery.batteryPercentage({ isPresent: true, percentage: 0.126 }), 13, 'battery rounds display percentage')
 assertEqual(battery.batteryPercentage({ isPresent: false, percentage: 0.5 }), -1, 'battery reports missing battery')
 assert(battery.isDischarging({ isPresent: true, state: discharging }, true, discharging), 'battery detects discharging state')
-assert(!battery.isDischarging({ isPresent: true, state: discharging }, false, discharging), 'battery requires on-battery state')
+assert(battery.isDischarging({ isPresent: true, state: discharging }, false, discharging), 'battery detects discharging state even when line power is online (docked)')
+assert(!battery.isDischarging({ isPresent: true, state: 2 }, false, discharging), 'battery ignores non-discharging state')
 
+assertDeepEqual(
+  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, false, discharging, 10, false),
+  { level: 8, notify: true, notifiedLowBattery: true },
+  'battery warns under threshold when line power is online (docked)'
+)
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, true, discharging, 10, false),
   { level: 8, notify: true, notifiedLowBattery: true },
