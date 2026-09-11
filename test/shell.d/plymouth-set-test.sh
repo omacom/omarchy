@@ -92,7 +92,7 @@ unlock_action=$(node -e '
 [[ -n $unlock_action ]] || fail "the shipped menu still carries a style.unlock action"
 
 stub_dir="$test_tmp/stubs"
-mkdir -p "$stub_dir"
+mkdir -p "$stub_dir/bin"
 
 canary="$test_tmp/canary"
 set_args="$test_tmp/set-args"
@@ -110,12 +110,14 @@ cat >"$stub_dir/omarchy-plymouth-switcher" <<'STUB'
 printf '%s\n' "$OMARCHY_TEST_UNLOCK_NAME"
 STUB
 
-# Run the real presentation wrapper while replacing only its terminal launcher.
+# Run a source-identical presentation wrapper while replacing only its terminal launcher.
 # The launcher stub executes the final `bash -c` locally instead of opening a
 # terminal window.
-ln -s "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$stub_dir/omarchy-launch-floating-terminal-with-presentation"
+cp "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$stub_dir/bin/omarchy-launch-floating-terminal-with-presentation"
+cp "$ROOT/bin/omarchy-security-functions" "$stub_dir/bin/omarchy-security-functions"
+ln -s "$stub_dir/bin/omarchy-launch-floating-terminal-with-presentation" "$stub_dir/omarchy-launch-floating-terminal-with-presentation"
 
-cat >"$stub_dir/omarchy-restart-gum" <<'STUB'
+cat >"$stub_dir/bin/omarchy-restart-gum" <<'STUB'
 #!/bin/bash
 :
 STUB
@@ -144,15 +146,16 @@ printf 'ran\n' >"$OMARCHY_TEST_RESET_MARKER"
 STUB
 
 for command in omarchy-show-logo omarchy-show-done; do
-  printf '#!/bin/bash\nexit 0\n' >"$stub_dir/$command"
+  printf '#!/bin/bash\nexit 0\n' >"$stub_dir/bin/$command"
 done
 
-chmod +x "$stub_dir"/*
+chmod +x "$stub_dir"/* "$stub_dir/bin"/*
 
 run_unlock_action() {
   rm -f "$canary" "$set_args" "$reset_marker"
 
   PATH="$stub_dir:$PATH" \
+    OMARCHY_PATH="$stub_dir" \
     OMARCHY_TEST_UNLOCK_NAME="$1" \
     OMARCHY_TEST_SET_ARGS="$set_args" \
     OMARCHY_TEST_RESET_MARKER="$reset_marker" \

@@ -1,13 +1,52 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Launch a floating terminal with the Omarchy presentation wrapper
-# omarchy:args=<command>
+# omarchy:args=[--cold-sudo] <command> [args...]
+
+# The shebang's -p must take effect before Bash can process inherited startup
+# hooks that would otherwise run ahead of cold-sudo invalidation.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for the presentation wrapper." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup "$security_entrypoint" || exit 126
+omarchy_security_require_source_root "$security_entrypoint" || exit 126
+
+# Security-sensitive flows can revoke any reusable sudo authorization before
+# presentation helpers or the terminal launcher get a chance to run.
+if [[ ${1:-} == "--cold-sudo" ]]; then
+  omarchy_security_sanitize_bash_environment "$security_entrypoint" "$@" || exit 126
+  PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:/bin"
+  export PATH
+
+  if ! /usr/bin/sudo -k >/dev/null; then
+    echo "Unable to launch with a cold sudo credential state." >&2
+    exit 1
+  fi
+
+  shift
+  cold_sudo=true
+fi
 
 # Export the current theme's gum styling so gum widgets match the active theme
 # even after a theme switch (the inherited environment is captured at login).
-source omarchy-restart-gum
+source "$OMARCHY_PATH/bin/omarchy-restart-gum"
 
-cmd="$*"
-presentation_script="omarchy-show-logo; $cmd; if (( \$? != 130 )); then omarchy-show-done; fi"
+if [[ ${cold_sudo:-false} == "true" ]]; then
+  printf -v cmd '%q ' "$@"
+  cmd=${cmd% }
+else
+  cmd="$*"
+fi
+logo_command=$(printf '%q' "$OMARCHY_PATH/bin/omarchy-show-logo")
+done_command=$(printf '%q' "$OMARCHY_PATH/bin/omarchy-show-done")
+presentation_script="$logo_command; $cmd; if (( \$? != 130 )); then $done_command; fi"
 
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy -e bash -c "$presentation_script"
+if [[ ${cold_sudo:-false} == "true" ]]; then
+  exec /usr/bin/setsid /usr/bin/uwsm-app -- /usr/bin/xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy -e /usr/bin/bash -p -c "$presentation_script"
+else
+  exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy -e bash -c "$presentation_script"
+fi

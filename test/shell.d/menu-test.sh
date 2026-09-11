@@ -30,6 +30,7 @@ assertEqual(parsed.length, 3, 'menu parses JSONC with comments and trailing comm
 assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
+    _definedFields: ['label', 'aliases', 'description', 'action'],
     id: 'style.theme',
     parent: 'style',
     kind: 'action',
@@ -40,6 +41,7 @@ assertDeepEqual(
     target: '',
     description: 'appearance colors',
     action: 'omarchy-theme-set',
+    actionArgv: [],
     provider: '',
     aliases: ['theme'],
     when: '',
@@ -57,8 +59,43 @@ const merged = menu.mergeMenuSources(parsed, user)
 assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entries override default entries')
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
+assert(!('_definedFields' in merged.items['style.theme']), 'menu removes merge metadata from the runtime model')
+
+const secureDefaults = [
+  menu.normalizeItem('setup.security.fido2', {
+    label: 'FIDO2',
+    actionArgv: ['$OMARCHY_PATH/bin/omarchy-launch-floating-terminal-with-presentation', '$OMARCHY_PATH/bin/omarchy-setup-security-fido2', '']
+  })
+]
+const legacyOverride = [
+  menu.normalizeItem('setup.security.fido2', { label: 'Security key', action: 'legacy-shell-action' })
+]
+const secureMerged = menu.mergeMenuSources(secureDefaults, legacyOverride)
+assertDeepEqual(
+  secureMerged.items['setup.security.fido2'].actionArgv,
+  ['$OMARCHY_PATH/bin/omarchy-launch-floating-terminal-with-presentation', '$OMARCHY_PATH/bin/omarchy-setup-security-fido2', ''],
+  'menu preserves a default argv action when an older user entry overrides other fields'
+)
+assertEqual(secureMerged.items['setup.security.fido2'].action, 'legacy-shell-action', 'menu preserves explicitly overridden legacy fields')
+
+const shellOverride = [
+  menu.normalizeItem('setup.security.fido2', { action: 'custom-shell-action', actionArgv: [] })
+]
+const shellMerged = menu.mergeMenuSources(secureDefaults, shellOverride)
+assertDeepEqual(shellMerged.items['setup.security.fido2'].actionArgv, [], 'menu lets a user explicitly clear a default argv action')
+assertEqual(shellMerged.items['setup.security.fido2'].action, 'custom-shell-action', 'menu uses an explicit shell action after argv is cleared')
 
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
+assertDeepEqual(
+  menu.expandActionArgv(
+    ['$OMARCHY_PATH/bin/command', '--flag', '', 'argument with spaces'],
+    '/tmp/Omarchy root'
+  ),
+  ['/tmp/Omarchy root/bin/command', '--flag', '', 'argument with spaces'],
+  'menu expands the runtime root without collapsing or dropping command arguments'
+)
+assertDeepEqual(menu.expandActionArgv(['', 'argument'], '/tmp/root'), [], 'menu rejects an argv action without a command')
+assertDeepEqual(menu.expandActionArgv(['command', 42, '--flag'], '/tmp/root'), [], 'menu rejects an argv action containing a non-string argument')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')
 assert(menu.isDescendantOf(merged.items, 'style.theme', 'style'), 'menu detects descendants')
@@ -323,6 +360,16 @@ assertDeepEqual(
 assert(
   defaultById['setup.security.passwordless-sudo'].action.includes('omarchy-sudo-passwordless'),
   'menu places Passwordless Sudo under Setup > Security'
+)
+assertDeepEqual(
+  defaultById['setup.security.fido2'].actionArgv,
+  ['$OMARCHY_PATH/bin/omarchy-launch-floating-terminal-with-presentation', '--cold-sudo', '$OMARCHY_PATH/bin/omarchy-setup-security-fido2'],
+  'menu preserves the FIDO2 launch as command arguments'
+)
+assert(
+  !defaultById['setup.security.fido2'].action
+    && /if \(argv\.length > 0\) \{\s*Quickshell\.execDetached\(argv\)/.test(menuQml),
+  'menu launches FIDO2 directly without an outer login shell callback'
 )
 assert(
   !defaultById['trigger.toggle.direct-boot'] && !defaultById['trigger.toggle.passwordless-sudo'],

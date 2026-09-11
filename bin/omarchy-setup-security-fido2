@@ -1,14 +1,80 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Set up FIDO2 authentication for sudo and polkit
 # omarchy:requires-sudo=true
 
+# The shebang's -p must take effect before Bash can process inherited startup
+# hooks that would otherwise run ahead of FIDO2's sudo isolation.
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for FIDO2 setup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup "$security_entrypoint" || exit 126
+
 set -e
 set -o pipefail
 
+omarchy_security_sanitize_bash_environment "$security_entrypoint" "$@" || exit 126
+omarchy_security_require_source_root "$security_entrypoint" || exit 126
+
+# Do not let user-controlled PATH entries run while package authorization may
+# still be reusable by a child process.
+PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH
+
+authdir=/etc/fido2
+authfile=/etc/fido2/fido2
+stage=""
+
+safe_stage_path() {
+  local candidate=$1
+  local prefix="$authfile.new."
+  local suffix
+
+  [[ $candidate == "$prefix"* ]] || return 1
+  suffix=${candidate#"$prefix"}
+  [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
+}
+
+invalidate_sudo_credentials() {
+  /usr/bin/sudo -k >/dev/null
+}
+
+cleanup_fido2_setup() {
+  local status=$?
+
+  trap - EXIT HUP INT TERM
+
+  if safe_stage_path "$stage"; then
+    if ! /usr/bin/sudo rm -f -- "$stage"; then
+      echo "Failed to remove the incomplete FIDO2 registration." >&2
+      (( status != 0 )) || status=1
+    fi
+  fi
+
+  if ! invalidate_sudo_credentials; then
+    echo "Failed to invalidate sudo credentials after FIDO2 setup." >&2
+    (( status != 0 )) || status=1
+  fi
+
+  exit "$status"
+}
+
+trap cleanup_fido2_setup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if ! invalidate_sudo_credentials; then
+  echo "Unable to start FIDO2 setup with a cold sudo credential state." >&2
+  exit 1
+fi
 
 check_fido2_hardware() {
-  tokens=$(fido2-token -L 2>/dev/null)
+  tokens=$(/usr/bin/fido2-token -L 2>/dev/null)
   if [[ -z $tokens ]]; then
     echo -e "\e[31m\nNo FIDO2 device detected. Please plug it in (you may need to unlock it as well).\e[0m"
     return 1
@@ -16,20 +82,35 @@ check_fido2_hardware() {
   return 0
 }
 
-setup_pam_config() {
-  # Configure sudo
-  if ! grep -q pam_u2f.so /etc/pam.d/sudo; then
-    echo "Configuring sudo for FIDO2 authentication..."
-    sudo sed -i '1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/sudo
+inspect_pam_config() {
+  configure_sudo_pam=false
+  polkit_pam_action=""
+
+  if ! /usr/bin/grep -q pam_u2f.so /etc/pam.d/sudo; then
+    configure_sudo_pam=true
   fi
 
-  # Configure polkit
-  if [[ -f /etc/pam.d/polkit-1 ]] && ! grep -q 'pam_u2f.so' /etc/pam.d/polkit-1; then
+  if [[ -f /etc/pam.d/polkit-1 ]]; then
+    if ! /usr/bin/grep -q pam_u2f.so /etc/pam.d/polkit-1; then
+      polkit_pam_action=configure
+    fi
+  else
+    polkit_pam_action=create
+  fi
+}
+
+apply_pam_config() {
+  if [[ $configure_sudo_pam == "true" ]]; then
+    echo "Configuring sudo for FIDO2 authentication..."
+    /usr/bin/sudo sed -i '1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/sudo
+  fi
+
+  if [[ $polkit_pam_action == "configure" ]]; then
     echo "Configuring polkit for FIDO2 authentication..."
-    sudo sed -i '1i auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/polkit-1
-  elif [[ ! -f /etc/pam.d/polkit-1 ]]; then
+    /usr/bin/sudo sed -i '1i auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/polkit-1
+  elif [[ $polkit_pam_action == "create" ]]; then
     echo "Creating polkit configuration with FIDO2 authentication..."
-    sudo tee /etc/pam.d/polkit-1 >/dev/null <<'EOF'
+    /usr/bin/sudo tee /etc/pam.d/polkit-1 >/dev/null <<'EOF'
 auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2
 auth      required pam_unix.so
 
@@ -44,15 +125,18 @@ echo -e "\e[32mSetting up FIDO2 device for authentication.\n\e[0m"
 
 # Install required packages
 echo "Installing required packages..."
-omarchy-pkg-add libfido2 pam-u2f
+"$OMARCHY_PATH/bin/omarchy-pkg-add" --revoke-sudo libfido2 pam-u2f
+
+# Package installation may have opened a reusable sudo timestamp. Close it
+# before running either FIDO2 utility in the user process.
+if ! invalidate_sudo_credentials; then
+  echo "Unable to isolate FIDO2 setup from package authorization." >&2
+  exit 1
+fi
 
 if ! check_fido2_hardware; then
   exit 1
 fi
-
-# Create the pamu2fcfg file
-authdir=/etc/fido2
-authfile=/etc/fido2/fido2
 
 # install -d follows a symlink here and applies the mode and ownership to
 # whatever it points at, so the credential would be staged and published inside
@@ -74,56 +158,44 @@ if [[ -L $authfile || ( -e $authfile && ! -f $authfile ) ]]; then
   exit 1
 fi
 
+registration_needed=false
 if [[ ! -f $authfile ]]; then
-  sudo install -d -m 755 -o root -g root "$authdir"
+  registration_needed=true
   echo -e "\e[32m\nLet's setup your device by confirming on the device now.\e[0m"
   echo -e "Touch your FIDO2 key when it lights up...\n"
 
+  if ! credential=$(/usr/bin/pamu2fcfg) || [[ -z $credential ]]; then
+    echo -e "\e[31m\nFIDO2 registration failed. Please try again.\e[0m"
+    exit 1
+  fi
+fi
+
+# Finish every unprivileged external probe before opening the configuration
+# sudo window. From the first privileged write through the invalidation below,
+# only shell builtins and fixed sudo invocations may run in this process.
+inspect_pam_config
+
+if [[ $registration_needed == "true" ]]; then
+  /usr/bin/sudo install -d -m 755 -o root -g root "$authdir"
+
   # A unique sibling created by root cannot be replaced by another process
-  # running as this user. Stream pamu2fcfg into it instead of asking root to
-  # reopen a caller-owned path: an observed temporary name could otherwise be
-  # replaced with a symlink before the privileged copy. The final rename is
-  # atomic, and -T refuses a directory at the destination. Mode 644 keeps the
-  # root-owned global authfile readable when pam_u2f uses openasuser; only root
-  # can still rewrite it.
-  stage=""
-
-  # mktemp's output is an operand for four privileged commands below, one of
-  # them an rm. Take only the name this script asked for rather than whatever
-  # came back on stdout.
-  safe_stage_path() {
-    local candidate=$1
-    local prefix="$authfile.new."
-    local suffix
-
-    [[ $candidate == "$prefix"* ]] || return 1
-    suffix=${candidate#"$prefix"}
-    [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
-  }
-
-  cleanup_stage() {
-    local status=$?
-
-    if safe_stage_path "$stage"; then
-      sudo rm -f -- "$stage" || true
-    fi
-
-    return "$status"
-  }
-
-  trap cleanup_stage EXIT
-  stage=$(sudo mktemp "$authfile.new.XXXXXX")
+  # running as this user. Capture pamu2fcfg while sudo is cold, then stream its
+  # result into that sibling instead of asking root to reopen a caller-owned
+  # path: an observed temporary name could otherwise be replaced with a symlink
+  # before the privileged copy. The final rename is atomic, and -T refuses a
+  # directory at the destination. Mode 644 keeps the root-owned global authfile
+  # readable when pam_u2f uses openasuser; only root can still rewrite it.
+  stage=$(/usr/bin/sudo mktemp "$authfile.new.XXXXXX")
 
   if ! safe_stage_path "$stage" || [[ ! -f $stage || -L $stage ]]; then
     echo -e "\e[31m\nCould not create a safe staging file beside $authfile.\e[0m"
     exit 1
   fi
 
-  if pamu2fcfg | sudo tee "$stage" >/dev/null && [[ -s $stage ]]; then
-    sudo chmod 644 "$stage"
-    sudo mv -Tf "$stage" "$authfile"
+  if printf '%s\n' "$credential" | /usr/bin/sudo tee "$stage" >/dev/null && [[ -s $stage ]]; then
+    /usr/bin/sudo chmod 644 "$stage"
+    /usr/bin/sudo mv -Tf "$stage" "$authfile"
     stage=""
-    trap - EXIT
     echo -e "\e[32mFIDO2 device registered successfully!\e[0m"
   else
     echo -e "\e[31m\nFIDO2 registration failed. Please try again.\e[0m"
@@ -134,13 +206,19 @@ else
 fi
 
 # Configure PAM
-setup_pam_config
+apply_pam_config
+
+# The configuration sudo timestamp must not satisfy the authentication test.
+if ! invalidate_sudo_credentials; then
+  echo "Unable to start the FIDO2 authentication test with a cold sudo credential state." >&2
+  exit 1
+fi
 
 # Test with sudo
 echo -e "\nTesting FIDO2 authentication with sudo..."
 echo -e "Touch your FIDO2 key when prompted.\n"
 
-if sudo echo "FIDO2 authentication test successful"; then
+if /usr/bin/sudo echo "FIDO2 authentication test successful"; then
   echo -e "\e[32m\nPerfect! FIDO2 authentication is now configured.\e[0m"
   echo "You can use your FIDO2 key for sudo and polkit authentication."
 else

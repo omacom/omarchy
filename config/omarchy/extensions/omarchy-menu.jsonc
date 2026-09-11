@@ -9,6 +9,7 @@
   //   icon        Nerd Font glyph shown in the icon column.
   //   label       Visible row title.
   //   action      Shell command to run. If omitted, the row is a submenu.
+  //   actionArgv  Command and string arguments as an array, run without a shell. It takes precedence over action; use [] to clear an inherited argv action.
   //   target      Existing submenu id to open. Use for links/aliases.
   //   provider    Name of a shell-defined runtime row source (e.g. "fonts").
   //   aliases     alternate `omarchy menu summon <name>` routes; also searchable.
@@ -20,6 +21,7 @@
   // "personal": {"icon":"","label":"Personal"},
   // "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
   // "personal.files": {"icon":"","label":"Files","action":"uwsm-app -- nautilus ~/Documents"},
+  // "personal.safe": {"icon":"","label":"Safe command","actionArgv":["$OMARCHY_PATH/bin/omarchy-version"]},
   //
   // provider can only reference row sources the shell already defines (the
   // providers map in Menu.qml). Static submenus only need dotted ids.

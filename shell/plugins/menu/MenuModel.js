@@ -10,17 +10,37 @@ function normalizeAliases(value) {
   return []
 }
 
+function normalizeActionArgv(value) {
+  if (!Array.isArray(value) || typeof value[0] !== "string" || !value[0]) return []
+  for (var i = 0; i < value.length; i++) {
+    if (typeof value[i] !== "string") return []
+  }
+  return value.slice()
+}
+
+function expandActionArgv(value, omarchyPath) {
+  var argv = normalizeActionArgv(value)
+  var token = "$OMARCHY_PATH"
+  return argv.map(function(argument) {
+    if (argument === token || argument.indexOf(token + "/") === 0)
+      return String(omarchyPath || "") + argument.slice(token.length)
+    return argument
+  })
+}
+
 function normalizeItem(id, raw) {
   var value = raw || {}
   var aliases = normalizeAliases(value.aliases)
+  var actionArgv = normalizeActionArgv(value.actionArgv)
   var parent = value.parent
   if (parent === undefined)
     parent = id.indexOf(".") >= 0 ? id.split(".").slice(0, -1).join(".") : "root"
   if (id === "root") parent = ""
 
-  var kind = value.action ? "action" : (value.target ? "link" : "menu")
+  var kind = value.action || actionArgv.length > 0 ? "action" : (value.target ? "link" : "menu")
 
   return {
+    _definedFields: Object.keys(value),
     id: id,
     parent: parent,
     kind: kind,
@@ -31,6 +51,7 @@ function normalizeItem(id, raw) {
     target: value.target || "",
     description: value.description || "",
     action: value.action || "",
+    actionArgv: actionArgv,
     provider: value.provider || "",
     aliases: aliases,
     when: value.when || "",
@@ -74,17 +95,30 @@ function mergeMenuSources(defaultItems, userItems) {
       var entry = src[i]
       if (!entry || !entry.id) continue
       if (!nextItems[entry.id]) nextOrder.push(entry.id)
-      var prior = nextItems[entry.id] || {}
+      var prior = nextItems[entry.id] || null
       var merged = {}
-      for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      if (prior) {
+        for (var k in prior) merged[k] = prior[k]
+      }
+
+      if (s === 1 && prior && Array.isArray(entry._definedFields)) {
+        for (var f = 0; f < entry._definedFields.length; f++) {
+          var field = entry._definedFields[f]
+          if (field !== "kind" && Object.prototype.hasOwnProperty.call(entry, field)) merged[field] = entry[field]
+        }
+      } else {
+        for (var k2 in entry) merged[k2] = entry[k2]
+      }
+
+      delete merged._definedFields
       merged.id = entry.id
+      merged.kind = merged.action || normalizeActionArgv(merged.actionArgv).length > 0 ? "action" : (merged.target ? "link" : "menu")
       nextItems[entry.id] = merged
     }
   }
 
   if (!nextItems.root) {
-    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
+    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", actionArgv: [], provider: "" }
     nextOrder.unshift("root")
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
@@ -496,6 +530,8 @@ if (typeof module !== "undefined") {
     guardScript: guardScript,
     stripJsonc: stripJsonc,
     normalizeAliases: normalizeAliases,
+    normalizeActionArgv: normalizeActionArgv,
+    expandActionArgv: expandActionArgv,
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
     mergeMenuSources: mergeMenuSources,

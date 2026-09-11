@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide internal helpers for command-scoped sudo authentication
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-security-functions is an internal function library." >&2
+  exit 64
+fi
+
+omarchy_security_require_privileged_bash_startup() {
+  local script=${1:-}
+
+  [[ $- == *p* && -n $script ]] || return 1
+  # Privileged mode alone is insufficient: a parent `bash -p -c` can define
+  # callbacks and then source the protected script. Require Bash's script
+  # operand to resolve to this exact entrypoint as well.
+  /usr/bin/env -i /usr/bin/bash -p -c '
+    mapfile -d "" -t argv <"/proc/$1/cmdline" || exit 1
+    executable=$(/usr/bin/readlink -e -- "/proc/$1/exe") || exit 1
+    script_index=2
+    [[ ${argv[script_index]:-} == "--" ]] && script_index=3
+    script=$(/usr/bin/readlink -e -- "${argv[script_index]:-}") || exit 1
+    [[ $executable == "/usr/bin/bash" &&
+      ( ${argv[0]:-} == "/bin/bash" || ${argv[0]:-} == "/usr/bin/bash" ) &&
+      ${argv[1]:-} == "-p" && $script == "$2" ]]
+  ' omarchy-bash-startup "$$" "$script"
+}
+
+omarchy_security_sanitize_bash_environment() {
+  local script=$1
+  shift
+  local entry name environment_fd environment_pid
+  local -a unsets=()
+
+  # Read the raw environment: privileged Bash ignores exported functions, but
+  # leaves their records for ordinary child interpreters to import later.
+  exec {environment_fd}< <(/usr/bin/env -0)
+  environment_pid=$!
+  while IFS= read -r -d '' entry <&"$environment_fd"; do
+    name=${entry%%=*}
+    case "$name" in
+      BASH_ENV|ENV|SHELLOPTS|BASHOPTS|PS4|CDPATH|GLOBIGNORE|BASH_FUNC_*%%)
+        unsets+=(-u "$name")
+        ;;
+    esac
+  done
+  exec {environment_fd}<&-
+  wait "$environment_pid" || return 1
+  if (( ${#unsets[@]} > 0 )); then
+    exec /usr/bin/env "${unsets[@]}" /usr/bin/bash -p -- "$script" "$@"
+  fi
+}
+
+omarchy_security_require_source_root() {
+  local command_source command_name=${1##*/} package_command="" runtime_command="" runtime_root=""
+  command_source=$(/usr/bin/readlink -e -- "$1") || return 1
+  runtime_root=$(/usr/bin/realpath -e -- "${OMARCHY_PATH:-}" 2>/dev/null) || runtime_root=""
+  if [[ -n $runtime_root ]]; then
+    runtime_command=$(/usr/bin/readlink -e -- "$runtime_root/bin/$command_name" 2>/dev/null) || runtime_command=""
+  fi
+  package_command=$(/usr/bin/readlink -e -- "/usr/share/omarchy/bin/$command_name" 2>/dev/null) || package_command=""
+
+  # The Quattro live-upgrade shim leaves existing sessions pointing at a
+  # user-owned compatibility tree whose bin entries resolve to /usr/bin.
+  # Accept that alias only when it resolves to this exact packaged command,
+  # then discard the mutable alias before any runtime helpers are selected.
+  if [[ $runtime_command != "$command_source" ]]; then
+    echo "OMARCHY_PATH does not match this Omarchy command." >&2
+    return 1
+  fi
+
+  if [[ $command_source == "/usr/bin/$command_name" && $package_command == "$command_source" ]]; then
+    OMARCHY_PATH=/usr/share/omarchy
+  elif [[ $command_source == "$runtime_root/bin/$command_name" ]]; then
+    OMARCHY_PATH="$runtime_root"
+  else
+    echo "OMARCHY_PATH does not match this Omarchy command." >&2
+    return 1
+  fi
+  export OMARCHY_PATH
+}
