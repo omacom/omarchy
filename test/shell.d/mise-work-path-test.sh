@@ -12,7 +12,28 @@ migration="$ROOT/migrations/1789095456.sh"
 run_migration() {
   local test_home="$1"
 
-  env HOME="$test_home" bash -euo pipefail "$migration"
+  env \
+    HOME="$test_home" \
+    XDG_CACHE_HOME="$test_home/.cache" \
+    XDG_CONFIG_HOME="$test_home/.config" \
+    XDG_DATA_HOME="$test_home/.local/share" \
+    XDG_STATE_HOME="$test_home/.local/state" \
+    PATH=/usr/bin \
+    bash -euo pipefail "$migration"
+}
+
+run_mise() {
+  local test_home="$1"
+  shift
+
+  env \
+    HOME="$test_home" \
+    XDG_CACHE_HOME="$test_home/.cache" \
+    XDG_CONFIG_HOME="$test_home/.config" \
+    XDG_DATA_HOME="$test_home/.local/share" \
+    XDG_STATE_HOME="$test_home/.local/state" \
+    PATH=/usr/bin \
+    mise "$@"
 }
 
 mise_environment() {
@@ -21,16 +42,20 @@ mise_environment() {
 
   (
     cd "$project"
-    env \
-      HOME="$test_home" \
-      XDG_CACHE_HOME="$test_home/.cache" \
-      XDG_CONFIG_HOME="$test_home/.config" \
-      XDG_DATA_HOME="$test_home/.local/share" \
-      XDG_STATE_HOME="$test_home/.local/state" \
-      MISE_TRUSTED_CONFIG_PATHS="$test_home/Work/.mise.toml" \
-      PATH=/usr/bin \
-      mise env -s bash
+    run_mise "$test_home" env -s bash
   )
+}
+
+mise_path_active() {
+  local test_home="$1"
+  local project="$2"
+  local output
+
+  if ! output=$(mise_environment "$test_home" "$project" 2>/dev/null); then
+    return 1
+  fi
+
+  grep -F "$project/bin" <<<"$output" >/dev/null
 }
 
 assert_unsafe_variant_removed() {
@@ -39,17 +64,15 @@ assert_unsafe_variant_removed() {
   local variant_home="$test_dir/$variant-home"
   local variant_config="$variant_home/Work/.mise.toml"
   local variant_project="$variant_home/Work/tries/untrusted-repository"
-  local before after
 
   mkdir -p "$variant_project/bin"
   printf '[env]\n%s\n' "$assignment" >"$variant_config"
+  run_mise "$variant_home" trust "$variant_config" >/dev/null
 
-  before=$(mise_environment "$variant_home" "$variant_project")
-  grep -F "$variant_project/bin" <<<"$before" >/dev/null || fail "$variant legacy config prepends the repository bin directory"
+  mise_path_active "$variant_home" "$variant_project" || fail "$variant legacy config prepends the repository bin directory"
 
   run_migration "$variant_home" >/dev/null
-  after=$(mise_environment "$variant_home" "$variant_project")
-  if grep -F "$variant_project/bin" <<<"$after" >/dev/null; then
+  if mise_path_active "$variant_home" "$variant_project"; then
     fail "$variant repository bin directory remains in PATH after migration"
   fi
 }
@@ -83,19 +106,22 @@ cat >"$stock_config" <<'TOML'
 [env]
 _.path = "{{ cwd }}/bin"
 TOML
+run_mise "$stock_home" trust "$stock_config" >/dev/null
 
-before=$(mise_environment "$stock_home" "$stock_project")
-grep -F "$stock_project/bin" <<<"$before" >/dev/null || fail "legacy config prepends the repository bin directory"
+mise_path_active "$stock_home" "$stock_project" || fail "legacy config prepends the repository bin directory"
 
 run_migration "$stock_home" >/dev/null
 [[ ! -e $stock_config ]] || fail "migration removes the stock Work Mise config"
-after=$(mise_environment "$stock_home" "$stock_project")
-if grep -F "$stock_project/bin" <<<"$after" >/dev/null; then
-  fail "repository bin directory is absent from PATH after migration"
+cat >"$stock_config" <<'TOML'
+[env]
+_.path = "{{ cwd }}/bin"
+TOML
+if mise_path_active "$stock_home" "$stock_project"; then
+  fail "recreated Work config remains trusted after migration"
 fi
 run_migration "$stock_home" >/dev/null
 [[ ! -e $stock_config ]] || fail "stock migration is idempotent"
-pass "migration explicitly removes the repository bin directory from Mise PATH"
+pass "migration removes the repository bin directory and revokes the Work trust root"
 
 assert_unsafe_variant_removed inline-comment '_.path = "{{ cwd }}/bin" # Omarchy default'
 assert_unsafe_variant_removed single-quoted "_.path = '{{ cwd }}/bin'"
@@ -123,6 +149,7 @@ KEEP = "yes"
 ruby = "latest"
 TOML
 chmod 600 "$custom_config"
+run_mise "$custom_home" trust "$custom_config" >/dev/null
 
 run_migration "$custom_home" >/dev/null
 cmp -s "$test_dir/custom-expected" "$custom_config" || fail "migration preserves unrelated custom Mise settings"
@@ -140,19 +167,36 @@ pass "custom Mise settings, permissions, and original backup survive the repair"
 
 unrelated_home="$test_dir/unrelated-home"
 unrelated_config="$unrelated_home/Work/.mise.toml"
-mkdir -p "$(dirname "$unrelated_config")"
+unrelated_project="$unrelated_home/Work/tries/untrusted-repository"
+mkdir -p "$unrelated_project/bin"
 printf '[env]\nKEEP = "yes"\n' >"$unrelated_config"
 cp "$unrelated_config" "$test_dir/unrelated-original"
+run_mise "$unrelated_home" trust "$unrelated_config" >/dev/null
 run_migration "$unrelated_home" >/dev/null
 cmp -s "$test_dir/unrelated-original" "$unrelated_config" || fail "unrelated Mise config remains unchanged"
 unrelated_backups=("$unrelated_config".bak.*)
 [[ ! -e ${unrelated_backups[0]} ]] || fail "unchanged Mise config is not backed up"
+printf '[env]\n_.path = "{{ cwd }}/bin"\n' >"$unrelated_config"
+if mise_path_active "$unrelated_home" "$unrelated_project"; then
+  fail "safe Work config retains its old trust grant"
+fi
 
 absent_home="$test_dir/absent-home"
-mkdir -p "$absent_home"
+absent_config="$absent_home/Work/.mise.toml"
+absent_project="$absent_home/Work/tries/untrusted-repository"
+mkdir -p "$(dirname "$absent_config")"
+printf '[env]\n_.path = "{{ cwd }}/bin"\n' >"$absent_config"
+run_mise "$absent_home" trust "$absent_config" >/dev/null
+rm "$absent_config"
+rmdir "$absent_home/Work"
 run_migration "$absent_home" >/dev/null
-[[ ! -e $absent_home/Work/.mise.toml ]] || fail "absent config remains absent"
-pass "migration leaves unrelated and absent Mise configs alone"
+[[ ! -e $absent_home/Work ]] || fail "migration does not retain a temporary Work directory"
+mkdir -p "$absent_project/bin"
+printf '[env]\n_.path = "{{ cwd }}/bin"\n' >"$absent_config"
+if mise_path_active "$absent_home" "$absent_project"; then
+  fail "deleted Work directory retains its stale trust grant"
+fi
+pass "migration leaves unrelated configs alone and revokes dangling Work trust"
 
 symlink_home="$test_dir/symlink-home"
 symlink_config="$symlink_home/Work/.mise.toml"
