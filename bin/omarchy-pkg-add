@@ -1,17 +1,41 @@
 #!/bin/bash
 
 # omarchy:summary=Install Arch packages if they are missing
-# omarchy:args=<packages...>
+# omarchy:args=[--revoke-sudo] <packages...>
 # omarchy:examples=omarchy pkg add jq ripgrep
 # omarchy:requires-sudo=true
 
+revoke_sudo=false
+if [[ ${1:-} == "--revoke-sudo" ]]; then
+  revoke_sudo=true
+  shift
+fi
+
+install_status=0
 if omarchy-pkg-missing "$@"; then
   if (( EUID == 0 )); then
-    pacman -S --noconfirm --needed "$@" || exit 1
+    if pacman -S --noconfirm --needed "$@"; then
+      install_status=0
+    else
+      install_status=$?
+    fi
   else
-    sudo pacman -S --noconfirm --needed "$@" || exit 1
+    if sudo pacman -S --noconfirm --needed "$@"; then
+      install_status=0
+    else
+      install_status=$?
+    fi
   fi
 fi
+
+if [[ $revoke_sudo == "true" ]]; then
+  if ! sudo -k >/dev/null; then
+    echo "Failed to invalidate sudo credentials after package installation." >&2
+    exit 1
+  fi
+fi
+
+(( install_status == 0 )) || exit "$install_status"
 
 for pkg in "$@"; do
   # Secondary check to handle states where pacman doesn't actually register an error

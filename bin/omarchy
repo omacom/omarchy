@@ -6,7 +6,7 @@
 # reusable sudo authorization window.
 security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
 source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
-omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_require_privileged_bash_startup "$security_entrypoint" || exit 126
 
 set -o pipefail
 

@@ -48,6 +48,8 @@ gum_state=$(
 pass "gum theme loading cannot replace execution-control environment variables"
 
 launcher="$ROOT/bin/omarchy-launch-floating-terminal-with-presentation"
+grep -Fq 'omarchy_security_sanitize_bash_environment "$security_entrypoint" "$@"' "$launcher" ||
+  fail "presentation wrapper re-executes through its canonical entrypoint"
 cold_root="$tmp_dir/omarchy root"
 launcher_copy="$cold_root/bin/omarchy-launch-floating-terminal-with-presentation"
 sudo_invalidated="$tmp_dir/sudo-invalidated"
@@ -68,6 +70,10 @@ unsafe_startup_status=0
 /usr/bin/bash "$launcher_copy" -p >/dev/null 2>&1 || unsafe_startup_status=$?
 (( unsafe_startup_status == 126 )) ||
   fail "presentation wrapper rejects an ordinary Bash launch with a decoy -p argument" "got status $unsafe_startup_status"
+sourced_startup_status=0
+/usr/bin/bash -p -c 'source "$1"' omarchy-source-test "$launcher_copy" >/dev/null 2>&1 || sourced_startup_status=$?
+(( sourced_startup_status == 126 )) ||
+  fail "presentation wrapper rejects being sourced by a privileged parent shell" "got status $sourced_startup_status"
 pass "presentation wrapper requires a verified privileged Bash startup"
 
 mismatched_root_status=0

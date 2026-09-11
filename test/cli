@@ -124,7 +124,7 @@ assert_output_contains "bare root command with children renders help" "$output" 
 assert_output_contains "bare toggle help includes child route" "$output" "omarchy toggle nightlight"
 
 output=$("$CLI" pkg --help)
-assert_output_contains "package group includes pkg add fallback route" "$output" "omarchy pkg add <packages...>"
+assert_output_contains "package group includes pkg add fallback route" "$output" "omarchy pkg add [--revoke-sudo] <packages...>"
 
 output=$("$CLI" restart --help)
 assert_output_contains "restart group includes inferred commands" "$output" "omarchy restart btop"
@@ -227,7 +227,7 @@ pass "aliases are included in JSON metadata"
 
 output=$("$CLI" pkg add --help)
 assert_output_contains "pkg add help resolves" "$output" "omarchy-pkg-add"
-assert_output_contains "pkg add help shows direct route" "$output" "omarchy pkg add <packages...>"
+assert_output_contains "pkg add help shows direct route" "$output" "omarchy pkg add [--revoke-sudo] <packages...>"
 
 output=$("$CLI" system reboot --help)
 assert_output_contains "system command help is safe" "$output" "omarchy-system-reboot"

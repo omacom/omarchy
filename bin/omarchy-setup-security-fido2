@@ -12,12 +12,12 @@ fi
 
 security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
 source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
-omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_require_privileged_bash_startup "$security_entrypoint" || exit 126
 
 set -e
 set -o pipefail
 
-omarchy_security_sanitize_bash_environment "$0" "$@" || exit 126
+omarchy_security_sanitize_bash_environment "$security_entrypoint" "$@" || exit 126
 omarchy_security_require_source_root "$security_entrypoint" || exit 126
 
 # Do not let user-controlled PATH entries run while package authorization may
@@ -82,18 +82,33 @@ check_fido2_hardware() {
   return 0
 }
 
-setup_pam_config() {
-  # Configure sudo
+inspect_pam_config() {
+  configure_sudo_pam=false
+  polkit_pam_action=""
+
   if ! /usr/bin/grep -q pam_u2f.so /etc/pam.d/sudo; then
+    configure_sudo_pam=true
+  fi
+
+  if [[ -f /etc/pam.d/polkit-1 ]]; then
+    if ! /usr/bin/grep -q pam_u2f.so /etc/pam.d/polkit-1; then
+      polkit_pam_action=configure
+    fi
+  else
+    polkit_pam_action=create
+  fi
+}
+
+apply_pam_config() {
+  if [[ $configure_sudo_pam == "true" ]]; then
     echo "Configuring sudo for FIDO2 authentication..."
     /usr/bin/sudo sed -i '1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/sudo
   fi
 
-  # Configure polkit
-  if [[ -f /etc/pam.d/polkit-1 ]] && ! /usr/bin/grep -q 'pam_u2f.so' /etc/pam.d/polkit-1; then
+  if [[ $polkit_pam_action == "configure" ]]; then
     echo "Configuring polkit for FIDO2 authentication..."
     /usr/bin/sudo sed -i '1i auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/polkit-1
-  elif [[ ! -f /etc/pam.d/polkit-1 ]]; then
+  elif [[ $polkit_pam_action == "create" ]]; then
     echo "Creating polkit configuration with FIDO2 authentication..."
     /usr/bin/sudo tee /etc/pam.d/polkit-1 >/dev/null <<'EOF'
 auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2
@@ -110,7 +125,7 @@ echo -e "\e[32mSetting up FIDO2 device for authentication.\n\e[0m"
 
 # Install required packages
 echo "Installing required packages..."
-"$OMARCHY_PATH/bin/omarchy-pkg-add" libfido2 pam-u2f
+"$OMARCHY_PATH/bin/omarchy-pkg-add" --revoke-sudo libfido2 pam-u2f
 
 # Package installation may have opened a reusable sudo timestamp. Close it
 # before running either FIDO2 utility in the user process.
@@ -143,7 +158,9 @@ if [[ -L $authfile || ( -e $authfile && ! -f $authfile ) ]]; then
   exit 1
 fi
 
+registration_needed=false
 if [[ ! -f $authfile ]]; then
+  registration_needed=true
   echo -e "\e[32m\nLet's setup your device by confirming on the device now.\e[0m"
   echo -e "Touch your FIDO2 key when it lights up...\n"
 
@@ -151,7 +168,14 @@ if [[ ! -f $authfile ]]; then
     echo -e "\e[31m\nFIDO2 registration failed. Please try again.\e[0m"
     exit 1
   fi
+fi
 
+# Finish every unprivileged external probe before opening the configuration
+# sudo window. From the first privileged write through the invalidation below,
+# only shell builtins and fixed sudo invocations may run in this process.
+inspect_pam_config
+
+if [[ $registration_needed == "true" ]]; then
   /usr/bin/sudo install -d -m 755 -o root -g root "$authdir"
 
   # A unique sibling created by root cannot be replaced by another process
@@ -182,7 +206,7 @@ else
 fi
 
 # Configure PAM
-setup_pam_config
+apply_pam_config
 
 # The configuration sudo timestamp must not satisfy the authentication test.
 if ! invalidate_sudo_credentials; then

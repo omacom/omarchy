@@ -45,6 +45,10 @@ unsafe_router_status=0
 /usr/bin/bash "$router" -p >/dev/null 2>&1 || unsafe_router_status=$?
 (( unsafe_router_status == 126 )) ||
   fail "the public Omarchy router rejects an ordinary Bash launch with a decoy -p argument" "got status $unsafe_router_status"
+sourced_router_status=0
+/usr/bin/bash -p -c 'source "$1"' omarchy-source-test "$router" >/dev/null 2>&1 || sourced_router_status=$?
+(( sourced_router_status == 126 )) ||
+  fail "the public Omarchy router rejects being sourced by a privileged parent shell" "got status $sourced_router_status"
 pass "the public Omarchy router reaches FIDO2 dispatch without inherited Bash startup hooks"
 
 # The setup installs to an absolute path no unprivileged suite can write, and an
@@ -65,6 +69,8 @@ pass "setup names its FIDO2 paths once each, and the test drives a retargeted co
 occurrences=$(grep -Fxc 'PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:/bin"' "$setup") || occurrences=0
 (( occurrences == 1 )) ||
   fail "FIDO2 setup defines one trusted command path" "found $occurrences occurrences"
+grep -Fq 'omarchy_security_sanitize_bash_environment "$security_entrypoint" "$@"' "$setup" ||
+  fail "FIDO2 setup re-executes through its canonical entrypoint"
 
 sed -e "s|^authdir=/etc/fido2$|authdir=$authdir|" \
   -e "s|^authfile=/etc/fido2/fido2$|authfile=$authfile|" \
@@ -72,6 +78,7 @@ sed -e "s|^authdir=/etc/fido2$|authdir=$authdir|" \
   -e "s|/usr/bin/sudo|$stub_bin/sudo|g" \
   -e "s|/usr/bin/fido2-token|$stub_bin/fido2-token|g" \
   -e "s|/usr/bin/pamu2fcfg|$stub_bin/pamu2fcfg|g" \
+  -e "s|/usr/bin/grep|$stub_bin/grep|g" \
   -e "s|\"\$OMARCHY_PATH/bin/omarchy-pkg-add\"|\"$stub_bin/omarchy-pkg-add\"|" \
   "$setup" >"$setup_copy"
 cp "$security_functions" "$stub_bin/omarchy-security-functions"
@@ -82,6 +89,10 @@ unsafe_startup_status=0
 /usr/bin/bash "$setup_copy" -p </dev/null >/dev/null 2>&1 || unsafe_startup_status=$?
 (( unsafe_startup_status == 126 )) ||
   fail "FIDO2 setup rejects an ordinary Bash launch with a decoy -p argument" "got status $unsafe_startup_status"
+sourced_startup_status=0
+/usr/bin/bash -p -c 'source "$1"' omarchy-source-test "$setup_copy" >/dev/null 2>&1 || sourced_startup_status=$?
+(( sourced_startup_status == 126 )) ||
+  fail "FIDO2 setup rejects being sourced by a privileged parent shell" "got status $sourced_startup_status"
 pass "FIDO2 setup requires a verified privileged Bash startup"
 
 mismatched_root_status=0
@@ -289,10 +300,26 @@ fi
 echo '/dev/hidraw0: vendor=0x1050, product=0x0407 (Yubico YubiKey)'
 SH
 
+cat >"$stub_bin/grep" <<'SH'
+#!/bin/bash
+
+if [[ -e $TEST_SUDO_TICKET ]]; then
+  printf '%s\n' grep-with-live-sudo >>"$TEST_POISON_CALLS"
+  exit 94
+fi
+
+exec /usr/bin/grep "$@"
+SH
+
 cat >"$stub_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
 
+if (( $# != 3 )) || [[ $1 != "--revoke-sudo" || $2 != "libfido2" || $3 != "pam-u2f" ]]; then
+  exit 92
+fi
+
 "$TEST_SUDO_STUB" package-authorize
+"$TEST_SUDO_STUB" -k
 SH
 
 # Record what pamu2fcfg's stdout actually targets. The fixed implementation
@@ -339,7 +366,7 @@ exit 93
 SH
 done
 
-chmod +x "$stub_bin/mktemp" "$stub_bin/sudo" "$stub_bin/fido2-token" \
+chmod +x "$stub_bin/mktemp" "$stub_bin/sudo" "$stub_bin/fido2-token" "$stub_bin/grep" \
   "$stub_bin/omarchy-pkg-add" "$stub_bin/pamu2fcfg" "$poison_bin"/*
 
 reset_run() {

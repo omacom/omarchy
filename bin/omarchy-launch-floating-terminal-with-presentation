@@ -12,13 +12,13 @@ fi
 
 security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
 source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
-omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_require_privileged_bash_startup "$security_entrypoint" || exit 126
 omarchy_security_require_source_root "$security_entrypoint" || exit 126
 
 # Security-sensitive flows can revoke any reusable sudo authorization before
 # presentation helpers or the terminal launcher get a chance to run.
 if [[ ${1:-} == "--cold-sudo" ]]; then
-  omarchy_security_sanitize_bash_environment "$0" "$@" || exit 126
+  omarchy_security_sanitize_bash_environment "$security_entrypoint" "$@" || exit 126
   PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:/bin"
   export PATH
 

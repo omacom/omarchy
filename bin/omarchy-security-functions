@@ -9,14 +9,22 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
 fi
 
 omarchy_security_require_privileged_bash_startup() {
-  [[ $- == *p* ]] || return 1
+  local script=${1:-}
+
+  [[ $- == *p* && -n $script ]] || return 1
+  # Privileged mode alone is insufficient: a parent `bash -p -c` can define
+  # callbacks and then source the protected script. Require Bash's script
+  # operand to resolve to this exact entrypoint as well.
   /usr/bin/env -i /usr/bin/bash -p -c '
     mapfile -d "" -t argv <"/proc/$1/cmdline" || exit 1
     executable=$(/usr/bin/readlink -e -- "/proc/$1/exe") || exit 1
+    script_index=2
+    [[ ${argv[script_index]:-} == "--" ]] && script_index=3
+    script=$(/usr/bin/readlink -e -- "${argv[script_index]:-}") || exit 1
     [[ $executable == "/usr/bin/bash" &&
       ( ${argv[0]:-} == "/bin/bash" || ${argv[0]:-} == "/usr/bin/bash" ) &&
-      ${argv[1]:-} == "-p" ]]
-  ' omarchy-bash-startup "$$"
+      ${argv[1]:-} == "-p" && $script == "$2" ]]
+  ' omarchy-bash-startup "$$" "$script"
 }
 
 omarchy_security_sanitize_bash_environment() {
