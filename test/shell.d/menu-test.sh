@@ -495,8 +495,14 @@ assert(
   'menu route changes only accept an initial pointer sample for mouse activation'
 )
 assert(
-  /\(event\.key === Qt\.Key_Backspace \|\| event\.key === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
+  /\(event\.key === Qt\.Key_Backspace \|\| event\.key === Qt\.Key_Left \|\| Util\.ctrlKey\(event, Qt\.Key_H\)\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
   'menu Left key follows empty-filter Backspace navigation'
+)
+assert(
+  /event\.key === Qt\.Key_Up \|\| Util\.ctrlKey\(event, Qt\.Key_K\)[\s\S]*?root\.select\(-1\)/.test(menuQml)
+    && /event\.key === Qt\.Key_Down \|\| Util\.ctrlKey\(event, Qt\.Key_J\)[\s\S]*?root\.select\(1\)/.test(menuQml)
+    && /event\.key === Qt\.Key_Return \|\| event\.key === Qt\.Key_Enter \|\| event\.key === Qt\.Key_Right \|\| Util\.ctrlKey\(event, Qt\.Key_L\)/.test(menuQml),
+  'menu accepts Ctrl+h/j/k/l as vim-style aliases for back/up/down/activate'
 )
 assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(menuQml),

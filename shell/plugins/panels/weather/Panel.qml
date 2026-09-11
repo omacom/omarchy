@@ -626,13 +626,13 @@ Panel {
                 if (event.key === Qt.Key_Escape) {
                   root.cancelEditingLocation()
                   event.accepted = true
-                } else if (event.key === Qt.Key_Down) {
+                } else if (event.key === Qt.Key_Down || Util.ctrlKey(event, Qt.Key_J)) {
                   if (root.suggestionIndex < root.locationSuggestions.length - 1) root.suggestionIndex++
                   event.accepted = true
-                } else if (event.key === Qt.Key_Up) {
+                } else if (event.key === Qt.Key_Up || Util.ctrlKey(event, Qt.Key_K)) {
                   if (root.suggestionIndex > 0) root.suggestionIndex--
                   event.accepted = true
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || Util.ctrlKey(event, Qt.Key_L)) {
                   root.commitLocation()
                   event.accepted = true
                 }
