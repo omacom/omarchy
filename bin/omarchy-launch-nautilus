@@ -1,5 +1,13 @@
 #!/bin/bash
 
-# omarchy:summary=Launch Files
+# omarchy:summary=Launch Files, reusing the current folder when Files is focused
 
-exec setsid uwsm-app -- nautilus --new-window
+# Use the same action as Ctrl+N so Nautilus resolves the active window and tab.
+if [[ $(hyprctl activewindow -j 2>/dev/null | jq -r '.class') == "org.gnome.Nautilus" ]] &&
+  gdbus call --session --dest org.gnome.Nautilus \
+    --object-path /org/gnome/Nautilus --method org.gtk.Actions.Activate \
+    --timeout 5 clone-window '[]' '{}' >/dev/null 2>&1; then
+  exit 0
+else
+  exec setsid uwsm-app -- nautilus --new-window
+fi
