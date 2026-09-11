@@ -1,0 +1,323 @@
+#!/bin/bash
+
+# omarchy:summary=Recover from broken third-party shell plugins
+# omarchy:group=plugin
+# omarchy:args=[rescue|restore|status] [--no-restart] [--force]
+# omarchy:examples=omarchy plugin rescue | omarchy plugin rescue restore
+
+set -euo pipefail
+
+PROGRAM="omarchy plugin rescue"
+umask 077
+
+config_dir="$HOME/.config/omarchy"
+config_file="$config_dir/shell.json"
+plugins_dir="$config_dir/plugins"
+state_root="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/plugin-rescue"
+snapshots_dir="$state_root/snapshots"
+active_file="$state_root/active"
+lock_file="$state_root/lock"
+restart_shell=true
+force_restore=false
+
+say() { printf '%s\n' "$*"; }
+warn() { printf '%s: warning: %s\n' "$PROGRAM" "$*" >&2; }
+fail() { printf '%s: %s\n' "$PROGRAM" "$*" >&2; exit 1; }
+
+usage() {
+  cat <<USAGE
+Usage:
+  omarchy plugin rescue [rescue] [--no-restart]
+  omarchy plugin rescue restore [--force] [--no-restart]
+  omarchy plugin rescue status
+
+Rescue snapshots shell.json, removes only third-party plugin references,
+restores trusted built-in sources for active clones when known, and restarts
+the Omarchy shell. Plugin files are never deleted or executed.
+USAGE
+}
+
+safe_restart() {
+  $restart_shell || return 0
+
+  say "Restarting Omarchy shell..."
+  if omarchy-restart-shell >/dev/null 2>&1; then
+    say "Shell restart requested successfully."
+    return 0
+  fi
+
+  warn "safe configuration is in place, but the shell restart failed"
+  warn "try: omarchy restart shell"
+}
+
+ensure_state_dirs() {
+  mkdir -p "$snapshots_dir"
+  chmod 700 "$state_root" "$snapshots_dir" 2>/dev/null || true
+}
+
+lock_state() {
+  ensure_state_dirs
+  exec {lock_fd}>"$lock_file"
+  flock -n "$lock_fd" || fail "another plugin rescue operation is already running"
+}
+
+active_snapshot_dir() {
+  [[ -f $active_file ]] || return 1
+
+  local name
+  IFS= read -r name <"$active_file" || return 1
+  [[ $name =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]] || fail "invalid active snapshot marker"
+
+  local dir="$snapshots_dir/$name"
+  [[ -d $dir ]] || fail "active snapshot directory is missing: $dir"
+  printf '%s\n' "$dir"
+}
+
+entry_id_jq='def entry_id: if type == "object" then (.id // "") else . end;'
+
+collect_manifest_map() {
+  local candidate manifest id source
+  declare -A seen=()
+
+  [[ -d $plugins_dir ]] || return 0
+  shopt -s nullglob
+  for candidate in "$plugins_dir"/*; do
+    manifest="$candidate/manifest.json"
+    [[ -r $manifest ]] || continue
+
+    if ! id=$(jq -er '.id | strings' "$manifest" 2>/dev/null); then
+      warn "ignoring unreadable or invalid manifest: $manifest"
+      continue
+    fi
+    [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+      warn "ignoring manifest with invalid plugin id: $id"
+      continue
+    }
+    [[ $id != omarchy.* ]] || continue
+    [[ -z ${seen[$id]+x} ]] || {
+      warn "duplicate third-party plugin id ignored: $id"
+      continue
+    }
+    seen[$id]=1
+
+    source=$(jq -r '.omarchy.clonedFrom // "" | strings' "$manifest" 2>/dev/null || true)
+    if [[ -n $source && ( ! $source =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || $source != omarchy.* ) ]]; then
+      source=""
+    fi
+    printf '%s\t%s\n' "$id" "$source"
+  done
+}
+
+collect_config_third_party_ids() {
+  jq -r "
+    $entry_id_jq
+    [
+      (.bar.id? // empty),
+      (.bar.centerAnchor? // empty),
+      (.bar.layout.left[]? | entry_id),
+      (.bar.layout.center[]? | entry_id),
+      (.bar.layout.right[]? | entry_id),
+      (.plugins[]? | entry_id)
+    ]
+    | .[]
+    | strings
+    | select(length > 0)
+    | select(startswith(\"omarchy.\") | not)
+    | select(test(\"^[A-Za-z0-9][A-Za-z0-9._-]*$\"))
+  " "$config_file" | sort -u
+}
+
+is_id_referenced() {
+  local file=$1 id=$2
+  jq -e --arg id "$id" "
+    $entry_id_jq
+    ((.bar.id? // \"\") == \$id)
+    or ((.bar.centerAnchor? // \"\") == \$id)
+    or any(.bar.layout.left[]?; entry_id == \$id)
+    or any(.bar.layout.center[]?; entry_id == \$id)
+    or any(.bar.layout.right[]?; entry_id == \$id)
+    or any(.plugins[]?; entry_id == \$id)
+  " "$file" >/dev/null
+}
+
+sanitize_one_id() {
+  local file=$1 id=$2 source=$3
+  local tmp active=false
+  if is_id_referenced "$file" "$id"; then active=true; fi
+
+  tmp=$(mktemp "$config_dir/.shell.json.rescue.XXXXXX")
+  jq --arg id "$id" --arg src "$source" --argjson active "$active" "
+    $entry_id_jq
+    def replace_or_drop:
+      if entry_id != \$id then .
+      elif \$src != \"\" then
+        if type == \"object\" then . + {id: \$src} else \$src end
+      else empty
+      end;
+
+    if (.bar? | type) == \"object\" then
+      (if (.bar.id? // \"\") == \$id then
+         if \$src == \"\" or \$src == \"omarchy.bar\" then del(.bar.id)
+         else .bar.id = \$src end
+       else . end)
+      | (if (.bar.centerAnchor? // \"\") == \$id then
+           .bar.centerAnchor = (if \$src != \"\" then \$src else \"\" end)
+         else . end)
+      | (if (.bar.layout? | type) == \"object\" then
+           .bar.layout.left = [ .bar.layout.left[]? | replace_or_drop ]
+           | .bar.layout.center = [ .bar.layout.center[]? | replace_or_drop ]
+           | .bar.layout.right = [ .bar.layout.right[]? | replace_or_drop ]
+         else . end)
+    else . end
+    | if (.plugins? | type) == \"array\" then
+        .plugins = [ .plugins[] | select(entry_id != \$id) ]
+      else . end
+    | if (.cloneSourceRestores? | type) == \"array\" then
+        .cloneSourceRestores = [ .cloneSourceRestores[] | select(. != \$id) ]
+        | if (.cloneSourceRestores | length) == 0 then del(.cloneSourceRestores) else . end
+      else . end
+    | if \$active and \$src != \"\" and (.disabledPlugins? | type) == \"array\" then
+        .disabledPlugins = [ .disabledPlugins[] | select(. != \$src) ]
+        | if (.disabledPlugins | length) == 0 then del(.disabledPlugins) else . end
+      else . end
+  " "$file" >"$tmp"
+  chmod --reference="$file" "$tmp" 2>/dev/null || chmod 600 "$tmp"
+  mv -f "$tmp" "$file"
+}
+
+rescue() {
+  [[ $EUID -ne 0 ]] || fail "do not run this command as root"
+  [[ -f $config_file ]] || {
+    say "No user shell.json exists; no third-party shell plugins need rescue."
+    return 0
+  }
+  jq -e . "$config_file" >/dev/null 2>&1 || fail "$config_file is not valid JSON"
+
+  lock_state
+  if active_snapshot_dir >/dev/null 2>&1; then
+    fail "rescue mode is already active; run 'omarchy plugin rescue status' or 'omarchy plugin rescue restore' first"
+  fi
+
+  local stamp snapshot work manifests_file config_ids_file ids_file id source count=0
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  snapshot="$snapshots_dir/$stamp"
+  mkdir -p "$snapshot"
+  chmod 700 "$snapshot"
+
+  cp -a "$config_file" "$snapshot/original-shell.json"
+  manifests_file="$snapshot/manifests.tsv"
+  config_ids_file="$snapshot/config-ids.txt"
+  ids_file="$snapshot/targets.tsv"
+
+  collect_manifest_map >"$manifests_file"
+  collect_config_third_party_ids >"$config_ids_file"
+
+  awk -F '\t' '
+    NR==FNR { if ($1 != "") { src[$1]=$2; order[++n]=$1 } next }
+    $1 != "" && !($1 in src) { src[$1]=""; order[++n]=$1 }
+    END { for (i=1; i<=n; i++) print order[i] "\t" src[order[i]] }
+  ' "$manifests_file" "$config_ids_file" >"$ids_file"
+
+  work=$(mktemp "$config_dir/.shell.json.rescue-work.XXXXXX")
+  cp -a "$config_file" "$work"
+
+  while IFS=$'\t' read -r id source; do
+    [[ -n $id ]] || continue
+    if is_id_referenced "$work" "$id"; then count=$((count + 1)); fi
+    sanitize_one_id "$work" "$id" "${source:-}"
+  done <"$ids_file"
+
+  if cmp -s "$config_file" "$work"; then
+    rm -f "$work"
+    rm -rf "$snapshot"
+    say "No enabled third-party plugin references were found. Nothing changed."
+    return 0
+  fi
+
+  if ! cmp -s "$config_file" "$snapshot/original-shell.json"; then
+    rm -f "$work"
+    rm -rf "$snapshot"
+    fail "shell.json changed during rescue; nothing was overwritten"
+  fi
+
+  cp -a "$work" "$snapshot/safe-shell.json"
+  chmod --reference="$config_file" "$work" 2>/dev/null || chmod 600 "$work"
+  mv -f "$work" "$config_file"
+  printf '%s\n' "$stamp" >"$active_file"
+
+  say "Plugin rescue enabled."
+  say "Removed or replaced $count third-party plugin id(s) referenced by shell.json."
+  say "Plugin files were not deleted."
+  say "Restore with: omarchy plugin rescue restore"
+  safe_restart
+}
+
+restore() {
+  [[ $EUID -ne 0 ]] || fail "do not run this command as root"
+  lock_state
+
+  local snapshot
+  snapshot=$(active_snapshot_dir) || fail "rescue mode is not active"
+  local original="$snapshot/original-shell.json"
+  local safe="$snapshot/safe-shell.json"
+  [[ -f $original && -f $safe ]] || fail "snapshot is incomplete: $snapshot"
+
+  if [[ -f $config_file ]] && ! cmp -s "$config_file" "$safe"; then
+    if ! $force_restore; then
+      fail "shell.json changed while rescue mode was active; refusing to overwrite it (use --force only if you mean it)"
+    fi
+    warn "forcing restore over shell.json changes made during rescue mode"
+  fi
+
+  mkdir -p "$config_dir"
+  local tmp
+  tmp=$(mktemp "$config_dir/.shell.json.restore.XXXXXX")
+  cp -a "$original" "$tmp"
+  mv -f "$tmp" "$config_file"
+  rm -f "$active_file"
+
+  say "Original shell.json restored exactly."
+  safe_restart
+}
+
+status() {
+  local snapshot
+  if snapshot=$(active_snapshot_dir 2>/dev/null); then
+    say "Plugin rescue: ACTIVE"
+    if [[ -f $config_file && -f $snapshot/safe-shell.json ]]; then
+      if cmp -s "$config_file" "$snapshot/safe-shell.json"; then
+        say "Current shell.json: unchanged since rescue"
+      else
+        say "Current shell.json: modified since rescue"
+      fi
+    fi
+  else
+    say "Plugin rescue: inactive"
+  fi
+}
+
+command_name="rescue"
+if (( $# > 0 )); then
+  case $1 in
+    rescue|restore|status|-h|--help) command_name=$1; shift ;;
+    --no-restart|--force) ;;
+    *) fail "unknown command or option: $1" ;;
+  esac
+fi
+
+while (( $# > 0 )); do
+  case $1 in
+    --no-restart) restart_shell=false ;;
+    --force) force_restore=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) fail "unknown option: $1" ;;
+  esac
+  shift
+done
+
+case $command_name in
+  rescue) rescue ;;
+  restore) restore ;;
+  status) status ;;
+  -h|--help) usage ;;
+esac
