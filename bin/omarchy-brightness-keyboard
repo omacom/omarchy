@@ -25,11 +25,24 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+state_file="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}/omarchy-keyboard-backlight-$device"
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  if [[ ! -f $state_file ]]; then
+    current_brightness="$(brightnessctl -d "$device" get)" || exit 1
+    mkdir -p "$(dirname "$state_file")" || exit 1
+    printf '%s\n' "$current_brightness" >"$state_file" || {
+      rm -f "$state_file"
+      exit 1
+    }
+  fi
+  brightnessctl -d "$device" set 0 >/dev/null || exit 1
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  if [[ -f $state_file ]]; then
+    brightnessctl -d "$device" set "$(<"$state_file")" >/dev/null || exit 1
+    rm -f "$state_file" || exit 1
+  fi
   exit 0
 fi
 
@@ -54,5 +67,6 @@ else
 fi
 
 # Set the new brightness.
-brightnessctl -d "$device" set "$new_brightness" >/dev/null
+brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
+rm -f "$state_file" || exit 1
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
