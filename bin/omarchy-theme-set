@@ -31,17 +31,30 @@ INSTALLED_THEME_DENIED=(alacritty.toml foot.ini ghostty.conf kitty.conf vscode.j
 IGNORED_THEME_FILES=()
 
 run_parallel() {
-  local pid
+  local index
   local pids=()
+  local commands=()
+  local failures=()
 
   for command in "$@"; do
     bash -lc "$command" &
     pids+=("$!")
+    commands+=("$command")
   done
 
-  for pid in "${pids[@]}"; do
-    wait "$pid"
+  # Applying a theme is best-effort: one hook failing should still leave the
+  # rest of the desktop retinted, so a failure here is reported, not fatal.
+  # Discarding wait's status entirely is what hides it — the caller sees a
+  # clean run whether or not every hook worked.
+  for index in "${!pids[@]}"; do
+    if ! wait "${pids[$index]}"; then
+      failures+=("${commands[$index]}")
+    fi
   done
+
+  if (( ${#failures[@]} > 0 )); then
+    printf 'omarchy-theme-set: theme hook failed: %s\n' "${failures[@]}" >&2
+  fi
 }
 
 shell_ipc() {
