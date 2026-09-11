@@ -11,7 +11,7 @@ OUTPUT_DIR="${OMARCHY_SCREENSHOT_DIR:-${XDG_PICTURES_DIR:-$HOME/Pictures}}"
 
 if [[ ! -d $OUTPUT_DIR ]]; then
   mkdir -p "$OUTPUT_DIR"
-  omarchy-notification-send "Created screenshot directory: $OUTPUT_DIR" -t 2000
+  omarchy-notification-send "$(omarchy-i18n "Created screenshot directory: %1" "Created screenshot directory: $OUTPUT_DIR" "$OUTPUT_DIR")" -t 2000
 fi
 
 pkill slurp && exit 0
@@ -68,7 +68,9 @@ case "$PROCESSING" in
 
     # Best-effort: the screenshot is already saved and on the clipboard, so a
     # notification outage must not report the capture itself as failed.
-    omarchy-notification-send "Screenshot saved to clipboard and file" "Edit with Super + Alt + , (or click this)" \
+    omarchy-notification-send \
+      "$(omarchy-i18n "Screenshot saved to clipboard and file")" \
+      "$(omarchy-i18n "Edit with Super + Alt + , (or click this)")" \
       --image "$FILEPATH" \
       --exec "$SCREENSHOT_EDITOR" "$FILEPATH" || true
     ;;

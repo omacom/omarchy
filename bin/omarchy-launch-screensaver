@@ -16,7 +16,7 @@ terminal=$(xdg-terminal-exec --print-id)
 case $terminal in
 *Alacritty* | *ghostty* | *foot* | *kitty*) ;;
 *)
-  omarchy-notification-send -g ✋ "Screensaver only runs in Alacritty, Foot, Ghostty, or Kitty"
+  omarchy-notification-send -g ✋ "$(omarchy-i18n "Screensaver only runs in Alacritty, Foot, Ghostty, or Kitty")"
   exit 1
   ;;
 esac

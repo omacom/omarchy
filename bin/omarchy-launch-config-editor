@@ -11,5 +11,5 @@ if [[ -z $path ]]; then
   exit 1
 fi
 
-omarchy-notification-send -u low "Editing config file" "$path"
+omarchy-notification-send -u low "$(omarchy-i18n "Editing config file")" "$path"
 exec omarchy-launch-editor "$path"

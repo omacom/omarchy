@@ -10,9 +10,29 @@ function normalizeAliases(value) {
   return []
 }
 
-function normalizeItem(id, raw) {
+function normalizeItem(id, raw, i18n) {
   var value = raw || {}
   var aliases = normalizeAliases(value.aliases)
+  var origLabel = value.label || id
+  var origTitle = value.title || ""
+  var menuContext = "menu:" + id
+  var transLabel = origLabel
+  var transTitle = origTitle
+
+  if (i18n) {
+    if (typeof i18n.trc === "function") {
+      transLabel = i18n.trc(menuContext, origLabel)
+      transTitle = origTitle ? i18n.trc(menuContext, origTitle) : ""
+    } else if (typeof i18n.tr === "function") {
+      transLabel = i18n.tr(origLabel)
+      transTitle = origTitle ? i18n.tr(origTitle) : ""
+    }
+    if (transLabel !== origLabel) {
+      if (aliases.indexOf(origLabel) === -1) aliases.push(origLabel)
+      if (origTitle && aliases.indexOf(origTitle) === -1) aliases.push(origTitle)
+    }
+  }
+
   var parent = value.parent
   if (parent === undefined)
     parent = id.indexOf(".") >= 0 ? id.split(".").slice(0, -1).join(".") : "root"
@@ -26,8 +46,8 @@ function normalizeItem(id, raw) {
     kind: kind,
     icon: value.icon || "",
     iconFont: value.iconFont || "",
-    label: value.label || id,
-    title: value.title || "",
+    label: transLabel,
+    title: transTitle,
     target: value.target || "",
     description: value.description || "",
     action: value.action || "",
@@ -39,7 +59,7 @@ function normalizeItem(id, raw) {
   }
 }
 
-function parseMenuJsonc(raw) {
+function parseMenuJsonc(raw, i18n) {
   var stripped = stripJsonc(raw)
   if (!stripped.trim()) return []
 
@@ -58,7 +78,7 @@ function parseMenuJsonc(raw) {
   for (var id in source) {
     var entry = source[id]
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
-    out.push(normalizeItem(id, entry))
+    out.push(normalizeItem(id, entry, i18n))
   }
   return out
 }

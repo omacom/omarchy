@@ -1,0 +1,200 @@
+#!/bin/bash
+
+# omarchy:summary=Translate graphical shell messages
+# omarchy:name=i18n
+# omarchy:args=[key] [english-fallback] [args...]
+# omarchy:examples=omarchy i18n "No QR code found" | omarchy i18n notification.migrations.pending.body "Click to run %1 pending migrations." 18
+# omarchy:hidden=true
+
+set -euo pipefail
+
+shopt -u patsub_replacement 2>/dev/null || true
+
+if (( $# == 0 )); then
+  exit 0
+fi
+
+key="$1"
+fallback="$1"
+args=()
+
+max_idx_1=0
+temp="$1"
+while [[ $temp =~ %([1-9][0-9]*) ]]; do
+  idx="${BASH_REMATCH[1]}"
+  (( idx > max_idx_1 )) && max_idx_1=$idx
+  temp="${temp#*"%${idx}"}"
+done
+
+if (( $# == 1 )); then
+  fallback="$1"
+elif (( max_idx_1 > 0 && $# == max_idx_1 + 1 )); then
+  fallback="$1"
+  args=("${@:2}")
+else
+  fallback="$2"
+  args=("${@:3}")
+fi
+
+normalize_locale() {
+  local val="$1"
+  val="${val#"${val%%[![:space:]]*}"}"
+  val="${val%"${val##*[![:space:]]}"}"
+  [[ -z $val ]] && return 0
+  val="${val%%.*}"
+  val="${val%%@*}"
+  val="${val//-/_}"
+  [[ $val == "C" || $val == "POSIX" ]] && return 0
+
+  local -a raw_parts=()
+  IFS="_" read -r -a raw_parts <<< "$val"
+  local -a parts=()
+  for p in "${raw_parts[@]}"; do
+    [[ -n $p ]] && parts+=("$p")
+  done
+  (( ${#parts[@]} == 0 )) && return 0
+
+  local lang="${parts[0],,}"
+  [[ -z $lang ]] && return 0
+  local -a res=("$lang")
+  for (( i=1; i<${#parts[@]}; i++ )); do
+    local p="${parts[i]}"
+    if (( ${#p} == 4 )); then
+      local first="${p:0:1}"
+      local rest="${p:1}"
+      res+=("${first^^}${rest,,}")
+    elif (( ${#p} == 2 || ${#p} == 3 )); then
+      res+=("${p^^}")
+    else
+      res+=("$p")
+    fi
+  done
+  local joined
+  printf -v joined "%s_" "${res[@]}"
+  printf '%s' "${joined%_}"
+}
+
+resolve_candidates() {
+  local -a requested=()
+  if [[ -n ${OMARCHY_UI_LANGUAGE:-} ]]; then
+    requested=("$OMARCHY_UI_LANGUAGE")
+  elif [[ -n ${LANGUAGE:-} ]]; then
+    IFS=":" read -r -a requested <<< "$LANGUAGE"
+  elif [[ -n ${LC_ALL:-} ]]; then
+    requested=("$LC_ALL")
+  elif [[ -n ${LC_MESSAGES:-} ]]; then
+    requested=("$LC_MESSAGES")
+  elif [[ -n ${LANG:-} ]]; then
+    requested=("$LANG")
+  fi
+
+  local -a candidates=()
+  contains() {
+    local needle="$1"
+    for item in "${candidates[@]}"; do
+      [[ $item == "$needle" ]] && return 0
+    done
+    return 1
+  }
+
+  for raw in "${requested[@]}"; do
+    local norm
+    norm="$(normalize_locale "$raw")"
+    [[ -z $norm ]] && continue
+
+    local -a parts=()
+    IFS="_" read -r -a parts <<< "$norm"
+    local language="${parts[0]}"
+
+    if ! contains "$norm"; then
+      candidates+=("$norm")
+    fi
+
+    if (( ${#parts[@]} > 2 )); then
+      # An explicit script constrains fallback; a region must not override it.
+      local script="${parts[1]}"
+      local langScript="${language}_${script}"
+      if ! contains "$langScript"; then
+        candidates+=("$langScript")
+      fi
+    fi
+
+    if ! contains "$language"; then
+      candidates+=("$language")
+    fi
+
+    [[ $language == "en" ]] && break
+  done
+
+  printf '%s\n' "${candidates[@]}"
+}
+
+output_result() {
+  local template="$1"
+  shift
+  local -a vals=("$@")
+  local result=""
+  local rem="$template"
+
+  while [[ -n $rem ]]; do
+    if [[ $rem != *%* ]]; then
+      result+="$rem"
+      break
+    fi
+    local prefix="${rem%%"%"*}"
+    result+="$prefix"
+    rem="${rem#"$prefix%"}"
+
+    if [[ $rem =~ ^([1-9][0-9]*)(.*)$ ]]; then
+      local idx="${BASH_REMATCH[1]}"
+      rem="${BASH_REMATCH[2]}"
+      local num=$((10#$idx))
+      if (( num >= 1 && num <= ${#vals[@]} )); then
+        result+="${vals[num - 1]}"
+      else
+        result+="%$idx"
+      fi
+    else
+      result+="%"
+    fi
+  done
+  printf '%s\n' "$result"
+}
+
+resolved_catalog=""
+while IFS= read -r cand; do
+  [[ -z $cand ]] && continue
+  case "$cand" in
+    zh_CN|zh_SG|zh_Hans|zh_Hans_*)
+      resolved_catalog="zh_CN"
+      break
+      ;;
+    en)
+      break
+      ;;
+    zh_TW|zh_HK|zh_MO|zh_Hant|zh_Hant_*)
+      continue
+      ;;
+  esac
+done < <(resolve_candidates)
+
+if [[ -n $resolved_catalog ]]; then
+  catalog_file="$OMARCHY_PATH/default/i18n/${resolved_catalog}.json"
+  if [[ -f $catalog_file ]]; then
+    translated=$(jq -r --arg k "$key" --arg f "$fallback" '.[$k] // .[$f] // empty' "$catalog_file" 2>/dev/null || true)
+    if [[ -n $translated ]]; then
+      if (( ${#args[@]} > 0 )); then
+        output_result "$translated" "${args[@]}"
+      else
+        printf '%s\n' "$translated"
+      fi
+      exit 0
+    fi
+  fi
+fi
+
+if (( ${#args[@]} > 0 )); then
+  output_result "$fallback" "${args[@]}"
+else
+  printf '%s\n' "$fallback"
+fi

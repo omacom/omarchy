@@ -403,8 +403,8 @@ Item {
           anchors.fill: parent
           opened: root.clearConfirmOpen
           z: 10
-          message: "Delete entire clipboard history?"
-          confirmText: "Delete"
+          message: I18n.tr("Delete entire clipboard history?")
+          confirmText: I18n.tr("Delete")
           background: root.background
           foreground: root.foreground
           scrim: root.scrim
@@ -436,7 +436,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search clipboard…"
+            text: root.filterText || I18n.tr("Search clipboard…")
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -597,7 +597,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.history.length === 0 ? "Clipboard is empty" : "No matches for “" + root.filterText + "”"
+              text: root.history.length === 0 ? I18n.tr("Clipboard is empty") : I18n.tr("No matches for “%1”", [root.filterText])
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily

@@ -657,7 +657,7 @@ if [[ $1 == "--print" || $1 == "-p" ]]; then
 else
   records=$(output_binding_records)
   selection=$(cut -f1 <<<"$records" |
-    omarchy-menu-select 'Keybindings' -- --width 800 --height 500)
+    omarchy-menu-select "$(omarchy-i18n "Keybindings")" -- --width 800 --height 500)
 
   if [[ -n $selection ]]; then
     record=$(awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }' <<<"$records")

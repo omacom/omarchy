@@ -18,6 +18,8 @@ BorderSurface {
   property string label: ""
   property string description: ""
   property bool checked: false
+  property bool translateLabel: true
+  property bool translateDescription: true
 
   // Panel-cursor flag. Same role as Button.hasCursor:
   // panels with their own keyboard cursor bind this to drive the highlight
@@ -70,7 +72,7 @@ BorderSurface {
 
       Text {
         textFormat: Text.PlainText
-        text: root.label
+        text: root.label !== "" ? (root.translateLabel ? I18n.tr(root.label) : root.label) : ""
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: root.titleSize
@@ -82,7 +84,7 @@ BorderSurface {
       Text {
         textFormat: Text.PlainText
         visible: root.description !== ""
-        text: root.description
+        text: root.description !== "" ? (root.translateDescription ? I18n.tr(root.description) : root.description) : ""
         color: Qt.darker(root.foreground, 1.5)
         font.family: root.fontFamily
         font.pixelSize: root.descriptionSize

@@ -158,9 +158,11 @@ done
 (( discovered )) || fail "cloned plugin '$new_id' was not discovered"
 omarchy-plugin-enable "$new_id" >/dev/null
 clone_complete=1
+notif_title=$(omarchy-i18n "Editing Cloned Plugin")
+notif_desc=$(omarchy-i18n "Original plugin has been replace by clone.")
 omarchy-notification-send -g 󰐱 \
-  "Editing Cloned Plugin" \
-  "Original plugin has been replace by clone."
+  "$notif_title" \
+  "$notif_desc"
 echo "Cloned $source_id to $target_dir and switched to $new_id"
 if (( edit_clone )); then
   # Word-splitting is deliberate: EDITOR may carry flags.

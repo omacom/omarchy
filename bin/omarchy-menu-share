@@ -22,9 +22,9 @@ elif (($# > 0)); then
   FILE_ARRAY=("$@")
 else
   if [[ $MODE == "folder" ]]; then
-    select_args=(--title "Share folder" --directory)
+    select_args=(--title "$(omarchy-i18n "Share folder")" --directory)
   else
-    select_args=(--title "Share files" --multiple)
+    select_args=(--title "$(omarchy-i18n "Share files")" --multiple)
   fi
 
   # Command substitution so the chooser's exit status survives: reading it
@@ -33,7 +33,9 @@ else
   picked=$(omarchy-file-select "${select_args[@]}") || status=$?
 
   if ((${status:-0} > 1)); then
-    omarchy-notification-send -g "" -u critical "Could not share" "The file chooser did not open"
+    omarchy-notification-send -g "" -u critical \
+      "$(omarchy-i18n "Could not share")" \
+      "$(omarchy-i18n "The file chooser did not open")"
     exit 1
   fi
 

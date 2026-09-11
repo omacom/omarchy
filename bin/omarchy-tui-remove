@@ -19,7 +19,7 @@ if (( $# == 0 )); then
 
   if ((${#TUIS[@]})); then
     mapfile -t SORTED_TUIS < <(printf '%s\n' "${TUIS[@]}" | sort)
-    APP_NAME=$(omarchy-menu-select "Select TUI to remove" "${SORTED_TUIS[@]}" -- --width 520 --maxheight 520)
+    APP_NAME=$(omarchy-menu-select "$(omarchy-i18n "Select TUI to remove")" "${SORTED_TUIS[@]}" -- --width 520 --maxheight 520)
   else
     echo "No TUIs to remove."
     exit 1
@@ -37,5 +37,5 @@ icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:
 rm -f "$DESKTOP_DIR/$APP_NAME.desktop"
 rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
-  omarchy-notification-send -g  "TUI removed" "$APP_NAME"
+  omarchy-notification-send -g  "$(omarchy-i18n "TUI removed")" "$APP_NAME"
 fi

@@ -59,7 +59,11 @@ claim_path() {
 announce() {
   local path="$1"
   local name="${path##*/}"
-  local args=("Received $name" "Saved to ${dir/#$HOME/~}" -u critical)
+  local display_dir="${dir/#$HOME/~}"
+  local title body
+  title=$(omarchy-i18n "Received %1" "Received $name" "$name")
+  body=$(omarchy-i18n "Saved to %1" "Saved to $display_dir" "$display_dir")
+  local args=("$title" "$body" -u critical)
 
   case "${name,,}" in
   *.png | *.jpg | *.jpeg | *.gif | *.webp | *.avif | *.bmp | *.tif | *.tiff)

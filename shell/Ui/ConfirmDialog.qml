@@ -8,6 +8,8 @@ Item {
   property string message: ""
   property string cancelText: "Cancel"
   property string confirmText: "Confirm"
+  property bool translateButtons: true
+  property bool translateMessage: true
   property int selectedIndex: 1
   property color background: Color.background
   property color foreground: Color.foreground
@@ -73,7 +75,7 @@ Item {
           anchors.left: parent.left
           anchors.right: parent.right
           anchors.top: parent.top
-          text: root.message
+          text: root.message !== "" ? (root.translateMessage ? I18n.tr(root.message) : root.message) : ""
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.title
@@ -86,7 +88,7 @@ Item {
           spacing: Style.space(10)
 
           Repeater {
-            model: [root.cancelText, root.confirmText]
+            model: [root.translateButtons ? I18n.tr(root.cancelText) : root.cancelText, root.translateButtons ? I18n.tr(root.confirmText) : root.confirmText]
 
             BorderSurface {
               required property int index

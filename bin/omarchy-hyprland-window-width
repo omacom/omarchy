@@ -40,14 +40,20 @@ notify_missing_width() {
   local key="$1"
   local workspace="$2"
 
-  omarchy-notification-send -g  "No saved width found for $key on workspace $workspace" "Use Super + Alt + Home to save one for this workspace."
+  local title desc
+  title=$(omarchy-i18n "No saved width found for %1 on workspace %2" "No saved width found for $key on workspace $workspace" "$key" "$workspace")
+  desc=$(omarchy-i18n "Use Super + Alt + Home to save one for this workspace.")
+  omarchy-notification-send -g  "$title" "$desc"
 }
 
 notify_saved_width() {
   local key="$1"
   local workspace="$2"
 
-  omarchy-notification-send -g  "Saved width for $key on workspace $workspace" "Restore using Super + Home on this workspace."
+  local title desc
+  title=$(omarchy-i18n "Saved width for %1 on workspace %2" "Saved width for $key on workspace $workspace" "$key" "$workspace")
+  desc=$(omarchy-i18n "Restore using Super + Home on this workspace.")
+  omarchy-notification-send -g  "$title" "$desc"
 }
 
 hypr_dispatch() {

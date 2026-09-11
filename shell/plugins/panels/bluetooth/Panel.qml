@@ -183,7 +183,7 @@ Panel {
     var rows = scrollRows
     if (index < 0 || index >= rows.length) return ""
     if (index > 0 && rows[index - 1].section === rows[index].section) return ""
-    return rows[index].section === "known" ? "PAIRED" : "AVAILABLE"
+    return rows[index].section === "known" ? I18n.tr("PAIRED") : I18n.tr("AVAILABLE")
   }
 
   function audioSinks() {
@@ -738,7 +738,8 @@ Panel {
             spacing: Style.space(2)
 
             Text {
-              text: "Bluetooth"
+              textFormat: Text.PlainText
+              text: I18n.tr("Bluetooth")
               color: root.bar.foreground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.title
@@ -750,7 +751,7 @@ Panel {
             Text {
               id: heroStatus
               textFormat: Text.PlainText
-              text: root.heroStatusText.toUpperCase()
+              text: I18n.tr(root.heroStatusText).toUpperCase()
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
@@ -775,7 +776,7 @@ Panel {
           spacing: Style.space(10)
 
           PanelSectionHeader {
-            text: "CONNECTED"
+            text: I18n.tr("CONNECTED")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
           }
@@ -867,9 +868,9 @@ Panel {
         Text {
           textFormat: Text.PlainText
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
-          text: !root.adapter ? "No Bluetooth adapter"
-              : !root.adapter.enabled ? "Turn Bluetooth on to scan"
-              : "Scanning for devices…"
+          text: !root.adapter ? I18n.tr("No Bluetooth adapter")
+              : !root.adapter.enabled ? I18n.tr("Turn Bluetooth on to scan")
+              : I18n.tr("Scanning for devices…")
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -911,13 +912,13 @@ Panel {
 
     readonly property string statusText: {
       if (!dev) return ""
-      if (action === "forgetting") return "Forgetting…"
-      if (action === "disconnecting" || devState === 2) return "Disconnecting…"
+      if (action === "forgetting") return I18n.tr("Forgetting…")
+      if (action === "disconnecting" || devState === 2) return I18n.tr("Disconnecting…")
       if (isConnected) {
         if (dev.batteryAvailable) return Math.round(dev.battery * 100) + "%"
-        return sectionName === "connected" ? "" : "Connected"
+        return sectionName === "connected" ? "" : I18n.tr("Connected")
       }
-      if (action === "connecting" || devState === 3 || dev.pairing === true) return "Connecting…"
+      if (action === "connecting" || devState === 3 || dev.pairing === true) return I18n.tr("Connecting…")
       if (isDiscovered) return ""
       return ""
     }
@@ -994,7 +995,7 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          text: root.deviceLabel(row.dev) || "Device"
+          text: root.deviceLabel(row.dev) || I18n.tr("Device")
           color: root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.body

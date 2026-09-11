@@ -616,7 +616,7 @@ Panel {
               id: locationField
               width: Style.space(190)
               enabled: !root.savingLocation
-              placeholderText: "Search city"
+              placeholderText: I18n.tr("Search city")
               foreground: root.bar.foreground
               font.family: root.bar.fontFamily
 
@@ -683,7 +683,8 @@ Panel {
             Column {
               spacing: Style.space(5)
               Text {
-                text: "FEELS"
+                textFormat: Text.PlainText
+                text: I18n.tr("FEELS")
                 color: Qt.darker(root.bar.foreground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -701,7 +702,8 @@ Panel {
             Column {
               spacing: Style.space(5)
               Text {
-                text: "WIND"
+                textFormat: Text.PlainText
+                text: I18n.tr("WIND")
                 color: Qt.darker(root.bar.foreground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -719,7 +721,8 @@ Panel {
             Column {
               spacing: Style.space(5)
               Text {
-                text: "HUMID"
+                textFormat: Text.PlainText
+                text: I18n.tr("HUMID")
                 color: Qt.darker(root.bar.foreground, 1.5)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -792,7 +795,8 @@ Panel {
 
       Text {
         visible: !root.current
-        text: "Fetching forecast…"
+        textFormat: Text.PlainText
+        text: I18n.tr("Fetching forecast…")
         color: Qt.darker(root.bar.foreground, 1.5)
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.bodySmall

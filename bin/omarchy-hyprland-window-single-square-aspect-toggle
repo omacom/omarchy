@@ -3,6 +3,6 @@
 # omarchy:summary=Toggle single-window square aspect ratio.
 
 case $(omarchy-hyprland-toggle single-window-aspect-ratio) in
-  on) omarchy-notification-send -g  "Enable single-window square aspect ratio" ;;
-  off) omarchy-notification-send -g  "Disable single-window square aspect ratio" ;;
+  on) omarchy-notification-send -g  "$(omarchy-i18n "Enable single-window square aspect ratio")" ;;
+  off) omarchy-notification-send -g  "$(omarchy-i18n "Disable single-window square aspect ratio")" ;;
 esac

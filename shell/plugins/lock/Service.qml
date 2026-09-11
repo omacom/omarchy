@@ -240,7 +240,7 @@ Item {
     enteredPassword = ""
     pendingPassword = ""
     failedAttempts += 1
-    failureMessage = "Authentication failed (" + failedAttempts + ")"
+    failureMessage = I18n.tr("Authentication failed (%1)", [failedAttempts])
     runWake()
   }
 

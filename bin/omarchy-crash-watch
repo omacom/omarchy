@@ -37,11 +37,14 @@ announce() {
   # name, the only one shouldBypassDnd() lets through. Crash details ride as
   # discrete argv words, so a hostile process name can't be reparsed as a
   # command. --exec consumes the rest of the line, so it comes last.
+  local notif_headline notif_desc
+  notif_headline=$(omarchy-i18n "Process crashed: %1" "Process crashed: $comm" "$comm")
+  notif_desc=$(omarchy-i18n "Click to diagnose with AI")
   omarchy-notification-send \
     --urgency critical \
     --glyph "$CRASH_GLYPH" \
-    "Process crashed: $comm" \
-    "Click to diagnose with AI" \
+    "$notif_headline" \
+    "$notif_desc" \
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 

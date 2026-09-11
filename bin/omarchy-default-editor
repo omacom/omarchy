@@ -56,4 +56,5 @@ fi
 mkdir -p "$(dirname "$editor_file")"
 printf '%s\n' "$editor" >"$editor_file"
 
-omarchy-notification-send -g $glyph "$name is now the default editor"
+notif_msg=$(omarchy-i18n "%1 is now the default editor" "$name is now the default editor" "$name")
+omarchy-notification-send -g $glyph "$notif_msg"

@@ -23,6 +23,7 @@ ToolTip {
   property color panelBorder: Color.tooltip.border
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.bodySmall
+  property bool translateText: true
 
   readonly property var panelBorderSpec: Border.localOrSurfaceSpec("tooltip", "border", panelBorder, Color.tooltip.border, Style.normalBorderWidth)
 
@@ -37,7 +38,7 @@ ToolTip {
 
   contentItem: Text {
     textFormat: Text.PlainText
-    text: root.text
+    text: root.text !== "" ? (root.translateText ? I18n.tr(root.text) : root.text) : ""
     color: root.panelForeground
     font.family: root.fontFamily
     font.pixelSize: root.fontSize

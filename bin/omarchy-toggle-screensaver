@@ -5,7 +5,7 @@
 omarchy-toggle screensaver-off
 
 if omarchy-toggle-enabled screensaver-off; then
-  omarchy-notification-send -g 󱄄 "Screensaver disabled"
+  omarchy-notification-send -g 󱄄 "$(omarchy-i18n "Screensaver disabled")"
 else
-  omarchy-notification-send -g 󱄄 "Screensaver enabled"
+  omarchy-notification-send -g 󱄄 "$(omarchy-i18n "Screensaver enabled")"
 fi

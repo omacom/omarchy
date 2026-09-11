@@ -51,7 +51,9 @@ Item {
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
   function authorizationLabel(message) {
-    return PolkitModel.authorizationLabel(message)
+    var raw = PolkitModel.authorizationLabel(message)
+    var match = String(message || "").match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
+    return match ? I18n.tr("Authorize running '%1'", [match[1]]) : raw
   }
 
   function loadPamConfig(raw) {
@@ -78,7 +80,7 @@ Item {
     var flow = polkitAgent.flow
     if (!flow) return
 
-    currentMessage = String(flow.message || "Authentication is needed...")
+    currentMessage = flow.message ? String(flow.message) : I18n.tr("Authentication is needed...")
     currentPrompt = String(flow.inputPrompt || "")
     currentSupplementary = String(flow.supplementaryMessage || "")
     responseRequired = !!flow.isResponseRequired
@@ -336,7 +338,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
+            text: root.errorFlash ? I18n.tr("Wrong") : (root.submitted ? I18n.tr("Checking...") : I18n.tr("Enter password"))
             color: root.errorFlash ? Color.polkit.textError : root.foreground
             opacity: root.errorFlash ? 1 : 0.36
             font.family: root.fontFamily

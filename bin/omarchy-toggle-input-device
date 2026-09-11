@@ -54,7 +54,9 @@ enable() {
   rm -f "$NAME_FILE"
   require_device
   apply_device true
-  omarchy-osd -i "$ICON" -m "$LABEL enabled"
+  local localized_label
+  localized_label="$(omarchy-i18n "$LABEL")"
+  omarchy-osd -i "$ICON" -m "$(omarchy-i18n "%1 enabled" "$LABEL enabled" "$localized_label")"
 }
 
 disable() {
@@ -62,7 +64,9 @@ disable() {
   apply_device false
   mkdir -p "$(dirname "$NAME_FILE")"
   printf '%s\n' "$device" >"$NAME_FILE"
-  omarchy-osd -i "$ICON" -m "$LABEL disabled"
+  local localized_label
+  localized_label="$(omarchy-i18n "$LABEL")"
+  omarchy-osd -i "$ICON" -m "$(omarchy-i18n "%1 disabled" "$LABEL disabled" "$localized_label")"
 }
 
 case "$ACTION" in

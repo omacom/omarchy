@@ -11,7 +11,9 @@ authfile="/etc/fido2/fido2"
 report_unrepairable() {
   echo "  $1"
   echo "  $2"
-  omarchy-notification-send -u critical -g  "FIDO2 authfile needs attention" "$1 $2" || true
+  local notification_body
+  notification_body=$(omarchy-i18n "$3" "$1 $2" "$authfile")
+  omarchy-notification-send -u critical -g  "$(omarchy-i18n "FIDO2 authfile needs attention")" "$notification_body" || true
 }
 
 # Nothing to repair on any machine that never set FIDO2 up, which is almost all
@@ -48,7 +50,8 @@ fi
 # from anyone whose only credential is the token.
 if [[ -L $authfile ]]; then
   report_unrepairable "$authfile is a symlink, not a regular file." \
-    "Leaving it alone. If you did not create it, remove it and re-run Setup > Security > Fido2."
+    "Leaving it alone. If you did not create it, remove it and re-run Setup > Security > Fido2." \
+    "notification.fido2.symlink"
   exit 0
 fi
 
@@ -56,7 +59,8 @@ fi
 # and changing a directory's mode would alter an object we do not own.
 if [[ ! -f $authfile ]]; then
   report_unrepairable "$authfile is not a regular file." \
-    "Leaving it alone. Remove it and re-run Setup > Security > Fido2."
+    "Leaving it alone. Remove it and re-run Setup > Security > Fido2." \
+    "notification.fido2.not_regular"
   exit 0
 fi
 

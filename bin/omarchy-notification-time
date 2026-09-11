@@ -2,4 +2,15 @@
 
 # omarchy:summary=Show the current time and date notification
 
-omarchy-notification-send -g  -u low "$(date +"%A %H:%M  ·  %d %B %Y  ·  Week %V")"
+year=$(date +%Y)
+month=$(date +%-m)
+day=$(date +%-d)
+weekday_en=$(LC_ALL=C date +%A)
+weekday=$(omarchy-i18n "weekday.$weekday_en" "$weekday_en")
+time_hm=$(date +%H:%M)
+week_num=$(date +%-V)
+english_msg=$(date +"%A %H:%M  ·  %d %B %Y  ·  Week %V")
+msg=$(omarchy-i18n "notification.time.format" "$english_msg" \
+  "$year" "$month" "$day" "$weekday" "$time_hm" "$week_num")
+
+omarchy-notification-send -g  -u low "$msg"
