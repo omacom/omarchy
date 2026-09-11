@@ -45,6 +45,8 @@ A third-party replacement bar can render registered widget components, but widge
 
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
+For the RSS Reader's generated `enabledFeeds.options`, edit [`feeds.json`](../shell/plugins/panels/news/feeds.json) and follow the [catalogue generation workflow](rss-reader.md); regeneration overwrites direct edits to those manifest options.
+
 ## Installing a third-party plugin
 
 A plugin is a **git repo** with a `manifest.json` at its root. Adding one
