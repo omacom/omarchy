@@ -13,7 +13,7 @@ gutter_count=$(rg -c 'spacing: 0' "$ROOT/shell/plugins/bar/Bar.qml" || true)
 [[ $gutter_count == "2" ]] || fail "bar module lists leave spacing to the slots" "spacing: 0 occurrences: $gutter_count"
 pass "bar module lists leave spacing to the slots"
 
-for anchor in 'paintHalfGap' 'slotPad' 'paintedExtent' 'labelTightWidth' 'BarModel\.slotPad\(' 'omarchy\.spacer'; do
+for anchor in 'paintHalfGap' 'paintIntrude' 'slotPad' 'paintedExtent' 'labelTightWidth' 'BarModel\.slotPad\(' 'omarchy\.spacer'; do
   rg -q "$anchor" "$ROOT/shell/plugins/bar/Bar.qml" || fail "bar normalizes slot spacing from painted widths" "$anchor"
 done
 pass "bar normalizes slot spacing from painted widths"
@@ -21,28 +21,36 @@ pass "bar normalizes slot spacing from painted widths"
 run_node_test <<'JS'
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 
-// Standard icon: 27px slot, ~11px of tight glyph paint.
-assertEqual(bar.slotPad(27, 11, 9), 1, 'an icon slot pads to the half gap')
+// Standard icon: 27px slot, ~11px of tight glyph paint. The padding goes
+// slightly negative here: it intrudes into the widget's own empty margin
+// to enforce the gap, never into paint.
+assertEqual(bar.slotPad(27, 11, 6, 3), -2, 'an icon slot enforces the half gap')
 // Text pill: 30px slot, ~13px label.
-assertEqual(bar.slotPad(30, 13, 9), 0.5, 'a text pill pads to the half gap')
+assertEqual(bar.slotPad(30, 13, 6, 3), -2.5, 'a text pill enforces the half gap')
 // Overflowing paint (icon + percentage in an icon slot) pads extra
 // instead of touching its neighbour.
-assertEqual(bar.slotPad(27, 43, 9), 17, 'overflowing paint is compensated, not clipped')
+assertEqual(bar.slotPad(27, 43, 6, 3), 14, 'overflowing paint is compensated, not clipped')
+// Intrusion is bounded: even a wildly over-reported bearing only ever
+// overlaps neighbouring hit areas by the cap, never paint.
+assertEqual(bar.slotPad(60, 10, 6, 3), -3, 'intrusion stops at the cap')
+assertEqual(bar.slotPad(100, 4, 6, 3), -3, 'a lying bearing still stops at the cap')
+// Without the cap the padding stays outward-only, as before.
+assertEqual(bar.slotPad(30, 13, 6), 0, 'no cap means outward-only padding')
 // Hidden widgets stay collapsed and contribute no gap.
-assertEqual(bar.slotPad(0, 0, 9), 0, 'a zero span stays collapsed')
-assertEqual(bar.slotPad(-4, 0, 9), 0, 'a negative span stays collapsed')
-assertEqual(bar.slotPad(27, 11, 0), 0, 'a zero half gap pads nothing')
+assertEqual(bar.slotPad(0, 0, 6, 3), 0, 'a zero span stays collapsed')
+assertEqual(bar.slotPad(-4, 0, 6, 3), 0, 'a negative span stays collapsed')
+assertEqual(bar.slotPad(27, 11, 0, 3), 0, 'a zero half gap pads nothing')
 
 // The identity the bar relies on: pad + own bearing on both sides of a
 // pair always sums to the full uniform gap.
-function pairGap(spanA, paintedA, spanB, paintedB, half) {
+function pairGap(spanA, paintedA, spanB, paintedB, half, cap) {
   const bearing = (span, painted) => (span - painted) / 2
-  return bar.slotPad(spanA, paintedA, half) + bearing(spanA, paintedA)
-    + bar.slotPad(spanB, paintedB, half) + bearing(spanB, paintedB)
+  return bar.slotPad(spanA, paintedA, half, cap) + bearing(spanA, paintedA)
+    + bar.slotPad(spanB, paintedB, half, cap) + bearing(spanB, paintedB)
 }
-assertEqual(pairGap(27, 11, 27, 12, 9), 18, 'two icons land on the uniform gap')
-assertEqual(pairGap(27, 11, 30, 13, 9), 18, 'icon and pill land on the uniform gap')
-assertEqual(pairGap(27, 43, 27, 11, 9), 18, 'overflowing paint and icon land on the uniform gap')
+assertEqual(pairGap(27, 11, 27, 11, 6, 3), 12, 'two icons land on the uniform gap')
+assertEqual(pairGap(27, 11, 30, 13, 6, 3), 12, 'icon and pill land on the uniform gap')
+assertEqual(pairGap(27, 43, 27, 11, 6, 3), 12, 'overflowing paint and icon land on the uniform gap')
 JS
 
 if ! command -v quickshell >/dev/null 2>&1; then
