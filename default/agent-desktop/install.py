@@ -33,7 +33,7 @@ def configuration(home, runtime, node, port, monitor):
     # systemd expands percent specifiers and dollar variables even inside quotes.
     def unit_quote(value):
         return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%').replace('$', '$$') + '"'
-    rule = '-- Managed by agent-desktop install.py\nhl.window_rule({\n  match = { class = "^aquamarine$", title = "^aquamarine - WAYLAND-1$" },\n  no_initial_focus = true,\n'
+    rule = '-- Managed by agent-desktop install.py\nhl.window_rule({\n  match = { class = "^agent-desktops$" },\n  no_initial_focus = true,\n'
     if monitor:
         rule += f'  monitor = {json.dumps(monitor + " silent")},\n'
     rule += '})\n'
@@ -53,9 +53,31 @@ RestartSec=3
 [Install]
 WantedBy=graphical-session.target
 '''
+    watcher = f'''{MARKER}
+[Unit]
+Description=Open Agent Desktops when desktops become active
+After=graphical-session.target hypr-desktop.service
+PartOf=graphical-session.target
+ConditionPathExists=%h/.local/share/hypr-desktop/local-url
+
+[Service]
+ExecStart=/usr/bin/python3 {unit_quote(runtime / 'app/watch.py')}
+Environment=PATH={unit_quote(str(Path(node).parent) + ':' + str(home / '.local/bin') + ':/usr/local/bin:/usr/bin')}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+'''
+    executable = str(runtime / 'app/agent-desktops').replace('%', '%%')
+    for char in ('\\', '"', '`', '$'):
+        executable = executable.replace(char, '\\' + char)
+    desktop = (SOURCE / 'app/agent-desktops.desktop').read_text().replace('Exec=agent-desktops', 'Exec="' + executable + '"')
     return {
         home / ".config/hypr/agent-desktop.lua": rule,
         home / ".config/systemd/user/hypr-desktop.service": service,
+        home / ".config/systemd/user/agent-desktops-watch.service": watcher,
+        home / ".local/share/applications/org.omarchy.AgentDesktops.desktop": desktop,
         state / "url": f"http://127.0.0.1:{port}/mcp\n",
         state / "local-url": f"http://127.0.0.1:{port}/mcp\n",
     }
@@ -83,6 +105,7 @@ def install(home, source, port, monitor, start):
         check_owned(path, previous.get("files", {}))
     links = {
         home / ".local/bin/agent-desktop": runtime / "bin/agent-desktop",
+        home / ".local/bin/agent-desktops": runtime / "app/agent-desktops",
         home / ".codex/skills/agent-desktop": runtime / "skill",
         home / ".claude/skills/agent-desktop": runtime / "skill",
     }
@@ -99,9 +122,10 @@ def install(home, source, port, monitor, start):
     if state.exists() and not manifest.exists():
         raise RuntimeError(f"Existing MCP state at {state}; migrate that installation explicitly")
     if start:
-        for name in ('Hyprland', 'hyprctl', 'jq', 'wtype', 'wlrctl', 'grim', 'Xwayland', 'notify-send', 'systemd-run'):
+        for name in ('Hyprland', 'hyprctl', 'jq', 'wtype', 'wlrctl', 'grim', 'Xwayland', 'omarchy-notification-send', 'systemd-run', 'wayvnc'):
             if not shutil.which(name):
                 raise RuntimeError(f"Missing runtime dependency: {name}")
+        run('python3', '-c', 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("WebKit2", "4.1"); from gi.repository import Gtk, WebKit2')
         if monitor:
             monitors = json.loads(run('hyprctl', '-j', 'monitors', capture_output=True).stdout)
             if monitor not in {m['name'] for m in monitors}:
@@ -122,21 +146,25 @@ def install(home, source, port, monitor, start):
     backup = root / f"previous-{secrets.token_hex(4)}"
     saved = {path: path.read_bytes() if path.exists() else None for path in files}
     added_links = []
-    was_active = False
-    was_enabled = False
+    units = ['hypr-desktop.service', 'agent-desktops-watch.service']
+    was_active = {}
+    was_enabled = {}
     token_created = False
     swapped = False
     try:
-        for name in ('bin', 'config', 'mcp', 'skill'):
+        for name in ('bin', 'config', 'mcp', 'app', 'skill'):
             shutil.copytree(source / name, staged / name, ignore=shutil.ignore_patterns('node_modules', '__pycache__'))
         for name in ('README.md', 'LICENSE'):
             shutil.copy2(source / name, staged / name)
         run('npm', 'ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', cwd=staged / 'mcp')
+        run('npm', 'ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', cwd=staged / 'app')
         if start:
-            was_enabled = subprocess.run(['systemctl', '--user', 'is-enabled', '--quiet', 'hypr-desktop.service']).returncode == 0
-            was_active = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', 'hypr-desktop.service']).returncode == 0
-            if was_active:
-                run('systemctl', '--user', 'stop', 'hypr-desktop.service')
+            for unit in units:
+                was_enabled[unit] = subprocess.run(['systemctl', '--user', 'is-enabled', '--quiet', unit]).returncode == 0
+                was_active[unit] = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', unit]).returncode == 0
+            for unit in reversed(units):
+                if was_active[unit]:
+                    run('systemctl', '--user', 'stop', unit)
         if runtime.exists():
             runtime.rename(backup)
         staged.rename(runtime)
@@ -173,6 +201,7 @@ def install(home, source, port, monitor, start):
                 time.sleep(.5)
             else:
                 raise RuntimeError(f"MCP status failed: {status.stderr}")
+            run('systemctl', '--user', 'enable', '--now', 'agent-desktops-watch.service')
         manifest_temp = manifest.with_suffix('.tmp')
         manifest_temp.write_text(json.dumps({
             'runtime': str(runtime),
@@ -182,9 +211,10 @@ def install(home, source, port, monitor, start):
     except Exception:
         if swapped:
             if start:
-                subprocess.run(['systemctl', '--user', 'stop', 'hypr-desktop.service'], check=False)
-                if not was_enabled:
-                    subprocess.run(['systemctl', '--user', 'disable', 'hypr-desktop.service'], check=False)
+                for unit in reversed(units):
+                    subprocess.run(['systemctl', '--user', 'stop', unit], check=False)
+                    if not was_enabled.get(unit):
+                        subprocess.run(['systemctl', '--user', 'disable', unit], check=False)
             for path, content in saved.items():
                 if content is None:
                     path.unlink(missing_ok=True)
@@ -192,6 +222,7 @@ def install(home, source, port, monitor, start):
                     path.write_bytes(content)
             if token_created:
                 (state / 'token').unlink()
+            manifest.with_suffix('.tmp').unlink(missing_ok=True)
             if not previous and state.exists() and not any(state.iterdir()):
                 state.rmdir()
             for link in added_links:
@@ -204,8 +235,14 @@ def install(home, source, port, monitor, start):
             if start:
                 subprocess.run(['hyprctl', 'reload'], check=False)
                 subprocess.run(['systemctl', '--user', 'daemon-reload'], check=False)
-                if was_active:
-                    subprocess.run(['systemctl', '--user', 'start', 'hypr-desktop.service'], check=False)
+        # A failure can happen after stopping services but before completing
+        # the directory swap. Restore that earlier runtime and service state too.
+        if backup.exists() and not runtime.exists():
+            backup.rename(runtime)
+        if start:
+            for unit in units:
+                if was_active.get(unit):
+                    subprocess.run(['systemctl', '--user', 'start', unit], check=False)
         raise
     finally:
         if staged.exists():
@@ -219,7 +256,7 @@ def install(home, source, port, monitor, start):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--monitor', help='Hyprland output name; default uses normal placement without initial focus')
+    parser.add_argument('--monitor', help='Hyprland output name; place the native overview here without initial focus')
     parser.add_argument('--port', type=int, default=7873)
     parser.add_argument('--no-start', action='store_true', help='install files without reloading Hyprland or enabling/starting the service')
     args = parser.parse_args()

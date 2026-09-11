@@ -24,16 +24,16 @@ export class Leases {
     if (!this.file) return;
     try {
       for (const l of JSON.parse(readFileSync(this.file, 'utf8'))) this.byHandle.set(l.handle, l);
-    } catch {
-      // first run or unreadable file: start empty
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw new Error(`Cannot read desktop ownership: ${error.message}`);
     }
   }
 
   save() {
     if (!this.file) return;
-    mkdirSync(dirname(this.file), { recursive: true });
+    mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });
     const tmp = `${this.file}.tmp`;
-    writeFileSync(tmp, JSON.stringify([...this.byHandle.values()]));
+    writeFileSync(tmp, JSON.stringify([...this.byHandle.values()]), { mode: 0o600 });
     renameSync(tmp, this.file);
   }
 
@@ -43,7 +43,7 @@ export class Leases {
 
   status() {
     return [...this.byHandle.values()].map(l => ({
-      desktop: l.desktop, held: this.live(l), owner: l.owner,
+      desktop: l.desktop, generation: l.generation || String(l.created), held: this.live(l), owner: l.owner,
       idleMs: this.now() - l.lastUsed
     })).sort((a, b) => a.desktop - b.desktop);
   }
@@ -52,7 +52,7 @@ export class Leases {
     const occupied = new Set([...this.byHandle.values()].map(l => l.desktop));
     let d = 1;
     while (occupied.has(d)) d++;
-    const lease = { handle: `d${d}-${randomBytes(4).toString('hex')}`, desktop: d, owner, created: this.now(), lastUsed: this.now() };
+    const lease = { handle: `d${d}-${randomBytes(16).toString('hex')}`, desktop: d, owner, generation: randomBytes(16).toString('hex'), created: this.now(), lastUsed: this.now() };
     this.byHandle.set(lease.handle, lease);
     this.save();
     return lease;

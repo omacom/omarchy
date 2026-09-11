@@ -92,7 +92,7 @@ export function createNest({ run = (cmd, args, opts) => execFileP(cmd, args, { m
         .map(c => ({ address: c.address, class: c.class, title: c.title, x: c.at[0], y: c.at[1], w: c.size[0], h: c.size[1], focused: c.focusHistoryID === 0 }));
     },
     async capture(n, { scale } = {}) {
-      const args = ['-o', OUTPUT, '-c', '-t', 'png'];
+      const args = ['-o', OUTPUT, '-c', '-t', 'png', '-l', '1'];
       if (scale && scale !== 1) args.push('-s', String(scale));
       args.push('-');
       const { stdout } = await run('grim', args, { env: nestEnv(n), encoding: 'buffer', timeout: 15000 });

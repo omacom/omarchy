@@ -7,7 +7,7 @@ description: Open and control apps in an on-demand Hyprland desktop for browser 
 
 Use the `hypr-desktop` MCP tools when available. Otherwise call the same tools through `agent-desktop tool NAME 'JSON_ARGUMENTS'`. The helper reads the local endpoint and token; do not print credentials or build a separate client.
 
-Each claim opens an ordinary window containing a separate desktop. It does not take initial focus. Host configuration may choose a monitor. Tell the user before claiming; the server also sends desktop notifications. This separates GUI input and browser profiles, not filesystem permissions or arbitrary shell access.
+Each claim starts a background desktop. The first active batch opens the borderless **Agent Desktops** viewer automatically; additional claims do not reopen or refocus it. Models use ordinary claim/release calls and do not launch the viewer or move user windows. The viewer displays up to eight screens per page with session names, favicons, host labels, and status. Closing it leaves desktops running. Empty fleets display **No active desktops**. Tell the user before claiming; the server also sends desktop notifications. This separates GUI input and browser profiles, not filesystem permissions or arbitrary shell access.
 
 ## Open an app
 
@@ -24,7 +24,7 @@ agent-desktop tool observe '{"handle":"RETURNED_HANDLE","scale":0.5}'
 
 Replace `RETURNED_HANDLE` with the returned value. The shell helper saves screenshots to a private temporary directory and prints the image path. Open that image before interacting.
 
-If authentication is required, ask the user to click the desktop window and log in. Do not copy cookies or credentials from their usual browser profile.
+If authentication is required, ask the user to open **Agent Desktops**, select **Take control** on this screen, and log in. **Escape** returns to watch mode. Verified T3 conversations provide a **Chat** button that opens their related desktops beside a paginated Markdown conversation; replies stay in the original thread. Configured fleets group only verified ownership, never matching titles. The optional private website provides the same grouping with built-in chat. Do not copy cookies or credentials from their usual browser profile.
 
 ## Interact
 
@@ -53,7 +53,7 @@ agent-desktop tool release '{"handle":"RETURNED_HANDLE"}'
 agent-desktop tool status '{}'
 ```
 
-Release stops that desktop and its managed apps. Never release someone else's handle or use `stop all`. If the user asks to keep one open, retain its handle and explain that 30 minutes without an agent call triggers idle cleanup. User mouse activity does not renew the lease. Calls such as `windows` renew it during intentional waits.
+Release stops that desktop and its managed apps, and releases its idle/suspend inhibition. Opened chats stay bound to their original thread after desktop closure. Never release someone else's handle or use `stop all`. If the user asks to keep one open, retain its handle and explain that 30 minutes without an agent call triggers idle cleanup. User mouse activity does not renew the lease. Calls such as `windows` renew it during intentional waits.
 
 A tool error or nonzero exit means failure. An expired handle cannot be revived; claim again only if work remains. If release fails, retain the handle and retry once after inspecting the error, then report any remaining desktop. An unreachable endpoint is not permission to start a competing server. Inspect `journalctl --user -u hypr-desktop` and ask the user to check setup if necessary.
 

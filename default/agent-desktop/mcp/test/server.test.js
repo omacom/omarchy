@@ -55,7 +55,7 @@ test('claim, observe, click flow; stale frames and foreign handles are refused',
   assert.equal(claimed.isError, undefined);
   const { handle, desktop, show } = claimed.structuredContent;
   assert.equal(desktop, 1);
-  assert.match(show, /ordinary window/);
+  assert.match(show, /background desktop/);
 
   const before = await call('click', { handle, frame_id: 'f1-none', x: 1, y: 1 });
   assert.equal(before.isError, true);
@@ -71,6 +71,7 @@ test('claim, observe, click flow; stale frames and foreign handles are refused',
   const clicked = await call('click', { handle, frame_id: frame, x: 100, y: 200, button: 'right' });
   assert.equal(clicked.isError, undefined);
   assert.deepEqual(nest.calls.at(-1), ['click', 1, 100, 200, 'right']);
+  assert.equal((await call('click', { handle, frame_id: frame, x: 100, y: 200 })).isError, true, 'input requires a fresh observation after a click');
 
   await call('observe', { handle });
   const stale = await call('click', { handle, frame_id: frame, x: 1, y: 1 });
@@ -100,14 +101,14 @@ test('claim replaces a leftover desktop before handing it over', async () => {
   assert.deepEqual(nest.calls.slice(0, 3), [['stop', 1], ['start', 1]]);
 });
 
-test('status needs no handle and describes ordinary desktop windows', async () => {
+test('status needs no handle and describes background desktop viewing', async () => {
   const nest = fakeNest();
   const leases = new Leases();
   leases.claim('someone');
   nest.readyDesktops.add(1);
   const { call } = await connect(nest, leases);
   const text = (await call('status')).content[0].text;
-  assert.match(text, /desktop 1: ready, held by someone, idle 0 min, windows 0, ordinary window/);
+  assert.match(text, /desktop 1: ready, held by someone, idle 0 min, windows 0, background desktop/);
   assert.doesNotMatch(text, /desktop 4:/);
 });
 
@@ -127,7 +128,7 @@ test('six simultaneous claims start six desktops and releasing one closes only i
   const { call } = await connect(nest);
   const claims = await Promise.all(Array.from({ length: 6 }, (_, i) => call('claim', { owner: `task ${i}` })));
   assert.equal(nest.readyDesktops.size, 6);
-  assert.match(claims[5].structuredContent.show, /ordinary window/);
+  assert.match(claims[5].structuredContent.show, /background desktop/);
   const { handle, desktop } = claims[2].structuredContent;
   assert.equal((await call('release', { handle })).isError, undefined);
   assert.equal(nest.readyDesktops.has(desktop), false);
@@ -167,4 +168,39 @@ test('failed startup is cleaned up and does not consume the desktop', async () =
   assert.equal((await call('claim')).isError, true);
   assert.deepEqual(leases.status(), []);
   assert.deepEqual(nest.calls, [['stop', 1], ['stop', 1]]);
+});
+
+test('failed input consumes its frame, and a recovered display rejects old frames', async () => {
+  let instance = 'first';
+  const nest = fakeNest({ instance: () => instance, click: async () => { throw new Error('input timed out after a side effect'); } });
+  const { call } = await connect(nest);
+  const { handle } = (await call('claim')).structuredContent;
+  const first = (await call('observe', { handle })).structuredContent.frame_id;
+  assert.equal((await call('click', { handle, frame_id: first, x: 1, y: 1 })).isError, true);
+  const reuse = await call('move', { handle, frame_id: first, x: 1, y: 1 });
+  assert.equal(reuse.isError, true);
+  const second = (await call('observe', { handle })).structuredContent.frame_id;
+  instance = 'replacement';
+  const oldDisplay = await call('move', { handle, frame_id: second, x: 1, y: 1 });
+  assert.equal(oldDisplay.isError, true);
+  const third = (await call('observe', { handle })).structuredContent.frame_id;
+  assert.equal((await call('move', { handle, frame_id: third, x: 1, y: 1 })).isError, undefined);
+});
+
+test('action feedback returns a new usable frame in one call and never captures after failure', async () => {
+  const nest = fakeNest();
+  const { call } = await connect(nest);
+  const { handle } = (await call('claim', {})).structuredContent;
+  const initial = (await call('observe', { handle })).structuredContent.frame_id;
+  const result = await call('click', { handle, frame_id: initial, x: 10, y: 20, observe: true, settle_ms: 0 });
+  assert.equal(result.isError, undefined);
+  assert.ok(result.content.some(c => c.type === 'image'));
+  assert.notEqual(result.structuredContent.frame_id, initial);
+  assert.equal((await call('click', { handle, frame_id: initial, x: 10, y: 20 })).isError, true);
+  assert.equal((await call('click', { handle, frame_id: result.structuredContent.frame_id, x: 10, y: 20 })).isError, undefined);
+  nest.click = async () => { throw Error('input failed'); };
+  const frame = (await call('observe', { handle })).structuredContent.frame_id;
+  const failed = await call('click', { handle, frame_id: frame, x: 10, y: 20, observe: true, settle_ms: 0 });
+  assert.equal(failed.isError, true);
+  assert.ok(!failed.content.some(c => c.type === 'image'));
 });

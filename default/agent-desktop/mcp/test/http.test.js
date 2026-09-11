@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { invokeDesktop } from '../client.js';
 
-test('running HTTP service requires its private token and accepts the CLI client', async () => {
+for (const web of [false, true]) test(`HTTP runtime is authenticated and web dashboard is ${web ? 'explicitly enabled' : 'disabled by default'}`, async () => {
   const socket = createServer();
   socket.listen(0, '127.0.0.1');
   await once(socket, 'listening');
@@ -21,7 +21,7 @@ test('running HTTP service requires its private token and accepts the CLI client
   writeFileSync(join(state, 'token'), token, { mode: 0o600 });
   writeFileSync(join(state, 'local-url'), url);
   const child = spawn(process.execPath, [new URL('../index.js', import.meta.url).pathname], {
-    env: { ...process.env, HYPR_DESKTOP_STATE: state, HYPR_DESKTOP_PORT: String(port) },
+    env: { ...process.env, HYPR_DESKTOP_STATE: state, HYPR_DESKTOP_PORT: String(port), PATH: '/usr/bin:/bin', HYPR_DESKTOP_HOSTS: 'desktops.example.com', AGENT_DESKTOP_VIEWER_ORIGINS: web ? 'https://desktops.example.com' : '' },
     stdio: ['ignore', 'ignore', 'pipe']
   });
   let logs = '';
@@ -41,6 +41,13 @@ test('running HTTP service requires its private token and accepts the CLI client
     const result = await invokeDesktop('status', {}, { state });
     assert.equal(result.isError, undefined);
     assert.match(result.content[0].text, /no agent desktops/i);
+    const base = `http://127.0.0.1:${port}`;
+    const peer = base + '/hypr-desktop/viewer/agents/fleet';
+    assert.equal((await fetch(peer)).status, 401);
+    assert.deepEqual((await (await fetch(peer, { headers: { Authorization: `Bearer ${token}` } })).json()).desktops, []);
+    const headers = { Host: 'desktops.example.com', Origin: 'https://desktops.example.com' };
+    assert.equal((await fetch(base + '/api/desktops', { headers })).status, web ? 200 : 404);
+    assert.equal((await fetch(base + '/api/desktops', { headers: { ...headers, Origin: 'https://evil.example' } })).status, 403);
     assert.equal(logs.includes(token), false);
   } finally {
     if (child.exitCode === null) {

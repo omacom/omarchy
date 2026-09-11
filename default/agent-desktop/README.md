@@ -1,45 +1,41 @@
-# Agent desktop
+# Agent desktops
 
-Give an agent its own desktop window for browser and GUI work. It can inspect screenshots, click, type, and launch apps without directing that input at your current window. Desktops open on demand without taking initial focus. Click a desktop window when you want to interact with it yourself.
+Agents work in background Hyprland desktops. **Agent Desktops** shows up to eight live screens per page in one borderless native window. Closing the viewer leaves the agents running. An empty viewer says **No active desktops**.
 
-This package includes the Hyprland launcher, nested compositor configuration, authenticated Model Context Protocol (MCP) server, CLI helper, and agent skill. It requires a graphical Hyprland session with Lua configuration, systemd user services, Node.js 20 or later, npm, Python 3, jq, grim, wtype, wlrctl, Xwayland, and notify-send. Tested on Hyprland 0.56.2.
+The first active desktop opens the viewer automatically. Further claims join the active batch without reopening or refocusing it. If you close the viewer, it stays closed until all known desktops end and another starts. Open **Agent Desktops** from the app launcher whenever you want to watch. Disable automatic opening with `systemctl --user disable --now agent-desktops-watch.service`; installing again enables the managed watcher.
 
-## Install for agent CLIs
+Each screen keeps its session name, project favicon, host, status, and **Chat** button at the bottom. Verified conversations share a colored border. Chat brings all related desktops into a focused viewer beside a separate Markdown conversation window. Recent messages load first; older history loads on demand. Drafts survive switching conversations, retries retain their message identity, and chat continues the original thread after its desktop closes. **All desktops** restores the overview. Waiting-for-input notifications open the matching conversation while the app runs.
 
-On Omarchy with this integration installed:
+**Take control** enables human input; **Lock input** or **Escape** returns to watch mode. Agents can continue working in either state. Small tiles use reduced streaming quality; focused and controlled tiles use full quality. Offline machines retain their last known tiles until a successful refresh confirms closure.
+
+## Install
 
 ```sh
 omarchy install ai agent-desktop
 ```
 
-To select a monitor, find its output name with `hyprctl monitors`, then:
+Optional `--monitor DP-1` places the native overview on that monitor without taking initial focus. Find output names with `hyprctl monitors`. `--port 7873` selects the local MCP port. `--no-start` stages a first installation without starting services or reloading Hyprland.
 
-```sh
-omarchy install ai agent-desktop --monitor DP-1
-```
+The package requires a graphical Hyprland session with Lua configuration, Node.js 20+, npm, Python 3, PyGObject, GTK 3, WebKitGTK 4.1, WayVNC, jq, grim, wtype, wlrctl, Xwayland, and systemd user services. The Omarchy command installs dependencies. T3 is optional; plain MCP clients can use desktops without it.
 
-Without `--monitor`, normal window placement applies, with initial focus disabled. The generated rule matches aquamarine windows before the launcher adds their agent tags. You can still click, resize and move them. The rule also applies to other nested compositors using the same aquamarine class and title.
+Installation copies the runtime to `~/.local/share/agent-desktop/package` and adds:
 
-From a standalone checkout, install the dependencies above and run `python3 install.py` from this package directory. Run it as your normal user, not root. `--port 7873` selects the authenticated loopback endpoint. `--no-start` writes setup files but leaves the service and compositor unchanged; it is useful for staging, not a completed running installation.
+- `~/.local/bin/agent-desktop` for agent tools and `~/.local/bin/agent-desktops` for the native viewer.
+- The Agent Desktops application entry and Claude/Codex skill links.
+- `~/.config/hypr/agent-desktop.lua`, loaded by one `require` in `hyprland.lua`.
+- `hypr-desktop.service` and `agent-desktops-watch.service` for the graphical session.
+- A private random token and local endpoint files in `~/.local/share/hypr-desktop`.
 
-The installer copies the package into `~/.local/share/agent-desktop/package`, installs locked npm dependencies there, and adds:
-
-- `~/.local/bin/agent-desktop` as the CLI helper.
-- `~/.codex/skills/agent-desktop` and `~/.claude/skills/agent-desktop` as skill links.
-- `~/.config/hypr/agent-desktop.lua`, loaded by one added `require` in `hyprland.lua`.
-- `hypr-desktop.service`, enabled for your graphical session.
-- A private random token and endpoint files in `~/.local/share/hypr-desktop`.
-
-Existing foreign installations and modified generated files are refused rather than overwritten. Release active desktops before updating. Previous runtime copies are retained after a successful update.
-
-Restart Claude Code or Codex from your terminal. Ask it to use the agent-desktop skill to open a browser. The skill works immediately through the CLI helper; native MCP registration is optional.
+Existing foreign files and modified generated configuration are refused. Release active desktops and close the viewer before updating. Failed setup restores the previous managed configuration; previous runtime copies are retained after successful updates. Restart agent CLIs to discover the skill.
 
 ```sh
 agent-desktop tool status '{}'
-journalctl --user -u hypr-desktop
+journalctl --user -u hypr-desktop -u agent-desktops-watch
 ```
 
-The service listens only on `127.0.0.1`. This setup does not expose a network endpoint or require Tailscale. Possession of its token allows executing commands as your user. It is input and profile separation, not a filesystem or security sandbox.
+The MCP listens only on loopback and requires its private token. It can run commands as the logged-in user. Desktop separation covers GUI input and browser profiles, not filesystem permissions. Claimed desktops inhibit idle and normal suspend until released or expired. Thirty minutes without an agent call triggers cleanup within the next minute; watching or human input does not renew a lease. Browser profiles are retained for reuse.
+
+The nested compositor renders to a 2560×1440 headless output. Its Wayland mirror output is disabled before mapping, so no separate desktop windows appear. `HYPRLAND_NO_SD_VARS=1` prevents a nest from replacing the real session environment.
 
 ## Optional native MCP registration
 
@@ -81,24 +77,53 @@ For T3 installations that set `T3_BOOT_SERVICE_UNIT` and load Bash startup files
 
 Place it before any early return for non-interactive shells. Restart the T3 server after changing its captured shell environment. The MCP still finds the real compositor through systemd's user environment and routes app input into the nested desktop. This opt-in guard is not a sandbox and is not needed for the basic CLI setup.
 
-## Operation
+## Conversation ownership
 
-An agent claims a desktop and receives a handle. All later calls use that handle. Release stops its compositor and managed apps. Thirty minutes without an agent call triggers cleanup within the next minute, even if you have been clicking inside the window. Browser profiles remain available for reuse.
+Chat requires a local T3 installation with paginated orchestration history and the `t3 auth session` CLI. The resolver reads local T3 project/session metadata and matches actual Claude/Codex desktop-claim tool receipts. It never guesses from matching titles or desktop numbers. Ambiguous or unsupported sessions remain viewable with Chat unavailable. Other MCP clients retain desktop tools; their transcript formats are not currently resolved. OpenCode can discover the installed Claude-compatible skill.
 
-The actual rendering output is a 2560×1440 headless output. The visible window mirrors it, allowing captures to continue while the window is hidden. Each nest sets `HYPRLAND_NO_SD_VARS=1` so it cannot replace the graphical session's environment in systemd.
+The default T3 data location is `~/.t3/userdata/state.sqlite`, with the server at `127.0.0.1:3773`. T3-issued temporary sessions are revoked when the viewer/server closes. Sends preserve the thread's original model and interaction settings. No full-thread search is included.
+
+## Optional fleet viewing
+
+The default installation needs no network gateway or fleet configuration. To connect machines, first expose each machine's existing loopback MCP service through your own authenticated HTTPS/private-network setup. This installer configures no DNS, VPN, firewall, or proxy. Each peer still requires its own bearer token.
+
+On the machine acting as the hub, create `~/.local/share/hypr-desktop/viewer-peers.json`:
+
+```json
+[
+  {"id":"desktop-a","url":"https://desktop-a.example.com","tokenFile":"desktop-a-token"},
+  {"id":"desktop-b","url":"https://desktop-b.example.com","tokenFile":"desktop-b-token"}
+]
+```
+
+Transfer the existing peer tokens privately into those files, mode 0600. Relative token paths resolve beside `viewer-peers.json`. Choose unique lowercase host IDs; a hub's own ID is its short hostname. Set `HYPR_DESKTOP_HOSTS` to the comma-separated proxy hostnames accepted by each MCP service. Restart only the MCP service from a terminal outside it. Discovery and streams pass through the hub; browser clients never receive peer tokens.
+
+To use a remote hub in the native viewer and its automatic-opening watcher, create `~/.config/agent-desktops/fleet.json`:
+
+```json
+{"url":"https://desktop-hub.example.com","tokenFile":"/absolute/path/to/private/hub-token"}
+```
+
+Without this file, both use the installed local endpoint and token, including a custom port. Configured remote URLs require HTTPS; plain HTTP is accepted only on localhost or 127.0.0.1. Close and reopen the viewer and restart its watcher after changing this optional configuration. Offline hosts do not rearm automatic opening until their known desktops have ended.
+
+## Optional private web dashboard
+
+The same runtime includes a responsive dashboard with grouped desktops and built-in Markdown chat. It is disabled by default. Enable it only behind your own trusted private gateway by setting `AGENT_DESKTOP_VIEWER_ORIGINS=https://desktops.example.com` and adding that hostname to `HYPR_DESKTOP_HOSTS` in a user service drop-in. Restart the MCP service afterward. The listener remains on loopback.
+
+Anyone allowed through that gateway can watch/control the fleet and continue its verified conversations. The web routes rely on the gateway's access boundary; they have no separate login. Agent and peer routes remain bearer-authenticated. Same-origin writes, signed conversation bindings, sanitized Markdown, and stale-generation checks protect routing inside that boundary. The web dashboard keeps chat beside the selected desktop group on wide screens and uses tabs on phones. Closing a screen preserves its opened chat until dismissed.
 
 ## Tests
 
+Run `npm ci --ignore-scripts && npm test` in both `mcp/` and `app/`. Run `python3 -m unittest discover -s test` and `python3 -m unittest discover -s app/test` from this package directory. Tests cover ownership, authenticated HTTP, stream lifetime, responsive layouts, long Markdown history, retries, native navigation, automatic opening, and installer rollback. Installer tests use temporary directories and do not reload the real session. Announce live GUI checks and use only their own claimed desktops.
+
+## Remove
+
+Release your desktops and close the viewer. Disable both managed services:
+
 ```sh
-cd mcp
-npm ci --ignore-scripts
-npm test
+systemctl --user disable --now agent-desktops-watch.service hypr-desktop.service
 ```
 
-Installer tests run with `python3 -m unittest discover -s test` from this package directory. They use temporary home directories and do not reload your real session. Live GUI checks must be announced and use their own claimed desktop; never stop another agent's desktop to run a test.
+Remove the `require("hypr.agent-desktop")` line from `~/.config/hypr/hyprland.lua`, its generated `agent-desktop.lua`, both generated service files, and `~/.local/share/applications/org.omarchy.AgentDesktops.desktop`. Remove the two CLI links and Claude/Codex skill links after checking that they still point into this package. Run `systemctl --user daemon-reload`, `hyprctl reload`, and `hyprctl configerrors`.
 
-## Remove the integration
-
-Release your agent desktops first. Disable the service with `systemctl --user disable --now hypr-desktop.service`. Remove the `require("hypr.agent-desktop")` line added to `~/.config/hypr/hyprland.lua`, then remove the generated `~/.config/hypr/agent-desktop.lua` and `~/.config/systemd/user/hypr-desktop.service` files. Remove the three installed symlinks listed above after checking that they still point into `~/.local/share/agent-desktop/package`.
-
-Run `systemctl --user daemon-reload`, `hyprctl reload`, and `hyprctl configerrors`. If you added native MCP registration, remove it with `codex mcp remove hypr-desktop` or `claude mcp remove --scope user hypr-desktop`. Remove any optional T3 environment drop-in or shell export you added. The runtime, browser profiles, token, and installation manifest remain in their state directories so they can be restored or removed separately.
+Remove optional native MCP registrations, T3 environment overrides, fleet config, or gateway routes you added. Runtime backups, browser profiles, tokens, and the installation manifest remain in their state directories for separate retention or removal.

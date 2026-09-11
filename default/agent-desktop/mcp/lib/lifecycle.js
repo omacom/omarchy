@@ -44,7 +44,7 @@ export function createLifecycle({ leases, nest, notify = async () => {} }) {
       const l = leases.claim(owner);
       return serial(l.desktop, async () => {
         try {
-          await notify("Opening an agent desktop", `${owner}: desktop ${l.desktop} will open as an ordinary window.`);
+          await notify("Opening an agent desktop", `${owner}: desktop ${l.desktop} will open${nest.placement ? ` as a ${nest.placement}` : " in the background. Open Agent Desktops to watch"}.`);
           await nest.stop(l.desktop);
           await nest.start(l.desktop);
           leases.touch(l.handle);

@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-omarchy-pkg-add nodejs npm python jq grim wtype wlrctl xorg-xwayland
-omarchy-notification-send "Installing agent desktops" "Configuring a local MCP service and desktop placement. No desktop opens until an agent requests one."
+omarchy-pkg-add nodejs npm python jq grim wtype wlrctl xorg-xwayland wayvnc python-gobject gtk3 webkit2gtk-4.1
+omarchy-notification-send "Installing agent desktops" "Configuring background desktops and the native tiled viewer. The viewer opens when the first desktop starts."
 python "$OMARCHY_PATH/default/agent-desktop/install.py" "$@"
 omarchy-notification-send "Agent desktops installed" "Restart your agent CLI to load the desktop skill."

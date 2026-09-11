@@ -1,21 +1,17 @@
 # Agent desktops
 
-Agent desktops let Claude Code, Codex, and other MCP clients work in separate desktop windows. They can open a browser, take screenshots, and send input to their own window while you keep working.
-
-Install the optional package from a terminal:
+Agent desktops let Claude Code, Codex, and other MCP clients open browsers, take screenshots, and work in the background while you keep using your desktop.
 
 ```sh
 omarchy install ai agent-desktop
 ```
 
-To open agent windows on a specific monitor, use its name from `hyprctl monitors`:
+Restart your agent CLI and ask it to use the agent-desktop skill. The first active desktop opens **Agent Desktops**, a borderless native viewer with up to eight screens per page. Closing it leaves agents running. Open it from the app launcher whenever you want to watch. With no sessions, it displays **No active desktops**.
 
-```sh
-omarchy install ai agent-desktop --monitor DP-1
-```
+Each screen keeps its session name, project favicon, host, status, and **Chat** button at the bottom. **Take control** lets you interact; **Escape** returns to watch mode. Related desktops share a colored border. With supported T3 sessions, Chat opens that conversation beside all of its desktops. Markdown history loads recent messages first, with older messages available on demand. Replies continue the same agent, even after its desktop closes.
 
-New desktops do not take focus. Click one to interact with it yourself. Restart your agent CLI after installation, then ask it to use the agent-desktop skill. Desktops open only when claimed and close when released or after 30 minutes without an agent call.
+Use `--monitor DP-1` during installation to place the overview on a chosen monitor. Disable automatic opening with `systemctl --user disable --now agent-desktops-watch.service`. Desktops close when their agent releases them or after 30 minutes without an agent call. Watching does not renew this timer. Open desktops block idle sleep and normal suspend.
 
-The MCP service runs locally under your user. This separates input and browser profiles; it does not restrict filesystem access or shell commands.
+The default setup runs locally and needs no T3 or network gateway. Optional fleet configuration connects other machines; an optional private web dashboard includes built-in Markdown chat. Desktop isolation separates input and browser profiles, not filesystem access or shell commands.
 
-See the [package setup guide](../default/agent-desktop/README.md) for native MCP registration, dependencies, operation, and T3 Code integration.
+See the [package guide](../default/agent-desktop/README.md) for dependencies, MCP registration, T3 support, fleet setup, and removal.

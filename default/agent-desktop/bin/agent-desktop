@@ -1,7 +1,7 @@
 #!/bin/bash
 # agent-desktop — on-demand nested Hyprlands agents work in, supervised by this
 # launcher and driven through the hypr-desktop MCP (mcp/hypr-desktop). The user
-# sees each one as an ordinary window tagged agent-N and arranges it themselves.
+# opens Agent Desktops to watch the background sessions when needed.
 #
 #   agent-desktop tool NAME JSON      call the MCP when native tools are missing
 #   agent-desktop status               running desktops and their windows
@@ -12,7 +12,7 @@
 # Each desktop has its own Wayland socket, X display and virtual seat, reachable
 # under stable names (wayland-agent-N, :9N, hypr/agent-N) that this script keeps
 # pointed at whatever the nest was given. Design and gotchas:
-# See the package README.md for setup and operation.
+# See the package README.md.
 set -euo pipefail
 
 self=$(readlink -f "$0")
@@ -21,11 +21,10 @@ XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$uid}"
 export XDG_RUNTIME_DIR
 RUN="$XDG_RUNTIME_DIR/agent-desktop"
 STATE="$HOME/.local/share/agent-desktop"
-# Resolve resources beside this launcher, including through an installed symlink.
+# Resolve resources through the installed launcher symlink.
 REPO_DIR=$(cd "$(dirname "$self")/.." && pwd)
 NEST_CONFIG="$REPO_DIR/config/nest.lua"
 OUTPUT=agent-main
-GRACE=600   # seconds without windows before a desktop's idle inhibitor is released
 
 say() { printf 'agent-desktop: %s\n' "$*" >&2; }
 die() { say "$*"; exit 1; }
@@ -72,7 +71,8 @@ cmd_start() {
   systemd-run --user --unit="$(unit_of "$n")" --collect --quiet \
     -p Restart=on-failure -p RestartSec=2 -p "ExecStop=\"$self\" _exit $n" \
     -E HYPRLAND_NO_SD_VARS=1 -E "AGENT_DESKTOP_SELF=$self" -E "AGENT_DESKTOP_SLOT=$n" \
-    -- "$self" _supervise "$n"
+    -- systemd-inhibit --what=idle:sleep --who="agent-desktop-$n" \
+      --why="Agent desktop $n is open" --mode=block "$self" _supervise "$n"
   wait_ready "$n" || die "desktop $n did not come up; see journalctl --user -u $(unit_of "$n")"
 }
 
@@ -99,28 +99,6 @@ window_count() {
   nest_hyprctl "$1" -j clients 2>/dev/null | jq 'map(select(.mapped)) | length' 2>/dev/null || echo 0
 }
 
-# The nest's window on the user's Hyprland is an "aquamarine" window like every
-# other nest's; the only thing that tells them apart is the nested Hyprland's
-# pid. The agent-N tag identifies it after the user moves it. No rule moves
-# or hides the window.
-tag_window() {
-  local n=$1 hpid=$2
-  for _ in $(seq 1 20); do
-    if real_hyprctl repl "
-      local tagged = false
-      for _, w in ipairs(hl.get_windows({ class = 'aquamarine' })) do
-        if w.pid == $hpid then
-          hl.dispatch(hl.dsp.window.tag({ tag = '+agent-$n', window = w }))
-          tagged = true
-        end
-      end
-      return tagged and 'tagged' or 'pending'" 2>/dev/null | grep -q tagged; then
-      return 0
-    fi
-    sleep 0.5
-  done
-  say "desktop $n: could not find its window on the real desktop (window tagging failed)"
-}
 cmd_supervise() {
   local n=$1
   mkdir -p "$RUN/$n"
@@ -145,10 +123,6 @@ cmd_supervise() {
   [ -r "$(nest_file "$n")" ] || die "nested Hyprland never reported its sockets"
   # shellcheck disable=SC1090
   . "$(nest_file "$n")"
-  local hpid
-  hpid=$(pgrep -x Hyprland -P "$spid" | head -1 || true)
-  [ -n "$hpid" ] || hpid=$spid
-
   ln -sfn "$NEST_HYPRLAND_INSTANCE_SIGNATURE" "$XDG_RUNTIME_DIR/hypr/agent-$n"
   ln -sfn "$NEST_WAYLAND_DISPLAY" "$XDG_RUNTIME_DIR/wayland-agent-$n"
   [ -n "${NEST_DISPLAY:-}" ] && ln -sfn "X${NEST_DISPLAY#:}" "/tmp/.X11-unix/X9$n"
@@ -159,13 +133,12 @@ cmd_supervise() {
     nest_hyprctl "$n" -j monitors 2>/dev/null | jq -e --arg o "$OUTPUT" 'map(select(.name == $o)) | length > 0' >/dev/null && break
     sleep 0.5
   done
-  # The mirror target did not exist when nest.lua first loaded.
+  # Reapply workspace rules after creating the headless output.
   nest_hyprctl "$n" reload >/dev/null
   local config_errors
   config_errors=$(nest_hyprctl "$n" configerrors)
   [ -z "$config_errors" ] || die "desktop $n config errors: $config_errors"
   nest_hyprctl "$n" repl "hl.dispatch(hl.dsp.focus({ monitor = '$OUTPUT' }))" >/dev/null
-  tag_window "$n" "$hpid"
 
   {
     echo "AGENT_DESKTOP=$n"
@@ -178,31 +151,6 @@ cmd_supervise() {
   mv "$(env_file "$n").tmp" "$(env_file "$n")"
   say "desktop $n ready: $NEST_WAYLAND_DISPLAY (wayland-agent-$n), X ${NEST_DISPLAY:-none} (:9$n), output $OUTPUT"
 
-  # Idle inhibit while agents have windows open, released after GRACE seconds
-  # without any. hypridle honours systemd idle inhibitors; sleep is not
-  # inhibited, so an explicit suspend still works.
-  local inhibit_pid="" empty_since="" c now
-  while kill -0 "$spid" 2>/dev/null; do
-    c=$(window_count "$n")
-    now=$(date +%s)
-    if [ "$c" -gt 0 ]; then
-      empty_since=""
-      if [ -z "$inhibit_pid" ]; then
-        systemd-inhibit --what=idle --who="agent-desktop-$n" --why="agents have windows open in agent desktop $n" --mode=block sleep infinity &
-        inhibit_pid=$!
-      fi
-    else
-      [ -n "$empty_since" ] || empty_since=$now
-      if [ -n "$inhibit_pid" ] && [ $((now - empty_since)) -ge "$GRACE" ]; then
-        kill "$inhibit_pid" 2>/dev/null || true
-        inhibit_pid=""
-      fi
-    fi
-    sleep 30 &
-    local tick_pid=$!
-    wait -n "$spid" "$tick_pid" || true
-  done
-  [ -n "$inhibit_pid" ] && kill "$inhibit_pid" 2>/dev/null || true
   wait "$spid" || true
 }
 
@@ -245,10 +193,10 @@ status_slot() {
   local windows="-"
   [ "$state" = ready ] && windows=$(window_count "$n")
   if [ "$state" = ready ]; then
-    where=$(real_hyprctl repl "local w = hl.get_windows({ tag = 'agent-$n' })[1]; return w and (w.workspace and w.workspace.name or '?') or 'untagged'" 2>/dev/null || echo "?")
+    where="Agent Desktops app"
   fi
   local inhibit=""
-  systemd-inhibit --list --no-legend 2>/dev/null | grep -q "^agent-desktop-$n " && inhibit=", idle inhibited"
+  systemd-inhibit --list --no-legend 2>/dev/null | grep -qE "^agent-desktop-$n .* (sleep:idle|idle:sleep) .*block" && inhibit=", sleep and idle inhibited"
   printf 'desktop %s: %-8s windows %-3s window on %-18s%s\n' "$n" "$state" "$windows" "$where" "$inhibit"
   if [ "$state" = ready ] && [ "$windows" != "0" ]; then
     nest_hyprctl "$n" -j clients 2>/dev/null | jq -r '.[] | select(.mapped) | "           [\(.class)] \(.title)"'
@@ -258,6 +206,7 @@ cmd_status() {
   each_slot status_slot
   echo "leases: the hypr-desktop MCP status tool (endpoint in ~/.local/share/hypr-desktop/url)"
 }
+
 slots_arg() {
   case "${1:-}" in
     all) active_slots ;;

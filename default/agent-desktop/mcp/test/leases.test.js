@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -14,7 +14,7 @@ test('claims hand out the lowest free desktop and renew on use', () => {
   const b = l.claim('b');
   assert.equal(a.desktop, 1);
   assert.equal(b.desktop, 2);
-  assert.match(a.handle, /^d1-[0-9a-f]{8}$/);
+  assert.match(a.handle, /^d1-[0-9a-f]{32}$/);
   c.tick(900);
   l.touch(a.handle);
   c.tick(900);
@@ -66,3 +66,9 @@ test('on-demand allocation starts empty and grows beyond four', () => {
    assert.equal(new Set(desktops).size, 12);
    assert.equal(desktops.at(-1), 12);
  });
+
+test('corrupt ownership never hands an existing desktop to another task', () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'leases-')), 'leases.json');
+  writeFileSync(file, '{truncated');
+  assert.throws(() => new Leases({ file }), /Cannot read desktop ownership/);
+});
