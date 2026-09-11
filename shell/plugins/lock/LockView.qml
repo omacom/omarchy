@@ -8,6 +8,9 @@ Item {
 
   property string backgroundPath: ""
   property int backgroundVersion: 0
+  // Screen this view covers (the lock surface's or the preview window's), so
+  // the background resolves against the real output dimensions.
+  property var viewScreen: null
   property bool fingerprintConfigured: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
@@ -86,12 +89,29 @@ Item {
     anchors.fill: parent
     color: Color.background
 
+    BackgroundResolver {
+      id: backgroundResolver
+      canonicalPath: root.loadBackground ? root.backgroundPath : ""
+      screenWidth: root.viewScreen ? root.viewScreen.width : Math.round(root.width)
+      screenHeight: root.viewScreen ? root.viewScreen.height : Math.round(root.height)
+    }
+
     BackgroundMedia {
       id: wallpaper
       anchors.fill: parent
-      path: root.loadBackground ? root.backgroundPath : ""
+      path: root.loadBackground && backgroundResolver.ready ? backgroundResolver.resolvedPath : ""
       version: root.backgroundVersion
+      fill: backgroundResolver.fill
+      backdrop: backgroundResolver.backdrop
+      fillColor: backgroundResolver.fillColor
+      focalX: backgroundResolver.focalX
+      focalY: backgroundResolver.focalY
+      imageUseSourceSizeCap: true
+      imageCache: false
       playbackEnabled: root.loadBackground && !root.displaysBlank && !root.powerSaverActive
+      // The blur MultiEffect needs a texture provider; a composed Item only
+      // becomes one through a layer.
+      layer.enabled: !video
     }
 
     MultiEffect {
