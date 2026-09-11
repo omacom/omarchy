@@ -37,10 +37,17 @@ router_poison_calls="$test_tmp/router-poison-calls"
 cat >"$router_poison" <<'SH'
 printf '%s\n' router-bash-env >>"$TEST_ROUTER_POISON_CALLS"
 SH
-BASH_ENV="$router_poison" TEST_ROUTER_POISON_CALLS="$router_poison_calls" OMARCHY_PATH="$ROOT" \
+cat >"$poison_bin/dirname" <<'SH'
+#!/bin/bash
+printf '%s\n' router-path-dirname >>"$TEST_ROUTER_POISON_CALLS"
+exec /usr/bin/dirname "$@"
+SH
+chmod +x "$poison_bin/dirname"
+BASH_ENV="$router_poison" TEST_ROUTER_POISON_CALLS="$router_poison_calls" \
+  OMARCHY_PATH="$ROOT" PATH="$poison_bin:/usr/bin:/bin" \
   "$router" setup security fido2 --help >/dev/null
 [[ ! -e $router_poison_calls ]] ||
-  fail "the public Omarchy router executes an inherited Bash startup hook" "$(<"$router_poison_calls")"
+  fail "the public Omarchy router executes a pre-dispatch user callback" "$(<"$router_poison_calls")"
 unsafe_router_status=0
 /usr/bin/bash "$router" -p >/dev/null 2>&1 || unsafe_router_status=$?
 (( unsafe_router_status == 126 )) ||
@@ -49,7 +56,7 @@ sourced_router_status=0
 /usr/bin/bash -p -c 'source "$1"' omarchy-source-test "$router" >/dev/null 2>&1 || sourced_router_status=$?
 (( sourced_router_status == 126 )) ||
   fail "the public Omarchy router rejects being sourced by a privileged parent shell" "got status $sourced_router_status"
-pass "the public Omarchy router reaches FIDO2 dispatch without inherited Bash startup hooks"
+pass "the public Omarchy router resolves the FIDO2 route without inherited Bash startup hooks or PATH utilities"
 
 # The setup installs to an absolute path no unprivileged suite can write, and an
 # environment override in the shipped command would hand its privileged install

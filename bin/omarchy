@@ -10,7 +10,7 @@ omarchy_security_require_privileged_bash_startup "$security_entrypoint" || exit 
 
 set -o pipefail
 
-OMARCHY_BIN_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+OMARCHY_BIN_DIR=$(cd -- "$(/usr/bin/dirname -- "${BASH_SOURCE[0]}")" && pwd)
 METADATA_SCAN_LIMIT=80
 
 COMMAND_KEYS=()
