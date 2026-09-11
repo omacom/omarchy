@@ -181,14 +181,25 @@ and place third-party plugins with `omarchy-shell shell rescanPlugins`,
 
 ## Widget spacing contract
 
-Each bar section lays its modules out with a uniform 4px gutter between
-adjacent slots, but widgets still own their internal padding — so consistent
-visual spacing needs widgets to follow the shared geometry:
+Bar sections keep ink-to-ink gaps uniform at 18px: every module slot
+measures its own painted width (icon glyphs, button labels, icon
+canvases) and pads itself symmetrically so its paint sits 9px from each
+slot edge. Paint that overflows its slot gets extra compensation instead
+of touching its neighbour; hidden widgets collapse to zero and
+contribute no gap. The Row/Column itself uses no spacing — the slots
+carry it all, and `omarchy.spacer` keeps its authored span exempt.
+
+Widget authors should still follow the shared geometry so the
+compensation stays small (custom `Item` modules expose no paint metrics,
+so the bar treats them as full-bleed):
 
 - Icon widgets: extend `BarIconButton` from `qs.Ui` (default `slotSize`
   `Style.bar.iconSlot`, 16px optical canvas). Compact status icons use
   `slotSize: Style.bar.statusSlot`.
 - Text pills: extend `WidgetButton` with the default `horizontalMargin`
   (8.5). Custom widths should keep equivalent side bearings.
-- Fully custom `Item` modules must include their own side padding; the bar
-  gutter is a minimum, not a substitute for it.
+- Fully custom `Item` modules expose no paint metrics, so the bar pads
+  them as full-bleed: include side padding in the item itself to stay
+  compact.
+- Composite widgets (tray, indicators, workspaces) normalize at their
+  outer boundary only; gaps between items inside them are the widget's own.

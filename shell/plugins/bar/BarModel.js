@@ -208,8 +208,25 @@ function nearestDropTarget(candidates, point, vertical) {
   return best
 }
 
+// Symmetric slot padding that normalizes ink-to-ink gaps: a slot whose
+// content paints `paintedExtent` wide inside `contentSpan` holds its paint
+// `halfGap` from each slot edge, so neighbours always land 2*halfGap apart.
+// Negative bearings (paint wider than the slot) pad extra instead of
+// touching the neighbour. Zero spans stay collapsed so hidden widgets keep
+// contributing no gap.
+function slotPad(contentSpan, paintedExtent, halfGap) {
+  var span = Number(contentSpan)
+  if (!isFinite(span) || span <= 0) return 0
+  var half = Number(halfGap)
+  if (!isFinite(half) || half <= 0) return 0
+  var painted = Number(paintedExtent)
+  if (!isFinite(painted) || painted < 0) painted = span
+  return Math.max(0, half - (span - painted) / 2)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    slotPad: slotPad,
     isDrawnSlot: isDrawnSlot,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,

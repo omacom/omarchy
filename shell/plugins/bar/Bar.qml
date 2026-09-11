@@ -1737,13 +1737,11 @@ Item {
       id: horizontalModuleList
 
       Row {
-        // Uniform gutter between adjacent modules. Each widget self-sizes
-        // (BarIconButton slots, WidgetButton text pills, third-party customs),
-        // so with spacing 0 the visual gap is whatever two neighbours happen
-        // to add up to — icon/icon pairs sit tighter than icon/text pairs,
-        // and custom widgets with no side bearing touch outright. A central
-        // minimum gutter keeps the rhythm consistent whatever is installed.
-        spacing: Style.space(4)
+        // No spacing here: every ModuleSlot pads itself from its own
+        // painted width (see slotPad), so ink-to-ink stays uniform whatever
+        // each widget paints. A fixed spacing would stack on top of the
+        // widest bearings instead of absorbing them.
+        spacing: 0
 
         Repeater {
           model: moduleListRoot.entries
@@ -1761,9 +1759,8 @@ Item {
       id: verticalModuleList
 
       Column {
-        // As above: uniform gutter so vertical-bar modules keep the same
-        // minimum rhythm regardless of widget-internal padding.
-        spacing: Style.space(4)
+        // As above: per-slot padding carries the gaps, not the positioner.
+        spacing: 0
 
         Repeater {
           model: moduleListRoot.entries
@@ -1817,10 +1814,45 @@ Item {
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
       if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
-      return Math.max(Style.space(10), Math.round((root.vertical ? slot.height : slot.width) * 0.55))
+      return Math.max(Style.space(10), Math.round((root.vertical ? slot.contentHeight : slot.contentWidth) * 0.55))
     }
-    implicitWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
-    implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
+    // Painted half-gap every slot holds its content away from the slot edge.
+    // Adjacent slots then land exactly 2*paintHalfGap ink-to-ink, whatever
+    // each widget paints — icon slots, text pills, and paint that overflows
+    // its slot all end up on the same rhythm.
+    readonly property int paintHalfGap: Style.space(9)
+    // Size the slot lays out for its content (what implicitWidth used to be).
+    readonly property real contentWidth: activeItem && activeItem.visible
+      ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
+    readonly property real contentHeight: activeItem && activeItem.visible
+      ? activeItem.implicitHeight : 0
+    // Tight painted extent along the layout axis, best effort: BarIconButton
+    // glyphs (which also covers text painted wider than its slot),
+    // WidgetButton labels, icon canvases. Opaque customs fall back to
+    // full-bleed — extra air, never overlap.
+    readonly property real paintedExtent: {
+      var item = activeItem
+      if (!item) return 0
+      if (root.vertical) {
+        if ("opticalSize" in item && item.opticalSize > 0) return item.opticalSize
+        return contentHeight
+      }
+      if ("glyphPaintedWidth" in item && item.glyphPaintedWidth > 0) return item.glyphPaintedWidth
+      if ("labelWidth" in item && item.labelWidth > 0) return item.labelWidth
+      if ("opticalSize" in item && item.opticalSize > 0) return item.opticalSize
+      return contentWidth
+    }
+    // Symmetric compensation for this slot's own bearing. Negative bearings
+    // (paint wider than the slot) pad extra; the pure-gap spacer keeps its
+    // authored span and stays out of this.
+    readonly property real slotPad: {
+      var span = root.vertical ? contentHeight : contentWidth
+      if (!(span > 0)) return 0
+      if (root.canonicalWidgetId(moduleName) === "omarchy.spacer") return 0
+      return BarModel.slotPad(span, paintedExtent, paintHalfGap)
+    }
+    implicitWidth: contentWidth + (root.vertical ? 0 : 2 * slotPad)
+    implicitHeight: contentHeight + (root.vertical ? 2 * slotPad : 0)
     width: implicitWidth
     height: implicitHeight
     z: modulePointer.dragging ? 100 : 0
@@ -1847,7 +1879,9 @@ Item {
       id: componentLoader
       active: !slot.qmlCustom && !slot.registered
       sourceComponent: slot.commandCustom ? customCommandModuleComponent : emptyModuleComponent
-      anchors.fill: parent
+      width: root.vertical ? parent.width : slot.contentWidth
+      height: root.vertical ? slot.contentHeight : parent.height
+      anchors.centerIn: parent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1859,7 +1893,9 @@ Item {
       id: registryLoader
       active: slot.registered
       sourceComponent: slot.registered ? slot.registryComponent : null
-      anchors.fill: parent
+      width: root.vertical ? parent.width : slot.contentWidth
+      height: root.vertical ? slot.contentHeight : parent.height
+      anchors.centerIn: parent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
@@ -1871,7 +1907,9 @@ Item {
       id: qmlLoader
       active: slot.qmlCustom
       source: slot.qmlCustom ? root.customModuleSource(slot.entry) : ""
-      anchors.fill: parent
+      width: root.vertical ? parent.width : slot.contentWidth
+      height: root.vertical ? slot.contentHeight : parent.height
+      anchors.centerIn: parent
       opacity: slot.dragSource ? 0.22 : 1.0
       onLoaded: {
         slot.injectProps()
