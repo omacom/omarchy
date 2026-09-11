@@ -49,7 +49,8 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    var icon = Model.batteryIcon(device, root.discharging, upowerStates())
+    return root.batteryCritical ? icon + "!" : icon
   }
 
   function modeLabel() {
@@ -87,7 +88,25 @@ Panel {
     return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
   }
 
-  readonly property color batteryFillColor: {
+  // Percentage-only thresholds — independent of charge state, so these stay
+  // true even while charging (e.g. a device plugged in at 3% is still
+  // "critical" until it climbs back over 5%).
+  readonly property bool batteryLow: Model.batteryIsLow(UPower.displayDevice)
+  readonly property bool batteryCritical: Model.batteryIsCritical(UPower.displayDevice)
+
+  // Colors for the low/critical/charging indicator states. These are
+  // literal values rather than theme tokens because Color.qml lives outside
+  // this plugin — swap in e.g. Color.error / Color.success here if this
+  // shell's palette exposes semantic colors under those (or similar) names.
+  readonly property color batteryLowColor: "#e5484d"
+  readonly property color batteryChargingColor: "#30a46c"
+
+  // Shared color for every visual battery indicator (bar icon, panel hero
+  // icon, progress bar fill). Charging wins over low-battery red — a
+  // battery recovering from 3% is good news, not an alarm.
+  readonly property color batteryIndicatorColor: {
+    if (root.charging) return root.batteryChargingColor
+    if (root.batteryLow) return root.batteryLowColor
     return root.bar ? root.bar.foreground : Color.foreground
   }
 
@@ -280,6 +299,7 @@ Panel {
     text: root.showPercentage && !vertical
       ? Math.round(root.batteryFraction * 100) + "% " + root.batteryIcon()
       : root.batteryIcon()
+    foreground: root.batteryIndicatorColor
     slotSize: Style.bar.iconSlot * (root.showPercentage && !vertical ? 2 : 1)
     tooltipText: ""
     onPressed: function(b) {
@@ -325,9 +345,8 @@ Panel {
 
           Text {
             id: heroIcon
-            textFormat: Text.PlainText
             text: root.batteryIcon()
-            color: root.bar.foreground
+            color: root.batteryIndicatorColor
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.display
             anchors.left: parent.left
@@ -357,7 +376,6 @@ Panel {
 
             Text {
               id: heroStatus
-              textFormat: Text.PlainText
               text: root.heroStatusText.toUpperCase()
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
@@ -371,7 +389,6 @@ Panel {
 
           Text {
             id: heroPercent
-            textFormat: Text.PlainText
             text: root.batteryInfo.percentage || "—"
             color: root.bar.foreground
             font.family: root.bar.fontFamily
@@ -402,7 +419,7 @@ Panel {
             anchors.verticalCenter: barTrack.verticalCenter
             height: barTrack.height
             radius: barTrack.radius
-            color: root.batteryFillColor
+            color: root.batteryIndicatorColor
             width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
 
             Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
@@ -520,7 +537,6 @@ Panel {
   }
 
   component InfoLabel: Text {
-    textFormat: Text.PlainText
     color: root.bar.foreground
     opacity: 0.6
     font.family: root.bar.fontFamily
@@ -528,7 +544,6 @@ Panel {
   }
 
   component InfoValue: Text {
-    textFormat: Text.PlainText
     color: root.bar.foreground
     font.family: root.bar.fontFamily
     font.pixelSize: Style.font.bodySmall
