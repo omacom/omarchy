@@ -3,9 +3,27 @@
 # omarchy:summary=Print the current working directory of the active terminal window
 # omarchy:hidden=true
 
-terminal_pid=$(hyprctl activewindow | awk '/pid:/ {print $2}')
-kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
+active_window=$(hyprctl -j activewindow 2>/dev/null)
 cwd=""
+
+# Keep terminal detection aligned with default/hypr/apps/terminals.lua and the
+# universal clipboard bindings. Dynamic Hyprland tags carry a trailing "*".
+# WezTerm's canonical Wayland app_id is accepted as a compatibility fallback
+# while older terminal rules may still tag only the legacy "wezterm" class.
+window_class=$(jq -r '.class // empty' <<<"$active_window" 2>/dev/null)
+if ! jq -e 'any(.tags[]?; sub("\\*$"; "") == "terminal")' <<<"$active_window" >/dev/null 2>&1 &&
+  [[ $window_class != org.wezfurlong.wezterm ]]; then
+  echo "$HOME"
+  exit 0
+fi
+
+terminal_pid=$(jq -r '.pid // empty' <<<"$active_window" 2>/dev/null)
+if [[ -z $terminal_pid ]]; then
+  echo "$HOME"
+  exit 0
+fi
+
+kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
 
 if [[ -S $kitty_socket ]]; then
   cwd=$(kitten @ --to "unix:$kitty_socket" ls --match "state:focused" 2>/dev/null |
