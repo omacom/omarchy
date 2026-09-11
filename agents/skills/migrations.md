@@ -148,6 +148,10 @@ current_relative_target="../../../../.local/state/omarchy/current/theme/neovim.l
 ln -sfn "$current_relative_target" "$theme_link"
 ```
 
+### Unattended updates
+
+Migrations must not prompt during unattended updates (`OMARCHY_UPDATE_UNATTENDED=1`, set by `-y`/`--yes`/`--non-interactive`). When a migration cannot finish without a human answer, print an actionable message to stderr and exit nonzero: the migration stays pending, the queue stops, and the login notifier re-prompts until `omarchy-migrate` is run interactively. See `migrations/1786643346.sh` for the browser-open deferral pattern. Migrations whose installer would run external work behind a skipped category (for example mise) must also honor `OMARCHY_UPDATE_STRICT=1` plus that category policy and defer explicitly instead of silently installing partially or marking complete; see `migrations/1787760281.sh` for the strict-plus-`OMARCHY_UPDATE_MISE` guard pattern.
+
 ## Testing migrations
 
 Run a migration against a temporary home when possible:

@@ -16,6 +16,7 @@ run_with_lock_env() {
   HOME="$test_home" \
   XDG_RUNTIME_DIR="$runtime_dir" \
   XDG_STATE_HOME="$test_tmp/state" \
+  OMARCHY_PATH="$ROOT" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
     "$@"
 }
@@ -51,6 +52,24 @@ for command in \
 done
 write_stub omarchy-update-available 'exit 1'
 write_stub pkexec 'exec "$@"'
+write_stub sudo '
+if [[ ${1:-} == "-v" ]]; then
+  exit 0
+fi
+stripped=()
+for a in "$@"; do
+  if [[ $a == "-n" || $a == "--" ]]; then
+    continue
+  fi
+  stripped+=("$a")
+done
+if (( ${#stripped[@]} == 0 )); then
+  exit 0
+fi
+if [[ ${stripped[0]} == "-v" ]]; then
+  exit 0
+fi
+exec "${stripped[@]}"'
 
 # omarchy-update should hold the lock before snapshotting, so a second update
 # cannot even enter its pre-update snapshot.
@@ -151,6 +170,130 @@ SH
   [[ ! -e $pkexec_marker ]] || fail "terminal sleep inhibition does not use pkexec"
   run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop
   pass "terminal updates use sudo instead of Polkit for sleep inhibition"
+fi
+
+if (( EUID != 0 )); then
+  unattended_pty_sudo_log="$test_tmp/unattended-pty-sudo.log"
+  unattended_pty_pkexec_marker="$test_tmp/unattended-pty-pkexec-used"
+  : >"$unattended_pty_sudo_log"
+  rm -f "$unattended_pty_pkexec_marker"
+  write_stub sudo '
+printf "%s\n" "$*" >>"$SUDO_LOG"
+stripped=()
+for a in "$@"; do
+  if [[ $a == "-n" || $a == "--" ]]; then
+    continue
+  fi
+  stripped+=("$a")
+done
+if (( ${#stripped[@]} == 0 )); then
+  exit 0
+fi
+if [[ ${stripped[0]} == "-v" ]]; then
+  exit 0
+fi
+exec "${stripped[@]}"'
+  write_stub pkexec 'touch "$PKEXEC_MARKER"; exec "$@"'
+  write_stub systemd-inhibit 'exec sleep 30'
+
+  unattended_pty_driver="$test_tmp/unattended-pty-stay-awake"
+  cat >"$unattended_pty_driver" <<'SH'
+#!/bin/bash
+omarchy-update-stay-awake start
+for _ in {1..200}; do
+  grep -q -- '-n systemd-inhibit' "$SUDO_LOG" && break
+  sleep 0.05
+done
+SH
+  chmod +x "$unattended_pty_driver"
+
+  OMARCHY_UPDATE_UNATTENDED=1 SUDO_LOG="$unattended_pty_sudo_log" PKEXEC_MARKER="$unattended_pty_pkexec_marker" \
+    run_with_lock_env script -qefc "$unattended_pty_driver" /dev/null >/dev/null
+
+  grep -q -- '-n -v' "$unattended_pty_sudo_log" || fail "unattended PTY sleep inhibition probes sudo nonprompting" "$(cat "$unattended_pty_sudo_log")"
+  grep -q -- '-n systemd-inhibit' "$unattended_pty_sudo_log" || fail "unattended PTY sleep inhibition runs through sudo -n" "$(cat "$unattended_pty_sudo_log")"
+  [[ ! -e $unattended_pty_pkexec_marker ]] || fail "unattended PTY sleep inhibition never uses pkexec"
+  run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop
+  pass "unattended PTY uses sudo -n without pkexec"
+fi
+
+if (( EUID != 0 )); then
+  unattended_headless_sudo_log="$test_tmp/unattended-headless-sudo.log"
+  unattended_headless_pkexec_marker="$test_tmp/unattended-headless-pkexec-used"
+  : >"$unattended_headless_sudo_log"
+  rm -f "$unattended_headless_pkexec_marker"
+  write_stub sudo '
+printf "%s\n" "$*" >>"$SUDO_LOG"
+stripped=()
+for a in "$@"; do
+  if [[ $a == "-n" || $a == "--" ]]; then
+    continue
+  fi
+  stripped+=("$a")
+done
+if (( ${#stripped[@]} == 0 )); then
+  exit 0
+fi
+if [[ ${stripped[0]} == "-v" ]]; then
+  exit 0
+fi
+exec "${stripped[@]}"'
+  write_stub pkexec 'touch "$PKEXEC_MARKER"; exec "$@"'
+  write_stub systemd-inhibit 'exec sleep 30'
+  run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop || true
+
+  set +e
+  OMARCHY_UPDATE_UNATTENDED=1 SUDO_LOG="$unattended_headless_sudo_log" PKEXEC_MARKER="$unattended_headless_pkexec_marker" \
+    run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" start >"$test_tmp/unattended-headless.out" 2>"$test_tmp/unattended-headless.err"
+  unattended_headless_status=$?
+  set -e
+  (( unattended_headless_status == 0 )) || fail "unattended headless stay-awake exits 0" "got $unattended_headless_status"
+  grep -q -- '-n -v' "$unattended_headless_sudo_log" || fail "unattended headless probes sudo nonprompting" "$(cat "$unattended_headless_sudo_log")"
+  grep -q -- '-n systemd-inhibit' "$unattended_headless_sudo_log" || fail "unattended headless runs through sudo -n" "$(cat "$unattended_headless_sudo_log")"
+  [[ ! -e $unattended_headless_pkexec_marker ]] || fail "unattended headless never uses pkexec"
+  [[ -s $runtime_dir/omarchy-update-stay-awake/inhibit-pid ]] || fail "unattended headless records inhibitor pid"
+  run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop
+  pass "unattended headless uses sudo -n without pkexec"
+fi
+
+if (( EUID != 0 )); then
+  failing_sudo_log="$test_tmp/inhibit-fail-sudo.log"
+  : >"$failing_sudo_log"
+  write_stub systemd-inhibit 'exit 1'
+  write_stub sudo '
+printf "%s\n" "$*" >>"$SUDO_LOG"
+stripped=()
+for a in "$@"; do
+  if [[ $a == "-n" || $a == "--" ]]; then
+    continue
+  fi
+  stripped+=("$a")
+done
+if (( ${#stripped[@]} == 0 )); then
+  exit 0
+fi
+if [[ ${stripped[0]} == "-v" ]]; then
+  exit 0
+fi
+exec "${stripped[@]}"'
+  run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop || true
+  rm -f "$runtime_dir/omarchy-update-stay-awake/inhibit-pid"
+
+  set +e
+  OMARCHY_UPDATE_UNATTENDED=1 SUDO_LOG="$failing_sudo_log" \
+    run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" start >"$test_tmp/inhibit-fail.out" 2>"$test_tmp/inhibit-fail.err"
+  inhibit_fail_status=$?
+  set -e
+  (( inhibit_fail_status == 0 )) || fail "inhibitor acquisition failure still exits 0" "got $inhibit_fail_status"
+  grep -q 'continuing without sleep inhibition' "$test_tmp/inhibit-fail.err" || fail "inhibitor acquisition failure warns without inhibition" "$(cat "$test_tmp/inhibit-fail.err")"
+  [[ ! -s $runtime_dir/omarchy-update-stay-awake/inhibit-pid ]] || fail "inhibitor acquisition failure leaves no pid file"
+  set +e
+  run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop >"$test_tmp/inhibit-fail-stop.out" 2>"$test_tmp/inhibit-fail-stop.err"
+  inhibit_fail_stop_status=$?
+  set -e
+  (( inhibit_fail_stop_status == 0 )) || fail "stop after acquisition failure exits 0" "got $inhibit_fail_stop_status; $(cat "$test_tmp/inhibit-fail-stop.err")"
+  [[ ! -s $test_tmp/inhibit-fail-stop.err ]] || fail "stop after acquisition failure is quiet" "$(cat "$test_tmp/inhibit-fail-stop.err")"
+  pass "inhibitor acquisition failure warns without false success"
 fi
 
 # Update-owned Stay Awake state must be cleared before the restart helper can

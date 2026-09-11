@@ -2,11 +2,37 @@
 
 # omarchy:summary=Prompt for required reboot or service restarts after updates
 
+set -e
+
+reboot_policy="${OMARCHY_UPDATE_REBOOT:-}"
+if [[ -z $reboot_policy ]]; then
+  if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+    reboot_policy="never"
+  else
+    reboot_policy="ask"
+  fi
+fi
+
+restarts_policy="${OMARCHY_UPDATE_RESTARTS:-}"
+if [[ -z $restarts_policy ]]; then
+  restarts_policy="run"
+fi
+
+if [[ $reboot_policy != "ask" && $reboot_policy != "never" && $reboot_policy != "if-needed" ]]; then
+  echo "omarchy-update-restart: invalid OMARCHY_UPDATE_REBOOT: $reboot_policy (expected ask|never|if-needed)" >&2
+  exit 2
+fi
+
+if [[ $restarts_policy != "run" && $restarts_policy != "skip" ]]; then
+  echo "omarchy-update-restart: invalid OMARCHY_UPDATE_RESTARTS: $restarts_policy (expected run|skip)" >&2
+  exit 2
+fi
+
 echo
 
-confirm_reboot() {
-  gum confirm "$1" && { omarchy-system-reboot; exit 0; }
-}
+kernel_message="Linux kernel has been updated. Reboot?"
+marker_message="Updates require reboot. Ready?"
+hyprland_message="Hyprland has been updated. Reboot?"
 
 running_kernel=$(uname -r)
 kernel_updated=true
@@ -22,24 +48,86 @@ for kernel in /usr/lib/modules/*/vmlinuz; do
   fi
 done
 
+reboot_needs=()
 if [[ $kernel_updated == "true" ]]; then
-  confirm_reboot "Linux kernel has been updated. Reboot?"
-elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
-  confirm_reboot "Updates require reboot. Ready?"
+  reboot_needs+=("$kernel_message")
+fi
+if [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
+  reboot_needs+=("$marker_message")
 fi
 
-running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
+running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null || true)
 if [[ $running_hyprland == *"(deleted)"* ]]; then
-  confirm_reboot "Hyprland has been updated. Reboot?"
+  reboot_needs+=("$hyprland_message")
 fi
 
+if (( ${#reboot_needs[@]} > 0 )); then
+  if [[ $reboot_policy == "ask" ]]; then
+    if [[ ${OMARCHY_UPDATE_UNATTENDED:-} != "1" && -t 0 && -t 1 ]]; then
+      if gum confirm "${reboot_needs[0]}"; then
+        omarchy-system-reboot
+        exit 0
+      fi
+    else
+      for need in "${reboot_needs[@]}"; do
+        echo "Reboot required: $need"
+      done
+    fi
+  elif [[ $reboot_policy == "never" ]]; then
+    for need in "${reboot_needs[@]}"; do
+      echo "Reboot required: $need"
+    done
+  else
+    # if-needed: single nonprompting reboot on the final success path only.
+    # The caller releases update-owned inhibitors before invoking this helper,
+    # so this runs after all required work succeeds. Plain sudo so the
+    # unattended adapter prepends -n via PATH; interactive uses this same
+    # direct command. Never gum, omarchy-system-reboot, window-close, or OSD.
+    for need in "${reboot_needs[@]}"; do
+      echo "Reboot required: $need"
+    done
+    echo "Rebooting automatically (--reboot=if-needed)..."
+    if sudo systemctl --no-ask-password reboot --no-wall; then
+      echo "Reboot requested."
+      exit 0
+    else
+      reboot_status=$?
+      echo "omarchy-update-restart: automatic reboot failed (exit $reboot_status); reboot-required state retained" >&2
+      exit "$reboot_status"
+    fi
+  fi
+fi
+
+if [[ $restarts_policy == "skip" ]]; then
+  deferred=()
+  for file in "$HOME"/.local/state/omarchy/restart-*-required; do
+    if [[ -f $file ]]; then
+      deferred+=("$(basename "$file")")
+    fi
+  done
+  if (( ${#deferred[@]} > 0 )); then
+    echo "Skipping service restarts (--restarts=skip): ${#deferred[@]} service(s) deferred"
+    printf '  %s\n' "${deferred[@]}"
+  else
+    echo "Skipping service restarts (--restarts=skip): nothing deferred"
+  fi
+  echo "Shell restart deferred (--restarts=skip)"
+  exit 0
+fi
+
+restart_failed=0
 for file in "$HOME"/.local/state/omarchy/restart-*-required; do
   if [[ -f $file ]]; then
     filename=$(basename "$file")
     service=$(echo "$filename" | sed 's/restart-\(.*\)-required/\1/')
     echo "Restarting $service"
-    omarchy-state clear "$filename"
-    omarchy-restart-"$service"
+    if omarchy-restart-"$service"; then
+      omarchy-state clear "$filename"
+    else
+      service_status=$?
+      echo "omarchy-update-restart: failed to restart $service (exit $service_status); marker retained" >&2
+      restart_failed=1
+    fi
   fi
 done
 
@@ -49,3 +137,7 @@ done
 echo -e "\e[32m\nRestarting shell\e[0m"
 echo "All plugins have been reloaded"
 omarchy-restart-shell || true
+
+if (( restart_failed )); then
+  exit 1
+fi

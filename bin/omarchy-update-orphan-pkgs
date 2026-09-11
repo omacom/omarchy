@@ -5,12 +5,46 @@
 
 set -e
 
+policy="${OMARCHY_UPDATE_ORPHANS:-}"
+if [[ -z $policy ]]; then
+  if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+    policy="keep"
+  else
+    policy="ask"
+  fi
+fi
+
+if [[ $policy != "ask" && $policy != "keep" && $policy != "remove" ]]; then
+  echo "omarchy-update-orphan-pkgs: invalid OMARCHY_UPDATE_ORPHANS: $policy (expected ask|keep|remove)" >&2
+  exit 2
+fi
+
 mapfile -t orphans < <(pacman -Qtdq 2>/dev/null || true)
 (( ${#orphans[@]} )) || exit 0
 
 echo -e "\e[32m\nOrphan system packages\e[0m"
 printf '  %s\n' "${orphans[@]}"
 echo
+
+if [[ $policy == "keep" ]]; then
+  echo "Keeping orphaned packages."
+  echo "${#orphans[@]} orphaned package(s) found. Re-run omarchy-update-orphan-pkgs in a terminal to review/remove them."
+  echo
+  exit 0
+fi
+
+if [[ $policy == "remove" ]]; then
+  echo -e "\e[32m\nRemoving orphan system packages\e[0m"
+  sudo pacman -Rns --noconfirm "${orphans[@]}"
+  echo
+  exit 0
+fi
+
+if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+  echo "${#orphans[@]} orphaned package(s) found. Re-run omarchy-update-orphan-pkgs in a terminal to review/remove them."
+  echo
+  exit 0
+fi
 
 if [[ ! -t 0 || ! -t 1 ]]; then
   echo "${#orphans[@]} orphaned package(s) found. Re-run omarchy-update-orphan-pkgs in a terminal to review/remove them."

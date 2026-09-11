@@ -18,4 +18,14 @@ if [[ -z $upstream ]]; then
 fi
 
 echo -e "\e[32m\nUpdate Omarchy dev checkout\e[0m"
+if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+  # Unattended git must never prompt (terminal/askpass/SSH). GIT_ASKPASS=
+  # (empty) makes git fall back to terminal prompts, which GIT_TERMINAL_PROMPT=0
+  # then disables, so auth failures fail closed instead of hanging. GIT_SSH_COMMAND
+  # env wins over core.sshCommand, so a user's custom sshCommand program is never
+  # executed unattended; an explicit GIT_SSH_COMMAND in the environment is preserved.
+  export GIT_TERMINAL_PROMPT=0
+  export GIT_ASKPASS=
+  export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
+fi
 git -C "$OMARCHY_PATH" pull --ff-only
