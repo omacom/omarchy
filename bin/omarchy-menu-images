@@ -276,7 +276,7 @@ elif [[ $rows_cache_hit != true ]]; then
       rows_cacheable=false
       continue
     fi
-    if [[ $lazy_thumbnails == true && $cache_only != true && $thumbnail == $image ]]; then
+    if [[ $lazy_thumbnails == true && $cache_only != true && $thumbnail == "$image" ]]; then
       rows_cacheable=false
     fi
 
