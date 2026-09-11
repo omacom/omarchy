@@ -1,21 +1,17 @@
-# Shared memory hardening
 if ! grep -q '^tmpfs /run/shm tmpfs' /etc/fstab; then
     echo 'tmpfs /run/shm tmpfs defaults,noexec,nosuid,mode=1777 0 0' | sudo tee -a /etc/fstab
 fi
 
-# Strict default umask
 sudo tee /etc/profile.d/omarchy-umask.sh >/dev/null <<'EOF'
 umask 027
 EOF
 
-# Systemd manager umask
 sudo mkdir -p /etc/systemd/system.conf.d
 sudo tee /etc/systemd/system.conf.d/99-omarchy-umask.conf >/dev/null <<'EOF'
 [Manager]
 UMask=027
 EOF
 
-# Log protection: retain security logs for 30 days via journald
 sudo mkdir -p /etc/systemd/journald.conf.d
 sudo tee /etc/systemd/journald.conf.d/99-omarchy-security.conf >/dev/null <<'EOF'
 [Journal]
@@ -25,7 +21,6 @@ Compress=yes
 EOF
 sudo systemctl restart systemd-journald 2>/dev/null || true
 
-# NetworkManager security
 sudo mkdir -p /etc/NetworkManager/conf.d
 sudo tee /etc/NetworkManager/conf.d/99-omarchy-security.conf >/dev/null <<'EOF'
 [main]

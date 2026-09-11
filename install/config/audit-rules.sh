@@ -1,4 +1,3 @@
-# Kernel audit framework rules
 sudo mkdir -p /etc/audit/rules.d
 sudo tee /etc/audit/rules.d/99-omarchy-hardening.rules >/dev/null <<'EOF'
 -w /etc/passwd -p wa -k identity

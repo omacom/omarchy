@@ -1,4 +1,3 @@
-# Install and configure security tools
 SECURITY_PKGS=(usbguard apparmor aide fail2ban)
 for pkg in "${SECURITY_PKGS[@]}"; do
     if pacman -Si "$pkg" &>/dev/null; then
@@ -6,25 +5,21 @@ for pkg in "${SECURITY_PKGS[@]}"; do
     fi
 done
 
-# USBGuard: whitelist existing USB devices
 if pacman -Q usbguard &>/dev/null; then
     sudo mkdir -p /etc/usbguard
     sudo usbguard generate-policy > /etc/usbguard/rules.conf
     sudo systemctl enable usbguard.service
 fi
 
-# AppArmor: enable mandatory access control
 if pacman -Q apparmor &>/dev/null; then
     sudo systemctl enable apparmor.service
 fi
 
-# AIDE: file integrity monitoring
 if pacman -Q aide &>/dev/null; then
     sudo aide --init 2>/dev/null || true
     sudo cp /var/lib/aide/aide.db.new /var/lib/aide/aide.db 2>/dev/null || true
 fi
 
-# fail2ban: intrusion prevention
 if pacman -Q fail2ban &>/dev/null; then
     sudo tee /etc/fail2ban/jail.local >/dev/null <<'EOF'
 [DEFAULT]
@@ -42,7 +37,6 @@ EOF
     sudo systemctl enable fail2ban.service
 fi
 
-# Weekly automated security audit
 sudo mkdir -p /etc/cron.weekly
 sudo tee /etc/cron.weekly/omarchy-security-audit.sh >/dev/null <<'AUDITEOF'
 #!/bin/bash

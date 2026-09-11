@@ -1,4 +1,3 @@
-# Sudo hardening
 sudo tee /etc/sudoers.d/99-omarchy-hardening >/dev/null <<'EOF'
 Defaults env_reset
 Defaults mail_badpass
@@ -11,6 +10,5 @@ EOF
 sudo chmod 440 /etc/sudoers.d/99-omarchy-hardening
 sudo visudo -cf /etc/sudoers.d/99-omarchy-hardening >/dev/null 2>&1 || sudo rm -f /etc/sudoers.d/99-omarchy-hardening
 
-# Lock password tries to 3 (matching faillock)
 echo 'Defaults passwd_tries=3' | sudo tee /etc/sudoers.d/99-omarchy-passwd-tries >/dev/null
 sudo chmod 440 /etc/sudoers.d/99-omarchy-passwd-tries

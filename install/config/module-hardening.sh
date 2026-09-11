@@ -1,4 +1,3 @@
-# Block unused and risky kernel modules
 sudo tee /etc/modprobe.d/omarchy-disable-usb-storage.conf >/dev/null <<'EOF'
 install usb-storage /bin/true
 blacklist usb-storage

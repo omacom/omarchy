@@ -1,4 +1,3 @@
-# PAM password quality hardening
 sudo tee /etc/security/pwquality.conf >/dev/null <<'EOF'
 minlen = 16
 dcredit = -1
@@ -16,14 +15,12 @@ enforcing = 1
 retry = 3
 EOF
 
-# Login access control: only root and wheel locally
 sudo tee /etc/security/access.conf >/dev/null <<'EOF'
 +:root:LOCAL
 +:wheel:LOCAL
 -:ALL:ALL
 EOF
 
-# Tighter faillock: 3 attempts, 5 minute unlock
 sudo sed -i 's|^deny = .*|deny = 3|' /etc/security/faillock.conf
 sudo sed -i 's|^unlock_time = .*|unlock_time = 300|' /etc/security/faillock.conf
 grep -q '^deny' /etc/security/faillock.conf || echo 'deny = 3' | sudo tee -a /etc/security/faillock.conf

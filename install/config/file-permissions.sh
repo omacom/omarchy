@@ -1,4 +1,3 @@
-# Secure critical file permissions
 sudo chmod 700 /root
 sudo chmod 600 /etc/shadow
 sudo chmod 600 /etc/gshadow

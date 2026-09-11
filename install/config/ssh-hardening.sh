@@ -1,4 +1,3 @@
-# SSH server hardening
 sudo mkdir -p /etc/ssh/sshd_config.d
 sudo tee /etc/ssh/sshd_config.d/99-omarchy-hardening.conf >/dev/null <<'EOF'
 PermitRootLogin no
@@ -23,7 +22,6 @@ MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
 EOF
 sudo chmod 600 /etc/ssh/sshd_config.d/99-omarchy-hardening.conf
 
-# SSH client hardening
 sudo mkdir -p /etc/ssh/ssh_config.d
 sudo tee /etc/ssh/ssh_config.d/99-omarchy-hardening.conf >/dev/null <<'EOF'
 Host *

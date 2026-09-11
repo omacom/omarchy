@@ -1,4 +1,3 @@
-# Eliminate core dumps system-wide
 sudo mkdir -p /etc/security/limits.d
 sudo tee /etc/security/limits.d/99-no-core.conf >/dev/null <<'EOF'
 * hard core 0

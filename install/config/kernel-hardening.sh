@@ -1,4 +1,3 @@
-# Kernel security hardening via sysctl
 sudo tee /etc/sysctl.d/99-omarchy-security.conf >/dev/null <<'EOF'
 kernel.randomize_va_space = 2
 kernel.kptr_restrict = 2
