@@ -39,20 +39,60 @@ require("default.hypr.input")
 LUA
 }
 
-assert_input() {
-  local description="$1"
-  local expected="$2"
+resolved_greeter_input() {
+  OMARCHY_PATH="$ROOT" OMARCHY_VCONSOLE="${1-}" lua <<'LUA'
+local vconsole = os.getenv("OMARCHY_VCONSOLE")
+local real_open = io.open
+
+io.open = function(path, mode)
+  if path ~= "/etc/vconsole.conf" then
+    return real_open(path, mode)
+  end
+
+  if not vconsole then
+    return nil
+  end
+
+  local file = io.tmpfile()
+  file:write(vconsole)
+  file:seek("set")
+  return file
+end
+
+hl = {
+  config = function(config)
+    local input = config.input
+    print(("[%s] [%s] [%s]"):format(input.kb_layout, input.kb_variant, input.kb_options))
+  end,
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/sddm/hyprland.lua")
+LUA
+}
+
+assert_resolved() {
+  local resolver="$1"
+  local description="$2"
+  local expected="$3"
   local actual
 
-  if (( $# > 2 )); then
-    actual=$(resolved_input "$3")
+  if (( $# > 3 )); then
+    actual=$("$resolver" "$4")
   else
-    actual=$(resolved_input)
+    actual=$("$resolver")
   fi
 
   [[ $actual == "$expected" ]] ||
     fail "$description" "expected: $expected"$'\n'"actual:   $actual"
   pass "$description"
+}
+
+assert_input() {
+  assert_resolved resolved_input "$@"
+}
+
+assert_greeter_input() {
+  assert_resolved resolved_greeter_input "$@"
 }
 
 base_options="compose:caps,shift:both_capslock_cancel"
@@ -73,11 +113,22 @@ XKBVARIANT=phonetic
 assert_input "non-latin layout in front gains us even when us trails" "[us,il,us] [,] [$toggle_options]" 'XKBLAYOUT=il,us
 '
 
+# The SDDM greeter is the only place a password is typed by hand, so it has to
+# resolve the same layout as the session. It gets an explicit --config, so a
+# missing input block silently leaves it on Hyprland's built-in "us".
+assert_greeter_input "greeter falls back to us without vconsole.conf" "[us] [] [$base_options]"
+assert_greeter_input "greeter follows the system layout" "[de] [deadacute] [$base_options]" 'XKBLAYOUT=de
+XKBVARIANT=deadacute
+'
+assert_greeter_input "greeter matches the session for non-latin layouts" "[us,ru] [,phonetic] [$toggle_options]" 'XKBLAYOUT=ru
+XKBVARIANT=phonetic
+'
+
 hooks_conf="$ROOT/etc/mkinitcpio.conf.d/omarchy_hooks.conf"
-input_lua="$ROOT/default/hypr/input.lua"
+keyboard_lua="$ROOT/default/hypr/keyboard.lua"
 
 hooks_layouts=$(awk -F')' '/\) ;;$/ { gsub(/[[:space:]|]+/, "\n", $1); print $1 }' "$hooks_conf" | grep '^[a-z]\+$' | sort)
-lua_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$input_lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
+lua_layouts=$(sed -n '/^local non_latin_layouts =/,+1p' "$keyboard_lua" | grep -o '"[^"]*"' | tr -d '"' | tr ' ' '\n' | grep '^[a-z]\+$' | sort)
 
 [[ -n $hooks_layouts ]] || fail "non-latin layout list is readable from omarchy_hooks.conf"
 [[ $hooks_layouts == "$lua_layouts" ]] ||
