@@ -195,7 +195,7 @@ if [[ -n $custom_message ]]; then
 fi
 
 systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
-  bash -c 'omarchy-notification-send -g 󰢌 "Reminder" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"
+  bash -c 'omarchy-notification-send -g 󰢌 "Reminder" "$1" -u critical; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"
 
 refresh_indicator
 omarchy-notification-send -g 󰢌 "$confirmation_title" "$confirmation"
