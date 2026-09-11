@@ -9,8 +9,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # is installed. Lock the gutter in both orientations: with spacing 0 the
 # visual gap is whatever two neighbours happen to add up to, and widgets
 # that change size never move their neighbours apart.
-gutter_count=$(rg -c 'spacing: Style\.space\(2\)' "$ROOT/shell/plugins/bar/Bar.qml" || true)
-[[ $gutter_count == "2" ]] || fail "bar module lists use the uniform gutter" "spacing: Style.space(2) occurrences: $gutter_count"
+gutter_count=$(rg -c 'spacing: Style\.space\(4\)' "$ROOT/shell/plugins/bar/Bar.qml" || true)
+[[ $gutter_count == "2" ]] || fail "bar module lists use the uniform gutter" "spacing: Style.space(4) occurrences: $gutter_count"
 pass "bar module lists use the uniform gutter"
 
 if ! command -v quickshell >/dev/null 2>&1; then
@@ -47,7 +47,7 @@ ShellRoot {
   }
 
   function checkReflow() {
-    var gap = Style.space(2)
+    var gap = Style.space(4)
     if (row.spacing !== gap) {
       fail("row does not use the bar gutter")
       return false
@@ -108,7 +108,7 @@ ShellRoot {
     Row {
       id: row
       anchors.centerIn: parent
-      spacing: Style.space(2)
+      spacing: Style.space(4)
       WidgetButton { id: pill; bar: testBar; text: "X" }
       BarIconButton { id: icon; bar: testBar; text: "x" }
     }

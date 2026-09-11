@@ -181,7 +181,7 @@ and place third-party plugins with `omarchy-shell shell rescanPlugins`,
 
 ## Widget spacing contract
 
-Each bar section lays its modules out with a uniform 2px gutter between
+Each bar section lays its modules out with a uniform 4px gutter between
 adjacent slots, but widgets still own their internal padding — so consistent
 visual spacing needs widgets to follow the shared geometry:
 

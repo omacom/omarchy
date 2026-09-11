@@ -1743,7 +1743,7 @@ Item {
         // to add up to — icon/icon pairs sit tighter than icon/text pairs,
         // and custom widgets with no side bearing touch outright. A central
         // minimum gutter keeps the rhythm consistent whatever is installed.
-        spacing: Style.space(2)
+        spacing: Style.space(4)
 
         Repeater {
           model: moduleListRoot.entries
@@ -1763,7 +1763,7 @@ Item {
       Column {
         // As above: uniform gutter so vertical-bar modules keep the same
         // minimum rhythm regardless of widget-internal padding.
-        spacing: Style.space(2)
+        spacing: Style.space(4)
 
         Repeater {
           model: moduleListRoot.entries
