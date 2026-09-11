@@ -71,6 +71,17 @@ QtObject {
     return value !== null && typeof value === "object" && !Array.isArray(value)
   }
 
+  // A manifest kind check that answers for both shapes the shell hands a
+  // manifest in: the registry path passes a plain object, and the panel
+  // Instantiator path passes one whose kinds arrived through modelData as a
+  // QVariantList — indexable and indexOf-able, but Array.isArray() is false
+  // for it. Duck-type on the method, never on Array.isArray.
+  function hasKind(manifest, kind) {
+    var kinds = manifest ? manifest.kinds : null
+    return !!kinds && typeof kinds.indexOf === "function"
+      && kinds.indexOf(kind) !== -1
+  }
+
   function canonicalWidgetId(id) {
     return String(id || "")
   }
