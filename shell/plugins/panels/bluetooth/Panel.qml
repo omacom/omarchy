@@ -56,8 +56,7 @@ Panel {
   readonly property var discoveredDevices: deviceGroups.discovered || []
 
   readonly property string icon: {
-    if (!adapter) return ""
-    if (!adapter.enabled) return "󰂲"
+    if (!adapter || !adapter.enabled) return "󰂲"
     if (connectedDevices.length > 0) return "󰂱"
     return "󰂯"
   }
@@ -497,7 +496,10 @@ Panel {
     if (selectedIndex < 0) selectedIndex = 0
   }
 
-  visible: adapter !== null
+  // rfkill-blocking the radio drops the adapter from BlueZ entirely (not just
+  // Powered: no), so hiding on `!adapter` hid the widget instead of showing the
+  // disabled icon above. Stay visible and let `icon` carry the off state.
+  visible: true
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
