@@ -1830,12 +1830,23 @@ Item {
       ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
     readonly property real contentHeight: activeItem && activeItem.visible
       ? activeItem.implicitHeight : 0
-    // Tight painted extent along the layout axis, best effort: BarIconButton
-    // glyphs (which also covers text painted wider than its slot),
-    // WidgetButton labels, icon canvases. Opaque customs fall back to
-    // full-bleed — extra air, never overlap.
+    // Tight painted extent along the layout axis, best effort, measured on
+    // the bar button: widgets keep paint metrics on the button inside the
+    // root, never on the root itself. Popup buttons nest deeper and must
+    // never be measured, so only the root and its direct children qualify.
+    // Tray is exempt: its chevron is a direct child but does not represent
+    // the drawer it opens.
+    readonly property var paintItem: {
+      if (!activeItem) return null
+      var id = root.canonicalWidgetId(moduleName)
+      if (id === "omarchy.spacer" || id === "omarchy.tray") return activeItem
+      return BarModel.paintChild(activeItem) || activeItem
+    }
+    // BarIconButton glyphs (which also covers text painted wider than its
+    // slot), WidgetButton labels, vector icon content, icon canvases.
+    // Opaque customs fall back to full-bleed — extra air, never overlap.
     readonly property real paintedExtent: {
-      var item = activeItem
+      var item = paintItem
       if (!item) return 0
       if (root.vertical) {
         if ("opticalSize" in item && item.opticalSize > 0) return item.opticalSize

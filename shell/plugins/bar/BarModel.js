@@ -229,8 +229,32 @@ function slotPad(contentSpan, paintedExtent, halfGap, maxIntrude) {
   return Math.max(-cap, half - (span - painted) / 2)
 }
 
+// Bar buttons are always the widget root itself or a direct child of it;
+// buttons inside the popup nest deeper and must never be measured. Returns
+// the first object exposing bar paint metrics, or null. Duck-typed so the
+// same function runs against live QObjects and plain test fixtures.
+function hasPaintMetrics(value) {
+  if (!value) return false
+  return "glyphPaintedWidth" in value || "labelTightWidth" in value
+    || "labelWidth" in value || "iconContentItem" in value
+    || "opticalSize" in value
+}
+
+function paintChild(item) {
+  if (!item) return null
+  if (hasPaintMetrics(item)) return item
+  var kids = item.children
+  if (!kids || typeof kids.length !== "number") return null
+  for (var i = 0; i < kids.length; i++) {
+    if (hasPaintMetrics(kids[i])) return kids[i]
+  }
+  return null
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    hasPaintMetrics: hasPaintMetrics,
+    paintChild: paintChild,
     slotPad: slotPad,
     isDrawnSlot: isDrawnSlot,
     pickDrawnSlot: pickDrawnSlot,
