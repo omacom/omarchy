@@ -9,6 +9,8 @@ screensaver_in_focus() {
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
+  # Restore before killing our own terminal — pkill may reap this process mid-function.
+  omarchy-hyprland-fullscreen-snapshot restore || true
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
 }
