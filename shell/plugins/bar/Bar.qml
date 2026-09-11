@@ -1838,6 +1838,7 @@ Item {
         return contentHeight
       }
       if ("glyphPaintedWidth" in item && item.glyphPaintedWidth > 0) return item.glyphPaintedWidth
+      if ("labelTightWidth" in item && item.labelTightWidth > 0) return item.labelTightWidth
       if ("labelWidth" in item && item.labelWidth > 0) return item.labelWidth
       if ("opticalSize" in item && item.opticalSize > 0) return item.opticalSize
       return contentWidth
