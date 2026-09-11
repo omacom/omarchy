@@ -10,6 +10,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 marker="$test_home/.local/state/omarchy/preinstalls-removed"
+mise_config="$test_tmp/etc/mise/config.toml"
 pkg_log="$test_tmp/packages"
 mkdir -p "$mock_bin" "$test_home/.local/state/omarchy"
 
@@ -34,6 +35,33 @@ cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 printf '%s\n' "$@" >"$OMARCHY_TEST_PKG_LOG"
 SH
 
+cat >"$mock_bin/mise" <<'SH'
+#!/bin/bash
+if [[ $* == 'reshim --system' ]]; then
+  exit "${OMARCHY_TEST_RESHIM_STATUS:-0}"
+fi
+exit 0
+SH
+
+cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+exit 1
+SH
+
+cat >"$mock_bin/omarchy-install-hermes-cli" <<'SH'
+#!/bin/bash
+if [[ $# == 0 && ${OMARCHY_TEST_HERMES_STATUS:-0} != 0 ]]; then
+  exit "$OMARCHY_TEST_HERMES_STATUS"
+fi
+exec "$OMARCHY_PATH/bin/omarchy-install-hermes-cli" "$@"
+SH
+
+cat >"$mock_bin/sudo" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_SUDO_STATUS:-0} == 0 ]] || exit "$OMARCHY_TEST_SUDO_STATUS"
+exec "$@"
+SH
+
 chmod +x "$mock_bin"/*
 
 # $ROOT/bin after the mocks: Remove Preinstalls asks omarchy-install-hermes-cli
@@ -41,6 +69,8 @@ chmod +x "$mock_bin"/*
 # that is the real command at runtime. The mocks still shadow what they name.
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export HOME="$test_home"
+export OMARCHY_PATH="$ROOT"
+export OMARCHY_MISE_CONFIG_PATH="$mise_config"
 export OMARCHY_TEST_PKG_LOG="$pkg_log"
 
 # Both scripts restore and remove the same set, and every package in it has to be
@@ -50,9 +80,13 @@ mapfile -t shipped < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$RO
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 mapfile -t restored <"$pkg_log"
+cmp -s "$ROOT/default/mise/config.toml" "$mise_config" || fail "Install Preinstalls restores the system mise config"
+"$ROOT/bin/omarchy-install-hermes-cli" --owns || fail "Install Preinstalls restores the custom Hermes wrapper"
+pass "Install Preinstalls restores lazy tools and the custom Hermes wrapper"
 
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 mapfile -t dropped <"$pkg_log"
+[[ ! -e $mise_config ]] || fail "Remove Preinstalls deletes the system mise config"
 
 [[ ${restored[*]} == "${dropped[*]}" ]] ||
   fail "Install and Remove Preinstalls cover the same packages" \
@@ -80,6 +114,21 @@ OMARCHY_TEST_PKG_ADD_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ -f $marker ]] || fail "restore keeps the opt-out marker when packages fail to install"
 pass "restore keeps the opt-out marker when packages fail to install"
 
+for failure in OMARCHY_TEST_SUDO_STATUS OMARCHY_TEST_RESHIM_STATUS; do
+  touch "$marker"
+  : >"$pkg_log"
+  env "$failure=1" "$ROOT/bin/omarchy-install-preinstalls" >/dev/null && status=0 || status=$?
+  (( status == 1 )) || fail "restore reports a failed tool setup" "$failure returned $status"
+  [[ -f $marker ]] || fail "restore keeps the opt-out marker after failed tool setup" "$failure"
+  [[ ! -s $pkg_log ]] || fail "restore stops before installing packages when tool setup fails" "$failure"
+done
+pass "restore stops and preserves opt-out when config or shim setup fails"
+
+touch "$marker"
+OMARCHY_TEST_HERMES_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null || fail "an unfinished Hermes Desktop setup blocks restoring other preinstalls"
+[[ ! -e $marker ]] || fail "an unfinished Hermes Desktop setup leaves restored preinstalls opted out"
+pass "restore tolerates an unfinished Hermes Desktop setup like user finalization"
+
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 [[ ! -e $marker ]] || fail "restore clears the opt-out marker once the packages are back"
 pass "restore clears the opt-out marker once the packages are back"
@@ -92,6 +141,12 @@ pass "declining Remove Preinstalls changes nothing"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $marker ]] || fail "Remove Preinstalls records the opt-out"
 pass "Remove Preinstalls records the opt-out"
+
+mkdir -p "$(dirname "$mise_config")"
+touch "$mise_config"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ ! -e $mise_config ]] || fail "Remove Preinstalls deletes Omarchy's lazy mise declarations"
+pass "Remove Preinstalls deletes Omarchy's lazy mise declarations"
 
 # Hermes' wrapper is only a preinstall when omarchy-install-hermes-cli wrote it.
 # The desktop app's command and an official install live at the same path and
