@@ -72,10 +72,12 @@ if (( ${#image_dirs[@]} == 0 )); then
   exit 1
 fi
 
-selection_file=$(mktemp)
-done_file=$(mktemp)
-pending_file=$(mktemp)
-pending_video_file=$(mktemp)
+ipc_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}"
+mkdir -m 700 -p "$ipc_dir"
+selection_file=$(mktemp "$ipc_dir/omarchy-menu-images.XXXXXX")
+done_file=$(mktemp "$ipc_dir/omarchy-menu-images.XXXXXX")
+pending_file=$(mktemp "$ipc_dir/omarchy-menu-images.XXXXXX")
+pending_video_file=$(mktemp "$ipc_dir/omarchy-menu-images.XXXXXX")
 rm -f "$done_file"
 trap 'rm -f "$selection_file" "$done_file" "$pending_file" "$pending_video_file"' EXIT
 
