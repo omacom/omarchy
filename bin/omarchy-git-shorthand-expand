@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# omarchy:summary=Expand a bare owner/repo into a git host's clone URL
+# omarchy:args=<url-or-shorthand> [platform]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# omarchy-plugin-add and omarchy-theme-install both take a full git URL today;
+# this lets either take a bare `owner/repo` instead, the same shorthand
+# `gh`/`hub`/Homebrew use. It only recognizes that one shape -- anything that
+# already looks like a URL (a scheme, or an scp-style user@host:path) or does
+# not look like owner/repo at all comes back unchanged, so the caller's
+# existing omarchy-git-url-check / git clone path handles it exactly as it
+# does today. This command never fails a legitimate argument: an argument it
+# does not recognize as shorthand is not this command's to judge, so it is
+# echoed back for the caller to validate.
+#
+# The platform is never guessed from the shape of the argument -- owner/repo
+# looks identical on every host. It always comes from the caller (github by
+# default, matching a bare owner/repo elsewhere; an explicit name for anything
+# else), and an unrecognized name is refused rather than silently treated as
+# github.
+
+declare -A PLATFORM_HOSTS=(
+  [github]=github.com
+  [gitlab]=gitlab.com
+  [bitbucket]=bitbucket.org
+  [codeberg]=codeberg.org
+)
+
+fail() {
+  echo "omarchy-git-shorthand-expand: $*" >&2
+  exit 1
+}
+
+arg="${1-}"
+platform="${2:-github}"
+[[ -n $arg ]] || fail "an argument is required"
+
+# Already a URL. `scheme://` covers every transport git and the caller's own
+# checker recognize; scp-style is a colon appearing before any slash, the same
+# reading omarchy-theme-install already relies on for `git@host:path`. The
+# platform is not even looked at here: it names a host to expand shorthand
+# against, and there is no shorthand to expand once an argument is already a
+# full URL.
+if [[ $arg == *"://"* ]]; then
+  printf '%s\n' "$arg"
+  exit 0
+fi
+if [[ $arg == *:* && ${arg%%:*} != */* ]]; then
+  printf '%s\n' "$arg"
+  exit 0
+fi
+
+# owner/repo shorthand: exactly one slash, host-identifier characters on each
+# side, an owner that starts and ends with an alphanumeric. The owner class
+# covers every supported platform, not just the default: GitHub usernames are
+# alnum-and-hyphen only, but GitLab namespaces and Bitbucket workspace ids also
+# allow dots and underscores, so the class has to be the union. A bracket
+# range follows the locale's collation, not ASCII -- pinning LC_ALL=C keeps
+# this from taking in non-ASCII letters on a UTF-8 desktop and expanding a
+# path that only looks like one (see the same concern in
+# omarchy-theme-install). The platform is only resolved here, once there is
+# actually a shorthand to expand against it -- an unrecognized platform name
+# never fails an argument this command would have passed through untouched
+# anyway.
+if (LC_ALL=C; [[ $arg =~ ^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$ ]]); then
+  host="${PLATFORM_HOSTS[$platform]-}"
+  [[ -n $host ]] || fail "unknown platform '$platform' (known: ${!PLATFORM_HOSTS[*]})"
+  # A shorthand copied from an existing clone command may already carry a
+  # .git suffix; strip it so the URL built below never doubles it.
+  printf 'https://%s/%s.git\n' "$host" "${arg%.git}"
+  exit 0
+fi
+
+printf '%s\n' "$arg"

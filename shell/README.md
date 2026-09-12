@@ -107,6 +107,7 @@ manifest id); updating is a fast-forward pull of that checkout.
 
 ```bash
 omarchy plugin add https://github.com/acme/omarchy-weather.git
+omarchy plugin add acme/omarchy-weather  # owner/repo shorthand; --gitlab/--bitbucket/--codeberg pick another host
 omarchy plugin update acme.weather       # fetches, shows a diff, fast-forwards
 omarchy plugin update                    # updates every git-managed plugin
 omarchy plugin remove acme.weather

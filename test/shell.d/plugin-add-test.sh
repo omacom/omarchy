@@ -175,3 +175,61 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# --- owner/repo shorthand ---------------------------------------------------
+#
+# A bare `owner/repo` expands to its GitHub URL (omarchy-git-shorthand-expand)
+# before the guard above ever sees it. The clone URL is recorded here, not just
+# whether clone was reached, since an unexpanded "acme/repo" would also reach
+# this stub -- it names neither a transport helper nor an option, so the guard
+# alone would wave it through too.
+
+clone_url_log="$TMPDIR/git-clone-url"
+cat >"$guard_stubs/git" <<STUB
+#!/bin/bash
+if [[ \$1 == "clone" ]]; then
+  printf '%s\n' "\${*: -2:1}" >"$clone_url_log"
+  exit 1
+fi
+exit 0
+STUB
+chmod +x "$guard_stubs/git"
+
+rm -f "$clone_url_log"
+add_url "acme/omarchy-weather" >/dev/null 2>&1 || true
+[[ -e $clone_url_log ]] || fail "plugin add did not reach git clone for owner/repo shorthand"
+grep -qFx "https://github.com/acme/omarchy-weather.git" "$clone_url_log" ||
+  fail "plugin add expands owner/repo shorthand before cloning" "$(cat "$clone_url_log")"
+
+pass "plugin add expands a bare owner/repo into its GitHub clone URL before cloning"
+
+# --github/--gitlab/--bitbucket pick the shorthand's host. Nothing is guessed:
+# omitting the flag means GitHub, exactly as above; naming one of the others
+# is the only way to reach a different host.
+add_url_platform() {
+  HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$guard_stubs:$ROOT/bin:$PATH" \
+    omarchy-plugin-add "$1" "$2" --yes 2>&1
+}
+
+for pair in \
+  "--gitlab:https://gitlab.com/acme/omarchy-weather.git" \
+  "--bitbucket:https://bitbucket.org/acme/omarchy-weather.git" \
+  "--codeberg:https://codeberg.org/acme/omarchy-weather.git"; do
+  flag="${pair%%:*}"
+  expected="${pair#*:}"
+  rm -f "$clone_url_log"
+  add_url_platform "$flag" "acme/omarchy-weather" >/dev/null 2>&1 || true
+  [[ -e $clone_url_log ]] || fail "plugin add did not reach git clone for owner/repo shorthand with $flag"
+  grep -qFx "$expected" "$clone_url_log" ||
+    fail "plugin add expands owner/repo shorthand against $flag's host" "$(cat "$clone_url_log")"
+done
+pass "plugin add expands owner/repo against the platform named by --gitlab/--bitbucket"
+
+rm -f "$clone_url_log"
+output=$(HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$guard_stubs:$ROOT/bin:$PATH" \
+  omarchy-plugin-add --gitlab --bitbucket acme/omarchy-weather --yes 2>&1) &&
+  fail "plugin add accepts conflicting platform flags" "$output"
+grep -qF "conflicting platform flags" <<<"$output" ||
+  fail "plugin add names the conflicting-platform-flags rejection" "$output"
+[[ ! -e $clone_url_log ]] || fail "plugin add reached git clone with conflicting platform flags"
+pass "plugin add refuses conflicting platform flags"
