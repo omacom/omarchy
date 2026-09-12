@@ -34,6 +34,14 @@ import qs.Commons
 // QsWindow.mask subtracting the bar strip so clicks on the bar still
 // reach the bar widgets (activePopout coordinator hands off to another
 // popup if the user clicks a different bar icon).
+//
+// ExclusionMode.Auto (not Ignore): Ignore stretches the overlay over other
+// surfaces' exclusive zones, so a layer-shell on-screen keyboard at the
+// bottom is covered by dismissArea. The first OSK tap then closes the
+// panel (wifi passphrase, bluetooth PIN, …) instead of typing. Auto keeps
+// the reserved OSK/bar bands clickable. Keyboard focus still primes
+// Exclusive then settles on OnDemand so Hyprland does not keep routing
+// every pointer event here.
 PanelWindow {
   id: root
 
@@ -80,7 +88,7 @@ PanelWindow {
   screen: anchorWindow ? anchorWindow.screen : null
   visible: open || card.opacity > 0 || popoutSwitching
   color: "transparent"
-  exclusionMode: ExclusionMode.Ignore
+  exclusionMode: ExclusionMode.Auto
 
   WlrLayershell.namespace: "omarchy-keyboard-panel"
   WlrLayershell.layer: WlrLayer.Overlay
@@ -150,12 +158,27 @@ PanelWindow {
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
-  readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barW + gap + margin : margin * 2))
-    : 0
-  readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barH + gap + margin : margin * 2))
-    : 0
+  // ExclusionMode.Auto with all four anchors sets exclusiveZone 0: the
+  // compositor insets this overlay around the bar/OSK reserved bands.
+  // Prefer the surface size when we have it so a tall panel cannot extend
+  // into those bands; fall back to screen size minus the bar when the
+  // window is still fullscreen (Ignore, or Auto before the first map).
+  readonly property real availableCardWidth: {
+    var surface = width > 0 ? width : screenW
+    if (surface <= 0) return 0
+    var barReserve = 0
+    if ((barPos === "left" || barPos === "right") && (width <= 0 || Math.abs(width - screenW) < 1))
+      barReserve = barW + gap
+    return Math.max(120, surface - barReserve - margin * 2)
+  }
+  readonly property real availableCardHeight: {
+    var surface = height > 0 ? height : screenH
+    if (surface <= 0) return 0
+    var barReserve = 0
+    if ((barPos === "top" || barPos === "bottom") && (height <= 0 || Math.abs(height - screenH) < 1))
+      barReserve = barH + gap
+    return Math.max(120, surface - barReserve - margin * 2)
+  }
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
   function fittedContentWidth(width, cap) {
@@ -176,6 +199,23 @@ PanelWindow {
     var desired = Math.max(root.padding * 2, Number(height) || root.padding * 2)
     var maxHeight = root.availableCardHeight > 0 ? root.availableCardHeight : desired
     return Math.round(Math.min(desired, maxHeight))
+  }
+
+  // Where this surface's local origin (0,0) sits in output coordinates.
+  // Auto-mode insets the surface by the reserved bands it overlaps; only a
+  // reservation on the top/left edge moves the origin — a band on the
+  // bottom/right edge (e.g. an OSK strip) only shrinks the far side.
+  // Quickshell exposes no window position for layer surfaces, so read the
+  // inset from the mapped surface size and cap it at the bar's band, which
+  // is the only reservation locked to the bar's edge.
+  readonly property point windowOrigin: {
+    var surfaceW = width > 0 ? width : screenW
+    var surfaceH = height > 0 ? height : screenH
+    var missingW = Math.max(0, screenW - surfaceW)
+    var missingH = Math.max(0, screenH - surfaceH)
+    var originX = barPos === "left" ? Math.min(missingW, barW) : 0
+    var originY = barPos === "top" ? Math.min(missingH, barH) : 0
+    return Qt.point(originX, originY)
   }
 
   // Desired top-left of the card in screen coordinates. For the
@@ -215,7 +255,16 @@ PanelWindow {
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
     y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
-    return Qt.point(Math.round(x), Math.round(y))
+    // Screen-space origin is relative to the output. Auto-mode insets this
+    // surface around the bar/OSK reserved bands, so translate into the
+    // window; with the surface spanning the full output this is a no-op.
+    var localX = x - windowOrigin.x
+    var localY = y - windowOrigin.y
+    var surfaceW = width > 0 ? width : screenW
+    var surfaceH = height > 0 ? height : screenH
+    localX = Math.max(margin, Math.min(localX, surfaceW - contentWidth - margin))
+    localY = Math.max(margin, Math.min(localY, surfaceH - contentHeight - margin))
+    return Qt.point(Math.round(localX), Math.round(localY))
   }
 
 
@@ -352,7 +401,7 @@ PanelWindow {
         // twin maps, or a twin would cover the panel's own output.
         visible: root.open && !!root.screen && modelData.name !== root.screen.name
         color: "transparent"
-        exclusionMode: ExclusionMode.Ignore
+        exclusionMode: ExclusionMode.Auto
 
         WlrLayershell.namespace: "omarchy-keyboard-panel-dismiss"
         WlrLayershell.layer: WlrLayer.Overlay
