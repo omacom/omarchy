@@ -192,6 +192,7 @@ All style options are also accessible under _Style_ in the Omarchy menu (`Super 
 | `Shift + Mute` | Switch to next audio output |
 | `Shift + Play` | Switch to next media source |
 | `Super + Shift + Backspace` | Toggle window gaps |
+| `Super + Ctrl + Alt + F` | Toggle full screen desktop (top bar + window gaps) |
 
 ## Reminders
 
