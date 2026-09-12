@@ -173,13 +173,17 @@ networkmanager_dns_connection() {
 }
 
 set_connection_dns() {
-  local uuid type
+  local uuid type controller
   local ipv4_dns="${1:-}"
   local ipv6_dns="${2:-}"
 
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
+    # Bridge/bond/team ports inherit IP configuration from their controller.
+    # A port can still have the same Ethernet type as a standalone profile.
+    controller=$(nmcli -g connection.controller connection show "$uuid")
+    [[ -z $controller ]] || continue
 
     nmcli connection modify "$uuid" \
       ipv4.ignore-auto-dns yes \
@@ -191,11 +195,15 @@ set_connection_dns() {
 }
 
 clear_connection_dns() {
-  local uuid type
+  local uuid type controller
 
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
+    # Bridge/bond/team ports inherit IP configuration from their controller.
+    # A port can still have the same Ethernet type as a standalone profile.
+    controller=$(nmcli -g connection.controller connection show "$uuid")
+    [[ -z $controller ]] || continue
 
     nmcli connection modify "$uuid" \
       ipv4.ignore-auto-dns no \
