@@ -253,7 +253,11 @@ Panel {
       if (kind === "month" && Number(row.messageCount || 0) <= 0) continue
       out.push(row)
     }
-    if (kind === "day" && out.length === 0)
+    // Only mint a Today row from todayTotalTokens when that field is
+    // actually for today. A leftover usage file keeps yesterday's total
+    // under the same name; synthesizing it here is how 585k of OpenCode
+    // from Sept 6 showed up as "today".
+    if (kind === "day" && out.length === 0 && usage.todayFieldsAreCurrent && usage.todayFieldsAreCurrent(p))
       out.push({ date: root.todayDate(), messageCount: Number(p.todayTotalTokens || 0) })
     return out
   }
@@ -286,17 +290,11 @@ Panel {
     return n
   }
 
-  function periodDayTokenTotal(p, kind) {
-    var days = daysForPeriod(p, kind)
-    var n = 0
-    for (var i = 0; i < days.length; i++) n += Number((days[i] || {}).messageCount || 0)
-    return n
-  }
-
   // Codex and Claude ship all-time modelUsage plus daily totals, but no
-  // per-day tokensByModel. Hermes and Grok do. All used to walk the merged
-  // history once, so Hermes's 23M of GPT-6 Astra hid Codex's ~1B of the same
-  // model. Sum each harness on its own, then combine.
+  // per-day tokensByModel. Hermes and Grok do. Cursor's modelUsage is the
+  // current billing cycle. Sum each harness on its own, then combine — and
+  // never substitute all-time/cycle modelUsage for a bounded period. That
+  // fallback is how 1B of Grok Bot showed up under Day.
   function periodModelMap(p, kind) {
     if (!p) return {}
     if (p.providerId === "all") {
@@ -312,29 +310,24 @@ Panel {
     }
     if (kind === "total") return p.modelUsage || ({})
     var start = periodStartDate(kind)
+    var today = root.todayDate()
     var hist = p.history || []
-    var usage = ({})
+    var tokenUsage = ({})
+    var todayCovered = false
     for (var h = 0; h < hist.length; h++) {
       var row = hist[h] || {}
       var date = String(row.date || "")
       if (start !== "" && date < start) continue
       var models = row.tokensByModel || ({})
-      for (var mid in models) addTokenValue(usage, mid, models[mid])
+      var before = usageMapTotal(tokenUsage)
+      for (var mid in models) addTokenValue(tokenUsage, mid, models[mid])
+      if (date === today && usageMapTotal(tokenUsage) > before) todayCovered = true
     }
-    var fromHistory = usageMapTotal(usage)
-    var fromDays = periodDayTokenTotal(p, kind)
-    if (fromHistory > 0 && (fromDays <= 0 || fromHistory >= fromDays * 0.85))
-      return usage
-    if (kind === "day") {
-      var today = p.todayTokensByModel || ({})
-      var mapped = ({})
-      for (var tid in today) addTokenValue(mapped, tid, today[tid])
-      if (usageMapTotal(mapped) > 0) return mapped
-      if (fromDays <= 0 && Number(p.todayTotalTokens || 0) <= 0) return ({})
+    if (!todayCovered && usage.todayFieldsAreCurrent && usage.todayFieldsAreCurrent(p)) {
+      var todayModels = p.todayTokensByModel || ({})
+      for (var tid in todayModels) addTokenValue(tokenUsage, tid, todayModels[tid])
     }
-    var fallback = p.modelUsage || ({})
-    if (usageMapTotal(fallback) > 0) return fallback
-    return usage
+    return tokenUsage
   }
 
   function dayName(date) {
