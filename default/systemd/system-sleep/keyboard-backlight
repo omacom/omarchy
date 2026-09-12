@@ -3,7 +3,9 @@
 # Turn off keyboard backlight before hibernate to prevent hang on power-off.
 # The ASUS keyboard controller can block S4 shutdown if LEDs are active.
 
-if [[ $1 == "pre" && $2 == "hibernate" ]]; then
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+
+if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
   device=""
   for candidate in /sys/class/leds/*kbd_backlight*; do
     if [[ -e "$candidate" ]]; then
