@@ -115,4 +115,8 @@ done
 link=$(find "$PLUGIN_DIR" -name .git -prune -o -type l -print -quit 2>/dev/null)
 [[ -z $link ]] || fail "symlinks are not allowed inside a plugin folder: $link"
 
+if jq -e '.entryPoints | has("uninstall")' "$MANIFEST" >/dev/null; then
+  omarchy-plugin-uninstall-path "$PLUGIN_DIR" >/dev/null || fail "invalid uninstall entry point"
+fi
+
 exit 0
