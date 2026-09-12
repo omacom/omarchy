@@ -80,7 +80,7 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null; widthTimer.stop() }
   // Bound to the central [menu] section in shell.toml via Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -108,7 +108,9 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property real widestLabelWidth: 0
+  onLayoutSerialChanged: root.scheduleWidthUpdate()
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Math.max(Style.space(300), rowListWidth(widestLabelWidth))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -195,6 +197,52 @@ Item {
     }
 
     return foldedListHeight(totals, availableRowsHeight())
+  }
+
+  FontMetrics {
+    id: labelMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.heading
+    font.weight: Font.Medium
+    onFontChanged: root.scheduleWidthUpdate()
+  }
+
+  Timer {
+    id: widthTimer
+    interval: 1000
+    onTriggered: root.measureRowWidth()
+  }
+
+  // Measure only a completed model, and wait for a pause during search.
+  // A pending timer also covers backspacing the query all the way to empty.
+  function scheduleWidthUpdate() {
+    if (!root.opened || root.dmenuActive) return
+    if (root.filterText.length > 0 || widthTimer.running) widthTimer.restart()
+    else root.measureRowWidth()
+  }
+
+  function measureRowWidth() {
+    var maxLabel = 0
+    for (var i = 0; i < displayModel.count; i++) {
+      var w = labelMetrics.advanceWidth(displayModel.get(i).label)
+      if (w > maxLabel) maxLabel = w
+    }
+    root.widestLabelWidth = maxLabel
+  }
+
+  // Keep theme spacing and border changes reactive without remeasuring labels.
+  function rowListWidth(maxLabel) {
+    if (maxLabel <= 0) return 0
+
+    // Horizontal chrome around the label: card padding and card borders
+    // (contentLeftInset/contentRightInset are subtracted from the list),
+    // icon gutter (reserved border + margin + 36px icon + column margin),
+    // right column margin, trail gutter (14px + reserved border + margin).
+    var chrome = root.contentMargin * 2
+      + Border.left(root.borderSpec) + Border.right(root.borderSpec)
+      + root.rowReservedBorderLeft + Style.space(8) + Style.space(36) + Style.space(6)
+      + Style.space(6) + Style.space(14) + root.rowReservedBorderRight + Style.space(8)
+    return Math.ceil(maxLabel) + chrome
   }
 
   function dmenuRowListHeight(_serial, _count, _filter) {
@@ -718,6 +766,7 @@ Item {
 
   function setFilter(nextFilter) {
     panel.freezeCardTop()
+    if (!root.dmenuActive) widthTimer.restart()
     root.filterText = nextFilter
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
@@ -728,6 +777,7 @@ Item {
 
   function setActiveMenu(id, pushHistory, fromPointer) {
     panel.freezeCardTop()
+    widthTimer.stop()
     if (!root.item(id)) id = "root"
     if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
     root.activeMenu = id
@@ -835,6 +885,7 @@ Item {
   }
 
   function openExistingMenu(initialMenu) {
+    widthTimer.stop()
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -859,6 +910,7 @@ Item {
   }
 
   function openDmenu(payload) {
+    widthTimer.stop()
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
