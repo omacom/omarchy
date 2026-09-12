@@ -25,17 +25,13 @@ if installed_package=$(LC_ALL=C pacman -Q "$package" 2>/dev/null); then
     fi
   fi
 else
-  if query_error=$(LC_ALL=C pacman -Q "$package" 2>&1); then
-    query_status=0
-  else
-    query_status=$?
-  fi
-
-  if (( query_status != 1 )) || [[ $query_error != "error: package '$package' was not found" ]]; then
-    echo "Could not determine the installed GPU Screen Recorder version; the migration will retry." >&2
-    if [[ -n $query_error ]]; then
-      echo "$query_error" >&2
+  if installed_packages=$(LC_ALL=C pacman -Qq 2>/dev/null); then
+    if grep -Fxq "$package" <<<"$installed_packages"; then
+      echo "Could not determine the installed GPU Screen Recorder version; the migration will retry." >&2
+      exit 1
     fi
+  else
+    echo "Could not determine the installed GPU Screen Recorder version; the migration will retry." >&2
     exit 1
   fi
 fi

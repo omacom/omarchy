@@ -29,6 +29,14 @@ case "$1" in
       exit 1
     fi
     ;;
+  -Qq)
+    if [[ ${PACKAGE_LIST_QUERY_ERROR:-} == "true" ]]; then
+      echo "error: failed to read the local package database" >&2
+      exit 2
+    elif [[ -f $PACKAGE_STATE ]]; then
+      echo "gpu-screen-recorder"
+    fi
+    ;;
   -S)
     printf '%s' "$PACKAGE_UPGRADE_VERSION" >"$PACKAGE_STATE"
     ;;
@@ -70,13 +78,20 @@ run_migration ""
 [[ ! -s $sudo_log ]] || fail "the migration reinstalls a removed recorder" "$(<"$sudo_log")"
 pass "the migration leaves a removed recorder alone"
 
-if PACKAGE_QUERY_ERROR=true run_migration ""; then
+if PACKAGE_QUERY_ERROR=true run_migration "6.1.1-1"; then
   fail "the migration accepts a failed package query"
 fi
 grep -Fq "Could not determine the installed GPU Screen Recorder version" "$output" ||
   fail "the migration explains that a failed package query will retry" "$(<"$output")"
 [[ ! -s $sudo_log ]] || fail "the migration upgrades after a failed package query" "$(<"$sudo_log")"
 pass "the migration remains pending when the package query fails"
+
+if PACKAGE_QUERY_ERROR=true PACKAGE_LIST_QUERY_ERROR=true run_migration ""; then
+  fail "the migration accepts an unreadable package database"
+fi
+grep -Fq "Could not determine the installed GPU Screen Recorder version" "$output" ||
+  fail "the migration explains that an unreadable package database will retry" "$(<"$output")"
+pass "the migration remains pending when the package database cannot be listed"
 
 for installed_version in 6.1.2-1 6.2.0-1; do
   run_migration "$installed_version"
