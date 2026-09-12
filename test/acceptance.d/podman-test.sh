@@ -15,8 +15,12 @@ trap cleanup EXIT
 
 # The harness enters over SSH, which does not inherit the graphical session's
 # generated environment. Inspect a real user-manager child, like a launched app.
-endpoint=$(systemd-run --user --quiet --pipe --wait /usr/bin/printenv DOCKER_HOST)
-[[ $endpoint == "unix://$socket" ]] || fail "Docker API defaults to the user socket"
+endpoint=$(systemd-run --user --quiet --pipe --wait /bin/sh -c 'printf "%s" "${DOCKER_HOST:-}"')
+if pacman -Q podman-docker >/dev/null 2>&1; then
+  [[ $endpoint == "unix://$socket" ]] || fail "Docker compatibility defaults to the user socket"
+else
+  [[ -z $endpoint ]] || fail "Native Podman does not configure a Docker API endpoint"
+fi
 systemctl --user start podman.socket
 api_ready() {
   [[ $(curl -fsS --max-time 5 --unix-socket "$socket" http://localhost/_ping) == "OK" ]]
