@@ -13,6 +13,19 @@ if [[ ${OMARCHY_UPDATE_CONFLICT:-} == 1 && ${OMARCHY_UPDATE_INTERACTIVE:-} == 1 
   exec sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --overwrite '/usr/share/omarchy/*'
 fi
 
+# Before 1.38, limine-mkinitcpio-hook and limine-snapper-sync shipped binaries
+# that require AVX2, so they refuse to start on older CPUs. The upgrade below
+# installs a new kernel, and its pacman hook calls them to rebuild the UKI. When
+# they cannot run the kernel is replaced but the UKI is not, and the machine no
+# longer boots. Updating just that tooling first puts the hook back in working
+# order before the kernel moves.
+limine_entry_tool=/usr/lib/limine/limine-entry-tool
+
+if [[ -x $limine_entry_tool ]] && ! "$limine_entry_tool" --version &>/dev/null; then
+  echo -e "\e[32m\nUpdate limine tooling first (the installed build cannot run on this CPU)\e[0m"
+  sudo pacman -S --noconfirm --needed limine-mkinitcpio-hook limine-snapper-sync
+fi
+
 echo -e "\e[32m\nUpdate system packages\e[0m"
 
 errors=$(mktemp)
