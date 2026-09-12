@@ -15,6 +15,14 @@ printf 'drop:%s\n' "$*" >>"$TEST_LOG"
 SCRIPT
 chmod +x "$tmp_dir/bin/omarchy-pkg-drop"
 
+# omarchy-remove-ai-claude quits the running app before deleting its state;
+# a real pkill here would take the developer's own Claude with it.
+cat >"$tmp_dir/bin/pkill" <<'SCRIPT'
+#!/bin/bash
+printf 'pkill:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/pkill"
+
 # omarchy-remove-ai-perplexity asks through gum whether the user's data goes
 # too. The stub answers "no" unless a test says otherwise and logs the call: a
 # real gum would hang the run, and one that answered "yes" on its own would be
@@ -54,6 +62,27 @@ pass "ChatGPT removal keeps the Codex CLI's runtime cache"
 
 [[ -d $HOME/.codex ]] || fail "ChatGPT removal keeps the Codex CLI's config"
 pass "ChatGPT removal keeps the Codex CLI's config"
+
+# The Claude Code CLI ships in its own package and keeps its state in
+# ~/.claude, ~/.claude.json, and ~/.cache/claude-cli-nodejs, so removing the
+# desktop app must not take it.
+fresh_home
+mkdir -p "$HOME/.config/Claude" "$HOME/.cache/Claude" "$HOME/.cache/claude-cli-nodejs" "$HOME/.claude"
+touch "$HOME/.claude.json"
+"$ROOT/bin/omarchy-remove-ai-claude" >/dev/null
+
+for gone in .config/Claude .cache/Claude; do
+  [[ ! -e $HOME/$gone ]] || fail "Claude removal deletes the desktop app's config and caches" "$gone"
+done
+pass "Claude removal deletes the desktop app's config and caches"
+
+for kept in .claude .claude.json .cache/claude-cli-nodejs; do
+  [[ -e $HOME/$kept ]] || fail "Claude removal keeps the Claude Code CLI's state" "$kept"
+done
+pass "Claude removal keeps the Claude Code CLI's state"
+
+grep -qx 'pkill:-x claude-desktop' "$TEST_LOG" || fail "Claude removal quits the running app before deleting its state"
+pass "Claude removal quits the running app before deleting its state"
 
 # LM Studio's models follow a relocatable home, named only by the pointer file.
 fresh_home

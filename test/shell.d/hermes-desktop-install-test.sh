@@ -357,3 +357,18 @@ OMARCHY_TEST_HOME="$hermes_home/PrOfIlEs/coder/../coder/" run_installer || fail 
 [[ -x $runtime/apps/desktop/release/linux-unpacked/Hermes ]] || fail "profile uses the canonical root runtime"
 grep -qxF "$hermes_home" "$test_tmp/install-args" || fail "canonical custom home reaches upstream installer"
 pass "custom profile paths normalize to the shared Hermes home"
+
+# New releases moved the stamp writer out of main. Keep the earlier cases on
+# the old layout and exercise a fresh installation with the relocated helper.
+git -C "$test_tmp/seed" mv hermes_cli/main.py hermes_cli/main_desktop.py
+printf 'raise AssertionError("legacy module imported after desktop split")\n' >"$test_tmp/seed/hermes_cli/main.py"
+git -C "$test_tmp/seed" add hermes_cli/main.py
+git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid commit -qm split-desktop
+release_commit=$(git -C "$test_tmp/seed" rev-parse HEAD)
+export OMARCHY_TEST_RELEASE_COMMIT="$release_commit"
+printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/package/resources/install-stamp.json"
+new_home split-desktop
+run_installer || fail "setup supports the relocated desktop helper" "$(cat "$test_tmp/output")"
+[[ $(cat "$hermes_home/desktop-build-stamp.json") == 'upstream build stamp' ]] || fail "relocated helper writes the build stamp"
+grep -qx launch "$test_tmp/events" || fail "setup launches after the relocated helper writes the stamp"
+pass "new releases use the relocated desktop stamp writer"
