@@ -3,6 +3,35 @@
 # omarchy:summary=Toggle dedicated vs integrated GPU mode via supergfxd (for hybrid gpu laptops, like Asus G14).
 # omarchy:requires-sudo=true
 
+install_root_file() {
+  local source="$1"
+  local destination="$2"
+  local mode="$3"
+  local stage
+
+  stage=$(sudo /usr/bin/mktemp -- "${destination%/*}/.${destination##*/}.omarchy.XXXXXX") || return 1
+  safe_stage_path "$stage" "$destination" || return 1
+
+  if sudo /usr/bin/install -m "$mode" -o root -g root -T "$source" "$stage" &&
+    sudo /usr/bin/mv -Tf -- "$stage" "$destination"; then
+    return 0
+  else
+    safe_stage_path "$stage" "$destination" && sudo /usr/bin/rm -f -- "$stage"
+    return 1
+  fi
+}
+
+safe_stage_path() {
+  local stage="$1"
+  local destination="$2"
+  local prefix suffix
+
+  prefix="${destination%/*}/.${destination##*/}.omarchy."
+  [[ $stage == "$prefix"* ]] || return 1
+  suffix=${stage#"$prefix"}
+  [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
+}
+
 if omarchy-cmd-missing supergfxctl; then
   omarchy-pkg-add supergfxctl
 
@@ -54,18 +83,31 @@ case "$gpu_mode" in
   ;;
 "Hybrid")
   if gum confirm "Use only integrated GPU and reboot?"; then
-    # Switch to integrated mode and ensure vfio is enabled (needed for sleep/wake trick)
-    sudo sed -i "s/\"mode\": \".*\"/\"mode\": \"Integrated\"/" /etc/supergfxd.conf
-    sudo sed -i 's/"vfio_enable": false/"vfio_enable": true/' /etc/supergfxd.conf
-
-    # Force igpu mode after system sleep (or dgpu could get activated)
-    sudo mkdir -p /usr/lib/systemd/system-sleep
-    sudo cp -p "$OMARCHY_PATH/default/systemd/system-sleep/force-igpu" /usr/lib/systemd/system-sleep/
-
     # Delay supergfxd startup to avoid race condition with display manager
     # that can cause system freeze when booting in Integrated mode
     sudo mkdir -p /etc/systemd/system/supergfxd.service.d
-    sudo cp -p "$OMARCHY_PATH/default/systemd/system/supergfxd.service.d/delay-start.conf" /etc/systemd/system/supergfxd.service.d/
+    if ! install_root_file "$OMARCHY_PATH/default/systemd/system/supergfxd.service.d/delay-start.conf" \
+      /etc/systemd/system/supergfxd.service.d/delay-start.conf 0644; then
+      echo "Could not install the supergfxd startup-delay override" >&2
+      exit 1
+    fi
+
+    # Publish the self-guarding sleep hook before enabling Integrated mode. It
+    # remains inert while the config says Hybrid, so any failed step is safe to
+    # retry without leaving the GPU config partially switched.
+    sudo mkdir -p /usr/lib/systemd/system-sleep
+    if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/force-igpu" \
+      /usr/lib/systemd/system-sleep/force-igpu 0755; then
+      echo "Could not install the force-igpu system-sleep hook" >&2
+      exit 1
+    fi
+
+    # Switch both settings in one atomic config rewrite only after every
+    # supporting file has been installed successfully.
+    sudo sed -i \
+      -e 's/"mode": ".*"/"mode": "Integrated"/' \
+      -e 's/"vfio_enable": false/"vfio_enable": true/' \
+      /etc/supergfxd.conf
 
     omarchy-system-reboot
   fi
