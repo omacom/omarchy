@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Read-only smoke test for built-in speakers on an installed system.
+# Run after booting an updated kernel; CI exercises its failure cases with stubs.
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/shell.d/base-test.sh"
+
+incomplete() {
+  printf 'not ok - %s (check incomplete)\n' "$1" >&2
+  exit 2
+}
+
+for command in systemctl pactl jq journalctl; do
+  require_command "$command"
+done
+
+# is-active with multiple units succeeds when ANY unit is active.
+for unit in pipewire.service pipewire-pulse.service wireplumber.service; do
+  systemctl --user is-active --quiet "$unit" || fail "$unit is running"
+done
+pass "all user audio services are running"
+
+sinks=$(pactl --format=json list sinks) || incomplete "could not query playback devices"
+speakers=$(jq -ce '
+  if type != "array" then error("expected a sink array") else
+    [.[] | select(.properties["device.api"] == "alsa" and .properties["device.bus"] != "usb")
+      | select(any(.ports[]?; .type == "Speaker"))]
+  end
+' <<<"$sinks") || incomplete "could not parse playback devices"
+
+[[ $speakers != "[]" ]] || fail "a physical built-in speaker output is registered" "Dummy Output, HDMI, USB and Bluetooth do not establish that built-in speakers work."
+pass "a physical built-in speaker output is registered"
+
+# Firmware failures can leave a perfectly normal, unmuted PipeWire sink. Only
+# inspect CS35L56 errors when the current speaker route uses those amplifiers:
+# a same-boot switch back to the direct codec route leaves old errors behind.
+uses_bridge=$(jq -r 'any(.[]; (.properties["alsa.components"] // "") | test("(^| )spk:cs35l56-bridge( |$)"))' <<<"$speakers") ||
+  incomplete "could not parse speaker component metadata"
+if [[ $uses_bridge == "true" ]]; then
+  kernel_log=$(journalctl --quiet --boot=0 --dmesg --output=cat --no-pager) ||
+    incomplete "could not read the current boot kernel journal"
+  [[ -n $kernel_log ]] || incomplete "the current boot kernel journal is empty or inaccessible"
+
+  firmware_errors=$(grep -E '^cs35l56 [^ ]+: FIRMWARE_MISSING([[:space:]]|$)' <<<"$kernel_log" || true)
+  [[ -z $firmware_errors ]] || fail "CS35L56 speaker firmware has no failures this boot" "$firmware_errors"
+
+  # An empty/restricted journal must not become a green hardware test. This is
+  # initialization evidence, not proof of audible output or correct tuning.
+  grep -Eq '^cs35l56 [^ ]+: DSP1: Firmware:' <<<"$kernel_log" ||
+    incomplete "no CS35L56 firmware initialization is visible in the kernel journal"
+  pass "CS35L56 firmware initialization is visible without missing-firmware errors this boot"
+else
+  pass "CS35L56 firmware check not applicable to the current speaker route # SKIP"
+fi
+
+printf '# Audible playback is not verified. Play audio and confirm both speakers by listening.\n'
