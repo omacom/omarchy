@@ -26,6 +26,7 @@ Panel {
     passwordSsid = ""
     passwordText = ""
     identityText = ""
+    passwordVisible = false
   }
 
   // Live connection details from `ip` / /sys / iw.
@@ -97,6 +98,7 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  property bool passwordVisible: false
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -354,6 +356,9 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    // Expiry belongs to the exact prompted SSID. Switching from an absent
+    // network to another prompt must give the new secret its own full grace.
+    credentialAbsenceTimer.stop()
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
@@ -364,12 +369,22 @@ Panel {
   // If the list empties (station gone, e.g. wifi off), bounce the cursor
   // back to the DNS row so the panel doesn't end up with no cursor at all.
   onWifiNetworksChanged: {
+    var passwordIndex = passwordSsid !== "" ? wifiIndexForSsid(passwordSsid) : -1
+    if (passwordSsid !== "" && passwordIndex < 0) {
+      // An empty result and repeated refreshes are both ordinary during a
+      // scan. Mask on the first disappearance and start one fixed expiry;
+      // later updates must not extend how long the secret remains resident.
+      passwordVisible = false
+      if (!credentialAbsenceTimer.running) credentialAbsenceTimer.start()
+    } else if (passwordIndex >= 0) {
+      credentialAbsenceTimer.stop()
+    }
+
     if (wifiNetworks.length === 0) {
       selectedIndex = -1
       wifiActionFocused = false
       if (focusSection === "wifi") focusSection = "dns"
     } else if (passwordSsid !== "") {
-      var passwordIndex = wifiIndexForSsid(passwordSsid)
       if (passwordIndex >= 0) {
         selectedIndex = passwordIndex
         focusSection = "wifi"
@@ -743,6 +758,7 @@ Panel {
     if (passwordSsid !== ssid) {
       passwordText = ""
       identityText = ""
+      passwordVisible = false
     }
     passwordSsid = ssid
   }
@@ -778,7 +794,10 @@ Panel {
 
   function clearNetworkAction() {
     actionTimeout.stop()
-    if (actionKind === "connect") passwordSsid = ""
+    // A successful connection no longer needs the submitted secret. Clear the
+    // backing QML strings as well as hiding the row so a revealed passphrase
+    // does not remain resident until the panel is closed or another SSID opens.
+    if (actionKind === "connect") cancelPasswordPrompt()
     failureSsid = ""
     failureReason = ""
     actionSsid = ""
@@ -1005,6 +1024,16 @@ Panel {
       root.actionSsid = ""
       root.actionKind = ""
       root.refresh()
+    }
+  }
+
+  Timer {
+    id: credentialAbsenceTimer
+    interval: 5000
+    repeat: false
+    onTriggered: {
+      if (root.passwordSsid !== "" && root.wifiIndexForSsid(root.passwordSsid) < 0)
+        root.cancelPasswordPrompt()
     }
   }
 
@@ -1736,6 +1765,10 @@ Panel {
 
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
+      // Submission may hide this editor for the whole connection attempt.
+      // Re-mask immediately so failure, timeout, or row remount cannot reveal
+      // a value the user had chosen to show before pressing Connect.
+      root.passwordVisible = false
       if (!isEnterprise) return root.connectWithPassphrase(net.ssid, root.passwordText)
       if (root.identityText.length > 0) root.connectEnterprise(net.ssid, root.identityText, root.passwordText)
     }
@@ -1987,7 +2020,7 @@ Panel {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
-        password: true
+        password: !root.passwordVisible
         placeholderText: "Passphrase"
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2003,6 +2036,28 @@ Panel {
 
         onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
+
+        rightPadding: passwordVisibilityBtn.width + Style.spacing.controlGap
+
+        PanelActionButton {
+          id: passwordVisibilityBtn
+          anchors.right: parent.right
+          anchors.rightMargin: Style.space(2)
+          anchors.verticalCenter: parent.verticalCenter
+          iconText: root.passwordVisible ? "\uf070" : "\uf06e"
+          tooltipText: root.passwordVisible ? "Hide password" : "Show password"
+          focusable: true
+          Accessible.role: Accessible.Button
+          Accessible.name: tooltipText
+          Accessible.description: root.passwordVisible ? "Password is visible" : "Password is hidden"
+          Accessible.onPressAction: passwordVisibilityBtn.clicked()
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          onClicked: {
+            root.passwordVisible = !root.passwordVisible
+            pwField.forceActiveFocus()
+          }
+        }
       }
 
       BorderSurface {
