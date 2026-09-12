@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:summary=Launch default apps assigned to workspaces
+
 
 CONF="$HOME/.config/omarchy/workspace-apps.conf"
 
