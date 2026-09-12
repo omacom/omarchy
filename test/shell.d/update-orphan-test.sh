@@ -23,7 +23,7 @@ SH
 }
 
 run_orphan_checker() {
-  HOME="$test_home" PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-update-orphan-pkgs"
+  HOME="$test_home" PATH="$stub_bin:$PATH" "$BASH" "$ROOT/bin/omarchy-update-orphan-pkgs"
 }
 
 write_stub pacman 'if [[ $1 == "-Qtdq" ]]; then printf "old-lib\nunused-tool\n"; exit 0; fi; exit 1'
@@ -44,6 +44,22 @@ pass "orphan checker stays quiet without orphans"
 # has to be checked explicitly or gum confirm blocks forever.
 write_stub pacman 'if [[ $1 == "-Qtdq" ]]; then printf "old-lib\n"; exit 0; fi; exit 1'
 write_stub gum 'echo "gum should not be called under -y" >&2; exit 99'
-OMARCHY_UPDATE_UNATTENDED=1 run_orphan_checker >"$test_tmp/unattended.out" 2>"$test_tmp/unattended.err"
+# Match update-package-conflict-test.sh: script gives both streams a PTY.
+# Its command syntax differs on macOS, where these shell tests also run.
+cat >"$test_tmp/terminal.sh" <<'SH'
+[[ -t 0 && -t 1 ]] || exit 70
+exec "$BASH" "$ROOT/bin/omarchy-update-orphan-pkgs"
+SH
+export ORPHAN_PTY_RUNNER="$test_tmp/terminal.sh"
+if [[ $(uname -s) == "Darwin" ]]; then
+  HOME="$test_home" PATH="$stub_bin:$PATH" OMARCHY_UPDATE_UNATTENDED=1 \
+    script -q "$test_tmp/unattended.out" "$BASH" "$ORPHAN_PTY_RUNNER" >/dev/null 2>&1
+else
+  HOME="$test_home" PATH="$stub_bin:$PATH" OMARCHY_UPDATE_UNATTENDED=1 \
+    script -qec 'bash "$ORPHAN_PTY_RUNNER"' "$test_tmp/unattended.out" >/dev/null 2>&1
+fi
+if grep -q 'gum should not be called' "$test_tmp/unattended.out"; then
+  fail "unattended orphan step invoked gum on a terminal"
+fi
 grep -q 'Re-run omarchy-update-orphan-pkgs in a terminal' "$test_tmp/unattended.out" || fail "unattended orphan step must not prompt"
 pass "orphan checker skips the prompt under OMARCHY_UPDATE_UNATTENDED"
