@@ -67,9 +67,16 @@ while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; 
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
-hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
+launch_shell() {
+  hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
+}
 
-for (( attempt = 0; attempt < 20; attempt++ )); do
+launch_shell
+
+# Plugin discovery and first-load QML compilation can take several seconds.
+ready_deadline=$((SECONDS + 30))
+next_launch=$((SECONDS + 2))
+while (( SECONDS < ready_deadline )); do
   if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
     # The session stays compositor-locked after the old lock client died, so
     # re-acquire the lock and let the user authenticate out of it.
@@ -86,6 +93,14 @@ for (( attempt = 0; attempt < 20; attempt++ )); do
     systemctl --user try-restart 'omarchy-*-invitation.service' 2>/dev/null || true
     exit 0
   fi
+
+  # Quickshell can release its IPC target before its singleton lock. A launch
+  # in that gap exits immediately, so retry until one replacement stays up.
+  if (( SECONDS >= next_launch )); then
+    launch_shell
+    next_launch=$((SECONDS + 2))
+  fi
+
   sleep 0.1
 done
 
