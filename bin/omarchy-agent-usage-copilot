@@ -20,13 +20,14 @@ import math
 import os
 import sqlite3
 import stat
+import subprocess
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 AGENT_ID = "copilot"
 AGENT_NAME = "Copilot"
-AUTH_HELP = "Sign in with VS Code, JetBrains, or copilot.vim for quota display; the CLI keeps usage in COPILOT_HOME (~/.copilot by default)"
+AUTH_HELP = "Sign in with VS Code, JetBrains, copilot.vim, or an authenticated gh CLI for quota display; the CLI keeps usage in COPILOT_HOME (~/.copilot by default)"
 
 GITHUB_API_BASE = "https://api.github.com"
 COPILOT_INTERNAL_URL = f"{GITHUB_API_BASE}/copilot_internal/user"
@@ -82,15 +83,36 @@ def format_count(value: Any) -> str:
     return "0"
 
 
+def gh_cli_token() -> str | None:
+  """Fall back to the signed-in gh CLI's token.
+
+  The quota API answers to any GitHub token carrying the seat's Copilot
+  entitlement, so an authenticated gh CLI is enough. That is the common case
+  on a machine driven through the Copilot CLI rather than an editor plugin,
+  where no apps.json/hosts.json/oauth.json exists and quota would otherwise
+  never appear.
+  """
+  try:
+    result = subprocess.run(
+      ["gh", "auth", "token"],
+      capture_output=True, text=True, timeout=10, check=False,
+    )
+  except (OSError, subprocess.SubprocessError):
+    return None
+  token = result.stdout.strip()
+  return token or None
+
+
 def get_oauth_token() -> str | None:
   """Read OAuth token from editor plugin config (VS Code, JetBrains, copilot.vim).
 
   The standalone Copilot CLI stores its local session history under COPILOT_HOME
   (~/.copilot by default), which is separate from the editor plugin auth store.
+  Falls back to the gh CLI's token when no editor plugin config is present.
   """
   max_size = 1_000_000  # 1 MB limit
   if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_NONBLOCK"):
-    return None
+    return gh_cli_token()
   flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
 
   for token_file in COPILOT_TOKEN_FILES:
@@ -120,7 +142,7 @@ def get_oauth_token() -> str | None:
     finally:
       os.close(fd)
 
-  return None
+  return gh_cli_token()
 
 
 def fetch_quota(token: str) -> dict[str, Any] | None:

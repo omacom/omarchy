@@ -242,3 +242,99 @@ result_bounds=$(HOME="$TEST_HOME/empty-home" COPILOT_HOME="$TEST_HOME/bounds-cop
   fail "Copilot collector fails closed on an oversized model name" "$result_bounds"
 pass "Copilot collector fails closed on an oversized model name"
 
+# Test 12: gh CLI fallback populates quota on a CLI-only machine (no
+# apps.json/hosts.json/oauth.json under ~/.config/github-copilot). A fake gh
+# on PATH stands in for a real signed-in gh CLI, and urlopen is mocked the
+# same way Test 9 mocks it, so the only variable under test is token
+# acquisition falling through to `gh auth token`.
+mkdir -p "$TEST_HOME/gh-fallback-home/bin"
+cat >"$TEST_HOME/gh-fallback-home/bin/gh" <<'EOF'
+#!/bin/bash
+if [[ "$1 $2" == "auth token" ]]; then
+  echo "gho_fake_gh_cli_token"
+  exit 0
+fi
+exit 1
+EOF
+chmod +x "$TEST_HOME/gh-fallback-home/bin/gh"
+
+if PATH="$TEST_HOME/gh-fallback-home/bin:$PATH" python3 << PYTEST
+import sys
+import json
+import os
+from unittest.mock import patch, MagicMock
+from io import StringIO
+
+os.environ["HOME"] = "$TEST_HOME/gh-fallback-home"
+os.environ["COPILOT_HOME"] = "$TEST_HOME/gh-fallback-home/.copilot"
+# Deliberately no ~/.config/github-copilot: this is the CLI-only case.
+
+def mock_urlopen(*args, **kwargs):
+    quota_response = {
+        "quota_snapshots": {
+            "premium_interactions": {
+                "quota_type": "premium_interactions",
+                "credits_used": 100,
+                "entitlement": 300,
+                "remaining": 200,
+                "percent_remaining": 66.7,
+                "unlimited": False,
+                "has_quota": True
+            }
+        },
+        "quota_reset_date_utc": "2026-10-01T00:00:00Z"
+    }
+    response = MagicMock()
+    response.__enter__.return_value.read.return_value = json.dumps(quota_response).encode()
+    response.__exit__.return_value = None
+    return response
+
+with patch('urllib.request.urlopen', side_effect=mock_urlopen):
+    with open("$ROOT/bin/omarchy-agent-usage-copilot") as f:
+        collector_code = f.read()
+    if collector_code.startswith("#!"):
+        collector_code = '\n'.join(collector_code.split('\n')[1:])
+
+    old_stdout = sys.stdout
+    sys.stdout = StringIO()
+    try:
+        exec(collector_code, {'__name__': '__main__'})
+        output = sys.stdout.getvalue()
+        sys.stdout = old_stdout
+
+        try:
+            result = json.loads(output)
+        except json.JSONDecodeError as e:
+            print(f"FAIL: Could not parse collector JSON: {e}")
+            print(f"Output was: {output}")
+            sys.exit(1)
+
+        if "limits" not in result or len(result["limits"]) == 0:
+            print(f"FAIL: gh CLI fallback did not populate limits: {result}")
+            sys.exit(1)
+
+        limit = result["limits"][0]
+        if limit.get("used") != 100 or limit.get("total") != 300:
+            print(f"FAIL: Expected used=100 total=300 from gh fallback, got: {limit}")
+            sys.exit(1)
+
+        print("PASS")
+    finally:
+        sys.stdout = old_stdout
+PYTEST
+then
+  pass "Copilot collector falls back to gh CLI token when no editor config exists"
+else
+  fail "Copilot collector gh CLI fallback"
+fi
+
+# Test 13: no editor config and no working gh CLI leaves limits empty rather
+# than crashing. PATH is narrowed to a directory with no gh binary at all, so
+# get_oauth_token must exhaust both the editor-config loop and the gh fallback
+# and return None cleanly.
+mkdir -p "$TEST_HOME/no-gh-home/empty-bin"
+result_no_gh=$(HOME="$TEST_HOME/no-gh-home" COPILOT_HOME="$TEST_HOME/no-gh-home/.copilot" PATH="$TEST_HOME/no-gh-home/empty-bin" "$ROOT/bin/omarchy-agent-usage-copilot")
+[[ $(jq -c '.limits' <<<"$result_no_gh") == "[]" ]] ||
+  fail "Copilot collector leaves limits empty with no editor config and no gh CLI" "$result_no_gh"
+pass "Copilot collector leaves limits empty with no editor config and no gh CLI"
+
