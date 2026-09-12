@@ -244,11 +244,19 @@ Item {
 
       property bool maskReady: false
 
+      // Every output that has decoded the incoming image joins the wipe, even
+      // one that gets there after the animation has started. Each output
+      // decodes its own copy, so requiring revealProgress to still be 0 let
+      // whichever output decoded first claim the reveal and locked the rest
+      // out of it: they kept the old wallpaper and jumped to the new one when
+      // the transition ended. startReveal still restarts the animation only
+      // once per backgroundVersion, so a late output picks up the front where
+      // it already is.
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+        if (!root.incomingBackground || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+          if (!root.incomingBackground || maskReady) return
           if (incomingFrame.status !== Image.Ready) return
           root.startReveal(panel)
         })
@@ -296,7 +304,7 @@ Item {
         layer.smooth: true
         layer.effect: MultiEffect {
           maskEnabled: true
-          maskSource: revealMask
+          maskSource: revealMaskSource
           maskThresholdMin: 0.5
           maskSpreadAtMin: 0.02
         }
@@ -314,11 +322,25 @@ Item {
         }
       }
 
+      // The mask has to stay in the render tree for the wipe to animate. An
+      // item kept out of it with visible: false can change its geometry
+      // without dirtying the window, so an output whose scene is otherwise
+      // static never schedules a frame: it held the old wallpaper for the
+      // whole transition and jumped when the reveal ended. hideSource keeps
+      // the mask off the screen while leaving it live, and the effect samples
+      // it from here instead of from the item's own layer.
+      ShaderEffectSource {
+        id: revealMaskSource
+        anchors.fill: parent
+        sourceItem: revealMask
+        live: true
+        hideSource: true
+        visible: false
+      }
+
       Item {
         id: revealMask
         anchors.fill: parent
-        visible: false
-        layer.enabled: true
 
         readonly property real slant: -0.18
         readonly property real centerTop: width / 2 - slant * height / 2
