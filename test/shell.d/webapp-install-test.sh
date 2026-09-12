@@ -122,3 +122,22 @@ grep -Fq 'must be http or https' "$tmpdir/err" ||
   fail "interactive webapp install refuses before fetching the URL" "$(cat "$tmpdir/curl-log")"
 [[ ! -e $(desktop_for Evil) ]] || fail "interactive webapp install writes no desktop file"
 pass "interactive webapp install refuses a bad URL before fetching it"
+
+# A missing favicon is not a reason to refuse an otherwise valid launcher.
+for icon in "" "https://example.com/missing.png"; do
+  CURL_LOG="$tmpdir/curl-log" PATH="$stubs:$PATH" install_webapp "Fallback" "https://example.com" "$icon"
+  grep -Fxq 'Icon=web-browser' "$(desktop_for Fallback)" || fail "failed icon download uses a generic icon"
+done
+pass "automatic and explicit icon download failures still install"
+
+CURL_LOG="$tmpdir/curl-log" PATH="$stubs:$PATH" install_webapp "Optional" "https://example.com"
+grep -Fxq 'Icon=web-browser' "$(desktop_for Optional)" || fail "two-argument install accepts an omitted icon"
+pass "webapp icon argument is optional"
+
+printf 'Interactive\nhttps://example.com\n' >"$tmpdir/answers"
+printf '0\n' >"$tmpdir/gum-count"
+GUM_ANSWERS="$tmpdir/answers" GUM_COUNT="$tmpdir/gum-count" CURL_LOG="$tmpdir/curl-log" \
+  PATH="$stubs:$PATH" HOME="$home" "$ROOT/bin/omarchy-webapp-install"
+grep -Fxq 'Icon=web-browser' "$(desktop_for Interactive)" || fail "interactive install uses a generic icon"
+[[ $(cat "$tmpdir/gum-count") == "2" ]] || fail "interactive install must not request a replacement icon"
+pass "interactive favicon failure installs without another prompt"
