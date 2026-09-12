@@ -57,6 +57,8 @@ ShellRoot {
   property var shellConfig: builtinShellConfig
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  // One-shot notice that Qt.clearComponentCache is not a QML API (issue #10568).
+  property bool warnedMissingComponentCacheClear: false
 
   Timer {
     id: localPluginReloadTimer
@@ -1456,7 +1458,17 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
-    if (typeof Qt.clearComponentCache === "function") Qt.clearComponentCache()
+    // QQmlEngine::clearComponentCache is C++-only; the QML Qt object never
+    // exposes it (typeof is always "undefined", issue #10568). Advance the
+    // entry-point URL epoch so Loaders re-read plugin QML from disk instead of
+    // reusing the previous compiled component.
+    shell.pluginRegistry.componentCacheEpoch++
+    if (typeof Qt.clearComponentCache === "function") {
+      Qt.clearComponentCache()
+    } else if (!shell.warnedMissingComponentCacheClear) {
+      console.warn("Plugin hot-reload: Qt.clearComponentCache is unavailable on the QML Qt object; busting component URLs instead. If an edit still looks stale after reload, run: omarchy restart shell")
+      shell.warnedMissingComponentCacheClear = true
+    }
     shell.pluginRegistry.rescan()
   }
 
