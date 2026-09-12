@@ -3,6 +3,8 @@ module qs.Ui
 BarIndicator 1.0 BarIndicator.qml
 BarIconButton 1.0 BarIconButton.qml
 BarWidget 1.0 BarWidget.qml
+BackgroundMedia 1.0 BackgroundMedia.qml
+BackgroundVideo 1.0 BackgroundVideo.qml
 BorderOverlay 1.0 BorderOverlay.qml
 BorderSurface 1.0 BorderSurface.qml
 Button 1.0 Button.qml
@@ -23,6 +25,7 @@ PanelSectionHeader 1.0 PanelSectionHeader.qml
 PanelSeparator 1.0 PanelSeparator.qml
 PanelSlider 1.0 PanelSlider.qml
 PanelToolTip 1.0 PanelToolTip.qml
+PluginBarApi 1.0 PluginBarApi.qml
 PointerMoveGate 1.0 PointerMoveGate.qml
 ScreenMoveRemap 1.0 ScreenMoveRemap.qml
 PopupCard 1.0 PopupCard.qml
