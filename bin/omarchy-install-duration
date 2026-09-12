@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Print how long the original Omarchy installation took
+# omarchy:hidden=true
+
+timing_file=${OMARCHY_INSTALL_TIMING_FILE:-/var/log/omarchy-install-timing.json}
+
+[[ -r $timing_file ]] || exit 0
+
+duration=$(jq -ser '
+  select(length == 1)
+  | .[0]
+  | select(
+    (.started_at | type) == "number" and
+    (.finished_at | type) == "number" and
+    .started_at > 0 and
+    .finished_at >= .started_at
+  )
+  | ((.finished_at - .started_at) | round) as $seconds
+  | if $seconds >= 3600 then
+      "\($seconds / 3600 | floor)h \($seconds % 3600 / 60 | floor)m \($seconds % 60)s"
+    elif $seconds >= 60 then
+      "\($seconds / 60 | floor)m \($seconds % 60)s"
+    else
+      "\($seconds)s"
+    end
+' "$timing_file" 2>/dev/null) || exit 0
+
+printf '%s\n' "$duration"
