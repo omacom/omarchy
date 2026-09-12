@@ -2,6 +2,8 @@
 
 [Foot](https://codeberg.org/dnkl/foot) is the default terminal for Omarchy. It's fast, lightweight, and compatible with even old computers. It does not, however, support native tabs or splits.
 
+The mouse pointer stays an arrow over the terminal rather than turning into an I-beam. Omarchy's shell setup asks the terminal for that with an escape sequence (OSC 22) that foot, Ghostty, and kitty understand; a terminal that doesn't simply ignores it. To get the I-beam back, run `printf '\e]22;\a'` in that window, or remove the block from `$OMARCHY_PATH/default/bash/shell` in your own bash setup.
+
 If you use Tmux, you may not mind, but if not, we fully support _Alacritty_, _Ghostty_, and _Kitty_ as options as well. Pick your preference under _Install > Terminal_ in the Omarchy menu.
 
 You start a new terminal using `Super + Return`. (This binding will automatically point to whichever Terminal you've installed via _Install > Terminal_, and you can switch between installed terminals under _Setup > Defaults > Terminal_.)
