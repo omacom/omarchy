@@ -259,10 +259,11 @@ When user requests system changes:
 
 ### Reminder Requests
 
-When the user asks to set a reminder, use `omarchy reminder <minutes> [message]` directly. Convert natural language durations to minutes and title-case short reminder labels when appropriate.
+When the user asks to set a reminder, use `omarchy reminder <minutes|HH:MM> [message]` directly. Convert natural language durations to minutes, keep clock times as `HH:MM` (or a 12-hour form like `5pm`), and title-case short reminder labels when appropriate.
 
 ```bash
 omarchy reminder 15 "Pickup Jack"
+omarchy reminder 17:00 "Pickup Jack"
 omarchy reminder 60 "Check laundry"
 omarchy reminder show
 omarchy reminder clear
@@ -283,6 +284,7 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua`
 - "Turn on night light" -> `omarchy toggle nightlight` (for time-based schedules, edit `~/.config/hypr/hyprsunset.conf` profiles, then `omarchy restart hyprsunset`)
 - "Set a reminder to pickup jack in 15 minutes" -> `omarchy reminder 15 "Pickup Jack"`
+- "Remind me at 17:00 to pickup jack" -> `omarchy reminder 17:00 "Pickup Jack"`
 - "Show my reminders" -> `omarchy reminder show`
 - "Clear all reminders" -> `omarchy reminder clear`
 - "Customize the catppuccin theme colors" -> Overlay: put an edited `colors.toml` in `~/.config/omarchy/themes/catppuccin/`, then re-apply the theme (see `theming.md`)
