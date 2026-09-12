@@ -584,15 +584,32 @@ def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
 # messages and merge the result into whatever the transcript scan found.
 
 
+def imported_opencode_rows(path: Path):
+  with path.open(encoding="utf-8", errors="strict") as handle:
+    for line in handle:
+      try:
+        wrapper = json.loads(line)
+        session_id = wrapper.get("sessionId") if isinstance(wrapper, dict) else None
+        entry = wrapper.get("data") if isinstance(wrapper, dict) else None
+        if not isinstance(session_id, str) or not isinstance(entry, dict):
+          continue
+        yield session_id, entry
+      except (ValueError, UnicodeError):
+        continue
+
+
 def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
+  imported_root = os.environ.get("OMARCHY_AGENT_SOURCE_ROOT")
+  imported = Path(imported_root) / ".opencode" / "messages.jsonl" if imported_root else None
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
-  if not db.is_file():
+  source = imported if imported is not None and imported.is_file() else db
+  if not source.is_file():
     return None
 
   # Same freshness contract as the transcript scan: --limits-only promises to
   # reuse recent local stats, and a big opencode history walked on every panel
   # open would break that promise.
-  cache_file = cache_root() / f"claude-opencode-{hashlib.sha1(str(db).encode('utf-8')).hexdigest()[:16]}.json"
+  cache_file = cache_root() / f"claude-opencode-{hashlib.sha1(str(source).encode('utf-8')).hexdigest()[:16]}.json"
   cached = read_fresh_json(cache_file, max_age_seconds)
   if isinstance(cached, dict) and cached.get("collectorRevision") == SCAN_CACHE_REVISION \
       and cached.get("scanDate") == local_date_string():
@@ -611,18 +628,20 @@ def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
   today_token_total = 0
   daily = daily_contract()
 
+  conn = None
   try:
-    # Read-only: opencode may be writing right now.
-    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
-  except sqlite3.Error:
-    return None
-  try:
-    conn.execute("PRAGMA query_only = ON")
-    for session_id, raw in conn.execute("SELECT session_id, data FROM message"):
+    if imported is not None and imported.is_file():
+      rows = imported_opencode_rows(imported)
+    else:
+      # Read-only: opencode may be writing right now.
+      conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+      conn.execute("PRAGMA query_only = ON")
+      rows = conn.execute("SELECT session_id, data FROM message")
+    for session_id, raw in rows:
       # One malformed row must not abort the scan, so every shape assumption
       # lives inside the try.
       try:
-        entry = json.loads(raw)
+        entry = json.loads(raw) if isinstance(raw, str) else raw
         # Exact match: opencode provider ids are free-form, and a custom
         # "anthropic-proxy" gateway is not this subscription.
         if not isinstance(entry, dict) or entry.get("role") != "assistant":
@@ -678,10 +697,11 @@ def scan_opencode_usage(max_age_seconds: float) -> dict[str, Any] | None:
         today_sessions.add(session_key)
         today_token_total += total
         today_tokens[model] = today_tokens.get(model, 0) + total
-  except sqlite3.Error:
+  except (OSError, sqlite3.Error):
     return None
   finally:
-    conn.close()
+    if conn is not None:
+      conn.close()
 
   stats = None
   if prompts > 0:

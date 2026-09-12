@@ -5,10 +5,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import shutil
 import tempfile
 import time
+
+from opencode import OpenCodeSourceError, QUERY_TIMEOUT_SECONDS, query_messages
 
 ROOTS = ('.codex/sessions', '.codex/archived_sessions', '.claude/projects',
          '.pi/agent/sessions', '.omp/agent/sessions', '.kimi/sessions')
@@ -18,6 +21,13 @@ TOKEN_KEYS = ('input_tokens', 'output_tokens', 'cached_input_tokens', 'cache_rea
               'inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens',
               'input_other', 'input_cache_read', 'input_cache_creation')
 TARIFF_KEYS = ('service_tier', 'speed', 'fast_mode', 'cache_duration', 'inference_geo')
+OPENCODE_SOURCE = '.local/share/opencode/opencode.db'
+OPENCODE_WAL_SOURCE = OPENCODE_SOURCE + '-wal'
+OPENCODE_METADATA = '.opencode/messages.jsonl'
+CLAUDE_AGGREGATE_SOURCE = '.claude/aggregate-history'
+CLAUDE_AGGREGATE_FILES = ('.claude/stats-cache.json', '.claude/history.jsonl')
+MAX_AGGREGATE_BYTES = 8 * 1024 * 1024
+MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 
 class ImportContinuing(InterruptedError):
@@ -36,6 +46,12 @@ class WorkBudget:
   def check(self):
     if time.monotonic() >= self.deadline:
       raise ImportContinuing(self.progress)
+
+  def seconds_left(self):
+    remaining = self.deadline - time.monotonic()
+    if remaining <= 0:
+      raise ImportContinuing(self.progress)
+    return remaining
 
   def read(self, remote, path, offset=0, length=32768, exact=False):
     self.check()
@@ -197,6 +213,159 @@ def digest(data):
   return hashlib.sha256(data).hexdigest()
 
 
+def remote_regular_attrs(remote, root, relative, check=lambda: None):
+  path = root
+  parts = relative.split('/')
+  for index, component in enumerate(parts):
+    check()
+    path += '/' + component
+    attrs = remote.attrs(path)
+    mode = attrs.get('mode', 0)
+    if index < len(parts) - 1:
+      if not stat.S_ISDIR(mode):
+        raise OSError('Optional source parent is a symlink or special file')
+    else:
+      check()
+      if not stat.S_ISREG(mode) or remote.realpath(path) != path:
+        raise OSError('Optional source is a symlink or special file')
+  return attrs
+
+
+def source_signature(attrs):
+  if attrs is None:
+    return None
+  return {key: attrs.get(key) for key in ('size', 'mtime', 'mode')}
+
+
+def opencode_metadata_current(cache, attrs, wal_attrs):
+  destination = cache / 'sources' / OPENCODE_METADATA
+  state = read_json(cache / 'positions' / (digest(OPENCODE_SOURCE.encode()) + '.json'), {})
+  try:
+    payload = destination.read_bytes()
+  except FileNotFoundError:
+    return False
+  return (state.get('database') == source_signature(attrs)
+          and state.get('wal') == source_signature(wal_attrs)
+          and state.get('metadataDigest') == digest(payload))
+
+
+def write_opencode_metadata(cache, rows, attrs, wal_attrs):
+  destination = cache / 'sources' / OPENCODE_METADATA
+  state_path = cache / 'positions' / (digest(OPENCODE_SOURCE.encode()) + '.json')
+  payload = b''.join((json.dumps(row, separators=(',', ':'), allow_nan=False) + '\n').encode() for row in rows)
+  unchanged = False
+  try:
+    if destination.read_bytes() == payload:
+      unchanged = True
+  except FileNotFoundError:
+    pass
+  if not unchanged:
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, temporary = tempfile.mkstemp(dir=destination.parent, prefix='.opencode-')
+    try:
+      with os.fdopen(fd, 'wb') as output:
+        output.write(payload)
+      os.utime(temporary, (attrs.get('mtime', 0), attrs.get('mtime', 0)))
+      os.replace(temporary, destination)
+    finally:
+      if os.path.exists(temporary):
+        os.unlink(temporary)
+  write_json(state_path, {'database': source_signature(attrs), 'wal': source_signature(wal_attrs),
+                          'metadataDigest': digest(payload)})
+  return not unchanged
+
+
+def safe_count(value):
+  return value if type(value) is int and 0 <= value <= MAX_SAFE_INTEGER else None
+
+
+def claude_stats_metadata(raw):
+  try:
+    data = json.loads(raw, parse_constant=reject_json_constant)
+  except (ValueError, UnicodeError) as error:
+    raise ValueError('Invalid Claude aggregate metadata') from error
+  if not isinstance(data, dict):
+    raise ValueError('Claude aggregate metadata must be an object')
+  result = {}
+  for key in ('totalMessages', 'totalSessions'):
+    if key in data:
+      result[key] = safe_count(data[key])
+  daily_tokens = data.get('dailyModelTokens', [])
+  if not isinstance(daily_tokens, list) or len(daily_tokens) > 10_000:
+    raise ValueError('Unsupported Claude daily aggregate metadata')
+  result['dailyModelTokens'] = []
+  for entry in daily_tokens:
+    if not isinstance(entry, dict) or not isinstance(entry.get('tokensByModel'), dict):
+      raise ValueError('Unsupported Claude daily aggregate entry')
+    date = entry.get('date')
+    if not isinstance(date, str) or len(date) > 32 or len(entry['tokensByModel']) > 1_000:
+      raise ValueError('Unsupported Claude daily aggregate key')
+    models = {}
+    for model, count in entry['tokensByModel'].items():
+      if not isinstance(model, str) or not model or len(model) > 256:
+        raise ValueError('Unsupported Claude aggregate model')
+      models[model] = safe_count(count)
+    result['dailyModelTokens'].append({'date': date, 'tokensByModel': models})
+  model_usage = data.get('modelUsage', {})
+  if not isinstance(model_usage, dict) or len(model_usage) > 1_000:
+    raise ValueError('Unsupported Claude model aggregate metadata')
+  result['modelUsage'] = {}
+  for model, values in model_usage.items():
+    if (not isinstance(model, str) or not model or len(model) > 256
+        or not isinstance(values, dict)):
+      raise ValueError('Unsupported Claude model aggregate entry')
+    result['modelUsage'][model] = {key: safe_count(values.get(key)) for key in
+      ('inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens')}
+  activity = data.get('dailyActivity', [])
+  if not isinstance(activity, list) or len(activity) > 10_000:
+    raise ValueError('Unsupported Claude activity metadata')
+  result['dailyActivity'] = []
+  for entry in activity:
+    if not isinstance(entry, dict) or not isinstance(entry.get('date'), str) or len(entry['date']) > 32:
+      raise ValueError('Unsupported Claude activity entry')
+    result['dailyActivity'].append({'date': entry['date'], 'messageCount': safe_count(entry.get('messageCount'))})
+  return (json.dumps(result, separators=(',', ':'), allow_nan=False) + '\n').encode()
+
+
+def sync_json_file(remote, path, attrs, relative, cache, budget):
+  state_path = cache / 'positions' / (digest(relative.encode()) + '.json')
+  destination = cache / 'sources' / relative
+  state = read_json(state_path, {})
+  size, mtime = attrs['size'], attrs.get('mtime', 0)
+  if (size == state.get('size') and mtime == state.get('mtime') and state.get('mode') == attrs.get('mode')
+      and destination.exists() and digest(destination.read_bytes()) == state.get('metadataDigest')):
+    return False
+  if size > MAX_AGGREGATE_BYTES:
+    raise ValueError('Claude aggregate metadata exceeds the 8 MiB read limit')
+  raw = bytearray()
+  while len(raw) < size:
+    block = budget.read(remote, path, len(raw), min(1024 * 1024, size - len(raw)), exact=True)
+    if not block:
+      raise OSError('Claude aggregate source changed during transfer')
+    raw.extend(block)
+  budget.check()
+  payload = claude_stats_metadata(bytes(raw))
+  budget.check()
+  after = remote.attrs(path)
+  if after.get('size') != size or after.get('mtime') != mtime:
+    raise OSError('Claude aggregate source was replaced during transfer')
+  destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+  old_payload = destination.read_bytes() if destination.exists() else None
+  fd, temporary = tempfile.mkstemp(dir=destination.parent, prefix='.claude-aggregate-')
+  try:
+    with os.fdopen(fd, 'wb') as output:
+      output.write(payload)
+    os.utime(temporary, (mtime, mtime))
+    os.replace(temporary, destination)
+    write_json(state_path, {'size': size, 'mtime': mtime, 'mode': attrs.get('mode'),
+                            'metadataDigest': digest(payload)})
+    budget.progress = True
+  finally:
+    if os.path.exists(temporary):
+      os.unlink(temporary)
+  return old_payload != payload
+
+
 def sync_file(remote, path, attrs, relative, cache, budget):
   key = digest(relative.encode())
   state_path = cache / 'positions' / (key + '.json')
@@ -211,7 +380,7 @@ def sync_file(remote, path, attrs, relative, cache, budget):
   if (not progress and state.get('stable') and size == state.get('size') and mtime == state.get('mtime')
       and state.get('mode') == attrs.get('mode') and (offset == size or state.get('partialLine'))
       and destination.exists() and destination.stat().st_size == state.get('metadataSize')):
-    return False
+    return False, state.get('invalidRecords', 0)
   head = budget.read(remote, path, length=min(size, 4096), exact=True)
   old_head_length = state.get('headLength', 0)
   tail = budget.read(remote, path, max(0, offset - 4096), min(offset, 4096), exact=True) if offset else b''
@@ -229,7 +398,7 @@ def sync_file(remote, path, attrs, relative, cache, budget):
     after = remote.attrs(path)
     if all(after.get(key) == attrs.get(key) for key in ('size', 'mtime', 'mode')):
       write_json(state_path, dict(state, stable=mtime < time.time() - 2))
-      return False
+      return False, state.get('invalidRecords', 0)
   working.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
   if append and candidate != working:
     shutil.copyfile(candidate, working)
@@ -240,6 +409,8 @@ def sync_file(remote, path, attrs, relative, cache, budget):
     offset, metadata_size = 0, 0
   consumed = offset
   tail_buffer = tail if append else b''
+  invalid_records = state.get('invalidRecords', 0) if append else 0
+  valid_records = state.get('validRecords', 0) if append else 0
   try:
     with working.open('r+b') as output:
       # Any bytes appended before a crash but not described by the atomic
@@ -250,7 +421,8 @@ def sync_file(remote, path, attrs, relative, cache, budget):
       cursor = offset
       checkpoint = dict(state, offset=offset, size=size, mtime=mtime, mode=attrs.get('mode'),
                         headLength=min(len(head), offset), head=digest(head[:min(len(head), offset)]),
-                        tail=digest(tail_buffer), metadataSize=metadata_size)
+                        tail=digest(tail_buffer), metadataSize=metadata_size,
+                        invalidRecords=invalid_records, validRecords=valid_records)
       while cursor < size:
         block = budget.read(remote, path, cursor, min(1024 * 1024, size - cursor))
         if not block:
@@ -262,7 +434,14 @@ def sync_file(remote, path, attrs, relative, cache, budget):
         for line in lines:
           if len(line) > 16 * 1024 * 1024:
             raise OSError('Usage record exceeds the 16 MiB read limit')
-          output.write(metadata(line, relative))
+          try:
+            output.write(metadata(line, relative))
+            valid_records += 1
+          except ValueError:
+            # Match the local collectors: one malformed complete record is a
+            # coverage gap, not an instruction to hide every later record in
+            # the same append-only history.
+            invalid_records += 1
           consumed += len(line) + 1
           tail_buffer = (tail_buffer + line + b'\n')[-4096:]
         if len(pending) > 16 * 1024 * 1024:
@@ -270,19 +449,33 @@ def sync_file(remote, path, attrs, relative, cache, budget):
         output.flush()
         checkpoint = {'offset': consumed, 'size': size, 'mtime': mtime, 'mode': attrs.get('mode'),
                       'headLength': min(len(head), consumed), 'head': digest(head[:min(len(head), consumed)]),
-                      'tail': digest(tail_buffer), 'metadataSize': output.tell()}
+                      'tail': digest(tail_buffer), 'metadataSize': output.tell(),
+                      'invalidRecords': invalid_records, 'validRecords': valid_records}
         write_json(progress_path, checkpoint)
         budget.progress = budget.progress or consumed > offset
     budget.check()
     after = remote.attrs(path)
     if after.get('size', 0) < size or after.get('size') == size and after.get('mtime') != mtime:
       raise OSError('Usage source was replaced during transfer; retrying next refresh')
+    if not append and invalid_records and not valid_records and destination.exists():
+      # A wholly invalid replacement proves neither deletion nor zero usage.
+      # Retain the last verified sanitized contribution and retry the source;
+      # mixed files still commit valid records after their malformed lines.
+      progress_path.unlink(missing_ok=True)
+      working.unlink(missing_ok=True)
+      return False, invalid_records
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # Codex's established legacy window uses source mtime. Apply it only to a
+    # fully processed candidate immediately before atomic promotion; progress
+    # checkpoints keep their local working-file timestamps.
+    os.utime(working, (mtime, mtime))
     os.replace(working, destination)
-    write_json(state_path, dict(checkpoint, stable=mtime < time.time() - 2, partialLine=consumed < size))
+    write_json(state_path, dict(checkpoint, stable=mtime < time.time() - 2,
+                                partialLine=consumed < size, invalidRecords=invalid_records,
+                                validRecords=valid_records))
     progress_path.unlink(missing_ok=True)
-    return True
-  except InterruptedError:
+    return True, invalid_records
+  except ImportContinuing:
     raise
   except (OSError, ValueError):
     # Source corruption invalidates tentative progress; a transport failure
@@ -322,7 +515,12 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
     present.add(relative)
     budget.check()
     try:
-      changed = sync_file(remote, path, attrs, relative, cache, budget) or changed
+      file_changed, invalid_records = sync_file(remote, path, attrs, relative, cache, budget)
+      changed = file_changed or changed
+      if invalid_records:
+        directory = next(directory for directory in ROOTS if relative.startswith(directory + '/'))
+        reason = f'{invalid_records} malformed complete JSONL record(s) skipped; later valid metadata retained'
+        failed[directory] = '; '.join(filter(None, (failed.get(directory), reason)))
     except InterruptedError:
       raise
     except (OSError, ValueError):
@@ -335,6 +533,8 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
   if source_root.exists():
     for path in source_root.rglob('*.jsonl'):
       relative = str(path.relative_to(source_root))
+      if relative in (OPENCODE_METADATA, '.claude/history.jsonl'):
+        continue
       if relative not in present and not any(relative.startswith(directory + '/') for directory in failed):
         path.unlink()
         changed = True
@@ -346,23 +546,95 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
     else:
       # This is the last verified source pass, not the file-change time.
       source_states[directory] = {'status': 'current', 'lastSuccess': verified_at}
-  issues = [directory + ': ' + reason for directory, reason in failed.items()]
+  optional_failures = {}
+  opencode_metadata = source_root / OPENCODE_METADATA
+  opencode_position = cache / 'positions' / (digest(OPENCODE_SOURCE.encode()) + '.json')
   try:
-    remote.attrs(root + '/.local/share/opencode/opencode.db')
-    issues.append('Remote OpenCode databases are not supported; local usage remains available')
+    attrs = remote_regular_attrs(remote, root, OPENCODE_SOURCE, budget.check)
+  except ImportContinuing:
+    raise
   except FileNotFoundError:
-    pass
+    if opencode_metadata.exists():
+      opencode_metadata.unlink()
+      changed = True
+    if opencode_position.exists():
+      opencode_position.unlink()
+    source_states.pop(OPENCODE_SOURCE, None)
   except OSError:
-    # This optional probe must not discard usage already read from native logs.
-    issues.append('Could not check optional OpenCode data')
-  if not any(relative.startswith('.claude/') for _, _, relative in inventory):
+    optional_failures[OPENCODE_SOURCE] = 'OpenCode database could not be checked safely; last known metadata retained'
+  else:
+    wal_checked = True
     try:
-      remote.attrs(root + '/.claude/stats-cache.json')
-      issues.append('Claude aggregate-only history is not supported remotely; native project logs are required')
+      wal_attrs = remote_regular_attrs(remote, root, OPENCODE_WAL_SOURCE, budget.check)
+    except ImportContinuing:
+      raise
     except FileNotFoundError:
-      pass
+      wal_attrs = None
     except OSError:
-      issues.append('Could not check optional Claude aggregate history')
+      wal_checked = False
+      optional_failures[OPENCODE_SOURCE] = 'OpenCode WAL state could not be checked safely; last known metadata retained'
+    if wal_checked:
+      try:
+        if not opencode_metadata_current(cache, attrs, wal_attrs):
+          try:
+            rows = query_messages(remote.target, root + '/' + OPENCODE_SOURCE,
+                                  timeout=min(QUERY_TIMEOUT_SECONDS, budget.seconds_left()))
+          except OpenCodeSourceError:
+            # If the enclosing cooperative deadline expired, continue the
+            # import rather than misreporting the optional source as broken.
+            budget.check()
+            raise
+          budget.check()
+          changed = write_opencode_metadata(cache, rows, attrs, wal_attrs) or changed
+        source_states[OPENCODE_SOURCE] = {'status': 'current', 'lastSuccess': verified_at}
+      except ImportContinuing:
+        raise
+      except (OpenCodeSourceError, OSError, ValueError):
+        optional_failures[OPENCODE_SOURCE] = ('OpenCode database requires existing compatible sqlite3, JSON functions, '
+                                              'schema, SSH commands, and bounded read-only access; last known metadata retained')
+  for source, reason in optional_failures.items():
+    old = source_states.get(source, {})
+    source_states[source] = dict(old, status='stale' if old.get('lastSuccess') else 'unavailable')
+  aggregate_present = False
+  aggregate_failures = []
+  for relative in CLAUDE_AGGREGATE_FILES:
+    destination = source_root / relative
+    try:
+      attrs = remote_regular_attrs(remote, root, relative, budget.check)
+    except ImportContinuing:
+      raise
+    except FileNotFoundError:
+      if destination.exists():
+        destination.unlink()
+        changed = True
+      continue
+    except OSError:
+      aggregate_failures.append(relative + ' could not be checked safely')
+      continue
+    aggregate_present = True
+    try:
+      if relative.endswith('.jsonl'):
+        file_changed, invalid_records = sync_file(remote, root + '/' + relative, attrs, relative, cache, budget)
+        changed = file_changed or changed
+        if invalid_records:
+          aggregate_failures.append(f'{relative} has {invalid_records} malformed complete JSONL record(s)')
+      else:
+        changed = sync_json_file(remote, root + '/' + relative, attrs, relative, cache, budget) or changed
+    except ImportContinuing:
+      raise
+    except (OSError, ValueError):
+      aggregate_failures.append(relative + ' could not be read or parsed')
+  if aggregate_failures:
+    optional_failures[CLAUDE_AGGREGATE_SOURCE] = ('Claude aggregate metadata unavailable: '
+      + '; '.join(aggregate_failures) + '; last known metadata retained')
+    old = source_states.get(CLAUDE_AGGREGATE_SOURCE, {})
+    source_states[CLAUDE_AGGREGATE_SOURCE] = dict(
+      old, status='stale' if old.get('lastSuccess') else 'unavailable')
+  elif aggregate_present:
+    source_states[CLAUDE_AGGREGATE_SOURCE] = {'status': 'current', 'lastSuccess': verified_at}
+  else:
+    source_states.pop(CLAUDE_AGGREGATE_SOURCE, None)
+  issues = [directory + ': ' + reason for directory, reason in {**failed, **optional_failures}.items()]
   day = time.strftime('%Y-%m-%d')
   timezone = {'names': list(time.tzname), 'offset': time.timezone, 'dstOffset': time.altzone,
               'spec': os.environ.get('TZ')}
@@ -385,11 +657,17 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
                                    'sourceVersion': source_version, 'providers': providers, 'sources': source_states,
                                    'collectors': collector_states, 'collectorFailures': collector_failures})
   result = deepcopy(providers)
-  for provider, directories in {
+  for provider, base_directories in {
       'codex': ('.codex/sessions', '.codex/archived_sessions', '.pi/agent/sessions', '.omp/agent/sessions'),
       'claude': ('.claude/projects', '.pi/agent/sessions', '.omp/agent/sessions'),
       'kimi': ('.kimi/sessions',)}.items():
-    source_issues = [directory + ': ' + failed[directory] for directory in directories if directory in failed]
+    directories = base_directories + ((OPENCODE_SOURCE,) if provider in ('codex', 'claude')
+                                      and OPENCODE_SOURCE in source_states else ())
+    if provider == 'claude' and CLAUDE_AGGREGATE_SOURCE in source_states:
+      directories += (CLAUDE_AGGREGATE_SOURCE,)
+    source_failures = {**failed, **optional_failures}
+    source_issues = [directory + ': ' + source_failures[directory]
+                     for directory in directories if directory in source_failures]
     if provider in collector_failures:
       source_issues.append(provider + ': ' + collector_failures[provider])
       issues.append(source_issues[-1])
@@ -401,7 +679,8 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
     record['remoteCollector'] = collector_states.get(provider, {})
     for reason in record['dailyUsage'].get('issues', []):
       issues.append(provider + ': ' + reason)
-    record['remoteSources'] = {directory: source_states[directory] for directory in directories}
+    record['remoteSources'] = {directory: source_states[directory] for directory in directories
+                               if directory in source_states}
     if source_issues:
       record['dailyUsage']['complete'] = False
       record['dailyUsage']['issues'] = record['dailyUsage'].get('issues', []) + source_issues

@@ -125,7 +125,7 @@ def tariff_attributes(*records):
   for record in records:
     if not isinstance(record, dict):
       continue
-    for key in ("service_tier", "speed", "fast_mode", "cache_duration"):
+    for key in ("service_tier", "speed", "fast_mode", "cache_duration", "inference_geo"):
       if key in record and record[key] is not None:
         result[key] = record[key]
   return result
@@ -297,6 +297,20 @@ def scan_pi_sessions():
       daily_issue("source-scan-incomplete")
 
 
+def imported_opencode_rows(path):
+  with path.open(encoding="utf-8", errors="strict") as handle:
+    for line in handle:
+      try:
+        wrapper = json.loads(line)
+        session_id = wrapper.get("sessionId") if isinstance(wrapper, dict) else None
+        entry = wrapper.get("data") if isinstance(wrapper, dict) else None
+        if not isinstance(session_id, str) or not isinstance(entry, dict):
+          raise ValueError("invalid imported OpenCode metadata")
+        yield session_id, entry
+      except (ValueError, UnicodeError):
+        daily_issue("source-scan-incomplete")
+
+
 def scan_opencode_sessions():
   # A subscription burned entirely through opencode leaves no native session
   # files, but opencode records per-message provider, model, and token usage
@@ -304,15 +318,18 @@ def scan_opencode_sessions():
   # Returns whether the scan ran to completion: a scan cut short by a
   # database error still contributes what it read, but must not be cached
   # as if it were the whole story.
-  db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
-  if not db.is_file():
-    return True
+  imported_root = os.environ.get("OMARCHY_AGENT_SOURCE_ROOT")
+  imported = Path(imported_root) / ".opencode" / "messages.jsonl" if imported_root else None
+  conn = None
   try:
-    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
-  except sqlite3.Error:
-    return False
-  try:
-    conn.execute("PRAGMA query_only = ON")
+    if imported is not None and imported.is_file():
+      rows = imported_opencode_rows(imported)
+    else:
+      db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
+      if not db.is_file():
+        return True
+      conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+      conn.execute("PRAGMA query_only = ON")
     # OpenCode DBs grow huge (every historical message, JSON included), and
     # Python-side json.loads of every row wasted ~600 MB of RSS on machines
     # whose subscription never ran on OpenAI. The json_extract conditions are
@@ -335,17 +352,18 @@ def scan_opencode_sessions():
     #     well-formed JSON are skipped here; the per-row try/except below
     #     stays as the final safety net for rows that pass the SQL filter
     #     but fail json.loads.
-    for session_id, raw in conn.execute(
-      "SELECT session_id, data FROM message"
-      " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
-      " AND data LIKE '%\"providerID\"%:%\"openai\"%'"
-      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
-      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'openai'"
-    ):
+      rows = conn.execute(
+        "SELECT session_id, data FROM message"
+        " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
+        " AND data LIKE '%\"providerID\"%:%\"openai\"%'"
+        " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+        " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'openai'"
+      )
+    for session_id, raw in rows:
       # One malformed row must not abort the scan, so every shape assumption
       # lives inside the try.
       try:
-        entry = json.loads(raw)
+        entry = json.loads(raw) if isinstance(raw, str) else raw
         # Exact match: opencode provider ids are free-form, and a custom
         # "openai-local" gateway is not this subscription.
         if not isinstance(entry, dict) or entry.get("role") != "assistant":
@@ -382,12 +400,13 @@ def scan_opencode_sessions():
                 cache_read, cache_write, daily_source="opencode", raw_model=raw_model,
                 daily_tokens=daily_tokens, daily_total=daily_total,
                 tariff=tariff_attributes(entry, tokens))
-  except sqlite3.Error:
+  except (OSError, sqlite3.Error):
     # Transient lock, schema migration, corruption: the numbers stop here,
     # incomplete.
     return False
   finally:
-    conn.close()
+    if conn is not None:
+      conn.close()
   return True
 
 
@@ -493,7 +512,7 @@ def scan_native_codex_sessions():
             raw_model = payload.get("model", payload.get("model_slug"))
             current_model = raw_model if isinstance(raw_model, str) and raw_model.strip() else None
             current_tariff = {key: payload[key] for key in
-                              ("service_tier", "speed", "fast_mode", "cache_duration")
+                              ("service_tier", "speed", "fast_mode", "cache_duration", "inference_geo")
                               if key in payload and payload[key] is not None}
             continue
           if entry.get("type") == "response_item":
@@ -654,7 +673,7 @@ def scan_native_codex_sessions():
       issues.append("unverified-token-categories")
     tariff = dict(current_tariff)
     for source in (info, observed_last if isinstance(observed_last, dict) else {}):
-      for key in ("service_tier", "speed", "fast_mode", "cache_duration"):
+      for key in ("service_tier", "speed", "fast_mode", "cache_duration", "inference_geo"):
         if key in source and source[key] is not None:
           tariff[key] = source[key]
     bucket = {
