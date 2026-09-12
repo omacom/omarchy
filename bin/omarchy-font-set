@@ -47,12 +47,18 @@ if [[ -f ~/.config/ghostty/config ]]; then
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
-  # Preserve the primary font's size, not a fallback's; Omarchy ships 9 when none is present.
-  foot_size="$(sed -n 's/^font=[^,]*:size=\([0-9.]\+\).*/\1/p' ~/.config/foot/foot.ini | head -1)"
-  if [[ -z $foot_size ]]; then
-    foot_size=9
-  fi
-  sed -i "s/^font=.*/font=$font_name:size=$foot_size/g" ~/.config/foot/foot.ini
+  sed -i -E "s/^font=[^:]+/font=$font_name/" ~/.config/foot/foot.ini
+fi
+
+# Size lives in the machine-local overlay. Keep family in sync there too.
+foot_local="${XDG_CONFIG_HOME:-$HOME/.config}/foot/local.ini"
+if [[ -f $foot_local ]]; then
+  size=$(sed -n 's/.*:size=\([0-9.]*\).*/\1/p' "$foot_local" | head -1)
+  size=${size:-9}
+  cat >"$foot_local" <<EOF
+# Machine-local Foot overrides. Not part of the shared desktop config.
+font=$font_name:size=$size
+EOF
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
