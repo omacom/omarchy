@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# omarchy:summary=List the UTF-8 locales glibc can generate, with their names
+# omarchy:group=setup
+# omarchy:hidden=true
+
+# Emits "name<TAB>language<TAB>territory", one per line.
+#
+# The name is /usr/share/i18n/SUPPORTED's first field, verbatim. That field is
+# what systemd-localed compares a requested locale against before agreeing to
+# generate one, and it is also the name locale-gen hands to localedef -- so it
+# is the only spelling that survives the whole round trip. About half the
+# entries carry a codeset (en_US.UTF-8) and half do not (aa_ER, be_BY@latin);
+# neither form may be rewritten into the other.
+#
+# The names come from each locale's own LC_IDENTIFICATION block, so this
+# tracks whatever glibc ships rather than a hand-kept list. C.UTF-8 names no
+# language and is left out: it is a fallback, not a language to offer.
+
+set -euo pipefail
+
+SUPPORTED=/usr/share/i18n/SUPPORTED
+LOCALES=/usr/share/i18n/locales
+
+[[ -f $SUPPORTED ]] || exit 0
+
+awk -v locales="$LOCALES" '
+  $2 == "UTF-8" {
+    name = $1
+    base = name
+    sub(/\.UTF-8$/, "", base)
+    file = locales "/" base
+
+    language = ""
+    territory = ""
+    while ((getline line < file) > 0) {
+      if (language == "" && line ~ /^language[ \t]+"/) {
+        language = line
+        sub(/^language[ \t]+"/, "", language)
+        sub(/".*$/, "", language)
+      } else if (territory == "" && line ~ /^territory[ \t]+"/) {
+        territory = line
+        sub(/^territory[ \t]+"/, "", territory)
+        sub(/".*$/, "", territory)
+      }
+      if (language != "" && territory != "") break
+    }
+    close(file)
+
+    if (language != "") print name "\t" language "\t" territory
+  }
+' "$SUPPORTED"
