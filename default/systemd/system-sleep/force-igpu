@@ -1,29 +1,65 @@
 #!/bin/bash
 
+set -e
+
 # Use the Vfio to Integrated trick to turn off NVIDIA dgpu when in integrated mode
 # without needing to restart the computer. This is needed because computers like the Asus G14
 # will wake after suspend in Hybrid mode, even if the system was in Integrated mode before
 # suspending.
 
+restore_marker=/run/omarchy-force-igpu-integrated
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+[[ -x /usr/bin/supergfxctl ]] || exit 0
+
+switch_mode() {
+  local expected="$1" current
+
+  if ! /usr/bin/timeout --kill-after=1s 3s /usr/bin/supergfxctl -m "$expected"; then
+    echo "Could not request the GPU transition to $expected mode" >&2
+    return 1
+  fi
+  for _ in {1..10}; do
+    if current=$(/usr/bin/timeout --kill-after=1s 2s /usr/bin/supergfxctl -g 2>/dev/null) &&
+      [[ $current == "$expected" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Could not confirm the GPU transition to $expected mode" >&2
+  return 1
+}
+
 case "$1" in
   pre)
+    # Remember the mode this sleep cycle started in. supergfxctl persists the
+    # temporary hibernate switch to Vfio, so post must not consult that mutable
+    # value when deciding whether to restore Integrated mode.
+    if [[ -L $restore_marker ]]; then
+      exit 1
+    elif [[ ! -f $restore_marker ]]; then
+      /usr/bin/grep -Eq '"mode"[[:space:]]*:[[:space:]]*"Integrated"' /etc/supergfxd.conf 2>/dev/null || exit 0
+      /usr/bin/install -m 0600 -o root -g root -T /dev/null "$restore_marker"
+    fi
+
     # Before hibernating, switch to Vfio so the nvidia driver is detached from the dGPU.
     # Without this, hibernate resume fails because the nvidia driver can't freeze a
     # powered-off dGPU (returns -EIO), which aborts the entire resume.
-    if [[ $2 == "hibernate" ]]; then
-      /usr/bin/supergfxctl -m Vfio
-      sleep 1
+    if [[ $sleep_action == "hibernate" ]]; then
+      switch_mode Vfio
     fi
     ;;
   post)
+    [[ -f $restore_marker && ! -L $restore_marker ]] || exit 0
+
     # small delay so the device is fully re-enumerated
     sleep 4
 
     # force-bind dGPU to vfio (fully detached from nvidia)
-    /usr/bin/supergfxctl -m Vfio
-    sleep 1
+    switch_mode Vfio
 
     # then go back to Integrated, which powers it off again
-    /usr/bin/supergfxctl -m Integrated
+    switch_mode Integrated
+    /usr/bin/rm -f -- "$restore_marker"
     ;;
 esac
