@@ -15,17 +15,14 @@ hl.config({
     },
 
     resize_on_border = false,
-    allow_tearing = true,
+    allow_tearing = false,
     layout = "dwindle",
   },
 
   render = {
-    -- Direct scanout passes fullscreen frames directly to the display controller,
-    -- bypassing the compositor pipeline (cuts ~7ms display lag & saves ~1-2W GPU power).
+    -- Attempt direct scanout automatically for fullscreen game content.
     direct_scanout = 2,
   },
-
-
   decoration = {
     rounding = 0,
 
