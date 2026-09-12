@@ -14,6 +14,8 @@ After you've installed it, you'll be able to launch Steam with `Super + Space`.
 
 Note that Steam can take 10-20 seconds to start up, and it's not going to provide any visual feedback that it's loading.
 
+The installer also opens the Steam Remote Play ports for your LAN and Tailscale, so Steam Link clients like a Quest, Apple TV, or phone can find and stream from your machine through Omarchy's firewall.
+
  ![gaming-steam](images/gaming-steam.webp)
 
 ## RetroArch
