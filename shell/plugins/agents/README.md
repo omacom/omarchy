@@ -180,7 +180,9 @@ every transcript still on disk.
 
 ## Remote computers
 
-The computer selector shows **All**, **This computer**, and your saved computers. **All** includes local usage and the last successful imports from the saved computers. Selecting one computer filters the token and API-equivalent cost views; the provider selector still selects Codex, Claude, or Kimi. The selector scrolls horizontally when names do not fit and keeps the keyboard selection visible. Five or ten computers use the same panel layout.
+The computer selector shows **All**, **This computer**, and your saved computers. **All** includes local usage and the last successful imports from the saved computers. Selecting one computer filters the token and API-equivalent cost views; the provider selector still selects Codex, Claude, or Kimi. The selector scrolls horizontally when names do not fit and keeps the keyboard selection visible. Five and ten computers are test sizes, not limits.
+
+The panel reserves the largest currently prepared provider, computer, or management view, so opening and switching do not resize it step by step. It uses the full content height when the screen has room and scrolls vertically only when the available screen height clips that content. Prepared token and cost views are reused while switching computers; a new usage snapshot, local-day rollover, or pricing revision replaces the affected preparation.
 
 Account limits and balances continue to describe the provider account signed in on this computer. They are separate from the computer usage filter and are never added together. “Session” in an existing limit meter means a provider allowance window, not one open agent conversation.
 

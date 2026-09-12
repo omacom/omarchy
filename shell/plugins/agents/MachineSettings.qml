@@ -18,8 +18,12 @@ Item {
     return machines.length ? 0 : -1
   }
   readonly property var selected: selectedIndex >= 0 ? machines[selectedIndex] : null
+  property real detailMaximumHeight: 0
+  property real confirmationMaximumHeight: 0
+  property bool measurementPending: false
   signal backRequested()
   signal focusRequested()
+  signal revealRequested(var item)
   implicitHeight: content.implicitHeight
 
   onMachinesChanged: {
@@ -30,8 +34,12 @@ Item {
     }
     if (!machines.some(function(machine) { return machine.id === root.selectedId }))
       selectedId = machines.length ? machines[Math.min(Math.max(selectedIndex, 0), machines.length - 1)].id : ""
+    scheduleMeasurements()
     revealSelected()
   }
+
+  onWidthChanged: scheduleMeasurements()
+  Component.onCompleted: scheduleMeasurements()
 
   function revealSelected() {
     // A ListView can reset its viewport after replacing a numeric model even
@@ -40,7 +48,8 @@ Item {
     Qt.callLater(function() {
       if (root.selectedIndex < 0) return
       machineList.forceLayout()
-      machineList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+      var selectedItem = machineList.itemAtIndex(root.selectedIndex)
+      if (selectedItem) root.revealRequested(selectedItem)
     })
   }
 
@@ -48,7 +57,7 @@ Item {
     if (mode !== "" || !machines.length) return
     var index = Math.max(0, Math.min(machines.length - 1, selectedIndex + direction))
     selectedId = machines[index].id
-    machineList.positionViewAtIndex(index, ListView.Contain)
+    revealSelected()
   }
 
   function edit(action) {
@@ -79,6 +88,43 @@ Item {
     editingId = selected.id
     mode = "remove"
     root.focusRequested()
+  }
+
+  function detailText(machine) {
+    if (!machine) return ""
+    return (machine.user || "Unknown user") + " · " + (machine.platform || "") + "\n"
+      + (machine.target || "") + "\n" + (machine.error || (machine.issues || []).join("; "))
+  }
+
+  function removeText(machine) {
+    return "Remove " + (machine ? machine.label : "")
+      + " and its contribution?\nEnter confirms · Escape cancels"
+  }
+
+  function scheduleMeasurements() {
+    if (measurementPending) return
+    measurementPending = true
+    Qt.callLater(function() {
+      root.measurementPending = false
+      root.updateMeasurements()
+    })
+  }
+
+  function maximumImplicitHeight(repeater) {
+    var maximum = 0
+    for (var i = 0; i < repeater.count; i++) {
+      var item = repeater.itemAt(i)
+      if (item) maximum = Math.max(maximum, item.implicitHeight)
+    }
+    return maximum
+  }
+
+  function updateMeasurements() {
+    // Keep measurement dependencies out of the positioned content's height
+    // bindings. Reading completed delegates here avoids a binding cycle while
+    // still reserving the largest wrapped text in the current machine model.
+    detailMaximumHeight = maximumImplicitHeight(detailMeasurements)
+    confirmationMaximumHeight = maximumImplicitHeight(confirmationMeasurements)
   }
 
   Keys.onEscapePressed: function(event) { root.back(); event.accepted = true }
@@ -112,8 +158,9 @@ Item {
     ListView {
       id: machineList
       width: parent.width
-      height: Style.space(180)
-      clip: true
+      height: root.machines.length > 0 ? contentHeight : emptyMachineText.implicitHeight
+      clip: false
+      interactive: false
       model: root.machines.length
       spacing: Style.space(4)
       currentIndex: root.selectedIndex
@@ -133,6 +180,7 @@ Item {
         onClicked: if (machine) root.selectedId = machine.id
       }
       Text {
+        id: emptyMachineText
         textFormat: Text.PlainText
         visible: root.machines.length === 0
         text: "No remote computers yet. Press n to add one."
@@ -144,14 +192,22 @@ Item {
       }
     }
 
-    Text {
-      textFormat: Text.PlainText
+    Item {
+      id: detailArea
       width: parent.width
-      text: root.selected ? (root.selected.user || "Unknown user") + " · " + (root.selected.platform || "") + "\n" + root.selected.target + "\n" + (root.selected.error || (root.selected.issues || []).join("; ")) : ""
-      color: root.foreground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.WrapAnywhere
+      height: root.detailMaximumHeight
+
+      Text {
+        id: selectedDetail
+        textFormat: Text.PlainText
+        width: parent.width
+        text: root.detailText(root.selected)
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.WrapAnywhere
+      }
+
     }
 
     Flow {
@@ -162,50 +218,68 @@ Item {
       Button { text: "Remove [x]"; foreground: root.foreground; enabled: !!root.selected && !root.usage.machineBusy; onClicked: root.removeSelected() }
     }
 
-    Column {
-      visible: root.editing
+    Item {
+      id: modeArea
       width: parent.width
-      spacing: Style.space(6)
-      TextField {
-        id: targetField
-        visible: root.mode === "add"
-        width: parent.width
-        placeholderText: "SSH alias or user@host"
-        font.family: root.fontFamily
-        selectByMouse: true
-        KeyNavigation.tab: labelField
-        onAccepted: labelField.forceActiveFocus()
-      }
-      TextField {
-        id: labelField
-        width: parent.width
-        placeholderText: "Computer name"
-        font.family: root.fontFamily
-        selectByMouse: true
-        KeyNavigation.tab: saveButton
-        KeyNavigation.backtab: root.mode === "add" ? targetField : saveButton
-        onAccepted: root.submit()
-      }
-      Button {
-        id: saveButton
-        text: root.usage.machineBusy ? "Connecting…" : "Save [Enter]"
-        focusable: true
-        foreground: root.foreground
-        enabled: !root.usage.machineBusy
-        KeyNavigation.tab: root.mode === "add" ? targetField : labelField
-        onClicked: root.submit()
-      }
-    }
+      readonly property real maximumEditorHeight: targetField.implicitHeight + labelField.implicitHeight
+        + saveButton.implicitHeight + editor.spacing * 2
+      readonly property real maximumConfirmationHeight: root.confirmationMaximumHeight
+      height: Math.max(maximumEditorHeight, removeConfirmation.implicitHeight, maximumConfirmationHeight)
 
-    Text {
-      textFormat: Text.PlainText
-      visible: root.mode === "remove"
-      width: parent.width
-      text: "Remove " + (root.selected ? root.selected.label : "") + " and its contribution?\nEnter confirms · Escape cancels"
-      wrapMode: Text.WordWrap
-      color: root.foreground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      Column {
+        id: editor
+        visible: true
+        opacity: root.editing ? 1 : 0
+        enabled: root.editing
+        width: parent.width
+        spacing: Style.space(6)
+        TextField {
+          id: targetField
+          visible: true
+          opacity: root.mode === "add" ? 1 : 0
+          enabled: root.mode === "add"
+          width: parent.width
+          placeholderText: "SSH alias or user@host"
+          font.family: root.fontFamily
+          selectByMouse: true
+          KeyNavigation.tab: labelField
+          onAccepted: labelField.forceActiveFocus()
+        }
+        TextField {
+          id: labelField
+          width: parent.width
+          placeholderText: "Computer name"
+          font.family: root.fontFamily
+          selectByMouse: true
+          KeyNavigation.tab: saveButton
+          KeyNavigation.backtab: root.mode === "add" ? targetField : saveButton
+          onAccepted: root.submit()
+        }
+        Button {
+          id: saveButton
+          text: root.usage.machineBusy ? "Connecting…" : "Save [Enter]"
+          focusable: true
+          foreground: root.foreground
+          enabled: !root.usage.machineBusy
+          KeyNavigation.tab: root.mode === "add" ? targetField : labelField
+          onClicked: root.submit()
+        }
+      }
+
+      Text {
+        id: removeConfirmation
+        textFormat: Text.PlainText
+        visible: true
+        opacity: root.mode === "remove" ? 1 : 0
+        enabled: root.mode === "remove"
+        width: parent.width
+        text: root.removeText(root.selected)
+        wrapMode: Text.WordWrap
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+
     }
 
     Text {
@@ -216,6 +290,45 @@ Item {
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       wrapMode: Text.WrapAnywhere
+    }
+  }
+
+  // Text measurement lives outside the positioned content to avoid making a
+  // reserved area's height depend on descendants of that same area.
+  Item {
+    width: root.width
+    height: 0
+    opacity: 0
+    enabled: false
+
+    Repeater {
+      id: detailMeasurements
+      model: root.machines.length
+      Text {
+        required property int index
+        readonly property var machine: index >= 0 && index < root.machines.length ? root.machines[index] : null
+        width: root.width
+        text: root.detailText(machine)
+        font: selectedDetail.font
+        wrapMode: selectedDetail.wrapMode
+        onImplicitHeightChanged: root.scheduleMeasurements()
+        Component.onCompleted: root.scheduleMeasurements()
+      }
+    }
+
+    Repeater {
+      id: confirmationMeasurements
+      model: root.machines.length
+      Text {
+        required property int index
+        readonly property var machine: index >= 0 && index < root.machines.length ? root.machines[index] : null
+        width: root.width
+        text: root.removeText(machine)
+        font: removeConfirmation.font
+        wrapMode: removeConfirmation.wrapMode
+        onImplicitHeightChanged: root.scheduleMeasurements()
+        Component.onCompleted: root.scheduleMeasurements()
+      }
     }
   }
 }

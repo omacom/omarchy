@@ -17,6 +17,12 @@ Item {
     implicitHeight:26
   }
   function selectProvider(i) { providerIndex=i }
+  QtObject {
+    id: page
+    property var providerChoices: root.providers
+    property int providerChoiceIndex: root.providerIndex
+    property bool selectedPage: true
+  }
   ROW
   TestCase {
     name:"TabLabelModel"; when:windowShown

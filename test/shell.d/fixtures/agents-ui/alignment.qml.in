@@ -62,6 +62,31 @@ Item {
       verify(right >= 0, "a money value is present")
       return right
     }
+    function trackRight(item) {
+      var right = -1
+      function visit(node) {
+        if (node.color !== undefined && node.color == root.track && node.width > 0)
+          right = Math.max(right,node.mapToItem(root,node.width,0).x)
+        var children=node.children || []
+        for(var i=0;i<children.length;i++) visit(children[i])
+      }
+      visit(item)
+      verify(right>=0,"a rendered day track is present")
+      return right
+    }
+    function filledBar(item) {
+      var found=null
+      function visit(node) {
+        if(node.parent && node.parent.color!==undefined && node.parent.color==root.track
+            && node.color!==undefined && node.color!=root.track)
+          found={right:node.mapToItem(root,node.width,0).x,width:node.width}
+        var children=node.children || []
+        for(var i=0;i<children.length;i++) visit(children[i])
+      }
+      visit(item)
+      verify(found!==null,"the actual colored day fill is rendered")
+      return found
+    }
     function test_unpricedWidths() {
       var widths = []
       for (var i = 1; i <= 5; i++) {
@@ -83,11 +108,11 @@ Item {
       compare(geometry(day), geometry(model), "day and model columns must align")
     }
     function test_digitTransitions() {
-      var referenceDay, referenceModel, referenceMoney
-      var tokens = [1,12,123,1234,12345]
-      var costs = ["$1.00","$12.00","$123.00","$1234","$12345","$0.0001","—","$0.00"]
-      for (var i = 0; i < costs.length; i++) {
-        var value = tokens[i % tokens.length] + "/" + costs[i]
+      var referenceDay, referenceModel, referenceMoney, referenceTrack
+      var values = ["1/$1.00","12/$12.00","123/$123.00","1234/$1234","12345/$12345",
+        "1/$0.0001","0/$0.00","—/—","12345/$12345"]
+      for (var i = 0; i < values.length; i++) {
+        var value = values[i]
         day.day = {date:"2026-09-11", value:value, pricingEnabled:true}
         model.row = {name:"A long model name", value:value, pricingPresentation:true}
         wait(1)
@@ -95,11 +120,28 @@ Item {
         if (i === 0) { referenceDay = d; referenceModel = m }
         var money = moneyRight(day)
         if (referenceMoney === undefined) referenceMoney = money
+        var trackEdge = trackRight(day)
+        if (referenceTrack === undefined) referenceTrack = trackEdge
         compare(money, referenceMoney, "all money values must share the same right edge")
+        compare(trackEdge, referenceTrack, "zero, unknown and known-subtotal rows keep the bar track right-aligned")
 
         compare(d, referenceDay, "daily token/cost boundary must stay fixed")
         compare(m, referenceModel, "model token/cost boundary must stay fixed")
 
+      }
+    }
+    function test_colored_day_fills_share_the_right_edge() {
+      day.day={date:"2026-09-11",value:"12345/$12345",pricingEnabled:true}
+      var states=[{ratio:.25,today:false},{ratio:.75,today:false},{ratio:.5,today:true},{ratio:0,today:true}]
+      var referenceRight=-1, quarterWidth=0
+      for(var i=0;i<states.length;i++) {
+        day.ratio=states[i].ratio; day.today=states[i].today; wait(200)
+        var bar=filledBar(day)
+        if(referenceRight<0) referenceRight=bar.right
+        compare(bar.right,referenceRight,"ordinary and today fills align at the track's right edge")
+        if(states[i].ratio===.25) quarterWidth=bar.width
+        if(states[i].ratio===.75) verify(Math.abs(bar.width-quarterWidth*3)<1,"fill width remains proportional")
+        if(states[i].ratio===0) compare(bar.width,0,"zero usage keeps an empty fill")
       }
     }
   }

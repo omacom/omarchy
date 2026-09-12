@@ -48,29 +48,45 @@ Panel {
   function showMachines() {
     detailsOpen = false
     machinesOpen = true
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() {
+      keyCatcher.forceActiveFocus()
+      machineSettings.revealSelected()
+    })
   }
   function leaveMachines() {
     machinesOpen = false
     focusSection = 2
+    ensureTopControlsVisible()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
   function ensureUsageCursorVisible() {
     Qt.callLater(function() {
-      var page = providerPages.itemAt(root.providerIndex)
+      var page = root.activeProviderPage()
       var row = page ? page.detailItemAt(root.usageCursor) : null
-      if (!row || panelFlick.height <= 0) return
-      var rowY = row.mapToItem(contentStack, 0, 0).y
-      var maximumY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
-      if (rowY < panelFlick.contentY)
-        panelFlick.contentY = Math.max(0, rowY)
-      else if (rowY + row.height > panelFlick.contentY + panelFlick.height)
-        panelFlick.contentY = Math.min(maximumY, rowY + row.height - panelFlick.height)
+      root.ensureContentItemVisible(row)
     })
+  }
+
+  function ensureContentItemVisible(item) {
+    if (!item || panelFlick.height <= 0) return
+    var itemY = item.mapToItem(contentStack, 0, 0).y
+    var maximumY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+    if (itemY < panelFlick.contentY)
+      panelFlick.contentY = Math.max(0, itemY)
+    else if (itemY + item.height > panelFlick.contentY + panelFlick.height)
+      panelFlick.contentY = Math.min(maximumY, itemY + item.height - panelFlick.height)
   }
 
   function ensureTopControlsVisible() {
     Qt.callLater(function() { panelFlick.contentY = 0 })
+  }
+
+  function activeProviderPage() {
+    for (var i = 0; i < providerPages.count; i++) {
+      var page = providerPages.itemAt(i)
+      if (page && page.selectedPage) return page
+    }
+    return null
   }
 
   // Countdowns and "updated" read this instead of Date.now() so the
@@ -496,7 +512,7 @@ Panel {
           else if (root.focusSection === 0) root.selectProvider(root.providerIndex + dx)
         }
         if (dy !== 0) {
-          var page = providerPages.itemAt(root.providerIndex)
+          var page = root.activeProviderPage()
           var count = page ? page.detailCount : 0
           if (root.focusSection === 3) {
             var nextCursor = root.usageCursor + dy
@@ -576,10 +592,6 @@ Panel {
               var page = providerPages.itemAt(i)
               if (page) maximum = Math.max(maximum, page.implicitHeight)
             }
-            for (var j = 0; j < allProviderPages.count; j++) {
-              var fullPage = allProviderPages.itemAt(j)
-              if (fullPage) maximum = Math.max(maximum, fullPage.implicitHeight)
-            }
             return maximum + computerBar.height + Style.space(12)
           }
 
@@ -632,6 +644,9 @@ Panel {
             fontFamily: root.fontFamily
             onBackRequested: root.leaveMachines()
             onFocusRequested: keyCatcher.forceActiveFocus()
+            onRevealRequested: function(item) {
+              if (root.machinesOpen) root.ensureContentItemVisible(item)
+            }
           }
 
           Text {
@@ -652,30 +667,25 @@ Panel {
 
           Repeater {
             id: providerPages
-            // Keep existing pages when records refresh; rebuild only changed slots.
-            model: root.providers.length
+            // Scope selection only changes which prepared page is active. The
+            // pages themselves persist until the usage snapshot changes.
+            model: usage.preparedProviderViews.length
 
             ProviderPage {
               required property int index
+              readonly property var preparedView: usage.preparedProviderViews[index]
               width: contentStack.width
               y: computerBar.height + Style.space(12)
-              provider: root.providers[index]
-              selectedPage: !root.machinesOpen && index === root.providerIndex
-              // Unselected pages still lay out to measure the largest complete page.
-              opacity: !root.machinesOpen && index === root.providerIndex ? 1 : 0
-              enabled: !root.machinesOpen && index === root.providerIndex
-              z: index === root.providerIndex ? 1 : 0
-            }
-          }
-          Repeater {
-            id: allProviderPages
-            model: usage.remoteActive ? usage.allProviders.length : 0
-            ProviderPage {
-              required property int index
-              width: contentStack.width
-              provider: usage.allProviders[index]
-              opacity: 0
-              enabled: false
+              scopeId: preparedView.scopeId
+              provider: preparedView.provider
+              providerChoices: preparedView.providers
+              providerChoiceIndex: preparedView.providerIndex
+              selectedPage: !root.machinesOpen && scopeId === usage.selectedMachineId
+                && providerChoiceIndex === root.providerIndex
+              // Hidden pages still lay out to determine the current global maximum.
+              opacity: selectedPage ? 1 : 0
+              enabled: selectedPage
+              z: selectedPage ? 1 : 0
             }
           }
         }
@@ -685,7 +695,10 @@ Panel {
 
   component ProviderPage: Column {
     id: page
+    property string scopeId: ""
     property var provider: null
+    property var providerChoices: root.providers
+    property int providerChoiceIndex: root.providerIndex
     property bool selectedPage: false
     readonly property int renderedDayCount: usageSection.visible ? dailyRowRepeater.count : 0
     readonly property int renderedModelCount: modelSection.visible ? modelRowRepeater.count : 0
@@ -766,25 +779,25 @@ Panel {
     // ---------- Provider switch ----------
     Row {
       id: providerSwitch
-      visible: root.providers.length > 1
+      visible: page.providerChoices.length > 1
       width: parent.width
       spacing: Style.spacing.md
 
-      readonly property real cellWidth: root.providers.length > 0
-        ? (width - spacing * (root.providers.length - 1)) / root.providers.length
+      readonly property real cellWidth: page.providerChoices.length > 0
+        ? (width - spacing * (page.providerChoices.length - 1)) / page.providerChoices.length
         : 0
 
       Repeater {
         // Tab labels need only an index, never the complete usage records.
-        model: root.providers.length
+        model: page.providerChoices.length
 
         Button {
           required property int index
 
           width: providerSwitch.cellWidth
-          text: root.providers[index].providerName
-          selected: index === root.providerIndex
-          hasCursor: root.cursorActive && root.focusSection === 0 && index === root.providerIndex
+          text: page.providerChoices[index].providerName
+          selected: index === page.providerChoiceIndex
+          hasCursor: page.selectedPage && root.cursorActive && root.focusSection === 0 && selected
           bordered: true
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -936,7 +949,7 @@ Panel {
     Column {
       id: usageSection
       visible: !!page.provider && page.provider.knownUsage !== false
-        && page.provider.recentDays && page.provider.recentDays.length > 0
+        && !!page.provider.recentDays && page.provider.recentDays.length > 0
       width: parent.width
       spacing: Style.spacing.md
 
@@ -1254,7 +1267,7 @@ Panel {
       color: root.track
 
       Rectangle {
-        anchors.left: parent.left
+        anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         height: parent.height
         radius: parent.radius

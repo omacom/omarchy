@@ -18,16 +18,20 @@ Item {
   function selectProvider(index) { providerIndex = index }
   function switchPanel(direction) { switchedPanels = switchedPanels.concat([direction]) }
   SCROLL_FUNCTION
+  CONTENT_ITEM_FUNCTION
   TOP_FUNCTION
+  ACTIVE_FUNCTION
   function showMachines() { machinesOpen = true }
   function close() {}
   function refreshNow() {}
   QtObject {
     id: providerPages
+    property int count: 1
     property int detailCount: 0
     property var rowYs: []
     function itemAt(index) {
       return {
+        selectedPage: true,
         detailCount: detailCount,
         detailItemAt: function(rowIndex) {
           return {
@@ -94,6 +98,7 @@ Item {
     when: windowShown
     function row(id, label) { return {id:id, label:label, target:"workbox", user:"tester", platform:"Linux", status:"current"} }
     function init() {
+      root.width = 380
       usage.machineBusy = false; usage.machineError = ""; usage.commands = []
       usage.remoteMachines = [row("one", "Laptop"), row("two", "Workstation")]
       root.machinesOpen = true
@@ -175,6 +180,7 @@ Item {
       wait(30)
       var list=machineSettings.machineListForTest
       list.forceLayout()
+      compare(list.height,list.contentHeight,"ten rows use their full measured height")
       var tenth=list.itemAtIndex(9)
       verify(tenth,"selected tenth delegate is instantiated")
       var before=tenth.mapToItem(list,0,0)
@@ -184,11 +190,33 @@ Item {
       wait(30)
       compare(machineSettings.selectedId,"machine8","the nearest surviving ninth machine stays selected")
       list.forceLayout()
+      compare(list.height,list.contentHeight,"nine surviving rows remain fully measured")
       var ninth=list.itemAtIndex(8)
       verify(ninth,"surviving selected delegate is instantiated after model replacement")
       var after=ninth.mapToItem(list,0,0)
       verify(after.y<list.height && after.y+ninth.height>0,
         "surviving selected ninth machine stays within the actual ListView viewport")
+    }
+    function test_empty_five_and_ten_lists_have_no_inner_vertical_cap() {
+      usage.remoteMachines=[]; wait(30)
+      var list=machineSettings.machineListForTest
+      verify(list.height>0,"the empty-list message contributes a real height")
+      var emptyHeight=list.height
+      var five=[]
+      for(var i=0;i<5;i++) five.push(row("five"+i,"Computer "+(i+1)))
+      usage.remoteMachines=five; wait(30); list.forceLayout()
+      verify(list.height>emptyHeight)
+      compare(list.height,list.contentHeight)
+      var fifth=list.itemAtIndex(4)
+      verify(fifth && fifth.y+fifth.height<=list.height,"all five rows are present without inner scrolling")
+      var fiveHeight=list.height
+      var ten=[]
+      for(var j=0;j<10;j++) ten.push(row("ten"+j,"Computer "+(j+1)))
+      usage.remoteMachines=ten; wait(30); list.forceLayout()
+      compare(list.height,list.contentHeight)
+      verify(list.height>fiveHeight,"ten rows grow beyond the five-row measurement")
+      var tenth=list.itemAtIndex(9)
+      verify(tenth && tenth.y+tenth.height<=list.height,"all ten rows are present without an artificial viewport")
     }
     function test_tab_switches_neighbor_panels_outside_editor() {
       root.machinesOpen = false
@@ -241,6 +269,46 @@ Item {
       verify(machineSettings.implicitHeight >= machineSettings.children[0].implicitHeight,
              "panel content height must include every visible control and error")
       root.width = 380
+    }
+    function test_management_modes_reserve_their_largest_actual_layout() {
+      wait(30)
+      var overviewHeight=machineSettings.implicitHeight
+      machineSettings.edit("add"); wait(10)
+      var addHeight=machineSettings.implicitHeight
+      machineSettings.back(); machineSettings.edit("rename"); wait(10)
+      var renameHeight=machineSettings.implicitHeight
+      machineSettings.back(); machineSettings.removeSelected(); wait(10)
+      var removeHeight=machineSettings.implicitHeight
+      compare(overviewHeight,addHeight,"opening Add must not grow the maximum panel")
+      compare(renameHeight,addHeight,"Rename reserves the same management maximum")
+      compare(removeHeight,addHeight,"Remove confirmation reserves the same management maximum")
+    }
+    function test_machine_details_and_confirmation_reserve_the_longest_current_text() {
+      var shortMachine=row("short","Short")
+      var ordinaryMachine=row("ordinary","Ordinary")
+      usage.remoteMachines=[shortMachine,ordinaryMachine]; machineSettings.selectedId="short"; wait(30)
+      var ordinaryHeight=machineSettings.implicitHeight
+
+      var longDetail=row("detail","Detail")
+      longDetail.target="user@a-very-long-fixture-hostname-that-wraps.invalid"
+      longDetail.error="A retained machine detail issue long enough to wrap across several lines without resizing on selection."
+      usage.remoteMachines=[shortMachine,longDetail]; wait(30)
+      var detailHeight=machineSettings.implicitHeight
+      verify(detailHeight>ordinaryHeight,"the longest current detail sets a larger measured maximum")
+      machineSettings.selectedId="detail"; wait(20)
+      compare(machineSettings.implicitHeight,detailHeight,"long detail text is reserved before selection")
+
+      var longConfirmation=row("confirmation",Array(18).join("Very long computer name "))
+      usage.remoteMachines=[shortMachine,ordinaryMachine]; machineSettings.selectedId="short"; wait(30)
+      ordinaryHeight=machineSettings.implicitHeight
+      usage.remoteMachines=[shortMachine,longConfirmation]; wait(30)
+      var confirmationHeight=machineSettings.implicitHeight
+      verify(confirmationHeight>ordinaryHeight,"the longest current confirmation sets a larger measured maximum")
+      machineSettings.selectedId="confirmation"; wait(20)
+      machineSettings.removeSelected(); wait(20)
+      compare(machineSettings.implicitHeight,confirmationHeight,"the longest removal confirmation is already reserved")
+      machineSettings.back(); machineSettings.selectedId="short"; machineSettings.removeSelected(); wait(20)
+      compare(machineSettings.implicitHeight,confirmationHeight,"short confirmation uses the same current maximum")
     }
   }
 }

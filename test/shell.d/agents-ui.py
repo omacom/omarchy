@@ -59,21 +59,29 @@ key_component = key_component[key_component.index('Item {'):].replace('Item {', 
 button = (root / 'shell/Ui/Button.qml').read_text()
 button_keys = button[button.index('  activeFocusOnTab:'):button.index('  // Reserve the largest')]
 key_catcher = panel[panel.index('    PanelKeyCatcher {'):panel.index('      Flickable {')]
+keyboard_panel = (root / 'shell/Ui/KeyboardPanel.qml').read_text()
 replacements = {
   'machines': {'MACHINE_COMPONENT': themed(machine).replace('Color.', 'testColor.'),
                'KEY_COMPONENT': key_component, 'KEY_CATCHER': key_catcher, 'BUTTON_KEYS': button_keys,
                'SCROLL_FUNCTION': block(panel, '  function ensureUsageCursorVisible()'),
-               'TOP_FUNCTION': block(panel, '  function ensureTopControlsVisible()')},
+               'CONTENT_ITEM_FUNCTION': block(panel, '  function ensureContentItemVisible(item)'),
+               'TOP_FUNCTION': block(panel, '  function ensureTopControlsVisible()'),
+               'ACTIVE_FUNCTION': block(panel, '  function activeProviderPage()')},
   'alignment': {
     'COMPONENTS': themed(block(panel, '  component UsageValue:') + '\n'
       + panel[panel.index('  component DayRow:'):panel.rfind('\n}')])
   },
   'tabs': {'ROW': themed(block(panel, '    Row {\n      id: providerSwitch'))},
   'pages': {
+    'MACHINE_COMPONENT': themed(machine).replace('Color.', 'testColor.'),
+    'LEAVE_FUNCTION': block(panel, '  function leaveMachines()'),
     'KEY_COMPONENT': key_component,
     'KEY_CATCHER': key_catcher,
     'SCROLL_FUNCTION': block(panel, '  function ensureUsageCursorVisible()'),
+    'CONTENT_ITEM_FUNCTION': block(panel, '  function ensureContentItemVisible(item)'),
     'TOP_FUNCTION': block(panel, '  function ensureTopControlsVisible()'),
+    'ACTIVE_FUNCTION': block(panel, '  function activeProviderPage()'),
+    'FITTED_FUNCTION': block(keyboard_panel, '  function fittedContentHeight(implicitHeight, cap)'),
     'COVERAGE_FUNCTION': block(panel, '  function coverageText(provider)'),
     'STACK': themed(block(panel, '        Item {\n          id: contentStack')),
     'COMPONENTS': themed(panel[panel.index('  component ProviderPage:'):panel.rfind('\n}')])

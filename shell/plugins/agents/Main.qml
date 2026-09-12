@@ -268,6 +268,23 @@ Item {
     var values = machineScopes[selectedMachineId] || machineScopes.all || []
     return values.filter(function(provider) { return root.providerEnabled(provider.providerId) })
   }
+  // The panel lays out each current scope/provider combination once so its
+  // maximum follows the prepared snapshot, rather than whichever computer is
+  // selected at the moment. Selection does not rebuild this array.
+  readonly property var preparedProviderViews: {
+    var result = []
+    var scopes = machineScopes
+    for (var scopeId in scopes) {
+      var providers = scopes[scopeId].filter(function(provider) { return root.providerEnabled(provider.providerId) })
+      for (var i = 0; i < providers.length; i++) result.push({
+        scopeId: scopeId,
+        provider: providers[i],
+        providers: providers,
+        providerIndex: i
+      })
+    }
+    return result
+  }
   readonly property var allProviders: (machineScopes.all || []).filter(function(provider) { return root.providerEnabled(provider.providerId) })
   readonly property var machineChoices: [{ id: "all", label: "All" }, { id: "local", label: "This computer" }].concat(remoteMachines)
   property string machineError: ""
