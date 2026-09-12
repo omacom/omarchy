@@ -72,6 +72,7 @@
   "trigger.hardware": {"icon":"","label":"Hardware","aliases":["hardware","hw"]},
   "trigger.tests": {"icon":"󰓅","label":"Speed Test"},
   "trigger.hardware.laptop-display": {"icon":"󰛧","label":"Laptop Display","when":"omarchy-hw-laptop","action":"omarchy-hyprland-monitor-internal toggle"},
+  "trigger.hardware.auto-brightness": {"icon":"󰃠","label":"Auto Brightness","when":"omarchy-hw-apple-t1-als","checked":"! omarchy-toggle-enabled auto-brightness-off","action":"omarchy-toggle-als-brightness"},
   "trigger.hardware.mirror-display": {"icon":"󰍹","label":"Mirror Display","when":"omarchy-hw-laptop","action":"omarchy-hyprland-monitor-internal-mirror toggle"},
   "trigger.hardware.hybrid-gpu": {"icon":"","label":"Hybrid GPU","when":"omarchy-hw-hybrid-gpu","action":"omarchy-launch-floating-terminal-with-presentation omarchy-toggle-hybrid-gpu"},
   "trigger.hardware.touchpad": {"icon":"󰟸","label":"Touchpad","when":"omarchy-hw-touchpad","action":"omarchy-toggle-touchpad"},
