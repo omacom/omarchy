@@ -88,10 +88,15 @@ Ukrainian|ua'
 # systemd does convert need no entry here; omarchy_keyboard_xkb only answers
 # for the gaps.
 #
-# azerty is the French AZERTY console keymap (offered as Azerbaijani for
-# historical reasons), so it maps to the XKB layout that reproduces the bytes
-# typed at install time, not to the country the label names.
-OMARCHY_KEYBOARD_XKB_GAPS=$'azerty|fr|\nbg-cp1251|bg|\ncolemak|us|colemak\ncz|cz|\nde_CH-latin1|ch|\nkyrgyz|kg|\nno-latin1|no|\npl|pl|\nua|ua|'
+# The variants matter: a blank variant selects XKB's default, which is not
+# always what the console keymap types. bg-cp1251 is the phonetic Bulgarian
+# map (XKB's default is BDS) and cz is QWERTY (XKB's default is QWERTZ), so
+# blank variants would silently move the very keys a setup-typed password
+# depends on. azerty is the French AZERTY console keymap (offered as
+# Azerbaijani for historical reasons), so it maps to the XKB layout that
+# reproduces the bytes typed at install time, not to the country the label
+# names.
+OMARCHY_KEYBOARD_XKB_GAPS=$'azerty|fr|\nbg-cp1251|bg|phonetic\ncolemak|us|colemak\ncz|cz|qwerty\nde_CH-latin1|ch|\nkyrgyz|kg|\nno-latin1|no|\npl|pl|\nua|ua|'
 
 # The XKB layout and variant a console keymap must be paired with when systemd
 # itself cannot derive them. Prints "layout variant" (variant possibly empty),

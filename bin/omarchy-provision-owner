@@ -613,18 +613,25 @@ confirm_reboot() {
 # vconsole.conf, leaving every other line (KEYMAP, FONT, comments) alone.
 omarchy_write_xkb_layout() {
   local file="$1" layout="$2" variant="$3"
+  local payload="XKBLAYOUT=$layout"
+
+  if [[ -n $variant ]]; then
+    payload+=$'\nXKBVARIANT='"$variant"
+  fi
 
   if grep -q '^XKBLAYOUT=' "$file"; then
     sed -i "s/^XKBLAYOUT=.*/XKBLAYOUT=$layout/" "$file"
+    if [[ -n $variant ]]; then
+      if grep -q '^XKBVARIANT=' "$file"; then
+        sed -i "s/^XKBVARIANT=.*/XKBVARIANT=$variant/" "$file"
+      else
+        printf 'XKBVARIANT=%s\n' "$variant" >>"$file"
+      fi
+    fi
   else
-    printf 'XKBLAYOUT=%s\n' "$layout" >>"$file"
-  fi
-
-  [[ -n $variant ]] || return 0
-  if grep -q '^XKBVARIANT=' "$file"; then
-    sed -i "s/^XKBVARIANT=.*/XKBVARIANT=$variant/" "$file"
-  else
-    printf 'XKBVARIANT=%s\n' "$variant" >>"$file"
+    # Both values land with a single write, so a failure leaves nothing half
+    # set for a later run to treat as already exposed.
+    printf '%s\n' "$payload" >>"$file"
   fi
 }
 
@@ -664,7 +671,10 @@ apply_keyboard() {
   if localectl --no-pager list-keymaps 2>/dev/null | grep -qix "$keymap"; then
     if systemd-firstboot --keymap="$keymap" --force >>"$LOG_FILE" 2>&1 ||
       localectl set-keymap "$keymap" >>"$LOG_FILE" 2>&1; then
-      omarchy_expose_xkb_layout /etc/vconsole.conf "$keymap"
+      # Best-effort like the persistence above: a failed exposure must not
+      # abort setup, it only leaves the layout unpersisted.
+      omarchy_expose_xkb_layout /etc/vconsole.conf "$keymap" ||
+        log_step "could not expose the XKB layout for $keymap"
     else
       log_step "could not persist keymap $keymap"
     fi
