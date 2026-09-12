@@ -9,7 +9,8 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
-mkdir -p "$home" "$stub_bin"
+resolved_bin="$tmpdir/resolved"
+mkdir -p "$home" "$stub_bin" "$resolved_bin"
 
 # Stands in for the real mise so a generated wrapper can be run and asked what
 # arguments it passed on.
@@ -21,8 +22,15 @@ for arg in "$@"; do
   printf '\t%s' "$arg" >>"$OMARCHY_MISE_TEST_LOG"
 done
 printf '\n' >>"$OMARCHY_MISE_TEST_LOG"
+
+if [[ $1 == "bin-paths" ]]; then
+  printf '%s\n' "$OMARCHY_MISE_TEST_BIN_DIR"
+fi
 SH
-chmod +x "$stub_bin/mise"
+printf '#!/bin/bash\nexit 0\n' >"$resolved_bin/playwright"
+printf '#!/bin/bash\nexit 0\n' >"$resolved_bin/hostile"
+chmod +x "$stub_bin/mise" "$resolved_bin/playwright" "$resolved_bin/hostile"
+export OMARCHY_MISE_TEST_BIN_DIR="$resolved_bin"
 
 install_wrapper() {
   HOME="$home" "$ROOT/bin/omarchy-mise-install" "$@"
