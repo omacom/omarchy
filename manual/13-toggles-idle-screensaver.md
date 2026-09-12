@@ -86,7 +86,7 @@ This is about locking and the screensaver, not power. Suspend and hibernation ha
 
 ### The screensaver
 
-Omarchy's screensaver is ASCII art running through random text effects, one instance per monitor. Any key or mouse movement exits it.
+Omarchy's screensaver is a Matrix-style digital rain — green glyphs falling down the screen, one instance per monitor — that resolves into your branding logo after the rain has run its course. Any key or mouse movement exits it.
 
 You can start it on demand from _System > Screensaver_ (`Super + Esc`), which forces it up even if you've turned the idle screensaver off. There's no hotkey bound to it by default.
 
