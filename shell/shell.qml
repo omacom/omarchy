@@ -324,7 +324,14 @@ ShellRoot {
   }
 
   function publicBarConfig() {
-    return JSON.parse(JSON.stringify(shell.barConfig || {}))
+    // Derive from shellConfig directly instead of the derived barConfig
+    // binding: inside onShellConfigChanged, dependent bindings have not
+    // re-evaluated yet, so reading the derived binding here (via
+    // syncPluginApis) returns the previous bar config. Mirrors
+    // publicIdleConfigFor().
+    var config = shell.shellConfig && Util.isPlainObject(shell.shellConfig.bar)
+      ? shell.shellConfig.bar : builtinShellConfig.bar
+    return JSON.parse(JSON.stringify(config || {}))
   }
 
   function barConfigFor(manifest) {
