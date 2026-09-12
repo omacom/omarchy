@@ -14,4 +14,7 @@ assert(/if \(buttonCode === Qt\.RightButton\) root\.launchAgent\(\)/.test(panelS
 assert(/else if \(buttonCode === Qt\.MiddleButton\) root\.selectProvider\(root\.providerIndex \+ 1\)/.test(panelSource), 'agents middle click still advances the subscription')
 assert(/else root\.toggle\(\)/.test(panelSource), 'agents left click still toggles the panel')
 assert(!/if \(buttonCode === Qt\.RightButton\) root\.refreshNow\(\)/.test(panelSource), 'agents right click no longer refreshes')
+assert(/Math\.round\(limitRow\.window\.percent \* 100\) \+ "% used"/.test(panelSource), 'LimitRow percent states used')
+assert(/estimated \? title \+ " \(est\.\)" : title/.test(panelSource), 'windowTitle preserves est marker')
+assert(!/if \(text\.indexOf\("month"\) >= 0\) return "Monthly"/.test(panelSource), 'windowTitle no longer returns Monthly without est')
 JS

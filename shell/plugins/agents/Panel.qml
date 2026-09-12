@@ -89,12 +89,18 @@ Panel {
   }
 
   function windowTitle(label) {
-    var text = String(label || "").toLowerCase()
-    if (text.indexOf("month") >= 0) return "Monthly"
-    if (windowIsLong(text)) return "Weekly"
-    if (text.indexOf("session") >= 0 || windowSpanMs(label) > 0) return "Session"
-    var plain = String(label || "").replace(/\s*\(.*\)\s*/, "").trim()
-    return plain === "" ? "Limit" : plain
+    var raw = String(label || "")
+    var text = raw.toLowerCase()
+    var estimated = /est\.?/i.test(raw)
+    var title
+    if (text.indexOf("month") >= 0) title = "Monthly"
+    else if (windowIsLong(text)) title = "Weekly"
+    else if (text.indexOf("session") >= 0 || windowSpanMs(label) > 0) title = "Session"
+    else {
+      var plain = raw.replace(/\s*\(.*\)\s*/, "").trim()
+      title = plain === "" ? "Limit" : plain
+    }
+    return estimated ? title + " (est.)" : title
   }
 
   // A collector that already knows which window a limit belongs to says so,
@@ -733,7 +739,7 @@ Panel {
         id: limitValue
         textFormat: Text.PlainText
         text: limitRow.window && limitRow.window.percent >= 0
-          ? Math.round(limitRow.window.percent * 100) + "%"
+          ? Math.round(limitRow.window.percent * 100) + "% used"
           : "—"
         color: limitRow.alarming ? root.urgent : root.foreground
         font.family: root.fontFamily
