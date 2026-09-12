@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
 import QtTest
 
 Item {
@@ -11,12 +12,38 @@ Item {
   property int providerIndex: 0
   property int usageCursor: 0
   property bool detailsOpen: false
-  function selectMachine(delta) {}
-  function selectProvider(index) {}
+  property var switchedPanels: []
+  property var machineMoves: []
+  function selectMachine(delta) { machineMoves = machineMoves.concat([delta]) }
+  function selectProvider(index) { providerIndex = index }
+  function switchPanel(direction) { switchedPanels = switchedPanels.concat([direction]) }
+  SCROLL_FUNCTION
   function showMachines() { machinesOpen = true }
   function close() {}
   function refreshNow() {}
-  QtObject { id: providerPages; function itemAt(index) { return null } }
+  QtObject {
+    id: providerPages
+    property int detailCount: 0
+    property var rowYs: []
+    function itemAt(index) {
+      return {
+        detailCount: detailCount,
+        detailItemAt: function(rowIndex) {
+          return {
+            height: 30,
+            mapToItem: function(item, x, y) { return {x: 0, y: providerPages.rowYs[rowIndex]} }
+          }
+        }
+      }
+    }
+  }
+  QtObject { id: contentStack }
+  QtObject {
+    id: panelFlick
+    property real height: 100
+    property real contentHeight: 300
+    property real contentY: 0
+  }
   QtObject {
     id: testStyle
     property var font: ({family:"monospace", caption:12, bodySmall:13, body:14})
@@ -69,12 +96,20 @@ Item {
       usage.machineBusy = false; usage.machineError = ""; usage.commands = []
       usage.remoteMachines = [row("one", "Laptop"), row("two", "Workstation")]
       root.machinesOpen = true
+      root.switchedPanels = []; root.machineMoves = []
+      root.providerIndex = 0
+      root.focusSection = 0; root.usageCursor = 0; root.detailsOpen = false
+      providerPages.detailCount = 0; providerPages.rowYs = []; panelFlick.contentY = 0
       machineSettings.mode = ""; machineSettings.selectedId = "one"
       keyCatcher.forceActiveFocus()
       wait(5)
     }
     function text(value) { for (var i = 0; i < value.length; i++) keyClick(value[i]) }
     function finish(success) { usage.machineBusy = false; usage.machineCommandFinished(success); wait(5) }
+    function focusedText() {
+      var item = root.Window.window.activeFocusItem
+      return item && item.text !== undefined ? item.text : ""
+    }
     function test_add_rename_remove_with_keys() {
       keyClick("n"); wait(5)
       text("workbox"); keyClick(Qt.Key_Tab)
@@ -97,7 +132,7 @@ Item {
       text("Laptop"); keyClick(Qt.Key_Return)
       finish(false)
       compare(machineSettings.mode, "add")
-      keyClick(Qt.Key_Return)
+      keyClick(Qt.Key_Return); keyClick(Qt.Key_Return)
       compare(usage.commands.length, 2)
       finish(false)
       keyClick(Qt.Key_Escape)
@@ -106,12 +141,73 @@ Item {
       keyClick("x"); keyClick(Qt.Key_Escape)
       compare(usage.commands.length, 2, "cancel never removes a computer")
     }
+    function test_save_button_failure_returns_focus_for_edit_and_cancel() {
+      keyClick("n"); wait(5)
+      text("workbox"); keyClick(Qt.Key_Tab); text("Laptop"); keyClick(Qt.Key_Tab); wait(5)
+      compare(focusedText(), "Save [Enter]", "Tab must focus the real Save button")
+      keyClick(Qt.Key_Return)
+      compare(usage.commands[0], ["add", "workbox", "--label", "Laptop"])
+      verify(usage.machineBusy, "Save starts the busy state")
+      usage.machineError = "SSH connection failed"
+      finish(false)
+      compare(machineSettings.mode, "add")
+      compare(focusedText(), "workbox", "a failed Save returns keyboard focus to the editor")
+      keyClick(Qt.Key_A, Qt.ControlModifier); text("retry-host")
+      compare(focusedText(), "retry-host", "failed input remains editable for a retry")
+      keyClick(Qt.Key_Escape)
+      compare(machineSettings.mode, "", "Escape cancels after editing the failed request")
+      verify(root.machinesOpen)
+      compare(usage.commands.length, 1, "editing and cancel do not submit an implicit retry")
+    }
     function test_remove_confirmation_keeps_original_target() {
       keyClick("x")
       usage.remoteMachines = [row("two", "Workstation")]
       wait(5)
       keyClick(Qt.Key_Return)
       compare(usage.commands.length, 0, "a concurrent CLI removal must not retarget confirmation")
+    }
+    function test_tab_switches_neighbor_panels_outside_editor() {
+      root.machinesOpen = false
+      keyClick(Qt.Key_Tab); keyClick(Qt.Key_Backtab)
+      compare(root.switchedPanels, [1, -1], "overview Tab uses shared neighboring-panel navigation")
+      root.machinesOpen = true
+      keyClick(Qt.Key_Tab)
+      compare(root.switchedPanels, [1, -1, 1], "management-list Tab also leaves the panel")
+    }
+    function test_arrows_reach_every_section_and_leave_usage_edges() {
+      root.machinesOpen = false
+      providerPages.detailCount = 3
+      keyClick("l"); compare(root.providerIndex, 1, "provider selector retains horizontal navigation")
+      root.providerIndex = 0
+      keyClick("j"); compare(root.focusSection, 1, "computer selector follows provider")
+      keyClick("h"); compare(root.machineMoves, [-1], "computer selector retains horizontal navigation")
+      keyClick("j"); compare(root.focusSection, 2, "gear follows computer selector")
+      keyClick(Qt.Key_Return); verify(root.machinesOpen, "gear remains keyboard-activatable")
+      root.machinesOpen = false; root.focusSection = 2
+      keyClick("j"); compare(root.focusSection, 3, "usage details follow gear")
+      keyClick(Qt.Key_Return); verify(root.detailsOpen, "focused usage row opens details")
+      keyClick("j"); compare(root.usageCursor, 1)
+      keyClick("j"); compare(root.usageCursor, 2)
+      keyClick("j"); compare(root.focusSection, 0, "last usage row can move to another section")
+      keyClick("k"); compare(root.focusSection, 3); compare(root.usageCursor, 2,
+              "reverse navigation enters usage at its last row")
+      root.usageCursor = 0
+      keyClick("k"); compare(root.focusSection, 2, "first usage row can move back to the gear")
+      providerPages.detailCount = 0
+      keyClick("j"); compare(root.focusSection, 0, "empty usage skips cleanly after the gear")
+      keyClick("k"); compare(root.focusSection, 2, "empty usage skips cleanly before the provider")
+    }
+    function test_usage_cursor_scrolls_clipped_rows_into_view() {
+      root.machinesOpen = false; root.focusSection = 3; root.usageCursor = 0
+      providerPages.detailCount = 3; providerPages.rowYs = [20, 90, 180]
+      keyClick("j"); wait(5)
+      compare(root.usageCursor, 1)
+      compare(panelFlick.contentY, 20, "row bottom is brought inside the viewport")
+      keyClick("j"); wait(5)
+      compare(panelFlick.contentY, 110, "later clipped rows continue following the cursor")
+      panelFlick.contentY = 150; root.usageCursor = 1
+      keyClick("k"); wait(5)
+      compare(panelFlick.contentY, 20, "upward navigation reveals a row clipped above")
     }
     function test_management_height_contains_editor_and_error() {
       root.width = 300

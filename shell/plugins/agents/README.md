@@ -124,9 +124,9 @@ only adds the meter and the spent-of-funded line under the real figure.
 ## Interactions
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
-- Panel: Tab/Shift+Tab or `j`/`k` move between the provider selector, computer selector, settings, and usage rows. `h`/`l` or Left/Right change the focused selector. `j`/`k` move through focused usage rows and Enter opens their details. Enter activates settings or refreshes the overview elsewhere; `r` refreshes explicitly. Comma opens computer settings. Esc returns or closes.
+- Panel: Tab/Shift+Tab moves to the neighboring bar panel. `j`/`k` or Up/Down move between the provider selector, computer selector, settings gear, and usage rows; they also move through the focused usage rows without trapping at either end. `h`/`l` or Left/Right change the focused provider or computer. Enter opens usage details, activates settings, or refreshes the overview elsewhere; `r` refreshes explicitly. Comma opens computer settings. Esc returns or closes.
 - Computer settings: `j`/`k` select, `n` adds, `e` renames, and `x` removes with Enter confirmation. Text fields use normal typing and Tab navigation; Enter saves and Esc cancels. All management actions work without a mouse.
-- IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
+- IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next|machines>`. `machines` opens computer settings directly, including for a user whose bar icon is hidden because there is neither local usage nor a saved remote computer yet. Run it from a terminal for that first setup; it does not add a global shortcut.
 
 ## Settings
 

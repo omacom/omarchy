@@ -74,6 +74,9 @@ Item {
     target: root.usage
     function onMachineCommandFinished(success) {
       if (success) { root.mode = ""; root.focusRequested() }
+      else if (root.editing) Qt.callLater(function() {
+        (root.mode === "add" ? targetField : labelField).forceActiveFocus()
+      })
     }
   }
 

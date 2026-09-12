@@ -55,6 +55,19 @@ Panel {
     focusSection = 2
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
+  function ensureUsageCursorVisible() {
+    Qt.callLater(function() {
+      var page = providerPages.itemAt(root.providerIndex)
+      var row = page ? page.detailItemAt(root.usageCursor) : null
+      if (!row || panelFlick.height <= 0) return
+      var rowY = row.mapToItem(contentStack, 0, 0).y
+      var maximumY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+      if (rowY < panelFlick.contentY)
+        panelFlick.contentY = Math.max(0, rowY)
+      else if (rowY + row.height > panelFlick.contentY + panelFlick.height)
+        panelFlick.contentY = Math.min(maximumY, rowY + row.height - panelFlick.height)
+    })
+  }
 
   // Countdowns and "updated" read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
@@ -472,11 +485,35 @@ Panel {
           else if (root.focusSection === 0) root.selectProvider(root.providerIndex + dx)
         }
         if (dy !== 0) {
+          var page = providerPages.itemAt(root.providerIndex)
+          var count = page ? page.detailCount : 0
           if (root.focusSection === 3) {
-            var page = providerPages.itemAt(root.providerIndex)
-            var count = page ? page.detailCount : 0
-            root.usageCursor = Math.max(0, Math.min(count - 1, root.usageCursor + dy))
-          } else root.focusSection = (root.focusSection + dy + 4) % 4
+            var nextCursor = root.usageCursor + dy
+            if (nextCursor < 0) {
+              root.focusSection = 2
+              root.detailsOpen = false
+            } else if (nextCursor >= count) {
+              root.focusSection = 0
+              root.usageCursor = 0
+              root.detailsOpen = false
+            } else {
+              root.usageCursor = nextCursor
+              root.ensureUsageCursorVisible()
+            }
+          } else if (dy > 0 && root.focusSection === 2) {
+            root.focusSection = count > 0 ? 3 : 0
+            root.usageCursor = 0
+            root.detailsOpen = false
+            if (count > 0) root.ensureUsageCursorVisible()
+          } else if (dy < 0 && root.focusSection === 0) {
+            root.focusSection = count > 0 ? 3 : 2
+            root.usageCursor = Math.max(0, count - 1)
+            root.detailsOpen = false
+            if (count > 0) root.ensureUsageCursorVisible()
+          } else {
+            root.focusSection = (root.focusSection + dy + 4) % 4
+            root.detailsOpen = false
+          }
         }
       }
       onActivateRequested: {
@@ -493,8 +530,7 @@ Panel {
         else root.close()
       }
       onTabRequested: function(direction) {
-        if (root.machinesOpen) machineSettings.move(direction)
-        else { root.focusSection = (root.focusSection + direction + 4) % 4; root.detailsOpen = false }
+        root.switchPanel(direction)
       }
       onDeleteRequested: if (root.machinesOpen) machineSettings.removeSelected()
       onTextKey: function(t) {
@@ -638,7 +674,7 @@ Panel {
     id: page
     property var provider: null
     property bool selectedPage: false
-    readonly property int detailCount: pricedDailyRows.length + models.length + modelSummaries.length
+    readonly property int detailCount: dailyRowRepeater.count + modelRowRepeater.count + summaryRowRepeater.count
     readonly property var limits: root.limitWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     readonly property bool balanceAlarming: !!balance && balance.funded > 0
@@ -650,6 +686,13 @@ Panel {
       ? root.pricedSummaryRows(modelPresentation.summaries) : []
     readonly property var pricedDailyRows: usage.pricing.dailyRows(provider, root.nowMs)
     readonly property string limitationText: root.pricingLimitationText(provider, pricedDailyRows, modelPresentation)
+    function detailItemAt(index) {
+      if (index < dailyRowRepeater.count) return dailyRowRepeater.itemAt(index)
+      index -= dailyRowRepeater.count
+      if (index < modelRowRepeater.count) return modelRowRepeater.itemAt(index)
+      index -= modelRowRepeater.count
+      return index < summaryRowRepeater.count ? summaryRowRepeater.itemAt(index) : null
+    }
     spacing: Style.space(12)
 
     // ---------- Hero: provider mark · name · plan ----------
@@ -893,6 +936,7 @@ Panel {
       }
 
       Repeater {
+        id: dailyRowRepeater
         model: usageSection.days
 
         DayRow {
@@ -944,6 +988,7 @@ Panel {
       }
 
       Repeater {
+        id: modelRowRepeater
         model: page.models
 
         ModelRow {
@@ -960,6 +1005,7 @@ Panel {
       }
 
       Repeater {
+        id: summaryRowRepeater
         model: page.modelSummaries
 
         ModelRow {

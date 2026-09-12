@@ -57,7 +57,8 @@ button_keys = button[button.index('  activeFocusOnTab:'):button.index('  // Rese
 key_catcher = panel[panel.index('    PanelKeyCatcher {'):panel.index('      Flickable {')]
 replacements = {
   'machines': {'MACHINE_COMPONENT': themed(machine).replace('Color.', 'testColor.'),
-               'KEY_COMPONENT': key_component, 'KEY_CATCHER': key_catcher, 'BUTTON_KEYS': button_keys},
+               'KEY_COMPONENT': key_component, 'KEY_CATCHER': key_catcher, 'BUTTON_KEYS': button_keys,
+               'SCROLL_FUNCTION': block(panel, '  function ensureUsageCursorVisible()')},
   'alignment': {
     'COMPONENTS': themed(block(panel, '  component UsageValue:') + '\n'
       + panel[panel.index('  component DayRow:'):panel.rfind('\n}')])
