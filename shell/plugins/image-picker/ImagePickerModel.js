@@ -6,6 +6,21 @@ function labelForPath(path) {
   return nameForPath(path).replace(/[-_]+/g, " ").replace(/\b\w/g, function(match) { return match.toUpperCase() })
 }
 
+function wallpaperLabelForPath(path) {
+  return labelForPath(path).replace(/^\d+\s+/, "")
+}
+
+function themeWallpaperLabel(themePath, displayPath, filterText) {
+  if (!themePath) return filterText ? "No matches" : ""
+
+  var themeLabel = labelForPath(themePath)
+  if (!displayPath) return themeLabel
+
+  var wallpaperLabel = wallpaperLabelForPath(displayPath)
+  if (!wallpaperLabel || wallpaperLabel === themeLabel) return themeLabel
+  return themeLabel + " · " + wallpaperLabel
+}
+
 function loadRows(rows) {
   var images = []
   var seen = {}
@@ -86,6 +101,8 @@ if (typeof module !== "undefined") {
   module.exports = {
     nameForPath: nameForPath,
     labelForPath: labelForPath,
+    wallpaperLabelForPath: wallpaperLabelForPath,
+    themeWallpaperLabel: themeWallpaperLabel,
     loadRows: loadRows,
     itemMatches: itemMatches,
     firstMatchingIndex: firstMatchingIndex,

@@ -83,7 +83,7 @@ Item {
     var path = currentPath()
     if (!path) return filterText ? "No matches" : ""
 
-    return labelForPath(path)
+    return ImagePickerModel.themeWallpaperLabel(path, displayByIndex[selectedIndex] || "", filterText)
   }
 
   function itemMatches(index) {
@@ -110,6 +110,8 @@ Item {
     if (index === selectedIndex && immediate !== true) return
 
     selectedIndex = index
+    if (inThemeSwitcher())
+      ensureThemeWallpapers(themeSlugForIndex(index))
   }
 
   function selectAdjacent(direction) {
@@ -124,6 +126,133 @@ Item {
         return
       }
     }
+  }
+
+  function inThemeSwitcher() {
+    if (showLabels && filterable) return true
+    var path = currentPath()
+    return String(path).indexOf("/theme-selector/previews/") !== -1
+  }
+
+  function resetWallpaperState() {
+    wallpaperLists = ({})
+    wallpaperOffsets = ({})
+    wallpaperPending = ({})
+    displayByIndex = []
+    wallpaperSerial += 1
+    themeBgsProc.queue = []
+    themeBgsProc.activeSlug = ""
+    themeBgsProc.activeSerial = 0
+  }
+
+  function themeSlugForIndex(index) {
+    if (index < 0 || index >= imageArray.length || !imageArray[index]) return ""
+    return nameForPath(imageArray[index].filePath)
+  }
+
+  function itemForSlug(slug) {
+    for (var i = 0; i < imageArray.length; i++) {
+      if (themeSlugForIndex(i) === slug) return imageArray[i]
+    }
+    return null
+  }
+
+  function previewIndexInList(list, item) {
+    if (!item || !list || !list.length) return -1
+    var filePath = item.filePath
+    var thumbnailPath = item.thumbnailPath
+    var fileName = item.fileName
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] === filePath || list[i] === thumbnailPath) return i
+      if (fileName && list[i].split("/").pop() === fileName) return i
+    }
+    return -1
+  }
+
+  function computeDisplayPath(index) {
+    if (index < 0 || index >= imageArray.length || !imageArray[index]) return ""
+    var item = imageArray[index]
+    var slug = nameForPath(item.filePath)
+    var list = wallpaperLists[slug]
+    if (!list || !list.length) return item.thumbnailPath
+    var idx = wallpaperOffsets[slug] || 0
+    if (idx < 0 || idx >= list.length) return item.thumbnailPath
+    return list[idx]
+  }
+
+  function refreshDisplays() {
+    var next = []
+    for (var i = 0; i < imageArray.length; i++)
+      next.push(computeDisplayPath(i))
+    displayByIndex = next
+  }
+
+  function ensureThemeWallpapers(slug) {
+    if (!inThemeSwitcher() || !slug) return
+    if (Object.prototype.hasOwnProperty.call(wallpaperLists, slug)) return
+    if (themeBgsProc.activeSlug === slug || themeBgsProc.queue.indexOf(slug) >= 0) return
+    themeBgsProc.queue = themeBgsProc.queue.concat([slug])
+    startThemeBgsQueue()
+  }
+
+  function startThemeBgsQueue() {
+    if (themeBgsProc.running || themeBgsProc.queue.length === 0) return
+    var slug = themeBgsProc.queue[0]
+    themeBgsProc.queue = themeBgsProc.queue.slice(1)
+    themeBgsProc.activeSlug = slug
+    themeBgsProc.activeSerial = wallpaperSerial
+    themeBgsProc.command = ["bash", root.scriptPath("list-theme-bgs.sh"), slug]
+    themeBgsProc.running = true
+  }
+
+  function takeThemeWallpapers(slug, lines) {
+    var item = itemForSlug(slug)
+    var list = lines.slice()
+    var match = previewIndexInList(list, item)
+    if (match < 0 && item && item.thumbnailPath) {
+      list.unshift(item.thumbnailPath)
+      match = 0
+    }
+    if (match < 0) match = 0
+    var lists = Object.assign({}, wallpaperLists)
+    var offsets = Object.assign({}, wallpaperOffsets)
+    lists[slug] = list
+    if (offsets[slug] === undefined) offsets[slug] = match
+    wallpaperLists = lists
+    wallpaperOffsets = offsets
+    var pending = wallpaperPending[slug] || 0
+    if (pending) {
+      var pendingMap = Object.assign({}, wallpaperPending)
+      pendingMap[slug] = 0
+      wallpaperPending = pendingMap
+      applyWallpaperCycle(slug, pending)
+      return
+    }
+    refreshDisplays()
+  }
+
+  function applyWallpaperCycle(slug, direction) {
+    var list = wallpaperLists[slug]
+    if (!list || list.length < 2) return
+    var idx = wallpaperOffsets[slug] || 0
+    var offsets = Object.assign({}, wallpaperOffsets)
+    offsets[slug] = (idx + direction % list.length + list.length) % list.length
+    wallpaperOffsets = offsets
+    refreshDisplays()
+  }
+
+  function cycleThemeWallpaper(direction) {
+    if (!inThemeSwitcher()) return
+    var slug = themeSlugForIndex(selectedIndex)
+    if (!slug) return
+    if (Object.prototype.hasOwnProperty.call(wallpaperLists, slug)) {
+      applyWallpaperCycle(slug, direction)
+      return
+    }
+    var pending = Object.assign({}, wallpaperPending)
+    pending[slug] = (pending[slug] || 0) + direction
+    wallpaperPending = pending
+    ensureThemeWallpapers(slug)
   }
 
   function updateFilter(nextFilterText) {
@@ -200,6 +329,9 @@ Item {
     root.selectedIndex = root.indexForSelectedImage(newImages)
     root.imageArray = newImages
     root.imagesLoaded = true
+    root.refreshDisplays()
+    if (root.inThemeSwitcher())
+      root.ensureThemeWallpapers(root.themeSlugForIndex(root.selectedIndex))
 
     if (reveal !== false) {
       root.opened = true
@@ -223,6 +355,7 @@ Item {
     filterable = nextFilterable === true || nextFilterable === "true"
     filterText = ""
     layoutSettled = false
+    resetWallpaperState()
 
     if (imageRows && imageRows === loadedImageRows && imageArray.length > 0) {
       root.select(root.selectedImageIndex(), true)
@@ -254,6 +387,11 @@ Item {
   }
 
   property var imageArray: []
+  property var wallpaperLists: ({})
+  property var wallpaperOffsets: ({})
+  property var wallpaperPending: ({})
+  property var displayByIndex: []
+  property int wallpaperSerial: 0
 
   function startImageScan(serial, dirs) {
     if (loadImagesProc.running) {
@@ -297,6 +435,26 @@ Item {
       queuedDirs = ""
       if (serial > 0 && serial === root.requestSerial)
         root.startImageScan(serial, dirs)
+    }
+  }
+
+  Process {
+    id: themeBgsProc
+    property string activeSlug: ""
+    property int activeSerial: 0
+    property var queue: []
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (themeBgsProc.activeSerial !== root.wallpaperSerial) return
+        var lines = String(text || "").split("\n").filter(function(line) { return line.length > 0 })
+        root.takeThemeWallpapers(themeBgsProc.activeSlug, lines)
+      }
+    }
+    onExited: {
+      activeSlug = ""
+      activeSerial = 0
+      root.startThemeBgsQueue()
     }
   }
 
@@ -426,8 +584,24 @@ Item {
             } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
               root.selectAdjacent(1)
               event.accepted = true
+            } else if (event.key === Qt.Key_Up) {
+              root.cycleThemeWallpaper(-1)
+              event.accepted = true
+            } else if (event.key === Qt.Key_Down) {
+              root.cycleThemeWallpaper(1)
+              event.accepted = true
             } else if (root.filterable && event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
               root.updateFilter(root.filterText + event.text)
+              event.accepted = true
+            }
+          }
+
+          WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function(event) {
+              if (!root.inThemeSwitcher()) return
+              if (event.angleDelta.y > 0) root.cycleThemeWallpaper(-1)
+              else if (event.angleDelta.y < 0) root.cycleThemeWallpaper(1)
               event.accepted = true
             }
           }
@@ -445,6 +619,7 @@ Item {
               readonly property string filePath: imageData ? imageData.filePath : ""
               readonly property string fileName: imageData ? imageData.fileName : ""
               readonly property string thumbnailPath: imageData ? imageData.thumbnailPath : ""
+              readonly property string displayPath: (root.displayByIndex[index] || thumbnailPath)
 
               readonly property bool matched: root.itemMatches(index)
               readonly property int relativeIndex: root.filteredPosition(index) - root.selectedFilteredPosition()
@@ -505,11 +680,13 @@ Item {
                   // Load only the initial/visited nearby images, but keep the
                   // source once activated so Qt does not tear textures down as
                   // selection moves through the carousel.
-                  source: item.sourceActivated && item.thumbnailPath ? Util.fileUrl(item.thumbnailPath) : ""
+                  source: item.sourceActivated && item.displayPath ? Util.fileUrl(item.displayPath) : ""
                   fillMode: Image.PreserveAspectCrop
                   asynchronous: false
                   cache: true
                   smooth: true
+                  sourceSize.width: item.selected ? root.expandedWidth : root.sliceWidth
+                  sourceSize.height: item.selected ? root.expandedHeight : root.sliceHeight
                 }
 
                 Rectangle {
@@ -551,7 +728,12 @@ Item {
           anchors.topMargin: Style.space(16)
           anchors.horizontalCenter: carousel.horizontalCenter
           width: root.expandedWidth
-          text: root.currentLabel()
+          text: {
+            root.displayByIndex
+            root.selectedIndex
+            root.filterText
+            return root.currentLabel()
+          }
           color: root.foreground
           style: Text.Outline
           styleColor: Util.alpha(root.dimColor, 0.7)
