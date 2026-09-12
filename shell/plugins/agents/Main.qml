@@ -347,19 +347,9 @@ Item {
     if (!machineCommand.running) manageMachine(["refresh", "--force"])
   }
 
-  function machineStatus(nowMs) {
+  function machineStatus(nowMs, providerId) {
     if (remoteMachines.length && syncConfigured()) return "SSH views require legacy synced aggregation to be Off"
-    var selected = remoteMachines.filter(function(machine) { return root.selectedMachineId === "all" || machine.id === root.selectedMachineId })
-    if (!selected.length) return ""
-    var missing = 0, oldest = nowMs / 1000, issues = false
-    for (var i = 0; i < selected.length; i++) {
-      var machine = selected[i]
-      if (!machine.lastSuccess) missing++
-      else oldest = Math.min(oldest, Number(machine.lastSuccess))
-      if (machine.status !== "current" || nowMs / 1000 - Number(machine.lastSuccess || 0) > 7200) issues = true
-    }
-    if (missing) return "Incomplete: " + missing + " computer(s) have no successful import yet"
-    return (issues ? "Last known / incomplete" : "Remote usage") + " · oldest update " + Math.max(0, Math.floor((nowMs / 1000 - oldest) / 60)) + " min ago"
+    return RemoteUsage.machineStatus(remoteMachines, root.selectedMachineId, providerId || "", nowMs)
   }
 
   function providerEnabled(id) {

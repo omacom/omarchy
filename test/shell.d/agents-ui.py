@@ -50,6 +50,10 @@ agent = agent[agent.index('Item {'):].replace('Item {', 'component AgentUnderTes
 agent = agent.replace('id: root', 'id: root\n  function removeFile() { usageFile.loadFailed() }', 1)
 machine = (plugin / 'MachineSettings.qml').read_text()
 machine = machine[machine.index('Item {'):].replace('Item {', 'component MachineSettings: Item {', 1)
+# Test-only observation seam: exercise the production ListView and its real
+# delegate layout without adding a public property to the shipped component.
+machine = machine.replace('  required property var usage\n',
+  '  required property var usage\n  property alias machineListForTest: machineList\n', 1)
 key_component = (root / 'shell/Ui/PanelKeyCatcher.qml').read_text()
 key_component = key_component[key_component.index('Item {'):].replace('Item {', 'component PanelKeyCatcher: Item {', 1)
 button = (root / 'shell/Ui/Button.qml').read_text()
@@ -58,14 +62,20 @@ key_catcher = panel[panel.index('    PanelKeyCatcher {'):panel.index('      Flic
 replacements = {
   'machines': {'MACHINE_COMPONENT': themed(machine).replace('Color.', 'testColor.'),
                'KEY_COMPONENT': key_component, 'KEY_CATCHER': key_catcher, 'BUTTON_KEYS': button_keys,
-               'SCROLL_FUNCTION': block(panel, '  function ensureUsageCursorVisible()')},
+               'SCROLL_FUNCTION': block(panel, '  function ensureUsageCursorVisible()'),
+               'TOP_FUNCTION': block(panel, '  function ensureTopControlsVisible()')},
   'alignment': {
     'COMPONENTS': themed(block(panel, '  component UsageValue:') + '\n'
       + panel[panel.index('  component DayRow:'):panel.rfind('\n}')])
   },
   'tabs': {'ROW': themed(block(panel, '    Row {\n      id: providerSwitch'))},
   'pages': {
-    'STACK': themed(block(panel, '        Item {\n          id: contentStack')).replace('width: panelFlick.width', 'width: root.width'),
+    'KEY_COMPONENT': key_component,
+    'KEY_CATCHER': key_catcher,
+    'SCROLL_FUNCTION': block(panel, '  function ensureUsageCursorVisible()'),
+    'TOP_FUNCTION': block(panel, '  function ensureTopControlsVisible()'),
+    'COVERAGE_FUNCTION': block(panel, '  function coverageText(provider)'),
+    'STACK': themed(block(panel, '        Item {\n          id: contentStack')),
     'COMPONENTS': themed(panel[panel.index('  component ProviderPage:'):panel.rfind('\n}')])
   },
   'worker': {'COMPONENT': agent}

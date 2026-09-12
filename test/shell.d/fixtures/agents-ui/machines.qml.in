@@ -18,6 +18,7 @@ Item {
   function selectProvider(index) { providerIndex = index }
   function switchPanel(direction) { switchedPanels = switchedPanels.concat([direction]) }
   SCROLL_FUNCTION
+  TOP_FUNCTION
   function showMachines() { machinesOpen = true }
   function close() {}
   function refreshNow() {}
@@ -165,6 +166,29 @@ Item {
       wait(5)
       keyClick(Qt.Key_Return)
       compare(usage.commands.length, 0, "a concurrent CLI removal must not retarget confirmation")
+    }
+    function test_external_last_machine_removal_keeps_surviving_selection_visible() {
+      var rows=[]
+      for(var i=0;i<10;i++) rows.push(row("machine"+i,"Computer "+(i+1)))
+      usage.remoteMachines=rows
+      machineSettings.selectedId="machine9"
+      wait(30)
+      var list=machineSettings.machineListForTest
+      list.forceLayout()
+      var tenth=list.itemAtIndex(9)
+      verify(tenth,"selected tenth delegate is instantiated")
+      var before=tenth.mapToItem(list,0,0)
+      verify(before.y<list.height && before.y+tenth.height>0,"selected tenth machine starts visible")
+
+      usage.remoteMachines=rows.slice(0,9)
+      wait(30)
+      compare(machineSettings.selectedId,"machine8","the nearest surviving ninth machine stays selected")
+      list.forceLayout()
+      var ninth=list.itemAtIndex(8)
+      verify(ninth,"surviving selected delegate is instantiated after model replacement")
+      var after=ninth.mapToItem(list,0,0)
+      verify(after.y<list.height && after.y+ninth.height>0,
+        "surviving selected ninth machine stays within the actual ListView viewport")
     }
     function test_tab_switches_neighbor_panels_outside_editor() {
       root.machinesOpen = false

@@ -1,7 +1,9 @@
 import QtQuick
+import QtQuick.Controls
+import QtQuick.Window
 import QtTest
 Item {
-  id: root; width: 380; height: 1200
+  id: root; width: 380; height: 220
   property color foreground: "white"
   property color dim: "gray"
   property color urgent: "red"
@@ -16,16 +18,30 @@ Item {
   property int usageCursor: 0
   property int focusSection: 0
   property int machineIndex: 0
+  property var switchedPanels: []
   property alias usageService: usage
   function showMachines() { machinesOpen=true }
   function leaveMachines() { machinesOpen=false }
-  QtObject { id: keyCatcher; function forceActiveFocus() {} }
+  function selectMachine() {}
+  function switchPanel(direction) { switchedPanels = switchedPanels.concat([direction]) }
+  function refreshNow() {}
+  function close() {}
+  SCROLL_FUNCTION
+  TOP_FUNCTION
+  COVERAGE_FUNCTION
   component MachineSettings: Item {
     property var usage
     property color foreground
     property string fontFamily
+    property bool editing: false
+    property string mode: ""
     signal backRequested()
     signal focusRequested()
+    function move() {}
+    function edit() {}
+    function submit() {}
+    function back() {}
+    function removeSelected() {}
     implicitHeight: 480
   }
   property int providerIndex: 0
@@ -40,14 +56,19 @@ Item {
   }
   QtObject { id: usage
     property var remoteMachines: []
-    function machineStatus(now) { return "" }
+    function machineStatus(now, providerId) { return "" }
     property bool remoteActive: false
     property var allProviders: []
     property var machineChoices: [{id:"all",label:"All"},{id:"local",label:"This computer"}]
     property string selectedMachineId: "all"
     property var pricing: QtObject {
       function modelWindowPresentation(p) { return p ? p.presentation : {available:false, models:[], summaries:[]} }
-      function dailyRows(p) { return p ? p.recentDays : [] }
+      function dailyRows(p) {
+        if (!p) return []
+        var rows=[]
+        for(var i=0;i<7;i++) rows.push({date:"2026-09-"+(11-i),value:"12/$34.56",tokens:12,pricingEnabled:true})
+        return rows
+      }
       function dailyHeading() { return "TOKENS / COST" }
     }
     function formatTokenCount(n) { return String(n) }
@@ -70,10 +91,10 @@ Item {
   function alpha(c,a) { return Qt.rgba(c.r,c.g,c.b,a) }
   function clamp(v,a,b) { return Math.max(a,Math.min(b,v)) }
   function limitWindows(p) { return p ? p.limits : [] }
-  function providerSupportsPricing(p) { return !!p }
+  function providerSupportsPricing(p) { return !!p && (p.providerId==="codex" || p.providerId==="claude" || p.providerId==="kimi") }
   function pricedModelRows(rows) { return rows }
   function pricedSummaryRows(rows) { return rows }
-  function modelRows() { return [] }
+  function modelRows(p) { return p ? p.presentation.models : [] }
   function pricingLimitationText(p) { return p ? (p.note || "") : "" }
   function heroMeta() { return "Subscription" }
   function iconCandidatesForProvider() { return [] }
@@ -88,16 +109,40 @@ Item {
   function formatMoney() { return "$1.00" }
   function balanceDetailText() { return "" }
   function selectProvider(i) { providerIndex=i }
-  STACK
+  KEY_COMPONENT
+  KEY_CATCHER
+    Flickable {
+      id: panelFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: contentStack.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+      STACK
+    }
+  }
   COMPONENTS
   TestCase {
     name: "ProviderPageSize"; when: windowShown
+    function textItem(item, fragment) {
+      if (item.text !== undefined && String(item.text).indexOf(fragment)>=0) return item
+      var children=item.children || []
+      for(var i=0;i<children.length;i++) {
+        var match=textItem(children[i],fragment)
+        if (match) return match
+      }
+      return null
+    }
     function fixture(name,models,limits) {
       var rows=[], days=[], windows=[]
       for(var i=0;i<models;i++) rows.push({name:"Model "+i,total:10,value:"12/$34.56",pricingPresentation:true})
       for(var j=0;j<7;j++) days.push({date:"2026-09-11",value:"12/$34.56",tokens:12,pricingEnabled:true})
       for(var k=0;k<limits;k++) windows.push({title:"Window "+k,percent:0.5,resetAt:""})
-      return {providerName:name,providerId:name,recentDays:days,limits:windows,note:"",presentation:{available:true,models:rows,summaries:rows.slice(0,3)}}
+      return {providerName:name,providerId:"codex",recentDays:days,limits:windows,note:"",
+        knownUsage:true,usageIncomplete:false,presentation:{available:true,models:rows,summaries:rows.slice(0,3)}}
     }
     function test_emptyState() {
       root.providers=[];wait(1)
@@ -122,6 +167,58 @@ Item {
       root.providers=[fixture("small",2,1),fixture("large",6,3)];wait(1)
       compare(providerPages.itemAt(0),small,"record refresh must preserve page instances")
       compare(contentStack.implicitHeight,height,"same largest contents preserve height")
+    }
+    function test_hidden_rows_are_not_keyboard_targets() {
+      var hidden=fixture("hidden",4,0)
+      hidden.knownUsage=false; hidden.usageIncomplete=true
+      root.providers=[hidden]; wait(10)
+      var page=providerPages.itemAt(0)
+      compare(page.detailCount,0,"hidden usage and model rows are excluded from cursor indexing")
+      var notice=textItem(page,"No zero usage is assumed")
+      verify(notice && notice.visible,"unknown remote coverage has a rendered notice")
+      root.focusSection=2; keyCatcher.forceActiveFocus(); keyClick("j")
+      compare(root.focusSection,0,"gear navigation skips hidden detail rows")
+    }
+    function test_known_incomplete_subtotal_remains_rendered() {
+      var partial=fixture("partial",2,0)
+      partial.usageIncomplete=true
+      root.providerIndex=0; root.providers=[partial]; wait(10)
+      var page=providerPages.itemAt(0)
+      verify(page.detailCount>0,"known subtotal rows remain available")
+      var notice=textItem(page,"Known usage subtotal shown")
+      verify(notice && notice.visible)
+    }
+    function test_models_and_summaries_start_after_visible_days_only() {
+      var modelsOnly=fixture("models-only",2,0)
+      modelsOnly.recentDays=[]
+      root.providerIndex=0; root.providers=[modelsOnly]; wait(10)
+      var page=providerPages.itemAt(0)
+      compare(page.detailCount,4,"hidden priced day rows do not occupy cursor positions")
+      compare(page.detailItemAt(0).cursorIndex,0,"first model starts at the first visible position")
+      compare(page.detailItemAt(2).cursorIndex,2,"first summary follows the two rendered model rows")
+    }
+    function test_rendered_day_count_sets_model_offsets_and_scrolls() {
+      var provider=fixture("unpriced",6,0)
+      provider.providerId="fireworks"
+      provider.recentDays=provider.recentDays.slice(0,2)
+      root.providerIndex=0; root.providers=[provider]; wait(20)
+      var page=providerPages.itemAt(0)
+      compare(page.detailCount,8,"cursor count follows two rendered days plus six models")
+      compare(page.detailItemAt(2).cursorIndex,2,"first model follows actual rendered day count")
+      root.focusSection=3; root.usageCursor=0; keyCatcher.forceActiveFocus()
+      for(var i=1;i<8;i++) {
+        keyClick("j")
+        compare(root.focusSection,3,"cursor remains in usage before boundary at step "+i)
+        compare(root.usageCursor,i,"cursor advances to rendered row "+i)
+      }
+      wait(10)
+      var row=page.detailItemAt(root.usageCursor)
+      var position=row.mapToItem(contentStack,0,0).y
+      verify(position>=panelFlick.contentY && position+row.height<=panelFlick.contentY+panelFlick.height,
+        "actual clipped provider row is brought into the Flickable viewport")
+      keyClick("j"); wait(10)
+      compare(root.focusSection,0,"last rendered row leaves usage")
+      compare(panelFlick.contentY,0,"leaving usage reveals the top provider controls")
     }
   }
 }

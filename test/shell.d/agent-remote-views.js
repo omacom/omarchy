@@ -12,6 +12,12 @@ function record(amount, model = 'gpt-6-astra') {
         tokens: { inputTokens: amount, outputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 }
       }] }] } }
 }
+function source(status, lastSuccess) {
+  return { status, ...(lastSuccess === undefined ? {} : { lastSuccess }) }
+}
+function remoteRecord(amount, metadata = {}) {
+  return { ...record(amount), ...metadata }
+}
 const local = { ...record(100), providerId: 'codex', providerName: 'Codex', limits: [{percent: .2}], costScopeCompatible: true }
 const machines = Array.from({length: 10}, (_, i) => ({ id: 'm' + i, identity: 'device' + i,
   lastSuccess: now / 1000, providers: { codex: record(10) } }))
@@ -38,6 +44,57 @@ assert.equal(unavailable.all[0].todayTotalTokens, 100)
 const balanceOnly = { providerId: 'fireworks', providerName: 'Fireworks', balance: { remaining: 8 } }
 assert.deepEqual(remote.scopes([local, balanceOnly], machines, now).all[1], balanceOnly)
 console.log('ok - missing first import stays unavailable and account-only providers survive remote aggregation')
+
+const threeDaysAgo = now / 1000 - 3 * 24 * 60 * 60
+const partialMachines = [{
+  id: 'partial', identity: 'partial-device', status: 'incomplete', lastSuccess: now / 1000,
+  providers: {
+    codex: remoteRecord(25, {
+      remoteSources: { '.codex/sessions': source('current', threeDaysAgo) },
+      remoteCollector: source('current', threeDaysAgo)
+    }),
+    claude: {
+      id: 'claude', name: 'Claude', todayTotalTokens: null,
+      dailyUsage: { schemaVersion: 1, unit: 'tokens', complete: false,
+        issues: ['.claude/projects: source unavailable'], days: [] },
+      remoteSources: { '.claude/projects': source('unavailable') },
+      remoteCollector: source('current', now / 1000)
+    }
+  }
+}]
+const claudeLocal = { ...record(40, 'claude-sonnet-4-5'), providerId: 'claude', providerName: 'Claude', limits: [] }
+const partial = remote.scopes([local, claudeLocal], partialMachines, now)
+const individualClaude = partial.partial.find(provider => provider.providerId === 'claude')
+const allClaude = partial.all.find(provider => provider.providerId === 'claude')
+assert.equal(individualClaude.todayTotalTokens, null)
+assert.equal(individualClaude.knownUsage, false)
+assert.equal(individualClaude.usageIncomplete, true)
+assert.equal(allClaude.todayTotalTokens, 40)
+assert.equal(allClaude.knownUsage, true)
+assert.equal(allClaude.usageIncomplete, true)
+assert.equal(allClaude.recentDays.at(-1).messageCount, 40)
+assert.match(remote.machineStatus(partialMachines, 'partial', 'claude', now), /provider source unavailable/)
+assert.match(remote.machineStatus(partialMachines, 'partial', 'codex', now), /^Remote usage/)
+console.log('ok - unavailable provider data stays unknown while All retains its known local subtotal')
+
+const staleMachines = [{
+  id: 'stale', identity: 'stale-device', status: 'incomplete', lastSuccess: now / 1000,
+  providers: {
+    codex: remoteRecord(25, { remoteSources: { '.codex/sessions': source('current', threeDaysAgo) } }),
+    claude: remoteRecord(30, { remoteSources: { '.claude/projects': source('stale', threeDaysAgo) } })
+  }
+}]
+const staleViews = remote.scopes([], staleMachines, now)
+const staleClaude = staleViews.all.find(provider => provider.providerId === 'claude')
+assert.equal(staleClaude.todayTotalTokens, 30)
+assert.equal(staleClaude.knownUsage, true)
+assert.equal(staleClaude.usageIncomplete, true)
+assert.match(remote.machineStatus(staleMachines, 'stale', 'claude', now), /oldest relevant update 4320 min ago/)
+assert.match(remote.machineStatus(staleMachines, 'stale', 'codex', now), /^Remote usage · oldest update 0 min ago$/)
+const transportFailure = [{ ...staleMachines[0], status: 'stale', lastSuccess: threeDaysAgo,
+  providers: { codex: remoteRecord(25, { remoteSources: { '.codex/sessions': source('current', now / 1000) } }) } }]
+assert.match(remote.machineStatus(transportFailure, 'stale', 'codex', now), /oldest relevant update 4320 min ago/)
+console.log('ok - stale age follows the relevant provider and ignores old timestamps on current sources')
 
 const cache = pricing.createPresentationCache()
 const views = Object.values(scopes)

@@ -6,6 +6,30 @@ function copy(value) {
   return result
 }
 
+function providerCoverage(record) {
+  record = record || {}
+  var metadata = false, incomplete = false, oldest = 0, unavailableWithoutSuccess = false
+  function inspect(part) {
+    if (!part || typeof part !== "object" || !part.status) return
+    metadata = true
+    if (part.status !== "stale" && part.status !== "unavailable") return
+    incomplete = true
+    var success = Number(part.lastSuccess || 0)
+    if (success > 0) oldest = oldest > 0 ? Math.min(oldest, success) : success
+    else unavailableWithoutSuccess = true
+  }
+  var sources = record.remoteSources || {}
+  for (var source in sources) inspect(sources[source])
+  inspect(record.remoteCollector)
+
+  var daily = record.dailyUsage
+  var known = record.todayTotalTokens !== null && record.todayTotalTokens !== undefined
+  if (!known && daily && daily.schemaVersion === 1 && daily.days && daily.days.length > 0) known = true
+  if (metadata && (!daily || daily.complete !== true || record.todayTotalTokens === null)) incomplete = true
+  return { known: known, incomplete: incomplete, oldest: oldest,
+    unavailableWithoutSuccess: unavailableWithoutSuccess }
+}
+
 function remoteProvider(record, account) {
   var result = copy(record || {})
   result.providerId = record.id
@@ -16,6 +40,11 @@ function remoteProvider(record, account) {
   result.tierLabel = account ? account.tierLabel : ""
   result.usageStatusText = account ? account.usageStatusText : ""
   result.authHelpText = account ? account.authHelpText : ""
+  var coverage = providerCoverage(record)
+  result.knownUsage = coverage.known
+  result.usageIncomplete = coverage.incomplete
+  result.oldestStaleSuccess = coverage.oldest
+  result.unavailableWithoutSuccess = coverage.unavailableWithoutSuccess
   return result
 }
 
@@ -40,12 +69,28 @@ function sum(providers, account, nowMs) {
   result.todayTotalTokens = 0
   result.hasLocalStats = true
   result.hasPromptStats = false
-  var complete = true, unallocated = 0
+  var complete = true, unallocated = 0, knownContributions = 0, usageIncomplete = false
+  var oldestStaleSuccess = 0, unavailableWithoutSuccess = false
   for (var i = 0; i < providers.length; i++) {
     var provider = providers[i]
-    result.totalPrompts += Number(provider.totalPrompts || 0)
-    result.totalSessions += Number(provider.totalSessions || 0)
-    result.hasPromptStats = result.hasPromptStats || provider.hasPromptStats !== false
+    var coverage = provider.knownUsage === false
+      ? { known: false, incomplete: provider.usageIncomplete === true,
+          oldest: Number(provider.oldestStaleSuccess || 0),
+          unavailableWithoutSuccess: provider.unavailableWithoutSuccess === true }
+      : providerCoverage(provider)
+    if (provider.usageIncomplete === true) coverage.incomplete = true
+    if (Number(provider.oldestStaleSuccess || 0) > 0) coverage.oldest = Number(provider.oldestStaleSuccess)
+    if (provider.unavailableWithoutSuccess === true) coverage.unavailableWithoutSuccess = true
+    usageIncomplete = usageIncomplete || coverage.incomplete
+    unavailableWithoutSuccess = unavailableWithoutSuccess || coverage.unavailableWithoutSuccess
+    if (coverage.oldest > 0)
+      oldestStaleSuccess = oldestStaleSuccess > 0 ? Math.min(oldestStaleSuccess, coverage.oldest) : coverage.oldest
+    if (coverage.known) {
+      knownContributions++
+      result.totalPrompts += Number(provider.totalPrompts || 0)
+      result.totalSessions += Number(provider.totalSessions || 0)
+      result.hasPromptStats = result.hasPromptStats || provider.hasPromptStats !== false
+    }
     var daily = provider.dailyUsage
     if (!daily || daily.schemaVersion !== 1) {
       complete = false
@@ -88,12 +133,20 @@ function sum(providers, account, nowMs) {
     }
   }
   var keys = Object.keys(days).sort()
+  var knownUsage = providers.length === 0 || knownContributions > 0
   result.dailyUsage = { schemaVersion: 1, unit: "tokens", fromDate: keys[0], throughDate: todayKey,
-    complete: complete, issues: issues, unallocatedTokens: unallocated, days: keys.map(function(key) { return days[key] }) }
-  result.recentDays = Object.keys(recent).sort().map(function(key) { return recent[key] })
+    complete: complete && !usageIncomplete, issues: issues, unallocatedTokens: unallocated,
+    days: knownUsage ? keys.map(function(key) { return days[key] }) : [] }
+  result.recentDays = knownUsage
+    ? Object.keys(recent).sort().map(function(key) { return recent[key] }) : []
   result.modelUsage = models
   result.todayTokensByModel = modelToday
   result.activeDays = Object.keys(active).length
+  result.todayTotalTokens = knownUsage ? result.todayTotalTokens : null
+  result.knownUsage = knownUsage
+  result.usageIncomplete = usageIncomplete
+  result.oldestStaleSuccess = oldestStaleSuccess
+  result.unavailableWithoutSuccess = unavailableWithoutSuccess
   return result
 }
 
@@ -123,6 +176,17 @@ function scopes(local, machines, nowMs) {
     result[machine.id] = view
     missing[machine.id] = !machine.lastSuccess
   }
+  // A computer with no completed import contributes an unknown value to every
+  // supported provider in All; it must not silently disappear as zero.
+  for (var missingScope in missing) {
+    if (!missing[missingScope]) continue
+    for (var missingIdIndex = 0; missingIdIndex < ids.length; missingIdIndex++) {
+      var missingId = ids[missingIdIndex]
+      if (["codex", "claude", "kimi"].indexOf(missingId) < 0) continue
+      all[missingId].push({ id: missingId, name: accounts[missingId].providerName,
+        knownUsage: false, usageIncomplete: true, unavailableWithoutSuccess: true })
+    }
+  }
   result.all = ids.map(function(id) {
     if (all[id].length === 1 && ["codex", "claude", "kimi"].indexOf(id) < 0) return all[id][0]
     return sum(all[id], accounts[id], nowMs)
@@ -134,11 +198,73 @@ function scopes(local, machines, nowMs) {
     for (var j = 0; j < result[scope].length; j++) lookup[result[scope][j].providerId] = result[scope][j]
     result[scope] = ids.map(function(id) {
       var value = lookup[id] || sum([], accounts[id], nowMs)
-      if (missing[scope]) { value = copy(value); value.remoteMissing = true }
+      if (missing[scope]) {
+        value = copy(value)
+        value.remoteMissing = true
+        value.knownUsage = false
+        value.usageIncomplete = true
+        value.unavailableWithoutSuccess = true
+        value.todayTotalTokens = null
+        value.recentDays = []
+        value.dailyUsage = copy(value.dailyUsage)
+        value.dailyUsage.complete = false
+        value.dailyUsage.days = []
+      }
       return value
     })
   }
   return result
 }
 
-if (typeof module !== "undefined") module.exports = { scopes: scopes, sum: sum }
+function machineStatus(machines, selectedId, providerId, nowMs) {
+  var selected = machines.filter(function(machine) { return selectedId === "all" || machine.id === selectedId })
+  if (!selected.length) return ""
+  var now = nowMs / 1000, missing = 0, displayOldest = now
+  var issues = false, issueOldest = 0, unavailableWithoutSuccess = false
+  function rememberIssue(coverage) {
+    if (!coverage.incomplete) return
+    issues = true
+    if (coverage.oldest > 0)
+      issueOldest = issueOldest > 0 ? Math.min(issueOldest, coverage.oldest) : coverage.oldest
+    else if (coverage.unavailableWithoutSuccess) unavailableWithoutSuccess = true
+  }
+  for (var i = 0; i < selected.length; i++) {
+    var machine = selected[i]
+    var machineSuccess = Number(machine.lastSuccess || 0)
+    if (!machineSuccess) missing++
+    else displayOldest = Math.min(displayOldest, machineSuccess)
+
+    // Stale/unavailable machine status represents a transport-wide failure.
+    // An incomplete machine can have a current sibling provider, so its
+    // provider metadata below decides whether this page is affected.
+    if (machine.status === "stale" || machine.status === "unavailable") {
+      issues = true
+      if (machineSuccess > 0)
+        issueOldest = issueOldest > 0 ? Math.min(issueOldest, machineSuccess) : machineSuccess
+      else unavailableWithoutSuccess = true
+    } else if (machineSuccess > 0 && now - machineSuccess > 7200) {
+      issues = true
+      issueOldest = issueOldest > 0 ? Math.min(issueOldest, machineSuccess) : machineSuccess
+    }
+
+    var records = machine.providers || {}
+    if (providerId) {
+      if (records[providerId]) rememberIssue(providerCoverage(records[providerId]))
+    } else {
+      for (var id in records) rememberIssue(providerCoverage(records[id]))
+      if (machine.status !== "current" && machine.status !== "incomplete") issues = true
+    }
+  }
+  if (missing) return "Incomplete: " + missing + " computer(s) have no successful import yet"
+  if (issues) {
+    if (issueOldest > 0)
+      return "Last known / incomplete · oldest relevant update " + Math.max(0, Math.floor((now - issueOldest) / 60)) + " min ago"
+    if (unavailableWithoutSuccess) return "Last known / incomplete · provider source unavailable"
+    return "Last known / incomplete"
+  }
+  return "Remote usage · oldest update " + Math.max(0, Math.floor((now - displayOldest) / 60)) + " min ago"
+}
+
+if (typeof module !== "undefined") module.exports = {
+  scopes: scopes, sum: sum, providerCoverage: providerCoverage, machineStatus: machineStatus
+}

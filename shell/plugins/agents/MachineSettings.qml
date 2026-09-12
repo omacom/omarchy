@@ -30,6 +30,18 @@ Item {
     }
     if (!machines.some(function(machine) { return machine.id === root.selectedId }))
       selectedId = machines.length ? machines[Math.min(Math.max(selectedIndex, 0), machines.length - 1)].id : ""
+    revealSelected()
+  }
+
+  function revealSelected() {
+    // A ListView can reset its viewport after replacing a numeric model even
+    // when currentIndex remains unchanged. Wait for delegates to be rebuilt,
+    // then contain the surviving selection in the new layout.
+    Qt.callLater(function() {
+      if (root.selectedIndex < 0) return
+      machineList.forceLayout()
+      machineList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+    })
   }
 
   function move(direction) {
@@ -105,19 +117,20 @@ Item {
       model: root.machines.length
       spacing: Style.space(4)
       currentIndex: root.selectedIndex
-      onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+      onCurrentIndexChanged: root.revealSelected()
       delegate: Button {
         required property int index
+        readonly property var machine: index >= 0 && index < root.machines.length ? root.machines[index] : null
         width: machineList.width
-        text: root.machines[index].label + " · " + (root.machines[index].status || "pending")
+        text: machine ? machine.label + " · " + (machine.status || "pending") : ""
         foreground: root.foreground
         fontFamily: root.fontFamily
         fontSize: Style.font.bodySmall
         hasCursor: index === root.selectedIndex
         selected: index === root.selectedIndex
         leftAlign: true
-        enabled: root.mode === "" && !root.usage.machineBusy
-        onClicked: root.selectedId = root.machines[index].id
+        enabled: !!machine && root.mode === "" && !root.usage.machineBusy
+        onClicked: if (machine) root.selectedId = machine.id
       }
       Text {
         textFormat: Text.PlainText

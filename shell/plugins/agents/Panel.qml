@@ -69,6 +69,10 @@ Panel {
     })
   }
 
+  function ensureTopControlsVisible() {
+    Qt.callLater(function() { panelFlick.contentY = 0 })
+  }
+
   // Countdowns and "updated" read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
@@ -367,12 +371,19 @@ Panel {
 
   // Only speaks up when the numbers cover more than this machine.
   function footerText(provider) {
-    var remoteStatus = usage.machineStatus(root.nowMs)
+    var remoteStatus = usage.machineStatus(root.nowMs, provider ? provider.providerId : "")
     if (remoteStatus !== "") return remoteStatus
     if (usage.syncStatusText !== "") return usage.syncStatusText
     if (provider && provider.syncEnabled && provider.syncDeviceCount > 0)
       return "Merged from " + provider.syncDeviceCount + " device" + (provider.syncDeviceCount === 1 ? "" : "s")
     return ""
+  }
+
+  function coverageText(provider) {
+    if (!provider || provider.usageIncomplete !== true) return ""
+    if (provider.knownUsage === false)
+      return "Remote usage is unavailable. No zero usage is assumed."
+    return "Known usage subtotal shown. Remote coverage is incomplete."
   }
 
   // Agents that ship a white mark carry an `assets/<id>-light.svg` twin for
@@ -492,10 +503,12 @@ Panel {
             if (nextCursor < 0) {
               root.focusSection = 2
               root.detailsOpen = false
+              root.ensureTopControlsVisible()
             } else if (nextCursor >= count) {
               root.focusSection = 0
               root.usageCursor = 0
               root.detailsOpen = false
+              root.ensureTopControlsVisible()
             } else {
               root.usageCursor = nextCursor
               root.ensureUsageCursorVisible()
@@ -674,7 +687,10 @@ Panel {
     id: page
     property var provider: null
     property bool selectedPage: false
-    readonly property int detailCount: dailyRowRepeater.count + modelRowRepeater.count + summaryRowRepeater.count
+    readonly property int renderedDayCount: usageSection.visible ? dailyRowRepeater.count : 0
+    readonly property int renderedModelCount: modelSection.visible ? modelRowRepeater.count : 0
+    readonly property int renderedSummaryCount: modelSection.visible ? summaryRowRepeater.count : 0
+    readonly property int detailCount: renderedDayCount + renderedModelCount + renderedSummaryCount
     readonly property var limits: root.limitWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     readonly property bool balanceAlarming: !!balance && balance.funded > 0
@@ -687,11 +703,11 @@ Panel {
     readonly property var pricedDailyRows: usage.pricing.dailyRows(provider, root.nowMs)
     readonly property string limitationText: root.pricingLimitationText(provider, pricedDailyRows, modelPresentation)
     function detailItemAt(index) {
-      if (index < dailyRowRepeater.count) return dailyRowRepeater.itemAt(index)
-      index -= dailyRowRepeater.count
-      if (index < modelRowRepeater.count) return modelRowRepeater.itemAt(index)
-      index -= modelRowRepeater.count
-      return index < summaryRowRepeater.count ? summaryRowRepeater.itemAt(index) : null
+      if (index < renderedDayCount) return dailyRowRepeater.itemAt(index)
+      index -= renderedDayCount
+      if (index < renderedModelCount) return modelRowRepeater.itemAt(index)
+      index -= renderedModelCount
+      return index < renderedSummaryCount ? summaryRowRepeater.itemAt(index) : null
     }
     spacing: Style.space(12)
 
@@ -901,9 +917,9 @@ Panel {
     }
 
     Text {
-      visible: !!page.provider && page.provider.remoteMissing === true
+      visible: text !== ""
       width: parent.width
-      text: "No successful import yet. Usage is unavailable."
+      text: root.coverageText(page.provider)
       textFormat: Text.PlainText
       color: root.dim
       font.family: root.fontFamily
@@ -919,7 +935,8 @@ Panel {
 
     Column {
       id: usageSection
-      visible: !!page.provider && !page.provider.remoteMissing && page.provider.recentDays && page.provider.recentDays.length > 0
+      visible: !!page.provider && page.provider.knownUsage !== false
+        && page.provider.recentDays && page.provider.recentDays.length > 0
       width: parent.width
       spacing: Style.spacing.md
 
@@ -974,7 +991,7 @@ Panel {
 
     Column {
       id: modelSection
-      visible: !!page.provider && !page.provider.remoteMissing && page.models.length > 0
+      visible: !!page.provider && page.provider.knownUsage !== false && page.models.length > 0
       width: parent.width
       spacing: Style.spacing.md
 
@@ -995,7 +1012,7 @@ Panel {
           required property var modelData
           required property int index
           tooltipAllowed: page.selectedPage
-          cursorIndex: page.pricedDailyRows.length + index
+          cursorIndex: page.renderedDayCount + index
           width: modelSection.width
           row: modelData
           // Scaled to the heaviest model, so the top row is always full —
@@ -1012,7 +1029,7 @@ Panel {
           required property var modelData
           required property int index
           tooltipAllowed: page.selectedPage
-          cursorIndex: page.pricedDailyRows.length + page.models.length + index
+          cursorIndex: page.renderedDayCount + page.renderedModelCount + index
           width: modelSection.width
           row: modelData
           share: 0
