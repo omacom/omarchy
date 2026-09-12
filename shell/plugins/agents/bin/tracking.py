@@ -241,6 +241,27 @@ def db_events(path, provider):
                 yield event(row['id'], provider, meta.get('sessionId', ''), row['model'], meta.get('cwd', ''),
                             row['timestamp'], row['promptTokens'], row['completionTokens'],
                             caller=meta.get('caller') or '9Router / ' + str(row['provider'] or ''), status=row['status'])
+        elif provider == 'devin':
+            seen = set()
+            for row in db.execute('''SELECT m.session_id, m.created_at, m.chat_message, s.working_directory, s.model AS session_model
+                    FROM message_nodes m JOIN sessions s ON s.id=m.session_id WHERE IFNULL(s.hidden,0)=0 ORDER BY m.row_id'''):
+                try:
+                    message = json.loads(row['chat_message'])
+                except (TypeError, ValueError):
+                    continue
+                metadata = (message or {}).get('metadata') or {}
+                metrics = metadata.get('metrics') or {}
+                if message.get('role') != 'assistant' or not metrics:
+                    continue
+                identity = str(metadata.get('request_id') or message.get('message_id') or f"{row['session_id']}:{row['created_at']}")
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                yield event(identity, provider, row['session_id'], metadata.get('generation_model') or row['session_model'],
+                            row['working_directory'], row['created_at'], metrics.get('input_tokens'), metrics.get('output_tokens'),
+                            metrics.get('cache_read_tokens'), metrics.get('cache_creation_tokens'), caller='Devin',
+                            status=metadata.get('finish_reason'), duration=metrics.get('total_time_ms'),
+                            message={'session': row['session_id'], 'before': row['created_at']})
 
 
 def sources():
@@ -253,7 +274,8 @@ def sources():
     for path in [HOME / '.hermes/state.db', *(HOME / '.hermes/profiles').glob('*/state.db')]:
         if path.exists():
             yield path, 'hermes', db_events
-    for provider, path in [('opencode', HOME / '.local/share/opencode/opencode.db'), ('9router', HOME / '.9router/db/data.sqlite')]:
+    for provider, path in [('opencode', HOME / '.local/share/opencode/opencode.db'), ('9router', HOME / '.9router/db/data.sqlite'),
+                           ('devin', HOME / '.local/share/devin/cli/sessions.db')]:
         if path.exists():
             yield path, provider, db_events
 
@@ -343,6 +365,16 @@ class Previews:
                         (row['session'], row['timestamp'])).fetchone()
                     if found:
                         text = found[0] or ''
+                elif row['provider'] == 'devin':
+                    found = self.connection(source).execute('''SELECT chat_message FROM message_nodes
+                        WHERE session_id=? AND created_at<=? AND json_extract(chat_message,'$.role')='user'
+                        ORDER BY created_at DESC, row_id DESC LIMIT 1''',
+                        (ref.get('session'), number(ref.get('before')))).fetchone()
+                    if found:
+                        try:
+                            text = text_content((json.loads(found[0]) or {}).get('content'))
+                        except (ValueError, TypeError):
+                            text = ''
                 elif row['provider'] == 'opencode' and ref.get('parent'):
                     db = self.connection(source)
                     chunks = []

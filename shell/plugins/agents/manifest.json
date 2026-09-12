@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "omarchy.agents",
   "name": "Agents",
-  "version": "1.3.0",
+  "version": "1.4.1",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Agent usage with period filters, project totals, and live local activity with message previews.",
+  "description": "Agent usage with period filters, project totals, live local activity, and collectors for Grok, Cursor, OpenCode, and Devin.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
@@ -21,9 +21,13 @@
       "providers": {
         "claude": { "enabled": true },
         "codex": { "enabled": true },
+        "grok": { "enabled": true },
         "fireworks": { "enabled": true },
         "antigravity": { "enabled": true },
-        "hermes": { "enabled": true }
+        "hermes": { "enabled": true },
+        "cursor": { "enabled": true },
+        "opencode": { "enabled": true },
+        "devin": { "enabled": true }
       },
       "refreshIntervalSec": 900,
       "syncMode": "Off",

@@ -82,7 +82,7 @@ Item {
         id: provider
         width: Style.space(140)
         value: tracker.provider
-        options: [{value: "all", label: "Todos"}, {value: "codex", label: "Codex"}, {value: "claude", label: "Claude"}, {value: "grok", label: "Grok"}, {value: "hermes", label: "Hermes"}, {value: "opencode", label: "OpenCode"}, {value: "9router", label: "9Router"}]
+        options: [{value: "all", label: "Todos"}, {value: "codex", label: "Codex"}, {value: "claude", label: "Claude"}, {value: "grok", label: "Grok"}, {value: "hermes", label: "Hermes"}, {value: "opencode", label: "OpenCode"}, {value: "devin", label: "Devin"}, {value: "9router", label: "9Router"}]
         onChanged: function(value) { tracker.provider = value }
       }
       Controls.TextField {
