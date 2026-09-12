@@ -1,0 +1,247 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+export HOME="$test_tmp/home"
+export TMPDIR="$test_tmp/tmp"
+mkdir -p "$HOME" "$TMPDIR"
+
+mock_bin="$test_tmp/bin"
+mkdir -p "$mock_bin"
+
+for stub in gtk-update-icon-cache omarchy-notification-send; do
+  printf '#!/bin/bash\n:\n' >"$mock_bin/$stub"
+  chmod +x "$mock_bin/$stub"
+done
+
+export PATH="$mock_bin:$PATH"
+
+applications="$HOME/.local/share/applications"
+
+install_tui() {
+  bash "$ROOT/bin/omarchy-tui-install" "$@" >/dev/null
+}
+
+run_install() {
+  bash "$ROOT/bin/omarchy-tui-install" "$@"
+}
+
+run_remove() {
+  HOME="$HOME" PATH="$PATH" OMARCHY_REMOVE_NOTIFY=false \
+    bash "$ROOT/bin/omarchy-tui-remove" "$@"
+}
+
+desktop_value() {
+  sed -n "s/^$2=//p" "$1" | head -1
+}
+
+install_tui Example htop tile someicon
+example_file="$applications/Example.desktop"
+
+[[ -f $example_file ]] || fail "tui install writes a desktop entry"
+(( $(grep -c '^Exec=' "$example_file") == 1 )) ||
+  fail "a normal tui install writes exactly one Exec line" "$(cat "$example_file")"
+[[ $(desktop_value "$example_file" Exec) == 'xdg-terminal-exec --app-id=TUI.tile -e htop' ]] ||
+  fail "tui install writes the expected Exec line" "$(desktop_value "$example_file" Exec)"
+pass "a normal tui install writes exactly one Exec line"
+
+install_tui 'Quoted App' "bash -c 'dust; read -n 1 -s'" tile someicon
+quoted_file="$applications/Quoted App.desktop"
+
+(( $(grep -c '^Exec=' "$quoted_file") == 1 )) ||
+  fail "a quoted command still yields exactly one Exec line" "$(cat "$quoted_file")"
+[[ $(desktop_value "$quoted_file" Exec) == *"bash -c 'dust; read -n 1 -s'"* ]] ||
+  fail "a quoted command keeps its quotes in Exec" "$(desktop_value "$quoted_file" Exec)"
+pass "a quoted command keeps its quotes and one Exec line"
+
+output=$(run_install "http://example.test/oops" htop tile someicon 2>&1) &&
+  fail "tui install rejects a name containing a slash"
+[[ $output == *"App name cannot contain '/'"* ]] ||
+  fail "tui install says why it refused a slashed name" "$output"
+[[ -e "$applications/http:" ]] &&
+  fail "tui install does not create a directory from a slashed name"
+pass "tui install rejects a name that would nest the launcher"
+
+if run_install "../../../../escaped" htop tile someicon >/dev/null 2>&1; then
+  fail "tui install rejects a name that climbs out of the applications directory"
+fi
+[[ -e "$test_tmp/escaped.desktop" ]] &&
+  fail "tui install writes no launcher outside the applications directory"
+pass "tui install refuses a name that would escape the applications directory"
+
+inject_name=$(printf 'Inject\nExec=evil')
+install_tui "$inject_name" htop tile someicon
+inject_file="$applications/$inject_name.desktop"
+
+(( $(grep -c '^Exec=' "$inject_file") == 1 )) ||
+  fail "a newline in the app name cannot inject a second Exec" "$(cat "$inject_file")"
+pass "a newline in the app name cannot inject a second Exec"
+
+cat >"$mock_bin/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+pick="$FAKE_PICK"
+if [[ $pick == $'\t'* ]]; then
+  pick=${pick#$'\t'}
+  label=${pick%%$'\t'*}
+  path=${pick#*$'\t'}
+  printf '%s\t%s\n' "$label" "$path"
+else
+  printf '%s\n' "$pick"
+fi
+STUB
+chmod +x "$mock_bin/omarchy-menu-select"
+
+FAKE_PICK=$'\t'"${inject_name}"$'\t'"${inject_file}" \
+  HOME="$HOME" PATH="$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  bash "$ROOT/bin/omarchy-tui-remove" >/dev/null
+[[ -f $inject_file ]] &&
+  fail "tui remove reaches a newline-named launcher through the picker"
+pass "tui remove reaches a newline-named launcher through the picker"
+
+install_tui "$inject_name" htop tile someicon
+inject_file="$applications/$inject_name.desktop"
+run_remove "$inject_name" >/dev/null
+[[ -f $inject_file ]] &&
+  fail "tui remove deletes a newline-named launcher from the command line"
+pass "tui remove deletes a newline-named launcher from the command line"
+
+icons_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
+mkdir -p "$icons_dir"
+touch "$icons_dir/someicon.png"
+install_tui 'Shared Icon' htop tile someicon
+run_remove 'Shared Icon' >/dev/null
+[[ -f "$icons_dir/someicon.png" ]] ||
+  fail "tui remove leaves a shared icon file it did not install"
+pass "tui remove leaves a shared icon file it did not install"
+
+touch "$icons_dir/my-app.svg"
+install_tui 'My App' htop tile my-app
+run_remove 'My App' >/dev/null
+[[ -f "$icons_dir/my-app.svg" ]] ||
+  fail "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
+pass "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
+
+touch "$icons_dir/my-app.png"
+install_tui 'My App Png' htop tile my-app
+run_remove 'My App Png' >/dev/null
+[[ -f "$icons_dir/my-app.png" ]] ||
+  fail "tui remove leaves a pre-existing shared png that shares the bundled icon slug"
+pass "tui remove leaves a pre-existing shared png that shares the bundled icon slug"
+
+touch "$icons_dir/example.png"
+run_remove 'No Such App' >/dev/null 2>&1 || true
+[[ -f "$icons_dir/example.png" ]] ||
+  fail "tui remove deletes no icons when no launcher was found"
+pass "tui remove deletes no icons when no launcher was found"
+
+mkdir -p "$icons_dir"
+touch "$HOME/.local/share/icons/hicolor/outside.png"
+cat >"$applications/Evil Owned.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Evil Owned
+X-Omarchy-OwnedIcon=../../outside.png
+Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
+Type=Application
+DESKTOP
+
+run_remove 'Evil Owned' >/dev/null
+[[ -f "$HOME/.local/share/icons/hicolor/outside.png" ]] ||
+  fail "tui remove does not delete icons named by a malicious owned-icon field"
+pass "tui remove does not delete icons named by a malicious owned-icon field"
+
+cat >"$applications/Beta.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Alpha
+Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
+Type=Application
+DESKTOP
+cat >"$applications/Alpha.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Beta
+Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
+Type=Application
+DESKTOP
+
+run_remove Beta >/dev/null
+[[ -f "$applications/Beta.desktop" ]] &&
+  fail "tui remove deletes the launcher whose desktop id was requested"
+[[ -f "$applications/Alpha.desktop" ]] ||
+  fail "tui remove does not delete a different launcher that shares the display name"
+pass "tui remove prefers the desktop id over a duplicate display name"
+
+inject_exec=$(printf 'htop\nExec=evil')
+install_tui 'Inject Exec' "$inject_exec" tile someicon
+inject_exec_file="$applications/Inject Exec.desktop"
+
+(( $(grep -c '^Exec=' "$inject_exec_file") == 1 )) ||
+  fail "a newline in the command cannot inject a second Exec" "$(cat "$inject_exec_file")"
+pass "a newline in the command cannot inject a second Exec"
+
+inject_icon=$(printf 'someicon\nExec=evil')
+install_tui 'Inject Icon' htop tile "$inject_icon"
+inject_icon_file="$applications/Inject Icon.desktop"
+
+(( $(grep -c '^Exec=' "$inject_icon_file") == 1 )) ||
+  fail "a newline in the icon name cannot inject a second Exec" "$(cat "$inject_icon_file")"
+pass "a newline in the icon name cannot inject a second Exec"
+
+mkdir -p "$applications/http:/127.0.0.1:4000"
+legacy_icon="http-127-0-0-1-4000"
+mkdir -p "$icons_dir"
+touch "$icons_dir/$legacy_icon.png"
+cat >"$applications/http:/127.0.0.1:4000/.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=http://127.0.0.1:4000
+Exec=xdg-terminal-exec --app-id=TUI.tile -e htop
+Type=Application
+DESKTOP
+
+run_remove "127.0.0.1:4000" >/dev/null
+[[ -f "$applications/http:/127.0.0.1:4000/.desktop" ]] &&
+  fail "tui remove deletes a launcher left nested by an older install"
+[[ -f "$icons_dir/$legacy_icon.png" ]] ||
+  fail "tui remove leaves a legacy icon untouched when no ownership marker is present"
+pass "tui remove reaches a nested legacy launcher without deleting its icon"
+
+multiline_name=$(printf 'Line One\nLine Two')
+icon_src="$test_tmp/icon.png"
+printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d >"$icon_src"
+install_tui "$multiline_name" htop tile "$icon_src"
+multiline_file="$applications/$multiline_name.desktop"
+multiline_slug=line-one-line-two
+
+(( $(grep -c '^X-Omarchy-OwnedIcon=' "$multiline_file") == 1 )) ||
+  fail "a multiline name writes one owned-icon line" "$(grep X-Omarchy-OwnedIcon "$multiline_file" || true)"
+[[ -f "$icons_dir/$multiline_slug.png" ]] ||
+  fail "a multiline name installs its icon under a single-line slug"
+if command -v desktop-file-validate >/dev/null; then
+  desktop-file-validate "$multiline_file" >/dev/null ||
+    fail "a multiline name still validates as a desktop entry"
+fi
+run_remove "$multiline_name" >/dev/null
+[[ -f "$icons_dir/$multiline_slug.png" ]] &&
+  fail "tui remove deletes an owned icon installed for a multiline name"
+pass "a multiline name round-trips owned-icon metadata and removal"
+
+literal_name=$(printf 'Literal\\tSequence')
+literal_file="$applications/$literal_name.desktop"
+install_tui "$literal_name" htop tile someicon
+run_remove "$literal_name" >/dev/null
+[[ -f $literal_file ]] &&
+  fail "tui remove deletes a literal backslash-t name from the command line"
+pass "tui remove deletes a literal backslash-t name from the command line"
+
+install_tui "$literal_name" htop tile someicon
+literal_file="$applications/$literal_name.desktop"
+literal_row_label=$(printf 'Literal\\tSequence')
+FAKE_PICK=$'\t'"${literal_row_label}"$'\t'"${literal_file}" \
+  HOME="$HOME" PATH="$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  bash "$ROOT/bin/omarchy-tui-remove" >/dev/null
+[[ -f $literal_file ]] &&
+  fail "tui remove deletes a literal backslash-t name through the picker"
+pass "tui remove deletes a literal backslash-t name through the picker"
