@@ -142,8 +142,8 @@ assert(
   'weather focuses city input when Return is pressed'
 )
 assert(
-  panelSource.split('root.controller.show()\n    locationFile.reload()\n    root.refresh()').length === 3,
-  'weather reloads external location changes whenever either open path runs'
+  panelSource.split('root.controller.show()\n    locationFile.reload()\n    citiesFile.reload()\n    root.refresh()').length === 3,
+  'weather reloads external location and city changes whenever either open path runs'
 )
 assert(!weather.weatherResponseCompletesSave(true, 'wttr'), 'weather keeps the spinner through a non-authoritative pinned-location response')
 assert(weather.weatherResponseCompletesSave(true, 'open-meteo'), 'weather completes a pinned-location save with Open-Meteo data')

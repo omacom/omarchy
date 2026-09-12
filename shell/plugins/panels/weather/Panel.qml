@@ -27,6 +27,7 @@ Panel {
     setCenterHoverRevealSuppressed(false)
     root.controller.show()
     locationFile.reload()
+    citiesFile.reload()
     root.refresh()
   }
 
@@ -34,6 +35,7 @@ Panel {
     openedFromHotkey = true
     root.controller.show()
     locationFile.reload()
+    citiesFile.reload()
     root.refresh()
     // Set after showing, not before: showing hands the popout coordinator
     // over, which closes whichever panel was open, and that close clears the
@@ -89,8 +91,10 @@ Panel {
     if (savingLocation) savingLocationQueryStarted = true
     forecastRetries = 0
     dailyForecastRetries = 0
+    metRetries = 0
     forecastProc.running = false
     dailyForecastProc.running = false
+    metFetchProc.running = false
     Qt.callLater(refresh)
   }
 
@@ -101,6 +105,45 @@ Panel {
     onFileChanged: reload()
     onLoaded: root.configuredLocationState = Model.parseLocationFile(text())
     onLoadFailed: root.configuredLocationState = Model.parseLocationFile("")
+  }
+
+  // ---- Multi-city pages. Page 1 is always the current location (the stock
+  //      weather.json contract and IP auto-detect above stay untouched);
+  //      added cities persist in a separate widget-owned file and take
+  //      current conditions from Open-Meteo, never wttr.in.
+  property var savedCities: []
+  property int currentPageIndex: 0
+  property bool addingCity: false
+  property real swipeAcc: 0
+  property bool swipeLocked: false
+  property var cityDailyCache: ({})
+  property var cityMetCache: ({})
+  property var cityLabelCache: ({})
+  property string dailyRequestKey: ""
+  property string metBodyKey: ""
+  readonly property var pages: Model.buildPages(configuredLocationState, savedCities)
+  readonly property var activePage: pages[Math.max(0, Math.min(currentPageIndex, pages.length - 1))]
+  readonly property bool activeIsCurrent: activePage ? activePage.isCurrent === true : true
+  readonly property string activeKey: activeIsCurrent ? "current" : Model.cityKey(activePage.latitude, activePage.longitude)
+  readonly property string citiesPath: Quickshell.env("HOME") + "/.local/state/omarchy/settings/" + Model.CITIES_FILENAME
+
+  // Widget-owned city list, next to the stock weather.json but never in
+  // it: omarchy-weather-location owns weather.json; this file is ours.
+  property FileView citiesFile: FileView {
+    path: root.citiesPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      root.savedCities = Model.parseCityList(text())
+      root.clampPageIndex()
+    }
+    onLoadFailed: root.savedCities = []
+  }
+
+  onPagesChanged: {
+    root.clampPageIndex()
+    root.applyActiveCaches()
   }
 
   // The first read can race shell startup (observed sporadically), leaving a
@@ -132,9 +175,28 @@ Panel {
   // much faster daily forecast fetch) fill the hero while wttr is in flight.
   readonly property bool hasConfiguredCoordinates: !isNaN(parseFloat(String(configuredLocationState.latitude))) && !isNaN(parseFloat(String(configuredLocationState.longitude)))
   readonly property var openMeteoCurrent: Model.openMeteoCurrentCondition(dailyForecastReport)
-  readonly property var current: (hasConfiguredCoordinates && openMeteoCurrent) ? openMeteoCurrent : ((report && report.current_condition && report.current_condition[0]) ? report.current_condition[0] : openMeteoCurrent)
+  // Added cities take current conditions from Open-Meteo, never wttr.in;
+  // the first page keeps the exact stock behaviour (Open-Meteo fast path
+  // with coordinates, wttr otherwise).
+  readonly property var current: root.activeIsCurrent ? ((hasConfiguredCoordinates && openMeteoCurrent) ? openMeteoCurrent : ((report && report.current_condition && report.current_condition[0]) ? report.current_condition[0] : openMeteoCurrent)) : openMeteoCurrent
   readonly property var areaInfo: report && report.nearest_area && report.nearest_area[0] ? report.nearest_area[0] : null
-  readonly property var forecastDays: buildForecastDays()
+  // Day rows: today plus up to three following days. Today expands to
+  // 2-hour slots for the next 24 hours; later days expand to 6-hour
+  // quarters. Rain amounts come from MET Norway, chances from Open-Meteo.
+  readonly property var dayRows: Model.openMeteoDayRows(dailyForecastReport, Qt.formatDate(new Date(), "yyyy-MM-dd"))
+  property string expandedDate: ""
+
+  // MET Norway state. metTimeseries is the cached Locationforecast
+  // timeseries array; the fetcher script owns throttle/Expires/304 logic.
+  property var metTimeseries: null
+  property string metStatus: ""
+  property int metRetries: 0
+  readonly property string metCacheDir: Quickshell.env("HOME") + "/.cache/omarchy/" + Model.MET_CACHE_SUBDIR
+  // Per-city MET dir: the first page keeps the historic single-location
+  // dir; every added city gets its own keyed subdirectory.
+  readonly property string activeMetCacheDir: activeIsCurrent ? metCacheDir : metCacheDir + "/" + Model.metCityKey(activePage.latitude, activePage.longitude)
+  readonly property var metIndex: Model.indexMetTimeseries(metTimeseries)
+  readonly property var rainProbIndex: Model.indexPrecipitationProbability(dailyForecastReport && dailyForecastReport.hourly)
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
 
   readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
@@ -142,7 +204,7 @@ Panel {
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
 
-  readonly property string reportLocation:  configuredLocation || wttrLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
+  readonly property string reportLocation: root.activeIsCurrent ? (configuredLocation || wttrLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")) : (activePage ? activePage.name : "")
   readonly property string reportTempNum:   current ? String(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
   readonly property string reportFeels:     current ? formatTemp(useImperial ? current.FeelsLikeF : current.FeelsLikeC) : ""
@@ -155,36 +217,112 @@ Panel {
     // starve retries for the rest of the session.
     forecastRetries = 0
     dailyForecastRetries = 0
+    metRetries = 0
     if (!forecastProc.running) forecastProc.running = true
     if (root.locationQuery === "" && !locationProc.running) locationProc.running = true
     // With stored coordinates this fetches open-meteo right away — no need
     // to wait for the slow wttr response. Without them it's a no-op until
     // wttr reports the detected area.
-    refreshDailyForecast(null)
+    ensureCityData()
   }
 
-  function refreshDailyForecast(sourceReport) {
-    if (dailyForecastProc.running) return
+  // Coordinates for one page: the current page resolves exactly as the
+  // stock widget did (saved coordinates, else the wttr-detected area);
+  // added cities carry their own coordinates from geocoding.
+  function coordsForPage(page, sourceReport) {
+    if (!page) return null
+    if (page.isCurrent) return root.forecastCoords(sourceReport)
+    var lat = parseFloat(String(page.latitude))
+    var lon = parseFloat(String(page.longitude))
+    if (isNaN(lat) || isNaN(lon)) return null
+    return [lat, lon]
+  }
 
-    var lat = parseFloat(String(root.configuredLocationState.latitude))
-    var lon = parseFloat(String(root.configuredLocationState.longitude))
-    if (isNaN(lat) || isNaN(lon)) {
-      var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : root.areaInfo
-      if (!area) return
-      lat = parseFloat(String(area.latitude || ""))
-      lon = parseFloat(String(area.longitude || ""))
-    }
-    if (isNaN(lat) || isNaN(lon)) return
+  function keyForPage(page) {
+    if (!page) return ""
+    if (page.isCurrent) return "current"
+    return Model.cityKey(page.latitude, page.longitude)
+  }
 
+  function refreshDailyForecastFor(page, sourceReport) {
+    if (dailyForecastProc.running) return false
+
+    var coords = root.coordsForPage(page, sourceReport)
+    if (!coords) return false
+    var lat = coords[0]
+    var lon = coords[1]
+
+    dailyRequestKey = root.keyForPage(page)
     var url = "https://api.open-meteo.com/v1/forecast"
       + "?latitude=" + encodeURIComponent(String(lat))
       + "&longitude=" + encodeURIComponent(String(lon))
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+      + "&hourly=precipitation_probability"
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
     dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
     dailyForecastProc.running = true
+    return true
+  }
+
+  function refreshDailyForecast(sourceReport) {
+    // Legacy single-page entry point (wttr arrival, retry timer): the
+    // current page resolves exactly as before.
+    if (!root.activeIsCurrent) return
+    refreshDailyForecastFor(root.activePage, sourceReport)
+  }
+
+  // Fetch the visible page plus its immediate neighbours — never the whole
+  // list. Neighbours prefetch Open-Meteo only (day rows plus the current
+  // header); MET rain loads when its page becomes visible.
+  function ensureCityData() {
+    refreshDailyForecastFor(root.activePage, null)
+    refreshMetFor(root.activePage)
+    neighbourTimer.restart()
+  }
+
+  function ensureNeighbours() {
+    var window = Model.pageWindow(currentPageIndex, pages.length)
+    for (var i = 0; i < window.length; i++) {
+      if (window[i] === currentPageIndex) continue
+      refreshDailyForecastFor(pages[window[i]], null)
+    }
+  }
+
+  // Swap the displayed data to the active page: instant when cached, then
+  // revalidated by the fetch the switch triggers.
+  function applyActiveCaches() {
+    var daily = root.cityDailyCache[root.activeKey]
+    if (daily) {
+      root.dailyForecastReport = daily
+      var parsedCurrent = Model.openMeteoCurrentCondition(daily)
+      if (parsedCurrent) root.label = Model.currentIcon(parsedCurrent, root.label)
+    } else if (root.cityLabelCache[root.activeKey]) {
+      root.label = root.cityLabelCache[root.activeKey]
+    }
+    var series = root.cityMetCache[root.activeKey]
+    if (series) root.metTimeseries = series
+    root.metBodyKey = root.activeKey
+    metBodyFile.reload()
+  }
+
+  function clampPageIndex() {
+    if (currentPageIndex > pages.length - 1) currentPageIndex = Math.max(0, pages.length - 1)
+    if (currentPageIndex < 0) currentPageIndex = 0
+  }
+
+  function goToPage(index) {
+    var clamped = Math.max(0, Math.min(parseInt(index, 10) || 0, pages.length - 1))
+    currentPageIndex = clamped
+    expandedDate = ""
+    swipeAcc = 0
+    applyActiveCaches()
+    ensureCityData()
+  }
+
+  function stepPage(direction) {
+    goToPage(currentPageIndex + (direction > 0 ? 1 : -1))
   }
 
   // ---- Location editing. Clicking the location label swaps it for a search
@@ -197,14 +335,22 @@ Panel {
     locationSuggestions = []
     suggestionIndex = 0
     Qt.callLater(function() {
-      locationField.text = root.configuredLocation
+      locationField.text = root.addingCity && root.activePage ? root.activePage.name : root.configuredLocation
       locationField.selectAll()
       locationField.forceActiveFocus()
     })
   }
 
+  // "+" entry point: the same search UI, but a picked suggestion is
+  // appended to the widget-owned city list instead of weather.json.
+  function startManagingCities() {
+    addingCity = true
+    startEditingLocation()
+  }
+
   function cancelEditingLocation() {
     editingLocation = false
+    addingCity = false
     savingLocation = false
     savingLocationQueryStarted = false
     locationSuggestions = []
@@ -214,6 +360,10 @@ Panel {
 
   function commitLocation() {
     var location = Model.locationCommit(locationField.text, locationSuggestions, suggestionIndex)
+    if (root.addingCity) {
+      root.addCityFromSuggestion(location)
+      return
+    }
     if (location.name === "") {
       clearLocation()
       return
@@ -228,6 +378,41 @@ Panel {
     persistLocation(location.name, location.latitude, location.longitude)
   }
 
+  // A picked suggestion becomes a new page: duplicate adds (same
+  // coordinates, or the current location itself) are a silent no-op that
+  // stays on the visible page.
+  function addCityFromSuggestion(suggestion) {
+    if (!suggestion || !Model.validCity(suggestion)
+        || Model.isDuplicateCity(root.configuredLocationState, root.savedCities, suggestion)) {
+      addingCity = false
+      cancelEditingLocation()
+      return
+    }
+    savedCities = Model.addCity(root.savedCities, suggestion)
+    persistCities()
+    var target = pages.length - 1
+    addingCity = false
+    cancelEditingLocation()
+    goToPage(target)
+  }
+
+  function removeCity(key) {
+    savedCities = Model.removeCity(root.savedCities, key)
+    persistCities()
+    clampPageIndex()
+    applyActiveCaches()
+    ensureCityData()
+  }
+
+  // Saves go to the widget-owned cities file only — never weather.json.
+  // FileView is read-only, so a one-shot shell command carries the save;
+  // its shape is built by Model.citiesSaveScript (mkdir -p, temp file,
+  // atomic mv) so tests drive the real string.
+  function persistCities() {
+    citiesSaveProc.command = ["sh", "-c", Model.citiesSaveScript(Model.serializeCityList(root.savedCities), root.citiesPath)]
+    citiesSaveProc.running = true
+  }
+
   function clearLocation() {
     persistLocation("", null, null)
     wttrLocation = ""
@@ -236,6 +421,10 @@ Panel {
 
   function pickSuggestion(suggestion) {
     if (!suggestion) return
+    if (root.addingCity) {
+      root.addCityFromSuggestion(suggestion)
+      return
+    }
     savingLocation = true
     savingLocationQueryStarted = false
     configuredLocationState = {
@@ -279,8 +468,72 @@ Panel {
     geocodeProc.running = true
   }
 
-  function buildForecastDays() {
-    return Model.buildForecastDays(report, dailyForecastReport, Qt.formatDate(new Date(), "yyyy-MM-dd"))
+  // Slots for an expanded day row: 2-hour slots for today (next 24 hours),
+  // 6-hour quarters for later days. Re-evaluates when either source updates.
+  function slotsForDay(day) {
+    if (!day) return []
+    if (day.isToday) return Model.buildTwoHourSlots(root.metIndex, root.rainProbIndex, Date.now())
+    return Model.buildSixHourSlots(root.metIndex, root.rainProbIndex, day.date)
+  }
+
+  function rainTotalForDay(day) {
+    return Model.formatDayRain(Model.dayRainTotal(root.slotsForDay(day)))
+  }
+
+  function toggleDay(dateString) {
+    root.expandedDate = root.expandedDate === dateString ? "" : dateString
+  }
+
+  function dayRowName(day) {
+    if (!day) return ""
+    if (day.isToday) return "Today"
+    return root.dayName(day.date)
+  }
+
+  function slotTemp(slot) {
+    return Model.formatSlotTemp(slot ? slot.tempC : null, root.useImperial)
+  }
+
+  function slotRain(slot) {
+    return Model.formatRain(slot ? slot.rainMm : null)
+  }
+
+  function slotChance(slot) {
+    return Model.formatChance(slot ? slot.chance : null)
+  }
+
+  function slotIcon(slot) {
+    var glyph = slot ? slot.icon : ""
+    return glyph || Model.MISSING_VALUE
+  }
+
+  // Coordinates shared by the Open-Meteo and MET Norway fetches: saved
+  // coordinates when present, else the area wttr.in reported for auto-detect.
+  function forecastCoords(sourceReport) {
+    return Model.forecastCoords(root.configuredLocationState, sourceReport, root.areaInfo)
+  }
+
+  // MET follows the visible page only, each city in its own cache subdir
+  // (the first page keeps the historic single-location dir untouched).
+  function refreshMetFor(page) {
+    if (metFetchProc.running) return false
+    if (!page || root.keyForPage(page) !== root.activeKey) return false
+    var coords = root.coordsForPage(page, null)
+    if (!coords) return false
+    var script = String(Qt.resolvedUrl("met-fetch.sh")).replace(/^file:\/\//, "")
+    metFetchProc.command = [script, String(coords[0]), String(coords[1]), root.activeMetCacheDir]
+    metFetchProc.running = true
+    return true
+  }
+
+  function refreshMet() {
+    refreshMetFor(root.activePage)
+  }
+
+  function scheduleMetRetry() {
+    if (metRetries >= 3) return
+    metRetries++
+    metRetryTimer.restart()
   }
 
   function openMeteoForecastDays() {
@@ -343,16 +596,20 @@ Panel {
         }
         try {
           var parsed = JSON.parse(raw)
+          // wttr feeds the first page only; the report is still stored so
+          // page 1 stays fresh while another city is showing.
           root.report = parsed
-          if (!root.hasConfiguredCoordinates)
+          if (!root.hasConfiguredCoordinates && root.activeIsCurrent)
             root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
             root.finishSavingLocation()
           // Stored coordinates already drove the fast open-meteo fetch from
           // refresh(); only auto-detect needs the area wttr reported.
-          if (isNaN(parseFloat(String(root.configuredLocationState.latitude))))
+          if (isNaN(parseFloat(String(root.configuredLocationState.latitude))) && root.activeIsCurrent) {
             root.refreshDailyForecast(parsed)
+            root.refreshMet()
+          }
         } catch (e) {
           // Keep last-good report visible, but try again shortly.
           root.scheduleForecastRetry()
@@ -403,8 +660,23 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           var parsedCurrent = Model.openMeteoCurrentCondition(parsed)
+          // Attribute the response to the city that requested it: a
+          // neighbour's data is cached for its visit, never painted over
+          // the visible page.
+          if (root.dailyRequestKey) root.cityDailyCache[root.dailyRequestKey] = parsed
+          if (root.dailyRequestKey !== root.activeKey) {
+            // A neighbour finished while the visible page still needs its
+            // own fetch: the process is free now, fire it — but only when
+            // the visible page has nothing cached, so neighbour visits do
+            // not refetch the visible page every time.
+            if (!root.cityDailyCache[root.activeKey])
+              Qt.callLater(function() { root.refreshDailyForecastFor(root.activePage, null) })
+            return
+          }
+          var nextLabel = Model.currentIcon(parsedCurrent, root.label)
+          root.cityLabelCache[root.activeKey] = nextLabel
           root.dailyForecastReport = parsed
-          root.label = Model.currentIcon(parsedCurrent, root.label)
+          root.label = nextLabel
           root.dailyForecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "open-meteo"))
             root.finishSavingLocation()
@@ -415,7 +687,6 @@ Panel {
       }
     }
   }
-
   Process {
     id: geocodeProc
     stdout: StdioCollector {
@@ -446,10 +717,46 @@ Panel {
         root.savingLocationQueryStarted = true
         root.forecastRetries = 0
         root.dailyForecastRetries = 0
+        root.metRetries = 0
         forecastProc.running = false
         dailyForecastProc.running = false
+        metFetchProc.running = false
         Qt.callLater(root.refresh)
       }
+    }
+  }
+
+  // One-shot save of the widget-owned city list: success re-reads the
+  // file; failure warns to the shell log and re-reads too, reverting the
+  // popup to disk truth so it never shows an unsaved city.
+  Process {
+    id: citiesSaveProc
+    stdout: StdioCollector {
+      id: citiesSaveOut
+      waitForEnd: true
+    }
+    onExited: function(exitCode) {
+      if (exitCode === 0) {
+        citiesFile.reload()
+        return
+      }
+      console.warn("omarchy.weather: saving cities to " + root.citiesPath + " failed (exit " + exitCode + "): " + String(citiesSaveOut.text || "").trim())
+      citiesFile.reload()
+    }
+  }
+
+  Timer {
+    id: neighbourTimer
+    interval: 600
+    onTriggered: root.ensureNeighbours()
+  }
+
+  Timer {
+    id: swipeIdleTimer
+    interval: 350
+    onTriggered: {
+      root.swipeAcc = 0
+      root.swipeLocked = false
     }
   }
 
@@ -462,6 +769,63 @@ Panel {
         var raw = String(text || "").trim()
         if (!raw) return
         root.wttrLocation = raw.split(",")[0]
+      }
+    }
+  }
+
+  // MET Norway fetch via the caching helper: it throttles to one request
+  // per 30 minutes, revalidates with If-Modified-Since, and honours
+  // Expires. The body cache is parsed below; a 304 keeps it untouched.
+  Process {
+    id: metFetchProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var raw = String(text || "").trim()
+        if (!raw) {
+          root.scheduleMetRetry()
+          return
+        }
+        try {
+          var status = JSON.parse(raw)
+          root.metStatus = status.status || ""
+          if (root.metStatus === "ok" || root.metStatus === "not-modified")
+            metBodyFile.reload()
+          else if (root.metStatus !== "throttled" && root.metStatus !== "fresh")
+            root.scheduleMetRetry()
+        } catch (e) {
+          root.scheduleMetRetry()
+        }
+      }
+    }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) root.scheduleMetRetry()
+    }
+  }
+
+  Timer {
+    id: metRetryTimer
+    interval: 2500
+    onTriggered: root.refreshMet()
+  }
+
+  // Cached Locationforecast body for the visible page. Loads once per page
+  // visit so cached data paints instantly; reloaded after every fetch.
+  // The path follows the active page's own subdir, so cities never share
+  // or overwrite a cache; metBodyKey attributes late loads to their page.
+  property FileView metBodyFile: FileView {
+    path: root.activeMetCacheDir + "/body.json"
+    printErrors: false
+    onLoaded: {
+      try {
+        var parsed = JSON.parse(text())
+        var series = parsed && parsed.properties ? parsed.properties.timeseries : null
+        if (series) {
+          root.cityMetCache[root.metBodyKey] = series
+          if (root.metBodyKey === root.activeKey) root.metTimeseries = series
+        }
+      } catch (e) {
+        // Keep last-good series visible.
       }
     }
   }
@@ -495,19 +859,48 @@ Panel {
     centerOnBar: true
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(480))
-    contentHeight: panel.fittedContentHeight(weatherColumn.implicitHeight)
+    contentHeight: panel.fittedContentHeight(weatherColumn.implicitHeight + cityNav.height + Style.space(12))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
       blocked: root.editingLocation
       onReturnRequested: root.startEditingLocation()
+      onMoveRequested: function(dx, dy) { if (dx !== 0) root.stepPage(dx) }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
+      Item {
+        id: pageContainer
+        anchors.fill: parent
+
       Flickable {
         id: weatherScroll
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: cityNav.top
+        anchors.bottomMargin: Style.space(8)
+        WheelHandler {
+          // Two-finger sideways swipes arrive horizontal (angleDelta.y
+          // === 0); vertical wheels fall through to the Flickable
+          // untouched. Deltas accumulate to exactly one page step per
+          // gesture; the idle timer re-arms for the next gesture.
+          onWheel: function(event) {
+            if (!Model.isHorizontalWheel(event.angleDelta.x, event.angleDelta.y)) return
+            var dx = event.pixelDelta.x !== 0 ? event.pixelDelta.x : event.angleDelta.x
+            swipeIdleTimer.restart()
+            event.accepted = true
+            if (root.swipeLocked) return
+            var folded = Model.accumulateSwipe(root.swipeAcc, dx, Model.SWIPE_THRESHOLD)
+            root.swipeAcc = folded.acc
+            if (folded.step !== 0) {
+              root.swipeLocked = true
+              root.swipeAcc = 0
+              root.stepPage(folded.step)
+            }
+          }
+        }
         contentWidth: width
         contentHeight: weatherColumn.implicitHeight
         clip: true
@@ -584,7 +977,7 @@ Panel {
             spacing: Style.space(6)
 
             TapHandler {
-              onTapped: root.startEditingLocation()
+              onTapped: root.activeIsCurrent ? root.startEditingLocation() : root.startManagingCities()
             }
             HoverHandler {
               cursorShape: Qt.PointingHandCursor
@@ -616,7 +1009,7 @@ Panel {
               id: locationField
               width: Style.space(190)
               enabled: !root.savingLocation
-              placeholderText: "Search city"
+              placeholderText: root.addingCity ? "Add city…" : "Search city"
               foreground: root.bar.foreground
               font.family: root.bar.fontFamily
 
@@ -790,6 +1183,73 @@ Panel {
         }
       }
 
+      // ---- Added cities, managed from the same place: visible while
+      //      adding, each row removable. Removing the visible page falls
+      //      back to its neighbour.
+      Column {
+        visible: root.editingLocation && root.addingCity && !root.savingLocation && root.savedCities.length > 0
+        width: parent.width
+        spacing: 0
+
+        Repeater {
+          model: root.savedCities
+
+          Rectangle {
+            required property var modelData
+            width: parent.width
+            height: managedRow.implicitHeight + Style.space(12)
+            radius: Style.cornerRadius
+            color: "transparent"
+
+            Row {
+              id: managedRow
+              anchors.left: parent.left
+              anchors.leftMargin: Style.space(16)
+              anchors.right: removeCityButton.left
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(8)
+
+              Text {
+                textFormat: Text.PlainText
+                text: modelData.name
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.body
+              }
+            }
+
+            Rectangle {
+              id: removeCityButton
+              width: Style.space(18)
+              height: Style.space(18)
+              anchors.right: parent.right
+              anchors.rightMargin: Style.space(16)
+              anchors.verticalCenter: parent.verticalCenter
+              radius: Math.min(4, Style.cornerRadius)
+              color: removeCityMouse.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+
+              Text {
+                textFormat: Text.PlainText
+                anchors.centerIn: parent
+                text: "✕"
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              MouseArea {
+                id: removeCityMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.removeCity(Model.cityKey(modelData.latitude, modelData.longitude))
+              }
+            }
+          }
+        }
+      }
+
       Text {
         visible: !root.current
         text: "Fetching forecast…"
@@ -798,84 +1258,281 @@ Panel {
         font.pixelSize: Style.font.bodySmall
         font.italic: true
       }
-
       // ---- Divider between current conditions and forecast.
       Rectangle {
-        visible: root.forecastDays.length > 0
+        visible: root.dayRows.length > 0
         width: parent.width
         height: Style.spacing.hairline
         color: root.bar.foreground
         opacity: 0.12
       }
 
-      // ---- Forecast row: each cell has the day icon left of a day-name + hi/lo column.
-      //      Wrapped in an Item so the block of cells can be centered within the popup.
-      Item {
-        visible: root.forecastDays.length > 0
+      // ---- Day rows: icon, name, hi/lo, and total rain. Clicking a row
+      //      expands its slot table (2-hour slots for today, 6-hour
+      //      quarters for later days): time, icon, temp, rain mm, chance %.
+      Column {
+        visible: root.dayRows.length > 0
         width: parent.width
-        height: forecastRow.height
+        spacing: Style.space(2)
 
-        Row {
-          id: forecastRow
-          anchors.horizontalCenter: parent.horizontalCenter
-          spacing: Style.space(44)
+        Repeater {
+          model: root.dayRows
 
-          Repeater {
-            model: root.forecastDays
+          Column {
+            required property var modelData
+            width: parent.width
+            spacing: 0
 
-            Row {
-              required property var modelData
-              required property int index
-              spacing: Style.space(10)
+            Item {
+              width: parent.width
+              height: dayHead.height + Style.space(12)
 
-              Text {
-                textFormat: Text.PlainText
+              Row {
+                id: dayHead
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(16)
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.dayIcon(modelData)
-                color: root.bar.foreground
-                font.family: root.bar.fontFamily
-                font.pixelSize: Style.font.display
-              }
-
-              Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(2)
+                spacing: Style.space(10)
 
                 Text {
                   textFormat: Text.PlainText
-                  text: root.dayName(modelData.date).toUpperCase()
-                  color: Qt.darker(root.bar.foreground, 1.4)
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.dayIcon(modelData)
+                  color: root.bar.foreground
                   font.family: root.bar.fontFamily
-                  font.pixelSize: Style.font.caption
-                  font.letterSpacing: 1
+                  font.pixelSize: Style.font.display
                 }
 
-                Row {
-                  spacing: Style.space(6)
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(2)
 
                   Text {
                     textFormat: Text.PlainText
-                    text: root.bareTempForDay(modelData, "max")
+                    text: root.dayRowName(modelData).toUpperCase()
+                    color: Qt.darker(root.bar.foreground, 1.4)
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                  }
+
+                  Row {
+                    spacing: Style.space(6)
+
+                    Text {
+                      textFormat: Text.PlainText
+                      text: root.bareTempForDay(modelData, "max")
+                      color: root.bar.foreground
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.body
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      text: root.bareTempForDay(modelData, "min")
+                      color: Qt.darker(root.bar.foreground, 1.5)
+                      font.family: root.bar.fontFamily
+                      font.pixelSize: Style.font.body
+                    }
+                  }
+                }
+              }
+
+              Row {
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(16)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(8)
+
+                Text {
+                  textFormat: Text.PlainText
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.rainTotalForDay(modelData)
+                  color: Qt.darker(root.bar.foreground, 1.4)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.expandedDate === modelData.date ? "▾" : "▸"
+                  color: Qt.darker(root.bar.foreground, 1.5)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+              }
+
+              Rectangle {
+                anchors.fill: parent
+                radius: Style.cornerRadius
+                color: dayMouse.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+              }
+
+              MouseArea {
+                id: dayMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.toggleDay(modelData.date)
+              }
+            }
+
+            Column {
+              visible: root.expandedDate === modelData.date
+              width: parent.width
+              spacing: Style.space(2)
+
+              Row {
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(58)
+                spacing: 0
+
+                Text { width: Style.space(46); text: "TIME"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+                Text { width: Style.space(30); text: "" }
+                Text { width: Style.space(40); text: "TEMP"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+                Text { width: Style.space(52); text: "MM"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+                Text { width: Style.space(44); text: "%"; color: Qt.darker(root.bar.foreground, 1.5); font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption; font.letterSpacing: 1 }
+              }
+
+              Repeater {
+                model: root.slotsForDay(modelData)
+
+                Row {
+                  required property var modelData
+                  anchors.left: parent.left
+                  anchors.leftMargin: Style.space(58)
+                  spacing: 0
+
+                  Text {
+                    width: Style.space(46)
+                    textFormat: Text.PlainText
+                    text: modelData.label
+                    color: Qt.darker(root.bar.foreground, 1.4)
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    width: Style.space(30)
+                    textFormat: Text.PlainText
+                    text: root.slotIcon(modelData)
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.body
                   }
                   Text {
+                    width: Style.space(40)
                     textFormat: Text.PlainText
-                    text: root.bareTempForDay(modelData, "min")
-                    color: Qt.darker(root.bar.foreground, 1.5)
+                    text: root.slotTemp(modelData)
+                    color: root.bar.foreground
                     font.family: root.bar.fontFamily
-                    font.pixelSize: Style.font.body
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    width: Style.space(52)
+                    textFormat: Text.PlainText
+                    text: root.slotRain(modelData)
+                    color: root.bar.foreground
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                  }
+                  Text {
+                    width: Style.space(44)
+                    textFormat: Text.PlainText
+                    text: root.slotChance(modelData)
+                    color: Qt.darker(root.bar.foreground, 1.4)
+                    font.family: root.bar.fontFamily
+                    font.pixelSize: Style.font.bodySmall
                   }
                 }
+              }
+
+              Item {
+                width: parent.width
+                height: Style.space(8)
               }
             }
           }
         }
       }
+
+      // MET Norway requires attribution for its data.
+      Item {
+        visible: root.dayRows.length > 0
+        width: parent.width
+        height: creditLine.height
+
+        Text {
+          id: creditLine
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: "Data: MET Norway, Open-Meteo"
+          color: Qt.darker(root.bar.foreground, 1.6)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          font.italic: true
+        }
+      }
+        }
+      }
+
+      // ---- City pages nav: dots show how many cities there are and which
+      //      one is showing (tap to jump); "+" opens the same search UI to
+      //      add a city, where added cities are removed again.
+      Row {
+        id: cityNav
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Style.space(4)
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: Style.space(8)
+
+        Repeater {
+          id: cityDots
+          model: root.pages
+
+          Rectangle {
+            required property int index
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(6)
+            height: Style.space(6)
+            radius: width / 2
+            color: root.bar.foreground
+            opacity: index === root.currentPageIndex ? 0.9 : 0.3
+
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.goToPage(index)
+            }
+          }
+        }
+
+        Rectangle {
+          id: addCityButton
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(16)
+          height: Style.space(16)
+          radius: width / 2
+          color: addCityMouse.containsMouse ? Style.hoverFillFor(root.bar.foreground, Color.accent) : "transparent"
+
+          Text {
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: "+"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+          }
+
+          MouseArea {
+            id: addCityMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.startManagingCities()
+          }
+        }
+      }
+      }
     }
-  }
-  }
   }
 
 }
