@@ -1,16 +1,18 @@
 # Install Vulkan drivers matching detected GPU hardware
 # (NVIDIA Vulkan is handled by nvidia.sh via nvidia-utils)
 
+source "$OMARCHY_PATH/install/helpers/pci-sysfs.sh"
+
 declare -A VULKAN_DRIVERS=(
-  [Intel]=vulkan-intel
-  [AMD]=vulkan-radeon
-  [Apple]=vulkan-asahi
+  [0x8086]=vulkan-intel
+  [0x1002]=vulkan-radeon
+  [0x106b]=vulkan-asahi
 )
 
 PACKAGES=()
 
 for vendor in "${!VULKAN_DRIVERS[@]}"; do
-  if lspci | grep -iE "(VGA|Display).*$vendor" > /dev/null; then
+  if omarchy-pci-class-vendor 0x03 "$vendor"; then
     PACKAGES+=("${VULKAN_DRIVERS[$vendor]}")
   fi
 done

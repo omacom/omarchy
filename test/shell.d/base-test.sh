@@ -76,9 +76,39 @@ require_compositor() {
   exit 0
 }
 
+# Build a /sys/bus/pci/devices fixture tree at $1 so scripts that read cached
+# sysfs PCI IDs (instead of lspci) can be tested. Remaining arguments are PCI
+# devices as "vendor:device:class", in sysfs's own 0x-prefixed format.
+write_pci_devices() {
+  local dir="$1"
+  shift
+  rm -rf "$dir"
+  mkdir -p "$dir"
+
+  local index=0
+  local spec
+  for spec in "$@"; do
+    local slot
+    slot=$(printf '0000:%02x:00.0' "$index")
+    mkdir -p "$dir/$slot"
+    printf '%s\n' "${spec%%:*}" >"$dir/$slot/vendor"
+    printf '%s\n' "$(cut -d: -f2 <<<"$spec")" >"$dir/$slot/device"
+    printf '%s\n' "${spec##*:}" >"$dir/$slot/class"
+    index=$((index + 1))
+  done
+}
+
+# Bind the device at the given slot to a driver, creating the driver symlink a
+# sysfs driver check reads. $1 is the fixture devices dir, $2 the slot, $3 the
+# driver name.
+bind_pci_driver() {
+  local dir="$1" slot="$2" driver="$3"
+  mkdir -p "$dir/$slot"
+  ln -s "/sys/bus/pci/drivers/$driver" "$dir/$slot/driver"
+}
+
 run_node_test() {
   require_command node
-
   {
     cat <<'JS_PRELUDE'
 const path = require('path')

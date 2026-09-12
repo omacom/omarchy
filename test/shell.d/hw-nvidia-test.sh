@@ -26,7 +26,9 @@ write_pci_devices() {
 }
 
 hw_nvidia() {
-  OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" "$ROOT/bin/omarchy-hw-$1"
+  OMARCHY_PATH="$ROOT" \
+    OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" \
+    "$ROOT/bin/omarchy-hw-$1"
 }
 
 assert_detects() {
