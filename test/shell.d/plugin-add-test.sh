@@ -213,7 +213,8 @@ add_url_platform() {
 
 for pair in \
   "--gitlab:https://gitlab.com/acme/omarchy-weather.git" \
-  "--bitbucket:https://bitbucket.org/acme/omarchy-weather.git"; do
+  "--bitbucket:https://bitbucket.org/acme/omarchy-weather.git" \
+  "--codeberg:https://codeberg.org/acme/omarchy-weather.git"; do
   flag="${pair%%:*}"
   expected="${pair#*:}"
   rm -f "$clone_url_log"

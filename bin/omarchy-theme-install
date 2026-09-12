@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install a theme from a git repository
-# omarchy:args=[git-repo-url|owner/repo] [--github|--gitlab|--bitbucket]
+# omarchy:args=[git-repo-url|owner/repo] [--github|--gitlab|--bitbucket|--codeberg]
 # omarchy:examples=omarchy theme install https://github.com/example/omarchy-example-theme.git
 # omarchy:examples=omarchy theme install git@github.com:example/omarchy-example-theme.git
 # omarchy:examples=omarchy theme install example/omarchy-example-theme
@@ -13,7 +13,7 @@ REPO_URL=""
 
 while (( $# > 0 )); do
   case "$1" in
-  --github | --gitlab | --bitbucket)
+  --github | --gitlab | --bitbucket | --codeberg)
     [[ -z $PLATFORM_FLAG || $PLATFORM_FLAG == $1 ]] || {
       echo "Error: conflicting platform flags: $PLATFORM_FLAG and $1" >&2
       exit 1

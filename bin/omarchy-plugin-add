@@ -2,7 +2,7 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url|owner/repo] [--enable] [--yes] [--github|--gitlab|--bitbucket]
+# omarchy:args=[git-url|owner/repo] [--enable] [--yes] [--github|--gitlab|--bitbucket|--codeberg]
 # omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add acme/omarchy-weather --enable | omarchy plugin add --gitlab acme/omarchy-weather
 # omarchy:alias=omarchy plugin install
 
@@ -73,7 +73,7 @@ while (( $# > 0 )); do
     ASSUME_YES=1
     shift
     ;;
-  --github | --gitlab | --bitbucket)
+  --github | --gitlab | --bitbucket | --codeberg)
     [[ -z $platform_flag || $platform_flag == $1 ]] ||
       fail "conflicting platform flags: $platform_flag and $1"
     platform_flag="$1"
@@ -81,7 +81,7 @@ while (( $# > 0 )); do
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url|owner/repo] [--enable] [--yes] [--github|--gitlab|--bitbucket]"
+    echo "Usage: omarchy plugin add [git-url|owner/repo] [--enable] [--yes] [--github|--gitlab|--bitbucket|--codeberg]"
     exit 0
     ;;
   -*)

@@ -40,7 +40,8 @@ pass "a bare owner/repo expands to its GitHub clone URL by default"
 # caller, never from the shape of the argument.
 for pair in \
   "gitlab:acme/omarchy-weather:https://gitlab.com/acme/omarchy-weather.git" \
-  "bitbucket:acme/omarchy-weather:https://bitbucket.org/acme/omarchy-weather.git"; do
+  "bitbucket:acme/omarchy-weather:https://bitbucket.org/acme/omarchy-weather.git" \
+  "codeberg:acme/omarchy-weather:https://codeberg.org/acme/omarchy-weather.git"; do
   platform="${pair%%:*}"
   rest="${pair#*:}"
   shorthand="${rest%%:*}"

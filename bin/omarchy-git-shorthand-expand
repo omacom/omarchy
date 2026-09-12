@@ -26,6 +26,7 @@ declare -A PLATFORM_HOSTS=(
   [github]=github.com
   [gitlab]=gitlab.com
   [bitbucket]=bitbucket.org
+  [codeberg]=codeberg.org
 )
 
 fail() {
