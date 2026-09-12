@@ -10,8 +10,8 @@ image/tiff=imv.desktop
 
 application/pdf=org.gnome.Evince.desktop
 
-x-scheme-handler/http=chromium.desktop
-x-scheme-handler/https=chromium.desktop
+x-scheme-handler/http=brave-origin.desktop
+x-scheme-handler/https=brave-origin.desktop
 x-scheme-handler/mailto=HEY.desktop
 
 video/mp4=mpv.desktop
