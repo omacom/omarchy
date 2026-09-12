@@ -58,6 +58,64 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+// A user override that only sets action (or label) must not reset the
+// builtin row's icon/label/kind/guards to the placeholders normalizeItem
+// would fill in. Raw user objects merge onto the raw default entry before
+// normalization, so every field the user left out keeps the builtin value.
+const overrideDefaults = menu.parseMenuJsonc(`
+{
+  "items": {
+    "capture.screenrecord.no-audio": {
+      "label": "With no audio",
+      "icon": "\uf03d",
+      "action": "omarchy-capture-screenrecording",
+      "description": "record without audio"
+    },
+    "install.zen": { "label": "Zen", "icon": "\\uf462", "disabled": "omarchy-pkg-present zen-browser-bin", "action": "install-zen" },
+  },
+}
+`)
+const overrideDefaultsById = menu.rawItemsById(`
+{
+  "items": {
+    "capture.screenrecord.no-audio": {
+      "label": "With no audio",
+      "icon": "\uf03d",
+      "action": "omarchy-capture-screenrecording",
+      "description": "record without audio"
+    },
+    "install.zen": { "label": "Zen", "icon": "\\uf462", "disabled": "omarchy-pkg-present zen-browser-bin", "action": "install-zen" },
+  },
+}
+`)
+const actionOnly = menu.parseMenuJsonc(
+  `{"capture.screenrecord.no-audio": {"action": "omarchy-capture-screenrecording --resolution=1920x1080"}}`,
+  overrideDefaultsById
+)
+const actionOnlyMerged = menu.mergeMenuSources(overrideDefaults, actionOnly)
+const actionOnlyRow = actionOnlyMerged.items['capture.screenrecord.no-audio']
+assertEqual(actionOnlyRow.label, 'With no audio', 'menu action-only override keeps the builtin label')
+assertEqual(actionOnlyRow.icon, '\uf03d', 'menu action-only override keeps the builtin icon')
+assertEqual(actionOnlyRow.description, 'record without audio', 'menu action-only override keeps the builtin description')
+assertEqual(actionOnlyRow.action, 'omarchy-capture-screenrecording --resolution=1920x1080', 'menu action-only override changes the action')
+const guardOverride = menu.parseMenuJsonc(
+  `{"install.zen": {"action": "custom-install"}}`,
+  overrideDefaultsById
+)
+const guardMerged = menu.mergeMenuSources(overrideDefaults, guardOverride)
+assertEqual(
+  guardMerged.items['install.zen'].disabled,
+  'omarchy-pkg-present zen-browser-bin',
+  'menu action-only override keeps the builtin disabled guard'
+)
+assertEqual(guardMerged.items['install.zen'].action, 'custom-install', 'menu guard row override changes the action')
+// An id not present in the defaults map normalizes from the user object alone.
+const novel = menu.parseMenuJsonc(`{"my.custom.row": {"action": "foo"}}`, overrideDefaultsById)
+assertEqual(novel[0].label, 'my.custom.row', 'menu new ids still fall back to the id as label')
+// Without a defaults map (legacy callers), parsing behaves as before.
+const legacy = menu.parseMenuJsonc(`{"capture.screenrecord.no-audio": {"action": "x"}}`)
+assertEqual(legacy[0].action, 'x', 'menu parse without a defaults map still normalizes what the user wrote')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')

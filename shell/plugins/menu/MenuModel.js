@@ -39,7 +39,35 @@ function normalizeItem(id, raw) {
   }
 }
 
-function parseMenuJsonc(raw) {
+// Raw (pre-normalize) entries keyed by id, so another parse can merge onto
+// them before normalizing. Placeholder defaults never overwrite builtin
+// fields, because the merge happens on raw objects and only the fields the
+// user actually set are present.
+function rawItemsById(raw) {
+  var stripped = stripJsonc(raw)
+  if (!stripped.trim()) return ({})
+
+  var parsed
+  try {
+    parsed = JSON.parse(stripped)
+  } catch (e) {
+    return ({})
+  }
+  if (typeof parsed !== "object" || parsed === null) return ({})
+
+  var source = (parsed.items && typeof parsed.items === "object" && !Array.isArray(parsed.items))
+    ? parsed.items
+    : parsed
+  var out = ({})
+  for (var id in source) {
+    var entry = source[id]
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
+    out[id] = entry
+  }
+  return out
+}
+
+function parseMenuJsonc(raw, defaultsById) {
   var stripped = stripJsonc(raw)
   if (!stripped.trim()) return []
 
@@ -58,7 +86,18 @@ function parseMenuJsonc(raw) {
   for (var id in source) {
     var entry = source[id]
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
-    out.push(normalizeItem(id, entry))
+    // A user override only changes the fields it sets. Merging the raw user
+    // object onto the raw default before normalizing keeps every field the
+    // user left out (label, icon, kind, aliases, guards) from the builtin
+    // row; normalizing after the merge would otherwise fill those fields
+    // with placeholders (label: id, icon: "") and wipe the builtin row.
+    var raw = entry
+    if (defaultsById && defaultsById[id]) {
+      raw = {}
+      for (var k in defaultsById[id]) raw[k] = defaultsById[id][k]
+      for (var k2 in entry) raw[k2] = entry[k2]
+    }
+    out.push(normalizeItem(id, raw))
   }
   return out
 }
@@ -77,21 +116,7 @@ function mergeMenuSources(defaultItems, userItems) {
       var prior = nextItems[entry.id] || {}
       var merged = {}
       for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) {
-        // User overrides only change fields they set. normalizeItem fills
-        // missing fields with defaults (icon: "", label: id, aliases: []
-        // etc.), which would otherwise wipe the builtin's icon/label when
-        // the user only overrides action. Preserve the prior value when the
-        // incoming value is the placeholder default.
-        if (prior.hasOwnProperty(k2)) {
-          var v = entry[k2]
-          var p = prior[k2]
-          if (k2 === "label" && v === entry.id && p !== entry.id) continue
-          if (k2 === "aliases" && Array.isArray(v) && v.length === 0 && Array.isArray(p) && p.length > 0) continue
-          if ((k2 === "icon" || k2 === "iconFont" || k2 === "title" || k2 === "target" || k2 === "description" || k2 === "action" || k2 === "provider" || k2 === "when" || k2 === "checked" || k2 === "disabled") && v === "" && p !== "") continue
-        }
-        merged[k2] = entry[k2]
-      }
+      for (var k2 in entry) merged[k2] = entry[k2]
       merged.id = entry.id
       nextItems[entry.id] = merged
     }
@@ -511,6 +536,7 @@ if (typeof module !== "undefined") {
     stripJsonc: stripJsonc,
     normalizeAliases: normalizeAliases,
     normalizeItem: normalizeItem,
+    rawItemsById: rawItemsById,
     parseMenuJsonc: parseMenuJsonc,
     mergeMenuSources: mergeMenuSources,
     mergeAppRows: mergeAppRows,
