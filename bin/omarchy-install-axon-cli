@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# omarchy:summary=Ensure the Axon CLI is installed for the default agent
+# omarchy:args=[--check|--now]
+
+set -euo pipefail
+
+if (( $# > 1 )) || [[ ${1---now} != "--check" && ${1---now} != "--now" ]]; then
+  echo "Usage: omarchy-install-axon-cli [--check|--now]" >&2
+  exit 1
+fi
+
+# Disable implicit installs in mise shims, including probes. Third-party
+# commands can still have their own side effects when asked for --version.
+export MISE_AUTO_INSTALL=0 MISE_EXEC_AUTO_INSTALL=0 MISE_NOT_FOUND_AUTO_INSTALL=0
+
+cold_wrapper() {
+  # omarchy-mise-install writes a shell script. Mise shims are compiled
+  # executables, so searching their binary contents can produce false matches.
+  [[ $(head -c 2 -- "$1" 2>/dev/null) == '#!' ]] &&
+    grep -q '^mise use -g' "$1" 2>/dev/null
+}
+
+mise_shim() {
+  [[ $1 == "${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims/"* ]]
+}
+
+working() {
+  ! cold_wrapper "$1" && timeout 15 "$1" --version >/dev/null 2>&1
+}
+
+refuse() {
+  echo "$*" >&2
+  exit 1
+}
+
+axon_path=$(omarchy-cmd-present axon && type -P axon || true)
+if [[ -n $axon_path ]]; then
+  if working "$axon_path"; then
+    exit 0
+  fi
+  # A mise shim is just the dispatcher: a missing/failed target is repaired
+  # through mise below. Anything else is user-owned and must not be shadowed.
+  mise_shim "$axon_path" ||
+    refuse "Existing Axon command is not runnable (or is a cold mise wrapper); repair it before installing: $axon_path"
+fi
+
+[[ ${1---now} == "--check" ]] && exit 1
+
+bun_path=$(omarchy-cmd-present bun && type -P bun || true)
+if [[ -n $bun_path ]]; then
+  if ! working "$bun_path" && ! mise_shim "$bun_path"; then
+    refuse "Existing Bun command is not runnable (or is a cold mise wrapper); repair it before installing: $bun_path"
+  fi
+fi
+if [[ -z $bun_path ]] || ! working "$bun_path"; then
+  # ls includes uninstalled configured versions and unselected cached versions.
+  # Only records with a source represent a selection. Fail closed on errors.
+  selections=$(mise ls --global --json) || refuse "Could not inspect mise selections."
+  bun_selected=$(jq -er '
+    if type != "object" then error("Unexpected mise ls shape")
+    else (.bun // []) |
+      if type != "array" then error("Unexpected Bun records")
+      else any(.[]; .source != null) end
+    end | tostring
+  ' <<<"$selections") || refuse "Could not inspect configured Bun."
+  [[ $bun_selected == "false" ]] ||
+    refuse "Bun is configured in mise but is not on PATH; install/activate that selection before installing Axon."
+  mise use -g --fuzzy bun@latest
+  bun_path=$(omarchy-cmd-present bun && type -P bun || true)
+  if [[ -z $bun_path ]] || ! working "$bun_path"; then
+    refuse "Bun installed but is not runnable on PATH."
+  fi
+fi
+
+# Match Omarchy's lazy installers and updater: use current releases rather
+# than falling back to an older package during mise's release cooldown.
+export MISE_MINIMUM_RELEASE_AGE=0
+
+# The default npm backend does not require a globally selected Node/npm.
+# Never change a user's runtime selection to satisfy Axon's requirements.
+mise use -g --fuzzy npm:@arcforge/axon@latest
+axon_path=$(omarchy-cmd-present axon && type -P axon || true)
+if [[ -z $axon_path ]] || ! working "$axon_path"; then
+  refuse "Axon installed but is not runnable on PATH; check runtime compatibility."
+fi
