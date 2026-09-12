@@ -30,6 +30,23 @@ o.bind("SUPER + ALT + S", "Move window to scratchpad", hl.dsp.window.move({ work
 o.bind("SUPER + grave", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
 o.bind("SUPER + SHIFT + grave", "Move window to scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
 
+local function restore_window_from_scratchpad()
+  local window = hl.get_active_window()
+  if not window or not window.workspace or not window.workspace.special then
+    return
+  end
+
+  local workspace = hl.get_active_workspace()
+  if not workspace or workspace.special then
+    return
+  end
+
+  hl.dispatch(hl.dsp.window.move({ workspace = tostring(workspace.id) }))
+end
+
+o.bind("SUPER + SHIFT + ALT + S", "Restore window from scratchpad", restore_window_from_scratchpad)
+o.bind("SUPER + CTRL + grave", "Restore window from scratchpad", restore_window_from_scratchpad)
+
 o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "e+1" }))
 o.bind("SUPER + SHIFT + TAB", "Previous workspace", hl.dsp.focus({ workspace = "e-1" }))
 o.bind("SUPER + CTRL + TAB", "Former workspace", hl.dsp.focus({ workspace = "previous" }))
