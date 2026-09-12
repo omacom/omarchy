@@ -347,8 +347,17 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    if (!manifest || manifest.kinds == null) return false
+    var kinds = manifest.kinds
+    // Instantiator modelData turns nested JS arrays into QVariantList:
+    // Array.isArray is false, but length + index access still work.
+    if (typeof kinds.indexOf === "function") return kinds.indexOf(kind) !== -1
+    var n = kinds.length
+    if (typeof n !== "number") return false
+    for (var i = 0; i < n; i++) {
+      if (kinds[i] === kind) return true
+    }
+    return false
   }
 
   function pluginHasBarCapabilities(manifest) {
@@ -725,7 +734,13 @@ ShellRoot {
     if (!manifest || manifest.__isFirstParty) return shell
     var key = String(manifest.id || "")
     if (!key) return null
-    return shell.createScopedPluginShell(manifest, key, true, shell.pluginHasBarCapabilities(manifest))
+    // A manifest handed through a QObject model (e.g. the panel
+    // Instantiator's modelData) arrives as a QVariantMap: nested arrays are
+    // no longer JS Arrays, so kind checks would under-declare capabilities.
+    // The registry always holds the raw manifest for this id; prefer it.
+    var raw = shell.pluginRegistry ? shell.pluginRegistry.installedPlugins[key] : null
+    var resolved = raw && raw.id === key ? raw : manifest
+    return shell.createScopedPluginShell(resolved, key, true, shell.pluginHasBarCapabilities(resolved))
   }
 
   function pluginRegistryFor(manifest) {
