@@ -39,6 +39,21 @@ function normalizeItem(id, raw) {
   }
 }
 
+// Which fields an entry declared, carried alongside the item. normalizeItem
+// fills every field with a default (an absent icon becomes "", an absent label
+// becomes the id), so once an item is normalized there is no way to tell a field
+// the user set from one they left alone, and the merge's per-key overlay then
+// overwrites the shipped value with that default. Non-enumerable: the item shape
+// QML, callers and the shape tests see is unchanged.
+function markDeclared(item, raw) {
+  Object.defineProperty(item, "declared", {
+    value: Object.keys(raw || {}),
+    enumerable: false,
+    configurable: true
+  })
+  return item
+}
+
 function parseMenuJsonc(raw) {
   var stripped = stripJsonc(raw)
   if (!stripped.trim()) return []
@@ -58,7 +73,7 @@ function parseMenuJsonc(raw) {
   for (var id in source) {
     var entry = source[id]
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
-    out.push(normalizeItem(id, entry))
+    out.push(markDeclared(normalizeItem(id, entry), entry))
   }
   return out
 }
@@ -77,8 +92,27 @@ function mergeMenuSources(defaultItems, userItems) {
       var prior = nextItems[entry.id] || {}
       var merged = {}
       for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+
+      // Overlay only the fields this source declared. An item that never went
+      // through parseMenuJsonc has no declared list and is taken as fully
+      // specified, which is the behavior direct callers already relied on.
+      var declared = Array.isArray(entry.declared) ? entry.declared : Object.keys(entry)
+      for (var j = 0; j < declared.length; j++) {
+        var key = declared[j]
+        if (key === "id" || key === "order") continue
+        merged[key] = entry[key]
+      }
+
+      // Fill whatever is still absent from the item's own defaults, then
+      // re-derive the fields normalizeItem computes from the row: a declared
+      // action has to turn a submenu into an action row, while an action
+      // inherited from the default row keeps the kind that row already had.
+      var fallback = normalizeItem(entry.id, merged)
+      for (var k2 in fallback) {
+        if (merged[k2] === undefined) merged[k2] = fallback[k2]
+      }
       merged.id = entry.id
+      merged.kind = merged.action ? "action" : (merged.target ? "link" : "menu")
       nextItems[entry.id] = merged
     }
   }

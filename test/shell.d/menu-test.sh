@@ -58,6 +58,49 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+// An extension entry replaces only the fields it declares. Reuse a shipped id
+// to pin an icon font or retitle a row without re-declaring that row's icon,
+// action and aliases: everything the entry does not mention keeps the shipped
+// value. A one-field override that blanks the rest costs the row its icon
+// (Menu.qml hides the icon when row.icon is empty) and turns its label into the
+// raw id, which is exactly what the documented per-key merge promises not to do.
+const shipped = menu.parseMenuJsonc(`
+{
+  "items": {
+    "style.theme": {
+      "icon": "\\uf489",
+      "label": "Themes",
+      "aliases": "theme",
+      "action": "omarchy-theme-set"
+    },
+  },
+}
+`)
+const pinned = menu.mergeMenuSources(shipped, menu.parseMenuJsonc(`
+{
+  "items": {
+    "style.theme": { "iconFont": "Nerd Symbols" },
+  },
+}
+`))
+assertEqual(pinned.items['style.theme'].iconFont, 'Nerd Symbols', 'menu extension applies a field it declares')
+assertEqual(pinned.items['style.theme'].icon, '\uf489', 'menu extension keeps an icon it does not declare')
+assertEqual(pinned.items['style.theme'].label, 'Themes', 'menu extension keeps a label it does not declare')
+assertEqual(pinned.items['style.theme'].action, 'omarchy-theme-set', 'menu extension keeps an action it does not declare')
+assertEqual(pinned.items['style.theme'].kind, 'action', 'menu extension keeps the kind of an inherited action')
+assertDeepEqual(pinned.items['style.theme'].aliases, ['theme'], 'menu extension keeps aliases it does not declare')
+
+const retitled = menu.mergeMenuSources(shipped, menu.parseMenuJsonc(`
+{
+  "items": {
+    "style.theme": { "label": "Theme picker", "icon": "" },
+  },
+}
+`))
+assertEqual(retitled.items['style.theme'].label, 'Theme picker', 'menu extension retitles a row it declares')
+assertEqual(retitled.items['style.theme'].icon, '', 'menu extension clears an icon it declares empty')
+assertEqual(retitled.items['style.theme'].action, 'omarchy-theme-set', 'menu extension keeps the action when it only declares a label')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')
