@@ -177,7 +177,14 @@ Item {
         }
 
         Keys.onPressed: function(event) {
+          // A key hit at a dark panel is there to wake it, not to type. The
+          // wake clears displaysBlank, so read it first.
+          var wasBlank = root.displaysBlank
           root.wakeRequested()
+          if (wasBlank) {
+            event.accepted = true
+            return
+          }
           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
             root.passwordTextEdited("")
             event.accepted = true
