@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=Choose a GitLab instance and authenticate Duo with browser OAuth
+# omarchy:args=[hostname]
+# omarchy:examples=omarchy setup duo | omarchy setup duo gitlab.example.com
+
+set -euo pipefail
+
+if (( $# > 1 )); then
+  echo "Usage: omarchy-setup-duo [hostname]" >&2
+  exit 1
+fi
+
+if omarchy-cmd-missing glab; then
+  echo "Install glab first, or choose GitLab Duo CLI with: omarchy default agent duo" >&2
+  exit 1
+fi
+
+host=${1:-}
+if [[ -z $host ]]; then
+  host=$(gum input --header "GitLab hostname (GitLab.com or Self-Managed/Dedicated)" --value "gitlab.com")
+fi
+if [[ ! $host =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*(:[0-9]+)?$ ]]; then
+  echo "Enter a hostname such as gitlab.com or gitlab.example.com, without https:// or a path." >&2
+  exit 1
+fi
+
+if [[ $host != "gitlab.com" ]]; then
+  client_id=$(glab config get client_id --host "$host" 2>/dev/null || true)
+  if [[ -z $client_id ]]; then
+    echo "Create a non-confidential OAuth application on https://$host."
+    echo "Redirect URI: http://localhost:7171/auth/redirect"
+    echo "Scopes: openid, profile, read_user, write_repository, api"
+    echo "https://docs.gitlab.com/cli/authentication/#oauth-gitlab-self-managed-gitlab-dedicated"
+    client_id=$(gum input --header "OAuth Application ID (not the client secret)")
+    [[ -n $client_id ]] || exit 1
+    glab config set client_id "$client_id" --host "$host"
+  fi
+  echo "GitLab 19.2+: Admin > GitLab Duo > Change configuration > Turn on GitLab Duo CLI access."
+  echo "GitLab 18.11–19.1 requires beta and experimental features to be enabled."
+fi
+
+glab auth login --hostname "$host" --web
+# Desktop launches may have no GitLab remote. Let glab's normal host resolution
+# use this instance as its fallback, while retaining per-repository selection.
+glab config set host "$host" --global
+echo "Duo also needs Agent Platform access and a default Duo namespace or an eligible project."
