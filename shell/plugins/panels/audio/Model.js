@@ -47,6 +47,28 @@ function parseSinkAvailability(raw) {
   return next
 }
 
+// Outputs carried by a card profile that is not active have no sink to
+// enumerate, so they arrive as TSV from omarchy-audio-card-outputs and are
+// rendered from these descriptors. They are plain objects rather than PwNodes;
+// isProfileOutput is what the panel branches on when one is selected.
+function parseCardOutputs(raw) {
+  var list = []
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    if (!lines[i].trim()) continue
+    var parts = lines[i].split("\t")
+    if (parts.length < 4) continue
+    list.push({
+      isProfileOutput: true,
+      card: parts[0],
+      profile: parts[1],
+      description: parts[2],
+      name: parts[3]
+    })
+  }
+  return list
+}
+
 function friendlyDeviceLabel(text) {
   var label = String(text || "").trim()
   label = label.replace(/^sof-soundwire\s+/i, "")
@@ -240,6 +262,7 @@ if (typeof module !== "undefined") {
     listSnapshot: listSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
+    parseCardOutputs: parseCardOutputs,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,

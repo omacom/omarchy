@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Print audio outputs reachable only by switching card profile
+# omarchy:group=audio
+# omarchy:hidden=true
+
+# Some cards expose their outputs as MUTUALLY EXCLUSIVE profiles rather than as
+# ports of a single profile: laptop UCM cards split Speaker and Headphones into
+# sibling HiFi profiles, and GPU cards put each HDMI/DP connector in its own
+# profile. Only the active profile's ports get sinks, so every other profile's
+# outputs are invisible to a picker that enumerates sinks alone -- on a docked
+# laptop that is usually the internal speakers.
+#
+# PipeWire's EnumRoute carries direction, availability, and the owning profile
+# indices for every route on the card, including routes belonging to inactive
+# profiles, which is what makes those outputs discoverable at all. PulseAudio's
+# card list has no route direction, so this reads pw-dump rather than pactl.
+#
+# Emits one TSV row per reachable-but-inactive output:
+#   card-name <TAB> profile-name <TAB> label <TAB> route-name
+
+pw-dump 2>/dev/null | jq -r '
+  .[]
+  | select(.type == "PipeWire:Interface:Device")
+  | select(.info.params.EnumRoute != null)
+  | . as $dev
+  | ($dev.info.props["device.name"] // "") as $card
+  | ($dev.info.params.Profile[0].index // -1) as $active
+  | ([ $dev.info.params.EnumProfile[]?
+       | select(.available != "no")
+       | select(.name != "off" and .name != "pro-audio")
+       | {key: (.index | tostring), value: .} ] | from_entries) as $profiles
+  | select($card != "")
+  | $dev.info.params.EnumRoute[]?
+  | select(.direction == "Output")
+  | select(.available != "no")
+  | select(([ .profiles[]? ] | index($active)) == null)
+  | . as $route
+  | ([ .profiles[]? | tostring as $key | $profiles[$key] // empty ]
+     | sort_by(-.priority) | first) as $profile
+  | select($profile != null)
+  | [ $card, $profile.name, ($route.description // $route.name), $route.name ]
+  | @tsv
+'

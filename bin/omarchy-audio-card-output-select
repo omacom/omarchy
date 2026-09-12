@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Activate a card profile and make its output the default sink
+# omarchy:group=audio
+# omarchy:args=<card-name> <profile-name> [route-name]
+# omarchy:hidden=true
+
+# Counterpart to omarchy-audio-card-outputs: selecting one of the outputs it
+# lists means activating the profile that carries it, because the sink does not
+# exist until then. The sink appears asynchronously once WirePlumber has applied
+# the profile, so wait for it before handing off to the normal default-sink path.
+
+card=${1:-}
+profile=${2:-}
+route=${3:-}
+
+if [[ -z $card || -z $profile ]]; then
+  echo "Usage: omarchy-audio-card-output-select <card-name> <profile-name> [route-name]" >&2
+  exit 1
+fi
+
+timeout 2 pactl set-card-profile "$card" "$profile" || exit 1
+
+# Sinks are named after the card's bus path, which is the card name past its
+# "alsa_card." prefix; that is what ties a sink back to the card it came from.
+suffix=${card#alsa_card.}
+
+for _ in {1..20}; do
+  read -r index name < <(
+    timeout 2 pactl -f json list sinks 2>/dev/null | jq -r --arg suffix "$suffix" --arg route "$route" '
+      [ .[]
+        | select(.name | contains($suffix))
+        | select($route == "" or .active_port == $route) ]
+      | sort_by(-(.index)) | first
+      | if . == null then empty else "\(.index) \(.name)" end
+    '
+  )
+
+  if [[ -n $index && -n $name ]]; then
+    omarchy-audio-output-set-default "$index" "$name"
+    exit 0
+  fi
+
+  sleep 0.1
+done
+
+echo "No sink appeared for profile '$profile' on card '$card'" >&2
+exit 1

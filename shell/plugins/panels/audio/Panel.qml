@@ -58,6 +58,10 @@ Panel {
   property var sinkAvailability: ({})
   property bool sinkAvailabilityLoaded: false
 
+  // Outputs belonging to a card profile that is not active, which therefore
+  // have no sink of their own to enumerate. Descriptors, not PwNodes.
+  property var cardOutputs: []
+
   // Identify true playback streams without reading node.properties here:
   // PwNode.properties is invalid until the node is bound, and reading it while
   // capture streams are appearing (for example, when Voxtype starts recording)
@@ -81,6 +85,10 @@ Panel {
     for (var i = 0; i < candidateSinks.length; i++)
       if (sinkAvailable(candidateSinks[i])) list.push(candidateSinks[i])
     if (sink && list.indexOf(sink) < 0) list.unshift(sink)
+    // Cards that split their outputs across mutually exclusive profiles only
+    // publish sinks for the active one. Append the rest so the picker can
+    // still offer them; selecting one activates the profile that carries it.
+    for (var j = 0; j < cardOutputs.length; j++) list.push(cardOutputs[j])
     return list
   }
 
@@ -462,6 +470,17 @@ Panel {
 
   function setDefaultSink(node) {
     if (!node) return
+    // A profile output has no node to prefer yet: the sink comes into
+    // existence only once its card profile has been activated.
+    if (node.isProfileOutput) {
+      Quickshell.execDetached([
+        "omarchy-audio-card-output-select",
+        String(node.card),
+        String(node.profile),
+        String(node.name)
+      ])
+      return
+    }
     Pipewire.preferredDefaultAudioSink = node
     if (node.id !== undefined && node.name) {
       Quickshell.execDetached([
@@ -493,6 +512,10 @@ Panel {
   function updateSinkAvailability(raw) {
     sinkAvailability = Model.parseSinkAvailability(raw)
     sinkAvailabilityLoaded = true
+  }
+
+  function updateCardOutputs(raw) {
+    cardOutputs = Model.parseCardOutputs(raw)
   }
 
   function friendlyDeviceLabel(text) {
@@ -593,6 +616,15 @@ Panel {
   }
 
   Process {
+    id: cardOutputsProc
+    command: ["omarchy-audio-card-outputs"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateCardOutputs(text)
+    }
+  }
+
+  Process {
     id: volumeSinkProc
     command: ["omarchy-audio-output-sink"]
     stdout: StdioCollector {
@@ -606,7 +638,10 @@ Panel {
     running: root.opened
     repeat: true
     triggeredOnStart: true
-    onTriggered: if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+    onTriggered: {
+      if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+      if (!cardOutputsProc.running) cardOutputsProc.running = true
+    }
   }
 
   // Runs whether or not the panel is open: the bar shows and scrolls the output
@@ -1015,7 +1050,8 @@ Panel {
     required property var node
     required property int rowIndex
 
-    readonly property bool isActive: root.sink && node && root.sink.id === node.id
+    readonly property bool isActive: root.sink && node && !node.isProfileOutput
+      && root.sink.id === node.id
     hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sinkRow)
     current: isActive
