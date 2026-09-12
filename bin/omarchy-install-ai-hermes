@@ -140,7 +140,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, sys.argv[1])
-from hermes_cli.main import _write_desktop_build_stamp
+if Path(sys.argv[1], "hermes_cli/main_desktop.py").is_file():
+    from hermes_cli.main_desktop import _write_desktop_build_stamp
+else:
+    from hermes_cli.main import _write_desktop_build_stamp
 
 _write_desktop_build_stamp(Path(sys.argv[1]), source_mode=False)
 PY
