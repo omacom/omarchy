@@ -1,0 +1,2 @@
+# Enable autonomous Runtime Power Management for all PCI devices
+ACTION=="add", SUBSYSTEM=="pci", ATTR{power/control}="auto"
