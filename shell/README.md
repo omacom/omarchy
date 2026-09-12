@@ -103,11 +103,16 @@ The full schema lives in `services/PluginRegistry.qml`.
 
 A plugin is a **git repo** with a `manifest.json` at its root. Adding one
 clones it straight into `~/.config/omarchy/plugins/<id>/` (named by the
-manifest id); updating is a fast-forward pull of that checkout.
+manifest id). A repo listed on the plugin marketplace installs at the snapshot
+the marketplace verified rather than upstream HEAD, and updating fast-forwards
+that checkout along the same track: the newest verified snapshot, or upstream
+HEAD for plugins added with `--head`, unlisted ones, and older checkouts.
 
 ```bash
 omarchy plugin add https://github.com/acme/omarchy-weather.git
+omarchy plugin add https://github.com/acme/omarchy-weather.git --head   # upstream HEAD, unverified
 omarchy plugin update acme.weather       # fetches, shows a diff, fast-forwards
+omarchy plugin update acme.weather --head   # switch to following upstream HEAD
 omarchy plugin update                    # updates every git-managed plugin
 omarchy plugin remove acme.weather
 ```

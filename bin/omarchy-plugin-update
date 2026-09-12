@@ -2,7 +2,8 @@
 
 # omarchy:summary=Update installed git-managed plugins
 # omarchy:group=plugin
-# omarchy:args=[id] [--yes]
+# omarchy:args=[id] [--head] [--yes]
+# omarchy:examples=omarchy plugin update | omarchy plugin update acme.weather --head
 
 set -euo pipefail
 
@@ -11,6 +12,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
+FOLLOW_HEAD=0
 UPDATED_ANY=0
 
 fail() {
@@ -36,35 +38,43 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
-update_one() {
+# Plugins added at a marketplace-verified snapshot record the "verified"
+# channel. Everything else, including checkouts made before channels existed,
+# follows upstream HEAD exactly as it always has.
+plugin_channel() {
+  git -C "$PLUGINS_DIR/$1" config --get omarchy.channel 2>/dev/null || echo "head"
+}
+
+# Fast-forward one checkout to an already-fetched commit: show the diff, ask,
+# merge, and roll back if the new revision fails validation.
+apply_update() {
   local id="$1"
+  local target="$2"
+  local label="$3"
   local dir="$PLUGINS_DIR/$id"
 
-  if ! git -C "$dir" fetch --quiet origin HEAD; then
-    echo "omarchy-plugin-update: fetch failed for '$id'" >&2
-    return 1
-  fi
+  target=$(git -C "$dir" rev-parse "$target^{commit}")
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
-    echo "$id is up to date."
+  if [[ $(git -C "$dir" rev-parse HEAD) == $target ]]; then
+    echo "$id is up to date with $label."
     return 0
   fi
 
   if (( ! ASSUME_YES )); then
     echo "Changes for $id:"
     if omarchy-cmd-present delta; then
-      git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
+      git -C "$dir" diff HEAD "$target" | delta --paging=never
     else
-      git -C "$dir" diff HEAD FETCH_HEAD
+      git -C "$dir" diff HEAD "$target"
     fi
     echo
-    confirm "Update $id?" || {
+    confirm "Update $id to $label?" || {
       echo "Skipped $id."
       return 0
     }
   fi
 
-  if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
+  if ! git -C "$dir" merge --ff-only "$target" >/dev/null 2>&1; then
     echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
@@ -75,20 +85,85 @@ update_one() {
     return 1
   fi
 
-  echo "Updated $id."
+  echo "Updated $id to $label."
   UPDATED_ANY=1
+}
+
+update_from_head() {
+  local id="$1"
+  local dir="$PLUGINS_DIR/$id"
+
+  if ! git -C "$dir" fetch --quiet origin HEAD; then
+    echo "omarchy-plugin-update: fetch failed for '$id'" >&2
+    return 1
+  fi
+
+  apply_update "$id" FETCH_HEAD "upstream HEAD"
+}
+
+# Move a verified-channel plugin to the marketplace's current verified snapshot.
+# A plugin whose listing lost its snapshot, or that is no longer listed, stays
+# where it is: following upstream instead is an explicit --head decision.
+update_from_marketplace() {
+  local id="$1"
+  local state="$2"
+  local commit="$3"
+  local upstream="$4"
+  local dir="$PLUGINS_DIR/$id"
+
+  case "$state" in
+  verified) ;;
+  unverified)
+    echo "$id has no verified snapshot on the plugin marketplace right now; leaving it at its current commit. Follow upstream instead with: omarchy plugin update $id --head"
+    return 0
+    ;;
+  unlisted)
+    echo "$id is no longer listed on the plugin marketplace; leaving it at its current commit. Follow upstream instead with: omarchy plugin update $id --head"
+    return 0
+    ;;
+  *)
+    echo "omarchy-plugin-update: could not reach the plugin marketplace to check '$id'" >&2
+    return 1
+    ;;
+  esac
+
+  if ! git -C "$dir" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    git -C "$dir" fetch --quiet origin HEAD 2>/dev/null || true
+  fi
+  if ! git -C "$dir" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    git -C "$dir" fetch --quiet origin "$commit" 2>/dev/null || true
+  fi
+  if ! git -C "$dir" cat-file -e "$commit^{commit}" 2>/dev/null; then
+    echo "omarchy-plugin-update: the verified snapshot for '$id' ($commit) is not available upstream" >&2
+    return 1
+  fi
+
+  if ! git -C "$dir" merge-base --is-ancestor HEAD "$commit"; then
+    echo "$id is not behind the verified snapshot ${commit:0:12}; leaving it at its current commit."
+    return 0
+  fi
+
+  apply_update "$id" "$commit" "verified snapshot ${commit:0:12}" || return 1
+
+  if [[ $upstream != "-" && $upstream != "$commit" ]]; then
+    echo "Upstream has newer commits for $id that are not verified; follow them with: omarchy plugin update $id --head"
+  fi
 }
 
 id=""
 
 while (( $# > 0 )); do
   case "$1" in
+  --head)
+    FOLLOW_HEAD=1
+    shift
+    ;;
   --yes | -y)
     ASSUME_YES=1
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin update [id] [--yes]"
+    echo "Usage: omarchy plugin update [id] [--head] [--yes]"
     exit 0
     ;;
   -*)
@@ -122,9 +197,45 @@ else
   fi
 fi
 
+# Ask the marketplace about every verified-channel plugin in one lookup, so a
+# bulk update fetches the catalog once. Read the URL the plugin was added from,
+# not `git remote get-url`, which applies the user's insteadOf rewrites.
+verified_ids=()
+verified_urls=()
+if (( ! FOLLOW_HEAD )); then
+  for id in "${targets[@]}"; do
+    [[ $(plugin_channel "$id") == "verified" ]] || continue
+    verified_ids+=("$id")
+    verified_urls+=("$(git -C "$PLUGINS_DIR/$id" config --get remote.origin.url 2>/dev/null || echo "-")")
+  done
+fi
+
+declare -A marketplace=()
+if (( ${#verified_ids[@]} > 0 )); then
+  lookup=$(omarchy-plugin-marketplace-lookup "${verified_urls[@]}") || lookup=""
+  mapfile -t results <<<"$lookup"
+  for i in "${!verified_ids[@]}"; do
+    marketplace[${verified_ids[$i]}]="${results[$i]:-unreachable - -}"
+  done
+fi
+
 rc=0
 for id in "${targets[@]}"; do
-  update_one "$id" || rc=1
+  if [[ -n ${marketplace[$id]:-} ]]; then
+    read -r state commit upstream <<<"${marketplace[$id]}"
+    update_from_marketplace "$id" "$state" "$commit" "$upstream" || rc=1
+  elif update_from_head "$id"; then
+    # --head moves a verified-channel plugin onto upstream HEAD for good, once
+    # it actually reaches HEAD rather than being skipped at the prompt.
+    dir="$PLUGINS_DIR/$id"
+    if (( FOLLOW_HEAD )) && [[ $(plugin_channel "$id") == "verified" ]] &&
+      [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+      git -C "$dir" config omarchy.channel head
+      echo "$id now follows upstream HEAD instead of verified snapshots."
+    fi
+  else
+    rc=1
+  fi
 done
 
 if (( UPDATED_ANY )); then
