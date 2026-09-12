@@ -22,7 +22,7 @@ cp -r "$ROOT/config/hypr" "$home/.config/hypr"
 #
 # It goes at the top because the scan stops at the config's first Lua error and
 # Omarchy's own defaults raise one, so a line appended after them never runs.
-sed -i '1i for _, monitor in ipairs(hl.get_monitors()) do end' "$home/.config/hypr/hyprland.lua"
+sed -i '1i for _, stub in ipairs({hl.get_monitors(), hl, hl.dsp, hl.dsp.anything}) do for _, value in ipairs(stub) do end end' "$home/.config/hypr/hyprland.lua"
 
 # The menu reads binds from Hyprland, which is not running here, so stand in for
 # it. A Lua bind reports dispatcher __lua and no arg, and the menu recovers both

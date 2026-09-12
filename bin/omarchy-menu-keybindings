@@ -169,6 +169,10 @@ end
 local function dsp_proxy(path)
   return setmetatable({ path = path }, {
     __index = function(self, key)
+      if type(key) == "number" then
+        return nil
+      end
+
       return dsp_proxy(self.path .. "." .. tostring(key))
     end,
     __call = function(self, ...)
@@ -225,7 +229,11 @@ hl = setmetatable({
     return nil
   end,
 }, {
-  __index = function()
+  __index = function(_, key)
+    if type(key) == "number" then
+      return nil
+    end
+
     return noop
   end,
 })
