@@ -15,10 +15,11 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
   It appears only when more than one agent is enabled.
 - **Claude accounts** — on the Claude tab, email chips from
   `omarchy agent account`. Switching writes a `CLAUDE_CONFIG_DIR` pointer and
-  points `~/.claude/.credentials.json` at that login so tools that hardcode
-  that path (Hermes) follow. The rest of `~/.claude` stays put. `+` adds
-  another isolated login. When a limit window hits 100%, a notification says
-  whether another login is saved.
+  copies the selected login onto `~/.claude/.credentials.json` as a regular
+  file so tools that hardcode that path follow. The saved copy is a different
+  file, so a live Claude blank does not destroy it. The rest of `~/.claude`
+  stays put. `+` adds another isolated login. When a limit window hits 100%, a
+  notification says whether another login is saved.
 - **Limits** — the percentage of each allowance used, a matching meter, and
   the time until the session or weekly window resets.
 - **Balance** — prepaid agents report a credit ledger instead of limits:

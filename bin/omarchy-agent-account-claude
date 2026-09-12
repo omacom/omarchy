@@ -5,9 +5,10 @@
 """Isolated Claude Code accounts behind a pointer file.
 
 Each extra login gets its own CLAUDE_CONFIG_DIR. Switching writes the active
-id and points ~/.claude/.credentials.json at that account's credentials so
-Hermes (which hardcodes that path) follows the chip. The rest of ~/.claude
-stays put.
+id and copies that account's credentials onto ~/.claude/.credentials.json so
+Hermes (which hardcodes that path) follows the chip. Live credentials are a
+regular file, not a symlink onto the saved copy. The rest of ~/.claude stays
+put.
 """
 
 from __future__ import annotations
@@ -63,43 +64,8 @@ def canonical_credentials_path(account_id: str) -> Path:
   return isolated_dir(account_id) / ".credentials.json"
 
 
-def ensure_canonical_credentials(account_id: str, account_path: Path) -> Path | None:
-  dest = canonical_credentials_path(account_id)
-  dest.parent.mkdir(parents=True, exist_ok=True)
-  os.chmod(dest.parent, 0o700)
-  if dest.is_file() and not dest.is_symlink():
-    return dest
-  src = account_path / ".credentials.json"
-  if src.is_symlink():
-    try:
-      src = src.resolve()
-    except OSError:
-      return dest if dest.is_file() else None
-  if not src.is_file() or src == dest:
-    return dest if dest.is_file() else None
-  shutil.copy2(src, dest)
-  os.chmod(dest, 0o600)
-  return dest
-
-
-def point_home_credentials(account_id: str, account_path: Path) -> None:
-  canonical = ensure_canonical_credentials(account_id, account_path)
-  if canonical is None or not canonical.is_file():
-    return
-  home = home_credentials_path()
-  home.parent.mkdir(parents=True, exist_ok=True)
-  try:
-    if home.is_symlink() and home.resolve() == canonical.resolve():
-      return
-  except OSError:
-    pass
-  tmp = home.parent / ".credentials.json.linktmp"
-  try:
-    tmp.unlink()
-  except FileNotFoundError:
-    pass
-  tmp.symlink_to(canonical)
-  os.replace(tmp, home)
+def last_good_credentials_path(account_id: str) -> Path:
+  return isolated_dir(account_id) / ".credentials.last-good.json"
 
 
 def die(message: str, code: int = 1) -> None:
@@ -137,6 +103,100 @@ def atomic_write(path: Path, data: Any, mode: int = 0o600) -> None:
 def tempfile_path(path: Path) -> tuple[int, str]:
   fd, tmp = tempfile.mkstemp(prefix="." + path.name + ".", dir=str(path.parent))
   return fd, tmp
+
+
+def oauth_tokens_present(data: dict[str, Any]) -> bool:
+  oauth = data.get("claudeAiOauth")
+  if not isinstance(oauth, dict):
+    return False
+  return bool(str(oauth.get("accessToken") or "").strip() and str(oauth.get("refreshToken") or "").strip())
+
+
+def remember_good_credentials(account_id: str, data: dict[str, Any]) -> None:
+  # Do not save empty OAuth over last-good.
+  if not oauth_tokens_present(data):
+    return
+  atomic_write(last_good_credentials_path(account_id), data, 0o600)
+
+
+def restore_canonical_if_blank(account_id: str) -> Path | None:
+  dest = canonical_credentials_path(account_id)
+  dest.parent.mkdir(parents=True, exist_ok=True)
+  os.chmod(dest.parent, 0o700)
+  current = read_json(dest)
+  if oauth_tokens_present(current):
+    remember_good_credentials(account_id, current)
+    return dest
+  good = read_json(last_good_credentials_path(account_id))
+  if oauth_tokens_present(good):
+    atomic_write(dest, good, 0o600)
+    return dest
+  return dest if dest.is_file() else None
+
+
+def harvest_home_into_owner(index: dict[str, Any] | None = None) -> None:
+  home = home_credentials_path()
+  data = read_json(home)
+  if not oauth_tokens_present(data):
+    return
+  owner_id = ""
+  rows = (index or load_index()).get("accounts") or []
+  if home.is_symlink():
+    try:
+      target = home.resolve()
+    except OSError:
+      target = None
+    if target is not None:
+      for row in rows:
+        account_id = str(row.get("id") or "")
+        if account_id and canonical_credentials_path(account_id).resolve() == target:
+          owner_id = account_id
+          break
+  else:
+    owner_id = str((index or load_index()).get("activeId") or "")
+  if not owner_id:
+    return
+  remember_good_credentials(owner_id, data)
+  dest = canonical_credentials_path(owner_id)
+  if not oauth_tokens_present(read_json(dest)):
+    atomic_write(dest, data, 0o600)
+
+
+def ensure_canonical_credentials(account_id: str, account_path: Path) -> Path | None:
+  dest = restore_canonical_if_blank(account_id) or canonical_credentials_path(account_id)
+  dest.parent.mkdir(parents=True, exist_ok=True)
+  os.chmod(dest.parent, 0o700)
+  if oauth_tokens_present(read_json(dest)):
+    return dest
+  src = account_path / ".credentials.json"
+  if src.is_symlink():
+    try:
+      src = src.resolve()
+    except OSError:
+      return dest
+  if not src.is_file() or src == dest:
+    return dest
+  data = read_json(src)
+  if not oauth_tokens_present(data):
+    return dest
+  shutil.copy2(src, dest)
+  os.chmod(dest, 0o600)
+  remember_good_credentials(account_id, data)
+  return dest
+
+
+def point_home_credentials(account_id: str, account_path: Path, index: dict[str, Any] | None = None) -> None:
+  harvest_home_into_owner(index)
+  canonical = ensure_canonical_credentials(account_id, account_path)
+  if canonical is None or not canonical.is_file():
+    return
+  data = read_json(canonical)
+  home = home_credentials_path()
+  home.parent.mkdir(parents=True, exist_ok=True)
+  # Do not symlink live credentials onto canonical.
+  if home.is_symlink():
+    home.unlink()
+  atomic_write(home, data, 0o600)
 
 
 def ensure_state() -> None:
@@ -315,7 +375,7 @@ def cmd_list(as_json: bool) -> int:
     current_id = str(current.get("id") or "")
     current_path = str(current.get("path") or "")
     if current_id and current_path:
-      point_home_credentials(current_id, expand_path(current_path))
+      point_home_credentials(current_id, expand_path(current_path), index)
   emit(payload, as_json)
   return 0
 
@@ -352,9 +412,10 @@ def cmd_use(account_id: str, as_json: bool) -> int:
     match = next((row for row in index["accounts"] if str(row.get("id")) == account_id), None)
     if match is None:
       die(f"no saved Claude account '{account_id}'")
+    harvest_home_into_owner(index)
     index["activeId"] = account_id
     write_index(index)
-    point_home_credentials(account_id, expand_path(str(match["path"])))
+    point_home_credentials(account_id, expand_path(str(match["path"])), index)
     payload = public_index(index, identity_in(expand_path(str(match["path"]))))
   notify_switched(payload.get("current") or {})
   refresh_usage()

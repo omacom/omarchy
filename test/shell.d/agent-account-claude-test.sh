@@ -81,10 +81,12 @@ personal_canon="$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/$personal
 [[ -f $personal_canon ]] || fail "the original login keeps a canonical credentials file" "$personal_canon"
 original_token=$(jq -r '.claudeAiOauth.accessToken' "$personal_canon")
 [[ $original_token == "personal-token" ]] || fail "add does not copy over the original OAuth" "$original_token"
-[[ -L $HOME/.claude/.credentials.json ]] || fail "home credentials become a symlink to the active account"
-[[ $(readlink -f "$HOME/.claude/.credentials.json") == "$work_path/.credentials.json" ]] ||
-  fail "home credentials point at the new account after add"
-pass "add leaves the original session saved and points ~/.claude credentials at the active login"
+[[ ! -L $HOME/.claude/.credentials.json ]] || fail "home credentials are a regular file, not a symlink"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "work-token" ]] ||
+  fail "home credentials are a copy of the active account"
+[[ $(stat -c %i "$HOME/.claude/.credentials.json") != $(stat -c %i "$work_path/.credentials.json") ]] ||
+  fail "home credentials are not the same inode as the saved copy"
+pass "add leaves the original session saved and copies active credentials to ~/.claude"
 
 work_id=$(jq -r '.current.id' <<<"$listed")
 omarchy-agent-account use claude "$personal_id" >/dev/null
@@ -94,8 +96,9 @@ omarchy-agent-account use claude "$personal_id" >/dev/null
   fail "dir follows the pointer after use"
 [[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "work-token" ]] ||
   fail "use does not rewrite the unused account's credentials"
-[[ $(readlink -f "$HOME/.claude/.credentials.json") == "$personal_canon" ]] ||
-  fail "use points ~/.claude credentials at the selected account"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "personal-token" ]] ||
+  fail "use copies the selected account onto ~/.claude"
+[[ ! -L $HOME/.claude/.credentials.json ]] || fail "use does not reintroduce a credentials symlink"
 pass "use switches the pointer without copying OAuth"
 
 if omarchy-agent-account list codex >/dev/null 2>&1; then
@@ -119,3 +122,28 @@ PY
 )
 [[ $collector_dir == "$work_path" ]] || fail "usage collector follows the account pointer" "$collector_dir"
 pass "usage collector follows the account pointer"
+
+cat >"$HOME/.claude/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0,"refreshTokenExpiresAt":1,"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+JSON
+omarchy-agent-account list claude >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "work-token" ]] ||
+  fail "blanking the live ~/.claude credentials does not wipe the saved copy"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "work-token" ]] ||
+  fail "list restores live credentials from the saved copy"
+pass "blanking live credentials does not destroy the saved login"
+
+cat >"$work_path/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0,"refreshTokenExpiresAt":1,"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+JSON
+omarchy-agent-account use claude "$personal_id" >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$personal_canon") == "personal-token" ]] ||
+  fail "blanking the active login does not overwrite the other account"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "personal-token" ]] ||
+  fail "use still points home at the account that still has tokens"
+omarchy-agent-account use claude "$work_id" >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "work-token" ]] ||
+  fail "use restores a blanked login from last-good"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "work-token" ]] ||
+  fail "restored tokens are what live credentials follow"
+pass "use restores a blanked login without touching the other account"
