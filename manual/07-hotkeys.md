@@ -58,6 +58,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
 
+Resize chords `Super + Minus` / `Super + Equal` (and Shift/Alt/Ctrl variants) are physical `code:20`/`code:21` (XKB `<AE11>`/`<AE12>`): US `-`/`=`; JIS `-`/`^`; Spanish `'`/`¡`. Shift follows those keys, not the printed `=` on JIS.
+
 ## System controls
 
 | Hotkey                  | Function              |
