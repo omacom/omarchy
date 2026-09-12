@@ -163,7 +163,7 @@
   "setup.default.terminal.ghostty": {"icon":"","label":"Ghostty","checked":"[[ \"$(omarchy-default-terminal)\" == \"ghostty\" ]]","action":"omarchy-default-terminal ghostty"},
   "setup.default.terminal.kitty": {"icon":"","label":"Kitty","checked":"[[ \"$(omarchy-default-terminal)\" == \"kitty\" ]]","action":"omarchy-default-terminal kitty"},
   "setup.default.editor": {"icon":"","label":"Editor","title":"Default Editor"},
-   "setup.default.workspace-apps": {"icon":"󱂬","label":"Apps","title":"Workspace Apps","action":"omarchy-workspace-apps-set"},
+  "setup.default.workspace-apps": {"icon":"󱂬","label":"Apps","title":"Workspace Apps","action":"omarchy-workspace-apps-set"},
   "setup.default.editor.neovim": {"icon":"","label":"Neovim","checked":"[[ \"$(omarchy-default-editor)\" == \"nvim\" ]]","action":"omarchy-default-editor nvim"},
   "setup.default.editor.vscode": {"icon":"","label":"VSCode","checked":"[[ \"$(omarchy-default-editor)\" == \"code\" ]]","action":"omarchy-default-editor code"},
   "setup.default.editor.cursor": {"icon":"","iconFont":"omarchy","label":"Cursor","checked":"[[ \"$(omarchy-default-editor)\" == \"cursor\" ]]","action":"omarchy-default-editor cursor"},
