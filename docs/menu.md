@@ -41,6 +41,9 @@ submenu. The fields:
 | `provider` | Runtime row source for this submenu (see Providers) |
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
 | `description` | Subtitle shown while searching, and extra search text matched by whole word |
+| `flat` | Set to `false` to scope child items so they do not pollute root flat search until this submenu is explicitly navigated to |
+| `scope` | Kind of frecency items to lazily search within this submenu (e.g. `agent-session`, `project`) |
+| `placeholder` | Hint text displayed in the search header and empty state when entering a scoped submenu |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
 
 Do not add `aliases` to new entries. They are reserved for established
@@ -165,3 +168,48 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+## Quicklinks
+
+An action containing `{}` is parameterized: when the row is activated, every `{}` occurrence is replaced with user text, shell-quoted, by pure string substitution — never evaluated, so an input like `$(id)` stays literal. What fills it depends on the row:
+
+- A normal action row takes the filter remainder: the filter words after the first (trigger) word. Such rows match a search on the first word alone, so typing `github neovim` still lists the GitHub row and activates it with `neovim`. With a single-word filter the parameter is empty.
+- A row with `input: {"prompt": "...", "action": "..."}` is prompt-first: selecting it opens input mode (prefilled with the filter remainder, if any) and runs the template with the answer on confirm. An empty answer runs nothing. This is how the shipped `ask` (Ask agent…, `omarchy agent prompt {}`) and `search` (Search web…, DuckDuckGo via `xdg-open`) rows work.
+
+In both cases the input is never recorded in the activity database — free text may be secrets, the same rule `omarchy-menu-input` follows. Template authors: the substituted value is already shell-quoted and concatenates with its neighbors, so close static quotes around the placeholder (`'...q='{}'&...'`) rather than wrapping it — wrapping lets the value's quotes pair with the template's and re-split on spaces, while the closed form keeps a static `&` literal inside quotes.
+
+These fields are honored by compatible menus only. The shipped shell ignores the unknown `input` field (such rows have no children and stay hidden) and runs `{}` actions literally.
+
+## Scoped submenus (`flat: false`)
+
+Submenus with parameterized leaf options — such as "Move to Workspace…" (workspaces 1 through 10), "Touchpad Haptics" (`low`, `mid`, `high`), or "Menu Bar Position" (`top`, `bottom`, `left`, `right`) — can specify `"flat": false`.
+
+When `"flat": false` is set on an entry:
+- The parent submenu itself remains visible and fuzzy-searchable from root search.
+- The leaf children are hidden from root flat search so they do not pollute search results with generic numbers or values.
+- Once the user navigates into that submenu (or selects it), its child options become active and fully searchable.
+
+## Lazy search scopes (`scope`)
+
+For large collections or historical activity that should not be pre-enumerated or pollute top-level search (such as agent conversations, historical projects, or bookmarks), a submenu can declare a lazy `scope`:
+
+```jsonc
+"resume": {
+  "icon": "",
+  "label": "Resume agent…",
+  "title": "Resume Conversation",
+  "description": "Search past agent conversations",
+  "scope": "agent-session",
+  "placeholder": "Search previous conversations…",
+  "action": "omarchy agent resume {}",
+  "flat": false
+}
+```
+
+When `scope` is configured on an entry:
+- The entry acts as a submenu (`kind: "menu"`).
+- At the root level, items belonging to that scope are never exposed or dumped into top-level flat search.
+- When the user navigates into the submenu, recent items for that scope are displayed immediately (ranked by frecency score), or a clean placeholder hint is shown if no history exists yet.
+- As the user types, matches from the in-memory frecency database (`frecencyMap`) matching the declared `scope` are queried on demand and ranked by score.
+- Selecting a match executes the `action` template, replacing `{}` with the quoted key/target of the selected item.
+

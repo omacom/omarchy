@@ -19,9 +19,15 @@
   //                  goes dim, takes a ✓ and can no longer be selected. Install
   //                  rows use it so software already on the machine reads as
   //                  installed instead of vanishing from the list.
+//   input          {"prompt","action"} - prompt-first row: selecting it asks
+//                  for text and runs action with {} replaced by the answer.
+//                  An action containing {} is parameterized and takes the
+//                  filter remainder as its value. Both are honored by
+//                  compatible menus only; see docs/menu.md.
 
   // Root Menu
   "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps"},
+  "agent": {"icon":"󰚩","label":"Agent","aliases":["ai","coding-agent"]},
   "learn": {"icon":"󰧑","label":"Learn"},
   "trigger": {"icon":"󱓞","label":"Trigger"},
   "style": {"icon":"","label":"Style"},
@@ -31,6 +37,20 @@
   "update": {"icon":"","label":"Update","aliases":["restart","refresh"]},
   "about": {"icon":"","label":"About","action":"omarchy-launch-about"},
   "system": {"icon":"","label":"System","aliases":["power-menu"]},
+
+  // Agent
+  "agent.new": {"icon":"󰚩","label":"New session","description":"Launch default coding agent in terminal","action":"omarchy agent","aliases":["agent-new","agent-launch"]},
+  "agent.ask": {"icon":"","label":"Ask agent…","description":"Send a prompt to the default coding agent","input":{"prompt":"Ask agent","action":"omarchy agent prompt {}"},"aliases":["ask","agent-ask","prompt"]},
+  "agent.resume": {"icon":"","label":"Resume conversation…","title":"Resume Conversation","description":"Search past agent conversations","scope":"agent-session","placeholder":"Search previous conversations…","action":"omarchy agent resume {}","aliases":["resume","agent-resume","resume-agent"],"flat":false},
+  "agent.default": {"icon":"","label":"Default agent…","description":"Choose default coding agent","target":"setup.default.agent"},
+
+  // Quicklinks: prompt-first (`input`) and parameterized (`{}`) rows, honored
+  // by compatible menus (see docs/menu.md). Template authors: quote static `&`
+  // in URLs (close the quotes around {}: '...q='{}'&...') so the value concatenates as one quoted word.
+  "search": {"icon":"","label":"Search web…","description":"Search the web","input":{"prompt":"Search web","action":"omarchy-websearch {}"}},
+  "github": {"icon":"","label":"GitHub…","description":"Search GitHub repositories","action":"xdg-open 'https://github.com/search?q='{}'&type=repositories'"},
+  "aur": {"icon":"󰣇","label":"AUR…","description":"Search the Arch User Repository","action":"xdg-open https://aur.archlinux.org/packages?K={}"},
+  "archwiki": {"icon":"󰖬","label":"Arch Wiki","description":"Open the Arch Wiki","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/'"},
 
   // System
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},
@@ -75,7 +95,7 @@
   "trigger.hardware.mirror-display": {"icon":"󰍹","label":"Mirror Display","when":"omarchy-hw-laptop","action":"omarchy-hyprland-monitor-internal-mirror toggle"},
   "trigger.hardware.hybrid-gpu": {"icon":"","label":"Hybrid GPU","when":"omarchy-hw-hybrid-gpu","action":"omarchy-launch-floating-terminal-with-presentation omarchy-toggle-hybrid-gpu"},
   "trigger.hardware.touchpad": {"icon":"󰟸","label":"Touchpad","when":"omarchy-hw-touchpad","action":"omarchy-toggle-touchpad"},
-  "trigger.hardware.touchpad-haptics": {"icon":"󰌌","label":"Touchpad Haptics"},
+  "trigger.hardware.touchpad-haptics": {"icon":"󰌌","label":"Touchpad Haptics","flat":false},
   "trigger.hardware.touchpad-haptics.low": {"icon":"󰌌","label":"low","when":"omarchy-hw-dell-xps-haptic-touchpad && omarchy-cmd-present dell-xps-touchpad-haptics","checked":"[[ \"$(dell-xps-touchpad-haptics get)\" == \"low\" ]]","action":"dell-xps-touchpad-haptics set low"},
   "trigger.hardware.touchpad-haptics.mid": {"icon":"󰌌","label":"mid","when":"omarchy-hw-dell-xps-haptic-touchpad && omarchy-cmd-present dell-xps-touchpad-haptics","checked":"[[ \"$(dell-xps-touchpad-haptics get)\" == \"mid\" ]]","action":"dell-xps-touchpad-haptics set mid"},
   "trigger.hardware.touchpad-haptics.high": {"icon":"󰌌","label":"high","when":"omarchy-hw-dell-xps-haptic-touchpad && omarchy-cmd-present dell-xps-touchpad-haptics","checked":"[[ \"$(dell-xps-touchpad-haptics get)\" == \"high\" ]]","action":"dell-xps-touchpad-haptics set high"},
@@ -97,6 +117,43 @@
   "trigger.toggle.workspace-layout": {"icon":"󱂬","label":"Workspace Layout","action":"omarchy-hyprland-workspace-layout-toggle"},
   "trigger.toggle.window-gaps": {"icon":"","label":"Window Gaps","action":"omarchy-hyprland-window-gaps-toggle"},
   "trigger.toggle.one-window-ratio": {"icon":"","label":"1-Window Ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
+  "trigger.window": {"icon":"","label":"Window"},
+  "trigger.window.left": {"icon":"󰅊","label":"Left Half","action":"omarchy-hyprland-window-place left"},
+  "trigger.window.right": {"icon":"󰅋","label":"Right Half","action":"omarchy-hyprland-window-place right"},
+  "trigger.window.center-half": {"icon":"󰆻","label":"Center Half","action":"omarchy-hyprland-window-place center-half"},
+  "trigger.window.maximize": {"icon":"󰆾","label":"Maximize","action":"omarchy-hyprland-window-place maximize"},
+  "trigger.window.left-third": {"icon":"󰅊","label":"Left Third","action":"omarchy-hyprland-window-place left-third"},
+  "trigger.window.right-third": {"icon":"󰅋","label":"Right Third","action":"omarchy-hyprland-window-place right-third"},
+  "trigger.window.float": {"icon":"","label":"Float Toggle","action":"omarchy-hyprland-window-toggle float"},
+  "trigger.window.fullscreen": {"icon":"","label":"Fullscreen","action":"omarchy-hyprland-window-toggle fullscreen"},
+  "trigger.window.maximized": {"icon":"","label":"Full Width","action":"omarchy-hyprland-window-toggle maximized"},
+  "trigger.window.pop": {"icon":"","label":"Pop Out & Pin","action":"omarchy-hyprland-window-pop"},
+  "trigger.window.transparency": {"icon":"","label":"Transparency","action":"omarchy-hyprland-window-transparency-toggle"},
+  "trigger.window.center-third": {"icon":"","label":"Center Third","action":"omarchy-hyprland-window-place center-third"},
+  "trigger.window.left-two-thirds": {"icon":"󰅊","label":"Left Two Thirds","action":"omarchy-hyprland-window-place left-two-thirds"},
+  "trigger.window.right-two-thirds": {"icon":"󰅋","label":"Right Two Thirds","action":"omarchy-hyprland-window-place right-two-thirds"},
+  "trigger.window.center": {"icon":"","label":"Center","action":"omarchy-hyprland-window-place center"},
+  "trigger.window.maximize-height": {"icon":"","label":"Maximize Height","action":"omarchy-hyprland-window-place maximize-height"},
+  "trigger.window.maximize-width": {"icon":"","label":"Maximize Width","action":"omarchy-hyprland-window-place maximize-width"},
+  "trigger.window.next-display": {"icon":"","label":"Next Display","action":"omarchy-hyprland-window-place next-display"},
+  "trigger.window.prev-display": {"icon":"","label":"Previous Display","action":"omarchy-hyprland-window-place prev-display"},
+  "trigger.window.larger": {"icon":"","label":"Make Larger","action":"omarchy-hyprland-window-place larger"},
+  "trigger.window.smaller": {"icon":"","label":"Make Smaller","action":"omarchy-hyprland-window-place smaller"},
+  "trigger.window.move-left": {"icon":"","label":"Move Left","action":"omarchy-hyprland-window-swap left"},
+  "trigger.window.move-right": {"icon":"","label":"Move Right","action":"omarchy-hyprland-window-swap right"},
+  "trigger.window.move-up": {"icon":"","label":"Move Up","action":"omarchy-hyprland-window-swap up"},
+  "trigger.window.move-down": {"icon":"","label":"Move Down","action":"omarchy-hyprland-window-swap down"},
+  "trigger.window.workspace": {"icon":"","label":"Move to Workspace…","aliases":["move-workspace","workspace","workspaces","send-to-workspace"],"flat":false},
+  "trigger.window.workspace.1": {"icon":"","label":"Workspace 1","action":"omarchy-hyprland-window-workspace 1"},
+  "trigger.window.workspace.2": {"icon":"","label":"Workspace 2","action":"omarchy-hyprland-window-workspace 2"},
+  "trigger.window.workspace.3": {"icon":"","label":"Workspace 3","action":"omarchy-hyprland-window-workspace 3"},
+  "trigger.window.workspace.4": {"icon":"","label":"Workspace 4","action":"omarchy-hyprland-window-workspace 4"},
+  "trigger.window.workspace.5": {"icon":"","label":"Workspace 5","action":"omarchy-hyprland-window-workspace 5"},
+  "trigger.window.workspace.6": {"icon":"","label":"Workspace 6","action":"omarchy-hyprland-window-workspace 6"},
+  "trigger.window.workspace.7": {"icon":"","label":"Workspace 7","action":"omarchy-hyprland-window-workspace 7"},
+  "trigger.window.workspace.8": {"icon":"","label":"Workspace 8","action":"omarchy-hyprland-window-workspace 8"},
+  "trigger.window.workspace.9": {"icon":"","label":"Workspace 9","action":"omarchy-hyprland-window-workspace 9"},
+  "trigger.window.workspace.10": {"icon":"","label":"Workspace 10","action":"omarchy-hyprland-window-workspace 10"},
   "trigger.tests.network-speedtest": {"icon":"󰓅","label":"Network Speed Test","action":"omarchy-shell shell summon omarchy.speedtest"},
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
@@ -106,11 +163,11 @@
   "style.unlock": {"icon":"󰟵","label":"Unlock","aliases":["unlock"],"action":"unlock=$(omarchy-plymouth-switcher); if [[ $unlock == default ]]; then omarchy-launch-floating-terminal-with-presentation omarchy-plymouth-reset; elif [[ -n $unlock ]]; then omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-set-by-theme $(printf %q \"$unlock\")\"; fi"},
   "style.font": {"icon":"","label":"Font","provider":"fonts"},
   "style.bar": {"icon":"󰍜","label":"Menu Bar"},
-  "style.bar.position": {"icon":"","label":"Position"},
+  "style.bar.position": {"icon":"","label":"Position","flat":false},
   "style.bar.transparency": {"icon":"󰂵","label":"Transparency","action":"omarchy-bar transparent toggle"},
   "style.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/looknfeel.lua\""},
-  "style.screensaver": {"icon":"󱄄","label":"Screensaver"},
-  "style.about": {"icon":"","label":"About"},
+  "style.screensaver": {"icon":"󱄄","label":"Screensaver","flat":false},
+  "style.about": {"icon":"","label":"About","flat":false},
   "style.bar.position.top": {"icon":"󰁝","label":"Top","action":"omarchy-bar position top"},
   "style.bar.position.bottom": {"icon":"󰁅","label":"Bottom","action":"omarchy-bar position bottom"},
   "style.bar.position.left": {"icon":"󰁍","label":"Left","action":"omarchy-bar position left"},
@@ -162,6 +219,13 @@
   "setup.default.terminal.foot": {"icon":"","label":"Foot","checked":"[[ \"$(omarchy-default-terminal)\" == \"foot\" ]]","action":"omarchy-default-terminal foot"},
   "setup.default.terminal.ghostty": {"icon":"","label":"Ghostty","checked":"[[ \"$(omarchy-default-terminal)\" == \"ghostty\" ]]","action":"omarchy-default-terminal ghostty"},
   "setup.default.terminal.kitty": {"icon":"","label":"Kitty","checked":"[[ \"$(omarchy-default-terminal)\" == \"kitty\" ]]","action":"omarchy-default-terminal kitty"},
+  "setup.default.search-engine": {"icon":"","label":"Search Engine","title":"Default Search Engine"},
+  "setup.default.search-engine.google": {"icon":"","label":"Google","checked":"[[ \"$(omarchy-default-search)\" == \"google\" ]]","action":"omarchy-default-search google"},
+  "setup.default.search-engine.brave": {"icon":"","label":"Brave","checked":"[[ \"$(omarchy-default-search)\" == \"brave\" ]]","action":"omarchy-default-search brave"},
+  "setup.default.search-engine.duckduckgo": {"icon":"","label":"DuckDuckGo","checked":"[[ \"$(omarchy-default-search)\" == \"duckduckgo\" ]]","action":"omarchy-default-search duckduckgo"},
+  "setup.default.search-engine.startpage": {"icon":"","label":"Startpage","checked":"[[ \"$(omarchy-default-search)\" == \"startpage\" ]]","action":"omarchy-default-search startpage"},
+  "setup.default.search-engine.ecosia": {"icon":"","label":"Ecosia","checked":"[[ \"$(omarchy-default-search)\" == \"ecosia\" ]]","action":"omarchy-default-search ecosia"},
+  "setup.default.search-engine.bing": {"icon":"","label":"Bing","checked":"[[ \"$(omarchy-default-search)\" == \"bing\" ]]","action":"omarchy-default-search bing"},
   "setup.default.editor": {"icon":"","label":"Editor","title":"Default Editor"},
   "setup.default.editor.neovim": {"icon":"","label":"Neovim","checked":"[[ \"$(omarchy-default-editor)\" == \"nvim\" ]]","action":"omarchy-default-editor nvim"},
   "setup.default.editor.vscode": {"icon":"","label":"VSCode","checked":"[[ \"$(omarchy-default-editor)\" == \"code\" ]]","action":"omarchy-default-editor code"},
