@@ -140,6 +140,38 @@ valid_username() { [[ $1 =~ ^[A-Za-z0-9_-]{1,20}$ ]]; }
 valid_tz() { [[ $1 =~ ^[A-Za-z0-9_/.+-]{1,64}$ ]]; }
 valid_password() { [[ $1 =~ ^[[:print:]]{1,64}$ ]]; }
 
+generate_password() {
+  local random
+  # 192 random bits, rendered as hex so Dockur, Windows, YAML, and FreeRDP all
+  # receive a portable printable value. The fixed prefix guarantees the usual
+  # Windows complexity classes without reducing the random portion.
+  random=$(/usr/bin/od -An -N24 -tx1 /dev/urandom) || return 1
+  random=${random//[[:space:]]/}
+  [[ $random =~ ^[0-9a-f]{48}$ ]] || return 1
+  printf 'Om4!%s' "$random"
+}
+
+prompt_windows_password() {
+  while :; do
+    if ! PASSWORD=$(gum input --placeholder="Password (leave blank to generate a secure password)" --password --header="Enter Windows password:"); then
+      return 1
+    fi
+    if [[ -z $PASSWORD ]]; then
+      PASSWORD=$(generate_password) || {
+        echo "Could not generate a secure Windows password." >&2
+        return 1
+      }
+      PASSWORD_DISPLAY="(securely generated; stored privately)"
+      return 0
+    elif valid_password "$PASSWORD"; then
+      PASSWORD_DISPLAY="(user-defined)"
+      return 0
+    else
+      echo "Invalid password. Use 1-64 printable characters; please try again." >&2
+    fi
+  done
+}
+
 # The only privileged sub-actions __priv may dispatch. A bash command name
 # containing a slash is executed as a path, so validating the action here — not
 # just interpolating it into "__priv_${action}" — is what stops an action like
@@ -1071,6 +1103,47 @@ write_credentials() {
   umask "$old_umask"
 }
 
+with_configuration_lock() {
+  local fd rc=0 old_umask lock="${CREDENTIALS_FILE%/*}.lock"
+  # Keep the lock outside the credentials directory, which removal deletes.
+  # Every configuration writer and connection setup uses this same inode.
+  mkdir -p "${lock%/*}" || return 1
+  old_umask=$(umask)
+  umask 077
+  if ! exec {fd}>"$lock"; then
+    umask "$old_umask"
+    return 1
+  fi
+  umask "$old_umask"
+  if flock -x "$fd"; then
+    "$@" || rc=$?
+  else
+    rc=1
+  fi
+  exec {fd}>&-
+  return "$rc"
+}
+
+write_configuration() {
+  with_configuration_lock write_configuration_locked "$@"
+}
+
+write_configuration_locked() {
+  local ram=$1 cores=$2 disk=$3 username=$4 password=$5 tz=$6
+  local pending="${CREDENTIALS_FILE}.pending"
+  # Stage the private record before authorization or a machine-side write. It
+  # doubles as an interruption marker: launch must not use an older valid pair
+  # after compose changed but committing the private record failed.
+  CREDENTIALS_FILE="$pending" write_credentials "$username" "$password" || return 1
+  if write_compose "$ram" "$cores" "$disk" "$username" "$password" "$tz" &&
+    mv -fT -- "$pending" "$CREDENTIALS_FILE"; then
+    return 0
+  else
+    echo "Windows VM configuration is incomplete. Rerun installation with the intended credentials before launching." >&2
+    return 1
+  fi
+}
+
 # Read one field from the private credentials file; IFS on the first = keeps a
 # password that itself contains =.
 read_credential() {
@@ -1110,10 +1183,9 @@ migrate_legacy_compose() {
     echo "Could not validate the existing Windows VM data directories." >&2
     return 1
   }
-  write_credentials "$username" "$password" || return 1
   # The elevated writer derives both mount anchors from the authenticated uid;
   # it never consumes volume paths from this user-owned legacy file.
-  if ! write_compose "$ram" "$cores" "$disk" "$username" "$password" "$tz"; then
+  if ! write_configuration "$ram" "$cores" "$disk" "$username" "$password" "$tz"; then
     echo "Could not migrate the existing configuration automatically." >&2
     echo "Re-run: omarchy-windows-vm install" >&2
     return 1
@@ -1268,18 +1340,7 @@ EOF
     USERNAME="docker"
   fi
 
-  PASSWORD=$(gum input --placeholder="Password (Press enter to use default: admin)" --password --header="Enter Windows password:")
-  if [[ -z $PASSWORD ]]; then
-    PASSWORD="admin"
-    PASSWORD_DISPLAY="(default)"
-  else
-    PASSWORD_DISPLAY="(user-defined)"
-  fi
-  if ! valid_password "$PASSWORD"; then
-    echo "Invalid password (printable characters, up to 64). Using default: admin"
-    PASSWORD="admin"
-    PASSWORD_DISPLAY="(default)"
-  fi
+  prompt_windows_password || exit 1
 
   # Display configuration summary
   gum style \
@@ -1309,13 +1370,9 @@ EOF
   # Write the root-owned compose from the validated settings (one prompt if
   # sudoless Docker is off). The writer pins the familiar home directories (or
   # their legitimate symlink targets) into root-protected bind anchors.
-  write_compose "$SELECTED_RAM" "$SELECTED_CORES" "$SELECTED_DISK" \
+  write_configuration "$SELECTED_RAM" "$SELECTED_CORES" "$SELECTED_DISK" \
     "$USERNAME" "$PASSWORD" "$tz" || {
     echo "❌ Failed to write the Windows VM configuration."
-    exit 1
-  }
-  write_credentials "$USERNAME" "$PASSWORD" || {
-    echo "❌ Failed to store private RDP credentials." >&2
     exit 1
   }
 
@@ -1383,6 +1440,39 @@ remove_windows() {
   echo "Windows VM removal completed!"
 }
 
+prepare_windows_connection() {
+  if [[ -e ${CREDENTIALS_FILE}.pending || -L ${CREDENTIALS_FILE}.pending ]]; then
+    echo "Windows VM configuration is incomplete; rerun installation with the intended credentials before launching." >&2
+    return 1
+  fi
+
+  # Recover a complete pair from readable compose settings when the private
+  # record is incomplete or invalid. Never mix a username from one record with
+  # the password from another, or substitute a public default.
+  WIN_USER=$(read_credential USERNAME) || WIN_USER=""
+  WIN_PASS=$(read_credential PASSWORD) || WIN_PASS=""
+  if ! valid_username "$WIN_USER" || ! valid_password "$WIN_PASS"; then
+    if [[ -r $COMPOSE_FILE ]]; then
+      WIN_USER=$(unescape "$(read_compose_value USERNAME "$COMPOSE_FILE")")
+      WIN_PASS=$(unescape "$(read_compose_value PASSWORD "$COMPOSE_FILE")")
+    fi
+  fi
+  if ! valid_username "$WIN_USER" || ! valid_password "$WIN_PASS"; then
+    echo "Windows VM credentials are missing or invalid; refusing to use public defaults." >&2
+    echo "Restore the private credentials file at $CREDENTIALS_FILE or reinstall the VM configuration." >&2
+    return 1
+  fi
+
+  echo "Starting Windows VM (this may prompt for authorization)..."
+  if ! priv up_wait; then
+    echo "❌ Failed to start Windows VM!"
+    echo "   Try checking: omarchy-windows-vm status"
+    omarchy-notification-send -u critical "Windows VM" "Failed to start Windows VM"
+    return 1
+  fi
+
+}
+
 launch_windows() {
   KEEP_ALIVE=false
   if [[ $1 = "--keep-alive" ]] || [[ $1 = "-k" ]]; then
@@ -1396,24 +1486,7 @@ launch_windows() {
     fi
   fi
 
-  # RDP credentials come from the private per-user file. Fall back to the compose
-  # only when it is readable (sudoless mode), reversing the writer's escaping.
-  WIN_USER=$(read_credential USERNAME) || WIN_USER=""
-  WIN_PASS=$(read_credential PASSWORD) || WIN_PASS=""
-  if [[ -z $WIN_USER || -z $WIN_PASS ]] && [[ -r $COMPOSE_FILE ]]; then
-    [[ -z $WIN_USER ]] && WIN_USER=$(unescape "$(read_compose_value USERNAME "$COMPOSE_FILE")")
-    [[ -z $WIN_PASS ]] && WIN_PASS=$(unescape "$(read_compose_value PASSWORD "$COMPOSE_FILE")")
-  fi
-  [[ -z $WIN_USER ]] && WIN_USER="docker"
-  [[ -z $WIN_PASS ]] && WIN_PASS="admin"
-
-  echo "Starting Windows VM (this may prompt for authorization)..."
-  if ! priv up_wait; then
-    echo "❌ Failed to start Windows VM!"
-    echo "   Try checking: omarchy-windows-vm status"
-    omarchy-notification-send -u critical "Windows VM" "Failed to start Windows VM"
-    exit 1
-  fi
+  with_configuration_lock prepare_windows_connection || exit 1
 
   # Build the connection info
   if [[ $KEEP_ALIVE = "true" ]]; then
