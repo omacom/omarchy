@@ -3,6 +3,7 @@
 set -o pipefail
 
 OMARCHY_BIN_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+USER_BIN_DIR="${HOME:-}/.local/bin"
 METADATA_SCAN_LIMIT=80
 
 COMMAND_KEYS=()
@@ -10,6 +11,7 @@ ROUTE_COLLISIONS=()
 declare -A COMMAND_ROUTE
 declare -A COMMAND_FALLBACK_ROUTE
 declare -A COMMAND_BINARY
+declare -A COMMAND_PATH
 declare -A COMMAND_GROUP
 declare -A COMMAND_NAME
 declare -A COMMAND_SUMMARY
@@ -168,6 +170,7 @@ register_route() {
 
 register_command() {
   local file="$1"
+  local origin="${2:-shipped}"
   local file_binary="${file##*/}"
   local group=""
   local name=""
@@ -280,10 +283,18 @@ register_command() {
   [[ $hidden == "true" ]] || hidden="false"
 
   local key="$file_binary"
+
+  if [[ $origin == "user" ]]; then
+    if user_command_collides "$key" "$route" "$fallback_route" "$aliases"; then
+      return 0
+    fi
+  fi
+
   COMMAND_KEYS+=("$key")
   COMMAND_ROUTE["$key"]="$route"
   COMMAND_FALLBACK_ROUTE["$key"]="$fallback_route"
   COMMAND_BINARY["$key"]="$file_binary"
+  COMMAND_PATH["$key"]="$file"
   COMMAND_GROUP["$key"]="$group"
   COMMAND_NAME["$key"]="$name"
   COMMAND_SUMMARY["$key"]="$summary"
@@ -312,6 +323,71 @@ register_command() {
   IFS="$old_ifs"
 }
 
+user_command_allowed() {
+  local file="$1"
+
+  if [[ -f $file && ! -L $file && -x $file && -O $file ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+user_bin_available() {
+  if [[ -n ${USER_BIN_DIR:-} && $USER_BIN_DIR != "$OMARCHY_BIN_DIR" && -d $USER_BIN_DIR ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# A user file fills gaps only: any collision with an already-registered
+# (shipped) binary name, route, or alias skips the whole file silently, so a
+# stale or hostile user file can never shadow a packaged command.
+user_command_collides() {
+  local key="$1"
+  local route="$2"
+  local fallback_route="$3"
+  local aliases="$4"
+  local alias_route=""
+  local old_ifs="$IFS"
+
+  if [[ -n ${BINARY_TO_KEY[$key]:-} ]]; then
+    return 0
+  fi
+
+  if [[ -n ${ROUTE_TO_KEY[$route]:-} || -n ${ROUTE_TO_KEY[$fallback_route]:-} ]]; then
+    return 0
+  fi
+
+  IFS='|'
+  for alias_route in $aliases; do
+    alias_route="${alias_route# }"
+    alias_route="${alias_route% }"
+    if [[ -n $alias_route && $alias_route != "$route" && -n ${ROUTE_TO_KEY[$alias_route]:-} ]]; then
+      IFS="$old_ifs"
+      return 0
+    fi
+  done
+  IFS="$old_ifs"
+
+  return 1
+}
+
+load_user_commands() {
+  local file=""
+
+  if ! user_bin_available; then
+    return 0
+  fi
+
+  for file in "$USER_BIN_DIR"/omarchy-*; do
+    if user_command_allowed "$file"; then
+      register_command "$file" "user"
+    fi
+  done
+}
+
 load_commands() {
   local file=""
 
@@ -320,14 +396,24 @@ load_commands() {
     register_command "$file"
   done
 
+  load_user_commands
 }
 
 load_command_by_binary() {
   local binary="$1"
   local file="$OMARCHY_BIN_DIR/$binary"
 
-  [[ -f $file && -x $file ]] || return 1
-  register_command "$file"
+  if [[ -f $file && -x $file ]]; then
+    register_command "$file"
+    return 0
+  fi
+
+  if user_bin_available && user_command_allowed "$USER_BIN_DIR/$binary"; then
+    register_command "$USER_BIN_DIR/$binary" "user"
+    return 0
+  fi
+
+  return 1
 }
 
 load_child_commands_by_binary() {
@@ -338,6 +424,13 @@ load_child_commands_by_binary() {
     [[ -f $file && -x $file ]] || continue
     register_command "$file"
   done
+
+  if user_bin_available; then
+    for file in "$USER_BIN_DIR/$binary"-*; do
+      user_command_allowed "$file" || continue
+      register_command "$file" "user"
+    done
+  fi
 }
 
 group_has_child_commands() {
@@ -348,6 +441,12 @@ group_has_child_commands() {
     [[ -f $file && -x $file ]] && return 0
   done
 
+  if user_bin_available; then
+    for file in "$USER_BIN_DIR/omarchy-$group"-*; do
+      user_command_allowed "$file" && return 0
+    done
+  fi
+
   return 1
 }
 
@@ -355,6 +454,9 @@ group_has_binary_commands() {
   local group="$1"
 
   [[ -x $OMARCHY_BIN_DIR/omarchy-$group ]] && return 0
+  if user_bin_available && user_command_allowed "$USER_BIN_DIR/omarchy-$group"; then
+    return 0
+  fi
   group_has_child_commands "$group"
 }
 
@@ -384,6 +486,17 @@ load_group_commands() {
     register_command "$file"
   done
 
+  if user_bin_available; then
+    if user_command_allowed "$USER_BIN_DIR/omarchy-$group"; then
+      register_command "$USER_BIN_DIR/omarchy-$group" "user"
+    fi
+
+    for file in "$USER_BIN_DIR/omarchy-$group"-*; do
+      user_command_allowed "$file" || continue
+      register_command "$file" "user"
+    done
+  fi
+
 }
 
 resolve_direct_route() {
@@ -404,6 +517,15 @@ resolve_direct_route() {
       DIRECT_RESOLVED_BINARY="$binary"
       DIRECT_RESOLVED_COUNT="$prefix_count"
       DIRECT_RESOLVED_ROUTE="$route"
+      DIRECT_RESOLVED_PATH="$candidate"
+      return 0
+    fi
+
+    if user_bin_available && user_command_allowed "$USER_BIN_DIR/$binary"; then
+      DIRECT_RESOLVED_BINARY="$binary"
+      DIRECT_RESOLVED_COUNT="$prefix_count"
+      DIRECT_RESOLVED_ROUTE="$route"
+      DIRECT_RESOLVED_PATH="$USER_BIN_DIR/$binary"
       return 0
     fi
   done
@@ -719,7 +841,7 @@ show_commands_check() {
       done < <(pipe_values_as_lines "${COMMAND_METADATA_ERRORS[$key]}")
     fi
 
-    if [[ ! -x $OMARCHY_BIN_DIR/${COMMAND_BINARY[$key]} ]]; then
+    if [[ ! -x ${COMMAND_PATH[$key]} ]]; then
       echo "Missing binary: ${COMMAND_BINARY[$key]}" >&2
       failures=$((failures + 1))
     fi
@@ -954,7 +1076,7 @@ dispatch_fast_or_help() {
 
   if resolve_direct_route "$#" "${args[@]}"; then
     remaining=("${args[@]:DIRECT_RESOLVED_COUNT}")
-    binary_path="$OMARCHY_BIN_DIR/$DIRECT_RESOLVED_BINARY"
+    binary_path="$DIRECT_RESOLVED_PATH"
 
     if remaining_has_help_flag "${remaining[@]}"; then
       if ! load_command_by_binary "$DIRECT_RESOLVED_BINARY"; then
@@ -1029,7 +1151,7 @@ dispatch_or_help() {
       return 0
     fi
 
-    binary_path="$OMARCHY_BIN_DIR/${COMMAND_BINARY[$key]}"
+    binary_path="${COMMAND_PATH[$key]}"
     if [[ ! -x $binary_path ]]; then
       echo "Binary is missing or not executable: ${COMMAND_BINARY[$key]}" >&2
       return 127
