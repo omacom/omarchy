@@ -284,6 +284,10 @@ ShellRoot {
   property var _pluginAppLibraryApis: ({})
   property var _pluginBarStateApis: ({})
   property var _pluginFirstPartyServiceApis: ({})
+  // Keyed by raw manifest object (stable per scan generation); ensures every
+  // caller of publicPluginManifest for the same raw manifest gets back the
+  // identical scrubbed copy, not a fresh clone per call site.
+  property var _publicManifestCache: new WeakMap()
 
   Component {
     id: pluginShellApiComponent
@@ -318,10 +322,25 @@ ShellRoot {
   function publicPluginManifest(manifest) {
     if (!manifest) return null
     if (manifest.__isFirstParty) return manifest
+    // Reference-stable per raw manifest object: a third-party service plugin
+    // may want to compare its own injected manifest against pluginRegistry's
+    // exposed copy (e.g. to detect a stale registration surviving past a
+    // rescan). Two independently-JSON-cloned copies of the same raw manifest
+    // would never satisfy that by reference, even when nothing is actually
+    // stale - and QML's property system does not reliably preserve plain-JS-
+    // object identity for a `property var` value read back through a nested
+    // facade object either, so callers should not rely on reference equality
+    // at all. __registryRevision is a plain number - unaffected by that - and
+    // is pinned to whichever scan this raw manifest object was first seen in
+    // (memoization keeps every caller's clone, and its stamped revision, in
+    // sync for the same raw manifest).
+    if (_publicManifestCache.has(manifest)) return _publicManifestCache.get(manifest)
     var copy = JSON.parse(JSON.stringify(manifest))
     delete copy.__sourceDir
     delete copy.__isFirstParty
     delete copy.__hostCapabilities
+    copy.__registryRevision = shell.pluginRegistry ? shell.pluginRegistry.registryRevision : 0
+    _publicManifestCache.set(manifest, copy)
     return copy
   }
 
