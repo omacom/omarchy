@@ -11,3 +11,7 @@ if grep -q "Updating linux initcpios" "$update_log"; then
     echo
   fi
 fi
+
+# Fail-soft: do not block reboot. Stock encrypt cannot recreate extra LUKS
+# mappings the running root already depends on.
+omarchy-root-btrfs-extra-luks || true

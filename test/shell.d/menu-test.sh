@@ -268,14 +268,41 @@ assert(
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // Software you already have keeps its place in Install, dimmed rather than
 // dropped, so the list reads as a catalog of what Omarchy can install.
-// Chromium Account is the sole Install row with anything left to hide for, so
-// any other `when:` here is a row that went back to vanishing once installed.
+// Chromium Account hides without Chromium, and the eight x86_64-only rows
+// hide off-arch via omarchy-hw-x86-64, so any other `when:` here is a row
+// that went back to vanishing once installed.
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when)
-    .map(item => item.id),
-  ['install.service.chromium-account'],
-  'menu never hides an Install row because the software is already there'
+    .map(item => item.id)
+    .sort(),
+  [
+    'install.ai.lm-studio',
+    'install.ai.ollama',
+    'install.browser.edge',
+    'install.development.php.symfony',
+    'install.editor.cursor',
+    'install.editor.zed',
+    'install.service.chromium-account',
+    'install.service.dropbox',
+    'install.service.spotify',
+  ].sort(),
+  'menu hides Install rows only for Chromium Account or off-arch x86_64 packages'
+)
+assert(
+  [
+    'install.ai.ollama',
+    'install.ai.lm-studio',
+    'install.editor.cursor',
+    'install.editor.zed',
+    'install.service.spotify',
+    'install.service.dropbox',
+    'install.development.php.symfony',
+    'install.browser.edge',
+  ].every(
+    id => defaultById[id].when === 'omarchy-hw-x86-64' && defaultById[id].disabled
+  ),
+  'menu gates the eight x86_64-only Install rows on omarchy-hw-x86-64 and still dims them when installed'
 )
 assert(
   ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
