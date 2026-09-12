@@ -347,8 +347,23 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    // manifest.kinds is a genuine JS array when read straight off
+    // pluginRegistry.installedPlugins, but a manifest that has passed through
+    // a QML model (panelEntries is used as an Instantiator's `model:`) comes
+    // back with its nested kinds array converted to a list-like value that
+    // Array.isArray() no longer recognizes, even though indexing and .length
+    // still work. That made createScopedPluginShell() compute this function
+    // differently for the same cloned menu plugin depending on which caller
+    // triggered it (the bar-widget path vs. the panel-loader path), and
+    // whichever call ran second silently evicted the correct cached
+    // PluginShellApi and replaced it with one missing appLibrary — permanently
+    // dropping app-library access for that clone's menu panel. Duck-type
+    // instead so both shapes are handled the same way.
+    if (!manifest || !manifest.kinds || typeof manifest.kinds.length !== "number") return false
+    for (var i = 0; i < manifest.kinds.length; i++) {
+      if (manifest.kinds[i] === kind) return true
+    }
+    return false
   }
 
   function pluginHasBarCapabilities(manifest) {
