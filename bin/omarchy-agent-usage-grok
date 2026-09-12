@@ -1,0 +1,337 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok usage into one display-ready JSON record.
+
+Local stats come from the Grok CLI: the SQLite index under ~/.grok/sessions
+lists the sessions this machine has run, and `grok usage <id>` reports each
+one's tokens, models, and cost. The plan and the signed-in identity come from
+~/.grok/auth.json. The agents panel only ever reads the JSON this prints.
+
+Grok reports no rate limits. A grok.com subscription does have allowances,
+but nothing exposes them to a collector — Grok's own status-line
+documentation lists a rate-limit summary among the fields it deliberately
+omits, as "a number it cannot source honestly" — so this record carries no
+limits rather than an invented meter.
+"""
+
+import argparse
+import base64
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import time
+from datetime import datetime, timedelta, timezone
+
+AGENT_ID = "grok"
+AGENT_NAME = "Grok"
+AUTH_HELP = "Run `grok login` to authenticate."
+
+GROK_HOME = os.path.expanduser(os.environ.get("GROK_HOME", "~/.grok"))
+SESSION_DB = os.path.join(GROK_HOME, "sessions", "session_search.sqlite")
+AUTH_FILE = os.path.join(GROK_HOME, "auth.json")
+
+STATE_DIR = os.path.join(
+  os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
+  "omarchy", "agents")
+CACHE_FILE = os.path.join(STATE_DIR, "grok-usage-cache.json")
+
+# Sessions older than this are not worth a per-session CLI call; the all-time
+# totals therefore cover this window, the way the Codex collector's do.
+WINDOW_DAYS = 30
+
+# A finished session's totals never change, so a cached entry is only re-read
+# once the session's own updated_at moves. This window covers the session
+# still being written to while the panel refreshes.
+SESSION_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+# `grok usage` reports cost as a fixed-point integer. On a subscription
+# nothing is billed per token, so the dollar figure it implies is notional
+# and is never published as a balance: that section of the panel draws a
+# prepaid credit ledger, which this is not.
+TICKS_PER_USD = 1_000_000_000
+
+# The access token's `tier` claim is a plain integer and xAI publishes no
+# mapping for it. Only values confirmed against a real account are named; an
+# unknown tier falls back to the panel's generic label rather than stating a
+# guessed plan as fact.
+TIER_LABELS = {
+  1: "SuperGrok",
+}
+
+
+def grok_binary():
+  """The Grok CLI, or None. Version managers keep it off a widget's PATH."""
+  found = shutil.which("grok")
+  if found:
+    return found
+  fallback = os.path.expanduser(
+    "~/.local/share/mise/installs/npm-xai-official-grok/latest/node_modules/.bin/grok")
+  return fallback if os.access(fallback, os.X_OK) else None
+
+
+def auth_entry():
+  """The stored Grok profile, or an empty dict when signed out."""
+  try:
+    with open(AUTH_FILE) as handle:
+      data = json.load(handle)
+  except (OSError, ValueError):
+    return {}
+  for entry in (data or {}).values():
+    if isinstance(entry, dict):
+      return entry
+  return {}
+
+
+def jwt_claims(token):
+  try:
+    payload = token.split(".")[1]
+    payload += "=" * (-len(payload) % 4)
+    return json.loads(base64.urlsafe_b64decode(payload))
+  except Exception:
+    return {}
+
+
+def tier_label(entry):
+  token = entry.get("key")
+  if not isinstance(token, str):
+    return ""
+  try:
+    return TIER_LABELS.get(int(jwt_claims(token).get("tier")), "")
+  except (TypeError, ValueError):
+    return ""
+
+
+def account_label(entry):
+  label = entry.get("email") or entry.get("user_id")
+  return str(label) if label else ""
+
+
+def local_sessions():
+  """(session_id, updated_at) for local sessions inside the window.
+
+  `grok sessions list` reports server-side sessions, which carry no token
+  data and which `grok usage` cannot answer for. The SQLite index is the
+  local half, and the only one worth asking about.
+  """
+  if not os.path.exists(SESSION_DB):
+    return []
+  cutoff = int(time.time()) - WINDOW_DAYS * 86400
+  try:
+    # Read-only: a usage collector must never write to Grok's own database.
+    uri = "file:%s?mode=ro" % SESSION_DB.replace("?", "%3f")
+    connection = sqlite3.connect(uri, uri=True, timeout=2.0)
+    try:
+      rows = connection.execute(
+        "select session_id, updated_at from session_docs where updated_at >= ?",
+        (cutoff,)).fetchall()
+    finally:
+      connection.close()
+  except sqlite3.Error as exc:
+    print(f"omarchy-agent-usage-grok: could not read session index ({exc})",
+          file=sys.stderr)
+    return []
+  sessions = []
+  for session_id, updated_at in rows:
+    try:
+      sessions.append((str(session_id), int(updated_at)))
+    except (TypeError, ValueError):
+      continue
+  return sessions
+
+
+def read_cache():
+  try:
+    with open(CACHE_FILE) as handle:
+      cached = json.load(handle)
+  except (OSError, ValueError):
+    return {}
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != 1:
+    return {}
+  sessions = cached.get("sessions")
+  return sessions if isinstance(sessions, dict) else {}
+
+
+def write_cache(sessions):
+  try:
+    os.makedirs(STATE_DIR, exist_ok=True)
+    temporary = CACHE_FILE + ".tmp"
+    with open(temporary, "w") as handle:
+      json.dump({"schemaVersion": 1, "sessions": sessions}, handle)
+    os.replace(temporary, CACHE_FILE)
+  except OSError as exc:
+    print(f"omarchy-agent-usage-grok: could not write usage cache ({exc})",
+          file=sys.stderr)
+
+
+def session_usage(binary, session_id):
+  try:
+    completed = subprocess.run([binary, "usage", session_id],
+                               capture_output=True, text=True, timeout=20)
+  except (OSError, subprocess.SubprocessError):
+    return None
+  if completed.returncode != 0:
+    return None
+  try:
+    parsed = json.loads(completed.stdout)
+  except ValueError:
+    return None
+  session = parsed.get("session")
+  return session if isinstance(session, dict) else None
+
+
+def empty_bucket():
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def add_model(target, model_id, stats):
+  """Fold one model's usage into a bucket, in the panel's field names."""
+  bucket = target.setdefault(str(model_id), empty_bucket())
+  bucket["inputTokens"] += int(stats.get("inputTokens") or 0)
+  bucket["outputTokens"] += int(stats.get("outputTokens") or 0)
+  bucket["cacheReadInputTokens"] += int(stats.get("cachedReadTokens") or 0)
+  bucket["cacheCreationInputTokens"] += int(stats.get("cacheCreationTokens") or 0)
+  return sum(bucket.values())
+
+
+def local_stats(binary, max_age_seconds):
+  """Aggregate every local session into the record's stats dict."""
+  sessions = local_sessions()
+  cached = read_cache()
+  now = time.time()
+
+  model_usage = {}
+  tokens_by_day = {}
+  models_by_day = {}
+  sessions_by_day = {}
+  active_days = set()
+  total_prompts = 0
+  cost_ticks = 0
+  fresh = {}
+
+  for session_id, updated_at in sessions:
+    entry = cached.get(session_id)
+    stale = (not isinstance(entry, dict)
+             or entry.get("updatedAt") != updated_at
+             or (now - float(entry.get("readAt") or 0)) > max_age_seconds)
+    if stale:
+      stats = session_usage(binary, session_id)
+      if stats is None:
+        # Keep the last good reading rather than dropping the session from
+        # the totals because one call failed.
+        if not isinstance(entry, dict) or "stats" not in entry:
+          continue
+        stats = entry["stats"]
+      entry = {"updatedAt": updated_at, "readAt": now, "stats": stats}
+    fresh[session_id] = entry
+    stats = entry["stats"]
+
+    day = datetime.fromtimestamp(updated_at).strftime("%Y-%m-%d")
+    active_days.add(day)
+    sessions_by_day[day] = sessions_by_day.get(day, 0) + 1
+    total_prompts += int(stats.get("turnCount") or 0)
+    cost_ticks += int(stats.get("costUsdTicks") or 0)
+
+    models = stats.get("modelUsage")
+    if not isinstance(models, dict) or not models:
+      models = {str(stats.get("primaryModelId") or AGENT_ID): stats}
+
+    day_models = models_by_day.setdefault(day, {})
+    for model_id, model_stats in models.items():
+      if not isinstance(model_stats, dict):
+        continue
+      add_model(model_usage, model_id, model_stats)
+      before = sum(day_models.get(str(model_id), empty_bucket()).values())
+      after = add_model(day_models, model_id, model_stats)
+      # Grok's own totalTokens counts input and output only. Days are summed
+      # the same way the model rows are, cache traffic included, so the
+      # panel's two sections agree with each other.
+      tokens_by_day[day] = tokens_by_day.get(day, 0) + after - before
+
+  write_cache(fresh)
+
+  today = datetime.now().strftime("%Y-%m-%d")
+  recent_days = []
+  for offset in range(6, -1, -1):
+    date = (datetime.now() - timedelta(days=offset)).strftime("%Y-%m-%d")
+    recent_days.append({"date": date, "messageCount": tokens_by_day.get(date, 0)})
+
+  return {
+    # Grok records turns rather than prompts, and counts them per session
+    # below; there is no separate prompt count to report.
+    "todayPrompts": 0,
+    "todaySessions": sessions_by_day.get(today, 0),
+    "todayTotalTokens": tokens_by_day.get(today, 0),
+    "todayTokensByModel": {
+      model_id: sum(bucket.values())
+      for model_id, bucket in models_by_day.get(today, {}).items()
+    },
+    "recentDays": recent_days,
+    "totalPrompts": total_prompts,
+    "totalSessions": len(sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": model_usage,
+    "notionalCostUsd": round(cost_ticks / TICKS_PER_USD, 4),
+  }
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  # --force re-reads every session. --limits-only is kept for CLI
+  # compatibility with the panel's refreshLimits() call; Grok publishes no
+  # limits, so that mode only needs the cheapest possible answer and may
+  # reuse cached sessions for far longer.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  entry = auth_entry()
+  binary = grok_binary()
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": True,
+    "hasLocalStats": True,
+    "limits": [],
+    "tierLabel": tier_label(entry),
+    "accountLabel": account_label(entry),
+    "usageStatusText": "",
+    "authHelpText": "",
+  }
+
+  if binary is None:
+    record["ready"] = False
+    record["usageStatusText"] = "Grok CLI not found"
+    record["authHelpText"] = "Install the Grok CLI to see usage here."
+  elif not entry:
+    record["ready"] = False
+    record["usageStatusText"] = "Waiting for auth"
+    record["authHelpText"] = AUTH_HELP
+  else:
+    max_age = 0 if args.force else (
+      LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SESSION_REUSE_SECONDS)
+    record.update(local_stats(binary, max_age))
+    if record["totalSessions"] == 0:
+      record["authHelpText"] = (
+        "No local Grok sessions yet — usage appears once you run grok here.")
+
+  print(json.dumps(record))
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())
