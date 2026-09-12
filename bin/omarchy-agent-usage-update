@@ -51,6 +51,55 @@ collect() {
   mv "$tmp" "$USAGE_DIR/$agent.json"
 }
 
+# Names of every agent that has a collector installed, either in the
+# standard bin/ directory or in a plugin's scripts/ or bin/ directory.
+known_agents() {
+  local collector agent
+  for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
+    [[ -x $collector ]] || continue
+    agent="${collector##*/omarchy-agent-usage-}"
+    [[ $agent != "update" ]] && printf '%s\n' "$agent"
+  done
+  local plugins_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins"
+  if [[ -d $plugins_dir ]]; then
+    for collector in "$plugins_dir"/*/scripts/omarchy-agent-usage-*; do
+      [[ -f $collector ]] || continue
+      agent="${collector##*/omarchy-agent-usage-}"
+      [[ $agent != "update" ]] && printf '%s\n' "$agent"
+    done
+    for collector in "$plugins_dir"/*/bin/omarchy-agent-usage-*; do
+      [[ -f $collector ]] || continue
+      agent="${collector##*/omarchy-agent-usage-}"
+      [[ $agent != "update" ]] && printf '%s\n' "$agent"
+    done
+  fi
+}
+
+# The panel lists every record in USAGE_DIR, so a record left behind when
+# its agent goes away (like the pre-collector-era copilot.json) keeps
+# showing up forever. Drop those. A record is dropped only when no
+# installed collector produces it and it was last written more than seven
+# days ago — the age guard protects a plugin that writes its own file
+# without following the collector naming scheme, since an active writer
+# keeps its file fresh. Records are derived data, so losing an orphan
+# only costs a bit of history.
+remove_orphans() {
+  local agent record mtime known
+  local cutoff
+  cutoff=$(( $(date +%s) - 604800 ))
+  known=$(known_agents)
+  for record in "$USAGE_DIR"/*.json; do
+    [[ -f $record ]] || continue
+    agent="${record##*/}"
+    agent="${agent%.json}"
+    grep -qx "$agent" <<<"$known" && continue
+    mtime=$(stat -c %Y -- "$record" 2>/dev/null) || mtime=0
+    (( mtime >= cutoff )) && continue
+    rm -f -- "$record"
+    echo "omarchy-agent-usage-update: removed stale record for '$agent' (no collector found)" >&2
+  done
+}
+
 pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
@@ -65,4 +114,5 @@ status=0
 for pid in "${pids[@]}"; do
   wait "$pid" || status=1
 done
+remove_orphans
 exit $status
