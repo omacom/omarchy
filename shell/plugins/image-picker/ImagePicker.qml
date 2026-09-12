@@ -404,6 +404,19 @@ Item {
 
           readonly property real itemStep: root.sliceWidth + root.sliceSpacing
           readonly property real previewX: (width - root.expandedWidth) / 2
+          property real wheelAccumulator: 0
+
+          MouseArea {
+            anchors.fill: parent
+            onWheel: function(wheel) {
+              var steps = Util.wheelSteps(carousel.wheelAccumulator, wheel.angleDelta.y)
+              carousel.wheelAccumulator = steps.remainder
+              if (steps.steps !== 0) {
+                var dir = steps.steps > 0 ? -1 : 1
+                root.selectAdjacent(dir)
+              }
+            }
+          }
 
           Keys.priority: Keys.BeforeItem
           Keys.onPressed: function(event) {
