@@ -299,3 +299,26 @@ grep -F 'move = { "(monitor_w-monitor_h*2/9-40)", "(monitor_h-monitor_h/4-40)" }
 grep -F 'move = { "(monitor_w-monitor_h*3/10-40)", "(monitor_h-monitor_h*27/80-40)" }' "$webcam_rules" >/dev/null || \
   fail "large webcam starts at its final corner position"
 pass "webcam size rules place the initial window in its final corner"
+
+# Test stop_screenrecording ignores invocations when stop lock is held or recording file is missing
+stop_lock="$tmp_dir/omarchy-screenrecord-stop.lock"
+rm -f "$stop_lock" "$tmp_dir/notification-args"
+(
+  exec {fd}>"$stop_lock"
+  flock -n "$fd"
+  # While lock is held in background, invoking screenrecording --stop-recording should exit immediately
+  # and not send any notification or block
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording || true
+)
+if [[ -s "$tmp_dir/notification-args" ]]; then
+  fail "stop_screenrecording does not notify when stop lock is held"
+fi
+pass "stop_screenrecording respects single-flight lock"
+
+# When not locked but recording file is missing/empty, stop_screenrecording does not send saved notification
+rm -f "$stop_lock" "$tmp_dir/notification-args"
+"$ROOT/bin/omarchy-capture-screenrecording" --stop-recording || true
+if [[ -s "$tmp_dir/notification-args" ]]; then
+  fail "stop_screenrecording does not notify when recording file is missing"
+fi
+pass "stop_screenrecording skips saved toast when recording file is missing"

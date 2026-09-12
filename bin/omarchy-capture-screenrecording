@@ -35,6 +35,7 @@ RESOLUTION=""
 FULLSCREEN="false"
 STOP_RECORDING="false"
 RECORDING_FILE="/tmp/omarchy-screenrecord-filename"
+STOP_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-screenrecord-stop.lock"
 REGION_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-screenrecord-region"
 LOG_FILE=$([[ ${OMARCHY_SCREENRECORD_DEBUG:-false} == "true" ]] && echo "/tmp/omarchy-screenrecord.log" || echo "/dev/null")
 
@@ -202,6 +203,9 @@ start_screenrecording() {
 }
 
 stop_screenrecording() {
+  exec {lock_fd}>"$STOP_LOCK"
+  flock -n "$lock_fd" || return 0
+
   pkill -SIGINT -f "^gpu-screen-recorder" # SIGINT required to save video properly
 
   # Wait a maximum of 5 seconds to finish before hard killing
@@ -220,23 +224,25 @@ stop_screenrecording() {
   else
     finalize_recording
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
-    echo "$filename"
-    local preview="${filename%.mp4}-preview.png"
+    if [[ -n $filename && -f $filename ]]; then
+      echo "$filename"
+      local preview="${filename%.mp4}-preview.png"
 
-    # Generate a preview thumbnail from the first frame
-    ffmpeg -y -i "$filename" -ss 00:00:00.1 -vframes 1 -q:v 2 "$preview" -loglevel quiet 2>/dev/null
+      # Generate a preview thumbnail from the first frame
+      ffmpeg -y -i "$filename" -ss 00:00:00.1 -vframes 1 -q:v 2 "$preview" -loglevel quiet 2>/dev/null
 
-    omarchy-notification-send "Screen recording saved" "Open with Super + Alt + , (or click this)" \
-      -t 10000 --image "${preview:-$filename}" \
-      --exec mpv -- "$filename"
+      omarchy-notification-send "Screen recording saved" "Open with Super + Alt + , (or click this)" \
+        -t 10000 --image "${preview:-$filename}" \
+        --exec mpv -- "$filename"
 
-    # The shell loads the thumbnail into memory when the toast appears and never
-    # re-reads the file, so the preview only has to outlive that load -- not the
-    # toast. Clear it out of the recordings directory a moment later.
-    (
-      sleep 2
-      rm -f "$preview"
-    ) &
+      # The shell loads the thumbnail into memory when the toast appears and never
+      # re-reads the file, so the preview only has to outlive that load -- not the
+      # toast. Clear it out of the recordings directory a moment later.
+      (
+        sleep 2
+        rm -f "$preview"
+      ) &
+    fi
   fi
 
   rm -f "$RECORDING_FILE"
