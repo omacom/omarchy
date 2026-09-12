@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Expand a bare owner/repo into its GitHub clone URL
+# omarchy:args=<url-or-shorthand>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# omarchy-plugin-add and omarchy-theme-install both take a full git URL today;
+# this lets either take a bare GitHub `owner/repo` instead, the same shorthand
+# `gh`/`hub`/Homebrew use. It only recognizes that one shape -- anything that
+# already looks like a URL (a scheme, or an scp-style user@host:path) or does
+# not look like owner/repo at all comes back unchanged, so the caller's
+# existing omarchy-git-url-check / git clone path handles it exactly as it
+# does today. This command never fails a legitimate argument: an argument it
+# does not recognize as shorthand is not this command's to judge, so it is
+# echoed back for the caller to validate.
+
+fail() {
+  echo "omarchy-git-shorthand-expand: $*" >&2
+  exit 1
+}
+
+arg="${1-}"
+[[ -n $arg ]] || fail "an argument is required"
+
+# Already a URL. `scheme://` covers every transport git and the caller's own
+# checker recognize; scp-style is a colon appearing before any slash, the same
+# reading omarchy-theme-install already relies on for `git@host:path`.
+if [[ $arg == *"://"* ]]; then
+  printf '%s\n' "$arg"
+  exit 0
+fi
+if [[ $arg == *:* && ${arg%%:*} != */* ]]; then
+  printf '%s\n' "$arg"
+  exit 0
+fi
+
+# GitHub owner/repo shorthand: exactly one slash, GitHub-identifier characters
+# on each side, an owner that neither starts nor ends with a hyphen. A bracket
+# range follows the locale's collation, not ASCII -- pinning LC_ALL=C keeps
+# this from taking in non-ASCII letters on a UTF-8 desktop and expanding a
+# path that only looks like one (see the same concern in
+# omarchy-theme-install).
+if (LC_ALL=C; [[ $arg =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$ ]]); then
+  printf 'https://github.com/%s.git\n' "$arg"
+  exit 0
+fi
+
+printf '%s\n' "$arg"

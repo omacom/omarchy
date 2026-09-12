@@ -35,9 +35,12 @@ A third-party plugin is just a git repo with a `manifest.json` at its root.
 
 ```
 omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
+omarchy plugin add acme/omarchy-weather --enable
 ```
 
-Before it does anything, it tells you plainly that plugins run as arbitrary, unsandboxed code inside your long-lived shell process, shows you the URL, and asks you to confirm. Take that seriously. The third-party plugin interface does not directly expose authentication services, and a replacement bar receives only limited capabilities for configured non-authentication UI. Visual plugins still share the shell's QML scene and can walk ordinary parent objects, while all plugin code runs with everything your user account can reach. Authentication state is protected separately by keeping those services outside the reachable host object graph. Only add repos you're willing to run, and read them before you enable them.
+The second form is a GitHub shorthand: `owner/repo` expands to `https://github.com/owner/repo.git` before anything else happens, so it's just a shorter way to type the same URL. A repo hosted anywhere else still needs its full URL.
+
+Before it does anything, it tells you plainly that plugins run as arbitrary, unsandboxed code inside your long-lived shell process, shows you the (already expanded) URL, and asks you to confirm. Take that seriously. The third-party plugin interface does not directly expose authentication services, and a replacement bar receives only limited capabilities for configured non-authentication UI. Visual plugins still share the shell's QML scene and can walk ordinary parent objects, while all plugin code runs with everything your user account can reach. Authentication state is protected separately by keeping those services outside the reachable host object graph. Only add repos you're willing to run, and read them before you enable them.
 
 A replacement bar can render installed widgets, but service-backed third-party widgets may have reduced functionality there because the bar is not allowed to request another plugin's live service object. Switch back to the built-in `omarchy.bar` if such a widget needs its companion service.
 

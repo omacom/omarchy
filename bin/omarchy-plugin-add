@@ -2,8 +2,8 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url] [--enable] [--yes]
-# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
+# omarchy:args=[git-url|owner/repo] [--enable] [--yes]
+# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add acme/omarchy-weather --enable
 # omarchy:alias=omarchy plugin install
 
 set -euo pipefail
@@ -72,7 +72,7 @@ while (( $# > 0 )); do
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url|owner/repo] [--enable] [--yes]"
     exit 0
     ;;
   -*)
@@ -88,10 +88,15 @@ done
 
 if [[ -z $url ]]; then
   interactive ||
-    fail "a git URL is required (e.g. omarchy plugin add https://github.com/acme/omarchy-weather.git)"
-  url=$(gum input --prompt "Git URL of the plugin repo: ") || fail "cancelled"
+    fail "a git URL is required (e.g. omarchy plugin add https://github.com/acme/omarchy-weather.git or acme/omarchy-weather)"
+  url=$(gum input --prompt "Git URL or owner/repo of the plugin: ") || fail "cancelled"
   [[ -n $url ]] || fail "a git URL is required"
 fi
+
+# A bare `owner/repo` becomes its GitHub clone URL; anything already url-shaped
+# passes through untouched. Runs before the guard below so that guard only ever
+# sees the URL that is actually about to be cloned.
+url=$(omarchy-git-shorthand-expand "$url") || exit 1
 
 # Refuse a URL that names a git option or a transport helper before cloning, so
 # an untrusted URL cannot run a command before the plugin is validated or

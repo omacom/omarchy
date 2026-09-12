@@ -1,13 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Install a theme from a git repository
-# omarchy:args=[git-repo-url]
+# omarchy:args=[git-repo-url|owner/repo]
 # omarchy:examples=omarchy theme install https://github.com/example/omarchy-example-theme.git
 # omarchy:examples=omarchy theme install git@github.com:example/omarchy-example-theme.git
+# omarchy:examples=omarchy theme install example/omarchy-example-theme
 
 if [[ -z $1 ]]; then
   echo -e "\e[32mSee https://omarchy.org/themes/\n\e[0m"
-  REPO_URL=$(gum input --placeholder="Git repo URL (https or git@host:org/repo.git)" --header="")
+  REPO_URL=$(gum input --placeholder="Git repo URL (https, git@host:org/repo.git, or owner/repo)" --header="")
 else
   REPO_URL="$1"
 fi
@@ -15,6 +16,11 @@ fi
 if [[ -z $REPO_URL ]]; then
   exit 1
 fi
+
+# A bare `owner/repo` becomes its GitHub clone URL; anything already url-shaped
+# passes through untouched. Runs before the guard below so that guard only ever
+# sees the URL that is actually about to be cloned.
+REPO_URL=$(omarchy-git-shorthand-expand "$REPO_URL") || exit 1
 
 # Refuse a URL that names a git option or a transport helper before cloning. The
 # check is shared with omarchy-plugin-add and explains itself; a missing checker

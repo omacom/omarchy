@@ -175,3 +175,30 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# --- owner/repo shorthand ---------------------------------------------------
+#
+# A bare `owner/repo` expands to its GitHub URL (omarchy-git-shorthand-expand)
+# before the guard above ever sees it. The clone URL is recorded here, not just
+# whether clone was reached, since an unexpanded "acme/repo" would also reach
+# this stub -- it names neither a transport helper nor an option, so the guard
+# alone would wave it through too.
+
+clone_url_log="$TMPDIR/git-clone-url"
+cat >"$guard_stubs/git" <<STUB
+#!/bin/bash
+if [[ \$1 == "clone" ]]; then
+  printf '%s\n' "\${*: -2:1}" >"$clone_url_log"
+  exit 1
+fi
+exit 0
+STUB
+chmod +x "$guard_stubs/git"
+
+rm -f "$clone_url_log"
+add_url "acme/omarchy-weather" >/dev/null 2>&1 || true
+[[ -e $clone_url_log ]] || fail "plugin add did not reach git clone for owner/repo shorthand"
+grep -qFx "https://github.com/acme/omarchy-weather.git" "$clone_url_log" ||
+  fail "plugin add expands owner/repo shorthand before cloning" "$(cat "$clone_url_log")"
+
+pass "plugin add expands a bare owner/repo into its GitHub clone URL before cloning"

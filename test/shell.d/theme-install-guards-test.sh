@@ -190,6 +190,17 @@ grep -Fxq "cool" "$theme_calls" || fail "omarchy-theme-install applies the theme
 
 pass "an ordinary theme URL still clones and applies"
 
+# A bare `owner/repo` expands to its GitHub URL (omarchy-git-shorthand-expand)
+# before this same path runs, so it clones and derives a name exactly as the
+# equivalent full URL would.
+install_theme "example/omarchy-cool-theme" || fail "omarchy-theme-install clones an owner/repo shorthand"
+grep -Fq "https://github.com/example/omarchy-cool-theme.git" "$git_calls" ||
+  fail "omarchy-theme-install expands owner/repo shorthand before cloning" "$(cat "$git_calls")"
+grep -Fq "/themes/cool" "$git_calls" ||
+  fail "omarchy-theme-install derives the theme name from expanded shorthand" "$(cat "$git_calls")"
+
+pass "an owner/repo shorthand clones and applies the same as its full URL"
+
 # omarchy-theme-remove joins its argument into the path it deletes.
 remove_theme() {
   : >"$theme_calls"
