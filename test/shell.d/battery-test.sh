@@ -39,5 +39,6 @@ assert(/triggeredOnStart:\s*false/.test(serviceSource), 'battery defers the firs
 assert(/lowBatteryChecksReady:\s*false/.test(serviceSource), 'battery gates low-battery checks until UPower settles')
 assert(/lowBatteryChecksReady\s*=\s*true[\s\S]*checkBattery\(\)/.test(serviceSource), 'battery enables checks on the settle timer before the first evaluation')
 assert(/function checkBattery\(\)\s*\{[\s\S]*if\s*\(\s*!lowBatteryChecksReady\s*\)\s*return/.test(serviceSource), 'battery skips low-battery warnings until settle completes')
-assert(/onOnBatteryChanged\(\)\s*\{[\s\S]*applyPowerProfile\(\)[\s\S]*checkBattery\(\)/.test(serviceSource), 'battery still applies power profiles immediately on charger changes')
+assert(/powerSaverOnBattery:\s*UPower\.onBattery\s*&&\s*activePowerProfile\s*===\s*"power-saver"/.test(serviceSource), 'battery keeps power-saver tracking for wallpaper and lock consumers')
+assert(/onOnBatteryChanged\(\)\s*\{[\s\S]*applyPowerProfile\(\)[\s\S]*refreshPowerProfile\(\)[\s\S]*checkBattery\(\)/.test(serviceSource), 'battery applies profiles immediately, refreshes tracked profile, then checks battery on charger changes')
 JS
