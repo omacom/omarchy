@@ -7,6 +7,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const nightlight = requireFromRoot('shell/plugins/services/nightlight/NightlightModel.js')
 
+assertEqual(nightlight.configuredNightTemperature(2800), 2800, 'nightlight accepts a configured warm temperature')
+assertEqual(nightlight.configuredNightTemperature('2800'), 2800, 'nightlight accepts a numeric configured temperature')
+assertEqual(nightlight.configuredNightTemperature(6000), 4000, 'nightlight rejects a temperature that is not warmer than identity')
+assertEqual(nightlight.configuredNightTemperature('warm'), 4000, 'nightlight falls back when its configured temperature is invalid')
 assertEqual(nightlight.temperatureFromOutput('4000\n'), 4000, 'nightlight parses probe temperature')
 assertEqual(nightlight.temperatureFromOutput("Couldn't connect to hyprsunset"), null, 'nightlight treats unreachable hyprsunset as unknown')
 assertEqual(nightlight.isNightlight(4000), true, 'nightlight reports warm temperatures as enabled')
@@ -19,8 +23,11 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
 mkdir -p "$TMPDIR/bin"
+TEST_HOME="$TMPDIR/home"
 STATE="$TMPDIR/hyprsunset-temp"
 SHELL_LOG="$TMPDIR/omarchy-shell-log"
+
+mkdir -p "$TEST_HOME/.config/omarchy"
 
 cat >"$TMPDIR/bin/hyprctl" <<'SH'
 #!/bin/bash
@@ -51,6 +58,7 @@ chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
 
 nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
+  HOME="$TEST_HOME" \
   HYPRSUNSET_STATE="$STATE" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
@@ -85,6 +93,18 @@ pass "nightlight toggle nudges the shell nightlight service"
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 6500 ]] || fail "nightlight toggle restores daylight from night light"
 pass "nightlight toggle restores daylight from night light"
+
+printf '{"nightlight":{"temperature":2800}}\n' >"$TEST_HOME/.config/omarchy/shell.json"
+printf '6500\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 2800 ]] || fail "nightlight toggle uses the configured temperature"
+pass "nightlight toggle uses the configured temperature"
+
+printf '{"nightlight":{"temperature":6000}}\n' >"$TEST_HOME/.config/omarchy/shell.json"
+printf '6500\n' >"$STATE"
+nightlight_cli >/dev/null
+[[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle falls back for an invalid configured temperature"
+pass "nightlight toggle falls back for an invalid configured temperature"
 
 if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"

@@ -4,9 +4,22 @@
 # omarchy:args=[--status]
 # omarchy:examples=omarchy toggle nightlight
 
-ON_TEMP=4000
 OFF_TEMP=6500
 IDENTITY_TEMP=6000
+CONFIG_FILE="$HOME/.config/omarchy/shell.json"
+
+configured_night_temp() {
+  local temperature
+
+  temperature=$(jq -er '
+    .nightlight.temperature
+    | select(type == "number" and floor == . and . >= 1000 and . < 6000)
+  ' "$CONFIG_FILE" 2>/dev/null) || temperature=4000
+
+  printf '%s\n' "$temperature"
+}
+
+ON_TEMP=$(configured_night_temp)
 
 current_temp() {
   local output

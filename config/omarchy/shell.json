@@ -4,6 +4,9 @@
     "screensaver": 150,
     "lock": 300
   },
+  "nightlight": {
+    "temperature": 4000
+  },
   "bar": {
     "position": "top",
     "transparent": false,
