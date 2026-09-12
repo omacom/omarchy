@@ -1,0 +1,255 @@
+#!/bin/bash
+
+# omarchy:summary=Prevent system idle while audio is playing
+# omarchy:args=[--once|--status]
+# omarchy:hidden=true
+
+set -u
+export LC_ALL=C
+
+RUNTIME_STATE_DIR="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}/omarchy-audio-inhibit"
+OWNER_FILE="$RUNTIME_STATE_DIR/owner"
+HANDSOFF_FILE="$RUNTIME_STATE_DIR/hands-off"
+BASELINE_FILE="$RUNTIME_STATE_DIR/claim-mtime"
+IDLE_STATE_DIR="$HOME/.local/state/omarchy/indicators"
+IDLE_STATE_FILE="$IDLE_STATE_DIR/stay-awake"
+
+# A playback session that overlaps a locked session (or a user takeover)
+# forfeits stay-awake until it stops and starts again. The lock screen pokes
+# `--once` on lock, so the daemon itself never polls. Env overrides exist so
+# tests can compress time.
+MAX_QUERY_FAILURES="${OMARCHY_AUDIO_INHIBIT_MAX_QUERY_FAILURES:-3}"
+RECONNECT_SECONDS="${OMARCHY_AUDIO_INHIBIT_RECONNECT_SECONDS:-5}"
+MAX_RECONNECT_SECONDS=60
+
+FAIL_COUNT=0
+RECONNECT=$RECONNECT_SECONDS
+
+# Exit 0 playing, 1 not playing, 2 when the audio system could not be queried.
+# Callers must hold the current state on 2: a PipeWire restart must not look
+# like playback ending.
+audio_state() {
+  local streams=""
+  streams=$(pactl --format=json list sink-inputs 2>/dev/null) || return 2
+  # Filter out corked/muted streams, notification/event sounds, and background daemons (like Voxtype dictation)
+  jq -e '
+    any(.[];
+      (.corked == false) and
+      (.mute == false) and
+      ((.properties["media.role"] // "") != "event") and
+      ((.properties["media.role"] // "") != "notification") and
+      ((.properties["application.name"] // "") | test("voxtype|speech-dispatcher"; "i") | not) and
+      ((.properties["node.name"] // "") | test("voxtype|speech-dispatcher"; "i") | not)
+    )
+  ' <<<"$streams" >/dev/null 2>&1
+  case $? in
+    0) return 0 ;;
+    1) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+session_is_locked() {
+  omarchy-hyprland-session-locked
+}
+
+owns_idle_state() {
+  local state_owner=""
+  [[ -f $IDLE_STATE_FILE ]] || return 1
+  state_owner=$(<"$IDLE_STATE_FILE")
+
+  # Current daemon run owns the state
+  if [[ -s $OWNER_FILE ]]; then
+    local owner
+    owner=$(<"$OWNER_FILE")
+    if [[ -n $owner && $state_owner == "$owner" ]]; then
+      return 0
+    fi
+  fi
+
+  # Stranded token from a prior daemon instance or previous boot
+  if [[ $state_owner == omarchy-audio-inhibit:* ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+# Record that this playback session forfeited stay-awake, and why. The marker
+# is session-scoped: releasing at playback end clears it, so the next session
+# is protected again.
+hand_off() {
+  rm -f "$OWNER_FILE" "$BASELINE_FILE"
+  mkdir -p "$RUNTIME_STATE_DIR"
+  printf '%s\n' "$1" >"$HANDSOFF_FILE"
+}
+
+detect_user_intent() {
+  [[ -f $OWNER_FILE ]] || return 0
+
+  # The state file was removed or overwritten: an explicit dismissal.
+  if ! owns_idle_state; then
+    hand_off user
+    return 0
+  fi
+
+  # A stay-awake re-enable from the bar lands as touch(1), which preserves our
+  # token. Compare mtimes against the claim baseline to spot it, then rewrite
+  # the content so the file stops matching our ownership prefix. The user's
+  # re-enable outlives the playback; the daemon keeps hands off.
+  if [[ -s $BASELINE_FILE ]]; then
+    local baseline=0 mtime=0
+    baseline=$(<"$BASELINE_FILE")
+    mtime=$(stat -c %Y "$IDLE_STATE_FILE" 2>/dev/null) || mtime=0
+    if (( mtime > baseline )); then
+      printf 'user\n' >"$IDLE_STATE_FILE"
+      hand_off user
+    fi
+  fi
+}
+
+claim_stay_awake() {
+  detect_user_intent
+
+  # This session already forfeited protection (lock overlap or user takeover):
+  # never re-assert until playback stops and starts again.
+  if [[ -f $HANDSOFF_FILE ]]; then
+    return 0
+  fi
+
+  # Locking hands the session off: release our claim so the display can sleep
+  # and the session can suspend, and remember why.
+  if session_is_locked; then
+    if owns_idle_state; then
+      rm -f "$IDLE_STATE_FILE"
+    fi
+    hand_off lock
+    return 0
+  fi
+
+  if owns_idle_state && [[ -s $OWNER_FILE ]]; then
+    return 0
+  fi
+
+  rm -f "$OWNER_FILE"
+  # A user-owned or third-party stay-awake (not matching our prefix) wins.
+  if [[ -e $IDLE_STATE_FILE ]] && ! owns_idle_state; then
+    return 0
+  fi
+
+  mkdir -p "$RUNTIME_STATE_DIR" "$IDLE_STATE_DIR"
+  local owner="omarchy-audio-inhibit:$$:$RANDOM:$RANDOM"
+  printf '%s\n' "$owner" >"$OWNER_FILE"
+
+  if (set -o noclobber; printf '%s\n' "$owner" >"$IDLE_STATE_FILE") 2>/dev/null; then
+    stat -c %Y "$IDLE_STATE_FILE" >"$BASELINE_FILE" 2>/dev/null || rm -f "$BASELINE_FILE"
+    return 0
+  fi
+  rm -f "$OWNER_FILE" "$BASELINE_FILE"
+}
+
+release_stay_awake() {
+  if owns_idle_state; then
+    rm -f "$IDLE_STATE_FILE"
+  fi
+
+  rm -f "$OWNER_FILE" "$BASELINE_FILE"
+  # Playback ended: the hands-off marker is session-scoped and resets so the
+  # next media session is protected again.
+  rm -f "$HANDSOFF_FILE"
+  rmdir "$RUNTIME_STATE_DIR" 2>/dev/null || true
+}
+
+reconcile_audio_state() {
+  audio_state
+  case $? in
+    0)
+      FAIL_COUNT=0
+      RECONNECT=$RECONNECT_SECONDS
+      claim_stay_awake
+      ;;
+    1)
+      FAIL_COUNT=0
+      RECONNECT=$RECONNECT_SECONDS
+      release_stay_awake
+      ;;
+    *)
+      # Hold the current state on transient failures; if the audio system
+      # stays unqueryable, nothing audible is playing, so release.
+      (( FAIL_COUNT += 1 ))
+      if (( FAIL_COUNT >= MAX_QUERY_FAILURES )); then
+        release_stay_awake
+        FAIL_COUNT=0
+      fi
+      ;;
+  esac
+}
+
+case "${1:-}" in
+  --status)
+    audio_state
+    case $? in
+      2)
+        echo "audio state unknown"
+        ;;
+      1)
+        echo "idle"
+        ;;
+      *)
+        if [[ -f $HANDSOFF_FILE ]]; then
+          case $(<"$HANDSOFF_FILE") in
+            lock) echo "playing (unprotected: session was locked)" ;;
+            user)
+              if [[ -e $IDLE_STATE_FILE ]]; then
+                echo "playing (stay-awake held by user)"
+              else
+                echo "playing (suppressed by user)"
+              fi
+              ;;
+          esac
+        else
+          echo "playing"
+        fi
+        ;;
+    esac
+    exit 0
+    ;;
+  --once)
+    reconcile_audio_state
+    exit 0
+    ;;
+esac
+
+trap 'exit 0' INT TERM
+trap release_stay_awake EXIT
+
+reconcile_audio_state
+while true; do
+  # The subscription stays up across quiet minutes: a read timeout keeps the
+  # loop alive without tearing the event stream down, and also bounds how long
+  # a SIGTERM can delay the cleanup release.
+  while :; do
+    IFS= read -r -t 60 event
+    read_status=$?
+    if (( read_status != 0 )); then
+      break
+    fi
+    # Reconcile on every event, not only sink-input lines: cork (pause) and
+    # uncork (resume) transitions re-arm stay-awake by ending the playback
+    # session, and PipeWire may report them on the client instead of the
+    # stream. Reconcile is idempotent and audio events are sparse.
+    reconcile_audio_state
+  done
+
+  # The subscription ended: the audio system is gone or restarting. Reconcile
+  # once, then retry with escalating backoff; a healthy query resets it.
+  reconcile_audio_state
+  sleep "$RECONNECT" &
+  wait $! || true
+  if (( RECONNECT < MAX_RECONNECT_SECONDS )); then
+    RECONNECT=$(( RECONNECT * 2 ))
+  fi
+  if (( RECONNECT > MAX_RECONNECT_SECONDS )); then
+    RECONNECT=$MAX_RECONNECT_SECONDS
+  fi
+done

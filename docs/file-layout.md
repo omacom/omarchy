@@ -277,7 +277,8 @@ and/or a working user systemd instance:
   `systemctl --user enable --now` the shipped user units (`bt-agent`,
   `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
   `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`,
-  `omarchy-crash-watch.service`) so they run in the first session too.
+  `omarchy-crash-watch.service`, `omarchy-audio-inhibit.service`) so they run
+  in the first session too.
   Done here, not at finalize, because
   the user manager isn't reachable from the ISO chroot; `ConditionPath*`
   in the unit files keeps services inert when they don't apply.
