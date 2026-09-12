@@ -51,4 +51,16 @@ elif [[ -f $plugin_target ]]; then
 EOF
 fi
 
+# A current theme staged before opencode.json.tpl shipped has no staged copy
+# to sync; re-stage once so the file exists from this update on. A removed
+# theme leaves nothing to re-stage from, so only refresh when the recorded
+# theme still exists (cf. 1787481315).
+theme_name_path="$HOME/.local/state/omarchy/current/theme.name"
+if [[ ! -f $HOME/.local/state/omarchy/current/theme/opencode.json && -s $theme_name_path ]]; then
+  theme_name=$(<"$theme_name_path")
+  if [[ -d $OMARCHY_PATH/themes/$theme_name || -d $HOME/.config/omarchy/themes/$theme_name ]]; then
+    omarchy-theme-refresh
+  fi
+fi
+
 omarchy-theme-set-opencode
