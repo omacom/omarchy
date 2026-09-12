@@ -57,6 +57,9 @@
           "id": "omarchy.monitor"
         },
         {
+          "id": "omarchy.screen-time"
+        },
+        {
           "id": "omarchy.power"
         }
       ]

@@ -1,0 +1,9 @@
+# The accounts under screen time talk to the root daemon through this one
+# command, and only this one: answering a math problem, or a parent typing the
+# PIN in the bar to hand out minutes, has no terminal to carry a password
+# prompt, and on a child install the password sudo would ask for is the
+# parent's anyway. The command reads the PIN from stdin, acts only on the
+# account sudo says is calling, and checks every argument itself; sudoers
+# passes the arguments through because the shapes (a minute count, a
+# question id) are the command's to validate, not a pattern's.
+%omarchy-screen-time ALL=(root) NOPASSWD: /usr/bin/omarchy-screen-time-ctl

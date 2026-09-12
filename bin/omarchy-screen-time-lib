@@ -1,0 +1,558 @@
+#!/bin/bash
+
+# omarchy:summary=Shared functions for the screen time daemon, client and parent command
+# omarchy:hidden=true
+
+# Sourced, not run. Everything the four screen time scripts share: where the
+# files live, what a config and a day look like, the PIN, and the status the
+# widget reads. Nothing here talks to a terminal; callers print.
+#
+# The three roots can be overridden for tests, which run the daemon against a
+# temp directory and a fake loginctl on PATH instead of a real machine.
+ST_ETC="${OMARCHY_SCREEN_TIME_ETC:-/etc/omarchy-screen-time}"
+ST_STATE="${OMARCHY_SCREEN_TIME_STATE:-/var/lib/omarchy-screen-time}"
+ST_RUN="${OMARCHY_SCREEN_TIME_RUN:-/run/omarchy-screen-time}"
+ST_CONFIG="$ST_ETC/config.json"
+ST_LOCK="$ST_RUN/lock"
+ST_GROUP="omarchy-screen-time"
+
+ST_TICK=5
+ST_REST_RESET=300 # five quiet minutes and a stretch starts over
+ST_REFLECTIONS=20
+ST_HISTORY_DAYS=14
+ST_LOCK_FAILURES_MAX=3 # locks in a row the shell fails before root ends the session
+# Seconds a wrong PIN costs, by failure count. Flat for the first slip, then
+# it climbs; past the table it keeps doubling up to an hour, so a script that
+# guesses all night gets a dozen tries out of it. Only a right PIN, or a
+# `pin reset` by root, brings it back down.
+ST_PIN_LOCKOUT=(0 0 1 5 15 60 300)
+ST_PIN_LOCKOUT_MAX=3600
+
+# The defaults, and the rules that clamp whatever is on disk to something the
+# daemon can run on. A profile with a negative budget or a string where a
+# number belongs must not stop the daemon, because a daemon that is not
+# running is unlimited screen time.
+read -r -d '' ST_JQ_LIB <<'JQ' || true
+def days: ["mon","tue","wed","thu","fri","sat","sun"];
+def ops: ["add","sub","mul","div"];
+
+def default_earn: {
+  enabled: false, seconds_per_correct: 30, daily_cap_minutes: 30,
+  min_answer_seconds: 1.5, question_timeout_seconds: 90,
+  ops: ["mul","div"], tables: [1,2,3,4,5,6,7,8,9,10], max_term: 100, drill_weak: true
+};
+def default_profile: {
+  name: "Default", philosophy: "limits",
+  budget_minutes: {mon:60,tue:60,wed:60,thu:60,fri:60,sat:90,sun:90},
+  blocked_periods: [{label:"Bedtime", enabled:true, start:"20:00", end:"07:00", days: days}],
+  warn_minutes: [15,5,1], on_empty: "lock",
+  grace_seconds: 60, relock_seconds: 30, unlock_grace_seconds: 120,
+  agreement_text: "", agreement_minutes: 0, break_nudge_minutes: 45,
+  earn: default_earn
+};
+def default_config: {version: 1, pin: null, active_profile: "default",
+  profiles: {default: default_profile}, users: {}};
+
+def clampint($fallback; $low; $high):
+  if type == "number" then (floor | if . < $low then $low elif . > $high then $high else . end)
+  elif type == "string" and test("^-?[0-9]+$") then (tonumber | clampint($fallback; $low; $high))
+  else $fallback end;
+def clampnum($fallback; $low; $high):
+  if type == "number" then (if . < $low then $low elif . > $high then $high else . end)
+  else $fallback end;
+def time_of_day($fallback):
+  if type == "string" and test("^([01]?[0-9]|2[0-3]):[0-5]?[0-9]$")
+  then (split(":") | map(tonumber) | "\(.[0] | tostring | if length < 2 then "0" + . else . end):\(.[1] | tostring | if length < 2 then "0" + . else . end)")
+  else $fallback end;
+
+def sanitize_earn:
+  (if type == "object" then . else {} end) as $raw | default_earn as $d |
+  {
+    enabled: ($raw.enabled // $d.enabled | . == true),
+    seconds_per_correct: ($raw.seconds_per_correct | clampint($d.seconds_per_correct; 5; 600)),
+    daily_cap_minutes: ($raw.daily_cap_minutes | clampint($d.daily_cap_minutes; 0; 480)),
+    min_answer_seconds: ($raw.min_answer_seconds | clampnum($d.min_answer_seconds; 0; 30)),
+    question_timeout_seconds: ($raw.question_timeout_seconds | clampint($d.question_timeout_seconds; 10; 600)),
+    ops: ([($raw.ops // $d.ops)[]? | select(. as $o | ops | index($o))] | if length == 0 then $d.ops else . end),
+    tables: ([($raw.tables // $d.tables)[]? | select(type == "number" and . >= 1 and . <= 20) | floor] | unique | if length == 0 then $d.tables else . end),
+    max_term: ($raw.max_term | clampint($d.max_term; 10; 1000)),
+    drill_weak: (if $raw | has("drill_weak") then $raw.drill_weak == true else $d.drill_weak end)
+  };
+
+def sanitize_periods:
+  default_profile.blocked_periods[0] as $d |
+  (if type == "array" then . else [$d] end) |
+  [ .[:8][] | select(type == "object") |
+    {label: ((.label // "" | tostring | .[:40]) as $l | if ($l | test("^\\s*$")) then "Blocked" else ($l | sub("^\\s+"; "") | sub("\\s+$"; "")) end),
+     enabled: (.enabled == true),
+     start: (.start | time_of_day($d.start)),
+     end: (.end | time_of_day($d.end)),
+     days: (. as $p | [days[] | select(. as $k | ($p.days // days) | index($k))] | if length == 0 then days else . end)}
+    | select(.start != .end) ];
+
+# Whether a period covers the moment $m on weekday $wd (yesterday was $ywd).
+# A period that wraps past midnight belongs to the day it starts on: a
+# Friday bedtime still holds at three on Saturday morning.
+def covers($m; $wd; $ywd):
+  if .start == .end then false
+  elif .start < .end then ((.days | index($wd)) != null and .start <= $m and $m < .end)
+  else (((.days | index($wd)) != null and $m >= .start) or ((.days | index($ywd)) != null and $m < .end)) end;
+
+def sanitize_profile:
+  (if type == "object" then . else {} end) as $raw | default_profile as $d |
+  {
+    name: (($raw.name // $d.name) | tostring | .[:40]),
+    philosophy: (if ($raw.philosophy == "together") then "together" else "limits" end),
+    agreement_text: (($raw.agreement_text // "") | tostring | .[:500]),
+    agreement_minutes: ($raw.agreement_minutes | clampint($d.agreement_minutes; 0; 1440)),
+    break_nudge_minutes: ($raw.break_nudge_minutes | clampint($d.break_nudge_minutes; 0; 480)),
+    budget_minutes: (($raw.budget_minutes // {}) as $b | reduce days[] as $day ({}; .[$day] = ($b[$day] | clampint($d.budget_minutes[$day]; 0; 1440)))),
+    blocked_periods: ($raw.blocked_periods | sanitize_periods),
+    warn_minutes: ([($raw.warn_minutes // $d.warn_minutes)[]? | select(type == "number") | floor | select(. > 0 and . <= 1440)] | unique | reverse | if length == 0 then $d.warn_minutes else . end),
+    on_empty: (if $raw.on_empty == "notify" then "notify" else "lock" end),
+    grace_seconds: ($raw.grace_seconds | clampint($d.grace_seconds; 0; 3600)),
+    relock_seconds: ($raw.relock_seconds | clampint($d.relock_seconds; 5; 3600)),
+    unlock_grace_seconds: ($raw.unlock_grace_seconds | clampint($d.unlock_grace_seconds; 5; 3600)),
+    earn: ($raw.earn | sanitize_earn)
+  };
+
+def sanitize_config:
+  (if type == "object" then . else {} end) as $raw |
+  (($raw.profiles // {}) | if type == "object" then . else {} end
+    | with_entries(select(.key | test("^\\S.{0,39}$"))) | map_values(sanitize_profile)
+    | if length == 0 then {default: (null | sanitize_profile)} else . end) as $profiles |
+  (if ($profiles | has($raw.active_profile // "")) then $raw.active_profile else ($profiles | keys_unsorted[0]) end) as $active |
+  {
+    version: 1,
+    pin: (if ($raw.pin | type) == "object" and ($raw.pin.hash | type) == "string" and ($raw.pin.hash | startswith("$6$")) then {algo: "sha512crypt", hash: $raw.pin.hash} else null end),
+    active_profile: $active,
+    profiles: $profiles,
+    users: (($raw.users // {}) | if type == "object" then . else {} end
+      | with_entries(select(.key | test("^[a-z_][a-z0-9_-]{0,31}$")))
+      | map_values({profile: (if (type == "object") and ($profiles | has(.profile // "")) then .profile else $active end)}))
+  };
+
+def profile_for($user):
+  (.users[$user].profile // .active_profile) as $key |
+  (if (.profiles | has($key)) then $key else .active_profile end) as $key |
+  {key: $key, profile: .profiles[$key]};
+
+# Deep merge for `config patch`: objects recurse, everything else is replaced.
+def deep_merge($patch):
+  reduce ($patch | to_entries[]) as $e (.;
+    if ($e.value | type) == "object" and ((.[$e.key] // null) | type) == "object"
+    then .[$e.key] = (.[$e.key] | deep_merge($e.value))
+    else .[$e.key] = $e.value end);
+
+def new_day($day; $budget; $profile): {
+  day: $day, profile: $profile, budget_seconds: $budget,
+  spent_seconds: 0, earned_seconds: 0, granted_seconds: 0, correct_answers: 0,
+  warned: [], agreement_noted: false, ledger: []
+};
+def day_total: .budget_seconds + .earned_seconds + .granted_seconds;
+def day_remaining: day_total - .spent_seconds;
+def day_summary: {day, budget_seconds, spent_seconds, earned_seconds, granted_seconds, correct_answers};
+JQ
+
+st_jq() {
+  # jq with the shared definitions in front. Callers pass their own filter
+  # last, after any --arg/--argjson, exactly as with jq itself.
+  local args=() filter
+  while (($# > 1)); do args+=("$1"); shift; done
+  filter=$1
+  jq "${args[@]}" "$ST_JQ_LIB $filter"
+}
+
+# time -------------------------------------------------------------------
+
+st_now() { date +%s; }
+st_uptime() { cut -d' ' -f1 /proc/uptime | cut -d. -f1; }
+st_day_key() { date -d "@${1:-$(st_now)}" +%F; }
+st_weekday_key() { date -d "@${1:-$(st_now)}" +%a | tr '[:upper:]' '[:lower:]'; }
+st_yesterday_key() { st_weekday_key "$(( ${1:-$(st_now)} - 86400 ))"; }
+st_moment() { date -d "@${1:-$(st_now)}" +%H:%M; }
+
+st_human_time() {
+  # 5400 -> 1h30, 3600 -> 1h, 900 -> 15m. Whole hours read as "1h"; the
+  # zeroes only earn their place when there are minutes next to them.
+  local s=${1:-0} h m
+  ((s < 0)) && s=0
+  if ((s >= 3600)); then
+    h=$((s / 3600)); m=$((s % 3600 / 60))
+    if ((m == 0)); then echo "${h}h"; else printf '%dh%02d\n' "$h" "$m"; fi
+  else
+    echo "$((s / 60))m"
+  fi
+}
+
+# files ------------------------------------------------------------------
+
+st_write_private() {
+  # Write through a temp file in the same directory and rename over the
+  # destination: a plain `>` follows a symlink sitting on the path, rename(2)
+  # replaces the path itself. Mode 0600, owner as given (default: root).
+  local path=$1 owner=${2:-} tmp
+  tmp=$(mktemp "$path.XXXXXX") || return 1
+  chmod 0600 "$tmp"
+  [[ -n $owner ]] && chown "$owner" "$tmp"
+  cat >"$tmp" && mv -f "$tmp" "$path"
+}
+
+st_read_regular() {
+  # A file, refusing anything that is not a plain regular file.
+  [[ -f $1 && ! -L $1 ]] || return 1
+  cat "$1"
+}
+
+st_private_dir() {
+  # Make (or repair) a directory only its owner may enter.
+  local path=$1 mode=${2:-0700}
+  mkdir -p "$path"
+  [[ -L $path ]] && { echo "screen-time: $path is a symlink" >&2; return 1; }
+  chmod "$mode" "$path"
+}
+
+st_with_lock() {
+  # Run a function while holding the state lock. The daemon and ctl both edit
+  # days; whoever holds this is the only one doing it.
+  mkdir -p "$ST_RUN"
+  (
+    flock -w 10 9 || { echo "screen-time: could not take the lock" >&2; exit 1; }
+    "$@"
+  ) 9>>"$ST_LOCK"
+}
+
+# config -----------------------------------------------------------------
+
+st_config() {
+  # The config as the daemon sees it: sanitized, defaults filled in.
+  local raw
+  raw=$(st_read_regular "$ST_CONFIG" 2>/dev/null) || raw='{}'
+  st_jq -n --argjson raw "${raw:-null}" '$raw | sanitize_config' 2>/dev/null \
+    || st_jq -n 'default_config | sanitize_config'
+}
+
+st_save_config() {
+  # Sanitize what we were given and write it. Stdin is the config.
+  st_private_dir "$ST_ETC" 0700 || return 1
+  st_jq 'sanitize_config' | st_write_private "$ST_CONFIG"
+}
+
+st_managed_users() {
+  # Account names in the roster that actually exist on the machine.
+  local name
+  while IFS= read -r name; do
+    getent passwd "$name" >/dev/null && echo "$name"
+  done < <(st_config | jq -r '.users | keys[]')
+}
+
+st_uid_of() { getent passwd "$1" | cut -d: -f3; }
+st_gid_of() { getent passwd "$1" | cut -d: -f4; }
+st_user_of() { getent passwd "$1" | cut -d: -f1; }
+st_home_of() { getent passwd "$1" | cut -d: -f6; }
+
+# the PIN ------------------------------------------------------------------
+
+st_pin_hash() {
+  # Stdin: the PIN. Stdout: a sha512crypt hash with a fresh salt, the same
+  # shape as /etc/shadow, made by the openssl every Arch install has.
+  local salt
+  salt=$(head -c 12 /dev/urandom | base64 | tr '+' '.' | head -c 16)
+  openssl passwd -6 -salt "$salt" -stdin
+}
+
+st_pin_verify() {
+  # $1: the stored hash. Stdin: the PIN. True when they match.
+  local stored=$1 salt candidate
+  [[ $stored == '$6$'* ]] || return 1
+  salt=$(cut -d'$' -f3 <<<"$stored")
+  candidate=$(openssl passwd -6 -salt "$salt" -stdin) || return 1
+  [[ $candidate == "$stored" ]]
+}
+
+st_pin_valid_shape() { [[ $1 =~ ^[0-9]{4,12}$ ]]; }
+
+st_pin_lockout() {
+  # $1: how many wrong PINs in a row. Prints the seconds the next try waits.
+  local failures=$1 last=$((${#ST_PIN_LOCKOUT[@]} - 1)) wait
+  if ((failures <= last)); then
+    wait=${ST_PIN_LOCKOUT[$failures]}
+  else
+    wait=${ST_PIN_LOCKOUT[$last]}
+    local i
+    for ((i = last; i < failures && wait < ST_PIN_LOCKOUT_MAX; i++)); do wait=$((wait * 2)); done
+    ((wait > ST_PIN_LOCKOUT_MAX)) && wait=$ST_PIN_LOCKOUT_MAX
+  fi
+  echo "$wait"
+}
+
+# per-account state ----------------------------------------------------------
+
+st_user_state_dir() { echo "$ST_STATE/users/$1"; }
+st_user_run_dir() { echo "$ST_RUN/$1"; }
+
+st_day_path() { echo "$(st_user_state_dir "$1")/$2.json"; }
+
+st_load_day() {
+  # $1 uid, $2 day key, $3 budget seconds, $4 profile key. A missing or
+  # unreadable day is a fresh one.
+  local raw
+  raw=$(st_read_regular "$(st_day_path "$1" "$2")" 2>/dev/null) || raw=''
+  st_jq -n --arg day "$2" --argjson budget "$3" --arg profile "$4" --argjson raw "${raw:-null}" '
+    if ($raw | type) == "object" and $raw.day == $day then
+      new_day($day; $budget; $profile) + $raw | .budget_seconds = $budget | .profile = $profile
+    else new_day($day; $budget; $profile) end'
+}
+
+st_save_day() {
+  # $1 uid. Stdin: the day.
+  st_private_dir "$(st_user_state_dir "$1")" || return 1
+  local json
+  json=$(cat)
+  st_write_private "$(st_day_path "$1" "$(jq -r .day <<<"$json")")" <<<"$json"
+}
+
+st_load_json() {
+  # $1 path, $2 fallback JSON. Any file that is not valid JSON is the fallback.
+  local raw
+  raw=$(st_read_regular "$1" 2>/dev/null) || raw=''
+  if [[ -n $raw ]] && jq -e . <<<"$raw" >/dev/null 2>&1; then echo "$raw"; else echo "$2"; fi
+}
+
+st_load_stats() { st_load_json "$(st_user_state_dir "$1")/stats.json" '{}'; }
+st_save_stats() { st_private_dir "$(st_user_state_dir "$1")" && st_write_private "$(st_user_state_dir "$1")/stats.json"; }
+st_load_pending() { st_load_json "$(st_user_state_dir "$1")/pending.json" 'null'; }
+st_save_pending() { st_private_dir "$(st_user_state_dir "$1")" && st_write_private "$(st_user_state_dir "$1")/pending.json"; }
+st_load_pinstate() { st_load_json "$(st_user_state_dir "$1")/pin.json" '{"failures":0,"blocked_until":0}'; }
+st_save_pinstate() { st_private_dir "$(st_user_state_dir "$1")" && st_write_private "$(st_user_state_dir "$1")/pin.json"; }
+
+st_runtime_default='{"paused":false,"stretch":0,"rest_since":null,"nudged":false,"lock_after":null,"lock_count":0,"lock_failures":0,"last_lock_ok":false,"blocked_since":null,"session":{"present":false,"active":false,"locked":false,"id":null}}'
+st_load_runtime() { st_load_json "$(st_user_run_dir "$1")/runtime.json" "$st_runtime_default"; }
+st_save_runtime() {
+  # The daemon's between-ticks memory for one account. Root writes it; the
+  # account may read it, and the widget does not need to.
+  st_private_dir "$(st_user_run_dir "$1")" 0750 || return 1
+  st_write_private "$(st_user_run_dir "$1")/runtime.json"
+}
+
+st_history() {
+  # $1 uid: the last ST_HISTORY_DAYS days, oldest first, budget and spent per day.
+  local uid=$1 dir i day
+  dir=$(st_user_state_dir "$uid")
+  for ((i = ST_HISTORY_DAYS - 1; i >= 0; i--)); do
+    day=$(date -d "-$i day" +%F)
+    st_load_json "$dir/$day.json" "{\"day\":\"$day\"}"
+  done | st_jq -sc '[.[] | new_day(.day; 0; "") + . | day_summary]'
+}
+
+# what the widget reads --------------------------------------------------------
+
+st_publish() {
+  # $1 uid, stdin: JSON. Written where the account itself can read it and
+  # nobody can write it: the directory is root's, group the account's, 0750.
+  local uid=$1 dir gid
+  dir=$(st_user_run_dir "$uid")
+  gid=$(st_gid_of "$uid")
+  mkdir -p "$dir"
+  chown "root:${gid:-0}" "$dir" 2>/dev/null || true
+  chmod 0750 "$dir"
+  local tmp
+  tmp=$(mktemp "$dir/$2.XXXXXX") || return 1
+  chmod 0640 "$tmp"
+  chown "root:${gid:-0}" "$tmp" 2>/dev/null || true
+  cat >"$tmp" && mv -f "$tmp" "$dir/$2"
+}
+
+st_status_json() {
+  # The one JSON the pill, the panel and `omarchy-screen-time status` all
+  # read. $1 uid, $2 username, $3 now, $4 profile key, $5 profile JSON,
+  # $6 day JSON, $7 runtime JSON, $8 pin set (true/false).
+  local uid=$1 user=$2 now=$3 key=$4 profile=$5 day=$6 runtime=$7 pin_set=$8
+  # One line: the widget's stream reads it line by line.
+  st_jq -nc --arg user "$user" --argjson now "$now" --arg key "$key" \
+    --argjson profile "$profile" --argjson day "$day" --argjson rt "$runtime" \
+    --arg moment "$(st_moment "$now")" --arg wd "$(st_weekday_key "$now")" --arg ywd "$(st_yesterday_key "$now")" --argjson pin_set "$pin_set" '
+    ($profile.blocked_periods | map(select(.enabled))) as $enabled |
+    ($enabled | map(select(covers($moment; $wd; $ywd))) | .[0]) as $blocking |
+    ($enabled | map(select(.days | index($wd)))) as $today |
+    (($today | map(select(.start > $moment)) | sort_by(.start) | .[0]) // null) as $next |
+    ($profile.philosophy == "together") as $together |
+    ($day | day_remaining) as $remaining |
+    (if $together then null elif $blocking != null then "bedtime" elif $remaining <= 0 then "empty" else null end) as $reason |
+    ($rt.session.present and $rt.session.active and ($rt.session.locked | not)) as $in_use |
+    (if $rt.paused then "paused" elif $reason == "bedtime" then "bedtime" elif $reason == "empty" then "empty" elif ($in_use | not) then "idle" else "running" end) as $phase |
+    ($profile.earn.daily_cap_minutes * 60 - $day.earned_seconds | if . < 0 then 0 else . end) as $room |
+    {
+      ok: true, user: $user, profile: $key, profile_name: $profile.name,
+      philosophy: $profile.philosophy, agreement_text: $profile.agreement_text,
+      agreement_minutes: $profile.agreement_minutes, break_nudge_minutes: $profile.break_nudge_minutes,
+      stretch_seconds: ($rt.stretch | floor),
+      reflections: ([$day.ledger[] | select(.kind == "reflection") | {t: (.t // 0), text: ((.meta.text // "") | tostring)}] | .[-20:]),
+      day: $day.day, phase: $phase, counting: ($phase == "running"),
+      remaining_seconds: (if $remaining < 0 then 0 else $remaining end),
+      budget_seconds: $day.budget_seconds, spent_seconds: $day.spent_seconds,
+      earned_seconds: $day.earned_seconds, granted_seconds: $day.granted_seconds,
+      correct_answers: $day.correct_answers,
+      warn_seconds: ($profile.warn_minutes | map(. * 60)),
+      locked: $rt.session.locked, session_present: $rt.session.present,
+      lock_in_seconds: (if ($rt.lock_after != null and $reason != null and ($rt.paused | not)) then ([$rt.lock_after - $now, 0] | max | floor) else null end),
+      blocked_periods: $profile.blocked_periods,
+      blocked_label: ($blocking.label // ""),
+      next_block: $next,
+      budget_minutes: $profile.budget_minutes,
+      on_empty: $profile.on_empty,
+      pin_set: $pin_set,
+      earn: {
+        enabled: $profile.earn.enabled, seconds_per_correct: $profile.earn.seconds_per_correct,
+        cap_seconds: ($profile.earn.daily_cap_minutes * 60), room_seconds: $room,
+        ops: $profile.earn.ops, tables: $profile.earn.tables,
+        events: ([$day.ledger[] | select(.kind == "earn" or .kind == "miss")
+                  | {t: (.t // 0), kind, seconds: ((.seconds // 0) | floor), q: ((.meta.q // "") | tostring)}
+                    + (if .kind == "miss" then {given: .meta.given, answer: .meta.answer} else {} end)] | .[-50:])
+      }
+    }'
+}
+
+# the account's session -----------------------------------------------------------
+
+st_omarchy_path() {
+  # Where the running shell lives: omarchy-shell finds the Quickshell instance
+  # by this path, so a dev-linked checkout must answer the same as the shell
+  # that was started from it.
+  local path=${OMARCHY_PATH:-}
+  if [[ -z $path && -r /etc/omarchy.conf ]]; then
+    path=$(sed -n 's/^export OMARCHY_PATH="\(.*\)"$/\1/p' /etc/omarchy.conf | tail -1)
+  fi
+  echo "${path:-/usr/share/omarchy}"
+}
+
+st_user_env() {
+  # The environment a command needs to reach the account's desktop from root:
+  # its runtime dir and session bus, where the shell is, and nothing of ours.
+  # A UTF-8 locale, or Qt (qs, behind omarchy-shell) writes a warning to the
+  # journal on every tick.
+  local uid=$1
+  printf 'LANG=C.UTF-8\nXDG_RUNTIME_DIR=/run/user/%s\nDBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%s/bus\nHOME=%s\nOMARCHY_PATH=%s\nPATH=%s\n' \
+    "$uid" "$uid" "$(st_home_of "$uid")" "$(st_omarchy_path)" \
+    "${OMARCHY_SCREEN_TIME_PATH:-$(st_omarchy_path)/bin:/usr/local/bin:/usr/bin:/bin}"
+}
+
+st_as_user() {
+  # Run a command as the account, in its session's environment, with a
+  # timeout: a hung desktop must not hang the daemon. setpriv rather than
+  # runuser: no PAM session, so nothing lands in the journal every tick.
+  local uid=$1; shift
+  local gid
+  gid=$(st_gid_of "$uid") || return 1
+  [[ -n $gid ]] || return 1
+  # shellcheck disable=SC2046
+  if ((EUID == 0)); then
+    timeout 5 setpriv --reuid="$uid" --regid="$gid" --init-groups env -i $(st_user_env "$uid" | tr '\n' ' ') "$@"
+  else
+    # The tests run the daemon as themselves against a fake session.
+    timeout 5 env -i $(st_user_env "$uid" | tr '\n' ' ') "$@"
+  fi
+}
+
+st_session_info() {
+  # $1 uid. Prints "present active locked session_id" for the account's
+  # graphical session, the active one first if there are several.
+  #
+  # Present and active come from logind and describe the seat, which the
+  # account cannot talk logind into misreporting. Locked comes from the
+  # shell, and only from the shell: logind's LockedHint is a hint the session
+  # itself sets, so `busctl call ... SetLockedHint b true` from the account
+  # would read as a locked screen and stop the clock. A shell that does not
+  # answer counts as not locked, so freezing it buys nothing either.
+  local uid=$1 ids id props type class active state
+  local present=false is_active=false locked=false chosen=""
+  ids=$(loginctl show-user "$uid" -p Sessions --value 2>/dev/null) || ids=""
+  for id in $ids; do
+    props=$(loginctl show-session "$id" -p Type -p Class -p Active -p State 2>/dev/null) || continue
+    type=$(sed -n 's/^Type=//p' <<<"$props"); class=$(sed -n 's/^Class=//p' <<<"$props")
+    [[ $class == user ]] || continue
+    [[ $type == wayland || $type == x11 ]] || continue
+    active=$(sed -n 's/^Active=//p' <<<"$props"); state=$(sed -n 's/^State=//p' <<<"$props")
+    present=true
+    if [[ -z $chosen || $active == yes ]]; then
+      chosen=$id
+      is_active=false; [[ $active == yes && ($state == active || $state == online) ]] && is_active=true
+    fi
+    [[ $active == yes ]] && break
+  done
+  if [[ $present == true ]]; then
+    case "$(st_as_user "$uid" omarchy-shell lock isLocked 2>/dev/null | tr '[:upper:]' '[:lower:]')" in
+      true) locked=true ;;
+    esac
+  fi
+  echo "$present $is_active $locked $chosen"
+}
+
+st_notify() {
+  # $1 uid, $2 title, $3 body, $4 urgency, $5 the id of the notification to
+  # replace (empty for a new one). Prints the id the server gave, so the
+  # caller can hand it back next time: one warning on screen, not a stack.
+  local uid=$1 title=$2 body=$3 urgency=${4:-normal} replaces=${5:-}
+  local args=(omarchy-notification-send -p --app-name "Screen Time" -u "$urgency")
+  [[ $replaces =~ ^[0-9]+$ ]] && args+=(-r "$replaces")
+  st_as_user "$uid" "${args[@]}" "$title" "$body" 2>/dev/null | tr -dc '0-9' || true
+}
+
+st_lock_session() {
+  # $1 uid, $2 session id. Prints how it was done, or nothing on failure.
+  # The shell's own lock, and nothing else: logind's lock signal is not
+  # something the Quattro shell acts on, so `loginctl lock-session` succeeds
+  # and locks nothing, and reporting that as a lock would hand a frozen or
+  # killed shell an unlocked session for the unlock grace, over and over.
+  # A lock that did not take is reported as exactly that; the daemon retries
+  # and, when the shell keeps not answering, ends the session instead.
+  # OMARCHY_SCREEN_TIME_LOCK_COMMAND replaces the whole thing for the tests,
+  # which must prove the lock path without locking the tester out.
+  local uid=$1 sid=$2
+  if [[ -n ${OMARCHY_SCREEN_TIME_LOCK_COMMAND:-} ]]; then
+    "$OMARCHY_SCREEN_TIME_LOCK_COMMAND" "$uid" "$sid" && echo "$OMARCHY_SCREEN_TIME_LOCK_COMMAND"
+    return
+  fi
+  if st_as_user "$uid" omarchy-shell lock lock >/dev/null 2>&1; then
+    echo "omarchy-shell lock"
+  fi
+}
+
+st_terminate_session() {
+  # $1 uid, $2 session id. The lock the account cannot dodge: root ends the
+  # session, which no process of the account's can prevent or fake. Reached
+  # only after the shell has failed to lock several times in a row, so a
+  # healthy machine never gets here. Prints how it was done, or nothing.
+  #
+  # The compositor goes first, the way a logout ends a session: SDDM's helper
+  # then exits cleanly and the login screen comes back. `loginctl
+  # terminate-session` kills that helper along with everything else, and SDDM
+  # shows nothing afterwards, so it is only the fallback for a session with no
+  # compositor to speak of.
+  local uid=$1 sid=$2
+  if [[ -n ${OMARCHY_SCREEN_TIME_TERMINATE_COMMAND:-} ]]; then
+    "$OMARCHY_SCREEN_TIME_TERMINATE_COMMAND" "$uid" "$sid" && echo "$OMARCHY_SCREEN_TIME_TERMINATE_COMMAND"
+    return
+  fi
+  # Never from a test run as a plain user: that would be the tester's own
+  # compositor.
+  ((EUID == 0)) || return 0
+  if pkill -TERM -u "$uid" -x Hyprland 2>/dev/null; then
+    sleep 3
+    pkill -KILL -u "$uid" -x Hyprland 2>/dev/null || true
+    echo "ending the compositor"
+    return
+  fi
+  [[ -n $sid ]] && loginctl terminate-session "$sid" 2>/dev/null && echo "loginctl terminate-session"
+}
+
+st_poke_daemon() {
+  # Ask the daemon to publish now rather than at its next tick. The pid file
+  # is root's, but a pid can be reused after a crash, so the signal goes only
+  # to a process that is actually the daemon.
+  local pid
+  pid=$(cat "$ST_RUN/pid" 2>/dev/null) || return 0
+  [[ $pid =~ ^[0-9]+$ ]] || return 0
+  grep -q omarchy-screen-timed "/proc/$pid/cmdline" 2>/dev/null || return 0
+  kill -USR1 "$pid" 2>/dev/null || true
+}

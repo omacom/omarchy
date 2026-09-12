@@ -1,0 +1,39 @@
+[Unit]
+Description=Omarchy screen time: daily limits for the accounts in its roster
+After=systemd-logind.service
+Wants=systemd-logind.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-screen-timed
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=10
+# Root, because the point is that the account being limited cannot stop it.
+# It still has to reach the account's desktop (notify-send, the shell's lock
+# state) through /run/user/<uid>, so the sandbox stays modest on purpose.
+PrivateTmp=yes
+ProtectSystem=strict
+# The daemon only ever reads its config under /etc; the PIN and the profiles
+# are written by omarchy-parent and omarchy-screen-time-ctl, which run through
+# sudo outside this sandbox. So /etc stays read-only in here, and a daemon
+# that is somehow talked into misbehaving cannot rewrite the PIN.
+ReadWritePaths=/var/lib/omarchy-screen-time /run/omarchy-screen-time
+RuntimeDirectory=omarchy-screen-time
+RuntimeDirectoryMode=0755
+StateDirectory=omarchy-screen-time
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

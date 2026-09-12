@@ -1,0 +1,271 @@
+#!/bin/bash
+
+# omarchy:summary=Daily screen time limits: on/off, the PIN, and which accounts are limited
+# omarchy:args=<on|off|status|add|remove|pin|grant|config> ...
+# omarchy:examples=sudo omarchy-parent screen-time on | sudo omarchy-parent screen-time add kid | sudo omarchy-parent screen-time pin set
+# omarchy:requires-sudo=true
+
+# The parent's side of screen time, reached as `sudo omarchy-parent screen-time`.
+# Everything here is root's on purpose: which accounts are limited, whether the
+# daemon runs, and the PIN that opens the parent drawer in the bar. Setting the
+# first PIN lives here rather than in the panel, so whoever opens the panel
+# first cannot claim it; forgetting it is a `pin reset` away, because root can
+# edit the config anyway and asking the old PIN of root would be a lock on the
+# inside of an open door. Day-to-day grants stay with the PIN in the bar.
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-parent screen-time on
+       omarchy-parent screen-time off
+       omarchy-parent screen-time status
+       omarchy-parent screen-time add NAME [--profile PROFILE]
+       omarchy-parent screen-time remove NAME
+       omarchy-parent screen-time pin <set|reset>
+       omarchy-parent screen-time grant NAME MINUTES
+       omarchy-parent screen-time config <get|set FILE>
+
+on/off    Start or stop the daemon that counts, warns and locks. Off keeps
+          the profiles, the roster and the history; on a child install the
+          install turns it on.
+status    The daemon, the roster with each account's profile, and what is
+          left today for each.
+add       Put an account under a profile (the active one unless --profile
+          says otherwise) and let it talk to the daemon. remove undoes it.
+pin       set asks for a new PIN twice, replacing any old one; reset removes
+          it, after which the panel asks a parent to set one.
+grant     Hand out (or with a negative number take away) minutes from the
+          terminal, without the PIN.
+config    The profiles as JSON, to read or to replace wholesale. The roster
+          and the PIN are managed by add, remove and pin, not here.
+USAGE
+}
+
+fail() {
+  echo "omarchy-parent screen-time: $*" >&2
+  exit 1
+}
+
+case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
+  "") usage >&2; exit 1 ;;
+esac
+
+if ((EUID != 0)); then
+  exec sudo "$0" "$@"
+fi
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+source "$OMARCHY_PATH/install/helpers/parent.sh"
+source omarchy-screen-time-lib
+
+UNIT=omarchy-screen-time.service
+
+# The child install's starting point: an hour on school days, ninety minutes
+# at the weekend, bedtime on, nothing to earn and no agreement until a parent
+# switches them on. Written only when there is no config yet.
+seed_config() {
+  [[ -f $ST_CONFIG ]] && return 0
+  st_jq -n '
+    default_config |
+    .active_profile = "kids" |
+    .profiles = {kids: (default_profile | .name = "Kids" | .blocked_periods[0].enabled = true)}' | st_save_config
+}
+
+ensure_group() {
+  getent group "$ST_GROUP" >/dev/null || groupadd --system "$ST_GROUP"
+}
+
+document_conf() {
+  conf_document screen_time off \
+    "Screen time: whether the daily limit daemon runs. on/off are what" \
+    "\`sudo omarchy-parent screen-time on|off\` set; the roster, the PIN and" \
+    "the profiles live in /etc/omarchy-screen-time/config.json."
+}
+
+account_exists() { getent passwd "$1" >/dev/null; }
+valid_name() { [[ $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
+
+edit_config() {
+  # $1: a jq filter over the current config. Saves the result, sanitized.
+  local filter=$1
+  NEW=$(st_config | st_jq "$filter")
+  st_with_lock save_new
+}
+save_new() { printf '%s' "$NEW" | st_save_config; }
+
+read_pin_twice() {
+  # On a terminal: asked twice, without echo. Piped: one line, for the tests
+  # and for provisioning.
+  local first again
+  if [[ -t 0 ]]; then
+    read -rs -p "new PIN (4 to 12 digits): " first </dev/tty; echo >&2
+    st_pin_valid_shape "$first" || fail "a PIN is 4 to 12 digits"
+    read -rs -p "once more: " again </dev/tty; echo >&2
+    [[ $first == "$again" ]] || fail "the two entries do not match"
+  else
+    IFS= read -r first || first=""
+    st_pin_valid_shape "$first" || fail "a PIN is 4 to 12 digits"
+  fi
+  printf '%s' "$first"
+}
+
+cmd_on() {
+  ensure_group
+  seed_config
+  document_conf
+  st_private_dir "$ST_ETC" 0700
+  st_private_dir "$ST_STATE" 0700
+  systemctl enable --now "$UNIT" >/dev/null
+  conf_set screen_time on
+  echo "screen time is on: $(systemctl is-active "$UNIT")"
+  if [[ -z $(st_managed_users) ]]; then
+    echo "no account is limited yet: sudo omarchy-parent screen-time add NAME"
+  fi
+  if [[ $(st_config | jq '.pin != null') != true ]]; then
+    echo "no PIN yet: sudo omarchy-parent screen-time pin set"
+  fi
+}
+
+cmd_off() {
+  systemctl disable --now "$UNIT" >/dev/null 2>&1 || true
+  document_conf
+  conf_set screen_time off
+  rm -rf "$ST_RUN"
+  echo "screen time is off. The profiles, the roster and the history remain in $ST_ETC and $ST_STATE."
+}
+
+cmd_status() {
+  local active
+  active=$(systemctl is-active "$UNIT" 2>/dev/null || true)
+  echo "daemon:   ${active:-inactive}"
+  echo "pin:      $(st_config | jq -r 'if .pin == null then "not set" else "set" end')"
+  echo "profiles: $(st_config | jq -r '[.profiles | to_entries[] | "\(.key) (\(.value.name))"] | join(", ")')"
+  local user uid status
+  st_config | jq -r '.users | to_entries[] | "\(.key)\t\(.value.profile)"' | while IFS=$'\t' read -r user profile; do
+    uid=$(st_uid_of "$user" || true)
+    if [[ -z $uid ]]; then
+      echo "account:  $user -> $profile (no such account on this machine)"
+      continue
+    fi
+    if [[ -r $ST_RUN/$uid/status.json ]]; then
+      status=$(jq -r '"\(.phase), \(.remaining_seconds / 60 | floor) min left of \((.budget_seconds + .granted_seconds + .earned_seconds) / 60 | floor)"' "$ST_RUN/$uid/status.json")
+    else
+      status="no status yet"
+    fi
+    echo "account:  $user -> $profile: $status"
+  done
+}
+
+cmd_add() {
+  local name=${1:-} profile=""
+  shift || true
+  while (($#)); do
+    case $1 in
+      --profile) profile=${2:-}; shift 2 ;;
+      *) fail "unknown option $1" ;;
+    esac
+  done
+  [[ -n $name ]] || { usage >&2; exit 1; }
+  valid_name "$name" || fail "$name is not a valid account name"
+  account_exists "$name" || fail "no account named $name"
+  ensure_group
+  seed_config
+  if [[ -n $profile ]]; then
+    st_config | jq -e --arg p "$profile" '.profiles | has($p)' >/dev/null || fail "no profile named $profile"
+  fi
+  NAME=$name P=${profile:-} edit_config '.users[$ENV.NAME] = {profile: (if $ENV.P == "" then .active_profile else $ENV.P end)}'
+  usermod -aG "$ST_GROUP" "$name"
+  echo "$name is limited under profile $(st_config | jq -r --arg n "$name" '.users[$n].profile')"
+  if [[ $(systemctl is-active "$UNIT" 2>/dev/null || true) != active ]]; then
+    echo "the daemon is not running: sudo omarchy-parent screen-time on"
+  fi
+}
+
+cmd_remove() {
+  local name=${1:-}
+  [[ -n $name ]] || { usage >&2; exit 1; }
+  valid_name "$name" || fail "$name is not a valid account name"
+  NAME=$name edit_config 'del(.users[$ENV.NAME])'
+  gpasswd -d "$name" "$ST_GROUP" >/dev/null 2>&1 || true
+  local uid
+  uid=$(st_uid_of "$name" || true)
+  [[ -n $uid ]] && rm -rf "$ST_RUN/$uid"
+  echo "$name is no longer limited. Their history remains in $ST_STATE/users."
+}
+
+cmd_pin() {
+  case ${1:-} in
+    set)
+      seed_config
+      local pin hash
+      pin=$(read_pin_twice)
+      hash=$(printf '%s' "$pin" | st_pin_hash)
+      H=$hash edit_config '.pin = {algo: "sha512crypt", hash: $ENV.H}'
+      echo "the PIN is set"
+      ;;
+    reset)
+      edit_config '.pin = null'
+      rm -f "$ST_STATE"/users/*/pin.json
+      echo "the PIN is removed. The panel will ask a parent to set a new one: sudo omarchy-parent screen-time pin set"
+      ;;
+    *) usage >&2; exit 1 ;;
+  esac
+}
+
+cmd_grant() {
+  local name=${1:-} minutes=${2:-}
+  [[ -n $name && -n $minutes ]] || { usage >&2; exit 1; }
+  valid_name "$name" || fail "$name is not a valid account name"
+  [[ $minutes =~ ^-?[0-9]{1,3}$ ]] && ((minutes >= -600 && minutes <= 600)) || fail "minutes is a number between -600 and 600"
+  local uid config pf key profile now daykey budget
+  uid=$(st_uid_of "$name") || fail "no account named $name"
+  config=$(st_config)
+  jq -e --arg u "$name" '.users | has($u)' <<<"$config" >/dev/null || fail "$name is not limited"
+  pf=$(st_jq --arg u "$name" 'profile_for($u)' <<<"$config")
+  key=$(jq -r .key <<<"$pf"); profile=$(jq -c .profile <<<"$pf")
+  now=$(st_now); daykey=$(st_day_key "$now")
+  budget=$(jq --arg d "$(st_weekday_key "$now")" '.budget_minutes[$d] * 60' <<<"$profile")
+  grant_day() {
+    local day rt
+    day=$(st_load_day "$uid" "$daykey" "$budget" "$key" | st_jq --argjson m "$minutes" --argjson now "$now" '
+      .granted_seconds += $m * 60 | .ledger += [{t: $now, kind: "grant", seconds: ($m * 60), meta: {by: "parent", via: "terminal"}}]')
+    rt=$(st_load_runtime "$uid" | jq --argjson left "$(st_jq 'day_remaining' <<<"$day")" '
+      if $left > 0 then .blocked_since = null | .lock_after = null | .lock_count = 0 | .last_lock_ok = false | .lock_failures = 0 else . end')
+    printf '%s' "$day" | st_save_day "$uid"
+    printf '%s' "$rt" | st_save_runtime "$uid"
+    st_status_json "$uid" "$name" "$now" "$key" "$profile" "$day" "$rt" "$(jq '.pin != null' <<<"$config")" | st_publish "$uid" status.json
+    st_poke_daemon
+    echo "$name: $(st_human_time "$(st_jq '[day_remaining, 0] | max' <<<"$day")") left today"
+  }
+  st_with_lock grant_day
+}
+
+cmd_config() {
+  case ${1:-} in
+    get) st_config | jq 'del(.pin) + {pin_set: (.pin != null)}' ;;
+    set)
+      local src=${2:-} incoming
+      [[ -n $src ]] || { usage >&2; exit 1; }
+      if [[ $src == - ]]; then incoming=$(cat); else incoming=$(cat "$src"); fi
+      jq -e 'type == "object"' <<<"$incoming" >/dev/null 2>&1 || fail "that is not a JSON object"
+      INCOMING=$incoming edit_config '($ENV.INCOMING | fromjson) + {users, pin}'
+      st_poke_daemon
+      echo "the profiles are replaced"
+      ;;
+    *) usage >&2; exit 1 ;;
+  esac
+}
+
+cmd=$1; shift
+case $cmd in
+  on) cmd_on ;;
+  off) cmd_off ;;
+  status) cmd_status ;;
+  add) cmd_add "$@" ;;
+  remove) cmd_remove "$@" ;;
+  pin) cmd_pin "$@" ;;
+  grant) cmd_grant "$@" ;;
+  config) cmd_config "$@" ;;
+  *) echo "Unknown command: $cmd" >&2; usage >&2; exit 1 ;;
+esac

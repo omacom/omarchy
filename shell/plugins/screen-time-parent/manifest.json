@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.screen-time-parent",
+  "name": "Screen Time (parent)",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "The parent's side of screen time: the PIN, handing out minutes, pausing, and the settings window. An authentication service, kept outside the plugin-reachable scene like the lock screen and the polkit agent.",
+  "omarchy": {
+    "capabilities": ["authentication"]
+  },
+  "kinds": ["service"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

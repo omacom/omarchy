@@ -1,0 +1,229 @@
+#!/bin/bash
+
+# omarchy:summary=Screen time for this account: what is left, and the parent's controls
+# omarchy:args=[--human] [--pin-stdin] <status|watch|history|quiz|answer|grant|pause|resume|lock|config|pin|reflect|forget> [args]
+# omarchy:examples=omarchy-screen-time status --human
+# omarchy:examples=omarchy-screen-time grant 15
+# omarchy:examples=omarchy-screen-time config patch '{"profiles":{"kids":{"budget_minutes":{"sat":120}}}}'
+
+# The account's side of screen time. Reading is a file: the daemon publishes
+# status.json and history.json under /run/omarchy-screen-time/<uid>/ and this
+# prints them. Changing anything goes through sudo to omarchy-screen-time-ctl,
+# which the omarchy-screen-time group may run without a password and which
+# acts on the calling account only. Prints JSON, because the widget reads it
+# too; --human prints a summary instead.
+#
+# The PIN is never an argument. It is read from stdin (--pin-stdin, or when
+# stdin is not a terminal) or asked for without echo.
+set -uo pipefail
+
+source omarchy-screen-time-lib
+
+# The package path, spelled the way etc/sudoers.d/omarchy-screen-time spells
+# it: sudo matches the command by that exact path, so a dev-linked checkout
+# still reaches the packaged control command rather than being refused.
+CTL=/usr/bin/omarchy-screen-time-ctl
+
+human=0
+pin_stdin=0
+args=()
+for arg in "$@"; do
+  case $arg in
+    --human) human=1 ;;
+    --pin-stdin) pin_stdin=1 ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- "${args[@]}"
+
+uid=$(id -u)
+run_dir="$ST_RUN/$uid"
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: omarchy-screen-time [--human] [--pin-stdin] <command> [args]
+
+  status                what is left today, the phase, the profile
+  watch                 status again on every change, one JSON line each
+  history               the last two weeks, budget and spent per day
+  quiz                  a math problem that buys minutes (--keep-going for more)
+  answer <id> <answer>  answer one
+  reflect <words...>    a note of your own, in agreement mode
+  forget <t>            take a note back
+
+Parent, asks for the PIN:
+  grant <minutes>       add (or with a negative number, take away) minutes
+  pause | resume        stop or restart the clock
+  lock                  lock the screen now
+  config get            the profiles and the roster
+  config set <file|->   replace the profiles (roster and PIN stay)
+  config patch <json>   change part of it
+  pin change            a new PIN, asked twice, after the current one
+
+Setting the first PIN and managing accounts is the parent's:
+  sudo omarchy-parent screen-time
+EOF
+  exit 2
+}
+
+emit() {
+  # $1: JSON. Prints it (or the human version) and exits with its ok.
+  local payload=$1
+  if ((human)); then
+    human_text "$payload"
+  else
+    printf '%s\n' "$payload"
+  fi
+  [[ $(jq -r '.ok' <<<"$payload") == true ]] && exit 0
+  exit 1
+}
+
+clock() { printf '%d:%02d:%02d' $(($1 / 3600)) $(($1 % 3600 / 60)) $(($1 % 60)); }
+
+human_text() {
+  local p=$1
+  if [[ $(jq -r .ok <<<"$p") != true ]]; then
+    echo "error: $(jq -r '.error' <<<"$p")"
+    return
+  fi
+  if ! jq -e 'has("remaining_seconds")' <<<"$p" >/dev/null; then
+    jq . <<<"$p"
+    return
+  fi
+  local r b e g s
+  r=$(jq -r .remaining_seconds <<<"$p"); b=$(jq -r .budget_seconds <<<"$p")
+  e=$(jq -r .earned_seconds <<<"$p"); g=$(jq -r .granted_seconds <<<"$p"); s=$(jq -r .spent_seconds <<<"$p")
+  echo "$(jq -r .profile_name <<<"$p") ($(jq -r .user <<<"$p")) on $(jq -r .day <<<"$p")"
+  echo "  left        $(clock "$r")   [$(jq -r .phase <<<"$p")]"
+  echo "  budget      $(clock "$b")  earned $(clock "$e")  granted $(clock "$g")"
+  echo "  spent       $(clock "$s")"
+  local lock_in
+  lock_in=$(jq -r '.lock_in_seconds // empty' <<<"$p")
+  [[ -n $lock_in ]] && echo "  lock in     ${lock_in}s"
+  if [[ $(jq -r .earn.enabled <<<"$p") == true ]]; then
+    echo "  earning     $(clock "$(jq -r .earn.room_seconds <<<"$p")") of $(clock "$(jq -r .earn.cap_seconds <<<"$p")") left, $(jq -r .earn.seconds_per_correct <<<"$p")s per correct answer"
+  fi
+}
+
+read_status() {
+  if [[ ! -d $ST_RUN ]]; then
+    echo '{"ok":false,"error":"not_running"}'
+  elif [[ ! -r $run_dir/status.json ]]; then
+    echo '{"ok":false,"error":"not_managed"}'
+  else
+    cat "$run_dir/status.json"
+  fi
+}
+
+ask_pin() {
+  # One line on stdout: the PIN. Silent on a terminal.
+  local pin
+  if ((pin_stdin)) || [[ ! -t 0 ]]; then
+    IFS= read -r pin
+  else
+    read -rs -p "PIN: " pin </dev/tty; echo >&2
+  fi
+  printf '%s\n' "$pin"
+}
+
+ctl() {
+  # Run the privileged side. Stdin is passed through: the PIN line first for
+  # a parent command, then whatever the command reads after it. The tests
+  # call ctl directly with a caller set; everything else goes through sudo.
+  local out rc
+  if [[ -n ${OMARCHY_SCREEN_TIME_RUN:-} && -n ${OMARCHY_SCREEN_TIME_CALLER:-} ]]; then
+    out=$("$(dirname "${BASH_SOURCE[0]}")/omarchy-screen-time-ctl" "$@"); rc=$?
+  else
+    out=$(sudo -n "$CTL" "$@" 2>/dev/null); rc=$?
+  fi
+  # sudo refusing (an account outside the group) prints nothing on stdout;
+  # the caller gets a reason instead of an empty line.
+  [[ -n $out ]] || out='{"ok":false,"error":"not_permitted"}'
+  printf '%s\n' "$out"
+  return "$rc"
+}
+
+with_pin() {
+  # A parent command: the PIN line and nothing after it. The widget keeps
+  # the process's stdin open after writing the PIN, so reading on for a
+  # payload that is not coming would wait forever; the two commands that
+  # do take one (config set, config patch) build their own stdin.
+  ask_pin | ctl "$@"
+}
+
+cmd=${1:-}; shift || true
+case $cmd in
+  status) emit "$(read_status)" ;;
+  ping)
+    running=false; [[ -f $ST_RUN/pid ]] && kill -0 "$(cat "$ST_RUN/pid")" 2>/dev/null && running=true
+    emit "{\"ok\":true,\"running\":$running}" ;;
+  history)
+    if [[ -r $run_dir/history.json ]]; then
+      emit "$(jq -c '{ok: true, days: .}' "$run_dir/history.json")"
+    else
+      emit "$(read_status | jq -c 'if .ok then {ok: true, days: []} else . end')"
+    fi ;;
+  watch)
+    read_status
+    [[ -d $run_dir ]] || exit 1
+    inotifywait -m -q -e close_write -e moved_to --format '%f' "$run_dir" 2>/dev/null \
+      | while IFS= read -r name; do
+          [[ $name == status.json ]] && cat "$run_dir/status.json"
+        done ;;
+  quiz)
+    keep=0; [[ ${1:-} == --keep-going ]] && keep=1
+    while :; do
+      response=$(ctl quiz next) || { emit "$response"; exit 1; }
+      ((human)) || { emit "$response"; exit; }
+      text=$(jq -r .question.text <<<"$response"); id=$(jq -r .question.id <<<"$response")
+      read -r -p "$text = " given </dev/tty || { echo; exit 0; }
+      verdict=$(ctl quiz answer "$id" "$given")
+      case $(jq -r '.error // ""' <<<"$verdict") in
+        too_fast) echo "  too fast, wait another $(jq -r .wait_seconds <<<"$verdict")s"; continue ;;
+        "") ;;
+        *) echo "  $(jq -r .error <<<"$verdict")"; continue ;;
+      esac
+      if [[ $(jq -r .correct <<<"$verdict") == true ]]; then
+        echo "  correct, +$(jq -r .reward_seconds <<<"$verdict")s   (left: $(clock "$(jq -r .remaining_seconds <<<"$verdict")"))"
+      else
+        echo "  wrong, it was $(jq -r .answer <<<"$verdict")"
+      fi
+      ((keep)) || exit 0
+    done ;;
+  answer) emit "$(ctl quiz answer "${1:-}" "${2:-}")" ;;
+  reflect) emit "$(ctl reflect "$@")" ;;
+  forget) emit "$(ctl forget "${1:-}")" ;;
+  grant) emit "$(with_pin grant "${1:-}")" ;;
+  pause | resume | lock) emit "$(with_pin "$cmd")" ;;
+  config)
+    case ${1:-} in
+      get) emit "$(with_pin config get)" ;;
+      set)
+        src=${2:-}; [[ -n $src ]] || usage
+        if [[ $src == - ]]; then
+          # The PIN and the config both come from stdin: PIN line first.
+          emit "$({ ask_pin; cat; } | ctl config set)"
+        else
+          [[ -r $src ]] || emit '{"ok":false,"error":"could_not_read_file"}'
+          emit "$({ ask_pin; cat "$src"; } | ctl config set)"
+        fi ;;
+      patch)
+        patch=${2:-}
+        jq -e 'type == "object"' <<<"$patch" >/dev/null 2>&1 || emit '{"ok":false,"error":"bad_json"}'
+        emit "$({ ask_pin; printf '%s' "$patch"; } | ctl config patch)" ;;
+      *) usage ;;
+    esac ;;
+  pin)
+    [[ ${1:-} == change ]] || usage
+    if ((pin_stdin)) || [[ ! -t 0 ]]; then
+      # Two lines: the current PIN, then the new one.
+      emit "$(ctl pin change)"
+    else
+      read -rs -p "current PIN: " current </dev/tty; echo >&2
+      read -rs -p "new PIN: " new_pin </dev/tty; echo >&2
+      read -rs -p "once more: " again </dev/tty; echo >&2
+      [[ $new_pin == "$again" ]] || emit '{"ok":false,"error":"the_two_entries_do_not_match"}'
+      emit "$(printf '%s\n%s\n' "$current" "$new_pin" | ctl pin change)"
+    fi ;;
+  *) usage ;;
+esac

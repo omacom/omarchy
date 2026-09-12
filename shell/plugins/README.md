@@ -36,6 +36,8 @@ User-installed plugins live alongside these conceptually but on disk under
 | Lock screen   | `omarchy.lock`            | `service`               | `lock/Service.qml`                    |
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
+| Screen time   | `omarchy.screen-time`     | `service`, `bar-widget`, `panel` | `panels/screen-time/Service.qml`, `panels/screen-time/BarWidget.qml`, `panels/screen-time/Countdown.qml` |
+| Screen time (parent) | `omarchy.screen-time-parent` | `service`         | `screen-time-parent/Service.qml`      |
 
 First-party bar-only widgets also carry manifests next to their QML files,
 e.g. `bar/widgets/Workspaces.manifest.json`. Rich popup widgets live in their
@@ -93,6 +95,30 @@ Theme-aware authentication dialog for privileged actions. It uses
 Quickshell's native `Quickshell.Services.Polkit.PolkitAgent` backend and
 runs inside the long-lived `omarchy-shell` process, replacing the old
 `polkit-gnome-authentication-agent-1` autostart.
+
+## Screen time
+
+The kid's view of the daily limit that a child install enforces (see the
+Security chapter of the manual). The enforcement is not here: a root
+daemon (`omarchy-screen-timed`) counts the day, warns and locks, and
+publishes a status file the plugin reads through the `omarchy-screen-time`
+client. `omarchy.screen-time` is the pill and its panel — the countdown,
+the day laid out, and the math problems that earn minutes — plus the
+`Countdown.qml` panel that surfaces the last minutes. Its `service`
+subscribes once to the client's `watch` stream so the pill and the panel
+show the same numbers.
+
+The parent's controls are a **separate** plugin, `omarchy.screen-time-parent`,
+declared with the `authentication` capability so the shell keeps it out of
+the object graph third-party plugins can traverse, exactly as it does for
+`omarchy.lock` and `omarchy.polkit`. It owns the PIN entry, the grant and
+pause buttons, and the settings window; the bar widget cannot reach it as a
+service and only asks the shell to summon its window
+(`omarchy-shell screen-time-parent open`). So a PIN is never a property on
+the panel that shares the scene with other widgets. First-party plugins name
+their status getter for themselves (`screenTime`, `statusService`) rather
+than `service`, because the shell's service loader assigns `service` into
+every plugin it creates and a computed, read-only `service` would throw.
 
 ## Omarchy menu
 

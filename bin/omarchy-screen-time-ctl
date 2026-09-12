@@ -1,0 +1,330 @@
+#!/bin/bash
+
+# omarchy:summary=Root side of the screen time client: every change a managed account may ask for
+# omarchy:hidden=true
+
+# Reached through `sudo -n omarchy-screen-time-ctl ...` by the accounts in the
+# omarchy-screen-time group (etc/sudoers.d/omarchy-screen-time). It acts only
+# on the account sudo says is calling, never on one named in an argument, and
+# every argument is checked against a pattern before jq sees it. The PIN comes
+# in on stdin and nowhere else: /proc/<pid>/cmdline is readable by everyone on
+# the machine, so a parent typing a PIN as an argument would be handing it to
+# anyone with a shell. Prints one JSON object and exits.
+#
+# The kid's own commands: quiz next, quiz answer, reflect, forget.
+# The parent's, behind the PIN: grant, pause, resume, lock, config, pin change.
+set -uo pipefail
+
+source omarchy-screen-time-lib
+
+reply() { printf '%s\n' "$1"; exit 0; }
+fail() { jq -nc --arg e "$1" '{ok: false, error: $e}' >&1; exit 1; }
+fail_with() { printf '%s\n' "$1"; exit 1; }
+
+if ((EUID != 0)) && [[ -z ${OMARCHY_SCREEN_TIME_RUN:-} ]]; then
+  fail not_root
+fi
+
+# Who is asking. sudo sets SUDO_UID; the tests set the caller themselves.
+caller_uid=${OMARCHY_SCREEN_TIME_CALLER:-${SUDO_UID:-}}
+[[ $caller_uid =~ ^[0-9]+$ ]] || fail no_caller
+user=$(st_user_of "$caller_uid") || fail no_caller
+uid=$caller_uid
+[[ -n $user ]] || fail no_caller
+
+config=$(st_config)
+jq -e --arg u "$user" '.users | has($u)' <<<"$config" >/dev/null || fail not_managed
+pf=$(st_jq --arg u "$user" 'profile_for($u)' <<<"$config")
+key=$(jq -r .key <<<"$pf"); profile=$(jq -c .profile <<<"$pf")
+now=$(st_now)
+daykey=$(st_day_key "$now")
+budget=$(jq --arg d "$(st_weekday_key "$now")" '.budget_minutes[$d] * 60' <<<"$profile")
+together=$(jq -r '.philosophy == "together"' <<<"$profile")
+pin_set=$(jq 'if .pin == null then false else true end' <<<"$config")
+
+# publish: rewrite status.json now rather than waiting up to a tick, and poke
+# the daemon so its own copy of the runtime catches up.
+publish() {
+  local day=$1 rt=$2
+  st_status_json "$uid" "$user" "$now" "$key" "$profile" "$day" "$rt" "$pin_set" | st_publish "$uid" status.json
+  st_poke_daemon
+}
+
+# the PIN ------------------------------------------------------------------
+
+check_pin() {
+  # Stdin's first line. Refuses with no_pin_set, pin_locked_out or bad_pin;
+  # a wrong one costs more each time, a right one clears the count.
+  local pin
+  IFS= read -r pin || pin=""
+  if [[ $pin_set != true ]]; then
+    # Agreement mode has nothing to gate: no budget, no grants, and an
+    # agreement meant to be written together. A household that did set a
+    # PIN keeps it, because the check below still runs.
+    [[ $together == true ]] && return 0
+    fail no_pin_set
+  fi
+  # Under the state lock, so a hundred guesses fired at once queue up behind
+  # each other and each one pays the wait the one before it earned, instead
+  # of all reading the same clean count before any of them writes.
+  st_with_lock check_pin_locked "$pin" || exit 1
+}
+
+check_pin_locked() {
+  local pin=$1 state failures blocked_until wait
+  state=$(st_load_pinstate "$uid")
+  failures=$(jq -r .failures <<<"$state"); blocked_until=$(jq -r .blocked_until <<<"$state")
+  if ((now < blocked_until)); then
+    fail_with "$(jq -nc --argjson w $((blocked_until - now)) '{ok: false, error: "pin_locked_out", retry_in_seconds: $w}')"
+  fi
+  if printf '%s' "$pin" | st_pin_verify "$(jq -r .pin.hash <<<"$config")"; then
+    jq -nc '{failures: 0, blocked_until: 0}' | st_save_pinstate "$uid"
+    return 0
+  fi
+  failures=$((failures + 1))
+  wait=$(st_pin_lockout "$failures")
+  jq -nc --argjson f "$failures" --argjson b $((now + wait)) '{failures: $f, blocked_until: $b}' | st_save_pinstate "$uid"
+  fail bad_pin
+}
+
+# days --------------------------------------------------------------------------
+
+with_day() {
+  # $1: a jq filter over {day, rt, stats, pending} producing the same plus a
+  # reply. Runs under the state lock, saves what changed, publishes, and
+  # prints the reply; a refusal is printed too and exits non-zero.
+  local filter=$1 out rc
+  out=$(st_with_lock edit_day "$filter"); rc=$?
+  printf '%s\n' "$out"
+  exit "$rc"
+}
+
+edit_day() {
+  local filter=$1 day rt result
+  day=$(st_load_day "$uid" "$daykey" "$budget" "$key")
+  rt=$(st_load_runtime "$uid")
+  result=$(st_jq -n --argjson day "$day" --argjson rt "$rt" --argjson now "$now" --argjson profile "$profile" \
+    --argjson stats "$(st_load_stats "$uid")" --argjson pending "$(st_load_pending "$uid")" "${EXTRA_ARGS[@]}" "
+    def clear_block: .rt.blocked_since = null | .rt.lock_after = null | .rt.lock_count = 0 | .rt.last_lock_ok = false | .rt.lock_failures = 0;
+    def earn_room: ([\$profile.earn.daily_cap_minutes * 60 - .day.earned_seconds, 0] | max);
+    {day: \$day, rt: \$rt, stats: \$stats, pending: \$pending} | $filter") || fail internal
+  if [[ $(jq -r '.reply.ok' <<<"$result") != true ]]; then
+    jq -c .reply <<<"$result"
+    return 1
+  fi
+  jq -c .day <<<"$result" | st_save_day "$uid"
+  jq -c .rt <<<"$result" | st_save_runtime "$uid"
+  jq -c .stats <<<"$result" | st_save_stats "$uid"
+  jq -c .pending <<<"$result" | st_save_pending "$uid"
+  publish "$(jq -c .day <<<"$result")" "$(jq -c .rt <<<"$result")"
+  st_jq -c '.reply + {remaining_seconds: ([(.day | day_remaining), 0] | max)}' <<<"$result"
+}
+
+EXTRA_ARGS=()
+
+# the quiz -------------------------------------------------------------------------
+
+quiz_next() {
+  [[ $together == true ]] && fail earning_disabled
+  jq -e '.earn.enabled' <<<"$profile" >/dev/null || fail earning_disabled
+  # Randomness comes from the shell; jq has none. One seed for the pick.
+  EXTRA_ARGS=(--argjson seed "$((RANDOM * 32768 + RANDOM))" --arg id "$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')")
+  with_day '
+    def lcg: (. * 1103515245 + 12345) % 2147483648;
+    def sign: {add: "+", sub: "-", mul: "×", div: "÷"}[.];
+    def solve: if .op == "add" then .left + .right elif .op == "sub" then .left - .right elif .op == "mul" then .left * .right else (.left / .right | floor) end;
+    def key: "\(.op):\(.left):\(.right)";
+    earn_room as $room |
+    if $room <= 0 then .reply = {ok: false, error: "daily_cap_reached", cap_minutes: $profile.earn.daily_cap_minutes} else
+    ($profile.earn) as $e | ([$e.max_term, 100] | min) as $top |
+    ($seed | lcg) as $r1 | ($r1 | lcg) as $r2 |
+    ([ $e.ops[] as $op |
+       if $op == "mul" then ($e.tables[] as $a | range(1; 11) as $b | {op: $op, left: $a, right: $b})
+       elif $op == "div" then ($e.tables[] as $a | range(1; 11) as $b | {op: $op, left: ($a * $b), right: $b})
+       elif $op == "add" then (range(2; $top + 1) as $a | {op: $op, left: $a, right: (2 + (($r1 + $a * 7919) % ($top - 1)))})
+       else (range(2; $top + 1) as $a | {op: $op, left: $a, right: (1 + (($r2 + $a * 104729) % $a))}) end ]) as $all |
+    ($pending.last_key // null) as $last |
+    ([$all[] | select(key != $last)] | if length == 0 then $all else . end) as $pool |
+    ($pool | map(. as $c | ($stats[$c | key] // {}) as $s |
+        (($s.seen // 0) | if . < 0 then 0 else . end) as $seen | (($s.wrong // 0) | if . < 0 then 0 else . end) as $wrong |
+        1 + (if $e.drill_weak and $seen > 0 then (4 * $wrong / $seen) + (if ($s.last_wrong // 0) > $now - 86400 then 2 else 0 end) else 0 end))) as $weights |
+    ($weights | add) as $total |
+    ((($seed | lcg | lcg | lcg) % 1000000) / 1000000 * $total) as $pick |
+    (reduce range(0; $pool | length) as $i ({acc: 0, chosen: null}; if .chosen != null then . else (.acc += $weights[$i]) | if .acc > $pick then .chosen = $i else . end end) | .chosen // (($pool | length) - 1)) as $i |
+    ($pool[$i] | . + {answer: solve, text: "\(.left) \(.op | sign) \(.right)", id: $id, issued_at: $now}) as $q |
+    .pending = ($q + {last_key: ($q | key)}) |
+    .reply = {ok: true, earn_room_seconds: $room,
+      question: {id: $q.id, text: $q.text, op: $q.op, reward_seconds: ([$e.seconds_per_correct, $room] | min), timeout_seconds: $e.question_timeout_seconds}}
+    end'
+}
+
+quiz_answer() {
+  local id=$1 given=$2
+  [[ $id =~ ^[0-9a-f]{16}$ ]] || fail no_such_question
+  [[ $given =~ ^-?[0-9]{1,9}$ ]] || fail not_a_number
+  EXTRA_ARGS=(--arg id "$id" --argjson given "$given")
+  with_day '
+    ($profile.earn) as $e |
+    if $pending == null or $pending.id != $id then .reply = {ok: false, error: "no_such_question"}
+    else ($now - $pending.issued_at) as $elapsed |
+    if $elapsed > $e.question_timeout_seconds then .pending = null | .reply = {ok: false, error: "expired", text: $pending.text}
+    elif $elapsed < $e.min_answer_seconds then .reply = {ok: false, error: "too_fast", wait_seconds: ($e.min_answer_seconds - $elapsed)}
+    else ($given == $pending.answer) as $correct |
+      ($pending | "\(.op):\(.left):\(.right)") as $k |
+      .stats[$k] = (($stats[$k] // {seen: 0, wrong: 0}) | .seen += 1 | if $correct then . else .wrong += 1 | .last_wrong = $now end) |
+      (if $correct then ([$e.seconds_per_correct, earn_room] | min) else 0 end) as $reward |
+      (if $correct then
+         .day.correct_answers += 1 |
+         (if $reward > 0 then .day.earned_seconds += $reward | .day.ledger += [{t: $now, kind: "earn", seconds: $reward, meta: {q: $pending.text}}] else . end) |
+         (if (.day | day_remaining) > 0 then clear_block else . end)
+       else .day.ledger += [{t: $now, kind: "miss", meta: {q: $pending.text, given: $given, answer: $pending.answer}}] end) |
+      .pending = {last_key: $k} |
+      .reply = {ok: true, correct: $correct, text: $pending.text, answer: $pending.answer, given: $given,
+                seconds_taken: $elapsed, reward_seconds: $reward, earn_room_seconds: earn_room}
+    end end'
+}
+
+# the parent's commands ------------------------------------------------------------------
+
+grant() {
+  local minutes=$1
+  [[ $minutes =~ ^-?[0-9]{1,3}$ ]] && ((minutes >= -600 && minutes <= 600)) || fail bad_minutes
+  check_pin
+  EXTRA_ARGS=(--argjson minutes "$minutes")
+  with_day '
+    .day.granted_seconds += $minutes * 60 |
+    .day.ledger += [{t: $now, kind: "grant", seconds: ($minutes * 60), meta: {by: "parent"}}] |
+    (if (.day | day_remaining) > 0 then clear_block else . end) |
+    .reply = {ok: true, granted_seconds: .day.granted_seconds}'
+}
+
+set_paused() {
+  local value=$1
+  check_pin
+  EXTRA_ARGS=(--argjson value "$value")
+  with_day '
+    .rt.paused = $value |
+    .day.ledger += [{t: $now, kind: (if $value then "pause" else "resume" end), meta: {by: "parent"}}] |
+    (if $value then .rt.lock_after = null else . end) |
+    .reply = {ok: true, paused: $value}'
+}
+
+lock_now() {
+  check_pin
+  local rt sid via
+  rt=$(st_load_runtime "$uid")
+  sid=$(jq -r '.session.id // ""' <<<"$rt")
+  via=$(st_lock_session "$uid" "$sid")
+  EXTRA_ARGS=(--arg via "${via:-failed}")
+  with_day '
+    .day.ledger += [{t: $now, kind: "locked", meta: {reason: "parent", via: $via}}] |
+    .reply = {ok: ($via != "failed"), via: $via} | if .reply.ok then . else .reply.error = "lock_failed" end'
+}
+
+NEW_CONFIG=""
+save_new_config() { printf '%s' "$NEW_CONFIG" | st_save_config; }
+
+config_get() {
+  check_pin
+  jq -c 'del(.pin) + {ok: true, pin_set: (.pin != null)}' <<<"$config"
+}
+
+config_write() {
+  # $1 set|patch. Stdin after the PIN line: the JSON. The roster and the PIN
+  # are root's (omarchy-parent): whatever comes in, those two stay as they are.
+  #
+  # A patch is a partial change to the caller's OWN profile, so the settings
+  # window can flip one switch (philosophy, a budget, the earning knobs)
+  # without resending the whole config, and without knowing the profile's
+  # name. A set replaces the profiles wholesale.
+  local mode=$1 incoming merged
+  # A patch touches the caller's own profile, so agreement mode may let it
+  # through without a PIN (check_pin). A set replaces every profile on the
+  # machine, other accounts' included, and that stays behind a PIN.
+  [[ $mode == set && $pin_set != true ]] && fail no_pin_set
+  check_pin
+  incoming=$(cat)
+  jq -e 'type == "object"' <<<"$incoming" >/dev/null 2>&1 || fail bad_json
+  if [[ $mode == patch ]]; then
+    merged=$(st_jq --argjson p "$incoming" --arg key "$key" \
+      '.profiles[$key] = (.profiles[$key] // {} | deep_merge($p))' <<<"$config")
+  else
+    merged=$incoming
+  fi
+  merged=$(jq --argjson keep "$(jq -c '{users, pin}' <<<"$config")" '. + $keep' <<<"$merged")
+  NEW_CONFIG=$merged
+  st_with_lock save_new_config || fail save_failed
+  st_poke_daemon
+  jq -c 'del(.pin) + {pin_set: (.pin != null), ok: true}' <<<"$merged"
+}
+
+pin_change() {
+  # Stdin: the current PIN, then the new one. The first PIN is not set here:
+  # that is `sudo omarchy-parent screen-time pin set`, so whoever opens the
+  # panel first cannot claim it.
+  [[ $pin_set == true ]] || fail no_pin_set
+  check_pin
+  local new_pin hash
+  IFS= read -r new_pin || new_pin=""
+  st_pin_valid_shape "$new_pin" || fail pin_must_be_4_to_12_digits
+  hash=$(printf '%s' "$new_pin" | st_pin_hash)
+  NEW_CONFIG=$(jq --arg h "$hash" '.pin = {algo: "sha512crypt", hash: $h}' <<<"$config")
+  st_with_lock save_new_config || fail save_failed
+  jq -nc '{ok: true}'
+}
+
+# agreement mode ------------------------------------------------------------------------
+
+reflect() {
+  local text=$*
+  [[ $together == true ]] || fail not_in_agreement_mode
+  text=${text//$'\n'/ }
+  text=$(printf '%s' "$text" | head -c 280)
+  [[ -n ${text// /} ]] || fail empty_note
+  EXTRA_ARGS=(--arg text "$text")
+  with_day '
+    ([.day.ledger[] | select(.kind == "reflection")] | length) as $n |
+    if $n >= 20 then .reply = {ok: false, error: "too_many_notes"} else
+    .day.ledger += [{t: $now, kind: "reflection", meta: {text: $text}}] |
+    .reply = {ok: true, reflections: ([.day.ledger[] | select(.kind == "reflection") | {t, text: .meta.text}])} end'
+}
+
+forget() {
+  local t=$1
+  [[ $t =~ ^[0-9]+(\.[0-9]+)?$ ]] || fail no_such_note
+  EXTRA_ARGS=(--argjson t "$t")
+  with_day '
+    (.day.ledger | length) as $before |
+    .day.ledger |= map(select((.kind == "reflection" and ((.t | floor) == ($t | floor))) | not)) |
+    if (.day.ledger | length) == $before then .reply = {ok: false, error: "no_such_note"} else
+    .reply = {ok: true, reflections: ([.day.ledger[] | select(.kind == "reflection") | {t, text: .meta.text}])} end'
+}
+
+# dispatch ---------------------------------------------------------------------------------
+
+case "${1:-}" in
+  grant) grant "${2:-}" ;;
+  pause) set_paused true ;;
+  resume) set_paused false ;;
+  lock) lock_now ;;
+  config)
+    case "${2:-}" in
+      get) config_get ;;
+      set | patch) config_write "$2" ;;
+      *) fail unknown_command ;;
+    esac ;;
+  pin)
+    case "${2:-}" in
+      change) pin_change ;;
+      *) fail unknown_command ;;
+    esac ;;
+  quiz)
+    case "${2:-}" in
+      next) quiz_next ;;
+      answer) quiz_answer "${3:-}" "${4:-}" ;;
+      *) fail unknown_command ;;
+    esac ;;
+  reflect) shift; reflect "$@" ;;
+  forget) forget "${2:-}" ;;
+  *) fail unknown_command ;;
+esac

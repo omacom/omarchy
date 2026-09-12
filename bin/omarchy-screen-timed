@@ -1,0 +1,242 @@
+#!/bin/bash
+
+# omarchy:summary=The screen time daemon: counts, warns and locks for every account in its roster
+# omarchy:hidden=true
+
+# Runs as root from omarchy-screen-time.service. Every ST_TICK seconds it asks
+# logind and the shell what each managed account is doing, charges the time to
+# the day, warns as the budget runs down, and locks the session when it is gone.
+# The kid's side of the machine only ever reads what this writes under /run;
+# everything that changes a day comes in through omarchy-screen-time-ctl, which
+# takes the same lock this holds while it edits.
+#
+# Not `set -e`: one account's broken session must never stop the counting for
+# the others, and a daemon that is not running is unlimited screen time.
+set -uo pipefail
+
+source omarchy-screen-time-lib
+
+log() { echo "screen-time: $*" >&2; }
+
+if ((EUID != 0)) && [[ -z ${OMARCHY_SCREEN_TIME_RUN:-} ]]; then
+  log "must run as root"
+  exit 1
+fi
+
+TICK=${OMARCHY_SCREEN_TIME_TICK:-$ST_TICK}
+HISTORY_EVERY=12 # ticks between history.json rewrites, a minute at the default tick
+
+# What one tick does to one account, as a single jq program: everything is
+# arithmetic on the day and the runtime, and the only side effects come out as
+# a list of actions for the shell to perform. Input: the day, the runtime, the
+# profile, what logind said, the clock. Output: the new day, the new runtime,
+# the actions, and whether the day changed enough to be worth writing.
+read -r -d '' TICK_JQ <<'JQ' || true
+def blocking: [$profile.blocked_periods[] | select(.enabled and covers($moment; $wd; $ywd))] | .[0];
+def headline($reason):
+  if $reason == "empty" then "Today's screen time is used up."
+  elif (blocking.label // "Blocked") == "Blocked" then "The screen is blocked right now."
+  else "It is \(blocking.label | ascii_downcase)." end;
+def together: $profile.philosophy == "together";
+def reason: if together then null elif blocking != null then "bedtime" elif (.day | day_remaining) <= 0 then "empty" else null end;
+def earn_room: ([$profile.earn.daily_cap_minutes * 60 - .day.earned_seconds, 0] | max);
+def clear_block: .rt.blocked_since = null | .rt.lock_after = null | .rt.lock_count = 0 | .rt.last_lock_ok = false | .rt.lock_failures = 0;
+def record($kind; $meta): .day.ledger += [{t: $now, kind: $kind} + (if $meta == null then {} else {meta: $meta} end)];
+
+def warn:
+  # The first threshold not yet announced that the clock has passed. One per
+  # tick, so a big grant followed by a long idle does not fire three at once.
+  (.day | day_remaining) as $left |
+  (.day.warned // []) as $warned |
+  ([$profile.warn_minutes[] | select(. as $t | ($left <= $t * 60) and (($warned | index($t)) == null))] | .[0]) as $t |
+  if $t == null then . else
+    .day.warned += [$t] |
+    .actions += [{type: "notify", tag: "warn",
+      urgency: (if $t <= 5 then "critical" else "normal" end), title: "Screen Time",
+      body: ((if $t == 1 then "1 minute left." else "\($t) minutes left." end)
+             + (if $profile.earn.enabled and earn_room > 0 then " Earn more with math problems." else "" end))}]
+  end;
+
+def nudge:
+  # One nudge per unbroken stretch, and one note per day when the time
+  # passes what the family agreed on. Plain statements; nothing counts down.
+  ($profile.break_nudge_minutes) as $m |
+  (if $m > 0 and (.rt.nudged | not) and .rt.stretch >= $m * 60 then
+     .rt.nudged = true |
+     .actions += [{type: "notify", tag: "nudge", urgency: "normal", title: "Screen Time",
+       body: "You have been at it for \($m) minutes straight. A little break?"}]
+   else . end) |
+  ($profile.agreement_minutes) as $a |
+  if $a > 0 and (.day.agreement_noted | not) and .day.spent_seconds >= $a * 60 then
+    .day.agreement_noted = true |
+    .actions += [{type: "notify", tag: "agreement", urgency: "normal", title: "Screen Time",
+      body: "Your agreement is about \($a) minutes of screen time. You are at \(.day.spent_seconds / 60 | floor) minutes now."}]
+  else . end;
+
+def lock_delay:
+  # Three different waits. The first is the child being told to wrap up. A
+  # retry after a lock that did not take comes round quickly. A session
+  # unlocked again at zero was unlocked by somebody holding the account
+  # password, on a child machine the parent, so they get room to open the
+  # panel and hand out minutes instead of racing a countdown.
+  if .rt.lock_count == 0 then {delay: $profile.grace_seconds, kind: "first"}
+  elif (.rt.last_lock_ok | not) then {delay: $profile.relock_seconds, kind: "retry"}
+  else {delay: $profile.unlock_grace_seconds, kind: "after_unlock"} end;
+
+def enforce:
+  reason as $reason |
+  if $reason == null or .rt.paused then (if .rt.blocked_since != null then clear_block else . end)
+  else
+    (if .rt.blocked_since == null then
+       .rt.blocked_since = $now | record("blocked"; {reason: $reason}) |
+       (if $profile.on_empty == "notify" then
+          .actions += [{type: "notify", tag: "empty", urgency: "critical", title: "Time's up", body: headline($reason)}]
+        else . end)
+     else . end) |
+    if $profile.on_empty != "lock" then .
+    elif (.rt.session.present | not) then .
+    elif .rt.session.locked then .rt.lock_after = null
+    elif .rt.lock_after == null then
+      lock_delay as $d |
+      .rt.lock_after = $now + $d.delay |
+      .actions += [{type: "notify", tag: "empty", urgency: "critical", title: "Time's up",
+        body: "\(if $d.kind == "after_unlock" then "There is no time yet." else headline($reason) end) The screen locks in \($d.delay) seconds."}]
+    elif $now >= .rt.lock_after then
+      # A shell that keeps not locking (frozen, killed, replaced) is the one
+      # way round the lock the account has; after a few tries the session
+      # is ended by root instead, which no process of theirs can fake.
+      (if (.rt.lock_failures // 0) >= $lock_failures_max
+       then .actions += [{type: "terminate", reason: $reason}]
+       else .actions += [{type: "lock", reason: $reason}] end)
+    else . end
+  end;
+
+{day: $day, rt: ($rt | .session = $session | .day = $daykey), actions: []} |
+# A new day starts with no lock pending and no block remembered.
+(if $rt.day != $daykey then .rt.lock_after = null | .rt.lock_count = 0 | .rt.blocked_since = null else . end) |
+([$step, $tick * 4] | min) as $step |
+((.rt.session.present and .rt.session.active and (.rt.session.locked | not)) and (.rt.paused | not) and (reason == null)) as $counting |
+(if $counting then
+   .day.spent_seconds += $step | .rt.stretch += $step | .rt.rest_since = null |
+   (if together then nudge else warn end)
+ else
+   (if .rt.rest_since == null then .rt.rest_since = $now
+    elif $now - .rt.rest_since >= $rest_reset then .rt.stretch = 0 | .rt.nudged = false
+    else . end)
+ end) |
+enforce |
+.changed = (.day != $day)
+JQ
+
+tick_account() {
+  # $1 uid, $2 user, $3 config, $4 now, $5 elapsed seconds since the last tick
+  local uid=$1 user=$2 config=$3 now=$4 elapsed=$5
+  local pf key profile daykey budget day rt session result
+  pf=$(st_jq --arg u "$user" 'profile_for($u)' <<<"$config")
+  key=$(jq -r .key <<<"$pf"); profile=$(jq -c .profile <<<"$pf")
+  daykey=$(st_day_key "$now")
+  budget=$(jq --arg d "$(st_weekday_key "$now")" '.budget_minutes[$d] * 60' <<<"$profile")
+
+  read -r present active locked sid < <(st_session_info "$uid")
+  session=$(jq -nc --argjson p "$present" --argjson a "$active" --argjson l "$locked" --arg id "$sid" \
+    '{present: $p, active: $a, locked: $l, id: (if $id == "" then null else $id end)}')
+
+  day=$(st_load_day "$uid" "$daykey" "$budget" "$key")
+  rt=$(st_load_runtime "$uid")
+  result=$(st_jq -n --argjson day "$day" --argjson rt "$rt" --argjson profile "$profile" \
+    --argjson session "$session" --argjson now "$now" --argjson step "$elapsed" \
+    --argjson tick "$TICK" --argjson rest_reset "$ST_REST_RESET" --argjson lock_failures_max "$ST_LOCK_FAILURES_MAX" \
+    --arg moment "$(st_moment "$now")" --arg wd "$(st_weekday_key "$now")" --arg ywd "$(st_yesterday_key "$now")" \
+    --arg daykey "$daykey" "$TICK_JQ") || {
+    log "tick failed for $user"
+    return
+  }
+
+  local action type via tag nid
+  while IFS= read -r action; do
+    type=$(jq -r .type <<<"$action")
+    case $type in
+      notify)
+        # One notification per tag on screen: the id from last time is
+        # handed back so this one replaces it instead of stacking.
+        tag=$(jq -r .tag <<<"$action")
+        nid=$(st_notify "$uid" "$(jq -r .title <<<"$action")" "$(jq -r .body <<<"$action")" \
+          "$(jq -r .urgency <<<"$action")" "$(jq -r --arg t "$tag" '.rt.notify_ids[$t] // ""' <<<"$result")")
+        [[ -n $nid ]] && result=$(jq --arg t "$tag" --arg id "$nid" '.rt.notify_ids[$t] = $id' <<<"$result")
+        ;;
+      lock)
+        via=$(st_lock_session "$uid" "$sid")
+        log "locked $user ($(jq -r .reason <<<"$action")) via ${via:-nothing, failed}"
+        result=$(jq --arg via "${via:-failed}" --argjson now "$now" --argjson ok "$([[ -n $via ]] && echo true || echo false)" \
+          --arg reason "$(jq -r .reason <<<"$action")" '
+          .rt.lock_count += 1 | .rt.last_lock_ok = $ok | .rt.lock_after = null |
+          .rt.lock_failures = (if $ok then 0 else (.rt.lock_failures // 0) + 1 end) |
+          .day.ledger += [{t: $now, kind: "locked", meta: {reason: $reason, via: $via}}] | .changed = true' <<<"$result")
+        ;;
+      terminate)
+        via=$(st_terminate_session "$uid" "$sid")
+        log "ended the session of $user ($(jq -r .reason <<<"$action")) via ${via:-nothing, failed}"
+        result=$(jq --arg via "${via:-failed}" --argjson now "$now" --arg reason "$(jq -r .reason <<<"$action")" '
+          .rt.lock_failures = 0 | .rt.lock_after = null |
+          .day.ledger += [{t: $now, kind: "terminated", meta: {reason: $reason, via: $via}}] | .changed = true' <<<"$result")
+        ;;
+    esac
+  done < <(jq -c '.actions[]' <<<"$result")
+
+  if [[ $(jq -r .changed <<<"$result") == true ]]; then
+    jq -c .day <<<"$result" | st_save_day "$uid"
+  fi
+  jq -c .rt <<<"$result" | st_save_runtime "$uid"
+
+  st_status_json "$uid" "$user" "$now" "$key" "$profile" "$(jq -c .day <<<"$result")" \
+    "$(jq -c .rt <<<"$result")" "$(jq 'if .pin == null then false else true end' <<<"$config")" \
+    | st_publish "$uid" status.json
+  if ((tick_count % HISTORY_EVERY == 0)) || [[ $(jq -r .rt.day <<<"$rt") != "$daykey" ]]; then
+    st_history "$uid" | st_publish "$uid" history.json
+  fi
+}
+
+tick() {
+  local now uptime elapsed config user uid
+  now=$(st_now); uptime=$(st_uptime)
+  # Elapsed comes off the boot clock, not the wall clock: a wall clock that
+  # jumps (or is set back) must not hand out or take away time.
+  elapsed=$((uptime - prev_uptime)); prev_uptime=$uptime
+  ((elapsed < 0)) && elapsed=0
+  config=$(st_config)
+  while IFS= read -r user; do
+    [[ -n $user ]] || continue
+    uid=$(st_uid_of "$user")
+    [[ -n $uid ]] || continue
+    st_with_lock tick_account "$uid" "$user" "$config" "$now" "$elapsed"
+  done < <(jq -r '.users | keys[]' <<<"$config")
+  tick_count=$((tick_count + 1))
+}
+
+
+stopping=0
+poke=0
+on_term() { stopping=1; }
+on_poke() { poke=1; }
+trap on_term TERM INT
+trap on_poke USR1
+
+mkdir -p "$ST_RUN" && chmod 0755 "$ST_RUN"
+echo $$ >"$ST_RUN/pid"
+prev_uptime=$(st_uptime)
+tick_count=0
+log "starting, tick ${TICK}s"
+
+while ((stopping == 0)); do
+  tick
+  # Sleep in the background so a signal interrupts it: USR1 from ctl after a
+  # grant means "publish now", TERM means stop after this tick.
+  sleep "$TICK" &
+  sleep_pid=$!
+  wait "$sleep_pid" 2>/dev/null
+  kill "$sleep_pid" 2>/dev/null
+  wait "$sleep_pid" 2>/dev/null
+  poke=0
+done
+log "stopped"
+rm -f "$ST_RUN/pid"
