@@ -60,6 +60,10 @@ Reuse an existing id and you override that row instead of adding a new one. The 
 
 Omarchy ships with a bunch of ergonomic aliases and helpful functions, but it's very common to want to add your own. You should add both aliases, functions, and exports in `~/.bashrc`. This file will not be overwritten on updates. If you want to change any of the Omarchy defaults, you can also safely add them here.
 
+### Setting environment variables for the desktop
+
+Desktop session exports belong in `~/.config/uwsm/env.d/`. These files run before your desktop starts, so a shell error can send you back to the login screen. Keep a working terminal open while editing them. To disable an override, move it out of `env.d`; adding a `.bak` suffix does not disable it. See [login recovery](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen) if a change prevents login.
+
 ### Changing internal Omarchy files
 
 Look, this is your computer. You can do whatever you want with it, but I would advise against making changes to the files in `/usr/share/omarchy` directly. They belong to the Omarchy pacman package, so your changes will simply be overwritten on the next update. You're better off just overwriting any default values you don't like in the `~/.config/*` folder instead.
