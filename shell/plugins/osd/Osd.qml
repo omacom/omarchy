@@ -66,15 +66,8 @@ Item {
     icon = next.icon
     duration = next.duration
     opened = true
-    if (duration > 0) {
-      maxLifetimeTimer.stop()
-      hideTimer.restart()
-    } else {
-      // duration 0 means "caller closes me", but a lost close IPC must not
-      // leave the card on screen forever (launch feedback is the usual case).
-      hideTimer.stop()
-      maxLifetimeTimer.restart()
-    }
+    if (duration > 0) hideTimer.restart()
+    else hideTimer.stop()
   }
 
   function open(payloadJson) {
@@ -84,24 +77,12 @@ Item {
     } catch (e) {}
   }
 
-  function close() {
-    maxLifetimeTimer.stop()
-    hideTimer.stop()
-    opened = false
-  }
+  function close() { opened = false }
 
   Timer {
     id: hideTimer
     interval: root.duration
     onTriggered: root.opened = false
-  }
-
-  // Hard cap for sticky (duration 0) OSDs so a raced or dropped close cannot
-  // pin the card on screen.
-  Timer {
-    id: maxLifetimeTimer
-    interval: 30000
-    onTriggered: root.close()
   }
 
   TextMetrics {
