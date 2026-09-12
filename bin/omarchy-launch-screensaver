@@ -21,6 +21,23 @@ case $terminal in
   ;;
 esac
 
+# Ghostty freezes its GL surface after a large fullscreen resize on fractionally
+# scaled monitors (last pre-resize frame sticks; issue #10420). Foot is in the
+# base install and already has a screensaver config, so prefer it only for the
+# screensaver when any output is non-integer scale. Integer-scale Ghostty keeps
+# working and remains the default terminal everywhere else.
+monitors_have_fractional_scale() {
+  hyprctl monitors -j 2>/dev/null | jq -e '
+    any(.[]; (.scale | type == "number") and (.scale != (.scale | floor)))
+  ' >/dev/null 2>&1
+}
+
+if [[ $terminal == *ghostty* ]] && monitors_have_fractional_scale; then
+  if omarchy-cmd-present foot; then
+    terminal=foot
+  fi
+fi
+
 hypr_focus_monitor() {
   hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
 }
