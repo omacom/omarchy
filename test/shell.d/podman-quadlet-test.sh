@@ -67,6 +67,7 @@ generator=/usr/lib/systemd/system-generators/podman-system-generator
 if [[ -x $generator ]]; then
   QUADLET_UNIT_DIRS="$ROOT/default/podman/databases" "$generator" --user --dryrun >"$test_dir/generated" 2>"$test_dir/generator-log"
   [[ $(grep -c '^ExecStart=.*podman.* run ' "$test_dir/generated") == 6 ]] || fail "not all database units generated"
+  [[ $(grep -c '^ExecStart=.*podman --remote=false volume create ' "$test_dir/generated") == 6 ]] || fail "volume units may target a remote engine"
   [[ $(grep -c '^ExecStart=.*--replace=false.*--cidfile=' "$test_dir/generated") == 6 ]] || fail "container identity guard missing"
   [[ $(grep -c '^ExecStart=.*--publish 127.0.0.1:' "$test_dir/generated") == 6 ]] || fail "database exposed beyond localhost"
   ! grep -q '^After=podman-user-wait-network-online' "$test_dir/generated" || fail "database waits for an inactive network target"

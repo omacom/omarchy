@@ -2,4 +2,5 @@
 DefaultDependencies=false
 
 [Volume]
+GlobalArgs=--remote=false
 VolumeName=omarchy-db-mysql8-data
