@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Claude Code, Codex, and Fireworks usage, limits, and pace in a native Omarchy bar panel.",
+  "description": "Claude Code, Codex, Fireworks, and Pi/OMP usage in a native Omarchy bar panel, with limits or balance when available.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Agents",
-    "description": "One bar icon and one panel: rate-limit meters with pace, today, the last week, and the all-time model breakdown for every subscription.",
+    "description": "One bar icon and one panel: today, the last week, and the all-time model breakdown for every agent, with rate-limit meters when available.",
     "category": "AI",
     "aliases": ["agents", "model-usage"],
     "allowMultiple": false,
