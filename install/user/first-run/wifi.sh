@@ -3,9 +3,16 @@ notify_update() {
     --exec omarchy-launch-floating-terminal-with-presentation omarchy-update
 }
 
-notify_wifi() {
-  omarchy-notification-send -u critical -g 󰖩 "Setup Wi-Fi" "Click to configure the wireless network." \
-    --exec omarchy-shell shell toggle omarchy.network
+# Backgrounded: the launcher hands off through uwsm-app and does not
+# necessarily return until the terminal closes, and the update prompt below
+# must not wait on the user reading this.
+show_network_onboarding() {
+  omarchy-launch-floating-terminal-with-presentation omarchy-network-onboard &
+}
+
+notify_network() {
+  omarchy-notification-send -u critical -g 󰖩 "Set Up Network" "Click for this machine's MAC address and the terminal instructions." \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-network-onboard
 }
 
 announce_network() {
@@ -18,7 +25,12 @@ announce_network() {
   # -x takes that answer as it stands rather than waiting out the timeout, so
   # a laptop with nothing to connect to gets prompted immediately.
   if ! nm-online -q -x -t 30; then
-    notify_wifi
+    # Open the guide rather than the network panel. A network that gates on a
+    # registered MAC cannot be joined from the picker at all: the address has
+    # to be handed over and cleared first, and the picker has nowhere to show
+    # it. The toast stays as the way back in once the terminal is closed.
+    show_network_onboarding
+    notify_network
     # Nothing to update against until a link lands, so hold that prompt.
     nm-online -q -t 3600 || return
   fi

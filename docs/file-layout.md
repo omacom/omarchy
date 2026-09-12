@@ -289,8 +289,7 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
-- `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
-  `nm-online` so the update prompt only lands once there is a connection).
+- `install/user/first-run/wifi.sh` — network/update prompts (waits detached on `nm-online` so the update prompt only lands once there is a connection). When the session comes up with no link it opens `omarchy-network-onboard` in a floating terminal and leaves a toast that reopens it, rather than the network panel: a network that gates access on a registered MAC has to be handed that address before it can be joined at all.
 
 The entire sequence has one idempotency marker:
 `~/.local/state/omarchy/done/first-run-user`, managed by `omarchy-done`.
