@@ -13,7 +13,7 @@ description: >
 
 # Omarchy Skill
 
-Manage [Omarchy](https://omarchy.org/) Linux systems - a beautiful, modern, opinionated Arch Linux distribution with Hyprland.
+Manage [Omarchy](https://omarchy.org/) Linux systems - a beautiful, fun, agentic Arch Linux distribution with Hyprland.
 
 This skill is for end-user customization on installed systems.
 It is not for contributing to Omarchy source code.
@@ -278,7 +278,7 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 ## Example Requests
 
 - "Change my theme to catppuccin" -> `omarchy theme set catppuccin`
-- "Add a keybinding for Super+E to open file manager" -> Check existing bindings first, call `hl.unbind` if needed, then `o.bind` in `~/.config/hypr/bindings.lua`
+- "Add a keybinding for Super+E to open file manager" -> Check existing bindings first, then use `o.rebind` to replace one or `o.bind` to add one in `~/.config/hypr/bindings.lua`
 - "Configure my external monitor" -> Edit `~/.config/hypr/monitors.lua`
 - "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua`
 - "Turn on night light" -> `omarchy toggle nightlight` (for time-based schedules, edit `~/.config/hypr/hyprsunset.conf` profiles, then `omarchy restart hyprsunset`)
