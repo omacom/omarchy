@@ -77,7 +77,21 @@ function mergeMenuSources(defaultItems, userItems) {
       var prior = nextItems[entry.id] || {}
       var merged = {}
       for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      for (var k2 in entry) {
+        // User overrides only change fields they set. normalizeItem fills
+        // missing fields with defaults (icon: "", label: id, aliases: []
+        // etc.), which would otherwise wipe the builtin's icon/label when
+        // the user only overrides action. Preserve the prior value when the
+        // incoming value is the placeholder default.
+        if (prior.hasOwnProperty(k2)) {
+          var v = entry[k2]
+          var p = prior[k2]
+          if (k2 === "label" && v === entry.id && p !== entry.id) continue
+          if (k2 === "aliases" && Array.isArray(v) && v.length === 0 && Array.isArray(p) && p.length > 0) continue
+          if ((k2 === "icon" || k2 === "iconFont" || k2 === "title" || k2 === "target" || k2 === "description" || k2 === "action" || k2 === "provider" || k2 === "when" || k2 === "checked" || k2 === "disabled") && v === "" && p !== "") continue
+        }
+        merged[k2] = entry[k2]
+      }
       merged.id = entry.id
       nextItems[entry.id] = merged
     }
