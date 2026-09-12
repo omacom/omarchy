@@ -43,6 +43,8 @@ Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open
 
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
 
+When one manifest declares both a panel and a service, the panel may also declare a `service` property; the host injects the matching service singleton through the appropriate trusted host or capability-scoped facade.
+
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
 ## Installing a third-party plugin
