@@ -1,0 +1,52 @@
+#!/bin/bash
+
+CONF="$HOME/.config/omarchy/workspace-apps.conf"
+
+[[ -f "$CONF" ]] || exit 0
+
+launch_and_place() {
+    local ws="$1"
+    local cmd="$2"
+    local before
+    local after
+    local new_addr
+    local waited=0
+
+    before=$(hyprctl clients -j | jq -r '.[].address' | sort)
+
+    eval "$cmd" >/dev/null 2>&1 &
+
+    new_addr=""
+
+    while (( waited < 20 )); do
+        sleep 0.5
+        waited=$((waited + 1))
+
+        after=$(hyprctl clients -j | jq -r '.[].address' | sort)
+
+        new_addr=$(comm -13 \
+            <(printf '%s\n' "$before") \
+            <(printf '%s\n' "$after") |
+            head -n 1)
+
+        [[ -n "$new_addr" ]] && break
+    done
+
+    if [[ -n "$new_addr" ]]; then
+        hyprctl eval \
+            "hl.dispatch(hl.dsp.window.move({ workspace = \"$ws\", window = \"address:$new_addr\", follow = false }))" \
+            >/dev/null 2>&1
+    else
+        omarchy-notification-send -u low \
+            "Workspace apps: no window appeared for workspace $ws"
+    fi
+
+    sleep 0.1
+}
+
+while IFS=$'\t' read -r ws label cmd; do
+    [[ -z "$ws" ]] && continue
+    [[ -z "$cmd" ]] && continue
+
+    launch_and_place "$ws" "$cmd"
+done < "$CONF"
