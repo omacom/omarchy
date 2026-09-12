@@ -274,6 +274,8 @@ ShellRoot {
   }
 
   property var _services: ({})
+  property var _serviceLoads: ({})
+  property int _serviceLoadGeneration: 0
   property var _pluginShellApis: ({})
   property var _pluginShellApiDescriptors: ({})
   property var _pluginBarEntryShellApis: ({})
@@ -282,6 +284,10 @@ ShellRoot {
   property var _pluginAppLibraryApis: ({})
   property var _pluginBarStateApis: ({})
   property var _pluginFirstPartyServiceApis: ({})
+  // Keyed by raw manifest object (stable per scan generation); ensures every
+  // caller of publicPluginManifest for the same raw manifest gets back the
+  // identical scrubbed copy, not a fresh clone per call site.
+  property var _publicManifestCache: new WeakMap()
 
   Component {
     id: pluginShellApiComponent
@@ -316,10 +322,25 @@ ShellRoot {
   function publicPluginManifest(manifest) {
     if (!manifest) return null
     if (manifest.__isFirstParty) return manifest
+    // Reference-stable per raw manifest object: a third-party service plugin
+    // may want to compare its own injected manifest against pluginRegistry's
+    // exposed copy (e.g. to detect a stale registration surviving past a
+    // rescan). Two independently-JSON-cloned copies of the same raw manifest
+    // would never satisfy that by reference, even when nothing is actually
+    // stale - and QML's property system does not reliably preserve plain-JS-
+    // object identity for a `property var` value read back through a nested
+    // facade object either, so callers should not rely on reference equality
+    // at all. __registryRevision is a plain number - unaffected by that - and
+    // is pinned to whichever scan this raw manifest object was first seen in
+    // (memoization keeps every caller's clone, and its stamped revision, in
+    // sync for the same raw manifest).
+    if (_publicManifestCache.has(manifest)) return _publicManifestCache.get(manifest)
     var copy = JSON.parse(JSON.stringify(manifest))
     delete copy.__sourceDir
     delete copy.__isFirstParty
     delete copy.__hostCapabilities
+    copy.__registryRevision = shell.pluginRegistry ? shell.pluginRegistry.registryRevision : 0
+    _publicManifestCache.set(manifest, copy)
     return copy
   }
 
@@ -887,23 +908,72 @@ ShellRoot {
         && manifest.__hostCapabilities.indexOf("authentication") !== -1)
   }
 
-  function ensureService(pluginId) {
-    var key = String(pluginId)
-    if (_services[key]) return _services[key]
+  function _serviceManifest(key) {
+    if (pluginReloading) return null
     var manifest = pluginRegistry && pluginRegistry.installedPlugins
       ? pluginRegistry.installedPlugins[key] : null
-    if (!manifest) return null
+    if (!manifest || !pluginRegistry.isEnabled(key)) return null
     if (!Array.isArray(manifest.kinds) || manifest.kinds.indexOf("service") === -1) return null
     if (!manifest.entryPoints || !manifest.entryPoints.service) return null
+    return manifest
+  }
+
+  function _serviceLoadCurrent(key, load) {
+    return !load.done && _serviceLoads[key] === load
+      && load.generation === _serviceLoadGeneration && !_services[key]
+      && _serviceManifest(key) === load.manifest
+      && pluginRegistry.entryPointUrl(load.manifest, "service") === load.url
+  }
+
+  function _releaseServiceLoad(key, load) {
+    load.done = true
+    if (_serviceLoads[key] === load) {
+      var next = ({})
+      for (var id in _serviceLoads) if (id !== key) next[id] = _serviceLoads[id]
+      _serviceLoads = next
+    }
+    if (load.connected) {
+      load.component.statusChanged.disconnect(load.finalize)
+      load.connected = false
+    }
+    var comp = load.component
+    load.component = null
+    if (comp) comp.destroy()
+  }
+
+  function ensureService(pluginId) {
+    var key = String(pluginId)
+    if (pluginReloading) return null
+    if (_services[key]) return _services[key]
+    var manifest = _serviceManifest(key)
+    if (!manifest) return null
     var url = pluginRegistry.entryPointUrl(manifest, "service")
     if (!url) return null
     var authenticationService = shell.isAuthenticationService(manifest, key)
     if (authenticationService && AuthServiceStore.has(key)) return null
 
-    var comp = Qt.createComponent(url, Component.PreferSynchronous)
+    var pending = _serviceLoads[key]
+    if (pending && _serviceLoadCurrent(key, pending)) return null
+    if (pending) _releaseServiceLoad(key, pending)
+    // Reserve before compilation/construction, both of which may reenter the host.
+    var load = { generation: _serviceLoadGeneration, manifest: manifest, url: url,
+      component: null, finalize: null, connected: false, finalizing: false, done: false }
+    var loads = ({})
+    for (var id in _serviceLoads) loads[id] = _serviceLoads[id]
+    loads[key] = load
+    _serviceLoads = loads
+    var comp = load.component = Qt.createComponent(url, Component.PreferSynchronous)
     function finalize() {
+      if (load.done || load.finalizing) return
+      if (comp.status === Component.Loading) return
+      load.finalizing = true
+      if (!_serviceLoadCurrent(key, load)) {
+        _releaseServiceLoad(key, load)
+        return
+      }
       if (comp.status !== Component.Ready) {
         console.warn("service plugin load failed for " + key + ": " + comp.errorString())
+        _releaseServiceLoad(key, load)
         return
       }
       // Authentication services and third-party services have no visual
@@ -912,13 +982,26 @@ ShellRoot {
       var inst = comp.createObject(manifest.__isFirstParty && !authenticationService ? serviceHost : null)
       if (!inst) {
         console.warn("service plugin createObject returned null for", key)
+        _releaseServiceLoad(key, load)
         return
       }
+      function discardIfStale() {
+        if (_serviceLoadCurrent(key, load)) return false
+        inst.destroy()
+        _releaseServiceLoad(key, load)
+        return true
+      }
+      if (discardIfStale()) return
       if ("omarchyPath" in inst) inst.omarchyPath = shell.omarchyPath
+      if (discardIfStale()) return
       if ("shell" in inst) inst.shell = shell.pluginShellFor(manifest)
+      if (discardIfStale()) return
       if ("manifest" in inst) inst.manifest = shell.publicPluginManifest(manifest)
+      if (discardIfStale()) return
       if ("barWidgetRegistry" in inst) inst.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
+      if (discardIfStale()) return
       if ("pluginRegistry" in inst) inst.pluginRegistry = shell.pluginRegistryFor(manifest)
+      if (discardIfStale()) return
       if (authenticationService) {
         // Never publish lock/polkit through ShellRoot._services. The private JS
         // import retains their lifetime without adding a traversable property
@@ -930,9 +1013,16 @@ ShellRoot {
         snext[key] = inst
         _services = snext
       }
+      _releaseServiceLoad(key, load)
+    }
+    load.finalize = finalize
+    if (!comp || !_serviceLoadCurrent(key, load)) {
+      _releaseServiceLoad(key, load)
+      return _services[key] || null
     }
     if (comp.status === Component.Loading) {
       comp.statusChanged.connect(finalize)
+      load.connected = true
       return null
     }
     finalize()
@@ -940,7 +1030,12 @@ ShellRoot {
   }
 
   function _syncServices() {
-    if (!pluginRegistry || !pluginRegistry.installedPlugins) return
+    if (pluginReloading || !pluginRegistry || !pluginRegistry.installedPlugins) return
+    var pending = _serviceLoads
+    for (var loadingId in pending) {
+      if (!_serviceLoadCurrent(loadingId, pending[loadingId]))
+        _releaseServiceLoad(loadingId, pending[loadingId])
+    }
     var plugins = pluginRegistry.installedPlugins
     for (var id in plugins) {
       var m = plugins[id]
@@ -1020,6 +1115,10 @@ ShellRoot {
   // Destroying omarchy.lock drops the ext-session-lock client while Hyprland
   // still holds the lock, which surfaces the crashed-lockscreen fallback.
   function unloadPluginServices() {
+    _serviceLoadGeneration++
+    var pending = _serviceLoads
+    _serviceLoads = ({})
+    for (var loadingId in pending) _releaseServiceLoad(loadingId, pending[loadingId])
     var next = ({})
     for (var existingId in _services) {
       if (serviceKeepLoaded(existingId)) {

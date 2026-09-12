@@ -45,6 +45,12 @@ A third-party replacement bar can render registered widget components, but widge
 
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
+Pending asynchronous service loads belong to the host so stale completions
+cannot displace current plugin services during reloads or configuration changes.
+The lifecycle owner is [`shell/shell.qml`](../shell/shell.qml); regression
+evidence lives in the [service lifecycle tests](../test/shell.d/service-lifecycle-test.sh)
+and [Qt runtime checks](../test/shell.d/service-lifecycle-runtime-test.sh).
+
 ## Installing a third-party plugin
 
 A plugin is a **git repo** with a `manifest.json` at its root. Adding one
