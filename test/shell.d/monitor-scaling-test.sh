@@ -29,6 +29,20 @@ fi
 SH
 chmod +x "$stub_bin/hyprctl"
 
+# Capture activation-environment updates so scale changes cannot leave GDK_SCALE
+# stale in the systemd/D-Bus launch path (issue #10555).
+cat >"$stub_bin/systemctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_SYSTEMCTL_LOG"
+SH
+chmod +x "$stub_bin/systemctl"
+
+cat >"$stub_bin/dbus-update-activation-environment" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_DBUS_LOG"
+SH
+chmod +x "$stub_bin/dbus-update-activation-environment"
+
 write_monitor_config() {
   cat >"$monitor_lua" <<'LUA'
 local omarchy_gdk_scale = 2
@@ -36,13 +50,29 @@ local omarchy_monitor_scale = 2
 LUA
 }
 
+systemctl_log="$test_tmp/systemctl.log"
+dbus_log="$test_tmp/dbus.log"
+
 run_scaling() {
+  : >"$systemctl_log"
+  : >"$dbus_log"
   HOME="$home_dir" \
     XDG_STATE_HOME="$home_dir/.local/state" \
     PATH="$stub_bin:$PATH" \
     OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    OMARCHY_TEST_SYSTEMCTL_LOG="$systemctl_log" \
+    OMARCHY_TEST_DBUS_LOG="$dbus_log" \
     OMARCHY_TEST_MONITOR_SCALE="${OMARCHY_TEST_MONITOR_SCALE:-2}" \
     "$ROOT/bin/omarchy-hyprland-monitor-scaling" "$@"
+}
+
+assert_gdk_scale_activation_synced() {
+  local expected="$1"
+
+  grep -Fx -- "--user set-environment GDK_SCALE=$expected" "$systemctl_log" >/dev/null ||
+    fail "monitor scaling syncs GDK_SCALE=$expected via systemctl --user set-environment" "$(cat "$systemctl_log")"
+  grep -Fx -- "--systemd GDK_SCALE=$expected" "$dbus_log" >/dev/null ||
+    fail "monitor scaling syncs GDK_SCALE=$expected via dbus-update-activation-environment" "$(cat "$dbus_log")"
 }
 
 write_monitor_config
@@ -69,7 +99,18 @@ OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
 grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling explicit 3x remains available"
 grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 3x persists"
 grep -Fx 'local omarchy_gdk_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 3x persists GDK scale"
+assert_gdk_scale_activation_synced 3
 pass "monitor scaling explicit 3x remains available"
+
+# Scale-down to 100% must refresh the activation environment, not only monitors.lua.
+# Otherwise uwsm-launched XWayland apps keep the login-time GDK_SCALE (issue #10555).
+write_monitor_config
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1
+grep -F 'scale = 1' "$eval_out" >/dev/null || fail "monitor scaling explicit 1x remains available"
+grep -Fx 'local omarchy_monitor_scale = 1' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 1x persists"
+grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 1x persists GDK scale"
+assert_gdk_scale_activation_synced 1
+pass "monitor scaling explicit 1x syncs GDK_SCALE into the activation environment"
 
 # GTK only honors integer GDK_SCALE, so fractional monitor scales persist a
 # rounded GDK scale.

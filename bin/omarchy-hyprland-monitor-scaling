@@ -110,6 +110,27 @@ set_scale() {
       -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
       "$monitor_lua"
   fi
+
+  # hl.env in monitors.lua only reaches the systemd/D-Bus activation environment
+  # on hyprland.start (see default/hypr/autostart.lua). Scale changes mid-session
+  # must push GDK_SCALE themselves or uwsm-launched apps keep the login-time value
+  # (issue #10555). Best-effort: missing helpers must not undo a successful scale.
+  sync_gdk_scale_activation_env "$new_gdk_scale"
+}
+
+# Push GDK_SCALE into the environments apps actually launch from after login.
+# systemctl --user set-environment covers the user manager; dbus-update covers
+# the activation bus. Exporting first keeps both helpers reading the new value.
+sync_gdk_scale_activation_env() {
+  local scale="$1"
+
+  # new_gdk_scale is always an integer from awk above; refuse anything else so a
+  # corrupted caller cannot inject into set-environment / dbus-update argv.
+  [[ $scale =~ ^[0-9]+$ ]] || return 0
+
+  export GDK_SCALE="$scale"
+  systemctl --user set-environment "GDK_SCALE=$scale" >/dev/null 2>&1 || true
+  dbus-update-activation-environment --systemd "GDK_SCALE=$scale" >/dev/null 2>&1 || true
 }
 
 scale_from_current() {
