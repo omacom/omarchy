@@ -202,6 +202,14 @@ start_screenrecording() {
 }
 
 stop_screenrecording() {
+  exec 9>/tmp/omarchy-screenrecord.lock
+  if ! flock -n 9; then
+    exec 9>&-
+    return 0
+  fi
+  # Ensure lock is released on any exit path
+  trap 'exec 9>&-' RETURN
+
   pkill -SIGINT -f "^gpu-screen-recorder" # SIGINT required to save video properly
 
   # Wait a maximum of 5 seconds to finish before hard killing
@@ -218,8 +226,15 @@ stop_screenrecording() {
     pkill -9 -f "^gpu-screen-recorder"
     omarchy-notification-send -u critical -t 5000 "Screen recording error" "Recording process had to be force-killed. Video may be corrupted."
   else
-    finalize_recording
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
+    # If another stop already consumed the recording file, don't post a duplicate toast
+    if [[ -z $filename ]]; then
+      rm -f "$RECORDING_FILE"
+      exec 9>&-
+      trap - RETURN
+      return 0
+    fi
+    finalize_recording
     echo "$filename"
     local preview="${filename%.mp4}-preview.png"
 
@@ -240,6 +255,8 @@ stop_screenrecording() {
   fi
 
   rm -f "$RECORDING_FILE"
+  exec 9>&-
+  trap - RETURN
 }
 
 toggle_screenrecording_indicator() {
