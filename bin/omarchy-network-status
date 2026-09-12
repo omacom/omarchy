@@ -48,10 +48,43 @@ print_status() {
   printf 'wifi\t%s\t%s\t%s\n' "${ssid:-$device}" "$signal" "$freq"
 }
 
-ping_latency_ms() {
+# ICMP is often filtered on enterprise/captive networks while TCP still works.
+# A refused TCP connect is still a round trip; a 1s timeout is not.
+tcp_connect_ms() {
+  local host=$1
+  local port=$2
+  local start end status ms
+
+  [[ $host == *:* ]] && return 1
+  [[ $host =~ ^[0-9A-Za-z.-]+$ && $port =~ ^[0-9]+$ ]] || return 1
+
+  start=${EPOCHREALTIME}
+  timeout 1 bash -c "exec 3<>/dev/tcp/${host}/${port}" >/dev/null 2>&1
+  status=$?
+  end=${EPOCHREALTIME}
+
+  (( status == 0 || status == 1 )) || return 1
+  ms=$(awk -v s="$start" -v e="$end" 'BEGIN { printf "%.1f", (e - s) * 1000 }')
+  awk -v ms="$ms" 'BEGIN { exit !(ms + 0 > 0 && ms + 0 < 900) }' || return 1
+  printf '%s\n' "$ms"
+}
+
+icmp_ping_ms() {
   local host=$1
 
+  omarchy-cmd-present ping || return 1
   LC_ALL=C ping -n -c 1 -W 1 "$host" 2>/dev/null | awk -F'time[=<]' '/time[=<]/ { split($2, parts, " "); print parts[1]; exit }'
+}
+
+ping_latency_ms() {
+  local host=$1
+  local port=${2:-}
+
+  if [[ -n $port ]]; then
+    tcp_connect_ms "$host" "$port" && return
+  fi
+
+  icmp_ping_ms "$host"
 }
 
 print_ping_samples() {
@@ -59,17 +92,16 @@ print_ping_samples() {
   local tmpdir router_file internet_file
   local router_pid="" internet_pid=""
 
-  omarchy-cmd-present ping || return
   tmpdir=$(mktemp -d) || return
   router_file="$tmpdir/router"
   internet_file="$tmpdir/internet"
 
   if [[ -n $gateway ]]; then
-    ping_latency_ms "$gateway" >"$router_file" &
+    ping_latency_ms "$gateway" 80 >"$router_file" &
     router_pid=$!
   fi
 
-  ping_latency_ms "$internet_probe" >"$internet_file" &
+  ping_latency_ms "$internet_probe" 443 >"$internet_file" &
   internet_pid=$!
 
   if [[ -n $router_pid ]]; then
@@ -130,8 +162,10 @@ print_verbose() {
   print_ping_samples "$gw"
 }
 
-if [[ $verbose == "true" ]]; then
-  print_verbose
-else
-  print_status
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  if [[ $verbose == "true" ]]; then
+    print_verbose
+  else
+    print_status
+  fi
 fi
