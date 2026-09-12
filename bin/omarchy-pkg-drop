@@ -8,9 +8,16 @@ installed=()
 declare -A installed_exact=()
 declare -A selected=()
 
+# Callers may remove user data after this helper succeeds. A failed database
+# query is not evidence that the package is absent.
+package_names=$(pacman -Qq) || {
+  echo "Could not read installed packages; refusing package removal." >&2
+  exit 1
+}
 while IFS= read -r package_name; do
+  [[ -n $package_name ]] || continue
   installed_exact[$package_name]=1
-done < <(pacman -Qq)
+done <<< "$package_names"
 
 for pkg in "$@"; do
   if [[ -n ${installed_exact[$pkg]} && -z ${selected[$pkg]} ]]; then
