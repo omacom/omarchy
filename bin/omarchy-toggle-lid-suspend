@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# omarchy:summary=Skip suspend on the next lid close
+# omarchy:args=[skip-once|toggle|allow|status]
+# omarchy:examples=omarchy toggle lid-suspend skip-once | omarchy toggle lid-suspend status
+
+set -euo pipefail
+
+FLAG="$HOME/.local/state/omarchy/toggles/lid-suspend-skip-once"
+SERVICE="omarchy-lid-guard.service"
+SKIP_TTL=1800
+
+flag_set() {
+  [[ -f $FLAG ]] || return 1
+  (( $(date +%s) - $(stat -c %Y "$FLAG") <= SKIP_TTL ))
+}
+
+poke_guard() {
+  # The guard daemon owns the inhibitor; wake it so the flag takes effect
+  # immediately instead of on its next poll. If it is not running, start it.
+  systemctl --user kill -s USR1 "$SERVICE" 2>/dev/null ||
+    systemctl --user start "$SERVICE" 2>/dev/null ||
+    echo "lid-guard service is not available; the skip is recorded but nothing is watching" >&2
+}
+
+cmd_skip_once() {
+  mkdir -p "$(dirname "$FLAG")"
+  date -u +%s >"$FLAG"
+  poke_guard
+  omarchy-notification-send -g 󰒲 "Lid suspend skipped" "Next lid close locks without suspending"
+}
+
+cmd_allow() {
+  rm -f "$FLAG"
+  poke_guard
+  omarchy-notification-send -g 󰒲 "Lid suspend restored" "Next lid close suspends again"
+}
+
+cmd_status() {
+  if flag_set; then
+    echo "skip armed: next lid close locks without suspending"
+  else
+    rm -f "$FLAG"
+    echo "no skip armed: lid close suspends normally"
+  fi
+  if systemctl --user is-active --quiet "$SERVICE" 2>/dev/null; then
+    echo "guard service: active"
+  else
+    echo "guard service: inactive"
+  fi
+  systemd-inhibit --list 2>/dev/null | grep "lid-guard" || echo "no lid-guard inhibitor held"
+}
+
+case "${1:-toggle}" in
+  skip-once|skip|once)
+    cmd_skip_once
+    ;;
+  allow|off)
+    cmd_allow
+    ;;
+  toggle|"")
+    if flag_set; then
+      cmd_allow
+    else
+      cmd_skip_once
+    fi
+    ;;
+  status)
+    cmd_status
+    ;;
+  *)
+    echo "Usage: omarchy-toggle-lid-suspend [skip-once|toggle|allow|status]" >&2
+    exit 1
+    ;;
+esac
