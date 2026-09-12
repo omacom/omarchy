@@ -44,7 +44,7 @@ Panel {
   // last 10% of the funded credits lights the same alarm.
   readonly property bool balanceAlarming: !!balance && balance.funded > 0
     && balance.remaining / balance.funded <= 0.1
-  readonly property bool alarming: (!!headline && headline.percent >= 0.9) || balanceAlarming
+  readonly property bool alarming: (!!headline && (headline.isRemaining ? (headline.percent <= 0.1 && headline.percent >= 0) : headline.percent >= 0.9)) || balanceAlarming
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
   function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
@@ -101,11 +101,13 @@ Panel {
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title) {
+  function limitWindow(label, percent, resetAt, title, group, isRemaining) {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
-      resetAt: String(resetAt || "")
+      resetAt: String(resetAt || ""),
+      group: String(group || ""),
+      isRemaining: isRemaining === true
     }
   }
 
@@ -116,18 +118,43 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, entry.group, entry.isRemaining))
     }
     return out
   }
 
-  // The window that decides how much room is left — the fullest one, since
-  // that is what stops the next prompt.
+  function limitGroups(p) {
+    var list = limitWindows(p)
+    var groups = []
+    var groupMap = {}
+    for (var i = 0; i < list.length; i++) {
+      var w = list[i]
+      var gName = w.group || ""
+      if (!groupMap[gName]) {
+        groupMap[gName] = { name: gName, items: [] }
+        groups.push(groupMap[gName])
+      }
+      groupMap[gName].items.push(w)
+    }
+    return groups
+  }
+
+  // The window that decides how much room is left — the fullest/lowest one,
+  // since that is what stops the next prompt.
   function bindingWindow(p) {
     var windows = limitWindows(p)
     var best = null
     for (var i = 0; i < windows.length; i++) {
-      if (!best || windows[i].percent > best.percent) best = windows[i]
+      var w = windows[i]
+      if (!best) {
+        best = w
+        continue
+      }
+      if (w.isRemaining) {
+        if (w.percent < best.percent) best = w
+      } else {
+        if (w.percent > best.percent) best = w
+      }
     }
     return best
   }
@@ -248,7 +275,7 @@ Panel {
       })
     }
     rows.sort(function(a, b) { return b.total - a.total })
-    return rows.slice(0, 4)
+    return rows
   }
 
   function modelTooltip(row) {
@@ -358,7 +385,7 @@ Panel {
     contentWidth: panel.fittedContentWidth(Style.space(380))
     // Taller than the control panels on purpose: this one is a dashboard, and
     // the whole point is reading limits and history without scrolling.
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(640))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(800))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -601,12 +628,33 @@ Panel {
             }
 
             Repeater {
-              model: root.limits
+              model: root.limitGroups(root.provider)
 
-              LimitRow {
+              Column {
+                id: groupCol
                 required property var modelData
                 width: limitsSection.width
-                window: modelData
+                spacing: Style.space(8)
+
+                Text {
+                  visible: modelData.name !== ""
+                  text: modelData.name
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                  topPadding: Style.space(4)
+                }
+
+                Repeater {
+                  model: modelData.items
+
+                  LimitRow {
+                    required property var modelData
+                    width: groupCol.width
+                    window: modelData
+                  }
+                }
               }
             }
           }
@@ -705,7 +753,9 @@ Panel {
     id: limitRow
     property var window: null
 
-    readonly property bool alarming: window && window.percent >= 0.9
+    readonly property bool alarming: window
+      ? (window.isRemaining ? (window.percent <= 0.1 && window.percent >= 0) : (window.percent >= 0.9))
+      : false
 
     spacing: Style.space(6)
 
@@ -732,9 +782,11 @@ Panel {
       Text {
         id: limitValue
         textFormat: Text.PlainText
-        text: limitRow.window && limitRow.window.percent >= 0
-          ? Math.round(limitRow.window.percent * 100) + "%"
-          : "—"
+        text: {
+          if (!limitRow.window || limitRow.window.percent < 0) return "—"
+          var pct = Math.round(limitRow.window.percent * 100) + "%"
+          return limitRow.window.isRemaining ? pct + " left" : pct
+        }
         color: limitRow.alarming ? root.urgent : root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
