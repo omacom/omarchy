@@ -122,22 +122,23 @@ muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,versio
 assert_lazy_stub() {
   local package=$1
   local command=$2
+  local spec=${3:-$package}
 
   : >"$mise_history"
   "$ROOT/bin/omarchy-mise-install" "$package" "$command"
   "$test_home/.local/bin/$command" --version
   mapfile -t mise_calls <"$mise_history"
 
-  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "x $package -- $command --version" ]] ||
+  [[ ${mise_calls[0]} == "use -g --quiet $spec" && ${mise_calls[1]} == "x $spec -- $command --version" ]] ||
     fail "$command lazy stub preserves its mise package"
 }
 
-assert_lazy_stub "$grok_package" grok
-assert_lazy_stub "$omp_package" omp
-assert_lazy_stub "$crush_package" crush
-assert_lazy_stub "$ori_package" ori
-assert_lazy_stub "$cursor_agent_package" cursor-agent
-assert_lazy_stub "$muse_package" muse
+assert_lazy_stub "$grok_package" grok "${grok_package}@latest"
+assert_lazy_stub "$omp_package" omp "${omp_package}@latest"
+assert_lazy_stub "$crush_package" crush "${crush_package}@latest"
+assert_lazy_stub "$ori_package" ori "${ori_package}@latest"
+assert_lazy_stub "$cursor_agent_package" cursor-agent "${cursor_agent_package}@latest"
+assert_lazy_stub "$muse_package" muse "$muse_package"
 pass "custom agent lazy stubs preserve their mise packages"
 
 OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/install/user/mise.sh"
