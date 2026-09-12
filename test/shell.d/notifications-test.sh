@@ -218,13 +218,47 @@ const execSnapshot = notifications.snapshotOf({
   id: 3,
   appName: 'omarchy-action',
   summary: 'Download complete',
-  hints: { 'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]' }
-}, 1)
+  hints: {
+    'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]',
+    'omarchy-exec-token': 'sess'
+  }
+}, 1, 'sess')
 assertEqual(
   execSnapshot.execArgv,
   '["mpv","--","/tmp/clip.mp4"]',
-  'notifications carry the exec argv hint onto the snapshot'
+  'notifications carry the exec argv hint onto the snapshot when the session token matches'
 )
+
+assertEqual(
+  notifications.execArgvFromHints({ 'omarchy-exec-argv': '["true"]' }, 'sess'),
+  '',
+  'notifications drop exec argv without a session token hint'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    'omarchy-exec-argv': '["true"]',
+    'omarchy-exec-token': 'nope'
+  }, 'sess'),
+  '',
+  'notifications drop exec argv when the session token mismatches'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    'omarchy-exec-argv': '["true"]',
+    'omarchy-exec-token': 'sess'
+  }, 'sess'),
+  '["true"]',
+  'notifications keep exec argv when the session token matches'
+)
+assertEqual(
+  notifications.snapshotOf({
+    id: 9,
+    hints: { 'omarchy-exec-argv': '["true"]', 'omarchy-exec-token': 'x' }
+  }, 1, 'sess').execArgv,
+  '',
+  'notifications snapshot clears exec argv without a matching session token'
+)
+
 
 assertDeepEqual(
   notifications.popupPlacement('top', 32, 6),

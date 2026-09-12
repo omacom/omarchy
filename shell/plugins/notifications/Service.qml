@@ -16,6 +16,7 @@ Item {
 
   // Injected by omarchy-shell (the first-party service loader).
   property var shell: null
+  property string execSessionToken: ""
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   readonly property string home: Quickshell.env("HOME")
@@ -132,7 +133,7 @@ Item {
   }
 
   function snapshotOf(notification) {
-    return NotificationLogic.snapshotOf(notification, Date.now())
+    return NotificationLogic.snapshotOf(notification, Date.now(), service.execSessionToken)
   }
 
   // A notification nobody looks back at:
@@ -408,6 +409,29 @@ Item {
   }
 
   Process { id: focusAppProc; running: false }
+
+  
+  Process {
+    id: writeExecTokenProc
+    running: false
+    command: ["bash", "-c",
+      'runtime="${XDG_RUNTIME_DIR:-}"; ' +
+      '[[ -n $runtime ]] || exit 1; ' +
+      'mkdir -m 700 -p "$runtime/omarchy"; ' +
+      'token=$(openssl rand -hex 32); ' +
+      'umask 077; printf "%s\n" "$token" >"$runtime/omarchy/notification-exec-token"; ' +
+      'chmod 600 "$runtime/omarchy/notification-exec-token"; ' +
+      'printf "%s" "$token"'
+    ]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var tok = text.trim()
+        if (tok.length > 0)
+          service.execSessionToken = tok
+      }
+    }
+  }
 
   Process {
     id: ensureDirsProc
@@ -834,6 +858,7 @@ Item {
 
   Component.onCompleted: {
     ensureDirsProc.running = true
+    writeExecTokenProc.running = true
     // Once mkdir has had a tick, load the existing settings file. FileView
     // surfaces an empty string when the file doesn't exist; loadSettings
     // handles that path.

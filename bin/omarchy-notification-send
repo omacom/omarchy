@@ -176,6 +176,17 @@ if ((exec_present)); then
   # NUL-delimit into jq so every byte survives as data: jq's own --args would eat
   # a bare "--", and a newline in an arg must not split the vector.
   exec_argv_json=$(printf '%s\0' "${exec_args[@]}" | jq -Rsc 'split("\u0000")[:-1]')
+  token_file="${XDG_RUNTIME_DIR:-}/omarchy/notification-exec-token"
+  if [[ -z ${XDG_RUNTIME_DIR:-} || ! -r $token_file ]]; then
+    echo "omarchy-notification-send: --exec needs a live session token at \$XDG_RUNTIME_DIR/omarchy/notification-exec-token" >&2
+    exit 1
+  fi
+  exec_token=$(tr -d '\n' <"$token_file")
+  if [[ -z $exec_token ]]; then
+    echo "omarchy-notification-send: notification exec token is empty" >&2
+    exit 1
+  fi
+  hints+=(omarchy-exec-token s "$exec_token")
   hints+=(omarchy-exec-argv s "$exec_argv_json")
 fi
 
