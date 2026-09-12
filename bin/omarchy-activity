@@ -1,0 +1,704 @@
+#!/usr/bin/python3
+# omarchy:summary=Record and read shared usage frecency
+# omarchy:args=(record <kind> <target> [title] [--via pick|view] | top [--kind <kind>] [--via pick|view|all] [--limit <n>] | rank [--kind <kind>] [--via pick|view|all] [--limit <n>] | rank-files [--via pick|view|all] [--limit <n>] | forget <target> [--kind <kind>] | pin <target> [--kind <kind>] | unpin <target> [--kind <kind>] | stats | import-frecency <file> | import-xbel [file] | import-zoxide [file] | import-agents)
+# omarchy:examples=omarchy activity record app firefox | omarchy activity top --kind app | omarchy activity rank --kind project
+"""Shared usage journal for the shell.
+
+Every consumer (menu, file app, launchers) records what the user picked
+here, and ranks with what it reads back. One SQLite database under
+~/.local/share/omarchy, scored Firefox-style: each target keeps its most
+recent visits, so ranking weighs frequency and recency together.
+
+Writes are single short transactions (WAL + busy timeout, three attempts on
+a locked database) because recorders fire and forget; reads hydrate the
+caller's in-memory map once instead of running per keystroke.
+"""
+
+import argparse
+import json
+import os
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+DB_RELATIVE = Path(".local/share/omarchy/activity.db")
+MAX_VISITS_PER_TARGET = 10
+DEFAULT_TOP_LIMIT = 1000
+# Single-visit targets older than this are dropped on record: one accidental
+# pick years ago is noise, while anything revisited even once is history.
+PRUNE_AFTER_DAYS = 90
+MS_PER_DAY = 86400 * 1000
+
+# Firefox frecency buckets: recency weight per visit by age, newest first.
+# Score is the weight sum plus the item bonus (picks over passive views),
+# so ranking weighs frequency and recency together with no decay job.
+BUCKET_WEIGHTS = ((4, 100), (14, 70), (31, 50), (90, 30))
+BUCKET_DEFAULT_WEIGHT = 10
+# Passive sightings count toward the blended score at this fraction of an
+# explicit pick: history accumulates from views, decisions come from picks.
+VIEW_WEIGHT = 0.25
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS items(
+  kind TEXT NOT NULL DEFAULT 'app',
+  target TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  bonus INTEGER NOT NULL DEFAULT 0,
+  icon TEXT NOT NULL DEFAULT '',
+  icon_font TEXT NOT NULL DEFAULT '',
+  detail TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (kind, target)
+);
+CREATE TABLE IF NOT EXISTS visits(
+  kind TEXT NOT NULL DEFAULT 'app',
+  target TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  via TEXT NOT NULL DEFAULT 'pick'
+);
+CREATE INDEX IF NOT EXISTS idx_visits_lookup ON visits(kind, target, at DESC);
+CREATE INDEX IF NOT EXISTS idx_visits_at ON visits(at);
+CREATE INDEX IF NOT EXISTS idx_items_kind_target ON items(kind, target);
+"""
+
+
+def db_path() -> Path:
+    return Path(os.environ.get("HOME", str(Path.home()))) / DB_RELATIVE
+
+
+def connect(path: Path) -> sqlite3.Connection:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path), timeout=5)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=2000")
+
+    # Migrate legacy single-target schemas to composite (kind, target)
+    items_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='items'").fetchone()
+    if items_exists:
+        items_pks = [row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall() if row[5] > 0]
+        visits_cols = [row[1] for row in conn.execute("PRAGMA table_info(visits)").fetchall()]
+        if "via" not in visits_cols:
+            conn.execute("ALTER TABLE visits ADD COLUMN via TEXT NOT NULL DEFAULT 'pick'")
+        if "kind" not in visits_cols:
+            conn.execute("ALTER TABLE visits ADD COLUMN kind TEXT NOT NULL DEFAULT 'app'")
+            conn.execute("UPDATE visits SET kind = COALESCE((SELECT kind FROM items WHERE items.target = visits.target), 'app')")
+        if items_pks == ["target"]:
+            conn.execute("CREATE TABLE items_v2(kind TEXT NOT NULL DEFAULT 'app', target TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', bonus INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (kind, target))")
+            conn.execute("INSERT OR IGNORE INTO items_v2(kind, target, title, bonus) SELECT kind, target, title, bonus FROM items")
+            conn.execute("DROP TABLE items")
+            conn.execute("ALTER TABLE items_v2 RENAME TO items")
+
+        items_cols = [row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+        for col in ("icon", "icon_font", "detail", "action"):
+            if col not in items_cols:
+                conn.execute(f"ALTER TABLE items ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
+
+    conn.executescript(SCHEMA)
+    return conn
+
+
+def bucket_weight_case(now_ms: int) -> str:
+    """SQL CASE returning a visit's bucket weight for its age in ms."""
+    arms = " ".join(
+        f"WHEN ({now_ms} - at) <= {days * MS_PER_DAY} THEN {weight}"
+        for days, weight in BUCKET_WEIGHTS
+    )
+    return f"CASE {arms} ELSE {BUCKET_DEFAULT_WEIGHT} END"
+
+
+def prune_stale(conn: sqlite3.Connection, now_ms: int) -> None:
+    cutoff = now_ms - PRUNE_AFTER_DAYS * MS_PER_DAY
+    # Ultra-fast index check: skip expensive prune query if no visits older than cutoff exist
+    if not conn.execute("SELECT 1 FROM visits WHERE at < ? LIMIT 1", (cutoff,)).fetchone():
+        return
+    conn.execute(
+        "DELETE FROM visits WHERE (kind, target) IN "
+        "(SELECT i.kind, i.target FROM items i LEFT JOIN visits v ON v.kind = i.kind AND v.target = i.target "
+        "GROUP BY i.kind, i.target HAVING COUNT(v.at) <= 1 AND COALESCE(MAX(v.at), 0) < ?)",
+        (cutoff,),
+    )
+    conn.execute(
+        "DELETE FROM items WHERE (kind, target) NOT IN (SELECT DISTINCT kind, target FROM visits)"
+    )
+
+
+def cmd_record(args) -> int:
+    now_ms = int(time.time() * 1000)
+    icon = getattr(args, "icon", "") or ""
+    icon_font = getattr(args, "icon_font", "") or ""
+    detail = getattr(args, "detail", "") or ""
+    action = getattr(args, "action", "") or ""
+    # Fire-and-forget recorders overlap (menu pick + window open + dmenu),
+    # so a write can meet a locked database. WAL + busy timeout absorbs
+    # bursts, and a short retry covers the straggler instead of dropping it.
+    last_error = "unknown error"
+    for attempt in range(3):
+        try:
+            with connect(db_path()) as conn:
+                conn.execute(
+                    "INSERT INTO items(kind, target, title, icon, icon_font, detail, action) VALUES(?, ?, ?, ?, ?, ?, ?) "
+                    "ON CONFLICT(kind, target) DO UPDATE SET "
+                    "title=CASE WHEN excluded.title = '' THEN items.title ELSE excluded.title END, "
+                    "icon=CASE WHEN excluded.icon = '' THEN items.icon ELSE excluded.icon END, "
+                    "icon_font=CASE WHEN excluded.icon_font = '' THEN items.icon_font ELSE excluded.icon_font END, "
+                    "detail=CASE WHEN excluded.detail = '' THEN items.detail ELSE excluded.detail END, "
+                    "action=CASE WHEN excluded.action = '' THEN items.action ELSE excluded.action END",
+                    (args.kind, args.target, args.title or "", icon, icon_font, detail, action),
+                )
+                conn.execute(
+                    "INSERT INTO visits(kind, target, at, via) VALUES(?, ?, ?, ?)",
+                    (args.kind, args.target, now_ms, args.via),
+                )
+                conn.execute(
+                    "DELETE FROM visits WHERE kind = ? AND target = ? AND rowid NOT IN "
+                    "(SELECT rowid FROM visits WHERE kind = ? AND target = ? ORDER BY at DESC LIMIT ?)",
+                    (args.kind, args.target, args.kind, args.target, MAX_VISITS_PER_TARGET),
+                )
+                prune_stale(conn, now_ms)
+            return 0
+        except sqlite3.OperationalError as e:
+            last_error = e
+            if "locked" not in str(e).lower():
+                break
+            time.sleep(0.1 * (attempt + 1))
+    print(f"omarchy-activity: database error: {last_error}", file=sys.stderr)
+    return 1
+
+
+def score_case(now_ms: int, blended: bool) -> str:
+    """SQL expression for a target's score: bucket weights, bonus, blend."""
+    weights = bucket_weight_case(now_ms)
+    if blended:
+        weights = f"CASE WHEN v.via = 'pick' THEN {weights} ELSE {VIEW_WEIGHT} * ({weights}) END"
+    return f"SUM({weights}) + MAX(i.bonus)"
+
+
+def cmd_top(args) -> int:
+    now_ms = int(time.time() * 1000)
+    blended = args.via == "blended"
+    query = (
+        "SELECT i.target, i.kind, i.title, i.icon, i.icon_font, i.detail, i.action, COUNT(v.at) AS uses, MAX(v.at) AS last_used, "
+        f"{score_case(now_ms, blended)} AS score "
+        "FROM items i JOIN visits v ON v.kind = i.kind AND v.target = i.target "
+    )
+    clauses: list = []
+    params: list = []
+    if args.kind:
+        clauses.append("i.kind = ?")
+        params.append(args.kind)
+    if args.via in ("pick", "view"):
+        clauses.append("v.via = ?")
+        params.append(args.via)
+    if clauses:
+        query += "WHERE " + " AND ".join(clauses) + " "
+    query += "GROUP BY i.kind, i.target ORDER BY score DESC, last_used DESC LIMIT ?"
+    params.append(args.limit)
+    with connect(db_path()) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(query, params).fetchall()
+    out = {}
+    for r in rows:
+        item_obj = {
+            "count": r["uses"],
+            "lastUsed": r["last_used"],
+            "score": r["score"],
+            "kind": r["kind"],
+            "title": r["title"] or "",
+        }
+        if r["icon"]:
+            item_obj["icon"] = r["icon"]
+        if r["icon_font"]:
+            item_obj["iconFont"] = r["icon_font"]
+        if r["detail"]:
+            item_obj["detail"] = r["detail"]
+        if r["action"]:
+            item_obj["action"] = r["action"]
+        out[r["target"]] = item_obj
+    print(json.dumps(out))
+    return 0
+
+
+def cmd_rank(args) -> int:
+    """Sort stdin lines: scored first by score, unknowns keep input order."""
+    kind = getattr(args, "kind", "file") or "file"
+    try:
+        with connect(db_path()) as conn:
+            conn.row_factory = sqlite3.Row
+            scores = {
+                r["target"]: r["score"]
+                for r in conn.execute(
+                    "SELECT i.target AS target, "
+                    f"{score_case(int(time.time() * 1000), args.via == 'blended')} AS score "
+                    "FROM items i JOIN visits v ON v.kind = i.kind AND v.target = i.target "
+                    "WHERE i.kind = ? AND (? IN ('all', 'blended') OR v.via = ?) "
+                    "GROUP BY i.kind, i.target",
+                    (kind, args.via, args.via),
+                ).fetchall()
+            }
+    except sqlite3.Error:
+        scores = {}
+    seen = set()
+    ranked = []
+    rest = []
+    for line in sys.stdin:
+        target = line.rstrip("\n")
+        if not target or target in seen:
+            continue
+        seen.add(target)
+        (ranked if target in scores else rest).append(target)
+    ranked.sort(key=lambda t: scores[t], reverse=True)
+    for target in (ranked + rest)[: args.limit]:
+        print(target)
+    return 0
+
+
+def cmd_rank_files(args) -> int:
+    return cmd_rank(args)
+
+
+def cmd_forget(args) -> int:
+    with connect(db_path()) as conn:
+        if getattr(args, "kind", None) and args.kind:
+            conn.execute("DELETE FROM visits WHERE kind = ? AND target = ?", (args.kind, args.target))
+            conn.execute("DELETE FROM items WHERE kind = ? AND target = ?", (args.kind, args.target))
+        else:
+            conn.execute("DELETE FROM visits WHERE target = ?", (args.target,))
+            conn.execute("DELETE FROM items WHERE target = ?", (args.target,))
+    print(f"forgot {args.target}")
+    return 0
+
+
+def cmd_pin(args) -> int:
+    with connect(db_path()) as conn:
+        if getattr(args, "kind", None) and args.kind:
+            updated = conn.execute(
+                "UPDATE items SET bonus = ? WHERE kind = ? AND target = ?",
+                (100 if args.verb == "pin" else 0, args.kind, args.target),
+            ).rowcount
+        else:
+            updated = conn.execute(
+                "UPDATE items SET bonus = ? WHERE target = ?",
+                (100 if args.verb == "pin" else 0, args.target),
+            ).rowcount
+    if updated:
+        print(f"{args.verb}ned {args.target}")
+    else:
+        print(f"omarchy-activity: unknown target '{args.target}'", file=sys.stderr)
+    return 0 if updated else 1
+
+
+def cmd_stats(args) -> int:
+    with connect(db_path()) as conn:
+        conn.row_factory = sqlite3.Row
+        kinds = {
+            r["kind"]: {
+                "targets": r["targets"],
+                "visits": r["visits"],
+                "newest": r["newest"],
+            }
+            for r in conn.execute(
+                "SELECT i.kind AS kind, COUNT(DISTINCT i.target) AS targets, "
+                "COUNT(v.at) AS visits, MAX(v.at) AS newest "
+                "FROM items i LEFT JOIN visits v ON v.kind = i.kind AND v.target = i.target "
+                "GROUP BY i.kind"
+            ).fetchall()
+        }
+        vias = {
+            r["via"]: {"targets": r["targets"], "visits": r["visits"]}
+            for r in conn.execute(
+                "SELECT via, COUNT(DISTINCT target) AS targets, COUNT(*) AS visits "
+                "FROM visits GROUP BY via"
+            ).fetchall()
+        }
+        totals = conn.execute(
+            "SELECT COUNT(*) AS targets, "
+            "(SELECT COUNT(*) FROM visits) AS visits FROM items"
+        ).fetchone()
+    print(json.dumps({
+        "kinds": kinds,
+        "vias": vias,
+        "targets": totals["targets"],
+        "visits": totals["visits"],
+    }))
+    return 0
+
+
+def cmd_import_xbel(args) -> int:
+    """Seed file frecency from the Gtk recent manager (one visit each)."""
+    import urllib.parse
+    import xml.etree.ElementTree as ET
+    from datetime import datetime
+
+    path = Path(args.file) if args.file else (
+        Path(os.environ.get("HOME", str(Path.home()))) / ".local/share/recently-used.xbel"
+    )
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError) as e:
+        print(f"omarchy-activity: cannot read {path}: {e}", file=sys.stderr)
+        return 1
+
+    def stamp(value: str) -> int:
+        try:
+            return int(datetime.fromisoformat(value).timestamp() * 1000)
+        except (TypeError, ValueError):
+            return 0
+
+    seen: dict = {}
+    for bookmark in root.iter("bookmark"):
+        href = bookmark.get("href", "")
+        if not href.startswith("file://"):
+            continue
+        target = urllib.parse.unquote(href[len("file://"):])
+        if not target.startswith("/") or target in seen:
+            continue
+        at = max(
+            stamp(bookmark.get("visited", "")),
+            stamp(bookmark.get("modified", "")),
+            stamp(bookmark.get("added", "")),
+        )
+        if at > 0:
+            seen[target] = at
+    now_ms = int(time.time() * 1000)
+    with connect(db_path()) as conn:
+        for target, at in seen.items():
+            conn.execute(
+                "INSERT INTO items(kind, target, title) VALUES('file', ?, ?) "
+                "ON CONFLICT(kind, target) DO NOTHING",
+                (target, Path(target).name),
+            )
+            if conn.execute(
+                "SELECT COUNT(*) FROM visits WHERE kind = 'file' AND target = ?", (target,)
+            ).fetchone()[0] == 0:
+                conn.execute(
+                    "INSERT INTO visits(kind, target, at, via) VALUES('file', ?, ?, 'pick')",
+                    (target, min(at, now_ms)),
+                )
+    print(f"imported {len(seen)} files")
+    return 0
+
+
+def cmd_import_frecency(args) -> int:
+    """One-shot migration from the menu's legacy launcher-frecency.json."""
+    try:
+        legacy = json.loads(Path(args.file).read_text())
+    except (OSError, ValueError) as e:
+        print(f"omarchy-activity: cannot read {args.file}: {e}", file=sys.stderr)
+        return 1
+    if not isinstance(legacy, dict):
+        print(f"omarchy-activity: {args.file} is not an object", file=sys.stderr)
+        return 1
+    imported = 0
+    with connect(db_path()) as conn:
+        for target, record in legacy.items():
+            if not isinstance(target, str) or not target or not isinstance(record, dict):
+                continue
+            try:
+                count = max(0, int(record.get("count", 0)))
+                last_used = int(record.get("lastUsed", 0))
+            except (TypeError, ValueError):
+                continue
+            if count <= 0 or last_used <= 0:
+                continue
+            conn.execute(
+                "INSERT INTO items(kind, target) VALUES(?, ?) "
+                "ON CONFLICT(kind, target) DO NOTHING",
+                (args.default_kind, target),
+            )
+            seed = min(count, MAX_VISITS_PER_TARGET)
+            conn.executemany(
+                "INSERT INTO visits(kind, target, at) VALUES(?, ?, ?)",
+                [(args.default_kind, target, last_used)] * seed,
+            )
+            imported += 1
+    print(f"imported {imported} targets")
+    return 0
+
+
+def cmd_import_zoxide(args) -> int:
+    """Seed project frecency from zoxide."""
+    lines = []
+    if getattr(args, "file", None) and args.file and args.file != "-":
+        p = Path(args.file)
+        if not p.exists():
+            print(f"omarchy-activity: cannot read {p}", file=sys.stderr)
+            return 1
+        try:
+            lines = p.read_text(errors="replace").splitlines()
+        except OSError as e:
+            print(f"omarchy-activity: cannot read {p}: {e}", file=sys.stderr)
+            return 1
+    elif getattr(args, "file", None) == "-" or (not sys.stdin.isatty() and not getattr(args, "file", None)):
+        lines = sys.stdin.read().splitlines()
+    else:
+        import shutil
+        import subprocess
+        if not shutil.which("zoxide"):
+            print("omarchy-activity: zoxide not found", file=sys.stderr)
+            return 1
+        res = subprocess.run(["zoxide", "query", "-l", "-s"], capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f"omarchy-activity: zoxide query failed: {res.stderr.strip()}", file=sys.stderr)
+            return 1
+        lines = res.stdout.splitlines()
+
+    now_ms = int(time.time() * 1000)
+    imported = 0
+    with connect(db_path()) as conn:
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split(None, 1)
+            score = 1.0
+            if len(parts) == 2:
+                try:
+                    score = float(parts[0])
+                    path_str = parts[1]
+                except ValueError:
+                    path_str = line
+            else:
+                path_str = line
+
+            target = os.path.abspath(os.path.expanduser(path_str))
+            title = Path(target).name or target
+            conn.execute(
+                "INSERT INTO items(kind, target, title) VALUES('project', ?, ?) "
+                "ON CONFLICT(kind, target) DO NOTHING",
+                (target, title),
+            )
+            if conn.execute(
+                "SELECT COUNT(*) FROM visits WHERE kind = 'project' AND target = ?", (target,)
+            ).fetchone()[0] == 0:
+                seed_visits = min(max(1, int(score)), MAX_VISITS_PER_TARGET)
+                conn.executemany(
+                    "INSERT INTO visits(kind, target, at, via) VALUES('project', ?, ?, 'view')",
+                    [(target, now_ms)] * seed_visits,
+                )
+                imported += 1
+    print(f"imported {imported} projects from zoxide")
+    return 0
+
+
+def cmd_import_agents(args) -> int:
+    """Seed project workspaces and agent sessions from Antigravity and Codex."""
+    from datetime import datetime
+
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    ag_path = Path(args.antigravity) if getattr(args, "antigravity", None) else (
+        home / ".gemini/antigravity-cli/history.jsonl"
+    )
+    codex_idx_path = Path(args.codex) if getattr(args, "codex", None) else (
+        home / ".codex/session_index.jsonl"
+    )
+    codex_conf_path = home / ".codex/config.toml"
+
+    projects: dict[str, int] = {}
+    sessions: dict[str, dict] = {}
+
+    # 1. Parse Antigravity history
+    if ag_path.exists():
+        try:
+            for line in ag_path.read_text(errors="replace").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                ws = obj.get("workspace")
+                ts = int(obj.get("timestamp") or 0)
+                if ws and isinstance(ws, str) and ws.startswith("/"):
+                    ws = os.path.abspath(ws)
+                    projects[ws] = max(projects.get(ws, 0), ts)
+                cid = obj.get("conversationId")
+                disp = obj.get("display") or ""
+                if cid and isinstance(cid, str):
+                    title = disp.strip().splitlines()[0][:80] if disp else cid
+                    prev = sessions.get(cid)
+                    if not prev or ts > prev["ts"]:
+                        sessions[cid] = {
+                            "title": title,
+                            "ts": ts,
+                            "icon": "󰫢",
+                            "icon_font": "",
+                            "detail": f"Antigravity • {cid[:8]}",
+                            "action": f"omarchy agent --agent agy --resume '{cid}'",
+                        }
+        except OSError:
+            pass
+
+    # 2. Parse Codex session index
+    if codex_idx_path.exists():
+        try:
+            for line in codex_idx_path.read_text(errors="replace").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                cid = obj.get("id")
+                name = obj.get("thread_name") or ""
+                up = obj.get("updated_at")
+                ts = 0
+                if up:
+                    try:
+                        if up.endswith("Z"):
+                            up = up[:-1] + "+00:00"
+                        ts = int(datetime.fromisoformat(up).timestamp() * 1000)
+                    except (ValueError, TypeError):
+                        pass
+                if cid and isinstance(cid, str):
+                    title = name.strip() or cid
+                    prev = sessions.get(cid)
+                    if not prev or ts > prev["ts"]:
+                        sessions[cid] = {
+                            "title": title,
+                            "ts": ts,
+                            "icon": "",
+                            "icon_font": "omarchy",
+                            "detail": f"Codex • {cid[:8]}",
+                            "action": f"omarchy agent --agent codex --resume '{cid}'",
+                        }
+        except OSError:
+            pass
+
+    # 3. Parse Codex config.toml for trusted projects
+    if codex_conf_path.exists():
+        try:
+            for line in codex_conf_path.read_text(errors="replace").splitlines():
+                line = line.strip()
+                if line.startswith('[projects."') and line.endswith('"]'):
+                    p = line[len('[projects."') : -2]
+                    if p.startswith("/"):
+                        p = os.path.abspath(p)
+                        if p not in projects:
+                            projects[p] = int(time.time() * 1000)
+        except OSError:
+            pass
+
+    now_ms = int(time.time() * 1000)
+    p_imported = 0
+    s_imported = 0
+    with connect(db_path()) as conn:
+        for p, ts in projects.items():
+            at = ts if ts > 0 else now_ms
+            conn.execute(
+                "INSERT INTO items(kind, target, title) VALUES('project', ?, ?) "
+                "ON CONFLICT(kind, target) DO NOTHING",
+                (p, Path(p).name or p),
+            )
+            if conn.execute(
+                "SELECT COUNT(*) FROM visits WHERE kind = 'project' AND target = ?", (p,)
+            ).fetchone()[0] == 0:
+                conn.execute(
+                    "INSERT INTO visits(kind, target, at, via) VALUES('project', ?, ?, 'view')",
+                    (p, min(at, now_ms)),
+                )
+                p_imported += 1
+
+        for sid, s in sessions.items():
+            at = s["ts"] if s["ts"] > 0 else now_ms
+            conn.execute(
+                "INSERT INTO items(kind, target, title, icon, icon_font, detail, action) VALUES('agent-session', ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(kind, target) DO UPDATE SET "
+                "title=excluded.title, icon=excluded.icon, icon_font=excluded.icon_font, detail=excluded.detail, action=excluded.action",
+                (sid, s["title"], s["icon"], s["icon_font"], s["detail"], s["action"]),
+            )
+            if conn.execute(
+                "SELECT COUNT(*) FROM visits WHERE kind = 'agent-session' AND target = ?", (sid,)
+            ).fetchone()[0] == 0:
+                conn.execute(
+                    "INSERT INTO visits(kind, target, at, via) VALUES('agent-session', ?, ?, 'view')",
+                    (sid, min(at, now_ms)),
+                )
+                s_imported += 1
+
+    print(f"imported {p_imported} projects and {s_imported} agent sessions")
+    return 0
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(prog="omarchy activity")
+    sub = parser.add_subparsers(dest="verb", required=True)
+
+    record = sub.add_parser("record", help="log one use of a target")
+    record.add_argument("kind", help="target namespace: app, file, menu, ...")
+    record.add_argument("target", help="stable target id, e.g. a desktop id or menu id")
+    record.add_argument("title", nargs="?", default="", help="human-readable label")
+    record.add_argument("--via", choices=("pick", "view"), default="pick",
+                        help="explicit picks outrank passive views")
+    record.add_argument("--icon", default="", help="optional icon glyph")
+    record.add_argument("--icon-font", default="", help="optional icon font family")
+    record.add_argument("--detail", default="", help="optional secondary text")
+    record.add_argument("--action", default="", help="optional custom command template")
+    record.set_defaults(func=cmd_record)
+
+    top = sub.add_parser("top", help="print {target: {count, lastUsed, score}} as JSON")
+    top.add_argument("--kind", default="", help="only include this namespace")
+    top.add_argument("--via", choices=("pick", "view", "all", "blended"), default="blended",
+                     help="which provenance to rank (blended weights views at a fraction)")
+    top.add_argument("--limit", type=int, default=DEFAULT_TOP_LIMIT)
+    top.set_defaults(func=cmd_top)
+
+    rank = sub.add_parser("rank", help="sort stdin lines by item score")
+    rank.add_argument("--kind", default="file", help="target namespace (defaults to file)")
+    rank.add_argument("--via", choices=("pick", "view", "all", "blended"), default="blended",
+                      help="which provenance to rank by")
+    rank.add_argument("--limit", type=int, default=DEFAULT_TOP_LIMIT)
+    rank.set_defaults(func=cmd_rank)
+
+    rank_files = sub.add_parser("rank-files", help="sort stdin paths by file score")
+    rank_files.add_argument("--via", choices=("pick", "view", "all", "blended"), default="blended",
+                            help="which provenance to rank by")
+    rank_files.add_argument("--limit", type=int, default=DEFAULT_TOP_LIMIT)
+    rank_files.set_defaults(func=cmd_rank_files)
+
+    forget = sub.add_parser("forget", help="delete one target and its visits")
+    forget.add_argument("target", help="target id to erase")
+    forget.add_argument("--kind", default="", help="only delete within this namespace")
+    forget.set_defaults(func=cmd_forget)
+
+    pin = sub.add_parser("pin", help="float a target above scored results")
+    pin.add_argument("target", help="target id to pin")
+    pin.add_argument("--kind", default="", help="target namespace")
+    pin.set_defaults(func=cmd_pin)
+
+    unpin = sub.add_parser("unpin", help="release a pinned target")
+    unpin.add_argument("target", help="target id to unpin")
+    unpin.add_argument("--kind", default="", help="target namespace")
+    unpin.set_defaults(func=cmd_pin)
+
+    stats = sub.add_parser("stats", help="print per-kind counts as JSON")
+    stats.set_defaults(func=cmd_stats)
+
+    imp = sub.add_parser("import-frecency", help="one-shot import of launcher-frecency.json")
+    imp.add_argument("file", help="path to the legacy JSON file")
+    imp.add_argument("--default-kind", default="app")
+    imp.set_defaults(func=cmd_import_frecency)
+
+    xbel = sub.add_parser("import-xbel", help="seed file frecency from Gtk recently-used.xbel")
+    xbel.add_argument("file", nargs="?", default="", help="xbel path (defaults to the Gtk one)")
+    xbel.set_defaults(func=cmd_import_xbel)
+
+    zo = sub.add_parser("import-zoxide", help="seed project frecency from zoxide")
+    zo.add_argument("file", nargs="?", default="", help="optional zoxide query export or path list")
+    zo.set_defaults(func=cmd_import_zoxide)
+
+    agents = sub.add_parser("import-agents", help="seed project and session frecency from coding agents")
+    agents.add_argument("--antigravity", default="", help="custom path to antigravity history.jsonl")
+    agents.add_argument("--codex", default="", help="custom path to codex session_index.jsonl")
+    agents.set_defaults(func=cmd_import_agents)
+
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except sqlite3.Error as e:
+        print(f"omarchy-activity: database error: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

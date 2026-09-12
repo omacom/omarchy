@@ -65,4 +65,9 @@ status=0
 for pid in "${pids[@]}"; do
   wait "$pid" || status=1
 done
+
+if omarchy-cmd-present omarchy-activity; then
+  omarchy-activity import-agents >/dev/null 2>&1 || true
+fi
+
 exit $status
