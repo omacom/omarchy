@@ -121,9 +121,11 @@ omarchy-update
   ├─ omarchy-update-pkg-prune
   │    └─ trim the pacman cache to two versions per package, deliberately
   │       before the snapshot since the cache lives on the snapshotted subvolume
-  ├─ create snapper snapshot (skipped silently without snapper; snapper
-  │  installed but unconfigured fails the snapshot loudly, pointing at
-  │  install/config/snapper.sh, and the update continues without one)
+  ├─ create snapper snapshot unless an interactive run declines the prompt
+  │  (-y never asks and keeps the snapshot; snapper absent means there is
+  │  nothing to ask about; snapper installed but unconfigured fails the
+  │  snapshot loudly, pointing at install/config/snapper.sh, and the update
+  │  continues without one)
   ├─ omarchy-update-stay-awake start
   ├─ run package updates, migrations, hooks, and log analysis
   ├─ omarchy-update-status
@@ -265,7 +267,7 @@ scripts.
 
 | Binary | Current purpose | Keep? / Question |
 | --- | --- | --- |
-| `omarchy-update` | Public user command. Adds transcript logging, confirmation, snapshot, and restart checks around the locked, sleep-inhibited update pipeline. | **Keep.** This is the blessed entry point and orchestrates the update pipeline. |
+| `omarchy-update` | Public user command. Adds transcript logging, confirmation, an opt-out snapshot prompt, and restart checks around the locked, sleep-inhibited update pipeline. | **Keep.** This is the blessed entry point and orchestrates the update pipeline. |
 | `omarchy-update-lock` | Hidden command wrapper that holds the per-user update lock while its child runs. | **Keep internal/hidden.** Isolates update concurrency and lock descriptor handling. |
 | `omarchy-update-stay-awake` | Hidden helper that starts or stops update-owned sleep and idle inhibition, restoring only the state it changed. | **Keep internal/hidden.** Keeps inhibitor ownership and cleanup together. |
 | `omarchy-update-status` | Hidden helper that refreshes or clears the shell update indicator after rechecking available updates. | **Keep internal/hidden.** Keeps shell status synchronization out of the main pipeline. |

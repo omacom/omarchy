@@ -30,11 +30,19 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # after it frees nothing until that snapshot ages out.
   omarchy-update-pkg-prune
 
-  # 127 means Snapper is deliberately absent. Any other failure already said
-  # what went wrong, and a missing snapshot is not worth blocking an update
-  # over, but it must not pass for one either.
-  omarchy-snapshot create || (($? == 127)) ||
-    echo -e "\e[33mContinuing the update without a snapshot.\e[0m" >&2
+  # Snapshotting is the safe default, so that is what the prompt offers.
+  # -y is a promise not to ask anything and keeps the default, and with
+  # Snapper absent there is nothing to choose between.
+  if [[ ${1:-} == "-y" ]] || omarchy-cmd-missing snapper ||
+    gum confirm "Create a system snapshot first? (recommended)"; then
+    # 127 means Snapper is deliberately absent. Any other failure already said
+    # what went wrong, and a missing snapshot is not worth blocking an update
+    # over, but it must not pass for one either.
+    omarchy-snapshot create || (($? == 127)) ||
+      echo -e "\e[33mContinuing the update without a snapshot.\e[0m" >&2
+  else
+    echo -e "\e[33mSkipping the snapshot. Continuing the update without one.\e[0m" >&2
+  fi
 
   omarchy-update-stay-awake start
 
