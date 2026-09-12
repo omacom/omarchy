@@ -11,7 +11,7 @@
 # on a monitor with no workspace yet, before it ever reaches the lock, so a
 # missing LOCK there means nothing was asked. Callers branching only on success
 # treat 2 as unlocked.
-monitors=$(hyprctl -j monitors 2>/dev/null) || exit 2
+monitors=$(/usr/bin/timeout --kill-after=0.1s 1s hyprctl -j monitors 2>/dev/null) || exit 2
 
 state=$(jq '
   def blockers: .solitaryBlockedBy // [];

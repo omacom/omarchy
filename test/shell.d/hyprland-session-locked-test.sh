@@ -16,6 +16,7 @@ cat >"$fake_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 [[ ${1:-} == "-j" && ${2:-} == "monitors" ]] || exit 1
+[[ ${OMARCHY_TEST_HYPRCTL_HANGS:-0} != 1 ]] || { sleep 5; exit 0; }
 [[ ${OMARCHY_TEST_HYPRCTL_FAILS:-0} == 1 ]] && exit 4
 printf '%s\n' "$OMARCHY_TEST_MONITORS"
 SH
@@ -26,11 +27,12 @@ UNLOCKED=1
 UNDETERMINED=2
 
 assert_status() {
-  local expected="$1" monitors="$2" description="$3" hyprctl_fails="${4:-0}" actual=0
+  local expected="$1" monitors="$2" description="$3" hyprctl_fails="${4:-0}" hyprctl_hangs="${5:-0}" actual=0
 
   PATH="$fake_bin:$PATH" \
   OMARCHY_TEST_MONITORS="$monitors" \
   OMARCHY_TEST_HYPRCTL_FAILS="$hyprctl_fails" \
+  OMARCHY_TEST_HYPRCTL_HANGS="$hyprctl_hangs" \
     "$ROOT/bin/omarchy-hyprland-session-locked" || actual=$?
 
   (( actual == expected )) || fail "$description" "expected exit $expected, got $actual"
@@ -66,6 +68,9 @@ assert_status $UNDETERMINED '[]' \
 
 assert_status $UNDETERMINED '[]' \
   "an unreachable compositor cannot say" 1
+
+assert_status $UNDETERMINED '[]' \
+  "a wedged compositor query is bounded and cannot say" 0 1
 
 assert_status $UNDETERMINED 'not json at all' \
   "an unreadable monitor payload cannot say"

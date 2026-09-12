@@ -79,7 +79,7 @@ printf 'shell %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == "lock lock" ]]; then
   printf 'ok\n'
 elif [[ $* == "lock status" ]]; then
-  printf '{"secure":true}\n'
+  printf '{"secure":true,"sessionLocked":true,"requested":true}\n'
 fi
 SH
 chmod +x "$mock_bin/omarchy-shell"
@@ -165,7 +165,7 @@ fi
 
 if [[ $* == "lock status" ]]; then
   if [[ -f $STATE_DIR/locked ]]; then
-    printf '{"secure":true}\n'
+    printf '{"secure":true,"sessionLocked":true,"requested":true}\n'
   else
     printf '{"secure":false}\n'
   fi
@@ -203,7 +203,7 @@ fi
 
 if [[ $* == "lock status" ]]; then
   if [[ -f $STATE_DIR/pending_seen ]]; then
-    printf '{"secure":true}\n'
+    printf '{"secure":true,"sessionLocked":true,"requested":true}\n'
   else
     touch "$STATE_DIR/pending_seen"
     printf '{"secure":false,"requested":true,"pending":true,"sessionLocked":false}\n'
@@ -226,6 +226,29 @@ done
 (( requests == 1 )) ||
   fail "sleep lock does not retry an observed pending lock" "requests: $requests"
 pass "sleep lock does not retry an observed pending lock"
+
+# A destroyed in-process lock can leave Quickshell's stale secure bit true
+# while it owns no WlSessionLock. That exact #6888 tuple must never authorize
+# suspend; keep requesting/recovering until the deadline and report failure.
+setup_scenario stale_secure
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock lock" ]]; then
+  printf 'recovering\n'
+elif [[ $* == "lock status" ]]; then
+  printf '{"secure":true,"sessionLocked":false,"requested":false}\n'
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell
+
+run_sleep_lock 350
+
+(( exit_status != 0 )) || fail "sleep lock trusted stale secure without lock ownership"
+grep -qF 'suspending without a secure lock' "$journal_log" || fail "stale secure failure was not diagnosed"
+pass "sleep lock requires an owned secure session lock"
 
 # The shell reports a refusal on stdout with a zero exit, so a lock it can never
 # perform has to end the wait instead of burning the rest of the window on it.

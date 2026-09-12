@@ -42,7 +42,7 @@ qml_matches "$shell_qml" 'AuthServiceStore\.isTrusted\( *key *\)' ||
   fail "live authentication classification survives public manifest mutation"
 qml_matches "$shell_qml" 'AuthServiceStore\.updateManifest\( *id, *shell\.publicPluginManifest\( *m *\) *\)' ||
   fail "kept authentication services receive only a public manifest snapshot"
-qml_matches "$shell_qml" 'if *\( *!serviceKeepLoaded\( *authenticationId *\) *\) *AuthServiceStore\.destroy\( *authenticationId *\)' ||
+qml_matches "$shell_qml" 'if *\( *!serviceKeepLoaded\( *authenticationId *\) *\) *AuthServiceStore\.destroyUnlessSessionLockOwned\( *authenticationId *\)' ||
   fail "keepLoaded authentication services survive plugin rescans"
 pass "third-party and authentication services are detached from the host object tree"
 
@@ -55,9 +55,15 @@ vm.runInContext(
   fs.readFileSync(path.join(root, 'shell/services/AuthServiceStore.js'), 'utf8'),
   store
 )
-const service = { destroy() {} }
+let destroyed = 0
+const service = { sessionLockOwned: true, destroy() { destroyed += 1 } }
 store.put('omarchy.lock', service)
-store.destroy('omarchy.lock')
+assert(store.anySessionLockOwned(), 'the private host store detects its owned lock')
+assert(!store.destroyUnlessSessionLockOwned('omarchy.lock') && destroyed === 0,
+  'the private host store retains its owned lock')
+service.sessionLockOwned = false
+assert(store.destroyUnlessSessionLockOwned('omarchy.lock') && destroyed === 1,
+  'the private host store destroys the service after ownership clears')
 assert(
   !store.has('omarchy.lock') && store.isTrusted('omarchy.lock'),
   'authentication classification survives service teardown'

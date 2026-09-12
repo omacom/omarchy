@@ -56,7 +56,8 @@ fi
 # positionals. qs reports connection failures with a nonzero exit, but IPC-level
 # failures (unknown target/function, bad arguments) go to stdout with exit 0.
 ipc_timeout=${OMARCHY_SHELL_IPC_TIMEOUT:-2s}
-output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "$@" 2>/dev/null)
+ipc_kill_after=${OMARCHY_SHELL_IPC_KILL_AFTER:-1s}
+output=$(timeout --kill-after="$ipc_kill_after" "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "$@" 2>/dev/null)
 ipc_status=$?
 
 if (( ipc_status == 124 || ipc_status == 137 )); then

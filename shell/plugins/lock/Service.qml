@@ -15,6 +15,7 @@ Item {
   readonly property string stateHome: home + "/.local/state"
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
+  readonly property string lockOwnerPath: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-lock-owner-" + Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
 
   property bool lockRequested: false
   property bool pendingSessionLock: false
@@ -23,6 +24,11 @@ Item {
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
+  property bool displayBlanked: false
+  property bool displaysBlank: false
+  property var monitorDpms: ({})
+  property bool monitorDpmsKnown: false
+  property int focusRequestVersion: 0
   property string enteredPassword: ""
   property string pendingPassword: ""
   property string failureMessage: ""
@@ -31,19 +37,27 @@ Item {
   property int backgroundVersion: 0
   property string lastEvent: "init"
   property string lastEventAt: ""
-  property bool displaysBlank: false
-  // displaysBlank tracks what the lock asked for; Hyprland reports what each
-  // panel actually did. While a video is on show the two are reconciled, so a
-  // blank that failed keeps playing and a panel woken behind the lock's back
-  // (a resume that kept the same outputs) resumes instead of freezing.
-  property var monitorDpms: ({})
-  property bool monitorDpmsKnown: false
-  readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  property bool lockOwnerReady: false
+  property string lockOwnerInstance: ""
+  property bool strandedRestartAttempted: false
+  property bool wakePending: false
+  property bool blankPending: false
+  property bool cleanUnlockInProgress: false
+  property int wakeRetryAttempt: 0
+  readonly property int wakeRetryBudget: 3
+  property int blankRetryAttempt: 0
+  readonly property int blankRetryBudget: 3
 
-  readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+  readonly property bool lockStatePoisoned: sessionLock.secure && !sessionLock.locked && !cleanUnlockInProgress
+  readonly property bool locked: lockRequested || sessionLock.locked
+  // This is the deterministic ownership signal used by the shell reload guard.
+  // `secure` is deliberately excluded: after an in-process lock teardown it
+  // reads through Quickshell's stale process-global session-lock pointer.
+  readonly property bool sessionLockOwned: lockRequested || sessionLock.locked
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
+  readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
 
@@ -71,6 +85,10 @@ Item {
   }
 
   function requestSessionLock() {
+    if (lockStatePoisoned) {
+      recoverPoisonedLockState()
+      return
+    }
     if (!lockRequested || sessionLock.locked || sessionLock.secure) return
     if (sessionLockStabilizeTimer.running) return
 
@@ -84,6 +102,7 @@ Item {
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
     sessionLock.locked = true
+    if (sessionLock.locked) markSessionLockOwner()
   }
 
   // ext-session-lock outlives its client, and a restart carries no lock over, so
@@ -93,7 +112,7 @@ Item {
     if (strandedLockResolved || strandedLockCheckProc.running) return
 
     // A lock this shell took is nobody's orphan.
-    if (locked || lockRequested) {
+    if (sessionLockOwned) {
       strandedLockResolved = true
       return
     }
@@ -102,11 +121,49 @@ Item {
   }
 
   function recoverStrandedLock() {
-    if (!strandedLock || locked || !passwordPamConfigured) return
+    if (!strandedLock || sessionLockOwned || !passwordPamConfigured || !lockOwnerReady) return
+
+    // A replacement service in the same Quickshell process cannot retake the
+    // lock: destroying its predecessor leaves the process-global lock manager
+    // poisoned. A detached restart gives recovery a clean manager and survives
+    // the shell it is replacing. A genuinely fresh shell has a different
+    // instance id and can safely take over the compositor's stranded lock.
+    if (lockOwnerInstance === String(Quickshell.instanceId)) {
+      restartForStrandedLock()
+      return
+    }
 
     strandedLock = false
     logEvent("lock-stranded: recovering")
     beginLock()
+  }
+
+  function restartForStrandedLock() {
+    if (strandedRestartAttempted || sessionLock.locked) return
+
+    strandedRestartAttempted = true
+    sessionLockStabilizeTimer.stop()
+    pendingSessionLockTimer.stop()
+    logEvent("lock-stranded: restarting-poisoned-shell")
+    Quickshell.execDetached(["omarchy-restart-shell"])
+    strandedRestartRetryTimer.restart()
+  }
+
+  function recoverPoisonedLockState() {
+    if (!lockStatePoisoned) return
+    strandedLock = true
+    strandedLockResolved = true
+    restartForStrandedLock()
+  }
+
+  function markSessionLockOwner() {
+    lockOwnerInstance = String(Quickshell.instanceId)
+    lockOwnerFile.setText(lockOwnerInstance + "\n")
+  }
+
+  function clearSessionLockOwner() {
+    lockOwnerInstance = ""
+    lockOwnerFile.setText("")
   }
 
   function refreshBackground() {
@@ -164,7 +221,9 @@ Item {
     pendingSessionLockTimer.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
+    cleanUnlockInProgress = true
     sessionLock.locked = false
+    clearSessionLockOwner()
     logEvent("unlocked")
     runWake()
   }
@@ -176,15 +235,88 @@ Item {
 
   function runWake() {
     root.displaysBlank = false
-    root.monitorDpmsKnown = false
-    if (!wakeProcess.running) wakeProcess.running = true
+    displayBlanked = false
+    monitorDpmsKnown = false
+    focusRequestVersion += 1
+    blankPending = false
+    blankRetryTimer.stop()
+    blankRetryAttempt = 0
+    wakeRetryTimer.stop()
+    wakeRetryAttempt = 0
+    wakePending = true
+    drainDisplayRequest()
     if (lockRequested) armBlankTimer()
   }
 
   function runBlank() {
     root.displaysBlank = true
-    root.monitorDpmsKnown = false
-    if (!blankProcess.running) blankProcess.running = true
+    displayBlanked = true
+    monitorDpmsKnown = false
+    wakePending = false
+    wakeRetryTimer.stop()
+    wakeRetryAttempt = 0
+    blankRetryTimer.stop()
+    blankRetryAttempt = 0
+    if (!blankProcess.running) blankPending = true
+    drainDisplayRequest()
+  }
+
+  // Blank and wake are one ordered state machine. Each child is bounded, and
+  // both exits drain the latest request, so a wedged process cannot suppress
+  // display control forever or let a late DPMS-off win after a wake.
+  function drainDisplayRequest() {
+    if (blankProcess.running || wakeProcess.running) return
+    if (wakePending) {
+      wakePending = false
+      wakeProcess.running = true
+    } else if (blankPending) {
+      blankPending = false
+      blankProcess.running = true
+    }
+  }
+
+  function handleWakeExit(exitCode) {
+    if (exitCode === 0) {
+      wakeRetryAttempt = 0
+      wakeRetryTimer.stop()
+      drainDisplayRequest()
+      return
+    }
+
+    // A later blank supersedes this wake. Otherwise retry the latest wake even
+    // after finishUnlock removed the lock surface and its input monitor.
+    if (!displayBlanked && wakeRetryAttempt < wakeRetryBudget) {
+      wakeRetryAttempt += 1
+      wakePending = true
+      wakeRetryTimer.interval = 250 * Math.pow(2, wakeRetryAttempt - 1)
+      wakeRetryTimer.restart()
+      return
+    }
+
+    wakePending = false
+    drainDisplayRequest()
+  }
+
+  function handleBlankExit(exitCode) {
+    if (exitCode === 0) {
+      blankRetryAttempt = 0
+      blankRetryTimer.stop()
+      drainDisplayRequest()
+      return
+    }
+
+    // Input or unlock may have requested a newer wake while blanking. Retry
+    // only while this same lock still wants a blank display.
+    if (lockRequested && displayBlanked && blankRetryAttempt < blankRetryBudget) {
+      blankRetryAttempt += 1
+      blankPending = true
+      blankRetryTimer.interval = 250 * Math.pow(2, blankRetryAttempt - 1)
+      blankRetryTimer.restart()
+      return
+    }
+
+    blankPending = false
+    drainDisplayRequest()
   }
 
   function screenBlank(screenName) {
@@ -272,6 +404,10 @@ Item {
 
     onSecureStateChanged: {
       root.logEvent("secure=" + secure)
+      if (!secure) {
+        root.cleanUnlockInProgress = false
+        if (root.lockRequested) root.queueSessionLock()
+      }
       if (secure) {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
@@ -284,6 +420,7 @@ Item {
       root.logEvent("session-locked=" + locked)
 
       if (locked) {
+        root.markSessionLockOwner()
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
@@ -317,6 +454,8 @@ Item {
         displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
         powerSaverActive: root.powerSaverActive
         passwordText: root.enteredPassword
+        displayBlanked: root.displayBlanked
+        focusRequestVersion: root.focusRequestVersion
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
@@ -437,24 +576,23 @@ Item {
       root.strandedLockResolved = true
 
       // A lock taken while this was in flight is this shell's own.
-      root.strandedLock = exitCode === 0 && !root.locked && !root.lockRequested
+      root.strandedLock = exitCode === 0 && !root.sessionLockOwned
       root.recoverStrandedLock()
     }
   }
 
   Process {
     id: wakeProcess
-    command: ["bash", "-c", "omarchy-system-wake"]
+    command: ["timeout", "--kill-after=0.2s", "2s", "bash", "-c", "omarchy-system-wake"]
+    onExited: function(exitCode) { root.handleWakeExit(exitCode) }
   }
 
   Process {
     id: blankProcess
-    command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+    command: ["timeout", "--kill-after=0.2s", "2s", "bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+    onExited: function(exitCode) { root.handleBlankExit(exitCode) }
   }
 
-  // Quickshell exposes no DPMS signal, so the panel state is polled while a
-  // video is the locked wallpaper. A wake or blank request drops the last
-  // answer, so its optimistic state applies until the next poll confirms it.
   Process {
     id: monitorDpmsProcess
     command: ["hyprctl", "monitors", "-j"]
@@ -474,6 +612,50 @@ Item {
     }
     onRunningChanged: {
       if (!running) root.monitorDpmsKnown = false
+    }
+  }
+
+  // Keyboard activity still reaches the compositor when no lock surface has
+  // focus. Keep this armed for the whole lock so the first key after DPMS-off
+  // can both wake the display and re-arm the bounded password-focus retry.
+  IdleMonitor {
+    enabled: root.lockRequested
+    timeout: 1
+    respectInhibitors: false
+    onIsIdleChanged: {
+      if (isIdle) return
+      root.focusRequestVersion += 1
+      if (root.displayBlanked) root.runWake()
+    }
+  }
+
+  Timer {
+    id: strandedRestartRetryTimer
+    interval: 2000
+    repeat: false
+    onTriggered: {
+      root.strandedRestartAttempted = false
+      if (root.lockStatePoisoned || (root.strandedLock && root.lockOwnerInstance === String(Quickshell.instanceId)))
+        root.restartForStrandedLock()
+    }
+  }
+
+  Timer {
+    id: wakeRetryTimer
+    interval: 250
+    repeat: false
+    onTriggered: {
+      if (!root.displayBlanked && root.wakePending) root.drainDisplayRequest()
+    }
+  }
+
+  Timer {
+    id: blankRetryTimer
+    interval: 250
+    repeat: false
+    onTriggered: {
+      if (root.lockRequested && root.displayBlanked && root.blankPending)
+        root.drainDisplayRequest()
     }
   }
 
@@ -533,11 +715,9 @@ Item {
   Connections {
     target: Quickshell
     function onScreensChanged() {
-      // A panel coming back is a display turning on that runWake did not ask
-      // for, so the blank state has to be given up here or a visible lock
-      // wallpaper stays frozen until the next keypress.
       root.displaysBlank = false
       root.requestSessionLock()
+      if (root.lockRequested) root.focusRequestVersion += 1
 
       // A monitor still coming up has no workspace, so cannot answer yet.
       strandedLockRetryTimer.rearm()
@@ -549,6 +729,24 @@ Item {
     if (!lockRequested) return
     if (authenticatingPassword) idleBlankTimer.stop()
     else armBlankTimer()
+  }
+
+  FileView {
+    id: lockOwnerFile
+    path: root.lockOwnerPath
+    atomicWrites: true
+    blockWrites: true
+    printErrors: false
+    onLoaded: {
+      root.lockOwnerInstance = String(text() || "").trim()
+      root.lockOwnerReady = true
+      root.recoverStrandedLock()
+    }
+    onLoadFailed: {
+      root.lockOwnerInstance = ""
+      root.lockOwnerReady = true
+      root.recoverStrandedLock()
+    }
   }
 
   FileView {
@@ -571,10 +769,13 @@ Item {
     checkStrandedLock()
   }
 
+  onLockStatePoisonedChanged: if (lockStatePoisoned) recoverPoisonedLockState()
+
   Component.onCompleted: {
     refreshBackground()
     refreshFingerprintStatus()
     checkStrandedLock()
+    recoverPoisonedLockState()
   }
 
   IpcHandler {
@@ -582,6 +783,10 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
+      if (root.lockStatePoisoned) {
+        root.recoverPoisonedLockState()
+        return "recovering"
+      }
       if (!root.locked && !root.beginLock()) return "failed"
       return "ok"
     }

@@ -8,7 +8,21 @@ run_node_test <<'JS'
 const fs = require('fs')
 const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.qml'), 'utf8')
 
-// The compositor holds the lock past its client, so a fresh shell must retake it.
+function bodyOf(src, name, label) {
+  const start = src.indexOf(`function ${name}(`)
+  assert(start !== -1, `${label}: source defines ${name}()`)
+  const open = src.indexOf('{', start)
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '{') depth += 1
+    else if (src[i] === '}') {
+      depth -= 1
+      if (depth === 0) return src.slice(open + 1, i)
+    }
+  }
+  fail(`${label}: ${name}() has balanced braces`)
+}
+
 assert(
   /Component\.onCompleted:[\s\S]*checkStrandedLock\(\)/.test(serviceQml),
   'the lock service asks the compositor whether the session is locked at startup'
@@ -16,74 +30,143 @@ assert(
 
 assert(
   /id: strandedLockCheckProc[\s\S]*omarchy-hyprland-session-locked/.test(serviceQml),
-  'the startup check goes through the shared session lock helper'
+  'the startup check goes through the shared compositor lock helper'
 )
 
-// "No output to read" taken for "unlocked" leaves the failsafe up for good.
 assert(
   /onExited: function\(exitCode\) \{[\s\S]*if \(exitCode === 2\) return/.test(serviceQml),
-  'an undetermined answer never resolves the check'
+  'an undetermined compositor answer never resolves the check'
+)
+
+const ownership = serviceQml.match(/readonly property bool sessionLockOwned:([^\n]*)/)
+assert(ownership, 'the lock service exposes deterministic ownership to the shell')
+assertEqual(
+  ownership[1].trim(),
+  'lockRequested || sessionLock.locked',
+  'ownership is requested or instance-owned, without the stale secure flag'
+)
+
+const check = bodyOf(serviceQml, 'checkStrandedLock', 'stranded check')
+assert(
+  check.includes('if (sessionLockOwned)'),
+  'a lock this service owns ends the stranded-lock search'
+)
+assert(
+  !/\blocked\b/.test(check),
+  'the stranded check does not consult the wider locked state containing secure'
 )
 
 assert(
-  /if \(exitCode === 2\) return\s*\n\s*root\.strandedLockResolved = true/.test(serviceQml),
-  'only a compositor that reports a lock counts as a stranded lock'
+  /root\.strandedLock = exitCode === 0 && !root\.sessionLockOwned/.test(serviceQml),
+  'a compositor lock without an instance-owned surface is classified as stranded'
 )
 
-// omarchy-restart-shell re-locks a fresh shell, possibly mid-question.
+const recover = bodyOf(serviceQml, 'recoverStrandedLock', 'stranded recovery')
 assert(
-  /root\.strandedLock = exitCode === 0 && !root\.locked && !root\.lockRequested/.test(serviceQml),
-  'a lock this shell took while the check was in flight is not stranded'
+  recover.includes('!lockOwnerReady'),
+  'recovery waits until the persisted lock owner is known'
+)
+assert(
+  recover.includes('lockOwnerInstance === String(Quickshell.instanceId)'),
+  'recovery distinguishes a poisoned in-process remount from a fresh shell'
+)
+assert(
+  recover.indexOf('restartForStrandedLock()') < recover.indexOf('beginLock()'),
+  'an in-process orphan restarts before the fresh-shell takeover path'
+)
+
+const restart = bodyOf(serviceQml, 'restartForStrandedLock', 'poisoned-shell restart')
+assert(
+  restart.includes('Quickshell.execDetached(["omarchy-restart-shell"])'),
+  'the recovery command is detached from the shell it terminates'
+)
+assert(
+  restart.includes('strandedRestartAttempted = true'),
+  'a poisoned service serializes each restart attempt'
+)
+assert(
+  /id: strandedRestartRetryTimer[\s\S]*strandedRestartAttempted = false[\s\S]*restartForStrandedLock\(\)/.test(serviceQml),
+  'a transiently refused detached restart is retried while poison remains'
+)
+assert(
+  /readonly property bool lockStatePoisoned: sessionLock\.secure && !sessionLock\.locked && !cleanUnlockInProgress/.test(serviceQml) &&
+    /onLockStatePoisonedChanged: if \(lockStatePoisoned\) recoverPoisonedLockState\(\)/.test(serviceQml),
+  'the real stale-secure tuple triggers recovery without trusting the wider locked state'
+)
+assert(
+  /function finishUnlock\(\)[\s\S]*cleanUnlockInProgress = true[\s\S]*sessionLock\.locked = false/.test(serviceQml) &&
+    /onSecureStateChanged:[\s\S]*if \(!secure\) \{[\s\S]*root\.cleanUnlockInProgress = false/.test(serviceQml),
+  'the expected secure-to-unlocked transition cannot be mistaken for poison'
+)
+const begin = bodyOf(serviceQml, 'beginLock', 'lock request')
+assert(
+  !begin.includes('cleanUnlockInProgress = false'),
+  'an immediate relock keeps the clean-unlock suppressor until secure actually falls'
+)
+assert(
+  /if \(!secure\) \{[\s\S]*cleanUnlockInProgress = false[\s\S]*if \(root\.lockRequested\) root\.queueSessionLock\(\)/.test(serviceQml),
+  'the secure-false transition resumes an immediate relock without poison recovery'
+)
+assert(
+  /function lock\(\): string \{[\s\S]*lockStatePoisoned[\s\S]*recoverPoisonedLockState\(\)[\s\S]*return "recovering"/.test(serviceQml),
+  'manual lock cannot report success from a poisoned secure flag'
+)
+
+// Model the exact unlock -> immediate lock -> delayed secure=false ordering.
+// Clearing suppression in beginLock would synchronously increment restarts.
+const transition = { secure: true, sessionLocked: false, clean: true, requested: false, restarts: 0, queued: 0 }
+function observePoison() {
+  if (transition.secure && !transition.sessionLocked && !transition.clean) transition.restarts += 1
+}
+transition.requested = true
+observePoison()
+assertEqual(transition.restarts, 0, 'immediate relock does not dispatch poisoned-shell recovery')
+transition.secure = false
+transition.clean = false
+if (transition.requested) transition.queued += 1
+observePoison()
+assertEqual(transition.restarts, 0, 'secure falling cannot poison the latched relock')
+assertEqual(transition.queued, 1, 'secure falling resumes the latched relock')
+
+const mark = bodyOf(serviceQml, 'markSessionLockOwner', 'owner marker')
+assert(
+  mark.includes('Quickshell.instanceId') && mark.includes('lockOwnerFile.setText'),
+  'a service records the Quickshell instance that acquired the lock'
+)
+
+assert(
+  /lockOwnerPath:[^\n]*HYPRLAND_INSTANCE_SIGNATURE/.test(serviceQml),
+  'the owner marker is isolated to one Hyprland session'
+)
+assert(
+  /id: lockOwnerFile[\s\S]*blockWrites: true/.test(serviceQml),
+  'the owner marker reaches tmpfs before the lock service can be destroyed'
+)
+
+const clear = bodyOf(serviceQml, 'clearSessionLockOwner', 'owner marker cleanup')
+assert(
+  clear.includes('lockOwnerFile.setText("")'),
+  'a clean unlock clears the persisted lock owner'
+)
+
+assert(
+  /if \(locked\) \{\s*root\.markSessionLockOwner\(\)/.test(serviceQml),
+  'a lock-state notification records this service as the owner'
+)
+
+const request = bodyOf(serviceQml, 'requestSessionLock', 'session-lock acquisition')
+assert(
+  request.indexOf('sessionLock.locked = true') < request.indexOf('if (sessionLock.locked) markSessionLockOwner()'),
+  'successful lock acquisition records the owner even when no state notification fires'
 )
 
 assert(
   /id: strandedLockRetryTimer[\s\S]*running: !root\.strandedLockResolved && remaining > 0/.test(serviceQml),
-  'the check retries while the compositor cannot answer, and stops once it has'
+  'the compositor check retries while its answer is unavailable'
 )
 
-// A display asleep for hours outlasts any retry budget.
-assert(
-  /function onScreensChanged\(\) \{[\s\S]*root\.checkStrandedLock\(\)/.test(serviceQml),
-  'a screen coming back re-asks whether a lock is stranded'
-)
-
-// One probe is not enough: a monitor still coming up cannot answer.
 assert(
   /function onScreensChanged\(\) \{[\s\S]*strandedLockRetryTimer\.rearm\(\)[\s\S]*root\.checkStrandedLock\(\)/.test(serviceQml),
-  'a screen coming back gives the check its settling time again'
-)
-
-assert(
-  /function rearm\(\) \{\s*if \(!root\.strandedLockResolved\) remaining = budget/.test(serviceQml),
-  're-arming never restarts a check that already has its answer'
-)
-
-// A lock this shell owns ends the search.
-assert(
-  /function checkStrandedLock\(\) \{\s*if \(strandedLockResolved \|\| strandedLockCheckProc\.running\) return[\s\S]*if \(locked \|\| lockRequested\) \{\s*strandedLockResolved = true/.test(serviceQml),
-  'a lock this shell took is not treated as stranded'
-)
-
-assert(
-  /function recoverStrandedLock\(\) \{\s*if \(!strandedLock \|\| locked \|\| !passwordPamConfigured\) return/.test(serviceQml),
-  'recovery is skipped unless a stranded lock is waiting and PAM can authenticate it'
-)
-
-// The compositor answer and the PAM config land asynchronously, in either
-// order, so whichever arrives last has to drive the recovery.
-assert(
-  /onPasswordPamConfiguredChanged: \{[\s\S]*checkStrandedLock\(\)/.test(serviceQml),
-  'recovery retries once the PAM config has loaded'
-)
-
-// The failsafe can be cleared from a TTY while PAM is still loading.
-assert(
-  /onPasswordPamConfiguredChanged: \{\s*if \(!passwordPamConfigured\) return\s*\n\s*strandedLock = false\s*\n\s*strandedLockResolved = false/.test(serviceQml),
-  'a late PAM config re-asks the compositor instead of trusting a stale answer'
-)
-
-assert(
-  /strandedLock = false\s*\n\s*logEvent\("lock-stranded: recovering"\)\s*\n\s*beginLock\(\)/.test(serviceQml),
-  'recovery takes the lock once and records it in the journal'
+  'a screen coming back gives the compositor check another settling budget'
 )
 JS

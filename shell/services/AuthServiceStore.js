@@ -32,6 +32,27 @@ function updateManifest(id, manifest) {
   if (service && "manifest" in service) service.manifest = manifest
 }
 
+// Host-only lifecycle queries. Importers receive a private module instance, so
+// third-party QML cannot use these functions to obtain authentication objects.
+function sessionLockOwned(id) {
+  var service = services[String(id || "")]
+  return !!service && service.sessionLockOwned === true
+}
+
+function anySessionLockOwned() {
+  var keys = ids()
+  for (var i = 0; i < keys.length; i++) {
+    if (sessionLockOwned(keys[i])) return true
+  }
+  return false
+}
+
+function destroyUnlessSessionLockOwned(id) {
+  if (sessionLockOwned(id)) return false
+  destroy(id)
+  return true
+}
+
 function destroy(id) {
   var key = String(id || "")
   var service = services[key]

@@ -77,7 +77,7 @@ request_lock() {
 # secure: done. locking: the shell has the request and is working on it, so
 # leave it alone. Anything else, unreadable replies included, means ask again.
 lock_state() {
-  jq -r 'if .secure == true then "secure"
+  jq -r 'if .sessionLocked == true and .secure == true then "secure"
          elif .requested == true then "locking"
          else "idle" end' \
     <<<"$(lock_ipc "$status_timeout_ms" lock status 2>/dev/null)" 2>/dev/null

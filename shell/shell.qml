@@ -974,7 +974,10 @@ ShellRoot {
         }
         // A service that loses its trusted authentication capability can move
         // back to the ordinary service map only after the isolated copy dies.
-        AuthServiceStore.destroy(id)
+        if (!AuthServiceStore.destroyUnlessSessionLockOwned(id)) {
+          shell.armLocalPluginReload()
+          continue
+        }
       }
       ensureService(id)
     }
@@ -988,6 +991,14 @@ ShellRoot {
       var stillEnabled = stillThere && pluginRegistry.isEnabled(existingId)
       if (stillService && stillEnabled) continue
       var inst = _services[existingId]
+      // Never destroy a service that owns ext-session-lock. Its Wayland lock
+      // outlives the QML object and strands the session without an auth UI.
+      // Queue a full reload so a disabled/removed service is collected once
+      // the user has authenticated and released the lock.
+      if (inst && inst.sessionLockOwned === true) {
+        shell.armLocalPluginReload()
+        continue
+      }
       if (inst && typeof inst.destroy === "function") inst.destroy()
       var next = ({})
       for (var k in _services) if (k !== existingId) next[k] = _services[k]
@@ -1006,7 +1017,8 @@ ShellRoot {
         && authenticationManifest.entryPoints.service
       if (stillAuthenticationService && pluginRegistry.isEnabled(authenticationId)
           && shell.isAuthenticationService(authenticationManifest, authenticationId)) continue
-      AuthServiceStore.destroy(authenticationId)
+      if (!AuthServiceStore.destroyUnlessSessionLockOwned(authenticationId))
+        shell.armLocalPluginReload()
     }
   }
 
@@ -1027,6 +1039,10 @@ ShellRoot {
         continue
       }
       var inst = _services[existingId]
+      if (inst && inst.sessionLockOwned === true) {
+        next[existingId] = inst
+        continue
+      }
       if (inst && typeof inst.destroy === "function") inst.destroy()
     }
     _services = next
@@ -1034,8 +1050,19 @@ ShellRoot {
     for (var ai = 0; ai < authenticationIds.length; ai++) {
       var authenticationId = authenticationIds[ai]
       if (!serviceKeepLoaded(authenticationId))
-        AuthServiceStore.destroy(authenticationId)
+        AuthServiceStore.destroyUnlessSessionLockOwned(authenticationId)
     }
+  }
+
+  // Duck-typed so a cloned lock service receives the same protection as the
+  // built-in service. `sessionLockOwned` excludes the unreliable secure flag.
+  function sessionLockOwned() {
+    if (AuthServiceStore.anySessionLockOwned()) return true
+    for (var id in _services) {
+      var inst = _services[id]
+      if (inst && inst.sessionLockOwned === true) return true
+    }
+    return false
   }
 
   Connections {
@@ -1438,11 +1465,25 @@ ShellRoot {
     pluginWidgetComponents = ({})
   }
 
+  function armLocalPluginReload() {
+    localPluginReloadTimer.interval = shell.sessionLockOwned() ? 2000 : 150
+    localPluginReloadTimer.restart()
+  }
+
   function reloadPlugins() {
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
       return
     }
+    // Reloading QML destroys service instances. Defer the whole operation
+    // while any service owns ext-session-lock; retaining only the service is
+    // insufficient because clearing the component cache can invalidate the
+    // types backing its live lock surfaces.
+    if (shell.sessionLockOwned()) {
+      shell.armLocalPluginReload()
+      return
+    }
+    localPluginReloadTimer.stop()
     shell.pluginReloading = true
     shell.unloadPanels()
     shell.unloadPluginServices()
@@ -1464,7 +1505,7 @@ ShellRoot {
     target: shell.pluginRegistry
     function onLocalPluginChanged(pluginId) {
       console.log("Local plugin changed, reloading:", pluginId)
-      localPluginReloadTimer.restart()
+      shell.armLocalPluginReload()
     }
     function onScanFinished() {
       if (shell.pluginReloadPending) {

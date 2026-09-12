@@ -3,6 +3,26 @@
 # omarchy:summary=Restart the Omarchy shell
 # omarchy:examples=omarchy restart shell
 
+# A poisoned lock service retries from a detached process because the process
+# it replaces cannot remain its parent. Serialize those retries in the session
+# runtime directory so an IPC wedge can never accumulate restart trees.
+restart_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$UID}"
+if [[ ! -d $restart_runtime_dir || -L $restart_runtime_dir ]]; then
+  echo "Omarchy shell runtime directory is unavailable; refusing to restart." >&2
+  exit 1
+fi
+read -r restart_runtime_owner restart_runtime_mode \
+  < <(/usr/bin/stat -Lc '%u %a' -- "$restart_runtime_dir") || exit 1
+if [[ $restart_runtime_owner != "$UID" ]] || (( (8#$restart_runtime_mode & 0022) != 0 )); then
+  echo "Omarchy shell runtime directory is unsafe; refusing to restart." >&2
+  exit 1
+fi
+exec {restart_lock_fd}>>"$restart_runtime_dir/omarchy-restart-shell.lock"
+if ! /usr/bin/flock -n "$restart_lock_fd"; then
+  echo "Another Omarchy shell restart is already in progress." >&2
+  exit 75
+fi
+
 # A caller opened after dev link/unlink may disagree with the still-running
 # desktop. The user manager receives Hyprland's environment at session start.
 session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^OMARCHY_PATH=//p' | tail -n 1)
@@ -10,6 +30,54 @@ session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's
 
 CONFIG_DIR="$session_omarchy_path/shell"
 [[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
+CONFIG_FILE=$(readlink -e -- "$CONFIG_DIR/shell.qml") || exit 1
+
+# Return Linux's monotonic uptime in milliseconds without spawning a helper.
+# This lets readiness probes share one real deadline instead of multiplying a
+# retry count by several nested timeouts, and wall-clock changes cannot extend
+# the recovery window.
+clock_millis() {
+  local uptime seconds fraction
+  read -r uptime _ </proc/uptime || return 1
+  seconds=${uptime%%.*}
+  fraction=${uptime#*.}000
+  REPLY=$((seconds * 1000 + 10#${fraction:0:3}))
+}
+
+duration_from_millis() {
+  local millis=$1
+  printf -v REPLY '%d.%03ds' "$((millis / 1000))" "$((millis % 1000))"
+}
+
+# Exit 0 when this exact config has a live registry entry, 1 when it has none,
+# and 2 when the registry cannot safely answer. All callers preserve the
+# distinction so an ambiguous launch never creates a duplicate shell.
+shell_instance_state() {
+  local budget_millis=${1:-1000} instance_list live_instance timeout_duration
+  (( budget_millis > 1000 )) && budget_millis=1000
+  (( budget_millis > 0 )) || return 2
+  duration_from_millis "$budget_millis"
+  timeout_duration=$REPLY
+
+  if ! instance_list=$(/usr/bin/timeout --kill-after=0.1s "$timeout_duration" /usr/bin/env LC_ALL=C quickshell list --all -j 2>/dev/null); then
+    return 2
+  fi
+
+  # Quickshell's successful canonical empty result is text even with -j. Fix
+  # the locale so that exact response is stable, while keeping every other
+  # non-JSON answer ambiguous and therefore unsafe to launch through.
+  if [[ $instance_list == "No running instances." ]]; then
+    return 1
+  fi
+
+  if ! live_instance=$(jq -er --arg config "$CONFIG_FILE" '
+      if type == "array" then any(.[]; .config_path == $config) | tostring
+      else error("invalid instance list") end
+    ' <<<"$instance_list" 2>/dev/null); then
+    return 2
+  fi
+  [[ $live_instance == true ]]
+}
 
 # Allow running from outside the session (e.g. over ssh) by deriving the
 # Hyprland instance signature from the newest instance runtime dir.
@@ -24,17 +92,60 @@ fi
 # that holds no lock — sits in that failsafe with no way to authenticate,
 # and a restart plus re-lock is the only way back in without a reboot. So
 # ask the lock service rather than merely pinging the shell: only a locker
-# that reports the lock secure or in progress is worth preserving.
+# that owns a session-lock surface and reports it secure or in progress is
+# worth preserving. `secure` alone can come from a destroyed lock object.
 relock=0
-if omarchy-hyprland-session-locked; then
-  locking=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
-    jq -r '.secure or .requested' 2>/dev/null)
-  if [[ $locking == "true" ]]; then
-    echo "Refusing to restart Omarchy shell while the session is locked." >&2
-    exit 1
+omarchy-hyprland-session-locked
+compositor_lock_state=$?
+case $compositor_lock_state in
+0)
+  if ! lock_status=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null); then
+    # A dead locker has no IPC by definition. Distinguish it from a live but
+    # unreadable shell using Quickshell's process registry, bounded so a stale
+    # registry service cannot hold this decision open.
+    shell_instance_state
+    instance_state=$?
+    case $instance_state in
+      0 | 2)
+        echo "Could not determine whether the running shell owns the session lock; refusing to restart." >&2
+        exit 1
+        ;;
+      1) relock=1 ;;
+    esac
+  else
+    if ! locking=$(jq -er '
+      if (.sessionLocked | type) == "boolean" and (.secure | type) == "boolean" and (.requested | type) == "boolean" then
+        if .secure and (.sessionLocked | not) then "poisoned"
+        elif .sessionLocked or .requested then "owned"
+        else "idle" end
+      else
+        error("invalid lock status")
+      end
+    ' <<<"$lock_status" 2>/dev/null); then
+      echo "Could not determine whether the running shell owns the session lock; refusing to restart." >&2
+      exit 1
+    fi
+    case "$locking" in
+      owned)
+        echo "Refusing to restart Omarchy shell while the session is locked." >&2
+        exit 1
+        ;;
+      poisoned|idle)
+        relock=1
+        ;;
+      *)
+        echo "Could not determine whether the running shell owns the session lock; refusing to restart." >&2
+        exit 1
+        ;;
+    esac
   fi
-  relock=1
-fi
+  ;;
+1) ;;
+*)
+  echo "Could not determine the compositor session-lock state; refusing to restart." >&2
+  exit 1
+  ;;
+esac
 
 # The lock plugin loads asynchronously, so a fresh shell answers ping before
 # it can lock, and may even refuse early lock requests while its plugins or
@@ -47,7 +158,7 @@ relock_session() {
 
   while (( SECONDS < deadline )); do
     state=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
-      jq -r 'if .secure == true then "secure" elif .requested == true then "locking" else "idle" end' 2>/dev/null)
+      jq -r 'if .sessionLocked == true and .secure == true then "secure" elif .sessionLocked == true and .requested == true then "locking" else "idle" end' 2>/dev/null)
 
     case $state in
       secure) return 0 ;;
@@ -61,33 +172,155 @@ relock_session() {
   return 1
 }
 
-# Each kill stops the oldest matching instance and only returns once it has
-# fully exited, so the no-duplicate launch below can't race a dying shell.
-while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+notifications_ready() {
+  [[ $(busctl --user call org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus NameHasOwner s org.freedesktop.Notifications 2>/dev/null) == "b true" ]]
+}
 
-# Spawn from Hyprland so the shell inherits the canonical session environment,
-# not transient variables from a terminal, SSH connection, or development tool.
-hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
+# Core IPC can answer before the notification plugin has registered its bus
+# name. Preserve that readiness requirement only when the old service existed.
+notifications_were_running=0
+if notifications_ready; then
+  notifications_were_running=1
+fi
 
-for (( attempt = 0; attempt < 20; attempt++ )); do
-  if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
-    # The session stays compositor-locked after the old lock client died, so
-    # re-acquire the lock and let the user authenticate out of it.
-    if (( relock )) && ! relock_session; then
-      echo "Omarchy shell restarted, but the session lock was not re-secured." >&2
-      exit 1
-    fi
-    # Invitation toasts (like Voxtype/fingerprint setup) die with the old
-    # shell, and their notify-send waiters hang forever: the dying server
-    # never emits NotificationClosed. A still-running omarchy-*-invitation
-    # unit is therefore an unanswered invitation — re-run it so its toast
-    # reappears on the new shell. Answered invitations have already exited
-    # and been collected, so the glob no longer matches them.
-    systemctl --user try-restart 'omarchy-*-invitation.service' 2>/dev/null || true
-    exit 0
+launch_replacement_shell() {
+  local deadline deadline_seconds instance_state ipc_budget remaining timeout_duration
+  local dispatch_attempts=0
+  local dispatch_cooldown=0
+
+  deadline_seconds=${OMARCHY_RESTART_READY_TIMEOUT_SECONDS:-30}
+  if [[ ! $deadline_seconds =~ ^[1-9][0-9]*$ ]] || (( deadline_seconds > 30 )); then
+    deadline_seconds=30
   fi
-  sleep 0.1
-done
+  clock_millis
+  deadline=$((REPLY + deadline_seconds * 1000))
+
+  # A timed-out dispatch is ambiguous: Hyprland may have launched the process
+  # before its reply wedged. Gate every retry on both bounded IPC ping and the
+  # exact-config registry, with a registration grace period after dispatch.
+  # Every blocking call consumes the same absolute budget, so simultaneous
+  # IPC and registry wedges still release the serialization lock promptly.
+  while :; do
+    clock_millis
+    remaining=$((deadline - REPLY))
+    (( remaining > 0 )) || return 1
+    ipc_budget=$remaining
+    (( ipc_budget > 500 )) && ipc_budget=500
+    duration_from_millis "$ipc_budget"
+    timeout_duration=$REPLY
+    if OMARCHY_PATH="$session_omarchy_path" \
+      OMARCHY_SHELL_IPC_TIMEOUT="$timeout_duration" \
+      OMARCHY_SHELL_IPC_KILL_AFTER=0.1s \
+      omarchy-shell shell ping >/dev/null 2>&1 &&
+      { (( notifications_were_running == 0 )) || notifications_ready; }; then
+      return 0
+    fi
+
+    clock_millis
+    remaining=$((deadline - REPLY))
+    (( remaining > 0 )) || return 1
+    shell_instance_state "$remaining"
+    instance_state=$?
+    case $instance_state in
+      0)
+        dispatch_cooldown=20
+        ;;
+      1)
+        if (( dispatch_cooldown == 0 && dispatch_attempts < 3 )); then
+          /usr/bin/timeout --kill-after=0.2s 1s \
+            hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' \
+            >/dev/null 2>&1 || true
+          dispatch_attempts=$((dispatch_attempts + 1))
+          dispatch_cooldown=20
+        fi
+        ;;
+      2) ;;
+    esac
+
+    (( dispatch_cooldown == 0 )) || dispatch_cooldown=$((dispatch_cooldown - 1))
+    clock_millis
+    remaining=$((deadline - REPLY))
+    (( remaining > 0 )) || return 1
+    duration_from_millis "$((remaining < 100 ? remaining : 100))"
+    sleep "$REPLY"
+  done
+}
+
+# Each kill stops the oldest matching instance. A timeout or registry error is
+# not evidence that it stopped: fail closed until the exact config is confirmed
+# absent, so a still-pingable old shell can never masquerade as its replacement.
+stop_existing_shells() {
+  local deadline deadline_seconds drain_deadline instance_state remaining timeout_duration
+
+  deadline_seconds=${OMARCHY_RESTART_STOP_TIMEOUT_SECONDS:-30}
+  if [[ ! $deadline_seconds =~ ^[1-9][0-9]*$ ]] || (( deadline_seconds > 30 )); then
+    deadline_seconds=30
+  fi
+  clock_millis
+  deadline=$((REPLY + deadline_seconds * 1000))
+
+  while :; do
+    clock_millis
+    remaining=$((deadline - REPLY))
+    if (( remaining <= 0 )); then
+      echo "Could not confirm that the existing Omarchy shell stopped before the restart deadline." >&2
+      return 1
+    fi
+
+    shell_instance_state "$remaining"
+    instance_state=$?
+    case $instance_state in
+      1) return 0 ;;
+      2)
+        duration_from_millis "$((remaining < 100 ? remaining : 100))"
+        sleep "$REPLY"
+        continue
+        ;;
+    esac
+
+    clock_millis
+    remaining=$((deadline - REPLY))
+    (( remaining > 0 )) || continue
+    (( remaining > 5000 )) && remaining=5000
+    duration_from_millis "$remaining"
+    timeout_duration=$REPLY
+    /usr/bin/timeout --kill-after=0.2s "$timeout_duration" \
+      quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1 || true
+
+    # A timed-out client may already have delivered the shutdown request.
+    # Give its registry entry a short drain window before another kill, while
+    # charging every registry probe and pause to the aggregate deadline.
+    clock_millis
+    drain_deadline=$((REPLY + 2000))
+    (( drain_deadline > deadline )) && drain_deadline=$deadline
+    while :; do
+      clock_millis
+      remaining=$((drain_deadline - REPLY))
+      (( remaining > 0 )) || break
+      shell_instance_state "$remaining"
+      instance_state=$?
+      (( instance_state == 1 )) && return 0
+      duration_from_millis "$((remaining < 100 ? remaining : 100))"
+      sleep "$REPLY"
+    done
+  done
+}
+
+stop_existing_shells || exit 1
+
+if launch_replacement_shell; then
+  # The session stays compositor-locked after the old lock client died, so
+  # re-acquire the lock and let the user authenticate out of it.
+  if (( relock )) && ! relock_session; then
+    echo "Omarchy shell restarted, but the session lock was not re-secured." >&2
+    exit 1
+  fi
+  # Invitation toasts (like Voxtype/fingerprint setup) die with the old shell,
+  # and their notify-send waiters hang forever. Re-run unanswered invitations.
+  systemctl --user try-restart 'omarchy-*-invitation.service' 2>/dev/null || true
+  exit 0
+fi
 
 echo "Omarchy shell did not become ready after restart." >&2
 exit 1
