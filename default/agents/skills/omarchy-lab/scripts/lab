@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Resolve the installed Lab controller without changing the host's source tree.
+set -euo pipefail
+
+standalone="$HOME/.config/omarchy/plugins/acrogenesis.lab/bin/omarchy-labctl"
+if [[ -x $standalone ]]; then
+  exec "$standalone" "$@"
+elif [[ -n ${OMARCHY_PATH:-} && -x $OMARCHY_PATH/bin/omarchy-lab-viewer ]]; then
+  family=${1:-}
+  case $family in
+    vm | viewer | checkout | checkpoint | gold | network | resource | capture | transfer | action | health | scenario)
+      shift
+      exec "$OMARCHY_PATH/bin/omarchy-lab-$family" "$@"
+      ;;
+    *)
+      echo "Usage: lab <vm|viewer|checkout|checkpoint|gold|network|resource|capture|transfer|action|health|scenario> [args]" >&2
+      exit 2
+      ;;
+  esac
+else
+  echo "Omarchy Lab commands were not found. Install the standalone plugin or use a native Omarchy installation with Lab support; do not change OMARCHY_PATH just to locate Lab." >&2
+  exit 1
+fi
