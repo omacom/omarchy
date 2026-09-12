@@ -110,6 +110,19 @@ Item {
     if (index === selectedIndex && immediate !== true) return
 
     selectedIndex = index
+    publishSelection()
+  }
+
+  function publishSelection() {
+    if (selectionFile) {
+      var path = currentPath()
+      selectionFileView.setText(path ? path + "\n" : "")
+    }
+  }
+
+  function clearSelection() {
+    if (selectionFile)
+      selectionFileView.setText("")
   }
 
   function selectAdjacent(direction) {
@@ -133,6 +146,8 @@ Item {
       var first = ImagePickerModel.nextSelectedIndexForFilter(imageArray, selectedIndex, filterText)
       if (first >= 0) selectedIndex = first
     }
+
+    publishSelection()
   }
 
   function releaseNextDoneFile() {
@@ -168,8 +183,10 @@ Item {
   }
 
   function cancel() {
-    if (requestActive)
+    if (requestActive) {
+      clearSelection()
       finishDoneFile(doneFile)
+    }
 
     requestActive = false
     selectionFile = ""
@@ -180,8 +197,10 @@ Item {
   function closeSelector(nextDoneFile) {
     requestSerial += 1
 
-    if (requestActive)
+    if (requestActive) {
+      clearSelection()
       finishDoneFile(doneFile)
+    }
 
     if (nextDoneFile && nextDoneFile !== doneFile)
       finishDoneFile(nextDoneFile)
@@ -200,6 +219,7 @@ Item {
     root.selectedIndex = root.indexForSelectedImage(newImages)
     root.imageArray = newImages
     root.imagesLoaded = true
+    root.publishSelection()
 
     if (reveal !== false) {
       root.opened = true
@@ -208,8 +228,10 @@ Item {
   }
 
   function openSelector(nextImageDirs, nextImageRows, nextSelectedImage, nextSelectionFile, nextDoneFile, nextShowLabels, nextFilterable) {
-    if (requestActive && doneFile && doneFile !== nextDoneFile)
+    if (requestActive && doneFile && doneFile !== nextDoneFile) {
+      clearSelection()
       finishDoneFile(doneFile)
+    }
 
     requestSerial += 1
 
@@ -352,6 +374,13 @@ Item {
       if (root.applySerial === root.requestSerial)
         root.opened = false
     }
+  }
+
+  FileView {
+    id: selectionFileView
+    path: root.selectionFile
+    atomicWrites: true
+    printErrors: false
   }
 
   Process {

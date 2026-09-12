@@ -51,4 +51,8 @@ assert(
   /source: item\.sourceActivated && item\.thumbnailPath \? Util\.fileUrl\(item\.thumbnailPath\) : ""[\s\S]*asynchronous: false/.test(imagePickerQml),
   'image picker loads activated thumbnails synchronously to avoid carousel flicker'
 )
+assert(
+  /function updateFilter\(nextFilterText\)[\s\S]*if \(!itemMatches\(selectedIndex\)\)[\s\S]*publishSelection\(\)\n  }/.test(imagePickerQml),
+  'image picker republishes live selection after every filter change'
+)
 JS

@@ -12,9 +12,15 @@ fi
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
 OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
 CACHE_PATH="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/theme-selector"
+LIVE_SELECTION_FILE="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-theme-selection"
 preview_dir="$CACHE_PATH/previews"
 signature_file="$CACHE_PATH/signature"
 fast_signature_file="$CACHE_PATH/fast-signature"
+
+if [[ $preload != true ]]; then
+  exec {live_selection_lock_fd}>"$LIVE_SELECTION_FILE.lock"
+  flock -n "$live_selection_lock_fd" || exit 0
+fi
 
 mkdir -p "$preview_dir"
 
@@ -123,6 +129,8 @@ menu_args=(
 
 if [[ $preload == true ]]; then
   menu_args+=(--preload)
+  omarchy-menu-images "${menu_args[@]}" "$preview_dir"
+else
+  menu_args+=(--live-selection-file "$LIVE_SELECTION_FILE")
+  omarchy-menu-images "${menu_args[@]}" "$preview_dir" {live_selection_lock_fd}>&-
 fi
-
-exec omarchy-menu-images "${menu_args[@]}" "$preview_dir"
