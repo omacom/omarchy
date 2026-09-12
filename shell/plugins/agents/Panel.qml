@@ -459,32 +459,65 @@ Panel {
           }
 
           // ---------- Provider switch ----------
-          Row {
+          Flow {
             id: providerSwitch
             visible: root.providers.length > 1
             width: parent.width
-            spacing: Style.spacing.md
+            spacing: Style.spacing.sm
 
-            readonly property real cellWidth: root.providers.length > 0
-              ? (width - spacing * (root.providers.length - 1)) / root.providers.length
-              : 0
+            readonly property real minChipWidth: Style.space(88)
+            readonly property int maxFittingCols: Math.max(1, Math.floor((width + spacing) / (minChipWidth + spacing)))
+
+            readonly property int columns: {
+              var count = root.providers.length
+              if (count <= 1) return 1
+              var maxC = maxFittingCols
+
+              if (count <= maxC) return count
+
+              if (count === 4 && maxC >= 2) return 2
+              if (count === 8 && maxC >= 4) return 4
+
+              return Math.min(count, maxC)
+            }
+
+            readonly property real chipWidth: (columns > 0 && width > 0)
+              ? Math.floor((width - spacing * (columns - 1)) / columns)
+              : minChipWidth
 
             Repeater {
               model: root.providers
 
               Button {
+                id: providerChip
                 required property var modelData
                 required property int index
 
-                width: providerSwitch.cellWidth
-                text: modelData.providerName
+                width: providerSwitch.chipWidth
+                text: chipLabel.elidedText
+                tooltipText: modelData.providerName
+
+                TextMetrics {
+                  id: chipLabel
+                  text: providerChip.modelData.providerName
+                  font.family: providerChip.fontFamily
+                  font.pixelSize: providerChip.fontSize
+                  font.bold: providerChip.selected
+                  elide: Text.ElideRight
+                  // Reserve the same padding/borders as Button in every state.
+                  elideWidth: Math.max(0, providerChip.width
+                    - providerChip._reservedContentLeftInset
+                    - providerChip._reservedBorderRight - providerChip.rightPadding)
+                }
                 selected: index === root.providerIndex
                 hasCursor: root.cursorActive && index === root.providerIndex
                 bordered: true
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 fontSize: Style.font.bodySmall
+                horizontalPadding: Style.space(6)
                 verticalPadding: Style.spacing.controlPaddingY
+                clip: true
                 onClicked: {
                   root.cursorActive = true
                   root.selectProvider(index)
