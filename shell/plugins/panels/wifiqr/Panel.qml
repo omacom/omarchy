@@ -38,6 +38,50 @@ Item {
   property bool passwordVisible: false
   property string passwordError: ""
   property bool pwExpectedStop: false
+  property bool copied: false
+
+  function resetCopied() {
+    copiedTimer.stop()
+    root.copied = false
+  }
+
+  function copyPassword() {
+    if (!root.passwordVisible || root.password === "" || copyProc.running) return
+    // wl-clipboard ships with the base install (the emojis plugin relies on
+    // it). Mark the secret so Omarchy's clipboard watcher does not persist it,
+    // and pass it over stdin so it is not exposed in wl-copy's argv.
+    copyProc.stdinEnabled = true
+    copyProc.command = ["wl-copy", "--sensitive", "--type", "text/plain;charset=utf-8"]
+    copyProc.running = true
+    root.copied = true
+    copiedTimer.restart()
+  }
+
+  Timer {
+    id: copiedTimer
+    interval: 1600
+    onTriggered: root.copied = false
+  }
+
+  Process {
+    id: copyProc
+    stdinEnabled: true
+    onStarted: {
+      // wl-copy reads stdin to EOF. Closing the write channel after write()
+      // flushes the password and lets wl-copy take ownership of the selection.
+      write(root.password)
+      stdinEnabled = false
+    }
+    onExited: function(exitCode) {
+      // Re-enable stdin for the next run; this process's channel stays closed.
+      stdinEnabled = true
+      if (exitCode !== 0) {
+        copiedTimer.stop()
+        root.copied = false
+      }
+    }
+  }
+
 
   readonly property bool showingQr: qrSize > 0 && !loading && error === ""
 
@@ -85,6 +129,7 @@ Item {
     root.password = ""
     root.passwordVisible = false
     root.passwordError = ""
+    root.resetCopied()
   }
 
   function dismiss() {
@@ -120,6 +165,7 @@ Item {
     password = ""
     passwordVisible = false
     passwordError = ""
+    root.resetCopied()
     if (pwProc.running) {
       pwExpectedStop = true
       pwProc.running = false
@@ -237,6 +283,10 @@ Item {
       focus: true
 
       Keys.onEscapePressed: root.dismiss()
+      Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_C && !(event.modifiers & Qt.ControlModifier) && root.passwordVisible)
+          root.copyPassword()
+      }
 
       Item {
         anchors.centerIn: parent
@@ -360,6 +410,22 @@ Item {
               anchors.fill: parent
               cursorShape: Qt.PointingHandCursor
               onClicked: root.togglePassword()
+            }
+          }
+          Text {
+            visible: root.showingQr && root.secured && root.passwordVisible && root.passwordError === ""
+            text: root.copied ? "Copied ✓" : "Copy password"
+            color: root.copied ? "#7ee787" : root.onScrimDim
+            opacity: root.copied ? 1 : 0.85
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.underline: !root.copied
+            Layout.alignment: Qt.AlignHCenter
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.copyPassword()
             }
           }
         }
