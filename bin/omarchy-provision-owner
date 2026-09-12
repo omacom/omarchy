@@ -609,19 +609,75 @@ confirm_reboot() {
   gum confirm --affirmative "Yes, reboot" --negative "No, keep setting up" "Reboot this machine?"
 }
 
+# Set (or replace) the XKB layout — and variant, when there is one — in a
+# vconsole.conf, leaving every other line (KEYMAP, FONT, comments) alone.
+omarchy_write_xkb_layout() {
+  local file="$1" layout="$2" variant="$3"
+  local payload="XKBLAYOUT=$layout"
+
+  if [[ -n $variant ]]; then
+    payload+=$'\nXKBVARIANT='"$variant"
+  fi
+
+  if grep -q '^XKBLAYOUT=' "$file"; then
+    sed -i "s/^XKBLAYOUT=.*/XKBLAYOUT=$layout/" "$file"
+    if [[ -n $variant ]]; then
+      if grep -q '^XKBVARIANT=' "$file"; then
+        sed -i "s/^XKBVARIANT=.*/XKBVARIANT=$variant/" "$file"
+      else
+        printf 'XKBVARIANT=%s\n' "$variant" >>"$file"
+      fi
+    fi
+  else
+    # Both values land with a single write, so a failure leaves nothing half
+    # set for a later run to treat as already exposed.
+    printf '%s\n' "$payload" >>"$file"
+  fi
+}
+
+# When persistence left the XKB variables out of a vconsole.conf — systemd's
+# kbd-model-map has no conversion row for the keymap — fill them from the
+# form's gap table. The user session and the SDDM greeter both resolve the
+# layout from XKBLAYOUT/XKBVARIANT, so without them login falls back to "us"
+# and a password typed under the chosen layout becomes untypeable. Only runs
+# after persistence actually landed (nothing to pair a layout with otherwise),
+# so a persisted KEYMAP and XKB layout can never disagree.
+omarchy_expose_xkb_layout() {
+  local vconsole="$1" keymap="$2" xkb xkb_layout xkb_variant
+
+  if grep -q '^XKBLAYOUT=' "$vconsole" 2>/dev/null; then
+    return 0
+  fi
+
+  xkb=$(omarchy_keyboard_xkb "$keymap")
+  [[ -n $xkb ]] || return 0
+
+  read -r xkb_layout xkb_variant <<<"$xkb"
+  omarchy_write_xkb_layout "$vconsole" "$xkb_layout" "$xkb_variant"
+  log_step "keymap $keymap has no XKB conversion; exposed layout $xkb_layout${xkb_variant:+ ($xkb_variant)}"
+}
+
 # Load the layout on the live VT and persist it for the installed system.
 # systemd-firstboot writes both the console KEYMAP and the XKB layout Hyprland
-# reads, matching what the ISO's configure_keyboard does at install time. A
-# keymap localectl doesn't know keeps the default rather than failing (defensive;
-# the picker no longer offers any such layout).
+# reads, matching what the ISO's configure_keyboard does at install time —
+# except for the keymaps systemd's kbd-model-map has no conversion row for
+# (omarchy_expose_xkb_layout covers those). A keymap localectl doesn't know
+# keeps the default rather than failing (defensive; the picker no longer
+# offers any such layout).
 apply_keyboard() {
   local keymap="$1"
   [[ $(tty 2>/dev/null) == /dev/tty* ]] && loadkeys "$keymap" 2>/dev/null || true
 
   if localectl --no-pager list-keymaps 2>/dev/null | grep -qix "$keymap"; then
-    systemd-firstboot --keymap="$keymap" --force >>"$LOG_FILE" 2>&1 || \
-      localectl set-keymap "$keymap" >>"$LOG_FILE" 2>&1 || \
+    if systemd-firstboot --keymap="$keymap" --force >>"$LOG_FILE" 2>&1 ||
+      localectl set-keymap "$keymap" >>"$LOG_FILE" 2>&1; then
+      # Best-effort like the persistence above: a failed exposure must not
+      # abort setup, it only leaves the layout unpersisted.
+      omarchy_expose_xkb_layout /etc/vconsole.conf "$keymap" ||
+        log_step "could not expose the XKB layout for $keymap"
+    else
       log_step "could not persist keymap $keymap"
+    fi
   else
     log_step "keymap $keymap unknown to localectl; keeping the default"
   fi
