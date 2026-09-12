@@ -37,6 +37,24 @@ done
 
 agent=$(omarchy-default-agent)
 
+# Setup → Defaults → Agent → Agents panel follows the tab last selected in
+# the agents bar widget instead of pinning one CLI.
+if [[ $agent == "agents-panel" ]]; then
+  selected_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/selected"
+  selected=""
+  if [[ -f $selected_file ]]; then
+    IFS= read -r selected <"$selected_file" || true
+  fi
+  case "$selected" in
+  pi | omp | opencode | ori | claude | codex | grok | openclaw | agy | hermes | copilot | crush | cursor-agent | muse)
+    agent=$selected
+    ;;
+  *)
+    agent=""
+    ;;
+  esac
+fi
+
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
