@@ -25,11 +25,31 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+# Marker tracks whether this command actually turned the backlight off, so a
+# later restore without a preceding off (e.g. screensaver dismiss, which wakes
+# via omarchy-system-wake without ever blanking the keyboard) is a no-op
+# instead of restoring a stale brightnessctl save.
+state_marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-keyboard-backlight-off"
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
+  if (( current_brightness == 0 )); then
+    brightnessctl -d "$device" set 0 >/dev/null
+  else
+    brightnessctl -sd "$device" set 0 >/dev/null
+    touch "$state_marker"
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  if [[ ! -f $state_marker ]]; then
+    exit 0
+  fi
+  rm -f "$state_marker"
+  current_brightness="$(brightnessctl -d "$device" get 2>/dev/null || echo 0)"
+  if (( current_brightness != 0 )); then
+    exit 0
+  fi
+  brightnessctl -rd "$device" >/dev/null || true
   exit 0
 fi
 
