@@ -6,7 +6,13 @@
 
 set -e
 
-timezone=$(timedatectl list-timezones | omarchy-menu-select "Set timezone" -- --width 520 --maxheight 520) || exit 1
+# `timedatectl list-timezones` builds its list from tzdata.zi, which carries the
+# backward-compatibility links alongside the zones they point at, so the picker
+# offered Asia/Ashkhabad right under Asia/Ashgabat. zone.tab is one row per
+# country per zone and holds none of those obsolete aliases; UTC is not in it.
+timezones=$({ echo UTC; awk '!/^#/ && NF { print $3 }' /usr/share/zoneinfo/zone.tab; } | sort)
+
+timezone=$(omarchy-menu-select "Set timezone" -- --width 520 --maxheight 520 <<<"$timezones") || exit 1
 sudo timedatectl set-timezone "$timezone"
 omarchy-shell -q omarchy.clock refresh
 omarchy-notification-send "Timezone is now set to $timezone"
