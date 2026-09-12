@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "ApiCost.js" as ApiCost
 
 Panel {
   id: root
@@ -29,6 +30,11 @@ Panel {
     return 0
   }
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
+
+  readonly property bool hasApiCost: apiCost.priced > 0
+  property bool showDollars: false
+  function toggleUnits() { showDollars = !showDollars }
+  readonly property var apiCost: ApiCost.summary(provider ? provider.providerId : "", provider ? (provider.modelUsage || {}) : {})
 
   property bool cursorActive: false
 
@@ -240,6 +246,7 @@ Panel {
       var cacheWrite = Number(bucket.cacheCreationInputTokens || 0)
       rows.push({
         name: usage.friendlyModelName(id),
+        apiCost: ApiCost.cost(p.providerId, id, bucket),
         total: input + output + cacheRead + cacheWrite,
         input: input,
         output: output,
@@ -332,6 +339,7 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
+    function toggleUnits(): void { root.toggleUnits() }
     function next(): string { root.selectProvider(root.providerIndex + 1); return "ok" }
   }
 
@@ -376,7 +384,10 @@ Panel {
       onActivateRequested: root.refreshNow()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
-      onTextKey: function(t) { if (t === "r" || t === "R") root.refreshNow() }
+      onTextKey: function(t) {
+        if (t === "r" || t === "R") root.refreshNow()
+        if (root.hasApiCost && (t === "d" || t === "D")) root.toggleUnits()
+      }
 
       Flickable {
         id: panelFlick
@@ -403,6 +414,45 @@ Panel {
             meta: root.heroMeta(root.provider)
             foreground: root.foreground
             fontFamily: root.fontFamily
+
+            trailingControl: Component {
+              Row {
+                visible: root.hasApiCost
+                spacing: Style.space(12)
+
+                BorderSurface {
+                  visible: root.apiCost.priced > 0
+                  implicitWidth: costText.implicitWidth + Style.space(10)
+                  implicitHeight: unitButton.implicitHeight
+                  color: "transparent"
+                  borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
+                  radius: Style.cornerRadius
+
+                  Text {
+                    id: costText
+                    anchors.centerIn: parent
+                    text: root.formatMoney(root.apiCost.total, "USD")
+                    textFormat: Text.PlainText
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                }
+
+                Button {
+                  id: unitButton
+                  text: root.showDollars ? "Dollars" : "Tokens"
+                  bordered: true
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.caption
+                  onClicked: root.toggleUnits()
+
+                  tooltipText: "Switch model values between tokens and estimated USD (D).\nTotal covers priced recorded usage at standard short-context rates.\nSome models do not have published pricing."
+                }
+              }
+            }
 
             iconComponent: Component {
               Item {
@@ -664,7 +714,7 @@ Panel {
 
             PanelSectionHeader {
               width: parent.width
-              text: "TOKENS BY MODEL"
+              text: root.hasApiCost && root.showDollars ? "API COST BY MODEL" : "TOKENS BY MODEL"
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -916,7 +966,9 @@ Panel {
     Text {
       id: modelTokens
       textFormat: Text.PlainText
-      text: modelRow.row ? usage.formatTokenCount(modelRow.row.total) : ""
+      text: modelRow.row ? (root.hasApiCost && root.showDollars
+        ? (modelRow.row.apiCost === null ? "Unpriced" : root.formatMoney(modelRow.row.apiCost, "USD"))
+        : usage.formatTokenCount(modelRow.row.total)) : ""
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
