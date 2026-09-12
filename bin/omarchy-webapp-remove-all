@@ -12,7 +12,7 @@ echo "Scanning for web apps in $APP_DIR..."
 
 webapp_desktop_files=()
 while IFS= read -r -d '' file; do
-  if grep -q "Exec=omarchy-launch-webapp\|Exec=omarchy-webapp-handler" "$file" 2>/dev/null; then
+  if grep -qE '^(X-Omarchy-WebApp=true|Exec=.*(omarchy-launch-webapp|omarchy-webapp-handler))' "$file" 2>/dev/null; then
     webapp_desktop_files+=("$file")
   fi
 done < <(find "$APP_DIR" -maxdepth 1 -name "*.desktop" -print0 2>/dev/null)
