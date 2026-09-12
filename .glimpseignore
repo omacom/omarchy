@@ -1,0 +1,18 @@
+# Created by glimpse init. Paths listed here are excluded from glimpse
+# scans (check, analyze), using gitignore syntax relative to this file.
+
+# Dependencies you do not control
+vendor/
+node_modules/
+
+# Generated and built assets
+public/build/
+dist/
+
+# Runtime state and user uploads (Laravel)
+storage/
+
+# Favicons and touch icons: tiny and format-constrained, not worth optimizing
+favicon.ico
+favicon*.png
+apple-touch-icon*.png

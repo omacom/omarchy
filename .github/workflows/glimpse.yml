@@ -1,0 +1,24 @@
+name: Automatic image optimization by Glimpse
+
+on:
+  pull_request_target:
+    types: [closed]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# In Settings → Actions → General → Workflow permissions, enable
+# "Allow GitHub Actions to create and approve pull requests".
+jobs:
+  optimize-images:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.merged == true
+    uses: mathiasgrimm/glimpse-cli/.github/workflows/optimize-images.yml@v1
+    secrets:
+      GLIMPSE_TOKEN: ${{ secrets.GLIMPSE_TOKEN }} # Optional
+
+  skip-image:
+    if: github.event_name == 'pull_request_review_comment' && github.event.comment.body == 'glimpse skip'
+    uses: mathiasgrimm/glimpse-cli/.github/workflows/skip-image.yml@v1
