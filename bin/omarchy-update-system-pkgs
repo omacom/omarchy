@@ -5,6 +5,22 @@
 
 set -e
 
+# Pacman can accept an empty local desc record after an interrupted write,
+# even with -Dk. Check the records themselves before trusting an upgrade.
+database=$(pacman-conf DBPath)
+if [[ ! -d $database/local || ! -r $database/local ]]; then
+  echo "Cannot read the local package database at $database/local" >&2
+  exit 1
+fi
+for record in "$database"/local/*/; do
+  [[ -d $record ]] || continue
+  if [[ ! -s ${record}desc || ! -f ${record}files ]]; then
+    echo "Damaged package database record: $record" >&2
+    echo "Restore this package's database entry and reinstall it before retrying omarchy update." >&2
+    exit 1
+  fi
+done
+
 # The conflict handler's last resort: pacman puts its questions to the person
 # running the update instead of answering them itself. Nothing here may capture
 # a stream, because an upgrade without --noconfirm prompts on stderr. The
