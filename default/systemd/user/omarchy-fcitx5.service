@@ -20,8 +20,12 @@ ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
 Type=simple
-# notificationitem duplicates the tray entry omarchy already renders itself.
-ExecStart=/usr/bin/fcitx5 --disable notificationitem
+# notificationitem duplicates the tray entry Omarchy already renders itself.
+# notifications is the freedesktop tip channel the keyboard addon uses to announce
+# layout/IM changes on startup; Omarchy only runs fcitx5 for CapsLock compose
+# sequences, so those tips are noise (issue #10474). XKB override stays off via
+# config/fcitx5/conf/xcb.conf.
+ExecStart=/usr/bin/fcitx5 --disable notificationitem,notifications
 # always, not on-failure: fcitx5 exits 0 when it detects another instance owning
 # its bus name, and a clean exit still leaves the user with no input method.
 Restart=always
