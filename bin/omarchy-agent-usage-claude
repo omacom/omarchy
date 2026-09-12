@@ -603,6 +603,32 @@ def plan_label(tier: str, subscription: str) -> str:
   return ""
 
 
+API_TIER_LABEL = "API Platform"
+
+
+def opencode_auth_path() -> Path:
+  data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+  return data_home / "opencode" / "auth.json"
+
+
+# An Anthropic API-key user never holds an OAuth token, so without an explicit
+# signal they are indistinguishable from a signed-out subscriber. The key
+# itself is that signal: a set ANTHROPIC_API_KEY, or an anthropic entry in
+# opencode's auth store. Only the key's presence is read — never its value —
+# and nothing secret travels into the printed record.
+def has_anthropic_api_key() -> bool:
+  if str(os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+    return True
+  try:
+    data = json.loads(opencode_auth_path().read_text(encoding="utf-8"))
+  except Exception:
+    return False
+  entry = data.get("anthropic") if isinstance(data, dict) else None
+  if not isinstance(entry, dict):
+    return False
+  return str(entry.get("key") or "").strip() != ""
+
+
 def parse_utilization(value: Any) -> float:
   try:
     return float(str(value).strip().replace("%", ""))
@@ -791,7 +817,7 @@ def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
   return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
 
 
-def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[str, Any]:
+def collect_limits(access_token: str, expires_at_ms: int, force: bool, has_local_stats: bool = False) -> dict[str, Any]:
   result = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP}
 
   # A panel that is opened and shut repeatedly must not turn into a request
@@ -806,18 +832,27 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
   # enough finds the saved token lapsed. Say so — an empty limits list with
   # nothing else set hides the whole section and explains nothing — and keep
   # showing the last numbers whose window has not since reset.
+  #
+  # An API-key user never has an OAuth token, so a missing (or lapsed) token
+  # alongside local usage and no cached limits is not a signed-out
+  # subscription — it is expected. Stay silent there, the way the Codex
+  # collector does when its RPC yields no windows: local stats still show,
+  # with no auth nag. Keep warning whenever cached limits exist (they are
+  # stale and need explaining) or when there is nothing local to show.
   if access_token == "":
     result["limits"] = fallback
-    result["usageStatusText"] = "Waiting for auth"
+    if not has_local_stats or fallback:
+      result["usageStatusText"] = "Waiting for auth"
     return result
   if expires_at_ms > 0 and expires_at_ms <= time.time() * 1000:
     result["limits"] = fallback
-    result["usageStatusText"] = "Sign-in expired"
-    result["authHelpText"] = (
-      "Claude Code's saved sign-in expired"
-      + (" — showing the last known limits." if fallback else ".")
-      + " Start Claude Code, or run `claude auth login`, to refresh it."
-    )
+    if not has_local_stats or fallback:
+      result["usageStatusText"] = "Sign-in expired"
+      result["authHelpText"] = (
+        "Claude Code's saved sign-in expired"
+        + (" — showing the last known limits." if fallback else ".")
+        + " Start Claude Code, or run `claude auth login`, to refresh it."
+      )
     return result
 
   # --force is a person asking for fresh numbers, so it skips the reuse window
@@ -880,7 +915,18 @@ def main() -> int:
     stats = merge_stats(stats, opencode)
 
   access_token, expires_at_ms, plan = oauth_login(claude_dir)
-  limits = collect_limits(access_token, expires_at_ms, args.force)
+  limits = collect_limits(access_token, expires_at_ms, args.force, has_local_stats=number(stats.get("totalPrompts")) > 0)
+
+  # API billing has no subscription windows, so a key holder without a live
+  # OAuth token is labelled as such instead of falling through to the panel's
+  # "Subscription" default — and any stale cached subscription windows are
+  # dropped rather than shown under that label. A holder of both (mixed
+  # usage) keeps the subscription record: a live token means this branch
+  # never runs.
+  tier = plan
+  if (access_token == "" or (expires_at_ms > 0 and expires_at_ms <= time.time() * 1000)) and has_anthropic_api_key():
+    tier = API_TIER_LABEL
+    limits = {"limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP}
 
   record = {
     "schemaVersion": 1,
@@ -889,7 +935,7 @@ def main() -> int:
     "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
     "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
     "hasLocalStats": True,
-    "tierLabel": plan,
+    "tierLabel": tier,
     "usageStatusText": limits["usageStatusText"],
     "authHelpText": limits["authHelpText"],
     "limits": limits["limits"],
