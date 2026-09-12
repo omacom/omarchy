@@ -64,7 +64,7 @@ cleanup() {
     wait "$pid" 2>/dev/null || true
   done
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 # Round-robin across the returned URLs so we spread load across Netflix OCA nodes.
 traffic_worker() {
