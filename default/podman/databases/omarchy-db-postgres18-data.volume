@@ -1,0 +1,5 @@
+[Quadlet]
+DefaultDependencies=false
+
+[Volume]
+VolumeName=omarchy-db-postgres18-data

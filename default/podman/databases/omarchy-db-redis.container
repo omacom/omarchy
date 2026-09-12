@@ -1,0 +1,29 @@
+[Quadlet]
+# Local databases do not need the desktop to wait for network-online.target.
+DefaultDependencies=false
+
+[Unit]
+Description=Omarchy Redis development database
+
+[Container]
+GlobalArgs=--remote=false
+Image=docker.io/library/redis:7
+ContainerName=omarchy-db-redis
+PublishPort=127.0.0.1:6379:6379
+Volume=omarchy-db-redis-data.volume:/data
+ImageVolume=ignore
+HttpProxy=false
+StopTimeout=120
+# Never replace an unrelated container that has claimed this name.
+PodmanArgs=--replace=false --cidfile=%t/%N/container.cid
+Exec=redis-server --appendonly yes
+
+[Service]
+RuntimeDirectory=%N
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=900
+TimeoutStopSec=130
+
+[Install]
+WantedBy=default.target

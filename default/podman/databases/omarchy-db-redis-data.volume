@@ -1,0 +1,5 @@
+[Quadlet]
+DefaultDependencies=false
+
+[Volume]
+VolumeName=omarchy-db-redis-data

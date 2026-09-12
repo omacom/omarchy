@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Remove optional Docker compatibility while retaining native Podman
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user." >&2
+  exit 1
+fi
+
+omarchy-pkg-drop podman-docker
+systemctl --user daemon-reload
+echo "Docker compatibility is removed. Log out and back in to refresh application environments."

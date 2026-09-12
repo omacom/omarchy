@@ -23,7 +23,6 @@ ddcutil
 podman
 podman-compose
 podman-desktop
-podman-docker
 podman-tui
 dosfstools
 dotnet-runtime

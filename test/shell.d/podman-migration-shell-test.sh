@@ -98,9 +98,15 @@ esac
         result, calls = run(repair, TEST_ENGINE=engine)
         assert result.returncode == 0, result.stderr
         install = next(c.split('|')[1].split() for c in calls if c.startswith('pacman|-Syu '))
-        assert ('podman-docker' in install) == (engine not in ('docker', 'docker-git')), (engine, install)
+        assert 'podman-docker' not in install, (engine, install)
         assert 'podman' in install and 'podman-compose' in install, install
     print('ok - package repair retains all real Docker providers while migration is pending')
+    result, calls = run(migration, TEST_ENGINE='missing')
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert not any(c.startswith('pacman|-S ') and 'podman-docker' in c for c in calls), calls
+    assert not any(c.startswith('dbus-update-activation-environment|') for c in calls), calls
+    assert not any(c.startswith('omarchy-pkg-drop|') for c in calls), calls
+    print('ok - native Podman users do not acquire optional Docker compatibility on migration')
     for path in (migration, repair):
         result, calls = run(path, TEST_ENGINE='broken')
         assert result.returncode != 0, (path, 'failed package query treated as no engine')

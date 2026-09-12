@@ -20,13 +20,36 @@ To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Rub
 
 ## Podman
 
-[Podman](https://podman.io/) runs containers without a root daemon. Use `podman run`, `podman build`, and `podman-compose up`; the `d` alias also runs Podman. Press `Super + Shift + D` for [Podman TUI](https://github.com/containers/podman-tui), the terminal interface for containers, pods, images, volumes, and networks. You can also launch it with `omarchy launch podman-tui`. [Podman Desktop](https://podman-desktop.io/) remains available from the application launcher or `omarchy launch podman` for graphical management.
-
-The `docker` command is provided by `podman-docker` and forwards to Podman, including in scripts. You can keep using commands such as `docker ps`, `docker build`, and `docker compose up`. Docker Engine is not installed; compatibility follows Podman's supported commands and Compose options. Docker SDK clients in the desktop session use the rootless socket through `DOCKER_HOST`. An explicitly configured endpoint is preserved. For an SSH session or a tool with its own environment, set `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock` as needed.
+[Podman](https://podman.io/) runs containers without a root daemon. Use `podman run`, `podman build`, and `podman compose up`; the `d` alias also runs Podman. Compose uses the installed Podman Compose provider. Press `Super + Shift + D` for [Podman TUI](https://github.com/containers/podman-tui), the terminal interface for containers, pods, images, volumes, and networks. You can also launch it with `omarchy launch podman-tui`. [Podman Desktop](https://podman-desktop.io/) remains available from the application launcher or `omarchy launch podman` for graphical management.
 
 Development containers run as your user. You do not need sudo or membership in a privileged group. Container images and volumes belong to your account; `sudo podman` has a separate store. The Windows VM uses that root-owned store and asks for authorization when needed.
 
-Install common development databases from _Install > Development > Podman DB_. Their published ports bind to localhost. Containers with a restart policy resume through your user service when you log in. To keep your own services running after logout, enable lingering deliberately with `sudo loginctl enable-linger "$USER"`.
+### Database services
+
+Install common development databases from _Install > Development > Podman DB_ or run `omarchy install podman-dbs Redis PostgreSQL`. New databases use [Quadlet](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html), which gives each database a systemd user service and a persistent named Podman volume. Ports bind to localhost. Redis enables append-only persistence. The development credentials and authentication settings are intended for local development.
+
+For Redis, use:
+
+```bash
+systemctl --user status omarchy-db-redis.service
+systemctl --user restart omarchy-db-redis.service
+systemctl --user stop omarchy-db-redis.service
+journalctl --user -u omarchy-db-redis.service
+```
+
+Services start when your user manager starts, normally at login. Stopping a service stops it for the current session; use `systemctl --user mask --now omarchy-db-redis.service` to keep it stopped across logins, and `systemctl --user unmask omarchy-db-redis.service` followed by `systemctl --user start omarchy-db-redis.service` to restore it. To keep services running after logout, enable lingering deliberately with `sudo loginctl enable-linger "$USER"`.
+
+Definitions live under `~/.config/containers/systemd/` (or `$XDG_CONFIG_HOME/containers/systemd/` when configured). The container names are `omarchy-db-mysql8`, `omarchy-db-postgres18`, `omarchy-db-mariadb11`, `omarchy-db-redis`, `omarchy-db-mongodb`, and `omarchy-db-mssql`; their service names add `.service`, and their data volumes add `-data`. Manage their lifecycle through systemd; Podman TUI can inspect the containers and logs. Service restarts recreate the container while retaining its named volume. Changes outside the mounted database data directory are disposable.
+
+The installer preserves existing definitions, containers, and volumes and refuses conflicts. It does not convert migrated databases to a new image or service definition. Migrated containers retain their previous restart policies and resume through `podman-restart.service`; continue managing those with Podman until you explicitly transfer them. To remove a new database service, stop it, remove its `.container` and `-data.volume` definitions and its matching drop-in directory under `~/.config/systemd/user/` (or `$XDG_CONFIG_HOME/systemd/user/`), then run `systemctl --user daemon-reload`. The data volume remains until you explicitly remove it with `podman volume rm`.
+
+### Docker compatibility
+
+Omarchy's container commands and database services use Podman directly. Fresh installations do not include the `docker` command. Add it from _Install > Development > Docker Compatibility_ or with `omarchy install docker-compat`. The optional `podman-docker` package provides commands such as `docker ps`, `docker build`, and `docker compose up`. Docker Engine is not installed; compatibility follows Podman's supported commands and Compose options. The installer refuses to replace an existing Docker engine before migration.
+
+Upgrades from Docker retain this layer to preserve existing scripts and satisfy installed packages that depend on `docker`. To remove it, run `omarchy remove docker-compat`; package dependencies may require keeping it. Native Podman and its containers remain available. Log out and back in after changing compatibility to refresh terminal and application environments.
+
+With compatibility installed, Docker SDK clients in the desktop session use the rootless socket through `DOCKER_HOST`. An explicitly configured endpoint is preserved. For an SSH session or a tool with its own environment, set `DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock` as needed. Native CLI and Quadlet operations do not require this compatibility API; TUI, Desktop, and API clients use the socket-activated Podman service.
 
 
 ## GitHub CLI

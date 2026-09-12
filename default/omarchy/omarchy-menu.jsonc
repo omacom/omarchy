@@ -260,6 +260,7 @@
   "install.gaming.retro-launcher": {"icon":"󰯉","label":"RetroArch Game Launcher","action":"omarchy-games-retro-install"},
   "install.development.rails": {"icon":"󰫏","label":"Ruby on Rails","disabled":"[[ -d $HOME/.local/share/mise/installs/ruby ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env ruby'"},
   "install.development.podman-dbs": {"icon":"","label":"Podman DB","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-podman-dbs"},
+  "install.development.docker-compat": {"icon":"","label":"Docker Compatibility","disabled":"omarchy-pkg-present podman-docker","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-docker-compat"},
   "install.development.javascript": {"icon":"","label":"JavaScript"},
   "install.development.go": {"icon":"","label":"Go","disabled":"[[ -d $HOME/.local/share/mise/installs/go ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-dev-env go'"},
   "install.development.php": {"icon":"","label":"PHP"},

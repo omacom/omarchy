@@ -107,7 +107,7 @@ systemctl --user enable podman-restart.service
 # Packages provide the default for future sessions. Refresh activation for apps
 # launched now, while preserving an explicitly configured Docker endpoint.
 systemctl --user daemon-reload
-if [[ -z ${DOCKER_CONTEXT:-} ]]; then
+if [[ -n $docker_provider && -z ${DOCKER_CONTEXT:-} ]]; then
   export DOCKER_HOST="${DOCKER_HOST:-unix://$XDG_RUNTIME_DIR/podman/podman.sock}"
   dbus-update-activation-environment --systemd DOCKER_HOST
 fi
@@ -152,8 +152,12 @@ fi
 # provides docker to packages such as once-bin. Replace the engine in the same
 # transaction so those dependencies remain satisfied. --ask 4 accepts only
 # package-conflict removal, which --noconfirm alone would refuse.
-sudo pacman -S --needed --noconfirm --ask 4 podman-docker
-omarchy-pkg-drop docker-buildx docker-compose ufw-docker lazydocker lazydocker-bin
+# Native-only users keep compatibility optional, including on a later retry
+# after they have deliberately removed the shim.
+if [[ -n $docker_provider ]]; then
+  sudo pacman -S --needed --noconfirm --ask 4 podman-docker
+  omarchy-pkg-drop docker-buildx docker-compose ufw-docker lazydocker lazydocker-bin
+fi
 
 # Retired package config may be a .pacsave after the package transaction. Keep
 # custom content as inactive backups instead of deleting it.
