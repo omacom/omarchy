@@ -27,6 +27,11 @@ BarWidget {
   // the widget ships on the bar and stays out of the way until there are two.
   // An older Hyprland that doesn't report the list keeps showing the label.
   property bool multipleLayouts: true
+  // Where the reading sits in the layout list, how long that list is, and every
+  // keyboard sharing it. A switch moves that set together, so it needs all three.
+  property int layoutIndex: 0
+  property int layoutCount: 0
+  property var syncNames: []
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
@@ -63,17 +68,31 @@ BarWidget {
   }
 
   // switchxkblayout is a hyprctl command rather than a dispatcher, so it has to
-  // be run rather than sent over the dispatch socket. It switches the keyboard
-  // the last reading spoke for, so a click always advances the device the label
-  // is describing. Switching the seat together would reach the typed keyboard
-  // without having to name it, but it would also carry the buttons along, and
-  // the whole read depends on those staying where they started: once a button
-  // has been advanced too, a toggle that wraps the keyboard back to the first
-  // layout leaves the button reading as the furthest along, and the label
-  // follows the button.
+  // be run rather than sent over the dispatch socket.
+  //
+  // Move every keyboard holding the same layout list, rather than the single one
+  // the last reading spoke for. Naming one device puts the whole switch behind
+  // UNTYPED_KEYBOARDS recognising every non-keyboard by name, and that list
+  // cannot keep up with what a seat carries: vendor hotkey blocks
+  // (intel-hid-events, dell-wmi-hotkeys), HID consumer controls, and Bluetooth
+  // AVRCP endpoints from a pair of headphones all arrive holding the seat's
+  // layout list, and they sort ahead of the keyboard being typed on. The click
+  // then advances a device nobody types on; that device is now the furthest
+  // along, so it wins the next reading too, and the label describes it while the
+  // real keyboard never moved.
+  //
+  // An absolute index rather than "next", because "next" advances each device
+  // from wherever it already sits: a seat that has drifted apart stays drifted
+  // and merely inverts. One index converges them in a single click, and a seat
+  // in lockstep is what leaves the reading nothing to disagree about afterwards.
+  //
+  // Keyboards given their own kb_layout hold a different list and are left out:
+  // an index into this list would not mean the same layout to them.
   function cycleLayout() {
-    if (!root.keyboardName || !root.bar) return
-    root.bar.run("hyprctl switchxkblayout " + Util.shellQuote(root.keyboardName) + " next")
+    if (!root.bar || root.layoutCount < 2 || root.syncNames.length === 0) return
+    const next = (root.layoutIndex + 1) % root.layoutCount
+    root.bar.run(root.syncNames.map(name =>
+      "hyprctl switchxkblayout " + Util.shellQuote(name) + " " + next).join("; "))
     refreshTimer.restart()
   }
 
@@ -149,6 +168,14 @@ BarWidget {
         root.keyboardCount = typed.length
         root.keyboardName = String(kb.name || "")
         root.multipleLayouts = kb.layout === undefined || String(kb.layout).indexOf(",") !== -1
+        root.layoutIndex = kb.active_layout_index || 0
+        root.layoutCount = kb.layout === undefined ? 0 : String(kb.layout).split(",").length
+        // Buttons and virtual keyboards are included on purpose: they hold the
+        // same list, and leaving them behind is what lets a reading drift onto
+        // one of them later.
+        root.syncNames = listed.filter(k => String(k.layout) === String(kb.layout))
+                               .map(k => String(k.name || ""))
+                               .filter(name => name !== "")
         root.layoutFull = kb.active_keymap
       }
     }
