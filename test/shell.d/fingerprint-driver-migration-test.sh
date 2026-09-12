@@ -7,24 +7,29 @@
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+for command in omarchy-pkg-add omarchy-pkg-missing omarchy-pkg-present; do
+  copy_boundary_file "bin/$command"
+done
+ln -s ../bin/omarchy-pkg-missing "$SUDO_TEST_ROOT/mock/omarchy-pkg-missing"
 
 migration="$ROOT/migrations/1785090473.sh"
-scratch=$(mktemp -d)
-trap 'rm -rf "$scratch"' EXIT
+scratch="$boundary_tmp"
 mkdir -p "$scratch/bin"
 export CALL_LOG="$scratch/calls"
-export PATH="$scratch/bin:$ROOT/bin:$PATH"
+export PATH="$scratch/bin:$SUDO_TEST_ROOT/bin:$PATH"
+export OMARCHY_SUDO_NO_UPDATE=1
 
-cat > "$scratch/bin/sudo" <<'STUB'
-#!/bin/bash
-exec "$@"
-STUB
 # INSTALLED lists the installed package names, one per line; an install adds
 # its packages to INSTALLED_LOG so omarchy-pkg-add's follow-up query sees them.
 cat > "$scratch/bin/pacman" <<'STUB'
 #!/bin/bash
 case "$1" in
-  -Q) grep -qx "$2" <<< "${INSTALLED:-}" || grep -qx "$2" "$INSTALLED_LOG" ;;
+  -Q)
+    shift
+    [[ ${1:-} != "--" ]] || shift
+    grep -qx "$1" <<< "${INSTALLED:-}" || grep -qx "$1" "$INSTALLED_LOG"
+    ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
     for arg in "$@"; do
@@ -35,6 +40,9 @@ case "$1" in
 esac
 STUB
 chmod +x "$scratch/bin/"*
+rm "$SUDO_TEST_ROOT/mock/pacman" "$SUDO_TEST_ROOT/bin/pacman"
+ln -s "$scratch/bin/pacman" "$SUDO_TEST_ROOT/mock/pacman"
+ln -s "$scratch/bin/pacman" "$SUDO_TEST_ROOT/bin/pacman"
 export INSTALLED_LOG="$scratch/installed"
 
 run_migration() {
@@ -44,7 +52,7 @@ run_migration() {
 }
 
 INSTALLED='fprintd' run_migration
-grep -qx 'pacman -S --noconfirm --needed libfprint-git' "$CALL_LOG" || fail "fprintd without a library gets libfprint-git"
+grep -qx 'pacman -S --noconfirm --needed -- libfprint-git' "$CALL_LOG" || fail "fprintd without a library gets libfprint-git"
 pass "fprintd without a library gets libfprint-git"
 
 INSTALLED=$'libfprint-git\nfprintd' run_migration

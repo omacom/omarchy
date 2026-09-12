@@ -4,13 +4,15 @@ set -euo pipefail
 
 source "$(dirname "$0")/base-test.sh"
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-test_root="$test_tmp/omarchy"
-test_home="$test_tmp/home"
-stub_bin="$test_tmp/bin"
-mkdir -p "$test_root/migrations" "$test_home" "$stub_bin"
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+test_tmp="$boundary_tmp"
+test_root="$SUDO_TEST_ROOT"
+test_home="$SUDO_TEST_HOME"
+stub_bin="$test_root/bin"
+mkdir -p "$test_root/migrations"
+rm "$stub_bin/omarchy-migrate" "$stub_bin/omarchy-notification-dismiss"
+copy_boundary_file bin/omarchy-migrate
+export OMARCHY_MIGRATION_STATE="$test_tmp/migration-state"
 
 cat >"$stub_bin/omarchy-notification-dismiss" <<'SH'
 #!/bin/bash
@@ -23,12 +25,11 @@ echo migration >>"$TEST_CALLS"
 SH
 
 run_migrate() {
-  HOME="$test_home" \
   OMARCHY_PATH="$test_root" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
   TEST_CALLS="$test_tmp/calls" \
   TEST_DISMISSALS="$test_tmp/dismissals" \
-    "$ROOT/bin/omarchy-migrate" "$@"
+    "$SUDO_TEST_ROOT/bin/omarchy-migrate" "$@"
 }
 
 : >"$test_tmp/calls"
@@ -39,7 +40,7 @@ pass "omarchy-migrate runs migrations without force"
 grep -Fx 'Omarchy Migrations' "$test_tmp/dismissals" >/dev/null || fail "omarchy-migrate dismisses migration notifications"
 pass "omarchy-migrate clears completed migration notifications"
 
-rm -rf "$test_home/.local/state/omarchy/migrations"
+rm -rf "$OMARCHY_MIGRATION_STATE"
 run_migrate --pending >"$test_tmp/pending.out"
 grep -q '^100-migration\.sh$' "$test_tmp/pending.out" || fail "omarchy-migrate --pending lists pending migrations"
 pass "omarchy-migrate --pending lists pending migrations"

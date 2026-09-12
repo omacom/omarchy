@@ -1,9 +1,28 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Run pending Omarchy migrations.
 # omarchy:args=[--pending]
 
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for Omarchy migrations." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+
+if ! omarchy_security_require_privileged_bash_startup; then
+  echo "Refusing an unsafe Bash startup for Omarchy migrations." >&2
+  exit 126
+fi
+
 set -euo pipefail
+
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+
+PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+export PATH
 
 mode="run"
 
@@ -28,7 +47,6 @@ while (($#)); do
   esac
 done
 
-OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 STATE_DIR="${OMARCHY_MIGRATION_STATE:-$HOME/.local/state/omarchy/migrations}"
 MIGRATIONS_DIR="$OMARCHY_PATH/migrations"
 
@@ -80,21 +98,35 @@ wait_for_pacman_transaction() {
   exit 0
 }
 
+# Revoke before waiting or touching state. Every exit, including failed and
+# interrupted migrations, must revoke again before returning to user code.
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_enable_no_update_sudo
+
 wait_for_pacman_transaction
 
 mkdir -p "$STATE_DIR"
 [[ -d $MIGRATIONS_DIR ]] || exit 0
+
+# Migrations are strictly ordered and may mix user-controlled code (mise,
+# themes, AUR builds) with later privileged repairs. Start cold and force every
+# migration sudo through -N so authentication authorizes only that command and
+# never creates a timestamp a detached earlier child can reuse.
 
 while IFS=$'\t' read -r name file marker <&3; do
   [[ -n $name ]] || continue
 
   if [[ ! -f $marker ]]; then
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
-    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
+    OMARCHY_PATH="$OMARCHY_PATH" /usr/bin/bash -p -euo pipefail "$file" 3<&-
+    omarchy_security_revoke_sudo_timestamp || exit 1
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
   fi
 done 3< <(migration_entries)
+
+omarchy_security_revoke_sudo_timestamp || exit 1
 
 # Clear a login-time notification the user left sitting there and then resolved
 # by running migrations some other way. The substring matches both the current

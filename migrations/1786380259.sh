@@ -1,36 +1,44 @@
 echo "Remember Bluetooth on and off through the rfkill soft block"
 
-marker="${OMARCHY_BLUETOOTH_MIGRATION_MARKER:-/var/lib/omarchy/migrations/1786380259}"
-main_conf="${OMARCHY_BLUETOOTH_MAIN_CONF:-/etc/bluetooth/main.conf}"
+marker=/var/lib/omarchy/migrations/1786380259
+main_conf=/etc/bluetooth/main.conf
 
-# Machine-wide work, but migration completion is recorded per user, so a second
-# account would run it again and undo whatever an administrator changed in
-# between. Written last, so an interrupted run is retried rather than skipped.
-if [[ -e $marker ]]; then
-  exit 0
-fi
+repair_machine() {
+  local controllers controller details powered=0
+  [[ ! -e $marker ]] || return 0
 
-# Read the machine as it stands before anything below changes it. Powered is the
-# only record of what the user chose, and with AutoEnable=false holding the
-# adapter down at every boot, no daemon to ask means off is what they have been
-# living with.
-#
-# sudo because this runs machine-wide and /dev/rfkill is only writable without it
-# from an active graphical seat — an update over SSH would otherwise abort here,
-# before the marker, and abort again on every retry.
-if omarchy-bluetooth-power is-on; then
-  sudo omarchy-bluetooth-power on
+  controllers=$(/usr/bin/timeout 2s /usr/bin/bluetoothctl list) || {
+    echo "Could not read Bluetooth power state; leaving the migration pending." >&2
+    return 1
+  }
+  while read -r _ controller _; do
+    [[ -n ${controller:-} ]] || continue
+    details=$(/usr/bin/timeout 2s /usr/bin/bluetoothctl show "$controller") || {
+      echo "Could not read Bluetooth controller $controller; leaving the migration pending." >&2
+      return 1
+    }
+    [[ $details == *"Powered: yes"* ]] && powered=1
+  done <<<"$controllers"
+
+  if (( powered )); then
+    /usr/bin/omarchy-bluetooth-power on || return 1
+  else
+    /usr/bin/omarchy-bluetooth-power off || return 1
+  fi
+  if [[ -f $main_conf ]]; then
+    /usr/bin/sed -i 's/^AutoEnable=false$/#AutoEnable=true/' "$main_conf" || return 1
+  fi
+  /usr/bin/install -Dm644 /dev/null "$marker" || return 1
+}
+
+if (( $# == 0 )); then
+  [[ ! -e $marker ]] || exit 0
+  /usr/bin/sudo -N -- /usr/bin/flock --exclusive --no-fork /run/omarchy-bluetooth-state-migration.lock \
+    /usr/bin/env -i PATH=/usr/bin:/bin \
+    /usr/bin/bash -p -euo pipefail /usr/share/omarchy/migrations/1786380259.sh --machine
+elif (( $# == 1 && EUID == 0 )) && [[ $1 == "--machine" ]]; then
+  repair_machine
 else
-  sudo omarchy-bluetooth-power off
+  echo "This migration accepts no arguments; its machine phase requires root." >&2
+  exit 1
 fi
-
-# Omarchy set AutoEnable=false believing bluetoothd would then restore the last
-# power state. It has no such behaviour, so all the flag ever did was keep
-# Bluetooth off at every boot. Left in place it would also stop bluetoothd from
-# powering the adapter up when the block above is lifted. Only the exact line
-# Omarchy wrote is reverted, so a hand-edited opt-out survives.
-if [[ -f $main_conf ]]; then
-  sudo sed -i 's/^AutoEnable=false$/#AutoEnable=true/' "$main_conf"
-fi
-
-sudo install -Dm644 /dev/null "$marker"

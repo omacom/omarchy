@@ -9,18 +9,21 @@ unset OMARCHY_UPDATE_FORCE
 unset TEST_AVAILABLE_BYTES
 unset TEST_DF_INVALID
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-stub_bin="$test_tmp/bin"
-test_home="$test_tmp/home"
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+test_tmp="$boundary_tmp"
+stub_bin="$SUDO_TEST_ROOT/bin"
+test_home="$SUDO_TEST_HOME"
 runtime_dir="$test_tmp/runtime"
 snapshot_marker="$test_tmp/snapshot"
 gum_marker="$test_tmp/gum"
-mkdir -p "$stub_bin" "$test_home" "$runtime_dir"
+mkdir -p "$runtime_dir"
+for command in omarchy-update omarchy-update-requires-free-space omarchy-update-confirm; do
+  rm -f "$stub_bin/$command"
+  copy_boundary_file "bin/$command"
+done
 
 run_update() {
-  HOME="$test_home" \
+  SUDO_TEST_HOME="$test_home" \
   XDG_RUNTIME_DIR="$runtime_dir" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
   LC_ALL=C \
@@ -30,13 +33,14 @@ run_update() {
   SNAPSHOT_MARKER="$snapshot_marker" \
   GUM_MARKER="$gum_marker" \
   GUM_STATUS=${GUM_STATUS:-1} \
-    "$ROOT/bin/omarchy-update" "$@"
+    "$SUDO_TEST_ROOT/bin/omarchy-update" "$@"
 }
 
 write_stub() {
   local name="$1"
   local body="$2"
 
+  rm -f "$stub_bin/$name"
   cat >"$stub_bin/$name" <<SH
 #!/bin/bash
 $body
