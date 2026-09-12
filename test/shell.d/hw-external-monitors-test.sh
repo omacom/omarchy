@@ -59,3 +59,34 @@ pass "physical monitor detection ignores disconnected external displays"
 write_connectors DP-1 connected
 has_external_monitor || fail "external-only systems still report a connected display"
 pass "physical monitor detection still supports external-only systems"
+
+write_connectors USB-1 connected
+if has_external_monitor; then
+  fail "a Touch Bar USB DRM connector is not an external display"
+fi
+pass "physical monitor detection ignores a USB Touch Bar connector"
+
+write_named_connectors() {
+  rm -rf "$drm_path"
+  mkdir -p "$drm_path"
+
+  while (( $# )); do
+    mkdir -p "$drm_path/$1"
+    printf '%s\n' "$2" >"$drm_path/$1/status"
+    shift 2
+  done
+}
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 connected
+if has_external_monitor; then
+  fail "a Touch Bar on a second DRM card is not an external display"
+fi
+pass "physical monitor detection ignores a USB Touch Bar alongside an internal panel"
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 connected card1-DP-1 connected
+has_external_monitor || fail "a real DP display still counts when a Touch Bar is present"
+pass "physical monitor detection still finds DP when a Touch Bar is present"
+
+write_named_connectors card1-eDP-1 connected card0-USB-1 disconnected card1-HDMI-A-1 connected
+has_external_monitor || fail "HDMI still counts when the Touch Bar is disconnected"
+pass "physical monitor detection still finds HDMI when a Touch Bar is disconnected"
