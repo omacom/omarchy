@@ -70,7 +70,7 @@ case "$gpu_mode" in
 "Integrated")
   if gum confirm "Enable dedicated GPU and reboot?"; then
     # Switch to hybrid mode
-    sudo sed -i "s/\"mode\": \".*\"/\"mode\": \"Hybrid\"/" /etc/supergfxd.conf
+    sudo sed -i --follow-symlinks "s/\"mode\": \".*\"/\"mode\": \"Hybrid\"/" /etc/supergfxd.conf
 
     # Let hybrid mode be the default after system sleep
     sudo rm -rf /usr/lib/systemd/system-sleep/force-igpu
