@@ -1991,7 +1991,7 @@ if [[ -f $HOME/.config/hypr/hyprland.conf ]]; then
 fi
 
 mkdir -p "$HOME/.local/share/nautilus-python/extensions"
-for extension in localsend.py transcode.py; do
+for extension in localsend.py transcode.py swipe_navigation.py; do
   if [[ -f $root/default/nautilus-python/extensions/$extension ]]; then
     cp "$root/default/nautilus-python/extensions/$extension" "$HOME/.local/share/nautilus-python/extensions/"
   fi
