@@ -19,8 +19,16 @@ mise_history="$test_tmp/mise-history"
 stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
+mise_install_root="$test_tmp/mise-installs"
 muse_login_log="$test_tmp/muse-login"
-mkdir -p "$mock_bin" "$test_home"
+mkdir -p "$mock_bin" "$test_home" "$mise_install_root"
+
+# Real omarchy-mise-install resolves `$install_root/$command`, so each command
+# the installer is asked for needs an executable there.
+for name in grok omp crush ori gemini claude agy opencode pi copilot codex cursor-agent muse; do
+  printf '#!/bin/bash\nexit 0\n' >"$mise_install_root/$name"
+  chmod +x "$mise_install_root/$name"
+done
 
 cat >"$mock_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
@@ -58,8 +66,12 @@ printf '%s\0' "$@" >"$OMARCHY_TEST_MISE_LOG"
 printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
 
 if [[ $1 == "where" ]]; then
-  [[ ${OMARCHY_TEST_AGENT_INSTALLED:-false} == "true" ]]
-  exit
+  if [[ ${OMARCHY_TEST_AGENT_INSTALLED:-false} == "true" ]]; then
+    printf '%s
+' "$OMARCHY_TEST_MISE_INSTALL_ROOT"
+    exit 0
+  fi
+  exit 1
 fi
 
 [[ ${OMARCHY_TEST_MISE_FAIL:-false} != "true" ]]
@@ -105,6 +117,7 @@ export OMARCHY_TEST_AGENT_LAUNCH_LOG="$launch_log"
 export OMARCHY_TEST_AGENT_INLINE_LOG="$inline_log"
 export OMARCHY_TEST_MISE_LOG="$mise_log"
 export OMARCHY_TEST_MISE_HISTORY="$mise_history"
+export OMARCHY_TEST_MISE_INSTALL_ROOT="$mise_install_root"
 export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
@@ -124,11 +137,14 @@ assert_lazy_stub() {
   local command=$2
 
   : >"$mise_history"
-  "$ROOT/bin/omarchy-mise-install" "$package" "$command"
-  "$test_home/.local/bin/$command" --version
-  mapfile -t mise_calls <"$mise_history"
+  OMARCHY_TEST_AGENT_INSTALLED=true "$ROOT/bin/omarchy-mise-install" "$package" "$command"
 
-  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "x $package -- $command --version" ]] ||
+  [[ -L $test_home/.local/bin/$command ]] || fail "$command is a symlink, not a wrapper"
+  [[ $(readlink "$test_home/.local/bin/$command") == "$mise_install_root/$command" ]] ||
+    fail "$command points at the mise binary"
+
+  mapfile -t mise_calls <"$mise_history"
+  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "where $package" ]] ||
     fail "$command lazy stub preserves its mise package"
 }
 
@@ -199,7 +215,7 @@ grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "agent migration create
 : >"$stub_log"
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' gemini >"$agent_file"
-"$ROOT/bin/omarchy-mise-install" gemini
+OMARCHY_TEST_AGENT_INSTALLED=true "$ROOT/bin/omarchy-mise-install" gemini
 export OMARCHY_TEST_MISSING_COMMAND=agy
 source "$ROOT/migrations/1786719479.sh" >/dev/null
 unset OMARCHY_TEST_MISSING_COMMAND
@@ -267,7 +283,9 @@ pass "Antigravity migration preserves an existing Antigravity install"
 
 mkdir -p "$test_home/.local/state/omarchy"
 touch "$test_home/.local/state/omarchy/preinstalls-removed"
-"$ROOT/bin/omarchy-mise-install" oh-my-pi omp
+mkdir -p "$test_home/.local/bin"
+printf '#!/bin/bash\nmise use -g --quiet "oh-my-pi" || exit 1\n' >"$test_home/.local/bin/omp"
+chmod +x "$test_home/.local/bin/omp"
 : >"$stub_log"
 source "$ROOT/migrations/1785617047.sh" >/dev/null
 source "$ROOT/migrations/1785846769.sh" >/dev/null
@@ -297,7 +315,7 @@ rm "$test_home/.local/state/omarchy/preinstalls-removed"
 rm -f "$agent_file"
 pass "agent migrations install working wrappers without overriding the preinstall opt-out"
 
-"$ROOT/bin/omarchy-mise-install" "$muse_package" muse
+OMARCHY_TEST_AGENT_INSTALLED=true "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
 for command in agy omp ori grok crush cursor-agent muse; do

@@ -9,60 +9,116 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
-mkdir -p "$home" "$stub_bin"
+installs="$tmpdir/mise-installs"
+mise_log="$tmpdir/mise-log"
+argv0_bin="$tmpdir/argv0printer"
+argv0_is_bash=0
+mkdir -p "$home" "$stub_bin" "$installs"
 
-# Stands in for the real mise so a generated wrapper can be run and asked what
-# arguments it passed on.
+# A native binary is the only way to observe argv[0]: a shebang script loses
+# the forged name before line 1, which is the wrapper bug this installer fixes.
+if command -v cc >/dev/null; then
+  cc -o "$argv0_bin" -x c - <<'EOF'
+#include <stdio.h>
+
+int main(int argc, char **argv) {
+  if (argc > 0) {
+    puts(argv[0]);
+  }
+  return 0;
+}
+EOF
+else
+  ln -sf "$(command -v bash)" "$argv0_bin"
+  argv0_is_bash=1
+fi
+
 cat >"$stub_bin/mise" <<'SH'
 #!/bin/bash
+printf '%s\n' "$*" >>"$MISE_LOG"
 
-printf 'mise' >>"$OMARCHY_MISE_TEST_LOG"
-for arg in "$@"; do
-  printf '\t%s' "$arg" >>"$OMARCHY_MISE_TEST_LOG"
-done
-printf '\n' >>"$OMARCHY_MISE_TEST_LOG"
+if [[ $1 == "use" ]]; then
+  if (( ${MISE_USE_FAIL:-0} )); then
+    exit 1
+  fi
+  exit 0
+fi
+
+if [[ $1 == "where" ]]; then
+  if (( ${MISE_WHERE_FAIL:-0} )); then
+    exit 1
+  fi
+  printf '%s\n' "$MISE_WHERE"
+  exit 0
+fi
+
+exit 0
 SH
 chmod +x "$stub_bin/mise"
 
-install_wrapper() {
-  HOME="$home" "$ROOT/bin/omarchy-mise-install" "$@"
+seed_tool() {
+  local package=$1
+  local bin=$2
+  local root="$installs/$package"
+
+  mkdir -p "$root"
+  cp "$argv0_bin" "$root/$bin"
+  chmod +x "$root/$bin"
 }
 
-# The ordinary case still works, and every call site in install/user/mise.sh
-# passes names of this shape.
-install_wrapper npm:playwright playwright >/dev/null
-[[ -x $home/.local/bin/playwright ]] ||
-  fail "a normal install writes an executable wrapper"
+invoke_argv0() {
+  local dest=$1
+  local name=$2
 
-log="$tmpdir/normal.log"
-: >"$log"
-OMARCHY_MISE_TEST_LOG="$log" PATH="$stub_bin:$PATH" "$home/.local/bin/playwright" >/dev/null
-grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$log" ||
-  fail "the wrapper asks mise for the package it was given" "$(cat "$log")"
+  if (( argv0_is_bash )); then
+    bash -c 'exec -a "$1" "$2" -c "printf %s\\n \"\$BASH_ARGV0\""' _ "$name" "$dest"
+  else
+    bash -c 'exec -a "$1" "$2"' _ "$name" "$dest"
+  fi
+}
 
-pass "a normal install writes a wrapper that names its package"
+run_install() {
+  HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" \
+    MISE_LOG="$mise_log" MISE_WHERE="$MISE_WHERE" \
+    MISE_USE_FAIL="${MISE_USE_FAIL:-0}" MISE_WHERE_FAIL="${MISE_WHERE_FAIL:-0}" \
+    "$ROOT/bin/omarchy-mise-install" "$@"
+}
 
-# A package name is data. Quoted with %q it reaches mise as one argument
-# instead of being read as shell source when the wrapper runs.
-install_wrapper 'npm:pkg$(touch '"$tmpdir"'/PWNED)end' hostile >/dev/null
+: >"$mise_log"
+seed_tool npm:playwright playwright
+MISE_WHERE="$installs/npm:playwright"
+run_install npm:playwright playwright
 
-log="$tmpdir/hostile.log"
-: >"$log"
-OMARCHY_MISE_TEST_LOG="$log" PATH="$stub_bin:$PATH" "$home/.local/bin/hostile" >/dev/null
+dest="$home/.local/bin/playwright"
+[[ -L $dest ]] || fail "a normal install writes a symlink, not a script"
+[[ $(readlink "$dest") == "$installs/npm:playwright/playwright" ]] ||
+  fail "symlink points at the real binary"
+got=$(invoke_argv0 "$dest" ugrep)
+[[ $got == "ugrep" ]] || fail "symlink preserves argv[0] via exec -a" "expected ugrep, got: $got"
+grep -qx 'use -g --quiet npm:playwright' "$mise_log" ||
+  fail "installer still calls mise use -g --quiet" "$(cat "$mise_log")"
+grep -qx 'where npm:playwright' "$mise_log" ||
+  fail "installer resolves the binary with mise where" "$(cat "$mise_log")"
+if awk '$1 == "x" { found = 1 } END { exit found ? 0 : 1 }' "$mise_log"; then
+  fail "installer no longer re-execs through mise x"
+fi
+pass "a normal install writes a symlink that preserves argv[0]"
 
-[[ -e $tmpdir/PWNED ]] &&
-  fail "a package name with shell characters does not run when the wrapper does" \
-    "wrapper: $(cat "$home/.local/bin/hostile")"
-
-grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:pkg$(touch '"$tmpdir"'/PWNED)end' "$log" ||
-  fail "the package reaches mise whole" "$(cat "$log")"
-
+# A package name is mise argv data, never shell source. Confirm it stays one
+# argument and does not expand.
+: >"$mise_log"
+package_hostile='npm:pkg$(touch '"$tmpdir"'/PWNED)end'
+seed_root="$installs/hostile-pkg"
+mkdir -p "$seed_root"
+cp "$argv0_bin" "$seed_root/hostile"
+chmod +x "$seed_root/hostile"
+MISE_WHERE="$seed_root"
+run_install "$package_hostile" hostile
+[[ -e $tmpdir/PWNED ]] && fail "a package name with shell characters does not run at install time"
+grep -qx "use -g --quiet $package_hostile" "$mise_log" ||
+  fail "the package reaches mise whole" "$(cat "$mise_log")"
 pass "a package name with shell characters reaches mise as one argument"
 
-# The command name is a file name under ~/.local/bin. These shapes escape it,
-# hide it, make something that reads as an option, or carry characters that have
-# no business in a file name. Labelled so a newline in the value does not end up
-# inside the test output.
 refused=(
   "a slash" "../escaped"
   "a leading dot" ".hidden"
@@ -75,7 +131,7 @@ for (( i = 0; i < ${#refused[@]}; i += 2 )); do
   label=${refused[i]}
   name=${refused[i + 1]}
 
-  if install_wrapper somepkg "$name" >/dev/null 2>"$tmpdir/err"; then
+  if run_install somepkg "$name" >/dev/null 2>"$tmpdir/err"; then
     fail "a command name with $label is refused"
   fi
   grep -Fq 'is not usable as a command name' "$tmpdir/err" ||
@@ -84,14 +140,76 @@ done
 
 pass "command names that are not plain file names are refused"
 
-# The refusal has to land before the rm, which would otherwise delete the
-# escaped path on its way to failing.
 victim="$tmpdir/victim"
 printf 'keep me\n' >"$victim"
-if install_wrapper somepkg "../../../..$victim" >/dev/null 2>&1; then
+if run_install somepkg "../../../..$victim" >/dev/null 2>&1; then
   fail "an escaping command name is refused"
 fi
 [[ -f $victim ]] ||
   fail "an escaping command name removes nothing outside ~/.local/bin"
 
 pass "an escaping command name removes nothing outside ~/.local/bin"
+
+: >"$mise_log"
+mkdir -p "$installs/missing"
+MISE_WHERE="$installs/missing"
+if run_install missing >/dev/null 2>&1; then
+  fail "missing target exits non-zero"
+fi
+pass "missing target exits non-zero"
+
+: >"$mise_log"
+mkdir -p "$installs/unusable"
+printf '#!/bin/bash\nexit 0\n' >"$installs/unusable/unusable"
+chmod a-x "$installs/unusable/unusable"
+MISE_WHERE="$installs/unusable"
+if run_install unusable >/dev/null 2>&1; then
+  fail "unusable target exits non-zero"
+fi
+pass "unusable target exits non-zero"
+
+: >"$mise_log"
+MISE_WHERE="$seed_root"
+MISE_USE_FAIL=1
+if run_install claude >/dev/null 2>&1; then
+  fail "mise use failure exits non-zero"
+fi
+pass "mise use failure exits non-zero"
+
+: >"$mise_log"
+MISE_USE_FAIL=0
+MISE_WHERE_FAIL=1
+if run_install claude >/dev/null 2>&1; then
+  fail "mise where failure exits non-zero"
+fi
+pass "mise where failure exits non-zero"
+
+# Replacing an old wrapper file with a symlink.
+MISE_WHERE_FAIL=0
+seed_tool claude claude
+mkdir -p "$home/.local/bin"
+rm -f "$home/.local/bin/claude"
+cat >"$home/.local/bin/claude" <<'EOF'
+#!/bin/bash
+export MISE_MINIMUM_RELEASE_AGE=0
+mise use -g --quiet "claude" || exit 1
+exec mise x "claude" -- "claude" "$@"
+EOF
+chmod +x "$home/.local/bin/claude"
+[[ -L $home/.local/bin/claude ]] && fail "precondition: old wrapper is a regular file"
+
+: >"$mise_log"
+MISE_WHERE="$installs/claude"
+run_install claude
+
+[[ -L $home/.local/bin/claude ]] || fail "installer replaces an old wrapper with a symlink"
+[[ $(readlink "$home/.local/bin/claude") == "$installs/claude/claude" ]] ||
+  fail "replacement symlink points at the real binary"
+got=$(invoke_argv0 "$home/.local/bin/claude" ugrep)
+[[ $got == "ugrep" ]] || fail "replacement symlink preserves argv[0]" "expected ugrep, got: $got"
+pass "installer replaces an old wrapper with a symlink"
+
+if HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-mise-install" >/dev/null 2>&1; then
+  fail "missing package argument exits non-zero"
+fi
+pass "missing package argument exits non-zero"
