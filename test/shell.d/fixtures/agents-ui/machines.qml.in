@@ -55,14 +55,40 @@ Item {
     function space(value) { return value }
   }
   QtObject { id: testColor; property color foreground: "white"; property color urgent: "red" }
+  QtObject { id: remoteRefresh; property bool running: false; property var command: [] }
+  QtObject {
+    id: machineCommand
+    property bool running: false
+    property var command: []
+    onRunningChanged: if (running) usage.commands = usage.commands.concat([command.slice(1)])
+  }
+  QtObject { id: remoteRecord; function reload() {} }
   QtObject {
     id: usage
     property var remoteMachines: []
-    property bool machineBusy: false
+    property bool remoteRefreshPending: false
+    property bool remoteForcePending: false
+    readonly property bool machineBusy: machineCommand.running
     property string machineError: ""
     property var commands: []
+    property int completionCount: 0
     signal machineCommandFinished(bool success)
-    function manageMachine(args) { commands = commands.concat([args]); machineBusy = true }
+    MANAGE_FUNCTION
+    SCHEDULE_FUNCTION
+    REFRESH_FUNCTION
+    function beginBackground() { remoteRefresh.running = true }
+    function finishBackground() {
+      remoteRefresh.running = false
+      BACKGROUND_EXIT
+    }
+    function finishManual(code) {
+      machineCommand.running = false
+      COMMAND_EXIT
+    }
+  }
+  Connections {
+    target: usage
+    function onMachineCommandFinished(success) { usage.completionCount++ }
   }
   // Theme/paint substitutes; keyboard handlers come from the production button.
   component Button: Item {
@@ -99,7 +125,9 @@ Item {
     function row(id, label) { return {id:id, label:label, target:"workbox", user:"tester", platform:"Linux", status:"current"} }
     function init() {
       root.width = 380
-      usage.machineBusy = false; usage.machineError = ""; usage.commands = []
+      remoteRefresh.running = false; machineCommand.running = false
+      usage.remoteRefreshPending = false; usage.remoteForcePending = false
+      usage.machineError = ""; usage.commands = []; usage.completionCount = 0
       usage.remoteMachines = [row("one", "Laptop"), row("two", "Workstation")]
       root.machinesOpen = true
       root.switchedPanels = []; root.machineMoves = []
@@ -111,7 +139,7 @@ Item {
       wait(5)
     }
     function text(value) { for (var i = 0; i < value.length; i++) keyClick(value[i]) }
-    function finish(success) { usage.machineBusy = false; usage.machineCommandFinished(success); wait(5) }
+    function finish(success) { usage.finishManual(success ? 0 : 1); wait(5) }
     function focusedText() {
       var item = root.Window.window.activeFocusItem
       return item && item.text !== undefined ? item.text : ""
@@ -164,6 +192,35 @@ Item {
       compare(machineSettings.mode, "", "Escape cancels after editing the failed request")
       verify(root.machinesOpen)
       compare(usage.commands.length, 1, "editing and cancel do not submit an implicit retry")
+    }
+    function test_deferred_force_refresh_preserves_typed_editor_and_management_completion() {
+      usage.beginBackground()
+      usage.refreshMachines()
+      verify(usage.remoteForcePending,"manual refresh is queued behind the running background pass")
+      keyClick("n"); wait(5)
+      text("typed-host"); keyClick(Qt.Key_Tab); text("Typed computer")
+      compare(focusedText(),"Typed computer")
+
+      usage.finishBackground(); wait(10)
+      compare(usage.commands[0],["refresh","--force"])
+      verify(usage.machineBusy,"the queued force refresh starts through the production command path")
+      compare(machineSettings.mode,"add")
+      usage.finishManual(0); wait(10)
+      compare(usage.completionCount,0,"refresh completion is not a machine-management completion")
+      compare(machineSettings.mode,"add","refresh completion keeps the Add editor open")
+      compare(focusedText(),"Typed computer","typed input and its real field focus survive refresh completion")
+
+      keyClick(Qt.Key_Tab); keyClick(Qt.Key_Return)
+      compare(usage.commands[1],["add","typed-host","--label","Typed computer"])
+      usage.finishManual(0); wait(5)
+      compare(usage.completionCount,1,"actual Save still emits management completion")
+      compare(machineSettings.mode,"")
+
+      keyClick("x"); keyClick(Qt.Key_Return)
+      compare(usage.commands[2],["remove","one"])
+      usage.finishManual(0); wait(5)
+      compare(usage.completionCount,2,"actual Remove still emits management completion")
+      compare(machineSettings.mode,"")
     }
     function test_remove_confirmation_keeps_original_target() {
       keyClick("x")

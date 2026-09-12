@@ -1334,7 +1334,7 @@ Panel {
     }
 
     Rectangle {
-      anchors.left: parent.left
+      anchors.right: parent.right
       anchors.top: parent.top
       anchors.bottom: parent.bottom
       width: parent.width * root.clamp(modelRow.share, 0, 1)

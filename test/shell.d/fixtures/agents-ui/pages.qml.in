@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
 import QtTest
+import "RemoteUsage.js" as RemoteUsage
 Item {
   id: root; width: 380; height: 220
   property color foreground: "white"
@@ -47,13 +48,27 @@ Item {
     property real cornerRadius: 4
     function space(n) { return n }
   }
+  component LegacyScopeState: QtObject {
+    id: root
+    property bool legacySync: false
+    property var rawLocalProviders: []
+    property var localProviders: []
+    function syncConfigured() { return legacySync }
+    function providerEnabled(providerId) { return true }
+    SCOPE_STATE
+  }
+  LegacyScopeState { id: scopeState }
   QtObject { id: usage
     property var remoteMachines: []
     property bool machineBusy: false
     property string machineError: ""
     signal machineCommandFinished(bool success)
     function manageMachine(args) {}
-    function machineStatus(now, providerId) { return "" }
+    property bool useScopeState: false
+    property string syncStatusText: ""
+    function machineStatus(now, providerId) {
+      return useScopeState ? scopeState.machineStatus(now,providerId) : ""
+    }
     property bool remoteActive: false
     property var allProviders: []
     property var preparedProviderViews: []
@@ -106,7 +121,7 @@ Item {
   function pricingLimitationText(p) { return p ? (p.note || "") : "" }
   function heroMeta() { return "Subscription" }
   function iconCandidatesForProvider() { return [] }
-  function footerText() { return "" }
+  FOOTER_FUNCTION
   function weekPeak() { return 100 }
   function todayDate() { return "2026-09-11" }
   function dayLabel() { return "Today" }
@@ -139,8 +154,12 @@ Item {
       root.opened=true; root.machinesOpen=false; root.detailsOpen=false
       root.focusSection=0; root.usageCursor=0; root.providerIndex=0
       usage.remoteMachines=[]; usage.machineBusy=false; usage.machineError=""
+      usage.useScopeState=false
       machineSettings.mode=""; machineSettings.selectedId=""
       usage.pricing.revision=0
+      scopeState.legacySync=false; scopeState.remoteSnapshot=({machines:[]})
+      scopeState.rawLocalProviders=[]; scopeState.localProviders=[]
+      scopeState.selectedMachineId="all"
     }
     function textItem(item, fragment) {
       if (item.text !== undefined && String(item.text).indexOf(fragment)>=0) return item
@@ -386,6 +405,50 @@ Item {
       keyClick("j"); wait(10)
       compare(root.focusSection,0,"last rendered row leaves usage")
       compare(panelFlick.contentY,0,"leaving usage reveals the top provider controls")
+    }
+    function test_legacy_sync_removes_invalid_machine_scopes_without_hiding_management() {
+      var account=fixture("Local Codex",1,1)
+      var saved=machine("saved")
+      saved.identity="saved-device"
+      scopeState.rawLocalProviders=[account]
+      scopeState.localProviders=[account]
+      scopeState.remoteSnapshot=({machines:[saved]})
+      wait(10)
+      verify(scopeState.remoteActive,"SSH scopes activate before legacy sync is enabled")
+      compare(scopeState.machineChoices.length,3,"saved SSH scope is selectable when SSH views are active")
+      scopeState.selectedMachineId="saved"
+      verify(scopeState.machineScopes.saved!==undefined,"the selected saved machine has a prepared scope")
+
+      scopeState.legacySync=true
+      wait(10)
+      verify(!scopeState.remoteActive,"legacy sync disables parallel SSH aggregation")
+      compare(scopeState.machineChoices.length,2,"legacy sync exposes only valid All/local usage scopes")
+      compare(scopeState.selectedMachineId,"all","an invalid selected SSH scope normalizes to All")
+      compare(scopeState.enabledProviders[0],account,"legacy All keeps the existing local/synced presentation")
+      compare(scopeState.enabledProviders[0].limits.length,1,"local account limits remain attached")
+      compare(scopeState.machineStatus(root.nowMs,"codex"),
+        "SSH views require legacy synced aggregation to be Off","scope status explains the unavailable SSH views")
+
+      usage.useScopeState=true
+      usage.remoteMachines=scopeState.remoteMachines
+      usage.remoteActive=scopeState.remoteActive
+      usage.machineChoices=scopeState.machineChoices
+      usage.selectedMachineId=scopeState.selectedMachineId
+      usage.allProviders=scopeState.allProviders
+      usage.preparedProviderViews=scopeState.preparedProviderViews
+      root.providers=scopeState.enabledProviders
+      root.providerIndex=0
+      wait(30)
+      compare(root.footerText(account),"SSH views require legacy synced aggregation to be Off",
+        "the production footer consumes the explanatory scope status")
+      var activePage=root.activeProviderPage()
+      verify(activePage!==null,"normalization leaves a real production provider page visible")
+      var notice=textItem(activePage,"SSH views require legacy synced aggregation to be Off")
+      verify(notice && notice.visible,"the visible All page truthfully explains why SSH scopes are unavailable")
+
+      root.machinesOpen=true
+      wait(20)
+      compare(machineSettings.machineListForTest.count,1,"saved-machine management stays available under legacy sync")
     }
   }
 }

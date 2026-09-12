@@ -87,6 +87,18 @@ Item {
       verify(found!==null,"the actual colored day fill is rendered")
       return found
     }
+    function filledModelBar(item) {
+      var found=null
+      function visit(node) {
+        if(node.color!==undefined && node.color==root.alpha(root.foreground,0.14))
+          found={right:node.mapToItem(root,node.width,0).x,width:node.width}
+        var children=node.children || []
+        for(var i=0;i<children.length;i++) visit(children[i])
+      }
+      visit(item)
+      verify(found!==null,"the actual colored model/summary fill is rendered")
+      return found
+    }
     function test_unpricedWidths() {
       var widths = []
       for (var i = 1; i <= 5; i++) {
@@ -142,6 +154,20 @@ Item {
         if(states[i].ratio===.25) quarterWidth=bar.width
         if(states[i].ratio===.75) verify(Math.abs(bar.width-quarterWidth*3)<1,"fill width remains proportional")
         if(states[i].ratio===0) compare(bar.width,0,"zero usage keeps an empty fill")
+      }
+    }
+    function test_partial_model_and_summary_fills_share_the_right_edge() {
+      model.row={name:"A model",value:"12345/$12345",pricingPresentation:true}
+      var states=[{share:.2,summary:false},{share:.6,summary:false},{share:.4,summary:true},{share:0,summary:true}]
+      var referenceRight=-1, fifthWidth=0
+      for(var i=0;i<states.length;i++) {
+        model.share=states[i].share; model.summary=states[i].summary; wait(200)
+        var bar=filledModelBar(model)
+        if(referenceRight<0) referenceRight=bar.right
+        compare(bar.right,referenceRight,"partial model and summary fills align at the row's right edge")
+        if(states[i].share===.2) fifthWidth=bar.width
+        if(states[i].share===.6) verify(Math.abs(bar.width-fifthWidth*3)<1,"model fill width remains proportional")
+        if(states[i].share===0) compare(bar.width,0,"zero-share model keeps an empty fill")
       }
     }
   }

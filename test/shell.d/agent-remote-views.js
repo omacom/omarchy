@@ -77,6 +77,16 @@ assert.match(remote.machineStatus(partialMachines, 'partial', 'claude', now), /p
 assert.match(remote.machineStatus(partialMachines, 'partial', 'codex', now), /^Remote usage/)
 console.log('ok - unavailable provider data stays unknown while All retains its known local subtotal')
 
+const importingMachines = [{
+  id: 'continuing', identity: 'continuing-device', status: 'importing', lastSuccess: now / 1000 - 10 * 60,
+  providers: {
+    codex: remoteRecord(25, { remoteSources: { '.codex/sessions': source('current', now / 1000) } })
+  }
+}]
+assert.equal(remote.machineStatus(importingMachines, 'continuing', 'codex', now),
+  'Importing / continuing · oldest relevant update 10 min ago')
+console.log('ok - retained provider data still exposes an active import with its truthful age')
+
 const staleMachines = [{
   id: 'stale', identity: 'stale-device', status: 'incomplete', lastSuccess: now / 1000,
   providers: {

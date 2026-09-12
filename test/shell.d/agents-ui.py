@@ -10,6 +10,7 @@ runner = sys.argv[2]
 plugin = root / 'shell/plugins/agents'
 fixtures = root / 'test/shell.d/fixtures/agents-ui'
 panel = (plugin / 'Panel.qml').read_text()
+main = (plugin / 'Main.qml').read_text()
 
 
 def block(source, marker):
@@ -23,6 +24,18 @@ def block(source, marker):
       if depth == 0:
         return source[start:index + 1]
   raise ValueError('Unclosed component: ' + marker)
+
+
+def block_body(source, marker):
+  value = block(source, marker)
+  return value[value.index('{') + 1:-1]
+
+
+def source_line(source, marker):
+  start = source.index(marker)
+  start = source.rfind('\n', 0, start) + 1
+  end = source.find('\n', start)
+  return source[start:] if end < 0 else source[start:end]
 
 
 def themed(source):
@@ -60,13 +73,40 @@ button = (root / 'shell/Ui/Button.qml').read_text()
 button_keys = button[button.index('  activeFocusOnTab:'):button.index('  // Reserve the largest')]
 key_catcher = panel[panel.index('    PanelKeyCatcher {'):panel.index('      Flickable {')]
 keyboard_panel = (root / 'shell/Ui/KeyboardPanel.qml').read_text()
+remote_refresh = block(main, '  Process {\n    id: remoteRefresh')
+machine_command = block(main, '  Process {\n    id: machineCommand')
+machine_choices = source_line(main, 'readonly property var machineChoices:')
+if '.concat(remoteActive ? remoteMachines : [])' in main:
+  machine_choices += '\n' + source_line(main, '.concat(remoteActive ? remoteMachines : [])')
+scope_state = '\n'.join([
+  source_line(main, 'property string selectedMachineId:'),
+  source_line(main, 'property var remoteSnapshot:'),
+  source_line(main, 'readonly property var remoteMachines:'),
+  source_line(main, 'readonly property bool remoteActive:'),
+  source_line(main, 'property string scopeDate:'),
+  block(main, '  readonly property var machineScopes:'),
+  block(main, '  readonly property var enabledProviders:'),
+  block(main, '  readonly property var preparedProviderViews:'),
+  source_line(main, 'readonly property var allProviders:'),
+  machine_choices,
+  block(main, '  function machineStatus(nowMs, providerId)')
+])
+if '  function normalizeSelectedMachine()' in main:
+  scope_state += '\n' + block(main, '  function normalizeSelectedMachine()')
+if '  onRemoteActiveChanged:' in main:
+  scope_state += '\n' + source_line(main, 'onRemoteActiveChanged:')
 replacements = {
   'machines': {'MACHINE_COMPONENT': themed(machine).replace('Color.', 'testColor.'),
                'KEY_COMPONENT': key_component, 'KEY_CATCHER': key_catcher, 'BUTTON_KEYS': button_keys,
                'SCROLL_FUNCTION': block(panel, '  function ensureUsageCursorVisible()'),
                'CONTENT_ITEM_FUNCTION': block(panel, '  function ensureContentItemVisible(item)'),
                'TOP_FUNCTION': block(panel, '  function ensureTopControlsVisible()'),
-               'ACTIVE_FUNCTION': block(panel, '  function activeProviderPage()')},
+               'ACTIVE_FUNCTION': block(panel, '  function activeProviderPage()'),
+               'MANAGE_FUNCTION': block(main, '  function manageMachine(args)').replace('root.', 'usage.'),
+               'SCHEDULE_FUNCTION': block(main, '  function scheduleRemoteRefresh()').replace('root.', 'usage.'),
+               'REFRESH_FUNCTION': block(main, '  function refreshMachines()').replace('root.', 'usage.'),
+               'BACKGROUND_EXIT': block_body(remote_refresh, '    onExited:').replace('root.', 'usage.'),
+               'COMMAND_EXIT': block_body(machine_command, '    onExited:').replace('root.', 'usage.')},
   'alignment': {
     'COMPONENTS': themed(block(panel, '  component UsageValue:') + '\n'
       + panel[panel.index('  component DayRow:'):panel.rfind('\n}')])
@@ -83,6 +123,8 @@ replacements = {
     'ACTIVE_FUNCTION': block(panel, '  function activeProviderPage()'),
     'FITTED_FUNCTION': block(keyboard_panel, '  function fittedContentHeight(implicitHeight, cap)'),
     'COVERAGE_FUNCTION': block(panel, '  function coverageText(provider)'),
+    'FOOTER_FUNCTION': block(panel, '  function footerText(provider)'),
+    'SCOPE_STATE': scope_state,
     'STACK': themed(block(panel, '        Item {\n          id: contentStack')),
     'COMPONENTS': themed(panel[panel.index('  component ProviderPage:'):panel.rfind('\n}')])
   },
@@ -93,6 +135,7 @@ env = os.environ | {'QT_QUICK_BACKEND': 'software', 'QT_QPA_PLATFORMTHEME': 'bas
 with tempfile.TemporaryDirectory(prefix='agents-ui-') as scratch:
   target = Path(scratch)
   (target / 'ApiCost.js').write_bytes((plugin / 'ApiCost.js').read_bytes())
+  (target / 'RemoteUsage.js').write_bytes((plugin / 'RemoteUsage.js').read_bytes())
   for name, values in replacements.items():
     source = (fixtures / (name + '.qml.in')).read_text()
     for key, value in values.items():

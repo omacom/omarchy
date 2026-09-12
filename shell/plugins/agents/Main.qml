@@ -285,7 +285,16 @@ Item {
     return result
   }
   readonly property var allProviders: (machineScopes.all || []).filter(function(provider) { return root.providerEnabled(provider.providerId) })
-  readonly property var machineChoices: [{ id: "all", label: "All" }, { id: "local", label: "This computer" }].concat(remoteMachines)
+  readonly property var machineChoices: [{ id: "all", label: "All" }, { id: "local", label: "This computer" }]
+    .concat(remoteActive ? remoteMachines : [])
+
+  function normalizeSelectedMachine() {
+    if (selectedMachineId === "all" || selectedMachineId === "local") return
+    if (!remoteActive || !remoteMachines.some(function(machine) { return machine.id === selectedMachineId }))
+      selectedMachineId = "all"
+  }
+
+  onRemoteActiveChanged: normalizeSelectedMachine()
   property string machineError: ""
   readonly property bool machineBusy: machineCommand.running
 
@@ -297,9 +306,7 @@ Item {
       if (!record || record.schemaVersion !== 1 || !Array.isArray(record.machines)) return
       root.remoteSnapshot = record
       if (root.remoteRefreshDue(Date.now())) root.scheduleRemoteRefresh()
-      if (root.selectedMachineId !== "all" && root.selectedMachineId !== "local"
-          && !root.remoteMachines.some(function(machine) { return machine.id === root.selectedMachineId }))
-        root.selectedMachineId = "all"
+      root.normalizeSelectedMachine()
     }
   }
 
@@ -339,7 +346,9 @@ Item {
     stderr: StdioCollector { onStreamFinished: if (text.trim() !== "") root.machineError = text.trim() }
     onExited: function(code) {
       remoteRecord.reload()
-      root.machineCommandFinished(code === 0)
+      var action = machineCommand.command.length > 1 ? String(machineCommand.command[1]) : ""
+      if (action === "add" || action === "rename" || action === "remove")
+        root.machineCommandFinished(code === 0)
       if (root.remoteForcePending) {
         root.remoteForcePending = false
         Qt.callLater(function() { root.refreshMachines() })

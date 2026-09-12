@@ -220,6 +220,7 @@ function machineStatus(machines, selectedId, providerId, nowMs) {
   var selected = machines.filter(function(machine) { return selectedId === "all" || machine.id === selectedId })
   if (!selected.length) return ""
   var now = nowMs / 1000, missing = 0, displayOldest = now
+  var importing = false, importingOldest = 0
   var issues = false, issueOldest = 0, unavailableWithoutSuccess = false
   function rememberIssue(coverage) {
     if (!coverage.incomplete) return
@@ -233,6 +234,11 @@ function machineStatus(machines, selectedId, providerId, nowMs) {
     var machineSuccess = Number(machine.lastSuccess || 0)
     if (!machineSuccess) missing++
     else displayOldest = Math.min(displayOldest, machineSuccess)
+    if (machine.status === "importing") {
+      importing = true
+      if (machineSuccess > 0)
+        importingOldest = importingOldest > 0 ? Math.min(importingOldest, machineSuccess) : machineSuccess
+    }
 
     // Stale/unavailable machine status represents a transport-wide failure.
     // An incomplete machine can have a current sibling provider, so its
@@ -256,6 +262,13 @@ function machineStatus(machines, selectedId, providerId, nowMs) {
     }
   }
   if (missing) return "Incomplete: " + missing + " computer(s) have no successful import yet"
+  if (importing) {
+    var oldestImport = importingOldest
+    if (issueOldest > 0) oldestImport = oldestImport > 0 ? Math.min(oldestImport, issueOldest) : issueOldest
+    if (oldestImport > 0)
+      return "Importing / continuing · oldest relevant update " + Math.max(0, Math.floor((now - oldestImport) / 60)) + " min ago"
+    return "Importing / continuing"
+  }
   if (issues) {
     if (issueOldest > 0)
       return "Last known / incomplete · oldest relevant update " + Math.max(0, Math.floor((now - issueOldest) / 60)) + " min ago"
