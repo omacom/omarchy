@@ -1,0 +1,126 @@
+import QtQuick
+import QtQuick.Controls
+import QtTest
+
+Item {
+  id: root
+  width: 380; height: 1000
+  property bool machinesOpen: true
+  property bool cursorActive: false
+  property int focusSection: 0
+  property int providerIndex: 0
+  property int usageCursor: 0
+  property bool detailsOpen: false
+  function selectMachine(delta) {}
+  function selectProvider(index) {}
+  function showMachines() { machinesOpen = true }
+  function close() {}
+  function refreshNow() {}
+  QtObject { id: providerPages; function itemAt(index) { return null } }
+  QtObject {
+    id: testStyle
+    property var font: ({family:"monospace", caption:12, bodySmall:13, body:14})
+    function space(value) { return value }
+  }
+  QtObject { id: testColor; property color foreground: "white"; property color urgent: "red" }
+  QtObject {
+    id: usage
+    property var remoteMachines: []
+    property bool machineBusy: false
+    property string machineError: ""
+    property var commands: []
+    signal machineCommandFinished(bool success)
+    function manageMachine(args) { commands = commands.concat([args]); machineBusy = true }
+  }
+  // Theme/paint substitutes; keyboard handlers come from the production button.
+  component Button: Item {
+    id: root
+    property string text
+    property color foreground
+    property string fontFamily
+    property real fontSize
+    property bool hasCursor
+    property bool selected
+    property bool leftAlign
+    property bool focusable: false
+    implicitWidth: text.length * 8 + 20
+    implicitHeight: 30
+    signal clicked()
+    BUTTON_KEYS
+  }
+  component PanelSectionHeader: Text { property color foreground; property string fontFamily }
+  MACHINE_COMPONENT
+  KEY_COMPONENT
+  KEY_CATCHER
+    MachineSettings {
+      id: machineSettings
+      width: parent.width
+      usage: usage
+      onFocusRequested: keyCatcher.forceActiveFocus()
+      onBackRequested: root.machinesOpen = false
+    }
+  }
+
+  TestCase {
+    name: "MachineKeyboardManagement"
+    when: windowShown
+    function row(id, label) { return {id:id, label:label, target:"workbox", user:"tester", platform:"Linux", status:"current"} }
+    function init() {
+      usage.machineBusy = false; usage.machineError = ""; usage.commands = []
+      usage.remoteMachines = [row("one", "Laptop"), row("two", "Workstation")]
+      root.machinesOpen = true
+      machineSettings.mode = ""; machineSettings.selectedId = "one"
+      keyCatcher.forceActiveFocus()
+      wait(5)
+    }
+    function text(value) { for (var i = 0; i < value.length; i++) keyClick(value[i]) }
+    function finish(success) { usage.machineBusy = false; usage.machineCommandFinished(success); wait(5) }
+    function test_add_rename_remove_with_keys() {
+      keyClick("n"); wait(5)
+      text("workbox"); keyClick(Qt.Key_Tab)
+      keyClick(Qt.Key_Backtab); keyClick(Qt.Key_Tab); text("Laptop")
+      keyClick(Qt.Key_Tab); keyClick(Qt.Key_Return)
+      compare(usage.commands[0], ["add", "workbox", "--label", "Laptop"])
+      finish(true)
+      keyClick("j"); keyClick("e"); wait(5)
+      keyClick(Qt.Key_A, Qt.ControlModifier); text("Desktop"); keyClick(Qt.Key_Return)
+      compare(usage.commands[1], ["rename", "two", "--label", "Desktop"])
+      finish(true)
+      keyClick("x"); keyClick(Qt.Key_Return)
+      compare(usage.commands[2], ["remove", "two"])
+      finish(true)
+      keyClick(Qt.Key_Escape)
+      verify(!root.machinesOpen)
+    }
+    function test_cancel_and_retry() {
+      keyClick("n"); wait(5); text("workbox"); keyClick(Qt.Key_Return)
+      text("Laptop"); keyClick(Qt.Key_Return)
+      finish(false)
+      compare(machineSettings.mode, "add")
+      keyClick(Qt.Key_Return)
+      compare(usage.commands.length, 2)
+      finish(false)
+      keyClick(Qt.Key_Escape)
+      compare(machineSettings.mode, "")
+      verify(root.machinesOpen)
+      keyClick("x"); keyClick(Qt.Key_Escape)
+      compare(usage.commands.length, 2, "cancel never removes a computer")
+    }
+    function test_remove_confirmation_keeps_original_target() {
+      keyClick("x")
+      usage.remoteMachines = [row("two", "Workstation")]
+      wait(5)
+      keyClick(Qt.Key_Return)
+      compare(usage.commands.length, 0, "a concurrent CLI removal must not retarget confirmation")
+    }
+    function test_management_height_contains_editor_and_error() {
+      root.width = 300
+      keyClick("n"); wait(5)
+      usage.machineError = "A long SSH connection error that wraps across several lines and must remain visible below the full editor."
+      wait(5)
+      verify(machineSettings.implicitHeight >= machineSettings.children[0].implicitHeight,
+             "panel content height must include every visible control and error")
+      root.width = 380
+    }
+  }
+}

@@ -68,7 +68,7 @@ assert(Math.abs(today.cost.total - 1) < 1e-12 && Math.abs(seven.cost.total - 5) 
 assertEqual(today.cost.status + '/' + seven.cost.status + '/' + thirty.cost.status,
   'partial/partial/partial', 'an unpriced model makes each containing window an explicit subtotal')
 assert(!today.value.includes('*') && today.tooltip.includes('Priced-token coverage: 99% priced')
-  && today.tooltip.includes('1.0M of 1.0M assigned local tokens')
+  && today.tooltip.includes('1.0M of 1.0M assigned tokens')
   && today.tooltip.includes('No exact tariff for unpriced-fixture-model'),
   'partial compact values disclose priced-token coverage and the missing exact tariff')
 assert(result.models.some(row => row.id === 'model-c'

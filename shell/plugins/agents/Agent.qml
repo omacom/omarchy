@@ -31,7 +31,10 @@ Item {
     }
   }
 
+  function reload() { recordFile.reload() }
+
   FileView {
+    id: recordFile
     path: root.path
     watchChanges: true
     printErrors: false

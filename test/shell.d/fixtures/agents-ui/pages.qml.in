@@ -10,6 +10,24 @@ Item {
   property string fontFamily: "monospace"
   property real nowMs: 1
   property bool cursorActive: false
+  property bool machinesOpen: false
+  property bool opened: true
+  property bool detailsOpen: false
+  property int usageCursor: 0
+  property int focusSection: 0
+  property int machineIndex: 0
+  property alias usageService: usage
+  function showMachines() { machinesOpen=true }
+  function leaveMachines() { machinesOpen=false }
+  QtObject { id: keyCatcher; function forceActiveFocus() {} }
+  component MachineSettings: Item {
+    property var usage
+    property color foreground
+    property string fontFamily
+    signal backRequested()
+    signal focusRequested()
+    implicitHeight: 480
+  }
   property int providerIndex: 0
   property var providers: []
   QtObject { id: testBorder; function flat(c,w) { return {} } }
@@ -21,6 +39,12 @@ Item {
     function space(n) { return n }
   }
   QtObject { id: usage
+    property var remoteMachines: []
+    function machineStatus(now) { return "" }
+    property bool remoteActive: false
+    property var allProviders: []
+    property var machineChoices: [{id:"all",label:"All"},{id:"local",label:"This computer"}]
+    property string selectedMachineId: "all"
     property var pricing: QtObject {
       function modelWindowPresentation(p) { return p ? p.presentation : {available:false, models:[], summaries:[]} }
       function dailyRows(p) { return p ? p.recentDays : [] }
@@ -33,6 +57,7 @@ Item {
     implicitHeight: 40
   }
   component Button: Item {
+    property string tooltipText
     property string text; property bool selected; property bool hasCursor; property bool bordered
     property color foreground; property string fontFamily; property real fontSize; property real verticalPadding
     signal clicked(); signal hovered(bool isHovered)
@@ -85,7 +110,7 @@ Item {
       var small=providerPages.itemAt(0),large=providerPages.itemAt(1)
       verify(large.implicitHeight>640,"fixture exceeds old fixed cap")
       verify(large.implicitHeight>small.implicitHeight)
-      compare(contentStack.implicitHeight,large.implicitHeight,"largest hidden page determines size before switching")
+      compare(contentStack.implicitHeight,large.implicitHeight+computerBar.height+testStyle.space(12),"largest hidden page determines size before switching")
       var height=contentStack.implicitHeight
       root.providerIndex=1;wait(1)
       compare(contentStack.implicitHeight,height,"switching must not resize")

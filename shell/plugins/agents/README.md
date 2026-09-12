@@ -124,8 +124,8 @@ only adds the meter and the spent-of-funded line under the real figure.
 ## Interactions
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
-- Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
-  Tab moves to the neighboring bar panel, Esc closes.
+- Panel: Tab/Shift+Tab or `j`/`k` move between the provider selector, computer selector, settings, and usage rows. `h`/`l` or Left/Right change the focused selector. `j`/`k` move through focused usage rows and Enter opens their details. Enter activates settings or refreshes the overview elsewhere; `r` refreshes explicitly. Comma opens computer settings. Esc returns or closes.
+- Computer settings: `j`/`k` select, `n` adds, `e` renames, and `x` removes with Enter confirmation. Text fields use normal typing and Tab navigation; Enter saves and Esc cancels. All management actions work without a mouse.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
 ## Settings
@@ -177,3 +177,44 @@ One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
 billing API, so their totals and day counts cover that window. Claude's cover
 every transcript still on disk.
+
+## Remote computers
+
+The computer selector shows **All**, **This computer**, and your saved computers. **All** includes local usage and the last successful imports from the saved computers. Selecting one computer filters the token and API-equivalent cost views; the provider selector still selects Codex, Claude, or Kimi. The selector scrolls horizontally when names do not fit and keeps the keyboard selection visible. Five or ten computers use the same panel layout.
+
+Account limits and balances continue to describe the provider account signed in on this computer. They are separate from the computer usage filter and are never added together. “Session” in an existing limit meter means a provider allowance window, not one open agent conversation.
+
+### Connect and manage
+
+Use the gear button or press comma in the panel. Use j/k or the arrow keys to select a computer, n to add, e to rename, and x to remove. Tab and Shift+Tab move through the form; Enter saves or confirms removal, and Escape cancels the form or returns to the usage view. Connection failures leave the form open for correction and retry. The CLI manages the same list:
+
+```bash
+omarchy agent machine add workbox --label Laptop
+omarchy agent machine list
+omarchy agent machine list --json
+omarchy agent machine rename <id> --label Workstation
+omarchy agent machine remove <id>
+omarchy agent machine refresh --force
+```
+
+Linux and macOS targets use their existing OpenSSH/SFTP service. First establish normal SSH access and trust the host key in a terminal, for example `ssh workbox`. SSH config aliases and `ssh://user@host:port` targets are supported. Background imports require authentication without a prompt, typically a key loaded in your SSH agent. Passwords and private keys are not stored in the machine list. Nothing is installed on the target: no Agents helper, daemon, scheduled task, or cache. A machine is saved only after its identity and connected user can be verified. The verified account name and platform are shown in the panel and in `list`. Adding another alias for that same machine/user, reusing a saved SSH target, or adding the already locally counted account is rejected. Different accounts on the same remote machine have separate contributions. Verification needs read-only shell commands (`uname`, `id`, and `cat /etc/machine-id` on Linux or `ioreg` on macOS) in addition to SFTP; an SFTP-only account cannot be added. No remote Python, Node, or Agents installation is needed.
+
+Only usage belonging to the **connected SSH user account** is included. Other user accounts on that computer are not scanned. This is not system-wide accounting.
+
+The first remote version reads native Codex, Claude, Kimi, and Pi/OMP JSONL files in their usual directories under the connected user's home. Custom source paths, symlinked source trees, and Claude aggregate-only fallback files are not imported by the current preview. Remote OpenCode scope is still undecided: the preview does not read its SQLite database and marks a detected database as an incomplete import; this is not a final scope decision. Local OpenCode support is unchanged.
+
+Agent session data must have been created independently on each computer. **Session directories copied or synchronized between computers are not supported**, and their combined totals are not guaranteed to be correct. This is distinct from repeatedly importing the same computer: repeated reads and duplicate connections do not add its usage twice.
+
+### Cache, freshness, and removal
+
+All usage parsing, pricing, and caches live on the displaying computer. Identity commands read only OS/account information; the target never parses usage metadata for Agents. Imports read source metadata and new log sections over SFTP; unchanged files reuse the local cache. Transferred log sections can contain conversation text, but only selected usage metadata is retained locally. Source files must report changed sizes or modification times when edited; manually preserving both while changing file contents is not supported. Partial final log lines are retried after completion, and detected truncations or replacements trigger a replacement scan.
+
+The plugin attempts an import on startup and approximately hourly. Opening the panel or changing tabs does not trigger an import. An explicit refresh requests one immediately. At most two computers import concurrently; each pass has a time limit and a 64 MiB log-data budget. A large first import may require several passes; “importing” means it is still incomplete. Source listing, file reads, SSH encryption, and transfer still use resources on the target; caching reduces repeated work but does not make the initial import free.
+
+An unavailable computer keeps its last successful values and timestamp. A computer with no successful import is shown as missing data, not a verified zero. Removing a computer excludes its entire cached contribution from **All**, including historical usage. Remote files are never deleted. Local per-profile cache files are retained after removal and are not reused for a new profile.
+
+Today, seven days, and thirty days use the displaying computer's timezone. Missing timestamps, unknown models, or incomplete token categories remain visible as coverage gaps. Costs use the displaying computer's current tariff table and overrides, never a sum of rounded remote prices.
+
+Linux and macOS identity/transport contracts are covered by local automated tests using a real read-only OpenSSH SFTP server and synthetic SSH/OS responses. These tests do not verify a real macOS computer or a real SSH connection to another host. Hardware verification must check account identity, host-key trust, first import, duplicate aliases, and unchanged remote session files.
+
+The machine list is in `~/.config/omarchy/agents/machines.json`; imported state is in `~/.local/state/omarchy/agents/remote/`; metadata and read-position caches are in `~/.cache/omarchy/agents/remote/`. The corresponding XDG directories are honored. The SSH view requires the existing shared-folder **Synced aggregation** setting to be Off; mixing two transports without equivalent device identities could double-count usage. Existing shared-folder sync remains available independently.

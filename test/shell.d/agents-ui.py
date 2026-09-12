@@ -43,11 +43,21 @@ reader_stub = '''  Item {
     function reload() {}
     function text() { return "" }
 '''
-agent = agent.replace(file_view, file_view.replace('  FileView {\n', reader_stub, 1))
+agent = agent.replace(file_view, file_view.replace('    id: recordFile\n', '').replace('  FileView {\n', reader_stub, 1))
+agent = agent.replace('recordFile.reload()', 'usageFile.reload()')
 agent = agent[agent.index('Item {'):].replace('Item {', 'component AgentUnderTest: Item {', 1)
 # Expose only the simulated file-removal event to the fixture.
 agent = agent.replace('id: root', 'id: root\n  function removeFile() { usageFile.loadFailed() }', 1)
+machine = (plugin / 'MachineSettings.qml').read_text()
+machine = machine[machine.index('Item {'):].replace('Item {', 'component MachineSettings: Item {', 1)
+key_component = (root / 'shell/Ui/PanelKeyCatcher.qml').read_text()
+key_component = key_component[key_component.index('Item {'):].replace('Item {', 'component PanelKeyCatcher: Item {', 1)
+button = (root / 'shell/Ui/Button.qml').read_text()
+button_keys = button[button.index('  activeFocusOnTab:'):button.index('  // Reserve the largest')]
+key_catcher = panel[panel.index('    PanelKeyCatcher {'):panel.index('      Flickable {')]
 replacements = {
+  'machines': {'MACHINE_COMPONENT': themed(machine).replace('Color.', 'testColor.'),
+               'KEY_COMPONENT': key_component, 'KEY_CATCHER': key_catcher, 'BUTTON_KEYS': button_keys},
   'alignment': {
     'COMPONENTS': themed(block(panel, '  component UsageValue:') + '\n'
       + panel[panel.index('  component DayRow:'):panel.rfind('\n}')])

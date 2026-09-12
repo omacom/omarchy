@@ -18,6 +18,7 @@ Panel {
   readonly property color track: Style.selectedFillFor(foreground, Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
+  property alias usageService: usage
   readonly property var providers: usage.enabledProviders
   // The selection follows the provider, not the slot it happens to sit in: a
   // provider whose first scan lands while the panel is open would otherwise
@@ -31,6 +32,29 @@ Panel {
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
 
   property bool cursorActive: false
+  property bool machinesOpen: false
+  property int focusSection: 0
+  property int usageCursor: 0
+  property bool detailsOpen: false
+  readonly property int machineIndex: {
+    for (var i = 0; i < usage.machineChoices.length; i++)
+      if (usage.machineChoices[i].id === usage.selectedMachineId) return i
+    return 0
+  }
+  function selectMachine(delta) {
+    var count = usage.machineChoices.length
+    usage.selectedMachineId = usage.machineChoices[(machineIndex + delta + count) % count].id
+  }
+  function showMachines() {
+    detailsOpen = false
+    machinesOpen = true
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+  function leaveMachines() {
+    machinesOpen = false
+    focusSection = 2
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
 
   // Countdowns and "updated" read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
@@ -55,10 +79,13 @@ Panel {
     if (providers.length === 0) return
     var wrapped = ((index % providers.length) + providers.length) % providers.length
     selectedProviderId = providers[wrapped].providerId
+    usageCursor = 0
+    detailsOpen = false
   }
 
   function refreshNow() {
     usage.refreshAll(true)
+    usage.refreshMachines()
   }
 
   function launchAgent() {
@@ -327,6 +354,8 @@ Panel {
 
   // Only speaks up when the numbers cover more than this machine.
   function footerText(provider) {
+    var remoteStatus = usage.machineStatus(root.nowMs)
+    if (remoteStatus !== "") return remoteStatus
     if (usage.syncStatusText !== "") return usage.syncStatusText
     if (provider && provider.syncEnabled && provider.syncDeviceCount > 0)
       return "Merged from " + provider.syncDeviceCount + " device" + (provider.syncDeviceCount === 1 ? "" : "s")
@@ -363,13 +392,15 @@ Panel {
   // Nothing to report, nothing in the bar: Bar.qml collapses a slot whose item
   // is invisible, so the icon appears the moment the first scan finds usage and
   // stays away entirely on a machine that has never run either CLI.
-  visible: providers.length > 0
+  visible: providers.length > 0 || usage.remoteMachines.length > 0
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   onProviderIndexChanged: if (panelFlick) panelFlick.contentY = 0
   onOpenedChanged: if (opened) {
     cursorActive = false
+    machinesOpen = false
+    focusSection = 0
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
@@ -400,6 +431,7 @@ Panel {
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
     function next(): string { root.selectProvider(root.providerIndex + 1); return "ok" }
+    function machines(): string { root.open(); root.showMachines(); return "ok" }
   }
 
   BarIconButton {
@@ -431,19 +463,49 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
 
+      blocked: root.machinesOpen && machineSettings.editing
       onMoveRequested: function(dx, dy) {
+        root.cursorActive = true
+        if (root.machinesOpen) { machineSettings.move(dy || dx); return }
         if (dx !== 0) {
-          root.cursorActive = true
-          root.selectProvider(root.providerIndex + dx)
+          if (root.focusSection === 1) root.selectMachine(dx)
+          else if (root.focusSection === 0) root.selectProvider(root.providerIndex + dx)
         }
-        if (dy !== 0)
-          panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
-                                           Math.max(0, panelFlick.contentHeight - panelFlick.height))
+        if (dy !== 0) {
+          if (root.focusSection === 3) {
+            var page = providerPages.itemAt(root.providerIndex)
+            var count = page ? page.detailCount : 0
+            root.usageCursor = Math.max(0, Math.min(count - 1, root.usageCursor + dy))
+          } else root.focusSection = (root.focusSection + dy + 4) % 4
+        }
       }
-      onActivateRequested: root.refreshNow()
-      onCloseRequested: root.close()
-      onTabRequested: function(direction) { root.switchPanel(direction) }
-      onTextKey: function(t) { if (t === "r" || t === "R") root.refreshNow() }
+      onActivateRequested: {
+        if (root.machinesOpen) {
+          if (machineSettings.mode === "remove") machineSettings.submit()
+          else machineSettings.edit("rename")
+        } else if (root.focusSection === 3) root.detailsOpen = !root.detailsOpen
+        else if (root.focusSection === 2) root.showMachines()
+        else root.refreshNow()
+      }
+      onCloseRequested: {
+        if (root.machinesOpen) machineSettings.back()
+        else if (root.detailsOpen) root.detailsOpen = false
+        else root.close()
+      }
+      onTabRequested: function(direction) {
+        if (root.machinesOpen) machineSettings.move(direction)
+        else { root.focusSection = (root.focusSection + direction + 4) % 4; root.detailsOpen = false }
+      }
+      onDeleteRequested: if (root.machinesOpen) machineSettings.removeSelected()
+      onTextKey: function(t) {
+        if (root.machinesOpen) {
+          if (t === "n") machineSettings.edit("add")
+          if (t === "e") machineSettings.edit("rename")
+        } else {
+          if (t === "r" || t === "R") root.refreshNow()
+          if (t === ",") root.showMachines()
+        }
+      }
 
       Flickable {
         id: panelFlick
@@ -460,20 +522,78 @@ Panel {
           id: contentStack
           width: panelFlick.width
           implicitHeight: {
-            var maximum = emptyState.visible ? emptyState.implicitHeight : 0
+            var maximum = Math.max(machineSettings.implicitHeight, emptyState.visible ? emptyState.implicitHeight : 0)
             for (var i = 0; i < providerPages.count; i++) {
               var page = providerPages.itemAt(i)
               if (page) maximum = Math.max(maximum, page.implicitHeight)
             }
-            return maximum
+            for (var j = 0; j < allProviderPages.count; j++) {
+              var fullPage = allProviderPages.itemAt(j)
+              if (fullPage) maximum = Math.max(maximum, fullPage.implicitHeight)
+            }
+            return maximum + computerBar.height + Style.space(12)
+          }
+
+          Row {
+            id: computerBar
+            width: parent.width
+            height: Style.space(36)
+            spacing: Style.space(8)
+            ListView {
+              id: computerList
+              width: parent.width - settingsButton.width - parent.spacing
+              height: parent.height
+              orientation: ListView.Horizontal
+              spacing: Style.space(6)
+              clip: true
+              model: usage.machineChoices.length
+              currentIndex: root.machineIndex
+              onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+              delegate: Button {
+                required property int index
+                width: Math.min(Style.space(160), implicitWidth)
+                height: computerList.height
+                text: usage.machineChoices[index].label
+                selected: index === root.machineIndex
+                hasCursor: !root.machinesOpen && root.focusSection === 1 && selected
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                fontSize: Style.font.bodySmall
+                onClicked: { root.focusSection = 1; usage.selectedMachineId = usage.machineChoices[index].id }
+              }
+            }
+            Button {
+              id: settingsButton
+              text: "⚙"
+              tooltipText: "Computers (,)"
+              height: parent.height
+              hasCursor: root.focusSection === 2 || root.machinesOpen
+              foreground: root.foreground
+              onClicked: root.showMachines()
+            }
+          }
+
+          MachineSettings {
+            id: machineSettings
+            y: computerBar.height + Style.space(12)
+            width: parent.width
+            visible: root.machinesOpen
+            usage: root.usageService
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onBackRequested: root.leaveMachines()
+            onFocusRequested: keyCatcher.forceActiveFocus()
           }
 
           Text {
             id: emptyState
-            visible: root.providers.length === 0
+            textFormat: Text.PlainText
+            visible: root.providers.length === 0 && !root.machinesOpen
+            y: computerBar.height + Style.space(12)
             width: parent.width
             topPadding: Style.space(24)
-            text: "No AI coding subscriptions found.\nAgents show up here once you've used them."
+            text: usage.remoteMachines.length ? "No usage available for this view yet.\n" + usage.machineStatus(root.nowMs)
+              : "No AI coding subscriptions found.\nAgents show up here once you've used them."
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -489,11 +609,24 @@ Panel {
             ProviderPage {
               required property int index
               width: contentStack.width
+              y: computerBar.height + Style.space(12)
               provider: root.providers[index]
+              selectedPage: !root.machinesOpen && index === root.providerIndex
               // Unselected pages still lay out to measure the largest complete page.
-              opacity: index === root.providerIndex ? 1 : 0
-              enabled: index === root.providerIndex
+              opacity: !root.machinesOpen && index === root.providerIndex ? 1 : 0
+              enabled: !root.machinesOpen && index === root.providerIndex
               z: index === root.providerIndex ? 1 : 0
+            }
+          }
+          Repeater {
+            id: allProviderPages
+            model: usage.remoteActive ? usage.allProviders.length : 0
+            ProviderPage {
+              required property int index
+              width: contentStack.width
+              provider: usage.allProviders[index]
+              opacity: 0
+              enabled: false
             }
           }
         }
@@ -504,6 +637,8 @@ Panel {
   component ProviderPage: Column {
     id: page
     property var provider: null
+    property bool selectedPage: false
+    readonly property int detailCount: pricedDailyRows.length + models.length + modelSummaries.length
     readonly property var limits: root.limitWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
     readonly property bool balanceAlarming: !!balance && balance.funded > 0
@@ -590,7 +725,7 @@ Panel {
           width: providerSwitch.cellWidth
           text: root.providers[index].providerName
           selected: index === root.providerIndex
-          hasCursor: root.cursorActive && index === root.providerIndex
+          hasCursor: root.cursorActive && root.focusSection === 0 && index === root.providerIndex
           bordered: true
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -706,7 +841,7 @@ Panel {
       spacing: Style.space(10)
 
       PanelSectionHeader {
-        text: "LIMITS"
+        text: "LIMITS · LOCAL ACCOUNT"
         foreground: root.foreground
         fontFamily: root.fontFamily
       }
@@ -722,6 +857,17 @@ Panel {
       }
     }
 
+    Text {
+      visible: !!page.provider && page.provider.remoteMissing === true
+      width: parent.width
+      text: "No successful import yet. Usage is unavailable."
+      textFormat: Text.PlainText
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.WordWrap
+    }
+
     // ---------- Usage ----------
     PanelSeparator {
       visible: usageSection.visible
@@ -730,7 +876,7 @@ Panel {
 
     Column {
       id: usageSection
-      visible: !!page.provider && page.provider.recentDays && page.provider.recentDays.length > 0
+      visible: !!page.provider && !page.provider.remoteMissing && page.provider.recentDays && page.provider.recentDays.length > 0
       width: parent.width
       spacing: Style.spacing.md
 
@@ -754,6 +900,8 @@ Panel {
           required property int index
 
           width: usageSection.width
+          tooltipAllowed: page.selectedPage
+          cursorIndex: index
           day: modelData
           ratio: Number(modelData.messageCount || modelData.tokens || 0) / usageSection.peak
           // By date, not by position: the Claude stats-cache fallback can
@@ -782,7 +930,7 @@ Panel {
 
     Column {
       id: modelSection
-      visible: page.models.length > 0
+      visible: !!page.provider && !page.provider.remoteMissing && page.models.length > 0
       width: parent.width
       spacing: Style.spacing.md
 
@@ -800,6 +948,9 @@ Panel {
 
         ModelRow {
           required property var modelData
+          required property int index
+          tooltipAllowed: page.selectedPage
+          cursorIndex: page.pricedDailyRows.length + index
           width: modelSection.width
           row: modelData
           // Scaled to the heaviest model, so the top row is always full —
@@ -813,6 +964,9 @@ Panel {
 
         ModelRow {
           required property var modelData
+          required property int index
+          tooltipAllowed: page.selectedPage
+          cursorIndex: page.pricedDailyRows.length + page.models.length + index
           width: modelSection.width
           row: modelData
           share: 0
@@ -996,9 +1150,19 @@ Panel {
   // foreground so the week reads as a run-up to right now.
   component DayRow: Item {
     id: dayRow
+    property bool tooltipAllowed: true
+    property int cursorIndex: -1
     property var day: null
     property real ratio: 0
     property bool today: false
+
+    Rectangle {
+      anchors.fill: parent
+      color: "transparent"
+      border.color: root.foreground
+      border.width: 1
+      visible: dayRow.tooltipAllowed && root.focusSection === 3 && root.usageCursor === dayRow.cursorIndex
+    }
 
     implicitHeight: Math.max(dayLabel.implicitHeight, dayValue.implicitHeight) + Style.spacing.sm
 
@@ -1060,7 +1224,8 @@ Panel {
     }
 
     PanelToolTip {
-      visible: dayHover.containsMouse
+      visible: root.opened && !root.machinesOpen && dayRow.tooltipAllowed
+        && (dayHover.containsMouse || root.focusSection === 3 && root.detailsOpen && root.usageCursor === dayRow.cursorIndex)
       text: root.dayTooltip(dayRow.day, dayRow.today)
       fontFamily: root.fontFamily
     }
@@ -1070,9 +1235,19 @@ Panel {
   // instead of stacking under it, which keeps the whole dashboard on one screen.
   component ModelRow: Item {
     id: modelRow
+    property bool tooltipAllowed: true
+    property int cursorIndex: -1
     property var row: null
     property real share: 0
     property bool summary: false
+
+    Rectangle {
+      anchors.fill: parent
+      color: "transparent"
+      border.color: root.foreground
+      border.width: 1
+      visible: modelRow.tooltipAllowed && root.focusSection === 3 && root.usageCursor === modelRow.cursorIndex
+    }
 
     implicitHeight: modelName.implicitHeight + Style.spacing.lg
 
@@ -1131,7 +1306,8 @@ Panel {
     }
 
     PanelToolTip {
-      visible: modelHover.containsMouse
+      visible: root.opened && !root.machinesOpen && modelRow.tooltipAllowed
+        && (modelHover.containsMouse || root.focusSection === 3 && root.detailsOpen && root.usageCursor === modelRow.cursorIndex)
       text: root.modelTooltip(modelRow.row)
       fontFamily: root.fontFamily
     }

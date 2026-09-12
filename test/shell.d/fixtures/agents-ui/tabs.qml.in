@@ -5,6 +5,7 @@ Item {
   property var providers: []
   property int providerIndex: 0
   property bool cursorActive: false
+  property int focusSection: 0
   property color foreground: "white"
   property string fontFamily: "monospace"
   property int largeReads: 0

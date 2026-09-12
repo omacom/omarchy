@@ -195,8 +195,8 @@ def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, 
 
 def scan_pi_sessions():
   roots = [
-    ("pi", Path.home() / ".pi" / "agent" / "sessions"),
-    ("omp", Path.home() / ".omp" / "agent" / "sessions"),
+    ("pi", source_home() / ".pi" / "agent" / "sessions"),
+    ("omp", source_home() / ".omp" / "agent" / "sessions"),
   ]
   rg = find_command("rg") or "rg"
   for daily_source, root in roots:
@@ -681,7 +681,7 @@ def scan_cache_paths():
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
   # The digest covers every data path the scan reads: the codex session
   # roots, the opencode DB, and (via Path.home()) the pi/omp session roots.
-  digest = hashlib.sha1((str(Path.home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
+  digest = hashlib.sha1((str(source_home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
   root = cache_root()
   return root / f"codex-scan-{digest}.json", root / f"codex-scan-{digest}.lock"
 
@@ -997,6 +997,10 @@ def fetch_codex_rpc():
   return result
 
 
+def source_home():
+  return Path(os.environ.get("OMARCHY_AGENT_SOURCE_ROOT") or Path.home())
+
+
 def main():
   parser = argparse.ArgumentParser()
   # --force rescans everything and rewrites the cache. --limits-only is kept
@@ -1005,12 +1009,13 @@ def main():
   # normal run, whose short window exists purely to dedup concurrent
   # collector runs.
   parser.add_argument("--force", action="store_true")
+  parser.add_argument("--stats-only", action="store_true", help="read local usage without credentials or account requests")
   parser.add_argument("--limits-only", action="store_true")
   args = parser.parse_args()
 
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
   stats = cached_local_stats(max_age)
-  rpc = fetch_codex_rpc()
+  rpc = {} if args.stats_only else fetch_codex_rpc()
 
   record = {
     "schemaVersion": 1,

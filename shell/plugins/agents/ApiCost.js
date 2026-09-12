@@ -915,7 +915,7 @@ function finishPresentation(target, extraMissing) {
 function presentationTooltip(row) {
   if (!row) return ""
   var cost = row.cost || {}
-  var lines = [formatTokenCount(row.tokens) + " local tokens · API-equivalent estimate in USD"]
+  var lines = [formatTokenCount(row.tokens) + " recorded tokens · API-equivalent estimate in USD"]
   if (cost.status === "unknown") lines.push("Cost: unknown")
   else lines.push((cost.status === "partial" ? "Known subtotal: " : "Cost: ") + formatCost(cost.total))
   var priced = tokenNumber(cost.pricedTokens)
@@ -925,7 +925,7 @@ function presentationTooltip(row) {
       ? Math.floor(Math.min(100, priced * 100 / denominator)) + "% priced · "
       : ""
     lines.push("Priced-token coverage: " + coverage + formatTokenCount(priced)
-      + " of " + formatTokenCount(row.tokens) + " assigned local tokens")
+      + " of " + formatTokenCount(row.tokens) + " assigned tokens")
   }
   var tokenCoverage = sequenceValues(row.tokenCoverage)
   if (tokenCoverage.length > 0) lines.push("Token coverage: " + tokenCoverage.join("; "))
@@ -1028,14 +1028,17 @@ function cachedPresentation(cache, kind, provider, nowMs, overrides, revision) {
   var id = exactId(provider.providerId)
   var store = cache[kind] || (cache[kind] = {})
   var stamp = localDateString(nowMs) + "|" + String(revision)
-  var entry = store[id]
+  var views = store[id] || (store[id] = new WeakMap())
+  var key = provider.dailyUsage && typeof provider.dailyUsage === "object" ? provider.dailyUsage
+    : provider.recentDays && typeof provider.recentDays === "object" ? provider.recentDays : provider
+  var entry = views.get(key)
   if (entry && entry.dailyUsage === provider.dailyUsage && entry.recentDays === provider.recentDays
       && entry.costScopeCompatible === provider.costScopeCompatible && entry.stamp === stamp) return entry.value
   var value = kind === "daily"
     ? buildDailyRows(id, provider.dailyUsage, provider.recentDays, nowMs, overrides, provider.costScopeCompatible)
     : buildModelWindowPresentation(id, provider.dailyUsage, nowMs, overrides, provider.costScopeCompatible)
-  store[id] = { dailyUsage: provider.dailyUsage, recentDays: provider.recentDays,
-    costScopeCompatible: provider.costScopeCompatible, stamp: stamp, value: value }
+  views.set(key, { dailyUsage: provider.dailyUsage, recentDays: provider.recentDays,
+    costScopeCompatible: provider.costScopeCompatible, stamp: stamp, value: value })
   return value
 }
 

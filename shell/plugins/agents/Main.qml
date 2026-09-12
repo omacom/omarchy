@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "RemoteUsage.js" as RemoteUsage
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -192,7 +193,7 @@ Item {
   // settings and having actually produced numbers — locally or on a synced
   // device. With nothing to show, the whole module collapses out of the bar
   // rather than sitting there dimmed.
-  property var enabledProviders: {
+  property var localProviders: {
     var rev = dataRevision
     var syncRev = syncRevision
     var result = []
@@ -218,6 +219,147 @@ Item {
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
     return result
+  }
+
+  readonly property var rawLocalProviders: {
+    var rev = dataRevision
+    var values = []
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i].record
+      if (!record || !providerEnabled(record.id)) continue
+      var value = displayProvider(record, record.dailyUsage, true)
+      if (providerHasData(value)) values.push(value)
+    }
+    return values
+  }
+
+  readonly property string remoteStatePath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/remote/state.json"
+  property string selectedMachineId: "all"
+  property var remoteSnapshot: ({ machines: [] })
+  readonly property var remoteMachines: remoteSnapshot.machines
+  property bool remoteRefreshPending: false
+  readonly property bool remoteActive: remoteMachines.length > 0 && !syncConfigured()
+  property string scopeDate: new Date().toDateString()
+  readonly property var machineScopes: {
+    var date = scopeDate
+    return remoteActive ? RemoteUsage.scopes(rawLocalProviders, remoteMachines, Date.now()) : ({ all: localProviders, local: rawLocalProviders })
+  }
+  // Prepare prices when source records change, not when the user selects a tab.
+  // Weakly keyed presentation caches release superseded snapshots automatically.
+  onMachineScopesChanged: prepareMachinePrices()
+  Connections {
+    target: root.pricing
+    function onRevisionChanged() { root.prepareMachinePrices() }
+  }
+  function prepareMachinePrices() {
+    if (!remoteActive) return
+    var now = Date.now()
+    for (var scope in machineScopes) {
+      var providers = machineScopes[scope]
+      for (var i = 0; i < providers.length; i++) {
+        root.pricing.dailyRows(providers[i], now)
+        root.pricing.modelWindowPresentation(providers[i], now)
+      }
+    }
+  }
+
+  readonly property var enabledProviders: {
+    var values = machineScopes[selectedMachineId] || machineScopes.all || []
+    return values.filter(function(provider) { return root.providerEnabled(provider.providerId) })
+  }
+  readonly property var allProviders: (machineScopes.all || []).filter(function(provider) { return root.providerEnabled(provider.providerId) })
+  readonly property var machineChoices: [{ id: "all", label: "All" }, { id: "local", label: "This computer" }].concat(remoteMachines)
+  property string machineError: ""
+  readonly property bool machineBusy: machineCommand.running
+
+  Agent {
+    id: remoteRecord
+    agentId: "remote"
+    path: root.remoteStatePath
+    onRecordChanged: {
+      if (!record || record.schemaVersion !== 1 || !Array.isArray(record.machines)) return
+      root.remoteSnapshot = record
+      if (root.remoteMachines.some(function(machine) { return !machine.attemptedAt })) root.scheduleRemoteRefresh()
+      if (root.selectedMachineId !== "all" && root.selectedMachineId !== "local"
+          && !root.remoteMachines.some(function(machine) { return machine.id === root.selectedMachineId }))
+        root.selectedMachineId = "all"
+    }
+  }
+
+  Timer {
+    interval: 3600000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: {
+      root.scopeDate = new Date().toDateString()
+      if (!remoteRefresh.running) remoteRefresh.running = true
+    }
+  }
+
+  Timer {
+    interval: 60000
+    running: true
+    repeat: true
+    onTriggered: root.scopeDate = new Date().toDateString()
+  }
+
+  Process {
+    id: remoteRefresh
+    onExited: {
+      remoteRecord.reload()
+      if (root.remoteRefreshPending) {
+        root.remoteRefreshPending = false
+        Qt.callLater(function() { remoteRefresh.running = true })
+      }
+    }
+    command: ["omarchy-agent-machine", "refresh"]
+    stderr: StdioCollector {
+      onStreamFinished: if (text.trim() !== "") root.machineError = text.trim()
+    }
+  }
+
+  Process {
+    id: machineCommand
+    stderr: StdioCollector { onStreamFinished: if (text.trim() !== "") root.machineError = text.trim() }
+    onExited: function(code) {
+      remoteRecord.reload()
+      root.machineCommandFinished(code === 0)
+      if (code === 0) root.scheduleRemoteRefresh()
+    }
+  }
+
+  signal machineCommandFinished(bool success)
+
+  function manageMachine(args) {
+    if (machineCommand.running) return
+    machineError = ""
+    machineCommand.command = ["omarchy-agent-machine"].concat(args)
+    machineCommand.running = true
+  }
+
+  function scheduleRemoteRefresh() {
+    if (remoteRefresh.running) root.remoteRefreshPending = true
+    else remoteRefresh.running = true
+  }
+
+  function refreshMachines() {
+    if (!machineCommand.running) manageMachine(["refresh", "--force"])
+  }
+
+  function machineStatus(nowMs) {
+    if (remoteMachines.length && syncConfigured()) return "SSH views require legacy synced aggregation to be Off"
+    var selected = remoteMachines.filter(function(machine) { return root.selectedMachineId === "all" || machine.id === root.selectedMachineId })
+    if (!selected.length) return ""
+    var missing = 0, oldest = nowMs / 1000, issues = false
+    for (var i = 0; i < selected.length; i++) {
+      var machine = selected[i]
+      if (!machine.lastSuccess) missing++
+      else oldest = Math.min(oldest, Number(machine.lastSuccess))
+      if (machine.status !== "current" || nowMs / 1000 - Number(machine.lastSuccess || 0) > 7200) issues = true
+    }
+    if (missing) return "Incomplete: " + missing + " computer(s) have no successful import yet"
+    return (issues ? "Last known / incomplete" : "Remote usage") + " · oldest update " + Math.max(0, Math.floor((nowMs / 1000 - oldest) / 60)) + " min ago"
   }
 
   function providerEnabled(id) {
@@ -250,8 +392,8 @@ Item {
     }
   }
 
-  function displayProvider(record, localDailyUsage) {
-    var stats = syncedStatsFor(String(record.id))
+  function displayProvider(record, localDailyUsage, localOnly) {
+    var stats = localOnly ? null : syncedStatsFor(String(record.id))
     var synced = !!stats
     var deviceCount = synced ? Number(stats.deviceCount || aggregateData.deviceCount || 0) : 0
 

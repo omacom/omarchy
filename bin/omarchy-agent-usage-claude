@@ -462,8 +462,8 @@ def today_prompts_from_history(claude_dir: Path) -> tuple[int, int]:
 
 def scan_pi_usage(max_age_seconds: float) -> dict[str, Any] | None:
   roots = [
-    ("pi", Path.home() / ".pi" / "agent" / "sessions"),
-    ("omp", Path.home() / ".omp" / "agent" / "sessions"),
+    ("pi", source_home() / ".pi" / "agent" / "sessions"),
+    ("omp", source_home() / ".omp" / "agent" / "sessions"),
   ]
   cache_file = cache_root() / "claude-pi-sessions.json"
   cached = read_fresh_json(cache_file, max_age_seconds)
@@ -1028,9 +1028,14 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
 # -------------------------------------------------------------------- record
 
 
+def source_home():
+  return Path(os.environ.get("OMARCHY_AGENT_SOURCE_ROOT") or Path.home())
+
+
 def main() -> int:
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true", help="rescan transcripts and re-probe limits, ignoring caches")
+  parser.add_argument("--stats-only", action="store_true", help="read local usage without credentials or account requests")
   parser.add_argument("--limits-only", action="store_true", help="reuse any recent transcript scan; only the limits probe must be fresh")
   parser.add_argument("--cache-seconds", type=float, default=20)
   args = parser.parse_args()
@@ -1060,8 +1065,12 @@ def main() -> int:
   if opencode is not None:
     stats = merge_stats(stats, opencode)
 
-  access_token, expires_at_ms, plan = oauth_login(claude_dir)
-  limits = collect_limits(access_token, expires_at_ms, args.force)
+  if args.stats_only:
+    plan = ""
+    limits = {"limits": [], "usageStatusText": "", "authHelpText": ""}
+  else:
+    access_token, expires_at_ms, plan = oauth_login(claude_dir)
+    limits = collect_limits(access_token, expires_at_ms, args.force)
 
   record = {
     "schemaVersion": 1,
