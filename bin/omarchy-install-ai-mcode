@@ -1,0 +1,173 @@
+#!/bin/bash
+
+# omarchy:summary=Install the mcode (MiniMax Code) CLI as a global npm package
+# omarchy:args=[--check|--now|--owns|--remove]
+# omarchy:examples=omarchy install ai mcode | omarchy install ai mcode --now
+
+# mcode installs itself into a private npm prefix at ~/.minimax-code/ on first
+# run, but that only happens after the user has run mcode once. Omarchy wants
+# mcode to be selectable as the default coding agent before that first run, so
+# this installer seeds a global install of @minimax-ai/code in a way that the
+# official installer will accept and eventually supersede.
+#
+# mcode's npm package needs the better-sqlite3 native binding to load, and
+# better-sqlite3 only resolves it through npm's optional-dependency path with
+# --allow-scripts enabled. The bare `mise use -g npm:@minimax-ai/code` that
+# Omarchy uses for every other global CLI drops those flags, leaving the
+# binary on PATH but crashing on first sqlite touch. We install with npm
+# directly here so the better-sqlite3 postinstall runs in the foreground and
+# the optional prebuild lands.
+#
+# The official mcode install, when it later runs, supersedes this copy by
+# version and shims `mcode` onto PATH from its own prefix, so this installer
+# only owns a system that has never run mcode: once ~/.minimax-code/ exists
+# and answers `mcode --version`, this command steps aside the same way
+# omarchy-install-hermes-cli does for the desktop app's venv.
+
+set -euo pipefail
+
+mode=${1:-}
+
+# The npm flags the mcode binary itself uses for its self-update, taken from
+# the chunks shipped with the published package: foreground-scripts so the
+# better-sqlite3 postinstall actually runs, include=optional for the prebuilt
+# native binding, allow-scripts scoped to mcode and better-sqlite3 to keep the
+# blast radius of npm's install-time scripts narrow. The package itself and
+# better-sqlite3 are the only two packages that need postinstall scripts here
+# -- nothing else in the tree uses native bindings.
+npm_install_flags=(
+  --foreground-scripts
+  --ignore-scripts=false
+  --include=optional
+  --allow-scripts=@minimax-ai/code,better-sqlite3
+)
+
+# The line that identifies the wrapper as this installer's; matched whole, so
+# a wrapper that merely mentions the command is not mistaken for ours.
+marker='# Written by omarchy-install-ai-mcode.'
+
+# The official mcode install puts its shim at ~/.minimax-code/bin/mcode. Once
+# it is there, mcode answers `mcode --version` from its own prefix and the
+# version check is the only signal that matters -- this installer does not try
+# to second-guess the user's choice of install path, only to seed one when
+# there is none.
+official_path="$HOME/.minimax-code/bin/mcode"
+official_runs() {
+  [[ -x $official_path ]] && timeout 15 "$official_path" --version >/dev/null 2>&1
+}
+
+# The wrapper at ~/.local/bin/mcode, when it points at the global npm install,
+# is ours; any other shape -- symlink, foreign script, plain executable -- is
+# the user's own arrangement and stays put.
+wrapper="$HOME/.local/bin/mcode"
+ours() {
+  [[ -f $wrapper && ! -L $wrapper ]] && grep -qxF "$marker" "$wrapper"
+}
+
+# --owns answers whether the wrapper on PATH is the one this command wrote,
+# so the migration and Remove Preinstalls do not each carry their own copy of
+# the marker and drift from it.
+if [[ $mode == "--owns" ]]; then
+  if ours; then exit 0; else exit 1; fi
+fi
+
+# --remove tears down an mcode this installer put in place -- the npm package
+# it installed and the wrapper it marked -- so Remove mcode clears a CLI the
+# official installer never superseded (an interrupted install, or a wrapper
+# from before the official install ran). Idempotent: nothing owned, nothing
+# to do. The official install at ~/.minimax-code/ is left alone: removing it
+# would clobber the user's data directory and the official shim, neither of
+# which this installer put there.
+if [[ $mode == "--remove" ]]; then
+  if ours; then
+    npm uninstall -g @minimax-ai/code >/dev/null 2>&1 || true
+    rm -f "$wrapper" 2>/dev/null || true
+
+    # Every step is attempted before any is judged, and judged by what is left
+    # rather than by what the commands claimed: the marked wrapper still
+    # answering mcode, or the npm package still resolving, is a CLI still
+    # installed no matter how the removal exited.
+    if ours || npm ls -g @minimax-ai/code >/dev/null 2>&1; then
+      echo "Could not remove the mcode CLI Omarchy installed. Finish by hand:" >&2
+      echo "  rm -f ~/.local/bin/mcode" >&2
+      echo "  npm uninstall -g @minimax-ai/code" >&2
+      exit 1
+    fi
+  fi
+
+  exit 0
+fi
+
+# --check lets callers tell a cold stub from a working one before they commit
+# to a path that assumes mcode is ready.
+if [[ $mode == "--check" ]]; then
+  if official_runs; then
+    exit 0
+  fi
+
+  if ours; then
+    # The wrapper is ours and it points at a real npm-installed binary that
+    # answers --version. Both halves of the contract hold.
+    if timeout 15 "$wrapper" --version >/dev/null 2>&1; then
+      exit 0
+    fi
+  fi
+
+  exit 1
+fi
+
+# --now does the install. The official install, when it later runs, takes
+# over by version without any input from us; this command only handles the
+# fresh-install case.
+if [[ $mode == "--now" || -z $mode ]]; then
+  # The official installer already won: it manages its own shim and its own
+  # data directory, and any wrapper we wrote here would shadow its updates.
+  if official_runs; then
+    # Our wrapper, if it survives, would just be a stale duplicate that
+    # shadows the official install. Drop it quietly so the official one
+    # remains the only thing on PATH.
+    [[ -f $wrapper ]] && grep -qxF "$marker" "$wrapper" && rm -f "$wrapper"
+    exit 0
+  fi
+
+  # Our wrapper still answering mcode --version is a working install; the
+  # npm install below would just chase a fresh version on top of a working
+  # one.
+  if ours && timeout 15 "$wrapper" --version >/dev/null 2>&1; then
+    exit 0
+  fi
+
+  # A foreign wrapper at the slot -- a symlink or an unmarked file -- is the
+  # user's own arrangement and stays put: rewriting it would clobber whatever
+  # they wired up, and silently writing alongside would leave two `mcode`
+  # binaries on PATH with PATH order deciding which wins. Step aside the same
+  # way --remove does, without touching npm either: the user owns whatever
+  # they installed and is the only one who should change it.
+  if [[ -e $wrapper || -L $wrapper ]] && ! ours; then
+    exit 0
+  fi
+
+  # npm install -g is the install the official mcode binary itself uses for
+  # its self-update. mise's npm: shorthand cannot pass these flags without
+  # rewriting mise itself, so install through npm directly.
+  if ! npm install -g @minimax-ai/code "${npm_install_flags[@]}"; then
+    echo "npm install -g @minimax-ai/code failed" >&2
+    exit 1
+  fi
+
+  # npm places the binary on PATH through its own prefix, but the wrapper at
+  # ~/.local/bin/mcode is the one Omarchy's agent_present check looks for.
+  # Without it the menu thinks mcode is missing even when `mcode --version`
+  # answers from npm's bin.
+  mkdir -p "$(dirname "$wrapper")"
+  cat >"$wrapper" <<SH
+$marker
+exec "\$(npm prefix -g)/bin/mcode" "\$@"
+SH
+  chmod +x "$wrapper"
+
+  exit 0
+fi
+
+echo "Usage: omarchy-install-ai-mcode [--check|--now|--owns|--remove]" >&2
+exit 1

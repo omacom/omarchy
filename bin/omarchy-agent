@@ -130,6 +130,15 @@ pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")
   ;;
+mcode)
+  # The mcode TUI has no unattended-launch flag of its own; its
+  # `--permission` knob belongs to `mcode exec` only. A prompt goes
+  # straight through as a positional argument so a one-shot
+  # `omarchy agent prompt "fix the build"` lands inside the TUI on
+  # launch, exactly the way claude and codex do.
+  command=(mcode)
+  [[ -n ${prompt:-} ]] && command+=("$prompt")
+  ;;
 *)
   echo "Unsupported default agent: $agent" >&2
   exit 1

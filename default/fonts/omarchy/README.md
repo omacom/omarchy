@@ -17,6 +17,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E90C` — OpenClaw, traced from the lobster mascot the openclaw package ships as `dist/control-ui/favicon.svg`, since upstream publishes no monochrome SVG
 - `U+E90D` — Cursor, from <https://simpleicons.org/icons/cursor.svg>
 - `U+E90E` — Claude, from <https://simpleicons.org/icons/claude.svg>
+- `U+E90F` — MiniMax Code, from `shell/plugins/agents/assets/mcode.svg` (a 24×24 M-mark re-exported into the 1024-em cell with `~64u` padding on each side). The same artwork is also used by the agents panel hero mark. The source SVG is kept in [mcode.svg](mcode.svg).
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
