@@ -7,6 +7,8 @@ source "$(dirname "$0")/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
+export XDG_CACHE_HOME="$test_tmp/cache"
+
 stub_bin="$test_tmp/bin"
 git_log="$test_tmp/git.log"
 mkdir -p "$stub_bin"
@@ -211,3 +213,25 @@ grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/n
   fail "update checker reports cached dev commits after a fetch failure" "$(cat "$stdout")"
 [[ ! -s $stderr ]] || fail "update checker keeps dev fetch failures quiet" "$(cat "$stderr")"
 pass "update checker uses cached dev state when fetching is unavailable"
+
+# Model checkupdates' shared database lock: overlapping runs lose an update.
+cat >"$stub_bin/checkupdates" <<'SH'
+#!/bin/bash
+if ! mkdir "$TEST_CHECK_DIR/active" 2>/dev/null; then
+  echo collision >>"$TEST_CHECK_DIR/collisions"
+  exit 1
+fi
+trap 'rmdir "$TEST_CHECK_DIR/active"' EXIT
+sleep 0.2
+printf 'omarchy 4.0.0-1 -> 4.0.1-1\n'
+SH
+export TEST_CHECK_DIR="$test_tmp" TEST_INSTALLED_PACKAGE=omarchy
+run_checker >"$test_tmp/first" &
+first_pid=$!
+run_checker >"$test_tmp/second" &
+second_pid=$!
+wait "$first_pid" || fail "first concurrent caller receives the update"
+wait "$second_pid" || fail "second concurrent caller receives the update"
+[[ ! -e $test_tmp/collisions ]] || fail "checkupdates never overlaps"
+cmp -s "$test_tmp/first" "$test_tmp/second" || fail "concurrent callers agree"
+pass "concurrent callers serialize checkupdates and receive the same update"

@@ -28,7 +28,11 @@ elif pacman -Qq omarchy >/dev/null 2>&1; then
 fi
 
 if [[ -n $package ]]; then
-  update=$(checkupdates --nocolor 2>/dev/null | awk -v package="$package" '$1 == package { print; exit }' || true)
+  # checkupdates uses one temporary pacman database per user. Concurrent bar
+  # instances must not race its db.lck creation or cleanup.
+  check_cache="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
+  mkdir -p "$check_cache"
+  update=$(flock --close "$check_cache/checkupdates.lock" checkupdates --nocolor 2>/dev/null | awk -v package="$package" '$1 == package { print; exit }' || true)
 fi
 
 if [[ -n ${update:-} ]]; then
