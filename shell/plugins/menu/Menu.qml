@@ -103,7 +103,7 @@ Item {
 
   function loadFrecency() {
     if (frecencyProc.running) return
-    frecencyProc.command = ["bash", "-lc", "omarchy-activity top"]
+    frecencyProc.command = ["omarchy-activity", "top"]
     frecencyProc.running = true
   }
 
@@ -983,6 +983,8 @@ Item {
     root.cursorActive = true
     if (fromPointer) pointerGate.allowInitialSample()
     else root.disarmPointer()
+    var activeEntry = root.item(id)
+    if (activeEntry && activeEntry.scope) root.loadFrecency()
     root.rebuildDisplay()
     root.invalidateVolatileProvider(id)
     root.loadProviderForMenu(id)
@@ -1301,7 +1303,7 @@ Item {
     stdout: StdioCollector {
       id: frecencyStdout
       waitForEnd: true
-      onStreamFinished: function(text) {
+      onStreamFinished: {
         try {
           var parsed = JSON.parse(text)
           if (parsed && typeof parsed === "object") {
@@ -1339,7 +1341,7 @@ Item {
     fendProc.pendingQuery = ""
     fendProc.candidateQuery = q
     fendProc.collectedOutput = ""
-    fendProc.command = ["bash", "-lc", "omarchy-calc " + Util.shellQuote(q)]
+    fendProc.command = ["omarchy-calc", q]
     fendProc.running = true
   }
 
