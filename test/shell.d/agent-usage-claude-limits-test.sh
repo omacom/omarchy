@@ -72,6 +72,41 @@ for payload in '{"five_hour":{"utilization":78.0},"limits":[{"kind":"session","p
 done
 pass "Claude collector adds no limit when the payload scopes none"
 
+# The saved login carries two plan facts: the subscription and the rate-limit
+# tier it runs under. Read the label off a planted credential store so the
+# whole path is exercised, not just the formatter.
+plan_label() {
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" TIER="$1" SUBSCRIPTION="$2" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os, pathlib, tempfile
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+claude_dir = pathlib.Path(tempfile.mkdtemp())
+(claude_dir / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
+  "accessToken": "token", "expiresAt": 1,
+  "rateLimitTier": os.environ["TIER"], "subscriptionType": os.environ["SUBSCRIPTION"],
+}}), encoding="utf-8")
+print(collector.oauth_login(claude_dir)[2])
+PY
+}
+
+# A Team premium seat runs on the Max 5x rate-limit tier, and the tier alone
+# used to label it "Max 5x" — the plan the seat is not on.
+[[ $(plan_label default_claude_max_5x team) == "Team 5x" ]] ||
+  fail "Claude collector labels a Team seat by its subscription, not its rate-limit tier" "$(plan_label default_claude_max_5x team)"
+pass "Claude collector labels a Team seat by its subscription, not its rate-limit tier"
+
+# Max keeps its multiplier, with or without a subscription type alongside the
+# tier, and a plan whose tier names no multiplier is just the plan.
+[[ $(plan_label default_claude_max_20x max) == "Max 20x" && $(plan_label default_claude_max_5x "") == "Max 5x" ]] ||
+  fail "Claude collector still labels Max by its multiplier" "$(plan_label default_claude_max_20x max) / $(plan_label default_claude_max_5x "")"
+[[ $(plan_label default_claude_pro pro) == "Pro" && $(plan_label "" team) == "Team" ]] ||
+  fail "Claude collector labels a plan without a multiplier by its subscription alone" "$(plan_label default_claude_pro pro) / $(plan_label "" team)"
+pass "Claude collector keeps Max multipliers and plain plan names"
+
 # Only the Claude Code CLI refreshes the saved token, so between its runs the
 # collector can find a lapsed one. Drive collect_limits over a planted cache
 # with the network unreachable, so nothing but the credential state decides
