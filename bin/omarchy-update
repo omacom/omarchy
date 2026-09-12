@@ -38,6 +38,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
 
   omarchy-update-stay-awake start
 
+  omarchy-hook pre-update
   omarchy-update-dev
   omarchy-update-keyring
 
