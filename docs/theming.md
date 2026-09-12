@@ -15,6 +15,8 @@ ship `backgrounds/` (users overlay their own via
 
 A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
+Still backgrounds can optionally include a data-only light map that responds to local agent activity; see [Reactive backgrounds](reactive-backgrounds.md). Catppuccin Latte's Circuit City is an example.
+
 ## Theme activation flow
 
 `omarchy-theme-set <name>` builds a clean staging directory at

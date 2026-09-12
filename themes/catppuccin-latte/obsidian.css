@@ -1,0 +1,111 @@
+/* Omarchy Theme for Obsidian */
+
+.theme-dark, .theme-light {
+  /* Core colors */
+  --background-primary: #eeebed;
+  --background-primary-alt: #eeebed;
+  --background-secondary: #eceef3;
+  --background-secondary-alt: #e6e9ef;
+  --text-normal: #4c4f69;
+
+  /* Selection colors */
+  --text-selection: #e3e2ee;
+
+  /* Border color */
+  --background-modifier-border: #ccd0da;
+
+  /* Semantic heading colors */
+  --text-title-h1: #be0130;
+  --text-title-h2: #1b6c01;
+  --text-title-h3: #865200;
+  --text-title-h4: #0551df;
+  --text-title-h5: #7d27e1;
+  --text-title-h6: #7d27e1;
+
+  /* Links and accents */
+  --text-link: #0551df;
+  --text-accent: #7d27e1;
+  --text-accent-hover: #7d27e1;
+  --interactive-accent: #7d27e1;
+  --interactive-accent-hover: #7d27e1;
+
+  /* Muted text */
+  --text-muted: #595c74;
+  --text-faint: #595c74;
+
+  /* Code */
+  --code-normal: #01686e;
+
+  /* Errors and success */
+  --text-error: #be0130;
+  --text-error-hover: #be0130;
+  --text-success: #1b6c01;
+
+  /* Tags */
+  --tag-color: #01686e;
+  --tag-background: #e3e2ee;
+
+  /* Graph */
+  --graph-line: #595c74;
+  --graph-node: #7d27e1;
+  --graph-node-focused: #0551df;
+  --graph-node-tag: #01686e;
+  --graph-node-attachment: #1b6c01;
+}
+
+/* Headers */
+.cm-header-1, .markdown-rendered h1 { color: var(--text-title-h1); }
+.cm-header-2, .markdown-rendered h2 { color: var(--text-title-h2); }
+.cm-header-3, .markdown-rendered h3 { color: var(--text-title-h3); }
+.cm-header-4, .markdown-rendered h4 { color: var(--text-title-h4); }
+.cm-header-5, .markdown-rendered h5 { color: var(--text-title-h5); }
+.cm-header-6, .markdown-rendered h6 { color: var(--text-title-h6); }
+
+/* Code blocks */
+.markdown-rendered code {
+  color: #01686e;
+}
+
+/* Syntax highlighting */
+.cm-s-obsidian span.cm-keyword { color: #be0130; }
+.cm-s-obsidian span.cm-string { color: #1b6c01; }
+.cm-s-obsidian span.cm-number { color: #865200; }
+.cm-s-obsidian span.cm-comment { color: #595c74; }
+.cm-s-obsidian span.cm-operator { color: #0551df; }
+.cm-s-obsidian span.cm-def { color: #0551df; }
+
+/* Links */
+.markdown-rendered a {
+  color: var(--text-link);
+}
+
+/* Blockquotes */
+.markdown-rendered blockquote {
+  border-left-color: #7d27e1;
+}
+
+/* Active elements */
+.workspace-leaf.mod-active .workspace-leaf-header-title {
+  color: var(--interactive-accent);
+}
+
+.nav-file-title.is-active {
+  color: var(--interactive-accent);
+}
+
+/* Search results */
+.search-result-file-title {
+  color: var(--interactive-accent);
+}
+
+/* Daylight controls and inline code. */
+.theme-light, .theme-dark {
+  --text-on-accent: #eeebed;
+  --text-on-accent-inverted: #4c4f69;
+  --code-background: #e6e9ef;
+  --background-modifier-hover: #e3e2ee;
+  --background-modifier-border-focus: #7d27e1;
+  --interactive-normal: #e6e9ef;
+  --interactive-hover: #e3e2ee;
+  --text-link-hover: #014cd7;
+}

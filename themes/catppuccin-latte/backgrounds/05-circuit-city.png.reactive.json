@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "width": 1672,
+  "height": 940,
+  "lights": [
+    {
+      "channel": "claude",
+      "color": "#dc8a78",
+      "width": 2.4,
+      "path": "M 329 43 L 330 423"
+    },
+    {
+      "channel": "claude",
+      "color": "#dc8a78",
+      "width": 1.8,
+      "path": "M 311 100 L 312 348 C 309 391 291 420 255 436"
+    },
+    {
+      "channel": "codex",
+      "color": "#7287fd",
+      "width": 2.2,
+      "path": "M 1237 120 L 1237 343 C 1241 366 1257 377 1280 380"
+    },
+    {
+      "channel": "codex",
+      "color": "#7287fd",
+      "width": 1.5,
+      "path": "M 1254 90 L 1256 323 C 1259 350 1272 366 1291 371"
+    },
+    {
+      "channel": "claude",
+      "color": "#dc8a78",
+      "width": 2.2,
+      "path": "M 224 443 C 160 460 77 479 83 514 C 98 574 404 666 827 678"
+    },
+    {
+      "channel": "codex",
+      "color": "#7287fd",
+      "width": 2.2,
+      "path": "M 827 678 C 1135 689 1432 614 1555 532 C 1621 488 1576 436 1454 406"
+    },
+    {
+      "channel": "combined",
+      "color": "#7287fd",
+      "width": 1.4,
+      "path": "M 711 489 C 711 473 760 466 819 466 C 880 466 931 477 930 493 C 930 510 879 522 820 522 C 760 522 711 506 711 489 Z"
+    },
+    {
+      "channel": "combined",
+      "color": "#dc8a78",
+      "width": 1.8,
+      "path": "M 821 391 L 821 478 C 820 491 814 498 806 501"
+    }
+  ]
+}

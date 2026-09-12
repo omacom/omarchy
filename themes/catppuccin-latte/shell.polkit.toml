@@ -1,0 +1,11 @@
+background = "#eeebed"
+background-alpha = 1.0
+text = "#4c4f69"
+border = "#7883c3"
+border-alpha = 1.0
+border-width = 1
+text-error = "#be0130"
+border-error = "#be0130"
+accent = "#7d27e1"
+scrim = "#eeebed"
+scrim-alpha = 0.6
