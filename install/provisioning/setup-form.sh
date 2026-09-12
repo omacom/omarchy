@@ -80,11 +80,11 @@ Tajik|tj_alt-UTF8
 Turkish|trq
 Ukrainian|ua'
 
-# The first question. Me and Child pick the install profile (default, child);
-# Another owner defers the personal setup to the machine's first boot. Labels
-# lead and values follow, like the keyboard list.
-OMARCHY_COMPUTER_FOR_CHOICES=$'Me|me
-Child|child
+# The first question. Myself and My child pick the install profile (default,
+# child); Another owner defers the personal setup to the machine's first boot.
+# Labels lead and values follow, like the keyboard list.
+OMARCHY_COMPUTER_FOR_CHOICES=$'Myself|me
+My child|child
 Another owner|other'
 
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
@@ -103,7 +103,7 @@ omarchy_username_taken() { return 1; }
 omarchy_prompt_computer_for() {
   local choice status
   choice=$(printf '%s\n' "$OMARCHY_COMPUTER_FOR_CHOICES" | cut -d'|' -f1 |
-    gum choose --height 5 --selected "Me" --header "Who is this computer for?") && status=0 || status=$?
+    gum choose --height 5 --selected "Myself" --header "Who is this computer for?") && status=0 || status=$?
   ((status == 0)) || return $status
 
   computer_for=$(printf '%s\n' "$OMARCHY_COMPUTER_FOR_CHOICES" | awk -F'|' -v c="$choice" '$1==c{print $2; exit}')

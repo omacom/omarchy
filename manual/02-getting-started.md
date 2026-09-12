@@ -22,7 +22,7 @@ The full-disk encryption won't allow you to enter the password from a Bluetooth 
 
 ### Setting up for a child
 
-The installer's very first question is who the computer is for: you, a child, or another owner. Pick _Child_ and it asks for two passwords instead of one. The **kid password** is the everyday one: it logs in, unlocks the screen, and unlocks the disk at boot. The **parent password** is what `sudo`, updates, installs, and system prompts ask for, so keep it from the kid. It unlocks the disk too, so a parent can always get in and reset a forgotten kid password. The kid's account is deliberately not an administrator; see [child installs](48-security.md) for what that means day to day.
+The installer's very first question is who the computer is for: you, your child, or another owner. Pick _My child_ and it asks for two passwords instead of one. The **kid password** is the everyday one: it logs in, unlocks the screen, and unlocks the disk at boot. The **parent password** is what `sudo`, updates, installs, and system prompts ask for, so keep it from the kid. It unlocks the disk too, so a parent can always get in and reset a forgotten kid password. The kid's account is deliberately not an administrator; see [child installs](48-security.md) for what that means day to day.
 
 ### Installing for another owner
 

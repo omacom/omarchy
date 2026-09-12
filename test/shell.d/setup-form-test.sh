@@ -133,16 +133,16 @@ pass "the form publishes the 0/1/130 status contract and leads with English (US)
 
 # Who is this computer for — the first question, ahead of the keyboard
 
-run_prompt omarchy_prompt_computer_for "0:Child"
+run_prompt omarchy_prompt_computer_for "0:My child"
 assert_status 0 "computer-for prompt accepts an answer"
 [[ $(field computer_for) == "child" ]] || fail "computer-for prompt maps the chosen label to its value"
-[[ $(cat "$tmp_dir/stdin.1") == $'Me\nChild\nAnother owner' ]] ||
-  fail "computer-for prompt offers Me, Child, and Another owner in that order"
-grep -qF -- '--selected Me' "$GUM_ARGS" || fail "computer-for prompt preselects Me"
+[[ $(cat "$tmp_dir/stdin.1") == $'Myself\nMy child\nAnother owner' ]] ||
+  fail "computer-for prompt offers Myself, My child, and Another owner in that order"
+grep -qF -- '--selected Myself' "$GUM_ARGS" || fail "computer-for prompt preselects Myself"
 pass "computer-for prompt offers the three answers and maps the chosen one"
 
-run_prompt omarchy_prompt_computer_for "0:Me"
-[[ $(field computer_for) == "me" ]] || fail "computer-for prompt maps Me to me"
+run_prompt omarchy_prompt_computer_for "0:Myself"
+[[ $(field computer_for) == "me" ]] || fail "computer-for prompt maps Myself to me"
 run_prompt omarchy_prompt_computer_for "0:Another owner"
 [[ $(field computer_for) == "other" ]] || fail "computer-for prompt maps Another owner to other"
 pass "computer-for prompt maps every answer"
