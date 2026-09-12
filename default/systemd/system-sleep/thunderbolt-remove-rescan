@@ -1,0 +1,155 @@
+#!/bin/bash
+# Keep Thunderbolt and USB-C working across S3 on the 2016-2017 MacBook Pros
+# (MacBookPro13,x and 14,x, Intel Alpine Ridge).
+#
+# The platform firmware removes power from the Thunderbolt controllers in S3
+# whatever the kernel asks. After that dirty loss the switch bridges come back
+# with collapsed windows, the kernel cannot re-assign them at runtime ("bridge
+# window ... can't assign; no space"), pciehp removes the Thunderbolt-side xHCI
+# controllers, and USB-C is dead until a power cycle. Kernel-side levers
+# (d3cold_allowed, pcie_port_pm=off, pcie_ports=compat) do not help; the rails
+# are the platform's.
+#
+# What works: remove the Thunderbolt upstream ports cleanly before sleep, so the
+# chipset root ports keep their windows, and rescan after resume, so the tree
+# is re-enumerated with fresh assignment. Measured on a MacBookPro14,2 over
+# about thirty suspend cycles: a sleep of a minute or more brings the whole
+# tree back on the first rescan; a sleep of a few seconds hands back a
+# controller that never finished powering down, and the tree stays dead until
+# the next sleep of a few minutes (USB 2.0 keeps working meanwhile through the
+# chipset's own xHCI). The tree returns on new bus numbers below the upstream
+# ports, so nothing may key on addresses below them.
+#
+# Design:
+# - Upstream ports are found from the NHIs bound to the thunderbolt driver
+#   (NHI -> downstream port -> upstream port), never from fixed addresses.
+# - pre: sync first; a side with a mounted filesystem reached through its
+#   upstream port is NOT removed (it would be torn before the kernel's suspend
+#   sync) and gets the dead-until-later outcome instead of data loss.
+# - pre: S3 wake is disabled on the PCIe root ports (they share one wake line;
+#   nothing on them needs to wake a laptop). Not restored: the sysfs flag only
+#   governs system sleep, runtime hot-plug keys on the wake capability, and a
+#   reboot resets it.
+# - pre: wait until the Thunderbolt root ports report runtime_status=suspended
+#   (milliseconds in practice; capped at 5 s).
+# - post: one rescan; if the tree is not back within 2 s, retries go to a
+#   transient unit via systemd-run, because post hooks run while user.slice is
+#   frozen and a backgrounded subshell dies with the hook
+#   (systemd-suspend.service is Type=oneshot with KillMode=control-group).
+# - Acts on plain suspend only. Every path exits 0, so it can never block
+#   sleep. Journal tag: thunderbolt-remove-rescan. Delete this file to undo.
+
+STATE=/run/thunderbolt-remove-rescan.roots
+log()  { logger -t thunderbolt-remove-rescan -- "$*"; }
+xhci() { ls /sys/bus/pci/drivers/xhci_hcd 2>/dev/null | grep -c '^0000'; }
+
+# Print "<upstream port sysfs path> <root port sysfs path>" for every
+# Thunderbolt controller whose NHI is currently bound.
+thunderbolt_ports() {
+  local nhi d up
+  for nhi in /sys/bus/pci/drivers/thunderbolt/0000:*; do
+    [[ -e $nhi ]] || continue
+    d=$(readlink -f "$nhi") || continue
+    up=$(dirname "$(dirname "$d")")
+    [[ -e $up/remove ]] || continue
+    printf '%s %s\n' "$up" "$(dirname "$up")"
+  done | sort -u
+}
+roots_from_state() { [[ -f $STATE ]] && awk '{print $2}' "$STATE" | sort -u; }
+links() {
+  local rp s
+  for rp in $(roots_from_state); do
+    s=$(cat "$rp/current_link_speed" 2>/dev/null); printf '%s=%s ' "$(basename "$rp")" "${s:-?}"
+  done
+}
+state() { echo "xhci=$(xhci) pci=$(ls /sys/bus/pci/devices | wc -l) links: $(links)"; }
+
+# Is block device $1 (a name under /sys/class/block) reached through PCI device
+# $2 (a sysfs path)? Follows dm/md slaves, so LUKS or RAID on a USB-C disk counts.
+under_port() {
+  local p s
+  p=$(readlink -f "/sys/class/block/$1" 2>/dev/null) || return 1
+  [[ $p == "$2"/* ]] && return 0
+  for s in "/sys/class/block/$1"/slaves/*; do
+    [[ -e $s ]] && under_port "${s##*/}" "$2" && return 0
+  done
+  return 1
+}
+# Print the first mounted device reached through PCI device $1, if any.
+mounted_under() {
+  local dev b
+  while read -r dev _; do
+    [[ $dev == /dev/* ]] || continue
+    b=$(readlink -f "$dev" 2>/dev/null) || continue
+    under_port "${b##*/}" "$1" && { echo "$dev"; return 0; }
+  done < /proc/mounts
+  return 1
+}
+
+if [[ $2 != suspend && $1 != retry ]]; then
+  exit 0
+fi
+
+case "$1" in
+  pre)
+    sync
+    thunderbolt_ports >"$STATE"
+    n=0; skipped=0
+    while read -r up rp; do
+      [[ -n $up ]] || continue
+      if m=$(mounted_under "$up"); then
+        log "pre/$2: WARNING $m is mounted through $(basename "$up") - NOT removing it (USB-C on that side stays down until a later sleep; no torn filesystem)"
+        skipped=$((skipped + 1)); continue
+      fi
+      if echo 1 > "$up/remove" 2>/dev/null; then
+        n=$((n + 1)); log "pre/$2: removed $(basename "$up") (under $(basename "$rp"))"
+      else
+        log "pre/$2: WARNING could not remove $(basename "$up")"
+      fi
+    done <"$STATE"
+    log "pre/$2: removed $n upstream port(s), skipped $skipped; $(state)"
+    # S3 wake off on every PCIe root port (see the header); not restored.
+    w=""
+    for rp in /sys/devices/pci0000:00/0000:*; do
+      [[ $(cat "$rp/class" 2>/dev/null) == 0x0604* ]] || continue
+      echo disabled > "$rp/power/wakeup" 2>/dev/null
+      w="$w$(basename "$rp")=$(cat "$rp/power/wakeup" 2>/dev/null) "
+    done
+    log "pre/$2: S3 wake: $w"
+    # Settle: wait for the (now childless) Thunderbolt root ports to runtime-suspend, cap 5 s.
+    roots=$(roots_from_state)
+    if [[ -n $roots ]]; then
+      t0=$(date +%s%N)
+      for ((i = 0; i < 50; i++)); do
+        ok=1
+        for rp in $roots; do [[ $(cat "$rp/power/runtime_status" 2>/dev/null) == suspended ]] || ok=0; done
+        (( ok )) && break
+        sleep 0.1
+      done
+      ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+      if (( ok )); then log "pre/$2: settled in ${ms} ms"; else log "pre/$2: WARNING settle cap hit after ${ms} ms - continuing"; fi
+    fi
+    ;;
+  post)
+    echo 1 > /sys/bus/pci/rescan 2>/dev/null || log "post/$2: WARNING rescan write failed"
+    for ((i = 0; i < 4; i++)); do (( $(xhci) >= 3 )) && break; sleep 0.5; done
+    if (( $(xhci) >= 3 )); then
+      log "post/$2: tree back after attempt 1 (~$((i * 500)) ms): $(state)"
+    else
+      log "post/$2: attempt 1 short after 2 s: $(state) - retrying in a transient unit"
+      systemd-run --quiet --no-block --collect --unit="thunderbolt-remove-rescan-retry-$(date +%s)" \
+        "$0" retry "$2" || log "post/$2: WARNING systemd-run failed; no further attempts"
+    fi
+    ;;
+  retry)
+    for ((a = 2; a <= 6; a++)); do
+      sleep 2
+      echo 1 > /sys/bus/pci/rescan 2>/dev/null
+      sleep 0.5
+      if (( $(xhci) >= 3 )); then log "post/$2: tree back after attempt $a: $(state)"; exit 0; fi
+      log "post/$2: attempt $a short: $(state)"
+    done
+    log "post/$2: WARNING tree NOT back after 6 attempts: $(state) - it returns after the next sleep of a few minutes"
+    ;;
+esac
+exit 0
