@@ -21,6 +21,9 @@ if ! docker_provider=$(pacman -Qq docker 2>/dev/null); then
   docker_provider=""
 fi
 
+# Validate existing grants and allocate safe ranges before any engine work.
+sudo python3 "$OMARCHY_PATH/default/podman/allocate-subids.py" "$USER"
+
 omarchy-pkg-add podman podman-compose
 if [[ ! -f $HOME/.local/state/omarchy/preinstalls-removed ]]; then
   omarchy-pkg-add podman-desktop podman-tui
@@ -47,37 +50,6 @@ if [[ -n $docker_provider && $docker_provider != "podman-docker" ]]; then
   fi
 fi
 
-# Serialize allocation across users. Read the complete subordinate ID maps
-# under the lock so simultaneous migrations cannot allocate overlapping ranges.
-sudo python3 - "$USER" <<'PY'
-import fcntl
-import os
-import pwd
-import subprocess
-import sys
-
-account = pwd.getpwnam(sys.argv[1])
-if account.pw_uid == 0:
-    raise SystemExit("Run the migration as the desktop user")
-fd = os.open('/run/omarchy-podman-subids.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-with os.fdopen(fd, 'w') as lock:
-    fcntl.flock(lock, fcntl.LOCK_EX)
-    for path, option in [('/etc/subuid', '--add-subuids'), ('/etc/subgid', '--add-subgids')]:
-        ranges = []
-        try:
-            with open(path) as source:
-                for line in source:
-                    if line.strip() and not line.startswith('#'):
-                        name, start, count = line.strip().split(':')
-                        ranges.append((name, int(start), int(count)))
-        except FileNotFoundError:
-            pass
-        if any(name in (account.pw_name, str(account.pw_uid)) and count >= 65536
-               for name, start, count in ranges):
-            continue
-        start = max([100000] + [start + count for _, start, count in ranges])
-        subprocess.run(['usermod', option, f'{start}-{start + 65535}', account.pw_name], check=True)
-PY
 
 podman --remote=false info >/dev/null
 if ((docker_installed)); then
