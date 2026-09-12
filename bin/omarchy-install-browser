@@ -42,6 +42,10 @@ chromium)
 chrome)
   echo "Installing Chrome..."
   omarchy-pkg-aur-add google-chrome || exit 1
+  # Chrome ships libqt5_shim.so and loads Qt5 under QT_QPA_PLATFORM=wayland;xcb.
+  # Without qt5-wayland the Wayland platform plugin is missing and Chrome aborts
+  # in QGuiApplicationPrivate::createPlatformIntegration (issue #10488).
+  omarchy-pkg-add qt5-wayland || exit 1
 
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
   copy_chromium_flags ~/.config/chrome-flags.conf
