@@ -2,13 +2,14 @@
 
 # omarchy:summary=Remove an installed shell plugin
 # omarchy:group=plugin
-# omarchy:args=[id] [--yes]
+# omarchy:args=[id] [--yes] [--skip-cleanup]
 # omarchy:alias=omarchy plugin rm
 
 set -euo pipefail
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
+SKIP_CLEANUP=0
 
 fail() {
   echo "omarchy-plugin-remove: $*" >&2
@@ -41,8 +42,15 @@ while (( $# > 0 )); do
     ASSUME_YES=1
     shift
     ;;
+  --skip-cleanup)
+    SKIP_CLEANUP=1
+    shift
+    ;;
   -h | --help)
-    echo "Usage: omarchy plugin remove [id] [--yes]"
+    echo "Usage: omarchy plugin remove [id] [--yes] [--skip-cleanup]"
+    echo "Runs a declared uninstall entry point as your user before removing files."
+    echo "--yes also approves running cleanup and passes --yes to it."
+    echo "--skip-cleanup removes files without running plugin code; local setup may remain."
     exit 0
     ;;
   -*)
@@ -67,6 +75,7 @@ if [[ -z $id ]]; then
   [[ -n $id ]] || fail "nothing selected"
 fi
 valid_plugin_id "$id" || fail "invalid plugin id '$id'"
+[[ ${OMARCHY_PLUGIN_REMOVAL_ID:-} != "$id" ]] || fail "an uninstall hook must not recursively remove its own plugin"
 
 target="$PLUGINS_DIR/$id"
 [[ -e $target || -L $target ]] || fail "plugin '$id' is not installed"
@@ -81,19 +90,52 @@ fi
 
 cloned_from=""
 if [[ -f $target/manifest.json ]]; then
-  cloned_from=$(jq -r '.omarchy.clonedFrom // empty' "$target/manifest.json")
+  cloned_from=$(jq -r '.omarchy.clonedFrom // empty' "$target/manifest.json" 2>/dev/null || true)
+fi
+
+cleanup=""
+if (( SKIP_CLEANUP )); then
+  echo "Skipping plugin-provided cleanup. Local setup may remain."
+elif [[ ! -L $target && -f $target/manifest.json ]]; then
+  cleanup=$(omarchy-plugin-uninstall-path "$target") || fail "invalid uninstall entry point; inspect it or use --skip-cleanup to remove without running plugin code"
+fi
+
+cleanup_notice=""
+if [[ -n $cleanup ]]; then
+  cleanup_notice=" Run its uninstall entry point (${cleanup#"$target/"}) as your user first?"
+  echo "Cleanup executes unsandboxed plugin code. Review it before approving."
 fi
 
 if [[ -L $target ]]; then
+  echo "Symlinked plugins are unlinked without running cleanup. Local setup may remain."
   confirm "Unlink '$id' (symlink -> $(readlink "$target"))?" || fail "aborted"
 elif [[ -d $target/.git ]]; then
-  confirm "Delete '$id'? Its git repo remains upstream." || fail "aborted"
+  confirm "Delete '$id'? Its git repo remains upstream.$cleanup_notice" || fail "aborted"
 else
-  confirm "Remove '$id'? The folder will be backed up." || fail "aborted"
+  confirm "Remove '$id'? The folder will be backed up.$cleanup_notice" || fail "aborted"
 fi
 
 if [[ $was_enabled == "true" ]]; then
-  omarchy-shell shell setPluginEnabled "$id" false >/dev/null
+  disabled=$(omarchy-shell shell setPluginEnabled "$id" false)
+  [[ $disabled == "ok" ]] || fail "could not disable '$id'; cleanup was not run"
+fi
+
+if [[ -n $cleanup ]]; then
+  checked_cleanup=$(omarchy-plugin-uninstall-path "$target") || fail "uninstall entry point changed before execution; plugin files were kept"
+  [[ $checked_cleanup == "$cleanup" ]] || fail "uninstall entry point changed during confirmation; retry removal"
+  cleanup_args=()
+  (( ASSUME_YES )) && cleanup_args+=(--yes)
+  echo "Running cleanup for $id..."
+  if (
+    cd -- "$target"
+    export OMARCHY_PLUGIN_REMOVAL_ID="$id"
+    export OMARCHY_PLUGIN_DIR="$target"
+    "$cleanup" "${cleanup_args[@]}"
+  ); then
+    echo "Cleanup completed for $id."
+  else
+    fail "cleanup failed; plugin files were kept for retry. The plugin may be disabled. Use --skip-cleanup only to bypass cleanup knowingly"
+  fi
 fi
 
 if [[ -L $target ]]; then

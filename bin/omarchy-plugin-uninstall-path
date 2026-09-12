@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Validate and resolve a plugin's optional uninstall entry point
+# omarchy:args=<plugin-folder>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+fail() {
+  echo "omarchy-plugin-uninstall-path: $*" >&2
+  exit 1
+}
+
+if [[ ${1:-} == "--help" || ${1:-} == "-h" ]]; then
+  echo "Usage: omarchy-plugin-uninstall-path <plugin-folder>"
+  exit 0
+fi
+
+target="${1:-}"
+[[ -d $target && ! -L $target ]] || fail "cleanup requires a real plugin directory; use --skip-cleanup to unlink without executing code"
+manifest="$target/manifest.json"
+[[ -f $manifest && ! -L $manifest ]] || fail "cleanup requires a regular manifest.json"
+jq -e 'type == "object" and (.entryPoints | type == "object")' "$manifest" >/dev/null || fail "invalid manifest"
+jq -e '.entryPoints | has("uninstall")' "$manifest" >/dev/null || exit 0
+jq -e '.entryPoints.uninstall | type == "string" and length > 0 and (explode | all(.[]; . >= 32 and . != 127))' \
+  "$manifest" >/dev/null || fail "entryPoints.uninstall must be a non-empty path without control characters"
+entry=$(jq -r '.entryPoints.uninstall' "$manifest")
+[[ $entry != /* && $entry != *..* && $entry != */ && $entry != *//* ]] || fail "uninstall entry point must be a safe relative path"
+
+# Check every component, not only the executable: a symlinked parent can also
+# escape the plugin directory. Never eval a manifest value or follow a link.
+current="$target"
+IFS=/ read -r -a components <<<"$entry"
+for component in "${components[@]}"; do
+  [[ -n $component && $component != "." ]] || fail "uninstall entry point contains an empty or dot component"
+  current="$current/$component"
+  [[ ! -L $current ]] || fail "uninstall entry point may not traverse symlinks"
+done
+[[ -f $current && -x $current ]] || fail "uninstall entry point is missing or not executable: $entry"
+printf '%s\n' "$current"
