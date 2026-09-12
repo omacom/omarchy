@@ -32,6 +32,16 @@ Item {
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 60, 10, 3600)
+  // Bind through `settings` so quotaGB updates when the bar injects shell.json
+  // entry settings (function-only reads are not tracked as QML dependencies).
+  readonly property int quotaGB: {
+    var s = settings
+    var n = parseInt(String(s && s.quotaGB !== undefined && s.quotaGB !== null ? s.quotaGB : 0), 10)
+    if (!isFinite(n)) n = 0
+    if (n < 0) n = 0
+    if (n > 5000) n = 5000
+    return n
+  }
   readonly property bool busy: statusProcess.running || loginProcess.running || controlProcess.running
   readonly property string helperPath: (omarchyPath || "") + "/shell/plugins/panels/dropbox/status.py"
 
@@ -83,6 +93,15 @@ Item {
     quotaBytes = Number(parsed.quotaBytes || 0)
     usagePercent = Number(parsed.usagePercent || 0)
     quotaKnown = parsed.quotaKnown === true
+    // Manual override for account extras (referrals) not present in info.json.
+    // Read settings at apply-time (not a stale bound property) so the first
+    // refresh after inject still sees quotaGB from shell.json.
+    var overrideGb = intSetting("quotaGB", 0, 0, 5000)
+    if (overrideGb > 0) {
+      quotaBytes = overrideGb * 1000000000
+      quotaKnown = true
+      usagePercent = quotaBytes > 0 ? (usedBytes / quotaBytes * 100) : 0
+    }
     files = parsed.files || []
     lastError = ""
   }
