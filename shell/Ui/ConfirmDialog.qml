@@ -1,4 +1,6 @@
 import QtQuick
+import Quickshell
+import "../i18n/zh_CN.js" as ZhCN
 import qs.Commons
 
 Item {
@@ -6,8 +8,9 @@ Item {
 
   property bool opened: false
   property string message: ""
-  property string cancelText: "Cancel"
-  property string confirmText: "Confirm"
+  readonly property bool chineseUi: (Quickshell.env("OMARCHY_UI_LANGUAGE") || Quickshell.env("LANGUAGE") || Quickshell.env("LANG") || "").toLowerCase().indexOf("zh") === 0
+  property string cancelText: chineseUi ? ZhCN.translate("Cancel") : "Cancel"
+  property string confirmText: chineseUi ? ZhCN.translate("Confirm") : "Confirm"
   property int selectedIndex: 1
   property color background: Color.background
   property color foreground: Color.foreground
