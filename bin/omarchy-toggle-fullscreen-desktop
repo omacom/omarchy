@@ -23,5 +23,11 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+# Full screen on means the bar is hidden (`bar off`); the wrapper names
+# visibility, so it is the opposite of this action.
+if [[ $ACTION == on ]]; then
+  omarchy-toggle-bar off
+else
+  omarchy-toggle-bar on
+fi
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
