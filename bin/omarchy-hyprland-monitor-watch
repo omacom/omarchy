@@ -15,6 +15,7 @@ sync_clamshell() {
 
 sync_clamshell_after_monitor_change() {
   sync_clamshell
+  omarchy-display-text-size sync
 
   (
     for delay in 1 3 7; do
