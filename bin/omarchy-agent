@@ -46,7 +46,9 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
-if omarchy-cmd-missing "$agent"; then
+agent_command=$agent
+[[ $agent == "duo" ]] && agent_command=glab
+if omarchy-cmd-missing "$agent_command"; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
 fi
@@ -54,6 +56,11 @@ fi
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 case "$agent" in
+duo)
+  command=(omarchy-launch-duo)
+  [[ $inline == "false" && -n ${prompt:-} ]] && command+=(--hold)
+  [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  ;;
 opencode)
   command=(opencode --auto)
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
