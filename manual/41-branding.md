@@ -18,6 +18,8 @@ Then apply the setup with `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, w
 
 You can change the logo used for the screensaver under _Style > Screensaver_. It's an ASCII logo, so you can edit the text directly, but you can also hand it a png or svg image, and we'll convert that to ASCII. It looks pretty cool.
 
+The default is the ten-line FIGlet. The website wordmark is a 19-row square-pixel bitmap, so the screensaver will not match omarchy.org stripe-for-stripe: a terminal cell is twice as tall as it is wide, and the field bands stretch across however many lines your file has.
+
  ![branding-screensaver](images/branding-screensaver.webp)
 
 There are three entries in that menu:

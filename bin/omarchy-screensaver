@@ -1,6 +1,10 @@
 #!/bin/bash
 
-# omarchy:summary=Run the Omarchy screensaver using random effects from TTE.
+# omarchy:summary=Run the Omarchy screensaver using random effects from ttfx.
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=omarchy-screensaver-theme
+source "$SCRIPT_DIR/omarchy-screensaver-theme"
 
 screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
@@ -16,7 +20,24 @@ exit_screensaver() {
 # Exit the screensaver on signals and input from keyboard and mouse
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
 
-printf '\033]11;rgb:00/00/00\007'  # Set background color to black
+osc='rgb:00/00/00'
+theme_args=()
+if colors_file=$(default_colors_file) && screensaver_theme_from_colors "$colors_file"; then
+  osc=$SCREENSAVER_OSC
+  if ttfx_supports_palette; then
+    theme_args=(--palette "$SCREENSAVER_PALETTE" --terminal-background-color "$SCREENSAVER_BG")
+    if ttfx_supports_bands; then
+      # Stock art is the 10-line FIGlet in logo.txt. The website wordmark is an
+      # 81x19 square-pixel bitmap painted 5-2-4-3-5 (crest, hover, lit, mid,
+      # dim). --bands spreads that ratio across however many lines the input
+      # has, so ten lines become 3-1-2-1-3. A terminal cell is twice as tall as
+      # it is wide, so the letters will not match the site pixel-for-pixel.
+      theme_args+=(--bands)
+    fi
+  fi
+fi
+
+printf '\033]11;%s\007' "$osc"
 
 hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
 
@@ -37,8 +58,9 @@ wait_for_terminal_resize
 
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
-    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
-    --random-effect --no-eol --no-restore-cursor &
+    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c \
+    --random-effect --no-eol --no-restore-cursor \
+    "${theme_args[@]}" &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
     if read -n1 -t 1 || ! screensaver_in_focus; then

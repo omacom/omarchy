@@ -247,10 +247,14 @@ logo_landmark() {
 
 # The About screen's own reasons the logo might not be where these frames would
 # draw it. Whether the logo itself can be animated is the sheen's own question.
+# Stops at the settled rest: the sweep is walked after that rest has been written,
+# so the logo is not green for as long as bash takes to compose every centre.
 build_sheen() {
   # Whatever the last build left is not this window's, and the loop below plays
   # whatever is here — so a build that fails has to leave nothing to play.
   SHEEN_FRAMES=()
+  SHEEN_REST=""
+  SHEEN_LAST=""
 
   custom_fastfetch_config && return 1
 
@@ -273,7 +277,8 @@ build_sheen() {
   # The cell the logo's first row starts on, every attribute fastfetch left on
   # those cells so a glint that has passed leaves them as it found them, and the
   # room it has to work in left of the module column.
-  sheen_build "$LOGO_FILE" "$LOGO_ROW" "$LOGO_COLUMN" "${ESC}[0m${LOGO_COLOR}" "$(( cols - LOGO_COLUMN + 1 ))"
+  SHEEN_FIELD_BANDS=1
+  sheen_prepare "$LOGO_FILE" "$LOGO_ROW" "$LOGO_COLUMN" "${ESC}[0m${LOGO_COLOR}" "$(( cols - LOGO_COLUMN + 1 ))"
 }
 
 # What the frames were built against. A window that resized, or a logo that was
@@ -340,6 +345,7 @@ if [[ ${1:-} == "--render" ]]; then
     logo_stamp=$(stat -c %Y "$LOGO_FILE" 2>/dev/null)
     resized=false
     LAYOUT_ROWS=""
+    SHEEN_REST=""
     clear
     fastfetch
     # A second pass picks up a fit that could not measure the window the first
@@ -348,9 +354,14 @@ if [[ ${1:-} == "--render" ]]; then
     if [[ $fitted == false ]] && (( ++passes <= 2 )); then
       fit_window && fitted=true
     fi
-    # An empty frame list plays nothing, so a logo that cannot be animated waits
-    # here exactly as the still one did, and there is one loop rather than two.
+    # An empty rest plays nothing extra, so a logo that cannot be animated is
+    # still just fastfetch, and there is one loop rather than two.
     build_sheen
+    # Write the settled colours before walking the sweep. A 26-row About logo is
+    # a hundred centres of bash, and that used to be how long the config's green
+    # sat on screen.
+    printf '%s' "$SHEEN_REST"
+    sheen_build_frames
     while play_sheen && rest_sheen; do :; done
     # A rebranded logo changes the content dimensions, so measure again.
     if [[ $(stat -c %Y "$LOGO_FILE" 2>/dev/null) != $logo_stamp ]]; then

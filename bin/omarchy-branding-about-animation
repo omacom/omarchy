@@ -48,24 +48,26 @@ compose_frame() {
     to=$(( to < 0 ? 0 : to ))
 
     frame+="${ESC}[$((SHEEN_TOP + row));${SHEEN_LEFT}H"
-    frame+="${SHEEN_BASE}${line:0:from}${SHEEN_BAND}${line:from:to - from}${SHEEN_BASE}${line:to}"
+    frame+="${SHEEN_ROW_SGR[row]:-$SHEEN_BASE}${line:0:from}${SHEEN_BAND}${line:from:to - from}${SHEEN_ROW_SGR[row]:-$SHEEN_BASE}${line:to}"
   done
 
   SHEEN_COMPOSED=$frame
 }
 
-# Builds every frame up front: a tick that recomputed a logo's worth of colour
-# spans in bash would not hold the frame rate, and the sweep is the same every
-# time. Leaves them in SHEEN_FRAMES, and answers whether this logo can be
-# animated at all — one it cannot put back exactly as it found it is one to leave
-# alone, because nothing on screen would say the difference.
+# Whether this logo can be animated at all — one it cannot put back exactly as
+# it found it is one to leave alone, because nothing on screen would say the
+# difference. Composes the settled rest (band off the right) so the caller can
+# write the logo in its real colours before the rest of the centres are walked.
 #
-#   sheen_build <logo-file> <top-row> <left-column> <base-colour> <columns-available>
-sheen_build() {
+#   sheen_prepare <logo-file> <top-row> <left-column> <base-colour> <columns-available>
+sheen_prepare() {
   local file=$1 columns=$5
   SHEEN_TOP=$2
   SHEEN_LEFT=$3
   SHEEN_BASE=$4
+  SHEEN_REST=""
+  SHEEN_LAST=""
+  SHEEN_FRAMES=()
 
   SHEEN_LINES=()
   # A failing redirection reports itself before 2>/dev/null would apply, so order
@@ -95,10 +97,53 @@ sheen_build() {
   done
   (( width > 0 && width <= columns )) || return 1
 
+  SHEEN_ROW_SGR=()
+  if [[ ${SHEEN_FIELD_BANDS:-} == 1 ]]; then
+    local band pal_file
+    local -a palette=()
+    # shellcheck source=omarchy-screensaver-theme
+    source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/omarchy-screensaver-theme"
+    pal_file=$(default_colors_file 2>/dev/null) || true
+    if [[ -n ${pal_file:-} ]] && screensaver_theme_from_colors "$pal_file"; then
+      IFS=',' read -r -a palette <<<"$SCREENSAVER_PALETTE"
+    fi
+    for (( row = 0; row < SHEEN_ROWS; row++ )); do
+      if (( ${#palette[@]} >= 5 )); then
+        band=$(field_band_index_n "$row" "$SHEEN_ROWS")
+        SHEEN_ROW_SGR[row]=$(hex_to_sgr_fg "${palette[band]}")
+      else
+        SHEEN_ROW_SGR[row]=$SHEEN_BASE
+      fi
+    done
+  else
+    for (( row = 0; row < SHEEN_ROWS; row++ )); do
+      SHEEN_ROW_SGR[row]=$SHEEN_BASE
+    done
+  fi
+
+  SHEEN_LAST=$(( width + SHEEN_ROWS * SHEEN_SLANT + SHEEN_HALF ))
+  compose_frame "$SHEEN_LAST"
+  SHEEN_REST=$SHEEN_COMPOSED
+}
+
+# A tick that recomputed a logo's worth of colour spans in bash would not hold
+# the frame rate, and the sweep is the same every time, so the centres are walked
+# once and left in SHEEN_FRAMES. The rest is already composed; this is the part
+# that used to keep About green.
+sheen_build_frames() {
+  (( ${SHEEN_ROWS:-0} > 0 )) || return 1
+  [[ -n ${SHEEN_LAST:-} ]] || return 1
+
   SHEEN_FRAMES=()
-  local centre last=$(( width + SHEEN_ROWS * SHEEN_SLANT + SHEEN_HALF ))
-  for (( centre = -SHEEN_HALF; centre <= last; centre++ )); do
+  local centre
+  for (( centre = -SHEEN_HALF; centre <= SHEEN_LAST; centre++ )); do
     compose_frame "$centre"
     SHEEN_FRAMES+=("$SHEEN_COMPOSED")
   done
+}
+
+#   sheen_build <logo-file> <top-row> <left-column> <base-colour> <columns-available>
+sheen_build() {
+  sheen_prepare "$@" || return
+  sheen_build_frames
 }
