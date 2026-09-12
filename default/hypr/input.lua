@@ -74,6 +74,10 @@ hl.config({
   },
 })
 
+-- Avoid stray taps while typing on the built-in Apple touchpad.
+hl.device({ name = "apple-mtp-multi-touch", tap_to_click = false })
+hl.device({ name = "apple-spi-trackpad", tap_to_click = false })
+
 -- Scroll nicely in the terminal.
 o.window("(Alacritty|kitty)", { scroll_touchpad = 1.5 })
 -- foot only applies its scrollback multiplier to wheel clicks, not precise touchpad scrolling.

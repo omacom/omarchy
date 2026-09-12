@@ -4,6 +4,10 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# The prelude reads the optional transaction manifest from $OMARCHY_PATH, as
+# omarchy-install-available does.
+export OMARCHY_PATH="$ROOT"
+
 run_node_test <<'JS'
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 
@@ -123,6 +127,19 @@ INFO
     case "${want%%[<>=]*}" in bash | gvim | sh | vim | xxd) ;; *) exit 1 ;; esac
   done
   ;;
+-Slq)
+  printf '%s\n' bash helix
+  ;;
+-Sp)
+  shift
+  [[ $1 == --noconfirm ]] && shift
+  [[ $1 == -- ]] && shift
+  (( $# > 0 )) || exit 1
+  # sh is provided by bash and resolves through -Sp the way -S resolves it.
+  for want in "$@"; do
+    case "${want%%[<>=]*}" in bash | helix | sh) ;; *) exit 1 ;; esac
+  done
+  ;;
 esac
 exit 0
 STUB
@@ -140,8 +157,8 @@ assert_helper_agrees() {
   shift 2
 
   local real=0 shadowed=0
-  PATH="$stub_dir:$PATH" "$ROOT/bin/$helper" "$@" >/dev/null 2>&1 || real=$?
-  PATH="$stub_dir:$PATH" bash -c "$guard_prelude"$'\n'"$helper \"\$@\"" "$helper" "$@" >/dev/null 2>&1 || shadowed=$?
+  PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/$helper" "$@" >/dev/null 2>&1 || real=$?
+  PATH="$stub_dir:$ROOT/bin:$PATH" bash -c "$guard_prelude"$'\n'"$helper \"\$@\"" "$helper" "$@" >/dev/null 2>&1 || shadowed=$?
   ((real == shadowed)) || fail "$description" "$helper $*: real=$real shadowed=$shadowed"
 }
 
@@ -155,6 +172,33 @@ for helper in omarchy-pkg-present omarchy-pkg-missing; do
   done
 done
 pass "guard prelude resolves packages through provides, wrapping, and constraints as pacman does"
+
+# The sync database answers availability the way the local one answers
+# presence: a name set from `pacman -Slq`, and `-Sp` for anything the set does
+# not hold, which is how a provided name and a constraint both resolve.
+available_cases=("bash" "absent" "bash absent" "bash>=1" "sh" "sh absent" "")
+for case in "${available_cases[@]}"; do
+  read -r -a argv <<<"$case"
+  assert_helper_agrees "guard prelude resolves sync packages as pacman does" omarchy-pkg-available "${argv[@]}"
+done
+pass "guard prelude resolves repository availability as omarchy-pkg-available does"
+
+# Agreement alone would pass with both sides wrong, so the provided name is
+# also asserted to resolve: `omarchy-pkg-add libappindicator-gtk3` succeeds on
+# x86_64 because libappindicator provides it, and the guard must say the same
+# or the Dropbox row hides on every machine.
+PATH="$stub_dir:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-pkg-available" sh ||
+  fail "omarchy-pkg-available resolves a name a repository package provides"
+PATH="$stub_dir:$ROOT/bin:$PATH" bash -c "$guard_prelude"$'\n''omarchy-pkg-available sh' ||
+  fail "guard prelude resolves a name a repository package provides"
+pass "availability resolves provided names the way pacman -S will"
+
+# helix resolves whole; lutris has secondary packages the stub does not carry,
+# so the transaction fails as a unit; an unknown id is not a transaction.
+for transaction in install.editor.helix install.gaming.lutris install.unknown; do
+  assert_helper_agrees "guard prelude resolves complete optional transactions" omarchy-install-available "$transaction"
+done
+pass "guard prelude resolves complete optional transactions as omarchy-install-available does"
 
 # cd is a shell builtin `command -v` finds and a PATH search does not.
 cmd_cases=("gvim" "cd" "absent" "gvim absent" "gvim cd" "")

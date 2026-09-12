@@ -1,0 +1,7 @@
+# Menu id|AUR package|Curated supported Omarchy architectures (not a build guarantee)
+install.service.nordvpn|nordvpn-bin|x86_64 aarch64
+install.browser.chrome|google-chrome|x86_64 aarch64
+install.browser.edge|microsoft-edge-stable-bin|x86_64
+install.browser.brave|brave-bin|x86_64 aarch64
+install.browser.brave-origin|brave-origin-bin|x86_64 aarch64
+install.browser.zen|zen-browser-bin|x86_64 aarch64
