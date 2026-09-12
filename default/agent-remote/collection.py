@@ -283,12 +283,14 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
       if relative not in present and not any(relative.startswith(directory + '/') for directory in failed):
         path.unlink()
         changed = True
+  verified_at = time.time()
   for directory in ROOTS:
     old = source_states.get(directory, {})
     if directory in failed:
       source_states[directory] = dict(old, status='stale' if old.get('lastSuccess') else 'unavailable')
-    elif changed or old.get('status') != 'current':
-      source_states[directory] = {'status': 'current', 'lastSuccess': time.time()}
+    else:
+      # This is the last verified source pass, not the file-change time.
+      source_states[directory] = {'status': 'current', 'lastSuccess': verified_at}
   issues = [directory + ': ' + reason for directory, reason in failed.items()]
   try:
     remote.attrs(root + '/.local/share/opencode/opencode.db')

@@ -16,6 +16,10 @@ import tempfile
 import time
 
 
+class TransportError(Exception):
+  """The session is unusable; never handle this as a source-local OSError."""
+
+
 def target_value(value):
   if not value or value.startswith('-') or any(ord(c) < 33 for c in value):
     raise ValueError('Use an SSH alias, user@host, or ssh://user@host:port')
@@ -48,7 +52,7 @@ class Packet:
 
   def take(self, size):
     if size < 0 or self.offset + size > len(self.data):
-      raise OSError('Invalid SFTP response')
+      raise TransportError('Invalid SFTP response')
     value = self.data[self.offset:self.offset + size]
     self.offset += size
     return value
@@ -91,7 +95,7 @@ class Sftp:
       self.send(bytes([1]) + uint(3))
       response = self.receive()
       if response.take(1) != bytes([2]) or response.number() != 3:
-        raise OSError('SFTP version 3 is required')
+        raise TransportError('SFTP version 3 is required')
     except Exception:
       self.close()
       raise
@@ -114,30 +118,44 @@ class Sftp:
     self.process.stdout.close()
     self.errors.close()
 
+  def check_deadline(self):
+    remaining = self.deadline - time.monotonic()
+    if remaining <= 0:
+      raise TransportError('SSH transfer timed out; the last successful usage is retained')
+    return remaining
+
   def read_exact(self, count):
     result = bytearray()
     while len(result) < count:
-      timeout = min(15, self.deadline - time.monotonic())
-      if timeout <= 0 or not select.select([self.process.stdout], [], [], timeout)[0]:
-        raise TimeoutError('SSH transfer timed out; the last successful usage is retained')
-      block = os.read(self.process.stdout.fileno(), count - len(result))
+      timeout = min(15, self.check_deadline())
+      try:
+        ready = select.select([self.process.stdout], [], [], timeout)[0]
+        if not ready:
+          raise TransportError('SSH transfer timed out; the last successful usage is retained')
+        block = os.read(self.process.stdout.fileno(), count - len(result))
+      except OSError as error:
+        raise TransportError('SSH/SFTP stream read failed; the last successful usage is retained') from error
       if not block:
-        raise OSError('SSH/SFTP unavailable; check SSH access and the trusted host key in a terminal')
+        raise TransportError('SSH/SFTP unavailable; check SSH access and the trusted host key in a terminal')
       result.extend(block)
     return bytes(result)
 
   def send(self, data):
     pending = memoryview(uint(len(data)) + data)
     while pending:
-      written = self.process.stdin.write(pending)
+      self.check_deadline()
+      try:
+        written = self.process.stdin.write(pending)
+      except OSError as error:
+        raise TransportError('SSH/SFTP stream write failed; the last successful usage is retained') from error
       if not written:
-        raise OSError('SSH transport closed')
+        raise TransportError('SSH transport closed')
       pending = pending[written:]
 
   def receive(self):
     size = struct.unpack('>I', self.read_exact(4))[0]
     if size > 2 * 1024 * 1024:
-      raise OSError('Oversized SFTP response')
+      raise TransportError('Oversized SFTP response')
     return Packet(self.read_exact(size))
 
   def request(self, kind, payload=b''):
@@ -146,7 +164,7 @@ class Sftp:
     response = self.receive()
     tag = response.take(1)[0]
     if response.number() != self.request_id:
-      raise OSError('Unexpected SFTP response identity')
+      raise TransportError('Unexpected SFTP response identity')
     if tag == 101:
       status = response.number()
       if status == 1:
@@ -155,6 +173,8 @@ class Sftp:
         raise FileNotFoundError()
       if status == 3:
         raise PermissionError('A usage source is not readable by this SSH account')
+      if status in (5, 6, 7):
+        raise TransportError('SSH/SFTP protocol or connection failure')
       if status:
         raise OSError('SFTP operation failed')
     return tag, response
@@ -162,13 +182,13 @@ class Sftp:
   def realpath(self, path):
     tag, packet = self.request(16, string(path))
     if tag != 104 or packet.number() != 1:
-      raise OSError('Cannot resolve remote home directory')
+      raise TransportError('Cannot resolve remote home directory')
     return packet.string().decode('utf-8')
 
   def attrs(self, path):
     tag, packet = self.request(7, string(path))
     if tag != 105:
-      raise OSError('Missing SFTP file attributes')
+      raise TransportError('Missing SFTP file attributes')
     return packet.attrs()
 
   def listdir(self, path):
@@ -181,7 +201,7 @@ class Sftp:
         except EOFError:
           break
         if tag != 104:
-          raise OSError('Invalid SFTP directory response')
+          raise TransportError('Invalid SFTP directory response')
         for _ in range(packet.number()):
           name = packet.string().decode('utf-8')
           packet.string()
@@ -209,7 +229,7 @@ class Sftp:
         except EOFError:
           break
         if tag != 103:
-          raise OSError('Invalid SFTP file response')
+          raise TransportError('Invalid SFTP file response')
         block = packet.string()
         if not block:
           break

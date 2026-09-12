@@ -12,7 +12,7 @@ import time
 import uuid
 
 from collection import collect_sources, read_json, write_json
-from transport import Sftp, local_identity, target_value
+from transport import Sftp, TransportError, local_identity, target_value
 
 
 def paths(create=True):
@@ -145,7 +145,7 @@ def refresh(config, state, cache, omarchy_path, force=False, factory=Sftp):
                         issues=issues, transferredBytes=remote.transferred)
       except InterruptedError as error:
         result.update(status='importing', error=str(error))
-      except (OSError, ValueError, TimeoutError) as error:
+      except (TransportError, OSError, ValueError) as error:
         result.update(status='stale' if old.get('lastSuccess') else 'unavailable', error=str(error))
       except Exception:
         result.update(status='stale' if old.get('lastSuccess') else 'unavailable',
@@ -195,7 +195,7 @@ def main(argv=None):
   except subprocess.SubprocessError:
     print("SSH identity check failed; verify normal SSH access first", file=sys.stderr)
     return 1
-  except (OSError, ValueError, KeyError) as error:
+  except (TransportError, OSError, ValueError, KeyError) as error:
     print(str(error), file=sys.stderr)
     return 1
   return 0

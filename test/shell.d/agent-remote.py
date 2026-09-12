@@ -6,6 +6,7 @@ import json
 import errno
 import os
 import shutil
+import select
 from pathlib import Path
 import subprocess
 import sys
@@ -121,6 +122,127 @@ os.execve('/bin/sh', ['sh', '-c', args[-1]], env)
     with self.connection() as remote:
       result = collection.collect_sources(remote, remote.identity(), self.cache, ROOT, budget)
       return result, remote.transferred
+
+  def assert_transport_failure_retains_snapshot(self, established):
+    source = self.write('.codex/sessions/test.jsonl', native(100))
+    self.assertFalse((self.source / '.local/share/opencode').exists())
+    for failure in ('deadline', 'disconnect', 'read-eof', 'read-timeout'):
+      stages = ('identity', 'read', 'optional-probe') if failure in ('deadline', 'disconnect') else ('read',)
+      for stage in stages:
+        with self.subTest(failure=failure, stage=stage, established=established):
+          source.write_text(''.join(json.dumps(row) + '\n' for row in native(100)))
+          machine = machines.add(self.config, self.state, 'transport-box', 'Transport', self.connection)
+          try:
+            if established:
+              machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+            before = collection.read_json(self.state / 'state.json')['machines'][0]
+            result_path = self.cache / machine['id'] / 'result.json'
+            old_result = result_path.read_bytes() if result_path.exists() else None
+            source.write_text(''.join(json.dumps(row) + '\n' for row in native(1750)))
+            reached = []
+            pipe_fd = []
+            class InterruptedSftp(Sftp):
+              # All protocol operations are production SFTP. Only the session
+              # deadline or actual child process changes at the chosen boundary.
+              def interrupt(self, boundary):
+                if stage != boundary or reached:
+                  return
+                reached.append(boundary)
+                pipe_fd.append(self.process.stdout.fileno())
+                if failure == 'deadline':
+                  self.deadline = 0
+                elif failure == 'disconnect':
+                  self.process.kill()
+                  self.process.wait(timeout=5)
+
+              def identity(self):
+                result = super().identity()
+                self.interrupt('identity')
+                return result
+
+              def read(self, *args, **kwargs):
+                result = super().read(*args, **kwargs)
+                self.interrupt('read')
+                return result
+
+              def attrs(self, path):
+                if path.endswith('/.local/share/opencode/opencode.db'):
+                  self.interrupt('optional-probe')
+                return super().attrs(path)
+
+            read = os.read
+            wait = select.select
+            def read_pipe(fd, count):
+              if failure == 'read-eof' and pipe_fd == [fd]:
+                return b''
+              return read(fd, count)
+            def wait_pipe(readers, writers, errors, timeout):
+              if failure == 'read-timeout' and readers and pipe_fd == [readers[0].fileno()]:
+                return [], [], []
+              return wait(readers, writers, errors, timeout)
+            # EOF/inactivity while awaiting a reply are injected at the OS
+            # boundary, after real identity and file reads have completed.
+            with patch.object(os, 'read', side_effect=read_pipe), patch.object(select, 'select', side_effect=wait_pipe):
+              machines.refresh(self.config, self.state, self.cache, ROOT, True, InterruptedSftp)
+            self.assertEqual(reached, [stage], 'transport fault was not exercised')
+            failed = collection.read_json(self.state / 'state.json')['machines'][0]
+            self.assertEqual(failed['status'], 'stale' if established else 'unavailable')
+            self.assertEqual(failed.get('lastSuccess'), before.get('lastSuccess'))
+            self.assertEqual(failed.get('providers'), before.get('providers'))
+            self.assertEqual(failed.get('issues', []), before.get('issues', []))
+            self.assertNotIn('OpenCode', json.dumps(failed.get('issues', [])))
+            self.assertIn('error', failed)
+            self.assertEqual(result_path.read_bytes() if result_path.exists() else None, old_result)
+            if not established:
+              self.assertNotIn('lastSuccess', failed)
+              self.assertNotIn('providers', failed)
+            machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+            recovered = collection.read_json(self.state / 'state.json')['machines'][0]
+            self.assertEqual(recovered['status'], 'current')
+            self.assertEqual(recovered['issues'], [])
+            self.assertEqual(recovered['providers']['codex']['todayTotalTokens'], 1750)
+            self.assertNotIn('error', recovered)
+            if established:
+              self.assertGreater(recovered['lastSuccess'], before['lastSuccess'])
+          finally:
+            machines.mutate(self.config, self.state, machine['id'], remove=True)
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_source_last_success_tracks_verified_pass_including_unchanged_sources(self):
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    machine = machines.add(self.config, self.state, 'verified-box', 'Verified', self.connection)
+    now = time.time() + 10
+    def refresh_at(stamp):
+      with patch.object(time, 'time', return_value=stamp):
+        machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+      return collection.read_json(self.state / 'state.json')['machines'][0]
+    first = refresh_at(now)
+    quiet = refresh_at(now + 10)
+    self.assertEqual(quiet['providers']['codex']['remoteSources']['.codex/sessions']['lastSuccess'], now + 10)
+    self.assertEqual(quiet['providers']['claude']['remoteSources']['.claude/projects']['lastSuccess'], now + 10)
+    self.assertEqual(quiet['providers']['codex']['remoteCollector'], first['providers']['codex']['remoteCollector'])
+    claude.parent.chmod(0)
+    try:
+      codex.write_text(''.join(json.dumps(row) + '\n' for row in native(1750)))
+      partial = refresh_at(now + 20)
+      self.assertEqual(partial['providers']['claude']['remoteSources']['.claude/projects'],
+                       {'status': 'stale', 'lastSuccess': now + 10})
+      self.assertEqual(partial['providers']['codex']['remoteSources']['.codex/sessions']['lastSuccess'], now + 20)
+      self.assertEqual(partial['providers']['codex']['todayTotalTokens'], 1750)
+      self.assertEqual(partial['providers']['claude']['todayTotalTokens'], 120)
+    finally:
+      claude.parent.chmod(0o700)
+    recovered = refresh_at(now + 30)
+    self.assertEqual(recovered['providers']['claude']['remoteSources']['.claude/projects'],
+                     {'status': 'current', 'lastSuccess': now + 30})
+    self.assertEqual(recovered['status'], 'current')
+
+  def test_first_import_transport_failure_remains_unavailable_until_recovery(self):
+    self.assert_transport_failure_retains_snapshot(established=False)
+
+  def test_cached_import_transport_failure_retains_last_success_until_recovery(self):
+    self.assert_transport_failure_retains_snapshot(established=True)
 
   @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
   def test_unreadable_source_retains_its_history_while_native_sources_advance(self):
@@ -414,7 +536,9 @@ os.execve('/bin/sh', ['sh', '-c', args[-1]], env)
       return run(command, **kwargs)
     with patch.object(collection.subprocess, 'run', side_effect=no_collector):
       (warm, _), transferred = self.collect()
-    self.assertEqual(warm, providers)
+    for provider in providers:
+      self.assertEqual({key: value for key, value in warm[provider].items() if key != 'remoteSources'},
+                       {key: value for key, value in providers[provider].items() if key != 'remoteSources'})
     self.assertLess(transferred, 256, 'unchanged logs need no file-content reads')
     with path.open('a') as stream:
       stream.write(json.dumps(native(175)[-1]) + '\n')
