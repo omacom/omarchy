@@ -19,8 +19,15 @@ cat >"$stub_bin/pacman" <<'STUB'
 
 case "$1" in
   -Q)
-    [[ $2 == "gpu-screen-recorder" && -f $PACKAGE_STATE ]] || exit 1
-    printf 'gpu-screen-recorder %s\n' "$(<"$PACKAGE_STATE")"
+    if [[ ${PACKAGE_QUERY_ERROR:-} == "true" ]]; then
+      echo "error: failed to read the local package database" >&2
+      exit 2
+    elif [[ $2 == "gpu-screen-recorder" && -f $PACKAGE_STATE ]]; then
+      printf 'gpu-screen-recorder %s\n' "$(<"$PACKAGE_STATE")"
+    else
+      echo "error: package 'gpu-screen-recorder' was not found" >&2
+      exit 1
+    fi
     ;;
   -S)
     printf '%s' "$PACKAGE_UPGRADE_VERSION" >"$PACKAGE_STATE"
@@ -62,6 +69,14 @@ run_migration() {
 run_migration ""
 [[ ! -s $sudo_log ]] || fail "the migration reinstalls a removed recorder" "$(<"$sudo_log")"
 pass "the migration leaves a removed recorder alone"
+
+if PACKAGE_QUERY_ERROR=true run_migration ""; then
+  fail "the migration accepts a failed package query"
+fi
+grep -Fq "Could not determine the installed GPU Screen Recorder version" "$output" ||
+  fail "the migration explains that a failed package query will retry" "$(<"$output")"
+[[ ! -s $sudo_log ]] || fail "the migration upgrades after a failed package query" "$(<"$sudo_log")"
+pass "the migration remains pending when the package query fails"
 
 for installed_version in 6.1.2-1 6.2.0-1; do
   run_migration "$installed_version"
