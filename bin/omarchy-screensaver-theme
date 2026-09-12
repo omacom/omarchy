@@ -96,13 +96,13 @@ ttfx_supports_bands() {
   ttfx --help 2>/dev/null | grep -q -- '--bands'
 }
 
-# Same Hamilton split ttfx uses: 5-2-4-3-5 over n lines. Prints 0..4.
+# Same Hamilton split ttfx uses: 4-3-4-3-5 over n lines. Prints 0..4.
 field_band_index_n() {
   local i=$1
   local n=$2
 
   awk -v i="$i" -v n="$n" 'BEGIN {
-    u[0]=5; u[1]=2; u[2]=4; u[3]=3; u[4]=5
+    u[0]=4; u[1]=3; u[2]=4; u[3]=3; u[4]=5
     bands=5
     total=19
     if (n <= 0) { print 0; exit }

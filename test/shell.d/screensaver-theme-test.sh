@@ -31,13 +31,13 @@ pass "a missing colors.toml exits non-zero"
 source "$theme"
 nineteen=""
 for i in $(seq 0 18); do nineteen+=$(field_band_index_n "$i" 19); done
-[[ $nineteen == 0000011222233344444 ]] || fail "19 lines stay 5-2-4-3-5" "$nineteen"
-pass "19 lines stay 5-2-4-3-5"
+[[ $nineteen == 0000111222233344444 ]] || fail "19 lines stay 4-3-4-3-5" "$nineteen"
+pass "19 lines stay 4-3-4-3-5"
 
 ten=""
 for i in $(seq 0 9); do ten+=$(field_band_index_n "$i" 10); done
-[[ $ten == 0001223444 ]] || fail "10 lines scale to 3-1-2-1-3" "$ten"
-pass "10 lines scale to 3-1-2-1-3"
+[[ $ten == 0011223444 ]] || fail "10 lines scale to 2-2-2-1-3" "$ten"
+pass "10 lines scale to 2-2-2-1-3"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT

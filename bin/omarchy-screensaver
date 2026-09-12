@@ -28,9 +28,9 @@ if colors_file=$(default_colors_file) && screensaver_theme_from_colors "$colors_
     theme_args=(--palette "$SCREENSAVER_PALETTE" --terminal-background-color "$SCREENSAVER_BG")
     if ttfx_supports_bands; then
       # Stock art is the 10-line FIGlet in logo.txt. The website wordmark is an
-      # 81x19 square-pixel bitmap painted 5-2-4-3-5 (crest, hover, lit, mid,
+      # 81x19 square-pixel bitmap painted 4-3-4-3-5 (crest, hover, lit, mid,
       # dim). --bands spreads that ratio across however many lines the input
-      # has, so ten lines become 3-1-2-1-3. A terminal cell is twice as tall as
+      # has, so ten lines become 2-2-2-1-3. A terminal cell is twice as tall as
       # it is wide, so the letters will not match the site pixel-for-pixel.
       theme_args+=(--bands)
     fi
