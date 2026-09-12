@@ -136,6 +136,19 @@ omarchy bar set omarchy.agents providers '{
 hide a subscription that is installed. Disabled agents are also skipped when
 the records regenerate.
 
+Tab order follows `providerOrder`: the first entry is position 0 and the
+default tab shown on open. Providers not listed keep the historical
+alphabetical fallback, so existing configs without an explicit order behave
+exactly as before. Edit `shell.json` directly (arrays don't survive
+`omarchy bar set` argument parsing):
+
+```json
+{
+  "id": "omarchy.agents",
+  "providerOrder": ["opencode-go", "codex", "claude", "fireworks"]
+}
+```
+
 With `syncMode` on, every `*.json` snapshot in `syncDir` is merged, so today,
 the last 7 days, and the all-time totals cover every machine you code on —
 active days are unioned by date rather than summed. Rate limits stay
