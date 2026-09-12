@@ -6,6 +6,7 @@ import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
 import qs.Ui
+import "BackgroundVariants.js" as BackgroundVariants
 
 Item {
   id: root
@@ -17,6 +18,7 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
+  property int displayedVersion: 0
   property string incomingBackground: ""
   property string oldBackground: ""
   // A theme switch names its next background before it has staged the rest of
@@ -42,6 +44,24 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  property var displayedCandidates: []
+  signal captureBackground()
+
+  BackgroundVariantCatalog {
+    id: variantCatalog
+    path: root.currentBackground
+    revision: root.backgroundVersion
+    onResolved: {
+      // Variant paths must have a native size before any frame can load them.
+      var known = Object.assign({}, root.nativeSizes)
+      for (var i = 0; i < candidates.length; i++) {
+        var candidate = candidates[i]
+        known[candidate.path] = { width: candidate.width, height: candidate.height }
+      }
+      root.nativeSizes = known
+      if (!root.incomingBackground) root.displayedCandidates = candidates
+    }
+  }
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -64,6 +84,8 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
+    // Capture each output's actual variant before theme paths are replaced.
+    captureBackground()
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -84,6 +106,8 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
+      displayedCandidates = []
+      displayedVersion = backgroundVersion
       displayedBackground = finalPath
       revealProgress = 1
       return
@@ -131,6 +155,18 @@ Item {
     revealAnimation.restart()
   }
 
+  function finishTransition() {
+    if (!finishingTransition) return
+    for (var i = 0; i < backgroundPanels.instances.length; i++) {
+      if (!backgroundPanels.instances[i].backgroundReady) return
+    }
+    incomingBackground = ""
+    oldBackground = ""
+    preparedBackground = ""
+    finishingTransition = false
+    pruneNativeSizes()
+  }
+
   function prepareBackground(path) {
     path = String(path || "").trim()
     // Only a still that is not already on screen is worth decoding ahead.
@@ -158,6 +194,7 @@ Item {
   function pruneNativeSizes() {
     var kept = {}
     var paths = [displayedBackground, incomingBackground, oldBackground, preparedBackground]
+    for (var c = 0; c < displayedCandidates.length; c++) paths.push(displayedCandidates[c].path)
     for (var i = 0; i < paths.length; i++) {
       if (paths[i] && nativeSizes[paths[i]] !== undefined) kept[paths[i]] = nativeSizes[paths[i]]
     }
@@ -262,17 +299,22 @@ Item {
     easing.type: Easing.InOutCubic
     onFinished: {
       if (root.incomingBackground) {
+        root.displayedCandidates = variantCatalog.candidates
+        root.displayedVersion = root.backgroundVersion
         root.displayedBackground = root.currentBackground || root.incomingBackground
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      Qt.callLater(root.finishTransition)
     }
   }
 
   Component.onCompleted: refreshBackground()
 
   Variants {
+    id: backgroundPanels
     model: Quickshell.screens
+    onInstancesChanged: Qt.callLater(root.finishTransition)
 
     PanelWindow {
       id: panel
@@ -294,6 +336,21 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      readonly property bool backgroundReady: base.ready
+      property var failedVariants: []
+      // ShellScreen's ratio is rounded up on Wayland; the window follows
+      // wp_fractional_scale_v1 and reports the actual output scale.
+      readonly property real pixelScale: panel.devicePixelRatio
+      readonly property string displayedPath: BackgroundVariants.choose(
+        root.displayedCandidates.filter(function(candidate) { return panel.failedVariants.indexOf(candidate.path) === -1 }),
+        root.displayedBackground, width, height, pixelScale)
+      readonly property string incomingPath: BackgroundVariants.choose(
+        variantCatalog.candidates.filter(function(candidate) { return panel.failedVariants.indexOf(candidate.path) === -1 }),
+        root.incomingBackground, width, height, pixelScale)
+
+      function rejectVariant(path) {
+        if (failedVariants.indexOf(path) === -1) failedVariants = failedVariants.concat([path])
+      }
 
       // Decode the wallpaper at the size this screen can show, not the size
       // it was shipped at. With PreserveAspectCrop Qt takes sourceSize as the
@@ -305,8 +362,8 @@ Item {
       // decoded at native size first, and a wallpaper smaller than the screen
       // is decoded at its own size rather than scaled up to cover the screen.
       readonly property bool sized: width > 0 && height > 0
-      readonly property int decodeWidth: sized ? Math.ceil(width * screen.devicePixelRatio) : 0
-      readonly property int decodeHeight: sized ? Math.ceil(height * screen.devicePixelRatio) : 0
+      readonly property int decodeWidth: sized ? Math.ceil(width * pixelScale) : 0
+      readonly property int decodeHeight: sized ? Math.ceil(height * pixelScale) : 0
 
       function decodeSize(path) {
         if (!sized || !path) return Qt.size(0, 0)
@@ -318,10 +375,10 @@ Item {
 
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-        if (incomingFrame.status !== Image.Ready) return
+        if (variantCatalog.busy || incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
           if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-          if (incomingFrame.status !== Image.Ready) return
+          if (variantCatalog.busy || incomingFrame.status !== Image.Ready) return
           root.startReveal(panel)
         })
       }
@@ -336,34 +393,33 @@ Item {
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
+        path: panel.displayedPath
+        version: root.displayedVersion
+        // Versioned URLs invalidate replaced files without disabling sharing
+        // between outputs that use the same path and decode size.
+        cached: true
         constrainDecode: true
-        decodeSize: panel.decodeSize(root.displayedBackground)
+        decodeSize: panel.decodeSize(panel.displayedPath)
         onReadyChanged: {
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.preparedBackground = ""
-            root.finishingTransition = false
-            root.pruneNativeSizes()
-          }
+          if (ready) Qt.callLater(root.finishTransition)
         }
       }
 
-      Image {
+      Connections {
+        target: base.current
+        ignoreUnknownSignals: true
+        function onStatusChanged() {
+          if (base.current && base.current.status === Image.Error) panel.rejectVariant(panel.displayedPath)
+        }
+      }
+
+      ShaderEffectSource {
         id: oldFrame
         anchors.fill: parent
-        readonly property size decode: panel.decodeSize(root.oldBackground)
-        source: decode.width > 0 ? root.imageUrl(root.oldBackground) : ""
-        sourceSize.width: decode.width
-        sourceSize.height: decode.height
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: false
+        sourceItem: root.oldBackground !== "" ? base : null
+        live: false
         smooth: true
-        mipmap: true
         visible: root.oldBackground !== "" && root.revealProgress < 1
-        onStatusChanged: panel.maybeStartReveal()
       }
 
       Item {
@@ -385,8 +441,11 @@ Item {
           // The same URL and size as a prepared frame keeps its decoded
           // image, so a transition to it can reveal at once.
           readonly property string framePath: root.incomingBackground || root.preparedBackground
-          readonly property size decode: panel.decodeSize(framePath)
-          source: decode.width > 0 ? root.imageUrl(framePath) : ""
+          readonly property string resolvedPath: root.incomingBackground && !variantCatalog.busy ? panel.incomingPath : framePath
+          readonly property size decode: panel.decodeSize(resolvedPath)
+          // Keep a prepared default decoded while the catalog scans. Only
+          // maybeStartReveal is gated; a flat background retains its frame.
+          source: decode.width > 0 ? root.imageUrl(resolvedPath) : ""
           sourceSize.width: decode.width
           sourceSize.height: decode.height
           fillMode: Image.PreserveAspectCrop
@@ -394,7 +453,10 @@ Item {
           cache: false
           smooth: true
           mipmap: true
-          onStatusChanged: panel.maybeStartReveal()
+          onStatusChanged: {
+            if (status === Image.Error && root.incomingBackground) panel.rejectVariant(resolvedPath)
+            panel.maybeStartReveal()
+          }
         }
       }
 
@@ -428,10 +490,19 @@ Item {
 
       Connections {
         target: root
+        function onCaptureBackground() {
+          oldFrame.scheduleUpdate()
+          panel.failedVariants = []
+        }
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
           panel.maybeStartReveal()
         }
+      }
+
+      Connections {
+        target: variantCatalog
+        function onResolved() { panel.maybeStartReveal() }
       }
 
       MouseArea {
