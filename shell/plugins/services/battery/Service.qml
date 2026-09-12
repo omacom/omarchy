@@ -10,8 +10,19 @@ Item {
   property var shell: null
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
+  readonly property var notificationsService: {
+    if (!shell) return null
+    var services = shell.services
+    return shell.firstPartyServiceFor("omarchy.notifications")
+  }
+  // Older replacement plugins predate the readiness signal; retain their
+  // existing best-effort behavior rather than disabling battery warnings.
+  readonly property bool notificationsReady: !!notificationsService && (!("popupsRestored" in notificationsService) || notificationsService.popupsRestored)
+  onNotificationsReadyChanged: if (notificationsReady) Qt.callLater(root.checkBattery)
+
   readonly property int batteryThreshold: 10
   property string pendingPowerSource: ""
+  property string pendingWarningArg: ""
   property string activePowerProfile: ""
   readonly property bool powerSaverOnBattery: UPower.onBattery && activePowerProfile === "power-saver"
 
@@ -20,6 +31,12 @@ Item {
     reloadableId: "omarchy-battery"
     property bool notifiedLowBattery: false
   }
+
+  // Deliberately not persisted, and not in the block above: this has to reset
+  // exactly when the shell process restarts, because that is the event that
+  // restores a critical toast from disk while dropping the latch remembering
+  // it was sent.
+  property bool staleWarningSwept: false
 
   function batteryPercentage() {
     return BatteryModel.batteryPercentage(UPower.displayDevice)
@@ -30,17 +47,41 @@ Item {
   }
 
   function checkBattery() {
-    var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
+    // A dismiss before restoration sees no popup, and a send can race the
+    // old popup back onto the screen. Keep the latch untouched until both
+    // the disk read and deferred model insertion have finished.
+    if (!notificationsReady) return
+    var state = BatteryModel.lowBatteryWarningState(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery, staleWarningSwept)
     persisted.notifiedLowBattery = state.notifiedLowBattery
+    staleWarningSwept = state.staleWarningSwept
     if (state.notify) sendLowBatteryWarning(state.level)
+    else if (state.dismiss) clearLowBatteryWarning()
   }
 
   function sendLowBatteryWarning(level) {
-    if (warningProcess.running) return
-    warningProcess.command = [
-      "omarchy-battery-low",
-      String(level)
-    ]
+    queueWarningCommand(String(level))
+  }
+
+  // Plugging in answers the warning, so the toast goes with it rather than
+  // waiting to be swatted away by hand.
+  function clearLowBatteryWarning() {
+    queueWarningCommand("--clear")
+  }
+
+  // Sending and clearing race each other when they overlap: a clear that
+  // starts while a warning is still launching finishes first, and the warning
+  // then puts a toast up after the latch that would clear it has been reset,
+  // leaving it there for good. One process, one pending command, so they run
+  // in the order they were decided. A newer intent replaces the pending one —
+  // it was decided from a newer reading.
+  function queueWarningCommand(arg) {
+    pendingWarningArg = arg
+    if (!warningProcess.running) runPendingWarningCommand()
+  }
+
+  function runPendingWarningCommand() {
+    warningProcess.command = ["omarchy-battery-low", pendingWarningArg]
+    pendingWarningArg = ""
     warningProcess.running = true
   }
 
@@ -59,7 +100,10 @@ Item {
     if (!powerProfileReadProcess.running) powerProfileReadProcess.running = true
   }
 
-  Process { id: warningProcess }
+  Process {
+    id: warningProcess
+    onExited: if (root.pendingWarningArg !== "") root.runPendingWarningCommand()
+  }
 
   Process {
     id: powerProfileProcess
