@@ -1,0 +1,39 @@
+ok - failed provisioning is retryable
+ok - provisioning is idempotent and preserves desktop customization
+ok - onboarding cancellation leaves setup incomplete
+OpenClaw backup: /tmp/tmp.hxkbqJDLzE/home with spaces/.local/state/omarchy/netclaw/backup-YTqUe4/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - setup backs up state, deploys persona references, and configures the shared gateway
+NetClaw is already configured at fde356f5eafd905d9cd34f7ea33e69ccb6347512.
+ok - configured chat, default agent, status, and unchanged updates work
+OpenClaw backup: /tmp/tmp.hxkbqJDLzE/home with spaces/.local/state/omarchy/netclaw/backup-jWaZKU/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - adapter changes refresh installed components with an unchanged upstream pin
+From /tmp/tmp.hxkbqJDLzE/upstream
+ * branch            ddc67abcd61d13b28ff81355c5e1e507ff1eef9b -> FETCH_HEAD
+Warning: you are leaving 1 commit behind, not connected to
+any of your branches:
+
+  fde356f fixture
+
+If you want to keep it by creating a new branch, this may be a good time
+to do so with:
+
+ git branch <new-branch-name> fde356f
+
+HEAD is now at ddc67ab update
+OpenClaw backup: /tmp/tmp.hxkbqJDLzE/home with spaces/.local/state/omarchy/netclaw/backup-sr4Au7/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - new distro revision refreshes existing components and records recovery revision
+ok - component launchers isolate dependencies and preserve process semantics
+ok - upstream component failures cannot masquerade as success
+ok - early exit cannot reuse stale completion state
+ok - updates refuse to overwrite local changes
+ok - setup protects foreign NetClaw installations
+ok - gateway controls validate actions
+ok - NetClaw does not extend the root menu
+ok - NetClaw uses the standard Apps provider
+ok - default agent menu includes NetClaw

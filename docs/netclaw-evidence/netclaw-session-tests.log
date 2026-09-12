@@ -1,0 +1,9 @@
+ok - OpenClaw launch hands a never-onboarded machine to the wizard
+ok - OpenClaw launch opens the running gateway's handoff URL
+ok - OpenClaw launch installs a never-enabled gateway before opening the app
+ok - OpenClaw launch starts a stopped gateway before opening the app
+ok - OpenClaw launch bounds a hanging dashboard probe
+ok - OpenClaw launch fails cleanly when the gateway never comes up
+ok - --tui onboards in place and attaches to the gateway
+ok - --tui seeds the session through --message
+ok - terminal launch preserves an explicit session alongside its prompt

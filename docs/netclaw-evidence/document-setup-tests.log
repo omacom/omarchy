@@ -1,0 +1,35 @@
+ok - failed provisioning is retryable
+ok - provisioning is idempotent and preserves desktop customization
+ok - onboarding cancellation leaves setup incomplete
+OpenClaw backup: /tmp/tmp.kD7NqcAnf6/home with spaces/.local/state/omarchy/netclaw/backup-sfndcy/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - setup backs up state, deploys persona references, and configures the shared gateway
+NetClaw is already configured at 499e0767f2b2c7083df9817f128cb2a0e54dab74.
+ok - configured chat, default agent, status, and unchanged updates work
+From /tmp/tmp.kD7NqcAnf6/upstream
+ * branch            65e1a216537c5af0baf22f7131f58c60a49a156f -> FETCH_HEAD
+Warning: you are leaving 1 commit behind, not connected to
+any of your branches:
+
+  499e076 fixture
+
+If you want to keep it by creating a new branch, this may be a good time
+to do so with:
+
+ git branch <new-branch-name> 499e076
+
+HEAD is now at 65e1a21 update
+OpenClaw backup: /tmp/tmp.kD7NqcAnf6/home with spaces/.local/state/omarchy/netclaw/backup-213yzX/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - new distro revision refreshes existing components and records recovery revision
+ok - component launchers isolate dependencies and preserve process semantics
+ok - upstream component failures cannot masquerade as success
+ok - early exit cannot reuse stale completion state
+ok - updates refuse to overwrite local changes
+ok - setup protects foreign NetClaw installations
+ok - gateway controls validate actions
+ok - NetClaw does not extend the root menu
+ok - NetClaw uses the standard Apps provider
+ok - default agent menu includes NetClaw

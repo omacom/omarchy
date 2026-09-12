@@ -22,6 +22,17 @@
 
   // Root Menu
   "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps"},
+  "apps.NetClaw": {"appIcon":"netclaw","label":"NetClaw","description":"Network engineering chat, dashboard, integrations and gateway"},
+  "apps.NetClaw.chat": {"label":"Chat","action":"omarchy-launch-netclaw"},
+  "apps.NetClaw.dashboard": {"label":"Dashboard","action":"omarchy-netclaw-dashboard"},
+  "apps.NetClaw.setup": {"label":"Setup integrations","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-setup"},
+  "apps.NetClaw.credentials": {"label":"Credentials","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-credentials"},
+  "apps.NetClaw.upgrade": {"label":"Upgrade","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-update"},
+  "apps.NetClaw.status": {"label":"Status","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-status"},
+  "apps.NetClaw.logs": {"label":"Logs","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-service logs"},
+  "apps.NetClaw.start": {"label":"Start gateway","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-service start"},
+  "apps.NetClaw.restart": {"label":"Restart gateway","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-service restart"},
+  "apps.NetClaw.stop": {"label":"Stop gateway","action":"omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-service stop"},
   "learn": {"icon":"󰧑","label":"Learn"},
   "trigger": {"icon":"󱓞","label":"Trigger"},
   "style": {"icon":"","label":"Style"},
@@ -31,6 +42,7 @@
   "update": {"icon":"","label":"Update","aliases":["restart","refresh"]},
   "about": {"icon":"","label":"About","action":"omarchy-launch-about"},
   "system": {"icon":"","label":"System","aliases":["power-menu"]},
+
 
   // System
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},
@@ -144,6 +156,7 @@
   "setup.default.agent.grok": {"icon":"","iconFont":"omarchy","label":"Grok","checked":"[[ \"$(omarchy-default-agent)\" == \"grok\" ]]","action":"omarchy-default-agent grok"},
   "setup.default.agent.hermes": {"icon":"","iconFont":"omarchy","label":"Hermes","checked":"[[ \"$(omarchy-default-agent)\" == \"hermes\" ]]","action":"omarchy-default-agent hermes"},
   "setup.default.agent.muse": {"icon":"󰛤","label":"Muse Code","checked":"[[ \"$(omarchy-default-agent)\" == \"muse\" ]]","action":"omarchy-default-agent muse"},
+  "setup.default.agent.netclaw": {"icon":"󰛳","label":"NetClaw","checked":"[[ \"$(omarchy-default-agent)\" == \"netclaw\" ]]","action":"omarchy-default-agent netclaw"},
   "setup.default.agent.omp": {"icon":"","iconFont":"omarchy","label":"omp","checked":"[[ \"$(omarchy-default-agent)\" == \"omp\" ]]","action":"omarchy-default-agent omp"},
   "setup.default.agent.openclaw": {"icon":"","iconFont":"omarchy","label":"OpenClaw","checked":"[[ \"$(omarchy-default-agent)\" == \"openclaw\" ]]","action":"omarchy-default-agent openclaw"},
   "setup.default.agent.opencode": {"icon":"","iconFont":"omarchy","label":"OpenCode","checked":"[[ \"$(omarchy-default-agent)\" == \"opencode\" ]]","action":"omarchy-default-agent opencode"},

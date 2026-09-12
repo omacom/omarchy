@@ -1264,7 +1264,8 @@ Item {
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
-              readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              readonly property bool hasImageIcon: row.isApp || row.appIcon.length > 0
+              readonly property bool hasIcon: row.icon.length > 0 || row.hasImageIcon
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
@@ -1289,7 +1290,7 @@ Item {
               Text {
                 id: iconText
                 textFormat: Text.PlainText
-                visible: row.hasIcon && !row.isApp
+                visible: row.hasIcon && !row.hasImageIcon
                 text: row.icon
                 color: row.hasCursor ? root.selectedText : root.foreground
                 font.family: row.iconFont.length > 0 ? row.iconFont : root.fontFamily
@@ -1304,7 +1305,7 @@ Item {
 
               Image {
                 id: appIconImage
-                visible: row.isApp
+                visible: row.hasImageIcon
                 width: Style.font.iconLarge
                 height: Style.font.iconLarge
                 fillMode: Image.PreserveAspectFit
@@ -1312,7 +1313,7 @@ Item {
                 // PNG icons upscaled and blurry on HiDPI displays.
                 sourceSize.width: width * Screen.devicePixelRatio
                 sourceSize.height: height * Screen.devicePixelRatio
-                source: row.isApp && root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : ""
+                source: row.hasImageIcon && root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : ""
                 asynchronous: true
                 anchors.left: parent.left
                 anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2

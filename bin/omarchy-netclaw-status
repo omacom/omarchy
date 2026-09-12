@@ -1,0 +1,20 @@
+#!/bin/bash
+# omarchy:summary=Show NetClaw provisioning, source revision, and gateway health
+
+set -uo pipefail
+# shellcheck source=default/netclaw/runtime.sh
+source "$OMARCHY_PATH/default/netclaw/runtime.sh"
+if [[ ! -d $netclaw_dir/.git ]]; then
+  echo "NetClaw is not provisioned. Run: omarchy netclaw setup"
+  exit 1
+fi
+printf 'NetClaw source: %s\nRevision: ' "$netclaw_dir"
+git -C "$netclaw_dir" rev-parse HEAD
+if [[ ! -f $netclaw_state/configured ]]; then
+  echo "Setup incomplete. Run: omarchy netclaw setup"
+  exit 1
+fi
+printf 'Configured revision: '
+cat "$netclaw_state/configured"
+openclaw gateway status
+openclaw health
