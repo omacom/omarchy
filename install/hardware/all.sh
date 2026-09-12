@@ -19,6 +19,7 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/thermald.sh"
 # and building all three against the stock kernel only to rebuild them against
 # linux-ptl and tear the first set down again cost ~25s of the install.
 run_logged "$OMARCHY_INSTALL/hardware/intel/ptl-kernel.sh"
+run_logged "$OMARCHY_INSTALL/hardware/intel/ipu6-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/ipu7-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fred.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-wifi7-eht.sh"
