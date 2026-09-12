@@ -42,6 +42,10 @@ case "$1" in
     fi
     ;;
   -S)
+    if [[ -f $PACKAGE_NAME_STATE && $(<"$PACKAGE_NAME_STATE") != "gpu-screen-recorder" && " $* " != *" --ask 4 "* ]]; then
+      echo "error: unresolvable package conflicts detected" >&2
+      exit 1
+    fi
     printf 'gpu-screen-recorder' >"$PACKAGE_NAME_STATE"
     printf '%s' "$PACKAGE_UPGRADE_VERSION" >"$PACKAGE_STATE"
     ;;
@@ -110,6 +114,15 @@ pass "the migration leaves supported recorder releases alone"
 run_migration "6.1.2.r1.gdeadbeef-1" "6.1.2-1" "gpu-screen-recorder-git"
 [[ ! -s $sudo_log ]] || fail "the migration replaces a supported recorder provider" "$(<"$sudo_log")"
 pass "the migration leaves a supported recorder provider alone"
+
+run_migration "6.1.1.r1.gdeadbeef-1" "6.1.2-1" "gpu-screen-recorder-git"
+grep -qxF $'pacman\t-S\t--noconfirm\t--ask\t4\t--needed\tgpu-screen-recorder>=6.1.2' "$sudo_log" ||
+  fail "the migration does not approve replacing an older recorder provider" "$(<"$sudo_log")"
+[[ $(<"$package_name_state") == "gpu-screen-recorder" ]] ||
+  fail "the migration leaves an older recorder provider installed" "$(<"$package_name_state")"
+[[ $(<"$package_state") == "6.1.2-1" ]] ||
+  fail "the migration does not install the required recorder release after replacing a provider" "$(<"$package_state")"
+pass "the migration replaces an older recorder provider"
 
 run_migration "6.1.1-1"
 grep -qxF $'pacman\t-S\t--noconfirm\t--needed\tgpu-screen-recorder>=6.1.2' "$sudo_log" ||

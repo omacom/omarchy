@@ -4,11 +4,18 @@ package="gpu-screen-recorder"
 minimum_version="6.1.2"
 
 if installed_package=$(LC_ALL=C pacman -Q "$package" 2>/dev/null); then
+  installed_name=${installed_package% *}
   installed_version=${installed_package##* }
   if (( $(vercmp "$installed_version" "$minimum_version") < 0 )); then
     # omarchy-pkg-add skips packages that are already installed, so ask pacman
     # for the required minimum explicitly and stay pending if it is unavailable.
-    sudo pacman -S --noconfirm --needed "$package>=$minimum_version"
+    if [[ $installed_name == "$package" ]]; then
+      sudo pacman -S --noconfirm --needed "$package>=$minimum_version"
+    else
+      # Providers conflict with the packaged recorder. Answer pacman's removal
+      # question so the replacement happens in one dependency-safe transaction.
+      sudo pacman -S --noconfirm --ask 4 --needed "$package>=$minimum_version"
+    fi
 
     if installed_package=$(LC_ALL=C pacman -Q "$package" 2>/dev/null); then
       installed_version=${installed_package##* }
