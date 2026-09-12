@@ -24,6 +24,22 @@ verify_core_packages() {
   pass "all Omarchy core packages are installed (${#missing[@]} missing)"
 }
 
+verify_core_package_versions() {
+  local package="gpu-screen-recorder"
+  local minimum_version="6.1.2"
+  local installed_package installed_version
+
+  if installed_package=$(LC_ALL=C pacman -Q "$package" 2>/dev/null); then
+    installed_version=${installed_package##* }
+  else
+    fail "GPU Screen Recorder meets its minimum version" "$package is not installed"
+  fi
+
+  (( $(vercmp "$installed_version" "$minimum_version") >= 0 )) ||
+    fail "GPU Screen Recorder meets its minimum version" "v${minimum_version} or newer is required; v${installed_version} is installed"
+  pass "GPU Screen Recorder meets its minimum version (v${installed_version})"
+}
+
 verify_defaults() {
   [[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium is the default browser"
   pass "Chromium is the default browser"
@@ -112,7 +128,7 @@ verify_user_setup() {
   pass "Omarchy user state and shell configuration exist"
 }
 
-for check in verify_core_packages verify_defaults verify_services verify_runtime_tools verify_user_setup; do
+for check in verify_core_packages verify_core_package_versions verify_defaults verify_services verify_runtime_tools verify_user_setup; do
   if ! ("$check"); then
     status=1
   fi
