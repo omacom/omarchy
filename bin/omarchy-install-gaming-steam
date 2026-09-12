@@ -1,14 +1,16 @@
 #!/bin/bash
 
-# omarchy:summary=Install Steam and graphics drivers selected for this system, and open Remote Play ports for LAN and Tailscale
+# omarchy:summary=Install Steam and graphics drivers selected for this system, and open Remote Play and Steam Link VR ports for LAN and Tailscale
 # omarchy:requires-sudo=true
 
 set -e
 
 # Inbound ports Valve documents for Steam Remote Play (Steam Link, Remote Play Together):
 # https://help.steampowered.com/en/faqs/view/2EA8-4D75-DA21-31EB
+# plus the UDP ports Steam Link needs for VR streaming to SteamVR (Quest and other headsets):
+# https://help.steampowered.com/en/faqs/view/3E3D-BE6B-787D-A5D2
 TCP_PORTS=(27036)
-UDP_PORTS=(27031:27036)
+UDP_PORTS=(27031:27036 10400:10401)
 PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
 UFW_COMMENT="omarchy-steam"
 
@@ -56,7 +58,7 @@ echo "Installing Steam..."
 omarchy-pkg-add steam
 omarchy-install-gaming-gpu-lib32
 
-echo "Opening Steam Remote Play firewall ports..."
+echo "Opening Steam Remote Play and Steam Link VR firewall ports..."
 open_ufw_ports
 
 echo ""

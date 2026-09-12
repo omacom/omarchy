@@ -54,6 +54,8 @@ for cidr in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do
     "install opens the Remote Play UDP range for $cidr"
   expect_logged "sudo:ufw allow in proto tcp from $cidr to any port 27036 comment omarchy-steam" \
     "install opens the Remote Play TCP port for $cidr"
+  expect_logged "sudo:ufw allow in proto udp from $cidr to any port 10400:10401 comment omarchy-steam" \
+    "install opens the Steam Link VR UDP ports for $cidr"
 done
 if grep -q 'tailscale0' "$OMARCHY_TEST_LOG"; then
   fail "install skips the Tailscale rules when tailscale0 is absent" "$(<"$OMARCHY_TEST_LOG")"
@@ -67,6 +69,8 @@ expect_logged "sudo:ufw allow in on tailscale0 to any port 27031:27036 proto udp
   "install opens the Remote Play UDP range on tailscale0"
 expect_logged "sudo:ufw allow in on tailscale0 to any port 27036 proto tcp comment omarchy-steam" \
   "install opens the Remote Play TCP port on tailscale0"
+expect_logged "sudo:ufw allow in on tailscale0 to any port 10400:10401 proto udp comment omarchy-steam" \
+  "install opens the Steam Link VR UDP ports on tailscale0"
 pass "install opens Steam Remote Play ports on Tailscale when present"
 
 : >"$OMARCHY_TEST_LOG"
@@ -83,10 +87,14 @@ for cidr in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do
     "remove closes the Remote Play UDP range for $cidr"
   expect_logged "sudo:ufw --force delete allow in proto tcp from $cidr to any port 27036" \
     "remove closes the Remote Play TCP port for $cidr"
+  expect_logged "sudo:ufw --force delete allow in proto udp from $cidr to any port 10400:10401" \
+    "remove closes the Steam Link VR UDP ports for $cidr"
 done
 expect_logged "sudo:ufw --force delete allow in on tailscale0 to any port 27031:27036 proto udp" \
   "remove closes the Remote Play UDP range on tailscale0"
 expect_logged "sudo:ufw --force delete allow in on tailscale0 to any port 27036 proto tcp" \
   "remove closes the Remote Play TCP port on tailscale0"
+expect_logged "sudo:ufw --force delete allow in on tailscale0 to any port 10400:10401 proto udp" \
+  "remove closes the Steam Link VR UDP ports on tailscale0"
 expect_logged "sudo:ufw reload" "remove reloads UFW after deleting rules"
 pass "remove closes the Omarchy-managed Steam Remote Play ports"
