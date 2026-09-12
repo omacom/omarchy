@@ -61,6 +61,19 @@ relock_session() {
   return 1
 }
 
+notifications_ready() {
+  [[ $(busctl --user call org.freedesktop.DBus /org/freedesktop/DBus \
+    org.freedesktop.DBus NameHasOwner s org.freedesktop.Notifications 2>/dev/null) == "b true" ]]
+}
+
+# Core IPC can answer before the notification plugin has registered its bus
+# name. Restore an existing notification service before update hooks or setup
+# invitations send their one-time toasts; a disabled service need not appear.
+notifications_were_running=0
+if notifications_ready; then
+  notifications_were_running=1
+fi
+
 # Each kill stops the oldest matching instance and only returns once it has
 # fully exited, so the no-duplicate launch below can't race a dying shell.
 while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
@@ -70,7 +83,8 @@ while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; 
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
 
 for (( attempt = 0; attempt < 20; attempt++ )); do
-  if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
+  if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1 &&
+    { (( notifications_were_running == 0 )) || notifications_ready; }; then
     # The session stays compositor-locked after the old lock client died, so
     # re-acquire the lock and let the user authenticate out of it.
     if (( relock )) && ! relock_session; then
