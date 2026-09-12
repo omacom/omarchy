@@ -120,6 +120,13 @@ o.bind("SUPER + CTRL + Z", "Zoom in", function()
   hl.config({ cursor = { zoom_factor = zoom + 1 } })
 end)
 
+o.bind("SUPER + CTRL + SHIFT + Z", "Zoom out", function()
+  local zoom = hl.get_config("cursor.zoom_factor") or 1
+  if zoom > 1 then
+    hl.config({ cursor = { zoom_factor = math.max(1, zoom - 1) } })
+  end
+end)
+
 o.bind("SUPER + CTRL + ALT + Z", "Reset zoom", function()
   hl.config({ cursor = { zoom_factor = 1 } })
 end)
