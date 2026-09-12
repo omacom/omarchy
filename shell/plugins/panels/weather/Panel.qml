@@ -158,16 +158,17 @@ Panel {
     return typeof host.serviceFor === "function" ? host.serviceFor("omarchy.weather") : null
   }
 
-  // Open-Meteo's reading is preferred over whatever the pill happens to be
-  // showing: it is the only one of the two that carries a day/night flag, and
-  // it is fetched even when the location came from wttr. Its absence early in
-  // a refresh is covered by wttr's code, which Animation.js also maps.
-  readonly property var animationCurrent: openMeteoCurrent || current
+  // The reading the icon, the words under the temperature, and the wallpaper
+  // all resolve from. Open-Meteo wins because that is what `label` is built
+  // from — it is fetched even when the location came from wttr, and it is the
+  // only one of the two carrying a day/night flag. Its absence early in a
+  // refresh is covered by wttr's reading, which both tables also understand.
+  readonly property var resolvedCurrent: openMeteoCurrent || current
 
   function pushAnimationState() {
     var service = root.animationService
     if (!service || typeof service.applyWeather !== "function") return
-    service.applyWeather(root.animationCurrent, root.animationsEnabled)
+    service.applyWeather(root.resolvedCurrent, root.animationsEnabled)
   }
 
   // Written back to this widget's shell.json entry the way the clock writes
@@ -183,7 +184,7 @@ Panel {
       root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
-  onAnimationCurrentChanged: pushAnimationState()
+  onResolvedCurrentChanged: pushAnimationState()
   onAnimationsEnabledChanged: pushAnimationState()
   onAnimationServiceChanged: pushAnimationState()
 
@@ -198,6 +199,7 @@ Panel {
     onTriggered: root.pushAnimationState()
   }
 
+  readonly property string reportCondition: Model.currentDescription(resolvedCurrent)
   readonly property string reportLocation:  configuredLocation || wttrLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
   readonly property string reportTempNum:   current ? String(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
@@ -585,53 +587,83 @@ Panel {
 
       // ---- Hero row: big icon + temp on the left; location and stats stacked on the right.
       Item {
+        id: hero
         width: parent.width
         height: Math.max(heroLeft.height, heroRight.height)
 
-        Row {
+        Column {
           id: heroLeft
           anchors.left: parent.left
           anchors.leftMargin: Style.space(16)
           anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(16)
-
-          Text {
-            id: heroIcon
-            textFormat: Text.PlainText
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.verticalCenterOffset: 5
-            text: root.label || "—"
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
-            // Decorative condition emoji; intentionally larger than the
-            // Style.font.* scale's displayLarge (28).
-            font.pixelSize: 64
-          }
+          spacing: Style.space(2)
 
           Row {
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
+            spacing: Style.space(16)
 
             Text {
-              id: tempBig
+              id: heroIcon
               textFormat: Text.PlainText
-              text: root.reportTempNum || "—"
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.verticalCenterOffset: 5
+              text: root.label || "—"
               color: root.bar.foreground
               font.family: root.bar.fontFamily
-              // Hero temperature read-out; deliberately oversized, outside
-              // the Style.font.* scale.
-              font.pixelSize: 56
-              font.bold: true
+              // Decorative condition emoji; intentionally larger than the
+              // Style.font.* scale's displayLarge (28).
+              font.pixelSize: 64
             }
-            Text {
-              textFormat: Text.PlainText
-              text: root.current ? root.tempUnit : ""
-              color: root.bar.foreground
-              font.family: root.bar.fontFamily
-              font.pixelSize: Style.font.display
-              anchors.top: tempBig.top
-              anchors.topMargin: Style.space(10)
+
+            Row {
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(2)
+
+              Text {
+                id: tempBig
+                textFormat: Text.PlainText
+                text: root.reportTempNum || "—"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                // Hero temperature read-out; deliberately oversized, outside
+                // the Style.font.* scale.
+                font.pixelSize: 56
+                font.bold: true
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: root.current ? root.tempUnit : ""
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.display
+                anchors.top: tempBig.top
+                anchors.topMargin: Style.space(10)
+              }
             }
+          }
+
+          // Names the condition the icon above is drawing, under the whole
+          // icon-and-temperature block rather than under the temperature
+          // alone: that is the difference between "Thunderstorm wit…" and
+          // the words fitting. Elided rather than wrapped, because wttr's
+          // own wording runs to "Moderate or heavy rain with thunder" and
+          // the hero has to keep its height.
+          //
+          // Bounded by what is actually left beside the stats rather than by
+          // a fixed number, so it still fits when the text scale grows or a
+          // longer set of stats widens the right-hand column. No binding
+          // loop: heroRight's width does not depend on this side.
+          Text {
+            textFormat: Text.PlainText
+            visible: text !== ""
+            width: Math.max(0, Math.min(implicitWidth,
+              hero.width - heroRight.width - Style.space(44)))
+            elide: Text.ElideRight
+            text: root.reportCondition
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            // Secondary to the temperature it sits under, and the smaller
+            // size is what lets the longest wording fit before eliding.
+            font.pixelSize: Style.font.bodySmall
           }
         }
 

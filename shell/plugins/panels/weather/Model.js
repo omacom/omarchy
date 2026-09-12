@@ -183,6 +183,47 @@ function currentIcon(current, fallback) {
   return fallback || ""
 }
 
+// Short wording for the WMO codes Open-Meteo reports. wttr.in sends its own
+// text with every reading, so only this vocabulary needs a table — and these
+// are kept terse deliberately, because the label sits under the hero
+// temperature where there is room for two words, not for "Thunderstorm with
+// slight and heavy hail".
+var OPEN_METEO_DESCRIPTIONS = {
+  0: "Clear", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+  45: "Fog", 48: "Rime fog",
+  51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
+  56: "Freezing drizzle", 57: "Heavy freezing drizzle",
+  61: "Light rain", 63: "Rain", 65: "Heavy rain",
+  66: "Freezing rain", 67: "Heavy freezing rain",
+  71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
+  80: "Light showers", 81: "Showers", 82: "Heavy showers",
+  85: "Light snow showers", 86: "Snow showers",
+  95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Severe thunderstorm"
+}
+
+function describeOpenMeteoCode(code) {
+  var c = parseInt(String(code), 10)
+  if (isNaN(c)) return ""
+  var described = OPEN_METEO_DESCRIPTIONS[c]
+  return described === undefined ? "" : described
+}
+
+// The label under the hero temperature. Open-Meteo's code wins over wttr's
+// wording for the same reason currentIcon prefers it: whichever source the
+// icon came from, the words beside it have to agree.
+function currentDescription(current) {
+  if (!current) return ""
+
+  if (current.openMeteoWeatherCode !== undefined && current.openMeteoWeatherCode !== null)
+    return describeOpenMeteoCode(current.openMeteoWeatherCode)
+
+  // wttr ships its own text, which is more exact than anything a second
+  // table here could be.
+  var described = current.weatherDesc && current.weatherDesc[0]
+    ? String(current.weatherDesc[0].value || "").replace(/^\s+|\s+$/g, "") : ""
+  return described
+}
+
 // wttr.in has no day/night flag. Use its icon only to fill an empty initial
 // state, never to replace a day/night-aware icon resolved by Open-Meteo.
 function provisionalCurrentIcon(current, resolvedIcon) {
@@ -283,6 +324,8 @@ if (typeof module !== "undefined") {
     dayName: dayName,
     openMeteoForecastDays: openMeteoForecastDays,
     openMeteoCurrentCondition: openMeteoCurrentCondition,
+    describeOpenMeteoCode: describeOpenMeteoCode,
+    currentDescription: currentDescription,
     currentIcon: currentIcon,
     provisionalCurrentIcon: provisionalCurrentIcon,
     weatherResponseCompletesSave: weatherResponseCompletesSave,
