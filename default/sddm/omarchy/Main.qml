@@ -18,12 +18,23 @@ Rectangle {
     return sessionModel.lastIndex
   }
 
+  // Re-grab focus shortly after showing/failing, since a single
+  // forceActiveFocus() call can lose the race with the compositor
+  // handing input focus to the greeter window.
+  Timer {
+    id: focusRetryTimer
+    interval: 100
+    repeat: false
+    onTriggered: password.forceActiveFocus()
+  }
+
   Connections {
     target: sddm
     function onLoginFailed() {
       root.loginFailed = true
       password.text = ""
       password.focus = true
+      focusRetryTimer.restart()
     }
     function onLoginSucceeded() {
       root.loginFailed = false
@@ -113,5 +124,8 @@ Rectangle {
 
   }
 
-  Component.onCompleted: password.forceActiveFocus()
+  Component.onCompleted: {
+    password.forceActiveFocus()
+    focusRetryTimer.restart()
+  }
 }
