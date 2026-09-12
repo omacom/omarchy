@@ -6,6 +6,28 @@
 set -e
 
 
+# Readers that libfprint has no driver for, but that the community's
+# reverse-engineered python-validity daemon does drive. omarchy-hw-fingerprint
+# matches these on vendor ID (06cb and 138a are both on its list), so setup gets
+# all the way to enrollment before fprintd reports "No devices available" --
+# indistinguishable from a bad swipe, so the generic "please try again" sends
+# people into a retry loop that cannot succeed. Name the real cause instead.
+#
+# The list is python-validity's own udev match set, from its
+# 94-validity-sensors.rules.
+validity_readers=" 06cb:009a 138a:0090 138a:0097 "
+
+has_validity_reader() {
+  local dev vendor product
+  for dev in "${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"/*; do
+    [[ -r $dev/idVendor && -r $dev/idProduct ]] || continue
+    vendor=$(<"$dev/idVendor")
+    product=$(<"$dev/idProduct")
+    [[ $validity_readers == *" $vendor:$product "* ]] && return 0
+  done
+  return 1
+}
+
 setup_pam_config() {
   # A clamshell gate runs before pam_fprintd in every stack: when the lid is
   # shut the reader is unreachable, so it skips fingerprint (success=1) and PAM
@@ -106,6 +128,13 @@ if sudo fprintd-enroll "$USER"; then
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
   fi
 else
-  echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
+  if has_validity_reader; then
+    echo -e "\e[31m\nEnrollment failed: libfprint has no driver for this reader.\e[0m"
+    echo "It is a Synaptics/Validity sensor that only the community"
+    echo "python-validity driver can talk to, so retrying will not help:"
+    echo "  https://github.com/uunicorn/python-validity"
+  else
+    echo -e "\e[31m\nEnrollment failed. Please try again.\e[0m"
+  fi
   exit 1
 fi
