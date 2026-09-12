@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# omarchy:summary=Search the web with the default search engine
+# omarchy:args=<query>
+# omarchy:examples=omarchy websearch "hyprland window rules"
+
+# Engine priority: the Omarchy default (omarchy-default-search override file)
+# wins; then a Chrome-family browser default read out of its Preferences
+# JSON; then DuckDuckGo. Firefox-family profiles keep their default in
+# mozlz4-compressed search.json.mozlz4, which has no dependable reader here,
+# so Firefox and Zen fall through to the Omarchy default.
+
+set -euo pipefail
+
+if (($# == 0)) || [[ $1 == "-h" || $1 == "--help" ]]; then
+  echo "Usage: omarchy websearch <query>" >&2
+  [[ ${1:-} == "-h" || ${1:-} == "--help" ]] && exit 0
+  exit 2
+fi
+
+query="$*"
+
+engine_template() {
+  case "$1" in
+    google) printf '%s' "https://www.google.com/search?q={searchTerms}" ;;
+    brave) printf '%s' "https://search.brave.com/search?q={searchTerms}" ;;
+    duckduckgo) printf '%s' "https://duckduckgo.com/?q={searchTerms}" ;;
+    startpage) printf '%s' "https://www.startpage.com/sp/search?query={searchTerms}" ;;
+    ecosia) printf '%s' "https://www.ecosia.org/search?q={searchTerms}" ;;
+    bing) printf '%s' "https://www.bing.com/search?q={searchTerms}" ;;
+  esac
+}
+
+override_file="$HOME/.config/omarchy/defaults/search-engine"
+if [[ -f $override_file ]]; then
+  saved=$(cat "$override_file")
+  template=$(engine_template "$saved" 2>/dev/null || true)
+  if [[ -n $template ]]; then
+    encoded=$(jq -Rr @uri <<<"$query")
+    xdg-open "${template//\{searchTerms\}/$encoded}"
+    exit 0
+  fi
+fi
+
+for profile_dir in "$HOME/.config/google-chrome" "$HOME/.config/chromium" "$HOME/.config/brave-browser" "$HOME/.config/microsoft-edge"; do
+  preferences="$profile_dir/Default/Preferences"
+  [[ -f $preferences ]] || continue
+  template=$(jq -r '.profile.default_search_provider_data.template_url_data.url // empty' "$preferences" 2>/dev/null || true)
+  if [[ $template == *"{searchTerms}"* ]]; then
+    encoded=$(jq -Rr @uri <<<"$query")
+    xdg-open "${template//\{searchTerms\}/$encoded}"
+    exit 0
+  fi
+done
+
+encoded=$(jq -Rr @uri <<<"$query")
+xdg-open "https://duckduckgo.com/?q=$encoded"
