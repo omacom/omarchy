@@ -1342,7 +1342,7 @@ EOF
 
   # Open browser to monitor installation
   sleep 3
-  xdg-open "http://127.0.0.1:8006"
+  omarchy-launch-browser "http://127.0.0.1:8006"
 
   echo ""
   echo "Installation is running in the background."
