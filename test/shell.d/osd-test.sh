@@ -6,6 +6,11 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const osd = requireFromRoot('shell/plugins/osd/OsdModel.js')
+const fs = require('fs')
+const qml = fs.readFileSync(path.join(root, 'shell/plugins/osd/Osd.qml'), 'utf8')
+assert(qml.includes('implicitWidth: card.width') && qml.includes('implicitHeight: card.height'), 'osd surface follows the card size')
+assert(qml.includes('anchors { bottom: true }') && qml.includes('margins { bottom: Style.space(67) }'), 'osd preserves the bottom offset without stretching across the output')
+assert(qml.includes('mask: Region {}'), 'osd remains click-through')
 
 assertEqual(osd.iconFor('', 0), osd.iconFor('muted', 50), 'osd falls back to muted icon at zero percent')
 assertEqual(osd.iconFor('volume-high', 1), osd.iconFor('', 100), 'osd maps high volume aliases')
