@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the GPU can apply a nightlight color temperature.
+
+# hyprsunset sends its color temperature to Hyprland as a colour transform
+# matrix over hyprland-ctm-control-v1, and aquamarine only submits a CTM on the
+# DRM atomic path. A driver without atomic modesetting accepts the request and
+# drops it, so hyprctl answers "ok", the temperature reads back, and the panel
+# never changes — a silent no-op rather than an error.
+#
+# radeon is the one such driver still in use: it drives pre-GCN AMD cards
+# (TeraScale and older, e.g. the Radeon HD 2400 in a 2007 iMac) and reports
+# "crtc doesn't support CTM". Everything newer is on amdgpu and is atomic.
+#
+# Only answer no when every DRM card is on radeon. A machine that also has a
+# non-radeon GPU may well be driving its display from that one, and hiding a
+# working feature is worse than leaving a broken one visible.
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+cards=0
+
+for card in "$drm_path"/card[0-9]*; do
+  name=${card##*/}
+
+  # Connectors are exposed as card0-LVDS-1 alongside the card itself.
+  [[ $name == *-* ]] && continue
+  [[ -e $card/device/driver ]] || continue
+
+  (( ++cards ))
+  [[ $(readlink -f "$card/device/driver") == */radeon ]] || exit 0
+done
+
+(( cards > 0 )) && exit 1
+
+exit 0
