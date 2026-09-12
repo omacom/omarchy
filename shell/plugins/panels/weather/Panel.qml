@@ -149,6 +149,12 @@ Panel {
   readonly property string reportWind:      current ? (useImperial ? (current.windspeedMiles + " mph") : (current.windspeedKmph + " km/h")) : ""
   readonly property string reportHumidity:  current ? (current.humidity + "%") : ""
 
+  // Sunrise/sunset for today, local time. Prefers the open-meteo daily
+  // payload; wttr's astronomy fills the fallback when Open-Meteo fails.
+  readonly property var reportSunTimes: Model.sunTimes(dailyForecastReport, report, Qt.formatDate(new Date(), "yyyy-MM-dd"))
+  readonly property string reportSunrise: reportSunTimes ? reportSunTimes.sunrise : ""
+  readonly property string reportSunset:  reportSunTimes ? reportSunTimes.sunset : ""
+
   function refresh() {
     // Each full refresh cycle gets a fresh retry budget, so an earlier
     // exhausted round (e.g. waking with the network still down) doesn't
@@ -179,7 +185,7 @@ Panel {
     var url = "https://api.open-meteo.com/v1/forecast"
       + "?latitude=" + encodeURIComponent(String(lat))
       + "&longitude=" + encodeURIComponent(String(lon))
-      + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+      + "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset"
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
@@ -319,6 +325,11 @@ Panel {
   // Representative icon for a forecast day: the hourly entry nearest noon.
   function dayIcon(day) {
     return Model.dayIcon(day)
+  }
+
+  // Sun times for one forecast day, or null when the source omitted them.
+  function sunTimesForDay(day) {
+    return Model.sunTimesForDay(day)
   }
 
   function iconForOpenMeteoCode(code) {
@@ -681,6 +692,7 @@ Panel {
             spacing: Style.space(36)
 
             Column {
+              id: feelsCol
               spacing: Style.space(5)
               Text {
                 text: "FEELS"
@@ -699,6 +711,7 @@ Panel {
             }
 
             Column {
+              id: windCol
               spacing: Style.space(5)
               Text {
                 text: "WIND"
@@ -717,6 +730,7 @@ Panel {
             }
 
             Column {
+              id: humidCol
               spacing: Style.space(5)
               Text {
                 text: "HUMID"
@@ -728,6 +742,55 @@ Panel {
               Text {
                 textFormat: Text.PlainText
                 text: root.reportHumidity
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+              }
+            }
+          }
+
+          // Sun times keep their own row (y untouched) but slide horizontally
+          // so each value centers between the two stats columns above it.
+          Item {
+            id: sunStats
+            visible: root.reportSunrise !== "" || root.reportSunset !== ""
+            width: weatherStats.implicitWidth
+            height: Math.max(sunriseCol.height, sunsetCol.height)
+
+            Column {
+              id: sunriseCol
+              x: (feelsCol.x + feelsCol.width / 2 + windCol.x + windCol.width / 2) / 2 - width / 2
+              spacing: Style.space(5)
+              Text {
+                text: "SUNRISE"
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.letterSpacing: 1
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: root.reportSunrise || "—"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+              }
+            }
+
+            Column {
+              id: sunsetCol
+              x: (windCol.x + windCol.width / 2 + humidCol.x + humidCol.width / 2) / 2 - width / 2
+              spacing: Style.space(5)
+              Text {
+                text: "SUNSET"
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.letterSpacing: 1
+              }
+              Text {
+                textFormat: Text.PlainText
+                text: root.reportSunset || "—"
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.title
@@ -827,6 +890,26 @@ Panel {
               required property var modelData
               required property int index
               spacing: Style.space(10)
+
+              // Sunrise/sunset for this forecast day, e.g. "Sunrise 05:36 · Sunset 18:47".
+              property string sunTooltipText: {
+                var sun = root.sunTimesForDay(modelData)
+                if (!sun) return ""
+                var parts = []
+                if (sun.sunrise) parts.push("Sunrise " + sun.sunrise)
+                if (sun.sunset) parts.push("Sunset " + sun.sunset)
+                return parts.join(" · ")
+              }
+
+              HoverHandler {
+                id: forecastDayHover
+                cursorShape: Qt.ArrowCursor
+              }
+              PanelToolTip {
+                visible: forecastDayHover.hovered && sunTooltipText !== ""
+                text: sunTooltipText
+                fontFamily: root.bar.fontFamily
+              }
 
               Text {
                 textFormat: Text.PlainText

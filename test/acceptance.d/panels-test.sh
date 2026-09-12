@@ -55,6 +55,7 @@ omarchy-shell shell summon omarchy.weather >/dev/null
 wait_until "weather panel opens" 15 layer_present "omarchy-keyboard-panel"
 wait_until "weather location is visible" 30 screen_contains "SAN FRANCISCO"
 wait_until "weather details are visible" 30 screen_contains "WIND"
+wait_until "weather sun times are visible" 30 screen_contains "SUNRISE"
 screenshot "success-panel-weather"
 omarchy-shell shell hide omarchy.weather >/dev/null
 wait_until "weather panel closes" 15 layer_absent "omarchy-keyboard-panel"
