@@ -8,7 +8,10 @@
 # ship fingerprint readers; multi-purpose vendors (e.g. Elan/STMicro, which
 # also make USB touchscreens) are left out to avoid nagging laptops with no
 # reader — those still match on the product string below when present.
-fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
+# 3274 is Microarray Technology, whose MAFP match-on-chip readers libfprint
+# drives (mafpmoc); they enumerate as "MAFP General Device" with no
+# "fingerprint" in the string, so the vendor guess is what catches them.
+fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e 3274 "
 usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
 
 # libfprint drives every reader it supports from userspace over libusb, so a
@@ -42,8 +45,9 @@ for dev in "$usb_devices_path"/*; do
     # the manufacturer rather than the function. Both vendors are left out of
     # the list above on purpose (Elan also makes touchscreens), so without these
     # they match nothing. FPC leads the string on every reader on record, and
-    # three letters are little to match on, so require the prefix.
-    [[ $product == *fingerprint* || $product == *biometric* || $product == *elan:arm-m4* || $product == "fpc "* ]] && exit 0
+    # three letters are little to match on, so require the prefix. Microarray
+    # readers say "MAFP General Device" — MAFP is MicroArray FingerPrint.
+    [[ $product == *fingerprint* || $product == *biometric* || $product == *elan:arm-m4* || $product == "fpc "* || $product == *mafp* ]] && exit 0
   fi
 
   if [[ -r $dev/idVendor ]]; then
