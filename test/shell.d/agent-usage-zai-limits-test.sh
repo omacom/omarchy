@@ -139,3 +139,13 @@ forced=$(drive true "$fresh" success "$success_payload")
 [[ $(jq -c '[.cached.limits[].percent]' <<<"$forced") == "[0.44]" && $(jq -r '.cached.tierLabel' <<<"$forced") == "Max" ]] ||
   fail "Z.ai collector caches a successful probe for the next run" "$forced"
 pass "Z.ai collector re-probes on --force and caches the result"
+
+# A predictable lock path must not follow and truncate a planted symlink.
+sentinel="$CACHE_HOME/sentinel"
+printf intact >"$sentinel"
+rm -f "$CACHE_HOME/omarchy/agent-usage/zai-limits.lock"
+ln -s "$sentinel" "$CACHE_HOME/omarchy/agent-usage/zai-limits.lock"
+drive true "$fresh" success "$success_payload" >/dev/null
+[[ $(<"$sentinel") == "intact" ]] ||
+  fail "Z.ai collector does not follow a planted lock symlink"
+pass "Z.ai collector does not follow a planted lock symlink"
