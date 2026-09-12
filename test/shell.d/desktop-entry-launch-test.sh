@@ -13,6 +13,10 @@ mkdir -p "$mock_bin" "$test_home"
 
 cat >"$mock_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
+if [[ ${OMARCHY_TEST_FONT_BOUNDARY:-0} == 1 ]]; then
+  [[ ${OMARCHY_SUDO_NO_UPDATE:-0} == 1 ]] || exit 99
+  printf 'no-update\n' >>"$OMARCHY_TEST_LOG"
+fi
 printf 'pkg:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 exit "${OMARCHY_TEST_PKG_STATUS:-0}"
 SH
@@ -39,7 +43,37 @@ cat >"$mock_bin/omarchy-launch-floating-terminal-with-presentation" <<'SH'
 printf '%s\n' "$1" >"$OMARCHY_TEST_PRESENTATION"
 SH
 
+cat >"$mock_bin/sudo" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == -h ]]; then
+  printf 'usage: sudo [-ABbEHkNnPS] command\n'
+  exit 0
+fi
+if [[ ${1:-} == -k ]]; then
+  printf 'revoke\n' >>"$OMARCHY_TEST_LOG"
+  exit 0
+fi
+exit 90
+SH
+
 chmod +x "$mock_bin"/*
+
+font_script="$test_tmp/omarchy-install-font"
+for helper in omarchy-security-functions omarchy-install-security-functions; do
+  sed "s#/usr/bin/sudo#$mock_bin/sudo#g" "$ROOT/bin/$helper" >"$test_tmp/$helper"
+done
+sed \
+  -e "s#/usr/bin/omarchy-launch-floating-terminal-with-presentation#$mock_bin/omarchy-launch-floating-terminal-with-presentation#g" \
+  -e "s#/usr/bin/omarchy-pkg-add#$mock_bin/omarchy-pkg-add#g" \
+  -e "s#/usr/bin/omarchy-font-set#$mock_bin/omarchy-font-set#g" \
+  -e "s#/usr/bin/sudo#$mock_bin/sudo#g" \
+  -e "s#/usr/bin/sleep#/usr/bin/true#g" \
+  "$ROOT/bin/omarchy-install-font" >"$font_script"
+chmod 0755 "$font_script"
+if grep -Fq '/usr/bin/sudo' "$test_tmp/omarchy-security-functions" "$test_tmp/omarchy-install-security-functions"; then
+  fail "desktop-entry test helpers still reach host sudo"
+fi
+pass "desktop-entry test routes installer helpers through its sudo mock"
 
 export HOME="$test_home"
 export OMARCHY_TEST_LOG="$test_tmp/launch.log"
@@ -104,7 +138,11 @@ fi
 pass "generic installer does not launch after package installation failure"
 
 run_presentation() {
-  bash -c "sleep() { :; }; $(<"$OMARCHY_TEST_PRESENTATION")"
+  if [[ $(<"$OMARCHY_TEST_PRESENTATION") == *omarchy-font-set* ]]; then
+    OMARCHY_TEST_FONT_BOUNDARY=1 bash -c "sleep() { :; }; $(<"$OMARCHY_TEST_PRESENTATION")"
+  else
+    bash -c "sleep() { :; }; $(<"$OMARCHY_TEST_PRESENTATION")"
+  fi
 }
 
 bash "$ROOT/bin/omarchy-install-app" "LM Studio" "lmstudio-bin"
@@ -146,7 +184,9 @@ grep -Fxq 'pkg:alpha' "$OMARCHY_TEST_LOG" ||
   fail "install-app still installs after quoting a hostile display name"
 pass "install-app does not run extra commands from a quote in the display name"
 
-bash "$ROOT/bin/omarchy-install-font" "Cascadia Mono" "ttf-cascadia-mono-nerd" "CaskaydiaMono Nerd Font"
+: >"$OMARCHY_TEST_LOG"
+"$font_script" "Cascadia Mono" "ttf-cascadia-mono-nerd" "CaskaydiaMono Nerd Font"
+[[ $(<"$OMARCHY_TEST_LOG") == "revoke" ]] || fail "font installer starts with cold authorization"
 presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
 [[ $presentation_command == *'echo Installing\ Cascadia\ Mono...;'* ]] ||
   fail "install-font shell-quotes the display name" "$presentation_command"
@@ -159,8 +199,17 @@ grep -Fxq 'pkg:ttf-cascadia-mono-nerd' "$OMARCHY_TEST_LOG" ||
 grep -Fxq 'font:CaskaydiaMono Nerd Font' "$OMARCHY_TEST_LOG" ||
   fail "install-font passes the family name through as one argument"
 pass "install-font shell-quotes the display name and family"
+[[ $(<"$OMARCHY_TEST_LOG") == $'revoke\nno-update\npkg:ttf-cascadia-mono-nerd\nrevoke\nfont:CaskaydiaMono Nerd Font\nrevoke' ]] ||
+  fail "font installation revokes around its no-update package operation and user font selection"
+: >"$OMARCHY_TEST_LOG"
+if OMARCHY_TEST_PKG_STATUS=42 run_presentation; then
+  fail "font installer reports package failure"
+fi
+[[ $(<"$OMARCHY_TEST_LOG") == $'revoke\nno-update\npkg:ttf-cascadia-mono-nerd\nrevoke' ]] ||
+  fail "font package failure skips font selection and retains exit revocation"
+pass "font installation enforces authorization ordering and failure cleanup"
 
-bash "$ROOT/bin/omarchy-install-font" "Foo's App" "alpha" "Foo's Font"
+"$font_script" "Foo's App" "alpha" "Foo's Font"
 : >"$OMARCHY_TEST_LOG"
 run_presentation >"$test_tmp/font-apostrophe.out"
 grep -Fxq 'pkg:alpha' "$OMARCHY_TEST_LOG" ||
@@ -169,7 +218,7 @@ grep -Fxq "font:Foo's Font" "$OMARCHY_TEST_LOG" ||
   fail "install-font still sets the family when it has an apostrophe"
 pass "install-font still installs when the name or family has an apostrophe"
 
-bash "$ROOT/bin/omarchy-install-font" "a'; echo PWNED; echo '" "alpha" "a'; echo PWNED; echo '"
+"$font_script" "a'; echo PWNED; echo '" "alpha" "a'; echo PWNED; echo '"
 : >"$OMARCHY_TEST_LOG"
 run_presentation >"$test_tmp/font-inject.out"
 if grep -Fxq 'PWNED' "$test_tmp/font-inject.out"; then
@@ -206,7 +255,7 @@ grep -Fq 'omarchy-pkg-add alpha beta' "$OMARCHY_TEST_PRESENTATION" ||
   fail "install-and-launch keeps its package list under an inherited errexit" "$(<"$OMARCHY_TEST_PRESENTATION")"
 pass "the installers build their command under an inherited errexit"
 
-bash "$ROOT/bin/omarchy-install-font" "Example Font" "alpha; echo PWNED" "Example Family"
+"$font_script" "Example Font" "alpha; echo PWNED" "Example Family"
 : >"$OMARCHY_TEST_LOG"
 run_presentation >"$test_tmp/font-pkg-inject.out"
 if grep -Fxq 'PWNED' "$test_tmp/font-pkg-inject.out"; then
@@ -216,7 +265,7 @@ grep -Fxq 'pkg:alpha; echo PWNED' "$OMARCHY_TEST_LOG" ||
   fail "install-font hands a hostile package to the package helper as one argument" "$(<"$OMARCHY_TEST_LOG")"
 pass "install-font does not run extra commands from its package"
 
-bash "$ROOT/bin/omarchy-install-font" "Example Font" "alpha" "Example Family"
+"$font_script" "Example Font" "alpha" "Example Family"
 : >"$OMARCHY_TEST_LOG"
 if OMARCHY_TEST_PKG_STATUS=1 run_presentation; then
   fail "install-font propagates package installation failure"
