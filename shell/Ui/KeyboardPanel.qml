@@ -67,8 +67,15 @@ PanelWindow {
   readonly property string barPos: bar ? bar.position : "top"
 
   function close() {
-    if (owner && "close" in owner) owner.close()
-    else root.open = false
+    try {
+      if (owner && "close" in owner) owner.close()
+      else root.open = false
+    } catch (err) {
+      // owner.close() can throw (readonly bar facade writes, plugin bugs).
+      // Forcing open false releases Exclusive/OnDemand; do not assign on
+      // the success path or a bound `open: owner.opened` is permanently broken.
+      root.open = false
+    }
   }
 
   function beginFocusPrime() {
