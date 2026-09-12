@@ -90,3 +90,14 @@ if rg -q 'omarchy.indicators' "$ROOT/bin/omarchy-toggle-nightlight"; then
   fail "nightlight toggle leaves indicator refresh to the nightlight service"
 fi
 pass "nightlight toggle leaves indicator refresh to the nightlight service"
+
+mkdir -p "$TMPDIR/run"
+printf '6500\n' >"$STATE"
+(
+  exec 9>"$TMPDIR/run/omarchy-toggle-nightlight.lock"
+  flock -x 9
+  XDG_RUNTIME_DIR="$TMPDIR/run" nightlight_cli >/dev/null
+)
+[[ $(<"$STATE") == 6500 ]] || fail "concurrent nightlight toggle drops while lock is held"
+pass "concurrent nightlight toggle drops while lock is held"
+
