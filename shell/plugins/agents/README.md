@@ -18,12 +18,14 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.
-- **Tokens by day** — one row per day for the last week: day, bar, tokens, with today
-  bolded at the bottom. Hover today for its prompt and session count.
+- **Period** — Day, Week, Month, or Total. Week is the default (last seven days). Total keeps the all-time model breakdown and does not reset with a quota window. `1`/`d`, `2`/`w`, `3`/`m`, `4`/`t` switch the filter.
+- **Tokens by day** — one row per day in the selected period: day, bar, tokens, with today
+  bolded at the bottom. Hover today for its prompt and session count. Hidden on Total, and on a harness that has no token history for the window.
 - **Tokens by model** — tokens per model with the bar behind each row scaled
   to the heaviest model,
   the same way the weekly chart scales to its busiest day. Hover for the
   input / output / cache split.
+- **All** — a first chip that sums every enabled harness: tokens by day and by model across Claude Code, Codex, Fireworks, Antigravity, Hermes, Grok, Cursor, OpenCode, Devin, and any other record that appears. Rate limits stay per-account and are not merged. Day / Week / Month never fall back to all-time or billing-cycle `modelUsage`, and leftover `today*` fields from a file that stopped being rewritten are not painted as calendar today.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
@@ -55,10 +57,17 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `antigravity` | `agy -p /usage --output-format json` (Gemini and Claude/GPT-OSS session + weekly pools) | `~/.gemini/antigravity-cli` `history.jsonl` and `conversation_summaries.db` |
+| `hermes` | none (bring-your-own providers) | `~/.hermes/state.db` (`HERMES_HOME`), including `profiles/*/state.db` |
+| `grok` | SuperGrok weekly pool via Grok ACP `_x.ai/billing` | `$GROK_HOME/sessions` (default `~/.grok/sessions`), plus pi/omp and opencode turns on an xAI provider |
+| `cursor` | Plan & Usage meters from the same display sentences Cursor Settings shows (Cursor Models / Other Models). A prepaid balance appears only when `spendLimitUsage` has a real remaining + limit — Ultra's included cents are not a wallet | GetCurrentPeriodUsage / GetPlanInfo / GetAggregatedUsageEvents; optional local cloud-agent session count |
+| `opencode` | none | completed assistant turns in `~/.local/share/opencode/opencode.db`, dated by the message clock — a missing stamp is dropped so old turns cannot land on today |
+| `devin` | none | `~/.local/share/devin/cli/sessions.db` assistant `message_nodes`, deduplicated by `request_id` |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Antigravity via
+`ANTIGRAVITY_DATA_DIR`, Hermes via `HERMES_HOME`. Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
@@ -92,10 +101,42 @@ accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
 
+### Antigravity quotas
+
+The collector asks `agy` for the same `/usage` payload the CLI panel shows.
+`agy` reports `remaining_fraction` (full → empty); the record inverts that to
+percent-used so the meters climb toward 100% like Claude and Codex. Gemini
+models share one session and one weekly pool; Claude and GPT-OSS share another.
+A missing `agy` or a failed probe leaves the tab on local prompt counts only.
+
+### Hermes tokens
+
+Hermes has no account quota. The collector sums `session_model_usage` in
+`~/.hermes/state.db` (and each `profiles/*/state.db`), skips archived sessions,
+and folds reasoning tokens into output. Each API call is one prompt. An
+optional `history` array on the record carries per-day model totals so Month
+and Total can filter more than the last seven days.
+
+### Cursor meters
+
+Cursor Settings shows **Cursor Models** and **Other Models** as sentences
+("You've used 1% of your included total usage"), not the raw
+`autoPercentUsed` / `includedSpend` fractions. The collector parses those
+display messages so the panel matches Plan & Usage. Ultra's
+`includedAmountCents` is the plan allowance, not a prepaid pot — a balance
+row appears only when `spendLimitUsage` has both `remaining` and `limit`.
+
+### OpenCode dates
+
+OpenCode stores turn timestamps in milliseconds on the message. A missing
+stamp is dropped rather than dated as today, so a leftover `opencode.json`
+from last week cannot mint a Today row of 500k tokens.
+
 ## Interactions
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
+  `1`/`d` Day, `2`/`w` Week, `3`/`m` Month, `4`/`t` Total,
   Tab moves to the neighboring bar panel, Esc closes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
@@ -128,7 +169,13 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "antigravity": { "enabled": true },
+  "hermes": { "enabled": true },
+  "grok": { "enabled": true },
+  "cursor": { "enabled": true },
+  "opencode": { "enabled": true },
+  "devin": { "enabled": true }
 }' --json
 ```
 
@@ -148,3 +195,25 @@ One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
 billing API, so their totals and day counts cover that window. Claude's cover
 every transcript still on disk.
+
+## Projects and live activity
+
+The first navigation row contains All, Projetos and Tempo real. Provider tabs keep their quota meters and charts. Project and live views expand to at most 900 × 600 theme units, bounded by the monitor's available space.
+
+Projetos groups usage by directory. Select a project to inspect its records. Tempo real shows today's latest records, with a pause control. Each page contains 25 records with time, project, agent, model, message preview and tokens. Select a row for details; closing the detail returns to the same list.
+
+Previews come from the user messages already saved by each tool. The list reads up to 180 characters per record and the detail reads up to 1,200. The index stores message offsets, without copying conversation text. The tracking collector opens sources read-only and makes no network or model requests.
+
+`bin/tracking.py` indexes appended JSONL bytes, reindexes replaced or truncated files, and scans SQLite metadata when its source changes. Unchanged files are skipped. Previews are read for the current page only and reused when several records refer to the same message. Detail reads do not scan the history.
+
+Automatic refresh runs every 5 seconds in Tempo real and every 30 seconds in Projetos. It stops when these views close and respects pause. The local cache is `~/.local/state/omarchy/agents/tracking/ledger.sqlite`, created with mode 0600. Set `OMARCHY_TRACKING_STATE` to use a separate cache.
+
+Sources are Codex, Claude, Grok, Hermes, OpenCode, Devin and local 9Router history. The collector does not capture every AI request on the computer. Codex prefers individual response usage records when present instead of adding quota counters again. Grok reports totals per turn. Hermes reports totals per session and model, dated by last activity, and previews the session's latest user message. Devin reads assistant `message_nodes` and deduplicates by `request_id`. The list and detail label these record types. Requests in progress may not have usage recorded yet. Sources currently use their default local storage paths.
+
+Project attribution uses the session's directory. When Hermes omits it, the collector reads the initial working directory declared in its saved tool context. The detail shows the attribution source. Existing Git worktrees share their common repository root. Unknown directories appear as Sem projeto. Maestri workspace names are matched by directory; they do not establish which application initiated a call.
+
+Token totals include input, output and cache, without counting cache already included in Codex or Grok input twice. They are not billing amounts. 9Router stays separate from the combined view to avoid counting requests already recorded by the tools. Message previews appear only when the source links a record to a message.
+
+Run `python3 tests/test_tracking.py` from this directory, or `bash test/shell.d/agents-tracking-test.sh` from the repository root.
+
+Run `python3 bin/benchmark-tracking.py --cold` here to build a disposable index, measure the first scan, five refreshes and one detail read, then remove the index. The September 6, 2026 measurement in `tests/benchmark-local.json` contains performance metrics only. Results depend on log volume and machine activity; the CPU percentage estimates one core from CPU time per refresh.

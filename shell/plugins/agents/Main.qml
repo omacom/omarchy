@@ -206,7 +206,141 @@ Item {
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
+    result.sort(function(a, b) { return providerOrder(a.providerId) - providerOrder(b.providerId) })
+    if (result.length > 0) result.unshift(aggregateProviders(result))
     return result
+  }
+
+  function providerOrder(id) {
+    var order = { claude: 1, codex: 2, grok: 3, antigravity: 4, hermes: 5, fireworks: 6, cursor: 7, opencode: 8, devin: 9 }
+    return order[id] || 50
+  }
+
+  function chipNameFor(id, name) {
+    if (id === "all") return "All"
+    if (id === "claude") return "Claude"
+    if (id === "codex") return "Codex"
+    if (id === "grok") return "Grok"
+    if (id === "antigravity") return "AGY"
+    if (id === "hermes") return "Hermes"
+    if (id === "fireworks") return "Fireworks"
+    if (id === "cursor") return "Cursor"
+    if (id === "opencode") return "OpenCode"
+    if (id === "devin") return "Devin"
+    var text = String(name || id || "")
+    var space = text.indexOf(" ")
+    return space > 0 ? text.substring(0, space) : text
+  }
+
+  function synthesizeHistory(record) {
+    var existing = Array.isArray(record.history) ? record.history : []
+    if (existing.length > 0) return existing
+    var recent = Array.isArray(record.recentDays) ? record.recentDays : []
+    var today = dateString(new Date())
+    var todayModels = record.todayTokensByModel || ({})
+    var out = []
+    for (var i = 0; i < recent.length; i++) {
+      var day = recent[i] || {}
+      var date = String(day.date || "")
+      out.push({
+        date: date,
+        messageCount: numberValue(day.messageCount),
+        tokensByModel: date === today ? todayModels : ({}),
+        prompts: date === today ? numberValue(record.todayPrompts) : 0,
+        sessions: date === today ? numberValue(record.todaySessions) : 0
+      })
+    }
+    return out
+  }
+
+  function addModelTotals(target, source) {
+    if (!source) return
+    for (var key in source) {
+      var value = source[key]
+      if (!target[key] || typeof target[key] !== "object") target[key] = emptyTokenBucket()
+      if (value && typeof value === "object") combineObjectNumbers(true, target[key], value)
+      else target[key].inputTokens = numberValue(target[key].inputTokens) + numberValue(value)
+    }
+  }
+
+  function aggregateProviders(list) {
+    var historyByDate = ({})
+    var modelUsage = ({})
+    var todayModels = ({})
+    var recentByDay = ({})
+    var dates = recentDateStrings()
+    for (var d = 0; d < dates.length; d++) recentByDay[dates[d]] = 0
+    var todayPrompts = 0
+    var todaySessions = 0
+    var todayTotal = 0
+    var totalPrompts = 0
+    var totalSessions = 0
+    var activeDates = ({})
+    var hasPromptStats = false
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i]
+      if (!p || p.providerId === "all") continue
+      todayPrompts += numberValue(p.todayPrompts)
+      todaySessions += numberValue(p.todaySessions)
+      todayTotal += numberValue(p.todayTotalTokens)
+      totalPrompts += numberValue(p.totalPrompts)
+      totalSessions += numberValue(p.totalSessions)
+      if (p.hasPromptStats !== false) hasPromptStats = true
+      addModelTotals(modelUsage, p.modelUsage)
+      combineObjectNumbers(true, todayModels, p.todayTokensByModel)
+      var recent = p.recentDays || []
+      for (var r = 0; r < recent.length; r++) {
+        var day = recent[r] || {}
+        var date = String(day.date || "")
+        if (recentByDay[date] !== undefined)
+          recentByDay[date] += numberValue(day.messageCount)
+      }
+      var hist = p.history || []
+      for (var h = 0; h < hist.length; h++) {
+        var row = hist[h] || {}
+        var hd = String(row.date || "")
+        if (!hd) continue
+        if (!historyByDate[hd])
+          historyByDate[hd] = { date: hd, messageCount: 0, tokensByModel: ({}), prompts: 0, sessions: 0 }
+        historyByDate[hd].messageCount += numberValue(row.messageCount)
+        historyByDate[hd].prompts += numberValue(row.prompts)
+        historyByDate[hd].sessions += numberValue(row.sessions)
+        combineObjectNumbers(true, historyByDate[hd].tokensByModel, row.tokensByModel)
+        if (numberValue(row.messageCount) > 0 || numberValue(row.prompts) > 0) activeDates[hd] = true
+      }
+    }
+    var history = []
+    var keys = Object.keys(historyByDate).sort()
+    for (var k = 0; k < keys.length; k++) history.push(historyByDate[keys[k]])
+    var recentDays = []
+    for (var di = 0; di < dates.length; di++)
+      recentDays.push({ date: dates[di], messageCount: recentByDay[dates[di]] || 0 })
+    return {
+      providerId: "all",
+      providerName: "All",
+      chipName: "All",
+      ready: true,
+      usageStatusText: "",
+      authHelpText: "",
+      limits: [],
+      tierLabel: "Every harness",
+      balance: null,
+      todayPrompts: todayPrompts,
+      todaySessions: todaySessions,
+      todayTotalTokens: todayTotal,
+      todayTokensByModel: todayModels,
+      recentDays: recentDays,
+      history: history,
+      totalPrompts: totalPrompts,
+      totalSessions: totalSessions,
+      activeDays: Object.keys(activeDates).length,
+      modelUsage: modelUsage,
+      hasLocalStats: true,
+      hasPromptStats: hasPromptStats,
+      syncEnabled: false,
+      syncDeviceCount: 0,
+      syncUpdatedAt: ""
+    }
   }
 
   function providerEnabled(id) {
@@ -239,10 +373,52 @@ Item {
     }
   }
 
+  // today* is a rolling local-day snapshot. A leftover file (or a
+  // collector that stopped running) keeps yesterday's totals under that
+  // name; the Day filter then paints them as "Today". Only trust those
+  // fields when the record itself is from today.
+  function todayFieldsAreCurrent(record) {
+    if (!record) return false
+    var today = dateString(new Date())
+    var updated = record.updatedAt
+    if (updated) {
+      var parsed = new Date(updated)
+      if (!isNaN(parsed.getTime()) && dateString(parsed) === today) return true
+    }
+    var lists = [record.recentDays, record.history]
+    for (var L = 0; L < lists.length; L++) {
+      var rows = lists[L]
+      if (!Array.isArray(rows)) continue
+      for (var i = 0; i < rows.length; i++) {
+        if (String((rows[i] || {}).date || "") === today) return true
+      }
+    }
+    return false
+  }
+
+  function currentTodayStats(record) {
+    if (todayFieldsAreCurrent(record)) {
+      return {
+        todayPrompts: numberValue(record.todayPrompts),
+        todaySessions: numberValue(record.todaySessions),
+        todayTotalTokens: numberValue(record.todayTotalTokens),
+        todayTokensByModel: record.todayTokensByModel || ({})
+      }
+    }
+    return { todayPrompts: 0, todaySessions: 0, todayTotalTokens: 0, todayTokensByModel: ({}) }
+  }
+
   function displayProvider(record) {
     var stats = syncedStatsFor(String(record.id))
     var synced = !!stats
     var deviceCount = synced ? Number(stats.deviceCount || aggregateData.deviceCount || 0) : 0
+    var localToday = currentTodayStats(record)
+    var today = synced ? {
+      todayPrompts: numberValue(stats.todayPrompts),
+      todaySessions: numberValue(stats.todaySessions),
+      todayTotalTokens: numberValue(stats.todayTotalTokens),
+      todayTokensByModel: stats.todayTokensByModel || ({})
+    } : localToday
 
     return {
       providerId: String(record.id),
@@ -256,12 +432,27 @@ Item {
       limits: Array.isArray(record.limits) ? record.limits : [],
       tierLabel: String(record.tierLabel || ""),
       balance: balanceValue(record.balance),
+      updatedAt: synced ? (stats.updatedAt || record.updatedAt || "") : (record.updatedAt || ""),
 
-      todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
-      todaySessions: synced ? numberValue(stats.todaySessions) : numberValue(record.todaySessions),
-      todayTotalTokens: synced ? numberValue(stats.todayTotalTokens) : numberValue(record.todayTotalTokens),
-      todayTokensByModel: synced ? (stats.todayTokensByModel || ({})) : (record.todayTokensByModel || ({})),
+      todayPrompts: today.todayPrompts,
+      todaySessions: today.todaySessions,
+      todayTotalTokens: today.todayTotalTokens,
+      chipName: chipNameFor(String(record.id), String(record.name || record.id)),
+      todayTokensByModel: today.todayTokensByModel,
       recentDays: synced ? (stats.recentDays || []) : (record.recentDays || []),
+      history: synthesizeHistory(synced ? {
+        history: stats.history,
+        recentDays: stats.recentDays,
+        todayTokensByModel: today.todayTokensByModel,
+        todayPrompts: today.todayPrompts,
+        todaySessions: today.todaySessions
+      } : {
+        history: record.history,
+        recentDays: record.recentDays,
+        todayTokensByModel: today.todayTokensByModel,
+        todayPrompts: today.todayPrompts,
+        todaySessions: today.todaySessions
+      }),
       totalPrompts: synced ? numberValue(stats.totalPrompts) : numberValue(record.totalPrompts),
       totalSessions: synced ? numberValue(stats.totalSessions) : numberValue(record.totalSessions),
       activeDays: synced ? numberValue(stats.activeDays) : numberValue(record.activeDays),
@@ -593,9 +784,10 @@ Item {
         // count prompts, so a missing value reads as true.
         acc.hasPromptStats = acc.hasPromptStats || stats.hasPromptStats !== false
         var additive = String(stats.scope || "device") !== "account"
-        acc.todayPrompts = combineNumber(additive, acc.todayPrompts, stats.todayPrompts)
-        acc.todaySessions = combineNumber(additive, acc.todaySessions, stats.todaySessions)
-        acc.todayTotalTokens = combineNumber(additive, acc.todayTotalTokens, stats.todayTotalTokens)
+        var today = currentTodayStats(stats)
+        acc.todayPrompts = combineNumber(additive, acc.todayPrompts, today.todayPrompts)
+        acc.todaySessions = combineNumber(additive, acc.todaySessions, today.todaySessions)
+        acc.todayTotalTokens = combineNumber(additive, acc.todayTotalTokens, today.todayTotalTokens)
         acc.totalPrompts = combineNumber(additive, acc.totalPrompts, stats.totalPrompts)
         acc.totalSessions = combineNumber(additive, acc.totalSessions, stats.totalSessions)
         // Active days overlap between machines, so union the dates rather than
@@ -604,7 +796,7 @@ Item {
         var activeDates = Array.isArray(stats.activeDates) ? stats.activeDates : []
         for (var ad = 0; ad < activeDates.length; ad++) acc.activeDates[String(activeDates[ad])] = true
         acc.activeDays = Math.max(acc.activeDays, numberValue(stats.activeDays))
-        combineObjectNumbers(additive, acc.todayTokensByModel, stats.todayTokensByModel || {})
+        combineObjectNumbers(additive, acc.todayTokensByModel, today.todayTokensByModel)
 
         var recent = Array.isArray(stats.recentDays) ? stats.recentDays : []
         for (var r = 0; r < recent.length; r++) {
@@ -662,6 +854,7 @@ Item {
   // Snapshots keep the field names older Omarchy versions wrote, so a fleet
   // of machines on mixed versions still merges cleanly in both directions.
   function providerSnapshot(record) {
+    var today = currentTodayStats(record)
     return {
       providerId: String(record.id),
       providerName: String(record.name || record.id),
@@ -669,10 +862,11 @@ Item {
       hasLocalStats: record.hasLocalStats !== false,
       hasPromptStats: record.hasPromptStats !== false,
       scope: String(record.scope || "device"),
-      todayPrompts: numberValue(record.todayPrompts),
-      todaySessions: numberValue(record.todaySessions),
-      todayTotalTokens: numberValue(record.todayTotalTokens),
-      todayTokensByModel: cloneValue(record.todayTokensByModel, ({})),
+      updatedAt: record.updatedAt || "",
+      todayPrompts: today.todayPrompts,
+      todaySessions: today.todaySessions,
+      todayTotalTokens: today.todayTotalTokens,
+      todayTokensByModel: cloneValue(today.todayTokensByModel, ({})),
       recentDays: cloneValue(record.recentDays, []),
       totalPrompts: numberValue(record.totalPrompts),
       totalSessions: numberValue(record.totalSessions),
@@ -717,6 +911,8 @@ Item {
   function modelWordCase(word) {
     if (word === "gpt") return "GPT"
     if (word === "deepseek") return "DeepSeek"
+    if (word === "gemini") return "Gemini"
+    if (word === "agi") return "AGI"
     return word.charAt(0).toUpperCase() + word.slice(1)
   }
 

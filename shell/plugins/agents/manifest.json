@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "omarchy.agents",
   "name": "Agents",
-  "version": "1.0.0",
+  "version": "1.4.1",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Claude Code, Codex, and Fireworks usage, limits, and pace in a native Omarchy bar panel.",
+  "description": "Agent usage with period filters, project totals, live local activity, and collectors for Grok, Cursor, OpenCode, and Devin.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Agents",
-    "description": "One bar icon and one panel: rate-limit meters with pace, today, the last week, and the all-time model breakdown for every subscription.",
+    "description": "One bar icon and one panel: rate-limit meters, tokens by day and by model, an All tab that sums every harness, and day/week/month/total filters.",
     "category": "AI",
     "aliases": ["agents", "model-usage"],
     "allowMultiple": false,
@@ -21,7 +21,13 @@
       "providers": {
         "claude": { "enabled": true },
         "codex": { "enabled": true },
-        "fireworks": { "enabled": true }
+        "grok": { "enabled": true },
+        "fireworks": { "enabled": true },
+        "antigravity": { "enabled": true },
+        "hermes": { "enabled": true },
+        "cursor": { "enabled": true },
+        "opencode": { "enabled": true },
+        "devin": { "enabled": true }
       },
       "refreshIntervalSec": 900,
       "syncMode": "Off",

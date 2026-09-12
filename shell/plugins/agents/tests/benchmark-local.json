@@ -1,0 +1,77 @@
+{
+  "initial": {
+    "wallMs": 1935.2,
+    "cpuMs": 1862.0,
+    "peakChildMiB": 66.0,
+    "responseKiB": 20.4,
+    "scan": {
+      "jsonBytesRead": 742617372,
+      "changedFiles": 220
+    }
+  },
+  "warm": [
+    {
+      "wallMs": 56.1,
+      "cpuMs": 55.3,
+      "peakChildMiB": 29.1,
+      "responseKiB": 20.4,
+      "scan": {
+        "jsonBytesRead": 1562,
+        "changedFiles": 1
+      }
+    },
+    {
+      "wallMs": 53.4,
+      "cpuMs": 52.9,
+      "peakChildMiB": 29.6,
+      "responseKiB": 20.4,
+      "scan": {
+        "jsonBytesRead": 0,
+        "changedFiles": 0
+      }
+    },
+    {
+      "wallMs": 57.8,
+      "cpuMs": 56.2,
+      "peakChildMiB": 29.3,
+      "responseKiB": 20.4,
+      "scan": {
+        "jsonBytesRead": 0,
+        "changedFiles": 0
+      }
+    },
+    {
+      "wallMs": 57.6,
+      "cpuMs": 57.1,
+      "peakChildMiB": 29.3,
+      "responseKiB": 20.4,
+      "scan": {
+        "jsonBytesRead": 0,
+        "changedFiles": 0
+      }
+    },
+    {
+      "wallMs": 55.8,
+      "cpuMs": 55.3,
+      "peakChildMiB": 28.7,
+      "responseKiB": 20.4,
+      "scan": {
+        "jsonBytesRead": 0,
+        "changedFiles": 0
+      }
+    }
+  ],
+  "detail": {
+    "wallMs": 45.0,
+    "cpuMs": 44.7,
+    "peakChildMiB": 29.6,
+    "responseKiB": 1.2,
+    "scan": {}
+  },
+  "medianWarmMs": 56.1,
+  "medianCpuMs": 55.3,
+  "estimatedOneCorePercentAt5Seconds": 1.11,
+  "errors": [],
+  "rows": 469,
+  "indexMiB": 11.61
+}

@@ -1,0 +1,232 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Devin usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Print the Devin usage record as JSON.
+
+Tokens come from ~/.local/share/devin/cli/sessions.db: assistant
+message_nodes carry per-request metrics (input/output/cache) under
+metadata.metrics. Each API call lands on two nodes (one with response
+dimensions, one with tool-call content), so rows are deduplicated by
+metadata.request_id. Hidden sessions are skipped.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sqlite3
+import sys
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "devin"
+AGENT_NAME = "Devin"
+
+
+def devin_home() -> Path:
+    return Path(os.environ.get("DEVIN_HOME") or "~/.local/share/devin").expanduser()
+
+
+def db_paths(home: Path) -> list[Path]:
+    path = home / "cli/sessions.db"
+    return [path] if path.is_file() else []
+
+
+def recent_dates(today: date) -> list[str]:
+    return [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+
+
+def empty_bucket() -> dict[str, int]:
+    return {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+    }
+
+
+def add_bucket(target: dict[str, int], inp: int, out: int, cache_read: int, cache_write: int) -> None:
+    target["inputTokens"] += inp
+    target["outputTokens"] += out
+    target["cacheReadInputTokens"] += cache_read
+    target["cacheCreationInputTokens"] += cache_write
+
+
+def day_from_unix(value: Any) -> str:
+    try:
+        return datetime.fromtimestamp(float(value)).astimezone().date().isoformat()
+    except (TypeError, ValueError, OSError, OverflowError):
+        return datetime.now().astimezone().date().isoformat()
+
+
+def scan_db(path: Path) -> dict[str, Any]:
+    models: dict[str, dict[str, int]] = defaultdict(empty_bucket)
+    daily_models: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    daily_prompts: dict[str, int] = defaultdict(int)
+    daily_sessions: dict[str, set[str]] = defaultdict(set)
+    sessions_seen: set[str] = set()
+    requests_seen: set[str] = set()
+    prompts = 0
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+    except sqlite3.Error:
+        return {}
+    try:
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                  m.session_id AS session_id,
+                  m.created_at AS created_at,
+                  m.chat_message AS chat_message,
+                  s.model AS session_model
+                FROM message_nodes m
+                JOIN sessions s ON s.id = m.session_id
+                WHERE IFNULL(s.hidden, 0) = 0
+                ORDER BY m.row_id
+                """
+            )
+            session_rows = conn.execute(
+                "SELECT id, created_at FROM sessions WHERE IFNULL(hidden, 0) = 0"
+            )
+        except sqlite3.Error:
+            return {}
+        for row in session_rows:
+            sessions_seen.add(str(row["id"]))
+        for row in rows:
+            try:
+                message = json.loads(row["chat_message"])
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            metadata = message.get("metadata") or {}
+            metrics = metadata.get("metrics") or {}
+            if not isinstance(metrics, dict) or not metrics:
+                continue
+            request_id = str(metadata.get("request_id") or message.get("message_id") or "")
+            if request_id and request_id in requests_seen:
+                continue
+            if request_id:
+                requests_seen.add(request_id)
+            model = str(metadata.get("generation_model") or row["session_model"] or "").strip() or "unknown"
+            inp = int(metrics.get("input_tokens") or 0)
+            out = int(metrics.get("output_tokens") or 0)
+            cache_read = int(metrics.get("cache_read_tokens") or 0)
+            cache_write = int(metrics.get("cache_creation_tokens") or 0)
+            day = day_from_unix(row["created_at"])
+            add_bucket(models[model], inp, out, cache_read, cache_write)
+            daily_models[day][model] += inp + out + cache_read + cache_write
+            daily_prompts[day] += 1
+            daily_sessions[day].add(str(row["session_id"]))
+            prompts += 1
+    finally:
+        conn.close()
+    return {
+        "models": models,
+        "daily_models": daily_models,
+        "daily_prompts": daily_prompts,
+        "daily_sessions": daily_sessions,
+        "sessions_seen": sessions_seen,
+        "prompts": prompts,
+    }
+
+
+def collect() -> dict[str, Any]:
+    today = datetime.now().astimezone().date()
+    today_s = today.isoformat()
+    week = recent_dates(today)
+    acc: dict[str, Any] = {
+        "models": defaultdict(empty_bucket),
+        "daily_models": defaultdict(lambda: defaultdict(int)),
+        "daily_prompts": defaultdict(int),
+        "daily_sessions": defaultdict(set),
+        "sessions_seen": set(),
+        "prompts": 0,
+    }
+    for path in db_paths(devin_home()):
+        extra = scan_db(path)
+        if not extra:
+            continue
+        for model, bucket in extra["models"].items():
+            add_bucket(acc["models"][model], bucket["inputTokens"], bucket["outputTokens"],
+                       bucket["cacheReadInputTokens"], bucket["cacheCreationInputTokens"])
+        for day, models in extra["daily_models"].items():
+            for model, total in models.items():
+                acc["daily_models"][day][model] += total
+        for day, n in extra["daily_prompts"].items():
+            acc["daily_prompts"][day] += n
+        for day, ids in extra["daily_sessions"].items():
+            acc["daily_sessions"][day].update(ids)
+        acc["sessions_seen"].update(extra["sessions_seen"])
+        acc["prompts"] += extra["prompts"]
+
+    history = []
+    for day in sorted(set(acc["daily_models"]) | set(acc["daily_prompts"])):
+        tokens_by_model = dict(acc["daily_models"][day])
+        history.append({
+            "date": day,
+            "messageCount": sum(tokens_by_model.values()),
+            "tokensByModel": tokens_by_model,
+            "prompts": acc["daily_prompts"].get(day, 0),
+            "sessions": len(acc["daily_sessions"].get(day, set())),
+        })
+
+    today_models = dict(acc["daily_models"].get(today_s, {}))
+    recent = []
+    by_date = {row["date"]: row["messageCount"] for row in history}
+    for day in week:
+        recent.append({"date": day, "messageCount": by_date.get(day, 0)})
+
+    model_usage = {model: dict(bucket) for model, bucket in acc["models"].items()}
+    active = sorted({row["date"] for row in history if row["messageCount"] or row["prompts"]})
+    return {
+        "todayPrompts": acc["daily_prompts"].get(today_s, 0),
+        "todaySessions": len(acc["daily_sessions"].get(today_s, set())),
+        "todayTotalTokens": sum(today_models.values()),
+        "todayTokensByModel": today_models,
+        "recentDays": recent,
+        "history": history,
+        "totalPrompts": acc["prompts"],
+        "totalSessions": len(acc["sessions_seen"]),
+        "activeDays": len(active),
+        "activeDates": active,
+        "modelUsage": model_usage,
+        "hasLocalStats": True,
+        "hasPromptStats": True,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Print the Devin usage record as JSON")
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--limits-only", action="store_true")
+    parser.parse_args()
+
+    stats = collect()
+    ready = stats["totalPrompts"] > 0 or stats["totalSessions"] > 0 or bool(stats["modelUsage"])
+    record = {
+        "schemaVersion": 1,
+        "id": AGENT_ID,
+        "name": AGENT_NAME,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "ready": ready,
+        "tierLabel": "Local",
+        "usageStatusText": "",
+        "authHelpText": "",
+        "limits": [],
+        "scope": "device",
+    }
+    record.update(stats)
+    json.dump(record, sys.stdout, separators=(",", ":"), sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
