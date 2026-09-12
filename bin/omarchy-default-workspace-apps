@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Configure default apps assigned to workspaces
-# omarchy:args=[workspace]
-# omarchy:examples=omarchy-workspace-apps-set
+
 
 set -euo pipefail
 
