@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# omarchy:summary=Sync Omarchy theme colors to Zen Browser chrome
+# omarchy:hidden=true
+
+ZEN_THEME_CSS="$HOME/.local/state/omarchy/current/theme/zen-browser.css"
+ZEN_PROFILES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zen"
+USER_CHROME_IMPORT='@import url("omarchy.css");'
+USER_CHROME_PREF='user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);'
+
+[[ -d $ZEN_PROFILES_DIR ]] || exit 0
+[[ -f $ZEN_THEME_CSS ]] || exit 0
+
+ensure_user_chrome_import() {
+  local user_chrome_css="$1"
+  local temp_file
+
+  touch "$user_chrome_css"
+
+  if ! grep -Fxq "$USER_CHROME_IMPORT" "$user_chrome_css"; then
+    temp_file=$(mktemp)
+    printf '%s\n' "$USER_CHROME_IMPORT" >"$temp_file"
+    cat "$user_chrome_css" >>"$temp_file"
+    mv "$temp_file" "$user_chrome_css"
+  fi
+}
+
+ensure_user_chrome_pref() {
+  local user_js="$1"
+
+  if [[ -f $user_js ]] && grep -q '^user_pref("toolkit\.legacyUserProfileCustomizations\.stylesheets",' "$user_js"; then
+    sed -i --follow-symlinks -E 's/^user_pref\("toolkit\.legacyUserProfileCustomizations\.stylesheets", .*/user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);/' "$user_js"
+  else
+    printf '\n%s\n' "$USER_CHROME_PREF" >>"$user_js"
+  fi
+}
+
+restart_zen() {
+  local command=""
+
+  if omarchy-cmd-present zen-bin; then
+    command="zen-bin"
+  elif [[ -x /opt/zen-browser-bin/zen-bin ]]; then
+    command="/opt/zen-browser-bin/zen-bin"
+  elif [[ -x /opt/zen-browser/zen ]]; then
+    command="/opt/zen-browser/zen"
+  fi
+
+  [[ -n $command ]] || return 0
+
+  if pgrep -x zen >/dev/null || pgrep -x zen-bin >/dev/null; then
+    pkill -x zen 2>/dev/null || true
+    pkill -x zen-bin 2>/dev/null || true
+    sleep 1
+    "$command" &>/dev/null &
+  fi
+}
+
+for profile_dir in "$ZEN_PROFILES_DIR"/*; do
+  [[ -d $profile_dir ]] || continue
+  [[ -f $profile_dir/prefs.js || -f $profile_dir/user.js ]] || continue
+
+  chrome_dir="$profile_dir/chrome"
+  mkdir -p "$chrome_dir"
+
+  ensure_user_chrome_import "$chrome_dir/userChrome.css"
+  ensure_user_chrome_pref "$profile_dir/user.js"
+
+  cp "$ZEN_THEME_CSS" "$chrome_dir/omarchy.css"
+done
+
+restart_zen
