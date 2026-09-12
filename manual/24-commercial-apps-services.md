@@ -18,6 +18,8 @@ You start 1Password with `Super + Shift + /`. If it isn't installed yet, that ho
 
 You start Spotify using `Super + Shift + M`. Like 1Password, the hotkey kicks off the installation first if Spotify isn't installed yet (or use _Install > Service > Spotify_ from the Omarchy menu).
 
+Local Files work too. Add a folder under Settings > Local Files. The Linux client still needs the older FFmpeg 4.4 libraries to decode those tracks, so the installer also pulls in `ffmpeg4.4` and `zenity` for the folder picker. Without them, a file starts for a second then Spotify says it cannot play the content — even when the file is already on disk.
+
 ## Dropbox
 
 [Dropbox](https://www.dropbox.com/) is a great way to sync files between machines while keeping a backup in the cloud. To set it up, select _Install > Service > Dropbox_ from the Omarchy menu. Once it's running, hover the tray in the top right of the bar and right-click the Dropbox icon to finish the setup.
