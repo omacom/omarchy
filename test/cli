@@ -510,6 +510,48 @@ HOME="$PI_TMPDIR" CLAUDE_CONFIG_DIR="$CLAUDE_TEST_CONFIG" "$ROOT/bin/omarchy-the
 jq -e '.theme == "custom:omarchy" and .model == "keep-me"' "$CLAUDE_TEST_CONFIG/settings.json" >/dev/null
 pass "claude theme activation preserves configured settings"
 
+jq -e '.defs.background == "#000000" and .defs.foreground == "#ffffff" and .theme.background.dark == "background" and .theme.syntaxOperator.dark == "orange"' "$NEXT_THEME/opencode.json" >/dev/null
+pass "opencode theme template is generated from standard themed templates"
+jq -e '.defs.orange | test("^#[0-9a-fA-F]{6}$")' "$NEXT_THEME/opencode.json" >/dev/null
+pass "opencode theme template derives missing palette keys"
+if rg -q '\{\{[^}]+\}\}' "$NEXT_THEME/opencode.json"; then
+  fail "opencode theme template leaves no placeholders"
+fi
+pass "opencode theme template leaves no placeholders"
+cp "$NEXT_THEME/opencode.json" "$CURRENT_THEME/opencode.json"
+
+make_tmpdir OPENCODE_STUB_BIN
+cat >"$OPENCODE_STUB_BIN/pgrep" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$OPENCODE_STUB_BIN/pgrep"
+
+PATH="$OPENCODE_STUB_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-opencode"
+[[ ! -d $PI_TMPDIR/.config/opencode ]] || fail "opencode theme sync skips missing opencode config when not activating"
+pass "opencode theme sync skips missing opencode config when not activating"
+
+PATH="$OPENCODE_STUB_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-opencode" --activate
+[[ -f $PI_TMPDIR/.config/opencode/themes/omarchy.json ]] || fail "opencode theme file is synced"
+pass "opencode theme file is synced"
+jq -e '.defs.background == "#000000"' "$PI_TMPDIR/.config/opencode/themes/omarchy.json" >/dev/null
+pass "opencode synced theme JSON is valid"
+jq -e '.theme.name == "omarchy"' "$PI_TMPDIR/.config/opencode/cli.json" >/dev/null
+pass "opencode generated theme is activated"
+
+jq '.mode = "keep-me"' "$PI_TMPDIR/.config/opencode/cli.json" >"$PI_TMPDIR/cli.json.tmp"
+mv "$PI_TMPDIR/cli.json.tmp" "$PI_TMPDIR/.config/opencode/cli.json"
+PATH="$OPENCODE_STUB_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-opencode" --activate
+jq -e '.theme.name == "omarchy" and .mode == "keep-me"' "$PI_TMPDIR/.config/opencode/cli.json" >/dev/null
+pass "opencode theme activation preserves existing settings"
+
+PATH="$OPENCODE_STUB_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-opencode" "tokyo-night"
+pass "opencode theme sync tolerates the hook theme slug"
+if PATH="$OPENCODE_STUB_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-opencode" --bogus 2>/dev/null; then
+  fail "opencode theme sync rejects unknown flags"
+fi
+pass "opencode theme sync rejects unknown flags"
+
 make_tmpdir THEME_TMPDIR
 OMARCHY_PATH="$ROOT" HOME="$THEME_TMPDIR" OMARCHY_THEME_HEADLESS=1 "$ROOT/bin/omarchy-theme-set" "Tokyo Night"
 background_path=$(readlink -f "$THEME_TMPDIR/.local/state/omarchy/current/background" 2>/dev/null || true)

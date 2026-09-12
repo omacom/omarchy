@@ -2,6 +2,13 @@
 
 # omarchy:summary=Reload opencode configuration (used by the Omarchy theme switching).
 
-if pgrep -x opencode >/dev/null; then
-  killall -SIGUSR2 opencode
-fi
+# Signal only interactive TUI processes: the background service
+# (`opencode serve --service`) does not handle SIGUSR2, so signaling it
+# would kill the service instead of refreshing the configuration.
+for pid in $(pgrep -x opencode 2>/dev/null); do
+  cmdline=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null) || continue
+  if [[ $cmdline == *" serve"* ]]; then
+    continue
+  fi
+  kill -SIGUSR2 "$pid" 2>/dev/null || true
+done

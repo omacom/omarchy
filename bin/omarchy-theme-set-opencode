@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to Opencode
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
+OPENCODE_SOURCE_PATH="$CURRENT_THEME_PATH/opencode.json"
+OPENCODE_CONFIG_DIR="$HOME/.config/opencode"
+OPENCODE_THEME_DIR="$OPENCODE_CONFIG_DIR/themes"
+OPENCODE_THEME_PATH="$OPENCODE_THEME_DIR/omarchy.json"
+OPENCODE_SETTINGS_PATH="$OPENCODE_CONFIG_DIR/cli.json"
+OPENCODE_ACTIVATE=0
+
+usage() {
+  echo "Usage: omarchy-theme-set-opencode [--activate]"
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --activate)
+      OPENCODE_ACTIVATE=1
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --*)
+      usage >&2
+      exit 1
+      ;;
+    *)
+      # Ignore positional args. When run as a theme-set hook the theme
+      # slug arrives in $1; the active theme is read from state instead.
+      ;;
+  esac
+done
+
+if [[ ! -f $OPENCODE_SOURCE_PATH ]]; then
+  if (( OPENCODE_ACTIVATE == 1 )); then
+    echo "Opencode theme source missing: $OPENCODE_SOURCE_PATH" >&2
+    echo "Run omarchy-theme-refresh after selecting an Omarchy theme." >&2
+    exit 1
+  fi
+
+  exit 0
+fi
+
+if (( OPENCODE_ACTIVATE == 0 )) && [[ ! -d $OPENCODE_CONFIG_DIR ]]; then
+  exit 0
+fi
+
+write_setting_theme() {
+  local tmp
+
+  mkdir -p "$OPENCODE_CONFIG_DIR"
+
+  if [[ -f $OPENCODE_SETTINGS_PATH ]]; then
+    tmp=$(mktemp "$OPENCODE_SETTINGS_PATH.XXXXXX")
+    if jq '.theme |= (if type == "object" then .name = "omarchy" else {"name": "omarchy"} end)' "$OPENCODE_SETTINGS_PATH" >"$tmp"; then
+      mv "$tmp" "$OPENCODE_SETTINGS_PATH"
+    else
+      rm -f "$tmp"
+      return 1
+    fi
+  else
+    cat >"$OPENCODE_SETTINGS_PATH" <<EOF
+{
+  "\$schema": "https://opencode.ai/v2/cli.json",
+  "theme": {
+    "name": "omarchy"
+  }
+}
+EOF
+  fi
+}
+
+# Opencode reloads its theme list on SIGUSR2, so running sessions retint
+# without a restart. Copy first, then signal: omarchy-theme-set dispatches
+# its retint commands in parallel, so signaling here (after the copy)
+# guarantees the refresh sees the new file even if
+# omarchy-restart-opencode fires first with the stale one.
+#
+# Signal only interactive TUI processes: the background service
+# (`opencode serve --service`) does not handle SIGUSR2, so signaling it
+# would kill the service instead of refreshing the theme.
+mkdir -p "$OPENCODE_THEME_DIR"
+tmp=$(mktemp "$OPENCODE_THEME_PATH.XXXXXX")
+cp "$OPENCODE_SOURCE_PATH" "$tmp"
+mv "$tmp" "$OPENCODE_THEME_PATH"
+
+if (( OPENCODE_ACTIVATE == 1 )); then
+  write_setting_theme
+fi
+
+refresh_running_tui() {
+  local pid cmdline
+
+  for pid in $(pgrep -x opencode 2>/dev/null); do
+    cmdline=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null) || continue
+    if [[ $cmdline == *" serve"* ]]; then
+      continue
+    fi
+    kill -SIGUSR2 "$pid" 2>/dev/null || true
+  done
+}
+
+refresh_running_tui
