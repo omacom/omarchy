@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Read verified local coding-agent session states
+# omarchy:hidden=true
+
+exec python3 "$OMARCHY_PATH/shell/plugins/agents/sessions.py"

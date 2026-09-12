@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "GlanceModel.js" as GlanceModel
 
 Panel {
   id: root
@@ -19,6 +20,35 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property var providers: usage.enabledProviders
+  readonly property bool showRings: setting("barDisplay", "Icon") === "Usage rings"
+  readonly property bool showActivity: setting("sessionActivity", "Off") === "On"
+  readonly property bool verticalBar: bar ? bar.vertical : false
+  readonly property real ringSlot: Style.space(34)
+  readonly property real barExtent: bar ? bar.barSize : Style.bar.sizeHorizontal
+  readonly property var selectedSessions: sessionsFor(provider)
+
+  function glance(p) {
+    return GlanceModel.summary(p, nowMs, Math.max(60000, usage.refreshIntervalSec * 2000))
+  }
+
+  function sessionsFor(p) {
+    return p ? GlanceModel.sessionsFor(sessionData.sessions, p.providerId, nowMs, sessionData.scannedAt) : []
+  }
+
+  function glanceTooltip(p) {
+    var text = p.providerName + "\n" + glance(p).detail
+    var sessions = sessionsFor(p)
+    for (var i = 0; i < sessions.length; i++)
+      text += "\n" + sessions[i].name + " · " + sessionLabel(sessions[i])
+    return text
+  }
+
+  function sessionLabel(session) {
+    if (session.state === "waiting") return "Needs input" + (session.waitingFor ? ": " + session.waitingFor : "")
+    if (session.state === "working") return "Working"
+    if (session.state === "idle") return "Idle"
+    return "Status unknown"
+  }
   // The selection follows the provider, not the slot it happens to sit in: a
   // provider whose first scan lands while the panel is open would otherwise
   // shift the list underneath you and swap out what you were reading.
@@ -298,8 +328,8 @@ Panel {
   // is invisible, so the icon appears the moment the first scan finds usage and
   // stays away entirely on a machine that has never run either CLI.
   visible: providers.length > 0
-  implicitWidth: button.implicitWidth
-  implicitHeight: button.implicitHeight
+  implicitWidth: showRings ? (verticalBar ? barExtent : ringSlot * providers.length) : button.implicitWidth
+  implicitHeight: showRings ? (verticalBar ? ringSlot * providers.length : barExtent) : button.implicitHeight
 
   onProviderIndexChanged: if (panelFlick) panelFlick.contentY = 0
   onOpenedChanged: if (opened) {
@@ -315,11 +345,17 @@ Panel {
     settings: root.settings
   }
 
+  Sessions {
+    id: sessionData
+    enabled: root.showActivity && usage.providerEnabled("claude")
+    onScannedAtChanged: root.nowMs = Date.now()
+  }
+
   // Cheap enough to keep running: it only re-evaluates text bindings, and a
   // stale "resets in 2h" on a panel that is open is worse than a timer.
   Timer {
-    interval: 30000
-    running: root.opened
+    interval: root.showActivity ? 5000 : 30000
+    running: root.opened || root.showRings || root.showActivity
     repeat: true
     onTriggered: root.nowMs = Date.now()
   }
@@ -337,10 +373,11 @@ Panel {
 
   BarIconButton {
     id: button
+    visible: !root.showRings
     anchors.fill: parent
     bar: root.bar
     text: "󱚣"
-    active: root.alarming
+    active: root.alarming || GlanceModel.activity(root.sessionsFor({ providerId: "claude" })) === "waiting"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
       else if (buttonCode === Qt.MiddleButton) root.selectProvider(root.providerIndex + 1)
@@ -348,9 +385,73 @@ Panel {
     }
   }
 
+  Grid {
+    visible: root.showRings
+    columns: root.verticalBar ? 1 : Math.max(1, root.providers.length)
+    Repeater {
+      model: root.showRings ? root.providers : []
+      delegate: WidgetButton {
+        id: providerButton
+        required property var modelData
+        readonly property var reading: root.glance(modelData)
+        readonly property string sessionState: GlanceModel.activity(root.sessionsFor(modelData))
+        bar: root.bar
+        fixedWidth: root.verticalBar ? root.barExtent : root.ringSlot
+        fixedHeight: root.verticalBar ? root.ringSlot : root.barExtent
+        hasVisualContent: true
+        labelVisible: false
+        tooltipText: root.glanceTooltip(modelData)
+        onTooltipTextChanged: if (root.bar && root.bar.tooltipTarget === providerButton)
+          root.bar.tooltipText = tooltipText
+        onPressed: function(buttonCode) {
+          if (buttonCode === Qt.RightButton) root.launchAgent()
+          else if (buttonCode === Qt.MiddleButton) root.selectProvider(root.providerIndex + 1)
+          else {
+            var same = root.provider && root.provider.providerId === modelData.providerId
+            root.selectedProviderId = modelData.providerId
+            if (root.opened && same) root.close()
+            else root.open()
+          }
+        }
+        UsageRing {
+          anchors.centerIn: parent
+          width: Math.min(Style.space(24), parent.width - Style.space(4), parent.height - Style.space(4))
+          height: width
+          fraction: providerButton.reading.fraction
+          known: providerButton.reading.known
+          stale: providerButton.reading.stale
+          foreground: root.foreground
+          trackColor: root.track
+          ringColor: providerButton.reading.alarming ? root.urgent : Color.accent
+          attentionColor: root.urgent
+          activity: providerButton.sessionState
+          glyph: providerMark.status === Image.Ready ? "" : providerButton.modelData.providerName.charAt(0)
+          fontFamily: root.fontFamily
+          Image {
+            id: providerMark
+            anchors.centerIn: parent
+            width: parent.width * 0.48
+            height: width
+            property var candidates: root.iconCandidatesForProvider(providerButton.modelData, Color.background)
+            property string candidatesKey: candidates.join("\n")
+            property int candidateIndex: 0
+            onCandidatesKeyChanged: candidateIndex = 0
+            source: candidateIndex < candidates.length ? candidates[candidateIndex] : ""
+            onStatusChanged: if (status === Image.Error && candidateIndex < candidates.length)
+              Qt.callLater(function() { providerMark.candidateIndex++ })
+            sourceSize.width: width * 2
+            sourceSize.height: height * 2
+            fillMode: Image.PreserveAspectFit
+            opacity: providerButton.reading.stale ? 0.55 : 1
+          }
+        }
+      }
+    }
+  }
+
   KeyboardPanel {
     id: panel
-    anchorItem: button
+    anchorItem: root
     owner: root
     bar: root.bar
     open: root.opened
@@ -443,6 +544,44 @@ Panel {
                   font.pixelSize: Style.font.display
                 }
               }
+            }
+          }
+
+          Column {
+            visible: root.showActivity
+            width: parent.width
+            spacing: Style.space(6)
+            Text {
+              textFormat: Text.PlainText
+              text: "Local sessions"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+            }
+            Repeater {
+              model: root.selectedSessions
+              delegate: Text {
+                required property var modelData
+                width: parent.width
+                textFormat: Text.PlainText
+                text: modelData.name + " · " + root.sessionLabel(modelData)
+                wrapMode: Text.Wrap
+                color: modelData.state === "waiting" ? root.urgent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+            Text {
+              visible: root.selectedSessions.length === 0
+              width: parent.width
+              textFormat: Text.PlainText
+              text: !root.provider || root.provider.providerId !== "claude"
+                ? "Live session status is not available for this provider."
+                : (sessionData.available && root.nowMs - sessionData.scannedAt <= 15000 ? "No verified local sessions." : "Session status unavailable.")
+              wrapMode: Text.Wrap
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
             }
           }
 
