@@ -256,6 +256,9 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
     issues.append('Remote OpenCode databases are not supported; local usage remains available')
   except FileNotFoundError:
     pass
+  except OSError:
+    # This optional probe must not discard usage already read from native logs.
+    issues.append('Could not check optional OpenCode data')
   if not any(relative.startswith('.claude/') for _, _, relative in inventory):
     try:
       remote.attrs(root + '/.claude/stats-cache.json')

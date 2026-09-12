@@ -1,7 +1,9 @@
 """Exercise real read-only OpenSSH SFTP and the production collector boundary."""
 from datetime import datetime, timezone
 import json
+import errno
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -25,6 +27,14 @@ def native(total, session='native-a'):
           {'type': 'turn_context', 'payload': {'model': 'gpt-6-astra'}},
           {'timestamp': datetime.now(timezone.utc).isoformat(), 'type': 'event_msg',
            'payload': {'type': 'token_count', 'info': {'total_token_usage': tokens, 'last_token_usage': tokens}}}]
+
+
+def native_claude(incoming, outgoing=20):
+  return [{'type': 'assistant', 'timestamp': datetime.now(timezone.utc).isoformat(),
+           'sessionId': 'claude-native', 'requestId': 'native-request',
+           'message': {'id': 'native-message', 'role': 'assistant', 'model': 'claude-sonnet-5',
+                       'usage': {'input_tokens': incoming, 'output_tokens': outgoing,
+                                 'cache_read_input_tokens': 0, 'cache_creation_input_tokens': 0}}}]
 
 
 class RemoteTests(unittest.TestCase):
@@ -257,6 +267,109 @@ console.log(JSON.stringify([all.todayTotalTokens, single.todayTotalTokens, cost.
         self.assertNotIn('PRIVATE CLI PROMPT', ''.join(p.read_text() for p in self.cache.rglob('*') if p.is_file()))
     self.assertEqual([str(p.relative_to(self.source)) for p in self.source.rglob('*') if p.is_file()],
                      ['.codex/sessions/test.jsonl'])
+
+  def test_optional_opencode_eacces_keeps_fresh_native_contributions(self):
+    if os.geteuid() == 0:
+      self.skipTest('Real EACCES requires an unprivileged SFTP server')
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    database = self.source / '.local/share/opencode/opencode.db'
+    database.parent.mkdir(parents=True)
+    database.write_text('Optional source must not gate native usage')
+    self.cli('add', 'workbox')
+    database.parent.chmod(0)
+    try:
+      # Verify the fixture actually denies traversal; no mocked SFTP error.
+      with self.assertRaises(PermissionError) as denied:
+        database.stat()
+      self.assertEqual(denied.exception.errno, errno.EACCES)
+      self.cli('refresh', '--force')
+      row = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+      self.assertEqual(row['status'], 'incomplete')
+      self.assertGreater(row['lastSuccess'], 0)
+      self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+      self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+      self.assertTrue(any('OpenCode' in issue and 'check' in issue for issue in row['issues']))
+      with codex.open('a') as stream:
+        stream.write(json.dumps(native(175)[-1]) + '\n')
+      self.write('.claude/projects/project/test.jsonl', native_claude(200))
+      os.utime(claude, None)
+      self.cli('refresh', '--force')
+      fresh = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+      self.assertEqual(fresh['status'], 'incomplete')
+      self.assertGreater(fresh['lastSuccess'], row['lastSuccess'])
+      self.assertEqual(fresh['providers']['codex']['todayTotalTokens'], 175)
+      self.assertEqual(fresh['providers']['claude']['todayTotalTokens'], 220)
+    finally:
+      database.parent.chmod(0o700)
+    database.unlink()
+    self.cli('refresh', '--force')
+    recovered = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['issues'], [])
+    for provider, expected in (('codex', 175), ('claude', 220)):
+      self.assertEqual(recovered['providers'][provider]['todayTotalTokens'], expected)
+      self.assertEqual(recovered['providers'][provider]['dailyUsage'], fresh['providers'][provider]['dailyUsage'])
+
+  def test_native_claude_all_and_single_without_opencode_or_sqlite_command(self):
+    # The same CLI, native collectors and presentation used by the panel run
+    # with only Python, Node and the existing SSH fixture available in PATH.
+    for command in ('python3', 'node'):
+      (self.fake_bin / command).symlink_to(shutil.which(command))
+    remote_file = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    local_root = self.root / 'local-sources'
+    local_file = local_root / '.claude/projects/project/test.jsonl'
+    local_file.parent.mkdir(parents=True)
+    local_entries = native_claude(40)
+    local_entries[0]['sessionId'] = 'local-native'
+    local_file.write_text(''.join(json.dumps(entry) + '\n' for entry in local_entries))
+    original = remote_file.read_bytes()
+    with patch.dict(os.environ, PATH=str(self.fake_bin)):
+      self.assertIsNone(shutil.which('opencode'))
+      self.assertIsNone(shutil.which('sqlite3'))
+      self.assertFalse((self.source / '.local/share/opencode').exists())
+      added = json.loads(self.cli('add', 'claude-box', '--label', 'Native Claude').stdout)
+      self.assertEqual(len(json.loads(self.cli('list', '--json').stdout)), 1)
+      self.cli('refresh', '--force')
+      snapshot = collection.read_json(self.state / 'omarchy/agents/remote/state.json')
+      row = snapshot['machines'][0]
+      self.assertEqual(row['status'], 'current')
+      self.assertEqual(row['issues'], [])
+      self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+      self.assertTrue(row['providers']['claude']['dailyUsage']['complete'])
+      local_env = dict(os.environ, OMARCHY_AGENT_SOURCE_ROOT=str(local_root),
+                       CLAUDE_CONFIG_DIR=str(local_root / '.claude'),
+                       XDG_DATA_HOME=str(local_root / '.local/share'),
+                       XDG_CACHE_HOME=str(self.root / 'local-cache'))
+      local = subprocess.run([str(ROOT / 'bin/omarchy-agent-usage-claude'), '--force', '--stats-only'],
+                             env=local_env, capture_output=True, text=True, check=True)
+      script = """
+const remote = require(process.argv[1]);
+const prices = require(process.argv[2]);
+const machines = JSON.parse(process.argv[3]);
+const local = {...JSON.parse(process.argv[4]), providerId:'claude', providerName:'Claude', costScopeCompatible:true};
+const scopes = remote.scopes([local], machines, Date.now());
+const all = scopes.all.find(p => p.providerId === 'claude');
+const single = scopes[machines[0].id].find(p => p.providerId === 'claude');
+function cost(view) {
+  return prices.buildModelWindowPresentation('claude', view.dailyUsage, Date.now(), prices.parseOverrides(''), true).summaries[0].cost.total;
+}
+console.log(JSON.stringify([all.todayTotalTokens, single.todayTotalTokens,
+  scopes.local[0].todayTotalTokens, cost(all), cost(single)]));
+"""
+      shown = subprocess.run(['node', '-e', script, str(ROOT / 'shell/plugins/agents/RemoteUsage.js'),
+                              str(ROOT / 'shell/plugins/agents/ApiCost.js'), json.dumps(snapshot['machines']), local.stdout],
+                             capture_output=True, text=True, check=True)
+      values = json.loads(shown.stdout)
+      self.assertEqual(values[:3], [180, 120, 60])
+      # Existing Sonnet 5 rate: input $2/M, output $10/M. No cache tokens.
+      self.assertAlmostEqual(values[3], 0.00068)
+      self.assertAlmostEqual(values[4], 0.00040)
+      self.cli('remove', added['id'])
+      self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+    self.assertEqual(remote_file.read_bytes(), original)
+    self.assertEqual([str(p.relative_to(self.source)) for p in self.source.rglob('*') if p.is_file()],
+                     ['.claude/projects/project/test.jsonl'])
 
   def test_cli_rejects_local_account_and_invalid_identity_before_saving(self):
     with patch.dict(os.environ, REMOTE_UID=str(os.getuid()),
