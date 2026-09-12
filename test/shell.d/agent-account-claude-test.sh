@@ -1,0 +1,169 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+require_command python3
+require_command jq
+
+TEST_HOME=$(mktemp -d)
+mock_bin="$TEST_HOME/mock-bin"
+trap 'rm -rf "$TEST_HOME"' EXIT
+
+mkdir -p "$mock_bin" "$TEST_HOME/.claude"
+
+cat >"$mock_bin/omarchy-agent-usage-update" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+
+cat >"$mock_bin/omarchy-notification-send" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+
+cat >"$mock_bin/claude" <<'EOF'
+#!/bin/bash
+if [[ $1 == auth && $2 == login ]]; then
+  mkdir -p "$CLAUDE_CONFIG_DIR"
+  cat >"$CLAUDE_CONFIG_DIR/.claude.json" <<'JSON'
+{"oauthAccount":{"emailAddress":"work@example.com","accountUuid":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","displayName":"Work","organizationName":"Work Org","organizationType":"max","organizationRateLimitTier":"default_claude_max_5x"}}
+JSON
+  cat >"$CLAUDE_CONFIG_DIR/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"work-token","refreshToken":"work-refresh","subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+JSON
+  exit 0
+fi
+exit 1
+EOF
+
+chmod +x "$mock_bin"/*
+
+export HOME="$TEST_HOME"
+export XDG_STATE_HOME="$TEST_HOME/.local/state"
+export OMARCHY_PATH="$ROOT"
+export PATH="$mock_bin:$ROOT/bin:$PATH"
+
+cat >"$HOME/.claude/.claude.json" <<'JSON'
+{"oauthAccount":{"emailAddress":"personal@example.com","accountUuid":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","displayName":"Personal","organizationName":"Personal Org","organizationType":"max","organizationRateLimitTier":"default_claude_max_20x"}}
+JSON
+cat >"$HOME/.claude/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"personal-token","refreshToken":"personal-refresh","subscriptionType":"max","rateLimitTier":"default_claude_max_20x"}}
+JSON
+chmod 600 "$HOME/.claude/.credentials.json"
+
+listed=$(omarchy-agent-account list claude --json)
+[[ $(jq -r '.provider' <<<"$listed") == "claude" ]] || fail "list names the claude provider" "$listed"
+[[ $(jq -r '.accounts | length' <<<"$listed") == "1" ]] || fail "list registers the live ~/.claude login" "$listed"
+[[ $(jq -r '.accounts[0].email' <<<"$listed") == "personal@example.com" ]] || fail "list reports the live email" "$listed"
+[[ $(jq -r '.accounts[0].active' <<<"$listed") == "true" ]] || fail "the live login is the active account" "$listed"
+pass "list registers the live Claude login"
+
+personal_id=$(jq -r '.accounts[0].id' <<<"$listed")
+[[ $(omarchy-agent-account dir claude) == "$(python3 -c "from pathlib import Path; print(Path('$HOME/.claude').resolve())")" ]] ||
+  fail "dir points at ~/.claude for the first account"
+pass "dir points at ~/.claude for the first account"
+
+omarchy-agent-account add claude >/dev/null
+
+listed=$(omarchy-agent-account list --json)
+[[ $(jq -r '.accounts | length' <<<"$listed") == "2" ]] || fail "add registers a second isolated account" "$listed"
+[[ $(jq -r '.current.email' <<<"$listed") == "work@example.com" ]] || fail "add switches the pointer to the new account" "$listed"
+work_path=$(jq -r '.current.path' <<<"$listed")
+[[ $work_path == "$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/"* ]] ||
+  fail "the new account lives under the state directory" "$work_path"
+[[ $(omarchy-agent-account dir claude) == "$work_path" ]] || fail "dir follows the pointer after add"
+pass "add creates an isolated Claude config dir and points at it"
+
+[[ -f $HOME/.claude/.credentials.json ]] || fail "add does not remove the original ~/.claude credentials"
+personal_canon="$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/$personal_id/.credentials.json"
+[[ -f $personal_canon ]] || fail "the original login keeps a canonical credentials file" "$personal_canon"
+original_token=$(jq -r '.claudeAiOauth.accessToken' "$personal_canon")
+[[ $original_token == "personal-token" ]] || fail "add does not copy over the original OAuth" "$original_token"
+[[ ! -L $HOME/.claude/.credentials.json ]] || fail "home credentials are a regular file, not a symlink"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "work-token" ]] ||
+  fail "home credentials are a copy of the active account"
+[[ $(stat -c %i "$HOME/.claude/.credentials.json") != $(stat -c %i "$work_path/.credentials.json") ]] ||
+  fail "home credentials are not the same inode as the saved copy"
+pass "add leaves the original session saved and copies active credentials to ~/.claude"
+
+work_id=$(jq -r '.current.id' <<<"$listed")
+omarchy-agent-account use claude "$personal_id" >/dev/null
+personal_good="$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/$personal_id/.credentials.last-good.json"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$personal_good") == "personal-token" ]] ||
+  fail "switching away does not harvest the old live tokens into the new account"
+[[ $(jq -r '.current.email' <<<"$(omarchy-agent-account list --json)") == "personal@example.com" ]] ||
+  fail "use switches the pointer back to the original account"
+[[ $(omarchy-agent-account dir claude) == "$(python3 -c "from pathlib import Path; print(Path('$HOME/.claude').resolve())")" ]] ||
+  fail "dir follows the pointer after use"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "work-token" ]] ||
+  fail "use does not rewrite the unused account's credentials"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "personal-token" ]] ||
+  fail "use copies the selected account onto ~/.claude"
+[[ ! -L $HOME/.claude/.credentials.json ]] || fail "use does not reintroduce a credentials symlink"
+work_listed=$(omarchy-agent-account list --json)
+[[ $(jq -r --arg id "$personal_id" '.accounts[] | select(.id==$id) | .path' <<<"$work_listed") == "$(python3 -c "from pathlib import Path; print(Path('$HOME/.claude').resolve())")" ]] ||
+  fail "list does not move the original account onto the isolated dir"
+[[ $(jq -r --arg id "$work_id" '.accounts[] | select(.id==$id) | .path' <<<"$work_listed") == "$work_path" ]] ||
+  fail "list keeps the isolated account on its own dir"
+pass "use switches the pointer without copying OAuth"
+
+if omarchy-agent-account list codex >/dev/null 2>&1; then
+  fail "list refuses providers with no backend"
+fi
+pass "list refuses providers with no backend"
+
+omarchy-agent-account use "$work_id" >/dev/null
+[[ $(jq -r '.current.email' <<<"$(omarchy-agent-account list --json)") == "work@example.com" ]] ||
+  fail "use claude is implied when the provider is omitted"
+pass "use claude is implied when the provider is omitted"
+
+collector_dir=$(HOME="$TEST_HOME" XDG_STATE_HOME="$XDG_STATE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, os
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["OMARCHY_PATH"] + "/bin/omarchy-agent-usage-claude")
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+print(collector.config_dir())
+PY
+)
+[[ $collector_dir == "$work_path" ]] || fail "usage collector follows the account pointer" "$collector_dir"
+pass "usage collector follows the account pointer"
+
+cat >"$HOME/.claude/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0,"refreshTokenExpiresAt":1,"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+JSON
+omarchy-agent-account list claude >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "work-token" ]] ||
+  fail "blanking the live ~/.claude credentials does not wipe the saved copy"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "work-token" ]] ||
+  fail "list restores live credentials from the saved copy"
+pass "blanking live credentials does not destroy the saved login"
+
+cat >"$work_path/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0,"refreshTokenExpiresAt":1,"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+JSON
+omarchy-agent-account use claude "$personal_id" >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$personal_canon") == "personal-token" ]] ||
+  fail "blanking the active login does not overwrite the other account"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "personal-token" ]] ||
+  fail "use still points home at the account that still has tokens"
+omarchy-agent-account use claude "$work_id" >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "work-token" ]] ||
+  fail "use restores a blanked login from last-good"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "work-token" ]] ||
+  fail "restored tokens are what live credentials follow"
+pass "use restores a blanked login without touching the other account"
+
+omarchy-agent-account use claude "$personal_id" >/dev/null
+rm -f "$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/$work_id/.credentials.last-good.json"
+cat >"$work_path/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0,"refreshTokenExpiresAt":1,"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+JSON
+omarchy-agent-account use claude "$work_id" >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "" ]] ||
+  fail "switching onto an empty saved login does not copy the previous live tokens into it"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$personal_canon") == "personal-token" ]] ||
+  fail "an empty target does not steal the other account's saved tokens"
+pass "switching onto an empty saved login does not inherit the previous live tokens"

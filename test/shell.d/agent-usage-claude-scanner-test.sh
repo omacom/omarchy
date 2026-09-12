@@ -18,7 +18,8 @@ cat >"$projects/session.jsonl" <<EOF
 {"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-3","message":{"id":"message-2","role":"assistant","model":"claude-test","usage":{"input_tokens":2,"cache_creation_input_tokens":454,"cache_read_input_tokens":28857,"output_tokens":390}}}
 EOF
 
-result=$(HOME="$TEST_HOME" XDG_CACHE_HOME="$TEST_HOME/.cache" XDG_DATA_HOME="$TEST_HOME/.local/share" \
+result=$(HOME="$TEST_HOME" XDG_STATE_HOME="$TEST_HOME/.local/state" XDG_CACHE_HOME="$TEST_HOME/.cache" XDG_DATA_HOME="$TEST_HOME/.local/share" \
+  CLAUDE_CONFIG_DIR= OMARCHY_AGENT_USAGE_NOTIFY=0 \
   "$ROOT/bin/omarchy-agent-usage-claude" --force)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "58793" ]] ||
@@ -46,7 +47,8 @@ cat >"$HISTORY_HOME/.claude/history.jsonl" <<EOF
 {"timestamp":$now_ms,"sessionId":"s2","display":"two"}
 EOF
 
-result=$(HOME="$HISTORY_HOME" XDG_CACHE_HOME="$HISTORY_HOME/.cache" XDG_DATA_HOME="$HISTORY_HOME/.local/share" \
+result=$(HOME="$HISTORY_HOME" XDG_STATE_HOME="$HISTORY_HOME/.local/state" XDG_CACHE_HOME="$HISTORY_HOME/.cache" XDG_DATA_HOME="$HISTORY_HOME/.local/share" \
+  CLAUDE_CONFIG_DIR= OMARCHY_AGENT_USAGE_NOTIFY=0 \
   "$ROOT/bin/omarchy-agent-usage-claude" --force)
 
 [[ $(jq -r '(.todayPrompts|tostring) + "/" + (.todaySessions|tostring)' <<<"$result") == "2/2" ]] ||
@@ -92,7 +94,8 @@ conn.commit()
 conn.close()
 PY
 
-result=$(HOME="$OPENCODE_HOME" XDG_CACHE_HOME="$OPENCODE_HOME/.cache" XDG_DATA_HOME="$OPENCODE_HOME/.local/share" \
+result=$(HOME="$OPENCODE_HOME" XDG_STATE_HOME="$OPENCODE_HOME/.local/state" XDG_CACHE_HOME="$OPENCODE_HOME/.cache" XDG_DATA_HOME="$OPENCODE_HOME/.local/share" \
+  CLAUDE_CONFIG_DIR= OMARCHY_AGENT_USAGE_NOTIFY=0 \
   "$ROOT/bin/omarchy-agent-usage-claude" --force)
 
 [[ $(jq -r '(.ready|tostring) + "/" + (.todayTotalTokens|tostring)' <<<"$result") == "true/192" ]] ||
@@ -118,7 +121,8 @@ cat >"$PI_HOME/.omp/agent/sessions/project/omp.jsonl" <<EOF
 { "type": "message", "id": "omp-1", "timestamp": "$timestamp", "message": { "role": "assistant", "provider": "anthropic", "model": "claude-omp", "usage": { "input": 20, "output": 5, "cacheRead": 4, "cacheWrite": 1, "totalTokens": 30 } } }
 EOF
 
-result=$(HOME="$PI_HOME" XDG_CACHE_HOME="$PI_HOME/.cache" XDG_DATA_HOME="$PI_HOME/.local/share" \
+result=$(HOME="$PI_HOME" XDG_STATE_HOME="$PI_HOME/.local/state" XDG_CACHE_HOME="$PI_HOME/.cache" XDG_DATA_HOME="$PI_HOME/.local/share" \
+  CLAUDE_CONFIG_DIR= OMARCHY_AGENT_USAGE_NOTIFY=0 \
   "$ROOT/bin/omarchy-agent-usage-claude" --force)
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "49" ]] ||

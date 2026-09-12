@@ -14,12 +14,17 @@ Item {
   property var record: null
 
   FileView {
+    id: view
     path: root.path
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.parse(text())
     onLoadFailed: root.record = null
+  }
+
+  function reloadFromDisk() {
+    view.reload()
   }
 
   function parse(content) {
