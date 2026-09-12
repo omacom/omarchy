@@ -834,7 +834,9 @@ BarWidget {
           mouse.accepted = true
         } else if (mouse.button === Qt.MiddleButton) {
           trayItemRoot.modelData.secondaryActivate()
-        } else if (trayItemRoot.modelData.onlyMenu) {
+        } else if (TrayModel.leftClickOpensMenu(trayItemRoot.modelData)) {
+          // onlyMenu covers ItemIsMenu; hasMenu/menu covers AppIndicator
+          // applets that ship a menu but never set ItemIsMenu (#10339).
           trayItemRoot.displayMenu(mouse)
         } else {
           trayItemRoot.modelData.activate()
