@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Review updates for installed third-party plugins
+
+plugins_dir="$HOME/.config/omarchy/plugins"
+found=0
+for dir in "$plugins_dir"/*/; do
+  if [[ -d $dir/.git ]]; then
+    found=1
+    break
+  fi
+done
+(( found )) || exit 0
+
+echo -e "\e[32m\nUpdate third-party plugins\e[0m"
+if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" || ! -t 0 || ! -t 1 ]]; then
+  echo "Skipping plugin updates without interactive review; run 'omarchy plugin update' in a terminal."
+else
+  # A third-party repository failure should not prevent update status refresh
+  # or the restart checks for the system packages already installed.
+  if ! omarchy-plugin-update; then
+    echo "Some plugins could not be updated; review the errors above and retry 'omarchy plugin update'." >&2
+  fi
+fi

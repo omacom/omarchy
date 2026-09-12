@@ -26,6 +26,7 @@ steps=(
   omarchy-hook
   omarchy-update-aur-pkgs
   omarchy-update-mise
+  omarchy-update-plugins
   omarchy-update-orphan-pkgs
   omarchy-update-analyze-logs
   omarchy-update-status
@@ -73,6 +74,7 @@ expected_steps() {
     omarchy-hook \
     omarchy-update-aur-pkgs \
     omarchy-update-mise \
+    omarchy-update-plugins \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
     omarchy-update-status \
