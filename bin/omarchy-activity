@@ -497,7 +497,33 @@ def cmd_import_agents(args) -> int:
     projects: dict[str, int] = {}
     sessions: dict[str, dict] = {}
 
-    # 1. Parse Antigravity history
+    # 1. Parse Antigravity conversation summaries database if available
+    ag_db_path = ag_path.parent / "conversation_summaries.db"
+    ag_summaries: dict[str, dict] = {}
+    if ag_db_path.exists():
+        try:
+            with sqlite3.connect(str(ag_db_path)) as c_db:
+                c_db.row_factory = sqlite3.Row
+                for row in c_db.execute(
+                    "SELECT conversation_id, title, preview, last_modified_time, last_user_input_time FROM conversation_summaries"
+                ):
+                    cid = row["conversation_id"]
+                    title = (row["title"] or "").strip()
+                    if not title and row["preview"]:
+                        title = row["preview"].strip().splitlines()[0][:80]
+                    ts = 0
+                    time_str = row["last_modified_time"] or row["last_user_input_time"]
+                    if time_str and not str(time_str).startswith("0001"):
+                        try:
+                            ts = int(datetime.fromisoformat(str(time_str)).timestamp() * 1000)
+                        except (ValueError, TypeError):
+                            pass
+                    if cid:
+                        ag_summaries[cid] = {"title": title, "ts": ts}
+        except (sqlite3.Error, OSError):
+            pass
+
+    # 1b. Parse Antigravity history
     if ag_path.exists():
         try:
             for line in ag_path.read_text(errors="replace").splitlines():
@@ -515,19 +541,35 @@ def cmd_import_agents(args) -> int:
                 cid = obj.get("conversationId")
                 disp = obj.get("display") or ""
                 if cid and isinstance(cid, str):
-                    title = disp.strip().splitlines()[0][:80] if disp else cid
+                    prompt_title = disp.strip().splitlines()[0][:80] if disp else cid
                     prev = sessions.get(cid)
-                    if not prev or ts > prev["ts"]:
-                        sessions[cid] = {
-                            "title": title,
-                            "ts": ts,
-                            "icon": "󰫢",
-                            "icon_font": "",
-                            "detail": f"Antigravity • {cid[:8]}",
-                            "action": f"omarchy agent --agent agy --resume '{cid}'",
-                        }
+                    # Prefer AI summary title from conversation_summaries.db if available,
+                    # else use the first prompt (which describes the session goal)
+                    title = ag_summaries.get(cid, {}).get("title")
+                    if not title:
+                        title = prev["title"] if prev and prev.get("title") else prompt_title
+                    max_ts = max(ts, prev["ts"] if prev else 0, ag_summaries.get(cid, {}).get("ts", 0))
+                    sessions[cid] = {
+                        "title": title,
+                        "ts": max_ts,
+                        "icon": "󰫢",
+                        "icon_font": "",
+                        "detail": f"Antigravity • {cid[:8]}",
+                        "action": f"omarchy agent --agent agy --resume '{cid}'",
+                    }
         except OSError:
             pass
+
+    for cid, s_info in ag_summaries.items():
+        if cid not in sessions and s_info.get("title"):
+            sessions[cid] = {
+                "title": s_info["title"],
+                "ts": s_info.get("ts", 0),
+                "icon": "󰫢",
+                "icon_font": "",
+                "detail": f"Antigravity • {cid[:8]}",
+                "action": f"omarchy agent --agent agy --resume '{cid}'",
+            }
 
     # 2. Parse Codex session index
     if codex_idx_path.exists():
