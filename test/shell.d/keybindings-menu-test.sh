@@ -220,3 +220,19 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# Configs or plugins may iterate over hl.get_loaded_plugins() or mock tables
+# with ipairs; the parser mock must not enter an infinite loop.
+cat >>"$home/.config/hypr/bindings.lua" <<'LUA'
+local plugins = hl.get_loaded_plugins()
+for _, p in ipairs(plugins) do
+  -- should terminate immediately
+end
+for _, v in ipairs(hl.unknown_table()) do
+  -- should terminate immediately
+end
+LUA
+
+rendered=$(keybindings)
+[[ -n $rendered ]] || fail "the keybindings menu renders with ipairs iteration in config"
+pass "the keybindings menu parses configs using ipairs on Hyprland mocks without hanging"
