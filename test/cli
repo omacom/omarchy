@@ -661,6 +661,51 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
 
+# A named command whose route other commands extend must reveal those longer
+# siblings in its own help (`monitor internal` vs `monitor internal mirror`),
+# both for an explicit --help and for a bare required-args invocation.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Prefixhelp internal laptop display\n'
+  printf '# omarchy:args=<on|off>\n'
+  printf 'echo internal-ok\n'
+} >"$TMPDIR/omarchy-prefixhelp-internal"
+chmod +x "$TMPDIR/omarchy-prefixhelp-internal"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Prefixhelp internal display mirroring\n'
+  printf '# omarchy:args=<on|off>\n'
+  printf 'echo mirror-ok\n'
+} >"$TMPDIR/omarchy-prefixhelp-internal-mirror"
+chmod +x "$TMPDIR/omarchy-prefixhelp-internal-mirror"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Prefixhelp unrelated command with no longer siblings\n'
+  printf '# omarchy:args=<x>\n'
+  printf 'echo unrelated-ok\n'
+} >"$TMPDIR/omarchy-prefixhelp-unrelated"
+chmod +x "$TMPDIR/omarchy-prefixhelp-unrelated"
+
+output=$("$TMPDIR/omarchy" prefixhelp internal --help)
+assert_output_contains "prefix-sibling help renders" "$output" "Related commands:"
+assert_output_contains "prefix-sibling help lists longer sibling route" "$output" "omarchy prefixhelp internal mirror"
+assert_output_contains "prefix-sibling help lists longer sibling summary" "$output" "Prefixhelp internal display mirroring"
+
+output=$("$TMPDIR/omarchy" prefixhelp internal)
+assert_output_contains "bare prefix command help renders" "$output" "omarchy prefixhelp internal mirror"
+if [[ $output == *"internal-ok"* ]]; then
+  fail "bare required-arg prefix command does not execute"
+fi
+pass "bare required-arg prefix command does not execute"
+
+output=$("$TMPDIR/omarchy" prefixhelp unrelated --help)
+if [[ $output == *"Related commands:"* ]]; then
+  fail "a named command without longer siblings omits related commands"
+fi
+pass "a named command without longer siblings omits related commands"
+
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
 # used to start a real update because only the first leftover token was checked).
