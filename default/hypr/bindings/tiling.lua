@@ -25,9 +25,32 @@ for workspace = 1, 10 do
   o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
 end
 
-o.bind("SUPER + S", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
+-- Opening an empty special workspace steals the next spawn onto it (#10415).
+-- Skip the open when the scratchpad has nothing to show; always allow close.
+local function is_scratchpad(workspace)
+  if not workspace then
+    return false
+  end
+  local name = workspace.name or workspace.config_name or ""
+  return name == "special:scratchpad" or name == "scratchpad"
+end
+
+local function toggle_scratchpad()
+  local special = hl.get_active_special_workspace()
+  if is_scratchpad(special) then
+    hl.dispatch(hl.dsp.workspace.toggle_special("scratchpad"))
+    return
+  end
+
+  local scratchpad = hl.get_workspace("special:scratchpad")
+  if scratchpad and (scratchpad.windows or 0) > 0 then
+    hl.dispatch(hl.dsp.workspace.toggle_special("scratchpad"))
+  end
+end
+
+o.bind("SUPER + S", "Toggle scratchpad", toggle_scratchpad)
 o.bind("SUPER + ALT + S", "Move window to scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
-o.bind("SUPER + grave", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
+o.bind("SUPER + grave", "Toggle scratchpad", toggle_scratchpad)
 o.bind("SUPER + SHIFT + grave", "Move window to scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
 
 o.bind("SUPER + TAB", "Next workspace", hl.dsp.focus({ workspace = "e+1" }))
