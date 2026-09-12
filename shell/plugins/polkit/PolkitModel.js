@@ -23,10 +23,31 @@ function authorizationLabel(message) {
   return match ? "Authorize running '" + match[1] + "'" : text
 }
 
+// Qt never reads system NumLock at startup (QTBUG-32687), so keypad digits
+// arrive as navigation keys. Values are Qt::Key_* from qnamespace.h.
+function keypadDigit(k) {
+  switch (k) {
+    case 0x01000006: return "0" // Key_Insert
+    case 0x01000011: return "1" // Key_End
+    case 0x01000015: return "2" // Key_Down
+    case 0x01000017: return "3" // Key_PageDown
+    case 0x01000012: return "4" // Key_Left
+    case 0x0100000b: return "5" // Key_Clear
+    case 0x00000035: return "5" // Key_5 (some layouts)
+    case 0x01000014: return "6" // Key_Right
+    case 0x01000010: return "7" // Key_Home
+    case 0x01000013: return "8" // Key_Up
+    case 0x01000016: return "9" // Key_PageUp
+    case 0x01000007: return "." // Key_Delete
+  }
+  return ""
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     promptLooksFingerprint: promptLooksFingerprint,
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
-    authorizationLabel: authorizationLabel
+    authorizationLabel: authorizationLabel,
+    keypadDigit: keypadDigit
   }
 }
