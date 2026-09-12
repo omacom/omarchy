@@ -12,6 +12,7 @@ Item {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   property bool opened: false
   property string filterText: ""
+  property bool searchMode: false
   property int selectedIndex: 0
   property bool cursorActive: false
   property bool clearConfirmOpen: false
@@ -42,6 +43,7 @@ Item {
   function open(payloadJson) {
     root.opened = true
     root.filterText = ""
+    root.searchMode = false
     root.selectedIndex = 0
     root.cursorActive = true
     root.disarmPointer()
@@ -73,7 +75,8 @@ Item {
   }
 
   function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    root.history = ClipboardHistory.trimHistory(root.history, root.historyLimit)
+    historyFile.setText(JSON.stringify(root.history, null, 2) + "\n")
   }
 
   function addClipboardEntry(entry) {
@@ -102,7 +105,7 @@ Item {
   }
 
   function confirmClearHistory() {
-    root.history = ClipboardHistory.clearHistory()
+    root.history = ClipboardHistory.clearHistory(root.history)
     root.saveHistory()
     root.selectedIndex = 0
     root.cursorActive = false
@@ -130,6 +133,23 @@ Item {
     root.rebuildDisplay()
   }
 
+  function togglePinDisplayIndex(index) {
+    if (index < 0 || index >= displayModel.count) return
+    var historyIndex = displayModel.get(index).historyIndex
+    var key = root.entryKey(root.history[historyIndex])
+    root.history = ClipboardHistory.togglePinAt(root.history, historyIndex)
+    root.saveHistory()
+    root.disarmPointer()
+    root.cursorActive = true
+    root.rebuildDisplay()
+    for (var i = 0; i < displayModel.count; i++) {
+      if (root.entryKey(root.history[displayModel.get(i).historyIndex]) === key) {
+        root.selectedIndex = i
+        break
+      }
+    }
+  }
+
   function rebuildDisplay() {
     var rows = ClipboardHistory.displayRows(root.history, root.filterText, 50)
 
@@ -143,6 +163,8 @@ Item {
         previewImage: row.previewImage ? Util.fileUrl(row.previewImage) : "",
         path: row.path,
         mime: row.mime,
+        pinned: row.pinned,
+        pinShortcut: row.pinShortcut,
         historyIndex: row.index
       })
     }
@@ -182,6 +204,16 @@ Item {
     root.cursorActive = true
     root.disarmPointer()
     root.rebuildDisplay()
+  }
+
+  function activatePinShortcut(shortcut) {
+    if (root.searchMode || root.filterText) return false
+    for (var i = 0; i < displayModel.count; i++) {
+      if (displayModel.get(i).pinShortcut !== shortcut) continue
+      root.activateIndex(i)
+      return true
+    }
+    return false
   }
 
   function disarmPointer() {
@@ -357,8 +389,19 @@ Item {
           }
 
           if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
+            if (root.filterText || root.searchMode) {
+              root.searchMode = false
+              root.setFilter("")
+            }
             else root.close()
+            event.accepted = true
+          } else if (event.key === Qt.Key_F && event.modifiers === Qt.ControlModifier) {
+            root.searchMode = true
+            event.accepted = true
+          } else if (!(event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) && /^[1-9]$/.test(event.text) && root.activatePinShortcut(Number(event.text))) {
+            event.accepted = true
+          } else if (event.key === Qt.Key_P && event.modifiers === Qt.ControlModifier) {
+            root.togglePinDisplayIndex(root.selectedIndex)
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
@@ -403,7 +446,7 @@ Item {
           anchors.fill: parent
           opened: root.clearConfirmOpen
           z: 10
-          message: "Delete entire clipboard history?"
+          message: "Delete clipboard history? Pinned items will be kept."
           confirmText: "Delete"
           background: root.background
           foreground: root.foreground
@@ -434,14 +477,34 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: pinAction.left
+            anchors.rightMargin: root.contentSpacing
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search clipboard…"
+            text: root.filterText || (root.searchMode ? "Search clipboard…" : "Search clipboard… (Ctrl+F for numbers)")
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          Text {
+            id: pinAction
+            textFormat: Text.PlainText
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            visible: displayModel.count > 0
+            text: "Ctrl+P · " + (displayModel.count > 0 && (displayModel.get(root.selectedIndex) || {}).pinned ? "Unpin" : "Pin")
+            color: root.foreground
+            opacity: 0.7
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.togglePinDisplayIndex(root.selectedIndex)
+            }
           }
         }
 
@@ -474,6 +537,8 @@ Item {
                   required property string previewText
                   required property string fullText
                   required property string previewImage
+                  required property bool pinned
+                  required property int pinShortcut
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
 
@@ -502,7 +567,7 @@ Item {
 
                     Text {
                       textFormat: Text.PlainText
-                      width: parent.width - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
+                      width: Math.max(0, parent.width - (row.previewImage.length > 0 ? parent.height + parent.spacing : 0) - (pinLabel.visible ? pinLabel.width + parent.spacing : 0))
                       height: parent.height
                       text: parent.parent.previewText
                       color: parent.parent.hasCursor ? root.selectedText : root.foreground
@@ -511,6 +576,19 @@ Item {
                       opacity: parent.parent.entryType === "image" || parent.parent.entryType === "file" ? 0.72 : 1.0
                       elide: Text.ElideRight
                       wrapMode: Text.NoWrap
+                      verticalAlignment: Text.AlignVCenter
+                    }
+
+                    Text {
+                      id: pinLabel
+                      textFormat: Text.PlainText
+                      visible: row.pinned
+                      height: parent.height
+                      text: row.pinShortcut ? row.pinShortcut + " · Pinned" : "Pinned"
+                      color: row.hasCursor ? root.selectedText : root.foreground
+                      opacity: 0.7
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
                       verticalAlignment: Text.AlignVCenter
                     }
                   }

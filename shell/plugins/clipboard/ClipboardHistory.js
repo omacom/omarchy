@@ -7,7 +7,10 @@ function normalizeEntry(value) {
   var type = String(value.type || value.kind || "")
   if (type === "text") {
     var text = String(value.text || "")
-    return text.trim().length > 0 ? { type: "text", text: text } : null
+    if (!text.trim().length) return null
+    var textEntry = { type: "text", text: text }
+    copyPin(value, textEntry)
+    return textEntry
   }
 
   if (type === "image") {
@@ -20,10 +23,43 @@ function normalizeEntry(value) {
     }
     if (value.capturedAt !== undefined && value.capturedAt !== null)
       entry.capturedAt = String(value.capturedAt)
+    copyPin(value, entry)
     return entry
   }
 
   return null
+}
+
+function copyPin(source, target) {
+  if (source.pinned !== true) return
+  target.pinned = true
+  var shortcut = source.pinShortcut
+  if (typeof shortcut === "number" && shortcut % 1 === 0 && shortcut >= 1 && shortcut <= 9)
+    target.pinShortcut = shortcut
+}
+
+// Reserve existing numbers before assigning free ones. Recopying a pin or
+// removing another pin must never change a remembered shortcut.
+function assignPinShortcuts(history) {
+  var next = history.map(normalizeEntry)
+  var used = {}
+  for (var i = 0; i < next.length; i++) {
+    var entry = next[i]
+    if (!entry || !entry.pinned || !entry.pinShortcut) continue
+    if (used[entry.pinShortcut]) delete entry.pinShortcut
+    else used[entry.pinShortcut] = true
+  }
+  for (var i = 0; i < next.length; i++) {
+    var entry = next[i]
+    if (!entry || !entry.pinned || entry.pinShortcut) continue
+    for (var shortcut = 1; shortcut <= 9; shortcut++) {
+      if (used[shortcut]) continue
+      entry.pinShortcut = shortcut
+      used[shortcut] = true
+      break
+    }
+  }
+  return next
 }
 
 function entryKey(entry) {
@@ -42,31 +78,63 @@ function parseHistory(raw) {
       var entry = normalizeEntry(parsed[i])
       if (entry) next.push(entry)
     }
-    return next
+    return assignPinShortcuts(next)
   } catch (e) {
     return []
   }
 }
 
-function addEntry(history, entry, limit) {
-  var normalized = normalizeEntry(entry)
+// Pins are saved independently of the rolling limit for ordinary history.
+function trimHistory(history, limit) {
   var max = limit === undefined || limit === null ? 100 : Number(limit)
   if (isNaN(max)) max = 100
   max = Math.max(0, max)
-  if (!normalized) return Array.isArray(history) ? history.slice(0, max) : []
-  if (max === 0) return []
+  var values = Array.isArray(history) ? history : []
+  var next = []
+  var unpinned = 0
+  for (var i = 0; i < values.length; i++) {
+    var entry = normalizeEntry(values[i])
+    if (entry && (entry.pinned || unpinned < max)) {
+      next.push(entry)
+      if (!entry.pinned) unpinned++
+    }
+  }
+  return assignPinShortcuts(next)
+}
+
+function addEntry(history, entry, limit) {
+  var normalized = normalizeEntry(entry)
+  if (!normalized) return trimHistory(history, limit)
 
   var key = entryKey(normalized)
   var next = [normalized]
   var values = Array.isArray(history) ? history : []
 
-  for (var i = 0; i < values.length && next.length < max; i++) {
+  for (var i = 0; i < values.length; i++) {
     var existing = normalizeEntry(values[i])
-    if (!existing || entryKey(existing) === key) continue
+    if (!existing) continue
+    if (entryKey(existing) === key) {
+      copyPin(existing, normalized)
+      continue
+    }
     next.push(existing)
   }
 
-  return next
+  return trimHistory(next, limit)
+}
+
+function togglePinAt(history, index) {
+  var next = Array.isArray(history) ? history.slice() : []
+  var target = Number(index)
+  if (isNaN(target) || target % 1 !== 0 || target < 0 || target >= next.length) return next
+  var entry = normalizeEntry(next[target])
+  if (!entry) return next
+  if (entry.pinned) {
+    delete entry.pinned
+    delete entry.pinShortcut
+  } else entry.pinned = true
+  next[target] = entry
+  return assignPinShortcuts(next)
 }
 
 function removeEntryAt(history, index) {
@@ -79,8 +147,8 @@ function removeEntryAt(history, index) {
   return next
 }
 
-function clearHistory() {
-  return []
+function clearHistory(history) {
+  return trimHistory(history, 0)
 }
 
 function parseEntryJson(line) {
@@ -180,8 +248,19 @@ function displayRows(history, query, limit) {
   if (max === 0) return []
 
   var rows = []
+  var pinnedIndexes = []
+  var unpinnedIndexes = []
+  for (var index = 0; index < values.length; index++) {
+    if (values[index] && values[index].pinned === true) pinnedIndexes.push(index)
+    else unpinnedIndexes.push(index)
+  }
+  pinnedIndexes.sort(function(a, b) {
+    return (values[a].pinShortcut || 10) - (values[b].pinShortcut || 10) || a - b
+  })
+  var indexes = pinnedIndexes.concat(unpinnedIndexes)
 
-  for (var i = 0; i < values.length; i++) {
+  for (var position = 0; position < indexes.length; position++) {
+    var i = indexes[position]
     var entry = cappedEntry(normalizeEntry(values[i]))
     if (!entry) continue
     if (needle && searchableText(entry).toLowerCase().indexOf(needle) < 0) continue
@@ -197,6 +276,8 @@ function displayRows(history, query, limit) {
       previewImage: previewPath,
       path: isImage ? String(entry.path || "") : (isFile && paths.length === 1 ? paths[0] : ""),
       mime: isImage ? String(entry.mime || "image/png") : "text/plain",
+      pinned: values[i].pinned === true,
+      pinShortcut: values[i].pinShortcut || 0,
       index: i
     })
     if (rows.length >= max) break
@@ -211,6 +292,8 @@ if (typeof module !== "undefined") {
     entryKey: entryKey,
     parseHistory: parseHistory,
     addEntry: addEntry,
+    trimHistory: trimHistory,
+    togglePinAt: togglePinAt,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
     parseEntryJson: parseEntryJson,
