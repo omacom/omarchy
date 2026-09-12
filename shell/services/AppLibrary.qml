@@ -26,9 +26,8 @@ Item {
   property int launchSerial: 0
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
-  // True while the launch OSD is on screen. It outlives the launch that opened
-  // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
-  // down.
+  // True while the launch OSD is on screen. Dismissed when the target toplevel
+  // appears, on launchTimeout, or when the OSD duration expires.
   property bool launchOsdOpen: false
   property string launchOsdMessage: ""
 
@@ -242,13 +241,13 @@ Item {
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
       root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 3500 })])
     }
   }
 
   Timer {
     id: launchTimeout
-    interval: 15000
+    interval: 5000
     onTriggered: root.closeLaunchFeedback(root.launchSerial)
   }
 
