@@ -307,6 +307,7 @@ Item {
       Text {
         required property int index
         readonly property var machine: index >= 0 && index < root.machines.length ? root.machines[index] : null
+        textFormat: Text.PlainText
         width: root.width
         text: root.detailText(machine)
         font: selectedDetail.font
@@ -322,6 +323,7 @@ Item {
       Text {
         required property int index
         readonly property var machine: index >= 0 && index < root.machines.length ? root.machines[index] : null
+        textFormat: Text.PlainText
         width: root.width
         text: root.removeText(machine)
         font: removeConfirmation.font
