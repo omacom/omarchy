@@ -14,6 +14,7 @@ Item {
   property string pendingPowerSource: ""
   property string activePowerProfile: ""
   readonly property bool powerSaverOnBattery: UPower.onBattery && activePowerProfile === "power-saver"
+  property bool lowBatteryClearPending: false
 
   PersistentProperties {
     id: persisted
@@ -33,10 +34,12 @@ Item {
     var state = BatteryModel.shouldWarnLowBattery(UPower.displayDevice, UPower.onBattery, UPowerDeviceState.Discharging, batteryThreshold, persisted.notifiedLowBattery)
     var wasNotified = persisted.notifiedLowBattery
     persisted.notifiedLowBattery = state.notifiedLowBattery
+    if (state.notifiedLowBattery) root.lowBatteryClearPending = false
+    else if (wasNotified) root.lowBatteryClearPending = true
     if (state.notify) sendLowBatteryWarning(state.level)
-    // Critical toasts ignore the -t timeout; clear the stuck "Time to recharge!"
-    // card as soon as we are no longer in the low-discharging state.
-    else if (wasNotified && !state.notifiedLowBattery) clearLowBatteryWarning()
+    // Dismissal can precede notification insertion or time out silently. Keep
+    // retrying on the existing poll until a new low-battery episode starts.
+    if (root.lowBatteryClearPending) clearLowBatteryWarning()
   }
 
   function sendLowBatteryWarning(level) {
