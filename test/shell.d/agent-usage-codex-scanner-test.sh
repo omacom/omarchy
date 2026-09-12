@@ -68,10 +68,48 @@ pass "Codex collector does not double-count cache or reasoning tokens"
   fail "Codex collector identifies itself with an empty limits list" "$result"
 pass "Codex collector identifies itself with an empty limits list"
 
+# A turn is sometimes logged twice: the same last_token_usage under an
+# unchanged running total. Only the first copy counts.
+DUP_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME"' EXIT
+mkdir -p "$DUP_HOME/bin" "$DUP_HOME/.codex/sessions/$(date +%Y/%m/%d)"
+cp "$TEST_HOME/bin/codex" "$DUP_HOME/bin/codex"
+cat >"$DUP_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout.jsonl" <<EOF
+{"timestamp":"$timestamp","type":"turn_context","payload":{"model":"gpt-test"}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":0,"total_tokens":120},"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":0,"total_tokens":120}}}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":0,"total_tokens":120},"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":0,"total_tokens":120}}}}
+EOF
+
+result=$(HOME="$DUP_HOME" CODEX_HOME="$DUP_HOME/.codex" XDG_DATA_HOME="$DUP_HOME/.local/share" PATH="$DUP_HOME/bin:$PATH" \
+  "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '(.todayTotalTokens|tostring) + "/" + (.totalPrompts|tostring)' <<<"$result") == "120/1" ]] ||
+  fail "Codex collector skips a turn logged twice under an unchanged running total" "$result"
+pass "Codex collector skips a turn logged twice under an unchanged running total"
+
+# A running total that drops is a resumed or compacted session whose counter
+# restarted, and the turn that follows the drop still counts.
+RESUME_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME"' EXIT
+mkdir -p "$RESUME_HOME/bin" "$RESUME_HOME/.codex/sessions/$(date +%Y/%m/%d)"
+cp "$TEST_HOME/bin/codex" "$RESUME_HOME/bin/codex"
+cat >"$RESUME_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout.jsonl" <<EOF
+{"timestamp":"$timestamp","type":"turn_context","payload":{"model":"gpt-test"}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":0,"total_tokens":120},"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":0,"total_tokens":120}}}}
+{"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":30,"cached_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":0,"total_tokens":35},"last_token_usage":{"input_tokens":30,"cached_input_tokens":0,"output_tokens":5,"reasoning_output_tokens":0,"total_tokens":35}}}}
+EOF
+
+result=$(HOME="$RESUME_HOME" CODEX_HOME="$RESUME_HOME/.codex" XDG_DATA_HOME="$RESUME_HOME/.local/share" PATH="$RESUME_HOME/bin:$PATH" \
+  "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '(.todayTotalTokens|tostring) + "/" + (.totalPrompts|tostring)' <<<"$result") == "155/2" ]] ||
+  fail "Codex collector counts the turn after a running total drops on resume" "$result"
+pass "Codex collector counts the turn after a running total drops on resume"
+
 # Pi and omp can both spend a Codex subscription without creating native
 # Codex sessions. Their compatible JSONL transcripts must be included.
 PI_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME" "$PI_HOME"' EXIT
 mkdir -p "$PI_HOME/bin" "$PI_HOME/.pi/agent/sessions/project" "$PI_HOME/.omp/agent/sessions/project"
 cp "$TEST_HOME/bin/codex" "$PI_HOME/bin/codex"
 cat >"$PI_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
@@ -94,7 +132,7 @@ pass "Codex collector counts pi and omp subscription usage"
 # A subscription burned entirely through opencode has no native session files;
 # usage must come from opencode's message database, filtered to OpenAI.
 OPENCODE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME" "$PI_HOME" "$OPENCODE_HOME"' EXIT
 mkdir -p "$OPENCODE_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$OPENCODE_HOME/bin/codex"
 
@@ -145,7 +183,7 @@ pass "Codex collector ignores prefix-colliding providers, user messages, and mal
 # A warm cache makes --limits-only cheap: local stats come from the last scan
 # instead of another walk over the opencode database, and --force bypasses it.
 CACHE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
 mkdir -p "$CACHE_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$CACHE_HOME/bin/codex"
 
@@ -409,7 +447,7 @@ pass "Codex collector treats a future-dated cache as a miss"
 
 # First --limits-only on a machine with no cache falls back to a full scan.
 FRESH_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
 mkdir -p "$FRESH_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$FRESH_HOME/bin/codex"
 
@@ -449,7 +487,7 @@ pass "Codex collector --limits-only falls back to a full scan without a cache"
 # parse, so the good rows are still counted. Real opencode data also stores
 # compact JSON, so one row is serialized compactly here on purpose.
 MALFORMED_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME"' EXIT
 mkdir -p "$MALFORMED_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$MALFORMED_HOME/bin/codex"
 
@@ -503,7 +541,7 @@ pass "Codex collector counts good opencode rows past malformed ones"
 
 # An unwritable cache must not kill the collector: the record is the contract.
 UNWRITABLE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME"' EXIT
 mkdir -p "$UNWRITABLE_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$UNWRITABLE_HOME/bin/codex"
 
@@ -545,7 +583,7 @@ pass "Codex collector still prints a complete record when the cache is unwritabl
 # corruption) must not be cached as the whole story, or the missing usage
 # would be suppressed for every reader until the cache expires.
 INTERRUPTED_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$DUP_HOME" "$RESUME_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME"' EXIT
 mkdir -p "$INTERRUPTED_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$INTERRUPTED_HOME/bin/codex"
 
