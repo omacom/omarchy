@@ -1,0 +1,5 @@
+# The T2 virtual USB bridge makes the built-in MacBook trackpad look removable.
+# Match the internal composite device by name so product-ID differences between
+# T2 models do not disable libinput's disable-while-typing support.
+touchpad:usb:v05acp*:name:Apple Inc. Apple Internal Keyboard / Trackpad:*
+ ID_INPUT_TOUCHPAD_INTEGRATION=internal
