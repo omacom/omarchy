@@ -1,0 +1,541 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Kiro CLI usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Kiro CLI usage into one display-ready JSON record.
+
+Local stats come from ~/.kiro/sessions/cli/*.json sidecars
+(session_state.conversation_metadata.user_turn_metadatas carries
+input_token_count / output_token_count per turn); rate limits and the
+plan come from AmazonCodeWhispererService.GetUsageLimits — the same
+call kiro-cli's own `/usage` slash command makes. The agents panel
+only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+import tempfile
+import time
+import urllib.request
+import urllib.error
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "kiro"
+AGENT_NAME = "Kiro CLI"
+AUTH_HELP = "Run `kiro-cli login` to authenticate."
+
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+PROBE_MIN_INTERVAL_SECONDS = 15
+REFRESH_BUFFER_SECS = 300
+
+
+def number(value: Any) -> int:
+    try:
+        n = float(value or 0)
+        return round(n) if n == n else 0
+    except Exception:
+        return 0
+
+
+def sessions_dir() -> Path:
+    override = os.environ.get("KIRO_SESSIONS_DIR", "").strip()
+    if override:
+        return Path(os.path.expandvars(os.path.expanduser(override)))
+    return Path.home() / ".kiro" / "sessions" / "cli"
+
+
+def kiro_data_db() -> Path:
+    override = os.environ.get("KIRO_DATA_DIR", "").strip()
+    if override:
+        return Path(os.path.expandvars(os.path.expanduser(override))) / "data.sqlite3"
+    base = os.environ.get("XDG_DATA_HOME", "") or str(Path.home() / ".local" / "share")
+    return Path(base) / "kiro-cli" / "data.sqlite3"
+
+
+def cache_root() -> Path:
+    root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def date_string(value: dt.date) -> str:
+    return value.strftime("%Y-%m-%d")
+
+
+def recent_date_strings() -> list[str]:
+    today = dt.datetime.now().date()
+    return [date_string(today - dt.timedelta(days=offset)) for offset in range(6, -1, -1)]
+
+
+def local_day_from_ts(value: Any, fallback: str) -> str:
+    try:
+        secs = float(value)
+        return date_string(dt.datetime.fromtimestamp(secs).date())
+    except Exception:
+        pass
+    raw = str(value or "").strip()
+    if raw:
+        try:
+            parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if parsed.tzinfo is not None:
+                parsed = parsed.astimezone()
+            return date_string(parsed.date())
+        except Exception:
+            pass
+    return fallback
+
+
+# ---------------------------------------------------------------- local scan
+
+
+def scan_sessions() -> dict[str, Any]:
+    today = date_string(dt.datetime.now().date())
+    recent_dates = recent_date_strings()
+    recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+
+    sessions: set[str] = set()
+    active_days: set[str] = set()
+    today_sessions: set[str] = set()
+    today_tokens: dict[str, int] = {}
+    usage_by_model: dict[str, dict[str, int]] = {}
+    prompts = 0
+    today_prompt_count = 0
+    today_token_total = 0
+
+    root = sessions_dir()
+    files = sorted(root.glob("*.json")) if root.is_dir() else []
+    for path in files:
+        # Skip jsonl/history/lock companions; only *.json sidecars carry stats.
+        # The glob above already limits to .json, but guard against the
+        # .jsonl suffix matching anyway on odd filesystems.
+        if path.suffix != ".json" or path.name.endswith(".jsonl"):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        state = data.get("session_state") or {}
+        conv_meta = ((state.get("conversation_metadata") or {}))
+        turns = conv_meta.get("user_turn_metadatas") or []
+        model_info = ((state.get("rts_model_state") or {}).get("model_info") or {})
+        model = str(model_info.get("model_id") or "auto")
+        session_id = str(data.get("session_id") or path.stem)
+        fallback_day = local_day_from_ts(data.get("updated_at") or data.get("created_at"), today)
+
+        if not isinstance(turns, list) or not turns:
+            continue
+        for turn in turns:
+            if not isinstance(turn, dict):
+                continue
+            inp = number(turn.get("input_token_count"))
+            out = number(turn.get("output_token_count"))
+            total = inp + out
+            if total <= 0:
+                continue
+            day = local_day_from_ts(turn.get("end_timestamp"), fallback_day)
+            sessions.add(session_id)
+            active_days.add(day)
+            prompts += 1
+            bucket = usage_by_model.setdefault(model, {
+                "inputTokens": 0, "outputTokens": 0,
+                "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0,
+            })
+            bucket["inputTokens"] += inp
+            bucket["outputTokens"] += out
+            if day in recent:
+                recent[day]["messageCount"] += total
+            if day == today:
+                today_prompt_count += 1
+                today_sessions.add(session_id)
+                today_token_total += total
+                today_tokens[model] = today_tokens.get(model, 0) + total
+
+    return {
+        "todayPrompts": today_prompt_count,
+        "todaySessions": len(today_sessions),
+        "todayTotalTokens": today_token_total,
+        "todayTokensByModel": today_tokens,
+        "recentDays": [recent[day] for day in recent_dates],
+        "modelUsage": usage_by_model,
+        "totalPrompts": prompts,
+        "totalSessions": len(sessions),
+        "activeDays": len(active_days),
+        "activeDates": sorted(active_days),
+    }
+
+
+def scan_cache_paths() -> tuple[Path, Path]:
+    digest = hashlib.sha1(str(sessions_dir()).encode("utf-8")).hexdigest()[:16]
+    root = cache_root()
+    return root / f"kiro-scan-{digest}.json", root / f"kiro-scan-{digest}.lock"
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> Any | None:
+    if max_age_seconds <= 0 or not path.exists():
+        return None
+    try:
+        age = time.time() - path.stat().st_mtime
+        if 0 <= age <= max_age_seconds:
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return None
+
+
+def write_json(path: Path, payload: Any) -> None:
+    handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+        tmp.chmod(0o644)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def cached_scan(max_age_seconds: float) -> dict[str, Any]:
+    cache_file, lock_file = scan_cache_paths()
+    cached = read_fresh_json(cache_file, max_age_seconds)
+    if isinstance(cached, dict) and cached.get("scanDate") == date_string(dt.datetime.now().date()):
+        stats = cached.get("stats")
+        if isinstance(stats, dict):
+            return stats
+    with lock_file.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        cached = read_fresh_json(cache_file, max_age_seconds)
+        if isinstance(cached, dict) and cached.get("scanDate") == date_string(dt.datetime.now().date()):
+            stats = cached.get("stats")
+            if isinstance(stats, dict):
+                return stats
+        stats = scan_sessions()
+        try:
+            write_json(cache_file, {"scanDate": date_string(dt.datetime.now().date()), "stats": stats})
+        except Exception as exc:
+            print(f"omarchy-agent-usage-kiro: could not write usage cache ({exc})", file=sys.stderr)
+        return stats
+
+
+# ------------------------------------------------------------------- limits
+
+
+def read_db_text(conn: sqlite3.Connection, table: str, key: str) -> str | None:
+    try:
+        row = conn.execute(f"SELECT value FROM {table} WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+
+
+def parse_iso_expiry(raw: str) -> float:
+    try:
+        return dt.datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
+def read_credentials() -> dict[str, Any] | None:
+    db = kiro_data_db()
+    if not db.is_file():
+        return None
+    try:
+        conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    except sqlite3.Error:
+        return None
+    try:
+        conn.execute("PRAGMA query_only = ON")
+        tok_raw = read_db_text(conn, "auth_kv", "kirocli:odic:token")
+        dev_raw = read_db_text(conn, "auth_kv", "kirocli:odic:device-registration")
+        if not tok_raw:
+            return None
+        tok = json.loads(tok_raw)
+        dev = json.loads(dev_raw) if dev_raw else {}
+        profile_arn = ""
+        prof_raw = read_db_text(conn, "state", "api.codewhisperer.profile")
+        if prof_raw:
+            try:
+                profile_arn = str((json.loads(prof_raw) or {}).get("arn") or "")
+            except Exception:
+                profile_arn = ""
+        return {
+            "access_token": str(tok.get("access_token") or ""),
+            "refresh_token": str(tok.get("refresh_token") or ""),
+            "expires_at": parse_iso_expiry(str(tok.get("expires_at") or "")),
+            "region": str(tok.get("region") or "us-east-1"),
+            "client_id": str(dev.get("client_id") or ""),
+            "client_secret": str(dev.get("client_secret") or ""),
+            "profile_arn": profile_arn,
+        }
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+
+def oauth_cache_path() -> Path:
+    return cache_root() / "kiro-oauth.json"
+
+
+def apply_persisted_oauth(creds: dict[str, Any]) -> None:
+    try:
+        cached = json.loads(oauth_cache_path().read_text(encoding="utf-8"))
+    except Exception:
+        return
+    if not isinstance(cached, dict):
+        return
+    try:
+        exp = parse_iso_expiry(str(cached.get("expires_at") or ""))
+        if exp > creds["expires_at"] and cached.get("access_token"):
+            creds["access_token"] = str(cached["access_token"])
+            creds["refresh_token"] = str(cached.get("refresh_token") or creds["refresh_token"])
+            creds["expires_at"] = exp
+    except Exception:
+        pass
+
+
+def refresh_access_token(creds: dict[str, Any]) -> bool:
+    if not creds.get("refresh_token") or not creds.get("client_id") or not creds.get("client_secret"):
+        return False
+    region = creds["region"]
+    if not region or len(region) > 32:
+        return False
+    url = f"https://oidc.{region}.amazonaws.com/token"
+    body = json.dumps({
+        "clientId": creds["client_id"],
+        "clientSecret": creds["client_secret"],
+        "grantType": "refresh_token",
+        "refreshToken": creds["refresh_token"],
+    }).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+        new_at = str(data.get("accessToken") or "")
+        expires_in = int(data.get("expiresIn") or 0)
+        if not new_at or expires_in <= 0:
+            return False
+        new_rt = str(data.get("refreshToken") or creds["refresh_token"])
+        exp_dt = dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=expires_in)
+        creds["access_token"] = new_at
+        creds["refresh_token"] = new_rt
+        creds["expires_at"] = exp_dt.timestamp()
+        try:
+            payload = {"access_token": new_at, "refresh_token": new_rt,
+                       "expires_at": exp_dt.isoformat()}
+            tmp = oauth_cache_path()
+            tmp.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+            tmp.chmod(0o600)
+        except Exception as exc:
+            print(f"omarchy-agent-usage-kiro: could not persist refreshed token ({exc})", file=sys.stderr)
+        return True
+    except Exception:
+        return False
+
+
+def call_usage_limits(url: str, token: str, profile_arn: str) -> dict[str, Any]:
+    body_dict: dict[str, Any] = {"origin": "AI_EDITOR", "resourceType": "AGENTIC_REQUEST"}
+    if profile_arn:
+        body_dict["profileArn"] = profile_arn
+    body = json.dumps(body_dict).encode()
+    req = urllib.request.Request(
+        url, data=body,
+        headers={"Content-Type": "application/x-amz-json-1.0",
+                 "x-amz-target": "AmazonCodeWhispererService.GetUsageLimits",
+                 "Authorization": "Bearer " + token},
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8", errors="replace"))
+
+
+def pick_credit_bucket(payload: dict[str, Any]) -> dict[str, Any] | None:
+    items = payload.get("usageBreakdownList") or []
+    if not isinstance(items, list) or not items:
+        return None
+    for entry in items:
+        if isinstance(entry, dict) and entry.get("resourceType") == "CREDIT":
+            return entry
+    if len(items) == 1 and isinstance(items[0], dict) and items[0].get("resourceType") is None:
+        return items[0]
+    return None
+
+
+def collect_limits(force: bool) -> dict[str, Any]:
+    result: dict[str, Any] = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
+    probe_cache = cache_root() / "kiro-limits.json"
+    try:
+        cached = json.loads(probe_cache.read_text(encoding="utf-8"))
+    except Exception:
+        cached = {}
+    fallback = cached.get("limits") if isinstance(cached.get("limits"), list) else []
+
+    def fallback_open() -> list[dict[str, Any]]:
+        now = dt.datetime.now(dt.timezone.utc)
+        out = []
+        for entry in fallback:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                reset = dt.datetime.fromisoformat(str(entry.get("resetsAt") or "").replace("Z", "+00:00"))
+                if reset.tzinfo is None:
+                    reset = reset.replace(tzinfo=dt.timezone.utc)
+                if reset <= now:
+                    continue
+            except Exception:
+                pass
+            out.append(entry)
+        return out
+
+    creds = read_credentials()
+    if not creds or not creds.get("access_token"):
+        result["limits"] = fallback_open()
+        result["usageStatusText"] = "Waiting for auth"
+        return result
+
+    fetched_at = number((cached or {}).get("fetchedAtMs")) / 1000
+    if fallback and not force and time.time() - fetched_at < PROBE_MIN_INTERVAL_SECONDS:
+        result["limits"] = fallback_open()
+        tier = str((cached or {}).get("tierLabel") or "")
+        if tier:
+            result["tierLabel"] = tier
+        return result
+
+    apply_persisted_oauth(creds)
+    if creds["expires_at"] and creds["expires_at"] < time.time() + REFRESH_BUFFER_SECS:
+        refreshed = refresh_access_token(creds)
+        if not refreshed:
+            result["limits"] = fallback_open()
+            result["usageStatusText"] = "Sign-in expired"
+            result["authHelpText"] = (
+                "Kiro's saved sign-in expired"
+                + (" — showing the last known limits." if fallback_open() else ".")
+                + " Run `kiro-cli login` to refresh it."
+            )
+            return result
+
+    region = creds["region"] or "us-east-1"
+    endpoints = [f"https://codewhisperer.{region}.amazonaws.com/",
+                 f"https://management.{region}.kiro.dev/"]
+    payload: dict[str, Any] | None = None
+    transport = False
+    last_help = ""
+    for url in endpoints:
+        try:
+            payload = call_usage_limits(url, creds["access_token"], creds["profile_arn"])
+            break
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode("utf-8", errors="replace")[:200]
+            except Exception:
+                detail = ""
+            if e.code in (401, 403):
+                result["limits"] = fallback_open()
+                result["usageStatusText"] = "Sign-in expired"
+                result["authHelpText"] = "Kiro authentication failed. Run `kiro-cli login`."
+                return result
+            last_help = f"Kiro usage endpoint returned status {e.code}. Local stats are still shown."
+            # Validation errors (e.g. profileArn shape on the wrong
+            # endpoint) mean try the next endpoint, not failure.
+            if e.code not in (400,):
+                payload = None
+                break
+            continue
+        except Exception:
+            transport = True
+            last_help = "Couldn't reach the Kiro usage endpoint. Retrying shortly. Local stats are still shown."
+            continue
+
+    if not payload:
+        if transport:
+            result["retryAdvised"] = True
+        if fallback_open():
+            result["limits"] = fallback_open()
+        else:
+            result["usageStatusText"] = "Kiro limits unavailable"
+            result["authHelpText"] = last_help or AUTH_HELP
+        return result
+
+    try:
+        plan = str(((payload.get("subscriptionInfo") or {}).get("subscriptionTitle")) or "")
+        bucket = pick_credit_bucket(payload)
+        if not plan or not bucket:
+            raise ValueError("missing plan or credit bucket")
+        used = float(bucket.get("currentUsageWithPrecision"))
+        limit = float(bucket.get("usageLimitWithPrecision"))
+        if not (used == used and limit == limit and used >= 0 and limit > 0):
+            raise ValueError("bad usage numbers")
+        reset_secs = float(payload.get("nextDateReset") or bucket.get("nextDateReset") or 0)
+        resets_at = ""
+        if reset_secs > 0:
+            resets_at = dt.datetime.fromtimestamp(reset_secs, dt.timezone.utc).isoformat()
+        percent = max(0.0, min(1.0, used / limit))
+        result["tierLabel"] = plan
+        result["limits"] = [{"label": "Credits", "title": "Credits",
+                             "percent": percent, "resetsAt": resets_at}]
+        try:
+            write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000),
+                                     "limits": result["limits"], "tierLabel": plan})
+        except Exception as exc:
+            print(f"omarchy-agent-usage-kiro: could not write limits cache ({exc})", file=sys.stderr)
+        return result
+    except Exception:
+        if fallback_open():
+            result["limits"] = fallback_open()
+        else:
+            result["usageStatusText"] = "Kiro limits unavailable"
+            result["authHelpText"] = "Kiro returned an unexpected usage shape. Local stats are still shown."
+        return result
+
+
+# -------------------------------------------------------------------- record
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--limits-only", action="store_true")
+    parser.add_argument("--cache-seconds", type=float, default=SCAN_REUSE_SECONDS)
+    args = parser.parse_args()
+
+    scan_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else args.cache_seconds)
+    try:
+        stats = cached_scan(scan_age)
+    except Exception as exc:
+        print(f"omarchy-agent-usage-kiro: cache unavailable ({exc}); scanning directly", file=sys.stderr)
+        stats = scan_sessions()
+
+    limits = collect_limits(args.force)
+
+    record = {
+        "schemaVersion": 1,
+        "id": AGENT_ID,
+        "name": AGENT_NAME,
+        "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
+        "hasLocalStats": True,
+        "tierLabel": limits.get("tierLabel") or "",
+        "usageStatusText": limits.get("usageStatusText") or "",
+        "authHelpText": limits.get("authHelpText") or AUTH_HELP,
+        "limits": limits.get("limits") or [],
+    }
+    if limits.get("retryAdvised"):
+        record["retryAdvised"] = True
+    record.update(stats)
+    print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
