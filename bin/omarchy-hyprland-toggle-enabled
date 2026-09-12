@@ -3,4 +3,8 @@
 # omarchy:summary=Check if a Hyprland toggle is currently enabled.
 # omarchy:args=<flag-name>
 
-[[ -f "$HOME/.local/state/omarchy/toggles/hypr/$1.lua" ]]
+FLAG_FILE="$HOME/.local/state/omarchy/toggles/hypr/$1.lua"
+
+# Size as well as kind: the flag is the Lua that acts on it, so an empty one
+# enables nothing even though every reader used to believe it.
+[[ -f $FLAG_FILE && -s $FLAG_FILE ]]

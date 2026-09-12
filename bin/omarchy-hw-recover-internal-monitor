@@ -4,6 +4,8 @@
 
 TOGGLE="$HOME/.local/state/omarchy/toggles/hypr/internal-monitor-disable.lua"
 
+# -f, not -s: this removes the flag rather than trusting it, so it has to match
+# a husk an older version could have left behind.
 if [[ -f $TOGGLE ]] && ! omarchy-hw-external-monitors; then
   rm -f "$TOGGLE"
 fi

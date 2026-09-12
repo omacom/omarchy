@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# omarchy:summary=Check if a Hyprland toggle is currently disabled (missing).
+# omarchy:summary=Check if a Hyprland toggle is currently disabled (missing or empty).
 # omarchy:args=<flag-name>
 
-[[ ! -f "$HOME/.local/state/omarchy/toggles/hypr/$1.lua" ]]
+FLAG_FILE="$HOME/.local/state/omarchy/toggles/hypr/$1.lua"
+
+! [[ -f $FLAG_FILE && -s $FLAG_FILE ]]

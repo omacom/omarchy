@@ -4,7 +4,6 @@
 # omarchy:args=<on|off|toggle|recover>
 
 TOGGLE="internal-monitor-disable"
-TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
 MIRROR_TOGGLE="internal-monitor-mirror"
 
 INTERNAL=$(omarchy-hyprland-monitor-laptop)
@@ -41,7 +40,8 @@ off() {
   fi
 
   if omarchy-hyprland-toggle-disabled $TOGGLE && omarchy-hyprland-toggle-disabled $MIRROR_TOGGLE; then
-    printf 'hl.monitor({ output = "%s", disabled = true })\n' "$INTERNAL" >"$TOGGLE_FLAG"
+    printf 'hl.monitor({ output = "%s", disabled = true })\n' "$INTERNAL" |
+      omarchy-hyprland-toggle-write $TOGGLE || exit 1
     omarchy-notification-send -g 󰍹 "Laptop display disabled"
     hyprctl reload
   fi
