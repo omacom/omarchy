@@ -9,17 +9,28 @@ if [[ -z $default_browser ]]; then
 fi
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
-if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
-  private_flag="--private-window"
-elif [[ $browser_exec =~ edge ]]; then
-  private_flag="--inprivate"
-else
-  private_flag="--incognito"
-fi
+# Browser help can start a process (or render a man page). Only inspect it when
+# a private window needs a browser-specific flag.
+args=("$@")
+private_flag=""
+for i in "${!args[@]}"; do
+  if [[ ${args[i]} == "--private" ]]; then
+    if [[ -z $private_flag ]]; then
+      if "$browser_exec" --help 2>/dev/null | grep -q MOZ_LOG; then
+        private_flag="--private-window"
+      elif [[ $browser_exec =~ edge ]]; then
+        private_flag="--inprivate"
+      else
+        private_flag="--incognito"
+      fi
+    fi
+    args[i]=$private_flag
+  fi
+done
 
 systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
   --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+  uwsm-app -- "$browser_exec" "${args[@]}"
 
 url=""
 for argument in "$@"; do
