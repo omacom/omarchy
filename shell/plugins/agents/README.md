@@ -51,10 +51,11 @@ with an `assets/<id>-light.svg` twin if the mark needs a dark variant for
 light surfaces — and the bar glyph stands in when there is none.
 
 | Collector | Limits | Local stats |
-|---|---|---|
+| --- | --- | --- |
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `opencode-go` | OpenCode's official Go usage API (rolling 5h, weekly, monthly) | Pi session transcripts and OpenCode SQLite database, filtered to the OpenCode Go provider |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -62,7 +63,25 @@ falls back to local stats only. A non-default Claude directory is honored via
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+signed in there. OpenCode Go reads `OPENCODE_GO_API_KEY`, then checks
+`~/.pi/agent/auth.json` (Pi) and `~/.local/share/opencode/auth.json`
+(OpenCode CLI) for the subscription key.
+
+### OpenCode Go
+
+OpenCode Go is a $10/month subscription providing access to popular open
+coding models. The collector queries OpenCode's official usage API to show
+rolling (5-hour), weekly, and monthly limit usage with reset timers.
+
+The API key is the same regardless of which harness connects to the
+subscription. The collector searches these locations in order:
+
+1. `OPENCODE_GO_API_KEY` environment variable
+2. `~/.pi/agent/auth.json` (Pi harness)
+3. `~/.local/share/opencode/auth.json` (OpenCode CLI)
+
+To add support for a new harness, append another path to the `auth_paths` list
+in the `api_key()` function.
 
 ### Fireworks balance
 
@@ -106,7 +125,7 @@ top-level keys can be set with
 `omarchy bar set omarchy.agents <key> <value>`:
 
 | Key | Default | What it does |
-|---|---|---|
+| --- | --- | --- |
 | `refreshIntervalSec` | `900` | How often the usage records regenerate |
 | `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
@@ -128,7 +147,8 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "opencode-go": { "enabled": true }
 }' --json
 ```
 
