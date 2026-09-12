@@ -15,13 +15,14 @@ from collection import collect_sources, read_json, write_json
 from transport import Sftp, local_identity, target_value
 
 
-def paths():
+def paths(create=True):
   home = Path.home()
   config = Path(os.environ.get('XDG_CONFIG_HOME') or home / '.config') / 'omarchy/agents'
   state = Path(os.environ.get('XDG_STATE_HOME') or home / '.local/state') / 'omarchy/agents/remote'
   cache = Path(os.environ.get('XDG_CACHE_HOME') or home / '.cache') / 'omarchy/agents/remote'
-  for directory in (config, state, cache):
-    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+  if create:
+    for directory in (config, state, cache):
+      directory.mkdir(parents=True, exist_ok=True, mode=0o700)
   return config, state, cache
 
 
@@ -59,20 +60,28 @@ def catalog(config):
   return data
 
 
+def snapshot(config, state, updates=None):
+  machines = catalog(config)['machines']
+  old = read_json(state / 'state.json', {})
+  previous = {row['id']: row for row in old.get('machines', [])}
+  rows = []
+  for machine in machines:
+    value = (updates or {}).get(machine['id'], previous.get(machine['id'], {}))
+    if value.get('identity') != machine['identity']:
+      value = {}
+    rows.append(dict(value, **machine))
+  return old, rows
+
+
 def publish(config, state, updates=None):
   # Reload membership under the same lock as mutations. A late refresh result
   # can never resurrect a removed profile or overwrite its renamed label.
   with locked(config / '.machines.lock'):
-    machines = catalog(config)['machines']
-    old = read_json(state / 'state.json', {})
-    previous = {row['id']: row for row in old.get('machines', [])}
-    rows = []
-    for machine in machines:
-      value = (updates or {}).get(machine['id'], previous.get(machine['id'], {}))
-      if value.get('identity') != machine['identity']:
-        value = {}
-      rows.append(dict(value, **machine))
-    write_json(state / 'state.json', {'schemaVersion': 1, 'machines': rows, 'updatedAtMs': round(time.time() * 1000)})
+    old, rows = snapshot(config, state, updates)
+    # FileView observes replacements. Leave both the file and timestamp alone
+    # unless the actual panel input changed.
+    if old.get('schemaVersion') != 1 or old.get('machines') != rows:
+      write_json(state / 'state.json', {'schemaVersion': 1, 'machines': rows, 'updatedAtMs': round(time.time() * 1000)})
     return rows
 
 
@@ -120,8 +129,8 @@ def refresh(config, state, cache, omarchy_path, force=False, factory=Sftp):
   with locked(state / '.refresh.lock', blocking=False) as acquired:
     if not acquired:
       return
-    machines = catalog(config)['machines']
-    previous = {row['id']: row for row in publish(config, state)}
+    machines = publish(config, state)
+    previous = {row['id']: row for row in machines}
     due = [m for m in machines if force or time.time() - previous[m['id']].get('attemptedAt', 0) >= 3600]
 
     def fetch(machine):
@@ -166,7 +175,7 @@ def main(argv=None):
   updating = sub.add_parser('refresh')
   updating.add_argument('--force', action='store_true')
   args = parser.parse_args(argv)
-  config, state, cache = paths()
+  config, state, cache = paths(create=args.action != 'list')
   try:
     if args.action == 'add':
       machine = add(config, state, args.target, args.label)
@@ -176,7 +185,7 @@ def main(argv=None):
     elif args.action == 'refresh':
       refresh(config, state, cache, Path(os.environ['OMARCHY_PATH']), args.force)
     else:
-      rows = publish(config, state)
+      _, rows = snapshot(config, state)
       summary = [{key: row.get(key) for key in ('id', 'label', 'target', 'platform', 'user', 'uid', 'home', 'status', 'lastSuccess', 'error')} for row in rows]
       if args.json:
         print(json.dumps(summary))

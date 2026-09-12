@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Print the Claude Code usage record as JSON
-# omarchy:args=[--force] [--limits-only]
+# omarchy:args=[--force] [--limits-only] [--stats-only]
 # omarchy:hidden=true
 """Collect Claude Code usage into one display-ready JSON record.
 

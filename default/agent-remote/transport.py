@@ -78,13 +78,13 @@ class Packet:
 
 
 class Sftp:
-  def __init__(self, target=None, command=None, timeout=120):
+  def __init__(self, target, timeout=120):
     self.target = target
     self.deadline = time.monotonic() + timeout
     self.transferred = 0
     self.request_id = 0
     self.errors = tempfile.TemporaryFile()
-    argv = command or (ssh_command(target)[:-1] + ['-s', target, 'sftp'])
+    argv = ssh_command(target)[:-1] + ['-s', target, 'sftp']
     self.process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                     stderr=self.errors, bufsize=0)
     try:
@@ -195,6 +195,10 @@ class Sftp:
       self.request(4, string(handle))
 
   def read(self, path, offset=0, length=32768):
+    # A file or parent may have become a link since READDIR. Check again
+    # before OPEN; SFTP v3 does not provide an atomic no-follow open flag.
+    if self.realpath(path) != path or not stat.S_ISREG(self.attrs(path).get('mode', 0)):
+      raise OSError('Refusing a symlink or special usage file')
     _, packet = self.request(3, string(path) + uint(1) + uint(0))
     handle = packet.string()
     chunks = []
@@ -217,32 +221,45 @@ class Sftp:
       self.request(4, string(handle))
     return b''.join(chunks)
 
-  def walk(self, root):
+  def walk(self, root, on_error, base):
+    # base is the identity-verified canonical home. Reject links in every
+    # component below it, including parents above the configured source root.
+    path = base
     try:
-      if not stat.S_ISDIR(self.attrs(root).get('mode', 0)):
-        raise OSError('Usage source must be a directory, not a symlink')
+      for component in root.removeprefix(base + '/').split('/'):
+        path += '/' + component
+        if not stat.S_ISDIR(self.attrs(path).get('mode', 0)):
+          raise OSError('Usage source must be a directory, not a symlink or special file')
     except FileNotFoundError:
+      return
+    except OSError as error:
+      on_error(str(error))
       return
     pending = [root]
     count = 0
     while pending:
       directory = pending.pop()
       try:
+        # Recheck queued directories before opening them, too.
+        if not stat.S_ISDIR(self.attrs(directory).get('mode', 0)):
+          raise OSError('Symlink or special usage directory skipped')
         entries = list(self.listdir(directory))
-      except FileNotFoundError:
+      except OSError as error:
+        on_error(str(error) or 'Usage directory disappeared during inventory')
         continue
       for name, attrs in entries:
         count += 1
         if count > 100000:
-          raise OSError('Usage inventory exceeds 100,000 entries')
+          on_error('Usage inventory exceeds 100,000 entries')
+          return
         path = directory + '/' + name
         mode = attrs.get('mode', 0)
         if stat.S_ISDIR(mode):
           pending.append(path)
         elif stat.S_ISREG(mode):
           yield path, attrs
-        elif stat.S_ISLNK(mode):
-          raise OSError('Symlinked usage sources need an explicit source path')
+        else:
+          on_error('Symlink or special usage entry skipped')
 
   def identity(self):
     # Ask the login account, never infer it from an SFTP directory's owner.

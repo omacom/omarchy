@@ -1,5 +1,7 @@
 """Exercise real read-only OpenSSH SFTP and the production collector boundary."""
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+import fcntl
 import json
 import errno
 import os
@@ -9,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -16,9 +19,17 @@ ROOT = Path(sys.argv.pop(1))
 sys.path.insert(0, str(ROOT / 'default/agent-remote'))
 import main as machines
 import collection
-from transport import Sftp, target_value, ssh_command
+from transport import Sftp, target_value
 
-SERVER = Path('/usr/lib/ssh/sftp-server')
+# OpenSSH installs the subsystem in different lib/libexec directories. An
+# explicit path also lets isolated runners declare this test-only dependency.
+if 'OMARCHY_TEST_SFTP_SERVER' in os.environ:
+  candidates = [os.environ['OMARCHY_TEST_SFTP_SERVER']]
+else:
+  candidates = [shutil.which('sftp-server'), '/usr/lib/ssh/sftp-server',
+                '/usr/lib/openssh/sftp-server', '/usr/libexec/openssh/sftp-server',
+                '/usr/libexec/sftp-server']
+SFTP_SERVER = next((str(Path(p).resolve()) for p in candidates if p and os.path.isfile(p) and os.access(p, os.X_OK)), None)
 
 
 def native(total, session='native-a'):
@@ -37,6 +48,7 @@ def native_claude(incoming, outgoing=20):
                                  'cache_read_input_tokens': 0, 'cache_creation_input_tokens': 0}}}]
 
 
+@unittest.skipUnless(SFTP_SERVER, 'read-only OpenSSH sftp-server unavailable; set OMARCHY_TEST_SFTP_SERVER')
 class RemoteTests(unittest.TestCase):
   def setUp(self):
     self.temp = tempfile.TemporaryDirectory()
@@ -55,7 +67,7 @@ class RemoteTests(unittest.TestCase):
     remote_bin = self.fake_bin / 'remote-tools'
     remote_bin.mkdir()
     system = remote_bin / 'remote-system'
-    system.write_text("""#!/usr/bin/python3
+    system.write_text('#!' + sys.executable + """
 import os, pathlib, sys
 name = pathlib.Path(sys.argv[0]).name
 if name == 'uname': print(os.environ['REMOTE_PLATFORM'])
@@ -69,13 +81,13 @@ elif name == 'ioreg': print('"IOPlatformUUID" = "' + os.environ['REMOTE_UUID'] +
     for name in ('uname', 'id', 'cat', 'ioreg'):
       (remote_bin / name).symlink_to(system.name)
     ssh = self.fake_bin / 'ssh'
-    ssh.write_text(r"""#!/usr/bin/python3
+    ssh.write_text('#!' + sys.executable + r"""
 import os, sys
 args = sys.argv[1:]
 if os.environ.get('REMOTE_OFFLINE'): sys.exit(255)
 with open(os.environ['REMOTE_CALLS'], 'a') as log: log.write(repr(args) + '\n')
 if '-s' in args:
-  os.execv('/usr/lib/ssh/sftp-server', ['sftp-server', '-R', '-d', os.environ['REMOTE_HOME']])
+  os.execv(os.environ['REMOTE_SFTP_SERVER'], ['sftp-server', '-R', '-d', os.environ['REMOTE_HOME']])
 env = dict(os.environ, HOME=os.environ['REMOTE_HOME'], PATH=os.environ['REMOTE_BIN'] + ':' + os.environ['PATH'])
 os.execve('/bin/sh', ['sh', '-c', args[-1]], env)
 """)
@@ -84,7 +96,7 @@ os.execve('/bin/sh', ['sh', '-c', args[-1]], env)
                     HOME=str(self.root / 'local'), OMARCHY_PATH=str(ROOT),
                     XDG_CONFIG_HOME=str(self.config), XDG_STATE_HOME=str(self.state),
                     XDG_CACHE_HOME=str(self.cache), PYTHONDONTWRITEBYTECODE='1',
-                    REMOTE_HOME=str(self.source), REMOTE_PLATFORM='Linux', REMOTE_UID='501',
+                    REMOTE_SFTP_SERVER=SFTP_SERVER, REMOTE_HOME=str(self.source), REMOTE_PLATFORM='Linux', REMOTE_UID='501',
                     REMOTE_MACHINE='0123456789abcdef0123456789abcdef',
                     REMOTE_UUID='01234567-89AB-CDEF-0123-456789ABCDEF',
                     REMOTE_CALLS=str(self.root / 'ssh-calls'), REMOTE_BIN=str(remote_bin))
@@ -109,6 +121,285 @@ os.execve('/bin/sh', ['sh', '-c', args[-1]], env)
     with self.connection() as remote:
       result = collection.collect_sources(remote, remote.identity(), self.cache, ROOT, budget)
       return result, remote.transferred
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_unreadable_source_retains_its_history_while_native_sources_advance(self):
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    self.cli('add', 'partial-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    previous = collection.read_json(state)['machines'][0]
+    claude.parent.chmod(0)
+    try:
+      with self.assertRaises(PermissionError):
+        claude.read_bytes()
+      codex.write_text(''.join(json.dumps(row) + '\n' for row in native(175)))
+      self.cli('refresh', '--force')
+      partial = collection.read_json(state)['machines'][0]
+      self.assertEqual(partial['status'], 'incomplete')
+      self.assertEqual(partial['providers']['codex']['todayTotalTokens'], 175)
+      self.assertEqual(partial['providers']['claude']['todayTotalTokens'], 120)
+      self.assertFalse(partial['providers']['claude']['dailyUsage']['complete'])
+      self.assertTrue(partial['providers']['codex']['dailyUsage']['complete'])
+      self.assertIn('.claude/projects', ' '.join(partial['issues']))
+      self.assertLessEqual(partial['providers']['claude']['remoteSources']['.claude/projects']['lastSuccess'],
+                           previous['lastSuccess'])
+    finally:
+      claude.parent.chmod(0o700)
+    claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(200)))
+    self.cli('refresh', '--force')
+    recovered = collection.read_json(state)['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['issues'], [])
+    self.assertEqual(recovered['providers']['codex']['todayTotalTokens'], 175)
+    self.assertEqual(recovered['providers']['claude']['todayTotalTokens'], 220)
+    self.assertTrue(recovered['providers']['claude']['dailyUsage']['complete'])
+
+  def test_symlink_entries_do_not_hide_readable_siblings_or_follow_linked_parents(self):
+    self.write('.codex/sessions/z-safe.jsonl', native(100))
+    outside = self.write('outside/secret.jsonl', native(99999, 'must-not-read'))
+    link = self.source / '.codex/sessions/a-link.jsonl'
+    link.symlink_to(outside)
+    self.cli('add', 'links-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'incomplete')
+    self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+    self.assertFalse(row['providers']['codex']['dailyUsage']['complete'])
+    self.assertIn('symlink', ' '.join(row['issues']).lower())
+    link.unlink()
+    # Even a parent above the configured root must not redirect the walk.
+    for relative in ('.claude', '.pi/agent', '.omp/agent/sessions', '.kimi/sessions'):
+      with self.subTest(relative=relative):
+        link = self.source / relative
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(outside.parent, target_is_directory=True)
+        try:
+          self.cli('refresh', '--force')
+          row = collection.read_json(state)['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+          self.assertIn('symlink', ' '.join(row['issues']).lower())
+        finally:
+          link.unlink()
+    self.cli('refresh', '--force')
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+    self.assertNotIn('99999', ''.join(p.read_text() for p in self.cache.rglob('*.jsonl')))
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_unreadable_optional_roots_are_incomplete_instead_of_zero(self):
+    self.write('.codex/sessions/test.jsonl', native(123))
+    self.cli('add', 'unreadable-box')
+    for relative, provider in (('.claude/projects', 'claude'), ('.pi/agent/sessions', 'codex'),
+                               ('.omp/agent/sessions', 'codex'), ('.kimi/sessions', 'kimi')):
+      with self.subTest(relative=relative):
+        directory = self.source / relative
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(0)
+        try:
+          with self.assertRaises(PermissionError):
+            list(directory.iterdir())
+          self.cli('refresh', '--force')
+          row = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 123)
+          self.assertFalse(row['providers'][provider]['dailyUsage']['complete'])
+          if provider != 'codex':
+            self.assertIsNone(row['providers'][provider]['todayTotalTokens'])
+        finally:
+          directory.chmod(0o700)
+    self.cli('refresh', '--force')
+    row = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['issues'], [])
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_file_read_and_parse_failures_keep_cached_source_and_fresh_siblings(self):
+    bad = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.cli('add', 'files-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    for index, failure in enumerate(('eacces', 'json', 'nan')):
+      with self.subTest(failure=failure):
+        codex = self.write('.codex/sessions/test.jsonl', native(2000 + index))
+        os.utime(codex, None)
+        if failure == 'eacces':
+          bad.chmod(0)
+        elif failure == 'json':
+          bad.write_text('{PRIVATE broken json\n')
+        else:
+          bad.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(float('nan'))))
+        try:
+          self.cli('refresh', '--force')
+          row = collection.read_json(state)['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 2000 + index)
+          self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+          self.assertFalse(row['providers']['claude']['dailyUsage']['complete'])
+        finally:
+          bad.chmod(0o600)
+    bad.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(300)))
+    self.cli('refresh', '--force')
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['providers']['claude']['todayTotalTokens'], 320)
+    self.assertNotIn('PRIVATE', ''.join(p.read_text() for p in self.cache.rglob('*.jsonl')))
+
+  def test_collector_process_failures_preserve_previous_provider_and_retry_without_source_change(self):
+    self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    app = self.root / 'collector-app'
+    (app / 'bin').mkdir(parents=True)
+    (app / 'default').symlink_to((ROOT / 'default').resolve(), target_is_directory=True)
+    for name in ('omarchy-agent-machine', 'omarchy-agent-usage-codex', 'omarchy-agent-usage-kimi'):
+      (app / 'bin' / name).symlink_to((ROOT / 'bin' / name).resolve())
+    wrapper = app / 'bin/omarchy-agent-usage-claude'
+    wrapper.write_text('#!' + sys.executable + '\n' +
+      "import os, sys\nmode = os.environ.get('COLLECTOR_FAILURE')\n" +
+      "if mode == 'exit': sys.exit(7)\n" +
+      "if mode == 'json': print('PRIVATE invalid JSON'); sys.exit(0)\n" +
+      "if mode == 'shape': print('[]'); sys.exit(0)\n" +
+      "if mode == 'deep': print('{\"id\":\"claude\",\"dailyUsage\":{\"schemaVersion\":1,\"complete\":false,\"days\":[{\"buckets\":[null]}]}}'); sys.exit(0)\n" +
+      "if mode == 'nan': print('{\"id\":\"claude\",\"todayTotalTokens\":NaN,\"dailyUsage\":{\"schemaVersion\":1,\"days\":[]}}'); sys.exit(0)\n" +
+      "os.execv(" + repr(str((ROOT / 'bin/omarchy-agent-usage-claude').resolve())) +
+      ", ['omarchy-agent-usage-claude'] + sys.argv[1:])\n")
+    wrapper.chmod(0o755)
+    state = self.state / 'omarchy/agents/remote/state.json'
+    with patch.dict(os.environ, OMARCHY_PATH=str(app)):
+      self.cli('add', 'collector-box')
+      # No prior Claude import: explicitly unavailable, never a measured zero.
+      with patch.dict(os.environ, COLLECTOR_FAILURE='exit'):
+        self.cli('refresh', '--force')
+      first = collection.read_json(state)['machines'][0]
+      self.assertEqual(first['status'], 'incomplete')
+      self.assertEqual(first['providers']['codex']['todayTotalTokens'], 100)
+      self.assertIsNone(first['providers']['claude']['todayTotalTokens'])
+      self.assertFalse(first['providers']['claude']['dailyUsage']['complete'])
+      self.cli('refresh', '--force')
+      good = collection.read_json(state)['machines'][0]
+      self.assertEqual(good['providers']['claude']['todayTotalTokens'], 120)
+      for index, failure in enumerate(('exit', 'json', 'shape', 'deep', 'nan')):
+        with self.subTest(failure=failure):
+          codex = self.write('.codex/sessions/test.jsonl', native(2000 + index))
+          os.utime(codex, None)
+          claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(200)))
+          with patch.dict(os.environ, COLLECTOR_FAILURE=failure):
+            self.cli('refresh', '--force')
+          row = collection.read_json(state)['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 2000 + index)
+          self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+          self.assertFalse(row['providers']['claude']['dailyUsage']['complete'])
+          self.assertEqual(row['providers']['claude']['remoteCollector']['lastSuccess'],
+                           good['providers']['claude']['remoteCollector']['lastSuccess'])
+          self.assertNotIn('PRIVATE', json.dumps(row))
+      # Recovery must retry even with an unchanged sanitized-source cache.
+      self.cli('refresh', '--force')
+      recovered = collection.read_json(state)['machines'][0]
+      self.assertEqual(recovered['status'], 'current')
+      self.assertEqual(recovered['providers']['claude']['todayTotalTokens'], 220)
+      self.assertTrue(recovered['providers']['claude']['dailyUsage']['complete'])
+      self.cli('refresh', '--force')
+      self.assertEqual(collection.read_json(state)['machines'][0]['providers']['claude']['todayTotalTokens'], 220)
+
+  def test_remove_while_refresh_waits_for_catalog_lock_does_not_fail_or_resurrect(self):
+    self.write('.codex/sessions/test.jsonl', native(100))
+    machine = machines.add(self.config, self.state, 'race-box', 'Race', self.connection)
+    waiting = threading.Event()
+    resume = threading.Event()
+    flock = fcntl.flock
+    test_thread = threading.get_ident()
+    def pause_at_lock(stream, operation):
+      # Pause at the OS lock boundary, before refresh can acquire the catalog.
+      # Removal uses the real lock and public catalog mutation in the meantime.
+      if (threading.get_ident() != test_thread and operation == fcntl.LOCK_EX
+          and Path(stream.name) == self.config / '.machines.lock' and not waiting.is_set()):
+        waiting.set()
+        if not resume.wait(5):
+          raise TimeoutError('test did not release catalog boundary')
+      return flock(stream, operation)
+    with patch.object(fcntl, 'flock', side_effect=pause_at_lock), ThreadPoolExecutor(max_workers=1) as pool:
+      future = pool.submit(machines.refresh, self.config, self.state, self.cache, ROOT, True, self.connection)
+      try:
+        self.assertTrue(waiting.wait(5), 'refresh did not reach the catalog lock')
+        machines.mutate(self.config, self.state, machine['id'], remove=True)
+      finally:
+        resume.set()
+      future.result(timeout=5)
+    self.assertEqual(collection.read_json(self.state / 'state.json')['machines'], [])
+
+  def test_list_is_read_only_and_not_due_refresh_keeps_panel_snapshot_unchanged(self):
+    self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+    for directory in (self.config, self.state, self.cache):
+      self.assertFalse((directory / 'omarchy').exists(), 'empty list created runtime state')
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.cli('add', 'quiet-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    original = state.read_bytes()
+    before = state.stat()
+    calls = (self.root / 'ssh-calls').read_bytes()
+    self.cli('list', '--json')
+    self.cli('list')
+    self.cli('refresh')
+    self.assertEqual(state.read_bytes(), original)
+    self.assertEqual((state.stat().st_ino, state.stat().st_mtime_ns), (before.st_ino, before.st_mtime_ns))
+    self.assertEqual((self.root / 'ssh-calls').read_bytes(), calls)
+
+  def test_sftp_read_rejects_links_even_if_a_path_changes_after_inventory(self):
+    source = self.write('.codex/sessions/test.jsonl', native(100))
+    with self.connection() as remote:
+      # The actual SFTP listing saw a regular file before its replacement.
+      self.assertTrue(any(path == str(source) for path, _ in
+                          remote.walk(str(source.parent), self.fail, base=str(self.source))))
+      source.unlink()
+      target = self.write('outside/test.jsonl', native(99999))
+      source.symlink_to(target)
+      with self.assertRaisesRegex(OSError, 'symlink'):
+        remote.read(str(source))
+      source.unlink()
+      source.parent.rmdir()
+      source.parent.symlink_to(target.parent, target_is_directory=True)
+      with self.assertRaisesRegex(OSError, 'symlink'):
+        remote.read(str(source))
+      self.assertEqual(remote.transferred, 0)
+
+  def test_invalid_native_record_shapes_do_not_replace_last_successful_files(self):
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    self.cli('add', 'shape-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    for payload in ([], {'type': 'token_count', 'info': []},
+                    {'type': 'token_count', 'info': {'last_token_usage': []}}):
+      with self.subTest(payload=payload):
+        codex.write_text(json.dumps({'type': 'event_msg', 'payload': payload}) + '\n')
+        claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(200)))
+        self.cli('refresh', '--force')
+        row = collection.read_json(state)['machines'][0]
+        self.assertEqual(row['status'], 'incomplete')
+        self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+        self.assertEqual(row['providers']['claude']['todayTotalTokens'], 220)
+    codex.write_text(''.join(json.dumps(row) + '\n' for row in native(175)))
+    for message in ([], {'role': 'assistant', 'usage': []}):
+      with self.subTest(message=message):
+        claude.write_text(json.dumps({'type': 'assistant', 'message': message}) + '\n')
+        self.cli('refresh', '--force')
+        row = collection.read_json(state)['machines'][0]
+        self.assertEqual(row['status'], 'incomplete')
+        self.assertEqual(row['providers']['codex']['todayTotalTokens'], 175)
+        self.assertEqual(row['providers']['claude']['todayTotalTokens'], 220)
+    claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(300)))
+    self.cli('refresh', '--force')
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['providers']['codex']['todayTotalTokens'], 175)
+    self.assertEqual(row['providers']['claude']['todayTotalTokens'], 320)
 
   def test_native_append_cache_and_no_transcript_retention(self):
     path = self.write('.codex/sessions/test.jsonl', native(100) + [
@@ -371,10 +662,14 @@ console.log(JSON.stringify([all.todayTotalTokens, single.todayTotalTokens,
     self.assertEqual([str(p.relative_to(self.source)) for p in self.source.rglob('*') if p.is_file()],
                      ['.claude/projects/project/test.jsonl'])
 
-  def test_cli_rejects_local_account_and_invalid_identity_before_saving(self):
+  @unittest.skipUnless(Path('/etc/machine-id').is_file(), 'local Linux machine-id unavailable')
+  def test_cli_rejects_local_account_before_saving(self):
     with patch.dict(os.environ, REMOTE_UID=str(os.getuid()),
                     REMOTE_MACHINE=Path('/etc/machine-id').read_text().strip()):
       self.assertIn('This computer', self.cli('add', 'local-alias', success=False).stderr)
+    self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+
+  def test_cli_rejects_invalid_identity_before_saving(self):
     for change in ({'REMOTE_UID': 'not-a-uid'}, {'REMOTE_MACHINE': 'invalid'},
                    {'REMOTE_PLATFORM': 'Darwin', 'REMOTE_UUID': '123'}, {'REMOTE_PLATFORM': 'Windows'}):
       with patch.dict(os.environ, change):
@@ -425,4 +720,4 @@ console.log(JSON.stringify([all.todayTotalTokens, single.todayTotalTokens,
 
 
 if __name__ == '__main__':
-  unittest.main()
+  unittest.main(verbosity=2)

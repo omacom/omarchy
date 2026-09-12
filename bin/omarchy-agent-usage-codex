@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Print the Codex usage record as JSON
-# omarchy:args=[--force] [--limits-only]
+# omarchy:args=[--force] [--limits-only] [--stats-only]
 # omarchy:hidden=true
 """Collect Codex usage into one display-ready JSON record.
 
@@ -680,7 +680,7 @@ def scan_cache_paths():
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
   # The digest covers every data path the scan reads: the codex session
-  # roots, the opencode DB, and (via Path.home()) the pi/omp session roots.
+  # roots, the opencode DB, and (via source_home()) the pi/omp session roots.
   digest = hashlib.sha1((str(source_home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
   root = cache_root()
   return root / f"codex-scan-{digest}.json", root / f"codex-scan-{digest}.lock"
