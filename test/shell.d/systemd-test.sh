@@ -104,3 +104,7 @@ pass "systemd-oomd acts on sustained memory stall"
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"
+
+grep -Fx 'systemctl enable paccache.timer' "$ROOT/install/config/enable-services.sh" >/dev/null ||
+  fail "new installs do not enable paccache.timer"
+pass "new installs enable paccache.timer"
