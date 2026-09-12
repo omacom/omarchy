@@ -36,9 +36,10 @@ A third-party plugin is just a git repo with a `manifest.json` at its root.
 ```
 omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
 omarchy plugin add acme/omarchy-weather --enable
+omarchy plugin add --gitlab acme/omarchy-weather --enable
 ```
 
-The second form is a GitHub shorthand: `owner/repo` expands to `https://github.com/owner/repo.git` before anything else happens, so it's just a shorter way to type the same URL. A repo hosted anywhere else still needs its full URL.
+The second and third forms are `owner/repo` shorthand: it expands to a full clone URL before anything else happens, so it's just a shorter way to type the same URL. With no platform flag it expands to GitHub (`https://github.com/owner/repo.git`); `--gitlab` or `--bitbucket` expands it against that host instead. Nothing is guessed from the shorthand itself — the platform always comes from the flag, GitHub only because that's the default. A repo hosted anywhere else still needs its full URL.
 
 Before it does anything, it tells you plainly that plugins run as arbitrary, unsandboxed code inside your long-lived shell process, shows you the (already expanded) URL, and asks you to confirm. Take that seriously. The third-party plugin interface does not directly expose authentication services, and a replacement bar receives only limited capabilities for configured non-authentication UI. Visual plugins still share the shell's QML scene and can walk ordinary parent objects, while all plugin code runs with everything your user account can reach. Authentication state is protected separately by keeping those services outside the reachable host object graph. Only add repos you're willing to run, and read them before you enable them.
 

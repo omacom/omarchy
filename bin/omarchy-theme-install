@@ -1,26 +1,52 @@
 #!/bin/bash
 
 # omarchy:summary=Install a theme from a git repository
-# omarchy:args=[git-repo-url|owner/repo]
+# omarchy:args=[git-repo-url|owner/repo] [--github|--gitlab|--bitbucket]
 # omarchy:examples=omarchy theme install https://github.com/example/omarchy-example-theme.git
 # omarchy:examples=omarchy theme install git@github.com:example/omarchy-example-theme.git
 # omarchy:examples=omarchy theme install example/omarchy-example-theme
+# omarchy:examples=omarchy theme install --gitlab example/omarchy-example-theme
 
-if [[ -z $1 ]]; then
+PLATFORM="github"
+PLATFORM_FLAG=""
+REPO_URL=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --github | --gitlab | --bitbucket)
+    [[ -z $PLATFORM_FLAG || $PLATFORM_FLAG == $1 ]] || {
+      echo "Error: conflicting platform flags: $PLATFORM_FLAG and $1" >&2
+      exit 1
+    }
+    PLATFORM_FLAG="$1"
+    PLATFORM="${1#--}"
+    shift
+    ;;
+  *)
+    [[ -z $REPO_URL ]] || {
+      echo "Error: unexpected argument: $1" >&2
+      exit 1
+    }
+    REPO_URL="$1"
+    shift
+    ;;
+  esac
+done
+
+if [[ -z $REPO_URL ]]; then
   echo -e "\e[32mSee https://omarchy.org/themes/\n\e[0m"
   REPO_URL=$(gum input --placeholder="Git repo URL (https, git@host:org/repo.git, or owner/repo)" --header="")
-else
-  REPO_URL="$1"
 fi
 
 if [[ -z $REPO_URL ]]; then
   exit 1
 fi
 
-# A bare `owner/repo` becomes its GitHub clone URL; anything already url-shaped
-# passes through untouched. Runs before the guard below so that guard only ever
-# sees the URL that is actually about to be cloned.
-REPO_URL=$(omarchy-git-shorthand-expand "$REPO_URL") || exit 1
+# A bare `owner/repo` becomes a clone URL on the given platform (GitHub unless
+# --gitlab/--bitbucket said otherwise); anything already url-shaped passes
+# through untouched regardless of platform. Runs before the guard below so
+# that guard only ever sees the URL that is actually about to be cloned.
+REPO_URL=$(omarchy-git-shorthand-expand "$REPO_URL" "$PLATFORM") || exit 1
 
 # Refuse a URL that names a git option or a transport helper before cloning. The
 # check is shared with omarchy-plugin-add and explains itself; a missing checker

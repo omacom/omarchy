@@ -53,7 +53,8 @@ fast-forward pull:
 
 ```bash
 omarchy plugin add https://github.com/acme/omarchy-weather.git
-omarchy plugin add acme/omarchy-weather   # owner/repo shorthand, expands to the URL above
+omarchy plugin add acme/omarchy-weather           # owner/repo shorthand, expands to the URL above
+omarchy plugin add --gitlab acme/omarchy-weather  # same shorthand, against gitlab.com instead
 omarchy plugin update                # fetches, shows a diff, fast-forwards
 omarchy plugin remove acme.weather
 ```

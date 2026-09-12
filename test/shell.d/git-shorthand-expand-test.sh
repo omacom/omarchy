@@ -15,7 +15,8 @@ expand() {
   "$ROOT/bin/omarchy-git-shorthand-expand" "$@"
 }
 
-# The one shape this command exists to handle.
+# The one shape this command exists to handle. With no platform argument, the
+# default is GitHub -- the same as passing "github" explicitly.
 for pair in \
   "acme/omarchy-weather:https://github.com/acme/omarchy-weather.git" \
   "some-org/some.repo_name:https://github.com/some-org/some.repo_name.git" \
@@ -26,9 +27,38 @@ for pair in \
   output=$(expand "$shorthand") || fail "omarchy-git-shorthand-expand expands '$shorthand'" "$output"
   [[ $output == "$expected" ]] ||
     fail "omarchy-git-shorthand-expand expands '$shorthand' to the right URL" "got: $output"
+
+  output=$(expand "$shorthand" github) || fail "omarchy-git-shorthand-expand expands '$shorthand github'" "$output"
+  [[ $output == "$expected" ]] ||
+    fail "omarchy-git-shorthand-expand expands '$shorthand' with an explicit github platform" "got: $output"
 done
 
-pass "a bare owner/repo expands to its GitHub clone URL"
+pass "a bare owner/repo expands to its GitHub clone URL by default"
+
+# A named platform other than the default expands against that platform's
+# host instead. Nothing is guessed: the platform always comes from the
+# caller, never from the shape of the argument.
+for pair in \
+  "gitlab:acme/omarchy-weather:https://gitlab.com/acme/omarchy-weather.git" \
+  "bitbucket:acme/omarchy-weather:https://bitbucket.org/acme/omarchy-weather.git"; do
+  platform="${pair%%:*}"
+  rest="${pair#*:}"
+  shorthand="${rest%%:*}"
+  expected="${rest#*:}"
+  output=$(expand "$shorthand" "$platform") ||
+    fail "omarchy-git-shorthand-expand expands '$shorthand' for platform '$platform'" "$output"
+  [[ $output == "$expected" ]] ||
+    fail "omarchy-git-shorthand-expand expands '$shorthand' to the right $platform URL" "got: $output"
+done
+
+pass "an explicit platform expands against that platform's host"
+
+output=$(expand "acme/omarchy-weather" sourcehut 2>&1) &&
+  fail "omarchy-git-shorthand-expand refuses an unknown platform" "$output"
+grep -qF "unknown platform" <<<"$output" ||
+  fail "omarchy-git-shorthand-expand names the unknown-platform rejection" "$output"
+
+pass "an unrecognized platform name is refused rather than silently guessed"
 
 # Already url-shaped: every one of these has to pass through byte-for-byte, the
 # same set omarchy-git-url-check and the theme/plugin install tests already
@@ -45,9 +75,15 @@ for url in \
   output=$(expand "$url") || fail "omarchy-git-shorthand-expand accepts '$url'" "$output"
   [[ $output == "$url" ]] ||
     fail "omarchy-git-shorthand-expand leaves an already-url-shaped argument untouched: $url" "got: $output"
+
+  # A platform argument alongside an already-url-shaped argument changes
+  # nothing: there is no shorthand here to expand against any host.
+  output=$(expand "$url" gitlab) || fail "omarchy-git-shorthand-expand accepts '$url' with a platform argument" "$output"
+  [[ $output == "$url" ]] ||
+    fail "omarchy-git-shorthand-expand ignores the platform argument for an already-url-shaped argument: $url" "got: $output"
 done
 
-pass "a URL, scp-style or otherwise, passes through unchanged"
+pass "a URL, scp-style or otherwise, passes through unchanged regardless of platform"
 
 # Not owner/repo-shaped at all: a bare word, a local path, two slashes, an
 # empty repo, or a leading dash where an owner belongs. None of these should be

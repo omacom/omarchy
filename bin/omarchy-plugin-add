@@ -2,8 +2,8 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url|owner/repo] [--enable] [--yes]
-# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add acme/omarchy-weather --enable
+# omarchy:args=[git-url|owner/repo] [--enable] [--yes] [--github|--gitlab|--bitbucket]
+# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add acme/omarchy-weather --enable | omarchy plugin add --gitlab acme/omarchy-weather
 # omarchy:alias=omarchy plugin install
 
 set -euo pipefail
@@ -60,6 +60,8 @@ plugin_id_manifest() {
 
 url=""
 enable_after=""
+platform="github"
+platform_flag=""
 
 while (( $# > 0 )); do
   case "$1" in
@@ -71,8 +73,15 @@ while (( $# > 0 )); do
     ASSUME_YES=1
     shift
     ;;
+  --github | --gitlab | --bitbucket)
+    [[ -z $platform_flag || $platform_flag == $1 ]] ||
+      fail "conflicting platform flags: $platform_flag and $1"
+    platform_flag="$1"
+    platform="${1#--}"
+    shift
+    ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url|owner/repo] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url|owner/repo] [--enable] [--yes] [--github|--gitlab|--bitbucket]"
     exit 0
     ;;
   -*)
@@ -93,10 +102,11 @@ if [[ -z $url ]]; then
   [[ -n $url ]] || fail "a git URL is required"
 fi
 
-# A bare `owner/repo` becomes its GitHub clone URL; anything already url-shaped
-# passes through untouched. Runs before the guard below so that guard only ever
-# sees the URL that is actually about to be cloned.
-url=$(omarchy-git-shorthand-expand "$url") || exit 1
+# A bare `owner/repo` becomes a clone URL on the given platform (GitHub unless
+# --gitlab/--bitbucket said otherwise); anything already url-shaped passes
+# through untouched regardless of platform. Runs before the guard below so
+# that guard only ever sees the URL that is actually about to be cloned.
+url=$(omarchy-git-shorthand-expand "$url" "$platform") || exit 1
 
 # Refuse a URL that names a git option or a transport helper before cloning, so
 # an untrusted URL cannot run a command before the plugin is validated or
