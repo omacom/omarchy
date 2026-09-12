@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Install GitLab Duo CLI through glab for the default agent
+# omarchy:args=[--check|--now]
+
+set -euo pipefail
+
+glab_supported() {
+  omarchy-cmd-present glab || return 1
+  local version
+  version=$(glab --version) || return 1
+  [[ $version =~ ^glab[[:space:]]([0-9]+\.[0-9]+\.[0-9]+) ]] || return 1
+  (( $(vercmp "${BASH_REMATCH[1]}" "1.107.0") >= 0 ))
+}
+
+duo_installed() {
+  glab_supported || return 1
+  local binary
+  binary=${GLAB_DUO_CLI_BINARY_PATH:-$(glab config get duo_cli_binary_path --global 2>/dev/null)}
+  [[ -n $binary && -x $binary ]]
+}
+
+case "${1:---now}" in
+--check)
+  duo_installed
+  ;;
+--now)
+  if ! glab_supported; then
+    mise use -g glab@latest
+    if ! glab_supported; then
+      echo "GitLab Duo CLI requires glab 1.107.0 or later on PATH." >&2
+      exit 1
+    fi
+  fi
+  if ! duo_installed; then
+    omarchy-setup-duo
+    glab duo cli --install --yes
+  fi
+  ;;
+*)
+  echo "Usage: omarchy-install-duo-cli [--check|--now]" >&2
+  exit 1
+  ;;
+esac

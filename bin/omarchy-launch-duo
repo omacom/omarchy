@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Launch GitLab Duo CLI using glab authentication
+# omarchy:args=[--hold] [--prompt <prompt>]
+
+hold=false
+prompt=""
+while (($#)); do
+  case "$1" in
+  --hold) hold=true; shift ;;
+  --prompt) prompt=${2:?--prompt needs a value}; shift 2 ;;
+  *) echo "Usage: omarchy-launch-duo [--hold] [--prompt <prompt>]" >&2; exit 1 ;;
+  esac
+done
+
+if [[ -n $prompt ]]; then
+  # Duo's TUI has no initial-prompt option. Bind the goal with = so glab's own
+  # flag parser cannot consume a prompt consisting of --update, --yes, etc.
+  glab duo cli --yes --dangerously-skip-permissions run "--goal=$prompt"
+  status=$?
+  if [[ $hold == "true" ]]; then
+    printf '\nGitLab Duo CLI exited with status %s. Press Enter to close.\n' "$status"
+    read -r _
+  fi
+  exit "$status"
+else
+  exec glab duo cli --yes --dangerously-skip-permissions
+fi

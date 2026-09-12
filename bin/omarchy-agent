@@ -60,7 +60,9 @@ done
 # button on each subscription opens the harness made for it, Codex for OpenAI.
 if [[ -n $agent_override ]]; then
   agent=$agent_override
-  if omarchy-cmd-missing "$agent"; then
+  agent_command=$agent
+  [[ $agent == "duo" ]] && agent_command=glab
+  if omarchy-cmd-missing "$agent_command"; then
     omarchy-notification-send "$(omarchy-i18n agents.harnessMissing "$agent")" "$(omarchy-i18n agents.harnessMissingBody "$agent")"
     exit 1
   fi
@@ -119,9 +121,11 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
+agent_command=$agent
+[[ $agent == "duo" ]] && agent_command=glab
 # OpenClaw's launcher sets OpenClaw up when the package became the seed before
 # this user's OpenClaw moved, so with the package a missing command is its to fix.
-if omarchy-cmd-missing "$agent" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
+if omarchy-cmd-missing "$agent_command" && ! { [[ $agent == "openclaw" ]] && omarchy-pkg-present openclaw; }; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
 fi
@@ -129,6 +133,11 @@ fi
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 case "$agent" in
+duo)
+  command=(omarchy-launch-duo)
+  [[ $inline == "false" && -n ${prompt:-} ]] && command+=(--hold)
+  [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  ;;
 opencode)
   command=(opencode --auto)
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
@@ -325,9 +334,9 @@ mise_wrapper() {
 # installed, still wins over mise's lazy shim earlier on PATH, which would
 # install and run mise's copy instead. Once mise has installed its own, a
 # terminal runs that one, so the launcher does too. OpenClaw's command runs its
-# launcher, so its prompt is the only argument that could match the name.
+# launcher, and Duo runs through glab, so their prompts must not be rewritten.
 user_install="$HOME/.local/bin/$agent"
-if [[ $agent != "openclaw" && -f $user_install && -x $user_install ]] &&
+if [[ $agent != "openclaw" && $agent != "duo" && -f $user_install && -x $user_install ]] &&
   ! mise_wrapper "$user_install" && ! MISE_OFFLINE=1 mise which "$agent" &>/dev/null; then
   for i in "${!command[@]}"; do
     if [[ ${command[i]} == "$agent" ]]; then
