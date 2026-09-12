@@ -35,6 +35,18 @@ function displayHostName(hostName, dnsName) {
   return shortDnsName(dnsName) || host || "Unknown"
 }
 
+// Exit node rows name an identifier, not a friendly label: the value shown
+// must match `tailscale exit-node list`, tsui and the admin console so it can
+// be cross-referenced and typed into `tailscale set --exit-node=`. MACHINES
+// rows keep displayHostName, where the OS hostname reads better.
+function exitNodeLabel(peer) {
+  if (!peer) return "Unknown"
+  if (peer.AddMullvad === true || peer.MullvadRegion === true || peer.Mullvad === true) {
+    return String(peer.DisplayName || "Unknown")
+  }
+  return shortDnsName(peer.DNSName) || String(peer.DisplayName || peer.HostName || "Unknown")
+}
+
 function isMullvadHost(name) {
   var value = String(name || "").toLowerCase()
   var suffix = ".mullvad.ts.net"
@@ -113,6 +125,55 @@ function peerFromStatus(id, peer) {
     ExitNode: peer.ExitNode === true,
     Mullvad: isMullvadPeer(peer)
   }
+}
+
+// Tagged wins over ownership: a tagged device is owned by the tag, not by
+// whoever authenticated it. Matches tsui, where atl-exit-node sits under
+// Tagged Devices even though it was enrolled by the current user.
+function peerGroup(peer, selfUserId) {
+  if (!peer) return "other"
+  var tags = peer.Tags
+  if (tags && tags.length > 0) return "tagged"
+  var owner = String(peer.UserID || "")
+  var self = String(selfUserId || "")
+  if (owner !== "" && self !== "" && owner === self) return "mine"
+  return "other"
+}
+
+// Input arrives already sorted by HostName (see parseStatus), so preserving
+// order keeps each group alphabetical without re-sorting.
+function groupPeers(peers, selfUserId) {
+  var groups = { mine: [], tagged: [], other: [] }
+  var values = Array.isArray(peers) ? peers : []
+  for (var i = 0; i < values.length; i++) {
+    groups[peerGroup(values[i], selfUserId)].push(values[i])
+  }
+  return groups
+}
+
+// Searches the MagicDNS name as well as the hostname: the two diverge (a
+// machine named "Firezone" answers to ny-exit-node), so hostname-only search
+// would miss the name the user actually knows the machine by.
+function peerMatchesQuery(peer, query) {
+  var needle = String(query || "").trim().toLowerCase()
+  if (needle === "") return true
+  if (!peer) return false
+  var haystack = [peer.DisplayName, peer.HostName, peer.DNSName, peer.OS]
+  var ips = peer.TailscaleIPs || []
+  for (var i = 0; i < ips.length; i++) haystack.push(ips[i])
+  for (var j = 0; j < haystack.length; j++) {
+    if (String(haystack[j] || "").toLowerCase().indexOf(needle) !== -1) return true
+  }
+  return false
+}
+
+function filterPeers(peers, query) {
+  var values = Array.isArray(peers) ? peers : []
+  var result = []
+  for (var i = 0; i < values.length; i++) {
+    if (peerMatchesQuery(values[i], query)) result.push(values[i])
+  }
+  return result
 }
 
 function sliceTableColumn(line, start, end) {
@@ -309,6 +370,7 @@ if (typeof module !== "undefined") {
     cleanDnsName: cleanDnsName,
     shortDnsName: shortDnsName,
     displayHostName: displayHostName,
+    exitNodeLabel: exitNodeLabel,
     osIcon: osIcon,
     accountLabel: accountLabel,
     loginPlan: loginPlan,
@@ -316,6 +378,10 @@ if (typeof module !== "undefined") {
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
+    peerGroup: peerGroup,
+    groupPeers: groupPeers,
+    peerMatchesQuery: peerMatchesQuery,
+    filterPeers: filterPeers,
     parseExitNodeList: parseExitNodeList,
     mullvadRegionOptions: mullvadRegionOptions,
     mullvadCountryOptions: mullvadCountryOptions,

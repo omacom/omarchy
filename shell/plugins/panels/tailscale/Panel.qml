@@ -42,7 +42,18 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property bool showPeers: tailscale.active && tailscale.peers.length > 0
+  property bool peerSearchOpen: false
+  property string peerQuery: ""
+
+  // Filter before grouping so each group shows only matches and empty groups
+  // hide themselves, rather than leaving three headings over an empty list.
+  readonly property var peerGroups: tailscale.groupPeers(
+    tailscale.filterPeers(tailscale.peers, peerSearchOpen ? peerQuery : ""),
+    tailscale.selfUserId)
+  // Flat, render-ordered view of peerGroups. Cursor bounds and rowIndex must
+  // follow what is drawn, not tailscale.peers' sort order.
+  readonly property var orderedPeers: peerGroups.mine.concat(peerGroups.tagged).concat(peerGroups.other)
+  readonly property bool showPeers: tailscale.active && orderedPeers.length > 0
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
@@ -58,8 +69,8 @@ Panel {
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
 
   function selectedPeer() {
-    if (tailscale.peers.length === 0) return null
-    return tailscale.peers[Math.max(0, Math.min(peerIndex, tailscale.peers.length - 1))]
+    if (orderedPeers.length === 0) return null
+    return orderedPeers[Math.max(0, Math.min(peerIndex, orderedPeers.length - 1))]
   }
 
   function selectedExitNode() {
@@ -181,7 +192,7 @@ Panel {
     if (headerIndex < 0) headerIndex = 0
     if (headerIndex > 0) headerIndex = 0
     if (accountIndex >= tailscale.accounts.length) accountIndex = Math.max(0, tailscale.accounts.length - 1)
-    if (peerIndex >= tailscale.peers.length) peerIndex = Math.max(0, tailscale.peers.length - 1)
+    if (peerIndex >= orderedPeers.length) peerIndex = Math.max(0, orderedPeers.length - 1)
     if (exitNodeIndex >= exitNodes.length) exitNodeIndex = Math.max(0, exitNodes.length - 1)
     if (mullvadRegionIndex >= filteredMullvadRegions.length) mullvadRegionIndex = Math.max(0, filteredMullvadRegions.length - 1)
     if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
@@ -219,7 +230,7 @@ Panel {
         if (dy < 0) {
           if (peerIndex <= 0) focusSection = showExitNodes ? "exitNodes" : (tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : "header"))
           else peerIndex--
-        } else if (peerIndex < tailscale.peers.length - 1) {
+        } else if (peerIndex < orderedPeers.length - 1) {
           peerIndex++
         }
       } else if (focusSection === "exitNodes") {
@@ -258,6 +269,30 @@ Panel {
     cursorActive = true
     mullvadRegionIndex = Math.max(0, Math.min(filteredMullvadRegions.length - 1, mullvadRegionIndex + delta))
     scrollMullvadRegionCursorIntoView()
+  }
+
+  function openPeerSearch() {
+    peerSearchOpen = true
+    peerQuery = ""
+    peerIndex = 0
+    focusSection = "peers"
+    Qt.callLater(function() { if (peerSearch) peerSearch.forceActiveFocus() })
+  }
+
+  function closePeerSearch() {
+    peerSearchOpen = false
+    peerQuery = ""
+    keyCatcher.forceActiveFocus()
+  }
+
+  // Deliberately not routed through moveCursor: its section dispatch would
+  // throw focus out of "peers" at the list boundaries while the search field
+  // still holds focus.
+  function movePeerCursor(delta) {
+    if (orderedPeers.length === 0) return
+    cursorActive = true
+    peerIndex = Math.max(0, Math.min(orderedPeers.length - 1, peerIndex + delta))
+    scrollCursorIntoView()
   }
 
   function activateMullvadRegionCursor() {
@@ -413,7 +448,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: root.copyMenuOpen
+      blocked: root.copyMenuOpen || peerSearch.activeFocus || mullvadSearch.activeFocus
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
         root.moveCursor(dx, dy)
@@ -422,7 +457,8 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "t" || t === "T") tailscale.toggleTailscale()
+        if (t === "/") root.openPeerSearch()
+        else if (t === "t" || t === "T") tailscale.toggleTailscale()
         else if (t === "c" || t === "C") tailscale.copyPeerIp(root.selectedPeer())
         else if (t === "n" || t === "N") tailscale.copyPeerName(root.selectedPeer())
         else if (t === "d" || t === "D") tailscale.copyPeerDnsName(root.selectedPeer())
@@ -681,6 +717,39 @@ Panel {
               fontFamily: root.fontFamily
             }
 
+            TextField {
+              id: peerSearch
+              visible: root.peerSearchOpen
+              width: parent.width
+              foreground: root.foreground
+              placeholderText: "Search machines"
+              text: root.peerQuery
+              onTextChanged: {
+                root.peerQuery = text
+                root.peerIndex = 0
+              }
+              // Arrow keys only -- unlike the Mullvad picker this field must
+              // accept j/k/h/l as literal text.
+              Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Down) { root.movePeerCursor(1); event.accepted = true; return }
+                if (event.key === Qt.Key_Up) { root.movePeerCursor(-1); event.accepted = true; return }
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.activateCursor(); event.accepted = true; return }
+                if (event.key === Qt.Key_Escape) { root.closePeerSearch(); event.accepted = true }
+              }
+            }
+
+            Text {
+              visible: root.peerSearchOpen && root.orderedPeers.length === 0
+              width: parent.width
+              text: "No machines match \"" + root.peerQuery + "\"."
+              // The query is user input; never let AutoText interpret markup.
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              horizontalAlignment: Text.AlignHCenter
+            }
+
             Text {
               visible: tailscale.installed && tailscale.active && tailscale.peers.length === 0
               width: parent.width
@@ -695,16 +764,48 @@ Panel {
               id: peerColumn
               visible: root.showPeers
               width: parent.width
-              spacing: Style.space(6)
+              spacing: Style.space(12)
 
               Repeater {
-                model: tailscale.peers
-                PeerRow {
+                model: [
+                  { key: "mine", label: "MY DEVICES" },
+                  { key: "tagged", label: "TAGGED DEVICES" },
+                  { key: "other", label: "OTHER DEVICES" }
+                ]
+
+                Column {
+                  id: peerGroupColumn
                   required property var modelData
-                  required property int index
+
+                  readonly property var rows: root.peerGroups[modelData.key] || []
+                  // rowIndex must stay unique across groups: the cursor indexes
+                  // root.orderedPeers, which concatenates mine + tagged + other.
+                  readonly property int groupOffset: modelData.key === "mine"
+                    ? 0
+                    : (modelData.key === "tagged"
+                       ? root.peerGroups.mine.length
+                       : root.peerGroups.mine.length + root.peerGroups.tagged.length)
+
                   width: peerColumn.width
-                  peer: modelData
-                  rowIndex: index
+                  spacing: Style.space(6)
+                  visible: rows.length > 0
+
+                  PanelSectionHeader {
+                    text: peerGroupColumn.modelData.label
+                    foreground: root.dim
+                    fontFamily: root.fontFamily
+                  }
+
+                  Repeater {
+                    model: peerGroupColumn.rows
+                    PeerRow {
+                      required property var modelData
+                      required property int index
+                      width: peerColumn.width
+                      peer: modelData
+                      rowIndex: peerGroupColumn.groupOffset + index
+                    }
+                  }
                 }
               }
             }
@@ -1118,7 +1219,7 @@ Panel {
     readonly property bool addMullvad: peer && peer.AddMullvad === true
     readonly property bool activeExitNode: peer && peer.ExitNode === true
     readonly property bool settingExitNode: peer && tailscale.settingExitNodeId === String(peer.id || "")
-    readonly property string peerName: peer ? String(peer.DisplayName || peer.HostName || "Unknown") : "Unknown"
+    readonly property string peerName: tailscale.exitNodeLabel(peer)
     readonly property string actionTooltip: addMullvad ? "" : (activeExitNode ? "Disconnect" : "Connect")
 
     hasCursor: root.cursorActive && root.focusSection === "exitNodes" && root.exitNodeIndex === rowIndex
