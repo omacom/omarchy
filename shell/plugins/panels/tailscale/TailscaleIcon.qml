@@ -11,6 +11,12 @@ Item {
   property bool crossed: false
   property bool warning: false
 
+  // Service-health dot. Shares the bottom-right corner with the login badge,
+  // which wins when both apply: "this device needs login" outranks "a service
+  // is unreachable", and two markers in one corner is just mush.
+  property color statusColor: Color.foreground
+  property bool statusVisible: false
+
   width: iconSize
   height: iconSize
   implicitWidth: iconSize
@@ -61,6 +67,17 @@ Item {
       font.pixelSize: Math.max(6, parent.height * 0.72)
       font.bold: true
     }
+  }
+
+  BorderSurface {
+    visible: root.statusVisible && !root.warning
+    width: Math.max(5, root.iconSize * 0.34)
+    height: width
+    radius: width / 2
+    color: root.statusColor
+    anchors.right: parent.right
+    anchors.bottom: parent.bottom
+    borderSpec: Border.flat(Color.popups.background, 1)
   }
 
   component Dot: Rectangle {
