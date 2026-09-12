@@ -246,21 +246,20 @@ Item {
     return remoteActive ? RemoteUsage.scopes(rawLocalProviders, remoteMachines, Date.now()) : ({ all: localProviders, local: rawLocalProviders })
   }
   // Prepare prices when source records change, not when the user selects a tab.
-  // Weakly keyed presentation caches release superseded snapshots automatically.
-  onMachineScopesChanged: prepareMachinePrices()
+  // Strong cache ownership follows this snapshot and releases discarded keys.
+  onPreparedProviderViewsChanged: prepareMachinePrices()
   Connections {
     target: root.pricing
     function onRevisionChanged() { root.prepareMachinePrices() }
   }
   function prepareMachinePrices() {
+    var current = preparedProviderViews.map(function(view) { return view.provider })
+    root.pricing.prepareProviders(current)
     if (!remoteActive) return
     var now = Date.now()
-    for (var scope in machineScopes) {
-      var providers = machineScopes[scope]
-      for (var i = 0; i < providers.length; i++) {
-        root.pricing.dailyRows(providers[i], now)
-        root.pricing.modelWindowPresentation(providers[i], now)
-      }
+    for (var i = 0; i < current.length; i++) {
+      root.pricing.dailyRows(current[i], now)
+      root.pricing.modelWindowPresentation(current[i], now)
     }
   }
 

@@ -1020,21 +1020,50 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
 }
 
 function createPresentationCache() {
-  return { daily: [], models: [] }
+  return { daily: [], models: [], current: [] }
+}
+
+// Ownership follows the current prepared snapshot. Strong keys stay alive until
+// the owner replaces that snapshot; no WeakMap lifetime depends on QV4 GC.
+function presentationKey(provider) {
+  return provider.dailyUsage && typeof provider.dailyUsage === "object" ? provider.dailyUsage
+    : provider.recentDays && typeof provider.recentDays === "object" ? provider.recentDays : provider
+}
+
+function currentPresentation(cache, id, key) {
+  for (var i = 0; i < cache.current.length; i++) {
+    if (cache.current[i].id === id && cache.current[i].key === key) return true
+  }
+  return false
+}
+
+function preparePresentationCache(cache, providers) {
+  cache.current = []
+  for (var i = 0; i < providers.length; i++) {
+    var provider = providers[i]
+    var id = exactId(provider.providerId)
+    var key = presentationKey(provider)
+    if (!currentPresentation(cache, id, key)) cache.current.push({ id: id, key: key })
+  }
+  // Drop discarded snapshots now, even if their pages are still externally
+  // retained. Surviving keys keep their prices (including limits-only updates).
+  for (var kind of ["daily", "models"]) {
+    cache[kind] = cache[kind].filter(function(entry) {
+      entry.current = currentPresentation(cache, entry.id, entry.key)
+      return entry.current
+    })
+  }
 }
 
 function cachedPresentation(cache, kind, provider, nowMs, overrides, revision) {
   if (!cache || !provider) return kind === "daily" ? [] : { available: false, models: [], summaries: [] }
   var id = exactId(provider.providerId)
-  // Keep at most 128 recently used views per presentation kind, across all
-  // providers/computers. Strong references have an explicit lifetime instead
-  // of depending on QV4 WeakMap collection during passive binding updates.
-  // This is a cache capacity, not a limit on configured computers.
+  // All current keys are retained, plus at most 16 transient views per kind
+  // for callers outside preparation or bindings during a snapshot transition.
   var views = cache[kind]
   if (!Array.isArray(views)) views = cache[kind] = []
   var stamp = localDateString(nowMs) + "|" + String(revision)
-  var key = provider.dailyUsage && typeof provider.dailyUsage === "object" ? provider.dailyUsage
-    : provider.recentDays && typeof provider.recentDays === "object" ? provider.recentDays : provider
+  var key = presentationKey(provider)
   for (var i = 0; i < views.length; i++) {
     var entry = views[i]
     if (entry.id !== id || entry.key !== key) continue
@@ -1050,8 +1079,12 @@ function cachedPresentation(cache, kind, provider, nowMs, overrides, revision) {
     ? buildDailyRows(id, provider.dailyUsage, provider.recentDays, nowMs, overrides, provider.costScopeCompatible)
     : buildModelWindowPresentation(id, provider.dailyUsage, nowMs, overrides, provider.costScopeCompatible)
   views.push({ id: id, key: key, dailyUsage: provider.dailyUsage, recentDays: provider.recentDays,
-    costScopeCompatible: provider.costScopeCompatible, stamp: stamp, value: value })
-  if (views.length > 128) views.shift()
+    costScopeCompatible: provider.costScopeCompatible, stamp: stamp, value: value,
+    current: currentPresentation(cache, id, key) })
+  var spare = 0
+  for (var j = views.length - 1; j >= 0; j--) {
+    if (!views[j].current && ++spare > 16) views.splice(j, 1)
+  }
   return value
 }
 
@@ -1104,6 +1137,7 @@ if (typeof module !== "undefined") module.exports = {
   recentDateStrings: recentDateStrings,
   buildDailyRows: buildDailyRows,
   createPresentationCache: createPresentationCache,
+  preparePresentationCache: preparePresentationCache,
   cachedDailyRows: cachedDailyRows,
   cachedModelWindowPresentation: cachedModelWindowPresentation,
   dailyTooltipDetails: dailyTooltipDetails,

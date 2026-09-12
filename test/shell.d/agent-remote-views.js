@@ -98,6 +98,7 @@ console.log('ok - stale age follows the relevant provider and ignores old timest
 
 const cache = pricing.createPresentationCache()
 const views = Object.values(scopes)
+pricing.preparePresentationCache(cache, views.flat())
 const prepared = views.map(view => pricing.cachedModelWindowPresentation(cache, view[0], now, '', 0))
 for (let round = 0; round < 10; round++) views.forEach((view, index) => {
   assert.equal(pricing.cachedModelWindowPresentation(cache, view[0], now, '', 0), prepared[index])
@@ -167,6 +168,7 @@ function measurePreparedSwitches(machineCount) {
   }
 
   const measuredCache = pricing.createPresentationCache()
+  pricing.preparePresentationCache(measuredCache, preparedViews.map(view => view.provider))
   const references = new Map()
   const prepareStarted = process.hrtime.bigint()
   for (const view of preparedViews) references.set(view.provider, {

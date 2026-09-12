@@ -17,6 +17,11 @@ with tempfile.TemporaryDirectory(prefix='agents-cache-lifetime-') as directory:
     source = (plugin / name).read_text()
     source = source.replace('import Quickshell\n', '').replace('import Quickshell.Io\n', '')
     source = re.sub(r'Quickshell.env\("[^"]+"\)', '""', source)
+    # Align preparation's wall clock with the fixed synthetic usage dates.
+    # WorkerScript delivery and Qt's event loop retain their real timing.
+    if name == 'Main.qml':
+      source = source.replace('Date.now()', 'new Date(2026, 8, 12, 12).getTime()')
+      source = source.replace('new Date()', 'new Date(2026, 8, 12, 12)')
     (target / name).write_text(source)
   # Only system IO is substituted. Production WorkerScript delivery, generation
   # guards, provider/scopes bindings and price caches execute unchanged.

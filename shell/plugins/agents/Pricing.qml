@@ -59,6 +59,10 @@ Item {
       console.warn("agents", "Pricing override warnings:", parsed.errors.join("; "))
   }
 
+  function prepareProviders(providers) {
+    ApiCost.preparePresentationCache(presentationCache, providers)
+  }
+
   function dailyRows(provider, nowMs) {
     var rev = revision
     if (!provider) return []
