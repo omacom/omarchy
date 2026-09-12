@@ -19,6 +19,13 @@ cat >"$mock_bin/gum" <<'SH'
 exit 0
 SH
 
+# The script must key the grant off id -un, not the spoofable USER env var.
+cat >"$mock_bin/id" <<'SH'
+#!/bin/bash
+[[ $1 == "-un" ]] || exit 2
+printf '%s\n' "${TEST_ID_UN:-alice}"
+SH
+
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 
@@ -36,16 +43,16 @@ test)
   [[ ${2:-} == "-f" && -f $TEST_GRANT ]]
   ;;
 tee)
-  /usr/bin/tee "$TEST_GRANT"
+  tee "$TEST_GRANT"
   ;;
 chmod)
-  /usr/bin/chmod "$2" "$TEST_GRANT"
+  chmod "$2" "$TEST_GRANT"
   ;;
 systemd-run)
   [[ ${TEST_FAIL_SYSTEMD_RUN:-false} != "true" ]]
   ;;
 rm)
-  /usr/bin/rm -f -- "$TEST_GRANT"
+  rm -f -- "$TEST_GRANT"
   ;;
 systemctl)
   exit 0
@@ -57,10 +64,11 @@ systemctl)
 esac
 SH
 
-chmod +x "$mock_bin/gum" "$mock_bin/sudo" "$mock_bin/systemctl"
+chmod +x "$mock_bin/gum" "$mock_bin/id" "$mock_bin/sudo" "$mock_bin/systemctl"
 
 run_command() {
-  TEST_CALLS="$calls" TEST_GRANT="$grant" PATH="$mock_bin:$PATH" USER=alice \
+  # USER is deliberately wrong: the grant must follow id -un (alice), not USER.
+  TEST_CALLS="$calls" TEST_GRANT="$grant" PATH="$mock_bin:$PATH" USER=spoofed \
     "$script" "$@"
 }
 
@@ -96,6 +104,33 @@ fi
 [[ $update_output != *"timer updated"* ]] ||
   fail "timer update failure does not report success" "$update_output"
 pass "timer update failure revokes the existing grant"
+
+: >"$calls"
+rm -f "$grant"
+# USER=spoofed is set by run_command; the grant must still name alice from id -un.
+spoof_output=$(run_command 15)
+[[ $(cat "$grant") == "alice ALL=(ALL) NOPASSWD: ALL" ]] ||
+  fail "spoofed USER does not change the grant subject" "$(cat "$grant")"
+grep -q '99-omarchy-nopasswd-alice' "$calls" ||
+  fail "spoofed USER does not change the grant path" "$(cat "$calls")"
+[[ $spoof_output != *spoofed* ]] ||
+  fail "spoofed USER does not appear in command output" "$spoof_output"
+pass "spoofed USER is ignored in favor of id -un"
+
+rm -f "$grant"
+: >"$calls"
+if overrun_output=$(run_command 121 2>&1); then
+  fail "minutes above 120 are rejected"
+fi
+[[ $overrun_output == *"between 1 and 120"* ]] ||
+  fail "overlong duration explains the limit" "$overrun_output"
+[[ ! -e $grant ]] || fail "overlong duration leaves no grant behind"
+pass "minutes above 120 are rejected"
+
+if ! command -v systemd-tmpfiles >/dev/null; then
+  pass "skip systemd-tmpfiles boot cleanup checks (systemd-tmpfiles not installed)"
+  exit 0
+fi
 
 mapfile -t tmpfiles_rules < <(grep -vE '^[[:space:]]*(#|$)' "$tmpfiles_file")
 (( ${#tmpfiles_rules[@]} == 1 )) ||
