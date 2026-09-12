@@ -16,6 +16,22 @@ Everything else still works exactly as the theme author wrote it — `btop.theme
 
 Omarchy tells the two apart by whether the theme has its own git repo inside it, which is what `omarchy theme install` leaves behind when it clones. So a theme you wrote stays yours, and one you pulled off the internet stays colours.
 
+### Background sizes
+
+You can provide different sizes or compositions of a background for ordinary, ultrawide, and portrait screens. Keep one default image directly in `backgrounds/`, then put alternatives in a directory with the same name without the file extension:
+
+```text
+backgrounds/
+  01-landscape.webp
+  01-landscape/
+    ultrawide.webp
+    portrait.png
+```
+
+Only the default appears in the background picker. Omarchy automatically chooses the image that best fits each monitor's shape and resolution. Alternative filenames are up to you: Omarchy reads the dimensions from the files. JPG, JPEG, PNG, WebP, and BMP alternatives are supported; put them directly inside the matching directory.
+
+The default also supplies the picker preview and lock-screen background, and remains usable on older versions of Omarchy. Themes without alternatives work as before.
+
 ### Light mode
 
 If you're making a light mode theme, set `mode = "light"` at the top of your `colors.toml`. Then it'll automatically be paired with light mode for all the apps. (The old way of dropping an empty file called `light.mode` in the root of your theme still works too.)

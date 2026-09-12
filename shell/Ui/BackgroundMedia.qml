@@ -22,7 +22,7 @@ Item {
   // loader a video, or the player a still, in the moment before it unloads.
   // Both test the path directly: going through `video` lets a URL evaluate
   // against the stale flag and leak the wrong file for one pass.
-  readonly property url imageUrl: path && !Util.isVideoPath(path) ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
+  readonly property url imageUrl: path && !Util.isVideoPath(path) ? Util.fileUrl(path) + (version || reloads ? "?v=" + version + "&r=" + reloads : "") : ""
   readonly property url videoUrl: path && Util.isVideoPath(path) ? Util.fileUrl(path) : ""
 
   Loader {
@@ -79,7 +79,7 @@ Item {
       source: root.imageUrl
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
-      cache: root.version === 0
+      cache: root.version === 0 && root.reloads === 0
       sourceSize.width: root.version > 0 ? width : 0
       sourceSize.height: root.version > 0 ? height : 0
     }
