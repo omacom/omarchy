@@ -125,4 +125,4 @@ o.bind("SUPER + CTRL + ALT + Z", "Reset zoom", function()
 end)
 
 o.bind("SUPER + CTRL + L", "Lock system", "omarchy-system-lock")
-o.bind("SUPER + CTRL + M", "Workspace Apps", "omarchy-workspace-apps-set")
+o.bind("SUPER + CTRL + M", "Workspace Apps", "omarchy-default-workspace-apps")
