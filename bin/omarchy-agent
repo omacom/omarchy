@@ -73,6 +73,8 @@ if [[ -z $agent && $resume == "true" && -n $resume_id ]]; then
       agent="agy"
     elif [[ -f ~/.codex/session_index.jsonl ]] && grep -q "\"id\":\"$resume_id\"" ~/.codex/session_index.jsonl 2>/dev/null; then
       agent="codex"
+    elif [[ $resume_id =~ ^ses_ ]] || { [[ -f ~/.local/share/opencode/opencode.db ]] && sqlite3 -batch -noheader ~/.local/share/opencode/opencode.db "SELECT 1 FROM session_v2 WHERE id='$resume_id' LIMIT 1" 2>/dev/null | grep -q 1; }; then
+      agent="opencode"
     fi
   fi
 fi

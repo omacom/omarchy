@@ -621,6 +621,75 @@ def cmd_import_agents(args) -> int:
         except OSError:
             pass
 
+    # 4. Parse OpenCode session database
+    opencode_db = home / ".local/share/opencode/opencode.db"
+    if opencode_db.exists():
+        try:
+            with sqlite3.connect(str(opencode_db)) as o_db:
+                o_db.row_factory = sqlite3.Row
+                tables = [r[0] for r in o_db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+                target_table = "session_v2" if "session_v2" in tables else ("session" if "session" in tables else None)
+                if target_table:
+                    query = f"SELECT id, title, directory, time_updated FROM {target_table} WHERE parent_id IS NULL OR parent_id = ''"
+                    for row in o_db.execute(query):
+                        sid = row["id"]
+                        title = (row["title"] or "").strip() or sid
+                        ts = int(row["time_updated"] or 0)
+                        directory = row["directory"]
+                        if directory and os.path.isabs(directory):
+                            projects[directory] = max(projects.get(directory, 0), ts)
+                        if sid:
+                            sessions[sid] = {
+                                "title": title,
+                                "ts": ts,
+                                "icon": "",
+                                "icon_font": "omarchy",
+                                "detail": f"OpenCode • {sid[:8]}",
+                                "action": f"omarchy agent --agent opencode --resume '{sid}'",
+                            }
+        except (sqlite3.Error, OSError):
+            pass
+
+    # 5. Parse Claude Code sessions if present
+    claude_projects = home / ".claude/projects"
+    if claude_projects.exists() and claude_projects.is_dir():
+        try:
+            for proj_dir in claude_projects.iterdir():
+                if not proj_dir.is_dir():
+                    continue
+                for sess_file in proj_dir.glob("*.json*"):
+                    try:
+                        sid = sess_file.stem
+                        ts = int(sess_file.stat().st_mtime * 1000)
+                        title = sid
+                        text = sess_file.read_text(errors="replace")
+                        if sess_file.suffix == ".jsonl":
+                            for line in text.splitlines():
+                                if not line.strip():
+                                    continue
+                                obj = json.loads(line)
+                                if obj.get("type") == "user" or "prompt" in obj:
+                                    p = obj.get("prompt") or obj.get("message") or ""
+                                    if p:
+                                        title = p.strip().splitlines()[0][:80]
+                                        break
+                        elif sess_file.suffix == ".json":
+                            obj = json.loads(text)
+                            if isinstance(obj, dict):
+                                title = obj.get("title") or obj.get("name") or sid
+                        sessions[sid] = {
+                            "title": title,
+                            "ts": ts,
+                            "icon": "󰛄",
+                            "icon_font": "",
+                            "detail": f"Claude • {sid[:8]}",
+                            "action": f"omarchy agent --agent claude --resume '{sid}'",
+                        }
+                    except (OSError, ValueError):
+                        pass
+        except OSError:
+            pass
+
     now_ms = int(time.time() * 1000)
     p_imported = 0
     s_imported = 0
