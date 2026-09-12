@@ -11,6 +11,13 @@ all_post_install="$ROOT/install/post-install/all.sh"
 grep -F 'run_logged "$OMARCHY_INSTALL/post-install/fstab.sh"' "$all_post_install" >/dev/null || fail "all.sh invokes fstab.sh"
 pass "post-install orchestrates fstab.sh"
 
+migration="$ROOT/migrations/1789235200.sh"
+[[ -f $migration ]] || fail "noatime migration exists"
+[[ ! -x $migration ]] || fail "migration must be mode 0644"
+bash -n "$migration" || fail "noatime migration has invalid shell syntax"
+grep -F 'mount -o remount' "$migration" >/dev/null && fail "migration remounts live filesystems"
+pass "migration defers mount changes until reboot"
+
 # Test fstab transformation on mock fstab
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
