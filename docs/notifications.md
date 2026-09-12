@@ -12,6 +12,16 @@ a compositor.
 The end-user view (hotkey notices for time, battery, weather) is in
 `manual/10-notices.md`; this document is the system shape behind it.
 
+## Monitor selection
+
+By default, notification popups appear on every connected monitor. To choose outputs, add an entry to the `plugins` array in `~/.config/omarchy/shell.json`, preserving any existing entries:
+
+```json
+{ "id": "omarchy.notifications", "monitors": ["DP-2"] }
+```
+
+`monitors` accepts a list of exact output names from `hyprctl monitors`, such as `["DP-1", "DP-2"]`. Omitting it or setting it to `[]` shows popups on all outputs. A nonempty list shows popups only on connected outputs with matching names. If none match, no popup appears. Changes apply when the shell reloads `shell.json`, and reconnecting a selected monitor restores its popup window. A cloned plugin uses its own ID in the entry.
+
 ## Toast lifecycle
 
 A toast lives on screen for at least 5s (low), 8s (normal), or forever
