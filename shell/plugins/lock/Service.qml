@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
+import "FingerprintRetry.js" as FingerprintRetry
 
 Item {
   id: root
@@ -22,6 +23,7 @@ Item {
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  property int fingerprintRetryMs: 0
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -130,9 +132,18 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintRetryMs = 0
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
+  }
+
+  function scheduleFingerprintRetry() {
+    if (!lockRequested || !fingerprintConfigured) return
+
+    fingerprintRetryMs = FingerprintRetry.nextInterval(fingerprintRetryMs)
+    fingerprintRetryTimer.interval = fingerprintRetryMs
+    fingerprintRetryTimer.restart()
   }
 
   function beginLock() {
@@ -251,6 +262,7 @@ Item {
     fingerprintAuthenticating = true
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
+      scheduleFingerprintRetry()
     }
   }
 
@@ -260,8 +272,8 @@ Item {
     if (!lockRequested) return
     if (result === PamResult.Success) {
       finishUnlock()
-    } else if (fingerprintConfigured) {
-      fingerprintRetryTimer.restart()
+    } else {
+      scheduleFingerprintRetry()
     }
   }
 
@@ -390,7 +402,7 @@ Item {
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      root.scheduleFingerprintRetry()
     }
   }
 

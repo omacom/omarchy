@@ -5,12 +5,16 @@
 
 set -e
 
-
 setup_pam_config() {
-  # A clamshell gate runs before pam_fprintd in every stack: when the lid is
-  # shut the reader is unreachable, so it skips fingerprint (success=1) and PAM
-  # drops straight to the password prompt instead of blocking on the reader
-  # until it times out. Lid open → fingerprint, then password as the fallback.
+  # A clamshell gate runs before pam_fprintd in sudo and polkit: when the lid
+  # is shut the built-in reader is unreachable, so it skips fingerprint
+  # (success=1) and PAM drops straight to the password prompt instead of
+  # blocking on the reader until it times out. Lid open → fingerprint, then
+  # password as the fallback.
+  #
+  # Lock is a separate PamContext. success=1 there would skip pam_fprintd and
+  # unlock; a die-gate would hide a docked or USB reader. The lock stack stays
+  # ungated. Failed scans back off in the lock service instead.
   #
   # pam_exec needs a literal absolute path (no env expansion). Point at the
   # fixed /usr/bin path the omarchy package always provides, so the gate keeps
