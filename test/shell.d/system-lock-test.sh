@@ -11,7 +11,7 @@ mock_bin="$tmpdir/bin"
 call_log="$tmpdir/calls"
 mkdir -p "$mock_bin"
 
-for command in omarchy-shell hyprctl pkill timeout; do
+for command in omarchy-shell hyprctl pkill timeout omarchy-hyprland-fullscreen-snapshot; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "$(basename "$0")" "$*" >>"$CALL_LOG"
@@ -25,7 +25,7 @@ SH
 chmod +x "$mock_bin"/*
 
 PATH="$mock_bin:$PATH" CALL_LOG="$call_log" "$ROOT/bin/omarchy-system-lock"
-mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
+mapfile -t shutdown < <(rg '^(pkill|timeout|omarchy-hyprland-fullscreen-snapshot) ' "$call_log")
 
 [[ ${shutdown[0]} == "pkill -x ttfx" ]] ||
   fail "system lock stops ttfx before closing its terminal" "calls: ${shutdown[*]}"
@@ -33,4 +33,6 @@ mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
   fail "system lock waits for ttfx to exit" "calls: ${shutdown[*]}"
 [[ ${shutdown[2]} == "pkill -f [o]rg.omarchy.screensaver" ]] ||
   fail "system lock closes the screensaver terminal after ttfx exits" "calls: ${shutdown[*]}"
+[[ ${shutdown[3]} == "omarchy-hyprland-fullscreen-snapshot restore" ]] ||
+  fail "system lock restores fullscreen state after closing the screensaver" "calls: ${shutdown[*]}"
 pass "system lock waits for ttfx before closing its terminal"

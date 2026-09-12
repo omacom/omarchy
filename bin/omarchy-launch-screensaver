@@ -2,6 +2,10 @@
 
 # omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
 
+if omarchy-cmd-missing ttfx; then
+  exit 1
+fi
+
 # Exit early if screensaver is already running
 pgrep -f '[o]rg.omarchy.screensaver' && exit 0
 
@@ -31,6 +35,9 @@ hypr_exec() {
 
   hyprctl dispatch "hl.dsp.exec_cmd([[$command]])" >/dev/null 2>&1 || hyprctl dispatch exec -- bash -lc "$command" >/dev/null
 }
+
+# Remember maximized / full-width state before the screensaver demotes it.
+omarchy-hyprland-fullscreen-snapshot save || true
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 

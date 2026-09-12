@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# omarchy:summary=Save or restore Hyprland fullscreen state around the screensaver
+# omarchy:args=<save|restore>
+# omarchy:hidden=true
+# omarchy:examples=omarchy hyprland fullscreen snapshot save | omarchy hyprland fullscreen snapshot restore
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-hyprland-fullscreen-snapshot <save|restore>" >&2
+}
+
+if (($# != 1)); then
+  usage
+  exit 1
+fi
+
+action=$1
+state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-fullscreen-snapshot.json"
+lock_file="$state_file.lock"
+
+# Snapshot every non-screensaver client. The idle screensaver maps as a real
+# fullscreen window and demotes maximized / full-width clients underneath;
+# restore puts those modes back after the screensaver is gone.
+save_snapshot() {
+  local clients
+  clients=$(hyprctl clients -j) || return 1
+
+  jq -c '
+    [
+      .[]
+      | select((.class // "") != "org.omarchy.screensaver")
+      | select((.initialClass // "") != "org.omarchy.screensaver")
+      | select((.address // "") != "" and (.address // "") != "0x0")
+      | {
+          address: .address,
+          fullscreen: (.fullscreen // 0),
+          fullscreenClient: (.fullscreenClient // 0)
+        }
+    ]
+  ' <<<"$clients" >"$state_file"
+}
+
+restore_window() {
+  local address=$1 internal=$2 client=$3
+
+  hyprctl dispatch "hl.dsp.window.fullscreen_state({ window = \"address:$address\", internal = $internal, client = $client })" >/dev/null 2>&1 ||
+    hyprctl dispatch fullscreenstate "$internal" "$client" "address:$address" >/dev/null 2>&1 ||
+    {
+      hyprctl dispatch focuswindow "address:$address" >/dev/null 2>&1 || true
+      hyprctl dispatch fullscreenstate "$internal" "$client" >/dev/null 2>&1 || true
+    }
+}
+
+restore_snapshot() {
+  local snapshot clients address internal client current_internal current_client
+
+  [[ -f $state_file ]] || return 0
+
+  snapshot=$(<"$state_file")
+  rm -f "$state_file"
+
+  [[ -n $snapshot && $snapshot != "[]" ]] || return 0
+
+  clients=$(hyprctl clients -j) || return 0
+
+  while IFS=$'\t' read -r address internal client; do
+    [[ -n $address ]] || continue
+
+    current_internal=$(jq -r --arg address "$address" '
+      .[] | select(.address == $address) | (.fullscreen // 0)
+    ' <<<"$clients")
+    [[ -n $current_internal && $current_internal != "null" ]] || continue
+
+    current_client=$(jq -r --arg address "$address" '
+      .[] | select(.address == $address) | (.fullscreenClient // 0)
+    ' <<<"$clients")
+
+    [[ $current_internal == "$internal" && $current_client == "$client" ]] && continue
+
+    restore_window "$address" "$internal" "$client"
+  done < <(jq -r '.[] | [.address, (.fullscreen|tostring), (.fullscreenClient|tostring)] | @tsv' <<<"$snapshot")
+}
+
+(
+  flock 9
+
+  case $action in
+  save)
+    save_snapshot
+    ;;
+  restore)
+    restore_snapshot
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+  esac
+) 9>"$lock_file"
