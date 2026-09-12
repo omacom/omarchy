@@ -126,6 +126,10 @@ ori)
   command=(ori code)
   [[ -n ${prompt:-} ]] && command+=(--interactive --prompt "$prompt")
   ;;
+vibe)
+  command=(vibe --auto-approve)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
 pi)
   command=(pi)
   [[ -n ${prompt:-} ]] && command+=("$prompt")

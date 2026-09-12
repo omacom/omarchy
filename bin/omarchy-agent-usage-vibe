@@ -1,0 +1,156 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Mistral Vibe usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Mistral Vibe usage into one display-ready JSON record.
+
+Local stats come from per-session meta.json files that Vibe writes under
+~/.vibe/logs/session/. Each session carries prompt, completion, and cached
+token counts plus the model it ran on, so the panel gets tokens by day and the
+all-time model breakdown without a usage API. Vibe exposes no rate-limit
+windows locally, so the record carries no limits — the panel shows local
+stats only, the same shape Fireworks falls back to without a balance. The plan
+tier comes from ~/.vibe/whoami_cache.json. The agents panel only ever reads
+the JSON this prints.
+"""
+
+import json
+import os
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "vibe"
+AGENT_NAME = "Mistral Vibe"
+
+HOME = Path.home()
+VIBE_HOME = Path(os.environ.get("VIBE_HOME", str(HOME / ".vibe")))
+SESSIONS_DIR = VIBE_HOME / "logs" / "session"
+WHOAMI_CACHE = VIBE_HOME / "whoami_cache.json"
+
+
+def num(value):
+  try:
+    return int(value or 0)
+  except Exception:
+    return 0
+
+
+def empty_bucket():
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def session_day(meta):
+  text = str(meta.get("start_time") or "")
+  try:
+    dt = datetime.fromisoformat(text)
+    if dt.tzinfo is not None:
+      dt = dt.astimezone()
+    return dt.strftime("%Y-%m-%d")
+  except Exception:
+    return text[:10] if text else datetime.now().strftime("%Y-%m-%d")
+
+
+def session_model(meta):
+  config = meta.get("config") or {}
+  model = config.get("active_model") or config.get("routed_default_model") or ""
+  return str(model or "vibe") or "vibe"
+
+
+def tier_label():
+  try:
+    cache = json.load(open(WHOAMI_CACHE))
+  except Exception:
+    return ""
+  for entry in cache.values():
+    payload = entry.get("payload") if isinstance(entry, dict) else None
+    if not isinstance(payload, dict):
+      continue
+    plan = str(payload.get("plan_name") or "").strip()
+    if plan:
+      return plan.capitalize()
+    plan_type = str(payload.get("plan_type") or "").strip()
+    if plan_type:
+      return plan_type.capitalize()
+  return ""
+
+
+def scan():
+  today = datetime.now().astimezone().date()
+  recent_dates = [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+  recent = {day: 0 for day in recent_dates}
+  today_by_model = {}
+  model_usage = {}
+  active_dates = set()
+  total_sessions = 0
+  today_sessions = 0
+
+  if SESSIONS_DIR.is_dir():
+    for meta_path in sorted(SESSIONS_DIR.glob("session_*/meta.json")):
+      try:
+        meta = json.load(open(meta_path))
+      except Exception:
+        continue
+      stats = meta.get("stats") or {}
+      prompt = num(stats.get("session_prompt_tokens"))
+      cached = num(stats.get("session_cached_tokens"))
+      completion = num(stats.get("session_completion_tokens"))
+      uncached = max(0, prompt - cached)
+      total = uncached + cached + completion
+      if total <= 0 and not meta.get("total_messages"):
+        continue
+
+      day = session_day(meta)
+      model = session_model(meta)
+
+      bucket = model_usage.setdefault(model, empty_bucket())
+      bucket["inputTokens"] += uncached
+      bucket["outputTokens"] += completion
+      bucket["cacheReadInputTokens"] += cached
+
+      if day:
+        active_dates.add(day)
+      if day in recent:
+        recent[day] += total
+      if day == today.isoformat():
+        today_by_model[model] = today_by_model.get(model, 0) + total
+        today_sessions += 1
+      total_sessions += 1
+
+  return {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "ready": total_sessions > 0,
+    "hasLocalStats": True,
+    "hasPromptStats": False,
+    "tierLabel": tier_label(),
+    "usageStatusText": "" if total_sessions > 0 else "No Vibe sessions found",
+    "authHelpText": "",
+    "limits": [],
+    "todayPrompts": 0,
+    "todaySessions": today_sessions,
+    "todayTotalTokens": sum(today_by_model.values()),
+    "todayTokensByModel": today_by_model,
+    "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
+    "totalPrompts": 0,
+    "totalSessions": total_sessions,
+    "activeDays": len(active_dates),
+    "activeDates": sorted(active_dates),
+    "modelUsage": model_usage,
+  }
+
+
+def main():
+  print(json.dumps(scan(), separators=(",", ":")))
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())
