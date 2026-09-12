@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Resume a coding agent session
+# omarchy:args=[--inline] [--agent <name>] [session_id]
+# omarchy:examples=omarchy agent resume | omarchy agent resume 01a079e9-sess | omarchy agent resume --agent codex 01a079e9-sess
+
+set -euo pipefail
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy agent resume [--inline] [--agent <name>] [session_id]"
+  exit 0
+fi
+
+inline=()
+if [[ ${1:-} == "--inline" ]]; then
+  inline=(--inline)
+  shift
+fi
+
+exec omarchy-agent "${inline[@]}" --resume "$@"

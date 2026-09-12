@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Swap the active window with its neighbor in a direction
+# omarchy:args=(left|right|up|down)
+# omarchy:examples=omarchy hyprland window swap left
+
+# Menu-callable twin of the SUPER+SHIFT+arrow keybindings in
+# default/hypr/bindings: unlike window-place presets this keeps the window
+# in the tiling flow instead of floating it.
+
+set -euo pipefail
+
+if (( $# == 1 )) && [[ $1 == "-h" || $1 == "--help" ]]; then
+  cat <<USAGE
+Usage: omarchy-hyprland-window-swap (left|right|up|down)
+
+Swaps the active window with its neighbor, staying tiled
+(SUPER + SHIFT + arrows).
+USAGE
+  exit 0
+fi
+
+if (( $# != 1 )); then
+  echo "Usage: omarchy-hyprland-window-swap (left|right|up|down)" >&2
+  exit 2
+fi
+
+case "$1" in
+  left) direction="l" ;;
+  right) direction="r" ;;
+  up) direction="u" ;;
+  down) direction="d" ;;
+  *)
+    echo "omarchy-hyprland-window-swap: unknown direction '$1'. Try 'omarchy hyprland window swap --help'." >&2
+    exit 2
+    ;;
+esac
+
+hyprctl dispatch "hl.dsp.window.swap({ direction = \"$direction\" })" >/dev/null
+echo "Swapped $1"

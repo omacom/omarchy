@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set the default web search engine
+# omarchy:args=[google|brave|duckduckgo|startpage|ecosia|bing]
+# omarchy:examples=omarchy default search | omarchy default search google
+
+# Omarchy's own default, stored in ~/.config/omarchy/defaults and read by
+# omarchy-websearch. Independent of any browser's internal default, which
+# lives in per-browser profile formats (Chrome-family JSON is readable;
+# Firefox-family needs mozlz4) no menu can rely on.
+
+set -euo pipefail
+
+DEFAULTS_FILE="$HOME/.config/omarchy/defaults/search-engine"
+DEFAULT_ENGINE="duckduckgo"
+
+valid_engine() {
+  case "$1" in
+    google | brave | duckduckgo | startpage | ecosia | bing) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if (($# == 0)); then
+  if [[ -f $DEFAULTS_FILE ]]; then
+    saved=$(cat "$DEFAULTS_FILE")
+    if valid_engine "$saved"; then
+      printf '%s\n' "$saved"
+      exit 0
+    fi
+  fi
+  printf '%s\n' "$DEFAULT_ENGINE"
+  exit 0
+fi
+
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+  cat <<USAGE
+Usage: omarchy default search [google|brave|duckduckgo|startpage|ecosia|bing]
+
+Prints the default web search engine, or sets it.
+USAGE
+  exit 0
+fi
+
+if (($# != 1)) || ! valid_engine "$1"; then
+  echo "Usage: omarchy default search [google|brave|duckduckgo|startpage|ecosia|bing]" >&2
+  exit 2
+fi
+
+mkdir -p "$(dirname "$DEFAULTS_FILE")"
+printf '%s\n' "$1" >"$DEFAULTS_FILE"

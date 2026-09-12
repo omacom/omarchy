@@ -638,6 +638,117 @@ assert(
     && /onClicked:[\s\S]*root\.activateIndex\(row\.index, true\)/.test(menuQml),
   'mouse activation carries pointer intent into subordinate menus'
 )
+
+// Fuzzy matching and typo tolerance
+assertEqual(menu.fuzzyMatch('zen', 'zen').score, 100, 'fuzzyMatch scores exact matches 100')
+assertEqual(menu.fuzzyMatch('zen', 'zen-browser').score, 85, 'fuzzyMatch scores prefix matches 85')
+assert(menu.fuzzyMatch('zb', 'zen-browser').matched, 'fuzzyMatch matches subsequence across word boundaries')
+assert(!menu.fuzzyMatch('xyz', 'zen').matched, 'fuzzyMatch rejects non-subsequence')
+assert(menu.fuzzyMatchWords('term', 'alacritty terminal emulator').matched, 'fuzzyMatchWords finds matches across words')
+
+assert(menu.typoMatch('brav', 'brave').matched, 'typoMatch tolerates single-character omission')
+assert(menu.typoMatch('chrmoe', 'chrome').matched, 'typoMatch tolerates transposition via Damerau-Levenshtein')
+assert(!menu.typoMatch('zen', 'zen').matched, 'typoMatch skips short patterns of 3 or fewer characters')
+assert(!menu.typoMatch('firefox', 'brave').matched, 'typoMatch rejects large edit distances')
+
+// Quicklink and prompt-first input helpers
+assertEqual(menu.quicklinkFirstTerm('g search query'), 'g', 'quicklinkFirstTerm extracts trigger word')
+assertEqual(menu.quicklinkRemainder('g search query'), 'search query', 'quicklinkRemainder extracts query after trigger')
+assertEqual(menu.quicklinkRemainder('singleword'), '', 'quicklinkRemainder returns empty string for single word')
+assert(menu.hasParam('omarchy-websearch {}'), 'hasParam detects {} placeholder')
+assert(!menu.hasParam('omarchy-theme-set'), 'hasParam returns false when {} is absent')
+assertEqual(menu.substituteParam('echo {}', 'hello world'), 'echo hello world', 'substituteParam replaces {} with argument')
+
+assertDeepEqual(
+  menu.normalizeInput({ prompt: 'Ask...', action: 'omarchy-agent-ask {}' }),
+  { prompt: 'Ask...', action: 'omarchy-agent-ask {}' },
+  'normalizeInput returns normalized prompt and action'
+)
+assertEqual(
+  menu.normalizeInput({ action: 'run {}' }).prompt,
+  'Input',
+  'normalizeInput defaults missing prompt to Input'
+)
+assertEqual(menu.normalizeInput(null), null, 'normalizeInput rejects null')
+assertEqual(menu.normalizeInput({ prompt: 'No action' }), null, 'normalizeInput rejects missing action')
+
+// Recent files search and icons
+assertEqual(menu.iconForFile('main.rs'), '\ue7a8', 'iconForFile identifies Rust files')
+assertEqual(menu.iconForFile('app.ts'), '\ue628', 'iconForFile identifies TypeScript files')
+assertEqual(menu.iconForFile('config.json'), '\ue60b', 'iconForFile identifies JSON files')
+assertEqual(menu.iconForFile('Dockerfile'), '\ue7b0', 'iconForFile identifies Dockerfile')
+assertEqual(menu.iconForFile('unknown.xyz123'), '\uf016', 'iconForFile falls back to default document icon')
+
+const sampleFrecency = {
+  '/home/user/project/main.rs': { score: 100 },
+  '/home/user/docs/notes.txt': { score: 50 },
+  'relative/path/ignored.txt': { score: 200 }
+}
+const fileRows = menu.fileSearchRows(sampleFrecency, 'main', 5)
+assertEqual(fileRows.length, 1, 'fileSearchRows filters entries by query terms')
+assertEqual(fileRows[0].target, '/home/user/project/main.rs', 'fileSearchRows targets matching absolute path')
+assertEqual(fileRows[0].kind, 'file', 'fileSearchRows creates file kind rows')
+assertEqual(fileRows[0].label, 'main.rs', 'fileSearchRows extracts basename for label')
+assertEqual(fileRows[0].detail, '/home/user/project', 'fileSearchRows extracts dirname for detail')
+assertEqual(menu.fileSearchRows(sampleFrecency, '', 5).length, 0, 'fileSearchRows returns empty list for empty query')
+
+// Unflattened submenus (flat: false) hide children from root flat search
+const itemsMap = {
+  'root': { id: 'root', parent: '' },
+  'trigger': { id: 'trigger', parent: 'root' },
+  'trigger.window': { id: 'trigger.window', parent: 'trigger' },
+  'trigger.window.workspace': { id: 'trigger.window.workspace', parent: 'trigger.window', flat: false },
+  'trigger.window.workspace.1': { id: 'trigger.window.workspace.1', parent: 'trigger.window.workspace' },
+  'trigger.window.left': { id: 'trigger.window.left', parent: 'trigger.window' }
+}
+assert(menu.isSearchableDescendant(itemsMap, 'trigger.window.workspace', 'root'), 'unflattened submenu is searchable from root')
+assert(!menu.isSearchableDescendant(itemsMap, 'trigger.window.workspace.1', 'root'), 'unflattened submenu child is hidden from root flat search')
+assert(menu.isSearchableDescendant(itemsMap, 'trigger.window.left', 'root'), 'normal child is searchable from root')
+assert(menu.isSearchableDescendant(itemsMap, 'trigger.window.workspace.1', 'trigger.window.workspace'), 'unflattened submenu child is searchable when submenu is active')
+
+// Project and agent-session frecency rows
+const richFrecency = {
+  '/home/user/Work/kiln': { score: 120, kind: 'project', title: 'kiln' },
+  '01a079e9-sess': { score: 80, kind: 'agent-session', title: 'Fix schema bug' }
+}
+const projRows = menu.fileSearchRows(richFrecency, 'kiln', 5)
+assertEqual(projRows.length, 1, 'fileSearchRows matches project directory')
+assertEqual(projRows[0].kind, 'project', 'project row has project kind')
+assertEqual(projRows[0].icon, '\uf07c', 'project row uses folder icon')
+assertEqual(projRows[0].label, 'kiln', 'project row uses project title')
+
+const sessRows = menu.fileSearchRows(richFrecency, 'schema', 5)
+assertEqual(sessRows.length, 0, 'fileSearchRows omits agent sessions from root search')
+const resumeRows = menu.fileSearchRows(richFrecency, 'resume', 5)
+assertEqual(resumeRows.length, 0, 'fileSearchRows does not match agent sessions on resume keyword')
+
+// Lazy session search in resume subsection
+const emptySess = menu.sessionSearchRows(richFrecency, '', 5)
+assertEqual(emptySess.length, 1, 'sessionSearchRows returns recent sessions on empty query')
+const matchSess = menu.sessionSearchRows(richFrecency, 'schema', 5)
+assertEqual(matchSess.length, 1, 'sessionSearchRows lazily matches session by keyword')
+assertEqual(matchSess[0].label, 'Fix schema bug', 'sessionSearchRows uses session title')
+assertEqual(matchSess[0].action, "omarchy agent resume '01a079e9-sess'", 'sessionSearchRows configures resume command')
+
+// Generic scoped search and normalization
+const normScoped = menu.normalizeItem('resume', {
+  label: 'Resume agent…',
+  scope: 'agent-session',
+  placeholder: 'Search previous conversations…',
+  action: 'omarchy agent resume {}'
+})
+assertEqual(normScoped.kind, 'menu', 'scoped item normalizes to menu kind')
+assertEqual(normScoped.scope, 'agent-session', 'scope attribute preserved')
+assertEqual(normScoped.placeholder, 'Search previous conversations…', 'placeholder attribute preserved')
+assertEqual(normScoped.action, 'omarchy agent resume {}', 'action template preserved')
+assert(menu.isVisible({ resume: normScoped }, ['resume'], {}, normScoped), 'scoped menu is visible')
+
+const emptyScoped = menu.scopedSearchRows(richFrecency, 'agent-session', '', 5)
+assertEqual(emptyScoped.length, 1, 'scopedSearchRows returns recent items on empty query')
+const matchScoped = menu.scopedSearchRows(richFrecency, 'agent-session', 'schema', 5, 'omarchy agent resume {}')
+assertEqual(matchScoped.length, 1, 'scopedSearchRows lazily matches session by keyword')
+assertEqual(matchScoped[0].label, 'Fix schema bug', 'scopedSearchRows uses item title')
+assertEqual(matchScoped[0].action, "omarchy agent resume '01a079e9-sess'", 'scopedSearchRows configures templated action')
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")

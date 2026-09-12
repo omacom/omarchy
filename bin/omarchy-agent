@@ -1,11 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
-# omarchy:examples=omarchy agent | omarchy agent --inline
+# omarchy:args=[--inline] [--pick] [--agent <name>] [--resume [id]]
+# omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --agent codex --resume
 
 inline=false
 pick=false
+resume=false
+resume_id=""
+agent_override=""
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -19,14 +22,36 @@ while (($#)); do
       pick=true
       shift
       ;;
+    --agent)
+      agent_override="${2:?--agent needs a value}"
+      shift 2
+      ;;
     --prompt)
       prompt=${2:?--prompt needs a value}
       shift 2
       ;;
+    --resume)
+      resume=true
+      if [[ -n ${2:-} && ${2:-} != --* ]]; then
+        resume_id="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    -h|--help)
+      echo "Usage: omarchy agent [--inline] [--pick] [--agent <name>] [--resume [id]]"
+      exit 0
+      ;;
     *)
-      echo "Unexpected argument: $1" >&2
-      echo "To pass a prompt: omarchy agent prompt \"$*\"" >&2
-      exit 1
+      if [[ $resume == "true" && -z $resume_id ]]; then
+        resume_id="$1"
+        shift
+      else
+        echo "Unexpected argument: $1" >&2
+        echo "To pass a prompt: omarchy agent prompt \"$*\"" >&2
+        exit 1
+      fi
       ;;
   esac
 done
@@ -35,7 +60,47 @@ done
 # menu start in the work directory instead of re-asking on every session.
 [[ $PWD == "$HOME" && -d $HOME/Work ]] && cd "$HOME/Work"
 
-agent=$(omarchy-default-agent)
+agent="${agent_override:-}"
+if [[ -z $agent && $resume == "true" && -n $resume_id ]]; then
+  if omarchy-cmd-present omarchy-activity; then
+    detected=$(sqlite3 -batch -noheader ~/.local/share/omarchy/activity.db "SELECT action FROM items WHERE kind='agent-session' AND target='$resume_id' LIMIT 1" 2>/dev/null || true)
+    if [[ $detected =~ --agent[[:space:]]+([a-zA-Z0-9_-]+) ]]; then
+      agent="${BASH_REMATCH[1]}"
+    fi
+  fi
+  if [[ -z $agent ]]; then
+    if [[ -f ~/.gemini/antigravity-cli/history.jsonl ]] && grep -q "\"conversationId\":\"$resume_id\"" ~/.gemini/antigravity-cli/history.jsonl 2>/dev/null; then
+      agent="agy"
+    elif [[ -f ~/.codex/session_index.jsonl ]] && grep -q "\"id\":\"$resume_id\"" ~/.codex/session_index.jsonl 2>/dev/null; then
+      agent="codex"
+    elif [[ $resume_id =~ ^ses_ ]] || { [[ -f ~/.local/share/opencode/opencode.db ]] && sqlite3 -batch -noheader ~/.local/share/opencode/opencode.db "SELECT 1 FROM session_v2 WHERE id='$resume_id' LIMIT 1" 2>/dev/null | grep -q 1; }; then
+      agent="opencode"
+    fi
+  fi
+fi
+[[ -z $agent ]] && agent=$(omarchy-default-agent)
+
+if omarchy-cmd-present omarchy-activity; then
+  if [[ -n $resume_id ]]; then
+    agent_icon=""
+    agent_font=""
+    agent_detail=""
+    case "$agent" in
+      agy) agent_icon="󰫢"; agent_font=""; agent_detail="Antigravity • ${resume_id:0:8}" ;;
+      codex) agent_icon=""; agent_font="omarchy"; agent_detail="Codex • ${resume_id:0:8}" ;;
+      claude) agent_icon="󰛄"; agent_font=""; agent_detail="Claude • ${resume_id:0:8}" ;;
+      opencode) agent_icon=""; agent_font="omarchy"; agent_detail="OpenCode • ${resume_id:0:8}" ;;
+      grok) agent_icon=""; agent_font="omarchy"; agent_detail="Grok • ${resume_id:0:8}" ;;
+      copilot) agent_icon=""; agent_font=""; agent_detail="Copilot • ${resume_id:0:8}" ;;
+    esac
+    omarchy-activity record agent-session "$resume_id" \
+      --icon "$agent_icon" --icon-font "$agent_font" \
+      --detail "$agent_detail" --action "omarchy agent --agent $agent --resume '$resume_id'" \
+      >/dev/null 2>&1 || true
+  else
+    omarchy-activity record project "$PWD" "${PWD##*/}" >/dev/null 2>&1 || true
+  fi
+fi
 
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
@@ -55,16 +120,43 @@ fi
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 case "$agent" in
 opencode)
-  command=(opencode --auto)
-  [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  if [[ $resume == "true" ]]; then
+    if [[ -n $resume_id ]]; then
+      command=(opencode --auto --session "$resume_id")
+    else
+      command=(opencode --auto --continue)
+    fi
+    [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  else
+    command=(opencode --auto)
+    [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  fi
   ;;
 agy)
-  command=(agy --dangerously-skip-permissions)
-  [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
+  if [[ $resume == "true" ]]; then
+    if [[ -n $resume_id ]]; then
+      command=(agy --dangerously-skip-permissions --conversation "$resume_id")
+    else
+      command=(agy --dangerously-skip-permissions --continue)
+    fi
+    [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
+  else
+    command=(agy --dangerously-skip-permissions)
+    [[ -n ${prompt:-} ]] && command+=(--prompt-interactive "$prompt")
+  fi
   ;;
 copilot)
-  command=(copilot --allow-all)
-  [[ -n ${prompt:-} ]] && command+=(--interactive "$prompt")
+  if [[ $resume == "true" ]]; then
+    if [[ -n $resume_id ]]; then
+      command=(copilot --allow-all --resume "$resume_id")
+    else
+      command=(copilot --allow-all --resume)
+    fi
+    [[ -n ${prompt:-} ]] && command+=(--interactive "$prompt")
+  else
+    command=(copilot --allow-all)
+    [[ -n ${prompt:-} ]] && command+=(--interactive "$prompt")
+  fi
   ;;
 crush)
   # --yolo belongs to the interactive command only; `crush run` never prompts.
@@ -75,12 +167,30 @@ crush)
   fi
   ;;
 claude)
-  command=(claude --permission-mode auto)
-  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  if [[ $resume == "true" ]]; then
+    if [[ -n $resume_id ]]; then
+      command=(claude --permission-mode auto --resume "$resume_id")
+    else
+      command=(claude --permission-mode auto --resume)
+    fi
+    [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  else
+    command=(claude --permission-mode auto)
+    [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  fi
   ;;
 grok)
-  command=(grok --permission-mode bypassPermissions)
-  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  if [[ $resume == "true" ]]; then
+    if [[ -n $resume_id ]]; then
+      command=(grok --permission-mode bypassPermissions --resume "$resume_id")
+    else
+      command=(grok --permission-mode bypassPermissions --resume)
+    fi
+    [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  else
+    command=(grok --permission-mode bypassPermissions)
+    [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  fi
   ;;
 openclaw)
   # The launcher owns onboarding and the gateway dance: OpenClaw's terminal UI
@@ -92,8 +202,17 @@ openclaw)
   [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
   ;;
 codex)
-  command=(codex --approve-for-me)
-  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  if [[ $resume == "true" ]]; then
+    if [[ -n $resume_id ]]; then
+      command=(codex resume --approve-for-me "$resume_id")
+    else
+      command=(codex resume --approve-for-me)
+    fi
+    [[ -n ${prompt:-} ]] && command+=("$prompt")
+  else
+    command=(codex --approve-for-me)
+    [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  fi
   ;;
 cursor-agent)
   # --yolo covers commands only; the workspace trust dialog has its own flag.

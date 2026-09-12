@@ -2,7 +2,8 @@
 
 # omarchy:summary=Launch the default coding agent with a prompt
 # omarchy:args=[--inline] <prompt...>
-# omarchy:examples=omarchy agent prompt "Review this project"
+# omarchy:aliases=omarchy agent ask
+# omarchy:examples=omarchy agent prompt "Review this project" | omarchy agent ask "Fix bug"
 
 # Prompts live here rather than on `omarchy agent`, where a bare prompt would
 # shadow the subcommands under that group.

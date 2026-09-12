@@ -1,0 +1,108 @@
+#!/usr/bin/python3
+# omarchy:summary=Evaluate a math calculation or unit conversion
+# omarchy:args=<expression>
+# omarchy:hidden=true
+"""Calculator helper for the menu.
+
+Evaluates an expression using fend if available, falling back to a safe AST
+math evaluator for arithmetic and standard functions when fend is not installed.
+"""
+
+import ast
+import math
+import shutil
+import subprocess
+import sys
+
+
+def eval_node(node):
+    if isinstance(node, ast.Expression):
+        return eval_node(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return node.value
+    if isinstance(node, ast.UnaryOp):
+        operand = eval_node(node.operand)
+        if isinstance(node.op, ast.UAdd):
+            return +operand
+        if isinstance(node.op, ast.USub):
+            return -operand
+    elif isinstance(node, ast.BinOp):
+        left = eval_node(node.left)
+        right = eval_node(node.right)
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if isinstance(node.op, ast.Div):
+            return left / right
+        if isinstance(node.op, ast.FloorDiv):
+            return left // right
+        if isinstance(node.op, ast.Mod):
+            return left % right
+        if isinstance(node.op, ast.Pow):
+            return left ** right
+    elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        func_name = node.func.id
+        allowed = {
+            "sqrt": math.sqrt,
+            "sin": math.sin,
+            "cos": math.cos,
+            "tan": math.tan,
+            "asin": math.asin,
+            "acos": math.acos,
+            "atan": math.atan,
+            "abs": abs,
+            "round": round,
+            "log": math.log,
+            "log10": math.log10,
+            "exp": math.exp,
+            "floor": math.floor,
+            "ceil": math.ceil,
+        }
+        if func_name in allowed:
+            args = [eval_node(arg) for arg in node.args]
+            return allowed[func_name](*args)
+    raise ValueError("Unsupported expression")
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(1)
+
+    query = " ".join(sys.argv[1:]).strip()
+    if not query:
+        sys.exit(1)
+
+    fend = shutil.which("fend")
+    if fend:
+        try:
+            res = subprocess.run(
+                [fend, "-e", query],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if res.returncode == 0:
+                out = res.stdout.strip()
+                if out and not out.startswith("Error:"):
+                    print(out)
+                    sys.exit(0)
+        except Exception:
+            pass
+
+    # Fallback to pure-Python safe AST evaluation
+    try:
+        clean_expr = query.replace("^", "**")
+        tree = ast.parse(clean_expr, mode="eval")
+        val = eval_node(tree)
+        if isinstance(val, float) and val.is_integer():
+            val = int(val)
+        print(val)
+    except Exception:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

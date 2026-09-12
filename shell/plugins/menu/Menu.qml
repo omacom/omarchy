@@ -55,6 +55,14 @@ Item {
   property string mode: "menu"
   readonly property bool dmenuActive: mode === "select" || mode === "input"
   property string dmenuPrompt: ""
+  // Prompt-first input forwarding (Ask agent, Search web). Selecting a row
+  // whose entry carries `input: {prompt, action}` parks the menu on input
+  // mode; confirming runs the template with the input shell-quoted in place
+  // of {}. The input is never recorded or logged (same rule as
+  // omarchy-menu-input: free text may be secrets).
+  property string inputForwardAction: ""
+  property string inputReturnMenu: "root"
+  property var inputReturnStack: []
   property var dmenuOptions: []
   property string selectionFile: ""
   property string doneFile: ""
@@ -74,13 +82,48 @@ Item {
   property var providersLoaded: ({})
   property var providerQueue: []
   property int providerRevision: 0
+  property string calcResult: ""
+  property string calcQuery: ""
+  property var frecencyMap: ({})
+
+  // Usage ranking lives in the shared activity database (see
+  // bin/omarchy-activity): every consumer records picks there and hydrates
+  // this map on open. The local entry is updated optimistically so the pick
+  // re-ranks immediately, even before the next open re-reads the database.
+  function recordFrecency(kind, key, title) {
+    if (!key) return
+    var map = root.frecencyMap || ({})
+    var entry = map[key] || { count: 0, lastUsed: 0 }
+    entry.count = (entry.count || 0) + 1
+    entry.lastUsed = Date.now()
+    if (kind) entry.kind = kind
+    if (title) entry.title = title
+    map[key] = entry
+    root.frecencyMap = map
+    Util.execDetached("omarchy-activity record " + Util.shellQuote(kind || "menu") + " " + Util.shellQuote(key) + " " + Util.shellQuote(title || ""))
+  }
+
+  function loadFrecency() {
+    if (frecencyProc.running) return
+    frecencyProc.command = ["bash", "-lc", "omarchy-activity top"]
+    frecencyProc.running = true
+  }
+
+  Component.onCompleted: {
+    root.loadFrecency()
+  }
 
   // Shared application engine (entries, hidden filters, icons, launch,
   // removal), owned by the shell and also used by the standalone launcher.
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) {
+    deleteConfirmOpen = false
+    deleteTarget = null
+    scopeSearchTimer.stop()
+    scopeSearchProc.pendingQuery = ""
+  }
   // Bound to the central [menu] section in shell.toml via Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -108,7 +151,16 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  // True while any result source is still in flight: a debounced rebuild,
+  // a fend calculation, provider enumeration, or guard evaluation. The
+  // empty state reads this to show "Searching…" instead of declaring "No
+  // matches" for results that simply haven't arrived yet.
+  readonly property bool searchPending: searchDebounceTimer.running
+    || calcDebounceTimer.running || fendProc.running || fendProc.pendingQuery !== ""
+    || providerProc.running || root.providerQueue.length > 0
+    || guardProc.running || root.guardsPending || frecencyProc.running
+    || scopeSearchTimer.running || scopeSearchProc.running || scopeSearchProc.pendingQuery !== ""
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.filterText.trim().length > 0 || (root.item(root.activeMenu) && root.item(root.activeMenu).scope) || root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(420) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -143,8 +195,10 @@ Item {
 
   // Menu rows only surface their detail while a search is narrowing them;
   // dmenu rows carry caller-supplied subtext that must always be visible.
+  // Scoped submenus display item details immediately for context.
   function rowHeightForDetail(detail) {
-    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
+    var isScoped = Boolean(root.item(root.activeMenu) && root.item(root.activeMenu).scope)
+    return (root.filterText || root.dmenuActive || isScoped) && detail ? root.detailRowHeight : root.baseRowHeight
   }
 
   // Height the card can devote to rows before running off the screen — or
@@ -317,7 +371,6 @@ Item {
         aliases: aliases,
         when: "",
         checked: "",
-        disabled: "",
         order: 0
       })
     }
@@ -383,7 +436,6 @@ Item {
         aliases: [],
         when: "",
         checked: "",
-        disabled: "",
         order: 0
       })
     }
@@ -461,6 +513,10 @@ Item {
     return MenuModel.isDescendantOf(root.items, id, ancestorId)
   }
 
+  function isSearchableDescendant(id, ancestorId) {
+    return MenuModel.isSearchableDescendant(root.items, id, ancestorId)
+  }
+
   function childCount(id) {
     return MenuModel.childCount(root.items, root.itemOrder, id)
   }
@@ -511,8 +567,12 @@ Item {
     return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
   }
 
+  function matchesQueryTypo(entry, query) {
+    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry), true)
+  }
+
   function searchScore(entry, query) {
-    return MenuModel.searchScore(root.items, entry, query)
+    return MenuModel.searchScore(root.items, entry, query, root.frecencyMap)
   }
 
   function displayRow(entry, detail, score, section) {
@@ -573,7 +633,6 @@ Item {
           && detail.toLowerCase().indexOf(query) < 0) continue
       displayModel.append({
         itemId: "dmenu." + i,
-        disabled: false,
         kind: "dmenu",
         icon: icon,
         iconFont: "",
@@ -608,9 +667,10 @@ Item {
       return
     }
 
-    displayModel.clear()
-
-    if (!root.rowsLoaded) return
+    if (!root.rowsLoaded) {
+      displayModel.clear()
+      return
+    }
 
     var active = root.item(root.activeMenu) ? root.activeMenu : "root"
     root.activeMenu = active
@@ -618,20 +678,196 @@ Item {
     var query = root.filterText.trim()
     root.searchDivider = false
 
-    if (query) {
-      var currentRows = []
-      var drilldownRows = []
+    var activeEntry = root.item(active)
+    if (activeEntry && activeEntry.scope) {
+      var scopedRows = []
+      if (!query) {
+        root.scopeSearchResults = []
+        root.scopeSearchLastQuery = ""
+        root.scopeSearchLastScope = ""
+        scopeSearchTimer.stop()
+        scopeSearchProc.pendingQuery = ""
 
+        scopedRows = MenuModel.scopedSearchRows(
+          root.frecencyMap,
+          activeEntry.scope,
+          "",
+          15,
+          activeEntry.action,
+          activeEntry.icon
+        )
+      } else {
+        if (root.scopeSearchLastScope === activeEntry.scope && root.scopeSearchLastQuery === query) {
+          var results = root.scopeSearchResults || []
+          for (var r = 0; r < results.length; r++) {
+            var item = results[r]
+            var rowAction = item.action || ""
+            if (!rowAction && activeEntry.action) {
+              rowAction = activeEntry.action.indexOf("{}") >= 0
+                ? activeEntry.action.replace("{}", "'" + String(item.target).replace(/'/g, "'\\''") + "'")
+                : activeEntry.action + " '" + String(item.target).replace(/'/g, "'\\''") + "'"
+            }
+            var rowIcon = item.icon || activeEntry.icon || ""
+            var rowIconFont = item.iconFont || activeEntry.iconFont || ""
+            scopedRows.push({
+              itemId: item.itemId || (activeEntry.scope + "." + item.target),
+              disabled: false,
+              kind: item.kind || activeEntry.scope,
+              icon: rowIcon,
+              iconFont: rowIconFont,
+              appIcon: item.appIcon || "",
+              appId: item.appId || "",
+              label: item.label || item.target,
+              target: item.target || "",
+              detail: item.detail || item.target,
+              path: item.path || "",
+              childCount: 0,
+              action: rowAction,
+              provider: item.provider || "",
+              score: typeof item.score === "number" ? item.score : 0,
+              section: ""
+            })
+          }
+        } else {
+          scopedRows = MenuModel.scopedSearchRows(
+            root.frecencyMap,
+            activeEntry.scope,
+            query,
+            15,
+            activeEntry.action,
+            activeEntry.icon
+          )
+          scopeSearchTimer.restart()
+        }
+      }
+
+      if (scopedRows.length > 0) {
+        for (var s = 0; s < scopedRows.length; s++) rows.push(scopedRows[s])
+      } else if (!query) {
+        rows.push({
+          itemId: "hint." + activeEntry.id,
+          disabled: true,
+          kind: "hint",
+          icon: activeEntry.icon || "",
+          iconFont: activeEntry.iconFont || "",
+          appIcon: "",
+          appId: "",
+          label: activeEntry.placeholder || ("Search " + (activeEntry.label || "items") + "…"),
+          target: "",
+          detail: activeEntry.description || "Type to search by topic or title",
+          path: "",
+          childCount: 0,
+          action: "",
+          provider: "",
+          score: 0,
+          section: ""
+        })
+      }
+
+      var appendCount = Math.min(rows.length, 30)
+      var oldCount = displayModel.count
+      var common = Math.min(oldCount, appendCount)
+      for (var k = 0; k < common; k++) displayModel.set(k, rows[k])
+      for (var a = common; a < appendCount; a++) displayModel.append(rows[a])
+      while (displayModel.count > appendCount) displayModel.remove(displayModel.count - 1)
+      layoutSerial += 1
+
+      root.settleCursor()
+      Qt.callLater(function() {
+        if (displayModel.count > 0) root.revealCursor()
+      })
+      return
+    }
+
+    if (query) {
+      var rows = []
+
+      // Pass 1: Ultra-fast exact and subsequence match (<0.2ms)
+      // Results rank FLAT by score across the whole hierarchy:
+      // grouping same-menu rows first let mediocre local matches outrank
+      // excellent nested ones ("moonl" put Remove above Moonlight). The
+      // parent path still renders as each row's detail, so no hierarchy
+      // information is lost.
       for (var i = 0; i < root.itemOrder.length; i++) {
         var entry = root.item(root.itemOrder[i])
         if (!entry || entry.id === "root") continue
-        if (!root.isDescendantOf(entry.id, active)) continue
+        if (!root.isSearchableDescendant(entry.id, active)) continue
         if (!root.matchesQuery(entry, query)) continue
 
         var detail = root.parentPathFor(entry.id)
-        var row = root.displayRow(entry, detail, root.searchScore(entry, query))
-        if (entry.parent === active) currentRows.push(row)
-        else drilldownRows.push(row)
+        rows.push(root.displayRow(entry, detail, root.searchScore(entry, query)))
+      }
+
+      // Pass 2: Fallback to typo tolerance ONLY if fast-pass yielded < 5 results and query >= 4 chars
+      if (rows.length < 5 && query.length >= 4) {
+        var seenIds = ({})
+        for (var c = 0; c < rows.length; c++) seenIds[rows[c].itemId] = true
+
+        for (var i2 = 0; i2 < root.itemOrder.length; i2++) {
+          var entry2 = root.item(root.itemOrder[i2])
+          if (!entry2 || entry2.id === "root" || seenIds[entry2.id]) continue
+          if (!root.isSearchableDescendant(entry2.id, active)) continue
+          if (!root.matchesQueryTypo(entry2, query)) continue
+
+          var detail2 = root.parentPathFor(entry2.id)
+          rows.push(root.displayRow(entry2, detail2, root.searchScore(entry2, query)))
+        }
+      }
+
+      // Parameterized rows (an action containing {}, or an `input` spec) match
+      // on the first filter word alone — the trigger — so the rest of the
+      // filter survives as the parameter. Normal rows need every word to
+      // match and would hide these rows as soon as arguments are typed.
+      var firstTerm = MenuModel.quicklinkFirstTerm(query)
+      if (firstTerm) {
+        var seenQuick = ({})
+        for (var s = 0; s < rows.length; s++) seenQuick[rows[s].itemId] = true
+        for (var i3 = 0; i3 < root.itemOrder.length; i3++) {
+          var entry3 = root.item(root.itemOrder[i3])
+          if (!entry3 || entry3.id === "root" || seenQuick[entry3.id]) continue
+          if (!root.isSearchableDescendant(entry3.id, active)) continue
+          var isParamRow = !!(entry3.input && entry3.input.action) || (entry3.action && entry3.action.indexOf("{}") >= 0)
+          if (!isParamRow) continue
+          if (!root.matchesQuery(entry3, firstTerm)) continue
+          var rest = MenuModel.quicklinkRemainder(query)
+          rows.push(root.displayRow(entry3, rest ? rest : root.parentPathFor(entry3.id), root.searchScore(entry3, firstTerm)))
+        }
+      }
+
+      // Matched menus pull in their visible descendants at any depth:
+      // searching an area ("screenshot") surfaces its options ("With no
+      // audio") instead of hiding them. Single pass over the catalogue —
+      // matched-menu ids collected first, children filtered in one walk.
+      // The penalty sorts them below direct matches; the 30-row cap still
+      // bounds rendering.
+      var haveIds = ({})
+      for (var h = 0; h < rows.length; h++) haveIds[rows[h].itemId] = true
+      var menuIds = ({})
+      for (var m = 0; m < rows.length; m++) {
+        var rEntry = root.item(rows[m].itemId)
+        if (!rEntry) continue
+        var subId = rEntry.kind === "link" ? rEntry.target : (rEntry.kind === "menu" ? rEntry.id : "")
+        if (subId && root.item(subId)) menuIds[subId] = true
+      }
+      for (var o = 0; o < root.itemOrder.length; o++) {
+        var child = root.item(root.itemOrder[o])
+        if (!child || child.id === "root" || haveIds[child.id]) continue
+        if (!root.isSearchableDescendant(child.id, active)) continue
+        // One walk up the parent chain per item (depth is single digits),
+        // instead of re-scanning the catalogue per matched menu.
+        var p = child.parent
+        var under = false
+        var guard = 0
+        while (p && guard < 32) {
+          if (menuIds[p]) { under = true; break }
+          var pe = root.item(p)
+          p = pe ? pe.parent : ""
+          guard++
+        }
+        if (!under) continue
+        if (!root.isVisible(child) || root.isDisabled(child)) continue
+        haveIds[child.id] = true
+        rows.push(root.displayRow(child, root.parentPathFor(child.id), root.searchScore(child, query) + 5000))
       }
 
       var searchSort = function(a, b) {
@@ -639,13 +875,78 @@ Item {
         return a.path.localeCompare(b.path)
       }
 
-      currentRows.sort(searchSort)
-      drilldownRows.sort(searchSort)
-      root.searchDivider = currentRows.length > 0 && drilldownRows.length > 0
-      if (root.searchDivider) {
-        for (var d = 0; d < drilldownRows.length; d++) drilldownRows[d].section = "drilldown"
+      rows.sort(searchSort)
+
+      // Recent files trail menu results at root only: the hydrated activity
+      // map already holds them, so no enumeration runs per keystroke.
+      if (active === "root" && query.length >= 2) {
+        var fileRows = MenuModel.fileSearchRows(root.frecencyMap, query, 5)
+        for (var f = 0; f < fileRows.length; f++) rows.push(fileRows[f])
       }
-      rows = currentRows.concat(drilldownRows)
+
+      // No-match fallbacks: the query itself becomes the action.
+      // Offers actions on empty results — ask the agent or
+      // search the web for the literal text. Never recorded: the query is
+      // free text, and only fixed ids belong in the activity journal.
+      if ((active === "root" || active === "agent") && query && rows.length === 0) {
+        rows.push({
+          itemId: "fallback.ask",
+          kind: "fallback",
+          icon: "",
+          iconFont: "",
+          appIcon: "",
+          appId: "",
+          label: "Ask agent about “" + query + "”",
+          target: "",
+          detail: "Agent > Ask",
+          path: "",
+          childCount: 0,
+          action: "omarchy agent prompt " + Util.shellQuote(query),
+          provider: "",
+          score: 0,
+          section: ""
+        })
+        if (active === "root") {
+          rows.push({
+            itemId: "fallback.search",
+            kind: "fallback",
+            icon: "",
+            iconFont: "",
+            appIcon: "",
+            appId: "",
+            label: "Search web for “" + query + "”",
+            target: "",
+            detail: "Web > Search",
+            path: "",
+            childCount: 0,
+            action: "omarchy-websearch " + Util.shellQuote(query),
+            provider: "",
+            score: 1,
+            section: ""
+          })
+        }
+      }
+
+      if (active === "root" && root.calcResult && root.calcQuery === query) {
+        var calcRow = {
+          itemId: "calc.result",
+          kind: "calc",
+          icon: "󰪚",
+          iconFont: "",
+          appIcon: "",
+          appId: "",
+          label: root.calcResult,
+          target: "",
+          detail: "= " + root.calcQuery + " • Press Enter to copy, Tab to reuse",
+          path: "",
+          childCount: 0,
+          action: "",
+          provider: "",
+          score: -999999,
+          section: ""
+        }
+        rows.unshift(calcRow)
+      }
     } else {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
@@ -671,7 +972,16 @@ Item {
       }
     }
 
-    for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
+    var appendCount = Math.min(rows.length, 30)
+    // Update in place so the ListView reuses its delegates: clear()+append
+    // destroys and recreates up to 30 rows per keystroke, while successive
+    // result sets overlap heavily. Same length means no count change, which
+    // also skips the whole visible-height/card layout cascade.
+    var oldCount = displayModel.count
+    var common = Math.min(oldCount, appendCount)
+    for (var k = 0; k < common; k++) displayModel.set(k, rows[k])
+    for (var a = common; a < appendCount; a++) displayModel.append(rows[a])
+    while (displayModel.count > appendCount) displayModel.remove(displayModel.count - 1)
     layoutSerial += 1
 
     root.settleCursor()
@@ -722,8 +1032,14 @@ Item {
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
-    if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
-    root.rebuildDisplay()
+    if (!root.dmenuActive && root.filterText.trim()) {
+      root.loadProvidersForSearch()
+      calcDebounceTimer.restart()
+    } else {
+      root.calcResult = ""
+      root.calcQuery = ""
+    }
+    searchDebounceTimer.restart()
   }
 
   function setActiveMenu(id, pushHistory, fromPointer) {
@@ -736,6 +1052,13 @@ Item {
     root.cursorActive = true
     if (fromPointer) pointerGate.allowInitialSample()
     else root.disarmPointer()
+    root.scopeSearchResults = []
+    root.scopeSearchLastQuery = ""
+    root.scopeSearchLastScope = ""
+    scopeSearchTimer.stop()
+    scopeSearchProc.pendingQuery = ""
+    var activeEntry = root.item(id)
+    if (activeEntry && activeEntry.scope) root.loadFrecency()
     root.rebuildDisplay()
     root.invalidateVolatileProvider(id)
     root.loadProviderForMenu(id)
@@ -760,10 +1083,14 @@ Item {
     if (root.deleteConfirmOpen) return
     if (root.dmenuActive) {
       if (root.mode === "input") {
+        if (root.inputForwardAction) {
+          root.applyForwardedInput(root.filterText)
+          return
+        }
         root.applyDmenuSelection(root.filterText)
         return
       }
-      if (index < 0 || index >= displayModel.count) return
+      if (!root.rowSelectable(index)) return
       var picked = displayModel.get(index)
       root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
       return
@@ -772,16 +1099,59 @@ Item {
     if (!root.rowSelectable(index)) return
 
     var row = displayModel.get(index)
+    if (row.kind === "calc") {
+      Quickshell.execDetached(["bash", "-c", "printf %s " + Util.shellQuote(row.label) + " | wl-copy && omarchy-notification-send -g 󰪚 'Copied to clipboard' " + Util.shellQuote(row.label)])
+      root.opened = false
+      root.filterText = ""
+      root.calcResult = ""
+      root.calcQuery = ""
+      return
+    }
+
     if (row.kind === "menu" || row.kind === "link") {
       root.setActiveMenu(row.target || row.itemId, true, fromPointer)
     } else if (row.kind === "app") {
+      root.recordFrecency("app", row.appId || row.itemId, row.label)
       var appId = row.appId
       var label = row.label
       applySerial = requestSerial
       opened = false
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
+    } else if (row.kind === "file" || row.kind === "project") {
+      root.recordFrecency(row.kind, row.target, row.label)
+      applySerial = requestSerial
+      opened = false
+      filterText = ""
+      root.runAction("xdg-open " + Util.shellQuote(row.target))
+    } else if (row.target && row.action) {
+      root.recordFrecency(row.kind, row.target, row.label)
+      applySerial = requestSerial
+      opened = false
+      filterText = ""
+      root.runAction(row.action)
+    } else if (row.kind === "fallback") {
+      applySerial = requestSerial
+      opened = false
+      filterText = ""
+      root.runAction(row.action)
     } else {
+      var entry = root.item(row.itemId)
+      // Prompt-first rows open input mode and run the template on confirm.
+      // The input text is never recorded or logged.
+      if (entry && entry.input && entry.input.action) {
+        root.openForwardInput(entry.input.prompt, entry.input.action, MenuModel.quicklinkRemainder(root.filterText))
+        return
+      }
+      // Parameterized quicklinks fill {} with the filter remainder (the words
+      // after the trigger), shell-quoted so the value stays literal.
+      var template = row.action || ""
+      if (template.indexOf("{}") >= 0) {
+        root.recordFrecency("menu", row.itemId, row.label)
+        root.applySelected(row.itemId, MenuModel.substituteParam(template, Util.shellQuote(MenuModel.quicklinkRemainder(root.filterText))))
+        return
+      }
+      root.recordFrecency("menu", row.itemId, row.label)
       root.applySelected(row.itemId, row.action)
     }
   }
@@ -819,6 +1189,51 @@ Item {
     root.finishRequest(value)
   }
 
+  // Prompt-first input session. The menu parks on input mode with the filter
+  // remainder (if any) as the starting text; confirming substitutes the answer
+  // shell-quoted into the template and runs it. Empty answers run nothing —
+  // the menu simply returns where it was. The answer is never recorded.
+  function openForwardInput(prompt, actionTemplate, prefill) {
+    root.inputForwardAction = String(actionTemplate || "")
+    root.inputReturnMenu = root.activeMenu
+    root.inputReturnStack = root.navStack
+    root.mode = "input"
+    root.dmenuPrompt = String(prompt || "Input")
+    root.requestActive = false
+    root.selectionFile = ""
+    root.doneFile = ""
+    root.filterText = ""
+    root.selectedIndex = 0
+    root.cursorActive = false
+    root.disarmPointer()
+    root.rebuildDisplay()
+    if (prefill) root.setFilter(prefill)
+
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  function applyForwardedInput(value) {
+    var template = root.inputForwardAction
+    var returnMenu = root.inputReturnMenu
+    var returnStack = root.inputReturnStack
+    root.inputForwardAction = ""
+    root.inputReturnMenu = "root"
+    root.inputReturnStack = []
+    root.mode = "menu"
+    root.activeMenu = root.item(returnMenu) ? returnMenu : "root"
+    root.navStack = returnStack || []
+    applySerial = requestSerial
+    opened = false
+    root.filterText = ""
+    root.selectedIndex = 0
+    root.cursorActive = true
+    root.disarmPointer()
+    root.rebuildDisplay()
+    var text = String(value == null ? "" : value)
+    if (!text.trim()) return
+    root.runAction(MenuModel.substituteParam(template, Util.shellQuote(text)))
+  }
+
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
@@ -829,6 +1244,12 @@ Item {
   }
 
   function cancel() {
+    // A cancelled prompt-first input returns to menu mode so a later open
+    // never inherits a stale input session.
+    if (root.inputForwardAction) {
+      root.inputForwardAction = ""
+      root.mode = "menu"
+    }
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
     filterText = ""
@@ -837,6 +1258,7 @@ Item {
   function openExistingMenu(initialMenu) {
     requestSerial += 1
     mode = "menu"
+    root.inputForwardAction = ""
     requestActive = false
     selectionFile = ""
     doneFile = ""
@@ -847,6 +1269,7 @@ Item {
     cursorActive = true
     root.disarmPointer()
     root.evaluateGuards()
+    root.loadFrecency()
     opened = true
     rebuildDisplay()
     invalidateVolatileProvider(activeMenu)
@@ -860,6 +1283,7 @@ Item {
 
   function openDmenu(payload) {
     requestSerial += 1
+    root.inputForwardAction = ""
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
@@ -874,6 +1298,7 @@ Item {
     selectedIndex = 0
     cursorActive = mode !== "input"
     root.disarmPointer()
+    root.loadFrecency()
     opened = true
     rebuildDisplay()
 
@@ -915,8 +1340,8 @@ Item {
   }
 
   function selectFromPointer(index, item, mouse) {
-    if (!pointerGate.moved(item, mouse)) return
     if (!root.rowSelectable(index)) return
+    if (!pointerGate.moved(item, mouse)) return
     root.cursorActive = true
     root.selectedIndex = index
   }
@@ -944,6 +1369,203 @@ Item {
     onExited: {
       if (root.applySerial === root.requestSerial)
         root.opened = false
+    }
+  }
+
+  Process {
+    id: frecencyProc
+    stdout: StdioCollector {
+      id: frecencyStdout
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var parsed = JSON.parse(text)
+          if (parsed && typeof parsed === "object") {
+            root.frecencyMap = parsed
+            if (root.opened) root.rebuildDisplay()
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  Timer {
+    id: searchDebounceTimer
+    interval: 8
+    repeat: false
+    onTriggered: root.rebuildDisplay()
+  }
+
+  property var scopeSearchResults: []
+  property string scopeSearchLastQuery: ""
+  property string scopeSearchLastScope: ""
+
+  Timer {
+    id: scopeSearchTimer
+    interval: 40
+    repeat: false
+    onTriggered: {
+      var activeEntry = root.item(root.activeMenu)
+      var scope = activeEntry && activeEntry.scope ? activeEntry.scope : ""
+      var q = root.filterText.trim()
+      if (scope && q) {
+        root.launchScopeSearch(scope, q)
+      }
+    }
+  }
+
+  function launchScopeSearch(scope, q) {
+    if (scopeSearchProc.running) {
+      scopeSearchProc.pendingScope = scope
+      scopeSearchProc.pendingQuery = q
+      return
+    }
+    scopeSearchProc.pendingScope = ""
+    scopeSearchProc.pendingQuery = ""
+    scopeSearchProc.activeScope = scope
+    scopeSearchProc.candidateQuery = q
+    scopeSearchProc.command = ["bash", "-lc", "omarchy-activity search " + Util.shellQuote(q) + " --kind " + Util.shellQuote(scope) + " --limit 15"]
+    scopeSearchProc.running = true
+  }
+
+  Process {
+    id: scopeSearchProc
+    property string activeScope: ""
+    property string candidateQuery: ""
+    property string pendingScope: ""
+    property string pendingQuery: ""
+
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var activeEntry = root.item(root.activeMenu)
+        var curScope = activeEntry && activeEntry.scope ? activeEntry.scope : ""
+        var curQuery = root.filterText.trim()
+
+        if (scopeSearchProc.activeScope === curScope && scopeSearchProc.candidateQuery === curQuery) {
+          try {
+            var results = JSON.parse(text)
+            if (Array.isArray(results)) {
+              root.scopeSearchResults = results
+              root.scopeSearchLastScope = curScope
+              root.scopeSearchLastQuery = curQuery
+              root.rebuildDisplay()
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    onExited: function(exitCode, exitStatus) {
+      var pending = scopeSearchProc.pendingQuery
+      var pendingScope = scopeSearchProc.pendingScope
+      scopeSearchProc.pendingQuery = ""
+      scopeSearchProc.pendingScope = ""
+
+      var activeEntry = root.item(root.activeMenu)
+      var curScope = activeEntry && activeEntry.scope ? activeEntry.scope : ""
+      var curQuery = root.filterText.trim()
+
+      if (pending && curScope && pending === curQuery && (pending !== scopeSearchProc.candidateQuery || pendingScope !== scopeSearchProc.activeScope)) {
+        root.launchScopeSearch(curScope, pending)
+      }
+    }
+  }
+
+  // `fend` runs async, and Process ignores a command change while a run is
+  // in flight — the same hazard guardProc documents. If a keystroke lands
+  // mid-run, the new query would be silently dropped and the stale result
+  // discarded on candidateQuery mismatch, leaving "No matches" with no
+  // retry. Stash it as pendingQuery and drain it on exit instead.
+  function calcHasPattern(q) {
+    return /^[0-9(]/.test(q)
+      || /[0-9]\s*[+\-*\/^%]\s*[0-9]/.test(q)
+      || (/[0-9]/.test(q) && /\b(to|in|plus|minus|times|divided|percent|usd|eur|gbp|jpy|cad|aud|km|miles|mph|kmh|kg|lbs|mb|gb|tb|c|f|sec|seconds|min|minutes|hours|days|weeks)\b/i.test(q))
+  }
+
+  function launchCalc(q) {
+    if (fendProc.running) {
+      fendProc.pendingQuery = q
+      return
+    }
+    fendProc.pendingQuery = ""
+    fendProc.candidateQuery = q
+    fendProc.collectedOutput = ""
+    fendProc.command = ["omarchy-calc", q]
+    fendProc.running = true
+  }
+
+  Timer {
+    id: calcDebounceTimer
+    interval: 70
+    repeat: false
+    onTriggered: {
+      // The calculator is a root-level feature: inside a submenu, digits
+      // are picks (workspace numbers), not math. Never fork fend there,
+      // and drop any root-level result carried in.
+      var atRoot = (root.item(root.activeMenu) ? root.activeMenu : "root") === "root"
+      if (!atRoot) {
+        fendProc.pendingQuery = ""
+        if (root.calcResult) {
+          root.calcResult = ""
+          root.calcQuery = ""
+          root.rebuildDisplay()
+        }
+        return
+      }
+      var q = root.filterText.trim()
+      if (!q) {
+        fendProc.pendingQuery = ""
+        if (root.calcResult) {
+          root.calcResult = ""
+          root.calcQuery = ""
+          root.rebuildDisplay()
+        }
+        return
+      }
+
+      if (!root.calcHasPattern(q)) {
+        fendProc.pendingQuery = ""
+        if (root.calcResult) {
+          root.calcResult = ""
+          root.calcQuery = ""
+          root.rebuildDisplay()
+        }
+        return
+      }
+
+      root.launchCalc(q)
+    }
+  }
+
+  Process {
+    id: fendProc
+    property string candidateQuery: ""
+    property string collectedOutput: ""
+    property string pendingQuery: ""
+    stdout: SplitParser {
+      onRead: function(data) { fendProc.collectedOutput += data }
+    }
+    onExited: function(exitCode, status) {
+      var out = String(fendProc.collectedOutput || "").trim()
+      if (exitCode === 0 && out && !out.startsWith("Error:")) {
+        if (fendProc.candidateQuery === root.filterText.trim()) {
+          root.calcResult = out
+          root.calcQuery = fendProc.candidateQuery
+          root.rebuildDisplay()
+        }
+      } else {
+        if (root.calcResult) {
+          root.calcResult = ""
+          root.calcQuery = ""
+          root.rebuildDisplay()
+        }
+      }
+      var pending = fendProc.pendingQuery
+      fendProc.pendingQuery = ""
+      if (pending && pending === root.filterText.trim() && pending !== fendProc.candidateQuery && root.calcHasPattern(pending)) {
+        root.launchCalc(pending)
+      }
     }
   }
 
@@ -1010,7 +1632,6 @@ Item {
     if (!script) {
       root.whenResults = ({})
       root.checkedResults = ({})
-      root.disabledResults = ({})
       return
     }
     guardProc.collected = ""
@@ -1126,6 +1747,16 @@ Item {
             return
           }
 
+          if (searchDebounceTimer.running && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Right || event.key === Qt.Key_Up || event.key === Qt.Key_Down || event.key === Qt.Key_PageUp || event.key === Qt.Key_PageDown)) {
+            searchDebounceTimer.stop()
+            root.rebuildDisplay()
+            if (calcDebounceTimer.running) {
+              calcDebounceTimer.stop()
+              var cq = root.filterText.trim()
+              if (cq && root.calcHasPattern(cq)) root.launchCalc(cq)
+            }
+          }
+
           if (event.key === Qt.Key_Delete) {
             root.requestDeleteSelected()
             event.accepted = true
@@ -1151,9 +1782,21 @@ Item {
           } else if (event.key === Qt.Key_PageDown) {
             root.select(6)
             event.accepted = true
+          } else if (event.key === Qt.Key_Tab) {
+            if (displayModel.count > 0) {
+              var selectedRow = displayModel.get(root.cursorActive ? root.selectedIndex : 0)
+              if (selectedRow && selectedRow.kind === "calc" && root.calcResult) {
+                root.setFilter(root.calcResult)
+                event.accepted = true
+                return
+              }
+            }
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Right) {
             if (root.dmenuActive) {
-              if (root.mode === "input") root.applyDmenuSelection(root.filterText)
+              if (root.mode === "input") {
+                if (root.inputForwardAction) root.applyForwardedInput(root.filterText)
+                else root.applyDmenuSelection(root.filterText)
+              }
               else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
             else root.settleCursor()
@@ -1203,7 +1846,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
+            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).placeholder || ((root.item(root.activeMenu).title || root.item(root.activeMenu).label) + "…")) : "Go…")))
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -1260,7 +1903,6 @@ Item {
               required property string path
               required property string action
               required property int childCount
-              required property bool disabled
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
@@ -1344,7 +1986,7 @@ Item {
                   textFormat: Text.PlainText
                   width: parent.width
                   text: row.detail
-                  visible: (root.filterText || row.kind === "dmenu") && row.detail.length > 0
+                  visible: Boolean((root.filterText || row.kind === "dmenu" || (root.item(root.activeMenu) && root.item(root.activeMenu).scope)) && row.detail.length > 0)
                   color: root.foreground
                   opacity: 0.52
                   font.family: root.fontFamily
@@ -1459,7 +2101,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet"
+              text: root.searchPending ? "Searching…" : (root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet")
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
