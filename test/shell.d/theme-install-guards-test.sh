@@ -122,7 +122,7 @@ pass "a URL whose name would be shell syntax never reaches git"
 # to keep working.
 install_theme "https://github.com/example/omarchy-tokyo_night.2-theme.git" ||
   fail "omarchy-theme-install accepts the punctuation a theme name uses"
-grep -Fq "/themes/tokyo_night.2" "$git_calls" ||
+[[ -d $test_tmp/home/.config/omarchy/themes/tokyo_night.2 ]] ||
   fail "omarchy-theme-install derives a name carrying an underscore and a dot" "$(cat "$git_calls")"
 
 pass "a theme name may still hold an underscore, a dot, and a dash"
@@ -132,12 +132,12 @@ pass "a theme name may still hold an underscore, a dot, and a dash"
 # keeps both rather than stranding a repo that names itself with them.
 install_theme "https://github.com/example/omarchy-c++-theme.git" ||
   fail "omarchy-theme-install accepts a name holding a plus"
-grep -Fq "/themes/c++" "$git_calls" ||
+[[ -d $test_tmp/home/.config/omarchy/themes/c++ ]] ||
   fail "omarchy-theme-install derives a name carrying a plus" "$(cat "$git_calls")"
 
 install_theme "https://github.com/example/_private.git" ||
   fail "omarchy-theme-install accepts a name starting with an underscore"
-grep -Fq "/themes/_private" "$git_calls" ||
+[[ -d $test_tmp/home/.config/omarchy/themes/_private ]] ||
   fail "omarchy-theme-install derives a name starting with an underscore" "$(cat "$git_calls")"
 
 pass "a plus and a leading underscore are still usable theme names"
@@ -147,13 +147,13 @@ pass "a plus and a leading underscore are still usable theme names"
 # the theme name and the allowlist above refuses a repo that clones fine.
 install_theme "git@example.com:omarchy-blue-theme.git" ||
   fail "omarchy-theme-install accepts a home-relative scp-style URL"
-grep -Fq "/themes/blue" "$git_calls" ||
+[[ -d $test_tmp/home/.config/omarchy/themes/blue ]] ||
   fail "omarchy-theme-install names the theme after the repo, not the whole URL" "$(cat "$git_calls")"
 
 # A colon that is part of a local path, not an scp separator, keeps its prefix.
 install_theme "/srv/git:mirrors/omarchy-blue-theme.git" ||
   fail "omarchy-theme-install accepts a local path holding a colon"
-grep -Fq "/themes/blue" "$git_calls" ||
+[[ -d $test_tmp/home/.config/omarchy/themes/blue ]] ||
   fail "omarchy-theme-install reads a colon after a slash as part of the path" "$(cat "$git_calls")"
 
 pass "an scp-style URL with no slash after the colon still names the theme"
@@ -179,13 +179,13 @@ fi
 # basename reads a leading dash as an option once the scp-style prefix is gone.
 install_theme "host:-s/foo.git" || fail "omarchy-theme-install accepts a normal scp-style URL"
 grep -Fq -- "-- host:-s/foo.git" "$git_calls" || fail "omarchy-theme-install passes the URL after --" "$(cat "$git_calls")"
-grep -Fq "/themes/foo" "$git_calls" || fail "omarchy-theme-install derives 'foo', not '.git'" "$(cat "$git_calls")"
+[[ -d $test_tmp/home/.config/omarchy/themes/foo ]] || fail "omarchy-theme-install derives 'foo', not '.git'" "$(cat "$git_calls")"
 
 pass "a dash inside the path does not become a basename option"
 
 # And the ordinary case still works.
 install_theme "https://github.com/example/omarchy-cool-theme.git" || fail "omarchy-theme-install clones a normal URL"
-grep -Fq "/themes/cool" "$git_calls" || fail "omarchy-theme-install derives the theme name" "$(cat "$git_calls")"
+[[ -d $test_tmp/home/.config/omarchy/themes/cool ]] || fail "omarchy-theme-install derives the theme name" "$(cat "$git_calls")"
 grep -Fxq "cool" "$theme_calls" || fail "omarchy-theme-install applies the theme it installed" "$(cat "$theme_calls")"
 
 pass "an ordinary theme URL still clones and applies"

@@ -42,4 +42,6 @@ That leftover `[themename]` becomes the theme's directory name, so it has to be 
 
 Remember that once it's installed from a repo, any `.lua`, terminal config or `vscode.json` it ships is dropped, so don't build the theme around those.
 
+Reinstalling a theme downloads the replacement before changing the installed copy. If a theme with that name already exists, the installer prints the path to a hidden backup containing the previous copy, including local edits. The backup is not listed in the theme picker. To restore it, move the replacement out of `~/.config/omarchy/themes/`, move the backup's `theme` entry into that directory under its original name, then select it again. You can delete the backup once you are satisfied with the replacement.
+
 You can have your theme added to [the extra themes page](https://omarchy.org/themes/) by sending a pull request to [the omarchy-site repo](https://github.com/omacom-io/omarchy-site).
