@@ -1,0 +1,56 @@
+#!/bin/bash
+# omarchy:summary=Ensure persistent workspaces exist on all monitors (with retry)
+#
+# This script calls hl.workspace_rule() with retry logic to work around
+# Hyprland's asynchronous workspace materialization (Issue #6).
+#
+# hl.workspace_rule() doesn't materialize synchronously — a hl.get_workspace()
+# check immediately after registering can still miss, especially on fresh
+# monitor identities. This script retries with a short delay.
+#
+# Called from hypr/toggles/workspace-global.lua after initial rule registration,
+# and also after hotplug (new monitor connected).
+
+set -euo pipefail
+
+BASES_JSON="${HOME}/.local/state/omarchy/monitor-bases.json"
+if [[ ! -f "$BASES_JSON" ]]; then
+  # No bases yet; workspace-global.lua will create them. Silently exit.
+  exit 0
+fi
+
+# Parse monitor name → base from the JSON
+declare -A bases
+while IFS=' ' read -r mon_name mon_base; do
+  [[ -n "$mon_name" ]] && bases["$mon_name"]="$mon_base"
+done < <(jq -r 'to_entries[] | "\(.key) \(.value)"' "$BASES_JSON" 2>/dev/null) || exit 0
+
+# Get currently connected monitors
+declare -A current_mons
+while IFS=' ' read -r mon_name; do
+  current_mons["$mon_name"]=1
+done < <(hyprctl monitors -j 2>/dev/null | jq -r '.[].name') || exit 0
+
+# Verify each workspace exists; retry if needed
+for mon_name in "${!current_mons[@]}"; do
+  base="${bases[$mon_name]:-0}"
+  
+  for slot in 1 2 3 4 5 6 7 8 9 10; do
+    ws_id=$((base + slot))
+    
+    # Check if workspace exists; if not, retry after a short delay
+    ws_exists=$(hyprctl workspaces -j 2>/dev/null | jq --argjson id "$ws_id" '.[] | select(.id == $id)' 2>/dev/null | wc -l)
+    
+    if [[ "$ws_exists" -eq 0 ]]; then
+      # Workspace doesn't exist yet; register the rule again
+      hyprctl eval "hl.workspace_rule({ id = $ws_id, monitor = '$mon_name', persistent = true })" >/dev/null 2>&1 || true
+      # Small delay to allow Hyprland to process
+      sleep 0.05
+    fi
+  done
+done
+
+# Final refresh: give Hyprland a moment, then refresh bars
+sleep 0.1
+qs ipc call omarchy.workspaces refresh &>/dev/null & disown 2>/dev/null || true
+
