@@ -54,6 +54,35 @@ done
 
 pass "an explicit platform expands against that platform's host"
 
+# Owner names are not GitHub-only: GitLab and Bitbucket permit dots and
+# underscores in namespaces/workspace ids that GitHub usernames never use.
+# The owner character class has to cover every supported platform, not just
+# the one that happens to be the default. Reported in PR review.
+for pair in \
+  "gitlab:first.last/omarchy-weather:https://gitlab.com/first.last/omarchy-weather.git" \
+  "gitlab:first_last/omarchy-weather:https://gitlab.com/first_last/omarchy-weather.git" \
+  "bitbucket:first_last/omarchy-weather:https://bitbucket.org/first_last/omarchy-weather.git"; do
+  platform="${pair%%:*}"
+  rest="${pair#*:}"
+  shorthand="${rest%%:*}"
+  expected="${rest#*:}"
+  output=$(expand "$shorthand" "$platform") ||
+    fail "omarchy-git-shorthand-expand expands '$shorthand' for platform '$platform'" "$output"
+  [[ $output == "$expected" ]] ||
+    fail "omarchy-git-shorthand-expand expands '$shorthand' to the right $platform URL" "got: $output"
+done
+
+pass "an owner name may hold a dot or an underscore, not just github's alnum-and-hyphen"
+
+# A shorthand pasted with an existing .git suffix (e.g. copied from another
+# clone command) must not grow a second one. Reported in PR review.
+output=$(expand "acme/omarchy-weather.git") ||
+  fail "omarchy-git-shorthand-expand expands 'acme/omarchy-weather.git'" "$output"
+[[ $output == "https://github.com/acme/omarchy-weather.git" ]] ||
+  fail "omarchy-git-shorthand-expand does not double the .git suffix" "got: $output"
+
+pass "a shorthand already carrying a .git suffix keeps exactly one"
+
 output=$(expand "acme/omarchy-weather" sourcehut 2>&1) &&
   fail "omarchy-git-shorthand-expand refuses an unknown platform" "$output"
 grep -qF "unknown platform" <<<"$output" ||

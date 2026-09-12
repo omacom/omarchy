@@ -54,17 +54,23 @@ if [[ $arg == *:* && ${arg%%:*} != */* ]]; then
 fi
 
 # owner/repo shorthand: exactly one slash, host-identifier characters on each
-# side, an owner that neither starts nor ends with a hyphen. A bracket range
-# follows the locale's collation, not ASCII -- pinning LC_ALL=C keeps this from
-# taking in non-ASCII letters on a UTF-8 desktop and expanding a path that only
-# looks like one (see the same concern in omarchy-theme-install). The platform
-# is only resolved here, once there is actually a shorthand to expand against
-# it -- an unrecognized platform name never fails an argument this command
-# would have passed through untouched anyway.
-if (LC_ALL=C; [[ $arg =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$ ]]); then
+# side, an owner that starts and ends with an alphanumeric. The owner class
+# covers every supported platform, not just the default: GitHub usernames are
+# alnum-and-hyphen only, but GitLab namespaces and Bitbucket workspace ids also
+# allow dots and underscores, so the class has to be the union. A bracket
+# range follows the locale's collation, not ASCII -- pinning LC_ALL=C keeps
+# this from taking in non-ASCII letters on a UTF-8 desktop and expanding a
+# path that only looks like one (see the same concern in
+# omarchy-theme-install). The platform is only resolved here, once there is
+# actually a shorthand to expand against it -- an unrecognized platform name
+# never fails an argument this command would have passed through untouched
+# anyway.
+if (LC_ALL=C; [[ $arg =~ ^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$ ]]); then
   host="${PLATFORM_HOSTS[$platform]-}"
   [[ -n $host ]] || fail "unknown platform '$platform' (known: ${!PLATFORM_HOSTS[*]})"
-  printf 'https://%s/%s.git\n' "$host" "$arg"
+  # A shorthand copied from an existing clone command may already carry a
+  # .git suffix; strip it so the URL built below never doubles it.
+  printf 'https://%s/%s.git\n' "$host" "${arg%.git}"
   exit 0
 fi
 
