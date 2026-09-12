@@ -40,12 +40,45 @@ if ! omarchy-cmd-present curl; then
   exit 1
 fi
 
-fast_token="YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
-fast_api_url="https://api.fast.com/netflix/speedtest/v2?https=true&token=$fast_token&urlCount=$url_count"
+fetch_fast_urls() {
+  local token="$1"
+  local api_url="https://api.fast.com/netflix/speedtest/v2?https=true&token=$token&urlCount=$url_count"
+  curl -fsS --max-time 5 "$api_url" 2>/dev/null | jq -r '.targets[]?.url // empty'
+}
 
-fast_urls=$(curl -fsS "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
+fetch_speed_urls() {
+  local urls
+  urls=$(fetch_fast_urls "YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm")
+  if [[ -n $urls ]]; then
+    echo "$urls"
+    return 0
+  fi
 
-if [[ -z $fast_urls ]]; then
+  # Dynamic token fetch if hardcoded token failed or expired
+  local js_file dynamic_token
+  js_file=$(curl -fsS --max-time 3 https://fast.com 2>/dev/null | grep -oE 'app-[a-f0-9]+\.js' | head -n1)
+  if [[ -n $js_file ]]; then
+    dynamic_token=$(curl -fsS --max-time 3 "https://fast.com/$js_file" 2>/dev/null | grep -oE 'token:"[^"]+"' | head -n1 | cut -d'"' -f2)
+    if [[ -n $dynamic_token ]]; then
+      urls=$(fetch_fast_urls "$dynamic_token")
+      if [[ -n $urls ]]; then
+        echo "$urls"
+        return 0
+      fi
+    fi
+  fi
+
+  # Fallback to Cloudflare speed test endpoints (tokenless, high availability, global Anycast CDN)
+  if [[ $direction == "down" ]]; then
+    echo "https://speed.cloudflare.com/__down?bytes=25000000"
+  else
+    echo "https://speed.cloudflare.com/__up"
+  fi
+}
+
+readarray -t speed_urls < <(fetch_speed_urls)
+
+if [[ ${#speed_urls[@]} -eq 0 || -z ${speed_urls[0]} ]]; then
   echo "Failed to fetch speed test endpoints" >&2
   exit 1
 fi
@@ -66,11 +99,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Round-robin across the returned URLs so we spread load across Netflix OCA nodes.
+# Round-robin across the returned URLs so we spread load across nodes.
 traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}
   local idx=$RANDOM
+  local url
   if [[ $direction == "down" ]]; then
     while true; do
       url=${urls[$((idx % url_count))]}
@@ -87,7 +121,7 @@ traffic_worker() {
 }
 
 for (( i = 0; i < parallel; i++ )); do
-  traffic_worker $fast_urls &
+  traffic_worker "${speed_urls[@]}" &
   traffic_pids+=("$!")
 done
 
