@@ -19,7 +19,8 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "refreshIntervalSec": 60
+      "refreshIntervalSec": 60,
+      "quotaGB": 0
     },
     "schema": [
       {
@@ -30,6 +31,16 @@
         "max": 3600,
         "step": 5,
         "defaultValue": 60
+      },
+      {
+        "key": "quotaGB",
+        "type": "integer",
+        "label": "Storage quota (GB)",
+        "description": "Real Dropbox quota from dropbox.com/account, including referral bonus space. The Basic plan default of 2 GB ignores bonuses. Set 0 to use the plan default.",
+        "min": 0,
+        "max": 5000,
+        "step": 1,
+        "defaultValue": 0
       }
     ]
   }
