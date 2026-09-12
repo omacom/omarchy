@@ -36,7 +36,12 @@ Item {
     persisted.notifiedLowBattery = state.notifiedLowBattery
     if (state.notifiedLowBattery) root.lowBatteryClearPending = false
     else if (wasNotified) root.lowBatteryClearPending = true
-    if (state.notify) sendLowBatteryWarning(state.level)
+    if (state.notify) {
+      // Let an in-flight dismissal finish before posting a new warning.
+      // Leave the latch unset so its exit handler can recheck current power.
+      if (clearWarningProcess.running) persisted.notifiedLowBattery = false
+      else sendLowBatteryWarning(state.level)
+    }
     // Dismissal can precede notification insertion or time out silently. Keep
     // retrying on the existing poll until a new low-battery episode starts.
     if (root.lowBatteryClearPending) clearLowBatteryWarning()
@@ -76,7 +81,10 @@ Item {
   }
 
   Process { id: warningProcess }
-  Process { id: clearWarningProcess }
+  Process {
+    id: clearWarningProcess
+    onExited: if (!root.lowBatteryClearPending) root.checkBattery()
+  }
 
   Process {
     id: powerProfileProcess

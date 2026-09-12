@@ -32,9 +32,13 @@ assertDeepEqual(dismissal.command, [], 'busy dismissal process is not overwritte
 dismissal.running = false
 state.checkBattery()
 assertEqual(dismissal.running, true, 'next poll retries dismissal after busy or silently timed-out process')
-dismissal.running = false
 next = { notifiedLowBattery: true, notify: true, level: 5 }
 state.checkBattery()
 assertEqual(state.lowBatteryClearPending, false, 'new low-battery episode cancels old dismissal intent')
-assertEqual(dismissal.running, false, 'old dismissal does not remove the new warning')
+assertEqual(warnings, 1, 'new warning waits for the in-flight dismissal')
+assertEqual(persisted.notifiedLowBattery, false, 'deferred warning remains eligible for the exit-handler recheck')
+dismissal.running = false
+state.checkBattery()
+assertEqual(warnings, 2, 'new warning is sent after dismissal finishes')
+assert(qml.includes('onExited: if (!root.lowBatteryClearPending) root.checkBattery()'), 'dismissal completion rechecks a deferred warning without a retry loop')
 JS
