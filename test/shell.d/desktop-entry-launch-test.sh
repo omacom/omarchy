@@ -22,7 +22,7 @@ cat >"$mock_bin/omarchy-font-set" <<'SH'
 printf 'font:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
-for command in omarchy-pkg-aur-add omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-install-gaming-gpu-lib32; do
+for command in omarchy-pkg-aur-add omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-theme-set-sublime omarchy-theme-refresh omarchy-install-gaming-gpu-lib32; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 exit 0
@@ -74,6 +74,7 @@ assert_detached_installer_launch() {
 assert_detached_installer_launch omarchy-install-editor-emacs emacsclient
 assert_detached_installer_launch omarchy-install-editor-vscode code
 assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
+assert_detached_installer_launch omarchy-install-editor-sublime sublime_text
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam
 

@@ -50,6 +50,10 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
   sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
 fi
 
+if omarchy-cmd-present subl || omarchy-cmd-present sublime_text; then
+  omarchy-theme-set-sublime
+fi
+
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
 # and anything resolving "monospace" all read from here. This file is loaded
 # after the package-owned default, and prepend_first puts the chosen family at

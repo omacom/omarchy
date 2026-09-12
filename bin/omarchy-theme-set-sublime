@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# omarchy:summary=Sync Omarchy theme and font to Sublime Text
+# omarchy:hidden=true
+
+omarchy-toggle-enabled skip-sublime-theme-changes && exit 0
+omarchy-cmd-present subl || omarchy-cmd-present sublime_text || exit 0
+
+SCHEME_SRC="$HOME/.local/state/omarchy/current/theme/Omarchy.sublime-color-scheme"
+USER_DIR="$HOME/.config/sublime-text/Packages/User"
+SCHEME_DST="$USER_DIR/Omarchy.sublime-color-scheme"
+PREFS="$USER_DIR/Preferences.sublime-settings"
+SCHEME_NAME="Omarchy.sublime-color-scheme"
+THEME_NAME="Adaptive.sublime-theme"
+
+set_jsonc_string() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  local escaped=${value//\\/\\\\}
+  escaped=${escaped//&/\\&}
+  escaped=${escaped//|/\\|}
+
+  if ! grep -q "\"$key\"" "$file"; then
+    sed -i --follow-symlinks -E "0,/\{/{s/\{/{ \"$key\": \"\",/}" "$file"
+  fi
+
+  sed -i --follow-symlinks -E \
+    "s|(\"$key\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")|\1$escaped\2|" \
+    "$file"
+}
+
+mkdir -p "$USER_DIR"
+
+if [[ -f $SCHEME_SRC ]]; then
+  cp -f "$SCHEME_SRC" "$SCHEME_DST"
+fi
+
+[[ -f $SCHEME_DST || -f $PREFS ]] || exit 0
+
+font_name=$(omarchy-font-current 2>/dev/null || true)
+font_name=${font_name//\"/}
+
+if [[ ! -f $PREFS ]]; then
+  {
+    printf '{\n'
+    if [[ -f $SCHEME_DST ]]; then
+      printf '\t"color_scheme": "%s",\n' "$SCHEME_NAME"
+      printf '\t"dark_color_scheme": "%s",\n' "$SCHEME_NAME"
+      printf '\t"light_color_scheme": "%s",\n' "$SCHEME_NAME"
+      printf '\t"theme": "%s"' "$THEME_NAME"
+      [[ -n $font_name ]] && printf ',\n\t"font_face": "%s"' "$font_name"
+      printf '\n'
+    elif [[ -n $font_name ]]; then
+      printf '\t"font_face": "%s"\n' "$font_name"
+    fi
+    printf '}\n'
+  } >"$PREFS"
+  exit 0
+fi
+
+if [[ -f $SCHEME_DST ]]; then
+  set_jsonc_string "$PREFS" "color_scheme" "$SCHEME_NAME"
+  set_jsonc_string "$PREFS" "dark_color_scheme" "$SCHEME_NAME"
+  set_jsonc_string "$PREFS" "light_color_scheme" "$SCHEME_NAME"
+  set_jsonc_string "$PREFS" "theme" "$THEME_NAME"
+fi
+
+if [[ -n $font_name ]]; then
+  set_jsonc_string "$PREFS" "font_face" "$font_name"
+fi
