@@ -116,27 +116,22 @@ cache=$(jq -nc --arg open "$open_at" --arg past "$past_at" '{
   ]
 }')
 
-# An expired token used to return an empty limits list and no status at all,
-# which hides the panel's whole limits section without saying why.
-expired=$(collect_limits "token" 1000 "$cache")
-[[ $(jq -r '.usageStatusText' <<<"$expired") == "Sign-in expired" ]] ||
-  fail "Claude collector reports an expired sign-in" "$expired"
-[[ $(jq -r '.authHelpText' <<<"$expired") == *"claude auth login"* ]] ||
-  fail "Claude collector says how to refresh an expired sign-in" "$expired"
-pass "Claude collector reports an expired sign-in instead of hiding the section"
+# A lapsed expiresAt is not a missing login: still probe. An unreachable
+# endpoint then falls back the same way a live token does.
+lapsed=$(collect_limits "token" 1000 "$cache")
+[[ $(jq -r '.usageStatusText' <<<"$lapsed") == "" ]] ||
+  fail "Claude collector does not treat a lapsed expiresAt as a signed-out login" "$lapsed"
+[[ $(jq -c '[.limits[].label]' <<<"$lapsed") == '["Weekly (7-day)"]' ]] ||
+  fail "Claude collector keeps only cached windows that have not reset" "$lapsed"
+[[ $(jq -r '.retryAdvised' <<<"$lapsed") == "true" ]] ||
+  fail "Claude collector advises a retry after a transport failure on a lapsed token" "$lapsed"
+pass "Claude collector still probes when the saved token's expiresAt has lapsed"
 
-# The window that has not reset is still true; the one that has is not.
-[[ $(jq -c '[.limits[].label]' <<<"$expired") == '["Weekly (7-day)"]' ]] ||
-  fail "Claude collector keeps only cached windows that have not reset" "$expired"
-pass "Claude collector keeps only cached windows that have not reset"
-
-# Nothing worth showing: the status still explains the silence.
+# Nothing worth showing and no route: transport failure, not a fake logout.
 stale=$(collect_limits "token" 1000 "$(jq -c '.limits |= [.[0]]' <<<"$cache")")
-[[ $(jq -c '.limits' <<<"$stale") == "[]" && $(jq -r '.usageStatusText' <<<"$stale") == "Sign-in expired" ]] ||
-  fail "Claude collector drops a wholly reset cache but keeps explaining itself" "$stale"
-[[ $(jq -r '.authHelpText' <<<"$stale") != *"last known"* ]] ||
-  fail "Claude collector promises no last-known limits when it has none" "$stale"
-pass "Claude collector drops a wholly reset cache but keeps explaining itself"
+[[ $(jq -c '.limits' <<<"$stale") == "[]" && $(jq -r '.usageStatusText' <<<"$stale") == "Claude limits unavailable" ]] ||
+  fail "Claude collector drops a wholly reset cache without calling it a logout" "$stale"
+pass "Claude collector drops a wholly reset cache without calling it a logout"
 
 # A signed-out machine says so, and still shows what it last knew.
 signed_out=$(collect_limits "" 0 "$cache")
@@ -145,6 +140,46 @@ signed_out=$(collect_limits "" 0 "$cache")
 [[ $(jq -c '[.limits[].label]' <<<"$signed_out") == '["Weekly (7-day)"]' ]] ||
   fail "Claude collector serves open cached windows without a token" "$signed_out"
 pass "Claude collector serves open cached windows without a token"
+
+collect_limits_http() {
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" TOKEN="token" EXPIRES_AT="1000" HTTP="$1" CACHED="$2" \
+    XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, io, json, os, pathlib, urllib.error
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+cache = collector.cache_root() / ("claude-limits-" + collector.hashlib.sha1(b"/unused-claude").hexdigest()[:16] + ".json")
+cached = os.environ["CACHED"]
+if cached:
+  cache.write_text(cached, encoding="utf-8")
+elif cache.exists():
+  cache.unlink()
+
+def unauthorized(request, timeout=None):
+  raise urllib.error.HTTPError(
+    "https://api.anthropic.com/api/oauth/usage",
+    int(os.environ["HTTP"]),
+    "Unauthorized",
+    None,
+    io.BytesIO(b""),
+  )
+
+collector.urllib.request.urlopen = unauthorized
+print(json.dumps(collector.collect_limits(os.environ["TOKEN"], int(os.environ["EXPIRES_AT"]), False, pathlib.Path("/unused-claude"))))
+PY
+}
+
+unauthorized=$(collect_limits_http 401 "$cache")
+[[ $(jq -r '.usageStatusText' <<<"$unauthorized") == "Sign-in expired" ]] ||
+  fail "Claude collector reports expired only after HTTP 401" "$unauthorized"
+[[ $(jq -r '.authHelpText' <<<"$unauthorized") == *"claude auth login"* ]] ||
+  fail "Claude collector says how to refresh after HTTP 401" "$unauthorized"
+[[ $(jq -c '[.limits[].label]' <<<"$unauthorized") == '["Weekly (7-day)"]' ]] ||
+  fail "Claude collector keeps open cached windows after HTTP 401" "$unauthorized"
+pass "Claude collector reports an expired sign-in after HTTP 401"
 
 # A live token that cannot reach the endpoint keeps the old contract: the open
 # window stands in, and the shell is asked to retry sooner than its interval.
