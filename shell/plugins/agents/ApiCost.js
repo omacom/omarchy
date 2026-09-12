@@ -1020,25 +1020,38 @@ function buildModelWindowPresentation(providerId, dailyUsage, nowMs, rawOverride
 }
 
 function createPresentationCache() {
-  return { daily: {}, models: {} }
+  return { daily: [], models: [] }
 }
 
 function cachedPresentation(cache, kind, provider, nowMs, overrides, revision) {
   if (!cache || !provider) return kind === "daily" ? [] : { available: false, models: [], summaries: [] }
   var id = exactId(provider.providerId)
-  var store = cache[kind] || (cache[kind] = {})
+  // Keep at most 128 recently used views per presentation kind, across all
+  // providers/computers. Strong references have an explicit lifetime instead
+  // of depending on QV4 WeakMap collection during passive binding updates.
+  // This is a cache capacity, not a limit on configured computers.
+  var views = cache[kind]
+  if (!Array.isArray(views)) views = cache[kind] = []
   var stamp = localDateString(nowMs) + "|" + String(revision)
-  var views = store[id] || (store[id] = new WeakMap())
   var key = provider.dailyUsage && typeof provider.dailyUsage === "object" ? provider.dailyUsage
     : provider.recentDays && typeof provider.recentDays === "object" ? provider.recentDays : provider
-  var entry = views.get(key)
-  if (entry && entry.dailyUsage === provider.dailyUsage && entry.recentDays === provider.recentDays
-      && entry.costScopeCompatible === provider.costScopeCompatible && entry.stamp === stamp) return entry.value
+  for (var i = 0; i < views.length; i++) {
+    var entry = views[i]
+    if (entry.id !== id || entry.key !== key) continue
+    views.splice(i, 1)
+    if (entry.dailyUsage === provider.dailyUsage && entry.recentDays === provider.recentDays
+        && entry.costScopeCompatible === provider.costScopeCompatible && entry.stamp === stamp) {
+      views.push(entry)
+      return entry.value
+    }
+    break
+  }
   var value = kind === "daily"
     ? buildDailyRows(id, provider.dailyUsage, provider.recentDays, nowMs, overrides, provider.costScopeCompatible)
     : buildModelWindowPresentation(id, provider.dailyUsage, nowMs, overrides, provider.costScopeCompatible)
-  views.set(key, { dailyUsage: provider.dailyUsage, recentDays: provider.recentDays,
+  views.push({ id: id, key: key, dailyUsage: provider.dailyUsage, recentDays: provider.recentDays,
     costScopeCompatible: provider.costScopeCompatible, stamp: stamp, value: value })
+  if (views.length > 128) views.shift()
   return value
 }
 
