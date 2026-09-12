@@ -12,6 +12,10 @@ else
   inline=false
 fi
 
+# vipw and vigr keep only the first word of $EDITOR, so --inline never reaches
+# here under sudo. Without a Wayland session there is no window to open anyway.
+[[ -n ${WAYLAND_DISPLAY:-} ]] || inline=true
+
 if [[ -f $default_editor ]]; then
   read -r editor <"$default_editor"
 else
