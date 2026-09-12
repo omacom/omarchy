@@ -2,8 +2,27 @@
 
 # omarchy:summary=Detect whether the system has an active hybrid GPU configuration
 
+# Count display-class devices from the cached sysfs IDs rather than lspci. lspci reads PCI
+# config space, which resumes a runtime-suspended GPU -- the same reason omarchy-hw-nvidia
+# and omarchy-hw-nvidia-gsp already avoid it. That matters more here than anywhere else:
+# this check runs on a hybrid laptop, where the dGPU it is asking about is usually asleep,
+# and the result feeds session environment during Hyprland's config load.
+#
+# 0x03* covers VGA (0x0300), 3D (0x0302) and Display (0x0380) controllers, matching what
+# the previous `lspci | grep -E 'VGA|3D|Display'` counted.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
 multiple_gpus() {
-  (($(lspci | grep -cE 'VGA|3D|Display') >= 2))
+  local device count=0
+
+  shopt -s nullglob
+
+  for device in "$pci_devices_path"/*; do
+    [[ -r $device/class ]] || continue
+    [[ $(< "$device/class") == 0x03* ]] && ((count++))
+  done
+
+  ((count >= 2))
 }
 
 if omarchy-cmd-present supergfxctl; then
