@@ -198,6 +198,37 @@ assert(
   'clipboard display rows cap what a huge text entry renders'
 )
 
+const hugeText = 'z'.repeat(100000)
+assertDeepEqual(
+  clipboard.entryForAction([{ type: 'text', text: hugeText }], 0),
+  {
+    type: 'text',
+    text: hugeText,
+    path: '',
+    mime: 'text/plain',
+    historyIndex: 0
+  },
+  'clipboard actions receive the complete text behind a capped display row'
+)
+
+const hugeFilePath = '/tmp/' + 'x'.repeat(9000) + '.txt'
+assertDeepEqual(
+  clipboard.entryForAction([{ type: 'text', text: 'file://' + hugeFilePath + '\n' }], 0),
+  {
+    type: 'file',
+    text: hugeFilePath,
+    path: hugeFilePath,
+    mime: 'text/plain',
+    historyIndex: 0
+  },
+  'clipboard actions receive complete file data behind a capped display row'
+)
+
+assert(
+  /onClicked:\s*\{\s*if \(extensions\.paneOpen\) return/.test(clipboardQml),
+  'clipboard rows cannot activate while an extension pane is open'
+)
+
 const hugeFileList = []
 for (let i = 0; i < 5000; i++) hugeFileList.push('file:///home/dhh/clip-' + i + '.mp4')
 const hugeFileRow = clipboard.displayRows([{ type: 'text', text: hugeFileList.join('\n') + '\n' }], '', 50)[0]

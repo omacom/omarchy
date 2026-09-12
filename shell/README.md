@@ -81,6 +81,11 @@ Supported `kinds`:
 | `menu`       | A summoned menu surface                                      |
 | `service`    | A headless singleton, no UI                                  |
 | `bar`        | A full bar option that can replace the built-in `omarchy.bar` |
+| `extension`  | An action contributed into another plugin's UI               |
+
+An `extension` names the plugin it extends in `extension.host` and is loaded
+by that plugin's `PluginExtensions` slot rather than by the shell; see
+[`docs/omarchy-shell.md`](../docs/omarchy-shell.md) for the contract.
 
 Only one `bar` plugin is active at a time. Missing or invalid selections fall
 back to the built-in `omarchy.bar`, so users always have a safe path home.

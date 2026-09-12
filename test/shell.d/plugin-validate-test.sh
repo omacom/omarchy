@@ -61,6 +61,7 @@ while IFS=: read -r kind entry_point; do
 done <<'KINDS'
 bar:bar
 bar-widget:barWidget
+extension:extension
 menu:menu
 overlay:overlay
 panel:panel
