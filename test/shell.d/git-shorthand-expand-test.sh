@@ -77,9 +77,11 @@ for url in \
   [[ $output == "$url" ]] ||
     fail "omarchy-git-shorthand-expand leaves an already-url-shaped argument untouched: $url" "got: $output"
 
-  # A platform argument alongside an already-url-shaped argument changes
-  # nothing: there is no shorthand here to expand against any host.
-  output=$(expand "$url" gitlab) || fail "omarchy-git-shorthand-expand accepts '$url' with a platform argument" "$output"
+  # The platform is never even looked at for an already-url-shaped argument --
+  # not just ignored in value, but never validated at all, so an unrecognized
+  # platform name does not turn an accepted URL into a rejected one.
+  output=$(expand "$url" not-a-real-platform) ||
+    fail "omarchy-git-shorthand-expand accepts '$url' alongside an unknown platform name" "$output"
   [[ $output == "$url" ]] ||
     fail "omarchy-git-shorthand-expand ignores the platform argument for an already-url-shaped argument: $url" "got: $output"
 done
@@ -95,9 +97,16 @@ for arg in "repo" "/home/me/repo" "./repo" "../repo" "owner/repo/extra" "owner/"
   output=$(expand "$arg") || fail "omarchy-git-shorthand-expand accepts '$arg'" "$output"
   [[ $output == "$arg" ]] ||
     fail "omarchy-git-shorthand-expand leaves a non-shorthand argument untouched: $arg" "got: $output"
+
+  # Same as the already-url-shaped case: nothing here is shorthand, so an
+  # unrecognized platform name is never even looked at.
+  output=$(expand "$arg" not-a-real-platform) ||
+    fail "omarchy-git-shorthand-expand accepts '$arg' alongside an unknown platform name" "$output"
+  [[ $output == "$arg" ]] ||
+    fail "omarchy-git-shorthand-expand ignores the platform argument for a non-shorthand argument: $arg" "got: $output"
 done
 
-pass "anything that is not owner/repo-shaped passes through unchanged"
+pass "anything that is not owner/repo-shaped passes through unchanged, regardless of platform"
 
 output=$(expand "") && fail "omarchy-git-shorthand-expand refuses an empty argument" "$output"
 output=$(expand) && fail "omarchy-git-shorthand-expand refuses a missing argument" "$output"
