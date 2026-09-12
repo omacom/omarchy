@@ -8,6 +8,7 @@
     "position": "top",
     "transparent": false,
     "centerAnchor": "omarchy.clock",
+    "trayMenuMaxHeight": 420,
     "layout": {
       "left": [
         {

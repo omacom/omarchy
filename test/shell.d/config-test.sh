@@ -16,6 +16,9 @@ pass "default shell.json is valid JSON"
 jq -e '.version == 1 and (.bar.layout.left | type == "array") and (.bar.layout.center | type == "array") and (.bar.layout.right | type == "array")' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 
+jq -e '(.bar.trayMenuMaxHeight | type) == "number" and .bar.trayMenuMaxHeight > 0 and (.bar.trayMenuMaxHeight | floor) == .bar.trayMenuMaxHeight' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default shell.json has a positive integer tray menu height"
+
 # Pinning the whole row made this fail every time an unrelated widget moved,
 # so assert the adjacency the name is about and let the rest of the row change.
 jq -e '

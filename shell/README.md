@@ -244,6 +244,7 @@ becomes the authoritative file — we do **not** deep-merge defaults back in.
     "position": "top",
     "transparent": false,
     "centerAnchor": "omarchy.clock",
+    "trayMenuMaxHeight": 420,
     "layout": {
       "left":   [ { "id": "omarchy.menu" }, { "id": "omarchy.workspaces" } ],
       "center": [ { "id": "omarchy.clock", "format": "HH:mm" } ],

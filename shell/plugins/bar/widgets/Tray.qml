@@ -18,6 +18,10 @@ BarWidget {
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property int trayMenuMaxHeight: {
+    var value = bar && bar.barConfig ? bar.barConfig.trayMenuMaxHeight : undefined
+    return typeof value === "number" && isFinite(value) && value > 0 && Math.floor(value) === value ? value : 420
+  }
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
   readonly property var pinnedItems: bucket("pinned")
@@ -534,7 +538,7 @@ BarWidget {
     padding: Style.space(8)
     borderColor: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.45)
     contentWidth: trayMenuPopup.fittedContentWidth(Style.space(232))
-    contentHeight: trayMenuPopup.fittedContentHeight(menuHeaderHeight + trayMenuColumn.implicitHeight, Style.space(420))
+    contentHeight: trayMenuPopup.fittedContentHeight(menuHeaderHeight + trayMenuColumn.implicitHeight, Style.space(root.trayMenuMaxHeight))
 
     // Column skips invisible children but keeps reporting their height, so
     // read the header's extent through its own visibility.
