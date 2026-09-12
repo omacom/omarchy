@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Record and read shared usage frecency
-# omarchy:args=(record <kind> <target> [title] [--via pick|view] | top [--kind <kind>] [--via pick|view|all] [--limit <n>] | rank [--kind <kind>] [--via pick|view|all] [--limit <n>] | rank-files [--via pick|view|all] [--limit <n>] | forget <target> [--kind <kind>] | pin <target> [--kind <kind>] | unpin <target> [--kind <kind>] | stats | import-frecency <file> | import-xbel [file] | import-zoxide [file] | import-agents)
+# omarchy:args=(record <kind> <target> [title] [--via pick|view] | top [--kind <kind>] [--via pick|view|all] [--limit <n>] | search <query> [--kind <kind>] [--limit <n>] | rank [--kind <kind>] [--via pick|view|all] [--limit <n>] | rank-files [--via pick|view|all] [--limit <n>] | forget <target> [--kind <kind>] | pin <target> [--kind <kind>] | unpin <target> [--kind <kind>] | stats | import-frecency <file> | import-xbel [file] | import-zoxide [file] | import-agents)
 # omarchy:examples=omarchy activity record app firefox | omarchy activity top --kind app | omarchy activity rank --kind project
 """Shared usage journal for the shell.
 
@@ -17,6 +17,7 @@ caller's in-memory map once instead of running per keystroke.
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS items(
   action TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (kind, target)
 );
+CREATE INDEX IF NOT EXISTS idx_items_target ON items(target);
 CREATE TABLE IF NOT EXISTS visits(
   kind TEXT NOT NULL DEFAULT 'app',
   target TEXT NOT NULL,
@@ -59,7 +61,29 @@ CREATE TABLE IF NOT EXISTS visits(
 );
 CREATE INDEX IF NOT EXISTS idx_visits_lookup ON visits(kind, target, at DESC);
 CREATE INDEX IF NOT EXISTS idx_visits_at ON visits(at);
-CREATE INDEX IF NOT EXISTS idx_items_kind_target ON items(kind, target);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
+  kind UNINDEXED,
+  target,
+  title,
+  detail,
+  content='items',
+  content_rowid='rowid',
+  tokenize='porter unicode61'
+);
+
+CREATE TRIGGER IF NOT EXISTS items_ai AFTER INSERT ON items BEGIN
+  INSERT INTO items_fts(rowid, kind, target, title, detail) VALUES (new.rowid, new.kind, new.target, new.title, new.detail);
+END;
+
+CREATE TRIGGER IF NOT EXISTS items_ad AFTER DELETE ON items BEGIN
+  INSERT INTO items_fts(items_fts, rowid, kind, target, title, detail) VALUES('delete', old.rowid, old.kind, old.target, old.title, old.detail);
+END;
+
+CREATE TRIGGER IF NOT EXISTS items_au AFTER UPDATE ON items BEGIN
+  INSERT INTO items_fts(items_fts, rowid, kind, target, title, detail) VALUES('delete', old.rowid, old.kind, old.target, old.title, old.detail);
+  INSERT INTO items_fts(rowid, kind, target, title, detail) VALUES (new.rowid, new.kind, new.target, new.title, new.detail);
+END;
 """
 
 
@@ -71,7 +95,14 @@ def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path), timeout=5)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA busy_timeout=2000")
+    conn.execute("PRAGMA temp_store=MEMORY")
+    conn.execute("PRAGMA mmap_size=33554432")
+
+    # Clean up redundant or legacy indexes
+    conn.execute("DROP INDEX IF EXISTS idx_items_kind_target")
+    conn.execute("DROP INDEX IF EXISTS idx_visits_target_at")
 
     # Migrate legacy single-target schemas to composite (kind, target)
     items_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='items'").fetchone()
@@ -94,7 +125,14 @@ def connect(path: Path) -> sqlite3.Connection:
             if col not in items_cols:
                 conn.execute(f"ALTER TABLE items ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
 
+    fts_exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='items_fts'").fetchone()
     conn.executescript(SCHEMA)
+    if not fts_exists and items_exists:
+        try:
+            conn.execute("INSERT INTO items_fts(items_fts) VALUES('rebuild')")
+        except sqlite3.Error:
+            pass
+
     return conn
 
 
@@ -216,6 +254,97 @@ def cmd_top(args) -> int:
             item_obj["action"] = r["action"]
         out[r["target"]] = item_obj
     print(json.dumps(out))
+    return 0
+
+
+def cmd_search(args) -> int:
+    query = getattr(args, "query", "") or ""
+    kind = getattr(args, "kind", "") or ""
+    limit = getattr(args, "limit", 15) or 15
+    words = re.findall(r"\w+", query)
+    if not words:
+        print("[]")
+        return 0
+
+    fts_q = " AND ".join(f'"{w}"*' for w in words)
+    where = ["items_fts MATCH ?"]
+    params = [fts_q]
+    if kind:
+        where.append("i.kind = ?")
+        params.append(kind)
+
+    # Weighted bm25 scoring: rank title matches (10.0) well above detail (1.5) and target (0.5).
+    # Correlated scalar subquery avoids grouping over high-cardinality visits,
+    # resolving latest visit in a single index probe against idx_visits_lookup.
+    sql = f"""
+    SELECT i.target, i.kind, i.title, i.icon, i.icon_font, i.detail, i.action,
+           bm25(items_fts, 0.5, 10.0, 1.5) AS score,
+           (SELECT at FROM visits WHERE kind = i.kind AND target = i.target ORDER BY at DESC LIMIT 1) AS last_used
+    FROM items_fts f
+    JOIN items i ON i.rowid = f.rowid
+    WHERE {' AND '.join(where)}
+    ORDER BY score ASC, last_used DESC
+    LIMIT ?
+    """
+    params.append(limit)
+
+    try:
+        with connect(db_path()) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(sql, params).fetchall()
+    except sqlite3.Error:
+        rows = []
+
+    if not rows and words:
+        like_clauses = ["(i.title LIKE ? OR i.detail LIKE ? OR i.target LIKE ?)" for _ in words]
+        like_params = []
+        for w in words:
+            p = f"%{w}%"
+            like_params.extend([p, p, p])
+        if kind:
+            like_clauses.append("i.kind = ?")
+            like_params.append(kind)
+        like_params.append(limit)
+        fallback_sql = f"""
+        SELECT i.target, i.kind, i.title, i.icon, i.icon_font, i.detail, i.action,
+               0 AS score,
+               (SELECT at FROM visits WHERE kind = i.kind AND target = i.target ORDER BY at DESC LIMIT 1) AS last_used,
+               (SELECT COUNT(at) FROM visits WHERE kind = i.kind AND target = i.target) AS uses
+        FROM items i
+        WHERE {' AND '.join(like_clauses)}
+        ORDER BY last_used DESC, uses DESC
+        LIMIT ?
+        """
+        try:
+            with connect(db_path()) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(fallback_sql, like_params).fetchall()
+        except sqlite3.Error:
+            rows = []
+
+    results = []
+    for r in rows:
+        rk = r["kind"]
+        rt = r["target"]
+        results.append({
+            "itemId": f"{rk}.{rt}",
+            "disabled": False,
+            "kind": rk,
+            "icon": r["icon"] or "",
+            "iconFont": r["icon_font"] or "",
+            "appIcon": "",
+            "appId": "",
+            "label": r["title"] or rt,
+            "target": rt,
+            "detail": r["detail"] or rt,
+            "path": "",
+            "childCount": 0,
+            "action": r["action"] or "",
+            "provider": "",
+            "score": float(r["score"]) if r["score"] is not None else 0.0,
+            "section": "",
+        })
+    print(json.dumps(results))
     return 0
 
 
@@ -753,6 +882,12 @@ def main(argv=None) -> int:
                      help="which provenance to rank (blended weights views at a fraction)")
     top.add_argument("--limit", type=int, default=DEFAULT_TOP_LIMIT)
     top.set_defaults(func=cmd_top)
+
+    search = sub.add_parser("search", help="fast SQLite FTS5 search across indexed items")
+    search.add_argument("query", help="search terms")
+    search.add_argument("--kind", default="", help="optional namespace (e.g. agent-session, file, project)")
+    search.add_argument("--limit", type=int, default=15)
+    search.set_defaults(func=cmd_search)
 
     rank = sub.add_parser("rank", help="sort stdin lines by item score")
     rank.add_argument("--kind", default="file", help="target namespace (defaults to file)")

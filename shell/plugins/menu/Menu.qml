@@ -96,6 +96,8 @@ Item {
     var entry = map[key] || { count: 0, lastUsed: 0 }
     entry.count = (entry.count || 0) + 1
     entry.lastUsed = Date.now()
+    if (kind) entry.kind = kind
+    if (title) entry.title = title
     map[key] = entry
     root.frecencyMap = map
     Util.execDetached("omarchy-activity record " + Util.shellQuote(kind || "menu") + " " + Util.shellQuote(key) + " " + Util.shellQuote(title || ""))
@@ -116,7 +118,12 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) {
+    deleteConfirmOpen = false
+    deleteTarget = null
+    scopeSearchTimer.stop()
+    scopeSearchProc.pendingQuery = ""
+  }
   // Bound to the central [menu] section in shell.toml via Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -152,6 +159,7 @@ Item {
     || calcDebounceTimer.running || fendProc.running || fendProc.pendingQuery !== ""
     || providerProc.running || root.providerQueue.length > 0
     || guardProc.running || root.guardsPending || frecencyProc.running
+    || scopeSearchTimer.running || scopeSearchProc.running || scopeSearchProc.pendingQuery !== ""
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.filterText.trim().length > 0 || (root.item(root.activeMenu) && root.item(root.activeMenu).scope) || root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(420) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
@@ -672,14 +680,67 @@ Item {
 
     var activeEntry = root.item(active)
     if (activeEntry && activeEntry.scope) {
-      var scopedRows = MenuModel.scopedSearchRows(
-        root.frecencyMap,
-        activeEntry.scope,
-        query,
-        15,
-        activeEntry.action,
-        activeEntry.icon
-      )
+      var scopedRows = []
+      if (!query) {
+        root.scopeSearchResults = []
+        root.scopeSearchLastQuery = ""
+        root.scopeSearchLastScope = ""
+        scopeSearchTimer.stop()
+        scopeSearchProc.pendingQuery = ""
+
+        scopedRows = MenuModel.scopedSearchRows(
+          root.frecencyMap,
+          activeEntry.scope,
+          "",
+          15,
+          activeEntry.action,
+          activeEntry.icon
+        )
+      } else {
+        if (root.scopeSearchLastScope === activeEntry.scope && root.scopeSearchLastQuery === query) {
+          var results = root.scopeSearchResults || []
+          for (var r = 0; r < results.length; r++) {
+            var item = results[r]
+            var rowAction = item.action || ""
+            if (!rowAction && activeEntry.action) {
+              rowAction = activeEntry.action.indexOf("{}") >= 0
+                ? activeEntry.action.replace("{}", "'" + String(item.target).replace(/'/g, "'\\''") + "'")
+                : activeEntry.action + " '" + String(item.target).replace(/'/g, "'\\''") + "'"
+            }
+            var rowIcon = item.icon || activeEntry.icon || ""
+            var rowIconFont = item.iconFont || activeEntry.iconFont || ""
+            scopedRows.push({
+              itemId: item.itemId || (activeEntry.scope + "." + item.target),
+              disabled: false,
+              kind: item.kind || activeEntry.scope,
+              icon: rowIcon,
+              iconFont: rowIconFont,
+              appIcon: item.appIcon || "",
+              appId: item.appId || "",
+              label: item.label || item.target,
+              target: item.target || "",
+              detail: item.detail || item.target,
+              path: item.path || "",
+              childCount: 0,
+              action: rowAction,
+              provider: item.provider || "",
+              score: typeof item.score === "number" ? item.score : 0,
+              section: ""
+            })
+          }
+        } else {
+          scopedRows = MenuModel.scopedSearchRows(
+            root.frecencyMap,
+            activeEntry.scope,
+            query,
+            15,
+            activeEntry.action,
+            activeEntry.icon
+          )
+          scopeSearchTimer.restart()
+        }
+      }
+
       if (scopedRows.length > 0) {
         for (var s = 0; s < scopedRows.length; s++) rows.push(scopedRows[s])
       } else if (!query) {
@@ -702,11 +763,19 @@ Item {
           section: ""
         })
       }
-      displayModel.clear()
-      for (var r = 0; r < rows.length; r++) {
-        displayModel.append(rows[r])
-      }
-      selectedIndex = 0
+
+      var appendCount = Math.min(rows.length, 30)
+      var oldCount = displayModel.count
+      var common = Math.min(oldCount, appendCount)
+      for (var k = 0; k < common; k++) displayModel.set(k, rows[k])
+      for (var a = common; a < appendCount; a++) displayModel.append(rows[a])
+      while (displayModel.count > appendCount) displayModel.remove(displayModel.count - 1)
+      layoutSerial += 1
+
+      root.settleCursor()
+      Qt.callLater(function() {
+        if (displayModel.count > 0) root.revealCursor()
+      })
       return
     }
 
@@ -983,6 +1052,11 @@ Item {
     root.cursorActive = true
     if (fromPointer) pointerGate.allowInitialSample()
     else root.disarmPointer()
+    root.scopeSearchResults = []
+    root.scopeSearchLastQuery = ""
+    root.scopeSearchLastScope = ""
+    scopeSearchTimer.stop()
+    scopeSearchProc.pendingQuery = ""
     var activeEntry = root.item(id)
     if (activeEntry && activeEntry.scope) root.loadFrecency()
     root.rebuildDisplay()
@@ -1320,6 +1394,82 @@ Item {
     interval: 8
     repeat: false
     onTriggered: root.rebuildDisplay()
+  }
+
+  property var scopeSearchResults: []
+  property string scopeSearchLastQuery: ""
+  property string scopeSearchLastScope: ""
+
+  Timer {
+    id: scopeSearchTimer
+    interval: 40
+    repeat: false
+    onTriggered: {
+      var activeEntry = root.item(root.activeMenu)
+      var scope = activeEntry && activeEntry.scope ? activeEntry.scope : ""
+      var q = root.filterText.trim()
+      if (scope && q) {
+        root.launchScopeSearch(scope, q)
+      }
+    }
+  }
+
+  function launchScopeSearch(scope, q) {
+    if (scopeSearchProc.running) {
+      scopeSearchProc.pendingScope = scope
+      scopeSearchProc.pendingQuery = q
+      return
+    }
+    scopeSearchProc.pendingScope = ""
+    scopeSearchProc.pendingQuery = ""
+    scopeSearchProc.activeScope = scope
+    scopeSearchProc.candidateQuery = q
+    scopeSearchProc.command = ["bash", "-lc", "omarchy-activity search " + Util.shellQuote(q) + " --kind " + Util.shellQuote(scope) + " --limit 15"]
+    scopeSearchProc.running = true
+  }
+
+  Process {
+    id: scopeSearchProc
+    property string activeScope: ""
+    property string candidateQuery: ""
+    property string pendingScope: ""
+    property string pendingQuery: ""
+
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var activeEntry = root.item(root.activeMenu)
+        var curScope = activeEntry && activeEntry.scope ? activeEntry.scope : ""
+        var curQuery = root.filterText.trim()
+
+        if (scopeSearchProc.activeScope === curScope && scopeSearchProc.candidateQuery === curQuery) {
+          try {
+            var results = JSON.parse(text)
+            if (Array.isArray(results)) {
+              root.scopeSearchResults = results
+              root.scopeSearchLastScope = curScope
+              root.scopeSearchLastQuery = curQuery
+              root.rebuildDisplay()
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    onExited: function(exitCode, exitStatus) {
+      var pending = scopeSearchProc.pendingQuery
+      var pendingScope = scopeSearchProc.pendingScope
+      scopeSearchProc.pendingQuery = ""
+      scopeSearchProc.pendingScope = ""
+
+      var activeEntry = root.item(root.activeMenu)
+      var curScope = activeEntry && activeEntry.scope ? activeEntry.scope : ""
+      var curQuery = root.filterText.trim()
+
+      if (pending && curScope && pending === curQuery && (pending !== scopeSearchProc.candidateQuery || pendingScope !== scopeSearchProc.activeScope)) {
+        root.launchScopeSearch(curScope, pending)
+      }
+    }
   }
 
   // `fend` runs async, and Process ignores a command change while a run is

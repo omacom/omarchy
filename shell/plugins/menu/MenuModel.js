@@ -707,9 +707,10 @@ function scopedSearchRows(frecencyMap, scopeKind, query, limit, actionTemplate, 
     if (record.kind !== scopeKind) continue
 
     var title = String(record.title || "").toLowerCase()
+    var detail = String(record.detail || "").toLowerCase()
     var match = true
     for (var t = 0; t < terms.length; t++) {
-      if (title.indexOf(terms[t]) < 0 && key.toLowerCase().indexOf(terms[t]) < 0) {
+      if (title.indexOf(terms[t]) < 0 && key.toLowerCase().indexOf(terms[t]) < 0 && detail.indexOf(terms[t]) < 0) {
         match = false
         break
       }

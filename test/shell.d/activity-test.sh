@@ -274,3 +274,19 @@ jq -e 'has("ag-sess-1") and has("codex-sess-1")' <<<"$ag_sess" >/dev/null ||
   fail "activity import-agents seeds sessions" "$ag_sess"
 pass "activity import-agents seeds sessions"
 
+# search queries SQLite FTS5 index
+search_out=$("$activity" search "Refactor queries" --kind agent-session)
+jq -e 'length == 1 and .[0].target == "ag-sess-1" and .[0].label == "Refactor database queries"' <<<"$search_out" >/dev/null ||
+  fail "activity search matches session title via FTS5" "$search_out"
+pass "activity search matches session title via FTS5"
+
+search_prefix=$("$activity" search "rac" --kind agent-session)
+jq -e 'length == 1 and .[0].target == "codex-sess-1" and .[0].label == "Fix race condition"' <<<"$search_prefix" >/dev/null ||
+  fail "activity search supports prefix matching" "$search_prefix"
+pass "activity search supports prefix matching"
+
+search_empty=$("$activity" search "nonexistentterm999" --kind agent-session)
+jq -e 'length == 0' <<<"$search_empty" >/dev/null ||
+  fail "activity search returns empty array for no match" "$search_empty"
+pass "activity search returns empty array for no match"
+
