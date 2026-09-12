@@ -648,6 +648,201 @@ function openMeteoDayRows(dailyForecastReport, todayString) {
   return rows
 }
 
+// ---- Multi-city pages: page model, persistence, per-city caches, swipe ----
+//
+// Page 1 is always the current location (stock weather.json / IP
+// auto-detect, untouched). Added cities persist in a separate widget-owned
+// file (CITIES_FILENAME, same settings dir, never weather.json) and take
+// current conditions from Open-Meteo, never wttr.in.
+var CITIES_FILENAME = "weather-cities.json"
+
+// One page change per sideways swipe. Deltas arrive as horizontal
+// angleDelta.x / pixelDelta.x (touchpad side-scrolls report angleDelta.y
+// === 0); accumulate them and snap a single page per gesture.
+var SWIPE_THRESHOLD = 100
+
+// Coordinates rounded to 4 decimals, matching the MET API guidance and
+// met-fetch.sh. Stable identity for duplicate detection and cache keys.
+function cityKey(latitude, longitude) {
+  var lat = roundCoord(latitude)
+  var lon = roundCoord(longitude)
+  if (lat === null || lon === null) return ""
+  return lat.toFixed(4) + "," + lon.toFixed(4)
+}
+
+function validCity(entry) {
+  if (!entry || typeof entry !== "object") return false
+  if (typeof entry.name !== "string" || entry.name.replace(/^\s+|\s+$/g, "") === "") return false
+  return cityKey(entry.latitude, entry.longitude) !== ""
+}
+
+function cleanCity(entry) {
+  return {
+    name: String(entry.name),
+    latitude: parseFloat(String(entry.latitude)),
+    longitude: parseFloat(String(entry.longitude))
+  }
+}
+
+// Pages: the current location first, then added cities in insertion order.
+function buildPages(configuredLocationState, savedCities) {
+  var pages = [{
+    isCurrent: true,
+    name: configuredLocationState ? String(configuredLocationState.name || "") : "",
+    latitude: configuredLocationState ? configuredLocationState.latitude : null,
+    longitude: configuredLocationState ? configuredLocationState.longitude : null
+  }]
+  var cities = savedCities || []
+  for (var i = 0; i < cities.length; i++) {
+    if (!validCity(cities[i])) continue
+    var city = cleanCity(cities[i])
+    pages.push({ isCurrent: false, name: city.name, latitude: city.latitude, longitude: city.longitude })
+  }
+  return pages
+}
+
+function addCity(savedCities, suggestion) {
+  var cities = savedCities || []
+  if (!validCity(suggestion)) return cities.slice()
+  var key = cityKey(suggestion.latitude, suggestion.longitude)
+  for (var i = 0; i < cities.length; i++) {
+    if (validCity(cities[i]) && cityKey(cities[i].latitude, cities[i].longitude) === key) return cities.slice()
+  }
+  return cities.concat([cleanCity(suggestion)])
+}
+
+function removeCity(savedCities, key) {
+  var cities = savedCities || []
+  var wanted = String(key || "")
+  var out = []
+  for (var i = 0; i < cities.length; i++) {
+    if (validCity(cities[i]) && cityKey(cities[i].latitude, cities[i].longitude) === wanted) continue
+    out.push(cities[i])
+  }
+  return out
+}
+
+// Duplicate when the suggestion matches an added city or the current
+// location's own coordinates.
+function isDuplicateCity(configuredLocationState, savedCities, suggestion) {
+  if (!validCity(suggestion)) return false
+  var key = cityKey(suggestion.latitude, suggestion.longitude)
+  var cities = savedCities || []
+  for (var i = 0; i < cities.length; i++) {
+    if (validCity(cities[i]) && cityKey(cities[i].latitude, cities[i].longitude) === key) return true
+  }
+  if (configuredLocationState) {
+    var cur = cityKey(configuredLocationState.latitude, configuredLocationState.longitude)
+    if (cur !== "" && cur === key) return true
+  }
+  return false
+}
+
+function parseCityList(raw) {
+  try {
+    var data = JSON.parse(String(raw || ""))
+    if (!data || typeof data.length !== "number") return []
+    var out = []
+    for (var i = 0; i < data.length; i++) {
+      if (validCity(data[i])) out.push(cleanCity(data[i]))
+    }
+    return out
+  } catch (e) {
+    return []
+  }
+}
+
+function serializeCityList(savedCities) {
+  var cities = savedCities || []
+  var out = []
+  for (var i = 0; i < cities.length; i++) {
+    if (validCity(cities[i])) out.push(cleanCity(cities[i]))
+  }
+  return JSON.stringify(out)
+}
+
+function shellQuote(value) {
+  return "'" + String(value).split("'").join("'\\''") + "'"
+}
+
+// The exact shell the widget saves its city list through (persistCities
+// runs this argv): create the settings dir (absent on never-saved
+// auto-detect machines, where a bare redirect fails), write a temp file
+// in the same directory, and move it over the target, so an interrupted
+// write cannot truncate the list. Single-quote escaping keeps every city
+// name byte-safe, UTF-8 included. Tests drive this real string.
+function citiesSaveScript(citiesJson, citiesPath) {
+  var file = String(citiesPath || "")
+  var dir = file.replace(/\/[^/]*$/, "")
+  var tmp = file + ".tmp"
+  return "exec 2>&1; mkdir -p " + shellQuote(dir) + " && printf '%s' " + shellQuote(String(citiesJson || "")) + " > " + shellQuote(tmp) + " && mv " + shellQuote(tmp) + " " + shellQuote(file)
+}
+
+function citiesSaveCommand(citiesJson, citiesPath) {
+  return ["sh", "-c", citiesSaveScript(citiesJson, citiesPath)]
+}
+
+// Per-city MET cache: the first page keeps the historic single-location
+// MET_CACHE_SUBDIR untouched; every added city gets its own subdirectory
+// keyed by rounded coordinates, so pages never share or overwrite a cache.
+// met-fetch.sh already scopes meta/body/headers to the cacheDir argument,
+// so distinct dirs are full isolation with no script change.
+function metCityKey(latitude, longitude) {
+  var key = cityKey(latitude, longitude)
+  if (key === "") return ""
+  return "city_" + key.replace(",", "_")
+}
+
+function metCacheSubdir(latitude, longitude) {
+  var key = metCityKey(latitude, longitude)
+  if (key === "") return MET_CACHE_SUBDIR
+  return MET_CACHE_SUBDIR + "/" + key
+}
+
+function isHorizontalWheel(angleDeltaX, angleDeltaY) {
+  return Number(angleDeltaX) !== 0 && Number(angleDeltaY) === 0
+}
+
+// Fold one horizontal delta into the gesture accumulator. Returns
+// {acc, step}: step is -1/0/+1 (swipe left is next, +1) and the
+// accumulator resets on a step, so one gesture snaps exactly one page.
+function accumulateSwipe(acc, dx, threshold) {
+  var limit = parseFloat(threshold)
+  if (isNaN(limit) || limit <= 0) limit = SWIPE_THRESHOLD
+  var value = (parseFloat(acc) || 0) + (parseFloat(dx) || 0)
+  if (value <= -limit) return { acc: 0, step: 1 }
+  if (value >= limit) return { acc: 0, step: -1 }
+  return { acc: value, step: 0 }
+}
+
+// Whole-gesture reduction: the first threshold crossing decides; the rest
+// of the gesture cannot add another page. Events carry {x, y} wheel
+// deltas; anything with a vertical component is a scroll, not a swipe.
+function swipeStepsForGesture(events) {
+  var acc = 0
+  var list = events || []
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i] || {}
+    if (!isHorizontalWheel(e.x, e.y)) continue
+    var r = accumulateSwipe(acc, e.x, SWIPE_THRESHOLD)
+    acc = r.acc
+    if (r.step !== 0) return r.step
+  }
+  return 0
+}
+
+// Visible page plus immediate neighbours: the only cities ever fetched.
+function pageWindow(index, count) {
+  var n = Math.max(0, parseInt(count, 10) || 0)
+  if (n === 0) return []
+  var i = Math.max(0, Math.min(parseInt(index, 10) || 0, n - 1))
+  var out = []
+  if (i - 1 >= 0) out.push(i - 1)
+  out.push(i)
+  if (i + 1 < n) out.push(i + 1)
+  return out
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
@@ -702,6 +897,25 @@ if (typeof module !== "undefined") {
     formatRain: formatRain,
     formatChance: formatChance,
     formatDayRain: formatDayRain,
-    openMeteoDayRows: openMeteoDayRows
+    openMeteoDayRows: openMeteoDayRows,
+    CITIES_FILENAME: CITIES_FILENAME,
+    SWIPE_THRESHOLD: SWIPE_THRESHOLD,
+    cityKey: cityKey,
+    validCity: validCity,
+    buildPages: buildPages,
+    addCity: addCity,
+    removeCity: removeCity,
+    isDuplicateCity: isDuplicateCity,
+    parseCityList: parseCityList,
+    serializeCityList: serializeCityList,
+    metCityKey: metCityKey,
+    metCacheSubdir: metCacheSubdir,
+    isHorizontalWheel: isHorizontalWheel,
+    accumulateSwipe: accumulateSwipe,
+    swipeStepsForGesture: swipeStepsForGesture,
+    pageWindow: pageWindow,
+    shellQuote: shellQuote,
+    citiesSaveScript: citiesSaveScript,
+    citiesSaveCommand: citiesSaveCommand
   }
 }
