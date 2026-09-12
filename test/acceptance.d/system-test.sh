@@ -45,6 +45,9 @@ verify_defaults() {
 
   [[ $(xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling uses Chromium"
   [[ $(xdg-mime query default inode/directory) == "org.gnome.Nautilus.desktop" ]] || fail "directory MIME handling uses Nautilus"
+  [[ $(xdg-mime query default x-scheme-handler/mailto) == "HEY.desktop" ]] || fail "mailto MIME handling uses HEY"
+  [[ $(xdg-mime query default text/calendar) == "HEY.desktop" ]] || fail "calendar MIME handling uses HEY"
+  [[ $(xdg-mime query default x-scheme-handler/webcal) == "HEY.desktop" ]] || fail "webcal MIME handling uses HEY"
   pass "desktop MIME handlers are configured"
 }
 

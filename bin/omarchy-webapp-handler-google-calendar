@@ -1,0 +1,270 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Open Google Calendar from .ics files and webcal feeds
+# omarchy:args=[url]
+
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from urllib.parse import quote, unquote, urlencode, urlparse
+
+CAL_HOME = "https://calendar.google.com/calendar/r"
+TEMPLATE = "https://calendar.google.com/calendar/render"
+MAX_EVENTS = 5
+
+
+def notify(title: str, body: str = "") -> None:
+    cmd = [
+        "omarchy-notification-send",
+        "--app-name",
+        "Google Calendar",
+        "-g",
+        "󰃭",
+        title,
+    ]
+    if body:
+        cmd.append(body)
+    subprocess.run(cmd, check=False)
+
+
+def launch(url: str) -> None:
+    subprocess.run(["omarchy-launch-webapp", url], check=False)
+
+
+def unfold(text: str) -> list[str]:
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    out: list[str] = []
+    for line in text.split("\n"):
+        if out and line[:1] in (" ", "\t"):
+            out[-1] += line[1:]
+        else:
+            out.append(line)
+    return out
+
+
+def parse_prop(line: str) -> tuple[str, dict[str, str], str] | None:
+    if ":" not in line:
+        return None
+    head, value = line.split(":", 1)
+    parts = head.split(";")
+    name = parts[0].upper()
+    params: dict[str, str] = {}
+    for part in parts[1:]:
+        if "=" in part:
+            key, val = part.split("=", 1)
+            params[key.upper()] = val.strip('"')
+        else:
+            params[part.upper()] = ""
+    return name, params, value
+
+
+def unescape(text: str) -> str:
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        if text[i] == "\\" and i + 1 < len(text):
+            nxt = text[i + 1]
+            if nxt in "nN":
+                out.append("\n")
+            elif nxt in ",;\\":
+                out.append(nxt)
+            else:
+                out.append(nxt)
+            i += 2
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def parse_events(text: str) -> list[dict[str, tuple[dict[str, str], str]]]:
+    events: list[dict[str, tuple[dict[str, str], str]]] = []
+    current: dict[str, tuple[dict[str, str], str]] | None = None
+    in_event = False
+    nest = 0
+    for line in unfold(text):
+        upper = line.upper()
+        if upper.startswith("BEGIN:"):
+            if not in_event and upper == "BEGIN:VEVENT":
+                in_event = True
+                nest = 0
+                current = {}
+            elif in_event:
+                nest += 1
+            continue
+        if upper.startswith("END:"):
+            if in_event:
+                if nest:
+                    nest -= 1
+                elif upper == "END:VEVENT" and current is not None:
+                    events.append(current)
+                    current = None
+                    in_event = False
+            continue
+        if not in_event or nest or current is None:
+            continue
+        prop = parse_prop(line)
+        if prop is None:
+            continue
+        name, params, value = prop
+        current[name] = (params, value)
+    return events
+
+
+def google_dt(value: str) -> tuple[str, bool]:
+    stamp = value.strip()
+    if re.fullmatch(r"\d{8}", stamp):
+        return stamp, True
+    if re.fullmatch(r"\d{8}T\d{6}Z", stamp, re.I):
+        return stamp.upper(), False
+    if re.fullmatch(r"\d{8}T\d{6}", stamp):
+        return stamp, False
+    match = re.fullmatch(r"(\d{8}T\d{6})([+-]\d{4})", stamp)
+    if match:
+        local = datetime.strptime(match.group(1), "%Y%m%dT%H%M%S")
+        offset = match.group(2)
+        sign = 1 if offset[0] == "+" else -1
+        delta = timedelta(hours=int(offset[1:3]), minutes=int(offset[3:5]))
+        aware = local.replace(tzinfo=timezone(sign * delta))
+        return aware.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ"), False
+    digits = re.sub(r"\D", "", stamp)
+    if len(digits) >= 8:
+        return digits[:8], True
+    raise ValueError(f"unrecognized date: {value}")
+
+
+def parse_duration(value: str) -> timedelta:
+    match = re.fullmatch(
+        r"P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?",
+        value.strip(),
+        re.I,
+    )
+    if not match:
+        return timedelta(hours=1)
+    weeks, days, hours, minutes, seconds = match.groups()
+    return timedelta(
+        weeks=int(weeks or 0),
+        days=int(days or 0),
+        hours=int(hours or 0),
+        minutes=int(minutes or 0),
+        seconds=float(seconds or 0),
+    )
+
+
+def add_delta(stamp: str, all_day: bool, delta: timedelta) -> str:
+    if all_day:
+        start = datetime.strptime(stamp[:8], "%Y%m%d")
+        return (start + delta).strftime("%Y%m%d")
+    if stamp.endswith("Z"):
+        start = datetime.strptime(stamp, "%Y%m%dT%H%M%SZ")
+        return (start + delta).strftime("%Y%m%dT%H%M%SZ")
+    start = datetime.strptime(stamp[:15], "%Y%m%dT%H%M%S")
+    return (start + delta).strftime("%Y%m%dT%H%M%S") + stamp[15:]
+
+
+def event_url(event: dict[str, tuple[dict[str, str], str]]) -> str | None:
+    status = event.get("STATUS", ({}, ""))[1].upper()
+    if status == "CANCELLED":
+        return None
+    summary = unescape(event.get("SUMMARY", ({}, "Event"))[1]).strip() or "Event"
+    details = unescape(event.get("DESCRIPTION", ({}, ""))[1]).strip()
+    location = unescape(event.get("LOCATION", ({}, ""))[1]).strip()
+    link = unescape(event.get("URL", ({}, ""))[1]).strip()
+    if link and link not in details:
+        details = f"{details}\n{link}".strip() if details else link
+
+    if "DTSTART" not in event:
+        return None
+    start_params, start_val = event["DTSTART"]
+    start_stamp, all_day = google_dt(start_val)
+    if "DTEND" in event:
+        end_stamp, _ = google_dt(event["DTEND"][1])
+    elif "DURATION" in event:
+        end_stamp = add_delta(start_stamp, all_day, parse_duration(event["DURATION"][1]))
+    else:
+        end_stamp = add_delta(
+            start_stamp, all_day, timedelta(days=1) if all_day else timedelta(hours=1)
+        )
+
+    params = {
+        "action": "TEMPLATE",
+        "text": summary[:500],
+        "dates": f"{start_stamp}/{end_stamp}",
+    }
+    if details:
+        params["details"] = details[:1800]
+    if location:
+        params["location"] = location[:500]
+    tzid = start_params.get("TZID")
+    if tzid and not all_day and not start_stamp.endswith("Z"):
+        params["ctz"] = tzid
+    rrule = event.get("RRULE", ({}, ""))[1].strip()
+    if rrule:
+        params["recur"] = rrule if rrule.upper().startswith("RRULE:") else f"RRULE:{rrule}"
+    return TEMPLATE + "?" + urlencode(params, quote_via=quote, safe="/")
+
+
+def subscribe_url(url: str) -> str:
+    return CAL_HOME + "?" + urlencode({"cid": url}, quote_via=quote)
+
+
+def read_ics(path: Path) -> str:
+    data = path.read_bytes()
+    for encoding in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def urls_from_file(path: Path) -> list[str]:
+    if not path.is_file():
+        notify("Could not open invite", f"File not found: {path}")
+        return [CAL_HOME]
+    events = parse_events(read_ics(path))
+    urls = [url for event in events if (url := event_url(event))]
+    if not urls:
+        notify("Could not open invite", "No calendar events in this file.")
+        return [CAL_HOME]
+    extra = len(urls) - MAX_EVENTS
+    if extra > 0:
+        notify(
+            "Opened first events in Google Calendar",
+            f"{extra} more event(s) were not opened.",
+        )
+        urls = urls[:MAX_EVENTS]
+    return urls
+
+
+def urls_for(arg: str) -> list[str]:
+    raw = arg.strip()
+    if raw.startswith("file://"):
+        parsed = urlparse(raw)
+        return urls_from_file(Path(unquote(parsed.path)))
+    lower = raw.lower()
+    if lower.startswith(("webcal://", "webcals://")):
+        return [subscribe_url("https://" + raw.split("://", 1)[1])]
+    if lower.startswith(("http://", "https://")):
+        return [subscribe_url(raw)]
+    return urls_from_file(Path(raw).expanduser())
+
+
+def main(argv: list[str]) -> int:
+    urls = [CAL_HOME] if not argv else []
+    for arg in argv:
+        urls.extend(urls_for(arg))
+    if not urls:
+        urls = [CAL_HOME]
+
+    for url in urls:
+        launch(url)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -119,6 +119,10 @@ source "$OMARCHY_INSTALL/user/all.sh"
 omarchy-refresh-applications
 env -u BROWSER xdg-settings set default-web-browser chromium.desktop
 xdg-mime default HEY.desktop x-scheme-handler/mailto
+xdg-mime default HEY.desktop text/calendar
+xdg-mime default HEY.desktop application/ics
+xdg-mime default HEY.desktop text/x-vcalendar
+xdg-mime default HEY.desktop x-scheme-handler/webcal
 
 if (( first_install )); then
   mkdir -p "$state_dir/migrations"

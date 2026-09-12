@@ -1,15 +1,36 @@
 #!/bin/bash
 
-# omarchy:summary=Open HEY webmail and translate mailto links
+# omarchy:summary=Open HEY for mail links, calendar files, and webcal feeds
 # omarchy:args=[url]
 
-url="$1"
-web_url="https://app.hey.com"
+hey_home="https://app.hey.com"
+hey_calendar="https://app.hey.com/calendar/weeks/"
+web_url=$hey_home
 
-# Handle mailto: URLs
-if [[ $url =~ ^mailto: ]]; then
-  email=$(echo "$url" | sed 's/mailto://')
-  web_url="https://app.hey.com/messages/new?to=$email"
-fi
+is_calendar_target() {
+  local target=${1,,}
+
+  [[ $target =~ ^webcal(s)?:// ]] && return 0
+  [[ $target == *.ics || $target == *.ifb || $target == *.icalendar || $target == *.vcs ]] && return 0
+  if [[ $target =~ ^file:// ]]; then
+    target=${target#file://}
+    target=${target%%\?*}
+    [[ $target == *.ics || $target == *.ifb || $target == *.icalendar || $target == *.vcs ]] && return 0
+  fi
+  return 1
+}
+
+for target in "$@"; do
+  if [[ $target =~ ^mailto: ]]; then
+    email=${target#mailto:}
+    web_url="https://app.hey.com/messages/new?to=$email"
+    break
+  fi
+
+  if is_calendar_target "$target"; then
+    web_url=$hey_calendar
+    break
+  fi
+done
 
 exec omarchy-launch-webapp "$web_url"

@@ -13,6 +13,10 @@ application/pdf=org.gnome.Evince.desktop
 x-scheme-handler/http=chromium.desktop
 x-scheme-handler/https=chromium.desktop
 x-scheme-handler/mailto=HEY.desktop
+text/calendar=HEY.desktop
+application/ics=HEY.desktop
+text/x-vcalendar=HEY.desktop
+x-scheme-handler/webcal=HEY.desktop
 
 video/mp4=mpv.desktop
 video/x-msvideo=mpv.desktop

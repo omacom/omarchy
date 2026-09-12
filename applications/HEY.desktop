@@ -1,9 +1,9 @@
 [Desktop Entry]
 Version=1.0
 Name=HEY
-Exec=omarchy-webapp-handler-hey %u
+Exec=omarchy-webapp-handler-hey %U
 Terminal=false
 Type=Application
 Icon=hey
 StartupNotify=true
-MimeType=x-scheme-handler/mailto
+MimeType=x-scheme-handler/mailto;text/calendar;application/ics;text/x-vcalendar;x-scheme-handler/webcal
