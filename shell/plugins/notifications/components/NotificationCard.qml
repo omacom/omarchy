@@ -30,6 +30,9 @@ BorderSurface {
   // System monospace font injected by the container.
   property string fontFamily: ""
 
+  // Maximum width, injected by the container. 0 is unconstrained.
+  property real maxWidth: 0
+
   readonly property bool hovered: hoverTracker.hovered
 
   signal closeRequested()
@@ -63,7 +66,8 @@ BorderSurface {
     return Quickshell.iconPath(value, true)
   }
 
-  implicitWidth: Style.space(380)
+  // Clamped so a card cannot outgrow its container on a narrow screen.
+  implicitWidth: maxWidth > 0 ? Math.min(Style.space(380), maxWidth) : Style.space(380)
   // Add vertical border insets so mainColumn (inset by border on top/left/right)
   // doesn't push content under the bottom edge.
   implicitHeight: mainColumn.implicitHeight + borderTop + borderBottom
