@@ -405,7 +405,7 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
-        } else if (key === "size-horizontal" || key === "size-vertical") {
+        } else if (["size-horizontal", "size-vertical", "icon-slot", "icon-canvas", "icon-font", "status-slot"].indexOf(key) >= 0) {
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }
