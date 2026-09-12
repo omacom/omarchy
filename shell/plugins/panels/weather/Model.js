@@ -168,6 +168,7 @@ function openMeteoCurrentCondition(dailyForecastReport) {
     windspeedKmph: roundedTemp(current.wind_speed_10m),
     windspeedMiles: roundedTemp(current.wind_speed_10m * 0.621371),
     humidity: roundedTemp(current.relative_humidity_2m),
+    windDirection: current.wind_direction_10m,
     openMeteoWeatherCode: current.weather_code,
     isDay: current.is_day
   }

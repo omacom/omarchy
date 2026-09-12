@@ -142,6 +142,49 @@ Panel {
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
 
+  // ---- Wallpaper animations. The conditions resolved above are also what
+  //      the animation service draws on the desktop, so it is handed this
+  //      panel's `current` rather than fetching a second copy of the same
+  //      forecast. The heartbeat is how the service notices the widget going
+  //      away: see sourceTimeout in Service.qml.
+  readonly property bool animationsEnabled: setting("animations", false) === true
+  readonly property var animationService: {
+    var host = root.bar ? root.bar.shell : null
+    if (!host) return null
+    if (typeof host.firstPartyServiceFor === "function") {
+      var firstParty = host.firstPartyServiceFor("omarchy.weather")
+      if (firstParty) return firstParty
+    }
+    return typeof host.serviceFor === "function" ? host.serviceFor("omarchy.weather") : null
+  }
+
+  // Open-Meteo's reading is preferred over whatever the pill happens to be
+  // showing: it is the only one of the two that carries a day/night flag, and
+  // it is fetched even when the location came from wttr. Its absence early in
+  // a refresh is covered by wttr's code, which Animation.js also maps.
+  readonly property var animationCurrent: openMeteoCurrent || current
+
+  function pushAnimationState() {
+    var service = root.animationService
+    if (!service || typeof service.applyWeather !== "function") return
+    service.applyWeather(root.animationCurrent, root.animationsEnabled)
+  }
+
+  onAnimationCurrentChanged: pushAnimationState()
+  onAnimationsEnabledChanged: pushAnimationState()
+  onAnimationServiceChanged: pushAnimationState()
+
+  // Only while the setting is on: switching it off pushes that once through
+  // the change handler above, and the service's own timeout takes it from
+  // there. Everyone who leaves animations off pays nothing for this.
+  Timer {
+    interval: 20000
+    running: root.animationsEnabled
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.pushAnimationState()
+  }
+
   readonly property string reportLocation:  configuredLocation || wttrLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
   readonly property string reportTempNum:   current ? String(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
@@ -180,7 +223,7 @@ Panel {
       + "?latitude=" + encodeURIComponent(String(lat))
       + "&longitude=" + encodeURIComponent(String(lon))
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
-      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
+      + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
     dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]

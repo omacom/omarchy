@@ -70,6 +70,27 @@ The **Dropbox** panel handles login, shows how much storage you've used, and lis
 
 Removing either service takes its widget back off the bar.
 
+### Weather on the wallpaper
+
+The weather widget can also draw the current conditions straight onto the desktop: rain and drizzle leaning with the wind, snow drifting, fog and cloud shadow sliding past, dust in the light on a clear day, and a soft flash now and then in a thunderstorm. It sits above the wallpaper and below every window, so it shows on an empty desktop and disappears the moment you have something open in front of it.
+
+It's off by default, because animating the desktop costs real frames — roughly 5-9% of a CPU core for each screen that's actually showing the wallpaper. Turn it on with:
+
+```bash
+omarchy bar set omarchy.weather animations true --json
+```
+
+It stops on its own whenever nothing can see it: session locked, screensaver up, a fullscreen window on that screen, or power saving on battery. Set it back to `false` to switch it off entirely.
+
+To see what a condition looks like without waiting for the weather to turn, preview one — `clear`, `cloudy`, `fog`, `drizzle`, `rain`, `snow`, or `storm`:
+
+```bash
+omarchy-shell omarchy.weather-animation preview snow
+omarchy-shell omarchy.weather-animation clear
+```
+
+A preview expires after ten minutes on its own.
+
 ## Indicators
 
 The little cluster in the center is the indicators widget. These are status glyphs for modes you've turned on: do not disturb, night light, a queued [reminder](09-reminders.md), an active screen recording, stay awake, and [dictation](11-text-extraction-dictation.md). They light up when the mode is active and otherwise stay out of the way — hover the center of the bar to peek at the inactive ones. Clicking an indicator toggles that mode.

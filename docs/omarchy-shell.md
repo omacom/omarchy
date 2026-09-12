@@ -96,6 +96,11 @@ for the plugin rather than for where it appears: `background`, `osd`,
 `media`, `notifications`, and per-widget targets such as `omarchy.clock`
 or `omarchy.power`. There is no `bar` target.
 
+A plugin with more than one surface registers one target per surface, so the
+weather plugin's wallpaper animation answers on `omarchy.weather-animation`
+(`preview <condition>`, `clear`, `status`) rather than crowding the
+`omarchy.weather` target the bar registers for its widget.
+
 | Method                                | Effect                          |
 |---------------------------------------|---------------------------------|
 | `ping`                                | health check                    |
