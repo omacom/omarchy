@@ -23,6 +23,16 @@ grep -F 'flock -n 9' "$monitor_watch" >/dev/null
 grep -F 'omarchy-hyprland-monitor-clamshell' "$monitor_watch" >/dev/null
 pass "monitor watcher retries internal monitor recovery after removal"
 
+if grep -Fq '${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock' "$monitor_watch" ||
+  grep -Fq '${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock' "$monitor_watch"; then
+  fail "monitor watcher flock files must not fall back to world-writable /tmp"
+fi
+grep -Fq '${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}' "$monitor_watch" ||
+  fail "monitor watcher flock falls back to a 0700 /tmp/omarchy-\$UID directory"
+grep -Fq 'mkdir -m 700 -p "$LOCK_DIR"' "$monitor_watch" ||
+  fail "monitor watcher creates the flock directory with mode 0700"
+pass "monitor watcher flock files are not in world-writable /tmp"
+
 grep -F 'monitoradded\>\>*|monitoraddedv2\>\>*)' "$monitor_watch" >/dev/null
 grep -F 'omarchy-hyprland-monitor-clamshell' "$monitor_watch" >/dev/null
 pass "monitor watcher disables the internal monitor after closed-lid external hotplug"

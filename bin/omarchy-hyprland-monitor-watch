@@ -3,8 +3,10 @@
 # omarchy:summary=Watch Hyprland monitor events and recover monitor toggles when a monitor is removed
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
-LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
-MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
+LOCK_DIR="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}"
+mkdir -m 700 -p "$LOCK_DIR"
+LOCK="$LOCK_DIR/omarchy-monitor-clamshell.lock"
+MODELESS_LOCK="$LOCK_DIR/omarchy-monitor-modeless.lock"
 
 sync_clamshell() {
   (
