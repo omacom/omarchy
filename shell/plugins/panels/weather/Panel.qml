@@ -170,6 +170,19 @@ Panel {
     service.applyWeather(root.animationCurrent, root.animationsEnabled)
   }
 
+  // Written back to this widget's shell.json entry the way the clock writes
+  // its format: applied locally first so the switch throws on the click
+  // itself, then persisted, and the bar re-injects the same value.
+  function toggleAnimations() {
+    var entry = { id: root.moduleName }
+    for (var key in root.settings) if (key !== "id") entry[key] = root.settings[key]
+    entry.animations = !root.animationsEnabled
+
+    root.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
   onAnimationCurrentChanged: pushAnimationState()
   onAnimationsEnabledChanged: pushAnimationState()
   onAnimationServiceChanged: pushAnimationState()
@@ -545,6 +558,14 @@ Panel {
       anchors.fill: parent
       blocked: root.editingLocation
       onReturnRequested: root.startEditingLocation()
+      // Space, so the animation toggle is reachable without the mouse. Return
+      // raises activate as well as return, and the editor it just opened is
+      // what tells the two apart; while that editor is up the catcher is
+      // blocked, so Space goes to the field rather than here.
+      onActivateRequested: {
+        if (root.editingLocation) return
+        root.toggleAnimations()
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -914,6 +935,68 @@ Panel {
               }
             }
           }
+        }
+      }
+
+      // ---- Divider above the settings row.
+      Rectangle {
+        width: parent.width
+        height: Style.spacing.hairline
+        color: root.bar.foreground
+        opacity: 0.12
+      }
+
+      // ---- Wallpaper animations. The only place this setting is reachable
+      //      without the CLI, so it lives here rather than behind another
+      //      click gesture on the pill: left, right, and middle are already
+      //      the panel, the notification, and a refresh.
+      Rectangle {
+        width: parent.width
+        height: animationSetting.implicitHeight + Style.space(12)
+        radius: Style.cornerRadius
+        color: animationMouse.containsMouse
+          ? Style.hoverFillFor(root.bar.foreground, Color.accent)
+          : "transparent"
+
+        Item {
+          id: animationSetting
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.leftMargin: Style.space(16)
+          anchors.rightMargin: Style.space(16)
+          anchors.verticalCenter: parent.verticalCenter
+          implicitHeight: Math.max(animationLabel.implicitHeight, animationSwitch.implicitHeight)
+
+          Text {
+            id: animationLabel
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: "Animate the wallpaper"
+            color: animationMouse.containsMouse
+              ? Style.hoverStateColor(root.bar.foreground, Color.accent)
+              : root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+          }
+
+          ToggleSwitch {
+            id: animationSwitch
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.animationsEnabled
+            // The surrounding row owns the click, so the switch itself is
+            // not separately interactive.
+            interactive: false
+          }
+        }
+
+        MouseArea {
+          id: animationMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.toggleAnimations()
         }
       }
     }

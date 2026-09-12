@@ -178,6 +178,33 @@ assert(
   'weather panel asks Open-Meteo for the wind bearing the lean needs'
 )
 
+// The setting is reachable without the CLI. `schema` and `settingsForm` are
+// carried in the widget catalog but nothing renders them yet, so the panel is
+// the only UI this has — the row and its write-back are worth pinning down.
+assert(
+  panelSource.includes('Animate the wallpaper'),
+  'weather panel labels the animation toggle'
+)
+assert(
+  panelSource.includes('ToggleSwitch'),
+  'weather panel draws the animation setting as a switch'
+)
+assert(
+  /function toggleAnimations\(\)[\s\S]{0,400}updateEntryInline/.test(panelSource),
+  'weather panel persists the toggle to its shell.json entry'
+)
+assert(
+  panelSource.includes('onClicked: root.toggleAnimations()'),
+  'weather panel toggles the setting on a click'
+)
+// Return raises activate as well as return, so the handler has to tell the
+// location editor apart or Return would edit the location and flip the
+// animations in one keystroke.
+assert(
+  /onActivateRequested:\s*\{[\s\S]{0,200}root\.editingLocation[\s\S]{0,200}root\.toggleAnimations\(\)/.test(panelSource),
+  'weather panel toggles on Space without firing on the Return that opens the location editor'
+)
+
 // Per-drop animations measured around +26% CPU on two screens; the sliding
 // sheets are what make the layer affordable. Guard the shape of that fix.
 assert(

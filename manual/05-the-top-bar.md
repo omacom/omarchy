@@ -55,6 +55,7 @@ The panels aren't read-outs. They're where you actually do the thing:
 - **Power** shows battery stats, switches power profiles (it remembers a separate choice for battery and AC), and prints some system info.
 - **Display** carries a brightness slider, text size, monitor scaling presets, and — when you have more than one screen — per-monitor controls. See [monitors](33-monitors.md) for the deeper story.
 - **Clock** opens a month grid with ISO week numbers and month stepping.
+- **Weather** shows current conditions and a three-day forecast, takes a click on the location to search for another city, and carries the switch for the wallpaper animations below.
 
 Every panel takes the keyboard as well as the mouse: arrows move, Return activates, Tab steps to the neighbouring panel, and Escape closes.
 
@@ -74,13 +75,15 @@ Removing either service takes its widget back off the bar.
 
 The weather widget can also draw the current conditions straight onto the desktop: rain and drizzle leaning with the wind, snow drifting, fog and cloud shadow sliding past, dust in the light on a clear day, and a soft flash now and then in a thunderstorm. It sits above the wallpaper and below every window, so it shows on an empty desktop and disappears the moment you have something open in front of it.
 
-It's off by default, because animating the desktop costs real frames — roughly 5-9% of a CPU core for each screen that's actually showing the wallpaper. Turn it on with:
+It's off by default, because animating the desktop costs real frames — roughly 5-9% of a CPU core for each screen that's actually showing the wallpaper.
+
+The switch is at the bottom of the weather panel: click the weather in the bar and flip **Animate the wallpaper**. `Space` toggles it from the keyboard while the panel is open, and there's a command for [dotfiles](31-dotfiles.md):
 
 ```bash
 omarchy bar set omarchy.weather animations true --json
 ```
 
-It stops on its own whenever nothing can see it: session locked, screensaver up, a fullscreen window on that screen, or power saving on battery. Set it back to `false` to switch it off entirely.
+It stops on its own whenever nothing can see it: session locked, screensaver up, a fullscreen window on that screen, or power saving on battery.
 
 To see what a condition looks like without waiting for the weather to turn, preview one — `clear`, `cloudy`, `fog`, `drizzle`, `rain`, `snow`, or `storm`:
 
