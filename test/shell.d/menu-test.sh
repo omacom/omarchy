@@ -253,6 +253,18 @@ assertDeepEqual(
   ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'GitLab Duo CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
 )
+assert(
+  /if \(active === "setup\.default\.agent"\) \{[\s\S]*?rows\.sort\(function\(a, b\)/.test(menuQml),
+  'defaults agent menu enforces alphabetical display order'
+)
+assert(
+  /root\.activeMenu === "setup\.default\.agent" \? Style\.space\(340\) : Style\.space\(300\)/.test(menuQml),
+  'defaults agent menu has adjusted card width'
+)
+assert(
+  /root\.activeMenu === "setup\.default\.agent" \? 0\.88 : 0\.7/.test(menuQml),
+  'defaults agent menu allows expanded vertical budget to fit agent list'
+)
 const expectedDefaults = {
   browser: ['Chromium', 'Chrome', 'Brave', 'Brave Origin', 'Edge', 'Firefox', 'Zen'],
   terminal: ['Alacritty', 'Foot', 'Ghostty', 'Kitty'],
