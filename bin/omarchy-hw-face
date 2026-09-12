@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when a camera or IR face sensor is present
+# omarchy:hidden=true
+
+# Detect straight from sysfs so this works before v4l-utils is installed (the
+# face setup pulls it in). A node counts as a face camera when it is bound to
+# the USB video class driver — every USB webcam, IR and RGB alike — or when it
+# names itself like an embedded (MIPI/PCIe) camera or IR sensor. Mere
+# existence of /dev/video* is not enough: HDMI ingest and tuner nodes live
+# there too, and Howdy cannot drive those.
+video_dir="/sys/class/video4linux"
+[[ -d $video_dir ]] || exit 1
+
+for dev in "$video_dir"/video*; do
+  [[ -e $dev ]] || continue
+
+  # uvcvideo binds every USB webcam node; nothing else that matches below does.
+  if [[ -e $dev/device/driver ]] && [[ $(readlink -f "$dev/device/driver") == */uvcvideo ]]; then
+    exit 0
+  fi
+
+  # Embedded sensors name themselves instead of binding uvcvideo.
+  if [[ -r $dev/name ]]; then
+    name=$(<"$dev/name")
+    name=${name,,}
+    if [[ $name == *camera* || $name == *webcam* || $name == *sensor* || $name == *isys* || $name == *ipu* || $name == *ir* ]]; then
+      exit 0
+    fi
+  fi
+done
+
+exit 1
