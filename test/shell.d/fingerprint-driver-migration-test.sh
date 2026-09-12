@@ -24,12 +24,26 @@ STUB
 cat > "$scratch/bin/pacman" <<'STUB'
 #!/bin/bash
 case "$1" in
-  -Q) grep -qx "$2" <<< "${INSTALLED:-}" || grep -qx "$2" "$INSTALLED_LOG" ;;
+  -Q)
+    if [[ $2 == "--" ]]; then
+      shift 2
+    else
+      shift
+    fi
+    if grep -qx -- "$1" <<< "${INSTALLED:-}"; then
+      :
+    else
+      grep -qx -- "$1" "$INSTALLED_LOG"
+    fi
+    ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
-    for arg in "$@"; do
-      [[ $arg == -* ]] || printf '%s\n' "$arg" >> "$INSTALLED_LOG"
-    done
+    if [[ $4 == "--" ]]; then
+      shift 4
+      for arg in "$@"; do
+        printf '%s\n' "$arg" >> "$INSTALLED_LOG"
+      done
+    fi
     ;;
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG" ;;
 esac
@@ -44,7 +58,7 @@ run_migration() {
 }
 
 INSTALLED='fprintd' run_migration
-grep -qx 'pacman -S --noconfirm --needed libfprint-git' "$CALL_LOG" || fail "fprintd without a library gets libfprint-git"
+grep -qx 'pacman -S --noconfirm --needed -- libfprint-git' "$CALL_LOG" || fail "fprintd without a library gets libfprint-git"
 pass "fprintd without a library gets libfprint-git"
 
 INSTALLED=$'libfprint-git\nfprintd' run_migration

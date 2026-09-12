@@ -80,7 +80,7 @@ fi
 # one transaction, so a failed install leaves the existing driver in place.
 if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+  sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi
 
 # Enroll first fingerprint
