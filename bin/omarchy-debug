@@ -51,7 +51,7 @@ else
   DMESG_OUTPUT="$(sudo dmesg)"
 fi
 
-cat > "$LOG_FILE" <<EOF
+if ! cat > "$LOG_FILE" <<EOF
 Date: $(date)
 Hostname: $(hostname)
 Omarchy Package: $(pacman -Q omarchy-dev 2>/dev/null || pacman -Q omarchy 2>/dev/null || echo "unknown")
@@ -76,6 +76,10 @@ INSTALLED PACKAGES
 =========================================
 $({ expac -S '%n %v (%r)' $(pacman -Qqe) 2>/dev/null; comm -13 <(pacman -Sql | sort) <(pacman -Qqe | sort) | xargs -r expac -Q '%n %v (AUR)'; } | sort)
 EOF
+then
+  echo "Error: Failed to write $LOG_FILE" >&2
+  exit 1
+fi
 
 if [[ $PRINT_ONLY = "true" ]]; then
   cat "$LOG_FILE"

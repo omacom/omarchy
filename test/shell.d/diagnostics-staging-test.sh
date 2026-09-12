@@ -107,3 +107,16 @@ if (( blocked_status == 0 )) || [[ -n $blocked_out ]]; then
   fail "omarchy-debug fails loudly when the log file cannot be created" "status: $blocked_status, bytes: ${#blocked_out}"
 fi
 pass "omarchy-debug fails loudly when the log file cannot be created"
+
+# Simulate ENOSPC after creation: install succeeds, but the body writer fails.
+cat >"$stub_bin/cat" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$stub_bin/cat"
+write_out=$("$ROOT/bin/omarchy-debug" --no-sudo --print 2>"$tmp_dir/write-error") && write_status=0 || write_status=$?
+if (( write_status == 0 )) || [[ -n $write_out ]]; then
+  fail "omarchy-debug rejects a failed diagnostic body write"
+fi
+grep -Fq 'Failed to write' "$tmp_dir/write-error" || fail "body write failure reports an error"
+pass "omarchy-debug rejects a failed diagnostic body write"
