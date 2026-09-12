@@ -57,11 +57,19 @@ ShellRoot {
   property var shellConfig: builtinShellConfig
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  property bool localPluginQmlReloadPending: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      if (shell.localPluginQmlReloadPending) {
+        shell.localPluginQmlReloadPending = false
+        Quickshell.reload(false)
+      } else {
+        shell.reloadPlugins()
+      }
+    }
   }
 
   onShellConfigChanged: {
@@ -1456,14 +1464,14 @@ ShellRoot {
       shell.pluginReloadPending = true
       return
     }
-    if (typeof Qt.clearComponentCache === "function") Qt.clearComponentCache()
     shell.pluginRegistry.rescan()
   }
 
   Connections {
     target: shell.pluginRegistry
-    function onLocalPluginChanged(pluginId) {
+    function onLocalPluginChanged(pluginId, qmlSourceChanged) {
       console.log("Local plugin changed, reloading:", pluginId)
+      if (qmlSourceChanged) shell.localPluginQmlReloadPending = true
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
