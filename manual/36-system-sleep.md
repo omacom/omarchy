@@ -23,6 +23,6 @@ When set up, you'll see the hibernate option under _System_ (or `Super + Esc`), 
 Closing the lid suspends the machine, which can land mid-task — an update (see #10203) or a coding agent run. Two safeguards keep the lid from interrupting work:
 
 - Skip once: `Super + Alt + L` (or `omarchy toggle lid-suspend skip-once`) skips suspend for the next lid close only. The lid still locks, it just does not suspend. The skip is consumed when the lid re-opens and expires after 30 minutes.
-- Automatic: while herdr reports a working agent, lid close never suspends. No herdr installed, no guard — the lid behaves exactly as before.
+- Automatic: while herdr reports a working agent and the machine is on AC power, lid close never suspends. On battery, and without herdr installed, the lid behaves exactly as before.
 
 `omarchy toggle lid-suspend status` shows whether a skip is armed and whether the guard currently holds the lid.

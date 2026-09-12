@@ -35,6 +35,7 @@ export OMARCHY_LID_STATE_GLOB="$tmpdir/lid/state"
 
 # Scenario knobs read by the mocks below.
 export MOCK_HERDR_PRESENT=1 MOCK_HERDR_STATE=idle MOCK_KILL_RC=0 MOCK_ACTIVE_RC=0
+export MOCK_AC=1
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 #!/bin/bash
@@ -79,6 +80,11 @@ for command in omarchy-notification-send omarchy-system-lock; do
 echo $command "\$*" >>"\$CALL_LOG"
 SH
 done
+
+cat >"$mock_bin/omarchy-power-present" <<'SH'
+#!/bin/bash
+[[ ${MOCK_AC:-1} == 1 ]]
+SH
 chmod +x "$mock_bin"/*
 export PATH="$mock_bin:$PATH"
 
@@ -216,6 +222,24 @@ grep -q "^omarchy-system-lock" "$call_log" ||
 echo "state:      open" >"$tmpdir/lid/state"
 "$guard" reconcile
 pass "guarded lid close locks"
+
+# The agent guard engages on AC only: never on battery.
+export MOCK_HERDR_STATE=working MOCK_AC=0
+: >"$call_log"
+"$guard" reconcile
+(( $(inhibit_spawns) == 0 )) ||
+  fail "battery suspends despite working agents" "$(cat "$call_log")"
+pass "battery suspends despite working agents"
+export MOCK_AC=1
+: >"$call_log"
+"$guard" reconcile
+(( $(inhibit_spawns) == 1 )) ||
+  fail "AC inhibits for working agents" "$(cat "$call_log")"
+grep -q "agents working on AC" "$call_log" ||
+  fail "inhibitor reason names AC" "$(cat "$call_log")"
+export MOCK_HERDR_STATE=idle
+"$guard" reconcile
+pass "AC inhibits for working agents"
 
 # Status reports flag and inhibitor state.
 status_out=$("$toggle" status)

@@ -12,7 +12,10 @@ SKIP_TTL=1800
 
 flag_set() {
   [[ -f $FLAG ]] || return 1
-  (( $(date +%s) - $(stat -c %Y "$FLAG") <= SKIP_TTL ))
+  if (( $(date +%s) - $(stat -c %Y "$FLAG") > SKIP_TTL )); then
+    rm -f "$FLAG"
+    return 1
+  fi
 }
 
 poke_guard() {

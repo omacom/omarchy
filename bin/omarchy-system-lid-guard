@@ -12,6 +12,9 @@
 #
 # Fail-open everywhere: herdr missing or unreadable means no working agents,
 # so lid close suspends exactly as it would without this service.
+#
+# The automatic agent guard only engages on AC power; the manual skip works
+# anywhere.
 
 set -euo pipefail
 
@@ -130,8 +133,8 @@ reconcile() {
 
   if flag_set; then
     reason="manual skip of next lid suspend"
-  elif names=$(working_agent_names); then
-    reason="agents working: $names"
+  elif names=$(working_agent_names) && omarchy-power-present >/dev/null 2>&1; then
+    reason="agents working on AC: $names"
   fi
 
   if [[ -n $reason ]]; then
