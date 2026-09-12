@@ -234,7 +234,8 @@ Item {
   // about after the popup exists.
   readonly property var updateSignals: [
     "summaryChanged", "bodyChanged", "appNameChanged", "appIconChanged",
-    "imageChanged", "urgencyChanged", "expireTimeoutChanged", "hintsChanged"
+    "imageChanged", "urgencyChanged", "expireTimeoutChanged", "hintsChanged",
+    "actionsChanged"
   ]
 
   // A client that updates a notification through replaces_id does not produce
@@ -393,6 +394,37 @@ Item {
     // focus their window. Fall back to focusing the sending app by class so
     // that click-to-jump actually works.
     if (!invoked) focusApp(entry)
+    dismissPopup(index)
+  }
+
+  // A button on the card. An argv carried in the omarchy-action-argv hint runs
+  // like the click argv does — detached, as positional parameters, never a
+  // shell string; it is also what keeps a restored toast's buttons working.
+  // Otherwise the libnotify action is invoked on the live object, which sends
+  // ActionInvoked to a sender that is still around to hear it.
+  function invokePopupAction(index, actionId) {
+    if (index < 0 || index >= popupModel.count) return
+    var entry = popupModel.get(index)
+    var argv = NotificationLogic.parseActionArgv(entry ? entry.actionArgv : "", actionId)
+    if (argv) {
+      Util.execArgv(argv)
+      dismissPopup(index)
+      return
+    }
+    var ref = entry && !isRestoredRow(entry) ? liveRefs[entry.originalId] : null
+    try {
+      if (ref && ref.actions) {
+        for (var i = 0; i < ref.actions.length; i++) {
+          var action = ref.actions[i]
+          if (action && String(action.identifier) === String(actionId)) {
+            action.invoke()
+            break
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("invoke action failed:", e)
+    }
     dismissPopup(index)
   }
 
@@ -667,6 +699,10 @@ Item {
         image: row.image,
         glyph: row.glyph || "",
         execArgv: row.execArgv || "",
+        actionsJson: row.actionsJson || "[]",
+        actionArgv: row.actionArgv || "",
+        deadlineMs: row.deadlineMs || 0,
+        deadlineText: row.deadlineText || "",
         urgency: row.urgency,
         timestamp: row.timestamp
       }, imagesDir).entry)
@@ -691,6 +727,10 @@ Item {
         image: "",
         glyph: "󰂚",
         execArgv: "",
+        actionsJson: "[]",
+        actionArgv: "",
+        deadlineMs: 0,
+        deadlineText: "",
         urgency: NotificationUrgency.Low,
         expireTimeout: 0,
         timestamp: Date.now()
@@ -1000,9 +1040,37 @@ Item {
             required property string body
             required property string image
             required property string glyph
+            required property string actionsJson
+            required property string actionArgv
+            required property double deadlineMs
+            required property string deadlineText
             required property int urgency
             required property double expireTimeout
             required property double timestamp
+
+            // A declared deadline replaces the lifetime timer below: the toast
+            // lives exactly until that moment, hovered or not, and shows how
+            // long that is.
+            readonly property bool hasDeadline: cardSlot.deadlineMs > 0
+            property string countdown: ""
+
+            function tickDeadline() {
+              var now = Date.now()
+              if (now >= cardSlot.deadlineMs) {
+                cardSlot.countdown = NotificationLogic.countdownText(cardSlot.deadlineText, cardSlot.deadlineMs, now)
+                service.expirePopup(cardSlot.index)
+                return
+              }
+              cardSlot.countdown = NotificationLogic.countdownText(cardSlot.deadlineText, cardSlot.deadlineMs, now)
+            }
+
+            Timer {
+              interval: 250
+              repeat: true
+              running: cardSlot.hasDeadline
+              triggeredOnStart: true
+              onTriggered: cardSlot.tickDeadline()
+            }
 
             // Each card sizes itself based on mode (text vs media); the slot
             // tracks the card so the column auto-fits to whichever is widest.
@@ -1012,7 +1080,7 @@ Item {
 
             readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout)
             property real remainingLifetime: 1.0
-            readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
+            readonly property bool ticking: !cardSlot.hasDeadline && cardSlot.lifetime > 0 && !card.hovered
 
             // A client updating this notification in place rewrites the row
             // under the card (see refreshPopup). New text deserves a full look,
@@ -1051,9 +1119,12 @@ Item {
               cornerRadius: service.cornerRadius
               fontFamily: service.shell && service.shell.bar ? service.shell.bar.fontFamily : ""
               glyph: cardSlot.glyph
+              actions: NotificationLogic.parseActions(cardSlot.actionsJson)
+              countdownText: cardSlot.hasDeadline ? cardSlot.countdown : ""
 
               onCloseRequested: service.dismissPopup(cardSlot.index)
               onCardClicked: service.invokePopupDefault(cardSlot.index)
+              onActionRequested: function(id) { service.invokePopupAction(cardSlot.index, id) }
             }
           }
         }

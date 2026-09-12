@@ -176,6 +176,90 @@ function parseExecArgv(value) {
   return parsed
 }
 
+// ---------------------------------------------------- action buttons
+//
+// A notification's freedesktop `actions` become buttons on the card. The
+// "default" action is the whole-card click and is not a button. Carried in
+// the row as JSON text (a ListModel role must be a plain value), so a restored
+// or replayed toast still shows its buttons.
+function actionsFromNotification(notification) {
+  var out = []
+  try {
+    var list = (notification && notification.actions) || []
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i]
+      if (!a) continue
+      var id = String(a.identifier || "")
+      if (!id || id === "default") continue
+      out.push({ id: id, label: String(a.text || id) })
+    }
+  } catch (e) {
+  }
+  return JSON.stringify(out)
+}
+
+function parseActions(value) {
+  try {
+    var parsed = JSON.parse(String(value || "[]"))
+    if (!Array.isArray(parsed)) return []
+    var out = []
+    for (var i = 0; i < parsed.length; i++) {
+      var a = parsed[i]
+      if (a && typeof a.id === "string" && a.id) out.push({ id: a.id, label: String(a.label || a.id) })
+    }
+    return out
+  } catch (e) {
+    return []
+  }
+}
+
+// One argv per action, in the `omarchy-action-argv` hint as a JSON object
+// keyed by action id — the per-button counterpart of omarchy-exec-argv, for
+// senders that are gone by the time a button is pressed (every CLI sender).
+// Validated with the same structural rules as the click argv.
+function actionArgvFromHints(hints) {
+  return stringHint(hints, "omarchy-action-argv")
+}
+
+function parseActionArgv(value, actionId) {
+  var text = String(value || "")
+  if (!text) return null
+  var parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch (e) {
+    return null
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+  var argv = parsed[String(actionId)]
+  if (argv === undefined || argv === null) return null
+  return parseExecArgv(JSON.stringify(argv))
+}
+
+// ---------------------------------------------------- deadlines
+//
+// A notification whose meaning ends at a known moment — a firewall prompt the
+// daemon answers by itself at a deadline — carries that moment in the
+// `omarchy-deadline-ms` hint (epoch milliseconds). The card counts down to it
+// with `omarchy-deadline-text` ("Deny in {s} s") and the toast expires exactly
+// there: no clamp to the usual popup lifetime, and no pause while hovered,
+// because the clock it mirrors does not pause either.
+function deadlineFromHints(hints) {
+  var n = Number(stringHint(hints, "omarchy-deadline-ms") || 0)
+  return isFinite(n) && n > 0 ? n : 0
+}
+
+function deadlineTextFromHints(hints) {
+  return stringHint(hints, "omarchy-deadline-text")
+}
+
+function countdownText(template, deadlineMs, nowMs) {
+  var s = Math.max(0, Math.ceil((Number(deadlineMs) - Number(nowMs)) / 1000))
+  var t = String(template || "")
+  if (!t) return s + " s"
+  return t.indexOf("{s}") >= 0 ? t.replace("{s}", String(s)) : t + " " + s + " s"
+}
+
 function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
@@ -195,6 +279,10 @@ function snapshotOf(notification, timestamp) {
     image: n.image || "",
     glyph: glyphFromHints(n.hints),
     execArgv: execArgvFromHints(n.hints),
+    actionsJson: actionsFromNotification(n),
+    actionArgv: actionArgvFromHints(n.hints),
+    deadlineMs: deadlineFromHints(n.hints),
+    deadlineText: deadlineTextFromHints(n.hints),
     urgency: n.urgency,
     expireTimeout: expireTimeout,
     timestamp: timestamp === undefined ? Date.now() : timestamp
@@ -203,7 +291,7 @@ function snapshotOf(notification, timestamp) {
 
 // Everything the popup card draws, and therefore everything an in-place
 // update has to write through to the row and its file.
-var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "urgency", "expireTimeout"]
+var POPUP_ROLES = ["app", "appIcon", "summary", "body", "image", "glyph", "execArgv", "actionsJson", "actionArgv", "deadlineMs", "deadlineText", "urgency", "expireTimeout"]
 
 function popupRoles() {
   return POPUP_ROLES
@@ -246,6 +334,10 @@ function historyEntry(value, normalUrgency) {
     image: e.image || "",
     glyph: e.glyph || "",
     execArgv: e.execArgv || "",
+    actionsJson: e.actionsJson || "[]",
+    actionArgv: e.actionArgv || "",
+    deadlineMs: Number(e.deadlineMs || 0) || 0,
+    deadlineText: e.deadlineText || "",
     urgency: typeof e.urgency === "number" ? e.urgency : normalUrgency,
     expireTimeout: 0,
     timestamp: e.timestamp || 0
@@ -388,6 +480,9 @@ function parsePopupFiles(raw, normalUrgency) {
 // second restart would judge a re-shown toast by a clock that no longer
 // governs its display and drop it while it is still on screen.
 function popupExpired(entry, duration, now) {
+  // A sender-declared deadline is absolute and outranks everything else.
+  var declared = Number((entry || {}).deadlineMs || 0)
+  if (isFinite(declared) && declared > 0) return Number(now) >= declared
   var deadline = Number((entry || {}).deadline || 0)
   if (isFinite(deadline) && deadline > 0) return Number(now) >= deadline
   var lifetime = Number(duration || 0)
@@ -436,7 +531,12 @@ function historyRows(raw, liveRows, normalUrgency, limit) {
       var key = popupFileName(entry)
       if (seen[key]) continue
       seen[key] = true
-      out.push(historyEntry(entry, normalUrgency))
+      var replayed = historyEntry(entry, normalUrgency)
+      // A replayed toast is a memory: its deadline has passed and must not
+      // expire it on the spot, nor count down to a moment already gone.
+      replayed.deadlineMs = 0
+      replayed.deadlineText = ""
+      out.push(replayed)
     }
   }
 
@@ -458,6 +558,13 @@ if (typeof module !== "undefined") {
     glyphFromHints: glyphFromHints,
     execArgvFromHints: execArgvFromHints,
     parseExecArgv: parseExecArgv,
+    actionsFromNotification: actionsFromNotification,
+    parseActions: parseActions,
+    actionArgvFromHints: actionArgvFromHints,
+    parseActionArgv: parseActionArgv,
+    deadlineFromHints: deadlineFromHints,
+    deadlineTextFromHints: deadlineTextFromHints,
+    countdownText: countdownText,
     shouldRenderCompactGlyph: shouldRenderCompactGlyph,
     snapshotOf: snapshotOf,
     popupRoles: popupRoles,

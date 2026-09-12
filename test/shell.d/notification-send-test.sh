@@ -197,3 +197,106 @@ send "Timed" -t 3000 >/dev/null
 load
 [[ ${args[12]} == "" && ${args[-1]} == "3000" ]] || fail "notification wrapper still parses a flag after the headline" "body=${args[12]} timeout=${args[-1]}"
 pass "notification wrapper still treats a known flag after the headline as an option"
+
+# ---------------------------------------------------------------- buttons
+#
+# --action adds id/label pairs to the actions array and one argv per id to the
+# omarchy-action-argv hint. The array is no longer empty, so read hints from
+# after it: position 13 is the count of strings, the pairs follow, then the
+# hint count.
+actions_count() { echo "${args[13]}"; }
+action_pair() { # index -> "id label"
+  echo "${args[14 + 2 * $1]} ${args[15 + 2 * $1]}"
+}
+hint_base() { echo $((14 + ${args[13]})); }
+hint_value_after_actions() { # key -> variant value
+  local base i end
+  base=$(hint_base)
+  end=$((base + 1 + 3 * ${args[base]}))
+  for ((i = base + 1; i < end; i += 3)); do [[ ${args[i]} == "$1" ]] && { echo "${args[i + 2]}"; return 0; }; done
+  return 1
+}
+
+: >"$args_file"
+send "Update ready" "Restart when convenient" \
+  --action now=Restart omarchy-restart-shell \; \
+  --action later=Later touch -- "/tmp/a b" \; \
+  --exec mpv -- /tmp/v.mp4 >/dev/null
+load
+[[ $(actions_count) == "4" ]] || fail "notification wrapper sends two actions as four strings" "$(actions_count)"
+[[ $(action_pair 0) == "now Restart" ]] || fail "notification wrapper sends the first action's id and label" "$(action_pair 0)"
+[[ $(action_pair 1) == "later Later" ]] || fail "notification wrapper sends the second action's id and label" "$(action_pair 1)"
+[[ $(hint_value_after_actions omarchy-action-argv) == '{"now":["omarchy-restart-shell"],"later":["touch","--","/tmp/a b"]}' ]] ||
+  fail "notification wrapper builds one argv per action, keeping a spaced argument whole" "$(hint_value_after_actions omarchy-action-argv)"
+[[ $(hint_value_after_actions omarchy-exec-argv) == '["mpv","--","/tmp/v.mp4"]' ]] ||
+  fail "notification wrapper still takes --exec after the actions" "$(hint_value_after_actions omarchy-exec-argv)"
+pass "notification wrapper sends buttons as actions with an argv per button"
+
+# The last action may run to the end of the line without a terminator.
+: >"$args_file"
+send "Head" --action ok=OK omarchy-restart-shell --now >/dev/null
+load
+[[ $(actions_count) == "2" && $(hint_value_after_actions omarchy-action-argv) == '{"ok":["omarchy-restart-shell","--now"]}' ]] ||
+  fail "notification wrapper lets the last action run to the end of the line" "$(hint_value_after_actions omarchy-action-argv)"
+pass "notification wrapper lets the last action omit its terminator"
+
+# A headline that looks like the flag is text, as for --exec.
+: >"$args_file"
+send "--action" "a body" --action go=Go true >/dev/null
+load
+[[ ${args[11]} == "--action" && $(actions_count) == "2" ]] || fail "an --action-looking headline is kept as text" "${args[11]} ${args[13]}"
+pass "an --action-looking positional is not treated as a button"
+
+# Without any --action the actions array stays empty, so existing callers see
+# exactly the call they always did.
+: >"$args_file"
+send "Plain" >/dev/null
+load
+[[ $(actions_count) == "0" ]] || fail "notification wrapper sends an empty actions array without --action" "$(actions_count)"
+pass "notification wrapper leaves the actions array empty without --action"
+
+# The same argv rules as --exec, and the ids the shell relies on.
+if send "Head" --action "x=X" "omarchy toggle something" 2>/dev/null; then
+  fail "notification wrapper rejects a quoted whole command in --action"
+fi
+pass "notification wrapper rejects a quoted whole command in --action"
+if send "Head" --action x=X 2>/dev/null; then
+  fail "notification wrapper rejects --action with no command"
+fi
+pass "notification wrapper rejects --action with no command"
+if send "Head" --action default=Click true 2>/dev/null; then
+  fail "notification wrapper rejects the reserved default action id"
+fi
+pass "notification wrapper rejects the reserved default action id"
+if send "Head" --action a=A true \; --action a=B true 2>/dev/null; then
+  fail "notification wrapper rejects a repeated action id"
+fi
+pass "notification wrapper rejects a repeated action id"
+if send "Head" --action "no label" true 2>/dev/null; then
+  fail "notification wrapper rejects an action without id=label"
+fi
+pass "notification wrapper rejects an action without id=label"
+
+# ---------------------------------------------------------------- deadlines
+#
+# --deadline sends the absolute moment (epoch ms) the toast stops mattering,
+# and --deadline-text the countdown the card shows until then.
+before=$(date +%s%3N)
+: >"$args_file"
+send "Timed" --deadline 30 --deadline-text "Deny in {s} s" >/dev/null
+after=$(date +%s%3N)
+load
+deadline=$(hint_value_after_actions omarchy-deadline-ms)
+[[ $deadline =~ ^[0-9]+$ ]] || fail "notification wrapper sends the deadline as epoch milliseconds" "$deadline"
+((deadline >= before + 30000 && deadline <= after + 30000)) || fail "notification wrapper puts the deadline 30 s from now" "$deadline (now $before..$after)"
+[[ $(hint_value_after_actions omarchy-deadline-text) == "Deny in {s} s" ]] || fail "notification wrapper sends the countdown template" "$(hint_value_after_actions omarchy-deadline-text)"
+pass "notification wrapper sends a deadline and its countdown text"
+
+if send "Head" --deadline-text "x {s}" 2>/dev/null; then
+  fail "notification wrapper rejects --deadline-text without --deadline"
+fi
+pass "notification wrapper rejects --deadline-text without --deadline"
+if send "Head" --deadline 0 2>/dev/null; then
+  fail "notification wrapper rejects a zero deadline"
+fi
+pass "notification wrapper rejects a zero deadline"
