@@ -56,9 +56,6 @@ if [[ -n $existing_entry ]]; then
 fi
 
 mapfile -t uki_files < <(sudo find /boot/EFI/Linux/ -maxdepth 1 -name "omarchy*.efi" -printf "%f\n" 2>/dev/null | sort)
-if (( ${#uki_files[@]} == 0 )); then
-  mapfile -t uki_files < <(sudo find /boot/EFI/Linux/ -maxdepth 1 -name "*.efi" -printf "%f\n" 2>/dev/null | sort)
-fi
 
 if (( ${#uki_files[@]} == 0 )); then
   echo "Error: No Omarchy UKI found in /boot/EFI/Linux/" >&2

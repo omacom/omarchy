@@ -107,6 +107,15 @@ fi
 grep -q "No Omarchy UKI found" "$test_dir/no_uki.out" || fail "reports missing UKI error"
 pass "direct boot setup errors when no UKIs exist"
 
+# Test 1b: Error when only non-Omarchy EFI files exist
+touch "$fake_boot/custom_loader.efi"
+if run_direct_boot non_omarchy_efi >"$test_dir/non_omarchy_efi.out" 2>&1; then
+  fail "direct boot setup must fail when only non-Omarchy EFI files exist"
+fi
+grep -q "No Omarchy UKI found" "$test_dir/non_omarchy_efi.out" || fail "reports missing UKI error for non-Omarchy EFI"
+rm -f "$fake_boot/custom_loader.efi"
+pass "direct boot setup ignores non-Omarchy EFI files"
+
 # Test 2: Single kernel UKI auto-selected and created
 touch "$fake_boot/omarchy_linux.efi"
 output=$(run_direct_boot single_kernel)
