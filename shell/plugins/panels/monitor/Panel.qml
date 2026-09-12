@@ -300,7 +300,13 @@ Panel {
     if (!name) return
     if (enabled && root.enabledDisplayCount <= 1) return
 
-    actionProc.command = ["hyprctl", "keyword", "monitor", name + (enabled ? ",disable" : ",preferred,auto,auto")]
+    if (enabled) {
+      actionProc.command = ["hyprctl", "eval", "hl.monitor({ output = \"" + name + "\", disabled = true })"]
+    } else {
+      // Re-enable by reloading config so the user's monitors.lua geometry
+      // (scale/position) is restored instead of guessing preferred,auto,auto
+      actionProc.command = ["hyprctl", "reload"]
+    }
     if (!actionProc.running) actionProc.running = true
   }
 
