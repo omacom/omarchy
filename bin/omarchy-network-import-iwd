@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Recover saved Wi-Fi networks from before the Omarchy 4 upgrade
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( $# )); then
+  echo "Usage: omarchy network import iwd" >&2
+  [[ $1 == "--help" || $1 == "-h" ]] && exit 0
+  exit 1
+fi
+
+[[ -d /var/lib/iwd ]] || exit 0
+
+importer="$OMARCHY_PATH/install/helpers/iwd-networks.py"
+if (( EUID == 0 )); then
+  /usr/bin/python3 "$importer"
+elif [[ -t 0 ]]; then
+  sudo /usr/bin/python3 "$importer"
+else
+  pkexec /usr/bin/python3 "$importer"
+fi
