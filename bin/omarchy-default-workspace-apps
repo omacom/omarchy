@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# omarchy:summary=Configure default apps assigned to workspaces
+
+
+set -euo pipefail
+
+CONF="$HOME/.config/omarchy/workspace-apps.conf"
+mkdir -p "$(dirname "$CONF")"
+touch "$CONF"
+
+# SUPER+0 maps to real workspace 10 by default in Omarchy — adjust here if
+# your bindings.lua numbers it differently.
+display_to_internal() { [[ $1 == 0 ]] && echo 10 || echo "$1"; }
+internal_to_display()  { [[ $1 == 10 ]] && echo 0 || echo "$1"; }
+
+current_label_for() { awk -F'\t' -v ws="$1" '$1==ws{print $2; exit}' "$CONF"; }
+
+remove_ws_line() {
+  awk -F'\t' -v ws="$1" 'BEGIN{OFS="\t"} $1!=ws' "$CONF" >"$CONF.tmp"
+  mv "$CONF.tmp" "$CONF"
+}
+
+list_desktop_apps() {
+  local dirs=(/usr/share/applications /usr/local/share/applications \
+    /var/lib/flatpak/exports/share/applications \
+    "$HOME/.local/share/applications" \
+    "$HOME/.local/share/flatpak/exports/share/applications")
+  for dir in "${dirs[@]}"; do
+    [[ -d $dir ]] || continue
+    for f in "$dir"/*.desktop; do
+      [[ -f $f ]] || continue
+      grep -q '^NoDisplay=true' "$f" && continue
+      grep -q '^Hidden=true' "$f" && continue
+      name=$(sed -n 's/^Name=//p' "$f" | head -n1)
+      cmd=$(sed -n 's/^Exec=//p' "$f" | head -n1 | sed -E 's/ *%[a-zA-Z]//g')
+      [[ -n $name && -n $cmd ]] || continue
+      printf '\t%s\t%s\n' "$name" "$cmd"
+    done
+  done | sort -u -t $'\t' -k2,2
+}
+
+# 1. pick a workspace
+rows=""
+for n in 1 2 3 4 5 6 7 8 9 0; do
+  internal=$(display_to_internal "$n")
+  current=$(current_label_for "$internal")
+  label="Workspace $n"
+  [[ -n $current ]] && label="$label  —  currently: $current"
+  rows+=$'\t'"$label"$'\t'"$internal"$'\n'
+done
+selection=$(omarchy-menu-select "Set app for workspace" <<<"$rows") || exit 0
+ws=$(cut -f2 <<<"$selection")
+display=$(internal_to_display "$ws")
+
+# 2. pick what launches there
+action=$(omarchy-menu-select "Workspace $display" \
+  "Pick an installed app" "Enter a website URL" "Clear this workspace") || exit 0
+
+case "$action" in
+"Clear this workspace")
+  remove_ws_line "$ws"
+  omarchy-notification-send -u low "Workspace $display cleared"
+  exit 0 ;;
+"Pick an installed app")
+  app_selection=$(omarchy-menu-select "Choose an app" <<<"$(list_desktop_apps)") || exit 0
+  label=$(cut -f1 <<<"$app_selection")
+  command="uwsm-app -- $(cut -f2 <<<"$app_selection")" ;;
+"Enter a website URL")
+  url=$(omarchy-menu-input "Website URL (e.g. https://chatgpt.com)") || exit 0
+  [[ -n $url ]] || exit 0
+  label=$(omarchy-menu-input "Label for this shortcut") || true
+  [[ -n $label ]] || label="$url"
+  command="omarchy-launch-webapp $(printf '%q' "$url")" ;;
+*) exit 0 ;;
+esac
+
+# 3. save
+remove_ws_line "$ws" 2>/dev/null || true
+printf '%s\t%s\t%s\n' "$ws" "$label" "$command" >>"$CONF"
+sort -t $'\t' -k1,1n -o "$CONF" "$CONF"
+omarchy-notification-send -u low "Workspace $display  →  $label"
