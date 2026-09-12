@@ -65,6 +65,42 @@ function entriesAfter(entries, name) {
   return index === -1 ? [] : entries.slice(index + 1)
 }
 
+function moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName, fromIndexOverride, toIndexOverride) {
+  if (!isPlainObject(config.bar)) config.bar = {}
+  if (!isPlainObject(config.bar.layout)) config.bar.layout = {}
+  if (!Array.isArray(config.bar.layout[fromRegion])) config.bar.layout[fromRegion] = []
+  if (!Array.isArray(config.bar.layout[toRegion])) config.bar.layout[toRegion] = []
+
+  var fromEntries = config.bar.layout[fromRegion]
+  var toEntries = config.bar.layout[toRegion]
+
+  var fromIndex = (fromIndexOverride !== undefined && fromIndexOverride !== null && fromIndexOverride >= 0)
+    ? Math.floor(Number(fromIndexOverride))
+    : entryIndex(fromEntries, fromName)
+  if (fromIndex < 0 || fromIndex >= fromEntries.length) return false
+
+  var toIndex = (toIndexOverride !== undefined && toIndexOverride !== null && toIndexOverride >= 0)
+    ? Math.floor(Number(toIndexOverride))
+    : (beforeName ? entryIndex(toEntries, beforeName) : toEntries.length)
+  if (toIndex < 0) toIndex = toEntries.length
+
+  if (fromRegion === toRegion && (fromIndex === toIndex || fromIndex === toIndex - 1)) return false
+
+  var movedEntry = fromEntries[fromIndex]
+  fromEntries.splice(fromIndex, 1)
+
+  if (fromRegion === toRegion && fromIndex < toIndex) toIndex -= 1
+  if (toIndex < 0) toIndex = 0
+  if (toIndex > toEntries.length) toIndex = toEntries.length
+  if (fromRegion === toRegion && fromIndex === toIndex) {
+    fromEntries.splice(fromIndex, 0, movedEntry)
+    return false
+  }
+
+  toEntries.splice(toIndex, 0, movedEntry)
+  return true
+}
+
 // A shell.json write that only changes inline widget settings (the battery
 // percentage toggle, a clock format change) must not rebuild the bar.
 // Compare two normalized layouts: when the structure is unchanged — same
@@ -222,6 +258,7 @@ if (typeof module !== "undefined") {
     entryIndex: entryIndex,
     entriesBefore: entriesBefore,
     entriesAfter: entriesAfter,
+    moveModuleInConfig: moveModuleInConfig,
     inlineSettingsDelta: inlineSettingsDelta,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
