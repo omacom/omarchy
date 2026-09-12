@@ -45,6 +45,15 @@ Item {
   // Fullscreen is decided per output below, because it only covers its own.
   readonly property bool sessionObscured: lockActive || screensaverActive
 
+  ReactiveActivity {
+    id: reactiveActivity
+    path: root.displayedBackground
+    playbackEnabled: !root.sessionObscured && !root.powerSaverActive && Quickshell.screens.some(function(screen) {
+      var monitor = Hyprland.monitorFor(screen)
+      return !monitor || !monitor.activeWorkspace || !monitor.activeWorkspace.hasFullscreen
+    })
+  }
+
   function isVideo(path) {
     return Util.isVideoPath(path)
   }
@@ -273,6 +282,14 @@ Item {
             root.finishingTransition = false
           }
         }
+      }
+
+      ReactiveWallpaper {
+        anchors.fill: parent
+        scene: reactiveActivity.scene
+        levels: reactiveActivity.output
+        playbackEnabled: base.playbackEnabled && !root.incomingBackground
+        previewLabel: reactiveActivity.previewLabel
       }
 
       Image {
