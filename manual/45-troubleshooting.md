@@ -26,6 +26,12 @@ hl.config({
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.
 
+### The screen froze when I rebooted
+
+A raw `systemctl reboot` (or `reboot`) from a terminal or coding agent kills Hyprland immediately, so the last frame stays on screen while systemd shuts down. Use `omarchy system reboot` instead — it shows an on-screen notice and closes windows first.
+
+If the machine still hangs on reboot, a kernel driver is probably stuck in uninterruptible sleep. Unloading an in-use audio, GPU, or Wi-Fi module with `modprobe -r` is a common way to get there. Wait it out, or hold the power button; don't try to unload the driver again.
+
 ### Why are my external speakers not playing?
 
 Probably because they're not set as the primary output. Click on the speaker icon on the right side of the bar, and it'll open the volume popup where you can pick the output device (and mix per-app volumes too).
