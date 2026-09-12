@@ -60,6 +60,30 @@ Item {
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
+  // The keybindings guide reads both directions: typed words find a shortcut,
+  // and a shortcut pressed physically finds its description. Only that request
+  // asks for it -- this plugin is also the system's dmenu, and a picker asking
+  // for a timezone must keep letting shortcuts through to the compositor.
+  property bool inspectKeybindings: false
+  property var inspectionOptions: []
+  property string inspectionBlockedReason: ""
+  // inactive: generic menu; arming: inhibition requested; ready: safe lookup;
+  // text-only: the request is visible but physical lookup is unavailable.
+  property string chordCaptureState: "inactive"
+  // The chord last pressed, canonical, or "" while the guide is reading words.
+  property string chordQuery: ""
+  // Qt key that established chordQuery. Extra non-modifier presses while it is
+  // held must not replace the lookup (Super+Tab then an arrow was showing the
+  // arrow chord and ignoring Tab).
+  property int chordHoldKey: 0
+  // Physical key identity for Shift+digit: press may be Key_Dollar while release
+  // is Key_4; scan code stays stable and must settle the chord.
+  property int chordHoldScan: 0
+  // First inspectionOptions index matched on press; release selects it in the
+  // full list without looking the chord up again.
+  property int chordMatchIndex: -1
+  readonly property bool chordCaptureReady: root.chordCaptureState === "ready"
+    && shortcutInhibitor.active
   property bool requestActive: false
   property bool rowsLoaded: false
   property string activeMenu: "root"
@@ -132,6 +156,31 @@ Item {
       resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
     }
     resultProc.running = true
+  }
+
+  // IPC may replace a dmenu request while its caller is still waiting. Finish
+  // that caller before installing the new files; otherwise a healthy shell can
+  // leave the old omarchy-menu-select blocked forever.
+  function finishReplacedRequest() {
+    if (!root.requestActive || !root.doneFile) return
+
+    var replacedDoneFile = root.doneFile
+    root.requestActive = false
+    root.selectionFile = ""
+    root.doneFile = ""
+    Util.execDetached(": > " + Util.shellQuote(replacedDoneFile))
+  }
+
+  function prepareForReplacement() {
+    root.finishReplacedRequest()
+    // Drop the old surface gate before assigning the new request files. An
+    // active inhibitor may deactivate synchronously here; opened=false keeps
+    // that expected transition from canceling the replacement request.
+    root.opened = false
+    shortcutInhibitor.enabled = false
+    captureArmTimer.stop()
+    root.chordCaptureState = "inactive"
+    root.inspectKeybindings = false
   }
 
   function runAction(action) {
@@ -559,8 +608,20 @@ Item {
       return
     }
 
+    // A chord asks for the rows it is bound to and nothing else, so it selects
+    // rows outright instead of narrowing them by text. More than one row can
+    // answer when two actions share a chord; all of them are shown rather than
+    // one being picked.
+    var chordRows = null
+    if (root.chordQuery) {
+      chordRows = ({})
+      var matched = MenuModel.findRowsForChord(root.inspectionOptions, root.chordQuery).matches
+      for (var c = 0; c < matched.length; c++) chordRows[matched[c]] = true
+    }
+
     var query = root.filterText.trim().toLowerCase()
     for (var i = 0; i < root.dmenuOptions.length; i++) {
+      if (chordRows && !chordRows[i]) continue
       // An option is "<label>", "<glyph>\t<label>", or
       // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
       // selection; the subtext renders under the label, filters alongside it,
@@ -719,10 +780,91 @@ Item {
   function setFilter(nextFilter) {
     panel.freezeCardTop()
     root.filterText = nextFilter
+    // Typing is the other direction of the same guide, so the next ordinary
+    // character drops the chord and searches words again. No reset to press.
+    root.resetChordState()
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
     if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
+    root.rebuildDisplay()
+  }
+
+  // Held chord is a read-only answer. Release settles onto the match in the
+  // full list; Enter / click then dispatch like any other selection. Misses
+  // and unnamed keys stay silent so typed filter text is left alone.
+  function sameChordHoldKey(left, right) {
+    if (left === right) return true
+    // Shift+Tab arrives as Backtab; treat it as the same physical Tab hold.
+    var tab = 0x01000001
+    var backtab = 0x01000002
+    return (left === tab || left === backtab) && (right === tab || right === backtab)
+  }
+
+  // Prefer scan code: Shift+digit press/release often disagree on keysym.
+  function sameChordHold(event) {
+    var scan = Number(event.nativeScanCode) || 0
+    if (root.chordHoldScan > 0 && scan === root.chordHoldScan) return true
+    return root.sameChordHoldKey(event.key, root.chordHoldKey)
+  }
+
+  function resetChordState() {
+    root.chordQuery = ""
+    root.chordHoldKey = 0
+    root.chordHoldScan = 0
+    root.chordMatchIndex = -1
+  }
+
+  function showChord(key, modifiers, nativeScanCode) {
+    var chord = MenuModel.normalizeChordFromEvent(key, modifiers, nativeScanCode)
+    if (!chord) return
+
+    var lookup = MenuModel.findRowsForChord(root.inspectionOptions, chord)
+    if (lookup.matches.length === 0) return
+
+    panel.freezeCardTop()
+    root.filterText = ""
+    root.selectedIndex = 0
+    root.disarmPointer()
+    root.chordQuery = chord
+    root.chordHoldKey = key
+    root.chordHoldScan = Number(nativeScanCode) || 0
+    root.chordMatchIndex = lookup.matches[0]
+    root.cursorActive = true
+    root.rebuildDisplay()
+  }
+
+  function clearChord() {
+    root.resetChordState()
+    root.selectedIndex = 0
+    root.rebuildDisplay()
+  }
+
+  // Release ends the filtered lookup and returns to the full list with the
+  // matched row selected, so Enter / click run it like any other choice.
+  function settleChordSelection() {
+    var matchIndex = root.chordMatchIndex
+    root.resetChordState()
+    root.rebuildDisplay()
+
+    if (matchIndex < 0) return
+
+    var targetId = "dmenu." + matchIndex
+    for (var i = 0; i < displayModel.count; i++) {
+      if (displayModel.get(i).itemId === targetId) {
+        root.selectedIndex = i
+        root.cursorActive = true
+        Qt.callLater(function() { root.revealCursor() })
+        return
+      }
+    }
+  }
+
+  function fallBackToTextOnly(reason) {
+    root.chordCaptureState = "text-only"
+    root.inspectionBlockedReason = String(reason || "Shortcut capture is unavailable")
+    root.resetChordState()
+    shortcutInhibitor.enabled = false
     root.rebuildDisplay()
   }
 
@@ -759,6 +901,9 @@ Item {
   function activateIndex(index, fromPointer) {
     if (root.deleteConfirmOpen) return
     if (root.dmenuActive) {
+      // While a chord is held the list is a read-only answer. Release settles
+      // onto the match in the full list; Enter / Right / click then dispatch.
+      if (root.chordQuery) return
       if (root.mode === "input") {
         root.applyDmenuSelection(root.filterText)
         return
@@ -815,6 +960,8 @@ Item {
   function applyDmenuSelection(value) {
     applySerial = requestSerial
     opened = false
+    chordCaptureState = "inactive"
+    shortcutInhibitor.enabled = false
     filterText = ""
     root.finishRequest(value)
   }
@@ -829,12 +976,20 @@ Item {
   }
 
   function cancel() {
-    if (root.dmenuActive) root.finishRequest(null)
+    var finishDmenu = root.dmenuActive
     opened = false
+    chordCaptureState = "inactive"
+    shortcutInhibitor.enabled = false
+    if (finishDmenu) root.finishRequest(null)
     filterText = ""
+    root.resetChordState()
+    inspectKeybindings = false
+    inspectionOptions = []
+    inspectionBlockedReason = ""
   }
 
   function openExistingMenu(initialMenu) {
+    root.prepareForReplacement()
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -843,6 +998,11 @@ Item {
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
     navStack = []
     filterText = ""
+    root.resetChordState()
+    inspectKeybindings = false
+    inspectionOptions = []
+    inspectionBlockedReason = ""
+    chordCaptureState = "inactive"
     selectedIndex = 0
     cursorActive = true
     root.disarmPointer()
@@ -859,6 +1019,7 @@ Item {
   }
 
   function openDmenu(payload) {
+    root.prepareForReplacement()
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
@@ -868,15 +1029,29 @@ Item {
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
+    inspectKeybindings = mode === "select" && payload.inspectKeybindings === true
+    inspectionOptions = Array.isArray(payload.inspectionOptions) ? payload.inspectionOptions : []
+    inspectionBlockedReason = String(payload.inspectionBlockedReason || "")
     activeMenu = "root"
     navStack = []
     filterText = ""
+    root.resetChordState()
+    chordCaptureState = inspectKeybindings
+      ? (inspectionBlockedReason ? "text-only" : "arming")
+      : "inactive"
     selectedIndex = 0
     cursorActive = mode !== "input"
     root.disarmPointer()
     opened = true
     rebuildDisplay()
 
+    if (chordCaptureState === "arming") {
+      // Cancellation sets enabled=false inside ShortcutInhibitor. Re-enable it
+      // for each new request so a later inspector can recover.
+      shortcutInhibitor.enabled = true
+      if (shortcutInhibitor.active) chordCaptureState = "ready"
+      else captureArmTimer.restart()
+    }
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
   ListModel { id: displayModel }
@@ -936,6 +1111,16 @@ Item {
         if (root.filterText.trim()) root.loadProvidersForSearch()
       }
       root.startNextProvider()
+    }
+  }
+
+  Timer {
+    id: captureArmTimer
+    interval: 1200
+    repeat: false
+    onTriggered: {
+      if (root.opened && root.chordCaptureState === "arming")
+        root.fallBackToTextOnly("Shortcut capture could not be activated")
     }
   }
 
@@ -1064,13 +1249,38 @@ Item {
   }
   PanelWindow {
     id: panel
-    visible: root.opened && root.rowsLoaded
+    visible: root.opened && (root.dmenuActive || root.rowsLoaded)
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "omarchy-menu"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
+
+    // Exclusive keyboard focus decides where a key event goes; it does not stop
+    // Hyprland from acting on its own binds first. Without this, a chord
+    // pressed over the guide runs its action and never reaches QML at all.
+    // Scoped to the keybindings request and released with the surface.
+    ShortcutInhibitor {
+      id: shortcutInhibitor
+      window: panel
+      enabled: false
+      // The compositor can hand inhibition back at any time. Close this
+      // request immediately; a later request starts a fresh enable cycle.
+      onCancelled: {
+        if (root.opened && root.inspectKeybindings) root.cancel()
+      }
+      onActiveChanged: {
+        if (active && root.opened && root.chordCaptureState === "arming") {
+          captureArmTimer.stop()
+          root.chordCaptureState = "ready"
+        } else if (!active && root.opened && root.chordCaptureState === "ready") {
+          // Once readiness was promised, losing it closes the request before
+          // another chord can be mistaken for a harmless lookup.
+          root.cancel()
+        }
+      }
+    }
 
     // The card opens centered exactly as always. The first search keystroke
     // or submenu move freezes the top line where it currently sits — from
@@ -1118,6 +1328,14 @@ Item {
         anchors.fill: parent
         z: root.deleteConfirmOpen ? 20 : 0
         focus: true
+        onActiveFocusChanged: {
+          if (!activeFocus && root.opened && root.chordCaptureState === "ready") {
+            Qt.callLater(function() {
+              if (root.opened && !keyCatcher.activeFocus && root.chordCaptureState === "ready")
+                root.cancel()
+            })
+          }
+        }
 
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
@@ -1126,11 +1344,55 @@ Item {
             return
           }
 
+          // A chord is a question about a shortcut, not a menu control, so it
+          // is read before the controls that share its keys: CTRL+ALT+DELETE
+          // would otherwise be taken for the uninstall shortcut and SUPER+LEFT
+          // for a step back. Bare Escape still exits; modified Escape is a chord.
+          if (root.chordCaptureReady) {
+            var keyKind = MenuModel.classifyKeyEvent(
+              event.key, event.modifiers, event.text, event.isAutoRepeat, event.nativeScanCode)
+
+            if (keyKind === "repeat") {
+              event.accepted = true
+              return
+            }
+            if (keyKind === "chord") {
+              // A second non-modifier while the first is still held is not a
+              // real Hyprland chord. Drop back to text search instead of
+              // replacing Tab with the new key or silently ignoring it.
+              if (root.chordQuery && root.chordHoldKey
+                  && !root.sameChordHold(event)) {
+                root.clearChord()
+                event.accepted = true
+                return
+              }
+              root.showChord(event.key, event.modifiers, event.nativeScanCode)
+              event.accepted = true
+              return
+            }
+            if (keyKind === "unsupported") {
+              // Swallow so Hyprland does not fire, but leave the search UI alone.
+              event.accepted = true
+              return
+            }
+            if (keyKind === "text"
+                && event.text
+                && (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.GroupSwitchModifier))) {
+              root.setFilter(root.filterText + event.text)
+              event.accepted = true
+              return
+            }
+          }
+
           if (event.key === Qt.Key_Delete) {
             root.requestDeleteSelected()
             event.accepted = true
-          } else if (event.key === Qt.Key_Escape) {
-            if (root.filterText) root.setFilter("")
+          } else if (event.key === Qt.Key_Escape
+              && !(event.modifiers & (Qt.MetaModifier | Qt.ControlModifier | Qt.AltModifier))) {
+            // Peel one layer at a time, and always leave through the client:
+            // this is the way out of an inhibited keyboard.
+            if (root.chordQuery) root.clearChord()
+            else if (root.filterText) root.setFilter("")
             else root.cancel()
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
@@ -1160,6 +1422,22 @@ Item {
             event.accepted = true
           } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
             root.setFilter(root.filterText + event.text)
+            event.accepted = true
+          }
+        }
+
+        Keys.onReleased: function(event) {
+          if (root.deleteConfirmOpen) return
+          // Auto-repeat is synthesized as release+press pairs. Clearing on those
+          // would drop the chord UI while the key is still held.
+          if (event.isAutoRepeat) {
+            event.accepted = true
+            return
+          }
+          // Only the key that established the chord ends a still-active lookup.
+          // Settle onto the match in the full list; Escape still uses clearChord.
+          if (root.chordQuery && root.sameChordHold(event)) {
+            root.settleChordSelection()
             event.accepted = true
           }
         }
@@ -1203,9 +1481,18 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
+            // A chord reads as the shortcut that was pressed, printed the way
+            // the rows print theirs, so the answer names the question.
+            text: root.chordQuery
+              ? MenuModel.formatChord(root.chordQuery)
+              : (root.filterText
+                || (root.inspectKeybindings && root.chordCaptureState === "arming"
+                  ? "Preparing shortcut capture…"
+                  : (root.inspectKeybindings && root.chordCaptureState === "text-only"
+                    ? "Text search only — " + root.inspectionBlockedReason
+                    : (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…")))))
             color: root.foreground
-            opacity: root.filterText ? 1 : 0.58
+            opacity: (root.filterText || root.chordQuery) ? 1 : 0.58
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight

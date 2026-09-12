@@ -384,6 +384,281 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
   }
 }
 
+// ------------------------------------------------------- keybinding chords
+//
+// The keybindings guide reads both directions: typed words find a shortcut,
+// and a shortcut pressed physically finds its description. Both sides have to
+// agree on one spelling of a chord, so everything below reduces to the same
+// canonical string -- modifiers in the order `omarchy-menu-keybindings` prints
+// them, then the key:
+//
+//   SUPER+SHIFT+F
+//   CTRL+ALT+DELETE
+//   PRINT
+//
+// Qt's enum values are written out rather than read off the `Qt` namespace:
+// this file is plain JavaScript that Node loads directly in the shell tests,
+// where no Qt exists.
+var CHORD_MOD_SHIFT = 0x02000000
+var CHORD_MOD_CONTROL = 0x04000000
+var CHORD_MOD_ALT = 0x08000000
+var CHORD_MOD_META = 0x10000000
+var CHORD_MOD_KEYPAD = 0x20000000
+var CHORD_MOD_GROUP_SWITCH = 0x40000000
+var CHORD_KNOWN_MODIFIERS = CHORD_MOD_SHIFT | CHORD_MOD_CONTROL | CHORD_MOD_ALT
+  | CHORD_MOD_META | CHORD_MOD_KEYPAD | CHORD_MOD_GROUP_SWITCH
+
+// The order `modmask_to_text` in `bin/omarchy-menu-keybindings` emits, so a
+// captured chord and a rendered row sort their modifiers alike.
+var CHORD_MOD_ORDER = ["SUPER", "SHIFT", "CTRL", "ALT"]
+
+// A modifier held down is not a chord on its own. AltGr arrives as its own
+// keysym on some stacks and as Ctrl+Alt on others, so it never names a key.
+var CHORD_MODIFIER_KEYS = {
+  0x01000020: true, // Shift
+  0x01000021: true, // Control
+  0x01000022: true, // Meta
+  0x01000023: true, // Alt
+  0x01000024: true, // CapsLock
+  0x01000025: true, // NumLock
+  0x01000026: true, // ScrollLock
+  0x01001103: true  // AltGr
+}
+
+// Keys whose Omarchy spelling is not simply the character they type. The
+// names on the right are what `hyprctl binds` reports and the guide renders,
+// including `~` for the key Hyprland calls grave.
+var CHORD_KEY_NAMES = {
+  0x20: "SPACE",
+  0x2c: "COMMA",
+  0x2d: "MINUS",
+  0x2e: "PERIOD",
+  0x2f: "SLASH",
+  0x3b: "SEMICOLON",
+  0x3d: "EQUAL",
+  0x5b: "BRACKETLEFT",
+  0x5c: "BACKSLASH",
+  0x5d: "BRACKETRIGHT",
+  0x60: "~",
+  0x27: "APOSTROPHE",
+  0x01000000: "ESCAPE",
+  0x01000001: "TAB",
+  0x01000002: "TAB",
+  0x01000003: "BACKSPACE",
+  0x01000004: "RETURN",
+  0x01000005: "RETURN",
+  0x01000006: "INSERT",
+  0x01000007: "DELETE",
+  0x01000009: "PRINT",
+  0x01000010: "HOME",
+  0x01000011: "END",
+  0x01000012: "LEFT",
+  0x01000013: "UP",
+  0x01000014: "RIGHT",
+  0x01000015: "DOWN",
+  0x01000016: "PRIOR",
+  0x01000017: "NEXT"
+}
+
+// XKB keycodes Hyprland uses for `code:N` binds and that Qt reports as
+// `nativeScanCode`. When Shift is held Qt often emits Key_Exclam instead of
+// Key_1; the scan code is what still names the physical key.
+var CHORD_SCAN_KEY_NAMES = {
+  10: "1", 11: "2", 12: "3", 13: "4", 14: "5",
+  15: "6", 16: "7", 17: "8", 18: "9", 19: "0",
+  20: "MINUS", 21: "EQUAL",
+  24: "Q", 25: "W", 26: "E", 27: "R", 28: "T",
+  29: "Y", 30: "U", 31: "I", 32: "O", 33: "P",
+  67: "F1", 68: "F2", 69: "F3", 70: "F4", 71: "F5", 72: "F6",
+  73: "F7", 74: "F8", 75: "F9", 76: "F10", 77: "F11", 78: "F12"
+}
+
+// Keys that mean a chord with no modifier at all, because they carry no text
+// and the guide has nothing else to do with them. Deliberately an allowlist:
+// arrows, Enter, Tab, Backspace, Delete and the paging keys steer the menu and
+// must keep doing that.
+function chordStandsAlone(key) {
+  if (key === 0x01000009) return true                    // Print
+  if (key >= 0x01000030 && key <= 0x0100003b) return true // F1..F12
+  return false
+}
+
+function chordStandsAloneScan(nativeScanCode) {
+  var scan = Number(nativeScanCode) || 0
+  return scan >= 67 && scan <= 78
+}
+
+// The name the guide would print for a Qt key, or "" when this file cannot
+// say. An unknown key reports no match rather than being mapped to a
+// neighbouring row: naming the wrong action is worse than naming none.
+function chordKeyName(key) {
+  var code = Number(key)
+
+  if (CHORD_MODIFIER_KEYS[code]) return ""
+  if (CHORD_KEY_NAMES[code]) return CHORD_KEY_NAMES[code]
+  if (code >= 0x30 && code <= 0x39) return String.fromCharCode(code) // 0..9
+  if (code >= 0x41 && code <= 0x5a) return String.fromCharCode(code) // A..Z
+  if (code >= 0x01000030 && code <= 0x0100003b) return "F" + (code - 0x01000030 + 1)
+
+  return ""
+}
+
+function chordKeyNameFromScan(nativeScanCode) {
+  var scan = Number(nativeScanCode) || 0
+  return CHORD_SCAN_KEY_NAMES[scan] || ""
+}
+
+// Canonical spelling for a modifier list plus a key, whatever order the
+// modifiers arrived in.
+function normalizeChord(modifiers, key) {
+  var held = {}
+  var list = Array.isArray(modifiers) ? modifiers : []
+
+  for (var i = 0; i < list.length; i++) {
+    var name = String(list[i] || "").trim().toUpperCase()
+    if (name === "CONTROL") name = "CTRL"
+    if (name === "WIN" || name === "META" || name === "MOD") name = "SUPER"
+    if (CHORD_MOD_ORDER.indexOf(name) < 0) return ""
+    held[name] = true
+  }
+
+  var parts = []
+  for (var m = 0; m < CHORD_MOD_ORDER.length; m++) {
+    if (held[CHORD_MOD_ORDER[m]]) parts.push(CHORD_MOD_ORDER[m])
+  }
+
+  var keyName = String(key || "").trim().toUpperCase()
+  if (!keyName) return ""
+  parts.push(keyName)
+
+  return parts.join("+")
+}
+
+// Canonical spelling for a physical key press. Returns "" when the key is a
+// modifier on its own or one this file cannot name. Prefer the scan code when
+// Super/Ctrl/Alt is held (or for bare F-keys) so Shift+digit and Fn-layer
+// F-keys still match Hyprland's code:N / Fn rows.
+function normalizeChordFromEvent(key, modifiers, nativeScanCode) {
+  var mask = Number(modifiers) || 0
+  if (mask & ~CHORD_KNOWN_MODIFIERS) return ""
+  if (mask & (CHORD_MOD_KEYPAD | CHORD_MOD_GROUP_SWITCH)) return ""
+
+  var keyName = chordKeyName(key)
+  var scanName = chordKeyNameFromScan(nativeScanCode)
+  var useScan = !!(mask & (CHORD_MOD_META | CHORD_MOD_CONTROL | CHORD_MOD_ALT))
+    || chordStandsAlone(Number(key))
+    || chordStandsAloneScan(nativeScanCode)
+  if (useScan && scanName) keyName = scanName
+  if (!keyName) return ""
+
+  var held = []
+  if (mask & CHORD_MOD_META) held.push("SUPER")
+  if (mask & CHORD_MOD_SHIFT) held.push("SHIFT")
+  if (mask & CHORD_MOD_CONTROL) held.push("CTRL")
+  if (mask & CHORD_MOD_ALT) held.push("ALT")
+
+  return normalizeChord(held, keyName)
+}
+
+// Whether a key press is asking "what does this shortcut do?" rather than
+// typing into the filter.
+//
+// Shift plus a printable key is text, or capitals could not be searched for.
+// Bare Escape is never a chord: it is the way out of an inhibited keyboard.
+// SUPER+ESCAPE (and other modified Escapes) remain inspectable chords.
+function printableEventText(text) {
+  var value = String(text || "")
+  return value.length === 1 && value.charCodeAt(0) >= 32 && value.charCodeAt(0) !== 127
+}
+
+function isMenuControlKey(key) {
+  return key === 0x01000000 || // Escape
+    key === 0x01000001 ||      // Tab
+    key === 0x01000003 ||      // Backspace
+    key === 0x01000004 ||      // Return
+    key === 0x01000005 ||      // Enter
+    key === 0x01000007 ||      // Delete
+    (key >= 0x01000010 && key <= 0x01000017) // Home..PageDown
+}
+
+// Classify before QML decides which path may consume the event. Unsupported
+// means the press is swallowed without updating the chord UI; QML treats it as
+// a silent no-op rather than a sticky banner. Bare Escape stays the way out of
+// an inhibited keyboard; Escape with Super/Ctrl/Alt is a chord (e.g. SUPER+ESCAPE).
+function classifyKeyEvent(key, modifiers, text, autoRepeat, nativeScanCode) {
+  var code = Number(key)
+  var mask = Number(modifiers) || 0
+  if (autoRepeat) return "repeat"
+  if (CHORD_MODIFIER_KEYS[code]) return "modifier"
+  if (code === 0x01000000
+      && !(mask & (CHORD_MOD_META | CHORD_MOD_CONTROL | CHORD_MOD_ALT)))
+    return "control"
+  if (mask & ~CHORD_KNOWN_MODIFIERS) return "unsupported"
+
+  // Shift-only printable input is search text. Group-switch/AltGr is text too;
+  // Qt stacks that expose AltGr only as Ctrl+Alt still provide translated text.
+  if (printableEventText(text)
+      && (!(mask & (CHORD_MOD_META | CHORD_MOD_CONTROL | CHORD_MOD_ALT))
+          || (!(mask & CHORD_MOD_META) && (mask & CHORD_MOD_GROUP_SWITCH))
+          || (!(mask & CHORD_MOD_META)
+            && (mask & (CHORD_MOD_CONTROL | CHORD_MOD_ALT)) === (CHORD_MOD_CONTROL | CHORD_MOD_ALT))))
+    return "text"
+
+  if (mask & (CHORD_MOD_KEYPAD | CHORD_MOD_GROUP_SWITCH)) return "unsupported"
+
+  var asksForChord = !!(mask & (CHORD_MOD_META | CHORD_MOD_CONTROL | CHORD_MOD_ALT))
+    || ((mask & CHORD_MOD_SHIFT) && code === 0x01000002)
+    || chordStandsAlone(code)
+    || chordStandsAloneScan(nativeScanCode)
+  if (!asksForChord)
+    return isMenuControlKey(code) ? "control" : (code >= 0x01000000 ? "unsupported" : "control")
+
+  return normalizeChordFromEvent(code, mask, nativeScanCode) ? "chord" : "unsupported"
+}
+
+function isChordEvent(key, modifiers, text, nativeScanCode) {
+  return classifyKeyEvent(key, modifiers, text, false, nativeScanCode) === "chord"
+}
+
+// Structured records travel beside display strings. Formatting can now change
+// without changing lookup semantics, and excluded rows remain text-searchable.
+function findRowsForChord(options, chord) {
+  var wanted = String(chord || "")
+  var matches = []
+  var unsupported = false
+  var reasons = []
+  if (!wanted) return { matches: matches, unsupported: false, reasons: reasons }
+
+  var list = Array.isArray(options) ? options : []
+  for (var i = 0; i < list.length; i++) {
+    var option = list[i] || {}
+    var chords = Array.isArray(option.chords) ? option.chords : []
+    for (var c = 0; c < chords.length; c++) {
+      if (String(chords[c]) !== wanted) continue
+      if (option.inspectable === true) {
+        matches.push(i)
+      } else {
+        unsupported = true
+        var reason = String(option.reason || "")
+        if (reason && reasons.indexOf(reason) < 0) reasons.push(reason)
+      }
+      break
+    }
+  }
+
+  return { matches: matches, unsupported: unsupported, reasons: reasons }
+}
+
+// A canonical chord written the way the guide prints it, for the header line
+// that reports what was pressed.
+function formatChord(chord) {
+  var parts = String(chord || "").split("+")
+  if (parts.length < 2) return parts[0] || ""
+
+  var key = parts[parts.length - 1]
+  return parts.slice(0, parts.length - 1).join(" ") + " + " + key
+}
+
 // Commands a `checked:` expression reads a value out of. Every sibling row
 // asks the same one -- Defaults > Browser has seven rows all comparing
 // against `omarchy-default-browser` -- so the batch runs it once and the rows
@@ -519,6 +794,13 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
-    displayRow: displayRow
+    displayRow: displayRow,
+    normalizeChord: normalizeChord,
+    normalizeChordFromEvent: normalizeChordFromEvent,
+    chordKeyNameFromScan: chordKeyNameFromScan,
+    classifyKeyEvent: classifyKeyEvent,
+    isChordEvent: isChordEvent,
+    findRowsForChord: findRowsForChord,
+    formatChord: formatChord
   }
 }
