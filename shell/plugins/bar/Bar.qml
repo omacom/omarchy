@@ -2017,8 +2017,8 @@ Item {
     required property var entry
     readonly property string moduleName: root.entryId(entry)
     readonly property var settings: root.entrySettings(entry)
-    property string outputText: ""
-    property string outputTooltip: ""
+    property var outputText
+    property var outputTooltip
     property bool outputActive: false
 
     function setting(name, fallback) {
@@ -2029,15 +2029,21 @@ Item {
     function update(raw) {
       var data = Util.parseModuleJson(raw)
       var klass = data.class || data.alt || ""
+      // A bare number or quoted string parses as JSON without being a waybar object,
+      // so it is output to render rather than a missing text key.
+      var text = Util.isPlainObject(data) ? data.text : String(raw || "").trim()
 
-      outputText = data.text || String(raw || "").trim()
-      outputTooltip = data.tooltip || String(setting("tooltip", ""))
+      outputText = text === undefined || text === null ? undefined : String(text)
+
+      var tooltip = Util.isPlainObject(data) ? data.tooltip : undefined
+      outputTooltip = tooltip === undefined || tooltip === null ? undefined : String(tooltip)
+
       outputActive = klass === "active" || (Array.isArray(klass) && klass.indexOf("active") !== -1)
     }
 
     bar: root
-    text: outputText || String(setting("text", ""))
-    tooltipText: outputTooltip || String(setting("tooltip", ""))
+    text: outputText !== undefined ? outputText : String(setting("text", ""))
+    tooltipText: outputTooltip !== undefined ? outputTooltip : String(setting("tooltip", ""))
     active: outputActive
     keepSpace: setting("keepSpace", false) === true
     horizontalMargin: Number(setting("horizontalMargin", 7.5))
