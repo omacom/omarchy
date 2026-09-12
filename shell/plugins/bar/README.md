@@ -46,7 +46,7 @@ Example `shell.json` (bar subtree only shown):
 }
 ```
 
-`centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. Set to an empty string to disable anchoring (the center list is centered as a group).
+`centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. When the named id is not in the center list, the pin resolves to the one center module of the same kind (the id's last segment), so a clone, a rename, or a removed plugin does not unpin the center; two modules of that kind leave it unresolved. Set to an empty string to disable anchoring (the center list is centered as a group).
 
 ## Module catalogue
 

@@ -343,6 +343,56 @@ assertEqual(bar.entryIndex(entries, 'b'), 2, 'bar finds entry indexes')
 assertDeepEqual(bar.entriesBefore(entries, 'b').map(bar.entryId), ['a', 'omarchy.tray'], 'bar returns entries before target')
 assertDeepEqual(bar.entriesAfter(entries, 'a').map(bar.entryId), ['omarchy.tray', 'b'], 'bar returns entries after target')
 
+const centerEntries = [
+  { id: 'omarchy.indicators' },
+  { id: 'omarchy.keyboard-layout' },
+  { id: 'omarchy.clock', format: 'HH:mm' },
+  { id: 'omarchy.weather' }
+]
+
+assertEqual(bar.widgetKind('omarchy.clock'), 'clock', 'bar reads the kind off a widget id')
+assertEqual(bar.widgetKind('omarchy.system-update'), 'system-update', 'bar keeps a hyphenated kind whole')
+assertEqual(
+  bar.resolveCenterAnchor(centerEntries, 'omarchy.clock'),
+  'omarchy.clock',
+  'bar prefers an exact center anchor match'
+)
+assertEqual(
+  bar.resolveCenterAnchor(centerEntries, 'acme.clock'),
+  'omarchy.clock',
+  'bar pins the surviving clock when the configured center anchor is gone'
+)
+assertEqual(
+  bar.resolveCenterAnchor([{ id: 'omarchy.indicators' }, { id: 'dhh.clock' }], 'omarchy.clock'),
+  'dhh.clock',
+  'bar pins a clone the configured center anchor no longer names'
+)
+assertEqual(
+  bar.resolveCenterAnchor([{ id: 'omarchy.clock' }, { id: 'dhh.clock' }], 'acme.clock'),
+  'acme.clock',
+  'bar leaves an ambiguous center anchor unresolved'
+)
+assertEqual(
+  bar.resolveCenterAnchor(centerEntries, 'omarchy.media'),
+  'omarchy.media',
+  'bar leaves a center anchor with no widget of that kind unresolved'
+)
+assertEqual(bar.resolveCenterAnchor(centerEntries, ''), '', 'bar treats an empty center anchor as disabled')
+
+assert(
+  /BarModel\.resolveCenterAnchor\(/.test(barSource),
+  'bar resolves the center pin before laying the center out'
+)
+assert(
+  /readonly property bool hasAnchor: root\.entryIndex\(entries, root\.resolvedCenterAnchor\) !== -1/.test(barSource),
+  'bar pins the resolved center widget, not the configured id'
+)
+assertEqual(
+  (barSource.match(/root\.resolvedCenterAnchor/g) || []).length,
+  6,
+  'bar reads the resolved pin at every center layout site, vertical bars included'
+)
+
 assertEqual(bar.expandPath('~/module.qml', '/home/dhh'), '/home/dhh/module.qml', 'bar expands tilde paths')
 assertEqual(bar.expandPath('$HOME/module.qml', '/home/dhh'), '/home/dhh/module.qml', 'bar expands HOME paths')
 assert(bar.customModuleSafeName('local.weather'), 'bar accepts safe custom module names')
