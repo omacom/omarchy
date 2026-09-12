@@ -69,3 +69,18 @@ The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued 
 - MacBook Pro 15-inch (2020) – Model: A1990
 
 On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support.
+
+#### iMac Retina 5K (2017)
+
+The 2017 27-inch iMac has no T2 chip, so the installer sets it up like the other Intel Macs.
+
+- iMac (Retina 5K, 27-inch, 2017) – Model: A1419
+
+#### Known Issues
+
+- The display doesn't run at its native 5120×2880: the panel is two tiles, and the stock driver lights only one
+- Sound is not functioning
+- The brightness control has no effect
+- Sleep hangs the machine; only a power cycle recovers it
+
+A community patcher for this model fixes the display, sound and brightness: [omarchy-imac18-3](https://github.com/ahmadtv/omarchy-imac18-3).
