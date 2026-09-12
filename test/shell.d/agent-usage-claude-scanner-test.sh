@@ -138,7 +138,10 @@ import threading
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
-# The collector has no .py suffix, so name its loader explicitly.
+# The collector has no .py suffix, so name its loader explicitly. Keep the load
+# from dropping a bytecode cache beside the collector: a stray bin/__pycache__
+# is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_loader("collector", SourceFileLoader("collector", sys.argv[1]))
 collector = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(collector)
