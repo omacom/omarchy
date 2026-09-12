@@ -13,8 +13,10 @@ mkdir -p "$TEST_HOME/.codex/sessions/$(date +%Y/%m/%d)" "$TEST_HOME/bin"
 cat >"$TEST_HOME/bin/codex" <<'EOF'
 #!/bin/bash
 
-if [[ -n ${CODEX_ARGS_FILE:-} ]]; then
-  printf '%s\0' "$@" >"$CODEX_ARGS_FILE"
+# Fail if the collector regresses to `-a untrusted` (Codex 0.149 / #7648).
+if [[ $1 != "-s" || $2 != "read-only" || $3 != "-a" || $4 != "on-request" || ${5:-} != "app-server" ]]; then
+  echo "unexpected codex invocation: $*" >&2
+  exit 1
 fi
 
 while read -r request; do
@@ -29,7 +31,7 @@ while read -r request; do
       jq -cn --argjson id "$id" '{id: $id, result: {account: {}}}'
       ;;
     account/rateLimits/read)
-      jq -cn --argjson id "$id" '{id: $id, result: {rateLimits: {}}}'
+      jq -cn --argjson id "$id" '{id: $id, result: {rateLimits: {limitId: "codex", planType: "prolite", primary: {usedPercent: 6, windowDurationMins: 10080, resetsAt: 1787887121}, secondary: null}, rateLimitsByLimitId: {codex: {limitId: "codex", planType: "prolite", primary: {usedPercent: 6, windowDurationMins: 10080, resetsAt: 1787887121}}, codex_bengalfox: {limitId: "codex_bengalfox", limitName: "GPT-5.3-Codex-Spark", primary: {usedPercent: 0, windowDurationMins: 300, resetsAt: 1787379264}, secondary: {usedPercent: 12, windowDurationMins: 10080, resetsAt: 1787966064}}}}}'
       ;;
   esac
 done
@@ -44,17 +46,16 @@ cat >"$session" <<EOF
 {"timestamp":"$timestamp","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":180,"cached_input_tokens":110,"output_tokens":30,"reasoning_output_tokens":8,"total_tokens":210},"last_token_usage":{"input_tokens":80,"cached_input_tokens":50,"output_tokens":10,"reasoning_output_tokens":3,"total_tokens":90}}}}
 EOF
 
-result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" CODEX_ARGS_FILE="$TEST_HOME/codex-args" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
+result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" XDG_DATA_HOME="$TEST_HOME/.local/share" PATH="$TEST_HOME/bin:$PATH" \
   "$ROOT/bin/omarchy-agent-usage-codex")
 
-# NUL-separated, so the assertion sees argument boundaries: a single "-a on-request"
-# would flatten to the same text as two arguments but is not a policy codex accepts.
-expected_args=(-s read-only -a on-request app-server)
-mapfile -d '' -t codex_args <"$TEST_HOME/codex-args"
+[[ $(jq -r '.tierLabel' <<<"$result") == "Pro Lite" ]] ||
+  fail "Codex collector labels the plan" "$result"
+pass "Codex collector labels the plan"
 
-[[ ${codex_args[*]@Q} == "${expected_args[*]@Q}" ]] ||
-  fail "Codex collector uses the supported approval policy" "${codex_args[*]@Q}"
-pass "Codex collector uses the supported approval policy"
+[[ $(jq -c '[.limits[] | [.label, (.percent * 100 | round), .title // ""]]' <<<"$result") == '[["Weekly (7-day)",6,""],["GPT-5.3-Codex-Spark Session (5-hour)",0,"GPT-5.3-Codex-Spark Session"],["GPT-5.3-Codex-Spark Weekly (7-day)",12,"GPT-5.3-Codex-Spark Weekly"]]' ]] ||
+  fail "Codex collector reports account and model-scoped limit windows" "$result"
+pass "Codex collector reports account and model-scoped limit windows"
 
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "210" ]] ||
   fail "Codex collector counts each turn once" "$result"
@@ -64,9 +65,9 @@ pass "Codex collector counts each turn once"
   fail "Codex collector does not double-count cache or reasoning tokens" "$result"
 pass "Codex collector does not double-count cache or reasoning tokens"
 
-[[ $(jq -c '.id + "/" + (.limits|tostring)' <<<"$result") == '"codex/[]"' ]] ||
-  fail "Codex collector identifies itself with an empty limits list" "$result"
-pass "Codex collector identifies itself with an empty limits list"
+[[ $(jq -c '.id + "/" + (.limits|length|tostring)' <<<"$result") == '"codex/3"' ]] ||
+  fail "Codex collector identifies itself and keeps every limit window" "$result"
+pass "Codex collector identifies itself and keeps every limit window"
 
 # Pi and omp can both spend a Codex subscription without creating native
 # Codex sessions. Their compatible JSONL transcripts must be included.
