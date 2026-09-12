@@ -7,6 +7,11 @@
 
 set -e
 
+if (( EUID == 0 )); then
+  echo "Run omarchy update as your normal desktop user, without sudo. Individual update steps request privileges when needed." >&2
+  exit 1
+fi
+
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
   exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
