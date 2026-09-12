@@ -56,6 +56,14 @@ Item {
   readonly property bool dmenuActive: mode === "select" || mode === "input"
   property string dmenuPrompt: ""
   property var dmenuOptions: []
+  // Multi-select hands Tab the job of ticking rows and turns Enter into
+  // "confirm what is ticked". Ticks are keyed by the value the row would
+  // return -- the very string the caller asked to have its rows told apart by
+  // -- so they survive the list being refiltered underneath them.
+  property bool multiSelect: false
+  property var checkedValues: ({})
+  readonly property bool multiActive: multiSelect && mode === "select"
+  readonly property int checkedCount: Object.keys(checkedValues).length
   property string selectionFile: ""
   property string doneFile: ""
   property int dmenuWidth: 300
@@ -550,6 +558,18 @@ Item {
     root.cursorActive = target >= 0
   }
 
+  // An option is "<label>", "<glyph>\t<label>", or "<glyph>\t<label>\t<subtext>".
+  // The glyph never comes back with the selection; the subtext renders under the
+  // label, filters alongside it, and returns with the selection as a stable key
+  // for same-named rows.
+  function parseDmenuOption(option) {
+    var parts = String(option || "").split("\t")
+    var icon = parts.length > 1 ? parts.shift() : ""
+    var label = parts.shift() || ""
+    var detail = parts.join("\t")
+    return { icon: icon, label: label, detail: detail }
+  }
+
   function rebuildDmenuDisplay() {
     displayModel.clear()
     root.searchDivider = false
@@ -561,27 +581,20 @@ Item {
 
     var query = root.filterText.trim().toLowerCase()
     for (var i = 0; i < root.dmenuOptions.length; i++) {
-      // An option is "<label>", "<glyph>\t<label>", or
-      // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
-      // selection; the subtext renders under the label, filters alongside it,
-      // and returns with the selection as a stable key for same-named rows.
-      var parts = String(root.dmenuOptions[i] || "").split("\t")
-      var icon = parts.length > 1 ? parts.shift() : ""
-      var label = parts.shift() || ""
-      var detail = parts.join("\t")
-      if (query && label.toLowerCase().indexOf(query) < 0
-          && detail.toLowerCase().indexOf(query) < 0) continue
+      var option = root.parseDmenuOption(root.dmenuOptions[i])
+      if (query && option.label.toLowerCase().indexOf(query) < 0
+          && option.detail.toLowerCase().indexOf(query) < 0) continue
       displayModel.append({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
-        icon: icon,
+        icon: option.icon,
         iconFont: "",
         appIcon: "",
         appId: "",
-        label: label,
+        label: option.label,
         target: "",
-        detail: detail,
+        detail: option.detail,
         path: "",
         childCount: 0,
         action: "",
@@ -764,8 +777,12 @@ Item {
         return
       }
       if (index < 0 || index >= displayModel.count) return
+      if (root.multiActive) {
+        root.toggleCheckedAt(index)
+        return
+      }
       var picked = displayModel.get(index)
-      root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
+      root.applyDmenuSelection(root.dmenuValue(picked.label, picked.detail))
       return
     }
 
@@ -812,6 +829,57 @@ Item {
     if (root.appLibrary) root.appLibrary.remove(target.appId, target.label)
   }
 
+  // The string a dmenu row hands back: the label, plus the subtext that tells
+  // same-named rows apart.
+  function dmenuValue(label, detail) {
+    return detail ? label + "\t" + detail : label
+  }
+
+  function isChecked(label, detail) {
+    return !!root.checkedValues[root.dmenuValue(label, detail)]
+  }
+
+  function toggleCheckedAt(index) {
+    if (!root.multiActive || index < 0 || index >= displayModel.count) return
+
+    var row = displayModel.get(index)
+    var value = root.dmenuValue(row.label, row.detail)
+    // Rebuild rather than mutate: a `var` property only republishes to the
+    // bindings that read it -- the row checkboxes -- when the reference itself
+    // changes.
+    var next = ({})
+    for (var key in root.checkedValues) next[key] = true
+    if (next[value]) delete next[value]
+    else next[value] = true
+    root.checkedValues = next
+  }
+
+  // Ticked rows in the order the caller supplied them rather than the order
+  // they were ticked in: the caller wrote the list, so the answer reads back
+  // in its terms.
+  function checkedSelection() {
+    var picked = []
+    for (var i = 0; i < root.dmenuOptions.length; i++) {
+      var option = root.parseDmenuOption(root.dmenuOptions[i])
+      var value = root.dmenuValue(option.label, option.detail)
+      if (root.checkedValues[value]) picked.push(value)
+    }
+    return picked.join("\n")
+  }
+
+  // Enter with nothing ticked still means "this one", so reaching for a
+  // multi-select menu costs a single pick nothing.
+  function confirmMultiSelection() {
+    if (root.checkedCount > 0) {
+      root.applyDmenuSelection(root.checkedSelection())
+      return
+    }
+
+    if (displayModel.count === 0) return
+    var picked = displayModel.get(root.cursorActive ? root.selectedIndex : 0)
+    root.applyDmenuSelection(root.dmenuValue(picked.label, picked.detail))
+  }
+
   function applyDmenuSelection(value) {
     applySerial = requestSerial
     opened = false
@@ -837,6 +905,8 @@ Item {
   function openExistingMenu(initialMenu) {
     requestSerial += 1
     mode = "menu"
+    multiSelect = false
+    checkedValues = ({})
     requestActive = false
     selectionFile = ""
     doneFile = ""
@@ -863,6 +933,8 @@ Item {
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
+    multiSelect = mode === "select" && !!payload.multiSelect
+    checkedValues = ({})
     selectionFile = String(payload.selectionFile || "")
     doneFile = String(payload.doneFile || "")
     requestActive = !!doneFile
@@ -1139,6 +1211,9 @@ Item {
           } else if ((event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.filterText) {
             root.goBack()
             event.accepted = true
+          } else if (root.multiActive && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
+            root.toggleCheckedAt(root.cursorActive ? root.selectedIndex : 0)
+            event.accepted = true
           } else if (event.key === Qt.Key_Up) {
             root.select(-1)
             event.accepted = true
@@ -1154,6 +1229,7 @@ Item {
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Right) {
             if (root.dmenuActive) {
               if (root.mode === "input") root.applyDmenuSelection(root.filterText)
+              else if (root.multiActive) root.confirmMultiSelection()
               else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
             else root.settleCursor()
@@ -1201,7 +1277,8 @@ Item {
           Text {
             textFormat: Text.PlainText
             anchors.left: parent.left
-            anchors.right: parent.right
+            anchors.right: multiHint.visible ? multiHint.left : parent.right
+            anchors.rightMargin: multiHint.visible ? Style.space(10) : 0
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
             color: root.foreground
@@ -1209,6 +1286,21 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
+          }
+
+          // Doubles as the only hint that Tab does anything here, so it names
+          // the key until a row is ticked and then reports the tally.
+          Text {
+            id: multiHint
+            textFormat: Text.PlainText
+            visible: root.multiActive
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.checkedCount > 0 ? (root.checkedCount + " selected") : "Tab to select"
+            color: root.foreground
+            opacity: root.checkedCount > 0 ? 0.85 : 0.45
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
           }
 
         }
@@ -1263,6 +1355,7 @@ Item {
               required property bool disabled
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
+              readonly property bool checked: root.multiActive && root.isChecked(row.label, row.detail)
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
 
@@ -1355,7 +1448,7 @@ Item {
 
               Row {
                 id: trail
-                width: Style.space(14)
+                width: root.multiActive ? Style.space(15) : Style.space(14)
                 anchors.right: parent.right
                 anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
@@ -1372,8 +1465,37 @@ Item {
                   anchors.verticalCenter: parent.verticalCenter
                 }
 
+                Rectangle {
+                  id: checkbox
+                  visible: root.multiActive
+                  width: Style.space(15)
+                  height: Style.space(15)
+                  radius: Math.max(Style.space(3), Math.round(root.cornerRadius / 2))
+                  anchors.verticalCenter: parent.verticalCenter
+                  color: row.checked ? (row.hasCursor ? root.selectedText : root.foreground) : "transparent"
+                  border.width: Style.spacing.hairline
+                  border.color: Util.alpha(row.hasCursor ? root.selectedText : root.foreground, row.checked ? 1 : 0.4)
+
+                  Text {
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    visible: row.checked
+                    text: "✓"
+                    // The card background, not the row's: the fill is a text
+                    // color either way, so a check in the card's own ground
+                    // reads exactly as well as the label beside it. The
+                    // cursor row's fill is too near its own background to
+                    // carry a mark.
+                    color: root.background
+                    font.family: root.fontFamily
+                    font.pixelSize: Math.round(checkbox.height * 0.8)
+                    font.bold: true
+                  }
+                }
+
                 Text {
                   textFormat: Text.PlainText
+                  visible: !root.multiActive
                   text: row.kind === "menu" || row.kind === "link" ? "›" : ""
                   color: row.hasCursor ? root.selectedText : root.foreground
                   opacity: row.kind === "menu" || row.kind === "link" ? 0.36 : 0
