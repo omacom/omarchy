@@ -17,9 +17,11 @@ if lspci | grep -qi 'nvidia'; then
 
   omarchy-pkg-add "${PACKAGES[@]}"
 
-  # Dynamic Boost needs nvidia-powerd running; Arch ships the unit disabled.
-  # Without it, laptop GPUs stay at base TGP.
-  systemctl enable nvidia-powerd
+  # Enable Dynamic Boost on systems exposing NVIDIA's platform controller.
+  # Match the ACPI hardware ID without assuming a particular device instance.
+  if grep -qx 'NVDA0820' /sys/bus/acpi/devices/*/hid 2>/dev/null; then
+    systemctl enable nvidia-powerd
+  fi
 
   # Per-session Hyprland NVIDIA env vars are handled by default/hypr/nvidia.lua.
 
