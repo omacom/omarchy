@@ -185,8 +185,7 @@ def ensure_canonical_credentials(account_id: str, account_path: Path) -> Path | 
   return dest
 
 
-def point_home_credentials(account_id: str, account_path: Path, index: dict[str, Any] | None = None) -> None:
-  harvest_home_into_owner(index)
+def install_home_credentials(account_id: str, account_path: Path) -> None:
   canonical = ensure_canonical_credentials(account_id, account_path)
   if canonical is None or not canonical.is_file():
     return
@@ -197,6 +196,11 @@ def point_home_credentials(account_id: str, account_path: Path, index: dict[str,
   if home.is_symlink():
     home.unlink()
   atomic_write(home, data, 0o600)
+
+
+def point_home_credentials(account_id: str, account_path: Path, index: dict[str, Any] | None = None) -> None:
+  harvest_home_into_owner(index)
+  install_home_credentials(account_id, account_path)
 
 
 def ensure_state() -> None:
@@ -287,6 +291,10 @@ def write_index(index: dict[str, Any]) -> None:
 
 
 def upsert_account(index: dict[str, Any], ident: dict[str, Any], active: bool) -> dict[str, Any]:
+  existing = next((a for a in index["accounts"] if str(a.get("id")) == ident["id"]), None)
+  path = ident["path"]
+  if existing and existing.get("path"):
+    path = str(existing["path"])
   accounts = [a for a in index["accounts"] if str(a.get("id")) != ident["id"]]
   accounts.append({
     "id": ident["id"],
@@ -294,7 +302,7 @@ def upsert_account(index: dict[str, Any], ident: dict[str, Any], active: bool) -
     "label": ident.get("label") or ident.get("email") or ident["id"],
     "plan": ident.get("plan") or "",
     "organization": ident.get("organization") or "",
-    "path": ident["path"],
+    "path": path,
   })
   accounts.sort(key=lambda row: str(row.get("email") or row.get("id")).lower())
   index["accounts"] = accounts
@@ -369,7 +377,8 @@ def cmd_list(as_json: bool) -> int:
       live_dir = active_path(index) or default_config_dir()
       live = identity_in(live_dir)
       if live is not None:
-        index = upsert_account(index, live, active=True)
+        known = any(str(a.get("id")) == live["id"] for a in index["accounts"])
+        index = upsert_account(index, live, active=not known and not index.get("activeId"))
       payload = public_index(index, live)
     current = payload.get("current") or {}
     current_id = str(current.get("id") or "")
@@ -415,7 +424,7 @@ def cmd_use(account_id: str, as_json: bool) -> int:
     harvest_home_into_owner(index)
     index["activeId"] = account_id
     write_index(index)
-    point_home_credentials(account_id, expand_path(str(match["path"])), index)
+    install_home_credentials(account_id, expand_path(str(match["path"])))
     payload = public_index(index, identity_in(expand_path(str(match["path"]))))
   notify_switched(payload.get("current") or {})
   refresh_usage()

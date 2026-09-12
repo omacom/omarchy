@@ -90,6 +90,9 @@ pass "add leaves the original session saved and copies active credentials to ~/.
 
 work_id=$(jq -r '.current.id' <<<"$listed")
 omarchy-agent-account use claude "$personal_id" >/dev/null
+personal_good="$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/$personal_id/.credentials.last-good.json"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$personal_good") == "personal-token" ]] ||
+  fail "switching away does not harvest the old live tokens into the new account"
 [[ $(jq -r '.current.email' <<<"$(omarchy-agent-account list --json)") == "personal@example.com" ]] ||
   fail "use switches the pointer back to the original account"
 [[ $(omarchy-agent-account dir claude) == "$(python3 -c "from pathlib import Path; print(Path('$HOME/.claude').resolve())")" ]] ||
@@ -99,6 +102,11 @@ omarchy-agent-account use claude "$personal_id" >/dev/null
 [[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "personal-token" ]] ||
   fail "use copies the selected account onto ~/.claude"
 [[ ! -L $HOME/.claude/.credentials.json ]] || fail "use does not reintroduce a credentials symlink"
+work_listed=$(omarchy-agent-account list --json)
+[[ $(jq -r --arg id "$personal_id" '.accounts[] | select(.id==$id) | .path' <<<"$work_listed") == "$(python3 -c "from pathlib import Path; print(Path('$HOME/.claude').resolve())")" ]] ||
+  fail "list does not move the original account onto the isolated dir"
+[[ $(jq -r --arg id "$work_id" '.accounts[] | select(.id==$id) | .path' <<<"$work_listed") == "$work_path" ]] ||
+  fail "list keeps the isolated account on its own dir"
 pass "use switches the pointer without copying OAuth"
 
 if omarchy-agent-account list codex >/dev/null 2>&1; then
@@ -147,3 +155,15 @@ omarchy-agent-account use claude "$work_id" >/dev/null
 [[ $(jq -r '.claudeAiOauth.accessToken' "$HOME/.claude/.credentials.json") == "work-token" ]] ||
   fail "restored tokens are what live credentials follow"
 pass "use restores a blanked login without touching the other account"
+
+omarchy-agent-account use claude "$personal_id" >/dev/null
+rm -f "$XDG_STATE_HOME/omarchy/agent-accounts/claude/accounts/$work_id/.credentials.last-good.json"
+cat >"$work_path/.credentials.json" <<'JSON'
+{"claudeAiOauth":{"accessToken":"","refreshToken":"","expiresAt":0,"refreshTokenExpiresAt":1,"subscriptionType":"max","rateLimitTier":"default_claude_max_5x"}}
+JSON
+omarchy-agent-account use claude "$work_id" >/dev/null
+[[ $(jq -r '.claudeAiOauth.accessToken' "$work_path/.credentials.json") == "" ]] ||
+  fail "switching onto an empty saved login does not copy the previous live tokens into it"
+[[ $(jq -r '.claudeAiOauth.accessToken' "$personal_canon") == "personal-token" ]] ||
+  fail "an empty target does not steal the other account's saved tokens"
+pass "switching onto an empty saved login does not inherit the previous live tokens"
