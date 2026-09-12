@@ -372,3 +372,21 @@ You can use `Super + Ctrl + E` to show a complete emoji picker that'll put the s
 | `CapsLock Space E` | Your email (as entered on setup)  |
 
 You can add more of your own by editing `~/.XCompose`, then running `omarchy-restart-xcompose` in the terminal to get the changes picked up.
+
+## Accents and Special Characters
+
+CapsLock is a standard [compose key](https://en.wikipedia.org/wiki/Compose_key), so the full system compose table works on the plain `us` layout too. Press the keys one after another rather than holding them: CapsLock, then the accent, then the letter. Capital letters work the same way with Shift.
+
+| Hotkey       | Result       |
+| ------------ |  ---------- |
+| `CapsLock ' E` | é (also á í ó ú)   |
+| ``CapsLock ` E`` | è (also à ì ò ù)   |
+| `CapsLock ~ N` | ñ   |
+| `CapsLock " U` | ü (also ä ë ï ö)   |
+| `CapsLock ^ E` | ê   |
+| `CapsLock , C` | ç   |
+| `CapsLock S S` | ß   |
+| `CapsLock ? ?` | ¿   |
+| `CapsLock ! !` | ¡   |
+| `CapsLock = E` | €   |
+| `CapsLock O O` | °   |
