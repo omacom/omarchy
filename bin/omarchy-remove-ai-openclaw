@@ -61,7 +61,7 @@ gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 # front of the user with the size rather than left silent. Without a terminal
 # to ask in, keeping it is the answer.
 state_removed=false
-if [[ -d $HOME/.openclaw && -t 0 ]] && omarchy-cmd-present gum; then
+if [[ -d $HOME/.openclaw && -t 0 ]]; then
   size=$(du -sh "$HOME/.openclaw" 2>/dev/null | cut -f1)
   if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, and downloaded plugins)?"; then
     rm -rf "$HOME/.openclaw"

@@ -1,26 +1,48 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Overwrite the package configuration for /etc/pacman with the Omarchy default of using its dedicated mirrors and repositories, then update all packages.
 # omarchy:requires-sudo=true
 
-sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
-sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
-
-channel="${1:-stable}"
-
-if [[ $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
-  echo "Error: Invalid channel '$channel'. Must be one of: stable, rc, edge"
-  exit 1
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
 fi
 
-echo "Setting channel to $channel"
-echo
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+user_path=$PATH
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_enable_no_update_sudo
 
-sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-$channel.conf" /etc/pacman.conf
-sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" /etc/pacman.d/mirrorlist
+channel="${1:-stable}"
+hook_mode="${2:-normal}"
+if [[ $channel != "stable" && $channel != "rc" && $channel != "edge" ]]; then
+  echo "Invalid channel: $channel" >&2
+  exit 2
+fi
+if [[ $hook_mode != "normal" && $hook_mode != "defer-hook" && $hook_mode != "run-deferred" ]]; then
+  echo "Invalid refresh hook mode: $hook_mode" >&2
+  exit 2
+fi
 
-# Allow user customization of /etc/pacman.conf before the upgrade runs
-omarchy-hook pre-refresh-pacman
+if [[ $hook_mode != "run-deferred" ]]; then
+  sudo cp -f /etc/pacman.conf /etc/pacman.conf.bak
+  sudo cp -f /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.bak
+  echo "Setting channel to $channel"
+  sudo cp -f "$OMARCHY_PATH/default/pacman/pacman-$channel.conf" /etc/pacman.conf
+  sudo cp -f "$OMARCHY_PATH/default/pacman/mirrorlist-$channel" /etc/pacman.d/mirrorlist
+  sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Syyuu --noconfirm
+fi
 
-# Reset all package DBs and then update
-sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Syyuu --noconfirm
+# Keep the historical hook name, but finish every privileged refresh operation
+# before running user code. Callers with later root work can defer the hook.
+if [[ $hook_mode != "defer-hook" ]]; then
+  omarchy_security_revoke_sudo_timestamp
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" \
+    "$OMARCHY_PATH/bin/omarchy-hook" pre-refresh-pacman
+fi

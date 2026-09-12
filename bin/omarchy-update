@@ -1,28 +1,60 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Update Omarchy and system packages
 # omarchy:args=[-y]
 # omarchy:examples=omarchy update | omarchy update -y
 # omarchy:requires-sudo=true
 
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
 set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+# Logging and lock acquisition re-exec this command with a sanitized PATH.
+# Preserve the caller's path only for the later unprivileged hook/mise phases.
+user_path=${OMARCHY_UPDATE_USER_PATH:-$PATH}
+unset OMARCHY_UPDATE_USER_PATH
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_enable_no_update_sudo
+
+update_stay_awake_stopped=0
+cleanup_update() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  if ! omarchy_security_revoke_sudo_timestamp; then
+    echo "Could not invalidate sudo before update cleanup." >&2
+    omarchy_security_exit_with_revoked_sudo 1
+  fi
+  if (( update_stay_awake_stopped == 0 )); then
+    omarchy-update-stay-awake stop || status=1
+  fi
+  omarchy_security_exit_with_revoked_sudo "$status"
+}
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_USER_PATH="$user_path" script -qefc "$script_command" "/tmp/omarchy-update.log"
 fi
 
 if ! omarchy-update-lock held; then
-  exec omarchy-update-lock run "$0" "$@"
+  exec env OMARCHY_UPDATE_USER_PATH="$user_path" omarchy-update-lock run "$0" "$@"
 fi
 
 trap 'echo ""; echo -e "\033[0;31mSomething went wrong during the update!\n\nPlease review the output above carefully, correct the error, and retry the update.\n\nIf you need assistance, get help from the community at https://omarchy.org/discord\033[0m"' ERR
-trap 'omarchy-update-stay-awake stop' EXIT
+trap cleanup_update EXIT
+omarchy_security_install_signal_exit_traps
 
 omarchy-update-requires-free-space
 
-# -y is a promise not to ask anything. Steps that would need an answer report
-# and move on instead of waiting on a prompt nobody is here to give.
+# -y suppresses Omarchy confirmation prompts; sudo authorization is still
+# required. Interactive review steps report and move on instead of waiting.
 [[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
 
 if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
@@ -38,6 +70,7 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
 
   omarchy-update-stay-awake start
 
+  # Preserve the established development-checkout update ordering.
   omarchy-update-dev
   omarchy-update-keyring
 
@@ -45,20 +78,41 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # them, so everything below waits on this finishing. An upgrade that stopped
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
+
+  # Historical migrations are strictly ordered and mix user hooks/downloaded
+  # tooling with privileged repairs. The no-update sudo wrapper has covered the
+  # whole update, so neither the package transaction nor a later repair can
+  # publish a timestamp to a detached migration child.
+  omarchy_security_revoke_sudo_timestamp
   omarchy-migrate
-  omarchy-hook post-update
-  omarchy-update-aur-pkgs
-  omarchy-update-mise
   omarchy-update-orphan-pkgs
 
   omarchy-update-analyze-logs
   omarchy-update-status
 
+  # Service restart helpers can need sudo. Run them before any user-controlled
+  # update tooling; the reboot-only phase below performs no privileged work.
+  omarchy-update-restart --services-only
+
   # Release update-owned inhibitors before offering a reboot. A confirmed
   # reboot can terminate this process before its EXIT trap gets a chance to
   # remove the persistent Stay Awake marker.
+  omarchy_security_revoke_sudo_timestamp
   omarchy-update-stay-awake stop
-  trap - EXIT
+  update_stay_awake_stopped=1
 
-  omarchy-update-restart
+  # AUR package installation must also use the no-update wrapper. Finish
+  # update-owned system work before build code, hooks, or mise can run.
+  omarchy-update-aur-pkgs
+  omarchy_security_revoke_sudo_timestamp
+
+  # Hooks and mise execute user-controlled code. Give each a cold credential
+  # boundary and run mise last so it cannot wait for a legitimate hook sudo.
+  # Only the unprivileged reboot prompt follows them.
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" "$OMARCHY_PATH/bin/omarchy-hook" post-update
+  omarchy_security_revoke_sudo_timestamp
+  PATH="$OMARCHY_PATH/default/omarchy/sudo-no-update:$user_path" "$OMARCHY_PATH/bin/omarchy-update-mise"
+  omarchy_security_revoke_sudo_timestamp
+
+  "$OMARCHY_PATH/bin/omarchy-update-restart" --reboot-only
 fi
