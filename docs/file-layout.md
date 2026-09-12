@@ -199,6 +199,13 @@ The ISO calls it as `omarchy-finalize-user --force --first-install` in the
 target chroot as the install user, after `omarchy-apply-system` has finished
 the root-side work.
 
+Keyboard layout: the ISO's `configure_keyboard` and `omarchy-provision-owner`'s
+`apply_keyboard` persist the picked layout as both a console `KEYMAP` and the
+XKB variables in `/etc/vconsole.conf` — Hyprland's package-owned default input
+and the SDDM greeter resolve their layout from `XKBLAYOUT` / `XKBVARIANT` there
+(via `default/hypr/keyboard.lua`), so a password typed under the chosen layout
+at install time stays typeable at the login prompt.
+
 ## Migrations (`omarchy-migrate`)
 
 See [`migrations.md`](migrations.md) for the full migration model, authoring
