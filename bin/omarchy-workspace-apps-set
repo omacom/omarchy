@@ -50,8 +50,7 @@ for n in 1 2 3 4 5 6 7 8 9 0; do
   [[ -n $current ]] && label="$label  —  currently: $current"
   rows+=$'\t'"$label"$'\t'"$internal"$'\n'
 done
-selection=$(omarchy-menu-select "Set startup app for workspace" <<<"$rows") || exit 0
-ws=$(cut -f2 <<<"$selection")
+selection=$(omarchy-menu-select "Set app for workspace" <<<"$rows") || exit 0ws=$(cut -f2 <<<"$selection")
 display=$(internal_to_display "$ws")
 
 # 2. pick what launches there
