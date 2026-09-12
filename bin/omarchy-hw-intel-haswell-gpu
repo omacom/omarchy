@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when an Intel Haswell GPU is present
+# omarchy:hidden=true
+
+for device in "${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"/*; do
+  [[ -r $device/vendor && -r $device/device && -r $device/class ]] || continue
+  [[ $(<"$device/vendor") == "0x8086" && $(<"$device/class") == "0x03"* ]] || continue
+  # Intel's HSW GT1/GT2/GT3 PCI IDs, including ULT, SDV and Crystal Well.
+  case "$(<"$device/device")" in
+    0x0[4acd][012][26abe]) exit 0 ;;
+  esac
+done
+
+exit 1
