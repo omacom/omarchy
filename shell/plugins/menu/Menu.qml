@@ -103,7 +103,7 @@ Item {
 
   function loadFrecency() {
     if (frecencyProc.running) return
-    frecencyProc.command = ["omarchy-activity", "top"]
+    frecencyProc.command = ["bash", "-lc", "omarchy-activity top"]
     frecencyProc.running = true
   }
 
