@@ -22,6 +22,7 @@ const lockService = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.
 const batteryService = fs.readFileSync(path.join(root, 'shell/plugins/services/battery/Service.qml'), 'utf8')
 const themeSet = fs.readFileSync(path.join(root, 'bin/omarchy-theme-set'), 'utf8')
 const directImageList = fs.readFileSync(path.join(root, 'shell/plugins/image-picker/list.sh'), 'utf8')
+const bootIntro = fs.readFileSync(path.join(root, 'bin/omarchy-theme-bg-boot-intro'), 'utf8')
 
 assert(
   /function isVideoPath\(path\)[\s\S]*\.test\(String\(path \|\| ""\)\)/.test(utilQml) &&
@@ -29,7 +30,7 @@ assert(
   'shared media helper identifies video paths without truncating valid local names'
 )
 assert(
-  videoQml.includes('loops: MediaPlayer.Infinite') &&
+  videoQml.includes('loops: root.loop ? MediaPlayer.Infinite : 1') &&
     videoQml.includes('autoPlay: root.playbackEnabled') &&
     videoQml.includes('fillMode: VideoOutput.PreserveAspectCrop') &&
     /imageUrl: path && !Util\.isVideoPath\(path\) \? Util\.fileUrl\(path\) \+ \(version \? "\?v=" \+ version : ""\) : ""/.test(mediaQml) &&
@@ -47,17 +48,51 @@ assert(
     videoQml.includes('interval: 1000') &&
     videoQml.includes('interval: 50') &&
     videoQml.includes('frameReceived') &&
+    videoQml.includes('signal firstFramePrimed()') &&
     videoQml.includes('output.clearOutput()') &&
     !videoQml.includes('KeepLastFrame') &&
-    /onPlaybackEnabledChanged:[\s\S]*?if \(playbackEnabled\) player\.play\(\)[\s\S]*?else player\.pause\(\)/.test(videoQml) &&
+    /restartFromPrimedFrame[\s\S]*?player\.position = 0[\s\S]*?player\.play\(\)[\s\S]*?player\.pause\(\)/.test(videoQml) &&
     videoQml.includes('primingGeneration') &&
     videoQml.includes('player.play()') &&
     videoQml.includes('player.pause()'),
   'paused video sources are primed to display their first frame'
 )
 assert(
+  mediaQml.includes('signal firstFramePrimed()') &&
+    mediaQml.includes('function onFirstFramePrimed()') &&
+    backgroundQml.includes('property bool bootIntroResolving: false') &&
+    backgroundQml.includes('bootIntroResolveTimer.restart()') &&
+    backgroundQml.includes('visible: root.bootIntroResolving || (root.bootIntroActive && !panel.bootIntroPlaybackStarted)') &&
+    backgroundQml.includes('color: Color.background') &&
+    backgroundQml.includes('id: bootIntroMedia') &&
+    backgroundQml.includes('onFirstFramePrimed: panel.maybeStartBootIntro()') &&
+    backgroundQml.includes('playbackEnabled: root.bootIntroActive && panel.bootIntroPlaybackStarted') &&
+    backgroundQml.includes('if (root.bootIntroActive && !panel.bootIntroPlaybackStarted) root.cancelBootIntro()'),
+  'boot intros cover the still until a primed first frame can start from zero'
+)
+assert(
+  videoQml.includes('mediaStatus === MediaPlayer.EndOfMedia') &&
+    mediaQml.includes('property bool loop: true') &&
+    backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]') &&
+    backgroundQml.includes('path: root.bootIntroActive ? root.bootIntroPath : ""') &&
+    backgroundQml.includes('audioEnabled: false') &&
+    backgroundQml.includes('loop: false') &&
+    backgroundQml.includes('fadeOutDuration: 750') &&
+    backgroundQml.includes('opacity: 1 - fadeOutProgress') &&
+    backgroundQml.includes('onFinished: panel.handleBootIntroFinished()') &&
+    bootIntro.includes('background-intro.boot-id'),
+  'a matching theme intro plays once per boot and reveals the loaded still at end of media'
+)
+assert(
+  videoQml.includes('readonly property real fadeOutProgress:') &&
+    mediaQml.includes('property int fadeOutDuration: 0') &&
+    mediaQml.includes('property: "fadeOutDuration"'),
+  'one-shot media can fade into the exact still instead of reframing abruptly at its final frame'
+)
+assert(
   !/^\s*import QtMultimedia/m.test(mediaQml) &&
-    mediaQml.includes('source: "BackgroundVideo.qml"'),
+    mediaQml.includes('source: "BackgroundVideo.qml"') &&
+    mediaQml.includes('source: root.imageUrl'),
   'the still-image path never imports QtMultimedia, so image-only sessions do not map it'
 )
 assert(
@@ -364,3 +399,53 @@ set_theme_background
 
 pass "theme transitions skip snapshots whenever either side is a video"
 pass "theme changes recover from a missing preselected background"
+
+intro_home="$test_tmp/intro-home"
+intro_state="$intro_home/.local/state/omarchy/current"
+mkdir -p "$intro_state/theme/backgrounds" "$intro_state/theme/intros"
+printf 'still\n' >"$intro_state/theme/backgrounds/0-winding-road.webp"
+printf 'video\n' >"$intro_state/theme/intros/0-winding-road.mp4"
+printf 'tokyo-night\n' >"$intro_state/theme.name"
+intro_hash=$(sha256sum "$intro_state/theme/backgrounds/0-winding-road.webp")
+printf '%s\n' "${intro_hash%% *}" >"$intro_state/theme/intros/0-winding-road.sha256"
+ln -s "$intro_state/theme/backgrounds/0-winding-road.webp" "$intro_state/background"
+
+intro=$(HOME="$intro_home" XDG_RUNTIME_DIR="$test_tmp" OMARCHY_BOOT_ID=video-test-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
+[[ $intro == "$intro_state/theme/intros/0-winding-road.mp4" ]] || \
+  fail "boot intro resolves by the selected background stem" "$intro"
+
+second_intro=$(HOME="$intro_home" XDG_RUNTIME_DIR="$test_tmp" OMARCHY_BOOT_ID=video-test-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
+[[ -z $second_intro ]] || fail "boot intro runs once for a boot id" "$second_intro"
+
+pass "boot intro resolves the selected still once per boot"
+
+migration="$ROOT/migrations/1788281348.sh"
+migration_home="$test_tmp/migration-home"
+migration_bin="$test_tmp/migration-bin"
+migration_calls="$test_tmp/migration-calls"
+mkdir -p "$migration_home/.local/state/omarchy/current" "$migration_bin"
+
+cat >"$migration_bin/omarchy-theme-refresh" <<'SH'
+#!/bin/bash
+printf 'refresh\n' >>"$MIGRATION_CALLS"
+SH
+chmod +x "$migration_bin/omarchy-theme-refresh"
+
+printf 'catppuccin\n' >"$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$migration" >/dev/null
+[[ $(<"$migration_calls") == "refresh" ]] || fail "boot intro migration refreshes an active theme with packaged intros"
+[[ -s $migration_home/.local/state/omarchy/background-intro.boot-id ]] || fail "boot intro migration records the current boot after refreshing"
+
+: >"$migration_calls"
+printf 'custom-theme\n' >"$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$migration" >/dev/null
+[[ ! -s $migration_calls ]] || fail "boot intro migration leaves a theme without packaged intros alone"
+
+rm "$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$migration" >/dev/null
+[[ ! -s $migration_calls ]] || fail "boot intro migration tolerates missing theme state"
+
+pass "boot intro migration stages assets only for an active theme with packaged intros"

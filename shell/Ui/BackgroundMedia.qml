@@ -13,9 +13,12 @@ Item {
   // would read a query as part of the filename.
   property int reloads: 0
   property bool reloading: false
+  property bool loop: true
+  property int fadeOutDuration: 0
   readonly property var current: video ? videoLoader.item : imageLoader.item
   readonly property bool ready: current ? current.ready : false
   readonly property bool video: Util.isVideoPath(path)
+  readonly property real fadeOutProgress: videoLoader.item ? videoLoader.item.fadeOutProgress : 0
   // Cache-bust images selected in a running lock session. FFmpeg treats the
   // query as part of a local filename, so videos must keep their plain URL.
   // Each URL is empty for the other kind, so a switch never hands the still
@@ -24,6 +27,9 @@ Item {
   // against the stale flag and leak the wrong file for one pass.
   readonly property url imageUrl: path && !Util.isVideoPath(path) ? Util.fileUrl(path) + (version ? "?v=" + version : "") : ""
   readonly property url videoUrl: path && Util.isVideoPath(path) ? Util.fileUrl(path) : ""
+
+  signal finished()
+  signal firstFramePrimed()
 
   Loader {
     id: imageLoader
@@ -69,6 +75,30 @@ Item {
     property: "audioEnabled"
     value: root.audioEnabled
     when: videoLoader.item !== null
+  }
+
+  Binding {
+    target: videoLoader.item
+    property: "loop"
+    value: root.loop
+    when: videoLoader.item !== null
+  }
+
+  Binding {
+    target: videoLoader.item
+    property: "fadeOutDuration"
+    value: root.fadeOutDuration
+    when: videoLoader.item !== null
+  }
+
+  Connections {
+    target: videoLoader.item
+    function onFinished() {
+      root.finished()
+    }
+    function onFirstFramePrimed() {
+      root.firstFramePrimed()
+    }
   }
 
   Component {
