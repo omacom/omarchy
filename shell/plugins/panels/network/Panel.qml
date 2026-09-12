@@ -2198,6 +2198,23 @@ Panel {
     }
 
     property bool manualMode: manualSaved
+    // The switch stages a change: nothing is written to the profile until the
+    // Apply beside it runs, so the row has to say which mode is in force rather
+    // than let a flip speak for itself. modeDirty is the switch disagreeing with
+    // the saved profile; modeEdited remembers that the user moved it, so a
+    // background reload of info.method cannot make a staged apply vanish before
+    // it is committed.
+    readonly property bool modeDirty: manualMode !== manualSaved
+    property bool modeEdited: false
+    // The header states the saved mode and names the requested one beside it
+    // while they differ -- "MANUAL → AUTO DHCP" -- so an unapplied flip can never
+    // read as a mode already in force. See Model.ipv4ModeLabel.
+    readonly property string modeLabel: Model.ipv4ModeLabel(manualMode, manualSaved)
+    // A staged switch to automatic gets its own button, so the DHCP side is
+    // committable instead of only being a switch that moves.
+    readonly property string dhcpButtonText: (connected || hasCarrier)
+      ? "Apply DHCP & connect"
+      : "Save DHCP"
     property string draftAddress: info.address || ""
     property string draftPrefix: info.prefix || ""
     property string draftGateway: info.gateway || ""
@@ -2211,6 +2228,7 @@ Panel {
       if (initializedDevice === info.device) return
       initializedDevice = info.device
       manualMode = info.method === "manual"
+      modeEdited = false
       draftAddress = info.address || ""
       draftPrefix = info.prefix || ""
       draftGateway = info.gateway || ""
@@ -2235,6 +2253,16 @@ Panel {
         }
         if (draftPrefix === "") draftPrefix = "24"
       }
+
+      modeEdited = manualMode !== manualSaved
+    }
+
+    // Reset/Cancel: restore every draft from the saved profile. initFromInfo()
+    // returns early for a device it has already loaded, so Reset needs its own
+    // entry point or it would be a no-op.
+    function resetToInfo() {
+      initializedDevice = ""
+      initFromInfo()
     }
 
     function validIpv4(value) {
@@ -2342,7 +2370,7 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            text: wiredRow.manualMode ? "MANUAL" : "AUTO DHCP"
+            text: wiredRow.modeLabel
             color: Qt.darker(root.bar.foreground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
@@ -2396,16 +2424,52 @@ Panel {
         }
       }
 
-      // Auto DHCP is the default; no form is needed.
-      Text {
-        textFormat: Text.PlainText
+      // Auto DHCP is the default; no form is needed. Switching into it is still
+      // a staged change, though, so the automatic side needs the same Apply and
+      // Reset the form has: without them the only Apply in the row disappears
+      // with the form, leaving the header claiming a mode that was never applied
+      // and no way to apply it from here.
+      Column {
         visible: !wiredRow.manualMode
         width: parent.width
-        text: "DHCP — obtain IP, gateway and DNS automatically."
-        color: Qt.darker(root.bar.foreground, 1.6)
-        font.family: root.bar.fontFamily
-        font.pixelSize: Style.font.caption
-        wrapMode: Text.WordWrap
+        spacing: Style.space(6)
+
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width
+          text: "DHCP — obtain IP, gateway and DNS automatically."
+          color: Qt.darker(root.bar.foreground, 1.6)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
+        }
+
+        Row {
+          visible: wiredRow.modeDirty || wiredRow.modeEdited
+          spacing: Style.space(6)
+
+          Button {
+            text: wiredRow.busy ? "Applying…" : wiredRow.dhcpButtonText
+            enabled: !wiredRow.busy
+            fontSize: Style.font.body
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY
+            onClicked: wiredRow.applyConfig()
+          }
+
+          Button {
+            text: "Reset"
+            visible: !wiredRow.busy
+            fontSize: Style.font.body
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY
+            onClicked: wiredRow.resetToInfo()
+          }
+        }
       }
 
       // Static IPv4 form.
@@ -2519,7 +2583,7 @@ Panel {
             fontFamily: root.bar.fontFamily
             horizontalPadding: Style.spacing.controlPaddingX
             verticalPadding: Style.spacing.controlPaddingY
-            onClicked: wiredRow.initFromInfo()
+            onClicked: wiredRow.resetToInfo()
           }
         }
       }
