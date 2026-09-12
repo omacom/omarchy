@@ -89,3 +89,21 @@ chmod +x "$fake_bin/omarchy-cmd-present"
 GPU_COUNT=2 hybrid_gpu ||
   fail "hybrid GPU detection counts GPUs without supergfxctl"
 pass "hybrid GPU detection counts GPUs without supergfxctl"
+
+# Verify sysfs detection via OMARCHY_PCI_DEVICES_PATH
+fake_pci="$test_tmp/pci"
+mkdir -p "$fake_pci/dev1" "$fake_pci/dev2"
+echo "0x030000" > "$fake_pci/dev1/class"
+echo "0x030200" > "$fake_pci/dev2/class"
+
+OMARCHY_PCI_DEVICES_PATH="$fake_pci" hybrid_gpu ||
+  fail "hybrid GPU detection counts multiple GPUs from sysfs without lspci"
+pass "hybrid GPU detection counts multiple GPUs from sysfs without lspci"
+
+rm -rf "$fake_pci/dev2"
+OMARCHY_PCI_DEVICES_PATH="$fake_pci" hybrid_gpu
+status=$?
+((status == 1)) ||
+  fail "hybrid GPU detection sees a single GPU from sysfs as non-hybrid" "exit status: $status"
+pass "hybrid GPU detection sees a single GPU from sysfs as non-hybrid"
+

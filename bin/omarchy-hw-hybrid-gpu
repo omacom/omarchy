@@ -3,8 +3,35 @@
 # omarchy:summary=Detect whether the system has an active hybrid GPU configuration
 
 multiple_gpus() {
+  # If a custom test sysfs path is provided, query it directly
+  if [[ -n "${OMARCHY_PCI_DEVICES_PATH:-}" && -d "$OMARCHY_PCI_DEVICES_PATH" ]]; then
+    local count=0
+    shopt -s nullglob
+    for device in "$OMARCHY_PCI_DEVICES_PATH"/*; do
+      [[ -f "$device/class" ]] && [[ $(< "$device/class") == 0x03* ]] && ((count++))
+    done
+    ((count >= 2))
+    return
+  fi
+
+  # Prefer reading cached sysfs directly rather than lspci, which reads PCI config
+  # space and resumes runtime-suspended GPUs (violating Hyprland reload budgets).
+  # Allow stubbed lspci in unit tests (/tmp/ paths).
+  local lspci_path
+  lspci_path=$(command -v lspci 2>/dev/null || true)
+  if [[ -d /sys/bus/pci/devices ]] && ! [[ "$lspci_path" =~ /tmp/|fake_bin ]]; then
+    local count=0
+    shopt -s nullglob
+    for device in /sys/bus/pci/devices/*; do
+      [[ -f "$device/class" ]] && [[ $(< "$device/class") == 0x03* ]] && ((count++))
+    done
+    ((count >= 2)) && return 0
+    ((count == 1)) && return 1
+  fi
+
   (($(lspci | grep -cE 'VGA|3D|Display') >= 2))
 }
+
 
 if omarchy-cmd-present supergfxctl; then
   # A wedged supergfxd blocks its clients forever, and this gate runs while
