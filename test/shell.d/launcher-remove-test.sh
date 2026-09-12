@@ -68,15 +68,40 @@ Name=Aliens
 Exec=retroarch -L /usr/lib/libretro/fbneo_libretro.so /home/example/Games/roms/fbneo/aliens.zip
 DESKTOP
 
+# Plugin-owned launcher: basename matches ~/.config/omarchy/plugins/<id>
+mkdir -p "$tmp_dir/config/omarchy/plugins/omamail/icons"
+touch "$tmp_dir/config/omarchy/plugins/omamail/icons/app.png"
+cat >"$tmp_dir/data/applications/omamail.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Omamail
+Exec=true
+MimeType=x-scheme-handler/mailto;
+DESKTOP
+
+# False positive: Icon= under a plugin tree must NOT imply ownership.
+cat >"$tmp_dir/data/applications/borrowed-icon.desktop" <<DESKTOP
+[Desktop Entry]
+Name=Borrowed Icon
+Exec=true
+Icon=$tmp_dir/config/omarchy/plugins/omamail/icons/app.png
+DESKTOP
+
+write_fake_command omarchy-plugin-remove plugin
+
 export TEST_LOG="$tmp_dir/log"
 export PATH="$tmp_dir/bin:$PATH"
 export XDG_DATA_HOME="$tmp_dir/data"
 export XDG_DATA_DIRS="$tmp_dir/system"
+export XDG_CONFIG_HOME="$tmp_dir/config"
+export HOME="$tmp_dir/home"
+mkdir -p "$HOME"
 
 "$ROOT/bin/omarchy-remove-launcher-entry" Basecamp.desktop Basecamp
 "$ROOT/bin/omarchy-remove-launcher-entry" Docker.desktop Docker
 "$ROOT/bin/omarchy-remove-launcher-entry" native.desktop Native
 "$ROOT/bin/omarchy-remove-launcher-entry" aliens.desktop Aliens
+"$ROOT/bin/omarchy-remove-launcher-entry" omamail.desktop Omamail
+"$ROOT/bin/omarchy-remove-launcher-entry" borrowed-icon.desktop "Borrowed Icon"
 
 mapfile -t lines <"$TEST_LOG"
 
@@ -92,5 +117,20 @@ pass "launcher remove opens package uninstall flow"
 [[ ! -e $tmp_dir/data/applications/aliens.desktop ]] || fail "launcher remove deletes user-owned desktop files"
 pass "launcher remove deletes user-owned desktop files"
 
-(( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
+(( ${#lines[@]} == 4 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
+
+[[ ${lines[3]} == "plugin:false:--yes omamail" || ${lines[3]} == "plugin::--yes omamail" ]] ||   fail "launcher remove routes plugin desktops through plugin remove" "${lines[3]}"
+pass "launcher remove routes plugin desktops through plugin remove"
+
+[[ -e $tmp_dir/data/applications/omamail.desktop ]] || fail "plugin remove owns the desktop file lifecycle"
+# Fake plugin-remove does not delete desktop; real one does via plugin tree. Presence of call is the contract.
+pass "plugin remove is invoked for plugin-owned launchers"
+
+[[ ! -e $tmp_dir/data/applications/borrowed-icon.desktop ]] || fail "Icon-only reference deletes desktop without plugin remove"
+pass "Icon-only reference deletes desktop without plugin remove"
+
+# Still exactly one plugin remove (omamail); borrowed-icon must not trigger another.
+plugin_calls=$(grep -c '^plugin:' "$TEST_LOG" || true)
+(( plugin_calls == 1 )) || fail "Icon= under plugin tree is not ownership" "plugin_calls=$plugin_calls lines=$(printf '%s\n' "${lines[@]}")"
+pass "Icon= under plugin tree is not ownership"
