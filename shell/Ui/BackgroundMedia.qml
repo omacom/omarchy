@@ -6,6 +6,7 @@ Item {
 
   property string path: ""
   property int version: 0
+  property size sourceSize: Qt.size(version > 0 ? width : 0, version > 0 ? height : 0)
   property bool playbackEnabled: true
   property bool audioEnabled: false
   // Bumped when the file behind an unchanged path may have been replaced.
@@ -80,8 +81,7 @@ Item {
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
       cache: root.version === 0
-      sourceSize.width: root.version > 0 ? width : 0
-      sourceSize.height: root.version > 0 ? height : 0
+      sourceSize: root.sourceSize
     }
   }
 }
