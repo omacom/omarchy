@@ -10,6 +10,8 @@ direction="${1:-}"
 probe=1.1.1.1
 parallel=8
 url_count=3
+curl_connect_timeout=3
+curl_max_time=15
 
 case "$direction" in
   down | up)
@@ -43,7 +45,7 @@ fi
 fast_token="YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
 fast_api_url="https://api.fast.com/netflix/speedtest/v2?https=true&token=$fast_token&urlCount=$url_count"
 
-fast_urls=$(curl -fsS "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
+fast_urls=$(curl -fsS --connect-timeout "$curl_connect_timeout" --max-time "$curl_max_time" "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
 
 if [[ -z $fast_urls ]]; then
   echo "Failed to fetch speed test endpoints" >&2
@@ -74,13 +76,17 @@ traffic_worker() {
   if [[ $direction == "down" ]]; then
     while true; do
       url=${urls[$((idx % url_count))]}
-      curl -fsS -o /dev/null "$url" 2>/dev/null || return
+      if ! curl -fsS --connect-timeout "$curl_connect_timeout" --max-time "$curl_max_time" -o /dev/null "$url" 2>/dev/null; then
+        sleep 1
+      fi
       idx=$((idx + 1))
     done
   else
     while true; do
       url=${urls[$((idx % url_count))]}
-      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
+      if ! dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS --connect-timeout "$curl_connect_timeout" --max-time "$curl_max_time" -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null; then
+        sleep 1
+      fi
       idx=$((idx + 1))
     done
   fi
