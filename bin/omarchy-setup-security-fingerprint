@@ -5,103 +5,32 @@
 
 set -e
 
-
-setup_pam_config() {
-  # A clamshell gate runs before pam_fprintd in every stack: when the lid is
-  # shut the reader is unreachable, so it skips fingerprint (success=1) and PAM
-  # drops straight to the password prompt instead of blocking on the reader
-  # until it times out. Lid open → fingerprint, then password as the fallback.
-  #
-  # pam_exec needs a literal absolute path (no env expansion). Point at the
-  # fixed /usr/bin path the omarchy package always provides, so the gate keeps
-  # working across package installs and dev-link — the latter overlays
-  # $OMARCHY_PATH trees but leaves /usr/bin untouched.
-  local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed"
-
-  # Configure sudo
-  if ! grep -q pam_fprintd.so /etc/pam.d/sudo; then
-    echo "Configuring sudo for fingerprint authentication..."
-    sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
-  fi
-  if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/sudo; then
-    echo "Adding clamshell gate to sudo..."
-    # Insert immediately before pam_fprintd so success=1 skips exactly it.
-    sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/sudo
-  fi
-
-  # Configure polkit
-  if [[ -f /etc/pam.d/polkit-1 ]]; then
-    if ! grep -q 'pam_fprintd.so' /etc/pam.d/polkit-1; then
-      echo "Configuring polkit for fingerprint authentication..."
-      sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/polkit-1
-    fi
-    if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/polkit-1; then
-      echo "Adding clamshell gate to polkit..."
-      sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/polkit-1
-    fi
-  else
-    echo "Creating polkit configuration with fingerprint authentication..."
-    # omarchy:heredoc-expands paths=none -- $fprintd_gate is the literal PAM
-    # line defined above, shared with the two sed insertions so the gate cannot
-    # drift between files. The only path in it is the fixed /usr/bin one.
-    sudo tee /etc/pam.d/polkit-1 >/dev/null <<EOF
-$fprintd_gate
-auth      sufficient pam_fprintd.so
-auth      required pam_unix.so
-
-account   required pam_unix.so
-password  required pam_unix.so
-session   required pam_unix.so
-EOF
-  fi
-}
-
-setup_lock_fingerprint_pam() {
-  echo "Configuring lock screen for fingerprint authentication..."
-  sudo tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
-#%PAM-1.0
-auth       required                    pam_fprintd.so
-account    include                     system-local-login
-EOF
-}
-
-
-echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
-
 # Bail before installing anything if there's no reader to talk to.
 if ! omarchy-hw-fingerprint; then
   echo -e "\e[31mNo fingerprint sensor detected.\e[0m"
   exit 1
 fi
 
-# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
-# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
-# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
-# one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
-  echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+# Inside a running shell the whole flow is the Fingerprint overlay: first run
+# installs packages and PAM through omarchy-fingerprint-setup-helper (one
+# polkit prompt), enrols the right index with on-screen guidance, confirms it
+# with a touch, and turns fingerprint login on; later runs open the finger
+# picker. No terminal involved.
+if omarchy-shell -q shell ping 2>/dev/null; then
+  exec omarchy-fingerprint-enroll
 fi
 
-# Enroll first fingerprint
+# No shell (TTY, SSH): the same steps, in text.
+echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
+sudo omarchy-fingerprint-setup-helper install
+
 echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
-echo -e "Keep moving the finger around on sensor until the process completes.\n"
-
-if sudo fprintd-enroll "$USER"; then
-  echo -e "\e[32m\nFingerprint enrolled successfully!\e[0m"
-
-  # Verify
-  echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
-    # PAM comes last, once a print is enrolled and verified. Detection only
-    # proves a reader is there, not that libfprint can drive it — an Elan MOC
-    # sensor outside the elanmoc table gets this far and then fails to enroll.
-    # Editing the stacks up front would leave those machines pointing at
-    # pam_fprintd with nothing to match.
-    setup_pam_config
-    setup_lock_fingerprint_pam
+echo -e "Press, lift, shift the finger a little, press again, until it completes.\n"
+if fprintd-enroll -f right-index-finger; then
+  echo -e "\nNow touch the sensor once to verify.\n"
+  if fprintd-verify -f right-index-finger; then
+    sudo omarchy-fingerprint-setup-helper enable-pam
     echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
-    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
   else
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
   fi

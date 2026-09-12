@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Enrol fingerprints with the on-screen guide
+# omarchy:args=[finger]
+# omarchy:examples=omarchy fingerprint enroll | omarchy fingerprint enroll right-thumb
+
+# Enrol fingerprints through the shell overlay, falling back to plain
+# fprintd-enroll when no shell is running.
+#
+#   omarchy-fingerprint-enroll            open the finger picker (returns at once)
+#   omarchy-fingerprint-enroll FINGER     enrol one finger, wait; exit 0 on
+#                                         success, 1 on failure or cancel —
+#                                         the same contract as fprintd-enroll
+set -uo pipefail
+
+FINGER=${1:-}
+PLUGIN=omarchy.fingerprint-enroll
+
+if ! omarchy-shell -q shell ping 2>/dev/null; then
+  exec fprintd-enroll ${FINGER:+-f "$FINGER"}
+fi
+
+if [[ -z $FINGER ]]; then
+  [[ $(omarchy-shell shell summon "$PLUGIN" '{}' 2>/dev/null) == ok ]] && exit 0
+  exec fprintd-enroll
+fi
+
+DONE=$(mktemp)
+rm -f "$DONE"
+if [[ $(omarchy-shell shell summon "$PLUGIN" "{\"finger\":\"$FINGER\",\"doneFile\":\"$DONE\"}" 2>/dev/null) != ok ]]; then
+  exec fprintd-enroll -f "$FINGER"
+fi
+
+# fprintd itself times out an idle enrolment; this is only a safety net.
+for _ in $(seq 1 1200); do
+  [[ -f $DONE ]] && break
+  sleep 0.5
+done
+result=$(cat "$DONE" 2>/dev/null || echo failed)
+rm -f "$DONE"
+[[ $result == ok ]]

@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=Root half of fingerprint setup, driven by the enrolment overlay through polkit
+# omarchy:hidden=true
+
+# Root half of fingerprint setup, driven by the enrolment overlay through
+# polkit (org.omarchy.fingerprint.setup, admin password, remembered a few
+# minutes). Non-interactive by design; every step prints one line.
+#
+#   omarchy-fingerprint-setup-helper install       packages + enrolment polkit rule
+#   omarchy-fingerprint-setup-helper enable-pam    sudo, polkit, lock screen
+#   omarchy-fingerprint-setup-helper disable-pam   undo enable-pam
+#   omarchy-fingerprint-setup-helper status        "ready" | "enrol" | "install"
+set -euo pipefail
+
+RULE=/etc/polkit-1/rules.d/49-omarchy-fingerprint-enroll.rules
+# Runs before pam_fprintd in every stack: with the lid shut the reader is
+# unreachable, so skip fingerprint and fall to the password at once.
+GATE="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed"
+
+status() {
+  if grep -qs pam_fprintd.so /etc/pam.d/sudo && [[ -f /etc/pam.d/omarchy-lock-fingerprint ]]; then
+    echo ready
+  elif command -v fprintd-enroll >/dev/null; then
+    # packages are in; the polkit rule lives in a root-only directory, so it
+    # cannot be checked from here and `install` re-adds it anyway
+    echo enrol
+  else
+    echo install
+  fi
+}
+
+install_all() {
+  echo "Installing fingerprint packages"
+  if pacman -Q libfprint-git &>/dev/null; then
+    pacman -Rdd --noconfirm libfprint-git >/dev/null
+  fi
+  pacman -S --needed --noconfirm libfprint fprintd usbutils >/dev/null
+  echo "Allowing fingerprint enrolment without a password"
+  install -D -m 644 /dev/stdin "$RULE" <<'RULES'
+// Let anyone logged in at this machine enrol their own fingerprints without
+// typing a password, so the Fingerprint widget works like a phone's.
+// fprintd's default (auth_self_keep) re-asks every few minutes; this grants
+// the same trust fprintd already gives verification. A finger only ever
+// unlocks its own account; sudo rights still come from sudoers. Managing
+// other users' prints (setusername) keeps requiring an admin password.
+polkit.addRule(function (action, subject) {
+  if (action.id == "net.reactivated.fprint.device.enroll" &&
+      subject.local && subject.active) {
+    return polkit.Result.YES;
+  }
+});
+RULES
+  echo "Packages ready"
+}
+
+enable_pam() {
+  echo "Configuring sudo"
+  grep -q pam_fprintd.so /etc/pam.d/sudo || sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
+  grep -q omarchy-hw-laptop-closed /etc/pam.d/sudo || sed -i "/pam_fprintd\.so/i $GATE" /etc/pam.d/sudo
+
+  echo "Configuring polkit"
+  if [[ -f /etc/pam.d/polkit-1 ]]; then
+    grep -q pam_fprintd.so /etc/pam.d/polkit-1 || sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/polkit-1
+    grep -q omarchy-hw-laptop-closed /etc/pam.d/polkit-1 || sed -i "/pam_fprintd\.so/i $GATE" /etc/pam.d/polkit-1
+  else
+    cat > /etc/pam.d/polkit-1 <<PAM
+$GATE
+auth      sufficient pam_fprintd.so
+auth      required pam_unix.so
+
+account   required pam_unix.so
+password  required pam_unix.so
+session   required pam_unix.so
+PAM
+  fi
+
+  echo "Configuring the lock screen"
+  cat > /etc/pam.d/omarchy-lock-fingerprint <<'PAM'
+#%PAM-1.0
+auth       required                    pam_fprintd.so
+account    include                     system-local-login
+PAM
+  echo "Fingerprint login is on"
+}
+
+disable_pam() {
+  sed -i -e '/pam_fprintd\.so/d' -e '/omarchy-hw-laptop-closed/d' /etc/pam.d/sudo
+  [[ -f /etc/pam.d/polkit-1 ]] && sed -i -e '/pam_fprintd\.so/d' -e '/omarchy-hw-laptop-closed/d' /etc/pam.d/polkit-1
+  rm -f /etc/pam.d/omarchy-lock-fingerprint
+  echo "Fingerprint login is off"
+}
+
+case "${1:-}" in
+  status) status ;;
+  install | enable-pam | disable-pam)
+    [[ $EUID -eq 0 ]] || { echo "needs root (run through pkexec)" >&2; exit 1; }
+    case $1 in
+      install) install_all ;;
+      enable-pam) enable_pam ;;
+      disable-pam) disable_pam ;;
+    esac ;;
+  *) echo "usage: $0 status|install|enable-pam|disable-pam" >&2; exit 2 ;;
+esac
