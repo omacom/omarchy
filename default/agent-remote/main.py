@@ -11,7 +11,7 @@ import subprocess
 import time
 import uuid
 
-from collection import collect_sources, read_json, write_json
+from collection import ImportContinuing, collect_sources, read_json, write_json
 from transport import Sftp, TransportError, local_identity, target_value
 
 
@@ -125,24 +125,30 @@ def mutate(config, state, machine_id, label=None, remove=False):
   publish(config, state)
 
 
-def refresh(config, state, cache, omarchy_path, force=False, factory=Sftp):
+def refresh(config, state, cache, omarchy_path, force=False, factory=Sftp, *,
+            budget_bytes=64 * 1024 * 1024, budget_seconds=45):
   with locked(state / '.refresh.lock', blocking=False) as acquired:
     if not acquired:
       return
     machines = publish(config, state)
     previous = {row['id']: row for row in machines}
-    due = [m for m in machines if force or time.time() - previous[m['id']].get('attemptedAt', 0) >= 3600]
+    due = [m for m in machines if force or time.time() >= m.get('nextAttemptAt', m.get('attemptedAt', 0) + 3600)]
 
     def fetch(machine):
       old = previous[machine['id']]
       result = dict(old, attemptedAt=time.time())
+      result.pop('nextAttemptAt', None)
       try:
         with factory(machine['target']) as remote:
-          providers, issues = collect_sources(remote, machine, cache / machine['id'], omarchy_path)
+          providers, issues = collect_sources(remote, machine, cache / machine['id'], omarchy_path,
+                                             budget_bytes=budget_bytes, budget_seconds=budget_seconds)
           result.pop('error', None)
           result.update(providers=providers,
                         lastSuccess=time.time(), status='incomplete' if issues else 'current',
                         issues=issues, transferredBytes=remote.transferred)
+      except ImportContinuing as error:
+        result.update(status='importing', error=str(error),
+                      nextAttemptAt=time.time() + (60 if error.progress else 300))
       except InterruptedError as error:
         result.update(status='importing', error=str(error))
       except (TransportError, OSError, ValueError) as error:

@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import time
 
@@ -17,6 +18,32 @@ TOKEN_KEYS = ('input_tokens', 'output_tokens', 'cached_input_tokens', 'cache_rea
               'inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens',
               'input_other', 'input_cache_read', 'input_cache_creation')
 TARIFF_KEYS = ('service_tier', 'speed', 'fast_mode', 'cache_duration', 'inference_geo')
+
+
+class ImportContinuing(InterruptedError):
+  def __init__(self, progress):
+    super().__init__('Import is continuing; the last successful snapshot is retained')
+    self.progress = progress
+
+
+class WorkBudget:
+  """Bound transfer bytes and work between requests, below the hard timeout."""
+  def __init__(self, size, seconds):
+    self.remaining = max(0, size)
+    self.deadline = time.monotonic() + max(0, seconds)
+    self.progress = False
+
+  def check(self):
+    if time.monotonic() >= self.deadline:
+      raise ImportContinuing(self.progress)
+
+  def read(self, remote, path, offset=0, length=32768, exact=False):
+    self.check()
+    if length and (self.remaining <= 0 or exact and self.remaining < length):
+      raise ImportContinuing(self.progress)
+    data = remote.read(path, offset, min(length, self.remaining))
+    self.remaining -= len(data)
+    return data
 
 
 def write_json(path, value):
@@ -171,78 +198,103 @@ def digest(data):
 
 
 def sync_file(remote, path, attrs, relative, cache, budget):
-  state_path = cache / 'positions' / (digest(relative.encode()) + '.json')
+  key = digest(relative.encode())
+  state_path = cache / 'positions' / (key + '.json')
+  progress_path = cache / 'progress' / (key + '.json')
+  working = cache / 'progress' / (key + '.jsonl')
   destination = cache / 'sources' / relative
-  state = read_json(state_path, {})
+  progress = read_json(progress_path, {})
+  state = progress or read_json(state_path, {})
+  candidate = working if progress else destination
   size, mtime = attrs['size'], attrs.get('mtime', 0)
   offset = state.get('offset', 0)
-  # SFTP READDIR already returned the attributes. Quiet histories need no
-  # per-file network round trips. Recheck files observed within the server's
-  # one-second timestamp granularity once before treating them as stable.
-  if (state.get('stable') and size == state.get('size') and mtime == state.get('mtime')
-      and state.get('mode') == attrs.get('mode')
-      and offset == size and destination.exists() and destination.stat().st_size == state.get('metadataSize')):
+  if (not progress and state.get('stable') and size == state.get('size') and mtime == state.get('mtime')
+      and state.get('mode') == attrs.get('mode') and (offset == size or state.get('partialLine'))
+      and destination.exists() and destination.stat().st_size == state.get('metadataSize')):
     return False
-  head = remote.read(path, length=min(size, 4096))
+  head = budget.read(remote, path, length=min(size, 4096), exact=True)
   old_head_length = state.get('headLength', 0)
-  tail = remote.read(path, max(0, offset - 4096), min(offset, 4096)) if offset else b''
+  tail = budget.read(remote, path, max(0, offset - 4096), min(offset, 4096), exact=True) if offset else b''
   same_prefix = old_head_length <= len(head) and digest(head[:old_head_length]) == state.get('head')
-  append = (destination.exists() and offset <= size and same_prefix and digest(tail) == state.get('tail'))
+  append = candidate.exists() and offset <= size and same_prefix and digest(tail) == state.get('tail')
   if size == state.get('size') and mtime != state.get('mtime'):
     append = False
-  if not append:
-    offset = 0
-  destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-  # A complete metadata file and its position are committed together as a
-  # recoverable pair. A mismatched pair is detected by the stored file length.
-  if append and destination.stat().st_size != state.get('metadataSize'):
-    append, offset = False, 0
-  fd, temporary = tempfile.mkstemp(dir=destination.parent, prefix='.usage-')
+  metadata_size = state.get('metadataSize', 0)
+  if append and (candidate.stat().st_size < metadata_size or not progress and candidate.stat().st_size != metadata_size):
+    append = False
+  if (append and not progress and size == state.get('size') and mtime == state.get('mtime')
+      and state.get('mode') == attrs.get('mode') and (offset == size or state.get('partialLine'))):
+    # A recent file needs conservative prefix/tail validation once it settles,
+    # but unchanged sanitized contents must not invalidate collector caches.
+    after = remote.attrs(path)
+    if all(after.get(key) == attrs.get(key) for key in ('size', 'mtime', 'mode')):
+      write_json(state_path, dict(state, stable=mtime < time.time() - 2))
+      return False
+  working.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+  if append and candidate != working:
+    shutil.copyfile(candidate, working)
+    working.chmod(0o600)
+  elif not append:
+    working.write_bytes(b'')
+    working.chmod(0o600)
+    offset, metadata_size = 0, 0
   consumed = offset
   tail_buffer = tail if append else b''
   try:
-    with os.fdopen(fd, 'wb') as output:
-      if append:
-        with destination.open('rb') as previous:
-          while block := previous.read(1024 * 1024):
-            output.write(block)
+    with working.open('r+b') as output:
+      # Any bytes appended before a crash but not described by the atomic
+      # progress record are discarded. Only sanitized complete lines persist.
+      output.truncate(metadata_size)
+      output.seek(metadata_size)
       pending = b''
       cursor = offset
-      while cursor < size and budget[0] > 0:
-        block = remote.read(path, cursor, min(1024 * 1024, size - cursor, budget[0]))
+      checkpoint = dict(state, offset=offset, size=size, mtime=mtime, mode=attrs.get('mode'),
+                        headLength=min(len(head), offset), head=digest(head[:min(len(head), offset)]),
+                        tail=digest(tail_buffer), metadataSize=metadata_size)
+      while cursor < size:
+        block = budget.read(remote, path, cursor, min(1024 * 1024, size - cursor))
         if not block:
           raise OSError('Usage source changed during transfer')
-        budget[0] -= len(block)
         cursor += len(block)
         pending += block
         lines = pending.split(b'\n')
         pending = lines.pop()
         for line in lines:
+          if len(line) > 16 * 1024 * 1024:
+            raise OSError('Usage record exceeds the 16 MiB read limit')
           output.write(metadata(line, relative))
           consumed += len(line) + 1
           tail_buffer = (tail_buffer + line + b'\n')[-4096:]
         if len(pending) > 16 * 1024 * 1024:
           raise OSError('Usage record exceeds the 16 MiB read limit')
-      metadata_size = output.tell()
+        output.flush()
+        checkpoint = {'offset': consumed, 'size': size, 'mtime': mtime, 'mode': attrs.get('mode'),
+                      'headLength': min(len(head), consumed), 'head': digest(head[:min(len(head), consumed)]),
+                      'tail': digest(tail_buffer), 'metadataSize': output.tell()}
+        write_json(progress_path, checkpoint)
+        budget.progress = budget.progress or consumed > offset
+    budget.check()
     after = remote.attrs(path)
     if after.get('size', 0) < size or after.get('size') == size and after.get('mtime') != mtime:
       raise OSError('Usage source was replaced during transfer; retrying next refresh')
-    os.replace(temporary, destination)
-    write_json(state_path, {'offset': consumed, 'size': size, 'mtime': mtime,
-                           'stable': mtime < time.time() - 2, 'mode': attrs.get('mode'),
-                           'headLength': min(len(head), consumed),
-                           'head': digest(head[:min(len(head), consumed)]),
-                           'tail': digest(tail_buffer), 'metadataSize': metadata_size})
-    if cursor < size:
-      raise InterruptedError('Initial import is continuing; refresh again to resume')
-    # An unfinished last JSONL line is deliberately re-read on the next pass.
+    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.replace(working, destination)
+    write_json(state_path, dict(checkpoint, stable=mtime < time.time() - 2, partialLine=consumed < size))
+    progress_path.unlink(missing_ok=True)
     return True
-  finally:
-    if os.path.exists(temporary):
-      os.unlink(temporary)
+  except InterruptedError:
+    raise
+  except (OSError, ValueError):
+    # Source corruption invalidates tentative progress; a transport failure
+    # has its own exception type and retains it for revalidation next pass.
+    progress_path.unlink(missing_ok=True)
+    working.unlink(missing_ok=True)
+    raise
 
 
-def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024 * 1024):
+def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024 * 1024, budget_seconds=45):
+  budget = WorkBudget(budget_bytes, budget_seconds)
+  budget.check()
   identity = remote.identity()
   if identity['identity'] != machine['identity']:
     raise OSError('Machine or SSH user identity changed; remove and add this connection again')
@@ -254,19 +306,21 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
   for directory in ROOTS:
     walk_errors = []
     try:
-      for path, attrs in remote.walk(root + '/' + directory, walk_errors.append, base=root):
+      for path, attrs in remote.walk(root + '/' + directory, walk_errors.append, base=root, check=budget.check):
         relative = path[len(root) + 1:]
         if path.endswith('.jsonl') and (not directory.startswith('.kimi') or path.endswith('/wire.jsonl')):
           inventory.append((path, attrs, relative))
+    except InterruptedError:
+      raise
     except OSError:
       walk_errors.append('Could not inventory source')
     if walk_errors:
       failed[directory] = '; '.join(sorted(set(walk_errors))) + '; last known metadata retained'
-  budget = [budget_bytes]
   changed = False
   present = set()
   for path, attrs, relative in sorted(inventory):
     present.add(relative)
+    budget.check()
     try:
       changed = sync_file(remote, path, attrs, relative, cache, budget) or changed
     except InterruptedError:
@@ -274,6 +328,7 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
     except (OSError, ValueError):
       directory = next(directory for directory in ROOTS if relative.startswith(directory + '/'))
       failed[directory] = 'Could not read or parse source file; last known metadata retained'
+  budget.check()
   # An incomplete inventory cannot prove deletion. Keep the last metadata for
   # that root, replacing each recovered file in place rather than adding it.
   source_root = cache / 'sources'
@@ -309,12 +364,14 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
     except OSError:
       issues.append('Could not check optional Claude aggregate history')
   day = time.strftime('%Y-%m-%d')
+  timezone = {'names': list(time.tzname), 'offset': time.timezone, 'dstOffset': time.altzone,
+              'spec': os.environ.get('TZ')}
   source_version = digest(json.dumps(sorted((str(path.relative_to(source_root)), path.stat().st_size, path.stat().st_mtime_ns)
                                            for path in source_root.rglob('*.jsonl'))).encode())
   collector_states = previous.get('collectors', {})
   collector_failures = {}
   if (not changed and not previous.get('collectorFailures') and previous.get('sourceVersion') == source_version
-      and previous.get('day') == day and previous.get('timezone') == list(time.tzname)):
+      and previous.get('day') == day and previous.get('timezone') == timezone):
     providers = previous['providers']
   else:
     providers, collector_failures = run_collectors(source_root, cache, omarchy_path, previous.get('providers', {}))
@@ -324,7 +381,7 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
         collector_states[provider] = dict(old, status='stale' if old.get('lastSuccess') else 'unavailable')
       else:
         collector_states[provider] = {'status': 'current', 'lastSuccess': time.time()}
-  write_json(cache / 'result.json', {'day': day, 'timezone': list(time.tzname),
+  write_json(cache / 'result.json', {'day': day, 'timezone': timezone,
                                    'sourceVersion': source_version, 'providers': providers, 'sources': source_states,
                                    'collectors': collector_states, 'collectorFailures': collector_failures})
   result = deepcopy(providers)

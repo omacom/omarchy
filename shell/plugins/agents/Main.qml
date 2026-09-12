@@ -238,6 +238,7 @@ Item {
   property var remoteSnapshot: ({ machines: [] })
   readonly property var remoteMachines: remoteSnapshot.machines
   property bool remoteRefreshPending: false
+  property bool remoteForcePending: false
   readonly property bool remoteActive: remoteMachines.length > 0 && !syncConfigured()
   property string scopeDate: new Date().toDateString()
   readonly property var machineScopes: {
@@ -279,7 +280,7 @@ Item {
     onRecordChanged: {
       if (!record || record.schemaVersion !== 1 || !Array.isArray(record.machines)) return
       root.remoteSnapshot = record
-      if (root.remoteMachines.some(function(machine) { return !machine.attemptedAt })) root.scheduleRemoteRefresh()
+      if (root.remoteRefreshDue(Date.now())) root.scheduleRemoteRefresh()
       if (root.selectedMachineId !== "all" && root.selectedMachineId !== "local"
           && !root.remoteMachines.some(function(machine) { return machine.id === root.selectedMachineId }))
         root.selectedMachineId = "all"
@@ -287,28 +288,26 @@ Item {
   }
 
   Timer {
-    interval: 3600000
+    id: remotePoll
+    interval: 60000
     running: true
     repeat: true
     triggeredOnStart: true
     onTriggered: {
       root.scopeDate = new Date().toDateString()
-      if (!remoteRefresh.running) remoteRefresh.running = true
+      if (root.remoteRefreshDue(Date.now())) root.scheduleRemoteRefresh()
     }
-  }
-
-  Timer {
-    interval: 60000
-    running: true
-    repeat: true
-    onTriggered: root.scopeDate = new Date().toDateString()
   }
 
   Process {
     id: remoteRefresh
     onExited: {
       remoteRecord.reload()
-      if (root.remoteRefreshPending) {
+      if (root.remoteForcePending) {
+        root.remoteForcePending = false
+        root.remoteRefreshPending = false
+        Qt.callLater(function() { root.refreshMachines() })
+      } else if (root.remoteRefreshPending) {
         root.remoteRefreshPending = false
         Qt.callLater(function() { remoteRefresh.running = true })
       }
@@ -325,7 +324,10 @@ Item {
     onExited: function(code) {
       remoteRecord.reload()
       root.machineCommandFinished(code === 0)
-      if (code === 0) root.scheduleRemoteRefresh()
+      if (root.remoteForcePending) {
+        root.remoteForcePending = false
+        Qt.callLater(function() { root.refreshMachines() })
+      } else if (code === 0) root.scheduleRemoteRefresh()
     }
   }
 
@@ -338,13 +340,26 @@ Item {
     machineCommand.running = true
   }
 
+  function remoteRefreshDue(nowMs) {
+    return root.remoteMachines.some(function(machine) {
+      return !machine.attemptedAt || nowMs / 1000 >= (machine.nextAttemptAt || machine.attemptedAt + 3600)
+    })
+  }
+
   function scheduleRemoteRefresh() {
-    if (remoteRefresh.running) root.remoteRefreshPending = true
-    else remoteRefresh.running = true
+    if (remoteRefresh.running || machineCommand.running) root.remoteRefreshPending = true
+    else {
+      root.remoteRefreshPending = false
+      remoteRefresh.running = true
+    }
   }
 
   function refreshMachines() {
-    if (!machineCommand.running) manageMachine(["refresh", "--force"])
+    if (machineCommand.running || remoteRefresh.running) {
+      root.remoteForcePending = true
+      return
+    }
+    root.manageMachine(["refresh", "--force"])
   }
 
   function machineStatus(nowMs, providerId) {

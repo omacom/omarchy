@@ -3,6 +3,7 @@
 Wire format: https://www.openssh.org/specs.html (filexfer-02).
 The client deliberately implements no write, remove, or exec-file operations.
 """
+from contextlib import closing
 import hashlib
 import os
 from pathlib import Path
@@ -241,17 +242,19 @@ class Sftp:
       self.request(4, string(handle))
     return b''.join(chunks)
 
-  def walk(self, root, on_error, base):
-    # base is the identity-verified canonical home. Reject links in every
-    # component below it, including parents above the configured source root.
+  def walk(self, root, on_error, base, check=lambda: None):
+    # base is the verified canonical home; never traverse source symlinks.
     path = base
     try:
       for component in root.removeprefix(base + '/').split('/'):
+        check()
         path += '/' + component
         if not stat.S_ISDIR(self.attrs(path).get('mode', 0)):
           raise OSError('Usage source must be a directory, not a symlink or special file')
     except FileNotFoundError:
       return
+    except InterruptedError:
+      raise
     except OSError as error:
       on_error(str(error))
       return
@@ -260,26 +263,30 @@ class Sftp:
     while pending:
       directory = pending.pop()
       try:
-        # Recheck queued directories before opening them, too.
+        check()
         if not stat.S_ISDIR(self.attrs(directory).get('mode', 0)):
           raise OSError('Symlink or special usage directory skipped')
-        entries = list(self.listdir(directory))
+        # Consume directory pages incrementally instead of buffering the
+        # entire directory before checking the entry/time bounds.
+        with closing(self.listdir(directory)) as entries:
+          for name, attrs in entries:
+            check()
+            count += 1
+            if count > 100000:
+              on_error('Usage inventory exceeds 100,000 entries')
+              return
+            path = directory + '/' + name
+            mode = attrs.get('mode', 0)
+            if stat.S_ISDIR(mode):
+              pending.append(path)
+            elif stat.S_ISREG(mode):
+              yield path, attrs
+            else:
+              on_error('Symlink or special usage entry skipped')
+      except InterruptedError:
+        raise
       except OSError as error:
         on_error(str(error) or 'Usage directory disappeared during inventory')
-        continue
-      for name, attrs in entries:
-        count += 1
-        if count > 100000:
-          on_error('Usage inventory exceeds 100,000 entries')
-          return
-        path = directory + '/' + name
-        mode = attrs.get('mode', 0)
-        if stat.S_ISDIR(mode):
-          pending.append(path)
-        elif stat.S_ISREG(mode):
-          yield path, attrs
-        else:
-          on_error('Symlink or special usage entry skipped')
 
   def identity(self):
     # Ask the login account, never infer it from an SFTP directory's owner.
