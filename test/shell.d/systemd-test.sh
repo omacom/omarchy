@@ -104,3 +104,16 @@ pass "systemd-oomd acts on sustained memory stall"
 grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"
+
+mpris_dropin="$ROOT/default/systemd/user/mpris-proxy.service.d/10-omarchy.conf"
+grep -Fx 'ConditionPathIsDirectory=/sys/class/bluetooth' "$mpris_dropin" >/dev/null ||
+  fail "the AVRCP bridge is pulled in on machines with no bluetooth subsystem"
+grep -Fx 'ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service' "$mpris_dropin" >/dev/null ||
+  fail "mpris-proxy exits 1 when bluetoothd is unreachable, so without this it leaves a failed unit instead of skipping"
+grep -Fx 'Restart=on-failure' "$mpris_dropin" >/dev/null ||
+  fail "a bluetoothd restart leaves the proxy dead and headset buttons silently stop working"
+pass "the AVRCP bridge stays inert without bluetooth and recovers with it"
+
+grep -F 'mpris-proxy.service' "$first_run_units" >/dev/null ||
+  fail "first-run does not enable the AVRCP bridge, so bluez has no player registered and headset transport commands are discarded"
+pass "first-run enables the bridge that carries headset play/pause into MPRIS"
