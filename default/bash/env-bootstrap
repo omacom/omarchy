@@ -39,3 +39,13 @@ case ":$PATH:" in
   *) PATH="${PATH:+$PATH:}$HOME/.local/bin" ;;
 esac
 export PATH
+
+# The marker is written only after a fresh rootless setup or a verified workload
+# migration. Explicit user config can still override this later in the shell or
+# UWSM environment chain.
+if [ -f "$HOME/.local/state/omarchy/rootless-docker/enabled" ]; then
+  rootless_docker_runtime=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+  DOCKER_HOST="unix://$rootless_docker_runtime/docker.sock"
+  export DOCKER_HOST
+  unset rootless_docker_runtime
+fi

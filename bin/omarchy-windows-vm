@@ -5,11 +5,8 @@
 # omarchy:requires-sudo=true
 
 # The Windows VM runs a privileged container (KVM, /dev/net/tun, NET_ADMIN), so
-# it needs the root-owned Docker daemon. By default the user is NOT in the docker
-# group (that group is root-equivalent), so Docker access is gated behind a
-# single polkit prompt. If the user opted into sudoless Docker
-# (omarchy-setup-security-sudoless-docker), the socket is reachable directly and
-# no prompt appears.
+# it cannot use the rootless development daemon. Every operation uses the
+# root-owned Docker socket through an authenticated sudo or polkit boundary.
 #
 # The compose file lives in a root-owned directory and is only ever written by
 # the elevated, input-validated write_compose action below. That is the whole
@@ -22,13 +19,14 @@
 RUNTIME_DIR="${OMARCHY_WINDOWS_DIR:-/var/lib/omarchy/windows}"
 COMPOSE_FILE="$RUNTIME_DIR/docker-compose.yml"
 LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
-# The guest password lives in the root-owned compose (readable by root and the
-# docker group), but RDP needs it as the user. Keep a private copy here, 0600 in
-# the user's own config, so the plaintext password is never world-readable.
+# The guest password lives in the root-only compose, but RDP needs it as the
+# user. Keep a private copy in the user's own config, mode 0600, so the
+# plaintext password is never world-readable.
 CREDENTIALS_FILE="$HOME/.config/windows/credentials"
 IMAGE="dockurr/windows"
 CONTAINER="omarchy-windows"
 VM_LOCK_DIR=/run/lock/omarchy-windows-vm
+SECURITY_MIGRATION_STATE="$RUNTIME_DIR/.security-migration-state"
 # Removal is the only path that recursively proves there are no bind aliases.
 # Bound every metadata walk so a large or hostile caller tree fails closed
 # instead of hanging a privileged action indefinitely.
@@ -47,12 +45,6 @@ if ((EUID == 0)); then
 fi
 
 # --- privilege helpers -------------------------------------------------------
-
-# True when this session can reach the Docker socket directly (sudoless Docker
-# on and in effect). Asking about the socket rather than the configured groups
-# keeps the prompt in place through the window where sudoless Docker is enabled
-# but the reboot that grants the group has not happened yet.
-docker_needs_sudo() { omarchy-sudo-docker; }
 
 # The command to hand pkexec for the privileged re-exec. pkexec runs whatever
 # executable it is given (after authorization) and only shows the path in the
@@ -77,47 +69,43 @@ priv_target() {
   printf '%s\n' "$candidate"
 }
 
-# Run a privileged VM action. write_compose always elevates (the compose is
-# root-owned); the daemon operations run directly when sudoless Docker is on and
-# otherwise behind a polkit prompt. The stock org.freedesktop.policykit.exec
-# policy is auth_admin (not auth_admin_keep), so each elevated action prompts:
-# a launch asks once to start and, unless authorization is still cached by the
-# agent, again to stop.
+# Run every VM action through authentication. A visible terminal uses sudo so
+# the password prompt stays in that terminal; graphical launches use polkit.
 priv() {
-  local action="$1"
+  local action="$1" target
   shift
-  if [[ $action != write_compose && $action != remove ]] && ! docker_needs_sudo; then
-    # Bring-up normally runs directly for a docker-group user, but recreating
-    # the protected bind anchors after reboot (or migrating an old compose)
-    # still needs one privileged invocation.
-    if [[ -d $VM_LOCK_DIR && ! -L $VM_LOCK_DIR && -r $VM_LOCK_DIR && -x $VM_LOCK_DIR ]] && {
-      [[ $action != up && $action != up_wait ]] || {
-        ! compose_needs_security_migration && mounts_ready >/dev/null 2>&1
-      }
-    }; then
-      with_vm_lock "__priv_$action" "$@"
-      return
-    fi
-  fi
-  local target
   target=$(priv_target) || {
     echo "omarchy-windows-vm: refusing to run a non-root-owned command as root" >&2
     return 1
   }
-  pkexec "$target" __priv "$action" "$@"
+  if [[ -t 0 || -t 1 || -t 2 ]]; then
+    sudo "$target" __priv "$action" "$@"
+  else
+    pkexec "$target" __priv "$action" "$@"
+  fi
 }
 
-dc() { docker-compose -f "$COMPOSE_FILE" "$@"; }
+# Pin Windows to the rootful socket even when the caller's session exports the
+# rootless DOCKER_HOST. Socket activation keeps that rootful daemon off until an
+# authenticated VM operation needs it.
+docker() {
+  local host="unix:///run/docker.sock" main_pid
+  if ((EUID == 0)); then
+    /usr/bin/systemctl start docker.socket docker.service || return 1
+    main_pid=$(/usr/bin/systemctl show docker.service --property=MainPID --value) || return 1
+    [[ $main_pid =~ ^[1-9][0-9]*$ ]] || return 1
+    host="unix:///proc/$main_pid/root/run/docker.sock"
+  fi
+  command /usr/bin/docker --host "$host" "$@"
+}
+
+dc() { docker compose -f "$COMPOSE_FILE" "$@"; }
 
 with_vm_lock() {
   local fd rc=0
   if ((EUID == 0)); then
     assert_boundary_dir /run 0 && assert_boundary_dir /run/lock 0 || return 1
-    if getent group docker >/dev/null 2>&1; then
-      install -d -o root -g docker -m 0750 -- "$VM_LOCK_DIR" || return 1
-    else
-      install -d -o root -g root -m 0700 -- "$VM_LOCK_DIR" || return 1
-    fi
+    install -d -o root -g root -m 0700 -- "$VM_LOCK_DIR" || return 1
   fi
   assert_boundary_dir "$VM_LOCK_DIR" 0 || return 1
   # Flock the directory inode itself. Concurrent first callers may both run
@@ -146,25 +134,26 @@ valid_password() { [[ $1 =~ ^[[:print:]]{1,64}$ ]]; }
 # ../tmp/evil from running an arbitrary file as root.
 valid_priv_action() {
   case "$1" in
-  write_compose | up | up_wait | down | status | remove) return 0 ;;
+  write_compose | secure | up | up_wait | down | status | remove) return 0 ;;
   *) return 1 ;;
   esac
 }
 
-# --- privileged actions (run as root via pkexec, or directly when sudoless) ---
+# --- privileged actions (run as root via sudo or pkexec) ---------------------
 
-# Resolve the account that authorized pkexec. Never trust HOME or a caller-
-# supplied mount path in the privileged process: pkexec can reset HOME, and the
+# Resolve the account that authorized sudo or pkexec. Never trust HOME or a
+# caller-supplied mount path in the privileged process: pkexec can reset HOME, and the
 # old path arguments were the source of an arbitrary host bind-mount primitive.
 resolve_caller() {
-  local entry canonical parent owner mode
+  local entry canonical parent owner mode authorized_uid
 
   if ((EUID == 0)); then
-    [[ ${PKEXEC_UID:-} =~ ^[0-9]{1,10}$ ]] && ((10#$PKEXEC_UID > 0)) || {
+    authorized_uid=${SUDO_UID:-${PKEXEC_UID:-}}
+    [[ $authorized_uid =~ ^[0-9]{1,10}$ ]] && ((10#$authorized_uid > 0)) || {
       echo "omarchy-windows-vm: cannot identify the user who authorized this action" >&2
       return 1
     }
-    CALLER_UID=$((10#$PKEXEC_UID))
+    CALLER_UID=$((10#$authorized_uid))
   else
     CALLER_UID=$(id -u)
   fi
@@ -232,8 +221,7 @@ resolve_caller() {
 }
 
 boundary_owner() {
-  # Production boundaries remain root-owned even when a docker-group user runs
-  # the read-only bring-up checks directly. A non-standard runtime is supported
+  # Production boundaries are always root-owned. A non-standard runtime is supported
   # only for unprivileged tests/development and is owned by that caller.
   if ((EUID == 0)) || [[ $RUNTIME_DIR == /var/lib/omarchy/windows ]]; then
     printf '0'
@@ -253,7 +241,7 @@ assert_boundary_dir() {
 }
 
 prepare_boundary_component() {
-  local path="$1" parent="$2" owner="$3" mode="$4"
+  local path="$1" parent="$2" owner="$3" mode="$4" keep_existing_mode="${5:-0}"
   assert_boundary_dir "$parent" "$owner" || return 1
   if [[ -e $path || -L $path ]]; then
     assert_boundary_dir "$path" "$owner" || return 1
@@ -264,9 +252,14 @@ prepare_boundary_component() {
       install -d -m "$mode" -- "$path" || return 1
     fi
   fi
-  chmod "$mode" -- "$path" || return 1
-  if ((EUID == 0)); then chown root:root -- "$path" || return 1; fi
-  assert_boundary_dir "$path" "$owner"
+  if [[ $keep_existing_mode != 1 || ! -e $path ]]; then
+    chmod "$mode" -- "$path" || return 1
+    if ((EUID == 0)); then chown root:root -- "$path" || return 1; fi
+  fi
+  assert_boundary_dir "$path" "$owner" || return 1
+  # A retry may encounter a directory created by an invocation killed before
+  # its first fsync. Synchronize both levels even when they already existed.
+  fsync_directory "$path" && fsync_directory "$parent"
 }
 
 prepare_runtime_tree() {
@@ -292,10 +285,11 @@ prepare_runtime_tree() {
   fi
 
   runtime_parent=$(dirname -- "$RUNTIME_DIR")
-  if ((EUID == 0)) && [[ ! -e $runtime_parent && ! -L $runtime_parent ]]; then
+  if ((EUID == 0)); then
     [[ $runtime_parent == /var/lib/omarchy ]] || return 1
-    assert_boundary_dir /var/lib 0 || return 1
-    install -d -o root -g root -m 0755 -- "$runtime_parent" || return 1
+    # This shared parent may have a stricter administrator-selected mode. A
+    # retry needs to synchronize its directory entry without widening it.
+    prepare_boundary_component "$runtime_parent" /var/lib 0 0755 1 || return 1
   fi
   prepare_boundary_component "$RUNTIME_DIR" "$runtime_parent" "$owner" 0755 &&
     prepare_boundary_component "$MOUNT_ROOT" "$RUNTIME_DIR" "$owner" 0711 &&
@@ -667,6 +661,75 @@ rollback_new_caller_mounts() {
   return "$failed"
 }
 
+fsync_regular_file() {
+  /usr/bin/python3 - "$1" <<'PY'
+import os
+import stat
+import sys
+
+
+descriptor = os.open(sys.argv[1], os.O_RDONLY | os.O_NOFOLLOW)
+try:
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        raise SystemExit("refusing to sync a non-regular file")
+    os.fsync(descriptor)
+finally:
+    os.close(descriptor)
+PY
+}
+
+fsync_directory() {
+  /usr/bin/python3 - "$1" <<'PY'
+import os
+import sys
+
+
+descriptor = os.open(sys.argv[1], os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+try:
+    os.fsync(descriptor)
+finally:
+    os.close(descriptor)
+PY
+}
+
+write_security_migration_state() (
+  local lifecycle="$1" old_umask tmp=""
+  [[ $lifecycle == "running" || $lifecycle == "stopped" ]] || exit 1
+  old_umask=$(umask)
+  umask 077
+  tmp=$(mktemp "$RUNTIME_DIR/.security-migration-state.XXXXXX") || exit 1
+  trap 'rm -f -- "$tmp"; umask "$old_umask"' EXIT
+  printf '%s\n' "$lifecycle" >"$tmp" || exit 1
+  chmod 0600 "$tmp" || exit 1
+  if ((EUID == 0)); then
+    chown root:root "$tmp" || exit 1
+  fi
+  fsync_regular_file "$tmp" || exit 1
+  mv -fT -- "$tmp" "$SECURITY_MIGRATION_STATE" || exit 1
+  tmp=""
+  fsync_directory "$RUNTIME_DIR" || exit 1
+  trap - EXIT
+  umask "$old_umask"
+)
+
+read_security_migration_state() {
+  local expected lifecycle metadata
+  [[ -f $SECURITY_MIGRATION_STATE && ! -L $SECURITY_MIGRATION_STATE ]] || return 1
+  expected=$(boundary_owner)
+  metadata=$(stat -Lc '%u:%a' "$SECURITY_MIGRATION_STATE") || return 1
+  [[ $metadata == "$expected:600" ]] || return 1
+  IFS= read -r lifecycle <"$SECURITY_MIGRATION_STATE" || return 1
+  [[ $lifecycle == "running" || $lifecycle == "stopped" ]] || return 1
+  [[ $(wc -l <"$SECURITY_MIGRATION_STATE") == 1 ]] || return 1
+  [[ $(<"$SECURITY_MIGRATION_STATE") == "$lifecycle" ]] || return 1
+  printf '%s' "$lifecycle"
+}
+
+clear_security_migration_state() {
+  rm -f -- "$SECURITY_MIGRATION_STATE" || return 1
+  fsync_directory "$RUNTIME_DIR"
+}
+
 write_compose_atomically() (
   local ram="$1" cores="$2" disk="$3" username="$4" password="$5" tz="$6"
   local tmp="" rc esc_password
@@ -725,12 +788,14 @@ services:
     restart: "no"
     stop_grace_period: 2m
 EOF
-  chmod 0640 "$tmp" || exit 1
+  chmod 0600 "$tmp" || exit 1
   if ((EUID == 0)); then
-    chown root:docker "$tmp" 2>/dev/null || chown root:root "$tmp" || exit 1
+    chown root:root "$tmp" || exit 1
   fi
+  fsync_regular_file "$tmp" || exit 1
   mv -fT -- "$tmp" "$COMPOSE_FILE" || exit 1
   tmp=""
+  fsync_directory "$RUNTIME_DIR" || exit 1
   trap - EXIT
 )
 
@@ -760,7 +825,7 @@ __priv_write_compose() {
   valid_password "$password" || { echo "invalid password" >&2; exit 2; }
   valid_tz "$tz" || tz="UTC"
   prepare_caller_mounts || exit 2
-  # Readable by root and the docker group only. Any failure after mounting rolls
+  # Readable by root only. Any failure after mounting rolls
   # back just the binds this writer created and leaves an old compose untouched.
   write_compose_atomically "$ram" "$cores" "$disk" "$username" "$password" "$tz" || exit 2
 }
@@ -771,7 +836,7 @@ get_mount_source() {
 }
 
 # True only when a trusted compose has an exact security upgrade path. The
-# result forces a one-time elevated migration for sudoless-Docker users. An
+# result forces a one-time authenticated migration. An
 # arbitrary or mixed bind pair is never classified as migratable.
 compose_needs_security_migration() {
   local storage shared
@@ -783,7 +848,9 @@ compose_needs_security_migration() {
   if compose_mount_pair_is_migratable "$storage" "$shared"; then
     return 0
   fi
-  [[ $storage == "$EXPECTED_STORAGE" && $shared == "$EXPECTED_SHARED" ]] && ! compose_web_protected
+  [[ $storage == "$EXPECTED_STORAGE" && $shared == "$EXPECTED_SHARED" ]] && {
+    ! compose_web_protected || ! compose_root_private
+  }
 }
 
 compose_mount_pair_is_migratable() {
@@ -802,6 +869,12 @@ compose_web_protected() {
     $(sed -n 's/^[[:space:]]*PROTECT:[[:space:]]*"Y"[[:space:]]*$/x/p' "$COMPOSE_FILE" | wc -l) == 1 ]]
 }
 
+compose_root_private() {
+  local expected
+  expected=$(boundary_owner)
+  [[ $(stat -Lc '%u:%g:%a' "$COMPOSE_FILE" 2>/dev/null) == "$expected:$expected:600" ]]
+}
+
 rewrite_compose_security() {
   local tmp
   tmp=$(mktemp "$RUNTIME_DIR/.compose.XXXXXX") || return 1
@@ -817,14 +890,16 @@ rewrite_compose_security() {
     rm -f "$tmp"
     return 1
   }
-  chmod 0640 "$tmp" || { rm -f "$tmp"; return 1; }
+  chmod 0600 "$tmp" || { rm -f "$tmp"; return 1; }
   if ((EUID == 0)); then
-    chown root:docker "$tmp" 2>/dev/null || chown root:root "$tmp" || {
+    chown root:root "$tmp" || {
       rm -f "$tmp"
       return 1
     }
   fi
+  fsync_regular_file "$tmp" || { rm -f "$tmp"; return 1; }
   mv -fT -- "$tmp" "$COMPOSE_FILE" || { rm -f "$tmp"; return 1; }
+  fsync_directory "$RUNTIME_DIR"
 }
 
 assert_compose_trusted() {
@@ -876,14 +951,21 @@ assert_mounts_safe() {
     needs_rewrite=1
   fi
 
+  if ! compose_root_private; then
+    ((EUID == 0)) || {
+      echo "omarchy-windows-vm: compose permissions need an authorized migration" >&2
+      return 1
+    }
+    needs_rewrite=1
+  fi
+
   if ((needs_rewrite)) && ! rewrite_compose_security; then
     if ((mounts_prepared)); then rollback_new_caller_mounts || true; fi
     return 1
   fi
 
   # Mounts disappear at reboot. Root recreates them from the already-opened,
-  # caller-owned sources; a docker-group invocation may proceed directly only
-  # while the exact pinned pair is still present.
+  # caller-owned sources before Docker consumes the protected compose.
   if ((EUID == 0)); then
     prepare_caller_mounts || return 1
   fi
@@ -894,6 +976,56 @@ assert_mounts_safe() {
 }
 
 __priv_up() { assert_mounts_safe && dc up -d; }
+
+__priv_secure() {
+  local desired status
+  if [[ ! -f $COMPOSE_FILE ]]; then
+    if docker inspect "$CONTAINER" >/dev/null 2>&1; then
+      echo "omarchy-windows-vm: an existing Windows container has no trusted Compose definition" >&2
+      return 1
+    fi
+    if [[ -e $SECURITY_MIGRATION_STATE || -L $SECURITY_MIGRATION_STATE ]]; then
+      read_security_migration_state >/dev/null || {
+        echo "omarchy-windows-vm: refusing an untrusted Windows security-migration state" >&2
+        return 1
+      }
+      clear_security_migration_state || return 1
+    fi
+    return 0
+  fi
+  assert_mounts_safe || return 1
+  # A previous process may have completed the Compose rename and died before
+  # synchronizing it. Prove the replacement durable before the caller removes
+  # the legacy user-owned definition that still contains credentials.
+  fsync_regular_file "$COMPOSE_FILE" && fsync_directory "$RUNTIME_DIR" || return 1
+  if [[ -e $SECURITY_MIGRATION_STATE || -L $SECURITY_MIGRATION_STATE ]]; then
+    desired=$(read_security_migration_state) || {
+      echo "omarchy-windows-vm: refusing an untrusted Windows security-migration state" >&2
+      return 1
+    }
+  else
+    status=$(docker inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || return 0
+    if [[ $status == "running" ]]; then
+      desired=running
+    elif [[ $status == "created" || $status == "exited" ]]; then
+      desired=stopped
+    else
+      echo "omarchy-windows-vm: transitional Windows lifecycle needs manual review" >&2
+      return 1
+    fi
+    write_security_migration_state "$desired" || return 1
+  fi
+  if [[ $desired == "running" ]]; then
+    dc up -d || return 1
+    status=$(docker inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || return 1
+    [[ $status == "running" ]] || return 1
+  else
+    dc up --no-start || return 1
+    status=$(docker inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || return 1
+    [[ $status == "created" || $status == "exited" ]] || return 1
+  fi
+  clear_security_migration_state
+}
 
 __priv_down() { dc down; }
 
@@ -971,7 +1103,8 @@ __priv_remove() {
   umount -- "$EXPECTED_SHARED" || return 1
   umount -- "$EXPECTED_STORAGE" || return 1
   docker rmi "$IMAGE" 2>/dev/null || true
-  rm -f "$COMPOSE_FILE"
+  rm -f "$COMPOSE_FILE" "$SECURITY_MIGRATION_STATE"
+  fsync_directory "$RUNTIME_DIR" || return 1
   rmdir -- "$EXPECTED_STORAGE" "$EXPECTED_SHARED" "$CALLER_DATA_ROOT" 2>/dev/null || true
 }
 
@@ -1051,6 +1184,46 @@ unescape() {
   printf '%s' "$v"
 }
 
+# Decode the only double-quoted YAML escapes emitted by Omarchy's historical
+# writer, then reproduce Compose's $$ interpolation exactly. Other escapes or
+# a lone dollar could have produced a different effective value and therefore
+# require the user to set the value again explicitly.
+decode_legacy_scalar() {
+  local raw="$1" yaml="" decoded="" char next index length
+  length=${#raw}
+  for ((index = 0; index < length; index++)); do
+    char=${raw:index:1}
+    if [[ $char == '\' ]]; then
+      ((++index < length)) || return 1
+      next=${raw:index:1}
+      [[ $next == '\' || $next == '"' ]] || return 1
+      yaml+=$next
+    else
+      yaml+=$char
+    fi
+  done
+  length=${#yaml}
+  for ((index = 0; index < length; index++)); do
+    char=${yaml:index:1}
+    if [[ $char == '$' ]]; then
+      ((++index < length)) || return 1
+      [[ ${yaml:index:1} == '$' ]] || return 1
+      decoded+='$'
+    else
+      decoded+=$char
+    fi
+  done
+  printf '%s' "$decoded"
+}
+
+decode_legacy_field() {
+  decode_legacy_scalar "$1" || {
+    echo "The legacy Windows settings use unsupported YAML escaping or environment-dependent Compose interpolation." >&2
+    echo "Run omarchy-windows-vm install to set them explicitly before migration." >&2
+    return 1
+  }
+}
+
 # Store the RDP credentials privately for the user (0600) so the plaintext
 # password is not world-readable. The password is one validated printable line
 # (no newline), so plain KEY=VALUE is safe.
@@ -1063,7 +1236,8 @@ write_credentials() {
   umask 077
   tmp=$(mktemp "$dir/.credentials.XXXXXX") || { umask "$old_umask"; return 1; }
   if ! printf 'USERNAME=%s\nPASSWORD=%s\n' "$username" "$password" >"$tmp" ||
-    ! chmod 0600 "$tmp" || ! mv -fT -- "$tmp" "$CREDENTIALS_FILE"; then
+    ! chmod 0600 "$tmp" || ! fsync_regular_file "$tmp" ||
+    ! mv -fT -- "$tmp" "$CREDENTIALS_FILE" || ! fsync_directory "$dir"; then
     rm -f -- "$tmp"
     umask "$old_umask"
     return 1
@@ -1087,25 +1261,61 @@ read_credential() {
 
 read_compose_value() {
   local key="$1" file="$2"
-  sed -n "s/.*${key}: \"\(.*\)\"/\1/p" "$file" | head -n1
+  sed -n "s/^[[:space:]]*${key}:[[:space:]]*\"\(.*\)\"[[:space:]]*$/\1/p" "$file" | head -n1
+}
+
+read_legacy_compose_value() {
+  local key="$1" optional="${2:-0}" values=()
+  mapfile -t values < <(
+    sed -n "s/^[[:space:]]*${key}:[[:space:]]*\"\(.*\)\"[[:space:]]*$/\1/p" "$LEGACY_COMPOSE_FILE"
+  )
+  if ((optional == 1 && ${#values[@]} == 0)); then
+    return 0
+  fi
+  ((${#values[@]} == 1)) || return 1
+  printf '%s' "${values[0]}"
+}
+
+read_legacy_field() {
+  local raw
+  raw=$(read_legacy_compose_value "$1" "${2:-0}") || {
+    echo "The legacy Windows definition has missing or duplicate settings." >&2
+    echo "Run omarchy-windows-vm install to set them explicitly before migration." >&2
+    return 1
+  }
+  decode_legacy_field "$raw"
 }
 
 # Older installs kept the compose under ~/.config/windows. Carry those settings
 # into the root-owned location (preserving the VM's data via the same volume
 # paths) so an upgrade does not strand or re-download an existing VM.
 migrate_legacy_compose() {
-  [[ -f $COMPOSE_FILE ]] && return 0
+  sync_legacy_compose_parent || return 1
+  if [[ -f $COMPOSE_FILE ]]; then
+    if [[ -f $LEGACY_COMPOSE_FILE ]]; then
+      # This proves a replacement left by an interrupted rename before the
+      # caller removes the remaining user-readable credential copy.
+      priv secure || return 1
+      remove_legacy_compose || return 1
+    fi
+    return 0
+  fi
   [[ -f $LEGACY_COMPOSE_FILE ]] || return 1
 
   echo "Migrating Windows VM configuration to $COMPOSE_FILE ..."
   local ram cores disk username password tz
-  ram=$(read_compose_value RAM_SIZE "$LEGACY_COMPOSE_FILE")
-  cores=$(read_compose_value CPU_CORES "$LEGACY_COMPOSE_FILE")
-  disk=$(read_compose_value DISK_SIZE "$LEGACY_COMPOSE_FILE")
-  username=$(read_compose_value USERNAME "$LEGACY_COMPOSE_FILE")
-  password=$(read_compose_value PASSWORD "$LEGACY_COMPOSE_FILE")
-  tz=$(read_compose_value TZ "$LEGACY_COMPOSE_FILE")
+  ram=$(read_legacy_field RAM_SIZE) || return 1
+  cores=$(read_legacy_field CPU_CORES) || return 1
+  disk=$(read_legacy_field DISK_SIZE) || return 1
+  username=$(read_legacy_field USERNAME) || return 1
+  password=$(read_legacy_field PASSWORD) || return 1
+  tz=$(read_legacy_field TZ 1) || return 1
   [[ -z $tz ]] && tz="UTC"
+  valid_tz "$tz" || {
+    echo "The legacy Windows timezone cannot be migrated safely." >&2
+    echo "Run omarchy-windows-vm install to set it explicitly before migration." >&2
+    return 1
+  }
   prepare_user_mount_sources || {
     echo "Could not validate the existing Windows VM data directories." >&2
     return 1
@@ -1118,7 +1328,33 @@ migrate_legacy_compose() {
     echo "Re-run: omarchy-windows-vm install" >&2
     return 1
   fi
-  rm -f "$LEGACY_COMPOSE_FILE"
+  # A running legacy container still holds its old unauthenticated ports and
+  # mounts until Compose recreates it from the hardened definition.
+  priv secure || return 1
+  remove_legacy_compose
+}
+
+remove_legacy_compose() {
+  rm -f "$LEGACY_COMPOSE_FILE" || return 1
+  fsync_directory "$(dirname -- "$LEGACY_COMPOSE_FILE")"
+}
+
+sync_legacy_compose_parent() {
+  local parent
+  parent=$(dirname -- "$LEGACY_COMPOSE_FILE")
+  if [[ -e $parent || -L $parent ]]; then
+    [[ -d $parent && ! -L $parent ]] || return 1
+    fsync_directory "$parent"
+  fi
+}
+
+secure_windows_migration() {
+  sync_legacy_compose_parent || return 1
+  if [[ -f $LEGACY_COMPOSE_FILE ]]; then
+    migrate_legacy_compose || return 1
+    return 0
+  fi
+  priv secure || return 1
 }
 
 # --- prerequisites -----------------------------------------------------------
@@ -1306,8 +1542,8 @@ EOF
   local tz
   tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo UTC)
 
-  # Write the root-owned compose from the validated settings (one prompt if
-  # sudoless Docker is off). The writer pins the familiar home directories (or
+  # Write the root-owned compose from the validated settings. The writer pins
+  # the familiar home directories (or
   # their legitimate symlink targets) into root-protected bind anchors.
   write_compose "$SELECTED_RAM" "$SELECTED_CORES" "$SELECTED_DISK" \
     "$USERNAME" "$PASSWORD" "$tz" || {
@@ -1326,11 +1562,11 @@ EOF
   echo "Monitor installation progress at: http://127.0.0.1:8006"
   echo ""
 
-  echo "Starting Windows VM with docker-compose..."
+  echo "Starting Windows VM with rootful Docker Compose..."
   if ! priv up; then
     echo "❌ Failed to start Windows VM!"
     echo "   Common issues:"
-    echo "   - Docker daemon not running: sudo systemctl start docker"
+    echo "   - Rootful Docker socket could not start"
     echo "   - Port already in use: check if another VM is running"
     exit 1
   fi
@@ -1362,11 +1598,14 @@ remove_windows() {
 
   echo "Removing Windows VM..."
 
-  if [[ ! -f $COMPOSE_FILE && -f $LEGACY_COMPOSE_FILE ]]; then
-    migrate_legacy_compose || {
+  if ! migrate_legacy_compose; then
+    if [[ -f $COMPOSE_FILE ]]; then
+      echo "❌ Could not securely reconcile the VM definition before removal." >&2
+      exit 1
+    elif [[ -f $LEGACY_COMPOSE_FILE ]]; then
       echo "❌ Could not safely migrate the VM before removal." >&2
       exit 1
-    }
+    fi
   fi
   if [[ -f $COMPOSE_FILE ]]; then
     priv remove || {
@@ -1394,10 +1633,12 @@ launch_windows() {
       echo "Windows VM not configured. Please run: omarchy-windows-vm install"
       exit 1
     fi
+    echo "Could not securely reconcile the Windows VM definition." >&2
+    exit 1
   fi
 
-  # RDP credentials come from the private per-user file. Fall back to the compose
-  # only when it is readable (sudoless mode), reversing the writer's escaping.
+  # RDP credentials come from the private per-user file. Older installs may
+  # still have a readable compose, so retain that migration fallback.
   WIN_USER=$(read_credential USERNAME) || WIN_USER=""
   WIN_PASS=$(read_credential PASSWORD) || WIN_PASS=""
   if [[ -z $WIN_USER || -z $WIN_PASS ]] && [[ -r $COMPOSE_FILE ]]; then
@@ -1478,7 +1719,14 @@ To stop: omarchy-windows-vm stop"
 }
 
 stop_windows() {
-  migrate_legacy_compose 2>/dev/null || true
+  if ! migrate_legacy_compose; then
+    if [[ -f $LEGACY_COMPOSE_FILE ]]; then
+      exit 1
+    elif [[ -f $COMPOSE_FILE ]]; then
+      echo "Could not securely reconcile the Windows VM definition." >&2
+      exit 1
+    fi
+  fi
   if [[ ! -f $COMPOSE_FILE ]]; then
     echo "Windows VM not configured."
     exit 1
@@ -1494,7 +1742,14 @@ stop_windows() {
 }
 
 status_windows() {
-  migrate_legacy_compose 2>/dev/null || true
+  if ! migrate_legacy_compose; then
+    if [[ -f $LEGACY_COMPOSE_FILE ]]; then
+      exit 1
+    elif [[ -f $COMPOSE_FILE ]]; then
+      echo "Could not securely reconcile the Windows VM definition." >&2
+      exit 1
+    fi
+  fi
   if [[ ! -f $COMPOSE_FILE ]]; then
     echo "Windows VM not configured."
     echo "To set up: omarchy-windows-vm install"
@@ -1551,6 +1806,9 @@ show_usage() {
 
 # Main command dispatcher
 case "$1" in
+__migration-secure)
+  secure_windows_migration
+  ;;
 __priv)
   ((EUID == 0)) || {
     echo "omarchy-windows-vm __priv must run as root" >&2

@@ -152,8 +152,8 @@ pass "disk-space accounting measures the actual storage filesystem, not home"
 # Exercise the real root writer and final guard against the production paths.
 printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=alice\nPASSWORD=pw\nTZ=UTC\n' |
   with_vm_lock __priv_write_compose
-[[ $(command stat -Lc '%u:%a' "$COMPOSE_FILE") == 0:640 ]] || fail "root compose ownership/mode is wrong"
-with_vm_lock assert_mounts_safe || fail "final root mount/compose assertion rejected the verified pair"
+[[ $(command stat -Lc '%u:%g:%a' "$COMPOSE_FILE") == 0:0:600 ]] || fail "root compose ownership/mode is wrong"
+with_vm_lock __priv_secure || fail "migration security action rejected the verified pair"
 pass "root writer and final pre-Docker guard revalidate the pinned production mounts"
 
 # Upgrade the exact sibling-anchor pair emitted by the earlier fix without
@@ -162,7 +162,7 @@ sed -i "s|$EXPECTED_STORAGE:/storage|$OLD_EXPECTED_STORAGE:/storage|" "$COMPOSE_
 sed -i "s|$EXPECTED_SHARED:/shared|$OLD_EXPECTED_SHARED:/shared|" "$COMPOSE_FILE"
 sed -i '/PROTECT: "Y"/d' "$COMPOSE_FILE"
 compose_needs_security_migration || fail "previous protected compose was not recognized for upgrade"
-with_vm_lock assert_mounts_safe || fail "root could not upgrade previous protected anchors"
+with_vm_lock __priv_secure || fail "root could not upgrade previous protected anchors"
 grep -q -- "- $EXPECTED_STORAGE:/storage" "$COMPOSE_FILE" || fail "upgrade did not rewrite storage anchor"
 grep -q -- "- $EXPECTED_SHARED:/shared" "$COMPOSE_FILE" || fail "upgrade did not rewrite shared anchor"
 grep -q 'PROTECT: "Y"' "$COMPOSE_FILE" || fail "upgrade did not protect the web console"
@@ -173,7 +173,7 @@ pass "previous sibling-anchor installs upgrade in place to the fixed /var/lib bo
 # upgrade when it predates web-console authentication.
 sed -i '/PROTECT: "Y"/d' "$COMPOSE_FILE"
 compose_needs_security_migration || fail "unprotected fixed-anchor compose was not recognized for upgrade"
-with_vm_lock assert_mounts_safe || fail "root could not protect an existing fixed-anchor compose"
+with_vm_lock __priv_secure || fail "root could not protect an existing fixed-anchor compose"
 grep -q 'PROTECT: "Y"' "$COMPOSE_FILE" || fail "fixed-anchor upgrade did not protect the web console"
 pass "existing fixed-anchor compose gains web-console authentication"
 

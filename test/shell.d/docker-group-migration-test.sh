@@ -5,8 +5,8 @@
 # the group change actually takes effect (group membership is fixed at login),
 # refresh the stale Docker launcher entry, and stay idempotent on reruns.
 #
-# The real omarchy-remove-security-sudoless-docker and omarchy-state run here
-# (from the repo bin); only the privileged/system calls are stubbed, so the whole
+# The historical migration and real omarchy-state run here. Only the
+# privileged/system calls are stubbed, so the whole
 # chain — including the reboot flag — is exercised.
 
 set -euo pipefail
@@ -29,7 +29,11 @@ printf 'OLD-LAUNCHER\n' >"$home/.local/share/applications/Docker.desktop"
 # records its call instead of touching the real system.
 cat >"$stub_bin/id" <<'STUB'
 #!/bin/bash
-printf '%s\n' "${STUB_GROUPS:-wheel input}"
+if [[ ${1:-} == "-un" ]]; then
+  printf 'tester\n'
+else
+  printf '%s\n' "${STUB_GROUPS:-wheel input}"
+fi
 STUB
 cat >"$stub_bin/sudo" <<'STUB'
 #!/bin/bash

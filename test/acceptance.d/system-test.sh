@@ -67,23 +67,23 @@ verify_services() {
   systemctl --user is-active --quiet pipewire.service pipewire-pulse.service wireplumber.service ||
     fail "user audio services are running"
   pass "user audio services are running"
+
+  systemctl --user is-enabled --quiet docker.service || fail "rootless Docker user service is enabled"
+  systemctl --user is-active --quiet docker.service || fail "rootless Docker user service is active"
+  pass "rootless Docker user service is enabled and active"
 }
 
 verify_runtime_tools() {
-  # Docker access is intentionally NOT granted to the desktop user: the docker
-  # group is root-equivalent, so a rogue process running as the user could
-  # otherwise `docker run -v /:/host` its way to passwordless root. The daemon is
-  # still enabled (docker.socket, checked in verify_services) and reached through
-  # a polkit/sudo prompt; opting into sudoless Docker is a separate, warned step.
   command -v docker >/dev/null 2>&1 || fail "Docker CLI is installed"
   ! id -nG | grep -qw docker || fail "desktop user must not be in the docker group"
-  # The group name being absent is not sufficient — a world-writable socket or an
-  # ACL would still hand the user the root daemon. Prove it is actually
-  # unreachable without elevation.
-  if timeout 10 docker info >/dev/null 2>&1; then
-    fail "desktop user must not reach the Docker daemon without elevation"
+  [[ ${DOCKER_HOST:-} == "unix://$XDG_RUNTIME_DIR/docker.sock" ]] || fail "Docker CLI points at the user's rootless socket"
+  timeout 10 docker info >/dev/null 2>&1 || fail "desktop user can reach rootless Docker"
+  docker info --format '{{json .SecurityOptions}}' | jq -e 'index("name=rootless")' >/dev/null || fail "Docker daemon does not report rootless mode"
+  [[ $(stat -Lc '%u:%g:%a' /run/docker.sock) == "0:0:600" ]] || fail "rootful Docker socket is not root-only"
+  if timeout 10 docker --host unix:///run/docker.sock info >/dev/null 2>&1; then
+    fail "desktop user must not reach the rootful Docker daemon"
   fi
-  pass "Docker is installed but unreachable by the desktop user without elevation"
+  pass "Docker development tooling is rootless and the Windows daemon remains root-only"
 
   nvim --headless '+qa' >/dev/null 2>&1 || fail "Neovim starts headlessly"
   pass "Neovim starts headlessly"
