@@ -38,7 +38,8 @@ ShellRoot {
     version: 1,
     idle: {
       screensaver: 150,
-      lock: 300
+      lock: 300,
+      blankDisplay: true
     },
     bar: {
       position: "top",
