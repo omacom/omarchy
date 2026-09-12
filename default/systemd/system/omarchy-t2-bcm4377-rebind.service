@@ -1,0 +1,13 @@
+[Unit]
+Description=Rebind BCM4377 Bluetooth until the adapter is usable
+Documentation=https://github.com/omacom/omarchy/issues/11264
+After=bluetooth.service
+Wants=bluetooth.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-t2-bcm4377-rebind
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
