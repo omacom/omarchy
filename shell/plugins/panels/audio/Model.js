@@ -19,7 +19,15 @@ function isAudioSource(node) {
 }
 
 function listSnapshot(list) {
-  return list && list.slice ? list.slice() : []
+  if (!list || !list.length) return []
+  var out = []
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i]
+    if (item && item.id !== undefined && item.name !== undefined) {
+      out.push(item)
+    }
+  }
+  return out
 }
 
 function outputVolumeName(volume, muted) {
