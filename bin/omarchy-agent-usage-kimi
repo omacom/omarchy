@@ -1,0 +1,178 @@
+#!/usr/bin/python3
+# omarchy:summary=Print native Kimi CLI usage as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Read Kimi Wire 1.10 usage only; never import Kimi or inspect credentials.
+
+A fresh replacement scan counts physical records, not message-content hashes.
+Protocol references and deliberately unsupported shapes: docs/agent-usage.md.
+"""
+import argparse
+import hashlib
+import json
+import math
+import os
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+FIELDS = {
+  "input_other": "inputTokens", "output": "outputTokens",
+  "input_cache_read": "cacheReadInputTokens", "input_cache_creation": "cacheCreationInputTokens",
+}
+MAX_COUNT = 9007199254740991
+
+
+def count(value):
+  return value if type(value) is int and 0 <= value <= MAX_COUNT else None
+
+
+def collect():
+  now = datetime.now().astimezone()
+  today = now.date()
+  dates = [(today - timedelta(days=n)).isoformat() for n in range(29, -1, -1)]
+  days = {day: {"date": day, "buckets": []} for day in dates}
+  issues = set()
+  sessions = set()
+  today_sessions = set()
+  active = set()
+  recent = {day: {"date": day, "messageCount": 0, "prompts": 0, "sessions": 0} for day in dates[-7:]}
+  daily_sessions = {day: set() for day in recent}
+  totals = {field: 0 for field in FIELDS.values()}
+  today_total = 0
+  unallocated = 0
+  share = Path(os.environ.get("KIMI_SHARE_DIR") or Path.home() / ".kimi")
+  source = share / "sessions"
+
+  def entries(path):
+    try:
+      return sorted(path.iterdir())
+    except OSError:
+      issues.add("source-read-error")
+      return []
+
+  # Missing history is normal. Existing but unreadable history is a coverage gap.
+  try:
+    source.stat()
+  except FileNotFoundError:
+    workdirs = []
+  except OSError:
+    issues.add("source-read-error")
+    workdirs = []
+  else:
+    workdirs = entries(source)
+  for workdir in workdirs:
+    if workdir.is_symlink() or not workdir.is_dir():
+      issues.add("unsupported-source-layout")
+      continue
+    for session in entries(workdir):
+      if session.is_symlink() or not session.is_dir():
+        issues.add("unsupported-legacy-session")
+        continue
+      wire = session / "wire.jsonl"
+      for asset in entries(session):
+        if asset.name not in ("wire.jsonl", "context.jsonl", "state.json"):
+          issues.add("unsupported-session-assets")
+      if wire.is_symlink():
+        issues.add("unsupported-source-layout")
+        continue
+      session_id = hashlib.sha256(str(wire.relative_to(source)).encode()).hexdigest()
+      try:
+        with wire.open(encoding="utf-8") as stream:
+          header = json.loads(next(stream))
+          if not isinstance(header, dict) or header.get("type") != "metadata" or header.get("protocol_version") != "1.10":
+            issues.add("unsupported-wire-version")
+            continue
+          for position, line in enumerate(stream, 2):
+            if not line.strip():
+              continue
+            try:
+              record = json.loads(line)
+            except (ValueError, TypeError):
+              issues.add("invalid-wire-record")
+              continue
+            message = record.get("message") if isinstance(record, dict) else None
+            if not isinstance(message, dict) or not isinstance(message.get("payload"), dict):
+              issues.add("invalid-wire-record")
+              continue
+            kind = message.get("type")
+            if kind != "StatusUpdate":
+              # These control/content events do not assert usage. Do not retain payloads.
+              if kind not in {"TurnBegin", "TurnEnd", "StepBegin", "StepInterrupted", "StepRetry",
+                              "CompactionBegin", "CompactionEnd", "TextPart", "ThinkPart", "ToolCall",
+                              "ToolCallPart", "ToolResult", "ApprovalRequest", "ApprovalResponse"}:
+                issues.add("unsupported-wire-event")
+              continue
+            usage = message["payload"].get("token_usage")
+            if usage is None:
+              continue
+            if not isinstance(usage, dict):
+              issues.add("invalid-token-usage")
+              continue
+            # Explicit invalid fields remain unknown. Cache defaults follow TokenUsage.
+            tokens = {target: count(usage.get(raw, 0 if raw.startswith("input_cache_") else None))
+                      for raw, target in FIELDS.items()}
+            known = sum(value for value in tokens.values() if value is not None)
+            total = known if all(value is not None for value in tokens.values()) else None
+            if total == 0:
+              continue
+            bucket_issues = ["missing-model", "event-identity-unverified"]
+            if total is None:
+              bucket_issues.append("invalid-token-usage")
+            timestamp = record.get("timestamp")
+            try:
+              if type(timestamp) not in (int, float) or not math.isfinite(timestamp):
+                raise ValueError()
+              day = datetime.fromtimestamp(timestamp, timezone.utc).astimezone().date().isoformat()
+            except (ValueError, OverflowError, OSError):
+              unallocated += known
+              issues.add("invalid-timestamp")
+              continue
+            if day > today.isoformat():
+              unallocated += known
+              issues.add("future-timestamp")
+              continue
+            if known:
+              sessions.add(session_id)
+              active.add(day)
+              for field, value in tokens.items():
+                totals[field] += value or 0
+              if day == today.isoformat():
+                today_total += known
+                today_sessions.add(session_id)
+              if day in recent:
+                recent[day]["messageCount"] += known
+                daily_sessions[day].add(session_id)
+            if day in days:
+              days[day]["buckets"].append({
+                "rawModel": None, "source": "kimi-native", "sourceId": session_id,
+                "recordPosition": position, "tariff": {}, "tokens": tokens,
+                "totalTokens": total, "issues": bucket_issues,
+              })
+      except FileNotFoundError:
+        issues.add("missing-wire-history")
+      except (OSError, UnicodeError, ValueError, StopIteration):
+        issues.add("source-read-or-header-error")
+  for day in recent:
+    recent[day]["sessions"] = len(daily_sessions[day])
+  buckets = [bucket for day in days.values() for bucket in day["buckets"]]
+  return {
+    "schemaVersion": 1, "id": "kimi", "name": "Kimi CLI", "tierLabel": "Local usage",
+    "updatedAt": now.isoformat(), "ready": bool(sessions), "hasLocalStats": bool(sessions),
+    "hasPromptStats": False, "limits": [], "totalPrompts": 0, "todayPrompts": 0,
+    "totalSessions": len(sessions), "todaySessions": len(today_sessions), "activeDays": len(active),
+    "todayTotalTokens": today_total,
+    "todayTokensByModel": {"(unknown model)": today_total} if today_sessions else {},
+    "modelUsage": {"(unknown model)": totals} if sessions else {},
+    "recentDays": list(recent.values()),
+    "dailyUsage": {"schemaVersion": 1, "unit": "tokens", "fromDate": dates[0],
+                   "throughDate": dates[-1], "complete": not issues and not buckets,
+                   "issues": sorted(issues), "unallocatedTokens": unallocated, "days": list(days.values())},
+  }
+
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.parse_args()
+  print(json.dumps(collect(), separators=(",", ":"), allow_nan=False))

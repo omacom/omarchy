@@ -1,0 +1,1888 @@
+"""Exercise real read-only OpenSSH SFTP and the production collector boundary."""
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+import fcntl
+import json
+import errno
+import os
+import shutil
+import select
+import sqlite3
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+import threading
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(sys.argv.pop(1))
+sys.path.insert(0, str(ROOT / 'default/agent-remote'))
+import main as machines
+import collection
+import opencode as remote_opencode
+from transport import Sftp, target_value
+
+# OpenSSH installs the subsystem in different lib/libexec directories. An
+# explicit path also lets isolated runners declare this test-only dependency.
+if 'OMARCHY_TEST_SFTP_SERVER' in os.environ:
+  candidates = [os.environ['OMARCHY_TEST_SFTP_SERVER']]
+else:
+  candidates = [shutil.which('sftp-server'), '/usr/lib/ssh/sftp-server',
+                '/usr/lib/openssh/sftp-server', '/usr/libexec/openssh/sftp-server',
+                '/usr/libexec/sftp-server']
+SFTP_SERVER = next((str(Path(p).resolve()) for p in candidates if p and os.path.isfile(p) and os.access(p, os.X_OK)), None)
+
+
+def native(total, session='native-a'):
+  tokens = {'input_tokens': total, 'cached_input_tokens': 0, 'cache_write_input_tokens': 0, 'output_tokens': 0, 'total_tokens': total}
+  return [{'type': 'session_meta', 'payload': {'id': session}},
+          {'type': 'turn_context', 'payload': {'model': 'gpt-6-astra'}},
+          {'timestamp': datetime.now(timezone.utc).isoformat(), 'type': 'event_msg',
+           'payload': {'type': 'token_count', 'info': {'total_token_usage': tokens, 'last_token_usage': tokens}}}]
+
+
+def native_claude(incoming, outgoing=20):
+  return [{'type': 'assistant', 'timestamp': datetime.now(timezone.utc).isoformat(),
+           'sessionId': 'claude-native', 'requestId': 'native-request',
+           'message': {'id': 'native-message', 'role': 'assistant', 'model': 'claude-sonnet-5',
+                       'usage': {'input_tokens': incoming, 'output_tokens': outgoing,
+                                 'cache_read_input_tokens': 0, 'cache_creation_input_tokens': 0}}}]
+
+
+@unittest.skipUnless(SFTP_SERVER, 'read-only OpenSSH sftp-server unavailable; set OMARCHY_TEST_SFTP_SERVER')
+class RemoteTests(unittest.TestCase):
+  def setUp(self):
+    self.temp = tempfile.TemporaryDirectory()
+    self.root = Path(self.temp.name)
+    self.source = self.root / 'remote'
+    self.source.mkdir()
+    self.cache = self.root / 'cache'
+    self.config = self.root / 'config'
+    self.state = self.root / 'state'
+    for path in (self.cache, self.config, self.state):
+      path.mkdir()
+    # Only the SSH executable/system-command boundary is simulated. The real
+    # client, remote identity shell command, SFTP server and collectors run.
+    self.fake_bin = self.root / 'bin'
+    self.fake_bin.mkdir()
+    remote_bin = self.fake_bin / 'remote-tools'
+    remote_bin.mkdir()
+    system = remote_bin / 'remote-system'
+    system.write_text('#!' + sys.executable + """
+import os, pathlib, sys
+name = pathlib.Path(sys.argv[0]).name
+if name == 'uname': print(os.environ['REMOTE_PLATFORM'])
+elif name == 'id': print(os.environ['REMOTE_UID'] if sys.argv[1] == '-u' else 'fixture-user')
+elif name == 'cat':
+  if os.environ['REMOTE_PLATFORM'] != 'Linux': sys.exit(1)
+  print(os.environ['REMOTE_MACHINE'])
+elif name == 'ioreg': print('"IOPlatformUUID" = "' + os.environ['REMOTE_UUID'] + '"')
+""")
+    system.chmod(0o755)
+    for name in ('uname', 'id', 'cat', 'ioreg'):
+      (remote_bin / name).symlink_to(system.name)
+    ssh = self.fake_bin / 'ssh'
+    ssh.write_text('#!' + sys.executable + r"""
+import os, sys
+args = sys.argv[1:]
+if os.environ.get('REMOTE_OFFLINE'): sys.exit(255)
+with open(os.environ['REMOTE_CALLS'], 'a') as log: log.write(repr(args) + '\n')
+if '-s' in args:
+  os.execv(os.environ['REMOTE_SFTP_SERVER'], ['sftp-server', '-R', '-d', os.environ['REMOTE_HOME']])
+env = dict(os.environ, HOME=os.environ['REMOTE_HOME'], PATH=os.environ['REMOTE_BIN'] + ':' + os.environ['PATH'])
+os.execve('/bin/sh', ['sh', '-c', args[-1]], env)
+""")
+    ssh.chmod(0o755)
+    self.env = dict(os.environ, PATH=str(self.fake_bin) + ':' + os.environ['PATH'],
+                    HOME=str(self.root / 'local'), OMARCHY_PATH=str(ROOT),
+                    XDG_CONFIG_HOME=str(self.config), XDG_STATE_HOME=str(self.state),
+                    XDG_CACHE_HOME=str(self.cache), PYTHONDONTWRITEBYTECODE='1',
+                    REMOTE_SFTP_SERVER=SFTP_SERVER, REMOTE_HOME=str(self.source), REMOTE_PLATFORM='Linux', REMOTE_UID='501',
+                    REMOTE_MACHINE='0123456789abcdef0123456789abcdef',
+                    REMOTE_UUID='01234567-89AB-CDEF-0123-456789ABCDEF',
+                    REMOTE_CALLS=str(self.root / 'ssh-calls'), REMOTE_BIN=str(remote_bin))
+    self.environment = patch.dict(os.environ, self.env)
+    self.environment.start()
+
+  def tearDown(self):
+    self.environment.stop()
+    self.temp.cleanup()
+
+  def connection(self, target=None):
+    return Sftp(target=target or 'fixture-alias')
+
+  def write(self, relative, entries):
+    path = self.source / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(''.join(json.dumps(entry) + '\n' for entry in entries))
+    os.utime(path, (time.time() - 5, time.time() - 5))
+    return path
+
+  def write_opencode(self, messages, compatible=True):
+    path = self.source / '.local/share/opencode/opencode.db'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    if compatible:
+      connection.execute('CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, data TEXT NOT NULL)')
+      connection.executemany('INSERT INTO message VALUES (?, ?, ?)', [
+        (f'message-{index}', session, json.dumps(message))
+        for index, (session, message) in enumerate(messages)
+      ])
+    else:
+      connection.execute('CREATE TABLE unsupported (data TEXT)')
+    connection.commit()
+    connection.close()
+    return path
+
+  def collect(self, budget=64 * 1024 * 1024):
+    with self.connection() as remote:
+      result = collection.collect_sources(remote, remote.identity(), self.cache, ROOT, budget)
+      return result, remote.transferred
+
+  def assert_transport_failure_retains_snapshot(self, established):
+    source = self.write('.codex/sessions/test.jsonl', native(100))
+    self.assertFalse((self.source / '.local/share/opencode').exists())
+    for failure in ('deadline', 'disconnect', 'read-eof', 'read-timeout'):
+      stages = ('identity', 'read', 'optional-probe') if failure in ('deadline', 'disconnect') else ('read',)
+      for stage in stages:
+        with self.subTest(failure=failure, stage=stage, established=established):
+          source.write_text(''.join(json.dumps(row) + '\n' for row in native(100)))
+          machine = machines.add(self.config, self.state, 'transport-box', 'Transport', self.connection)
+          try:
+            if established:
+              machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+            before = collection.read_json(self.state / 'state.json')['machines'][0]
+            result_path = self.cache / machine['id'] / 'result.json'
+            old_result = result_path.read_bytes() if result_path.exists() else None
+            source.write_text(''.join(json.dumps(row) + '\n' for row in native(1750)))
+            reached = []
+            pipe_fd = []
+            class InterruptedSftp(Sftp):
+              # All protocol operations are production SFTP. Only the session
+              # deadline or actual child process changes at the chosen boundary.
+              def interrupt(self, boundary):
+                if stage != boundary or reached:
+                  return
+                reached.append(boundary)
+                pipe_fd.append(self.process.stdout.fileno())
+                if failure == 'deadline':
+                  self.deadline = 0
+                elif failure == 'disconnect':
+                  self.process.kill()
+                  self.process.wait(timeout=5)
+
+              def identity(self):
+                result = super().identity()
+                self.interrupt('identity')
+                return result
+
+              def read(self, *args, **kwargs):
+                result = super().read(*args, **kwargs)
+                self.interrupt('read')
+                return result
+
+              def attrs(self, path):
+                if path.endswith('/.local'):
+                  self.interrupt('optional-probe')
+                return super().attrs(path)
+
+            read = os.read
+            wait = select.select
+            def read_pipe(fd, count):
+              if failure == 'read-eof' and pipe_fd == [fd]:
+                return b''
+              return read(fd, count)
+            def wait_pipe(readers, writers, errors, timeout):
+              if failure == 'read-timeout' and readers and pipe_fd == [readers[0].fileno()]:
+                return [], [], []
+              return wait(readers, writers, errors, timeout)
+            # EOF/inactivity while awaiting a reply are injected at the OS
+            # boundary, after real identity and file reads have completed.
+            with patch.object(os, 'read', side_effect=read_pipe), patch.object(select, 'select', side_effect=wait_pipe):
+              machines.refresh(self.config, self.state, self.cache, ROOT, True, InterruptedSftp)
+            self.assertEqual(reached, [stage], 'transport fault was not exercised')
+            failed = collection.read_json(self.state / 'state.json')['machines'][0]
+            self.assertEqual(failed['status'], 'stale' if established else 'unavailable')
+            self.assertEqual(failed.get('lastSuccess'), before.get('lastSuccess'))
+            self.assertEqual(failed.get('providers'), before.get('providers'))
+            self.assertEqual(failed.get('issues', []), before.get('issues', []))
+            self.assertNotIn('OpenCode', json.dumps(failed.get('issues', [])))
+            self.assertIn('error', failed)
+            self.assertEqual(result_path.read_bytes() if result_path.exists() else None, old_result)
+            if not established:
+              self.assertNotIn('lastSuccess', failed)
+              self.assertNotIn('providers', failed)
+            machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+            recovered = collection.read_json(self.state / 'state.json')['machines'][0]
+            self.assertEqual(recovered['status'], 'current')
+            self.assertEqual(recovered['issues'], [])
+            self.assertEqual(recovered['providers']['codex']['todayTotalTokens'], 1750)
+            self.assertNotIn('error', recovered)
+            if established:
+              self.assertGreater(recovered['lastSuccess'], before['lastSuccess'])
+          finally:
+            machines.mutate(self.config, self.state, machine['id'], remove=True)
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_source_last_success_tracks_verified_pass_including_unchanged_sources(self):
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    machine = machines.add(self.config, self.state, 'verified-box', 'Verified', self.connection)
+    now = time.time() + 10
+    def refresh_at(stamp):
+      with patch.object(time, 'time', return_value=stamp):
+        machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+      return collection.read_json(self.state / 'state.json')['machines'][0]
+    first = refresh_at(now)
+    quiet = refresh_at(now + 10)
+    self.assertEqual(quiet['providers']['codex']['remoteSources']['.codex/sessions']['lastSuccess'], now + 10)
+    self.assertEqual(quiet['providers']['claude']['remoteSources']['.claude/projects']['lastSuccess'], now + 10)
+    self.assertEqual(quiet['providers']['codex']['remoteCollector'], first['providers']['codex']['remoteCollector'])
+    claude.parent.chmod(0)
+    try:
+      codex.write_text(''.join(json.dumps(row) + '\n' for row in native(1750)))
+      partial = refresh_at(now + 20)
+      self.assertEqual(partial['providers']['claude']['remoteSources']['.claude/projects'],
+                       {'status': 'stale', 'lastSuccess': now + 10})
+      self.assertEqual(partial['providers']['codex']['remoteSources']['.codex/sessions']['lastSuccess'], now + 20)
+      self.assertEqual(partial['providers']['codex']['todayTotalTokens'], 1750)
+      self.assertEqual(partial['providers']['claude']['todayTotalTokens'], 120)
+    finally:
+      claude.parent.chmod(0o700)
+    recovered = refresh_at(now + 30)
+    self.assertEqual(recovered['providers']['claude']['remoteSources']['.claude/projects'],
+                     {'status': 'current', 'lastSuccess': now + 30})
+    self.assertEqual(recovered['status'], 'current')
+
+  def test_first_import_transport_failure_remains_unavailable_until_recovery(self):
+    self.assert_transport_failure_retains_snapshot(established=False)
+
+  def test_cached_import_transport_failure_retains_last_success_until_recovery(self):
+    self.assert_transport_failure_retains_snapshot(established=True)
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_unreadable_source_retains_its_history_while_native_sources_advance(self):
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    self.cli('add', 'partial-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    previous = collection.read_json(state)['machines'][0]
+    claude.parent.chmod(0)
+    try:
+      with self.assertRaises(PermissionError):
+        claude.read_bytes()
+      codex.write_text(''.join(json.dumps(row) + '\n' for row in native(175)))
+      self.cli('refresh', '--force')
+      partial = collection.read_json(state)['machines'][0]
+      self.assertEqual(partial['status'], 'incomplete')
+      self.assertEqual(partial['providers']['codex']['todayTotalTokens'], 175)
+      self.assertEqual(partial['providers']['claude']['todayTotalTokens'], 120)
+      self.assertFalse(partial['providers']['claude']['dailyUsage']['complete'])
+      self.assertTrue(partial['providers']['codex']['dailyUsage']['complete'])
+      self.assertIn('.claude/projects', ' '.join(partial['issues']))
+      self.assertLessEqual(partial['providers']['claude']['remoteSources']['.claude/projects']['lastSuccess'],
+                           previous['lastSuccess'])
+    finally:
+      claude.parent.chmod(0o700)
+    claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(200)))
+    self.cli('refresh', '--force')
+    recovered = collection.read_json(state)['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['issues'], [])
+    self.assertEqual(recovered['providers']['codex']['todayTotalTokens'], 175)
+    self.assertEqual(recovered['providers']['claude']['todayTotalTokens'], 220)
+    self.assertTrue(recovered['providers']['claude']['dailyUsage']['complete'])
+
+  def test_symlink_entries_do_not_hide_readable_siblings_or_follow_linked_parents(self):
+    self.write('.codex/sessions/z-safe.jsonl', native(100))
+    outside = self.write('outside/secret.jsonl', native(99999, 'must-not-read'))
+    link = self.source / '.codex/sessions/a-link.jsonl'
+    link.symlink_to(outside)
+    self.cli('add', 'links-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'incomplete')
+    self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+    self.assertFalse(row['providers']['codex']['dailyUsage']['complete'])
+    self.assertIn('symlink', ' '.join(row['issues']).lower())
+    link.unlink()
+    # Even a parent above the configured root must not redirect the walk.
+    for relative in ('.claude', '.pi/agent', '.omp/agent/sessions', '.kimi/sessions'):
+      with self.subTest(relative=relative):
+        link = self.source / relative
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(outside.parent, target_is_directory=True)
+        try:
+          self.cli('refresh', '--force')
+          row = collection.read_json(state)['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+          self.assertIn('symlink', ' '.join(row['issues']).lower())
+        finally:
+          link.unlink()
+    self.cli('refresh', '--force')
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+    self.assertNotIn('99999', ''.join(p.read_text() for p in self.cache.rglob('*.jsonl')))
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_unreadable_optional_roots_are_incomplete_instead_of_zero(self):
+    self.write('.codex/sessions/test.jsonl', native(123))
+    self.cli('add', 'unreadable-box')
+    for relative, provider in (('.claude/projects', 'claude'), ('.pi/agent/sessions', 'codex'),
+                               ('.omp/agent/sessions', 'codex'), ('.kimi/sessions', 'kimi')):
+      with self.subTest(relative=relative):
+        directory = self.source / relative
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(0)
+        try:
+          with self.assertRaises(PermissionError):
+            list(directory.iterdir())
+          self.cli('refresh', '--force')
+          row = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 123)
+          self.assertFalse(row['providers'][provider]['dailyUsage']['complete'])
+          if provider != 'codex':
+            self.assertIsNone(row['providers'][provider]['todayTotalTokens'])
+        finally:
+          directory.chmod(0o700)
+    self.cli('refresh', '--force')
+    row = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['issues'], [])
+
+  @unittest.skipIf(os.getuid() == 0, 'EACCES needs an unprivileged test account')
+  def test_file_read_and_parse_failures_keep_cached_source_and_fresh_siblings(self):
+    bad = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.cli('add', 'files-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    for index, failure in enumerate(('eacces', 'json', 'nan')):
+      with self.subTest(failure=failure):
+        codex = self.write('.codex/sessions/test.jsonl', native(2000 + index))
+        os.utime(codex, None)
+        if failure == 'eacces':
+          bad.chmod(0)
+        elif failure == 'json':
+          bad.write_text('{PRIVATE broken json\n')
+        else:
+          bad.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(float('nan'))))
+        try:
+          self.cli('refresh', '--force')
+          row = collection.read_json(state)['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 2000 + index)
+          self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+          self.assertFalse(row['providers']['claude']['dailyUsage']['complete'])
+        finally:
+          bad.chmod(0o600)
+    bad.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(300)))
+    self.cli('refresh', '--force')
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['providers']['claude']['todayTotalTokens'], 320)
+    self.assertNotIn('PRIVATE', ''.join(p.read_text() for p in self.cache.rglob('*.jsonl')))
+
+  def test_collector_process_failures_preserve_previous_provider_and_retry_without_source_change(self):
+    self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    app = self.root / 'collector-app'
+    (app / 'bin').mkdir(parents=True)
+    (app / 'default').symlink_to((ROOT / 'default').resolve(), target_is_directory=True)
+    for name in ('omarchy-agent-machine', 'omarchy-agent-usage-codex', 'omarchy-agent-usage-kimi'):
+      (app / 'bin' / name).symlink_to((ROOT / 'bin' / name).resolve())
+    wrapper = app / 'bin/omarchy-agent-usage-claude'
+    wrapper.write_text('#!' + sys.executable + '\n' +
+      "import os, sys\nmode = os.environ.get('COLLECTOR_FAILURE')\n" +
+      "if mode == 'exit': sys.exit(7)\n" +
+      "if mode == 'json': print('PRIVATE invalid JSON'); sys.exit(0)\n" +
+      "if mode == 'shape': print('[]'); sys.exit(0)\n" +
+      "if mode == 'deep': print('{\"id\":\"claude\",\"dailyUsage\":{\"schemaVersion\":1,\"complete\":false,\"days\":[{\"buckets\":[null]}]}}'); sys.exit(0)\n" +
+      "if mode == 'nan': print('{\"id\":\"claude\",\"todayTotalTokens\":NaN,\"dailyUsage\":{\"schemaVersion\":1,\"days\":[]}}'); sys.exit(0)\n" +
+      "os.execv(" + repr(str((ROOT / 'bin/omarchy-agent-usage-claude').resolve())) +
+      ", ['omarchy-agent-usage-claude'] + sys.argv[1:])\n")
+    wrapper.chmod(0o755)
+    state = self.state / 'omarchy/agents/remote/state.json'
+    with patch.dict(os.environ, OMARCHY_PATH=str(app)):
+      self.cli('add', 'collector-box')
+      # No prior Claude import: explicitly unavailable, never a measured zero.
+      with patch.dict(os.environ, COLLECTOR_FAILURE='exit'):
+        self.cli('refresh', '--force')
+      first = collection.read_json(state)['machines'][0]
+      self.assertEqual(first['status'], 'incomplete')
+      self.assertEqual(first['providers']['codex']['todayTotalTokens'], 100)
+      self.assertIsNone(first['providers']['claude']['todayTotalTokens'])
+      self.assertFalse(first['providers']['claude']['dailyUsage']['complete'])
+      self.cli('refresh', '--force')
+      good = collection.read_json(state)['machines'][0]
+      self.assertEqual(good['providers']['claude']['todayTotalTokens'], 120)
+      for index, failure in enumerate(('exit', 'json', 'shape', 'deep', 'nan')):
+        with self.subTest(failure=failure):
+          codex = self.write('.codex/sessions/test.jsonl', native(2000 + index))
+          os.utime(codex, None)
+          claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(200)))
+          with patch.dict(os.environ, COLLECTOR_FAILURE=failure):
+            self.cli('refresh', '--force')
+          row = collection.read_json(state)['machines'][0]
+          self.assertEqual(row['status'], 'incomplete')
+          self.assertEqual(row['providers']['codex']['todayTotalTokens'], 2000 + index)
+          self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+          self.assertFalse(row['providers']['claude']['dailyUsage']['complete'])
+          self.assertEqual(row['providers']['claude']['remoteCollector']['lastSuccess'],
+                           good['providers']['claude']['remoteCollector']['lastSuccess'])
+          self.assertNotIn('PRIVATE', json.dumps(row))
+      # Recovery must retry even with an unchanged sanitized-source cache.
+      self.cli('refresh', '--force')
+      recovered = collection.read_json(state)['machines'][0]
+      self.assertEqual(recovered['status'], 'current')
+      self.assertEqual(recovered['providers']['claude']['todayTotalTokens'], 220)
+      self.assertTrue(recovered['providers']['claude']['dailyUsage']['complete'])
+      self.cli('refresh', '--force')
+      self.assertEqual(collection.read_json(state)['machines'][0]['providers']['claude']['todayTotalTokens'], 220)
+
+  def test_remove_while_refresh_waits_for_catalog_lock_does_not_fail_or_resurrect(self):
+    self.write('.codex/sessions/test.jsonl', native(100))
+    machine = machines.add(self.config, self.state, 'race-box', 'Race', self.connection)
+    waiting = threading.Event()
+    resume = threading.Event()
+    flock = fcntl.flock
+    test_thread = threading.get_ident()
+    def pause_at_lock(stream, operation):
+      # Pause at the OS lock boundary, before refresh can acquire the catalog.
+      # Removal uses the real lock and public catalog mutation in the meantime.
+      if (threading.get_ident() != test_thread and operation == fcntl.LOCK_EX
+          and Path(stream.name) == self.config / '.machines.lock' and not waiting.is_set()):
+        waiting.set()
+        if not resume.wait(5):
+          raise TimeoutError('test did not release catalog boundary')
+      return flock(stream, operation)
+    with patch.object(fcntl, 'flock', side_effect=pause_at_lock), ThreadPoolExecutor(max_workers=1) as pool:
+      future = pool.submit(machines.refresh, self.config, self.state, self.cache, ROOT, True, self.connection)
+      try:
+        self.assertTrue(waiting.wait(5), 'refresh did not reach the catalog lock')
+        machines.mutate(self.config, self.state, machine['id'], remove=True)
+      finally:
+        resume.set()
+      future.result(timeout=5)
+    self.assertEqual(collection.read_json(self.state / 'state.json')['machines'], [])
+
+  def test_list_is_read_only_and_not_due_refresh_keeps_panel_snapshot_unchanged(self):
+    self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+    for directory in (self.config, self.state, self.cache):
+      self.assertFalse((directory / 'omarchy').exists(), 'empty list created runtime state')
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.cli('add', 'quiet-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    original = state.read_bytes()
+    before = state.stat()
+    calls = (self.root / 'ssh-calls').read_bytes()
+    self.cli('list', '--json')
+    self.cli('list')
+    self.cli('refresh')
+    self.assertEqual(state.read_bytes(), original)
+    self.assertEqual((state.stat().st_ino, state.stat().st_mtime_ns), (before.st_ino, before.st_mtime_ns))
+    self.assertEqual((self.root / 'ssh-calls').read_bytes(), calls)
+
+  def test_sftp_read_rejects_links_even_if_a_path_changes_after_inventory(self):
+    source = self.write('.codex/sessions/test.jsonl', native(100))
+    with self.connection() as remote:
+      # The actual SFTP listing saw a regular file before its replacement.
+      self.assertTrue(any(path == str(source) for path, _ in
+                          remote.walk(str(source.parent), self.fail, base=str(self.source))))
+      source.unlink()
+      target = self.write('outside/test.jsonl', native(99999))
+      source.symlink_to(target)
+      with self.assertRaisesRegex(OSError, 'symlink'):
+        remote.read(str(source))
+      source.unlink()
+      source.parent.rmdir()
+      source.parent.symlink_to(target.parent, target_is_directory=True)
+      with self.assertRaisesRegex(OSError, 'symlink'):
+        remote.read(str(source))
+      self.assertEqual(remote.transferred, 0)
+
+  def test_invalid_native_record_shapes_do_not_replace_last_successful_files(self):
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    self.cli('add', 'shape-box')
+    self.cli('refresh', '--force')
+    state = self.state / 'omarchy/agents/remote/state.json'
+    for payload in ([], {'type': 'token_count', 'info': []},
+                    {'type': 'token_count', 'info': {'last_token_usage': []}}):
+      with self.subTest(payload=payload):
+        codex.write_text(json.dumps({'type': 'event_msg', 'payload': payload}) + '\n')
+        claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(200)))
+        self.cli('refresh', '--force')
+        row = collection.read_json(state)['machines'][0]
+        self.assertEqual(row['status'], 'incomplete')
+        self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+        self.assertEqual(row['providers']['claude']['todayTotalTokens'], 220)
+    codex.write_text(''.join(json.dumps(row) + '\n' for row in native(175)))
+    for message in ([], {'role': 'assistant', 'usage': []}):
+      with self.subTest(message=message):
+        claude.write_text(json.dumps({'type': 'assistant', 'message': message}) + '\n')
+        self.cli('refresh', '--force')
+        row = collection.read_json(state)['machines'][0]
+        self.assertEqual(row['status'], 'incomplete')
+        self.assertEqual(row['providers']['codex']['todayTotalTokens'], 175)
+        self.assertEqual(row['providers']['claude']['todayTotalTokens'], 220)
+    claude.write_text(''.join(json.dumps(row) + '\n' for row in native_claude(300)))
+    self.cli('refresh', '--force')
+    row = collection.read_json(state)['machines'][0]
+    self.assertEqual(row['status'], 'current')
+    self.assertEqual(row['providers']['codex']['todayTotalTokens'], 175)
+    self.assertEqual(row['providers']['claude']['todayTotalTokens'], 320)
+
+  def test_native_append_cache_and_no_transcript_retention(self):
+    path = self.write('.codex/sessions/test.jsonl', native(100) + [
+      {'type': 'response_item', 'payload': {'role': 'user', 'content': 'PRIVATE PROMPT DO NOT CACHE'}}])
+    (providers, issues), _ = self.collect()
+    self.assertEqual(providers['codex']['todayTotalTokens'], 100)
+    self.assertNotIn('invalid-native-record', providers['codex']['dailyUsage']['issues'])
+    self.assertEqual(issues, [])
+    run = subprocess.run
+    def no_collector(command, **kwargs):
+      self.assertEqual(command[0], 'ssh', 'warm cache reran collector')
+      return run(command, **kwargs)
+    with patch.object(collection.subprocess, 'run', side_effect=no_collector):
+      (warm, _), transferred = self.collect()
+    for provider in providers:
+      self.assertEqual({key: value for key, value in warm[provider].items() if key != 'remoteSources'},
+                       {key: value for key, value in providers[provider].items() if key != 'remoteSources'})
+    self.assertLess(transferred, 256, 'unchanged logs need no file-content reads')
+    with path.open('a') as stream:
+      stream.write(json.dumps(native(175)[-1]) + '\n')
+    (updated, _), _ = self.collect()
+    self.assertEqual(updated['codex']['todayTotalTokens'], 175)
+    contents = ''.join(p.read_text() for p in self.cache.rglob('*.jsonl'))
+    self.assertNotIn('PRIVATE PROMPT', contents)
+
+  def test_replacement_and_partial_last_line(self):
+    path = self.write('.codex/sessions/test.jsonl', native(100))
+    self.collect()
+    path.write_text(''.join(json.dumps(row) + '\n' for row in native(42, 'replacement')))
+    (value, _), _ = self.collect()
+    self.assertEqual(value['codex']['todayTotalTokens'], 42)
+    line = json.dumps(native(60, 'replacement')[-1])
+    with path.open('a') as stream:
+      stream.write(line[:30])
+    (value, _), _ = self.collect()
+    self.assertEqual(value['codex']['todayTotalTokens'], 42)
+    with path.open('a') as stream:
+      stream.write(line[30:] + '\n')
+    (value, _), _ = self.collect()
+    self.assertEqual(value['codex']['todayTotalTokens'], 60)
+
+  def test_malformed_complete_line_does_not_hide_later_valid_usage(self):
+    path = self.write('.codex/sessions/test.jsonl', native(100))
+    self.collect()
+    with path.open('a') as stream:
+      stream.write('{malformed complete record\n')
+      stream.write(json.dumps(native(175)[-1]) + '\n')
+    (value, issues), _ = self.collect()
+    self.assertEqual(value['codex']['todayTotalTokens'], 175)
+    self.assertFalse(value['codex']['dailyUsage']['complete'])
+    self.assertIn('malformed complete JSONL', ' '.join(issues))
+    self.assertEqual(value['codex']['remoteSources']['.codex/sessions']['status'], 'stale')
+    path.write_text(''.join(json.dumps(row) + '\n' for row in native(200)))
+    os.utime(path, (time.time() - 5, time.time() - 5))
+    (recovered, issues), _ = self.collect()
+    self.assertEqual(recovered['codex']['todayTotalTokens'], 200)
+    self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+    self.assertEqual(issues, [])
+
+  def test_remote_mtime_preserves_native_codex_legacy_window(self):
+    old = time.time() - 40 * 24 * 60 * 60
+    entries = native(321, 'old-native')
+    entries[-1]['timestamp'] = datetime.fromtimestamp(old, timezone.utc).isoformat()
+    path = self.write('.codex/sessions/old.jsonl', entries)
+    os.utime(path, (old, old))
+    (value, issues), _ = self.collect()
+    imported = self.cache / 'sources/.codex/sessions/old.jsonl'
+    self.assertAlmostEqual(imported.stat().st_mtime, old, delta=1)
+    self.assertNotIn('codex', value, 'old remote files must use the same legacy eligibility as local files')
+    self.assertEqual(issues, [])
+
+  def test_optional_opencode_query_assigns_providers_and_retains_only_bounded_metadata(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    database = self.write_opencode([
+      ('openai-session', {'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-6-astra',
+        'parts': [{'text': 'PRIVATE OPENCODE RESPONSE'}], 'time': {'created': stamp},
+        'service_tier': 'priority', 'speed': 'fast', 'fast_mode': True, 'cache_duration': '1h',
+        'inference_geo': 'us',
+        'tokens': {'input': 80, 'output': 40, 'reasoning': 5, 'cache': {'read': 30, 'write': 10}}}),
+      ('claude-session', {'role': 'assistant', 'providerID': 'anthropic', 'modelID': 'claude-remote',
+        'content': 'PRIVATE CLAUDE RESPONSE', 'time': {'created': stamp},
+        'tokens': {'input': 100, 'output': 50, 'reasoning': 7, 'cache': {'read': 25, 'write': 10}}}),
+      ('ignored-session', {'role': 'assistant', 'providerID': 'fireworks-ai', 'modelID': 'kimi',
+        'time': {'created': stamp}, 'tokens': {'input': 999, 'output': 999}}),
+    ])
+    writer = sqlite3.connect(database)
+    self.addCleanup(writer.close)
+    writer.execute('PRAGMA journal_mode=WAL')
+    writer.execute('PRAGMA wal_autocheckpoint=0')
+    writer.execute('INSERT INTO message VALUES (?, ?, ?)',
+                   ('message-wal-bootstrap', 'wal-bootstrap', json.dumps({'role': 'user'})))
+    writer.commit()
+    original = (database.read_bytes(), database.stat().st_mode, database.stat().st_mtime_ns)
+    with self.connection() as remote:
+      checked = collection.remote_regular_attrs(remote, str(self.source),
+                                                '.local/share/opencode/opencode.db')
+      self.assertEqual(checked['size'], database.stat().st_size)
+    (value, issues), _ = self.collect()
+    self.assertEqual(issues, [])
+    imported = self.cache / 'sources/.opencode/messages.jsonl'
+    self.assertTrue(imported.is_file(), 'OpenCode query did not persist sanitized metadata')
+    self.assertEqual(len(imported.read_text().splitlines()), 2,
+                     'OpenCode query did not return both supported provider rows')
+    self.assertEqual(value['codex']['todayTotalTokens'], 265)
+    self.assertEqual(value['claude']['todayTotalTokens'], 312)
+    self.assertEqual((database.read_bytes(), database.stat().st_mode, database.stat().st_mtime_ns), original)
+    codex_bucket = next(bucket for day in value['codex']['dailyUsage']['days']
+                        for bucket in day['buckets'] if bucket['source'] == 'opencode')
+    self.assertEqual(codex_bucket['rawModel'], 'gpt-6-astra')
+    self.assertEqual(codex_bucket['tokens'], {'inputTokens': 80, 'outputTokens': 45,
+      'cacheReadInputTokens': 30, 'cacheCreationInputTokens': 10})
+    self.assertEqual(codex_bucket['tariff'], {'service_tier': 'priority', 'speed': 'fast',
+      'fast_mode': True, 'cache_duration': '1h', 'inference_geo': 'us'})
+    price_script = """
+const pricing = require(process.argv[1]);
+const bucket = JSON.parse(process.argv[2]);
+console.log(JSON.stringify(pricing.priceBucket('codex', bucket, {})));
+"""
+    priced = subprocess.run(['node', '-e', price_script,
+      str(ROOT / 'shell/plugins/agents/ApiCost.js'), json.dumps(codex_bucket)],
+      capture_output=True, text=True, check=True)
+    price = json.loads(priced.stdout)
+    self.assertEqual(price['status'], 'unknown')
+    self.assertTrue(any('unsupported observed tariff' in missing for missing in price['missing']))
+    self.assertTrue(any('inference_geo=us' in assumption for assumption in price['assumptions']))
+    for provider in ('codex', 'claude'):
+      self.assertEqual(value[provider]['remoteSources']['.local/share/opencode/opencode.db']['status'], 'current')
+    retained = ''.join(path.read_text() for path in self.cache.rglob('*')
+                       if path.is_file() and path.suffix in ('.json', '.jsonl'))
+    self.assertNotIn('PRIVATE', retained)
+    self.assertFalse(any(path.name == 'opencode.db' for path in self.cache.rglob('*')))
+    calls = (self.root / 'ssh-calls').read_text()
+    self.assertIn('sqlite3 -safe -init /dev/null :memory:', calls)
+    self.assertIn('SELECT 1', calls)
+    self.assertIn('sqlite3 -readonly $safe -json', calls)
+    self.assertIn('-init /dev/null', calls)
+    self.assertIn('PRAGMA query_only=ON', calls)
+    self.assertNotIn('opencode db', calls)
+    query_calls = calls.count('sqlite3 -readonly $safe -json')
+    (warm, warm_issues), _ = self.collect()
+    self.assertEqual(warm_issues, [])
+    self.assertEqual(warm['codex']['todayTotalTokens'], 265)
+    self.assertEqual(warm['claude']['todayTotalTokens'], 312)
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                     query_calls, 'unchanged OpenCode database reran the remote SQL query')
+    wal = Path(str(database) + '-wal')
+    wal_before = (wal.stat().st_size, wal.stat().st_mtime_ns)
+    writer.execute('INSERT INTO message VALUES (?, ?, ?)', ('message-wal', 'wal-session', json.dumps({
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    })))
+    writer.commit()
+    self.assertEqual((database.read_bytes(), database.stat().st_mode, database.stat().st_mtime_ns), original,
+                     'WAL fixture unexpectedly changed main DB attributes/content')
+    self.assertNotEqual((wal.stat().st_size, wal.stat().st_mtime_ns), wal_before)
+    try:
+      (rechecked, rechecked_issues), _ = self.collect()
+      self.assertEqual(rechecked_issues, [])
+      self.assertEqual(rechecked['codex']['todayTotalTokens'], 284)
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       query_calls + 1, 'committed WAL append did not rerun the remote SQL query')
+    finally:
+      writer.close()
+
+  def test_unchanged_oversized_opencode_backs_off_while_native_advances_and_changed_db_recovers(self):
+    stamp = int(time.time() * 1000)
+    native_path = self.write('.codex/sessions/test.jsonl', native(100))
+    message = {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    }
+    database = self.write_opencode([
+      (f'oversized-{index}', message) for index in range(remote_opencode.MAX_ROWS + 1)
+    ])
+
+    (first, first_issues), _ = self.collect()
+    self.assertEqual(first['codex']['todayTotalTokens'], 100)
+    self.assertFalse(first['codex']['dailyUsage']['complete'])
+    self.assertEqual(first['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'unavailable')
+    query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+    self.assertEqual(query_calls, 1)
+    position_path = self.cache / 'positions' / (collection.digest(collection.OPENCODE_SOURCE.encode()) + '.json')
+    position = collection.read_json(position_path)
+    self.assertEqual(position['queryLimit']['kind'], 'rows')
+    self.assertEqual(set(position['queryLimit']), {'kind', 'database', 'wal', 'retryAfter'})
+    self.assertGreater(position['queryLimit']['retryAfter'], time.time())
+    self.assertLessEqual(position['queryLimit']['retryAfter'],
+                         time.time() + collection.OPENCODE_LIMIT_BACKOFF_SECONDS)
+    self.assertNotIn('oversized-', position_path.read_text())
+
+    (unchanged, unchanged_issues), _ = self.collect()
+    self.assertEqual(unchanged['codex']['todayTotalTokens'], 100)
+    self.assertFalse(unchanged['codex']['dailyUsage']['complete'])
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                     query_calls, 'unchanged oversized database reran its bounded query')
+    self.assertEqual(unchanged_issues, first_issues)
+    self.assertTrue(any('10,000' in issue for issue in first_issues))
+
+    native_path.write_text(''.join(json.dumps(row) + '\n' for row in native(175)))
+    os.utime(native_path, (time.time() - 30, time.time() - 30))
+    (advanced, advanced_issues), _ = self.collect()
+    self.assertEqual(advanced['codex']['todayTotalTokens'], 175)
+    self.assertFalse(advanced['codex']['dailyUsage']['complete'])
+    self.assertEqual(advanced_issues, first_issues)
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'), query_calls)
+
+    database.unlink()
+    self.write_opencode([('recovered', message)])
+    (recovered, recovered_issues), _ = self.collect()
+    self.assertEqual(recovered_issues, [])
+    self.assertEqual(recovered['codex']['todayTotalTokens'], 194)
+    self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+    self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'), query_calls + 1)
+    self.assertNotIn('queryLimit', collection.read_json(position_path))
+
+  def test_opencode_bound_backoff_retains_last_good_and_wal_change_recovers(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    message = {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    }
+    database = self.write_opencode([('good', message)])
+    (established, established_issues), _ = self.collect()
+    self.assertEqual(established_issues, [])
+    self.assertEqual(established['codex']['todayTotalTokens'], 119)
+    imported = self.cache / 'sources' / collection.OPENCODE_METADATA
+    last_good = imported.read_bytes()
+    query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+
+    writer = sqlite3.connect(database)
+    try:
+      writer.execute('PRAGMA journal_mode=WAL')
+      writer.execute('PRAGMA wal_autocheckpoint=0')
+      serialized = json.dumps(message)
+      writer.executemany('INSERT INTO message VALUES (?, ?, ?)', [
+        (f'oversized-{index}', f'oversized-{index}', serialized)
+        for index in range(remote_opencode.MAX_ROWS)
+      ])
+      writer.commit()
+      (limited, limited_issues), _ = self.collect()
+      self.assertEqual(limited['codex']['todayTotalTokens'], 119)
+      self.assertFalse(limited['codex']['dailyUsage']['complete'])
+      self.assertEqual(limited['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'stale')
+      self.assertTrue(any('10,000' in issue for issue in limited_issues))
+      self.assertEqual(imported.read_bytes(), last_good)
+      limited_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+      self.assertEqual(limited_calls, query_calls + 1)
+
+      (unchanged, unchanged_issues), _ = self.collect()
+      self.assertEqual(unchanged['codex']['todayTotalTokens'], 119)
+      self.assertEqual(unchanged_issues, limited_issues)
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       limited_calls)
+
+      wal = Path(str(database) + '-wal')
+      wal_before = (wal.stat().st_size, wal.stat().st_mtime_ns)
+      writer.execute("DELETE FROM message WHERE id != 'message-0'")
+      writer.commit()
+      self.assertNotEqual((wal.stat().st_size, wal.stat().st_mtime_ns), wal_before)
+      (recovered, recovered_issues), _ = self.collect()
+      self.assertEqual(recovered_issues, [])
+      self.assertEqual(recovered['codex']['todayTotalTokens'], 119)
+      self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+      self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       limited_calls + 1)
+    finally:
+      writer.close()
+
+  def test_transient_opencode_failure_retries_unchanged_source(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.write_opencode([('transient', {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    })])
+    real_sqlite = shutil.which('sqlite3')
+    marker = self.root / 'sqlite-transient-cleared'
+    sqlite = self.fake_bin / 'sqlite3'
+    sqlite.write_text('#!' + sys.executable + """
+import os, pathlib, sys
+real = os.environ['REMOTE_REAL_SQLITE']
+if ':memory:' in sys.argv:
+  os.execv(real, [real, *sys.argv[1:]])
+marker = pathlib.Path(os.environ['REMOTE_TRANSIENT_MARKER'])
+if not marker.exists():
+  marker.write_text('sanitized transient marker')
+  sys.exit(75)
+os.execv(real, [real, *sys.argv[1:]])
+""")
+    sqlite.chmod(0o755)
+    with patch.dict(os.environ, REMOTE_REAL_SQLITE=real_sqlite,
+                    REMOTE_TRANSIENT_MARKER=str(marker)):
+      (failed, failed_issues), _ = self.collect()
+      self.assertEqual(failed['codex']['todayTotalTokens'], 100)
+      self.assertFalse(failed['codex']['dailyUsage']['complete'])
+      self.assertEqual(failed['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'unavailable')
+      self.assertTrue(any('OpenCode' in issue for issue in failed_issues))
+      position_path = self.cache / 'positions' / (collection.digest(collection.OPENCODE_SOURCE.encode()) + '.json')
+      self.assertNotIn('queryLimit', collection.read_json(position_path, {}))
+      query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+      self.assertEqual(query_calls, 1)
+
+      (recovered, recovered_issues), _ = self.collect()
+      self.assertEqual(recovered_issues, [])
+      self.assertEqual(recovered['codex']['todayTotalTokens'], 119)
+      self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+      self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       query_calls + 1)
+
+  def test_invalid_opencode_result_shape_retries_unchanged_source(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.write_opencode([('shape-recovery', {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    })])
+    real_sqlite = shutil.which('sqlite3')
+    marker = self.root / 'sqlite-shape-cleared'
+    sqlite = self.fake_bin / 'sqlite3'
+    sqlite.write_text('#!' + sys.executable + """
+import os, pathlib, sys
+real = os.environ['REMOTE_REAL_SQLITE']
+if ':memory:' in sys.argv:
+  os.execv(real, [real, *sys.argv[1:]])
+marker = pathlib.Path(os.environ['REMOTE_SHAPE_MARKER'])
+if not marker.exists():
+  marker.write_text('sanitized shape marker')
+  print('{}')
+  sys.exit(0)
+os.execv(real, [real, *sys.argv[1:]])
+""")
+    sqlite.chmod(0o755)
+    with patch.dict(os.environ, REMOTE_REAL_SQLITE=real_sqlite,
+                    REMOTE_SHAPE_MARKER=str(marker)):
+      (failed, failed_issues), _ = self.collect()
+      self.assertEqual(failed['codex']['todayTotalTokens'], 100)
+      self.assertFalse(failed['codex']['dailyUsage']['complete'])
+      self.assertTrue(any('OpenCode' in issue for issue in failed_issues))
+      query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+      self.assertEqual(query_calls, 1)
+
+      (recovered, recovered_issues), _ = self.collect()
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       query_calls + 1, 'invalid result shape was cached as a deterministic size limit')
+      self.assertEqual(recovered_issues, [])
+      self.assertEqual(recovered['codex']['todayTotalTokens'], 119)
+      self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+      self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+
+  def test_unchanged_opencode_bound_retries_after_backoff_expiry(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    message = {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 1, 'output': 0, 'cache': {'read': 0, 'write': 0}},
+    }
+    self.write_opencode([
+      (f'expiry-{index}', message) for index in range(remote_opencode.MAX_ROWS + 1)
+    ])
+    now = time.time()
+    with patch.object(time, 'time', return_value=now):
+      (first, first_issues), _ = self.collect()
+    self.assertEqual(first['codex']['todayTotalTokens'], 100)
+    self.assertFalse(first['codex']['dailyUsage']['complete'])
+    position_path = self.cache / 'positions' / (collection.digest(collection.OPENCODE_SOURCE.encode()) + '.json')
+    retry_after = collection.read_json(position_path)['queryLimit']['retryAfter']
+    self.assertEqual(retry_after, now + collection.OPENCODE_LIMIT_BACKOFF_SECONDS)
+    query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+    self.assertEqual(query_calls, 1)
+
+    with patch.object(time, 'time', return_value=retry_after - 1):
+      (before, before_issues), _ = self.collect()
+    self.assertEqual(before['codex']['todayTotalTokens'], 100)
+    self.assertEqual(before_issues, first_issues)
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'), query_calls)
+
+    with patch.object(time, 'time', return_value=retry_after + 1):
+      (after, after_issues), _ = self.collect()
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                     query_calls + 1)
+    self.assertEqual(after['codex']['todayTotalTokens'], 100)
+    self.assertFalse(after['codex']['dailyUsage']['complete'])
+    self.assertEqual(after_issues, first_issues)
+    self.assertEqual(collection.read_json(position_path)['queryLimit']['retryAfter'],
+                     retry_after + 1 + collection.OPENCODE_LIMIT_BACKOFF_SECONDS)
+
+  def test_present_opencode_without_compatible_sqlite_is_provider_scoped_and_absence_is_silent(self):
+    self.write('.codex/sessions/test.jsonl', native(100))
+    database = self.write_opencode([], compatible=False)
+    self.cli('add', 'optional-box')
+    # Keep native collectors and SSH available while deliberately omitting
+    # the optional sqlite3 command from both the local and simulated-remote PATH.
+    (self.fake_bin / 'python3').symlink_to(shutil.which('python3'))
+    with patch.dict(os.environ, PATH=str(self.fake_bin)):
+      self.assertIsNone(shutil.which('sqlite3'))
+      self.cli('refresh', '--force')
+      row = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+      self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+      self.assertFalse(row['providers']['codex']['dailyUsage']['complete'])
+      self.assertEqual(row['providers']['codex']['remoteSources']['.local/share/opencode/opencode.db']['status'],
+                       'unavailable')
+      self.assertTrue(any('OpenCode' in issue for issue in row['issues']))
+      (self.fake_bin / 'sqlite3').symlink_to('/usr/bin/sqlite3')
+      self.assertIsNotNone(shutil.which('sqlite3'))
+      self.cli('refresh', '--force')
+      incompatible = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+      self.assertEqual(incompatible['providers']['codex']['todayTotalTokens'], 100)
+      self.assertEqual(incompatible['providers']['codex']['remoteSources']
+                       ['.local/share/opencode/opencode.db']['status'], 'unavailable')
+      self.assertTrue(any('schema' in issue for issue in incompatible['issues']))
+      database.unlink()
+      self.cli('refresh', '--force')
+      recovered = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+      self.assertEqual(recovered['status'], 'current')
+      self.assertEqual(recovered['issues'], [])
+      self.assertNotIn('.local/share/opencode/opencode.db',
+                       recovered['providers']['codex']['remoteSources'])
+
+  def test_optional_opencode_command_enforces_output_and_time_bounds(self):
+    sqlite = self.fake_bin / 'sqlite3'
+    sqlite.write_text('#!' + sys.executable + """
+import os, sys, time
+behavior = os.environ.get('REMOTE_SQLITE_BEHAVIOR')
+if behavior == 'slow':
+  time.sleep(2)
+elif ':memory:' not in sys.argv:
+  sys.stdout.write('x' * 65)
+""")
+    sqlite.chmod(0o755)
+    database = str(self.source / '.local/share/opencode/opencode.db')
+    started = time.monotonic()
+    with self.assertRaisesRegex(remote_opencode.OpenCodeQueryLimitError, 'output limit') as limited:
+      remote_opencode.query_messages('fixture-alias', database, timeout=1, max_bytes=64)
+    self.assertEqual(limited.exception.kind, 'output')
+    output_elapsed = time.monotonic() - started
+    started = time.monotonic()
+    with patch.dict(os.environ, REMOTE_SQLITE_BEHAVIOR='slow'):
+      with self.assertRaisesRegex(remote_opencode.OpenCodeSourceError, 'time limit'):
+        remote_opencode.query_messages('fixture-alias', database, timeout=0.05, max_bytes=64)
+    timeout_elapsed = time.monotonic() - started
+    self.assertLess(output_elapsed, 1)
+    self.assertLess(timeout_elapsed, 1)
+
+  def test_remote_claude_aggregate_fallback_is_sanitized_and_provider_scoped(self):
+    today = datetime.now().date().isoformat()
+    self.write('.codex/sessions/test.jsonl', native(100))
+    stats = self.source / '.claude/stats-cache.json'
+    stats.parent.mkdir(parents=True)
+    stats.write_text(json.dumps({
+      'dailyModelTokens': [{'date': today, 'tokensByModel': {'claude-aggregate': 321}}],
+      'dailyActivity': [{'date': today, 'messageCount': 2}],
+      'modelUsage': {'claude-aggregate': {'inputTokens': 300, 'outputTokens': 21,
+        'cacheReadInputTokens': 0, 'cacheCreationInputTokens': 0}},
+      'totalMessages': 2, 'totalSessions': 2, 'oauthToken': 'PRIVATE CREDENTIAL',
+    }))
+    history = self.source / '.claude/history.jsonl'
+    history.write_text('\n'.join((
+      json.dumps({'timestamp': int(time.time() * 1000), 'sessionId': 'aggregate-1',
+                  'display': 'PRIVATE CLAUDE PROMPT'}),
+      json.dumps({'timestamp': int(time.time() * 1000), 'sessionId': 'aggregate-2',
+                  'display': 'PRIVATE CLAUDE PROMPT TWO'}),
+    )) + '\n')
+    os.utime(stats, (time.time() - 5, time.time() - 5))
+    os.utime(history, (time.time() - 5, time.time() - 5))
+    (value, issues), _ = self.collect()
+    self.assertEqual(value['codex']['todayTotalTokens'], 100)
+    self.assertTrue(value['codex']['dailyUsage']['complete'])
+    self.assertEqual(value['claude']['todayTotalTokens'], 321)
+    self.assertEqual(value['claude']['todayPrompts'], 2)
+    self.assertFalse(value['claude']['dailyUsage']['complete'])
+    bucket = next(bucket for day in value['claude']['dailyUsage']['days']
+                  for bucket in day['buckets'] if bucket['source'] == 'claude-stats-cache')
+    self.assertEqual(bucket['totalTokens'], 321)
+    self.assertTrue(all(amount is None for amount in bucket['tokens'].values()))
+    self.assertIn('token-categories-unavailable', bucket['issues'])
+    self.assertEqual(value['claude']['remoteSources']['.claude/aggregate-history']['status'], 'current')
+    retained = ''.join(path.read_text() for path in self.cache.rglob('*')
+                       if path.is_file() and path.suffix in ('.json', '.jsonl'))
+    self.assertNotIn('PRIVATE', retained)
+    self.assertEqual(issues, [])
+
+    stats.write_text('{malformed aggregate')
+    (stale, issues), _ = self.collect()
+    self.assertEqual(stale['codex']['todayTotalTokens'], 100)
+    self.assertTrue(stale['codex']['dailyUsage']['complete'])
+    self.assertEqual(stale['claude']['todayTotalTokens'], 321)
+    self.assertFalse(stale['claude']['dailyUsage']['complete'])
+    self.assertEqual(stale['claude']['remoteSources']['.claude/aggregate-history']['status'], 'stale')
+    self.assertIn('Claude aggregate', ' '.join(issues))
+
+  def test_resumed_claude_history_preserves_invalid_counts_last_good_and_mtime(self):
+    today = datetime.now().date().isoformat()
+    stats = self.source / '.claude/stats-cache.json'
+    stats.parent.mkdir(parents=True)
+    stats.write_text(json.dumps({
+      'dailyModelTokens': [{'date': today, 'tokensByModel': {'claude-aggregate': 321}}],
+      'dailyActivity': [{'date': today, 'messageCount': 2}],
+      'modelUsage': {}, 'totalMessages': 2, 'totalSessions': 2,
+    }))
+    history = self.write('.claude/history.jsonl', [
+      {'timestamp': int(time.time() * 1000), 'sessionId': 'old-1'},
+      {'timestamp': int(time.time() * 1000), 'sessionId': 'old-2'},
+    ])
+    machine = machines.add(self.config, self.state, 'aggregate-history-box', 'Aggregate history', self.connection)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    state_path = self.state / 'state.json'
+    previous = collection.read_json(state_path)['machines'][0]
+    destination = self.cache / machine['id'] / 'sources/.claude/history.jsonl'
+    previous_payload = destination.read_bytes()
+    previous_mtime = destination.stat().st_mtime
+
+    lines = []
+    for index in range(120):
+      if index in (10, 50, 90):
+        lines.append('{malformed aggregate history ' + str(index))
+      lines.append(json.dumps({'timestamp': int(time.time() * 1000), 'sessionId': f'new-{index}',
+                               'display': 'PRIVATE HISTORY ' + 'x' * 300}))
+    history.write_text('\n'.join(lines) + '\n')
+    replacement_mtime = time.time() - 10 * 24 * 60 * 60
+    os.utime(history, (replacement_mtime, replacement_mtime))
+    key = collection.digest(b'.claude/history.jsonl')
+    progress_path = self.cache / machine['id'] / 'progress' / (key + '.json')
+    working = self.cache / machine['id'] / 'progress' / (key + '.jsonl')
+    invalid_checkpoints = []
+    for _ in range(12):
+      machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection,
+                       budget_bytes=16 * 1024)
+      result = collection.read_json(state_path)['machines'][0]
+      if result['status'] != 'importing':
+        break
+      self.assertEqual(result['lastSuccess'], previous['lastSuccess'])
+      self.assertEqual(result['providers'], previous['providers'])
+      checkpoint = collection.read_json(progress_path)
+      invalid_checkpoints.append(checkpoint.get('invalidRecords', 0))
+      self.assertEqual(destination.read_bytes(), previous_payload)
+      self.assertEqual(destination.stat().st_mtime, previous_mtime)
+      self.assertNotAlmostEqual(working.stat().st_mtime, replacement_mtime, delta=1)
+    else:
+      self.fail('bounded aggregate-history passes did not complete')
+    self.assertTrue(any(count > 0 for count in invalid_checkpoints))
+    self.assertEqual(invalid_checkpoints, sorted(invalid_checkpoints))
+    self.assertEqual(result['status'], 'incomplete')
+    self.assertEqual(result['providers']['claude']['todayTotalTokens'], 321)
+    self.assertEqual(result['providers']['claude']['todayPrompts'], 120)
+    self.assertIn('3 malformed complete JSONL', ' '.join(result['issues']))
+    position = collection.read_json(self.cache / machine['id'] / 'positions' / (key + '.json'))
+    self.assertEqual(position['invalidRecords'], 3)
+    self.assertAlmostEqual(destination.stat().st_mtime, replacement_mtime, delta=1)
+    self.assertFalse(progress_path.exists())
+    self.assertFalse(working.exists())
+    self.assertNotIn('PRIVATE HISTORY', destination.read_text())
+
+    retained_payload = destination.read_bytes()
+    retained_mtime = destination.stat().st_mtime
+    history.write_text('{wholly invalid one\n{wholly invalid two\n')
+    os.utime(history, None)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    retained = collection.read_json(state_path)['machines'][0]
+    self.assertEqual(retained['status'], 'incomplete')
+    self.assertEqual(retained['providers']['claude']['todayTotalTokens'], 321)
+    self.assertEqual(retained['providers']['claude']['todayPrompts'], 120)
+    self.assertEqual(destination.read_bytes(), retained_payload)
+    self.assertEqual(destination.stat().st_mtime, retained_mtime)
+    self.assertFalse(progress_path.exists())
+    self.assertFalse(working.exists())
+
+    self.write('.claude/history.jsonl', [
+      {'timestamp': int(time.time() * 1000), 'sessionId': f'recovered-{index}'} for index in range(3)
+    ])
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    recovered = collection.read_json(state_path)['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['issues'], [])
+    self.assertEqual(recovered['providers']['claude']['todayPrompts'], 3)
+
+  def test_claude_stats_replacement_respects_file_budget_and_recovers(self):
+    today = datetime.now().date().isoformat()
+    stats = self.source / '.claude/stats-cache.json'
+    stats.parent.mkdir(parents=True)
+    stats.write_text(json.dumps({
+      'dailyModelTokens': [{'date': today, 'tokensByModel': {'claude-aggregate': 321}}],
+      'dailyActivity': [], 'modelUsage': {}, 'totalMessages': 1, 'totalSessions': 1,
+    }))
+    machine = machines.add(self.config, self.state, 'aggregate-stats-box', 'Aggregate stats', self.connection)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    state_path = self.state / 'state.json'
+    previous = collection.read_json(state_path)['machines'][0]
+    stats.write_text(json.dumps({
+      'dailyModelTokens': [{'date': today, 'tokensByModel': {'claude-aggregate': 654}}],
+      'dailyActivity': [], 'modelUsage': {}, 'totalMessages': 2, 'totalSessions': 1,
+      'privatePadding': 'PRIVATE STATS ' * 6000,
+    }))
+    os.utime(stats, None)
+    connections = []
+    def connect(target):
+      remote = self.connection(target)
+      connections.append(remote)
+      return remote
+    now = time.time()
+    with patch.object(time, 'time', return_value=now):
+      machines.refresh(self.config, self.state, self.cache, ROOT, True, connect, budget_bytes=16 * 1024)
+    partial = collection.read_json(state_path)['machines'][0]
+    self.assertEqual(partial['status'], 'importing')
+    self.assertEqual(partial['lastSuccess'], previous['lastSuccess'])
+    self.assertEqual(partial['providers'], previous['providers'])
+    self.assertEqual(partial['nextAttemptAt'], now + 300)
+    self.assertLessEqual(connections[-1].transferred, 16 * 1024)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    recovered = collection.read_json(state_path)['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['providers']['claude']['todayTotalTokens'], 654)
+    retained = b''.join(path.read_bytes() for path in (self.cache / machine['id']).rglob('*') if path.is_file())
+    self.assertNotIn(b'PRIVATE STATS', retained)
+
+  def test_opencode_query_yields_to_cooperative_work_deadline(self):
+    self.write('.codex/sessions/test.jsonl', native(100))
+    machine = machines.add(self.config, self.state, 'opencode-budget-box', 'OpenCode budget', self.connection)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    previous = collection.read_json(self.state / 'state.json')['machines'][0]
+    stamp = int(time.time() * 1000)
+    self.write_opencode([('bounded-session', {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-6-astra',
+      'time': {'created': stamp}, 'tokens': {'input': 10, 'output': 0, 'cache': {'read': 0, 'write': 0}},
+    })])
+    sqlite = self.fake_bin / 'sqlite3'
+    sqlite.write_text('#!' + sys.executable + """
+import sys, time
+if ':memory:' not in sys.argv:
+  time.sleep(2)
+""")
+    sqlite.chmod(0o755)
+    now = time.time()
+    started = time.monotonic()
+    with patch.object(time, 'time', return_value=now):
+      machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection, budget_seconds=0.15)
+    elapsed = time.monotonic() - started
+    partial = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertLess(elapsed, 1)
+    self.assertEqual(partial['status'], 'importing')
+    self.assertEqual(partial['lastSuccess'], previous['lastSuccess'])
+    self.assertEqual(partial['providers'], previous['providers'])
+    self.assertEqual(partial['nextAttemptAt'], now + 300)
+    calls = (self.root / 'ssh-calls').read_text()
+    self.assertEqual(calls.count('sqlite3 -readonly $safe -json'), 1)
+    sqlite.unlink()
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    recovered = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['providers']['codex']['todayTotalTokens'], 110)
+
+  def test_claude_and_pi_keep_rates_but_drop_content(self):
+    stamp = datetime.now(timezone.utc).isoformat()
+    self.write('.claude/projects/project/test.jsonl', [{
+      'type': 'assistant', 'timestamp': stamp, 'sessionId': 'claude-a', 'requestId': 'request-a',
+      'message': {'id': 'message-a', 'role': 'assistant', 'model': 'claude-sonnet-5',
+                  'content': 'SECRET ANSWER', 'usage': {'input_tokens': 100, 'output_tokens': 20,
+                    'cache_creation_input_tokens': 30, 'cache_read_input_tokens': 0,
+                    'service_tier': 'fast', 'inference_geo': 'us',
+                    'cache_creation': {'ephemeral_5m_input_tokens': 0, 'ephemeral_1h_input_tokens': 30}}}}])
+    self.write('.pi/agent/sessions/test.jsonl', [{'type': 'message', 'id': 'pi-a', 'timestamp': stamp,
+      'message': {'role': 'assistant', 'provider': 'openai-codex', 'model': 'gpt-6-astra',
+                  'content': 'SECRET PI', 'usage': {'input': 80, 'output': 10, 'cacheRead': 0, 'cacheWrite': 0}}}])
+    (value, _), _ = self.collect()
+    self.assertEqual(value['claude']['todayTotalTokens'], 150)
+    self.assertEqual(value['codex']['todayTotalTokens'], 90)
+    buckets = [b for day in value['claude']['dailyUsage']['days'] for b in day['buckets']]
+    self.assertEqual(buckets[0]['tariff']['cache_creation']['ephemeral_1h_input_tokens'], 30)
+    self.assertEqual(buckets[0]['tariff']['service_tier'], 'fast')
+    self.assertEqual(buckets[0]['tariff']['inference_geo'], 'us')
+    self.assertNotIn('SECRET', ''.join(p.read_text() for p in self.cache.rglob('*.jsonl')))
+
+  def test_native_claude_kimi_and_pi_omp_keep_provider_token_and_tariff_semantics(self):
+    stamp = datetime.now(timezone.utc).isoformat()
+    self.write('.pi/agent/sessions/project/pi.jsonl', [
+      {'type': 'message', 'id': 'pi-codex', 'timestamp': stamp, 'message': {
+        'role': 'assistant', 'provider': 'openai-codex', 'api': 'openai-codex-responses',
+        'model': 'gpt-pi', 'service_tier': 'priority', 'content': 'PRIVATE PI',
+        'usage': {'input': 10, 'output': 4, 'cacheRead': 3, 'cacheWrite': 2, 'totalTokens': 19}}},
+      {'type': 'message', 'id': 'pi-claude', 'timestamp': stamp, 'message': {
+        'role': 'assistant', 'provider': 'anthropic', 'api': 'anthropic-messages',
+        'model': 'claude-pi', 'cache_duration': '1h', 'content': 'PRIVATE PI CLAUDE',
+        'usage': {'input': 11, 'output': 5, 'cacheRead': 2, 'cacheWrite': 1, 'totalTokens': 19}}},
+    ])
+    self.write('.omp/agent/sessions/project/omp.jsonl', [
+      {'type': 'message', 'id': 'omp-codex', 'timestamp': stamp, 'message': {
+        'role': 'assistant', 'provider': 'openai-codex', 'model': 'gpt-omp',
+        'usage': {'input': 20, 'output': 5, 'cacheRead': 4, 'cacheWrite': 1, 'totalTokens': 30}}},
+      {'type': 'message', 'id': 'omp-claude', 'timestamp': stamp, 'message': {
+        'role': 'assistant', 'provider': 'anthropic', 'model': 'claude-omp',
+        'usage': {'input': 22, 'output': 6, 'cacheRead': 3, 'cacheWrite': 2, 'totalTokens': 33}}},
+    ])
+    self.write('.kimi/sessions/work/session/wire.jsonl', [
+      {'type': 'metadata', 'protocol_version': '1.10'},
+      {'timestamp': time.time(), 'message': {'type': 'StatusUpdate', 'payload': {'token_usage': {
+        'input_other': 10, 'output': 4, 'input_cache_read': 6, 'input_cache_creation': 2},
+        'response': 'PRIVATE KIMI'}}},
+    ])
+    (value, issues), _ = self.collect()
+    self.assertEqual(issues, [])
+    self.assertEqual(value['codex']['todayTotalTokens'], 49)
+    self.assertEqual(value['claude']['todayTotalTokens'], 52)
+    self.assertEqual(value['kimi']['todayTotalTokens'], 22)
+    codex_buckets = [bucket for day in value['codex']['dailyUsage']['days'] for bucket in day['buckets']]
+    claude_buckets = [bucket for day in value['claude']['dailyUsage']['days'] for bucket in day['buckets']]
+    kimi_bucket = next(bucket for day in value['kimi']['dailyUsage']['days'] for bucket in day['buckets'])
+    self.assertEqual({bucket['source'] for bucket in codex_buckets}, {'pi', 'omp'})
+    self.assertEqual({bucket['source'] for bucket in claude_buckets}, {'pi', 'omp'})
+    self.assertEqual(next(bucket for bucket in codex_buckets if bucket['source'] == 'pi')['tariff'],
+                     {'service_tier': 'priority'})
+    self.assertEqual(next(bucket for bucket in claude_buckets if bucket['source'] == 'pi')['tariff'],
+                     {'cache_duration': '1h'})
+    self.assertEqual(kimi_bucket['tokens'], {'inputTokens': 10, 'outputTokens': 4,
+      'cacheReadInputTokens': 6, 'cacheCreationInputTokens': 2})
+    self.assertIsNone(kimi_bucket['rawModel'])
+    for provider in value.values():
+      self.assertEqual(provider.get('limits', []), [])
+    self.assertNotIn('PRIVATE', ''.join(path.read_text() for path in self.cache.rglob('*')
+                                       if path.is_file() and path.suffix in ('.json', '.jsonl')))
+
+  def test_catalog_duplicate_offline_recovery_and_late_removal(self):
+    self.write('.codex/sessions/test.jsonl', native(100))
+    machine = machines.add(self.config, self.state, 'first-alias', 'Laptop', self.connection)
+    with self.assertRaisesRegex(ValueError, 'already included'):
+      machines.add(self.config, self.state, 'second-alias', 'Duplicate', self.connection)
+    machines.refresh(self.config, self.state, self.cache, ROOT, factory=self.connection)
+    previous = collection.read_json(self.state / 'state.json')['machines'][0]
+    def offline(target):
+      raise OSError('offline')
+    machines.refresh(self.config, self.state, self.cache, ROOT, force=True, factory=offline)
+    stale = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(stale['status'], 'stale')
+    self.assertEqual(stale['lastSuccess'], previous['lastSuccess'])
+    self.assertEqual(stale['providers'], previous['providers'])
+    machines.refresh(self.config, self.state, self.cache, ROOT, force=True, factory=self.connection)
+    self.assertNotIn('error', collection.read_json(self.state / 'state.json')['machines'][0])
+    machines.mutate(self.config, self.state, machine['id'], remove=True)
+    machines.publish(self.config, self.state, {machine['id']: previous})
+    self.assertEqual(collection.read_json(self.state / 'state.json')['machines'], [])
+    self.assertTrue((self.source / '.codex/sessions/test.jsonl').exists())
+
+  def test_deadline_inside_large_file_retains_sanitized_progress_for_next_pass(self):
+    self.assert_large_file_deadline_recovers(False)
+
+  def test_deadline_inside_large_file_preserves_established_snapshot_and_progress(self):
+    self.assert_large_file_deadline_recovers(True)
+
+  def assert_large_file_deadline_recovers(self, established):
+    path = self.write('.codex/sessions/large.jsonl', native(100))
+    machine = machines.add(self.config, self.state, 'large-box', 'Large', self.connection)
+    previous = None
+    if established:
+      machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+      previous = collection.read_json(self.state / 'state.json')['machines'][0]
+      cached_result = (self.cache / machine['id'] / 'result.json').read_bytes()
+    rows = native(100)[:2]
+    for total in range(1, 6001):
+      rows.append(native(total)[-1])
+      rows.append({'type': 'response_item', 'payload': {'role': 'user', 'content': 'PRIVATE CHECKPOINT ' + 'x' * 256}})
+    path.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+    reached = []
+    class ExpiringSftp(Sftp):
+      def read(self, path, offset=0, length=32768):
+        block = super().read(path, offset, length)
+        if offset >= 1024 * 1024 and not reached:
+          reached.append(offset)
+          self.deadline = 0
+        return block
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, ExpiringSftp)
+    failed = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertTrue(reached)
+    if established:
+      self.assertEqual(failed['status'], 'stale')
+      self.assertEqual(failed['lastSuccess'], previous['lastSuccess'])
+      self.assertEqual(failed['providers'], previous['providers'])
+      self.assertEqual((self.cache / machine['id'] / 'result.json').read_bytes(), cached_result)
+    else:
+      self.assertEqual(failed['status'], 'unavailable')
+      self.assertNotIn('lastSuccess', failed)
+    self.assertNotIn('nextAttemptAt', failed)
+    self.assertNotIn('OpenCode', json.dumps(failed.get('issues', [])))
+    for cached in (self.cache / machine['id']).rglob('*'):
+      if cached.is_file():
+        self.assertNotIn(b'PRIVATE CHECKPOINT', cached.read_bytes())
+    reads = []
+    class RecordingSftp(Sftp):
+      def read(self, source, offset=0, length=32768):
+        if length > 8192:
+          reads.append(offset)
+        return super().read(source, offset, length)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, RecordingSftp)
+    self.assertTrue(reads)
+    self.assertGreaterEqual(reads[0], 1024 * 1024, 'successful complete lines were downloaded again')
+    recovered = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['providers']['codex']['todayTotalTokens'], 6000)
+
+  def test_bounded_pass_preserves_snapshot_and_continues_after_cooldown(self):
+    path = self.write('.codex/sessions/large.jsonl', native(100))
+    machine = machines.add(self.config, self.state, 'bounded-box', 'Bounded', self.connection)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    previous = collection.read_json(self.state / 'state.json')['machines'][0]
+    rows = native(100)[:2] + [native(total)[-1] for total in range(1, 2001)]
+    path.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+    now = time.time()
+    with patch.object(time, 'time', return_value=now):
+      machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection, budget_bytes=128 * 1024)
+    partial = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(partial['status'], 'importing')
+    self.assertEqual(partial['lastSuccess'], previous['lastSuccess'])
+    self.assertEqual(partial['providers'], previous['providers'])
+    self.assertEqual(partial['nextAttemptAt'], now + 60)
+    calls = (self.root / 'ssh-calls').read_bytes()
+    with patch.object(time, 'time', return_value=now + 59):
+      machines.refresh(self.config, self.state, self.cache, ROOT, factory=self.connection)
+    self.assertEqual((self.root / 'ssh-calls').read_bytes(), calls)
+    with patch.object(time, 'time', return_value=now + 60):
+      machines.refresh(self.config, self.state, self.cache, ROOT, factory=self.connection)
+    result = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(result['status'], 'current')
+    self.assertEqual(result['providers']['codex']['todayTotalTokens'], 2000)
+    self.assertNotIn('nextAttemptAt', result)
+
+  def test_repeated_byte_bounded_passes_finish_without_partial_publication(self):
+    rows = native(1)[:2] + [native(total)[-1] for total in range(1, 201)]
+    self.write('.codex/sessions/chunks.jsonl', rows)
+    machine = machines.add(self.config, self.state, 'chunks-box', 'Chunks', self.connection)
+    connections = []
+    def connect(target):
+      connection = self.connection(target)
+      connections.append(connection)
+      return connection
+    scans = []
+    run = subprocess.run
+    def record_scan(command, **kwargs):
+      if Path(command[0]).name.startswith('omarchy-agent-usage-'):
+        scans.append(command[0])
+      return run(command, **kwargs)
+    with patch.object(subprocess, 'run', side_effect=record_scan):
+      for attempt in range(8):
+        machines.refresh(self.config, self.state, self.cache, ROOT, True, connect, budget_bytes=32 * 1024)
+        result = collection.read_json(self.state / 'state.json')['machines'][0]
+        self.assertLessEqual(connections[-1].transferred, 32 * 1024)
+        if result['status'] == 'current':
+          break
+        self.assertEqual(result['status'], 'importing')
+        self.assertNotIn('providers', result)
+        self.assertNotIn('lastSuccess', result)
+        self.assertEqual(scans, [], 'collectors must not scan an unfinished import')
+      else:
+        self.fail('bounded passes did not advance to a completed import')
+    self.assertGreater(attempt, 0)
+    self.assertEqual(result['providers']['codex']['todayTotalTokens'], 200)
+    self.assertEqual(len(scans), 3)
+    self.assertEqual(list((self.cache / machine['id'] / 'progress').glob('*')), [])
+
+  def test_work_time_limit_is_continuation_and_no_progress_backs_off(self):
+    rows = native(100)[:2] + [native(total)[-1] for total in range(1, 6001)]
+    self.write('.codex/sessions/large.jsonl', rows)
+    machines.add(self.config, self.state, 'time-box', 'Time', self.connection)
+    clock = time.monotonic
+    elapsed = [0]
+    class SlowRead(Sftp):
+      def read(self, path, offset=0, length=32768):
+        block = super().read(path, offset, length)
+        if length > 8192:
+          elapsed[0] = 46
+        return block
+    with patch.object(time, 'monotonic', side_effect=lambda: clock() + elapsed[0]):
+      machines.refresh(self.config, self.state, self.cache, ROOT, True, SlowRead)
+    partial = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(partial['status'], 'importing')
+    self.assertNotIn('lastSuccess', partial)
+    self.assertLess(partial['nextAttemptAt'] - time.time(), 61)
+    now = time.time()
+    with patch.object(time, 'time', return_value=now):
+      machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection, budget_seconds=0)
+    stalled = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(stalled['status'], 'importing')
+    self.assertEqual(stalled['nextAttemptAt'], now + 300)
+
+  def test_recent_unchanged_source_does_not_repeat_collector_scans(self):
+    path = self.write('.codex/sessions/recent.jsonl', native(100))
+    now = time.time()
+    os.utime(path, (now, now))
+    with patch.object(time, 'time', return_value=now):
+      self.collect()
+    run = subprocess.run
+    def no_scan(command, **kwargs):
+      self.assertEqual(command[0], 'ssh')
+      return run(command, **kwargs)
+    # The source is now quiet. One conservative fingerprint validation is
+    # allowed for the previous recent-mtime observation, but no collector scan.
+    with patch.object(time, 'time', return_value=now + 3), patch.object(subprocess, 'run', side_effect=no_scan):
+      (providers, _), _ = self.collect()
+      self.assertEqual(providers['codex']['todayTotalTokens'], 100)
+      (_, _), transferred = self.collect()
+      self.assertEqual(transferred, 0)
+
+  def test_unchanged_partial_line_is_cached_then_completed_once(self):
+    path = self.write('.codex/sessions/partial.jsonl', native(100))
+    line = json.dumps(native(175)[-1])
+    with path.open('a') as stream:
+      stream.write(line[:40])
+    os.utime(path, (time.time() - 5, time.time() - 5))
+    (first, _), _ = self.collect()
+    self.assertEqual(first['codex']['todayTotalTokens'], 100)
+    run = subprocess.run
+    def no_scan(command, **kwargs):
+      self.assertEqual(command[0], 'ssh')
+      return run(command, **kwargs)
+    with patch.object(subprocess, 'run', side_effect=no_scan):
+      (same, _), transferred = self.collect()
+    self.assertEqual(transferred, 0)
+    self.assertEqual(same['codex']['todayTotalTokens'], 100)
+    with path.open('a') as stream:
+      stream.write(line[40:] + '\n')
+    (complete, _), _ = self.collect()
+    self.assertEqual(complete['codex']['todayTotalTokens'], 175)
+
+  def test_replacement_invalidates_checkpoint_without_resetting_last_snapshot(self):
+    path = self.write('.codex/sessions/replaced.jsonl', native(100))
+    machine = machines.add(self.config, self.state, 'replace-box', 'Replace', self.connection)
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    original = collection.read_json(self.state / 'state.json')['machines'][0]
+    path.write_text(''.join(json.dumps(row) + '\n' for row in native(100)[:2] + [native(t)[-1] for t in range(1, 3001)]))
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection, budget_bytes=128 * 1024)
+    partial = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(partial['status'], 'importing')
+    self.assertEqual(partial['providers'], original['providers'])
+    path.write_text(''.join(json.dumps(row) + '\n' for row in native(42, 'new-session')))
+    machines.refresh(self.config, self.state, self.cache, ROOT, True, self.connection)
+    replaced = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertEqual(replaced['providers']['codex']['todayTotalTokens'], 42)
+    self.assertEqual(replaced['status'], 'current')
+    self.assertEqual(list((self.cache / machine['id'] / 'progress').glob('*')), [])
+
+  def test_start_hourly_manual_and_failure_after_continuation_use_distinct_due_times(self):
+    path = self.write('.codex/sessions/scheduled.jsonl', native(100))
+    machines.add(self.config, self.state, 'schedule-box', 'Schedule', self.connection)
+    now = time.time()
+    def refresh_at(stamp, force=False, factory=None, **kwargs):
+      with patch.object(time, 'time', return_value=stamp):
+        machines.refresh(self.config, self.state, self.cache, ROOT, force, factory or self.connection, **kwargs)
+      return collection.read_json(self.state / 'state.json')['machines'][0]
+    start = refresh_at(now)
+    self.assertEqual(start['providers']['codex']['todayTotalTokens'], 100)
+    path.write_text(''.join(json.dumps(row) + '\n' for row in native(1750)))
+    unchanged = refresh_at(now + 3599)
+    self.assertEqual(unchanged, start)
+    hourly = refresh_at(now + 3600)
+    self.assertEqual(hourly['providers']['codex']['todayTotalTokens'], 1750)
+    path.write_text(''.join(json.dumps(row) + '\n' for row in native(2000)))
+    os.utime(path, (now + 3601, now + 3601))
+    manual = refresh_at(now + 3601, True)
+    self.assertEqual(manual['providers']['codex']['todayTotalTokens'], 2000)
+    path.write_text(''.join(json.dumps(row) + '\n' for row in native(100)[:2] + [native(t)[-1] for t in range(1, 6001)]))
+    importing = refresh_at(now + 3602, True, budget_bytes=128 * 1024)
+    self.assertEqual(importing['nextAttemptAt'], now + 3662)
+    def offline(_):
+      raise OSError('offline')
+    failed = refresh_at(now + 3662, factory=offline)
+    self.assertEqual(failed['status'], 'stale')
+    self.assertEqual(failed['lastSuccess'], manual['lastSuccess'])
+    self.assertNotIn('nextAttemptAt', failed)
+    self.assertEqual(refresh_at(now + 3663), failed)
+
+  def test_actual_late_import_cannot_overwrite_rename_or_restore_removal(self):
+    self.write('.codex/sessions/late.jsonl', native(100))
+    for operation in ('rename', 'remove'):
+      with self.subTest(operation=operation):
+        machine = machines.add(self.config, self.state, 'late-box', 'Before', self.connection)
+        done = []
+        config, state = self.config, self.state
+        class LateSftp(Sftp):
+          def read(self, *args, **kwargs):
+            data = super().read(*args, **kwargs)
+            if not done:
+              done.append(True)
+              machines.mutate(config, state, machine['id'], label='After', remove=operation == 'remove')
+            return data
+        machines.refresh(self.config, self.state, self.cache, ROOT, True, LateSftp)
+        rows = collection.read_json(self.state / 'state.json')['machines']
+        self.assertTrue(done)
+        if operation == 'rename':
+          self.assertEqual(rows[0]['label'], 'After')
+          self.assertEqual(rows[0]['providers']['codex']['todayTotalTokens'], 100)
+          machines.mutate(self.config, self.state, machine['id'], remove=True)
+        else:
+          self.assertEqual(rows, [])
+
+  def test_display_timezone_offset_change_invalidates_only_local_collector_cache(self):
+    from datetime import timedelta
+    day = datetime.now(timezone.utc).date()
+    rows = native(100)
+    rows[-1]['timestamp'] = day.isoformat() + 'T00:30:00Z'
+    self.write('.codex/sessions/timezone.jsonl', rows)
+    def measured_dates(record):
+      return [day['date'] for day in record['codex']['dailyUsage']['days'] if day['buckets']]
+    # Hold the cache date fixed so this test still catches the timezone-key
+    # defect when the two display zones happen to have different dates.
+    real_strftime = time.strftime
+    def cache_day(fmt, *args):
+      return day.isoformat() if fmt == '%Y-%m-%d' and not args else real_strftime(fmt, *args)
+    clock = patch.object(time, 'strftime', side_effect=cache_day)
+    clock.start()
+    try:
+      with patch.dict(os.environ, TZ='TST2'):
+        time.tzset()
+        (west, _), _ = self.collect()
+        self.assertEqual(measured_dates(west), [(day - timedelta(days=1)).isoformat()])
+      with patch.dict(os.environ, TZ='TST-2'):
+        time.tzset()
+        (east, _), transferred = self.collect()
+        self.assertEqual(transferred, 0)
+        self.assertEqual(measured_dates(east), [day.isoformat()])
+        run = subprocess.run
+        def no_scan(command, **kwargs):
+          self.assertEqual(command[0], 'ssh')
+          return run(command, **kwargs)
+        with patch.object(subprocess, 'run', side_effect=no_scan):
+          (warm, _), transferred = self.collect()
+        self.assertEqual(transferred, 0)
+        self.assertEqual(measured_dates(warm), [day.isoformat()])
+    finally:
+      clock.stop()
+      time.tzset()
+
+  def test_local_calendar_windows_roll_over_without_redownloading_sources(self):
+    from datetime import timedelta
+    day = datetime(2026, 9, 12).date()
+    for age, amount in ((0, 10), (6, 20), (29, 30), (30, 40)):
+      rows = native(amount, 'day-' + str(age))
+      # UTC previous day; the displaying computer is UTC+02:00.
+      rows[-1]['timestamp'] = (day - timedelta(days=age + 1)).isoformat() + 'T22:30:00Z'
+      self.write('.codex/sessions/day-' + str(age) + '.jsonl', rows)
+    unknown = native(50, 'unknown')
+    unknown[-1]['timestamp'] = '2026-09-12T00:30:00'
+    self.write('.codex/sessions/unknown.jsonl', unknown)
+    clock_app = self.root / 'clock-app'
+    (clock_app / 'bin').mkdir(parents=True)
+    for provider in ('claude', 'kimi'):
+      (clock_app / 'bin' / ('omarchy-agent-usage-' + provider)).symlink_to(ROOT / 'bin' / ('omarchy-agent-usage-' + provider))
+    launcher = clock_app / 'bin/omarchy-agent-usage-codex'
+    launcher.write_text('#!' + sys.executable + '\n' +
+      "import datetime, os, runpy, sys\nfrom unittest.mock import patch\n" +
+      "RealDateTime = datetime.datetime\nclass Clock(RealDateTime):\n" +
+      "  @classmethod\n  def now(cls, tz=None):\n" +
+      "    value = RealDateTime.fromisoformat(os.environ['REMOTE_TEST_NOW'])\n" +
+      "    return value.astimezone(tz) if tz else value.astimezone().replace(tzinfo=None)\n" +
+      "sys.argv[0] = " + repr(str(ROOT / 'bin/omarchy-agent-usage-codex')) + "\n" +
+      "with patch('datetime.datetime', Clock): runpy.run_path(sys.argv[0], run_name='__main__')\n")
+    launcher.chmod(0o755)
+    script = r"""
+const fs = require('node:fs'), assert = require('node:assert/strict');
+const remote = require(process.argv[1] + '/shell/plugins/agents/RemoteUsage.js');
+const prices = require(process.argv[1] + '/shell/plugins/agents/ApiCost.js');
+const record = JSON.parse(fs.readFileSync(0, 'utf8'));
+const now = Date.parse(process.env.REMOTE_TEST_NOW);
+const view = remote.scopes([], [{id:'clock', identity:'clock-account', lastSuccess:now / 1000, providers:{codex:record}}], now).clock[0];
+const windows = prices.buildModelWindowPresentation('codex', view.dailyUsage, now, prices.parseOverrides(''), true);
+assert.deepEqual(windows.summaries.map(s => s.tokens), JSON.parse(process.argv[2]));
+assert.equal(record.dailyUsage.unallocatedTokens, 50);
+assert.equal(record.dailyUsage.complete, false);
+"""
+    try:
+      with patch.dict(os.environ, TZ='TST-2'):
+        time.tzset()
+        for date, totals in (('2026-09-12', [10, 30, 60]), ('2026-09-13', [0, 10, 30])):
+          with self.subTest(date=date), patch.dict(os.environ, REMOTE_TEST_NOW=date + 'T12:00:00+02:00'):
+            real_strftime = time.strftime
+            def local_day(fmt, *args):
+              return date if fmt == '%Y-%m-%d' and not args else real_strftime(fmt, *args)
+            with patch.object(time, 'strftime', side_effect=local_day):
+              with self.connection('clock-box') as connection:
+                (providers, issues) = collection.collect_sources(connection, connection.identity(), self.cache, clock_app)
+                if date.endswith('13'):
+                  self.assertEqual(connection.transferred, 0)
+              self.assertTrue(issues, 'ambiguous native time must remain honestly incomplete')
+              result = subprocess.run(['node', '-e', script, str(ROOT), json.dumps(totals)],
+                                      input=json.dumps(providers['codex']), capture_output=True, text=True)
+              self.assertEqual(result.returncode, 0, result.stderr)
+              run = subprocess.run
+              def no_scan(command, **kwargs):
+                self.assertEqual(command[0], 'ssh')
+                return run(command, **kwargs)
+              with patch.object(subprocess, 'run', side_effect=no_scan), self.connection('clock-box') as connection:
+                collection.collect_sources(connection, connection.identity(), self.cache, clock_app)
+                self.assertEqual(connection.transferred, 0)
+    finally:
+      time.tzset()
+
+  def test_budget_resumes_and_failed_pass_does_not_reuse_old_result(self):
+    self.write('.codex/sessions/a.jsonl', native(100))
+    self.collect()
+    changed = self.write('.codex/sessions/a.jsonl', native(200))
+    os.utime(changed, None)
+    self.write('.codex/sessions/b.jsonl', native(300, 'b'))
+    with self.assertRaises(InterruptedError):
+      self.collect(budget=700)
+    (value, _), _ = self.collect()
+    self.assertEqual(value['codex']['todayTotalTokens'], 500)
+
+  def cli(self, *args, success=True):
+    result = subprocess.run([str(ROOT / 'bin/omarchy-agent-machine'), *args],
+                            capture_output=True, text=True)
+    self.assertEqual(result.returncode == 0, success, result.stderr)
+    return result
+
+  def test_cli_verifies_connected_account_not_directory_owner(self):
+    row = json.loads(self.cli('add', 'workbox', '--label', 'Laptop').stdout)
+    self.assertEqual(row['uid'], 501)
+    self.assertEqual(row['user'], 'fixture-user')
+    self.assertEqual(row['home'], str(self.source))
+    self.assertEqual(row['platform'], 'Linux')
+    # SFTP may start in another directory; the connected account is unchanged.
+    alternate = self.root / 'another-start'
+    alternate.mkdir()
+    with patch.dict(os.environ, REMOTE_HOME=str(alternate)):
+      result = self.cli('add', 'second-alias', success=False)
+    self.assertIn('already included', result.stderr)
+
+  def test_cli_rejects_reused_target_even_if_account_changed(self):
+    self.cli('add', 'workbox')
+    with patch.dict(os.environ, REMOTE_UID='502'):
+      result = self.cli('add', 'workbox', success=False)
+    self.assertIn('already', result.stderr)
+    self.assertEqual(len(json.loads(self.cli('list', '--json').stdout)), 1)
+
+  def test_cli_linux_and_macos_lifecycle(self):
+    path = self.write('.codex/sessions/test.jsonl', native(175) + [
+      {'type': 'response_item', 'payload': {'role': 'user', 'content': 'PRIVATE CLI PROMPT'}}])
+    original = path.read_bytes()
+    for platform, label in (('Linux', 'Linux box'), ('Darwin', 'Mac laptop')):
+      with self.subTest(platform=platform), patch.dict(os.environ, REMOTE_PLATFORM=platform):
+        added = json.loads(self.cli('add', 'workbox', '--label', label).stdout)
+        rows = json.loads(self.cli('list', '--json').stdout)
+        self.assertEqual(rows[0]['user'], 'fixture-user')
+        self.assertEqual(rows[0]['platform'], 'macOS' if platform == 'Darwin' else platform)
+        self.assertIsNone(rows[0]['lastSuccess'])
+        self.assertNotIn('providers', collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0])
+        self.cli('rename', added['id'], '--label', 'Renamed <computer>')
+        self.assertIn('Renamed <computer>', self.cli('list').stdout)
+        self.cli('refresh', '--force')
+        snapshot = collection.read_json(self.state / 'omarchy/agents/remote/state.json')
+        row = snapshot['machines'][0]
+        self.assertEqual(row['status'], 'current')
+        self.assertGreater(row['lastSuccess'], 0)
+        self.assertEqual(row['providers']['codex']['todayTotalTokens'], 175)
+        script = """
+const remote = require(process.argv[1]);
+const prices = require(process.argv[2]);
+const machines = JSON.parse(process.argv[3]);
+const scopes = remote.scopes([], machines, Date.now());
+const all = scopes.all[0], single = scopes[machines[0].id][0];
+const cost = prices.buildModelWindowPresentation('codex', all.dailyUsage, Date.now(), prices.parseOverrides(''), true);
+console.log(JSON.stringify([all.todayTotalTokens, single.todayTotalTokens, cost.summaries[0].cost.total]));
+"""
+        shown = subprocess.run(['node', '-e', script, str(ROOT / 'shell/plugins/agents/RemoteUsage.js'),
+                                str(ROOT / 'shell/plugins/agents/ApiCost.js'), json.dumps(snapshot['machines'])],
+                               text=True, capture_output=True, check=True)
+        self.assertEqual(json.loads(shown.stdout), [175, 175, 0.00175])
+        self.cli('remove', added['id'])
+        self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+        self.assertEqual(collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'], [])
+        self.assertEqual(path.read_bytes(), original)
+        self.assertNotIn('PRIVATE CLI PROMPT', ''.join(p.read_text() for p in self.cache.rglob('*') if p.is_file()))
+    self.assertEqual([str(p.relative_to(self.source)) for p in self.source.rglob('*') if p.is_file()],
+                     ['.codex/sessions/test.jsonl'])
+
+  def test_optional_opencode_eacces_keeps_fresh_native_contributions(self):
+    if os.geteuid() == 0:
+      self.skipTest('Real EACCES requires an unprivileged SFTP server')
+    codex = self.write('.codex/sessions/test.jsonl', native(100))
+    claude = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    database = self.source / '.local/share/opencode/opencode.db'
+    database.parent.mkdir(parents=True)
+    database.write_text('Optional source must not gate native usage')
+    self.cli('add', 'workbox')
+    database.parent.chmod(0)
+    try:
+      # Verify the fixture actually denies traversal; no mocked SFTP error.
+      with self.assertRaises(PermissionError) as denied:
+        database.stat()
+      self.assertEqual(denied.exception.errno, errno.EACCES)
+      self.cli('refresh', '--force')
+      row = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+      self.assertEqual(row['status'], 'incomplete')
+      self.assertGreater(row['lastSuccess'], 0)
+      self.assertEqual(row['providers']['codex']['todayTotalTokens'], 100)
+      self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+      self.assertTrue(any('OpenCode' in issue and 'check' in issue for issue in row['issues']))
+      with codex.open('a') as stream:
+        stream.write(json.dumps(native(175)[-1]) + '\n')
+      self.write('.claude/projects/project/test.jsonl', native_claude(200))
+      os.utime(claude, None)
+      self.cli('refresh', '--force')
+      fresh = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+      self.assertEqual(fresh['status'], 'incomplete')
+      self.assertGreater(fresh['lastSuccess'], row['lastSuccess'])
+      self.assertEqual(fresh['providers']['codex']['todayTotalTokens'], 175)
+      self.assertEqual(fresh['providers']['claude']['todayTotalTokens'], 220)
+    finally:
+      database.parent.chmod(0o700)
+    database.unlink()
+    self.cli('refresh', '--force')
+    recovered = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines'][0]
+    self.assertEqual(recovered['status'], 'current')
+    self.assertEqual(recovered['issues'], [])
+    for provider, expected in (('codex', 175), ('claude', 220)):
+      self.assertEqual(recovered['providers'][provider]['todayTotalTokens'], expected)
+      self.assertTrue(recovered['providers'][provider]['dailyUsage']['complete'])
+      self.assertFalse(fresh['providers'][provider]['dailyUsage']['complete'])
+      self.assertEqual(recovered['providers'][provider]['dailyUsage']['days'],
+                       fresh['providers'][provider]['dailyUsage']['days'])
+
+  def test_native_claude_all_and_single_without_opencode_or_sqlite_command(self):
+    # The same CLI, native collectors and presentation used by the panel run
+    # with only Python, Node and the existing SSH fixture available in PATH.
+    for command in ('python3', 'node'):
+      (self.fake_bin / command).symlink_to(shutil.which(command))
+    remote_file = self.write('.claude/projects/project/test.jsonl', native_claude(100))
+    local_root = self.root / 'local-sources'
+    local_file = local_root / '.claude/projects/project/test.jsonl'
+    local_file.parent.mkdir(parents=True)
+    local_entries = native_claude(40)
+    local_entries[0]['sessionId'] = 'local-native'
+    local_file.write_text(''.join(json.dumps(entry) + '\n' for entry in local_entries))
+    original = remote_file.read_bytes()
+    with patch.dict(os.environ, PATH=str(self.fake_bin)):
+      self.assertIsNone(shutil.which('opencode'))
+      self.assertIsNone(shutil.which('sqlite3'))
+      self.assertFalse((self.source / '.local/share/opencode').exists())
+      added = json.loads(self.cli('add', 'claude-box', '--label', 'Native Claude').stdout)
+      self.assertEqual(len(json.loads(self.cli('list', '--json').stdout)), 1)
+      self.cli('refresh', '--force')
+      snapshot = collection.read_json(self.state / 'omarchy/agents/remote/state.json')
+      row = snapshot['machines'][0]
+      self.assertEqual(row['status'], 'current')
+      self.assertEqual(row['issues'], [])
+      self.assertEqual(row['providers']['claude']['todayTotalTokens'], 120)
+      self.assertTrue(row['providers']['claude']['dailyUsage']['complete'])
+      local_env = dict(os.environ, OMARCHY_AGENT_SOURCE_ROOT=str(local_root),
+                       CLAUDE_CONFIG_DIR=str(local_root / '.claude'),
+                       XDG_DATA_HOME=str(local_root / '.local/share'),
+                       XDG_CACHE_HOME=str(self.root / 'local-cache'))
+      local = subprocess.run([str(ROOT / 'bin/omarchy-agent-usage-claude'), '--force', '--stats-only'],
+                             env=local_env, capture_output=True, text=True, check=True)
+      script = """
+const remote = require(process.argv[1]);
+const prices = require(process.argv[2]);
+const machines = JSON.parse(process.argv[3]);
+const local = {...JSON.parse(process.argv[4]), providerId:'claude', providerName:'Claude', costScopeCompatible:true};
+const scopes = remote.scopes([local], machines, Date.now());
+const all = scopes.all.find(p => p.providerId === 'claude');
+const single = scopes[machines[0].id].find(p => p.providerId === 'claude');
+function cost(view) {
+  return prices.buildModelWindowPresentation('claude', view.dailyUsage, Date.now(), prices.parseOverrides(''), true).summaries[0].cost.total;
+}
+console.log(JSON.stringify([all.todayTotalTokens, single.todayTotalTokens,
+  scopes.local[0].todayTotalTokens, cost(all), cost(single)]));
+"""
+      shown = subprocess.run(['node', '-e', script, str(ROOT / 'shell/plugins/agents/RemoteUsage.js'),
+                              str(ROOT / 'shell/plugins/agents/ApiCost.js'), json.dumps(snapshot['machines']), local.stdout],
+                             capture_output=True, text=True, check=True)
+      values = json.loads(shown.stdout)
+      self.assertEqual(values[:3], [180, 120, 60])
+      # Existing Sonnet 5 rate: input $2/M, output $10/M. No cache tokens.
+      self.assertAlmostEqual(values[3], 0.00068)
+      self.assertAlmostEqual(values[4], 0.00040)
+      self.cli('remove', added['id'])
+      self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+    self.assertEqual(remote_file.read_bytes(), original)
+    self.assertEqual([str(p.relative_to(self.source)) for p in self.source.rglob('*') if p.is_file()],
+                     ['.claude/projects/project/test.jsonl'])
+
+  @unittest.skipUnless(Path('/etc/machine-id').is_file(), 'local Linux machine-id unavailable')
+  def test_cli_rejects_local_account_before_saving(self):
+    with patch.dict(os.environ, REMOTE_UID=str(os.getuid()),
+                    REMOTE_MACHINE=Path('/etc/machine-id').read_text().strip()):
+      self.assertIn('This computer', self.cli('add', 'local-alias', success=False).stderr)
+    self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+
+  def test_cli_rejects_invalid_identity_before_saving(self):
+    for change in ({'REMOTE_UID': 'not-a-uid'}, {'REMOTE_MACHINE': 'invalid'},
+                   {'REMOTE_PLATFORM': 'Darwin', 'REMOTE_UUID': '123'}, {'REMOTE_PLATFORM': 'Windows'}):
+      with patch.dict(os.environ, change):
+        self.cli('add', 'invalid', success=False)
+    self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+
+  def test_cli_first_failed_import_and_distinct_accounts(self):
+    with patch.dict(os.environ, REMOTE_OFFLINE='1'):
+      self.cli('add', 'offline', success=False)
+    self.assertEqual(json.loads(self.cli('list', '--json').stdout), [])
+    first = json.loads(self.cli('add', 'first-account').stdout)
+    with patch.dict(os.environ, REMOTE_UID='502'):
+      second = json.loads(self.cli('add', 'second-account').stdout)
+    self.assertNotEqual(first['identity'], second['identity'])
+    with patch.dict(os.environ, REMOTE_OFFLINE='1'):
+      self.cli('refresh', '--force')
+    rows = collection.read_json(self.state / 'omarchy/agents/remote/state.json')['machines']
+    self.assertEqual(len(rows), 2)
+    for row in rows:
+      self.assertEqual(row['status'], 'unavailable')
+      self.assertNotIn('lastSuccess', row)
+      self.assertNotIn('providers', row)
+
+  def test_ambiguous_timestamp_retains_usage_without_wrong_day(self):
+    rows = native(100)
+    rows[-1]['timestamp'] = datetime.now().isoformat()
+    self.write('.codex/sessions/test.jsonl', rows)
+    (providers, _), _ = self.collect()
+    self.assertEqual(providers['codex']['dailyUsage']['unallocatedTokens'], 100)
+    self.assertEqual(providers['codex']['todayTotalTokens'], 0)
+
+  def test_invalid_catalog_retains_previous_state(self):
+    machines.add(self.config, self.state, 'first-alias', 'Laptop', self.connection)
+    previous = (self.state / 'state.json').read_bytes()
+    (self.config / 'machines.json').write_text('{broken')
+    with self.assertRaises(ValueError):
+      machines.refresh(self.config, self.state, self.cache, ROOT, factory=self.connection)
+    self.assertEqual((self.state / 'state.json').read_bytes(), previous)
+
+  def test_target_validation_and_no_first_snapshot_is_not_zero(self):
+    for value in ('-oProxyCommand=bad', 'user:password@host', 'host\ncommand'):
+      with self.assertRaises(ValueError):
+        target_value(value)
+    machine = machines.add(self.config, self.state, 'workbox', 'Laptop', self.connection)
+    row = collection.read_json(self.state / 'state.json')['machines'][0]
+    self.assertNotIn('providers', row)
+    self.assertNotIn('lastSuccess', row)
+
+
+if __name__ == '__main__':
+  unittest.main(verbosity=2)

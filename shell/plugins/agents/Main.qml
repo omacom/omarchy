@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "RemoteUsage.js" as RemoteUsage
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -11,6 +12,10 @@ Item {
   visible: false
 
   property var settings: ({})
+  property alias pricing: pricingTable
+  property bool pricingActive: false
+
+  Pricing { id: pricingTable; active: root.pricingActive }
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
@@ -115,6 +120,7 @@ Item {
   // -------------------------------------------------------------- refresh
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
+  property double lastUpdateStartedMs: 0
   property string pendingUpdateKind: ""
 
   Timer {
@@ -164,6 +170,7 @@ Item {
       if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
       return
     }
+    lastUpdateStartedMs = Date.now()
     updateProcess.command = updateCommand(kind, agentIds)
     updateProcess.running = true
   }
@@ -174,7 +181,11 @@ Item {
   // Opening the panel wants the numbers that go stale on the wire, not
   // another walk over every transcript on disk — the collectors reuse their
   // recent scans in this mode.
-  function refreshLimits() { runUpdate("limits") }
+  function refreshLimits() {
+    // Reopening during the collector's 15-second reuse window needs no new job.
+    if (updateProcess.running || Date.now() - lastUpdateStartedMs < 15000) return
+    runUpdate("limits")
+  }
 
   // ------------------------------------------------------------- providers
 
@@ -182,18 +193,19 @@ Item {
   // settings and having actually produced numbers — locally or on a synced
   // device. With nothing to show, the whole module collapses out of the bar
   // rather than sitting there dimmed.
-  property var enabledProviders: {
+  property var localProviders: {
     var rev = dataRevision
     var syncRev = syncRevision
     var result = []
     var localIds = {}
     for (var i = 0; i < agents.length; i++) {
-      var record = agents[i] ? agents[i].record : null
+      var agent = agents[i]
+      var record = agent ? agent.record : null
       if (!record || !record.id) continue
       var id = String(record.id)
       localIds[id] = true
       if (!providerEnabled(id)) continue
-      var display = displayProvider(record)
+      var display = displayProvider(record, record.dailyUsage)
       if (providerHasData(display)) result.push(display)
     }
     // An agent that only ever ran on another machine has no local record, but
@@ -203,10 +215,181 @@ Item {
     for (var syncedId in syncedProviders) {
       if (localIds[syncedId] || !providerEnabled(syncedId)) continue
       var stats = syncedProviders[syncedId] || {}
-      var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
+      var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId }, null)
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
     return result
+  }
+
+  readonly property var rawLocalProviders: {
+    var rev = dataRevision
+    var values = []
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i].record
+      if (!record || !providerEnabled(record.id)) continue
+      var value = displayProvider(record, record.dailyUsage, true)
+      if (providerHasData(value)) values.push(value)
+    }
+    return values
+  }
+
+  readonly property string remoteStatePath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/remote/state.json"
+  property string selectedMachineId: "all"
+  property var remoteSnapshot: ({ machines: [] })
+  readonly property var remoteMachines: remoteSnapshot.machines
+  property bool remoteRefreshPending: false
+  property bool remoteForcePending: false
+  readonly property bool remoteActive: remoteMachines.length > 0 && !syncConfigured()
+  property string scopeDate: new Date().toDateString()
+  readonly property var machineScopes: {
+    var date = scopeDate
+    return remoteActive ? RemoteUsage.scopes(rawLocalProviders, remoteMachines, Date.now()) : ({ all: localProviders, local: rawLocalProviders })
+  }
+  // Prepare prices when source records change, not when the user selects a tab.
+  // Strong cache ownership follows this snapshot and releases discarded keys.
+  onPreparedProviderViewsChanged: prepareMachinePrices()
+  Connections {
+    target: root.pricing
+    function onRevisionChanged() { root.prepareMachinePrices() }
+  }
+  function prepareMachinePrices() {
+    var current = preparedProviderViews.map(function(view) { return view.provider })
+    root.pricing.prepareProviders(current)
+    if (!remoteActive) return
+    var now = Date.now()
+    for (var i = 0; i < current.length; i++) {
+      root.pricing.dailyRows(current[i], now)
+      root.pricing.modelWindowPresentation(current[i], now)
+    }
+  }
+
+  readonly property var enabledProviders: {
+    var values = machineScopes[selectedMachineId] || machineScopes.all || []
+    return values.filter(function(provider) { return root.providerEnabled(provider.providerId) })
+  }
+  // The panel lays out each current scope/provider combination once so its
+  // maximum follows the prepared snapshot, rather than whichever computer is
+  // selected at the moment. Selection does not rebuild this array.
+  readonly property var preparedProviderViews: {
+    var result = []
+    var scopes = machineScopes
+    for (var scopeId in scopes) {
+      var providers = scopes[scopeId].filter(function(provider) { return root.providerEnabled(provider.providerId) })
+      for (var i = 0; i < providers.length; i++) result.push({
+        scopeId: scopeId,
+        provider: providers[i],
+        providers: providers,
+        providerIndex: i
+      })
+    }
+    return result
+  }
+  readonly property var allProviders: (machineScopes.all || []).filter(function(provider) { return root.providerEnabled(provider.providerId) })
+  readonly property var machineChoices: [{ id: "all", label: "All" }, { id: "local", label: "This computer" }]
+    .concat(remoteActive ? remoteMachines : [])
+
+  function normalizeSelectedMachine() {
+    if (selectedMachineId === "all" || selectedMachineId === "local") return
+    if (!remoteActive || !remoteMachines.some(function(machine) { return machine.id === selectedMachineId }))
+      selectedMachineId = "all"
+  }
+
+  onRemoteActiveChanged: normalizeSelectedMachine()
+  property string machineError: ""
+  readonly property bool machineBusy: machineCommand.running
+
+  Agent {
+    id: remoteRecord
+    agentId: "remote"
+    path: root.remoteStatePath
+    onRecordChanged: {
+      if (!record || record.schemaVersion !== 1 || !Array.isArray(record.machines)) return
+      root.remoteSnapshot = record
+      if (root.remoteRefreshDue(Date.now())) root.scheduleRemoteRefresh()
+      root.normalizeSelectedMachine()
+    }
+  }
+
+  Timer {
+    id: remotePoll
+    interval: 60000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: {
+      root.scopeDate = new Date().toDateString()
+      if (root.remoteRefreshDue(Date.now())) root.scheduleRemoteRefresh()
+    }
+  }
+
+  Process {
+    id: remoteRefresh
+    onExited: {
+      remoteRecord.reload()
+      if (root.remoteForcePending) {
+        root.remoteForcePending = false
+        root.remoteRefreshPending = false
+        Qt.callLater(function() { root.refreshMachines() })
+      } else if (root.remoteRefreshPending) {
+        root.remoteRefreshPending = false
+        Qt.callLater(function() { remoteRefresh.running = true })
+      }
+    }
+    command: ["omarchy-agent-machine", "refresh"]
+    stderr: StdioCollector {
+      onStreamFinished: if (text.trim() !== "") root.machineError = text.trim()
+    }
+  }
+
+  Process {
+    id: machineCommand
+    stderr: StdioCollector { onStreamFinished: if (text.trim() !== "") root.machineError = text.trim() }
+    onExited: function(code) {
+      remoteRecord.reload()
+      var action = machineCommand.command.length > 1 ? String(machineCommand.command[1]) : ""
+      if (action === "add" || action === "rename" || action === "remove")
+        root.machineCommandFinished(code === 0)
+      if (root.remoteForcePending) {
+        root.remoteForcePending = false
+        Qt.callLater(function() { root.refreshMachines() })
+      } else if (code === 0) root.scheduleRemoteRefresh()
+    }
+  }
+
+  signal machineCommandFinished(bool success)
+
+  function manageMachine(args) {
+    if (machineCommand.running) return
+    machineError = ""
+    machineCommand.command = ["omarchy-agent-machine"].concat(args)
+    machineCommand.running = true
+  }
+
+  function remoteRefreshDue(nowMs) {
+    return root.remoteMachines.some(function(machine) {
+      return !machine.attemptedAt || nowMs / 1000 >= (machine.nextAttemptAt || machine.attemptedAt + 3600)
+    })
+  }
+
+  function scheduleRemoteRefresh() {
+    if (remoteRefresh.running || machineCommand.running) root.remoteRefreshPending = true
+    else {
+      root.remoteRefreshPending = false
+      remoteRefresh.running = true
+    }
+  }
+
+  function refreshMachines() {
+    if (machineCommand.running || remoteRefresh.running) {
+      root.remoteForcePending = true
+      return
+    }
+    root.manageMachine(["refresh", "--force"])
+  }
+
+  function machineStatus(nowMs, providerId) {
+    if (remoteMachines.length && syncConfigured()) return "SSH views require legacy synced aggregation to be Off"
+    return RemoteUsage.machineStatus(remoteMachines, root.selectedMachineId, providerId || "", nowMs)
   }
 
   function providerEnabled(id) {
@@ -239,8 +422,8 @@ Item {
     }
   }
 
-  function displayProvider(record) {
-    var stats = syncedStatsFor(String(record.id))
+  function displayProvider(record, localDailyUsage, localOnly) {
+    var stats = localOnly ? null : syncedStatsFor(String(record.id))
     var synced = !!stats
     var deviceCount = synced ? Number(stats.deviceCount || aggregateData.deviceCount || 0) : 0
 
@@ -268,6 +451,12 @@ Item {
       modelUsage: synced ? (stats.modelUsage || ({})) : (record.modelUsage || ({})),
       hasLocalStats: synced ? (stats.hasLocalStats !== false) : (record.hasLocalStats !== false),
       hasPromptStats: synced ? (stats.hasPromptStats !== false) : (record.hasPromptStats !== false),
+
+      // The versioned daily contract is local in Ticket 01. Once legacy or
+      // synchronized totals widen the token scope, no local subtotal is paired
+      // with them; the presentation reports unknown cost instead.
+      dailyUsage: synced ? null : localDailyUsage,
+      costScopeCompatible: !synced,
 
       syncEnabled: synced,
       syncDeviceCount: deviceCount,

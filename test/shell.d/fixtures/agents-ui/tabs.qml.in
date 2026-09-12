@@ -1,0 +1,40 @@
+import QtQuick
+import QtTest
+Item {
+  id: root; width:380; height:100
+  property var providers: []
+  property int providerIndex: 0
+  property bool cursorActive: false
+  property int focusSection: 0
+  property color foreground: "white"
+  property string fontFamily: "monospace"
+  property int largeReads: 0
+  QtObject { id: testStyle; property var spacing: ({md:10,controlPaddingY:6}); property var font: ({bodySmall:11}) }
+  component Button: Item {
+    property string text; property bool selected; property bool hasCursor; property bool bordered
+    property color foreground; property string fontFamily; property real fontSize; property real verticalPadding
+    signal clicked(); signal hovered(bool isHovered)
+    implicitHeight:26
+  }
+  function selectProvider(i) { providerIndex=i }
+  QtObject {
+    id: page
+    property var providerChoices: root.providers
+    property int providerChoiceIndex: root.providerIndex
+    property bool selectedPage: true
+  }
+  ROW
+  TestCase {
+    name:"TabLabelModel"; when:windowShown
+    function test_tabsDoNotReadUsage() {
+      var a={providerName:"Claude"},b={providerName:"Codex"}
+      function data() { root.largeReads++; return {days:[{buckets:[{tokens:100}]}]} }
+      Object.defineProperty(a,"dailyUsage",{get:data,enumerable:true})
+      Object.defineProperty(b,"dailyUsage",{get:data,enumerable:true})
+      root.providers=[a,b];wait(1)
+      compare(root.largeReads,0,"tab labels must not traverse complete usage records")
+      root.providerIndex=1;wait(1)
+      compare(root.largeReads,0,"switching must not traverse usage records")
+    }
+  }
+}
