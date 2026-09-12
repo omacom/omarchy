@@ -13,6 +13,8 @@ omarchy-mise-install npm:playwright playwright
 omarchy-mise-install pi
 omarchy-mise-install github:can1357/oh-my-pi omp
 omarchy-mise-install npm:@xai-official/grok grok
+# An npm -g install of command-code already puts commandcode on PATH; leave it be.
+omarchy-cmd-missing commandcode && omarchy-mise-install npm:command-code commandcode
 # Cursor's own installer links the same path, so a re-provision keeps it.
 omarchy-cmd-missing cursor-agent && omarchy-mise-install cursor-agent
 omarchy-mise-install npm:@kitlangton/ghui ghui

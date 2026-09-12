@@ -117,6 +117,7 @@ crush_package="crush"
 agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
 cursor_agent_package="cursor-agent"
+commandcode_package="npm:command-code"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
 
 assert_lazy_stub() {
@@ -137,6 +138,7 @@ assert_lazy_stub "$omp_package" omp
 assert_lazy_stub "$crush_package" crush
 assert_lazy_stub "$ori_package" ori
 assert_lazy_stub "$cursor_agent_package" cursor-agent
+assert_lazy_stub "$commandcode_package" commandcode
 assert_lazy_stub "$muse_package" muse
 pass "custom agent lazy stubs preserve their mise packages"
 
@@ -149,6 +151,8 @@ grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
 OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/install/user/mise.sh"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
+OMARCHY_TEST_MISSING_COMMAND=commandcode source "$ROOT/install/user/mise.sh"
+grep -Fx "$commandcode_package commandcode" "$stub_log" >/dev/null || fail "user setup creates the Command Code lazy stub"
 pass "user setup creates the custom agent lazy stubs"
 
 : >"$stub_log"
@@ -156,6 +160,8 @@ source "$ROOT/install/user/mise.sh"
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null && fail "user setup replaces an existing cursor-agent command"
 pass "user setup keeps an existing Cursor CLI install"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null && fail "user setup replaces an existing Muse command"
+grep -Fx "$commandcode_package commandcode" "$stub_log" >/dev/null && fail "user setup replaces an existing commandcode command"
+pass "user setup keeps an existing Command Code install"
 
 : >"$stub_log"
 OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/null
@@ -169,6 +175,19 @@ OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/migrations/1788724825.sh" >/dev/
 [[ ! -s $stub_log ]] || fail "Muse migration ignores the preinstall opt-out"
 rm "$test_home/.local/state/omarchy/preinstalls-removed"
 pass "Muse migration preserves existing installs and the preinstall opt-out"
+
+: >"$stub_log"
+OMARCHY_TEST_MISSING_COMMAND=commandcode source "$ROOT/migrations/1788817888.sh" >/dev/null
+grep -Fx "$commandcode_package commandcode" "$stub_log" >/dev/null || fail "Command Code migration creates its lazy stub"
+: >"$stub_log"
+source "$ROOT/migrations/1788817888.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "Command Code migration replaces an existing command"
+mkdir -p "$test_home/.local/state/omarchy"
+touch "$test_home/.local/state/omarchy/preinstalls-removed"
+OMARCHY_TEST_MISSING_COMMAND=commandcode source "$ROOT/migrations/1788817888.sh" >/dev/null
+[[ ! -s $stub_log ]] || fail "Command Code migration ignores the preinstall opt-out"
+rm "$test_home/.local/state/omarchy/preinstalls-removed"
+pass "Command Code migration preserves existing installs and the preinstall opt-out"
 
 
 : >"$stub_log"
@@ -300,7 +319,7 @@ pass "agent migrations install working wrappers without overriding the preinstal
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse; do
+for command in agy omp ori grok crush cursor-agent muse commandcode; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -372,6 +391,10 @@ declare -A expected_agents=(
   [claude]="claude"
   [claude-code]="claude"
   [codex]="codex"
+  [commandcode]="commandcode"
+  [command-code]="commandcode"
+  [cmdc]="commandcode"
+  [cmd]="commandcode"
   [crush]="crush"
   [grok]="grok"
   [agy]="agy"
@@ -395,6 +418,7 @@ declare -A expected_packages=(
   [ori]="$ori_package"
   [claude]="claude"
   [codex]="codex"
+  [commandcode]="$commandcode_package"
   [crush]="$crush_package"
   [grok]="$grok_package"
   [agy]="$agy_package"
@@ -646,6 +670,7 @@ assert_launch opencode opencode --auto --prompt "Review this project"
 assert_launch ori ori code --interactive --prompt "Review this project"
 assert_launch claude claude --permission-mode auto -- "Review this project"
 assert_launch codex codex --approve-for-me -- "Review this project"
+assert_launch commandcode commandcode --yolo -- "Review this project"
 assert_launch muse muse --approval-mode never -- "Review this project"
 assert_launch crush crush run "Review this project"
 assert_launch grok grok --permission-mode bypassPermissions -- "Review this project"
@@ -674,6 +699,7 @@ assert_bypass opencode opencode --auto
 assert_bypass ori ori code
 assert_bypass claude claude --permission-mode auto
 assert_bypass codex codex --approve-for-me
+assert_bypass commandcode commandcode --yolo
 assert_bypass muse muse --approval-mode never
 assert_bypass crush crush --yolo
 assert_bypass grok grok --permission-mode bypassPermissions
