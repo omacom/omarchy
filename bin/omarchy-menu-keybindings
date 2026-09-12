@@ -68,20 +68,24 @@ parse_keycodes() {
 
 # Supplement `hyprctl binds` for Lua-only binds that Hyprland currently
 # reports as dispatcher __lua and without their original key for code: binds.
+#
+# The scan runs the user's hyprland.lua under a stub `hl`, so whatever the
+# config reads from the compositor at load time comes back as stub values. A
+# config the stub still cannot satisfy is cut off after this many seconds
+# rather than left spinning a core after the menu has closed.
+LUA_BIND_SCAN_TIMEOUT="${OMARCHY_KEYBINDINGS_SCAN_TIMEOUT:-10}"
+LUA_BIND_SCAN_STATUS=""
+
 build_lua_bind_cache() {
-  local modmask description key dispatcher arg cache_key
+  local modmask description key dispatcher arg cache_key scan
+
+  # One scan per menu: a second pass finds the same binds, or times out again.
+  [[ -n $LUA_BIND_SCAN_STATUS ]] && return "$LUA_BIND_SCAN_STATUS"
+  LUA_BIND_SCAN_STATUS=0
 
   omarchy-cmd-present lua || return 0
 
-  while IFS=$'\t' read -r modmask description key dispatcher arg; do
-    [[ -z $modmask || -z $description || -z $key ]] && continue
-
-    LUA_BIND_KEY_MAP["$modmask,$description"]="$key"
-    cache_key="$modmask,$description,$key"
-    LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
-    LUA_BIND_ARG_MAP["$cache_key"]="$arg"
-  done < <(
-    lua <<'LUA'
+  scan=$(timeout -k 2 "$LUA_BIND_SCAN_TIMEOUT" lua <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -184,9 +188,17 @@ local function dsp_proxy(path)
   })
 end
 
+-- Stand-in for every compositor value the config reads while the scan only
+-- wants its binds. A numeric index answers nil so `ipairs` over a stub value
+-- ends at once: a config looping over the result of a getter the stub does
+-- not name would otherwise never return.
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  __index = function(_, key)
+    if type(key) == "number" then
+      return nil
+    end
+
     return noop
   end,
   __call = function()
@@ -220,6 +232,17 @@ hl = setmetatable({
   get_config = function()
     return nil
   end,
+  -- The list getters answer real empty tables, so `#`, `ipairs` and `pairs`
+  -- all see the empty compositor a scan stands in for.
+  get_monitors = function()
+    return {}
+  end,
+  get_windows = function()
+    return {}
+  end,
+  get_workspaces = function()
+    return {}
+  end,
 }, {
   __index = function()
     return noop
@@ -238,6 +261,24 @@ if file then
 end
 LUA
   )
+  LUA_BIND_SCAN_STATUS=$?
+
+  if (( LUA_BIND_SCAN_STATUS == 124 )); then
+    echo "omarchy-menu-keybindings: Lua bind scan timed out after ${LUA_BIND_SCAN_TIMEOUT}s; binds declared after the cut-off are missing from the menu" >&2
+  elif (( LUA_BIND_SCAN_STATUS != 0 )) && [[ $DEBUG == "1" ]]; then
+    echo "[DEBUG] lua bind scan exited with status $LUA_BIND_SCAN_STATUS" >&2
+  fi
+
+  while IFS=$'\t' read -r modmask description key dispatcher arg; do
+    [[ -z $modmask || -z $description || -z $key ]] && continue
+
+    LUA_BIND_KEY_MAP["$modmask,$description"]="$key"
+    cache_key="$modmask,$description,$key"
+    LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
+    LUA_BIND_ARG_MAP["$cache_key"]="$arg"
+  done <<<"$scan"
+
+  return "$LUA_BIND_SCAN_STATUS"
 }
 
 modmask_to_text() {
@@ -509,9 +550,10 @@ dedupe_binding_records() {
 }
 
 output_binding_records_uncached() {
-  local dynamic
+  local dynamic scanned
 
   build_lua_bind_cache
+  scanned=$?
   dynamic=$(dynamic_bindings)
 
   {
@@ -524,8 +566,10 @@ output_binding_records_uncached() {
     prioritize_entries
 
   # Fail when Hyprland reported no binds so the fallout of a broken hyprctl
-  # is never cached.
-  [[ -n $dynamic ]]
+  # is never cached, and when the Lua scan was cut off so a menu missing the
+  # binds declared after the cut-off is not served from cache until the next
+  # binding change.
+  [[ -n $dynamic ]] && (( scanned == 0 ))
 }
 
 keybindings_cache_key() {
