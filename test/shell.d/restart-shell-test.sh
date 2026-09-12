@@ -118,6 +118,9 @@ case " $* " in
     [[ $pid =~ ^[0-9]+$ ]] || exit 1
     kill "$pid" 2>/dev/null
     while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
+    # The session lock dies with the client holding it, so a killed shell
+    # leaves the compositor locked with nothing behind the lock.
+    rm -f "$OMARCHY_TEST_QS_STATE.locked"
     awk 'NR > 1' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
     mv "$OMARCHY_TEST_QS_STATE.next" "$OMARCHY_TEST_QS_STATE"
     ;;
@@ -229,7 +232,10 @@ locked_error=$(PATH="$restart_bin:$PATH" \
   OMARCHY_TEST_SESSION_PATH="$restart_root" \
   "$ROOT/bin/omarchy-restart-shell" 2>&1) && fail "restart refuses while the shell lock is active"
 
-[[ $locked_error == "Refusing to restart Omarchy shell while the session is locked." ]] || fail "locked restart explains why it was refused" "$locked_error"
+[[ ${locked_error%%$'\n'*} == "Refusing to restart Omarchy shell while the session is locked." ]] ||
+  fail "locked restart explains why it was refused" "$locked_error"
+[[ $locked_error == *--force* ]] ||
+  fail "locked restart points at the escape hatch" "$locked_error"
 [[ $(<"$restart_state") == 303 ]] || fail "locked restart preserves the running shell"
 [[ ! -s $restart_log ]] || fail "locked restart does not stop or launch Quickshell"
 pass "restart preserves the shell while its lock is active"
@@ -265,3 +271,36 @@ restart_pid_one=""
 grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "dead-lock recovery re-acquires the session lock"
 grep -F "ipc -n -p $restart_root/shell call -- lock status" "$ipc_log" >/dev/null || fail "dead-lock recovery waits for the lock to become secure"
 pass "restart recovers a locked session whose lock client died"
+
+# A wedged shell answers IPC with the lock state it last reached, so a locker
+# that has already died still reports the lock secure and the guard above
+# cannot tell it from a healthy one. Someone looking at the failsafe can, so
+# --force has to get through a status that still claims an active lock.
+sleep 30 &
+restart_pid_two=$!
+printf '%s\n' "$restart_pid_two" >"$restart_state"
+touch "$restart_state.locked"
+: >"$restart_log"
+: >"$ipc_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_SESSION_LOCKED=1 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" --force ||
+  fail "--force restarts a shell whose lock status still claims to be secure"
+
+if kill -0 "$restart_pid_two" 2>/dev/null; then
+  fail "--force stops the wedged shell instance"
+fi
+wait "$restart_pid_two" 2>/dev/null || true
+restart_pid_two=""
+grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null ||
+  fail "--force re-acquires the session lock"
+pass "--force overrides a stale lock status and re-locks"
