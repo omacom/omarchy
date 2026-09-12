@@ -1,4 +1,7 @@
 #!/bin/bash
+# omarchy:hidden=true
+# omarchy:summary=Configure apps assigned to workspaces
+
 set -euo pipefail
 
 CONF="$HOME/.config/omarchy/workspace-apps.conf"
