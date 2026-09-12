@@ -362,7 +362,8 @@ pass "the recording state file names the recording that was started"
 # The :-/tmp fallback would reopen the hole this PR closes. A recording
 # started without a session runtime dir has to land under the state directory.
 state_home="$tmp_dir/state-home"
-mkdir -p "$state_home" "$tmp_dir/home-fallback"
+mkdir -p "$state_home/omarchy" "$tmp_dir/home-fallback"
+chmod 755 "$state_home/omarchy"
 tmp_state_before=$(stat -c '%y %s' "$tmp_state" 2>/dev/null || true)
 
 env -u XDG_RUNTIME_DIR \
@@ -405,3 +406,7 @@ if ! cmp -s "$OMARCHY_TEST_HYPRCTL_ARGS" "$expected_hyprctl_args"; then
   fail "without a runtime dir the webcam anchors to the recorded region" "$(diff -u "$expected_hyprctl_args" "$OMARCHY_TEST_HYPRCTL_ARGS")"
 fi
 pass "without a runtime dir the webcam anchors to the recorded region"
+
+mode=$(stat -c '%a' "$state_home/omarchy" 2>/dev/null || stat -f '%Lp' "$state_home/omarchy")
+[[ $mode == "700" ]] || fail "fallback directory is private even when it already existed" "mode: $mode"
+pass "fallback directory is private even when it already existed"

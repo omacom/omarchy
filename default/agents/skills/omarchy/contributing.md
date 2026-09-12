@@ -38,7 +38,7 @@ drag-and-drop in the web form, so save the capture and hand the user the file
 path to attach (`gh` cannot upload media).
 
 For screen-recording failures specifically, rerun with
-`OMARCHY_SCREENRECORD_DEBUG=true` and attach `$XDG_RUNTIME_DIR/omarchy-screenrecord.log`.
+`OMARCHY_SCREENRECORD_DEBUG=true` and attach `$XDG_RUNTIME_DIR/omarchy-screenrecord.log` (or `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omarchy-screenrecord.log` without a session runtime directory).
 
 File the issue with `gh` when available:
 

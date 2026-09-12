@@ -44,7 +44,6 @@ STOP_RECORDING="false"
 # the state directory when there is no session runtime dir -- :-/tmp would put
 # both files back at the fixed names this comment describes.
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
-mkdir -p "$RUNTIME_DIR" || exit 1
 RECORDING_FILE="$RUNTIME_DIR/omarchy-screenrecord-filename"
 REGION_FILE="$RUNTIME_DIR/omarchy-screenrecord-region"
 LOG_FILE=$([[ ${OMARCHY_SCREENRECORD_DEBUG:-false} == "true" ]] && echo "$RUNTIME_DIR/omarchy-screenrecord.log" || echo "/dev/null")
@@ -155,6 +154,11 @@ select_capture_target() {
 }
 
 start_screenrecording() {
+  mkdir -p "$RUNTIME_DIR" || return 1
+  # XDG_STATE_HOME may be outside a private home; protect existing fallbacks too.
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    chmod 700 "$RUNTIME_DIR" || return 1
+  fi
   local capture_args=()
   local target
 
