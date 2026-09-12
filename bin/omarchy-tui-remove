@@ -6,7 +6,6 @@
 set -e
 
 ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
-OLD_ICON_DIR="$HOME/.local/share/applications/icons"
 DESKTOP_DIR="$HOME/.local/share/applications/"
 
 desktop_value() {
@@ -25,13 +24,11 @@ desktop_string_unescape() {
 }
 
 remove_owned_icon() {
-  local basename="$1" icon_dir
+  local basename="$1"
 
   [[ $basename =~ ^[[:alnum:]-]+\.[[:alnum:]]+$ ]] || return 0
 
-  for icon_dir in "$ICON_DIR" "$OLD_ICON_DIR"; do
-    rm -f "$icon_dir/$basename"
-  done
+  rm -f "$ICON_DIR/$basename"
 }
 
 picker_row_label() {

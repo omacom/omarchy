@@ -47,10 +47,11 @@ install_user_icon() {
   local ext="${source##*.}"
 
   [[ $ext == "$source" ]] && ext="png"
+  [[ $ext =~ ^[[:alnum:]]+$ ]] || ext="png"
   mkdir -p "$ICON_DIR"
   cp "$source" "$ICON_DIR/$name.$ext"
   gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
-  printf '%s\n' "$name"
+  printf '%s\n' "$name.$ext"
 }
 
 download_icon() {
@@ -105,6 +106,7 @@ DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
 mkdir -p "$DESKTOP_DIR"
 
 icon_slug=$(owned_icon_slug "$APP_NAME")
+[[ -n $icon_slug ]] || icon_slug="tui"
 owned_icon=""
 if [[ $ICON_REF =~ ^https?:// ]]; then
   ICON_VALUE=$icon_slug
@@ -116,11 +118,8 @@ if [[ $ICON_REF =~ ^https?:// ]]; then
   gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
   owned_icon="$icon_slug.png"
 elif [[ -f $ICON_REF ]]; then
-  icon_ext="${ICON_REF##*.}"
-  [[ $icon_ext == "$ICON_REF" ]] && icon_ext="png"
-  [[ $icon_ext =~ ^[[:alnum:]]+$ ]] || icon_ext="png"
-  ICON_VALUE=$(install_user_icon "$ICON_REF" "$icon_slug")
-  owned_icon="$icon_slug.$icon_ext"
+  ICON_VALUE=$icon_slug
+  owned_icon=$(install_user_icon "$ICON_REF" "$icon_slug")
 else
   # Bundled Omarchy icons are package-owned under /usr/share/icons/hicolor.
   ICON_VALUE=$(icon_name_from_ref "$ICON_REF")
