@@ -50,6 +50,9 @@ if [[ -z $fast_urls ]]; then
   exit 1
 fi
 
+script_pid=$$
+max_duration=30
+
 traffic_pids=()
 
 cleanup() {
@@ -72,15 +75,15 @@ traffic_worker() {
   local url_count=${#urls[@]}
   local idx=$RANDOM
   if [[ $direction == "down" ]]; then
-    while true; do
+    while kill -0 "$script_pid" 2>/dev/null; do
       url=${urls[$((idx % url_count))]}
-      curl -fsS -o /dev/null "$url" 2>/dev/null || return
+      curl --max-time 15 -fsS -o /dev/null "$url" 2>/dev/null || return
       idx=$((idx + 1))
     done
   else
-    while true; do
+    while kill -0 "$script_pid" 2>/dev/null; do
       url=${urls[$((idx % url_count))]}
-      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
+      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl --max-time 15 -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
       idx=$((idx + 1))
     done
   fi
@@ -105,7 +108,11 @@ any_alive() {
   return 1
 }
 
+start_time=$SECONDS
+
 while any_alive; do
+  (( SECONDS - start_time >= max_duration )) && break
+
   sleep 1
   rx_after=$(cat "/sys/class/net/$iface/statistics/rx_bytes")
   tx_after=$(cat "/sys/class/net/$iface/statistics/tx_bytes")
