@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the dwindle split of the focused window; no-op on other layouts
+
+set -euo pipefail
+
+layout=$(hyprctl activeworkspace -j | jq -r '.tiledLayout')
+if [[ $layout != "dwindle" ]]; then
+  exit 0
+fi
+
+hyprctl dispatch 'hl.dsp.layout("togglesplit")' >/dev/null 2>&1 ||
+  hyprctl dispatch layoutmsg togglesplit >/dev/null
