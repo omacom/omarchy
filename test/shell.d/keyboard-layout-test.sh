@@ -134,3 +134,36 @@ assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
 JS
+
+run_node_test <<'JS'
+const fs = require('fs')
+const widget = fs.readFileSync(path.join(root, 'shell/plugins/bar/widgets/KeyboardLayout.qml'), 'utf8')
+const cycleBody = widget.match(/function cycleLayout\(\) \{([\s\S]*?)\n  \}/)[1]
+const cycle = new Function('root', 'refreshTimer', cycleBody)
+const calls = []
+let refreshes = 0
+const state = {
+  bar: {runProgram: argv => calls.push(argv)},
+  layoutCount: 3,
+  layoutIndex: 2,
+  syncNames: ['main keyboard', "device'with;syntax"],
+}
+const timer = {restart: () => refreshes++}
+cycle(state, timer)
+assertDeepEqual(calls, [
+  ['hyprctl', 'switchxkblayout', 'main keyboard', '0'],
+  ['hyprctl', 'switchxkblayout', "device'with;syntax", '0'],
+], 'a click sends every synchronized keyboard the same wrapped index as literal arguments')
+assertEqual(refreshes, 1, 'the synchronized switch requests one follow-up reading')
+calls.length = 0
+state.layoutCount = 1
+cycle(state, timer)
+state.layoutCount = 3
+state.syncNames = []
+cycle(state, timer)
+state.syncNames = ['main keyboard']
+state.bar = null
+cycle(state, timer)
+assertEqual(calls.length, 0, 'a click with one layout, no synchronized devices, or no bar starts no process')
+assertEqual(refreshes, 1, 'a click that cannot switch requests no follow-up reading')
+JS
