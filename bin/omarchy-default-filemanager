@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Set the default file manager for Omarchy and XDG handlers
+# omarchy:args=[nautilus|dolphin|thunar|nemo|pcmanfm]
+# omarchy:examples=omarchy default filemanager nautilus | omarchy default filemanager dolphin
+
+installing=false
+if [[ ${1:-} == "--install" ]]; then
+  installing=true
+  shift
+fi
+
+if (($# == 0)); then
+  desktop_id=$(xdg-mime query default inode/directory 2>/dev/null || true)
+  case "$desktop_id" in
+  org.gnome.Nautilus.desktop | nautilus.desktop) echo "nautilus" ;;
+  org.kde.dolphin.desktop | dolphin.desktop) echo "dolphin" ;;
+  thunar.desktop) echo "thunar" ;;
+  nemo.desktop) echo "nemo" ;;
+  pcmanfm.desktop) echo "pcmanfm" ;;
+  *)
+    if [[ -n $desktop_id ]]; then
+      echo "$desktop_id"
+    else
+      echo "nautilus"
+    fi
+    ;;
+  esac
+  exit 0
+fi
+
+case "$1" in
+nautilus) filemanager="nautilus"; command="nautilus"; desktop_id="org.gnome.Nautilus.desktop"; name="Nautilus (Files)"; glyph= ;;
+dolphin) filemanager="dolphin"; command="dolphin"; desktop_id="org.kde.dolphin.desktop"; name="Dolphin"; glyph= ;;
+thunar) filemanager="thunar"; command="thunar"; desktop_id="thunar.desktop"; name="Thunar"; glyph= ;;
+nemo) filemanager="nemo"; command="nemo"; desktop_id="nemo.desktop"; name="Nemo"; glyph= ;;
+pcmanfm) filemanager="pcmanfm"; command="pcmanfm"; desktop_id="pcmanfm.desktop"; name="PCManFM"; glyph= ;;
+*)
+  echo "Usage: omarchy-default-filemanager <nautilus|dolphin|thunar|nemo|pcmanfm>"
+  exit 1
+  ;;
+esac
+
+if omarchy-cmd-missing "$command"; then
+  if [[ $installing == "false" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-default-filemanager --install "$filemanager"
+  else
+    case "$filemanager" in
+    nautilus) omarchy-pkg-add nautilus ;;
+    dolphin) omarchy-pkg-add dolphin ;;
+    thunar) omarchy-pkg-add thunar ;;
+    nemo) omarchy-pkg-add nemo ;;
+    pcmanfm) omarchy-pkg-add pcmanfm ;;
+    esac || exit 1
+  fi
+fi
+
+xdg-mime default "$desktop_id" inode/directory || exit 1
+
+omarchy-notification-send -g $glyph "$name is now the default file manager"
