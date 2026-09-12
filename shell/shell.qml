@@ -347,8 +347,14 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    // Panel, overlay, and menu manifests reach their loader through an
+    // Instantiator model, which hands nested arrays back as QV4 sequence
+    // wrappers rather than JS arrays. Array.isArray() rejects those, and a
+    // menu that fails this check is handed no application library, so its
+    // Apps submenu comes up empty.
+    var kinds = manifest ? manifest.kinds : null
+    return !!kinds && typeof kinds.indexOf === "function"
+      && kinds.indexOf(kind) !== -1
   }
 
   function pluginHasBarCapabilities(manifest) {
