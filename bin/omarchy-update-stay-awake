@@ -1,10 +1,23 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Manage sleep and idle inhibition during an update
 # omarchy:args=<start|stop>
 # omarchy:hidden=true
 
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
 set -e
+omarchy_security_sanitize_bash_environment "$0" "$@"
+omarchy_security_require_source_root "$0"
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_enable_no_update_sudo
 
 state_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}/omarchy-update-stay-awake"
 idle_owner_file="$state_dir/idle-owner"
@@ -81,45 +94,58 @@ stop() {
 }
 
 start() {
-  local inhibit_pid=""
-  local inhibit_start_time=""
-  local inhibit_runner=()
   local idle_owner="$$:$RANDOM:$RANDOM"
+  local launcher_pid=""
 
   stop
   mkdir -p "$state_dir"
 
-  if omarchy-cmd-present systemd-inhibit; then
-    if (( EUID != 0 )); then
-      if [[ -t 0 ]]; then
-        sudo -v
-        inhibit_runner=(sudo)
-      else
-        inhibit_runner=(pkexec)
-      fi
-    fi
+  # sudo authenticates in the foreground, then backgrounds the inhibitor.
+  # The held command drops back to this user before publishing its PID, so stop
+  # can release the inhibitor without another privileged operation or ticket.
+  local hold_command=(
+    /usr/bin/systemd-inhibit --what=sleep:idle --who=omarchy-update
+    --why="Omarchy update in progress" --mode=block
+    /usr/bin/setpriv --reuid "$UID" --regid "$(id -g)" --clear-groups
+    /usr/bin/bash -p -c '
+      read -r process_stat <"/proc/$$/stat"
+      process_stat=${process_stat##*) }
+      read -r -a fields <<< "$process_stat"
+      printf "%s %s\n" "$$" "${fields[19]}" >"$1"
+      exec /usr/bin/sleep infinity
+    ' omarchy-update-inhibitor "$inhibit_pid_file"
+  )
 
-    if [[ -n ${OMARCHY_UPDATE_LOCK_FD:-} ]]; then
-      "${inhibit_runner[@]}" systemd-inhibit \
-        --what=sleep:idle \
-        --who=omarchy-update \
-        --why="Omarchy update in progress" \
-        --mode=block \
-        sleep infinity >/dev/null 2>&1 {OMARCHY_UPDATE_LOCK_FD}>&- &
-    else
-      "${inhibit_runner[@]}" systemd-inhibit \
-        --what=sleep:idle \
-        --who=omarchy-update \
-        --why="Omarchy update in progress" \
-        --mode=block \
-        sleep infinity >/dev/null 2>&1 &
-    fi
-    inhibit_pid=$!
-    inhibit_start_time=$(process_start_time "$inhibit_pid" 2>/dev/null || true)
-    if [[ -n $inhibit_start_time ]]; then
-      printf '%s %s\n' "$inhibit_pid" "$inhibit_start_time" >"$inhibit_pid_file"
-    fi
+  if (( EUID == 0 )); then
+    ( [[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
+      exec "${hold_command[@]}" ) &
+    launcher_pid=$!
+  elif [[ -t 0 ]]; then
+    /usr/bin/sudo -N -b -- "${hold_command[@]}"
+  else
+    ( [[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
+      exec pkexec "${hold_command[@]}" ) &
+    launcher_pid=$!
   fi
+
+  # For graphical authentication the launcher may wait for a password. Wait for
+  # either the user-owned held command to become ready or the launcher to fail.
+  # sudo -b backgrounds internally, so Bash has no launcher PID in the TTY path;
+  # $! there can still refer to a completed startup process substitution.
+  local readiness_attempts=0
+  while [[ ! -s $inhibit_pid_file ]]; do
+    if [[ -n $launcher_pid ]] && ! kill -0 "$launcher_pid" 2>/dev/null; then
+      wait "$launcher_pid" || return 1
+      echo "The update sleep inhibitor did not start." >&2
+      return 1
+    fi
+    readiness_attempts=$((readiness_attempts + 1))
+    if [[ -t 0 ]] && (( EUID != 0 && readiness_attempts >= 100 )); then
+      echo "The update sleep inhibitor did not become ready." >&2
+      return 1
+    fi
+    sleep 0.05
+  done
 
   if [[ ! -f $stay_awake_state ]]; then
     printf '%s\n' "$idle_owner" >"$idle_owner_file"
