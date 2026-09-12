@@ -156,6 +156,15 @@ printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=alice\nPASSWORD=pw\nTZ=UTC\n' |
 with_vm_lock assert_mounts_safe || fail "final root mount/compose assertion rejected the verified pair"
 pass "root writer and final pre-Docker guard revalidate the pinned production mounts"
 
+# Samba can add setgid again after the initial bind. Launch/removal must
+# re-harden that same source rather than fail before touching Docker.
+chmod 2777 /home/shared-target
+with_vm_lock assert_mounts_safe || fail "root rejected a share initialized with Samba's setgid mode"
+mounts_ready || fail "re-hardened setgid share failed final mount validation"
+[[ $(command stat -Lc '%a' /home/shared-target) == 700 ]] || fail "root retained setgid on the shared source"
+[[ $(cat "$EXPECTED_SHARED/shared.txt") == shared ]] || fail "setgid hardening changed shared data"
+pass "root re-hardens Samba's setgid share through the existing pinned bind"
+
 # Upgrade the exact sibling-anchor pair emitted by the earlier fix without
 # moving or replacing either familiar home symlink.
 sed -i "s|$EXPECTED_STORAGE:/storage|$OLD_EXPECTED_STORAGE:/storage|" "$COMPOSE_FILE"
