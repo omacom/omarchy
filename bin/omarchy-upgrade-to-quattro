@@ -1569,7 +1569,6 @@ refresh	xournalpp/settings.xml	1c1a9efbf1b6dc7813bf3440fd5bf8409fc283e8d0192ca29
 # fastfetch/config.jsonc -> /etc/fastfetch/config.jsonc
 # fontconfig/fonts.conf -> /usr/share/fontconfig/conf.avail/50-omarchy.conf
 # mimeapps.list -> /usr/share/applications/mimeapps.list
-# omarchy.ttf -> /usr/share/fonts/omarchy/omarchy.ttf
 # systemd/user/bt-agent.service -> /usr/lib/systemd/user/bt-agent.service
 # systemd/user/omarchy-recover-internal-monitor.service -> /usr/lib/systemd/user/omarchy-recover-internal-monitor.service
 # systemd/user/omarchy-sleep-lock.service -> /usr/lib/systemd/user/omarchy-sleep-lock.service
@@ -1602,7 +1601,6 @@ retire	fontconfig/fonts.conf	6dec98b539388b95ecfdb3c7ab951001c712820eb0581002832
 retire	fontconfig/fonts.conf	3545f6c5a8c1465df7a4e251b3c2047d4ba03654c86636794f64cb0d8ea8ef63
 retire	fontconfig/fonts.conf	0f085b449f1cbe8eda3b59a6235bf2a3ddb6e982ab5d22fa642248916e63bafc
 retire	mimeapps.list	3b574cef135b5deb7a8a0c7e17139037cf1fe155300e3809f60bed0e04120975
-retire	omarchy.ttf	e55e67119e82f56f92d90cbf54b7ccc1b2946b32c535a29370439d7ef5215966
 retire	systemd/user/bt-agent.service	0406b577a1225dc2a9f86638d3c346eb3635168576f04050be50ebcc0be6be12
 retire	systemd/user/omarchy-recover-internal-monitor.service	b9b92cedc44cf3cb6216948629be55b53d16746e31896dc6469fd49ba55e82f4
 retire	systemd/user/omarchy-recover-internal-monitor.service	e1483079b9f2aefcd43b4722c75a31643e5f3bb5a2eada5f52f1d7d201e8c289
@@ -2381,6 +2379,8 @@ cleanup_retired_services
 ensure_sleep_lock_service
 remove_retired_default_packages
 run_final_system_package_upgrade
+# This also retires the stock ~/.local/share/fonts/omarchy.ttf missed by the
+# former ~/.config retirement entry, through migration 1788848726.
 run_post_upgrade_migrations
 run_post_upgrade_update_steps
 refresh_current_theme_after_upgrade
