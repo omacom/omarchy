@@ -181,6 +181,7 @@ fi
 
 set_at=$(date +%s)
 remind_at=$(date -d "+${minutes} minutes" +%H:%M)
+deadline=$(date -u -d "+${minutes} minutes" '+%Y-%m-%d %H:%M:%S UTC')
 unit="omarchy-reminder-${minutes}m-$set_at"
 reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
 message_file="$reminder_dir/$unit.message"
@@ -194,7 +195,7 @@ if [[ -n $custom_message ]]; then
   confirmation_title="$custom_message in ${minutes} minutes"
 fi
 
-systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \
+systemd-run --user --quiet --collect --on-calendar="$deadline" --unit="$unit" \
   bash -c 'omarchy-notification-send -g 󰢌 "Reminder" "$1"; rm -f "$2"; omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true' bash "$message" "$message_file"
 
 refresh_indicator
