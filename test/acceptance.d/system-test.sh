@@ -30,7 +30,7 @@ verify_core_package_versions() {
   local installed_package installed_version
 
   if installed_package=$(LC_ALL=C pacman -Q "$package" 2>/dev/null); then
-    installed_version=${installed_package#"$package "}
+    installed_version=${installed_package##* }
   else
     fail "GPU Screen Recorder meets its minimum version" "$package is not installed"
   fi
