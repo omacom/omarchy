@@ -1,12 +1,19 @@
 if lspci | grep -qi 'nvidia'; then
   # Check which kernel is installed and set appropriate headers package
-  KERNEL_PACKAGE=$(pacman -Qqs '^linux(-zen|-lts|-hardened|-t2|-ptl)?$' | head -1 || true)
+  KERNEL_PACKAGE=$(pacman -Qqs '^linux(-zen|-lts|-hardened|-t2|-ptl|-aarch64|-dgx-spark)?$' | head -1 || true)
   [[ -n $KERNEL_PACKAGE ]] && omarchy-pkg-add "$KERNEL_PACKAGE-headers"
 
   if omarchy-hw-nvidia-gsp; then
-    PACKAGES=(nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver)
+    PACKAGES=(nvidia-open-dkms nvidia-utils)
+    if [[ $(uname -m) == "x86_64" ]]; then
+      PACKAGES+=(lib32-nvidia-utils)
+    fi
+    PACKAGES+=(libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then
-    PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils lib32-nvidia-580xx-utils)
+    PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils)
+    if [[ $(uname -m) == "x86_64" ]]; then
+      PACKAGES+=(lib32-nvidia-580xx-utils)
+    fi
   fi
 
   # Bail if no supported GPU
