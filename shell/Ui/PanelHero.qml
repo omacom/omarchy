@@ -14,6 +14,11 @@ Item {
   property real iconOpacity: 1.0
   property alias metaOpacity: metaText.opacity
 
+  // A detail pill that means trouble — a stale record, a fault — renders
+  // with the urgent border and text instead of the neutral controlSpec.
+  property bool detailAlarming: false
+  property color detailAlarmColor: Color.urgent
+
   // Optional control pinned to the trailing edge of the hero — a ToggleSwitch,
   // a small button. The hero centers it against the labels and reserves the
   // space itself, so callers never do the geometry.
@@ -71,7 +76,9 @@ Item {
         implicitHeight: detailText.implicitHeight + Style.space(4)
         anchors.verticalCenter: parent.verticalCenter
         color: "transparent"
-        borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
+        borderSpec: root.detailAlarming
+          ? Border.flat(root.detailAlarmColor, 1)
+          : Border.controlSpec("normal", root.foreground, Color.accent)
         radius: Style.cornerRadius
 
         Text {
@@ -79,7 +86,7 @@ Item {
           textFormat: Text.PlainText
           anchors.centerIn: parent
           text: root.detail
-          color: root.dim
+          color: root.detailAlarming ? root.detailAlarmColor : root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           font.bold: true
