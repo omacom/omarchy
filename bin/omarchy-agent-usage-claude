@@ -839,7 +839,13 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
   if probe.get("transport"):
     result["retryAdvised"] = True
   if fallback:
+    # Keep the open windows, but mark them stale so the panel cannot present
+    # a retained percentage as a successful current measurement (#10616).
     result["limits"] = fallback
+    result["usageStatusText"] = "Showing last known limits"
+    help_text = str(probe.get("helpText") or "").strip()
+    if help_text:
+      result["authHelpText"] = help_text
   else:
     result["usageStatusText"] = "Claude limits unavailable"
     result["authHelpText"] = probe["helpText"]
