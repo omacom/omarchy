@@ -114,6 +114,7 @@ export OMARCHY_PATH="$ROOT"
 grok_package="npm:@xai-official/grok"
 omp_package="github:can1357/oh-my-pi"
 crush_package="crush"
+opencode_package="npm:@opencode/cli[allow_builds=@opencode/cli]"
 agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
 cursor_agent_package="cursor-agent"
@@ -135,6 +136,7 @@ assert_lazy_stub() {
 assert_lazy_stub "$grok_package" grok
 assert_lazy_stub "$omp_package" omp
 assert_lazy_stub "$crush_package" crush
+assert_lazy_stub "$opencode_package" opencode
 assert_lazy_stub "$ori_package" ori
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 assert_lazy_stub "$muse_package" muse
@@ -146,6 +148,7 @@ grep -Fx "$grok_package grok" "$stub_log" >/dev/null || fail "user setup creates
 grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup creates the Cursor CLI lazy stub"
 grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "user setup creates the Oh My Pi lazy stub"
 grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the Crush lazy stub"
+grep -Fx "$opencode_package opencode" "$stub_log" >/dev/null || fail "user setup creates the OpenCode V2 lazy stub"
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
 OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/install/user/mise.sh"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
@@ -391,7 +394,7 @@ declare -A expected_agents=(
 declare -A expected_packages=(
   [pi]="pi"
   [omp]="$omp_package"
-  [opencode]="opencode"
+  [opencode]="$opencode_package"
   [ori]="$ori_package"
   [claude]="claude"
   [codex]="codex"

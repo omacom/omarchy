@@ -8,7 +8,8 @@ omarchy-mise-install crush
 omarchy-mise-install antigravity-cli agy
 omarchy-mise-install gh
 omarchy-mise-install copilot
-omarchy-mise-install opencode
+# V2's npm package selects the native binary in its postinstall script.
+omarchy-mise-install "npm:@opencode/cli[allow_builds=@opencode/cli]" opencode
 omarchy-mise-install npm:playwright playwright
 omarchy-mise-install pi
 omarchy-mise-install github:can1357/oh-my-pi omp
