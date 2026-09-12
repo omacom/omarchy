@@ -13,6 +13,9 @@ require_command python3
 jq empty "$ROOT/config/omarchy/shell.json"
 pass "default shell.json is valid JSON"
 
+jq -e '.lock.blurEnabled == true and .lock.blurAmount == 1.0 and .lock.blurMax == 128 and .lock.blurMultiplier == 1.25' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default shell.json has lock blur configuration"
+
 jq -e '.version == 1 and (.bar.layout.left | type == "array") and (.bar.layout.center | type == "array") and (.bar.layout.right | type == "array")' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 

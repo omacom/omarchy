@@ -14,6 +14,12 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
+  // Lock screen appearance settings
+  property bool blurEnabled: true
+  property real blurAmount: 1.0
+  property int blurMax: 128
+  property real blurMultiplier: 1.25
+  property real contrast: -0.08
   // A locked session blanks the displays after a few seconds. Nothing is
   // visible from then until the user wakes it, so a video must not keep
   // decoding through what is usually the longest part of a lock.
@@ -97,13 +103,13 @@ Item {
     MultiEffect {
       anchors.fill: wallpaper
       source: wallpaper.video ? null : wallpaper
-      visible: !wallpaper.video
+      visible: !wallpaper.video && root.blurEnabled
       autoPaddingEnabled: false
-      blurEnabled: root.loadBackground && wallpaper.ready
-      blur: 1.0
-      blurMax: 128
-      blurMultiplier: 1.25
-      contrast: -0.08
+      blurEnabled: root.loadBackground && wallpaper.ready && root.blurEnabled
+      blur: root.blurAmount
+      blurMax: root.blurMax
+      blurMultiplier: root.blurMultiplier
+      contrast: root.contrast
     }
 
     // Qt's video output cannot be sampled by MultiEffect on every renderer.

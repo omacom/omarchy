@@ -40,6 +40,13 @@ ShellRoot {
       screensaver: 150,
       lock: 300
     },
+    lock: {
+      blurEnabled: true,
+      blurAmount: 1.0,
+      blurMax: 128,
+      blurMultiplier: 1.25,
+      contrast: -0.08
+    },
     bar: {
       position: "top",
       transparent: false,
