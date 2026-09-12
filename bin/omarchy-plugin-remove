@@ -7,6 +7,16 @@
 
 set -euo pipefail
 
+# A rescan makes the shell rebuild every plugin instance, which blocks its IPC
+# for seconds, and these commands normally run right inside that window:
+# omarchy-plugin-add and omarchy-plugin-clone call them a step after their own
+# rescan, and saving a file under ~/.config/omarchy/plugins/ starts the same
+# reload through inotify. The 2s default expires there and reports a shell that
+# is not responding, when the shell is merely busy with work this command is
+# waiting on. A shell that is genuinely not running still fails at once, since
+# that is a connection error rather than a timeout.
+export OMARCHY_SHELL_IPC_TIMEOUT="${OMARCHY_SHELL_IPC_TIMEOUT:-15s}"
+
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
 
