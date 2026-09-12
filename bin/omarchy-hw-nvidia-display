@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether an NVIDIA GPU drives the display.
+
+# The boot VGA device owns the firmware display, which on a working system is
+# the GPU driving the active display. Forcing NVIDIA-only video-decode
+# settings (e.g. LIBVA_DRIVER_NAME) while another GPU drives the display
+# breaks hardware video playback, so only claim NVIDIA when it owns boot VGA.
+# When an NVIDIA GPU exists but no device reports boot VGA at all, claim
+# NVIDIA to preserve the previous behavior on setups without VGA
+# arbitration info.
+#
+# Reads cached sysfs IDs rather than lspci, which reads PCI config space and
+# resumes runtime-suspended GPUs.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+saw_nvidia=false
+other_boot=false
+
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/class") == 0x03* ]] || continue
+  [[ $(< "$device/vendor") == "0x10de" ]] && saw_nvidia=true
+  # NB: `$(< file)` reads nothing when combined with other redirections,
+  # so guard readability separately instead of `2>/dev/null` inline.
+  [[ -r $device/boot_vga ]] || continue
+  [[ $(< "$device/boot_vga") == "1" ]] || continue
+  [[ $(< "$device/vendor") == "0x10de" ]] && exit 0
+  other_boot=true
+done
+
+# No NVIDIA GPU at all: nothing to claim.
+[[ $saw_nvidia == "false" ]] && exit 1
+
+# NVIDIA exists but no boot VGA anywhere: undeterminable, keep the previous
+# behavior.
+[[ $other_boot == "false" ]] && exit 0
+
+exit 1
