@@ -11,7 +11,7 @@ import shutil
 import tempfile
 import time
 
-from opencode import OpenCodeSourceError, QUERY_TIMEOUT_SECONDS, query_messages
+from opencode import OpenCodeQueryLimitError, OpenCodeSourceError, QUERY_TIMEOUT_SECONDS, query_messages
 
 ROOTS = ('.codex/sessions', '.codex/archived_sessions', '.claude/projects',
          '.pi/agent/sessions', '.omp/agent/sessions', '.kimi/sessions')
@@ -28,6 +28,7 @@ CLAUDE_AGGREGATE_SOURCE = '.claude/aggregate-history'
 CLAUDE_AGGREGATE_FILES = ('.claude/stats-cache.json', '.claude/history.jsonl')
 MAX_AGGREGATE_BYTES = 8 * 1024 * 1024
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
+OPENCODE_LIMIT_BACKOFF_SECONDS = 24 * 60 * 60
 
 
 class ImportContinuing(InterruptedError):
@@ -247,6 +248,51 @@ def opencode_metadata_current(cache, attrs, wal_attrs):
   return (state.get('database') == source_signature(attrs)
           and state.get('wal') == source_signature(wal_attrs)
           and state.get('metadataDigest') == digest(payload))
+
+
+def cached_opencode_query_limit(cache, attrs, wal_attrs, now):
+  state = read_json(cache / 'positions' / (digest(OPENCODE_SOURCE.encode()) + '.json'), {})
+  if not isinstance(state, dict):
+    return None
+  limit = state.get('queryLimit')
+  if not isinstance(limit, dict) or limit.get('kind') not in ('rows', 'output'):
+    return None
+  retry_after = limit.get('retryAfter')
+  if (type(retry_after) not in (int, float)
+      or not now < retry_after <= now + OPENCODE_LIMIT_BACKOFF_SECONDS):
+    return None
+  if (limit.get('database') != source_signature(attrs)
+      or limit.get('wal') != source_signature(wal_attrs)):
+    return None
+  destination = cache / 'sources' / OPENCODE_METADATA
+  metadata_digest = state.get('metadataDigest')
+  if metadata_digest is None:
+    if destination.exists():
+      return None
+  else:
+    try:
+      if digest(destination.read_bytes()) != metadata_digest:
+        return None
+    except FileNotFoundError:
+      return None
+  return limit['kind']
+
+
+def write_opencode_query_limit(cache, attrs, wal_attrs, kind, now):
+  state_path = cache / 'positions' / (digest(OPENCODE_SOURCE.encode()) + '.json')
+  state = read_json(state_path, {})
+  if not isinstance(state, dict):
+    state = {}
+  state['queryLimit'] = {'kind': kind, 'database': source_signature(attrs),
+                         'wal': source_signature(wal_attrs),
+                         'retryAfter': now + OPENCODE_LIMIT_BACKOFF_SECONDS}
+  write_json(state_path, state)
+
+
+def opencode_query_limit_reason(kind):
+  bound = '10,000 supported rows' if kind == 'rows' else '8 MiB of projected output'
+  return (f'OpenCode database exceeds the {bound} bound; full history coverage is unknown and '
+          'the unchanged-source query is temporarily backed off; last known metadata retained')
 
 
 def write_opencode_metadata(cache, rows, attrs, wal_attrs):
@@ -575,18 +621,27 @@ def collect_sources(remote, machine, cache, omarchy_path, budget_bytes=64 * 1024
       optional_failures[OPENCODE_SOURCE] = 'OpenCode WAL state could not be checked safely; last known metadata retained'
     if wal_checked:
       try:
-        if not opencode_metadata_current(cache, attrs, wal_attrs):
+        query_limit = cached_opencode_query_limit(cache, attrs, wal_attrs, verified_at)
+        if query_limit is not None:
+          optional_failures[OPENCODE_SOURCE] = opencode_query_limit_reason(query_limit)
+        elif not opencode_metadata_current(cache, attrs, wal_attrs):
           try:
             rows = query_messages(remote.target, root + '/' + OPENCODE_SOURCE,
                                   timeout=min(QUERY_TIMEOUT_SECONDS, budget.seconds_left()))
+          except OpenCodeQueryLimitError as error:
+            budget.check()
+            write_opencode_query_limit(cache, attrs, wal_attrs, error.kind, verified_at)
+            optional_failures[OPENCODE_SOURCE] = opencode_query_limit_reason(error.kind)
           except OpenCodeSourceError:
             # If the enclosing cooperative deadline expired, continue the
             # import rather than misreporting the optional source as broken.
             budget.check()
             raise
-          budget.check()
-          changed = write_opencode_metadata(cache, rows, attrs, wal_attrs) or changed
-        source_states[OPENCODE_SOURCE] = {'status': 'current', 'lastSuccess': verified_at}
+          else:
+            budget.check()
+            changed = write_opencode_metadata(cache, rows, attrs, wal_attrs) or changed
+        if OPENCODE_SOURCE not in optional_failures:
+          source_states[OPENCODE_SOURCE] = {'status': 'current', 'lastSuccess': verified_at}
       except ImportContinuing:
         raise
       except (OpenCodeSourceError, OSError, ValueError):

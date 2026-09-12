@@ -18,6 +18,16 @@ class OpenCodeSourceError(Exception):
   """The optional source could not be queried within its safe contract."""
 
 
+class OpenCodeQueryLimitError(OpenCodeSourceError):
+  """The fixed query deterministically exceeded a local acceptance bound."""
+  def __init__(self, kind):
+    if kind not in ('rows', 'output'):
+      raise ValueError('Unsupported OpenCode query limit kind')
+    self.kind = kind
+    label = 'row' if kind == 'rows' else kind
+    super().__init__(f'OpenCode query exceeded its {label} limit')
+
+
 # This is intentionally a constant projection. It never returns message data,
 # parts, content, credentials, or free-form tool payloads. Text metadata is
 # length-bounded in SQL before sqlite3 serializes it to stdout.
@@ -132,7 +142,7 @@ def bounded_stdout(target, command, timeout=QUERY_TIMEOUT_SECONDS, max_bytes=MAX
         break
       output.extend(block)
       if len(output) > max_bytes:
-        raise OpenCodeSourceError('OpenCode query exceeded its output limit')
+        raise OpenCodeQueryLimitError('output')
     remaining = timeout - (time.monotonic() - started)
     if remaining <= 0:
       raise OpenCodeSourceError('OpenCode query exceeded its time limit')
@@ -168,8 +178,10 @@ def query_messages(target, database, timeout=QUERY_TIMEOUT_SECONDS, max_bytes=MA
     rows = json.loads(raw) if raw else []
   except (ValueError, UnicodeError) as error:
     raise OpenCodeSourceError('OpenCode query returned invalid JSON framing') from error
-  if not isinstance(rows, list) or len(rows) > MAX_ROWS:
-    raise OpenCodeSourceError('OpenCode query exceeded its row limit')
+  if not isinstance(rows, list):
+    raise OpenCodeSourceError('OpenCode query returned invalid JSON framing')
+  if len(rows) > MAX_ROWS:
+    raise OpenCodeQueryLimitError('rows')
   result = []
   for row in rows:
     if not isinstance(row, dict):

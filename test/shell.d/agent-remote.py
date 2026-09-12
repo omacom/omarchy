@@ -707,6 +707,237 @@ console.log(JSON.stringify(pricing.priceBucket('codex', bucket, {})));
     finally:
       writer.close()
 
+  def test_unchanged_oversized_opencode_backs_off_while_native_advances_and_changed_db_recovers(self):
+    stamp = int(time.time() * 1000)
+    native_path = self.write('.codex/sessions/test.jsonl', native(100))
+    message = {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    }
+    database = self.write_opencode([
+      (f'oversized-{index}', message) for index in range(remote_opencode.MAX_ROWS + 1)
+    ])
+
+    (first, first_issues), _ = self.collect()
+    self.assertEqual(first['codex']['todayTotalTokens'], 100)
+    self.assertFalse(first['codex']['dailyUsage']['complete'])
+    self.assertEqual(first['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'unavailable')
+    query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+    self.assertEqual(query_calls, 1)
+    position_path = self.cache / 'positions' / (collection.digest(collection.OPENCODE_SOURCE.encode()) + '.json')
+    position = collection.read_json(position_path)
+    self.assertEqual(position['queryLimit']['kind'], 'rows')
+    self.assertEqual(set(position['queryLimit']), {'kind', 'database', 'wal', 'retryAfter'})
+    self.assertGreater(position['queryLimit']['retryAfter'], time.time())
+    self.assertLessEqual(position['queryLimit']['retryAfter'],
+                         time.time() + collection.OPENCODE_LIMIT_BACKOFF_SECONDS)
+    self.assertNotIn('oversized-', position_path.read_text())
+
+    (unchanged, unchanged_issues), _ = self.collect()
+    self.assertEqual(unchanged['codex']['todayTotalTokens'], 100)
+    self.assertFalse(unchanged['codex']['dailyUsage']['complete'])
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                     query_calls, 'unchanged oversized database reran its bounded query')
+    self.assertEqual(unchanged_issues, first_issues)
+    self.assertTrue(any('10,000' in issue for issue in first_issues))
+
+    native_path.write_text(''.join(json.dumps(row) + '\n' for row in native(175)))
+    os.utime(native_path, (time.time() - 30, time.time() - 30))
+    (advanced, advanced_issues), _ = self.collect()
+    self.assertEqual(advanced['codex']['todayTotalTokens'], 175)
+    self.assertFalse(advanced['codex']['dailyUsage']['complete'])
+    self.assertEqual(advanced_issues, first_issues)
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'), query_calls)
+
+    database.unlink()
+    self.write_opencode([('recovered', message)])
+    (recovered, recovered_issues), _ = self.collect()
+    self.assertEqual(recovered_issues, [])
+    self.assertEqual(recovered['codex']['todayTotalTokens'], 194)
+    self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+    self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'), query_calls + 1)
+    self.assertNotIn('queryLimit', collection.read_json(position_path))
+
+  def test_opencode_bound_backoff_retains_last_good_and_wal_change_recovers(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    message = {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    }
+    database = self.write_opencode([('good', message)])
+    (established, established_issues), _ = self.collect()
+    self.assertEqual(established_issues, [])
+    self.assertEqual(established['codex']['todayTotalTokens'], 119)
+    imported = self.cache / 'sources' / collection.OPENCODE_METADATA
+    last_good = imported.read_bytes()
+    query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+
+    writer = sqlite3.connect(database)
+    try:
+      writer.execute('PRAGMA journal_mode=WAL')
+      writer.execute('PRAGMA wal_autocheckpoint=0')
+      serialized = json.dumps(message)
+      writer.executemany('INSERT INTO message VALUES (?, ?, ?)', [
+        (f'oversized-{index}', f'oversized-{index}', serialized)
+        for index in range(remote_opencode.MAX_ROWS)
+      ])
+      writer.commit()
+      (limited, limited_issues), _ = self.collect()
+      self.assertEqual(limited['codex']['todayTotalTokens'], 119)
+      self.assertFalse(limited['codex']['dailyUsage']['complete'])
+      self.assertEqual(limited['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'stale')
+      self.assertTrue(any('10,000' in issue for issue in limited_issues))
+      self.assertEqual(imported.read_bytes(), last_good)
+      limited_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+      self.assertEqual(limited_calls, query_calls + 1)
+
+      (unchanged, unchanged_issues), _ = self.collect()
+      self.assertEqual(unchanged['codex']['todayTotalTokens'], 119)
+      self.assertEqual(unchanged_issues, limited_issues)
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       limited_calls)
+
+      wal = Path(str(database) + '-wal')
+      wal_before = (wal.stat().st_size, wal.stat().st_mtime_ns)
+      writer.execute("DELETE FROM message WHERE id != 'message-0'")
+      writer.commit()
+      self.assertNotEqual((wal.stat().st_size, wal.stat().st_mtime_ns), wal_before)
+      (recovered, recovered_issues), _ = self.collect()
+      self.assertEqual(recovered_issues, [])
+      self.assertEqual(recovered['codex']['todayTotalTokens'], 119)
+      self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+      self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       limited_calls + 1)
+    finally:
+      writer.close()
+
+  def test_transient_opencode_failure_retries_unchanged_source(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.write_opencode([('transient', {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    })])
+    real_sqlite = shutil.which('sqlite3')
+    marker = self.root / 'sqlite-transient-cleared'
+    sqlite = self.fake_bin / 'sqlite3'
+    sqlite.write_text('#!' + sys.executable + """
+import os, pathlib, sys
+real = os.environ['REMOTE_REAL_SQLITE']
+if ':memory:' in sys.argv:
+  os.execv(real, [real, *sys.argv[1:]])
+marker = pathlib.Path(os.environ['REMOTE_TRANSIENT_MARKER'])
+if not marker.exists():
+  marker.write_text('sanitized transient marker')
+  sys.exit(75)
+os.execv(real, [real, *sys.argv[1:]])
+""")
+    sqlite.chmod(0o755)
+    with patch.dict(os.environ, REMOTE_REAL_SQLITE=real_sqlite,
+                    REMOTE_TRANSIENT_MARKER=str(marker)):
+      (failed, failed_issues), _ = self.collect()
+      self.assertEqual(failed['codex']['todayTotalTokens'], 100)
+      self.assertFalse(failed['codex']['dailyUsage']['complete'])
+      self.assertEqual(failed['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'unavailable')
+      self.assertTrue(any('OpenCode' in issue for issue in failed_issues))
+      position_path = self.cache / 'positions' / (collection.digest(collection.OPENCODE_SOURCE.encode()) + '.json')
+      self.assertNotIn('queryLimit', collection.read_json(position_path, {}))
+      query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+      self.assertEqual(query_calls, 1)
+
+      (recovered, recovered_issues), _ = self.collect()
+      self.assertEqual(recovered_issues, [])
+      self.assertEqual(recovered['codex']['todayTotalTokens'], 119)
+      self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+      self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       query_calls + 1)
+
+  def test_invalid_opencode_result_shape_retries_unchanged_source(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    self.write_opencode([('shape-recovery', {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 10, 'output': 5, 'reasoning': 1, 'cache': {'read': 2, 'write': 1}},
+    })])
+    real_sqlite = shutil.which('sqlite3')
+    marker = self.root / 'sqlite-shape-cleared'
+    sqlite = self.fake_bin / 'sqlite3'
+    sqlite.write_text('#!' + sys.executable + """
+import os, pathlib, sys
+real = os.environ['REMOTE_REAL_SQLITE']
+if ':memory:' in sys.argv:
+  os.execv(real, [real, *sys.argv[1:]])
+marker = pathlib.Path(os.environ['REMOTE_SHAPE_MARKER'])
+if not marker.exists():
+  marker.write_text('sanitized shape marker')
+  print('{}')
+  sys.exit(0)
+os.execv(real, [real, *sys.argv[1:]])
+""")
+    sqlite.chmod(0o755)
+    with patch.dict(os.environ, REMOTE_REAL_SQLITE=real_sqlite,
+                    REMOTE_SHAPE_MARKER=str(marker)):
+      (failed, failed_issues), _ = self.collect()
+      self.assertEqual(failed['codex']['todayTotalTokens'], 100)
+      self.assertFalse(failed['codex']['dailyUsage']['complete'])
+      self.assertTrue(any('OpenCode' in issue for issue in failed_issues))
+      query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+      self.assertEqual(query_calls, 1)
+
+      (recovered, recovered_issues), _ = self.collect()
+      self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                       query_calls + 1, 'invalid result shape was cached as a deterministic size limit')
+      self.assertEqual(recovered_issues, [])
+      self.assertEqual(recovered['codex']['todayTotalTokens'], 119)
+      self.assertTrue(recovered['codex']['dailyUsage']['complete'])
+      self.assertEqual(recovered['codex']['remoteSources'][collection.OPENCODE_SOURCE]['status'], 'current')
+
+  def test_unchanged_opencode_bound_retries_after_backoff_expiry(self):
+    stamp = int(time.time() * 1000)
+    self.write('.codex/sessions/test.jsonl', native(100))
+    message = {
+      'role': 'assistant', 'providerID': 'openai', 'modelID': 'gpt-remote',
+      'time': {'created': stamp},
+      'tokens': {'input': 1, 'output': 0, 'cache': {'read': 0, 'write': 0}},
+    }
+    self.write_opencode([
+      (f'expiry-{index}', message) for index in range(remote_opencode.MAX_ROWS + 1)
+    ])
+    now = time.time()
+    with patch.object(time, 'time', return_value=now):
+      (first, first_issues), _ = self.collect()
+    self.assertEqual(first['codex']['todayTotalTokens'], 100)
+    self.assertFalse(first['codex']['dailyUsage']['complete'])
+    position_path = self.cache / 'positions' / (collection.digest(collection.OPENCODE_SOURCE.encode()) + '.json')
+    retry_after = collection.read_json(position_path)['queryLimit']['retryAfter']
+    self.assertEqual(retry_after, now + collection.OPENCODE_LIMIT_BACKOFF_SECONDS)
+    query_calls = (self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json')
+    self.assertEqual(query_calls, 1)
+
+    with patch.object(time, 'time', return_value=retry_after - 1):
+      (before, before_issues), _ = self.collect()
+    self.assertEqual(before['codex']['todayTotalTokens'], 100)
+    self.assertEqual(before_issues, first_issues)
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'), query_calls)
+
+    with patch.object(time, 'time', return_value=retry_after + 1):
+      (after, after_issues), _ = self.collect()
+    self.assertEqual((self.root / 'ssh-calls').read_text().count('sqlite3 -readonly $safe -json'),
+                     query_calls + 1)
+    self.assertEqual(after['codex']['todayTotalTokens'], 100)
+    self.assertFalse(after['codex']['dailyUsage']['complete'])
+    self.assertEqual(after_issues, first_issues)
+    self.assertEqual(collection.read_json(position_path)['queryLimit']['retryAfter'],
+                     retry_after + 1 + collection.OPENCODE_LIMIT_BACKOFF_SECONDS)
+
   def test_present_opencode_without_compatible_sqlite_is_provider_scoped_and_absence_is_silent(self):
     self.write('.codex/sessions/test.jsonl', native(100))
     database = self.write_opencode([], compatible=False)
@@ -752,8 +983,9 @@ elif ':memory:' not in sys.argv:
     sqlite.chmod(0o755)
     database = str(self.source / '.local/share/opencode/opencode.db')
     started = time.monotonic()
-    with self.assertRaisesRegex(remote_opencode.OpenCodeSourceError, 'output limit'):
+    with self.assertRaisesRegex(remote_opencode.OpenCodeQueryLimitError, 'output limit') as limited:
       remote_opencode.query_messages('fixture-alias', database, timeout=1, max_bytes=64)
+    self.assertEqual(limited.exception.kind, 'output')
     output_elapsed = time.monotonic() - started
     started = time.monotonic()
     with patch.dict(os.environ, REMOTE_SQLITE_BEHAVIOR='slow'):
