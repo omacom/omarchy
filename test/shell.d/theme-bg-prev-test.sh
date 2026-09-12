@@ -62,3 +62,34 @@ HOME="$home" PATH="$stub:$PATH" NOTIFY_LOG="$tmpdir/notify" \
 grep -Fq 'No background was found for theme' "$tmpdir/notify" ||
   fail "theme-bg-prev notifies when the theme has no backgrounds" "$(cat "$tmpdir/notify")"
 pass "theme-bg-prev notifies when there is nothing to cycle"
+
+# The current background is stored by its resolved path, while candidates can
+# be reached through a symlinked user background directory.
+user_backgrounds="$home/.config/omarchy/backgrounds/tokyo-night"
+real_backgrounds="$tmpdir/backgrounds with spaces"
+mkdir -p "$(dirname "$user_backgrounds")" "$real_backgrounds"
+ln -s "$real_backgrounds" "$user_backgrounds"
+for name in a.png b.png c.png; do
+  printf 'image' >"$real_backgrounds/$name"
+done
+
+for current in c b a; do
+  case "$current" in
+    c) previous=b ;;
+    b) previous=a ;;
+    a) previous=c ;;
+  esac
+  ln -sfn "$real_backgrounds/$current.png" "$home/.local/state/omarchy/current/background"
+  HOME="$home" PATH="$stub:$PATH" BG_SET_LOG="$tmpdir/set" \
+    "$BASH" "$ROOT/bin/omarchy-theme-bg-prev"
+  [[ $(<"$tmpdir/set") == "$user_backgrounds/$previous.png" ]] ||
+    fail "theme-bg-prev cycles symlinked backgrounds from $current to $previous" "$(cat "$tmpdir/set")"
+done
+pass "theme-bg-prev cycles every background and wraps through a symlinked directory"
+
+ln -sfn "../../../../../backgrounds with spaces/b.png" "$home/.local/state/omarchy/current/background"
+HOME="$home" PATH="$stub:$PATH" BG_SET_LOG="$tmpdir/set" \
+  "$BASH" "$ROOT/bin/omarchy-theme-bg-prev"
+[[ $(<"$tmpdir/set") == "$user_backgrounds/a.png" ]] ||
+  fail "theme-bg-prev resolves a relative current background link" "$(cat "$tmpdir/set")"
+pass "theme-bg-prev resolves a relative current background link"

@@ -18,15 +18,10 @@ TOTAL=${#BACKGROUNDS[@]}
 if (( TOTAL == 0 )); then
   omarchy-notification-send "No background was found for theme" -t 2000
 else
-  if [[ -L $CURRENT_BACKGROUND_LINK ]]; then
-    CURRENT_BACKGROUND=$(readlink "$CURRENT_BACKGROUND_LINK")
-  else
-    CURRENT_BACKGROUND=""
-  fi
-
   INDEX=-1
   for i in "${!BACKGROUNDS[@]}"; do
-    if [[ ${BACKGROUNDS[$i]} == "$CURRENT_BACKGROUND" ]]; then
+    # Compare the target files, including relative links and symlinked directories.
+    if [[ ${BACKGROUNDS[$i]} -ef $CURRENT_BACKGROUND_LINK ]]; then
       INDEX=$i
       break
     fi
