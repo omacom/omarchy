@@ -5,7 +5,7 @@ autoconf-archive
 asusctl
 base
 base-devel
-broadcom-wl
+broadcom-wl-dkms
 btrfs-progs
 dkms
 egl-wayland
@@ -61,6 +61,7 @@ linux-firmware-marvell
 
 # Dell laptop support packages
 dell-xps-touchpad-haptics
+dell-xps13-sidecar-amps
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
