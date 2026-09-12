@@ -55,6 +55,28 @@ You can also turn on [touchpad gestures](https://wiki.hypr.land/Configuring/Adva
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 ```
 
+For a MacBook-style setup, you can also use three-finger swipes to fullscreen the focused window and restore it:
+
+```lua
+hl.gesture({
+  fingers = 3,
+  direction = "up",
+  action = function()
+    hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen", action = "set" }))
+  end,
+})
+
+hl.gesture({
+  fingers = 3,
+  direction = "down",
+  action = function()
+    hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen", action = "unset" }))
+  end,
+})
+```
+
+These gestures are optional. The up and down actions apply to the focused window, while the horizontal gesture changes workspaces.
+
 On Dell XPS laptops with a haptic touchpad, you can also set the click strength to low, mid, or high under _Trigger > Hardware > Touchpad Haptics_.
 
 ### Typing in Chinese, Japanese, and other languages
