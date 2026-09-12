@@ -6,6 +6,9 @@ They'll then be accessible through the app launcher (`Super + Space`), and use t
 
 If you wish to remove a web app, just go to _Remove > Web App_ in the Omarchy menu.
 
+Slack has its own entry under _Install > Service > Slack_. Links that use the
+`slack://` protocol open directly in the installed Slack web app.
+
 It's best if you log into all your accounts using a regular browser before using the web app shortcuts. The thin wrapper frame doesn't work well with 1password, so just easier to be logged in directly first.
 
 All the keyboard hotkeys for these web apps can be changed in `~/.config/hypr/bindings.lua`.
