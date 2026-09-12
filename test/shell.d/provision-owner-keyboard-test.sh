@@ -172,3 +172,8 @@ assert_equal "$exposed_args" "" "a keymap nothing persisted exposes nothing"
 
 STUB_KEYMAPS=de STUB_FIRSTBOOT=fail STUB_LOCALECTL=fail run_apply pl
 assert_equal "$exposed_args" "" "a keymap localectl does not know exposes nothing"
+
+omarchy_expose_xkb_layout() { return 1; }
+STUB_KEYMAPS=pl run_apply pl
+grep -q 'could not expose the XKB layout' "$LOG_FILE" || fail "a failed exposure is logged, not fatal"
+pass "a failed exposure is logged, not fatal"
