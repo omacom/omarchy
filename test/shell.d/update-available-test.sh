@@ -7,6 +7,7 @@ source "$(dirname "$0")/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
 export XDG_CACHE_HOME="$test_tmp/cache"
 
 stub_bin="$test_tmp/bin"
@@ -128,6 +129,9 @@ grep -q '^omarchy ' "$stdout" || fail "update checker prints omarchy updates"
 ! grep -q '^linux ' "$stdout" || fail "update checker ignores non-Omarchy package updates"
 ! grep -q '^omarchy-dev ' "$stdout" || fail "update checker ignores omarchy-dev when omarchy is installed"
 pass "update checker detects installed omarchy package updates"
+[[ -f $XDG_RUNTIME_DIR/omarchy/checkupdates.lock ]] || fail "update lock lives in the runtime directory"
+[[ ! -e $XDG_CACHE_HOME ]] || fail "update locking does not create cache state"
+pass "update lock uses runtime state rather than persistent cache"
 
 if capture_checker "$stdout" "$stderr" TEST_CHECKUPDATES=updates TEST_INSTALLED_PACKAGE=omarchy-dev; then
   status=0
@@ -226,9 +230,9 @@ sleep 0.2
 printf 'omarchy 4.0.0-1 -> 4.0.1-1\n'
 SH
 export TEST_CHECK_DIR="$test_tmp" TEST_INSTALLED_PACKAGE=omarchy
-run_checker >"$test_tmp/first" &
+XDG_CACHE_HOME="$test_tmp/first-cache" run_checker >"$test_tmp/first" &
 first_pid=$!
-run_checker >"$test_tmp/second" &
+XDG_CACHE_HOME="$test_tmp/second-cache" run_checker >"$test_tmp/second" &
 second_pid=$!
 wait "$first_pid" || fail "first concurrent caller receives the update"
 wait "$second_pid" || fail "second concurrent caller receives the update"
