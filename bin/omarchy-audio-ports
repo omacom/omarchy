@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=List the ports of every audio device that has more than one, with the active one
+# omarchy:group=audio
+
+# A laptop's speakers and its headphone jack are one device to PipeWire, with
+# a port for each: plugging headphones in switches the port, never the device.
+# A panel that lists devices therefore shows one unchanging entry. What a person
+# recognises is the port -- Speakers, Headphones, Internal Microphone, Headset
+# Microphone -- which is how macOS and GNOME present a jack.
+#
+# One line per port, for every sink and source that has more than one:
+#   <sink|source> TAB <node name> TAB <port id> TAB <description> TAB <active 0|1> TAB <available 0|1>
+# "available" is 0 only when PipeWire says "not available" (nothing plugged
+# into that jack); "unknown" counts as available. Single-port devices are
+# omitted: they are best named by the device.
+
+for kind in sink source; do
+  pactl list "${kind}s" 2>/dev/null | awk -v kind="$kind" '
+    function flush(   i) {
+      if (name == "" || count < 2) return
+      for (i = 1; i <= count; i++)
+        print kind "\t" name "\t" id[i] "\t" desc[i] "\t" (id[i] == active ? 1 : 0) "\t" avail[i]
+    }
+    /^(Sink|Source) #/ { flush(); name = ""; count = 0; active = ""; in_ports = 0; next }
+    /^[[:space:]]*Name:/ { name = $2; if (name ~ /\.monitor$/) name = ""; next }
+    /^[[:space:]]*Ports:$/ { in_ports = 1; next }
+    # "\t\tanalog-output-headphones: Headphones (type: Headphones, ..., not available)"
+    in_ports && /^\t\t[^\t]/ {
+      count++
+      line = $0; sub(/^\t\t/, "", line)
+      id[count] = line; sub(/:.*/, "", id[count])
+      desc[count] = line; sub(/^[^:]*: /, "", desc[count]); sub(/ \(type:.*$/, "", desc[count])
+      avail[count] = (line ~ /not available\)$/) ? 0 : 1
+      next
+    }
+    /^\tActive Port:/ { in_ports = 0; active = $3; next }
+    END { flush() }
+  '
+done

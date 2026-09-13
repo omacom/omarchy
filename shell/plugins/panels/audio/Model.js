@@ -47,6 +47,42 @@ function parseSinkAvailability(raw) {
   return next
 }
 
+// {node name: [port]} from omarchy-audio-ports, which lists only devices with
+// more than one port. "available" is false when nothing is plugged into that
+// jack, or when the driver has routed away from the port on its own.
+function parsePorts(raw) {
+  var next = {}
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var p = lines[i].split("\t")
+    if (p.length < 6 || !p[1] || !p[2]) continue
+    if (!next[p[1]]) next[p[1]] = []
+    next[p[1]].push({
+      kind: p[0],
+      id: p[2],
+      label: p[3].trim(),
+      active: p[4] === "1",
+      available: p[5] === "1"
+    })
+  }
+  return next
+}
+
+function portGlyph(port) {
+  if (!port) return ""
+  if (labelIsHeadphones(port.label)) return "󰋋"
+  return port.kind === "source" ? "󰍬" : "󰓃"
+}
+
+function labelIsHeadphones(label) {
+  var blob = String(label || "").toLowerCase()
+  return blob.indexOf("headphone") !== -1
+    || blob.indexOf("headset") !== -1
+    || blob.indexOf("earbud") !== -1
+    || blob.indexOf("earphone") !== -1
+    || blob.indexOf("airpod") !== -1
+}
+
 function friendlyDeviceLabel(text) {
   var label = String(text || "").trim()
   label = label.replace(/^sof-soundwire\s+/i, "")
@@ -78,12 +114,8 @@ function isHeadphones(node) {
     p["device.product.name"] || "",
     p["node.description"] || "",
     p["node.nick"] || ""
-  ].join(" ")).toLowerCase()
-  return blob.indexOf("headphone") !== -1
-    || blob.indexOf("headset") !== -1
-    || blob.indexOf("earbud") !== -1
-    || blob.indexOf("earphone") !== -1
-    || blob.indexOf("airpod") !== -1
+  ].join(" "))
+  return labelIsHeadphones(blob)
 }
 
 function sinkGlyph(node) {
@@ -240,6 +272,9 @@ if (typeof module !== "undefined") {
     listSnapshot: listSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
+    parsePorts: parsePorts,
+    portGlyph: portGlyph,
+    labelIsHeadphones: labelIsHeadphones,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
     nodeLabel: nodeLabel,

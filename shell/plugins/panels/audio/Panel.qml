@@ -58,6 +58,16 @@ Panel {
   property var sinkAvailability: ({})
   property bool sinkAvailabilityLoaded: false
 
+  // Ports per device that has more than one, from omarchy-audio-ports:
+  // {name: [{id, label, active, available}]}. Speakers and a headphone jack
+  // are one device with two ports, so plugging in switches the port and the
+  // device name never changes. The port is what a person calls the output, so
+  // a multi-port device is listed as one row per available port, the way
+  // macOS and GNOME present a jack: Speakers / Headphones, and Internal /
+  // Headset Microphone. The active one is highlighted; picking another is a
+  // port switch, which the session manager undoes itself on the next jack event.
+  property var devicePorts: ({})
+
   // Identify true playback streams without reading node.properties here:
   // PwNode.properties is invalid until the node is bound, and reading it while
   // capture streams are appearing (for example, when Voxtype starts recording)
@@ -81,13 +91,13 @@ Panel {
     for (var i = 0; i < candidateSinks.length; i++)
       if (sinkAvailable(candidateSinks[i])) list.push(candidateSinks[i])
     if (sink && list.indexOf(sink) < 0) list.unshift(sink)
-    return list
+    return expandPorts(list)
   }
 
   readonly property var rawAudioSources: {
     var list = candidateSources.slice()
     if (source && list.indexOf(source) < 0) list.unshift(source)
-    return list
+    return expandPorts(list)
   }
 
   readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
@@ -147,6 +157,13 @@ Panel {
   readonly property bool outputMuted: volumeSink && volumeSink.audio ? volumeSink.audio.muted : false
   readonly property real inputVolume: source && source.audio ? source.audio.volume : 0
   readonly property bool inputMuted: source && source.audio ? source.audio.muted : false
+
+  // Each port keeps its own volume, so a jack event usually shows up here as a
+  // level change on the physical sink the moment the port switches. Using that
+  // as a nudge makes the bar icon follow a plug within a fraction of a second
+  // instead of waiting for the next poll; the poll remains the safety net.
+  onOutputVolumeChanged: portsNudge.restart()
+  onInputVolumeChanged: portsNudge.restart()
 
   onRawAudioSinksChanged: if (rawAudioSinks.length > 0) cachedAudioSinks = rawAudioSinks
   onRawAudioSourcesChanged: if (rawAudioSources.length > 0) cachedAudioSources = rawAudioSources
@@ -291,14 +308,14 @@ Panel {
     if (focusSection === "header") { toggleAllMuted(); return }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
-      var sink = displayAudioSinks[selectedIndex]
-      if (sink) setDefaultSink(sink)
+      var entry = displayAudioSinks[selectedIndex]
+      if (entry) selectOutput(entry)
       return
     }
     if (focusSection === "input") {
       if (selectedIndex === -1) { toggleInputMute(); return }
-      var src = displayAudioSources[selectedIndex]
-      if (src) setDefaultSource(src)
+      var srcEntry = displayAudioSources[selectedIndex]
+      if (srcEntry) selectInput(srcEntry)
       return
     }
     if (focusSection === "streams" && selectedIndex >= 0) {
@@ -495,6 +512,101 @@ Panel {
     sinkAvailabilityLoaded = true
   }
 
+  function updatePorts(raw) {
+    devicePorts = Model.parsePorts(raw)
+  }
+
+  function refreshPorts() {
+    if (!portsProc.running) portsProc.running = true
+  }
+
+  // The device whose ports a row should show, or "". A tuning sink has no ports
+  // of its own; when it is the selected output, the ports that matter are on
+  // the physical sink it feeds, which volumeSinkName already resolves.
+  function portOwner(node) {
+    if (!node || !node.name) return ""
+    var name = String(node.name)
+    if (devicePorts[name]) return name
+    if (node === sink && volumeSinkName && devicePorts[volumeSinkName]) return volumeSinkName
+    return ""
+  }
+
+  // Only ports the driver reports available: a jack port appears while
+  // something is plugged in, and a driver that routes on the jack itself marks
+  // the port it has taken out of use "not available" -- offering that one
+  // would move the highlight and not the sound.
+  function shownPorts(owner) {
+    var ports = owner ? devicePorts[owner] : null
+    if (!ports) return []
+    var list = []
+    for (var i = 0; i < ports.length; i++)
+      if (ports[i].available) list.push(ports[i])
+    return list
+  }
+
+  function activePortLabel(node) {
+    var owner = portOwner(node)
+    var ports = owner ? devicePorts[owner] : null
+    if (!ports) return ""
+    for (var i = 0; i < ports.length; i++)
+      if (ports[i].active) return ports[i].label
+    return ""
+  }
+
+  // One row per available port for a multi-port device -- even when only one
+  // is available, since "Headphones" says more than the device name does --
+  // else the device itself.
+  function expandPorts(nodes) {
+    var rows = []
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i]
+      var owner = portOwner(node)
+      var ports = shownPorts(owner)
+      if (ports.length > 0) {
+        for (var j = 0; j < ports.length; j++) rows.push({ node: node, owner: owner, port: ports[j] })
+      } else {
+        rows.push({ node: node, owner: owner, port: null })
+      }
+    }
+    return rows
+  }
+
+  function selectOutput(entry) {
+    if (!entry || !entry.node) return
+    if (!sink || sink.id !== entry.node.id) setDefaultSink(entry.node)
+    if (entry.port && entry.owner) {
+      Quickshell.execDetached(["omarchy-audio-set-port", "sink", entry.owner, entry.port.id])
+      markActivePort(entry.owner, entry.port.id)
+    }
+  }
+
+  function selectInput(entry) {
+    if (!entry || !entry.node) return
+    if (!source || source.id !== entry.node.id) setDefaultSource(entry.node)
+    if (entry.port && entry.owner) {
+      Quickshell.execDetached(["omarchy-audio-set-port", "source", entry.owner, entry.port.id])
+      markActivePort(entry.owner, entry.port.id)
+    }
+  }
+
+  // Move the highlight now; the next refresh confirms it from PipeWire.
+  function markActivePort(owner, id) {
+    var next = {}
+    for (var name in devicePorts) {
+      var ports = devicePorts[name]
+      var copy = []
+      for (var i = 0; i < ports.length; i++) {
+        var q = {}
+        for (var k in ports[i]) q[k] = ports[i][k]
+        if (name === owner) q.active = q.id === id
+        copy.push(q)
+      }
+      next[name] = copy
+    }
+    devicePorts = next
+    portsNudge.restart()
+  }
+
   function friendlyDeviceLabel(text) {
     return Model.friendlyDeviceLabel(text)
   }
@@ -508,7 +620,7 @@ Panel {
   }
 
   function isHeadphones(node) {
-    return Model.isHeadphones(node)
+    return Model.labelIsHeadphones(activePortLabel(node)) || Model.isHeadphones(node)
   }
 
   function sinkGlyph(node) {
@@ -517,6 +629,10 @@ Panel {
 
   function sourceGlyph(node) {
     return Model.sourceGlyph(node)
+  }
+
+  function portGlyph(port) {
+    return Model.portGlyph(port)
   }
 
   function friendlyStreamLabel(label) {
@@ -601,12 +717,24 @@ Panel {
     }
   }
 
+  Process {
+    id: portsProc
+    command: ["omarchy-audio-ports"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updatePorts(text)
+    }
+  }
+
   Timer {
     interval: 5000
     running: root.opened
     repeat: true
     triggeredOnStart: true
-    onTriggered: if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+    onTriggered: {
+      if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+      root.refreshPorts()
+    }
   }
 
   // Runs whether or not the panel is open: the bar shows and scrolls the output
@@ -617,7 +745,17 @@ Panel {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.resolveVolumeSink()
+    onTriggered: {
+      root.resolveVolumeSink()
+      root.refreshPorts()
+    }
+  }
+
+  Timer {
+    id: portsNudge
+    interval: 300
+    repeat: false
+    onTriggered: root.refreshPorts()
   }
 
   Timer {
@@ -857,7 +995,7 @@ Panel {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: modelData
+                entry: modelData
                 rowIndex: index
               }
             }
@@ -965,7 +1103,7 @@ Panel {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: modelData
+                entry: modelData
                 rowIndex: index
               }
             }
@@ -1012,10 +1150,11 @@ Panel {
   // from hasCursor/current via CursorSurface, never from containsMouse.
   component SinkRow: CursorSurface {
     id: sinkRow
-    required property var node
+    required property var entry
     required property int rowIndex
-
-    readonly property bool isActive: root.sink && node && root.sink.id === node.id
+    readonly property var node: entry ? entry.node : null
+    readonly property var port: entry ? entry.port : null
+    readonly property bool isActive: root.sink && node && root.sink.id === node.id && (!port || port.active)
     hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sinkRow)
     current: isActive
@@ -1035,7 +1174,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.sinkGlyph(sinkRow.node)
+        text: sinkRow.port ? root.portGlyph(sinkRow.port) : root.sinkGlyph(sinkRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.title
@@ -1046,7 +1185,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.nodeLabel(sinkRow.node)
+        text: sinkRow.port ? sinkRow.port.label : root.nodeLabel(sinkRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body
@@ -1066,17 +1205,18 @@ Panel {
         root.focusSection = "output"
         root.selectedIndex = sinkRow.rowIndex
       }
-      onClicked: root.setDefaultSink(sinkRow.node)
+      onClicked: root.selectOutput(sinkRow.entry)
     }
   }
 
   // Input device row — sibling of SinkRow for the "input" section.
   component SourceRow: CursorSurface {
     id: sourceRow
-    required property var node
+    required property var entry
     required property int rowIndex
-
-    readonly property bool isActive: root.source && node && root.source.id === node.id
+    readonly property var node: entry ? entry.node : null
+    readonly property var port: entry ? entry.port : null
+    readonly property bool isActive: root.source && node && root.source.id === node.id && (!port || port.active)
     hasCursor: root.cursorActive && root.focusSection === "input" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sourceRow)
     current: isActive
@@ -1096,7 +1236,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.sourceGlyph(sourceRow.node)
+        text: sourceRow.port ? root.portGlyph(sourceRow.port) : root.sourceGlyph(sourceRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.title
@@ -1107,7 +1247,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.nodeLabel(sourceRow.node)
+        text: sourceRow.port ? sourceRow.port.label : root.nodeLabel(sourceRow.node)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body
@@ -1127,7 +1267,7 @@ Panel {
         root.focusSection = "input"
         root.selectedIndex = sourceRow.rowIndex
       }
-      onClicked: root.setDefaultSource(sourceRow.node)
+      onClicked: root.selectInput(sourceRow.entry)
     }
   }
 

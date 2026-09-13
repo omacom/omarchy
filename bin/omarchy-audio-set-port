@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Select a port (Speakers, Headphones, Headset Microphone...) on an audio device
+# omarchy:args=<sink|source> <node-name> <port-id>
+# omarchy:group=audio
+
+kind=${1:-}
+name=${2:-}
+port=${3:-}
+
+if [[ -z $kind || -z $name || -z $port ]]; then
+  echo "Usage: omarchy-audio-set-port <sink|source> <node-name> <port-id>" >&2
+  exit 1
+fi
+
+case $kind in
+  sink) timeout 2 pactl set-sink-port "$name" "$port" ;;
+  source) timeout 2 pactl set-source-port "$name" "$port" ;;
+  *) echo "kind must be sink or source" >&2; exit 1 ;;
+esac
