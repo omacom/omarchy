@@ -35,8 +35,27 @@ bash test/shell.d/hyprland-keyboard-layout-test.sh
 
 The Python suite uses temporary configuration, package and state trees and a fake compositor, with actual installed XKB compilation. It exercises first save without activation, absent-file rollback, read-only packaged code, community-plugin coexistence, native Lua loading, next-session promotion, stale revisions, interface synchronization, recovery and bounded subprocess handling.
 
-The native suite renders upstream QML with fixture data and isolated environment paths, substituting the helper only in generated staging files. Logs and captures are written to `work/`. A minimal popup-container fixture verifies the built-in entry point because offscreen Qt cannot construct a Wayland PanelWindow. The real picker tests cover keyboard navigation, search, active-layout removal, operation readback, ambiguity feedback, animation state and repeated use. Run graphical acceptance in a disposable Omarchy VM before marking the proposal ready; offscreen captures do not establish actual bar placement, compositor focus, physical typing or login persistence.
+The native suite renders upstream QML with fixture data and isolated environment paths, substituting the helper only in generated staging files. Logs and captures are written to `work/`. A minimal popup-container fixture verifies the built-in entry point because offscreen Qt cannot construct a Wayland PanelWindow. The real picker tests cover keyboard navigation, search, active-layout removal, operation readback, ambiguity feedback, animation state and repeated use. Graphical acceptance must run in a disposable Omarchy VM; offscreen captures do not establish actual bar placement, compositor focus, typing or login persistence.
 
-Local verification on 2026-09-13 against upstream `692c02cad5c1ee90fe4188cc2be48e534cbe6e62`: 91 Python tests and 40 native fixture tests passed. The clone, manifest, Hyprland keyboard-layout and default-config checks passed. Picker/editor/search/ambiguity captures were inspected. Disposable-VM acceptance remains outstanding; this adaptation has not been installed on the development desktop.
+Local verification on 2026-09-13 against upstream `692c02cad5c1ee90fe4188cc2be48e534cbe6e62`: 91 Python tests and 40 native fixture tests passed. The clone, manifest, Hyprland keyboard-layout and default-config checks passed. Picker/editor/search/ambiguity captures were inspected. A fresh encrypted Omarchy VM built from this source passed the keyboard-specific flow below. This adaptation has not been installed on the development desktop.
+
+### Installed VM verification (2026-09-13)
+
+The ISO was built from source commit `351de01813ea953402cd1c3305e731f49f84a05e`, `omarchy-iso` commit `a23f8d464dcb0616a61bfaa8026e23d0533da209`, and `omarchy-pkgs` commit `bce3b368e7cf711c41fc29eb5f8bfc1c658ab5b8`. ISO SHA-256: `e0d5bb5af30a8d2f66b26691b2f524932d51c47bf99dcafd3f1e53c4737f0079`. Tests exercised the installed `/usr/share/omarchy` package in a KVM guest with an emulated AT keyboard; only the test suite was synced into the guest.
+
+A clean disposable overlay passed this sequence with QMP virtual-hardware keystrokes:
+
+1. Open the bar picker with only US configured, navigate to the editor, search `pl`, and add Polish through the UI without an activation step.
+2. Dismiss and reopen the popup, select Polish, then choose Polish as the login default through the editor. Verify the active layout stays Polish and the saved order becomes Polish/US.
+3. Save the Both Alt keys shortcut, type `ąćęłńóśźżĄĆĘŁŃÓŚŹŻ` into a disposable terminal probe, and compare the complete synthetic sequence. The probe records only PASS/FAIL.
+4. Switch to US with left-Alt/right-Alt, back to Polish with the reverse press order, then to US again. Verify the configured login default remains Polish.
+5. Reboot into a new compositor session. Verify Polish is active, both layouts persist, and the original `input.lua` SHA-256 is unchanged.
+6. Remove active Polish through the editor. Verify US survives, with two identical physical groups retained for the current session. Reboot again and verify promotion to one physical US group, with `input.lua` still unchanged.
+
+Actual picker, editor, search, typing and post-reboot captures were inspected for placement, clipping and focus. [Installed desktop capture](../manual/images/keyboard-layouts-desktop.png).
+
+The wider desktop acceptance run had two unrelated OCR failures: the weather panel's San Francisco label and the reminder message prompt were visible in their captures but not recognized by the assertions. The remaining test files and QMP shortcut smoke checks passed. The ISO harness also needed its installer-greeting matcher updated; an initial unencrypted VM failed its second boot with a disk-encryption mapping error, so verification used the standard encrypted installation. These harness/installer findings are not hidden by the passing keyboard run.
+
+This validates virtual-hardware typing on one emulated keyboard. Multiple physical keyboards, hotplug and real-hardware login behavior still need hardware coverage; the existing isolated tests cover those backend contracts.
 
 Adapted from [Keyboard Layouts for Omarchy](https://github.com/MadMatt341/omarchy-keyboard-settings). The original MIT notice is retained beside the reused implementation.
