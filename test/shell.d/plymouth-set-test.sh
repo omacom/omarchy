@@ -73,6 +73,22 @@ else
 fi
 pass "the logo descriptor can only be opened by an unprivileged caller"
 
+# OMARCHY_PATH is normally session-exported. When it is unset (sudo env_reset,
+# non-login shells), fall back to the packaged tree instead of expanding paths
+# under /default/... and half-applying a theme.
+if grep -q 'OMARCHY_PATH:=/usr/share/omarchy' "$ROOT/bin/omarchy-plymouth-set"; then
+  pass "omarchy-plymouth-set falls back to /usr/share/omarchy when OMARCHY_PATH is unset"
+else
+  fail "omarchy-plymouth-set must default OMARCHY_PATH to /usr/share/omarchy"
+fi
+
+if grep -q 'omarchy:requires-sudo=true' "$ROOT/bin/omarchy-plymouth-set"; then
+  fail "omarchy-plymouth-set must not advertise requires-sudo (invites sudo and strips OMARCHY_PATH)"
+else
+  pass "omarchy-plymouth-set does not advertise requires-sudo"
+fi
+
+
 # Style > Unlock picks a theme by name and hands the answer to
 # omarchy-launch-floating-terminal-with-presentation, which joins its arguments
 # into a script and runs that with `bash -c`. So the name is shell source
