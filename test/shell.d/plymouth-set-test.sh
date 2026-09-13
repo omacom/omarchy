@@ -239,6 +239,10 @@ cat >"$root_tools/stat" <<'SH'
 #!/bin/bash
 last=${!#}
 if [[ ${1:-} == -c && ${2:-} == %u ]]; then
+  if [[ -n ${TEST_CHOWN_LOG:-} && -f ${TEST_CHOWN_LOG:-} ]] && grep -Fxq -- "$last" "$TEST_CHOWN_LOG"; then
+    printf '0\n'
+    exit 0
+  fi
   if [[ (-n ${TEST_UNTRUSTED_SOURCE:-} && $last == "$TEST_UNTRUSTED_SOURCE"*) ||
         (-n ${TEST_UNTRUSTED_CONFIGURATION:-} && $last == "$TEST_UNTRUSTED_CONFIGURATION"*) ]]; then
     printf '1000\n'
@@ -256,8 +260,34 @@ SH
 
 cat >"$root_tools/chown" <<'SH'
 #!/bin/bash
-last=${!#}
-[[ $last == "$TEST_FAKE_ROOT"* || $last == /tmp/omarchy-plymouth.* ]] || exit 93
+paths=()
+while (( $# )); do
+  case "$1" in
+  --)
+    shift
+    paths+=("$@")
+    break
+    ;;
+  root:root | 0:0 | root | 0 | -R)
+    shift
+    ;;
+  -*)
+    shift
+    ;;
+  *)
+    paths+=("$1")
+    shift
+    ;;
+  esac
+done
+
+((${#paths[@]})) || exit 93
+for path in "${paths[@]}"; do
+  [[ $path == "$TEST_FAKE_ROOT"* || $path == /tmp/omarchy-plymouth.* ]] || exit 93
+  if [[ -n ${TEST_CHOWN_LOG:-} ]]; then
+    printf '%s\n' "$path" >>"$TEST_CHOWN_LOG"
+  fi
+done
 exit 0
 SH
 
@@ -749,19 +779,22 @@ assert_no_temporary_files "$fake_root"
 
 pass "publication walks the whole parent chain, not only the immediate parent"
 
-# Mode is not the only thing that decides a destination directory. One that is
-# merely user-owned still lets its owner put the file back after we publish, so
-# ownership has to refuse it even when 0755 looks harmless.
+# Older publishers left /usr/share/plymouth/themes/omarchy user-owned. The
+# publisher must reclaim that leaf (still refusing symlinks) so Style > Unlock
+# works again, then keep validating root ownership afterwards.
 setup_run
-output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$theme" 2>&1)
+chown_log="$run_dir/chown.log"
+: >"$chown_log"
+output=$(run_set 022 env TEST_UNTRUSTED_SOURCE="$theme" TEST_CHOWN_LOG="$chown_log" 2>&1)
 status=$?
 
-(( status != 0 )) || fail "a user-owned destination directory is rejected" "$output"
-[[ $(cat "$theme/bullet.png") == 'old plymouth bullet.png' ]] || fail "a user-owned destination directory keeps its live file"
-[[ $output == *"refusing to publish"* ]] || fail "a rejected destination directory says why it refused" "$output"
+(( status == 0 )) || fail "a legacy user-owned destination directory is repaired and published" "$output"
+grep -Fxq -- "$theme" "$chown_log" || fail "repair chowns the legacy Plymouth theme directory"
+grep -Fxq -- "$sddm" "$chown_log" || fail "repair chowns the legacy SDDM theme directory"
+[[ $(cat "$theme/bullet.png") != 'old plymouth bullet.png' ]] || fail "repair still publishes into the reclaimed destination"
 assert_no_temporary_files "$fake_root"
 
-pass "publication refuses a destination directory root does not own"
+pass "publication repairs a legacy user-owned destination directory before publishing"
 
 # The packaged tree is validated file by file, not only directory by directory.
 # A single user-owned asset inside an otherwise root-owned directory is still
