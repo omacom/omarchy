@@ -3,10 +3,21 @@
 # omarchy:summary=Install the ONCE service, enable its background service, and launch the TUI.
 # omarchy:requires-sudo=true
 
+set -euo pipefail
+
+# ONCE uses Docker's API from a root system service. The optional Podman CLI
+# shim and desktop user's API socket do not satisfy that integration.
+if ! docker_provider=$(pacman -Qq docker 2>/dev/null) || [[ $docker_provider == "podman-docker" ]]; then
+  echo "ONCE currently requires Docker Engine; its Podman integration is not supported." >&2
+  echo "No packages or services have been changed." >&2
+  exit 1
+fi
+
 echo "Installing ONCE..."
 omarchy-pkg-add once-bin
 
 echo "Enabling ONCE background service..."
+sudo systemctl start docker.socket
 sudo systemctl enable --now once-background.service
 
 echo -e "\nLaunching ONCE..."

@@ -17,7 +17,11 @@ trap 'rm -rf "$test_tmp"' EXIT
 
 # The checkout may live under /home, which the tmpfs below hides, so take a
 # mount-safe copy of the helper before the mounts land.
-cp "$ROOT/bin/omarchy-windows-vm" "$test_tmp/omarchy-windows-vm"
+# Give this fixture its own leaf. Hidden inherited mounts still appear in
+# /proc/self/mountinfo even after /var is covered, and the production guard
+# correctly rejects those as stacked mounts when a real Windows VM is running.
+sed 's@/var/lib/omarchy/windows@/var/lib/omarchy/windows-test@g' \
+  "$ROOT/bin/omarchy-windows-vm" >"$test_tmp/omarchy-windows-vm"
 
 # Hide host state before creating the production paths used by the root helper.
 mount -t tmpfs -o mode=0755,size=8m run-test /run
@@ -50,11 +54,11 @@ getent() {
 }
 
 assert_no_runtime_mutation() {
-  [[ ! -e /var/lib/omarchy/windows && ! -L /var/lib/omarchy/windows ]] ||
+  [[ ! -e /var/lib/omarchy/windows-test && ! -L /var/lib/omarchy/windows-test ]] ||
     fail "$1 mutated the production runtime"
 }
 
-unset PKEXEC_UID
+unset PKEXEC_UID SUDO_UID
 resolve_caller 2>/dev/null && fail "root accepted missing PKEXEC_UID"
 assert_no_runtime_mutation "missing PKEXEC_UID"
 PKEXEC_UID=0
@@ -110,7 +114,7 @@ resolve_caller
   $(readlink /home/alice/Windows) == /home/shared-target ]] || fail "root consumed legitimate symlinks"
 [[ $(command stat -Lc '%d:%i' "$EXPECTED_STORAGE") == $(command stat -Lc '%d:%i' /home/storage-target) ]] || fail "storage bind identity differs from pinned source"
 [[ $(command stat -Lc '%d:%i' "$EXPECTED_SHARED") == $(command stat -Lc '%d:%i' /home/shared-target) ]] || fail "shared bind identity differs from pinned source"
-[[ $(command stat -Lc '%d' "$CALLER_DATA_ROOT") != "$storage_dev" ]] || fail "Docker boundary unexpectedly shares the storage filesystem"
+[[ $(command stat -Lc '%d' "$CALLER_DATA_ROOT") != "$storage_dev" ]] || fail "Podman boundary unexpectedly shares the storage filesystem"
 [[ $(command stat -Lc '%u:%a' "$MOUNT_ROOT") == 0:711 &&
   $(command stat -Lc '%u:%a' "$CALLER_DATA_ROOT") == 0:711 ]] || fail "production ancestors are not root-owned/private-boundary modes"
 [[ $(command stat -Lc '%u:%a' "$EXPECTED_STORAGE") == 1000:700 &&
@@ -125,7 +129,7 @@ pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves
 
 # Existing production boundary components are never repaired in place when
 # their ownership or write permissions are unsafe. Both the preparation path
-# and the final pre-Docker guard must fail closed without disturbing the binds.
+# and the final pre-Podman guard must fail closed without disturbing the binds.
 chmod 0731 "$MOUNT_ROOT"
 with_vm_lock prepare_caller_mounts 2>/dev/null && fail "root repaired a group-writable mount boundary instead of rejecting it"
 mounts_ready 2>/dev/null && fail "final guard accepted a group-writable mount boundary"
@@ -152,9 +156,9 @@ pass "disk-space accounting measures the actual storage filesystem, not home"
 # Exercise the real root writer and final guard against the production paths.
 printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=alice\nPASSWORD=pw\nTZ=UTC\n' |
   with_vm_lock __priv_write_compose
-[[ $(command stat -Lc '%u:%a' "$COMPOSE_FILE") == 0:640 ]] || fail "root compose ownership/mode is wrong"
+[[ $(command stat -Lc '%u:%a' "$COMPOSE_FILE") == 0:600 ]] || fail "root compose ownership/mode is wrong"
 with_vm_lock assert_mounts_safe || fail "final root mount/compose assertion rejected the verified pair"
-pass "root writer and final pre-Docker guard revalidate the pinned production mounts"
+pass "root writer and final pre-Podman guard revalidate the pinned production mounts"
 
 # Upgrade the exact sibling-anchor pair emitted by the earlier fix without
 # moving or replacing either familiar home symlink.

@@ -745,7 +745,9 @@ install_omarchy_quattro_packages() {
 
   if [[ -f /usr/share/omarchy/install/omarchy-base.packages ]]; then
     log "Installing Omarchy quattro default package set"
-    mapfile -t base_packages < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' /usr/share/omarchy/install/omarchy-base.packages)
+    # The Podman migration installs the Docker CLI shim after transferring
+    # workloads. Installing it here would replace Docker before that handover.
+    mapfile -t base_packages < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' -e '/^podman-docker$/d' /usr/share/omarchy/install/omarchy-base.packages)
     if (( ${#base_packages[@]} )); then
       as_root pacman -S --needed --noconfirm --ask 4 --overwrite='*' "${base_packages[@]}"
       mark_packages_explicit "${base_packages[@]}"
@@ -1212,7 +1214,6 @@ run_post_upgrade_migrations() {
 run_final_system_package_upgrade() {
   log "Checking for remaining system package updates"
   as_root env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --noconfirm --ask 4 \
-    --overwrite '/etc/docker/daemon.json' \
     --overwrite '/etc/gnupg/dirmngr.conf' \
     --overwrite '/etc/mkinitcpio.conf.d/omarchy_hooks.conf' \
     --overwrite '/etc/mkinitcpio.conf.d/thunderbolt_module.conf' \
@@ -1226,10 +1227,8 @@ run_final_system_package_upgrade() {
     --overwrite '/etc/sysctl.d/99-omarchy-sysctl.conf' \
     --overwrite '/etc/systemd/logind.conf.d/10-ignore-power-button.conf' \
     --overwrite '/etc/systemd/resolved.conf.d/10-disable-multicast.conf' \
-    --overwrite '/etc/systemd/resolved.conf.d/20-docker-dns.conf' \
     --overwrite '/etc/systemd/system.conf.d/10-faster-shutdown.conf' \
     --overwrite '/etc/systemd/system/user@.service.d/10-faster-shutdown.conf' \
-    --overwrite '/etc/systemd/system/docker.service.d/no-block-boot.conf' \
     --overwrite '/etc/systemd/system/plocate-updatedb.service.d/ac-only.conf' \
     --overwrite '/etc/systemd/system.conf.d/20-omarchy-nofile.conf' \
     --overwrite '/etc/systemd/user.conf.d/20-omarchy-nofile.conf' \
@@ -1274,9 +1273,7 @@ enable_system_service() {
 apply_firewall_defaults() {
   # Run the packaged config script rather than a copy of it, the same way
   # configure_snapper_policy and configure_lock_authentication already do. The
-  # copy this replaces had drifted: it never installed the ufw-docker rules, so
-  # upgraded machines came up without the Docker firewall protections a fresh
-  # install gets.
+  # same Podman DNS and forwarding policy applies to fresh and upgraded installs.
   local firewall_script=/usr/share/omarchy/install/config/firewall.sh
 
   if ! command -v ufw >/dev/null 2>&1; then
@@ -1345,42 +1342,27 @@ apply_system_transition() {
   printf '%s\n' '{"distribution":{"require_eula":false},"browser":{"theme":{"color_scheme":0,"color_scheme2":0}}}' | \
     as_root tee /usr/lib/chromium/initial_preferences >/dev/null
 
-  # Deliberately do NOT add the user to the docker group. That group is
-  # root-equivalent, so it is opt-in now (Setup > Security > Sudoless Docker);
-  # re-granting it on upgrade would silently undo that default for everyone.
+  # The retired root-equivalent Docker group must not be re-granted.
 
   if [[ -f /usr/bin/powerprofilesctl ]]; then
     as_root sed -i '/env python3/ c\#!/bin/python3' /usr/bin/powerprofilesctl || true
   fi
 
-  as_root install -d -m 0755 /etc/systemd/resolved.conf.d /etc/docker
+  as_root install -d -m 0755 /etc/systemd/resolved.conf.d
   cat <<'EOF' | as_root tee /etc/systemd/resolved.conf.d/10-disable-multicast.conf >/dev/null
 [Resolve]
 LLMNR=no
 MulticastDNS=no
 EOF
-  cat <<'EOF' | as_root tee /etc/systemd/resolved.conf.d/20-docker-dns.conf >/dev/null
-[Resolve]
-DNSStubListenerExtra=172.17.0.1
-EOF
-  cat <<'EOF' | as_root tee /etc/docker/daemon.json >/dev/null
-{
-    "log-driver": "json-file",
-    "log-opts": { "max-size": "10m", "max-file": "5" },
-    "dns": ["172.17.0.1"],
-    "bip": "172.17.0.1/16"
-}
-EOF
   as_root ln -sfn ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
-  # Fresh Omarchy socket-activates Docker. Disable the old always-on service if
-  # an upgraded install had enabled it, but do not stop running containers mid-upgrade.
-  as_root systemctl disable docker.service >/dev/null 2>&1 || true
+  # Preserve Docker's existing boot policy while workload migration is pending.
+  # The final migration disables its service/socket only after verified transfer.
 
   enable_system_service cups.service
   enable_system_service avahi-daemon.service
   enable_system_service linux-modules-cleanup.service
-  enable_system_service docker.socket
+  as_root systemctl --global enable podman.socket podman-restart.service
   enable_system_service systemd-resolved.service
   # NetworkManager replaces iwd, and both halves of that swap belong in one
   # step: a machine that boots with both enabled has two daemons fighting over
@@ -2195,7 +2177,6 @@ if [[ -d $legacy_icons_dir ]]; then
     Cliamp.png \
     Discord.png \
     "Disk Usage.png" \
-    Docker.png \
     GitHub.png \
     "Google Contacts.png" \
     "Google Maps.png" \

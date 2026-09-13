@@ -310,7 +310,7 @@ the legacy finalization marker from `~/.local/state/omarchy/` into `done/`.
 finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
-  powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
+  powerprofilesctl shebang fix, SSH command path and keepalive, container setup,
   Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
   device-specific kernel modules, udev rules, microcode, wireless regdom,

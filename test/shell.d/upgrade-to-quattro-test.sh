@@ -32,6 +32,18 @@ grep -F 'omarchy-update-mise' "$upgrade_to_quattro" >/dev/null
 grep -F 'run_final_system_package_upgrade' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade completes package update checks"
 
+# Exercise the real manifest selection without running a package transaction.
+# Fresh installs need the shim, but upgrades must retain Docker until migration.
+package_selection=$(function_body install_omarchy_quattro_packages | grep 'mapfile -t base_packages')
+package_selection=${package_selection//\/usr\/share\/omarchy/\$ROOT}
+eval "$package_selection"
+grep -qx podman-docker "$ROOT/install/omarchy-base.packages" || fail "fresh installs include Docker command compatibility"
+printf '%s\n' "${base_packages[@]}" | grep -qx podman || fail "upgrade installs Podman before migration"
+if printf '%s\n' "${base_packages[@]}" | grep -qx podman-docker; then
+  fail "upgrade replaces Docker before workload migration"
+fi
+pass "Omarchy 4 upgrade defers the Docker shim until workload migration"
+
 grep -F 'run_post_upgrade_migrations' "$upgrade_to_quattro" >/dev/null
 grep -F 'omarchy-migrate' "$upgrade_to_quattro" >/dev/null
 grep -F 'dust' "$upgrade_to_quattro" >/dev/null

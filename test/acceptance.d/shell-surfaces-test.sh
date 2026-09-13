@@ -87,7 +87,7 @@ wait_until "reminder flow closes" 15 layer_absent "omarchy-reminders"
 
 # Render a real shell notification and clear it through the notification IPC.
 omarchy-shell notifications dismissAll >/dev/null
-omarchy-notification-send "Acceptance notification" "Shell notification rendering" --expire-time=15000
+omarchy-notification-send "Acceptance notification" "Shell notification rendering" --expire-time=60000
 wait_until "notification popup opens" 15 layer_present "omarchy-notifications"
 wait_until "notification content is visible" 15 screen_contains "Acceptance notification"
 screenshot "success-notification-popup"

@@ -1,0 +1,29 @@
+[Quadlet]
+# Local databases do not need the desktop to wait for network-online.target.
+DefaultDependencies=false
+
+[Unit]
+Description=Omarchy PostgreSQL development database
+
+[Container]
+GlobalArgs=--remote=false
+Image=docker.io/library/postgres:18
+ContainerName=omarchy-db-postgres18
+PublishPort=127.0.0.1:5432:5432
+Volume=omarchy-db-postgres18-data.volume:/var/lib/postgresql
+ImageVolume=ignore
+HttpProxy=false
+StopTimeout=120
+# Never replace an unrelated container that has claimed this name.
+PodmanArgs=--replace=false --cidfile=%t/%N/container.cid
+Environment=POSTGRES_HOST_AUTH_METHOD=trust
+
+[Service]
+RuntimeDirectory=%N
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=900
+TimeoutStopSec=130
+
+[Install]
+WantedBy=default.target

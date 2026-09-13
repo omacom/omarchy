@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# omarchy:summary=Install development databases as rootless Podman Quadlet services
+# omarchy:args=[MySQL|PostgreSQL|Redis|MongoDB|MariaDB|MSSQL...]
+
+set -euo pipefail
+
+options=("MySQL" "PostgreSQL" "Redis" "MongoDB" "MariaDB" "MSSQL")
+
+if (( $# == 0 )); then
+  choice=$(printf "%s\n" "${options[@]}" | gum choose --header "Select database (return to install, esc to cancel)") || exit 0
+  choices=("$choice")
+else
+  choices=("$@")
+fi
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user." >&2
+  exit 1
+fi
+systemctl --user show-environment >/dev/null
+podman --remote=false info >/dev/null
+
+quadlet_dir="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd"
+service_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+mkdir -p "$quadlet_dir"
+# Serialize this installer; existing user files are never replaced.
+exec {install_lock}>"$quadlet_dir/.omarchy-databases.lock"
+flock "$install_lock"
+
+names=()
+declare -A selected=()
+for db in "${choices[@]}"; do
+  case $db in
+    MySQL) name=mysql8 ;;
+    PostgreSQL) name=postgres18 ;;
+    MariaDB) name=mariadb11 ;;
+    Redis) name=redis ;;
+    MongoDB) name=mongodb ;;
+    MSSQL) name=mssql ;;
+    *) echo "Unknown database: $db" >&2; exit 1 ;;
+  esac
+  if [[ ! -v selected[$name] ]]; then
+    names+=("$name")
+    selected[$name]=1
+  fi
+done
+
+if [[ -v selected[mysql8] && -v selected[mariadb11] ]]; then
+  echo "MySQL and MariaDB both use localhost port 3306. Install one, then configure a different port before adding the other." >&2
+  exit 1
+fi
+
+# Preflight every choice before creating definitions or starting a database.
+containers=$(podman --remote=false ps --all --format '{{.Names}}')
+volumes=$(podman --remote=false volume ls --format '{{.Name}}')
+for name in "${names[@]}"; do
+  unit="omarchy-db-$name"
+  if [[ -e $quadlet_dir/$unit.container || -L $quadlet_dir/$unit.container ||
+        -e $quadlet_dir/$unit-data.volume || -L $quadlet_dir/$unit-data.volume ||
+        -e $service_dir/$unit.service.d || -L $service_dir/$unit.service.d ]] ||
+    grep -Fxq -e "$name" -e "$unit" <<<"$containers" ||
+    grep -Fxq "$unit-data" <<<"$volumes"; then
+    echo "An existing $name container, volume, or Quadlet definition needs your attention; nothing has been replaced." >&2
+    exit 1
+  fi
+  load_state=$(systemctl --user show "$unit.service" --property=LoadState --value)
+  if [[ $load_state != "not-found" ]]; then
+    echo "$unit.service already exists; manage it with systemctl --user." >&2
+    exit 1
+  fi
+done
+
+umask 077
+for name in "${names[@]}"; do
+  unit="omarchy-db-$name"
+  # noclobber also protects files created after preflight. On failure retain
+  # definitions and data for inspection instead of attempting destructive cleanup.
+  (set -o noclobber; cat "$OMARCHY_PATH/default/podman/databases/$unit-data.volume" >"$quadlet_dir/$unit-data.volume")
+  mkdir -p "$service_dir"
+  mkdir "$service_dir/$unit.service.d"
+  (set -o noclobber; cat "$OMARCHY_PATH/default/podman/databases/lifecycle.conf" >"$service_dir/$unit.service.d/10-omarchy-lifecycle.conf")
+  (set -o noclobber; cat "$OMARCHY_PATH/default/podman/databases/$unit.container" >"$quadlet_dir/$unit.container")
+done
+
+systemctl --user daemon-reload
+for name in "${names[@]}"; do
+  unit="omarchy-db-$name"
+  systemctl --user start "$unit.service"
+  echo "Started $unit.service. Logs: journalctl --user -u $unit.service"
+done

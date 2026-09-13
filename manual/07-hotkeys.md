@@ -117,7 +117,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Shift + S`           | Google Maps  |
 | `Super + Shift + Alt + G`           | Messenger (WhatsApp)  |
 | `Super + Shift + Ctrl + G`           | Messenger (Google)  |
-| `Super + Shift + D`           | Docker (LazyDocker)  |
+| `Super + Shift + D`           | Podman TUI      |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Writing (Omawrite)  |
 | `Super + Shift + X`           | X |

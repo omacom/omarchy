@@ -1,0 +1,6 @@
+[Quadlet]
+DefaultDependencies=false
+
+[Volume]
+GlobalArgs=--remote=false
+VolumeName=omarchy-db-mssql-data

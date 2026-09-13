@@ -30,7 +30,7 @@ It gets a panel in the bar, a web app for the admin console, and Taildrop for se
 
 ## ONCE
 
-[ONCE](https://once.com/) is 37signals' line of software you buy once and run on your own server, like the Campfire chat system. Select _Install > Service > ONCE_ from the Omarchy menu to install it, which enables its background service and drops you into the ONCE terminal interface to take it from there.
+[ONCE](https://once.com/) is 37signals' line of software you buy once and run on your own server, like the Campfire chat system. Its Omarchy integration currently requires Docker Engine. _Install > Service > ONCE_ works on systems retaining Docker; on native Podman systems it stops before installing packages. The optional Docker compatibility package does not provide a supported ONCE integration. Systems with ONCE installed retain Docker and leave the Podman migration pending until ONCE and its workloads have been retired.
 
 ## NordVPN
 

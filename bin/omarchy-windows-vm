@@ -4,29 +4,18 @@
 # omarchy:args=<install|remove|launch|stop|status> [options]
 # omarchy:requires-sudo=true
 
-# The Windows VM runs a privileged container (KVM, /dev/net/tun, NET_ADMIN), so
-# it needs the root-owned Docker daemon. By default the user is NOT in the docker
-# group (that group is root-equivalent), so Docker access is gated behind a
-# single polkit prompt. If the user opted into sudoless Docker
-# (omarchy-setup-security-sudoless-docker), the socket is reachable directly and
-# no prompt appears.
-#
-# The compose file lives in a root-owned directory and is only ever written by
-# the elevated, input-validated write_compose action below. That is the whole
-# point: a root-invoked `docker compose up` must never consume a file that a
-# process running as the user could have rewritten to bind-mount / into the
-# container. Earlier versions kept it under ~/.config/windows, which a rogue
-# process could edit and then trigger a privileged bring-up of — a file-swap
-# path to root. Do not move it back under $HOME.
+# Windows uses rootful Podman for KVM and its private bridged network. All
+# engine operations go through the packaged, authenticated helper. The compose
+# file and pinned storage anchors stay root-owned so user processes cannot
+# rewrite a privileged launch to mount arbitrary host paths.
 
 RUNTIME_DIR="${OMARCHY_WINDOWS_DIR:-/var/lib/omarchy/windows}"
 COMPOSE_FILE="$RUNTIME_DIR/docker-compose.yml"
 LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
-# The guest password lives in the root-owned compose (readable by root and the
-# docker group), but RDP needs it as the user. Keep a private copy here, 0600 in
+# The guest password lives in the root-only compose, but RDP needs it as the user. Keep a private copy here, 0600 in
 # the user's own config, so the plaintext password is never world-readable.
 CREDENTIALS_FILE="$HOME/.config/windows/credentials"
-IMAGE="dockurr/windows"
+IMAGE="docker.io/dockurr/windows"
 CONTAINER="omarchy-windows"
 VM_LOCK_DIR=/run/lock/omarchy-windows-vm
 # Removal is the only path that recursively proves there are no bind aliases.
@@ -37,7 +26,7 @@ TREE_SCAN_KILL_AFTER_SECONDS=1
 TREE_SCAN_TIMEOUT=/usr/bin/timeout
 TREE_SCAN_FIND=/usr/bin/find
 
-# The privileged process must not resolve mount, stat, Docker, or any other
+# The privileged process must not resolve mount, stat, Podman, or any other
 # helper from a caller-controlled PATH, and validation must not change with an
 # inherited locale. pkexec normally sanitizes both; pin them here as defense in
 # depth for every direct __priv entry as well.
@@ -47,12 +36,6 @@ if ((EUID == 0)); then
 fi
 
 # --- privilege helpers -------------------------------------------------------
-
-# True when this session can reach the Docker socket directly (sudoless Docker
-# on and in effect). Asking about the socket rather than the configured groups
-# keeps the prompt in place through the window where sudoless Docker is enabled
-# but the reboot that grants the group has not happened yet.
-docker_needs_sudo() { omarchy-sudo-docker; }
 
 # The command to hand pkexec for the privileged re-exec. pkexec runs whatever
 # executable it is given (after authorization) and only shows the path in the
@@ -77,47 +60,48 @@ priv_target() {
   printf '%s\n' "$candidate"
 }
 
-# Run a privileged VM action. write_compose always elevates (the compose is
-# root-owned); the daemon operations run directly when sudoless Docker is on and
-# otherwise behind a polkit prompt. The stock org.freedesktop.policykit.exec
-# policy is auth_admin (not auth_admin_keep), so each elevated action prompts:
-# a launch asks once to start and, unless authorization is still cached by the
-# agent, again to stop.
+# Authenticate each privileged action, including reads of rootful Podman state.
 priv() {
-  local action="$1"
+  local action="$1" target
   shift
-  if [[ $action != write_compose && $action != remove ]] && ! docker_needs_sudo; then
-    # Bring-up normally runs directly for a docker-group user, but recreating
-    # the protected bind anchors after reboot (or migrating an old compose)
-    # still needs one privileged invocation.
-    if [[ -d $VM_LOCK_DIR && ! -L $VM_LOCK_DIR && -r $VM_LOCK_DIR && -x $VM_LOCK_DIR ]] && {
-      [[ $action != up && $action != up_wait ]] || {
-        ! compose_needs_security_migration && mounts_ready >/dev/null 2>&1
-      }
-    }; then
-      with_vm_lock "__priv_$action" "$@"
-      return
-    fi
-  fi
-  local target
   target=$(priv_target) || {
     echo "omarchy-windows-vm: refusing to run a non-root-owned command as root" >&2
     return 1
   }
-  pkexec "$target" __priv "$action" "$@"
+  # Status captures stdout; stdin/stderr still identify an interactive caller.
+  if [[ -t 0 || -t 1 || -t 2 ]]; then
+    sudo "$target" __priv "$action" "$@"
+  else
+    pkexec "$target" __priv "$action" "$@"
+  fi
 }
 
-dc() { docker-compose -f "$COMPOSE_FILE" "$@"; }
+# The package provider switches only after migration has verified and stopped
+# the retained Docker sources. Until then, Podman cannot establish whether a
+# Windows disk still has a Docker writer, even if its own project is absent.
+assert_podman_handover() {
+  local provider
+  if provider=$(pacman -Qq docker 2>/dev/null); then
+    if [[ $provider == "podman-docker" ]]; then
+      return 0
+    fi
+    echo "Windows VM operations are unavailable while Docker migration is pending. Complete the Podman migration before using this command." >&2
+    return 1
+  elif pacman -Qq >/dev/null 2>&1; then
+    return 0
+  else
+    echo "Cannot verify the installed container engine; Windows VM operations were stopped before changing any data." >&2
+    return 1
+  fi
+}
+
+dc() { podman-compose --podman-args=--remote=false -f "$COMPOSE_FILE" "$@"; }
 
 with_vm_lock() {
   local fd rc=0
   if ((EUID == 0)); then
     assert_boundary_dir /run 0 && assert_boundary_dir /run/lock 0 || return 1
-    if getent group docker >/dev/null 2>&1; then
-      install -d -o root -g docker -m 0750 -- "$VM_LOCK_DIR" || return 1
-    else
-      install -d -o root -g root -m 0700 -- "$VM_LOCK_DIR" || return 1
-    fi
+    install -d -o root -g root -m 0700 -- "$VM_LOCK_DIR" || return 1
   fi
   assert_boundary_dir "$VM_LOCK_DIR" 0 || return 1
   # Flock the directory inode itself. Concurrent first callers may both run
@@ -151,20 +135,21 @@ valid_priv_action() {
   esac
 }
 
-# --- privileged actions (run as root via pkexec, or directly when sudoless) ---
+# --- privileged actions (run as root via sudo or pkexec) ---
 
-# Resolve the account that authorized pkexec. Never trust HOME or a caller-
+# Resolve the account that authorized sudo or pkexec. Never trust HOME or a caller-
 # supplied mount path in the privileged process: pkexec can reset HOME, and the
 # old path arguments were the source of an arbitrary host bind-mount primitive.
 resolve_caller() {
-  local entry canonical parent owner mode
+  local entry canonical parent owner mode authorized_uid
 
   if ((EUID == 0)); then
-    [[ ${PKEXEC_UID:-} =~ ^[0-9]{1,10}$ ]] && ((10#$PKEXEC_UID > 0)) || {
+    authorized_uid=${SUDO_UID:-${PKEXEC_UID:-}}
+    [[ $authorized_uid =~ ^[0-9]{1,10}$ ]] && ((10#$authorized_uid > 0)) || {
       echo "omarchy-windows-vm: cannot identify the user who authorized this action" >&2
       return 1
     }
-    CALLER_UID=$((10#$PKEXEC_UID))
+    CALLER_UID=$((10#$authorized_uid))
   else
     CALLER_UID=$(id -u)
   fi
@@ -212,10 +197,10 @@ resolve_caller() {
     done
   fi
 
-  # Docker only ever sees fixed paths below the root-owned runtime tree. The
+  # Podman only ever sees fixed paths below the root-owned runtime tree. The
   # user's real data stays wherever ~/.windows and ~/Windows resolve (including
   # separately mounted homes and legitimate symlinks); those sources are pinned
-  # into these anchors with bind mounts before Docker is allowed to start.
+  # into these anchors with bind mounts before Podman is allowed to start.
   MOUNT_ROOT="$RUNTIME_DIR/mounts"
   USERS_DIR="$MOUNT_ROOT/users"
   CALLER_DATA_ROOT="$USERS_DIR/$CALLER_UID"
@@ -232,8 +217,7 @@ resolve_caller() {
 }
 
 boundary_owner() {
-  # Production boundaries remain root-owned even when a docker-group user runs
-  # the read-only bring-up checks directly. A non-standard runtime is supported
+  # Production boundaries are always root-owned. A non-standard runtime is supported
   # only for unprivileged tests/development and is owned by that caller.
   if ((EUID == 0)) || [[ $RUNTIME_DIR == /var/lib/omarchy/windows ]]; then
     printf '0'
@@ -579,8 +563,10 @@ prepare_caller_mounts() {
 
   # Privacy is an explicit preflight step for both already-pinned sources, not
   # a side effect halfway through the two-mount transaction. Old umask-022
-  # installs are hardened together before either Docker-facing anchor changes.
-  chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
+  # installs are hardened together before either Podman-facing anchor changes.
+  # Samba sets setgid on /shared. GNU chmod preserves directory setgid with
+  # 0700; the extra leading zero explicitly clears special bits as well.
+  chmod 00700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
@@ -680,7 +666,7 @@ write_compose_atomically() (
   trap cleanup_writer EXIT
 
   # Neutralize anything in the password that could be misread when the compose
-  # is parsed. Two layers apply, in this order at parse time: docker compose
+  # is parsed. Two layers apply, in this order at parse time: podman-compose
   # variable interpolation over the raw text ($VAR / $$), then YAML parsing of
   # the double-quoted scalar. Encode for the inner layer first (backslash, then
   # double-quote) and the interpolation layer last ($ -> $$), so a password
@@ -725,9 +711,9 @@ services:
     restart: "no"
     stop_grace_period: 2m
 EOF
-  chmod 0640 "$tmp" || exit 1
+  chmod 0600 "$tmp" || exit 1
   if ((EUID == 0)); then
-    chown root:docker "$tmp" 2>/dev/null || chown root:root "$tmp" || exit 1
+    chown root:root "$tmp" || exit 1
   fi
   mv -fT -- "$tmp" "$COMPOSE_FILE" || exit 1
   tmp=""
@@ -760,7 +746,7 @@ __priv_write_compose() {
   valid_password "$password" || { echo "invalid password" >&2; exit 2; }
   valid_tz "$tz" || tz="UTC"
   prepare_caller_mounts || exit 2
-  # Readable by root and the docker group only. Any failure after mounting rolls
+  # Readable by root only. Any failure after mounting rolls
   # back just the binds this writer created and leaves an old compose untouched.
   write_compose_atomically "$ram" "$cores" "$disk" "$username" "$password" "$tz" || exit 2
 }
@@ -771,7 +757,7 @@ get_mount_source() {
 }
 
 # True only when a trusted compose has an exact security upgrade path. The
-# result forces a one-time elevated migration for sudoless-Docker users. An
+# result forces a one-time rewrite of the protected configuration. An
 # arbitrary or mixed bind pair is never classified as migratable.
 compose_needs_security_migration() {
   local storage shared
@@ -817,9 +803,9 @@ rewrite_compose_security() {
     rm -f "$tmp"
     return 1
   }
-  chmod 0640 "$tmp" || { rm -f "$tmp"; return 1; }
+  chmod 0600 "$tmp" || { rm -f "$tmp"; return 1; }
   if ((EUID == 0)); then
-    chown root:docker "$tmp" 2>/dev/null || chown root:root "$tmp" || {
+    chown root:root "$tmp" || {
       rm -f "$tmp"
       return 1
     }
@@ -882,8 +868,7 @@ assert_mounts_safe() {
   fi
 
   # Mounts disappear at reboot. Root recreates them from the already-opened,
-  # caller-owned sources; a docker-group invocation may proceed directly only
-  # while the exact pinned pair is still present.
+  # caller-owned sources before allowing Podman to consume them.
   if ((EUID == 0)); then
     prepare_caller_mounts || return 1
   fi
@@ -902,17 +887,27 @@ __priv_down() { dc down; }
 __priv_up_wait() {
   assert_mounts_safe || return 1
   local status
-  status=$(docker inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null)
+  status=$(podman --remote=false inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || status=""
   if [[ $status != "running" ]]; then
     dc up -d || return 1
   fi
 
-  # docker logs persists across restarts, so anchor the scan to the current
+  # podman logs persists across restarts, so anchor the scan to the current
   # start time; an empty --since would match a stale "started successfully".
+  # Dockur logs this when QEMU starts, before Windows Setup or RDP is ready.
+  # Require the actual RDP listener as well before opening the client.
   local started_at count=0
   while true; do
-    started_at=$(docker inspect --format='{{.State.StartedAt}}' "$CONTAINER" 2>/dev/null)
-    if [[ -n $started_at ]] && docker logs --since "$started_at" "$CONTAINER" 2>&1 | grep -qi "windows started successfully"; then
+    status=$(podman --remote=false inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || status=""
+    if [[ $status != "running" ]]; then
+      echo "Windows container stopped before RDP became available; check sudo podman logs $CONTAINER" >&2
+      return 1
+    fi
+    # Podman's plain time template includes a timezone name that --since does
+    # not parse. JSON encodes it as RFC 3339, which the logs command accepts.
+    started_at=$(podman --remote=false inspect --format='{{json .State.StartedAt}}' "$CONTAINER" 2>/dev/null | jq -r .)
+    if [[ -n $started_at ]] && podman --remote=false logs --since "$started_at" "$CONTAINER" 2>&1 | grep -qi "windows started successfully" &&
+      nc -z -w 1 127.0.0.1 3389; then
       return 0
     fi
     sleep 2
@@ -926,7 +921,7 @@ __priv_up_wait() {
 # Print the status (empty if the container does not exist) and always succeed,
 # so a non-zero exit from priv status means the elevation itself failed
 # (authorization declined) rather than "no such container".
-__priv_status() { docker inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null || true; }
+__priv_status() { podman --remote=false inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null || true; }
 
 __priv_remove() {
   # Rebuild/verify both pinned binds before deleting through the storage anchor.
@@ -947,12 +942,12 @@ __priv_remove() {
     echo "omarchy-windows-vm: could not stop the Windows VM; storage was not deleted" >&2
     return 1
   }
-  if docker inspect "$CONTAINER" >/dev/null 2>&1; then
+  if podman --remote=false inspect "$CONTAINER" >/dev/null 2>&1; then
     echo "omarchy-windows-vm: Windows container still exists; storage was not deleted" >&2
     return 1
   fi
-  docker info >/dev/null 2>&1 || {
-    echo "omarchy-windows-vm: cannot verify Docker state; storage was not deleted" >&2
+  podman --remote=false info >/dev/null 2>&1 || {
+    echo "omarchy-windows-vm: cannot verify Podman state; storage was not deleted" >&2
     return 1
   }
   mounts_ready || {
@@ -970,7 +965,7 @@ __priv_remove() {
   # so a storage-unmount failure cannot expose shared data to deletion.
   umount -- "$EXPECTED_SHARED" || return 1
   umount -- "$EXPECTED_STORAGE" || return 1
-  docker rmi "$IMAGE" 2>/dev/null || true
+  podman --remote=false rmi "$IMAGE" 2>/dev/null || true
   rm -f "$COMPOSE_FILE"
   rmdir -- "$EXPECTED_STORAGE" "$EXPECTED_SHARED" "$CALLER_DATA_ROOT" 2>/dev/null || true
 }
@@ -1161,16 +1156,16 @@ install_windows() {
   trap "echo ''; echo 'Installation cancelled by user'; exit 1" INT
 
   prepare_user_mount_sources || exit 1
-  check_prerequisites
+  check_prerequisites 32
 
-  omarchy-pkg-add freerdp openbsd-netcat gum
+  omarchy-pkg-add freerdp openbsd-netcat gum podman podman-compose
 
   mkdir -p "$HOME/.local/share/applications"
 
   cat <<EOF | tee "$HOME/.local/share/applications/windows-vm.desktop" >/dev/null
 [Desktop Entry]
 Name=Windows
-Comment=Start Windows VM via Docker and connect with RDP
+Comment=Start Windows VM via Podman and connect with RDP
 Exec=uwsm app -- omarchy-windows-vm launch
 Icon=windows
 Terminal=false
@@ -1259,13 +1254,13 @@ EOF
   check_prerequisites "$DISK_SIZE_NUM"
 
   # Prompt for username and password
-  USERNAME=$(gum input --placeholder="Username (Press enter to use default: docker)" --header="Enter Windows username:")
+  USERNAME=$(gum input --placeholder="Username (Press enter to use default: omarchy)" --header="Enter Windows username:")
   if [[ -z $USERNAME ]]; then
-    USERNAME="docker"
+    USERNAME="omarchy"
   fi
   if ! valid_username "$USERNAME"; then
-    echo "Invalid username (use letters, digits, - or _, up to 20 chars). Using default: docker"
-    USERNAME="docker"
+    echo "Invalid username (use letters, digits, - or _, up to 20 chars). Using default: omarchy"
+    USERNAME="omarchy"
   fi
 
   PASSWORD=$(gum input --placeholder="Password (Press enter to use default: admin)" --password --header="Enter Windows password:")
@@ -1306,8 +1301,8 @@ EOF
   local tz
   tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo UTC)
 
-  # Write the root-owned compose from the validated settings (one prompt if
-  # sudoless Docker is off). The writer pins the familiar home directories (or
+  # Write the root-owned compose from the validated settings. The writer pins
+  # the familiar home directories (or
   # their legitimate symlink targets) into root-protected bind anchors.
   write_compose "$SELECTED_RAM" "$SELECTED_CORES" "$SELECTED_DISK" \
     "$USERNAME" "$PASSWORD" "$tz" || {
@@ -1326,11 +1321,11 @@ EOF
   echo "Monitor installation progress at: http://127.0.0.1:8006"
   echo ""
 
-  echo "Starting Windows VM with docker-compose..."
+  echo "Starting Windows VM with Podman..."
   if ! priv up; then
     echo "❌ Failed to start Windows VM!"
     echo "   Common issues:"
-    echo "   - Docker daemon not running: sudo systemctl start docker"
+    echo "   - Podman error: inspect the container with sudo podman logs omarchy-windows"
     echo "   - Port already in use: check if another VM is running"
     exit 1
   fi
@@ -1383,6 +1378,21 @@ remove_windows() {
   echo "Windows VM removal completed!"
 }
 
+load_rdp_credentials() {
+  # RDP credentials come from the private per-user file. Fall back to the compose
+  # only when it is readable, reversing the writer's escaping.
+  WIN_USER=$(read_credential USERNAME) || WIN_USER=""
+  WIN_PASS=$(read_credential PASSWORD) || WIN_PASS=""
+  if [[ -z $WIN_USER || -z $WIN_PASS ]] && [[ -r $COMPOSE_FILE ]]; then
+    [[ -z $WIN_USER ]] && WIN_USER=$(unescape "$(read_compose_value USERNAME "$COMPOSE_FILE")")
+    [[ -z $WIN_PASS ]] && WIN_PASS=$(unescape "$(read_compose_value PASSWORD "$COMPOSE_FILE")")
+  fi
+  if [[ -z $WIN_USER || -z $WIN_PASS ]]; then
+    echo "Windows RDP credentials are missing. Restore $CREDENTIALS_FILE from your saved Windows configuration before launching." >&2
+    return 1
+  fi
+}
+
 launch_windows() {
   KEEP_ALIVE=false
   if [[ $1 = "--keep-alive" ]] || [[ $1 = "-k" ]]; then
@@ -1395,17 +1405,7 @@ launch_windows() {
       exit 1
     fi
   fi
-
-  # RDP credentials come from the private per-user file. Fall back to the compose
-  # only when it is readable (sudoless mode), reversing the writer's escaping.
-  WIN_USER=$(read_credential USERNAME) || WIN_USER=""
-  WIN_PASS=$(read_credential PASSWORD) || WIN_PASS=""
-  if [[ -z $WIN_USER || -z $WIN_PASS ]] && [[ -r $COMPOSE_FILE ]]; then
-    [[ -z $WIN_USER ]] && WIN_USER=$(unescape "$(read_compose_value USERNAME "$COMPOSE_FILE")")
-    [[ -z $WIN_PASS ]] && WIN_PASS=$(unescape "$(read_compose_value PASSWORD "$COMPOSE_FILE")")
-  fi
-  [[ -z $WIN_USER ]] && WIN_USER="docker"
-  [[ -z $WIN_PASS ]] && WIN_PASS="admin"
+  load_rdp_credentials || return 1
 
   echo "Starting Windows VM (this may prompt for authorization)..."
   if ! priv up_wait; then
@@ -1458,7 +1458,7 @@ To stop: omarchy-windows-vm stop"
   # If scale is less than 130%, don't set any scale (use default 100)
 
   # Connect with RDP in fullscreen (auto-detects resolution)
-  xfreerdp3 /u:"$WIN_USER" /p:"$WIN_PASS" /v:127.0.0.1:3389 -grab-keyboard /sound /microphone /clipboard /cert:ignore /title:"Windows VM - Omarchy" /dynamic-resolution /gfx:AVC444 /floatbar:sticky:off,default:visible,show:fullscreen $RDP_SCALE
+  xfreerdp3 /u:"$WIN_USER" /p:"$WIN_PASS" /v:127.0.0.1:3389 /f -grab-keyboard /sound /microphone /clipboard /cert:ignore /title:"Windows VM - Omarchy" /dynamic-resolution /gfx:AVC444 /floatbar:sticky:off,default:visible,show:fullscreen $RDP_SCALE
 
   # After RDP closes, stop the container unless --keep-alive was specified
   if [[ $KEEP_ALIVE = "false" ]]; then
@@ -1548,6 +1548,14 @@ show_usage() {
   echo "  omarchy-windows-vm launch -k         # Connect to VM (keep running)"
   echo "  omarchy-windows-vm stop              # Shut down the VM"
 }
+
+# Check before user-side prompts or cleanup, and again on authenticated root
+# re-entry. Help remains available while migration is pending.
+case "$1" in
+__priv | install | remove | launch | start | stop | down | status)
+  assert_podman_handover || exit 1
+  ;;
+esac
 
 # Main command dispatcher
 case "$1" in

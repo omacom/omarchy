@@ -677,7 +677,7 @@ user_groups() {
   if [[ -f $PROVISIONING_DIR/groups ]]; then
     while IFS= read -r group; do
       [[ -n $group ]] || continue
-      # Never replay old privileged group defaults. Docker is always opt-in.
+      # Never replay retired privileged group defaults.
       # Input is only retained when the factory image has one of the features
       # whose installer deliberately grants access to raw input devices.
       [[ $group == "docker" ]] && continue

@@ -142,7 +142,7 @@ Run `omarchy --help` for the full list. The most common groups:
 | `omarchy bar` | Bar layout and widgets | `omarchy bar move omarchy.clock --section right` |
 | `omarchy plugin` | Manage/clone shell plugins | `omarchy plugin clone omarchy.clock` |
 | `omarchy hook` | Install automation hooks | `omarchy hook install theme-set <script>` |
-| `omarchy install` | Install optional software / packages | `omarchy install docker dbs` |
+| `omarchy install` | Install optional software / packages | `omarchy install podman dbs` |
 | `omarchy launch` | Launch apps | `omarchy launch browser` |
 | `omarchy capture` | Screenshots and recordings | `omarchy capture screenshot` |
 | `omarchy reminder` | Desktop notification reminders | `omarchy reminder 15 "Pickup Jack"` |

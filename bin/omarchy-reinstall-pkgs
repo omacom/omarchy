@@ -13,6 +13,18 @@ omarchy-refresh-pacman
 # Downgrade any packages to the stable setup
 sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Suu --noconfirm
 
+# Pacman resolves virtual providers too. A failed package database query must
+# not turn an installed engine into an apparently empty machine.
+if ! docker_provider=$(pacman -Qq docker 2>/dev/null); then
+  pacman -Qq >/dev/null
+  docker_provider=""
+fi
+
 # Ensure all packages are installed
 mapfile -t packages < <(grep -v '^#' "$OMARCHY_PATH/install/omarchy-base.packages" | grep -v '^$')
+# A pending workload migration must keep the real Docker engine and CLI.
+# Its migration installs the compatibility package after transferring data.
+if [[ -n $docker_provider && $docker_provider != "podman-docker" ]]; then
+  mapfile -t packages < <(printf '%s\n' "${packages[@]}" | grep -vx 'podman-docker')
+fi
 sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --noconfirm --needed "${packages[@]}"
