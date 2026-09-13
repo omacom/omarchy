@@ -55,6 +55,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `openrouter` | Prepaid balance from `/credits`, key-limit meter from `/key` | opencode sessions on the OpenRouter provider, or the `/activity` billing API with a management key |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -62,7 +63,12 @@ falls back to local stats only. A non-default Claude directory is honored via
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+signed in there. OpenRouter reads `OPENROUTER_API_KEY` first, then the key
+opencode stores in `~/.local/share/opencode/auth.json` when OpenRouter is
+signed in there, then `apiKey` in `~/.config/omarchy/agents/openrouter.json`.
+A management key in `OPENROUTER_MANAGEMENT_KEY` (or `managementKey` in that
+file, from `openrouter.ai/settings/management-keys`) switches the token
+history from the local opencode scan to the account-global `/activity` API.
 
 ### Fireworks balance
 
@@ -91,6 +97,31 @@ period. `accountId` only matters when one API key can access several
 accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
+
+### OpenRouter balance and history
+
+The collector reads the prepaid ledger from `GET /api/v1/credits`
+(`remaining = total_credits - total_usage`) and reports it as a live,
+non-estimated balance. A key with a credit limit additionally gets a
+draining key-limit meter from `GET /api/v1/key`.
+
+Token history comes in two tiers, selected automatically by key type:
+
+```json
+{
+  "apiKey": "",
+  "managementKey": ""
+}
+```
+
+Without a management key, tokens come from the local opencode database
+(`providerID == "openrouter"`, read-only), like the claude/codex collectors.
+With `OPENROUTER_MANAGEMENT_KEY` (or `managementKey` in
+`~/.config/omarchy/agents/openrouter.json`), the last 30 days come from
+`GET /api/v1/activity` instead: account-global per-day/per-model tokens that
+cover every machine and client. That record carries `"scope": "account"` and
+`hasPromptStats: false`, like Fireworks, so synced aggregation merges it by
+widest value instead of summing it.
 
 ## Interactions
 
