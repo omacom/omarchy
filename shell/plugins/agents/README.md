@@ -1,6 +1,6 @@
 # Agents
 
-One bar icon and one panel for every AI coding subscription on the machine.
+One bar icon and one panel for AI coding subscriptions and local Pi/OMP usage on the machine.
 The panel is strictly a display: it watches the usage records that
 `omarchy-agent-usage-update` writes to `~/.local/state/omarchy/agents/usage/`
 and draws whatever appears there. `Panel.qml` owns the bar button and the
@@ -53,8 +53,9 @@ light surfaces — and the bar glyph stands in when there is none.
 | Collector | Limits | Local stats |
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
-| `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
+| `codex` | The Codex app-server RPC | native Codex CLI session files and opencode sessions on an OpenAI provider |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `pi` | None; labeled Local usage | Pi and Oh My Pi assistant messages from every backend, with inherited fork responses counted once |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -63,6 +64,10 @@ falls back to local stats only. A non-default Claude directory is honored via
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
+
+Pi scans `~/.pi/agent/sessions`, `~/.omp/agent/sessions`, existing `~/.pi/profiles/*/agent/sessions` and `~/.omp/profiles/*/agent/sessions`, and `PI_CODING_AGENT_DIR/sessions` and the explicit `PI_CODING_AGENT_SESSION_DIR` directory when configured. OMP's `PI_CONFIG_DIR` root and existing `$XDG_DATA_HOME/omp/sessions` and `$XDG_DATA_HOME/omp/profiles/*/sessions` are also included. Physical file aliases are counted once. Forks are deduplicated within their `parentSession` lineage using entry IDs and message fingerprints, not globally by Pi's short entry IDs; independent sessions remain separate.
+
+The Pi tab is local usage, not a subscription meter: it does not infer quota resets or costs from tokens. Today and the seven daily rows use local calendar dates; model totals cover all valid assistant usage still on disk. Prompt counts represent assistant responses, including tool-use turns. Invalid dates and negative, non-finite, or fractional token counters are skipped. Recent scans are cached for 20 seconds, or 15 minutes for `--limits-only`; `--force`, a different local date, or changed session roots triggers a fresh scan. The cache is optional and an empty forced scan clears old usage.
 
 ### Fireworks balance
 
@@ -146,5 +151,5 @@ the same account synced from two machines is not counted twice.
 
 One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
-billing API, so their totals and day counts cover that window. Claude's cover
+billing API, so their totals and day counts cover that window. Claude and Pi cover
 every transcript still on disk.
