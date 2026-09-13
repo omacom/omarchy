@@ -11,6 +11,7 @@ source "$ROOT/bin/omarchy-windows-vm" >/dev/null
 export CONTAINER_HOST=unix:///tmp/omarchy-test-remote.sock
 USERS_DIR=/fixture/users
 CALLER_UID=1000
+CALLER_DATA_ROOT="$USERS_DIR/$CALLER_UID"
 EXPECTED_STORAGE="$USERS_DIR/$CALLER_UID/storage"
 EXPECTED_SHARED="$USERS_DIR/$CALLER_UID/shared"
 assert_mounts_safe() { :; }
