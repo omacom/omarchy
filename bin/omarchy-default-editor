@@ -13,9 +13,13 @@ fi
 editor_file="$HOME/.local/state/omarchy/defaults/editor"
 
 if (($# == 0)); then
+  editor=""
   if [[ -f $editor_file ]]; then
     read -r editor <"$editor_file"
   fi
+
+  # Older state files stored "sublime_text"; the binary the package ships is "subl".
+  [[ $editor == "sublime_text" ]] && editor="subl"
 
   [[ -n $editor ]] && echo "$editor" || echo "nvim"
   exit 0
@@ -25,7 +29,7 @@ case "$1" in
 code) selection="code"; editor="code"; name="VSCode"; glyph= ;;
 cursor) selection="cursor"; editor="cursor"; name="Cursor"; glyph= ;;
 zed | zeditor) selection="zed"; editor="zeditor"; name="Zed"; glyph= ;;
-sublime_text) selection="sublime_text"; editor="sublime_text"; name="Sublime Text"; glyph= ;;
+sublime_text | subl) selection="sublime_text"; editor="subl"; name="Sublime Text"; glyph= ;;
 helix) selection="helix"; editor="helix"; name="Helix"; glyph= ;;
 vim) selection="vim"; editor="vim"; name="Vim"; glyph= ;;
 emacs) selection="emacs"; editor="emacs"; name="Emacs"; glyph= ;;
