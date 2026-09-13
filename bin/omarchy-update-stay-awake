@@ -6,7 +6,32 @@
 
 set -e
 
-state_dir="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}/omarchy-update-stay-awake"
+# Inhibit pid + idle-owner tokens must not land under a predictable name in
+# world-writable /tmp. XDG_RUNTIME_DIR is already 0700 when the session set it;
+# without one, use a private state dir we create/repair ourselves (same shape as
+# the screenrecording tip-ready fix) rather than a predictable /tmp name.
+private_root() {
+  local root mode
+
+  if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+    printf '%s\n' "$XDG_RUNTIME_DIR"
+    return 0
+  fi
+
+  root="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  mkdir -p "$root" || return 1
+  chmod 700 "$root" || return 1
+  [[ -O $root ]] || return 1
+  mode=$(stat -c '%a' "$root" 2>/dev/null || stat -f '%Lp' "$root")
+  [[ $mode == 700 ]] || return 1
+  printf '%s\n' "$root"
+}
+
+state_root=$(private_root) || {
+  echo "Failed to resolve a private state directory for update stay-awake." >&2
+  exit 1
+}
+state_dir="$state_root/omarchy-update-stay-awake"
 idle_owner_file="$state_dir/idle-owner"
 inhibit_pid_file="$state_dir/inhibit-pid"
 stay_awake_state="$HOME/.local/state/omarchy/indicators/stay-awake"
@@ -88,6 +113,7 @@ start() {
 
   stop
   mkdir -p "$state_dir"
+  chmod 700 "$state_dir" 2>/dev/null || true
 
   if omarchy-cmd-present systemd-inhibit; then
     if (( EUID != 0 )); then
