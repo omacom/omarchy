@@ -20,8 +20,32 @@
 #   --match-monitor print "monitor:NAME" instead when the picked geometry
 #                   exactly matches a monitor
 
-FULLSCREEN_MARKER="${XDG_RUNTIME_DIR:-/tmp}/omarchy-capture-region-fullscreen"
-WINDOW_MARKER="${XDG_RUNTIME_DIR:-/tmp}/omarchy-capture-region-window"
+# Fullscreen/window markers must not sit at fixed names in world-writable /tmp.
+# Prefer XDG_RUNTIME_DIR; otherwise a private 0700 owner-checked state dir.
+private_marker_root() {
+  local root mode
+
+  if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+    printf '%s\n' "$XDG_RUNTIME_DIR"
+    return 0
+  fi
+
+  root="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  mkdir -p "$root" || return 1
+  chmod 700 "$root" || return 1
+  [[ -O $root ]] || return 1
+  mode=$(stat -c '%a' "$root" 2>/dev/null || stat -f '%Lp' "$root")
+  [[ $mode == 700 ]] || return 1
+  printf '%s\n' "$root"
+}
+
+marker_root=$(private_marker_root) || {
+  echo "Failed to resolve a private directory for capture-region markers." >&2
+  exit 1
+}
+mkdir -p "$marker_root"
+FULLSCREEN_MARKER="$marker_root/omarchy-capture-region-fullscreen"
+WINDOW_MARKER="$marker_root/omarchy-capture-region-window"
 
 # accounting for portrait/transformed displays
 JQ_MONITOR_GEO='
