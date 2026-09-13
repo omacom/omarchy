@@ -1,0 +1,21 @@
+{
+  // Workspace Mode submenu — appears in Trigger > Toggle
+  "trigger.toggle.workspace-mode": {
+    "icon": "󱂬",
+    "label": "Workspace Mode"
+  },
+  "trigger.toggle.workspace-mode.global": {
+    "icon": "󱂬",
+    "label": "Global",
+    "description": "All monitors switch workspace together",
+    "checked": "omarchy-hyprland-toggle-enabled workspace-global",
+    "action": "omarchy-hyprland-toggle workspace-global on"
+  },
+  "trigger.toggle.workspace-mode.local": {
+    "icon": "󱂬",
+    "label": "Local",
+    "description": "Each monitor switches workspace independently",
+    "checked": "! omarchy-hyprland-toggle-enabled workspace-global",
+    "action": "omarchy-hyprland-toggle workspace-global off"
+  }
+}

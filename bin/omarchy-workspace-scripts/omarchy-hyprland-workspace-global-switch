@@ -1,0 +1,236 @@
+#!/bin/bash
+# omarchy:summary=Switch all monitors to the same workspace slot (global mode)
+# omarchy:args=<slot-number>
+#
+# In global workspace mode each monitor owns a dedicated workspace range whose
+# base is assigned by monitor *name* (not by Hyprland's transient numeric id).
+# The stable base is stored in ~/.local/state/omarchy/monitor-bases.json and
+# managed by omarchy-monitor-base.
+#
+#   Monitor "eDP-1"  →  base 0   →  workspaces  1-10
+#   Monitor "HDMI-1" →  base 10  →  workspaces 11-20
+#   Monitor "DP-2"   →  base 20  →  workspaces 21-30
+#
+# Why name-keyed bases instead of monitorId * 10:
+#   Hyprland does not reuse numeric monitor ids after hotplug (#2601).
+#   Unplugging id=1 and replugging gives id=3, orphaning workspaces 11-20.
+#   Using the monitor's name as the stable key guarantees the same physical
+#   monitor always owns the same workspace range regardless of its current id.
+#
+# Pressing SUPER+N in global mode calls this script with N=1..10.
+# The script dispatches workspace (base + N) on every connected monitor.
+#
+# ROOT CAUSE OF WORKSPACE THEFT:
+#   Hyprland tracks "workspace W lives on monitor M". When you dispatch
+#   focus({ workspace = 'W' }), Hyprland may steal focus to whichever monitor
+#   currently owns W, rather than switching the monitor you targeted. This is
+#   especially common after window moves, restarts, or when windows were open
+#   before global mode was first activated.
+#
+#   FIX: Before focusing workspace W on monitor M, we explicitly reassign W to
+#   M via workspace.move({ workspace = 'W', monitor = 'M' }). This is the Lua
+#   equivalent of "moveworkspacetomonitor". After that, the focus dispatch goes
+#   to the right monitor every time.
+#
+# Cursor warping (cursor:warp_on_change_workspace option):
+#   The focus dispatch respects the warp option, but the pointer only warps on
+#   the FINAL focus dispatch (the originally-focused monitor, set last). This is
+#   correct UX — the cursor follows keyboard focus to the monitor the user was
+#   actively using. Intermediate monitors don't receive pointer warps, which is
+#   the expected behavior for synchronized multi-monitor switches. (Issue #4)
+#
+# Fullscreen=2 workaround:
+#   Hyprland silently ignores workspace-focus dispatches on a monitor that has
+#   a fullscreen=2 window. We detect by address, stash to workspace 999 (no
+#   focus change, address-targeted), switch the workspace, then restore.
+#
+# Processing order: highest-base monitors first, originally-focused last.
+
+set -euo pipefail
+
+TARGET="${1:-}"
+if [[ -z "$TARGET" || ! "$TARGET" =~ ^([1-9]|10)$ ]]; then
+  echo "Usage: $0 <slot 1-10>" >&2
+  exit 1
+fi
+
+# ── Load stable base map ──────────────────────────────────────────────────────
+# omarchy-monitor-base sync: allocates bases for any unseen monitors, persists,
+# prints "name base" lines. We build an associative array: bases["HDMI-1"]=10
+#
+# NOTE: bash associative arrays are NOT exported to subshells. The base lookup
+# must happen in the parent shell, not inside a pipeline's while-read subshell.
+declare -A bases
+while IFS=' ' read -r mon_name mon_base; do
+  [[ -n "$mon_name" && -n "$mon_base" ]] && bases["$mon_name"]="$mon_base"
+done < <(omarchy-monitor-base sync 2>/dev/null)
+
+# ── Snapshot monitor list ─────────────────────────────────────────────────────
+monitors_json=$(hyprctl monitors -j)
+
+# Return the workspace ID for a monitor: base + slot.
+# Uses the parent-shell bases array directly — no subshell, no echo.
+# Falls back to mon_id * 10 only if the name is absent from the map.
+ws_for_monitor() {
+  local mon_name="$1" mon_id="$2"
+  local base="${bases[$mon_name]:-}"
+  if [[ -z "$base" ]]; then
+    base=$(( mon_id * 10 ))
+  fi
+  _ws_result=$(( base + TARGET ))
+}
+
+# ── Build ordered monitor lists in the parent shell ───────────────────────────
+# Non-focused monitors are processed highest-base first; the focused monitor
+# last so keyboard focus ends up on the monitor the user was using.
+#
+# The sort input is built by a while-read loop running in the PARENT shell
+# (process substitution, not a pipeline) so it can read the bases array.
+# Each line: "<base> <id> <name>" for sort -rn, then we strip the base prefix.
+
+mapfile -t _sort_input < <(
+  while IFS=' ' read -r mon_id mon_name; do
+    base="${bases[$mon_name]:-$(( mon_id * 10 ))}"
+    echo "$base $mon_id $mon_name"
+  done < <(echo "$monitors_json" | jq -r '.[] | select(.focused | not) | "\(.id) \(.name)"')
+)
+
+mapfile -t non_focused < <(
+  printf '%s\n' "${_sort_input[@]}" | sort -rn | awk '{print $2, $3}'
+)
+
+mapfile -t focused_entry < <(
+  echo "$monitors_json" | jq -r '.[] | select(.focused) | "\(.id) \(.name)"'
+)
+
+switch_monitor() {
+  local mon_id="$1"
+  local mon_name="$2"
+  local is_focused="${3:-false}"  # true if this was the originally-focused monitor
+  local _ws_result
+  ws_for_monitor "$mon_name" "$mon_id"
+  local ws="$_ws_result"
+
+  # Re-query clients fresh for this monitor so we see any changes from earlier
+  # iterations (windows stashed to 999, prior workspace assignments, etc.).
+  local clients_now
+  clients_now=$(hyprctl clients -j 2>/dev/null) || clients_now="[]"
+
+  # Detect a fullscreen=2 window on this monitor (by address).
+  local fs_addr="" orig_ws=""
+  fs_addr=$(echo "$clients_now" | jq -r \
+    --argjson mid "$mon_id" \
+    '.[] | select(.monitor == $mid and .fullscreen == 2) | .address' \
+    2>/dev/null | head -1) || true
+
+  if [[ -n "$fs_addr" ]]; then
+    orig_ws=$(echo "$clients_now" | jq -r \
+      --arg addr "$fs_addr" \
+      '.[] | select(.address == $addr) | .workspace.id' \
+      2>/dev/null) || true
+  fi
+
+  # Stash fullscreen window to a scratch workspace pinned to THIS monitor.
+  # WS999 is monitor-agnostic — Hyprland can assign it to any monitor,
+  # causing the fullscreen window to briefly appear ("shadow") on whichever
+  # monitor last changed. Using base+99 (e.g. WS109 for base=10) keeps the
+  # stash within this monitor's own range, so Hyprland never moves it.
+  local stash_ws=$(( ${bases[$mon_name]:-$(( mon_id * 10 ))} + 99 ))
+  if [[ -n "$fs_addr" && -n "$orig_ws" ]]; then
+    hyprctl eval "hl.dispatch(hl.dsp.workspace.move({ workspace = '$stash_ws', monitor = '$mon_name' }))" \
+      >/dev/null 2>&1 || true
+    hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = '$stash_ws', window = 'address:$fs_addr', follow = false }))" \
+      >/dev/null 2>&1 || true
+  fi
+
+  # ── Fix for workspace ownership mismatch (Issue #MISSING: Ixion disappears) ──
+  # When windows on the target workspace ($ws) are physically on OTHER monitors
+  # (not $mon_name), workspace.move() alone doesn't move them. The workspace
+  # metadata reassigns, but the windows stay on their original monitors. On the
+  # next switch, this creates a "shadow" workspace where the old monitor's
+  # windows are invisible.
+  #
+  # Solution: Find all windows on workspaces that SHOULD be on this monitor but
+  # are ACTUALLY on other monitors, and move them explicitly by address.
+  local orphaned_windows
+  orphaned_windows=$(echo "$clients_now" | jq -r \
+    --argjson target_ws "$ws" \
+    --argjson target_mon_id "$mon_id" \
+    '.[] | select(.workspace.id == $target_ws and .monitor != $target_mon_id) | .address' \
+    2>/dev/null || echo "")
+  
+  if [[ -n "$orphaned_windows" ]]; then
+    echo "$orphaned_windows" | while read -r orphan_addr; do
+      [[ -z "$orphan_addr" ]] && continue
+      # Move the orphaned window to the target workspace on the correct monitor.
+      # This ensures the window is physically on the right monitor.
+      hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = '$ws', window = 'address:$orphan_addr', follow = false }))" \
+        >/dev/null 2>&1 || true
+    done
+  fi
+
+  # Reassign the target workspace to this monitor BEFORE focusing it.
+  # This prevents Hyprland from stealing focus to whichever monitor currently
+  # owns that workspace, which is the primary cause of "wrong monitor switches".
+  hyprctl eval "hl.dispatch(hl.dsp.workspace.move({ workspace = '$ws', monitor = '$mon_name' }))" \
+    >/dev/null 2>&1 || true
+
+  # ── CRITICAL FIX: Focus handling depends on monitor type ──
+  # For the ORIGINALLY-FOCUSED monitor: we MUST call focus({ monitor }) AND focus({ workspace })
+  # to ensure keyboard focus ends up back where it started.
+  #
+  # For NON-FOCUSED monitors: we MUST NOT call focus({ monitor }). Each non-focused monitor's
+  # focus({ monitor }) call steals keyboard focus, breaking the switch for the focused monitor
+  # that processes last. Instead, we only call focus({ workspace }) to update the visible content
+  # on that monitor. Hyprland will render the workspace correctly even without keyboard focus.
+  #
+  # Bug: In the old code, ALL monitors called focus({ monitor }), which meant:
+  #   1. Non-focused monitor calls focus({monitor: HDMI-A-1}) → steals focus to HDMI-A-1
+  #   2. Non-focused monitor calls focus({monitor: DP-2}) → steals focus to DP-2
+  #   3. Finally, DP-1 (originally-focused) calls focus({monitor: DP-1}) → steals focus to DP-1
+  #   4. DP-1 calls focus({workspace: 11}) → should work, but state is corrupted
+  #
+  # After fix: Only the originally-focused monitor handles focus; others just update workspace visibility.
+  
+  if [[ "$is_focused" == "true" ]]; then
+    # Originally-focused monitor: restore keyboard focus after workspace changes
+    hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = '$mon_name' }))" \
+      >/dev/null 2>&1 || true
+    hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = '$ws' }))" \
+      >/dev/null 2>&1 || true
+  else
+    # Non-focused monitor: update workspace visibility WITHOUT stealing focus
+    hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = '$ws' }))" \
+      >/dev/null 2>&1 || true
+  fi
+
+  # Restore fullscreen window to its original workspace by address.
+  if [[ -n "$fs_addr" && -n "$orig_ws" ]]; then
+    hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = '$orig_ws', window = 'address:$fs_addr', follow = false }))" \
+      >/dev/null 2>&1 || true
+  fi
+}
+
+# Switch non-focused monitors first (highest base first)
+for entry in "${non_focused[@]:-}"; do
+  [[ -z "$entry" ]] && continue
+  mon_id=$(echo "$entry" | cut -d' ' -f1)
+  mon_name=$(echo "$entry" | cut -d' ' -f2)
+  switch_monitor "$mon_id" "$mon_name" "false" || true
+done
+
+# Switch the originally-focused monitor last (leaves focus there)
+if [[ -n "${focused_entry[0]:-}" ]]; then
+  mon_id=$(echo "${focused_entry[0]}" | cut -d' ' -f1)
+  mon_name=$(echo "${focused_entry[0]}" | cut -d' ' -f2)
+  switch_monitor "$mon_id" "$mon_name" "true" || true
+fi
+
+# ── Refresh all bars ──────────────────────────────────────────────────────────
+# Quickshell's HyprlandMonitor.activeWorkspace only updates when a monitor
+# produces an IPC event. Monitors that switched without keyboard focus sit
+# stale until something incidental touches them. Calling refresh on the
+# IpcHandler forces all bars to re-query Hyprland state simultaneously,
+# fixing the stale focus highlight.
+# Backgrounded so it doesn't add latency to the switch itself.
+qs ipc call omarchy.workspaces refresh &>/dev/null &

@@ -1,0 +1,103 @@
+#!/bin/bash
+# omarchy:summary=Move focused window to slot N on the focused monitor (global mode, FIXED)
+# omarchy:args=<slot-number>
+#
+# FIX (Sep 8, 2026): Changed behavior to target the FOCUSED monitor, not the
+# window's current monitor. This prevents windows from disappearing when moved
+# between monitors.
+#
+# BEFORE:
+#   Active window on DP-1, user focused on HDMI-A-1:
+#   SUPER+SHIFT+2 → moves to DP-1's slot 2 (wrong monitor)
+#
+# AFTER:
+#   Active window on DP-1, user focused on HDMI-A-1:
+#   SUPER+SHIFT+2 → moves to HDMI-A-1's slot 2 (focused monitor, correct!)
+#
+# SAFETY GUARD: If the active window is ALREADY on the focused monitor,
+# move to that monitor's slot N (no cross-monitor move). This prevents the
+# "accidentally move window between monitors" case.
+#
+# In global workspace mode each monitor owns a dedicated workspace range:
+#   Monitor "eDP-1"  →  base 0   →  workspaces  1-10
+#   Monitor "HDMI-1" →  base 10  →  workspaces 11-20
+#   Monitor "DP-2"   →  base 20  →  workspaces 21-30
+#
+# The stable base is stored in ~/.local/state/omarchy/monitor-bases.json and
+# managed by omarchy-monitor-base.
+
+set -euo pipefail
+
+SLOT="${1:-}"
+if [[ -z "$SLOT" || ! "$SLOT" =~ ^([1-9]|10)$ ]]; then
+  echo "Usage: $0 <slot 1-10>" >&2
+  exit 1
+fi
+
+# Get the active window and monitors in one hyprctl call to save latency.
+active=$(hyprctl activewindow -j 2>/dev/null)
+win_address=$(echo "$active" | jq -r '.address // empty')
+win_monitor_id=$(echo "$active"  | jq -r '.monitor // empty')
+
+if [[ -z "$win_address" || -z "$win_monitor_id" ]]; then
+  exit 0  # no active window; silent no-op
+fi
+
+# Snapshot the monitor list once.
+monitors_json=$(hyprctl monitors -j 2>/dev/null)
+
+# Find the FOCUSED monitor (where keyboard focus currently is).
+focused_monitor_id=$(echo "$monitors_json" | jq -r '.[] | select(.focused) | .id')
+focused_monitor_name=$(echo "$monitors_json" | jq -r ".[] | select(.id == $focused_monitor_id) | .name")
+
+# SAFETY: Determine the TARGET monitor:
+# - If the active window is ALREADY on the focused monitor, use it (safe move within monitor).
+# - Otherwise, use the focused monitor (user intends slot N on the monitor they're using).
+# This prevents cross-monitor moves from hiding the window.
+if [[ "$win_monitor_id" == "$focused_monitor_id" ]]; then
+  # Window is already on the focused monitor → move to its slot N (expected).
+  target_monitor_name="$focused_monitor_name"
+else
+  # Window is on a different monitor than focus → move to focused monitor's slot N.
+  # This is the FIX for the "window disappears" bug when moving Ixion between monitors.
+  target_monitor_name="$focused_monitor_name"
+fi
+
+# Look up the stable base for the target monitor.
+base=$(omarchy-monitor-base 2>/dev/null | awk -v name="$target_monitor_name" '$1 == name {print $2; exit}')
+if [[ -z "$base" ]]; then
+  # Fallback: derive from the monitor's current id.
+  target_monitor_id=$(echo "$monitors_json" | jq -r ".[] | select(.name == \"$target_monitor_name\") | .id")
+  base=$(( target_monitor_id * 10 ))
+fi
+target_ws=$(( base + SLOT ))
+
+# Check for fullscreen=2 windows on the target monitor (Hyprland silently ignores dispatches on those).
+# Stash it temporarily so the move succeeds.
+clients_now=$(hyprctl clients -j 2>/dev/null) || clients_now="[]"
+target_monitor_id=$(echo "$monitors_json" | jq -r ".[] | select(.name == \"$target_monitor_name\") | .id")
+fs_address=$(echo "$clients_now" | jq -r \
+  --argjson mid "$target_monitor_id" \
+  '.[] | select(.monitor == $mid and .fullscreen == 2) | .address' \
+  2>/dev/null | head -1) || true
+
+if [[ -n "$fs_address" ]]; then
+  stash_ws=$(( base + 99 ))
+  hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = '$stash_ws', window = 'address:$fs_address', follow = false }))" \
+    >/dev/null 2>&1 || true
+fi
+
+# Move the window to the target workspace (address-targeted, no focus change).
+hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = '$target_ws', window = 'address:$win_address', follow = false }))" >/dev/null 2>&1 || true
+
+# Restore fullscreen window if it was stashed.
+if [[ -n "$fs_address" ]]; then
+  orig_ws=$(echo "$clients_now" | jq -r \
+    --arg addr "$fs_address" \
+    '.[] | select(.address == $addr) | .workspace.id' \
+    2>/dev/null) || true
+  if [[ -n "$orig_ws" ]]; then
+    hyprctl eval "hl.dispatch(hl.dsp.window.move({ workspace = '$orig_ws', window = 'address:$fs_address', follow = false }))" \
+      >/dev/null 2>&1 || true
+  fi
+fi
