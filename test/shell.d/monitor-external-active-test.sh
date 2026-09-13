@@ -75,3 +75,14 @@ if run_helper "$disabled_hdmi"; then
   fail "external-active ignores disabled external outputs"
 fi
 pass "external-active ignores disabled external outputs"
+
+# A headless output created on purpose (`hyprctl output create headless`) is a
+# display the user drives, so only Hyprland's own fallback is excluded.
+headless='[
+  {"name":"eDP-1","disabled":true,"width":1920,"height":1200},
+  {"name":"HEADLESS-1","disabled":false,"width":1920,"height":1080}
+]'
+if ! run_helper "$headless"; then
+  fail "external-active still counts a user-created headless output"
+fi
+pass "external-active still counts a user-created headless output"
