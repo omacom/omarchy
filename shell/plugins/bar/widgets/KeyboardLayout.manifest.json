@@ -4,7 +4,7 @@
   "name": "Keyboard layout",
   "version": "1.0.0",
   "author": "Omarchy",
-  "description": "Current xkb layout, click cycles",
+  "description": "Switch keyboard layouts and edit layouts, variants, login default and shortcuts",
   "kinds": [
     "bar-widget"
   ],
@@ -13,15 +13,15 @@
   },
   "barWidget": {
     "displayName": "Keyboard layout",
-    "description": "Current xkb layout, click cycles",
+    "description": "Switch keyboard layouts and edit layouts, variants, login default and shortcuts",
     "category": "Compositor",
     "allowMultiple": false
   },
   "omarchy": {
     "clonePaths": [
       {
-        "source": "KeyboardLayoutModel.js",
-        "target": "KeyboardLayoutModel.js"
+        "source": "keyboard",
+        "target": "keyboard"
       }
     ]
   }
