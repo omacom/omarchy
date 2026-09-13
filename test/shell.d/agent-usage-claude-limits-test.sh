@@ -10,7 +10,11 @@ require_command python3
 # stands in for the response.
 read_limits() {
   COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" PAYLOAD="$1" python3 - <<'PY'
-import importlib.machinery, importlib.util, io, json, os
+import importlib.machinery, importlib.util, io, json, os, sys
+
+# Keep the load from dropping a bytecode cache beside the collector: a stray
+# bin/__pycache__ is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
 spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -82,7 +86,11 @@ trap 'rm -rf "$CACHE_HOME"' EXIT
 collect_limits() {
   COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" TOKEN="$1" EXPIRES_AT="$2" CACHED="$3" \
     XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
-import importlib.machinery, importlib.util, json, os, pathlib
+import importlib.machinery, importlib.util, json, os, pathlib, sys
+
+# Keep the load from dropping a bytecode cache beside the collector: a stray
+# bin/__pycache__ is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
 spec = importlib.util.spec_from_loader(loader.name, loader)
@@ -160,7 +168,11 @@ pass "Claude collector falls back to cache when the probe cannot connect"
 probe_with_cache() {
   COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" FORCE="$1" CACHED="$2" PAYLOAD="$3" \
     XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
-import importlib.machinery, importlib.util, io, json, os
+import importlib.machinery, importlib.util, io, json, os, sys
+
+# Keep the load from dropping a bytecode cache beside the collector: a stray
+# bin/__pycache__ is tracked nowhere and breaks text scans over bin/.
+sys.dont_write_bytecode = True
 
 loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
 spec = importlib.util.spec_from_loader(loader.name, loader)
