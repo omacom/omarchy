@@ -1,19 +1,22 @@
 echo "Repair legacy XCompose and remove vulnerable Omarchy 3 power udev rules"
 
 xcompose="$HOME/.XCompose"
-packaged_xcompose="$OMARCHY_PATH/default/xcompose"
 legacy_xcompose_pattern='^[[:space:]]*include[[:space:]]+"[^"]*/\.local/share/omarchy/default/xcompose"[[:space:]]*$'
 
 # Omarchy 3 pointed the user's compose file through the checkout compatibility
-# link. Preserve their own sequences while moving that include to the packaged
-# tree. A failed live restart is harmless: the next graphical login reads the
-# repaired file.
+# link. Preserve their own sequences while moving that include onto a home-local
+# copy of the packaged table (%H/.XCompose.omarchy). An absolute /usr path would
+# parse on the host but fail inside sandboxes that only bind-mount $HOME
+# (Steam pressure-vessel). Do not restart fcitx5 from an unattended migration:
+# X11 clients can retain XIM objects owned by the old process and crash later
+# (#9541). The repaired file takes effect at the next graphical login; fcitx5's
+# ExecStartPre also refreshes ~/.XCompose.omarchy then.
+omarchy-refresh-xcompose
+
 if [[ -f $xcompose ]] && grep -Eq "$legacy_xcompose_pattern" "$xcompose"; then
-  xcompose_replacement=${packaged_xcompose//\\/\\\\}
-  xcompose_replacement=${xcompose_replacement//&/\\&}
-  xcompose_replacement=${xcompose_replacement//|/\\|}
-  sed -i -E "s|^([[:space:]]*include[[:space:]]+\")[^\"]*/\\.local/share/omarchy/default/xcompose\"[[:space:]]*$|\\1$xcompose_replacement\"|" "$xcompose"
-  omarchy-restart-xcompose >/dev/null 2>&1 || true
+  sed -i -E \
+    's|^([[:space:]]*include[[:space:]]+")[^\"]*/\.local/share/omarchy/default/xcompose("[[:space:]]*)$|\1%H/.XCompose.omarchy\2|' \
+    "$xcompose"
 fi
 
 rules_dir=/etc/udev/rules.d
