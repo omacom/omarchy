@@ -1,0 +1,69 @@
+# Omarchy Server package list, pacstrapped by the ISO for the server edition.
+# The ISO builder also reads this file when constructing the offline mirror.
+#
+# Derived from omarchy-base.packages by subtraction: the compositor, the shell,
+# GUI applications, the audio/bluetooth/printing stacks, fonts beyond the
+# console, and the capture pipeline all come out. What stays is the CLI, the TUI
+# toolbox, containers, networking, security, and the theming plumbing that the
+# terminal side of a theme needs.
+#
+# Only three entries are not in omarchy-base.packages. Keep that true, or teach
+# test/shell.d/server-packages-test.sh about the new one:
+#   openssh     - the desktop gets it from the ISO's archinstall.packages, and
+#                 the server edition cannot assume that list.
+#   rsync       - the transport a headless box is administered over.
+#   lazyjournal - the [L] door. The desktop reads logs in a window; a server
+#                 reads them in the terminal it is already in.
+
+bash-completion
+bat
+btop
+docker
+docker-buildx
+docker-compose
+dosfstools
+dua-cli
+expac
+eza
+fakeroot
+fastfetch
+fd
+fzf
+git
+gum
+herdr
+inetutils
+inotify-tools
+inxi
+jq
+kernel-modules-hook
+lazydocker
+lazygit
+lazyjournal
+less
+libyaml
+lua51
+luarocks
+man-db
+mise-bin
+networkmanager
+nvim
+omarchy-nvim
+openssh
+pacman-contrib
+plocate
+ripgrep
+rsync
+starship
+tldr
+tmux
+tree-sitter-cli
+ttfx
+tzupdate
+ufw
+ufw-docker
+unzip
+usage
+whois
+yay
+zoxide

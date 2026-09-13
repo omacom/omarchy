@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Print the Omarchy edition (desktop or server)
+
+edition_file=${OMARCHY_EDITION_FILE:-/etc/omarchy-edition}
+
+# No marker means an install that predates editions, and every one of those is a
+# desktop. Defaulting keeps the predicates answerable on machines the installer
+# never stamped.
+if [[ ! -e $edition_file ]]; then
+  echo "desktop"
+  exit 0
+fi
+
+edition=$(tr -d '[:space:]' <"$edition_file")
+
+case "$edition" in
+  desktop | server)
+    echo "$edition"
+    ;;
+  *)
+    echo "omarchy-edition: unrecognized edition in $edition_file: ${edition:-<empty>}" >&2
+    exit 1
+    ;;
+esac

@@ -14,5 +14,11 @@ omarchy-refresh-pacman
 sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Suu --noconfirm
 
 # Ensure all packages are installed
-mapfile -t packages < <(grep -v '^#' "$OMARCHY_PATH/install/omarchy-base.packages" | grep -v '^$')
+if omarchy-edition-server; then
+  package_list="$OMARCHY_PATH/install/omarchy-server.packages"
+else
+  package_list="$OMARCHY_PATH/install/omarchy-base.packages"
+fi
+
+mapfile -t packages < <(grep -v '^#' "$package_list" | grep -v '^$')
 sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --noconfirm --needed "${packages[@]}"

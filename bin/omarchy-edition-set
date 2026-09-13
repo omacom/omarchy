@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Set the Omarchy edition marker
+# omarchy:args=<desktop|server>
+# omarchy:examples=omarchy edition set server
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+edition_file=${OMARCHY_EDITION_FILE:-/etc/omarchy-edition}
+
+if (( $# != 1 )) || [[ $1 == "-h" || $1 == "--help" ]]; then
+  echo "Usage: omarchy edition set <desktop|server>" >&2
+  exit 1
+fi
+
+edition=$1
+
+case "$edition" in
+  desktop | server) ;;
+  *)
+    echo "omarchy-edition-set: unknown edition: $edition" >&2
+    exit 1
+    ;;
+esac
+
+# Escalate only when the target actually needs it. Root in the ISO chroot writes
+# /etc directly, and so does a test pointing OMARCHY_EDITION_FILE at its own
+# scratch directory; neither has a terminal to answer a password prompt in.
+edition_dir=$(dirname "$edition_file")
+
+if [[ -w $edition_file ]] || { [[ ! -e $edition_file && -w $edition_dir ]]; }; then
+  printf '%s\n' "$edition" >"$edition_file"
+else
+  printf '%s\n' "$edition" | sudo tee "$edition_file" >/dev/null
+fi
+
+echo "Omarchy edition set to $edition"

@@ -1,0 +1,621 @@
+#!/bin/bash
+
+# omarchy:summary=Open the server edition's home menu
+# omarchy:args=[--no-input]
+# omarchy:examples=omarchy server menu | omarchy server menu --no-input
+
+# A launcher with a status pane, not a reimplementation of anything. Every entry
+# hands the whole screen to a tool Omarchy already ships and takes it back when
+# that tool exits, the way a BBS handed a caller to a door.
+#
+# Drawn the way bin/omarchy-provision-owner draws: gum for prompts inside doors,
+# printf and escape sequences for the frame, a hand-rolled key read from
+# /dev/tty. gum's widgets each own the whole screen, and this layout has two
+# panes on it at once.
+#
+# Colour is invisible to width arithmetic, so every line is built twice: once as
+# plain text to measure, once with escapes to print.
+
+set -uo pipefail
+
+eval "$(omarchy-server-palette)"
+
+printf '%s' "$OMARCHY_BBS_CONSOLE_PALETTE"
+
+if [[ ${OMARCHY_BBS_UNICODE:-1} == "1" ]]; then
+  TL="┌"; TR="┐"; BL="└"; BR="┘"; HR="─"; VR="│"
+  SEP=" ▪ "; TICK="✓"; FULL="▓"; EMPTY="░"; MARK="▌"; ELLIPSIS="…"
+else
+  TL="+"; TR="+"; BL="+"; BR="+"; HR="-"; VR="|"
+  SEP=" - "; TICK="+"; FULL="#"; EMPTY="."; MARK=">"; ELLIPSIS="~"
+fi
+
+LEFT_W=44
+RIGHT_W=34
+
+KEYS=(S D V U L B N T G Q)
+LABELS=("STATUS" "DOCKER" "SERVICES" "UPDATE" "LOGS" "BACKUP" "NETWORK" "THEME" "GOODBYE" "QUIT TO SHELL")
+HINTS=("" "" "" "" "" "" "" "" "" "")
+selected=0
+
+guarded() { timeout "${1}s" "${@:2}" 2>/dev/null || true; }
+
+# A value longer than its column pushes the border out, and a hostname or an
+# interface list is exactly the sort of thing that is longer somewhere else.
+fit() {
+  local text=$1 width=$2
+  (( width > 0 )) || { printf ''; return; }
+  (( ${#text} <= width )) && { printf '%s' "$text"; return; }
+  printf '%s%s' "${text:0:width - 1}" "$ELLIPSIS"
+}
+
+repeat() {
+  local blanks
+  (( $2 > 0 )) || return 0
+  printf -v blanks '%*s' "$2" ''
+  printf '%s' "${blanks// /$1}"
+}
+
+# ---- readings ------------------------------------------------------------
+
+gather() {
+  host=$(uname -n 2>/dev/null || echo "-")
+
+  uptime_text=$(guarded 2 uptime -p)
+  uptime_text=${uptime_text#up }
+  [[ -n $uptime_text ]] || uptime_text="-"
+
+  load_text="-"
+  if [[ -r /proc/loadavg ]]; then
+    read -r one five fifteen _ </proc/loadavg && load_text="$one $five $fifteen"
+  fi
+
+  mem_used=0 mem_total=0 mem_text="-"
+  if [[ -r /proc/meminfo ]]; then
+    read -r mem_used mem_total mem_text < <(awk '
+      /^MemTotal:/ { total = $2 }
+      /^MemAvailable:/ { available = $2 }
+      END { if (total) printf "%d %d %.1f/%.0fG", total - available, total,
+              (total - available) / 1048576, total / 1048576 }' /proc/meminfo)
+  fi
+  [[ -n $mem_text ]] || mem_text="-"
+
+  disk_used=0 disk_total=0 disk_text="-"
+  read -r disk_used disk_total disk_text < <(guarded 3 df -hP --output=used,size,avail / |
+    awk 'NR == 2 { printf "%s %s %s free", $1, $2, $3 }' |
+    awk '{ print $1, $2, $3, $4 }')
+  [[ -n $disk_text ]] || disk_text="-"
+  read -r disk_pct < <(guarded 3 df -P / | awk 'NR == 2 { gsub(/%/, "", $5); print $5 }')
+  [[ -n ${disk_pct:-} ]] || disk_pct=0
+
+  address=$(guarded 2 ip -4 -oneline address show scope global |
+    awk 'NR == 1 { split($4, cidr, "/"); print cidr[1] }')
+  [[ -n $address ]] || address="-"
+
+  # Without a password-free sudo rule this stays unknown rather than prompting
+  # for a password behind a drawn screen.
+  firewall=$(guarded 2 sudo -n ufw status | awk 'NR == 1 { print tolower($2) }')
+  [[ -n $firewall ]] || firewall="unknown"
+
+  services=$(guarded 3 systemctl list-units --type=service --state=running --no-legend | grep -c .)
+  [[ -n $services ]] || services="-"
+
+  containers=$(guarded 2 docker ps --quiet | grep -c .)
+  [[ -n $containers ]] || containers="-"
+
+  updates=$(guarded 3 pacman -Qu | grep -c .)
+  [[ -n $updates ]] || updates="-"
+
+  theme=$(guarded 2 omarchy-theme-current)
+  [[ -n $theme ]] || theme="-"
+
+  backup_text=$(backup_status)
+
+  # A board with more than one phone line numbered them, and the caller was told
+  # which one they were on. Concurrent sessions are the same fact.
+  node=$(guarded 2 who | grep -c .)
+  [[ -n $node ]] && (( node > 0 )) || node=1
+
+  HINTS[0]="vitals${SEP}btop"
+  HINTS[1]="$containers containers"
+  HINTS[2]="$services running"
+  if [[ $updates == "0" ]]; then HINTS[3]="up to date"; else HINTS[3]="$updates available"; fi
+  HINTS[4]="journal"
+  HINTS[5]="$backup_text"
+  HINTS[6]="firewall${SEP}dns"
+  HINTS[7]="$theme"
+  HINTS[8]="splash"
+  HINTS[9]=""
+}
+
+# The backup plan is unbuilt. This is the whole seam: replacing it with the real
+# status is the only change the door and this line will need.
+backup_status() { printf 'none yet'; }
+
+motd_lines() {
+  local motd_file="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/motd"
+  if [[ -r $motd_file ]]; then
+    fold -s -w $(( RIGHT_W - 4 )) "$motd_file" | head -6
+  else
+    printf 'Welcome back, sysop.\n'
+    [[ $updates == "0" || $updates == "-" ]] ||
+      printf '%s updates await your leisure.\n' "$updates"
+  fi
+}
+
+# ---- frame ---------------------------------------------------------------
+
+# Each pane builds two parallel arrays: what the line says, for measuring, and
+# what it looks like, for printing.
+build_left() {
+  LEFT_PLAIN=() LEFT_PAINT=()
+
+  # The closing border is LEFT_W + 2 wide, so the opening one has to reach the
+  # same column: two corners, "- MAIN " is seven, and the rest is rule.
+  local head_rule; head_rule=$(repeat "$HR" $(( LEFT_W - 7 )))
+  LEFT_PLAIN+=("$TL$HR MAIN $head_rule$TR")
+  LEFT_PAINT+=("$OMARCHY_BBS_RULE$TL$HR $OMARCHY_BBS_TITLE""MAIN$OMARCHY_BBS_RULE $head_rule$TR$OMARCHY_BBS_RESET")
+
+  local index
+  for index in "${!KEYS[@]}"; do
+    local key=${KEYS[$index]} label=${LABELS[$index]} hint=${HINTS[$index]}
+    local marker="  " marker_paint="  "
+    if (( index == selected )); then
+      marker="$MARK "
+      marker_paint="$OMARCHY_BBS_ACCENT$MARK$OMARCHY_BBS_RESET "
+    fi
+
+    local plain paint
+    if [[ -z $hint ]]; then
+      plain="$marker[$key] $label"
+      paint="$marker_paint$OMARCHY_BBS_KEY[$key]$OMARCHY_BBS_RESET $OMARCHY_BBS_BRIGHT$label$OMARCHY_BBS_RESET"
+    else
+      hint=$(fit "$hint" $(( LEFT_W - 12 - ${#label} )))
+      local gap=$(( LEFT_W - 2 - ${#marker} - 4 - ${#label} - ${#hint} - 2 ))
+      (( gap > 1 )) || gap=1
+      plain="$marker[$key] $label $(repeat '.' "$gap") $hint"
+      paint="$marker_paint$OMARCHY_BBS_KEY[$key]$OMARCHY_BBS_RESET $OMARCHY_BBS_BRIGHT$label$OMARCHY_BBS_RESET $OMARCHY_BBS_DIM$(repeat '.' "$gap")$OMARCHY_BBS_RESET $OMARCHY_BBS_FG$hint$OMARCHY_BBS_RESET"
+    fi
+
+    local fill=$(( LEFT_W - 2 - ${#plain} ))
+    (( fill > 0 )) || fill=0
+    LEFT_PLAIN+=("$VR $plain$(repeat ' ' "$fill") $VR")
+    LEFT_PAINT+=("$OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET $paint$(repeat ' ' "$fill") $OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET")
+
+    if [[ $key == "T" ]]; then
+      LEFT_PLAIN+=("$VR$(repeat ' ' "$LEFT_W")$VR")
+      LEFT_PAINT+=("$OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET$(repeat ' ' "$LEFT_W")$OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET")
+    fi
+  done
+
+  LEFT_PLAIN+=("$BL$(repeat "$HR" "$LEFT_W")$BR")
+  LEFT_PAINT+=("$OMARCHY_BBS_RULE$BL$(repeat "$HR" "$LEFT_W")$BR$OMARCHY_BBS_RESET")
+}
+
+box_line() {
+  local label=$1 value=$2 meter_used=$3 meter_total=$4
+
+  # The line is a border, two spaces, an eight-column label, an optional
+  # eleven-column meter, then the value, and it has to end on RIGHT_W.
+  if (( meter_total > 0 )); then
+    value=$(fit "$value" $(( RIGHT_W - 22 )))
+  else
+    value=$(fit "$value" $(( RIGHT_W - 11 )))
+  fi
+
+  if (( meter_total > 0 )); then
+    local width=10 filled
+    filled=$(( meter_used * width / meter_total ))
+    (( filled > width )) && filled=$width
+    (( filled < 0 )) && filled=0
+    local bar_plain="$(repeat "$FULL" "$filled")$(repeat "$EMPTY" $(( width - filled )))"
+    local bar_paint="$OMARCHY_BBS_ACCENT$(repeat "$FULL" "$filled")$OMARCHY_BBS_DIM$(repeat "$EMPTY" $(( width - filled )))$OMARCHY_BBS_RESET"
+    RIGHT_PLAIN+=("$VR  $(printf '%-8s' "$label")$bar_plain $value")
+    RIGHT_PAINT+=("$OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET  $OMARCHY_BBS_DIM$(printf '%-8s' "$label")$OMARCHY_BBS_RESET$bar_paint $OMARCHY_BBS_FG$value$OMARCHY_BBS_RESET")
+  else
+    RIGHT_PLAIN+=("$VR  $(printf '%-8s' "$label")$value")
+    RIGHT_PAINT+=("$OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET  $OMARCHY_BBS_DIM$(printf '%-8s' "$label")$OMARCHY_BBS_RESET$OMARCHY_BBS_FG$value$OMARCHY_BBS_RESET")
+  fi
+}
+
+seal_right() {
+  local index=$1
+  local plain=${RIGHT_PLAIN[$index]}
+  local fill=$(( RIGHT_W - ${#plain} ))
+  (( fill > 0 )) || fill=0
+  RIGHT_PLAIN[$index]="$plain$(repeat ' ' "$fill")$VR"
+  RIGHT_PAINT[$index]="${RIGHT_PAINT[$index]}$(repeat ' ' "$fill")$OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET"
+}
+
+build_right() {
+  RIGHT_PLAIN=() RIGHT_PAINT=()
+
+  open_box() {
+    RIGHT_PLAIN+=("$TL$HR $1 $(repeat "$HR" $(( RIGHT_W - 4 - ${#1} )))$TR")
+    RIGHT_PAINT+=("$OMARCHY_BBS_RULE$TL$HR $OMARCHY_BBS_TITLE$1$OMARCHY_BBS_RULE $(repeat "$HR" $(( RIGHT_W - 4 - ${#1} )))$TR$OMARCHY_BBS_RESET")
+  }
+  close_box() {
+    RIGHT_PLAIN+=("$BL$(repeat "$HR" $(( RIGHT_W - 1 )))$BR")
+    RIGHT_PAINT+=("$OMARCHY_BBS_RULE$BL$(repeat "$HR" $(( RIGHT_W - 1 )))$BR$OMARCHY_BBS_RESET")
+  }
+
+  local start
+  open_box "SYSTEM"
+  start=${#RIGHT_PLAIN[@]}
+  box_line "Host" "$host" 0 0
+  box_line "Uptime" "$uptime_text" 0 0
+  box_line "Load" "$load_text" 0 0
+  box_line "Memory" "$mem_text" "$mem_used" "$mem_total"
+  box_line "Disk" "$disk_text" "$disk_pct" 100
+  box_line "Net" "$address${SEP}ufw $firewall" 0 0
+  local index
+  for (( index = start; index < ${#RIGHT_PLAIN[@]}; index++ )); do seal_right "$index"; done
+  close_box
+
+  RIGHT_PLAIN+=("") RIGHT_PAINT+=("")
+
+  open_box "MOTD"
+  start=${#RIGHT_PLAIN[@]}
+  local line
+  while IFS= read -r line; do
+    line=$(fit "$line" $(( RIGHT_W - 4 )))
+    RIGHT_PLAIN+=("$VR  $line")
+    RIGHT_PAINT+=("$OMARCHY_BBS_RULE$VR$OMARCHY_BBS_RESET  $OMARCHY_BBS_FG$line$OMARCHY_BBS_RESET")
+  done < <(motd_lines)
+  for (( index = start; index < ${#RIGHT_PLAIN[@]}; index++ )); do seal_right "$index"; done
+  close_box
+}
+
+# Composed into one string and written once, over the previous frame rather
+# than after blanking it. Clearing first makes the screen flash on every
+# keypress, which is unmissable when an arrow key repeats.
+draw() {
+  local cols
+  cols=$(tput cols 2>/dev/null || echo 80)
+  (( cols > 0 )) || cols=80
+  local wide=1
+  (( cols >= LEFT_W + RIGHT_W + 6 )) || wide=0
+
+  build_left
+  if (( wide )); then
+    build_right
+  else
+    RIGHT_PLAIN=() RIGHT_PAINT=()
+  fi
+
+  local clock; clock=$(date +%H:%M 2>/dev/null || echo "--:--")
+  local head_left="  OMARCHY SERVER${SEP}MAIN MENU"
+  local head_right="node ${host}${SEP}${clock}  "
+  local head_pad=$(( cols - ${#head_left} - ${#head_right} ))
+  (( head_pad > 0 )) || head_pad=1
+
+  local frame
+  printf -v frame '\n%s%s%s%*s%s%s\n\n' \
+    "$OMARCHY_BBS_ACCENT_BG" "$OMARCHY_BBS_ON_ACCENT" \
+    "$head_left" "$head_pad" '' "$head_right" "$OMARCHY_BBS_RESET"
+
+  local rows=${#LEFT_PAINT[@]}
+  (( ${#RIGHT_PAINT[@]} > rows )) && rows=${#RIGHT_PAINT[@]}
+
+  local index line
+  for (( index = 0; index < rows; index++ )); do
+    line="  "
+    if (( index < ${#LEFT_PAINT[@]} )); then
+      line+="${LEFT_PAINT[$index]}"
+    else
+      line+=$(repeat ' ' $(( LEFT_W + 2 )))
+    fi
+    if (( wide )) && (( index < ${#RIGHT_PAINT[@]} )) && [[ -n ${RIGHT_PAINT[$index]} ]]; then
+      line+="  ${RIGHT_PAINT[$index]}"
+    fi
+    # Each line clears to its own end, so a shorter frame cannot leave the
+    # tail of a longer one behind it.
+    frame+="$line"$'\033[K\n'
+  done
+
+  frame+=$'\n'
+
+  local legend_plain="  [↑↓] select  [ENTER] open  [hotkey] jump  [Q] shell"
+  local signature_plain="${USER:-$(id -un 2>/dev/null || echo user)}@${host}${SEP}node ${node}  "
+  local legend_pad=$(( cols - ${#legend_plain} - ${#signature_plain} ))
+  (( legend_pad > 0 )) || legend_pad=1
+
+  frame+=$(printf '  %s[%s↑↓%s] select  [%sENTER%s] open  [%shotkey%s] jump  [%sQ%s] shell%s%*s%s%s%s' \
+    "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
+    "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
+    "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" \
+    "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET" \
+    "$legend_pad" '' \
+    "$OMARCHY_BBS_DIM" "$signature_plain" "$OMARCHY_BBS_RESET")
+  frame+=$'\033[K\n'
+
+  # Home, draw, then clear whatever the last frame left below this one.
+  printf '\033[H%s\033[J' "$frame"
+}
+
+# ---- doors ---------------------------------------------------------------
+
+# A door owns the whole screen and gives it back on exit. Anything spawned
+# inside one is still inside the front door, so a shell it opens must not greet
+# again.
+door() {
+  # The tool owns the terminal now: its cursor, and its own idea of echo and
+  # line editing. Handing back the settings we found is the only way anything
+  # with a prompt inside it works.
+  printf '\033[?25h'
+  cooked_terminal
+  clear 2>/dev/null || printf '\033[H\033[2J'
+  OMARCHY_BBS_SESSION=1 "$@"
+  local status=$?
+  raw_terminal
+  printf '\033[?25l'
+  return $status
+}
+
+missing() {
+  printf '\n  %s%s is not installed on this machine.%s\n' \
+    "$OMARCHY_BBS_WARN" "$1" "$OMARCHY_BBS_RESET"
+}
+
+hold() {
+  printf '\n  %sPress any key to return to the menu%s' "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET"
+  read -rsn1 _ </dev/tty
+}
+
+door_services() {
+  clear 2>/dev/null || printf '\033[H\033[2J'
+  local unit
+  unit=$(systemctl list-units --type=service --state=running --no-legend 2>/dev/null |
+    awk '{ print $1 }' |
+    gum choose --header "Running services" --height 20) || return 0
+  [[ -n $unit ]] || return 0
+  door systemctl status --no-pager "$unit"
+  hold
+}
+
+door_network() {
+  clear 2>/dev/null || printf '\033[H\033[2J'
+  printf '\n  %sINTERFACES%s\n\n' "$OMARCHY_BBS_TITLE" "$OMARCHY_BBS_RESET"
+  ip -brief address 2>/dev/null | sed 's/^/  /'
+  printf '\n  %sFIREWALL%s\n\n' "$OMARCHY_BBS_TITLE" "$OMARCHY_BBS_RESET"
+  sudo ufw status verbose 2>/dev/null | sed 's/^/  /' ||
+    printf '  ufw did not answer\n'
+  printf '\n  %sRESOLVERS%s\n\n' "$OMARCHY_BBS_TITLE" "$OMARCHY_BBS_RESET"
+  resolvectl status 2>/dev/null | grep -E 'DNS Servers|Current DNS' | sed 's/^/  /' ||
+    sed 's/^/  /' /etc/resolv.conf 2>/dev/null
+  hold
+}
+
+theme_kebab() {
+  printf '%s' "$1" | tr '[:upper:] ' '[:lower:]-'
+}
+
+draw_theme_picker() {
+  local pick=$1
+  shift
+  local -a names=("$@")
+  local name file i
+
+  name=${names[pick]}
+  file="$(omarchy-theme-dir "$(theme_kebab "$name")" 2>/dev/null)/colors.toml"
+
+  printf '\033[H'
+  printf '\n  %s%sTHEME%s\033[K\n\n' "$OMARCHY_BBS_BOLD" "$OMARCHY_BBS_TITLE" "$OMARCHY_BBS_RESET"
+
+  for i in "${!names[@]}"; do
+    if (( i == pick )); then
+      printf '  %s%s %s%s\033[K\n' "$OMARCHY_BBS_ACCENT" "$MARK" "${names[i]}" "$OMARCHY_BBS_RESET"
+    else
+      printf '    %s%s%s\033[K\n' "$OMARCHY_BBS_DIM" "${names[i]}" "$OMARCHY_BBS_RESET"
+    fi
+  done
+
+  if [[ -f $file ]]; then
+    (
+      eval "$(omarchy-server-palette --file "$file")" 2>/dev/null || exit 0
+      printf '%s' "$OMARCHY_BBS_CONSOLE_PALETTE"
+      swatch=""
+      for role in ACCENT TITLE KEY OK WARN INFO ALERT BRIGHT FG DIM RULE; do
+        var="OMARCHY_BBS_$role"
+        swatch+="${!var}$FULL$FULL"
+      done
+      printf '\n  %s%s\033[K\n' "$swatch" "$OMARCHY_BBS_RESET"
+      printf '  %s%s%s%s  %s%s%s ok  %s%s%s 3 updates ready  %s[K]%s hotkey%s\033[K\n' \
+        "$OMARCHY_BBS_BOLD" "$OMARCHY_BBS_TITLE" "$name" "$OMARCHY_BBS_RESET" \
+        "$OMARCHY_BBS_OK" "$TICK" "$OMARCHY_BBS_FG" \
+        "$OMARCHY_BBS_WARN" "!" "$OMARCHY_BBS_FG" \
+        "$OMARCHY_BBS_KEY" "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET"
+    )
+  else
+    printf '\n\033[K\n  %sno colors.toml to preview%s\033[K\n' "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET"
+  fi
+
+  printf '\n  %sUp/Down preview%s%sENTER apply%s%sESC keep %s%s\033[K' \
+    "$OMARCHY_BBS_DIM" "$SEP" "$OMARCHY_BBS_DIM" "$SEP" "$OMARCHY_BBS_DIM" "$current" "$OMARCHY_BBS_RESET"
+  printf '\033[J'
+}
+
+door_theme() {
+  local -a names=()
+  mapfile -t names < <(omarchy-theme-list 2>/dev/null)
+  (( ${#names[@]} )) || return 0
+
+  local current pick=0 i key rest count=${#names[@]}
+  current=$(omarchy-theme-current 2>/dev/null || echo "")
+  for i in "${!names[@]}"; do
+    [[ ${names[i]} == "$current" ]] && pick=$i
+  done
+
+  clear 2>/dev/null || printf '\033[H\033[2J'
+
+  while true; do
+    draw_theme_picker "$pick" "${names[@]}"
+    IFS= read -rsn1 key </dev/tty || { key="q"; }
+    case "$key" in
+      $'\e')
+        read -rsn2 -t 0.05 rest </dev/tty || rest=""
+        case "$rest" in
+          "[A" | "OA") pick=$(( (pick + count - 1) % count )) ;;
+          "[B" | "OB") pick=$(( (pick + 1) % count )) ;;
+          "") break ;;
+        esac
+        ;;
+      k) pick=$(( (pick + count - 1) % count )) ;;
+      j) pick=$(( (pick + 1) % count )) ;;
+      "" | $'\r' | $'\n')
+        door omarchy-theme-set "${names[pick]}"
+        break
+        ;;
+      q | Q) break ;;
+    esac
+  done
+
+  # The last preview must not linger on the VT.
+  eval "$(omarchy-server-palette)"
+  printf '%s' "$OMARCHY_BBS_CONSOLE_PALETTE"
+}
+
+door_backup() {
+  clear 2>/dev/null || printf '\033[H\033[2J'
+  printf '\n  %s%s BACKUP%s\n\n' "$OMARCHY_BBS_BOLD" "$OMARCHY_BBS_TITLE" "$OMARCHY_BBS_RESET"
+  printf '  %sStatus%s   %s%s%s\n' "$OMARCHY_BBS_DIM" "$OMARCHY_BBS_RESET" \
+    "$OMARCHY_BBS_FG" "$(backup_status)" "$OMARCHY_BBS_RESET"
+  printf '\n  %sBackups are not built yet. This door and its status line are wired\n' "$OMARCHY_BBS_DIM"
+  printf '  to a stub so the menu matches its design; the engine arrives with\n'
+  printf '  plans/backup.md.%s\n' "$OMARCHY_BBS_RESET"
+  hold
+}
+
+open_door() {
+  case "${KEYS[$selected]}" in
+    S) door btop ;;
+    D)
+      if omarchy-cmd-present lazydocker; then door lazydocker; else missing lazydocker; hold; fi
+      ;;
+    V) door_services ;;
+    U) door omarchy-update; hold ;;
+    L)
+      if omarchy-cmd-present lazyjournal; then
+        door lazyjournal
+      else
+        door journalctl --pager-end
+      fi
+      ;;
+    B) door_backup ;;
+    N) door_network ;;
+    T) door_theme ;;
+    G) door omarchy-server-splash || return 1 ;;
+    Q) return 1 ;;
+  esac
+  return 0
+}
+
+# ---- loop ----------------------------------------------------------------
+
+READ_INPUT=1
+[[ ${1:-} == "--no-input" ]] && READ_INPUT=0
+
+if (( READ_INPUT )) && [[ ! -t 0 || ! -t 1 ]]; then
+  echo "omarchy-server-menu: needs a terminal" >&2
+  exit 1
+fi
+
+gather
+
+# Draws the frame once and leaves, for tests and for looking at the layout
+# without taking over a session.
+if (( READ_INPUT == 0 )); then
+  draw
+  exit 0
+fi
+
+SAVED_STTY=""
+
+# Echo has to be off for the whole session, not just during a read. Between
+# reads the terminal driver is the one printing, and what a held arrow key
+# sends it is ^[[A.
+raw_terminal() {
+  stty -echo -icanon min 1 time 0 </dev/tty 2>/dev/null || true
+}
+
+cooked_terminal() {
+  [[ -n $SAVED_STTY ]] && stty "$SAVED_STTY" </dev/tty 2>/dev/null || true
+}
+
+restore_terminal() {
+  printf '\033[?25h'
+  cooked_terminal
+}
+
+SAVED_STTY=$(stty -g </dev/tty 2>/dev/null || true)
+trap restore_terminal EXIT INT TERM
+raw_terminal
+
+move() {
+  local count=${#KEYS[@]}
+  selected=$(( (selected + $1 + count) % count ))
+}
+
+# Sets ACTION to what the key asked for, so the caller can decide whether it is
+# worth redrawing for.
+ACTION=""
+handle_key() {
+  local key=$1 rest upper index
+  ACTION=""
+
+  case "$key" in
+    $'\e')
+      # An arrow arrives as three bytes. Read the rest without blocking, so a
+      # bare Escape is not mistaken for a truncated sequence.
+      read -rsn2 -t 0.05 rest </dev/tty || rest=""
+      case "$rest" in
+        "[A" | "OA") move -1 ;;
+        "[B" | "OB") move 1 ;;
+      esac
+      ;;
+    "" | $'\r' | $'\n')
+      ACTION="open"
+      ;;
+    *)
+      # Hotkey jump: select it and open it in one press, which is what a BBS
+      # letter key did.
+      upper=$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')
+      for index in "${!KEYS[@]}"; do
+        if [[ ${KEYS[$index]} == "$upper" ]]; then
+          selected=$index
+          ACTION="open"
+          break
+        fi
+      done
+      ;;
+  esac
+}
+
+clear 2>/dev/null || printf '\033[H\033[2J'
+printf '\033[?25l'
+draw
+
+while true; do
+  IFS= read -rsn1 key </dev/tty || break
+  handle_key "$key"
+
+  # A held arrow repeats faster than a redraw, so the queue would otherwise
+  # outlive the keypress and the marker would keep travelling after release.
+  # Everything already waiting is applied first, then the frame is drawn once.
+  while [[ -z $ACTION ]] && read -rsn1 -t 0 </dev/tty 2>/dev/null; do
+    IFS= read -rsn1 key </dev/tty || break 2
+    handle_key "$key"
+  done
+
+  draw
+
+  if [[ $ACTION == "open" ]]; then
+    open_door || break
+    clear 2>/dev/null || printf '\033[H\033[2J'
+    gather
+    draw
+  fi
+done
+
+restore_terminal
+clear 2>/dev/null || printf '\033[H\033[2J'

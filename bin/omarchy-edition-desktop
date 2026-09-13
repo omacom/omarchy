@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether this machine runs the desktop edition.
+
+[[ $(omarchy-edition 2>/dev/null) == "desktop" ]]
