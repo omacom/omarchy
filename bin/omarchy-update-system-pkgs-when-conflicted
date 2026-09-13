@@ -81,6 +81,30 @@ if grep -q 'unresolvable package conflicts detected' "$errors"; then
   exit 0
 fi
 
+# A package held by IgnorePkg pins an ABI the rest of the upgrade has already
+# moved past, and pacman refuses the whole transaction rather than the one
+# package. Nothing here can be cleaned up or retried: dropping the hold or
+# holding the dependency beside it is a decision, so it goes back to whoever
+# started the update, the same as a package conflict does.
+if grep -q 'could not satisfy dependencies' "$errors"; then
+  echo -e "\e[33m\nA dependency this upgrade cannot satisfy stopped it:\e[0m" >&2
+
+  # Only the verdict reached stderr. The lines naming what broke went to stdout,
+  # which the upgrade leaves uncaptured so its progress stays on the terminal,
+  # so asking the resolver again is what gets them into this report. -p installs
+  # nothing, and no -y because the databases the upgrade synced are still fresh.
+  LC_ALL=C pacman -Sup --print-format '%n' 2>/dev/null | grep '^::' >&2 || true
+
+  cat >&2 <<'MESSAGE'
+
+A package held by IgnorePkg in /etc/pacman.conf still requires a version of
+something this upgrade wants to replace. Either drop the hold so the two move
+together, or hold the dependency at the version the held package was built
+against. Until one of those happens, every system upgrade stops here.
+MESSAGE
+  exit 1
+fi
+
 # Paths one of these packages installs that pacman doesn't own. Moving them out
 # of the way is what lets the upgrade through, and works on a leftover directory
 # as well as a file.
