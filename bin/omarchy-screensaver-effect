@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Resolve the configured ttfx effect for the screensaver, if any.
+# omarchy:hidden=true
+
+config_file="$HOME/.config/omarchy/shell.json"
+defaults_file="$OMARCHY_PATH/config/omarchy/shell.json"
+source_file=$defaults_file
+[[ -s $config_file ]] && source_file=$config_file
+
+effect=$(jq -er '.idle.screensaverEffect // empty' "$source_file" 2>/dev/null) || exit 0
+[[ -n $effect ]] || exit 0
+
+# Every ttfx effect is also its own subcommand, so this doubles as validation:
+# an effect name that isn't real fails --help instead of ttfx erroring later,
+# inside the screensaver's restart loop, with no easy way to surface why.
+if ttfx "$effect" --help >/dev/null 2>&1; then
+  printf '%s\n' "$effect"
+else
+  omarchy-notification-send -g ⚠️ "Unknown screensaver effect \"$effect\" in shell.json, using random effects"
+fi
