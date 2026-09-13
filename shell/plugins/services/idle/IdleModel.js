@@ -4,6 +4,16 @@ function secondsFromConfig(value, fallback) {
   return Math.floor(n)
 }
 
+function optionalSecondsFromConfig(value) {
+  if (value === undefined || value === null || value === "") return -1
+
+  var n = Number(value)
+  if (!isFinite(n)) return -1
+
+  var seconds = Math.floor(n)
+  return seconds > 0 ? seconds : -1
+}
+
 function eventParts(event, count) {
   try {
     if (event && event.parse) return event.parse(count)
@@ -46,6 +56,7 @@ function screensaverWindowsAfter(windows, address, visible) {
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
+    optionalSecondsFromConfig: optionalSecondsFromConfig,
     eventParts: eventParts,
     screensaverWindowsAfter: screensaverWindowsAfter
   }

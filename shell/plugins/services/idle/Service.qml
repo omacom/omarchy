@@ -20,6 +20,7 @@ Item {
     ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
+  readonly property int suspendTimeoutSeconds: IdleModel.optionalSecondsFromConfig(idleConfig.suspend)
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
@@ -178,6 +179,13 @@ Item {
     else handleActiveSignal()
   }
 
+  function handleSuspendIdleChanged() {
+    logEvent("suspend-idle-monitor", suspendIdleMonitor.isIdle ? "idle" : "active")
+    if (!suspendIdleMonitor.isIdle || !root.idleEnabled || root.suspendTimeoutSeconds < 1) return
+
+    runProcess(suspendProcess, "suspend", "omarchy-toggle-enabled suspend-off || systemctl suspend")
+  }
+
   function statusJson() {
     return JSON.stringify({
       enabled: root.idleEnabled,
@@ -189,6 +197,8 @@ Item {
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
       lock: root.lockTimeoutSeconds,
+      suspend: root.suspendTimeoutSeconds,
+      suspendIdle: suspendIdleMonitor.isIdle,
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
@@ -200,6 +210,7 @@ Item {
       processes: {
         screensaver: screensaverProcess.running,
         lock: lockProcess.running,
+        suspend: suspendProcess.running,
         wake: wakeProcess.running
       },
       lastEvent: root.lastEvent,
@@ -256,6 +267,14 @@ Item {
     onIsIdleChanged: root.handleIdleChanged()
   }
 
+  IdleMonitor {
+    id: suspendIdleMonitor
+    enabled: root.idleEnabled && root.suspendTimeoutSeconds > 0
+    timeout: Math.max(1, root.suspendTimeoutSeconds)
+    respectInhibitors: true
+    onIsIdleChanged: root.handleSuspendIdleChanged()
+  }
+
   Timer {
     id: screensaverTimer
     interval: root.screensaverDelaySeconds * 1000
@@ -293,6 +312,10 @@ Item {
   Process {
     id: lockProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+  Process {
+    id: suspendProcess
+    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "suspend exitCode=" + exitCode + " status=" + exitStatus) }
   }
   Process {
     id: wakeProcess

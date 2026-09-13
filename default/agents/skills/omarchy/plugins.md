@@ -12,8 +12,7 @@ inside a single long-running Quickshell process (`omarchy-shell`).
 $OMARCHY_PATH/config/omarchy/shell.json  # Canonical defaults
 ```
 
-The shell hot-reloads `shell.json` on save — no restart needed for layout
-changes. `idle.screensaver` and `idle.lock` are seconds since user idle began.
+Bar and layout changes may hot-reload when `shell.json` is saved. Changes to `idle.screensaver`, `idle.lock`, or `idle.suspend` require `omarchy restart shell` afterward.
 
 **Commands:** `omarchy restart shell`, `omarchy refresh shell`
 
@@ -47,6 +46,4 @@ automatically. If a change somehow fails to apply, force a reload with
 
 ## Idle and Lock
 
-Set `idle.screensaver` and `idle.lock` in `~/.config/omarchy/shell.json`,
-in seconds since user idle began. Example: "lock after ten minutes" means
-setting `idle.lock` to `600`.
+Set `idle.screensaver`, `idle.lock`, and optional `idle.suspend` in `~/.config/omarchy/shell.json`, in seconds since user activity stopped. Example: "lock after ten minutes" means setting `idle.lock` to `600`. Omit `idle.suspend` to disable automatic suspend; Stay Awake and the suspend-off toggle also prevent it. Always run `omarchy restart shell` after changing any idle timing.

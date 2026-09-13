@@ -11,6 +11,14 @@ assertEqual(idle.secondsFromConfig('42.9', 10), 42, 'idle floors configured seco
 assertEqual(idle.secondsFromConfig('-1', 10), 10, 'idle rejects negative seconds')
 assertEqual(idle.secondsFromConfig('nope', 10), 10, 'idle rejects invalid seconds')
 
+assertEqual(idle.optionalSecondsFromConfig('42.9'), 42, 'idle floors an optional timeout')
+assertEqual(idle.optionalSecondsFromConfig(undefined), -1, 'idle disables an omitted optional timeout')
+assertEqual(idle.optionalSecondsFromConfig(null), -1, 'idle disables a null optional timeout')
+assertEqual(idle.optionalSecondsFromConfig(0), -1, 'idle disables a zero optional timeout')
+assertEqual(idle.optionalSecondsFromConfig(0.5), -1, 'idle disables an optional timeout flooring below one second')
+assertEqual(idle.optionalSecondsFromConfig('-1'), -1, 'idle disables a negative optional timeout')
+assertEqual(idle.optionalSecondsFromConfig('nope'), -1, 'idle disables an invalid optional timeout')
+
 assertDeepEqual(idle.eventParts({ data: 'a,b,c' }, 2), ['a', 'b', 'c'], 'idle parses raw event data')
 assertDeepEqual(
   idle.eventParts({ parse: function(count) { return ['parsed', count] } }, 4),
@@ -34,6 +42,16 @@ assertDeepEqual(
   'idle leaves screensaver windows unchanged without an address'
 )
 JS
+
+idle_service="$ROOT/shell/plugins/services/idle/Service.qml"
+suspend_monitor=$(sed -n '/^  IdleMonitor {$/,/^  }$/p' "$idle_service" | sed -n '/id: suspendIdleMonitor/,/^  }$/p')
+grep -F 'enabled: root.idleEnabled && root.suspendTimeoutSeconds > 0' <<<"$suspend_monitor" >/dev/null ||
+  fail "idle suspend follows the Stay Awake state and remains opt-in"
+grep -F 'respectInhibitors: true' <<<"$suspend_monitor" >/dev/null ||
+  fail "idle suspend respects system sleep inhibitors"
+grep -F 'omarchy-toggle-enabled suspend-off || systemctl suspend' "$idle_service" >/dev/null ||
+  fail "idle suspend honors suspend-off before using systemctl suspend"
+pass "Idle suspend is opt-in and follows idle and suspend inhibition"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
