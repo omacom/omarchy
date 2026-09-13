@@ -32,10 +32,89 @@ grep -F 'sync_clamshell_after_monitor_change' "$monitor_watch" >/dev/null
 grep -F 'socat -U - "UNIX-CONNECT:$SOCKET"' "$monitor_watch" >/dev/null
 pass "monitor watcher reconciles clamshell state on startup"
 
-grep -F 'omarchy-hw-laptop && omarchy-hyprland-monitor-external-active' "$monitor_watch" >/dev/null
 grep -F 'sync_poll_state' "$monitor_watch" >/dev/null
 grep -F 'done < <(socat' "$monitor_watch" >/dev/null
-pass "clamshell poll only runs on a docked laptop, not desktops or undocked laptops"
+pass "monitor watcher starts and stops the clamshell poll as monitors come and go"
+
+# The poll is the only thing left asking once the fixed retries above run out, so
+# it has to cover both states that still need reconciling: a docked laptop, and a
+# laptop whose panel a flag holds off with no external display to justify it.
+poll_tmp=$(mktemp -d)
+trap 'rm -rf "$poll_tmp"' EXIT
+
+poll_bin="$poll_tmp/bin"
+poll_toggles="$poll_tmp/.local/state/omarchy/toggles/hypr"
+mkdir -p "$poll_bin" "$poll_toggles"
+
+cat >"$poll_bin/omarchy-hw-laptop" <<'SH'
+#!/bin/bash
+
+[[ ${OMARCHY_TEST_LAPTOP:-true} == "true" ]]
+SH
+
+cat >"$poll_bin/omarchy-hyprland-monitor-external-active" <<'SH'
+#!/bin/bash
+
+[[ ${OMARCHY_TEST_EXTERNAL_ACTIVE:-false} == "true" ]]
+SH
+
+cat >"$poll_bin/omarchy-hyprland-toggle-enabled" <<'SH'
+#!/bin/bash
+
+[[ -f "$HOME/.local/state/omarchy/toggles/hypr/$1.lua" ]]
+SH
+
+chmod +x "$poll_bin"/*
+
+# Extracted rather than sourced: the watcher blocks on its event loop as soon as
+# the file is read to the end.
+awk '/^clamshell_poll_needed\(\) \{/,/^\}/' "$monitor_watch" >"$poll_tmp/poll.sh"
+printf 'clamshell_poll_needed\n' >>"$poll_tmp/poll.sh"
+grep -F 'omarchy-hw-laptop' "$poll_tmp/poll.sh" >/dev/null ||
+  fail "the clamshell poll condition was extracted from the watcher"
+
+set_flag() {
+  rm -f "$poll_toggles"/*.lua
+
+  if [[ -n ${1:-} ]]; then
+    printf 'flag\n' >"$poll_toggles/$1.lua"
+  fi
+}
+
+# $1 is whether the poll should be running; the rest is the machine it is asked
+# about, as environment the stubs above read.
+assert_poll() {
+  local expected="$1" description="$2" actual=0
+  shift 2
+
+  env "$@" PATH="$poll_bin:$PATH" HOME="$poll_tmp" bash "$poll_tmp/poll.sh" || actual=$?
+
+  if (( expected )); then
+    (( actual == 0 )) || fail "$description" "expected the poll to run, it did not"
+  else
+    (( actual != 0 )) || fail "$description" "expected the poll to stop, it ran"
+  fi
+}
+
+set_flag
+assert_poll 0 "a desktop never runs the clamshell poll" \
+  OMARCHY_TEST_LAPTOP=false OMARCHY_TEST_EXTERNAL_ACTIVE=true
+assert_poll 1 "a docked laptop runs the clamshell poll" \
+  OMARCHY_TEST_EXTERNAL_ACTIVE=true
+assert_poll 0 "a laptop with nothing left to reconcile stops the poll" \
+  OMARCHY_TEST_EXTERNAL_ACTIVE=false
+
+# Undocking is the case that used to strand the panel: the fixed retries can all
+# land while Hyprland is still reconfiguring, and nothing would ask again.
+set_flag internal-monitor-disable
+assert_poll 1 "a manually disabled panel keeps the poll running once the external display goes" \
+  OMARCHY_TEST_EXTERNAL_ACTIVE=false
+
+set_flag internal-monitor-clamshell
+assert_poll 1 "a clamshell-disabled panel keeps the poll running once the external display goes" \
+  OMARCHY_TEST_EXTERNAL_ACTIVE=false
+
+pass "clamshell poll runs while docked or while a flag holds the laptop panel off"
 
 # Recovery costs a reload per attempt, so it must not run on a healthy machine,
 # and only one loop may run across the events that start it.
@@ -103,6 +182,12 @@ grep -F 'wake' "$monitor_internal" >/dev/null
 grep -F 'omarchy-hyprland-toggle-enabled $TOGGLE || return 0' "$monitor_internal" >/dev/null
 pass "internal monitor helper can re-enable disabled laptop displays"
 pass "internal monitor recovery only wakes displays when it re-enables one"
+
+# A panel coming back on its own is the one state change nothing else accounts
+# for, so recovery says so -- but only past the guards, or the notification would
+# repeat on every poll.
+grep -Pzo 'omarchy-hyprland-toggle-enabled \$TOGGLE \|\| return 0\n(.*\n)*?\s*omarchy-notification-send .* "Laptop display re-enabled"' "$monitor_internal" >/dev/null
+pass "internal monitor recovery reports a panel it re-enabled by itself"
 
 grep -F 'omarchy-hyprland-monitor-external-active' "$monitor_mirror" >/dev/null
 pass "internal mirror helper recovers when no active external display remains"

@@ -55,6 +55,10 @@ recover() {
   omarchy-hyprland-toggle-enabled $TOGGLE || return 0
 
   omarchy-hyprland-toggle $TOGGLE off
+  # Past both guards this fires on the transition only, so it reports the one
+  # thing the user cannot otherwise account for: a display they turned off
+  # coming back on its own.
+  omarchy-notification-send -g 󰍹 "Laptop display re-enabled" "No external display is active"
   wake
 }
 
