@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Install Ollama, matching the build to the GPU and the architecture
+# omarchy:requires-sudo=true
+
+set -e
+
+if omarchy-cmd-present nvidia-smi; then
+  ollama_pkg=ollama-cuda
+elif omarchy-cmd-present rocminfo; then
+  ollama_pkg=ollama-rocm
+else
+  ollama_pkg=ollama
+fi
+
+echo "Installing Ollama..."
+
+# Arch Linux ARM does not build ollama, so on aarch64 every one of those names
+# resolves to nothing. The AUR's ollama-bin packages upstream's own
+# linux-arm64 release and provides ollama, which is the same binary the repo
+# package would have installed, minus the GPU variants nothing there can use.
+if omarchy-pkg-available "$ollama_pkg"; then
+  omarchy-pkg-add "$ollama_pkg"
+else
+  omarchy-pkg-aur-add ollama-bin
+fi
+
+echo ""
+echo "Ollama has been installed. Pull a model with: ollama pull llama3.2"
