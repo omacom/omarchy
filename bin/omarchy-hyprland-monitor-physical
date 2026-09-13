@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Print the enabled Hyprland monitors backed by a physical DRM connector
+# omarchy:hidden=true
+
+# Hyprland invents outputs that answer like displays but are not one. Losing the
+# last enabled monitor brings up a headless output named FALLBACK, and `hyprctl
+# output create` adds more on demand. Both report `disabled: false` under a name
+# no internal-panel pattern matches, so a filter built from those two alone
+# counts a screen that is not there -- and a laptop whose panel was disabled
+# stays black, because every recovery path then reads "an external display is
+# still active".
+#
+# A DRM connector is what separates the two: only a real output has one. That
+# also decides which way to fail: an unreadable or empty DRM tree yields nothing
+# rather than everything, because treating a real display as absent re-enables a
+# panel that did not need it, while the opposite leaves the machine with no
+# screen at all.
+
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+connectors=()
+for card in "$drm_path"/card*-*; do
+  [[ -d $card ]] || continue
+  connector=${card##*/}
+  connectors+=("${connector#*-}")
+done
+
+# Mirrors are absent from plain `monitors`, hence `all` plus an explicit
+# disabled filter, same as omarchy-hyprland-monitor-modeless.
+hyprctl monitors all -j 2>/dev/null |
+  jq -r --args '.[] | select(.disabled == false) | select(.name as $name | $ARGS.positional | index($name)) | .name' \
+    "${connectors[@]}" 2>/dev/null

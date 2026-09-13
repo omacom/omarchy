@@ -3,4 +3,7 @@
 # omarchy:summary=Returns true when Hyprland has an active external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+# Physical outputs only. Hyprland's own fallback output is created *because*
+# the last display went away, so counting it here would report an external
+# monitor precisely when there is none left to drive.
+omarchy-hyprland-monitor-physical | grep -qvE '^(eDP|LVDS|DSI)-'

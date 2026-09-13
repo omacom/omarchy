@@ -9,6 +9,7 @@ monitor_internal="$ROOT/bin/omarchy-hyprland-monitor-internal"
 monitor_mirror="$ROOT/bin/omarchy-hyprland-monitor-internal-mirror"
 monitor_laptop="$ROOT/bin/omarchy-hyprland-monitor-laptop"
 monitor_external_active="$ROOT/bin/omarchy-hyprland-monitor-external-active"
+monitor_physical="$ROOT/bin/omarchy-hyprland-monitor-physical"
 system_wake="$ROOT/bin/omarchy-system-wake"
 clamshell="$ROOT/bin/omarchy-hyprland-monitor-clamshell"
 lock_service="$ROOT/shell/plugins/lock/Service.qml"
@@ -65,10 +66,19 @@ pass "clamshell helper detects closed-lid external monitor state"
 
 # A mirrored external is absent from plain `monitors`, so asking without `all`
 # reads as a disconnect and hands the mirror toggle straight to recovery.
-grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
-grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
-grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
-pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
+grep -F 'hyprctl monitors all -j' "$monitor_physical" >/dev/null
+grep -F 'select(.disabled == false)' "$monitor_physical" >/dev/null
+grep -F 'OMARCHY_DRM_PATH' "$monitor_physical" >/dev/null
+pass "physical monitor helper sees mirrors and ignores monitors disabled on purpose"
+
+# What the fallback output slipped through was a helper reading hyprctl on its
+# own: the name and enabled state it reports are indistinguishable from a real
+# external display. The behaviour is covered in monitor-physical-test.sh; this
+# keeps the helper from growing its own monitor query again.
+grep -F 'omarchy-hyprland-monitor-physical' "$monitor_external_active" >/dev/null
+grep -F "grep -qvE '^(eDP|LVDS|DSI)-'" "$monitor_external_active" >/dev/null
+! grep -F 'hyprctl' "$monitor_external_active" >/dev/null
+pass "active external monitor helper only counts displays with a DRM connector"
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
