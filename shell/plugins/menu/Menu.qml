@@ -1198,17 +1198,94 @@ Item {
           radius: root.cornerRadius
           color: "transparent"
 
-          Text {
-            textFormat: Text.PlainText
+          // Query, then the caret, then the prompt while nothing is typed.
+          // The caret trails what you type — and stands alone ahead of the
+          // prompt before the first keystroke — so the header reads as a
+          // field you type into rather than a heading. Without it a typed
+          // expression just appears where a title used to be, with no sign
+          // of where the next character lands.
+          Row {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
-            color: root.foreground
-            opacity: root.filterText ? 1 : 0.58
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.heading
-            elide: Text.ElideRight
+            spacing: Style.spacing.xxs
+
+            Text {
+              id: queryText
+
+              visible: root.filterText.length > 0
+              // Elides on the left, so the tail of a long query — and the
+              // caret pinned to it — stay on screen as you keep typing.
+              width: Math.min(implicitWidth, Math.max(0, parent.width - caret.width - parent.spacing))
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: root.filterText
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+              elide: Text.ElideLeft
+              // An elided line renders narrower than the width it was given;
+              // right-aligning keeps its tail against the caret instead of
+              // leaving a gap the caret appears to float in.
+              horizontalAlignment: Text.AlignRight
+            }
+
+            Rectangle {
+              id: caret
+
+              // Blinks while the menu is taking keys, and goes solid on every
+              // keystroke so the character just typed is never read against a
+              // blinked-off caret. running is driven from here rather than
+              // bound, because relight()'s restart() would break the binding.
+              property bool blinking: root.opened && !root.deleteConfirmOpen
+              property bool lit: true
+
+              function relight() {
+                caret.lit = true
+                if (caret.blinking) caretBlink.restart()
+                else caretBlink.stop()
+              }
+
+              width: Math.max(1, Style.space(2))
+              height: Math.round(Style.font.heading * 1.2)
+              anchors.verticalCenter: parent.verticalCenter
+              color: root.foreground
+              // Keys belong to the confirm dialog while it is up.
+              visible: !root.deleteConfirmOpen
+              opacity: caret.lit ? 1 : 0
+
+              onBlinkingChanged: caret.relight()
+              Component.onCompleted: caret.relight()
+
+              Timer {
+                id: caretBlink
+
+                interval: 530
+                repeat: true
+                onTriggered: caret.lit = !caret.lit
+              }
+
+              Connections {
+                target: root
+
+                function onFilterTextChanged() { caret.relight() }
+              }
+            }
+
+            Text {
+              id: promptText
+
+              visible: !root.filterText
+              width: Math.max(0, parent.width - caret.width - parent.spacing)
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…")
+              color: root.foreground
+              opacity: 0.58
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+              elide: Text.ElideRight
+            }
           }
 
         }
