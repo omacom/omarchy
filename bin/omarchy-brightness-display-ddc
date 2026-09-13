@@ -9,7 +9,30 @@ step="${2:-}"
 
 [[ -n $monitor ]] || exit 1
 
-cache_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display-ddc"
+# Bus/range cache must not land at a fixed name in world-writable /tmp.
+# Prefer XDG_RUNTIME_DIR; otherwise a private 0700 owner-checked state dir.
+private_cache_root() {
+  local root mode
+
+  if [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+    printf '%s\n' "$XDG_RUNTIME_DIR"
+    return 0
+  fi
+
+  root="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  mkdir -p "$root" || return 1
+  chmod 700 "$root" || return 1
+  [[ -O $root ]] || return 1
+  mode=$(stat -c '%a' "$root" 2>/dev/null || stat -f '%Lp' "$root")
+  [[ $mode == 700 ]] || return 1
+  printf '%s\n' "$root"
+}
+
+cache_root=$(private_cache_root) || {
+  echo "Failed to resolve a private cache directory for DDC brightness." >&2
+  exit 1
+}
+cache_dir="$cache_root/omarchy-brightness-display-ddc"
 cache_name="${monitor//[^[:alnum:]_.-]/_}"
 cache_file="$cache_dir/$cache_name.bus"
 unavailable_cache_seconds=60
