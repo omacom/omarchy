@@ -79,7 +79,7 @@ printf 'shell %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == "lock lock" ]]; then
   printf 'ok\n'
 elif [[ $* == "lock status" ]]; then
-  printf '{"secure":true}\n'
+  printf '{"secure":true,"realScreens":1}\n'
 fi
 SH
 chmod +x "$mock_bin/omarchy-shell"
@@ -103,6 +103,54 @@ pass "sleep lock checks security after clamshell reconciliation"
   fail "sleep lock bounds a stalled clamshell sync" "elapsed: ${elapsed_us}us"
 pass "sleep lock bounds a stalled clamshell sync"
 
+# A closed-lid dock disconnect can leave the session lock secure on the
+# departing display for one status poll, then expose Quickshell's no-screen
+# placeholder before the laptop panel arrives. The stale secure answer must not
+# release the sleep inhibitor, and losing the real screen must retry clamshell
+# recovery before accepting the replacement display.
+setup_scenario dock_disconnect
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+printf 'shell %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "lock lock" ]]; then
+  printf 'ok\n'
+elif [[ $* == "lock status" ]]; then
+  count=0
+  [[ -f $STATE_DIR/status_count ]] && count=$(<"$STATE_DIR/status_count")
+  (( ++count ))
+  printf '%s\n' "$count" >"$STATE_DIR/status_count"
+
+  case $count in
+    1) printf '{"secure":true,"requested":true,"realScreens":1}\n' ;;
+    2 | 3) printf '{"secure":true,"requested":true,"realScreens":0}\n' ;;
+    *) printf '{"secure":true,"requested":true,"realScreens":1}\n' ;;
+  esac
+fi
+SH
+chmod +x "$mock_bin/omarchy-shell"
+mock_clamshell
+
+run_sleep_lock 3000
+
+(( exit_status == 0 )) ||
+  fail "sleep lock survives a closed-lid dock disconnect" "exit: $exit_status"
+pass "sleep lock survives a closed-lid dock disconnect"
+
+clamshell_calls=0
+for call in "${calls[@]}"; do
+  [[ $call == "clamshell" ]] && (( ++clamshell_calls ))
+done
+(( clamshell_calls >= 3 )) ||
+  fail "sleep lock retries clamshell recovery while no real screen exists" \
+    "clamshell calls: $clamshell_calls"
+pass "sleep lock retries clamshell recovery while no real screen exists"
+
+(( elapsed_us >= 700000 )) ||
+  fail "sleep lock rejects stale security from the departing display" \
+    "elapsed: ${elapsed_us}us"
+pass "sleep lock waits for the replacement display to stabilize"
+
 # A shell that never secures the session must give up inside the budget rather
 # than hold logind's delay inhibitor open.
 setup_scenario never_secure
@@ -113,7 +161,7 @@ printf 'shell %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == "lock lock" ]]; then
   printf 'ok\n'
 elif [[ $* == "lock status" ]]; then
-  printf '{"secure":false}\n'
+  printf '{"secure":false,"realScreens":1}\n'
 fi
 SH
 chmod +x "$mock_bin/omarchy-shell"
@@ -165,9 +213,9 @@ fi
 
 if [[ $* == "lock status" ]]; then
   if [[ -f $STATE_DIR/locked ]]; then
-    printf '{"secure":true}\n'
+    printf '{"secure":true,"realScreens":1}\n'
   else
-    printf '{"secure":false}\n'
+    printf '{"secure":false,"realScreens":1}\n'
   fi
 fi
 SH
@@ -203,10 +251,10 @@ fi
 
 if [[ $* == "lock status" ]]; then
   if [[ -f $STATE_DIR/pending_seen ]]; then
-    printf '{"secure":true}\n'
+    printf '{"secure":true,"realScreens":1}\n'
   else
     touch "$STATE_DIR/pending_seen"
-    printf '{"secure":false,"requested":true,"pending":true,"sessionLocked":false}\n'
+    printf '{"secure":false,"requested":true,"pending":true,"sessionLocked":false,"realScreens":1}\n'
   fi
 fi
 SH
@@ -277,7 +325,7 @@ printf 'shell %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == "lock lock" ]]; then
   printf 'ok\n'
 elif [[ $* == "lock status" ]]; then
-  printf '{"secure":false,"requested":true,"pending":true,"sessionLocked":false}\n'
+  printf '{"secure":false,"requested":true,"pending":true,"sessionLocked":false,"realScreens":1}\n'
 fi
 SH
   chmod +x "$mock_bin/omarchy-shell"

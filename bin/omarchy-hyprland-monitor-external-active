@@ -1,6 +1,22 @@
 #!/bin/bash
 
-# omarchy:summary=Returns true when Hyprland has an active external monitor
+# omarchy:summary=Returns true when Hyprland has an active, physically connected external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+# Hyprland creates a synthetic FALLBACK output while every physical output is
+# disabled. Treating that head as an external monitor leaves the laptop panel
+# disabled after a closed-lid dock disconnect. Match active compositor outputs
+# back to connected DRM connectors so synthetic and stale outputs cannot pose
+# as a dock.
+while IFS= read -r output; do
+  [[ $output =~ ^[A-Za-z0-9._-]+$ ]] || continue
+
+  for status in "$drm_path"/card*-"$output"/status; do
+    [[ -e $status ]] || continue
+    [[ $(< "$status") == "connected" ]] && exit 0
+  done
+done < <(hyprctl monitors all -j 2>/dev/null | jq -r '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false) | .name' 2>/dev/null)
+
+exit 1
