@@ -25,3 +25,8 @@ grep -F 'systemd-networkd.socket' "$hardware_network" >/dev/null
 grep -F '20-wlan.network' "$hardware_network" >/dev/null
 grep -F 'omarchy-networkd-retired' "$hardware_network" >/dev/null
 pass "hardware setup retires archinstall networkd state"
+
+# Keep NetworkManager's Apple Silicon backend alongside upstream's networkd cleanup.
+grep -F 'omarchy-hw-apple-silicon' "$hardware_network" >/dev/null
+grep -F 'wifi.backend=iwd' "$hardware_network" >/dev/null
+pass "hardware setup keeps NetworkManager on the iwd backend for Apple Silicon"
