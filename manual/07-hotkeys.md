@@ -21,6 +21,7 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Super + Alt + F`                 | Go full width              |
 | `Super + Ctrl + F`                 | Go full screen inside window              |
 | `Super + 1/2/3/4`         | Jump to specific workspace     |
+| `Super + Keypad 1–9/0` | Jump to workspace 1–9/10 with Num Lock on or off |
 | `Super + Tab` | Jump to next workspace |
 | `Super + Shift + Tab` | Jump to previous workspace |
 | `Super + Ctrl + Tab` | Jump to former workspace |

@@ -25,6 +25,15 @@ for workspace = 1, 10 do
   o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
 end
 
+-- Bind both keypad symbols so workspace switching works with Num Lock on or off.
+-- Keypad 0 selects workspace 10, matching the number row.
+local keypad_navigation = { "KP_End", "KP_Down", "KP_Next", "KP_Left", "KP_Begin", "KP_Right", "KP_Home", "KP_Up", "KP_Prior", "KP_Insert" }
+for workspace, key in ipairs(keypad_navigation) do
+  for _, symbol in ipairs({ "KP_" .. (workspace % 10), key }) do
+    o.bind("SUPER + " .. symbol, "Switch to workspace " .. workspace .. " (keypad)", hl.dsp.focus({ workspace = tostring(workspace) }))
+  end
+end
+
 o.bind("SUPER + S", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
 o.bind("SUPER + ALT + S", "Move window to scratchpad", hl.dsp.window.move({ workspace = "special:scratchpad", follow = false }))
 o.bind("SUPER + grave", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
