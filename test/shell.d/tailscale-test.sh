@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const tailscale = requireFromRoot('shell/plugins/panels/tailscale/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Panel.qml', 'utf8')
+const serviceSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Service.qml', 'utf8')
 
 assert(/function toggleTailscale\(\): string \{ tailscale\.toggleTailscale\(\); return "ok" \}/.test(panelSource), 'tailscale exposes the connection toggle over IPC')
 
@@ -87,6 +88,13 @@ const status = tailscale.parseStatus(JSON.stringify({
 
 assert(status.ok && status.running, 'tailscale parses running status')
 assertEqual(status.selfIp, '100.74.97.73', 'tailscale parses self IP')
+assert(status.selfPeer.IsSelf === true, 'tailscale marks this machine as self')
+assert(status.selfPeer.Online === true, 'tailscale treats this machine as online')
+assertEqual(status.selfPeer.DNSName, 'dhh-fd.tail32f559.ts.net', 'tailscale gives this machine a copyable DNS name')
+assertDeepEqual(status.selfPeer.TailscaleIPs, ['100.74.97.73'], 'tailscale gives this machine a copyable IP')
+assert(!status.peers.some(peer => peer.IsSelf), 'tailscale keeps this machine out of the peer list')
+assert(/model: root\.displayPeers/.test(panelSource), 'tailscale lists this machine ahead of its peers')
+assert(/peer\.IsSelf === true\) return false/.test(serviceSource), 'tailscale offers no Taildrop to this machine')
 assertDeepEqual(status.peers.map(peer => peer.HostName), ['alpha', 'zed'], 'tailscale filters offline and Mullvad peers and sorts online peers')
 assertDeepEqual(status.peers[0].TailscaleIPv6, ['fd7a:115c:a1e0::1901:334b'], 'tailscale preserves peer IPv6 addresses for copy menu')
 assert(status.peers[1].ExitNodeOption && status.peers[1].ExitNode, 'tailscale preserves exit node flags')

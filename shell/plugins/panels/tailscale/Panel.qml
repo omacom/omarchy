@@ -42,7 +42,14 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property bool showPeers: tailscale.active && tailscale.peers.length > 0
+  // This machine first, then the tailnet. Tailscale reports self outside the
+  // peer map, so it is stitched back in here rather than in the service list.
+  readonly property var displayPeers: {
+    var self = tailscale.selfPeer
+    var rest = tailscale.peers || []
+    return self ? [self].concat(rest) : rest
+  }
+  readonly property bool showPeers: tailscale.active && displayPeers.length > 0
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
@@ -58,8 +65,8 @@ Panel {
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
 
   function selectedPeer() {
-    if (tailscale.peers.length === 0) return null
-    return tailscale.peers[Math.max(0, Math.min(peerIndex, tailscale.peers.length - 1))]
+    if (displayPeers.length === 0) return null
+    return displayPeers[Math.max(0, Math.min(peerIndex, displayPeers.length - 1))]
   }
 
   function selectedExitNode() {
@@ -181,7 +188,7 @@ Panel {
     if (headerIndex < 0) headerIndex = 0
     if (headerIndex > 0) headerIndex = 0
     if (accountIndex >= tailscale.accounts.length) accountIndex = Math.max(0, tailscale.accounts.length - 1)
-    if (peerIndex >= tailscale.peers.length) peerIndex = Math.max(0, tailscale.peers.length - 1)
+    if (peerIndex >= displayPeers.length) peerIndex = Math.max(0, displayPeers.length - 1)
     if (exitNodeIndex >= exitNodes.length) exitNodeIndex = Math.max(0, exitNodes.length - 1)
     if (mullvadRegionIndex >= filteredMullvadRegions.length) mullvadRegionIndex = Math.max(0, filteredMullvadRegions.length - 1)
     if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
@@ -219,7 +226,7 @@ Panel {
         if (dy < 0) {
           if (peerIndex <= 0) focusSection = showExitNodes ? "exitNodes" : (tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : "header"))
           else peerIndex--
-        } else if (peerIndex < tailscale.peers.length - 1) {
+        } else if (peerIndex < displayPeers.length - 1) {
           peerIndex++
         }
       } else if (focusSection === "exitNodes") {
@@ -359,6 +366,7 @@ Panel {
   Connections {
     target: tailscale
     function onPeersChanged() { root.ensureCursor() }
+    function onSelfPeerChanged() { root.ensureCursor() }
     function onAccountsChanged() { root.ensureCursor() }
     function onAccountsAccessDeniedChanged() { root.ensureCursor() }
   }
@@ -682,7 +690,7 @@ Panel {
             }
 
             Text {
-              visible: tailscale.installed && tailscale.active && tailscale.peers.length === 0
+              visible: tailscale.installed && tailscale.active && root.displayPeers.length === 0
               width: parent.width
               text: "No machines found on this tailnet."
               color: root.dim
@@ -698,7 +706,7 @@ Panel {
               spacing: Style.space(6)
 
               Repeater {
-                model: tailscale.peers
+                model: root.displayPeers
                 PeerRow {
                   required property var modelData
                   required property int index
@@ -963,6 +971,7 @@ Panel {
           Layout.fillWidth: true
           text: {
             var parts = []
+            if (peerRow.peer && peerRow.peer.IsSelf === true) parts.push("this device")
             if (peerRow.peerIp !== "") parts.push(peerRow.peerIp)
             if (peerRow.peerDns !== "") parts.push(peerRow.peerDns)
             return parts.join(" · ")
