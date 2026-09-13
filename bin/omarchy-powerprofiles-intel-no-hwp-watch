@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Track the active power profile and apply CPU frequency limits
+# omarchy:hidden=true
+
+# power-profiles-daemon exposes no hook mechanism, so follow ActiveProfile over
+# D-Bus. Watching the property rather than wrapping omarchy-powerprofiles-set
+# also catches powerprofilesctl invoked directly.
+
+BUS="net.hadess.PowerProfiles"
+OBJECT="/net/hadess/PowerProfiles"
+
+omarchy-powerprofiles-intel-no-hwp-apply
+
+# Re-query on each signal instead of parsing the payload, so gdbus output
+# formatting is not load-bearing.
+gdbus monitor --system --dest "$BUS" --object-path "$OBJECT" 2>/dev/null |
+  while read -r line; do
+    if [[ $line == *ActiveProfile* ]]; then
+      omarchy-powerprofiles-intel-no-hwp-apply
+    fi
+  done
