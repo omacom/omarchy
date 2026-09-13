@@ -7,7 +7,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
-# Each argument is a PCI device as "vendor:device:class", in sysfs's own format.
+# Each argument is a PCI device as "vendor:device:class[:boot_vga]", in sysfs's
+# own format. boot_vga is omitted to simulate firmware that lacks the flag.
 write_pci_devices() {
   rm -rf "$tmp_dir/devices"
   mkdir -p "$tmp_dir/devices"
@@ -18,9 +19,12 @@ write_pci_devices() {
     local slot
     slot=$(printf '0000:%02x:00.0' "$index")
     mkdir -p "$tmp_dir/devices/$slot"
-    printf '%s\n' "${spec%%:*}" >"$tmp_dir/devices/$slot/vendor"
+    printf '%s\n' "$(cut -d: -f1 <<<"$spec")" >"$tmp_dir/devices/$slot/vendor"
     printf '%s\n' "$(cut -d: -f2 <<<"$spec")" >"$tmp_dir/devices/$slot/device"
-    printf '%s\n' "${spec##*:}" >"$tmp_dir/devices/$slot/class"
+    printf '%s\n' "$(cut -d: -f3 <<<"$spec")" >"$tmp_dir/devices/$slot/class"
+    if [[ $spec == *:*:*:* ]]; then
+      printf '%s\n' "$(cut -d: -f4 <<<"$spec")" >"$tmp_dir/devices/$slot/boot_vga"
+    fi
     index=$((index + 1))
   done
 }
@@ -50,6 +54,18 @@ assert_detects() {
     [[ $actual == "$expected" ]] ||
       fail "$description" "omarchy-hw-$detector: expected $expected, got $actual"
   done
+
+  pass "$description"
+}
+
+assert_display() {
+  local description="$1" expected="$2"
+
+  local actual=no
+  OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" "$ROOT/bin/omarchy-hw-nvidia-display" && actual=yes
+
+  [[ $actual == "$expected" ]] ||
+    fail "$description" "omarchy-hw-nvidia-display: expected $expected, got $actual"
 
   pass "$description"
 }
@@ -97,3 +113,19 @@ assert_detects "a non-display NVIDIA function is not a GPU" no no no
 
 write_pci_devices
 assert_detects "a machine with no PCI devices detects nothing" no no no
+
+# AMD Phoenix iGPU drives the display, NVIDIA RTX 3050 is discrete.
+write_pci_devices 0x1002:0x15bf:0x030000:1 0x10de:0x25ac:0x030000:0
+assert_display "a hybrid laptop with an AMD display GPU is not NVIDIA-driven" no
+
+# Intel Alder Lake iGPU drives the display, NVIDIA Turing is discrete.
+write_pci_devices 0x8086:0x46a6:0x030000:1 0x10de:0x1f91:0x030000:0
+assert_display "a hybrid Intel+NVIDIA laptop is not NVIDIA-driven" no
+
+# NVIDIA-only desktop keeps the current behavior.
+write_pci_devices 0x10de:0x2c02:0x030000:1
+assert_display "an NVIDIA-only machine is NVIDIA-driven" yes
+
+# Fixtures without boot_vga preserve the current behavior.
+write_pci_devices 0x10de:0x25ac:0x030000
+assert_display "missing boot_vga info assumes NVIDIA drives the display" yes
