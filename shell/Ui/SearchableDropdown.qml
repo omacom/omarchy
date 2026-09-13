@@ -190,6 +190,8 @@ Item {
         onOpened: {
           searchField.text = ""
           root.recomputeFiltered()
+          resultList.lastPointerX = -1
+          resultList.lastPointerY = -1
           Qt.callLater(function() { searchField.forceActiveFocus() })
         }
         onClosed: searchField.text = ""
@@ -267,6 +269,15 @@ Item {
               currentIndex: -1
               keyNavigationEnabled: false
 
+              // Shared last-known cursor position, in this ListView's own
+              // (screen-fixed) coordinate frame. Lives here rather than on
+              // each delegate because delegates are recycled/repositioned
+              // during scrolling — the moving object cannot reliably tell
+              // real pointer motion from a scroll sliding it under a
+              // stationary cursor, but this stationary viewport can.
+              property real lastPointerX: -1
+              property real lastPointerY: -1
+
               function selectCurrent() {
                 if (currentIndex < 0 || currentIndex >= root.filtered.length) return
                 var v = root.optionValue(root.filtered[currentIndex])
@@ -298,6 +309,7 @@ Item {
               }
 
               delegate: Rectangle {
+                id: resultDelegate
                 required property var modelData
                 required property int index
                 width: resultList.width
@@ -305,6 +317,19 @@ Item {
                 color: index === resultList.currentIndex
                   ? Style.hoverFillFor(root.foreground, root.accent)
                   : "transparent"
+
+                // Keyboard navigation (Up/Down/j/k) scrolls resultList to
+                // keep currentIndex visible. That scroll slides delegate
+                // rows underneath a mouse cursor that never actually
+                // moved, but Qt still delivers it as a hover/position
+                // event on whichever row now sits under the pointer. The
+                // MouseArea below used to react to every such event and
+                // stomp currentIndex back to that row, fighting the
+                // keyboard input the user just gave (visible as the list
+                // jumping to an unrelated position while scrolling with
+                // arrow keys). resultList.lastPointerX/Y (screen-fixed,
+                // unlike this recycled/moving delegate) lets the handler
+                // tell a real pointer move from a scroll-induced one.
 
                 Column {
                   id: rowContent
@@ -340,7 +365,18 @@ Item {
                   anchors.fill: parent
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
-                  onPositionChanged: resultList.currentIndex = parent.index
+                  onPositionChanged: function(mouse) {
+                    // Map to resultList's frame (fixed viewport, not this
+                    // scrolling delegate) so the comparison reflects real
+                    // screen-space cursor movement rather than the
+                    // delegate sliding under a stationary pointer.
+                    var p = mapToItem(resultList, mouse.x, mouse.y)
+                    if (resultList.lastPointerX === p.x && resultList.lastPointerY === p.y)
+                      return
+                    resultList.lastPointerX = p.x
+                    resultList.lastPointerY = p.y
+                    resultList.currentIndex = resultDelegate.index
+                  }
                   onClicked: resultList.selectCurrent()
                 }
               }
