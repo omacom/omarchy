@@ -43,8 +43,11 @@ EOF
 if [[ -x /usr/bin/fprintd-list ]] &&
   /usr/bin/fprintd-list "$target_user" 2>/dev/null | grep -qi finger; then
   echo "Configuring lock screen fingerprint authentication..."
+  # Same clamshell gate as sudo/polkit / setup-security-fingerprint: lid closed
+  # skips pam_fprintd and this stack fails closed (password is a parallel PAM).
   as_root tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
 #%PAM-1.0
+auth       [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed
 auth       required                    pam_fprintd.so
 account    include                     system-local-login
 EOF
