@@ -20,9 +20,14 @@ h, s, v = colorsys.rgb_to_hsv(r, g, b)
 print(int(h * 255), int(s * 255))
 " "$hex")
 
-  qmk_hid via --rgb-effect 1 2>/dev/null
-  qmk_hid via --rgb-hue "$h" 2>/dev/null
-  qmk_hid via --rgb-saturation "$s" 2>/dev/null
-  qmk_hid via --rgb-brightness 100 2>/dev/null
-  qmk_hid via --save 2>/dev/null
+  # Guard each call with a timeout: qmk_hid targets any connected VIA device, so
+  # on a machine with a non-Framework-16 QMK keyboard it can latch onto the wrong
+  # board and block indefinitely. This hook runs inside omarchy-theme-set's
+  # run_parallel batch (which is waited on), so a hang here stalls the entire
+  # theme switch. A timeout keeps a stuck device from ever wedging a theme change.
+  timeout 5 qmk_hid via --rgb-effect 1 2>/dev/null
+  timeout 5 qmk_hid via --rgb-hue "$h" 2>/dev/null
+  timeout 5 qmk_hid via --rgb-saturation "$s" 2>/dev/null
+  timeout 5 qmk_hid via --rgb-brightness 100 2>/dev/null
+  timeout 5 qmk_hid via --save 2>/dev/null
 fi
