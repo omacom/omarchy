@@ -31,15 +31,6 @@ BarWidget {
     return Hyprland.focusedWorkspace !== null ? Hyprland.focusedWorkspace.id : -1
   }
 
-  // Connector the workspace currently sits on. lastIpcObject is the raw
-  // `hyprctl workspaces -j` entry, whose .monitor is already a connector name.
-  function workspaceMonitorName(workspace) {
-    if (!workspace) return ""
-    if (workspace.lastIpcObject && workspace.lastIpcObject.monitor) return String(workspace.lastIpcObject.monitor)
-    if (workspace.monitor && workspace.monitor.name) return String(workspace.monitor.name)
-    return ""
-  }
-
   // Whether a slot belongs on this bar. Gating the delegate's visibility keeps
   // the Repeater's model identical across a cross-monitor move, so this cannot
   // churn the model on the very event that triggers the teardown crash in
@@ -49,7 +40,12 @@ BarWidget {
     // Unresolved monitor, or the one workspace this monitor is displaying:
     // show it rather than risk rendering an empty bar.
     if (root.barMonitor === null || id === root.activeId) return true
-    return root.workspaceMonitorName(root.workspaceById(id)) === String(root.barMonitor.name || "")
+    // workspace.monitor, not lastIpcObject.monitor: Quickshell updates the
+    // former on a cross-monitor move, but lastIpcObject keeps the old monitor
+    // until some unrelated event refreshes it. A workspace with no monitor
+    // (mid output teardown) is hidden rather than claimed by this bar.
+    var workspace = root.workspaceById(id)
+    return workspace !== null && workspace.monitor !== null && workspace.monitor.name === root.barMonitor.name
   }
 
   function workspaceById(id) {
