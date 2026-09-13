@@ -10,11 +10,15 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  property var manifest: null
   property bool opened: false
   property string filterText: ""
   property int selectedIndex: 0
   property bool cursorActive: false
   property bool clearConfirmOpen: false
+  property bool ctrlHeld: false
+  property bool actionBusy: false
+  property bool typeBindActive: false
   property var history: []
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
@@ -51,7 +55,39 @@ Item {
 
   function close() {
     root.cancelClearHistory()
+    root.ctrlHeld = false
     root.opened = false
+  }
+
+  onOpenedChanged: root.setTypeBind(root.opened)
+  Component.onDestruction: root.setTypeBind(false)
+
+  // Qt layer-shell surfaces often receive Ctrl+Enter as plain Enter: the IME
+  // and compositor swallow Control, so Keys.onPressed cannot tell the chord
+  // apart from Return. A compositor bind while the overlay is open is the
+  // reliable path; it is unbound again on close so Ctrl+Enter stays free
+  // everywhere else.
+  function setTypeBind(enabled) {
+    if (enabled && !root.typeBindActive) {
+      Quickshell.execDetached(["hyprctl", "eval", "o.bind(\"CTRL + RETURN\", \"Type clipboard entry\", \"omarchy-shell -q omarchy.clipboard typeCurrent\")"])
+      root.typeBindActive = true
+    } else if (!enabled && root.typeBindActive) {
+      Quickshell.execDetached(["hyprctl", "eval", "hl.unbind(\"CTRL + RETURN\")"])
+      root.typeBindActive = false
+    }
+  }
+
+  function beginAction() {
+    if (root.actionBusy) return false
+    root.actionBusy = true
+    Qt.callLater(function() { root.actionBusy = false })
+    return true
+  }
+
+  function wantsType(event) {
+    if (root.ctrlHeld) return true
+    if (!event) return false
+    return (event.modifiers & Qt.ControlModifier) !== 0
   }
 
   function toggle() {
@@ -195,6 +231,7 @@ Item {
   }
 
   function activateIndex(index) {
+    if (!root.beginAction()) return
     if (index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
     root.applySelected(row)
@@ -210,6 +247,21 @@ Item {
     if (index < 0 || index >= displayModel.count) return
     var row = displayModel.get(index)
     root.openSelected(row)
+  }
+
+  function typeIndex(index) {
+    if (!root.beginAction()) return
+    if (index < 0 || index >= displayModel.count) return
+    var row = displayModel.get(index)
+    root.typeSelected(row)
+  }
+
+  function typeCurrent() {
+    if (!root.opened) return "closed"
+    if (displayModel.count === 0) return "empty"
+    var index = root.cursorActive ? root.selectedIndex : 0
+    root.typeIndex(index)
+    return "ok"
   }
 
   function applySelected(row) {
@@ -236,6 +288,21 @@ Item {
     if (!row) return
     root.opened = false
     Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
+  }
+
+  function typeSelected(row) {
+    if (!row) return
+    if (row.entryType === "image" || !row.fullText) {
+      root.applySelected(row)
+      return
+    }
+    root.opened = false
+    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--type", "--history-index", String(row.historyIndex)])
+  }
+
+  IpcHandler {
+    target: "omarchy.clipboard"
+    function typeCurrent(): string { return root.typeCurrent() }
   }
 
   Component.onCompleted: initProc.running = true
@@ -350,7 +417,16 @@ Item {
         focus: true
 
         Keys.priority: Keys.BeforeItem
+        Keys.onShortcutOverride: function(event) {
+          if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && root.wantsType(event))
+            event.accepted = true
+        }
         Keys.onPressed: function(event) {
+          if (event.key === Qt.Key_Control) {
+            root.ctrlHeld = true
+            return
+          }
+
           if (root.clearConfirmOpen) {
             if (clearConfirm.handleKey(event)) event.accepted = true
             return
@@ -387,6 +463,7 @@ Item {
             event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             if (root.cursorActive && (event.modifiers & Qt.AltModifier)) root.openIndex(root.selectedIndex)
+            else if (root.cursorActive && root.wantsType(event)) root.typeIndex(root.selectedIndex)
             else if (root.cursorActive && (event.modifiers & Qt.ShiftModifier)) root.copyIndex(root.selectedIndex)
             else if (root.cursorActive) root.activateIndex(root.selectedIndex)
             else if (displayModel.count > 0) root.cursorActive = true
@@ -394,6 +471,23 @@ Item {
           } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127) {
             root.setFilter(root.filterText + event.text)
             event.accepted = true
+          }
+        }
+
+        Keys.onReleased: function(event) {
+          if (event.key === Qt.Key_Control) root.ctrlHeld = false
+        }
+
+        Shortcut {
+          sequences: ["Ctrl+Return", "Ctrl+Enter"]
+          enabled: root.opened && !root.clearConfirmOpen
+          context: Qt.WindowShortcut
+          onActivated: {
+            if (root.cursorActive) root.typeIndex(root.selectedIndex)
+            else if (displayModel.count > 0) {
+              root.cursorActive = true
+              root.typeIndex(0)
+            }
           }
         }
 
