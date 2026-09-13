@@ -13,6 +13,8 @@ sleep() { :; }
 state=running
 rdp_checks=0
 podman() {
+  [[ $1 == --remote=false ]] || fail "Windows readiness must inspect the local engine"
+  shift
   case "$1:$2" in
     inspect:*Status*) printf '%s\n' "$state" ;;
     inspect:*StartedAt*)

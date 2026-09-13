@@ -95,7 +95,7 @@ assert_podman_handover() {
   fi
 }
 
-dc() { podman-compose -f "$COMPOSE_FILE" "$@"; }
+dc() { podman-compose --podman-args=--remote=false -f "$COMPOSE_FILE" "$@"; }
 
 with_vm_lock() {
   local fd rc=0
@@ -887,7 +887,7 @@ __priv_down() { dc down; }
 __priv_up_wait() {
   assert_mounts_safe || return 1
   local status
-  status=$(podman inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || status=""
+  status=$(podman --remote=false inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || status=""
   if [[ $status != "running" ]]; then
     dc up -d || return 1
   fi
@@ -898,15 +898,15 @@ __priv_up_wait() {
   # Require the actual RDP listener as well before opening the client.
   local started_at count=0
   while true; do
-    status=$(podman inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || status=""
+    status=$(podman --remote=false inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null) || status=""
     if [[ $status != "running" ]]; then
       echo "Windows container stopped before RDP became available; check sudo podman logs $CONTAINER" >&2
       return 1
     fi
     # Podman's plain time template includes a timezone name that --since does
     # not parse. JSON encodes it as RFC 3339, which the logs command accepts.
-    started_at=$(podman inspect --format='{{json .State.StartedAt}}' "$CONTAINER" 2>/dev/null | jq -r .)
-    if [[ -n $started_at ]] && podman logs --since "$started_at" "$CONTAINER" 2>&1 | grep -qi "windows started successfully" &&
+    started_at=$(podman --remote=false inspect --format='{{json .State.StartedAt}}' "$CONTAINER" 2>/dev/null | jq -r .)
+    if [[ -n $started_at ]] && podman --remote=false logs --since "$started_at" "$CONTAINER" 2>&1 | grep -qi "windows started successfully" &&
       nc -z -w 1 127.0.0.1 3389; then
       return 0
     fi
@@ -921,7 +921,7 @@ __priv_up_wait() {
 # Print the status (empty if the container does not exist) and always succeed,
 # so a non-zero exit from priv status means the elevation itself failed
 # (authorization declined) rather than "no such container".
-__priv_status() { podman inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null || true; }
+__priv_status() { podman --remote=false inspect --format='{{.State.Status}}' "$CONTAINER" 2>/dev/null || true; }
 
 __priv_remove() {
   # Rebuild/verify both pinned binds before deleting through the storage anchor.
@@ -942,11 +942,11 @@ __priv_remove() {
     echo "omarchy-windows-vm: could not stop the Windows VM; storage was not deleted" >&2
     return 1
   }
-  if podman inspect "$CONTAINER" >/dev/null 2>&1; then
+  if podman --remote=false inspect "$CONTAINER" >/dev/null 2>&1; then
     echo "omarchy-windows-vm: Windows container still exists; storage was not deleted" >&2
     return 1
   fi
-  podman info >/dev/null 2>&1 || {
+  podman --remote=false info >/dev/null 2>&1 || {
     echo "omarchy-windows-vm: cannot verify Podman state; storage was not deleted" >&2
     return 1
   }
@@ -965,7 +965,7 @@ __priv_remove() {
   # so a storage-unmount failure cannot expose shared data to deletion.
   umount -- "$EXPECTED_SHARED" || return 1
   umount -- "$EXPECTED_STORAGE" || return 1
-  podman rmi "$IMAGE" 2>/dev/null || true
+  podman --remote=false rmi "$IMAGE" 2>/dev/null || true
   rm -f "$COMPOSE_FILE"
   rmdir -- "$EXPECTED_STORAGE" "$EXPECTED_SHARED" "$CALLER_DATA_ROOT" 2>/dev/null || true
 }
