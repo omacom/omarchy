@@ -293,4 +293,33 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+assertEqual(network.ipv4ModeLabel(false, false), 'AUTO DHCP', 'network labels an unchanged automatic mode')
+assertEqual(network.ipv4ModeLabel(true, true), 'MANUAL', 'network labels an unchanged manual mode')
+assertEqual(network.ipv4ModeLabel(false, true), 'MANUAL → AUTO DHCP', 'network states the mode in force before a staged flip to DHCP')
+assertEqual(network.ipv4ModeLabel(true, false), 'AUTO DHCP → MANUAL', 'network states the mode in force before a staged flip to MANUAL')
+
+// The switch only stages a change, so it may not read as a mode already in
+// force -- and the automatic side has to keep a way to commit it. In the first
+// revision of this branch the only Apply lived inside the manual branch, so
+// switching to automatic collapsed the form and the button with it, and the
+// mode could never be applied from the panel at all.
+const wiredRowSource = panelSource.match(/component WiredNicRow: Item \{[\s\S]*?\n {2}\}/)
+assert(wiredRowSource, 'network has a wired NIC row')
+assert(/readonly property string modeLabel: Model\.ipv4ModeLabel\(manualMode, manualSaved\)/.test(wiredRowSource[0]),
+  'network states the saved mode in the wired row header, not a staged flip')
+assert(/readonly property bool modeDirty: manualMode !== manualSaved/.test(wiredRowSource[0]),
+  'network treats the wired row mode as staged until it is applied')
+assert(/text: wiredRow\.modeLabel/.test(panelSource),
+  'network renders the wired row mode label from the saved mode')
+assert(/visible: wiredRow\.modeDirty \|\| wiredRow\.modeEdited/.test(panelSource),
+  'network offers the staged apply only while a mode change is pending')
+assert(/text: wiredRow\.busy \? "Applying…" : wiredRow\.dhcpButtonText/.test(panelSource),
+  'network gives the automatic side its own apply button')
+assert(/readonly property string dhcpButtonText: \(connected \|\| hasCarrier\)/.test(wiredRowSource[0]),
+  'network words the automatic apply button for the carrier the NIC has or lacks')
+assert(/function resetToInfo\(\) \{/.test(wiredRowSource[0]),
+  'network can restore a draft after initFromInfo has already loaded the device')
+assert(!/onClicked: wiredRow\.initFromInfo\(\)/.test(panelSource),
+  'network reset goes through the forced reload rather than the guarded initializer')
 JS
