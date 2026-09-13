@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Facelock face authentication from sudo, polkit, and lock screen
+# omarchy:requires-sudo=true
+
+set -e
+
+remove_pam_config() {
+  if omarchy-cmd-present facelock; then
+    sudo facelock pam remove \
+      --service omarchy-lock-face \
+      --service sudo \
+      --service polkit-1 \
+      --if-present \
+      --no-confirm || true
+  else
+    if grep -q pam_facelock.so /etc/pam.d/sudo 2>/dev/null; then
+      sudo sed -i '/pam_facelock\.so/d' /etc/pam.d/sudo
+    fi
+    if [[ -f /etc/pam.d/polkit-1 ]] && grep -q pam_facelock.so /etc/pam.d/polkit-1; then
+      sudo sed -i '/pam_facelock\.so/d' /etc/pam.d/polkit-1
+    fi
+  fi
+}
+
+remove_lock_face_pam() {
+  if [[ -f /etc/pam.d/omarchy-lock-face ]]; then
+    echo "Removing lock screen face authentication..."
+    sudo rm -f /etc/pam.d/omarchy-lock-face
+  fi
+}
+
+
+echo -e "\e[32mRemoving Facelock face authentication.\n\e[0m"
+
+remove_pam_config
+remove_lock_face_pam
+
+sudo rm -f /etc/systemd/system/facelock-daemon.service.d/omarchy-writable-keys.conf
+sudo systemctl disable --now facelock-daemon.service 2>/dev/null || true
+sudo systemctl daemon-reload
+
+echo "Removing Facelock packages..."
+omarchy-pkg-drop facelock-bin facelock || true
+
+echo -e "\e[32mFace authentication has been completely removed.\e[0m"
