@@ -20,8 +20,16 @@ function normalizeItem(id, raw) {
 
   var kind = value.action ? "action" : (value.target ? "link" : "menu")
 
+  // Which fields this entry actually spelled out. Every other one below is a
+  // placeholder this function invented, and mergeMenuSources has to tell the
+  // two apart: an extension that sets only `icon:` used to copy its blank
+  // label, action, provider and aliases over the shipped row.
+  var declared = {}
+  for (var key in value) declared[key] = true
+
   return {
     id: id,
+    declared: declared,
     parent: parent,
     kind: kind,
     icon: value.icon || "",
@@ -73,12 +81,22 @@ function mergeMenuSources(defaultItems, userItems) {
     for (var i = 0; i < src.length; i++) {
       var entry = src[i]
       if (!entry || !entry.id) continue
-      if (!nextItems[entry.id]) nextOrder.push(entry.id)
-      var prior = nextItems[entry.id] || {}
+      var prior = nextItems[entry.id]
+      if (!prior) nextOrder.push(entry.id)
       var merged = {}
       for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      // A row landing for the first time brings all of itself, placeholders
+      // included; one reusing a shipped id brings only what it declared.
+      for (var k2 in entry) {
+        if (k2 === "declared" || k2 === "kind") continue
+        if (prior && entry.declared && !entry.declared[k2]) continue
+        merged[k2] = entry[k2]
+      }
       merged.id = entry.id
+      // Derived, so it follows the merged row rather than either half of it:
+      // an extension adding an `action:` to a shipped submenu turns it into an
+      // action row, and one that only re-icons an action row leaves it alone.
+      merged.kind = merged.action ? "action" : (merged.target ? "link" : "menu")
       nextItems[entry.id] = merged
     }
   }
