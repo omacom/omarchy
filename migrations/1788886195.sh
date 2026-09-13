@@ -21,6 +21,16 @@ if ! docker_provider=$(pacman -Qq docker 2>/dev/null); then
   docker_provider=""
 fi
 
+# ONCE's root system service uses Docker's API. Neither the user socket nor
+# the CLI compatibility package provides a supported replacement for it.
+if pacman -Qq once-bin >/dev/null 2>&1; then
+  echo "ONCE is installed and still requires Docker Engine. Podman migration remains pending." >&2
+  echo "Keep Docker for ONCE, or retire ONCE and its workloads before retrying." >&2
+  exit 1
+else
+  pacman -Qq >/dev/null
+fi
+
 # Validate existing grants and allocate safe ranges before any engine work.
 sudo python3 "$OMARCHY_PATH/default/podman/allocate-subids.py" "$USER"
 
@@ -121,7 +131,7 @@ if ((ufw_available)) && sudo ufw status | grep '^Status: active' >/dev/null; the
 fi
 
 # Keep the real Docker CLI until all transfers finish. Its replacement also
-# provides docker to packages such as once-bin. Replace the engine in the same
+# provides docker to packages requiring a compatible CLI. Replace the engine in the same
 # transaction so those dependencies remain satisfied. --ask 4 accepts only
 # package-conflict removal, which --noconfirm alone would refuse.
 # Native-only users keep compatibility optional, including on a later retry

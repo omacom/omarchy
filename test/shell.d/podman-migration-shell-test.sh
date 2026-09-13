@@ -35,11 +35,15 @@ case "$name" in
     case "$1" in
       test) exit 1;;
       python3) [[ $2 != - ]] || cat >/dev/null;;
-      systemctl|docker|ufw|pacman|env) exec "$@";;
+      systemctl|docker|ufw|pacman|env|once) exec "$@";;
       *) exit 94;;
     esac ;;
   pacman)
     [[ $TEST_ENGINE != broken ]] || exit 2
+    if [[ $* == '-Qq once-bin' ]]; then
+      [[ ${TEST_ONCE:-missing} == installed ]] || exit 1
+      echo once-bin
+    fi
     if [[ $* == '-Qq docker' ]]; then
       [[ $TEST_ENGINE != missing ]] || exit 1
       echo "$TEST_ENGINE"
@@ -107,6 +111,28 @@ esac
     assert not any(c.startswith('dbus-update-activation-environment|') for c in calls), calls
     assert not any(c.startswith('omarchy-pkg-drop|') for c in calls), calls
     print('ok - native Podman users do not acquire optional Docker compatibility on migration')
+    for engine in ('docker', 'docker-git', 'podman-docker', 'missing'):
+        result, calls = run(migration, TEST_ENGINE=engine, TEST_ONCE='installed')
+        assert result.returncode != 0, (engine, result.stdout, result.stderr)
+        assert 'ONCE is installed' in result.stderr, result.stderr
+        assert not any(c.startswith(('sudo|', 'podman|', 'docker|', 'omarchy-pkg-add|', 'omarchy-pkg-drop|')) for c in calls), calls
+    print('ok - ONCE keeps migration pending before identity, package or engine changes')
+
+    once = root / 'bin/omarchy-install-service-once'
+    for engine in ('podman-docker', 'missing', 'broken'):
+        result, calls = run(once, TEST_ENGINE=engine)
+        assert result.returncode != 0, (engine, result.stdout, result.stderr)
+        assert not any(c.startswith(('sudo|', 'omarchy-pkg-add|')) for c in calls), calls
+    for engine in ('docker', 'docker-git'):
+        # Stub the interactive TUI too: it must never launch on this host.
+        (stubs / 'once').write_text('#!/bin/bash\nexit 0\n')
+        (stubs / 'once').chmod(0o755)
+        result, calls = run(once, TEST_ENGINE=engine)
+        assert result.returncode == 0, (engine, result.stderr, calls)
+        socket = next(i for i,c in enumerate(calls) if c.startswith('sudo|systemctl start docker.socket|'))
+        service = next(i for i,c in enumerate(calls) if c.startswith('sudo|systemctl enable --now once-background.service|'))
+        assert socket < service, calls
+    print('ok - ONCE rejects Podman before installing and uses the existing Docker socket when available')
     for path in (migration, repair):
         result, calls = run(path, TEST_ENGINE='broken')
         assert result.returncode != 0, (path, 'failed package query treated as no engine')

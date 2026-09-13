@@ -48,6 +48,8 @@ cat >"$test_dir/bin/omarchy-cmd-present" <<'SH'
 SH
 cat >"$test_dir/bin/pacman" <<'SH'
 #!/bin/bash
+[[ $* != '-Qq' ]] || exit 0
+[[ $* != '-Qq once-bin' ]] || exit 1
 [[ $* == '-Qq docker' ]] || exit 2
 if [[ $STUB_DOCKER == 1 ]]; then
   echo docker
