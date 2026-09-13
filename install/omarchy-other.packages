@@ -5,7 +5,7 @@ autoconf-archive
 asusctl
 base
 base-devel
-broadcom-wl
+broadcom-wl-dkms
 btrfs-progs
 dkms
 egl-wayland
@@ -23,8 +23,8 @@ limine-snapper-sync
 linux
 linux-firmware
 linux-headers
-linux-ptl
-linux-ptl-headers
+linux-omarchy-ptl-novrr-mm
+linux-omarchy-ptl-novrr-mm-headers
 macbook12-spi-driver-dkms
 nvidia-580xx-dkms
 nvidia-dkms

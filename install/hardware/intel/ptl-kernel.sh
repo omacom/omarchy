@@ -1,16 +1,17 @@
 # Install Panther Lake kernel for Dell XPS Panther Lake systems
-# The linux-ptl kernel includes audio driver patches not yet in mainline.
+# The Omarchy PTL kernel includes Panther Lake display and memory fixes.
 
 if omarchy-hw-match "XPS" && omarchy-hw-intel-ptl; then
   echo "Detected Dell XPS Panther Lake, installing PTL kernel..."
 
-  omarchy-pkg-add linux-ptl linux-ptl-headers
+  # linux-ptl required SOF firmware; the new kernel only lists it as optional.
+  omarchy-pkg-add linux-omarchy-ptl-novrr-mm linux-omarchy-ptl-novrr-mm-headers sof-firmware
   pacman -Rdd --noconfirm linux linux-headers || true
 
-  # linux-ptl doesn't provide=linux, so anything depending on linux drags the
+  # The PTL kernel doesn't provide=linux, so anything depending on linux drags the
   # stock kernel back in and the boot menu grows a second, slower entry.
   if pacman -Qq linux &>/dev/null; then
-    echo "WARNING: stock linux kernel still installed alongside linux-ptl:"
+    echo "WARNING: stock linux kernel still installed alongside the Omarchy PTL kernel:"
     pacman -Qi linux | grep -i "required by"
   fi
 
@@ -19,7 +20,7 @@ if omarchy-hw-match "XPS" && omarchy-hw-intel-ptl; then
   # the last BOOT_ORDER wins, so an earlier-sorting name is a silent no-op.
   rm -f /etc/limine-entry-tool.d/dell-xps-panther-lake.conf
   cat > /etc/limine-entry-tool.d/zz-dell-xps-panther-lake.conf <<'EOF'
-# Only show Panther Lake kernel in boot menu on Dell XPS Panther Lake
-BOOT_ORDER="linux-ptl*, *fallback, Snapshots"
+# Prefer Omarchy kernels while keeping other kernels available for recovery
+BOOT_ORDER="linux-omarchy-*, *, *fallback, Snapshots"
 EOF
 fi

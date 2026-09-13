@@ -62,7 +62,7 @@ assert_entry_top "small logo leaves the entry field below the logo" 200 200 675 
 
 # The boot script applies the same clamp so the real unlock screen matches.
 script="$ROOT/default/plymouth/omarchy.script"
-grep -q 'entry_max_y = Window.GetHeight() - entry.image.GetHeight() - 40;' "$script" \
+grep -q 'entry_max_y = global.layout_height - entry.image.GetHeight() - 40;' "$script" \
   || fail "boot script clamps the entry field to the window"
 grep -q 'if (entry.y > entry_max_y) entry.y = entry_max_y;' "$script" \
   || fail "boot script applies the entry field clamp"

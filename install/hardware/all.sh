@@ -17,12 +17,15 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/thermald.sh"
 # Swap in the Panther Lake kernel before anything pulls DKMS modules in.
 # intel-ipu7-camera drags in ipu7-drivers, vision-drivers and v4l2loopback,
 # and building all three against the stock kernel only to rebuild them against
-# linux-ptl and tear the first set down again cost ~25s of the install.
+# the PTL kernel and tear the first set down again cost ~25s of the install.
 run_logged "$OMARCHY_INSTALL/hardware/intel/ptl-kernel.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/ipu7-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fred.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-wifi7-eht.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/sof-firmware.sh"
+
+# Pulls in v4l2loopback-dkms, so it sits after the Panther Lake kernel swap.
+run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
 
 # Rebuilds the boot image, so it has to follow the Panther Lake kernel swap
 # above rather than sit with the other Dell leaf at the top of this file.
