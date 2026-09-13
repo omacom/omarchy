@@ -10,23 +10,19 @@
 if lspci -nn | grep -q "14e4:43ba"; then
   echo "BCM43602 detected, installing improved NVRAM config for WiFi signal fix"
 
-  nvram_url="https://gist.githubusercontent.com/cristianmiranda/ba9d64b4324f0803d9422d765de62252/raw/brcmfmac43602-pcie.txt"
-  tmpfile="$(mktemp)"
+  nvram_file="apple/brcmfmac43602-pcie.txt"
   firmware_dir="/usr/lib/firmware/brcm"
-  nvram_file="$firmware_dir/brcmfmac43602-pcie.txt"
-
-  # Download the NVRAM config
-  if ! curl -fsSL "$nvram_url" -o "$tmpfile"; then
-    echo "Failed to download NVRAM config from $nvram_url"
-    rm -f "$tmpfile"
-    exit 1
-  fi
+  target="$firmware_dir/brcmfmac43602-pcie.txt"
 
   # Find the wireless interface and get its MAC address
   iface="$(iw dev 2>/dev/null | awk '$1=="Interface"{print $2}' | head -1)"
   if [[ -z "$iface" ]]; then
     iface="$(ls /sys/class/net/ 2>/dev/null | grep -E '^wl' | head -1)"
   fi
+
+  # Copy the NVRAM config to a temp file for MAC substitution
+  tmpfile="$(mktemp)"
+  cp "$OMARCHY_INSTALL/hardware/$nvram_file" "$tmpfile"
 
   if [[ -n "$iface" ]]; then
     mac="$(cat "/sys/class/net/$iface/address" 2>/dev/null)"
@@ -35,7 +31,7 @@ if lspci -nn | grep -q "14e4:43ba"; then
       sed -i "s/^macaddr=.*/macaddr=$mac/" "$tmpfile"
       echo "Set MAC address to $mac for interface $iface"
     else
-      echo "Could not read MAC address from $iface"
+      echo "Could not read MAC address from $iface, using default"
     fi
   else
     echo "No wireless interface found, using default MAC"
@@ -43,14 +39,14 @@ if lspci -nn | grep -q "14e4:43ba"; then
 
   # Install the NVRAM config
   mkdir -p "$firmware_dir"
-  if [[ -f "$nvram_file" ]]; then
+  if [[ -f "$target" ]]; then
     echo "Backing up existing NVRAM config"
-    cp "$nvram_file" "${nvram_file}.bak.$(date +%s)"
+    cp "$target" "${target}.bak.$(date +%s)"
   fi
-  install -Dm644 "$tmpfile" "$nvram_file"
+  install -Dm644 "$tmpfile" "$target"
   rm -f "$tmpfile"
 
-  echo "NVRAM config installed to $nvram_file"
+  echo "NVRAM config installed to $target"
   echo "WiFi signal should improve after reboot (expected: -55 to -65 dBm instead of -90 dBm)"
 
   # Rebuild initramfs if the command exists
