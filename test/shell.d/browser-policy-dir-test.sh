@@ -328,3 +328,28 @@ grep -F 'browser_policy_firefox_policy_file_ok' "${migrations[0]}" >/dev/null ||
 grep -F '/opt/zen-browser/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
   fail "the shared helper names the Zen distribution directory"
 pass "a migration locks existing policy directories"
+
+kagi_policy="$ROOT/default/firefox/policies.json"
+jq -e . "$kagi_policy" >/dev/null || fail "the shipped Firefox policies.json is valid JSON"
+jq -e '.policies.SearchEngines.Add[] | select(.Name == "Kagi")
+  | (.URLTemplate == "https://kagi.com/search?q={searchTerms}")
+    and (.SuggestURLTemplate == "https://kagisuggest.com/api/autosuggest?q={searchTerms}")
+    and (.Method == "GET")
+    and (.Alias == "kagi")' "$kagi_policy" >/dev/null ||
+  fail "the shipped policy adds a Kagi engine with search, suggestions and a keyword"
+if jq -e '.policies.SearchEngines.Default' "$kagi_policy" >/dev/null; then
+  fail "the shipped policy leaves the default search engine to the user"
+fi
+pass "the shipped Firefox policy adds Kagi without choosing it for the user"
+
+kagi_migrations=()
+mapfile -t kagi_migrations < <(rg -l 'Kagi' "$ROOT/migrations")
+(( ${#kagi_migrations[@]} == 1 )) ||
+  fail "exactly one migration adds Kagi to existing installs" "${kagi_migrations[*]}"
+grep -F 'browser_policy_firefox_hardened' "${kagi_migrations[0]}" >/dev/null ||
+  fail "the Kagi migration leaves a browser file it does not own alone"
+grep -F 'kagi.com/search' "${kagi_migrations[0]}" >/dev/null ||
+  fail "the Kagi migration no-ops once the policy is installed"
+grep -F 'browser_policy_install_firefox_policies' "${kagi_migrations[0]}" >/dev/null ||
+  fail "the Kagi migration installs the shipped policy"
+pass "a migration adds Kagi to already-installed Firefox and Zen"

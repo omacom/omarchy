@@ -21,6 +21,19 @@
         "Value": true,
         "Status": "default"
       }
+    },
+    "SearchEngines": {
+      "Add": [
+        {
+          "Name": "Kagi",
+          "URLTemplate": "https://kagi.com/search?q={searchTerms}",
+          "Method": "GET",
+          "IconURL": "https://kagi.com/favicon.ico",
+          "Alias": "kagi",
+          "Description": "Kagi Search",
+          "SuggestURLTemplate": "https://kagisuggest.com/api/autosuggest?q={searchTerms}"
+        }
+      ]
     }
   }
 }

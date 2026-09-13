@@ -32,6 +32,8 @@ These are Chromium-family only. Firefox and Zen don't get them.
 
 Firefox and Zen are a different family, so they get different treatment: Omarchy installs a policies file for sensible defaults and switches them into native Wayland mode, which you want for fractional scaling and smooth trackpad scrolling.
 
+That policies file also adds [Kagi](https://kagi.com/) to the search engine list, so it's there to pick under _Settings > Search_ without Omarchy choosing a search engine for you.
+
 They don't get the Chromium extensions above, and they're not themed by Omarchy, so those parts of the experience are yours to set up.
 
 ## Removing one again
