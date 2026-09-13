@@ -83,6 +83,7 @@ omarchy-install-browser)
   brave) command=brave ;;
   brave-origin) command=brave-origin ;;
   edge) command=microsoft-edge-stable ;;
+  vivaldi) command=vivaldi ;;
   firefox) command=firefox ;;
   zen) command=zen-browser ;;
   esac
@@ -154,6 +155,7 @@ browser_cases=(
   'brave brave browser:brave'
   'brave-origin brave-origin browser:brave-origin'
   'edge microsoft-edge-stable browser:edge'
+  'vivaldi vivaldi browser:vivaldi'
   'firefox firefox browser:firefox'
   'zen zen-browser browser:zen'
 )
