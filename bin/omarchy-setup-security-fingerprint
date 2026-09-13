@@ -58,8 +58,13 @@ EOF
 
 setup_lock_fingerprint_pam() {
   echo "Configuring lock screen for fingerprint authentication..."
-  sudo tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
+  # Same clamshell gate as sudo/polkit: lid closed → skip pam_fprintd (fail closed
+  # here — this stack has no password fallback; password runs in a parallel PAM
+  # service). Re-enrollment must keep rewriting the gate so it cannot be wiped.
+  local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed"
+  sudo tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<EOF
 #%PAM-1.0
+$fprintd_gate
 auth       required                    pam_fprintd.so
 account    include                     system-local-login
 EOF
