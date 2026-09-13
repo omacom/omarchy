@@ -18,6 +18,33 @@ assertEqual(
   'notifications strip inline image tags'
 )
 
+assert(notifications.isKdeConnect('KDE Connect', ''), 'notifications detect KDE Connect by name')
+assert(notifications.isKdeConnect('', 'kdeconnect'), 'notifications detect KDE Connect by icon')
+assert(!notifications.isKdeConnect('Slack', ''), 'notifications do not treat unrelated apps as KDE Connect')
+
+// KDE Connect relays phone notifications escaped twice over, so the card
+// would otherwise show the entity names themselves.
+assertEqual(
+  notifications.sanitizeBody('Someone: Reacted \u{1F913} to &amp;quot;\u{1F917}&amp;quot;', 'KDE Connect', ''),
+  'Someone: Reacted \u{1F913} to &quot;\u{1F917}&quot;',
+  'notifications undo one layer of escaping on KDE Connect bodies'
+)
+assertEqual(
+  notifications.sanitizeBody('a &amp;lt;b&amp;gt; c &amp;#39;d&amp;#39; &amp;#x27;e&amp;#x27;', 'KDE Connect', ''),
+  'a &lt;b&gt; c &#39;d&#39; &#x27;e&#x27;',
+  'the undone layer leaves the text escaped once, never as live markup'
+)
+assertEqual(
+  notifications.sanitizeBody('Tom &amp; Jerry &amp; friends', 'KDE Connect', ''),
+  'Tom &amp; Jerry &amp; friends',
+  'a bare &amp; that escapes nothing further is left alone'
+)
+assertEqual(
+  notifications.sanitizeBody('Someone: &amp;quot;hi&amp;quot;', 'Slack', ''),
+  'Someone: &amp;quot;hi&amp;quot;',
+  'other apps keep their entities as sent'
+)
+
 // The body renders as StyledText, which fetches <img src> over the network. The
 // invariant that matters is not a particular output string but that no tag Qt
 // would honour as an image survives, so assert that directly. Tags are bounded
