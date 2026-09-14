@@ -182,7 +182,7 @@ Everything goes through the same sender contract, so the pieces are small:
 
 Reminders ride on notifications rather than being their own daemon.
 `bin/omarchy-reminder <minutes> [message]` creates a transient systemd user
-timer via `systemd-run --user --collect --on-active=<minutes>m` under the
+timer via `systemd-run --user --collect --on-calendar=<absolute UTC deadline>` under the
 unit name `omarchy-reminder-<minutes>m-<epoch>`; the timer's payload sends the
 reminder toast, deletes its message file, and refreshes the bar indicator.
 Custom messages are stashed in `$XDG_RUNTIME_DIR/omarchy-reminders/<unit>.message`
