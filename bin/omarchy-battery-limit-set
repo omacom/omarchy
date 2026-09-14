@@ -66,6 +66,12 @@ valid_threshold() { [[ $1 =~ ^(0|[1-9][0-9]?|100)$ ]]; }
 restore_battery() {
   local end_path=$1 old_end=$2 old_start=$3 start_path current_start
   start_path="${end_path%/*}/charge_control_start_threshold"
+  # A rejected write may have left this battery unchanged. Do not turn a
+  # read-only control into a spurious rollback failure by writing it again.
+  if [[ $(read_threshold "$end_path") == "$old_end" ]] &&
+    { [[ -z $old_start ]] || [[ $(read_threshold "$start_path") == "$old_start" ]]; }; then
+    return 0
+  fi
   if [[ -n $old_start ]]; then
     current_start=$(read_threshold "$start_path") || return 1
     valid_threshold "$current_start" || return 1

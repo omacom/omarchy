@@ -19,6 +19,7 @@ LOCK_FILE="$FIXTURE/lock"
 write_threshold() {
   local path=$1 value=$2
   printf '%s %s\n' "${path#"$FIXTURE/sys/"}" "$value" >> "$FIXTURE/writes"
+  if [[ $FAULT == "readonly" && $path == */BAT1/* ]]; then return 1; fi
   if [[ $FAULT == "reject" && $path == */BAT1/* && $value == "80" ]]; then return 1; fi
   if [[ $FAULT == "partial" && $path == */BAT1/* && $value == "80" ]]; then
     printf '85\n' > "$path"
@@ -79,12 +80,13 @@ assert_value "$fixture/config/battery-limit" 80 "verified choice persisted"
 [[ $(stat -c %a "$fixture/config/battery-limit") == "644" ]] || fail "saved choice is readable"
 pass "all batteries are verified before saving the preset"
 
-for fault in clamp reject partial save interrupt; do
+for fault in clamp reject readonly partial save interrupt; do
   reset_fixture
   FAULT=$fault
   run_apply
   (( status != 0 )) || fail "$fault must fail"
   assert_restored
+  grep -q 'Previous battery thresholds restored' "$fixture/output" || fail "$fault reports successful restoration"
   pass "$fault restores battery thresholds and preserves the saved choice"
 done
 
