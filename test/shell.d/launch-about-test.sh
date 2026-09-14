@@ -15,6 +15,7 @@ sed '/^presize_window$/,$d' "$about" >"$tmp_dir/about.bash"
 
 export HOME="$tmp_dir/home"
 export PATH="$ROOT/bin:$PATH"
+unset NO_COLOR
 mkdir -p "$HOME/.config/omarchy/branding"
 printf '%s\n' '████████' '████████' >"$HOME/.config/omarchy/branding/about.txt"
 
@@ -55,7 +56,8 @@ fastfetch() {
 
 # Record what the launcher hands the sheen rather than building any frames.
 handed=()
-sheen_build() { handed=("$@"); }
+sheen_prepare() { handed=("$@"); SHEEN_REST="rest"; }
+sheen_build_frames() { :; }
 
 refuses() {
   if build_sheen; then
@@ -78,6 +80,8 @@ pass "the launcher's padding is the fastfetch config's"
 
 build_sheen || fail "a roomy window animates"
 pass "a roomy window animates"
+(( ${#SHEEN_FRAMES[@]} == 0 )) || fail "the sweep is not computed before the first paint" "${#SHEEN_FRAMES[@]} frames"
+pass "the sweep is not computed before the first paint"
 
 # The sheen is told where the logo is, what colour to hand the cells back in, and
 # how much room it has left of the module column.
@@ -174,10 +178,26 @@ pass "an undisturbed sweep writes every frame"
 # Every builder above can be exercised while nothing on screen ever animates, so
 # check that the render loop is what calls them.
 render_block=$(sed -n '/--render/,$p' "$about")
-for called in build_sheen play_sheen rest_sheen; do
+for called in build_sheen play_sheen rest_sheen sheen_build_frames; do
   [[ $render_block == *"$called"* ]] || fail "the render loop plays the sheen" "it never calls $called"
 done
 pass "the render loop plays the sheen"
+
+# The banded rest has to land before the sweep is walked. A loop that still
+# computed every centre first would leave the config's green on screen for as
+# long as that walk took.
+awk_order='
+  /build_sheen/ { prep=NR }
+  /SHEEN_REST/ { rest=NR }
+  /sheen_build_frames/ { frames=NR }
+  END {
+    if (!(prep && rest && frames)) { print "missing"; exit 1 }
+    if (!(prep < rest && rest < frames)) { print prep, rest, frames; exit 1 }
+  }
+'
+order=$(printf '%s\n' "$render_block" | awk "$awk_order") ||
+  fail "the rest is written before the sweep is computed" "$order"
+pass "the rest is written before the sweep is computed"
 
 measure_layout() { return 1; }
 refuses "a layout fastfetch cannot be measured from leaves it still"
