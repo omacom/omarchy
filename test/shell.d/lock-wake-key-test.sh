@@ -14,12 +14,17 @@ assert(
 )
 
 assert(
-  /if \(root\.displaysBlank\) \{[\s\S]*?event\.accepted = true/.test(lockViewQml),
+  /var clearPassword = root\.displaysBlank/.test(lockViewQml),
+  'a blanked lock screen treats the wake key like Escape: clear and swallow'
+)
+
+assert(
+  /event\.accepted = clearPassword/.test(lockViewQml),
   'a key that wakes a blanked lock screen is swallowed instead of typed'
 )
 
 assert(
-  /if \(root\.displaysBlank\) \{[\s\S]*?root\.wakeRequested\(\)/.test(lockViewQml),
+  /root\.wakeRequested\(\)/.test(lockViewQml),
   'the swallowed wake key still requests a display wake'
 )
 JS

@@ -178,18 +178,15 @@ Item {
 
         Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
-          // Hyprland can wake DPMS on this same keypress. Swallow it so the
-          // wake key never becomes the first password character.
-          if (root.displaysBlank) {
-            root.wakeRequested()
-            event.accepted = true
-            return
-          }
+          var clearPassword = root.displaysBlank
+            || event.key === Qt.Key_Escape
+            || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)
+
+          // Hyprland can wake DPMS on this same keypress. Swallow a wake key
+          // (and drop any half-typed password) so it is never inserted.
           root.wakeRequested()
-          if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
-            root.passwordTextEdited("")
-            event.accepted = true
-          }
+          if (clearPassword) root.passwordTextEdited("")
+          event.accepted = clearPassword
         }
       }
 
