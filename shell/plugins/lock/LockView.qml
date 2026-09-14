@@ -133,6 +133,7 @@ Item {
 
       TextInput {
         id: passwordInput
+        focus: true
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
@@ -217,5 +218,14 @@ Item {
         verticalAlignment: Text.AlignVCenter
       }
     }
+  }
+
+  Timer {
+	  interval: 100
+	  running: root.inputEnabled && !root.authenticatingPassword && !passwordInput.activeFocus
+	  repeat: true
+	  onTriggered: {
+		  root.forcePasswordFocus()
+	  }
   }
 }
