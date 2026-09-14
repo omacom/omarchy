@@ -611,6 +611,41 @@ while IFS= read -r binary_path; do
 done < <(find "$ROOT/bin" -maxdepth 1 -type f -executable -name 'omarchy-*' | sort)
 pass "all executable bins have slim self-documenting metadata"
 
+# `omarchy toggle bar` speaks in terms of the bar, but the state it writes is the
+# negative flag `bar-off`, so the user-facing action has to be inverted on the way
+# through. Forwarding it verbatim made `on` hide the bar and `off` show it.
+make_tmpdir BAR_TMPDIR
+mkdir -p "$BAR_TMPDIR/fake-bin"
+cat >"$BAR_TMPDIR/fake-bin/omarchy-shell" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+chmod +x "$BAR_TMPDIR/fake-bin/omarchy-shell"
+BAR_FLAG="$BAR_TMPDIR/.local/state/omarchy/toggles/bar-off"
+BAR_PATH="$BAR_TMPDIR/fake-bin:$ROOT/bin:$PATH"
+
+PATH="$BAR_PATH" HOME="$BAR_TMPDIR" "$ROOT/bin/omarchy-toggle-bar" off
+[[ -f $BAR_FLAG ]] || fail "toggle bar off hides the bar"
+pass "toggle bar off hides the bar"
+
+PATH="$BAR_PATH" HOME="$BAR_TMPDIR" "$ROOT/bin/omarchy-toggle-bar" on
+[[ ! -f $BAR_FLAG ]] || fail "toggle bar on shows the bar"
+pass "toggle bar on shows the bar"
+
+# on and off name a state, so repeating one holds it rather than flipping it.
+PATH="$BAR_PATH" HOME="$BAR_TMPDIR" "$ROOT/bin/omarchy-toggle-bar" on
+[[ ! -f $BAR_FLAG ]] || fail "toggle bar on is idempotent"
+pass "toggle bar on is idempotent"
+
+PATH="$BAR_PATH" HOME="$BAR_TMPDIR" "$ROOT/bin/omarchy-toggle-bar" toggle
+[[ -f $BAR_FLAG ]] || fail "toggle bar toggle hides a visible bar"
+pass "toggle bar toggle hides a visible bar"
+
+PATH="$BAR_PATH" HOME="$BAR_TMPDIR" "$ROOT/bin/omarchy-toggle-bar"
+[[ ! -f $BAR_FLAG ]] || fail "toggle bar without an argument toggles"
+pass "toggle bar without an argument toggles"
+
+
 make_tmpdir TMPDIR
 ln -s "$CLI" "$TMPDIR/omarchy"
 
