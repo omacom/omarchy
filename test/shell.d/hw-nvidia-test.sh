@@ -72,6 +72,14 @@ assert_detects "a hybrid Ampere laptop detects a GSP GPU without an NVIDIA displ
 write_pci_devices 0x1002:0x1900:0x030000:1 0x10de:0x28e0:0x030000:0
 assert_detects "a hybrid Ada laptop with the display on AMD detects no NVIDIA display" yes yes no no
 
+# ROG Zephyrus G14 GA403WW (Ryzen AI 9 HX 370 + RTX 5080 Max-Q), display on
+# AMD: the AMD Display controller (class 0x038000) exposes no boot_vga,
+# while NVIDIA reports boot_vga=0, so the back-compat fallback must not
+# fire (see #10589 discussion). The AMD device ID is illustrative; only
+# vendor, class, and boot_vga presence matter here.
+write_pci_devices 0x1002:0x1111:0x038000 0x10de:0x2c02:0x030000:0
+assert_detects "a hybrid Blackwell laptop whose AMD display exposes no boot_vga detects no NVIDIA display" yes yes no no
+
 # NVIDIA TU117M [GTX 1650 Mobile], the first generation with GSP firmware.
 write_pci_devices 0x10de:0x1f91:0x030000:1
 assert_detects "Turing is the oldest generation with GSP firmware" yes yes no yes

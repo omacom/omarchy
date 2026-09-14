@@ -6,9 +6,9 @@
 # the GPU driving the active display. Forcing NVIDIA-only video-decode
 # settings (e.g. LIBVA_DRIVER_NAME) while another GPU drives the display
 # breaks hardware video playback, so only claim NVIDIA when it owns boot VGA.
-# When an NVIDIA GPU exists but no device reports boot VGA at all, claim
-# NVIDIA to preserve the previous behavior on setups without VGA
-# arbitration info.
+# When an NVIDIA GPU exists but no display device exposes the boot_vga
+# attribute at all, claim NVIDIA to preserve the previous behavior on setups
+# without VGA arbitration info.
 #
 # Reads cached sysfs IDs rather than lspci, which reads PCI config space and
 # resumes runtime-suspended GPUs.
@@ -17,7 +17,7 @@ pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 shopt -s nullglob
 
 saw_nvidia=false
-other_boot=false
+saw_boot_attr=false
 
 for device in "$pci_devices_path"/*; do
   [[ $(< "$device/class") == 0x03* ]] || continue
@@ -25,16 +25,18 @@ for device in "$pci_devices_path"/*; do
   # NB: `$(< file)` reads nothing when combined with other redirections,
   # so guard readability separately instead of `2>/dev/null` inline.
   [[ -r $device/boot_vga ]] || continue
+  # Any display device exposing boot_vga makes the setup determinable,
+  # including a boot_vga=0 that rules NVIDIA out.
+  saw_boot_attr=true
   [[ $(< "$device/boot_vga") == "1" ]] || continue
   [[ $(< "$device/vendor") == "0x10de" ]] && exit 0
-  other_boot=true
 done
 
 # No NVIDIA GPU at all: nothing to claim.
 [[ $saw_nvidia == "false" ]] && exit 1
 
-# NVIDIA exists but no boot VGA anywhere: undeterminable, keep the previous
-# behavior.
-[[ $other_boot == "false" ]] && exit 0
+# NVIDIA exists but no display device exposes boot_vga at all:
+# undeterminable, keep the previous behavior.
+[[ $saw_boot_attr == "false" ]] && exit 0
 
 exit 1
