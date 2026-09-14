@@ -24,23 +24,6 @@ usage() {
   echo "Usage: omarchy-battery-limit-set <80|90|100>" >&2
 }
 
-# Validate before any elevation so a bad argument never reaches sudo/pkexec,
-# and so the check can be exercised without root.
-if (( $# != 1 )); then
-  usage
-  exit 2
-fi
-
-case "$1" in
-80 | 90 | 100)
-  limit="$1"
-  ;;
-*)
-  usage
-  exit 2
-  ;;
-esac
-
 # The path etc/sudoers.d/omarchy-battery-limit names. The privileged half
 # always runs from there rather than from whichever copy was invoked, so the
 # rule matches even where $OMARCHY_PATH points at a checkout.
@@ -71,24 +54,129 @@ require_root() {
   fi
 }
 
-require_root "$limit"
-
+# Kept as functions so fixture tests can exercise the transaction without
+# running sudo or granting access to this machine's sysfs and /etc.
 power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
+LOCK_FILE=/run/omarchy-battery-limit.lock
 
-wrote=false
-for threshold in "$power_supply_path"/BAT*/charge_control_end_threshold; do
-  [[ -e $threshold ]] || continue
-  echo "$limit" >"$threshold"
-  wrote=true
-done
+read_threshold() { cat "$1"; }
+write_threshold() { printf '%s\n' "$2" > "$1"; }
+valid_threshold() { [[ $1 =~ ^(0|[1-9][0-9]?|100)$ ]]; }
 
-if [[ $wrote == "false" ]]; then
-  echo "Error: no battery on this machine exposes a charge limit (charge_control_end_threshold)." >&2
-  exit 1
-fi
+restore_battery() {
+  local end_path=$1 old_end=$2 old_start=$3 start_path current_start
+  start_path="${end_path%/*}/charge_control_start_threshold"
+  if [[ -n $old_start ]]; then
+    current_start=$(read_threshold "$start_path") || return 1
+    valid_threshold "$current_start" || return 1
+    # Some drivers couple the thresholds. Lower start before restoring an
+    # end below it, then restore the exact original pair after writing end.
+    if (( current_start > old_end )); then
+      write_threshold "$start_path" "$old_start" || return 1
+    fi
+  fi
+  write_threshold "$end_path" "$old_end" || return 1
+  if [[ -n $old_start && $(read_threshold "$start_path") != "$old_start" ]]; then
+    write_threshold "$start_path" "$old_start" || return 1
+  fi
+  [[ $(read_threshold "$end_path") == "$old_end" ]] &&
+    { [[ -z $old_start ]] || [[ $(read_threshold "$start_path") == "$old_start" ]]; }
+}
 
-# Persist the choice so omarchy-battery-limit.service can restore it at boot
-# on hardware whose embedded controller forgets the threshold across cycles.
-install -d -m 0755 /etc/omarchy
-printf '%s\n' "$limit" >"$STATE_FILE"
-chmod 0644 "$STATE_FILE"
+# The subshell owns both the lock and traps, including on an interrupted apply.
+apply_limit() (
+  local limit=$1 threshold start_path end_value start_value i
+  local -a thresholds=() ends=() starts=()
+  local touched=0 staged="" committed=false
+
+  exec 9>"$LOCK_FILE"
+  flock -x 9
+
+  for threshold in "$power_supply_path"/BAT*/charge_control_end_threshold; do
+    [[ -e $threshold ]] || continue
+    end_value=$(read_threshold "$threshold")
+    valid_threshold "$end_value" || { echo "Error: invalid current threshold at $threshold." >&2; exit 1; }
+    start_path="${threshold%/*}/charge_control_start_threshold"
+    start_value=""
+    if [[ -e $start_path ]]; then
+      start_value=$(read_threshold "$start_path")
+      valid_threshold "$start_value" || { echo "Error: invalid current threshold at $start_path." >&2; exit 1; }
+    fi
+    thresholds+=("$threshold")
+    ends+=("$end_value")
+    starts+=("$start_value")
+  done
+  if (( ${#thresholds[@]} == 0 )); then
+    echo "Error: no battery on this machine exposes a charge limit (charge_control_end_threshold)." >&2
+    exit 1
+  fi
+
+  finish_apply() {
+    local status=$? rollback_failed=false
+    trap - EXIT
+    # Ignore a second interrupt while restoring the first interrupted write.
+    trap '' INT TERM
+    if [[ $committed == "false" ]] && (( touched > 0 )); then
+      for (( i=touched-1; i>=0; i-- )); do
+        if ! restore_battery "${thresholds[i]}" "${ends[i]}" "${starts[i]}"; then
+          echo "Error: could not restore previous thresholds for ${thresholds[i]%/*}." >&2
+          rollback_failed=true
+        fi
+      done
+      if [[ $rollback_failed == "false" ]]; then
+        echo "Previous battery thresholds restored; saved limit unchanged." >&2
+      fi
+      status=1
+    fi
+    if [[ -n $staged ]]; then rm -f "$staged"; fi
+    exit "$status"
+  }
+  trap finish_apply EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
+  # Prepare persistence before touching hardware. Rename only after every
+  # battery confirms the requested value; a short/failed save keeps the old file.
+  install -d -m 0755 "${STATE_FILE%/*}"
+  staged=$(mktemp "${STATE_FILE%/*}/.battery-limit.XXXXXX")
+  printf '%s\n' "$limit" > "$staged"
+  chmod 0644 "$staged"
+
+  for (( i=0; i<${#thresholds[@]}; i++ )); do
+    touched=$((i + 1))
+    if ! write_threshold "${thresholds[i]}" "$limit" ||
+      [[ $(read_threshold "${thresholds[i]}") != "$limit" ]]; then
+      echo "Error: battery did not accept charge limit $limit at ${thresholds[i]}." >&2
+      exit 1
+    fi
+  done
+
+  # Do not let a signal separate the successful rename from the commit flag.
+  trap '' INT TERM
+  mv -fT "$staged" "$STATE_FILE"
+  committed=true
+)
+
+main() {
+  # Validate before any elevation so a bad argument never reaches sudo/pkexec,
+  # and so the check can be exercised without root.
+  if (( $# != 1 )); then
+    usage
+    exit 2
+  fi
+
+  case "$1" in
+  80 | 90 | 100)
+    limit="$1"
+    ;;
+  *)
+    usage
+    exit 2
+    ;;
+  esac
+
+  require_root "$limit"
+  apply_limit "$limit"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then main "$@"; fi
