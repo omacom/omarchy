@@ -1,0 +1,20 @@
+[Unit]
+Description=Show an OSD when the firmware changes the ACPI platform profile
+# The OSD is drawn by the Omarchy shell, which is only up once the graphical
+# session is.
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+# Desktops and laptops without a mode key never expose the node, so the unit
+# stays enabled but inert there rather than restarting a watcher with nothing
+# to watch.
+ConditionPathExists=/sys/firmware/acpi/platform_profile
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-powerprofiles-osd-watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
