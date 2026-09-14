@@ -31,7 +31,9 @@ o.window("dev.tensaku.Tensaku", { float = true })
 o.window("dev.tensaku.Tensaku", { center = true })
 o.window("omacalc", { float = true })
 
--- Fullscreen screensaver.
+-- Fullscreen screensaver. Mapping it demotes maximized / full-width windows on
+-- the workspace; omarchy-hyprland-fullscreen-snapshot save/restore around the
+-- screensaver lifecycle puts those modes back after it exits or lock kills it.
 o.window("org.omarchy.screensaver", { fullscreen = true })
 o.window("org.omarchy.screensaver", { float = true })
 o.window("org.omarchy.screensaver", { animation = "slide" })
