@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Print the kernel-headers package matching the installed kernel flavor
+# omarchy:hidden=true
+
+# Flavor kernels first: `pacman -Qqs '^linux…' | head -1` returns stock linux
+# whenever it is still installed, so NVIDIA / Broadcom / Tuxedo / Motorcomm
+# DKMS builds against the kernel we just replaced.
+for flavor in linux-ptl linux-t2 linux-zen linux-lts linux-hardened linux; do
+  if pacman -Qq "$flavor" &>/dev/null; then
+    printf '%s-headers\n' "$flavor"
+    exit 0
+  fi
+done
+
+printf 'linux-headers\n'
