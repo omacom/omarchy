@@ -2,9 +2,18 @@
 ufw default deny incoming
 ufw default allow outgoing
 
-# Allow ports for LocalSend.
-ufw allow 53317/udp
-ufw allow 53317/tcp
+# Allow LocalSend on private networks only. Do not snapshot the current LAN
+# prefix: that breaks at the next wifi. RFC1918 matches Sunshine, plus
+# link-local for two machines cabled together; IPv6 is link-local and ULA so a
+# global address is not reachable from the internet.
+for cidr in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16; do
+  ufw allow in proto udp from "$cidr" to any port 53317 comment 'omarchy-localsend'
+  ufw allow in proto tcp from "$cidr" to any port 53317 comment 'omarchy-localsend'
+done
+for cidr in fe80::/10 fc00::/7; do
+  ufw allow in proto udp from "$cidr" to any port 53317 comment 'omarchy-localsend'
+  ufw allow in proto tcp from "$cidr" to any port 53317 comment 'omarchy-localsend'
+done
 
 # Allow Docker containers to use DNS on host.
 ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns'
