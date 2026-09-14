@@ -15,7 +15,7 @@ Check `cua-driver status` and the executable of the actual serving process when 
 
 An executable link ending in `(deleted)` means its inode was replaced, not necessarily that the running bytes differ. Compare `sha256sum /proc/<serving-pid>/exe` with the resolved packaged executable before diagnosing version drift or proposing a restart.
 
-Use the desktop user's Wayland session and session bus. The native backend needs `CUA_DRIVER_RS_ENABLE_WAYLAND=1` in the environment of the process serving the calls; exporting it in a new shell does not change an already running daemon. Inspect a service's configuration before changing it, and restart only the service the task covers.
+Use the desktop user's Wayland session and session bus. Omarchy exports `CUA_DRIVER_RS_ENABLE_WAYLAND=1` to every session, so a driver started from the session takes the native Wayland backend; a daemon started anywhere else needs it set explicitly, and exporting it in a new shell does not change an already running daemon. Inspect a service's configuration before changing it, and restart only the service the task covers.
 
 Run `cua-driver doctor` or `cua-driver call health_report '{}'` for diagnostics. Passing AT-SPI and Wayland checks establishes prerequisites, not successful window capture, input, or focus preservation. If a command is unavailable, consult `cua-driver --help` and `cua-driver describe <tool>` for this installation.
 
