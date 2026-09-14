@@ -9,7 +9,7 @@ hl.config({
   input = {
     -- Use multiple keyboard layouts and switch between them with Left Alt + Right Alt
     kb_layout = "us,dk",
-    kb_options = "compose:caps,shift:both_capslock_cancel,grp:alts_toggle",
+    kb_options = "compose:caps,grp:alts_toggle",
 
     -- Change speed of keyboard repeat
     repeat_rate = 40,
@@ -68,7 +68,7 @@ On some keyboards, it's not convenient to use the primary meta key (Windows/cmd 
 ```lua
 hl.config({
   input = {
-    kb_options = "compose:caps,shift:both_capslock_cancel,altwin:swap_alt_win",
+    kb_options = "compose:caps,altwin:swap_alt_win",
   },
 })
 ```
