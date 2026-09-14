@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Tailscale status, connection switching, machine browsing, and quick copy actions in the Omarchy bar.",
+  "description": "Tailscale status, connection switching, machine browsing, quick copy actions, and the tailnet's HTTPS services in the Omarchy bar.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Tailscale",
-    "description": "Toggle Tailscale, switch connections, browse machines, and copy machine IPs or names.",
+    "description": "Toggle Tailscale, switch connections, browse machines, copy machine IPs or names, and open the tailnet's HTTPS services.",
     "category": "Network",
     "allowMultiple": false,
     "defaultSection": "right",
