@@ -50,6 +50,11 @@ esac
 
 agent_package=${agent_package:-$agent}
 
+if [[ $agent == claude || $agent == pi ]] && ! omarchy-hw-cpu-sse4_2; then
+  echo "Cannot install $name: this CPU lacks SSE4.2/POPCNT, which Bun's linux-x64 builds need" >&2
+  exit 1
+fi
+
 # Hermes reaches mise through its own installer rather than straight from
 # here: it needs its interpreter pinned, and a bare `mise use` has nowhere to
 # say so. See omarchy-install-hermes-cli. OpenClaw comes from its pacman
