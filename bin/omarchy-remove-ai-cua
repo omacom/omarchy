@@ -17,6 +17,11 @@ omarchy-agent-skill-link "$OMARCHY_PATH/default/agents/optional-skills/cua-omarc
 
 plugin_removed=false
 if omarchy-pkg-present cua-hyprland-plugin; then
+  # The keymap override and the session-start reload go now; the module
+  # itself stays mapped for the rest of the session, as the package requires.
+  if omarchy-hyprland-toggle-enabled cua-input; then
+    omarchy-toggle-cua-input off
+  fi
   omarchy-pkg-drop cua-hyprland-plugin
   plugin_removed=true
 fi
