@@ -5,13 +5,17 @@
 
 power_supply_path="${OMARCHY_POWER_SUPPLY_PATH:-/sys/class/power_supply}"
 
+value=""
 for threshold in "$power_supply_path"/*/charge_control_end_threshold; do
-  [[ -r $threshold ]] || continue
+  [[ -e $threshold ]] || continue
   battery=${threshold%/*}
   # Peripheral batteries do not power the machine. Keep unscoped older drivers.
   [[ -r $battery/scope && $(<"$battery/scope") == "Device" ]] && continue
-  cat "$threshold"
-  exit 0
+  current=$(cat "$threshold") || exit 1
+  [[ $current =~ ^(0|[1-9][0-9]?|100)$ ]] || exit 1
+  if [[ -z $value ]]; then value=$current
+  elif [[ $value != "$current" ]]; then value=mixed; fi
 done
 
-exit 1
+[[ -n $value ]] || exit 1
+printf '%s\n' "$value"

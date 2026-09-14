@@ -39,9 +39,8 @@ function parseProfiles(raw, previousIndex) {
 }
 
 function parseChargeLimit(raw) {
-  var value = parseInt(String(raw || "").trim())
-  if (isNaN(value) || value < 0 || value > 100) return null
-  return value
+  var text = String(raw || "").trim()
+  return /^(0|[1-9][0-9]?|100)$/.test(text) ? Number(text) : null
 }
 
 function profileIcon(name) {

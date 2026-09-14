@@ -180,9 +180,23 @@ mkdir -p "$fixture/BAT1"
 printf '90\n' >"$fixture/BAT1/charge_control_end_threshold"
 
 value=$(OMARCHY_POWER_SUPPLY_PATH="$fixture" "$getter")
-[[ $value == "80" || $value == "90" ]] ||
-  fail "battery-limit-get prints one battery's threshold when several exist" "got: $value"
-pass "battery-limit-get reads the first battery when several exist"
+[[ $value == "mixed" ]] || fail "battery-limit-get reports differing limits" "got: $value"
+pass "battery-limit-get reports differing limits across batteries"
+printf '80\n' >"$fixture/BAT1/charge_control_end_threshold"
+value=$(OMARCHY_POWER_SUPPLY_PATH="$fixture" "$getter")
+[[ $value == "80" ]] || fail "matching batteries report their common limit"
+printf '80bad\n' >"$fixture/BAT1/charge_control_end_threshold"
+if OMARCHY_POWER_SUPPLY_PATH="$fixture" "$getter"; then fail "malformed hardware data is rejected"; fi
+pass "battery-limit-get validates every battery before reporting a limit"
+if (( EUID != 0 )); then
+  chmod 000 "$fixture/BAT1/charge_control_end_threshold"
+  if output=$(OMARCHY_POWER_SUPPLY_PATH="$fixture" "$getter" 2>/dev/null); then
+    fail "an unreadable second battery must not report only the first battery's limit"
+  fi
+  [[ -z $output ]] || fail "unreadable battery must not produce a partial result"
+  chmod 600 "$fixture/BAT1/charge_control_end_threshold"
+  pass "battery-limit-get rejects incomplete readings instead of reporting a partial limit"
+fi
 
 # Not every system battery is named BAT*. Apple Silicon calls its battery
 # macsmc-battery; other drivers use their own names. Matching only BAT* hides
