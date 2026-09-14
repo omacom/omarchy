@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Send the paste keystroke the focused window understands
+# omarchy:group=clipboard
+# omarchy:hidden=true
+
+# Terminals paste with Shift+Insert because Ctrl+V is a control character
+# there. Everything else gets Ctrl+V: Firefox ignores a synthetic Shift+Insert,
+# so the clipboard manager pasted nothing into it. Mirrors the terminal check
+# behind SUPER+V in default/hypr/bindings/clipboard.lua.
+if hyprctl activewindow -j 2>/dev/null | jq -e '(.tags // []) | map(rtrimstr("*")) | index("terminal")' >/dev/null; then
+  wtype -M shift -k Insert -m shift 2>/dev/null || true
+else
+  wtype -M ctrl -k v -m ctrl 2>/dev/null || true
+fi
