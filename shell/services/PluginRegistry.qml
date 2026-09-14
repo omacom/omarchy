@@ -479,7 +479,9 @@ QtObject {
       return false
     }
     var manifest = installedPlugins[key]
-    if (value && !manifest) {
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    var location = findEntryLocation(config, key)
+    if (!manifest && (!location.found || value)) {
       console.warn("PluginRegistry.setEnabled: unknown plugin " + key)
       return false
     }
