@@ -118,6 +118,7 @@ agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
+vibe_package="pipx:mistral-vibe"
 
 assert_lazy_stub() {
   local package=$1
@@ -138,6 +139,7 @@ assert_lazy_stub "$crush_package" crush
 assert_lazy_stub "$ori_package" ori
 assert_lazy_stub "$cursor_agent_package" cursor-agent
 assert_lazy_stub "$muse_package" muse
+assert_lazy_stub "$vibe_package" vibe
 pass "custom agent lazy stubs preserve their mise packages"
 
 OMARCHY_TEST_MISSING_COMMAND=cursor-agent source "$ROOT/install/user/mise.sh"
@@ -147,6 +149,7 @@ grep -Fx "$cursor_agent_package" "$stub_log" >/dev/null || fail "user setup crea
 grep -Fx "$omp_package omp" "$stub_log" >/dev/null || fail "user setup creates the Oh My Pi lazy stub"
 grep -Fx "$crush_package" "$stub_log" >/dev/null || fail "user setup creates the Crush lazy stub"
 grep -Fx "$ori_package ori" "$stub_log" >/dev/null || fail "user setup creates the Ori lazy stub"
+grep -Fx "$vibe_package vibe" "$stub_log" >/dev/null || fail "user setup creates the Vibe lazy stub"
 OMARCHY_TEST_MISSING_COMMAND=muse source "$ROOT/install/user/mise.sh"
 grep -Fx "$muse_package muse" "$stub_log" >/dev/null || fail "user setup creates the Muse lazy stub"
 pass "user setup creates the custom agent lazy stubs"
@@ -300,7 +303,7 @@ pass "agent migrations install working wrappers without overriding the preinstal
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse; do
+for command in agy omp ori grok crush cursor-agent muse vibe; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -386,6 +389,8 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [vibe]="vibe"
+  [mistral-vibe]="vibe"
 )
 
 declare -A expected_packages=(
@@ -401,6 +406,7 @@ declare -A expected_packages=(
   [copilot]="copilot"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [vibe]="$vibe_package"
 )
 
 for selection in "${!expected_agents[@]}"; do
