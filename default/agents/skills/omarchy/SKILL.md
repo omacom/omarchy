@@ -75,6 +75,17 @@ enter a password there, such as a command launched by an agent or a graphical
 background process. Do not replace `sudo` with `pkexec` merely because a
 command changes system state.
 
+An agent cannot tell in advance whether a command has passwordless `sudo`.
+Try `sudo -n <command>` first. If it fails with `a password is required`,
+rerun the same command with `pkexec <command>` instead of handing it back to
+the user to run. `pkexec` shows a graphical polkit prompt on the desktop, so
+give the call a generous timeout while the user answers it.
+
+```bash
+sudo -n systemctl enable --now bluetooth   # fails: a password is required
+pkexec systemctl enable --now bluetooth    # user authorizes via polkit prompt
+```
+
 ## System Architecture
 
 Omarchy is built on:
