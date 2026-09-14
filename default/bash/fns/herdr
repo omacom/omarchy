@@ -12,14 +12,14 @@ _herdr_split() {
 }
 
 # Create a Herdr Dev Layout with editor, ai, and terminal
-# Usage: hdl <c|cx|codex|other_ai> [<second_ai>]
+# Usage: hdl [<c|cx|codex|other_ai>] [<second_ai>]
+# Without an agent, the AI pane runs the default agent set with `omarchy default agent`
 hdl() {
-  [[ -z $1 ]] && { echo "Usage: hdl <c|cx|codex|other_ai> [<second_ai>]"; return 1; }
   [[ -z $HERDR_PANE_ID ]] && { echo "You must start herdr to use hdl."; return 1; }
 
   local current_dir="${PWD}"
   local editor_pane ai_pane ai2_pane
-  local ai="$1"
+  local ai="${1:-omarchy-agent --inline}"
   local ai2="${2:-}"
 
   # Use HERDR_PANE_ID for the pane we're running in (stable even if focus moves)
@@ -47,14 +47,15 @@ hdl() {
   herdr pane run "$editor_pane" "$EDITOR ." >/dev/null
 }
 
-# Create a Herdr Dev Square layout with editor, diff watch, terminal, and opencode
-# Usage: hds
+# Create a Herdr Dev Square layout with editor, diff watch, terminal, and ai
+# Usage: hds [<c|cx|codex|other_ai>]
+# Without an agent, the AI pane runs the default agent set with `omarchy default agent`
 hds() {
-  [[ -n $1 ]] && { echo "Usage: hds"; return 1; }
   [[ -z $HERDR_PANE_ID ]] && { echo "You must start herdr to use hds."; return 1; }
 
   local current_dir="${PWD}"
-  local editor_pane diff_pane terminal_pane opencode_pane
+  local editor_pane diff_pane terminal_pane ai_pane
+  local ai="${1:-omarchy-agent --inline}"
 
   editor_pane="$HERDR_PANE_ID"
 
@@ -62,20 +63,19 @@ hds() {
 
   terminal_pane=$(_herdr_split "$editor_pane" down 0.5 "$current_dir")
   diff_pane=$(_herdr_split "$editor_pane" right 0.5 "$current_dir")
-  opencode_pane=$(_herdr_split "$terminal_pane" right 0.5 "$current_dir")
+  ai_pane=$(_herdr_split "$terminal_pane" right 0.5 "$current_dir")
 
   herdr pane run "$editor_pane" "nvim ." >/dev/null
   herdr pane run "$diff_pane" "hunk diff --watch" >/dev/null
-  herdr pane run "$opencode_pane" "opencode" >/dev/null
+  herdr pane run "$ai_pane" "$ai" >/dev/null
 }
 
 # Create multiple hdl tabs with one per subdirectory in the current directory
-# Usage: hdlm <c|cx|codex|other_ai> [<second_ai>]
+# Usage: hdlm [<c|cx|codex|other_ai>] [<second_ai>]
 hdlm() {
-  [[ -z $1 ]] && { echo "Usage: hdlm <c|cx|codex|other_ai> [<second_ai>]"; return 1; }
   [[ -z $HERDR_PANE_ID ]] && { echo "You must start herdr to use hdlm."; return 1; }
 
-  local ai="$1"
+  local ai="${1:-}"
   local ai2="${2:-}"
   local base_dir="$PWD"
   local first=true
@@ -88,7 +88,8 @@ hdlm() {
     [[ -d $dir ]] || continue
     local dirpath="${dir%/}"
 
-    printf -v hdl_command 'hdl %q' "$ai"
+    hdl_command="hdl"
+    [[ -n $ai ]] && printf -v hdl_command '%s %q' "$hdl_command" "$ai"
     [[ -n $ai2 ]] && printf -v hdl_command '%s %q' "$hdl_command" "$ai2"
 
     if $first; then
