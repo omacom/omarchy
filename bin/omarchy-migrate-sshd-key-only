@@ -1,0 +1,292 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Repair legacy Omarchy SSH hardening from a fixed root machine phase
+
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for the SSH migration." >&2
+  exit 126
+fi
+
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+set -euo pipefail
+omarchy_security_sanitize_bash_environment "$0" "$@" || exit 126
+
+(( $# == 0 && EUID == 0 )) || {
+  echo "The SSH migration machine phase must run as root without arguments." >&2
+  exit 2
+}
+
+PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+unset BASH_ENV ENV CDPATH GLOBIGNORE
+
+legacy_config=/etc/ssh/sshd_config.d/10-omarchy-hardening.conf
+key_only_config=/etc/ssh/sshd_config.d/00-omarchy-key-only.conf
+main_config=/etc/ssh/sshd_config
+dropin_dir=/etc/ssh/sshd_config.d
+passwd_file=/etc/passwd
+login_defs=/etc/login.defs
+machine_lock=/run/omarchy-sshd-key-only-migration.lock
+eligible_names=()
+keyed_names=()
+
+runtime_owner_mode=$(/usr/bin/stat -Lc '%u:%a:%F' -- /run) || exit 1
+[[ ! -L /run && $(/usr/bin/readlink -e -- /run) == /run && $runtime_owner_mode == "0:755:directory" ]] || {
+  echo "Refusing an unsafe runtime directory for the SSH migration lock." >&2
+  exit 1
+}
+umask 077
+if [[ -e $machine_lock || -L $machine_lock ]]; then
+  [[ -f $machine_lock && ! -L $machine_lock && $(/usr/bin/stat -Lc '%u:%a:%h' -- "$machine_lock") == "0:600:1" ]] || {
+    echo "Refusing an unsafe SSH migration lock." >&2
+    exit 1
+  }
+fi
+exec {machine_lock_fd}>"$machine_lock"
+/usr/bin/flock -x "$machine_lock_fd"
+[[ $(/usr/bin/stat -Lc '%u:%a:%h' -- "$machine_lock") == "0:600:1" ]] || exit 1
+
+service_active_state() {
+  local state
+  state=$(/usr/bin/systemctl is-active sshd.service 2>/dev/null) || true
+  case "$state" in
+    active | activating | reloading | deactivating) return 0 ;;
+    inactive | failed) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+service_enabled_state() {
+  local state
+  state=$(/usr/bin/systemctl is-enabled sshd.service 2>/dev/null) || true
+  case "$state" in
+    enabled | enabled-runtime | linked | linked-runtime | alias | static | indirect | generated | transient) return 0 ;;
+    disabled | masked | masked-runtime) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+disable_affected() {
+  local active_status enabled_status
+  service_active_state && active_status=0 || active_status=$?
+  service_enabled_state && enabled_status=0 || enabled_status=$?
+  if (( active_status == 2 || enabled_status == 2 )); then
+    echo "Could not determine whether sshd.service is active or enabled; refusing to complete the SSH migration." >&2
+    return 1
+  fi
+  (( active_status == 0 || enabled_status == 0 )) || return 0
+  /usr/bin/systemctl disable --now sshd.service || {
+    echo "Could not disable SSH after key-only policy verification failed; rerun omarchy-migrate with administrator privileges." >&2
+    exit 1
+  }
+  echo "Disabled sshd because a machine account with usable key-only access could not be proven. Run omarchy-setup-security-sshd to repair it."
+}
+
+legacy_is_omarchy_managed() {
+  [[ -f $legacy_config && ! -L $legacy_config ]] || return 1
+  [[ $(/usr/bin/awk '!/^[[:space:]]*(#|$)/ { print }' "$legacy_config") == $'PasswordAuthentication no\nKbdInteractiveAuthentication no' ]]
+}
+
+valid_login_shell() {
+  local shell=$1
+  [[ $shell == /* && -x $shell ]] || return 1
+  case "$shell" in
+    */nologin | */false) return 1 ;;
+  esac
+}
+
+account_has_usable_key() {
+  local name=$1 uid=$2 home=$3
+  local authorized_keys="$home/.ssh/authorized_keys" canonical home_owner home_mode ssh_owner ssh_mode key_owner key_mode line
+
+  [[ -d $home && ! -L $home ]] || return 1
+  canonical=$(/usr/bin/realpath -e -- "$home" 2>/dev/null) || return 1
+  [[ $canonical == "$home" ]] || return 1
+  [[ -d $home/.ssh && ! -L $home/.ssh && -f $authorized_keys && ! -L $authorized_keys ]] || return 1
+  [[ $(/usr/bin/realpath -e -- "$home/.ssh") == "$home/.ssh" &&
+    $(/usr/bin/realpath -e -- "$authorized_keys") == "$authorized_keys" ]] || return 1
+  read -r home_owner home_mode < <(/usr/bin/stat -Lc '%u %a' -- "$home") || return 1
+  read -r ssh_owner ssh_mode < <(/usr/bin/stat -Lc '%u %a' -- "$home/.ssh") || return 1
+  read -r key_owner key_mode < <(/usr/bin/stat -Lc '%u %a' -- "$authorized_keys") || return 1
+  [[ $home_owner == 0 || $home_owner == "$uid" ]] || return 1
+  [[ $ssh_owner == 0 || $ssh_owner == "$uid" ]] || return 1
+  [[ $key_owner == 0 || $key_owner == "$uid" ]] || return 1
+  [[ $home_mode =~ ^[0-7]+$ && $ssh_mode =~ ^[0-7]+$ && $key_mode =~ ^[0-7]+$ ]] || return 1
+  ! ((8#$home_mode & 022)) && ! ((8#$ssh_mode & 022)) && ! ((8#$key_mode & 022)) || return 1
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    /usr/bin/ssh-keygen -lf /dev/stdin <<<"$line" >/dev/null 2>&1 && return 0
+  done <"$authorized_keys"
+  return 1
+}
+
+valid_account_name() {
+  [[ $1 =~ ^[a-z_][a-z0-9_-]{0,30}[$]?$ ]]
+}
+
+account_is_admitted() {
+  local name=$1 dump=$2 directive token status_line status account_groups group admitted
+  local -a values groups
+
+  status_line=$(LC_ALL=C /usr/bin/passwd -S -- "$name" 2>/dev/null) || return 1
+  read -r token status _ <<<"$status_line"
+  [[ $token == "$name" && ( $status == "P" || $status == "NP" ) ]] || return 1
+
+  account_groups=$(/usr/bin/id -Gn -- "$name" 2>/dev/null) || return 1
+  read -r -a groups <<<"$account_groups"
+  ((${#groups[@]} > 0)) || return 1
+  for group in "${groups[@]}"; do valid_account_name "$group" || return 1; done
+
+  for directive in allowusers denyusers allowgroups denygroups; do
+    mapfile -t values < <(/usr/bin/awk -v wanted="$directive" 'tolower($1) == wanted { for (i=2; i<=NF; i++) print $i }' <<<"$dump")
+    case "$directive" in
+      allowusers)
+        ((${#values[@]} == 0)) || {
+          admitted=0
+          for token in "${values[@]}"; do valid_account_name "$token" || return 1; [[ $token != "$name" ]] || admitted=1; done
+          ((admitted)) || return 1
+        }
+        ;;
+      denyusers)
+        for token in "${values[@]}"; do valid_account_name "$token" || return 1; [[ $token != "$name" ]] || return 1; done
+        ;;
+      allowgroups)
+        ((${#values[@]} == 0)) || {
+          admitted=0
+          for token in "${values[@]}"; do
+            valid_account_name "$token" || return 1
+            for group in "${groups[@]}"; do [[ $token != "$group" ]] || admitted=1; done
+          done
+          ((admitted)) || return 1
+        }
+        ;;
+      denygroups)
+        for token in "${values[@]}"; do
+          valid_account_name "$token" || return 1
+          for group in "${groups[@]}"; do [[ $token != "$group" ]] || return 1; done
+        done
+        ;;
+    esac
+  done
+}
+
+enumerate_login_accounts() {
+  local uid_min=1000 line name password uid gid gecos home shell extra
+  local configured_uid_min
+  configured_uid_min=$(/usr/bin/awk '$1 == "UID_MIN" && $2 ~ /^[0-9]+$/ { print $2; exit }' "$login_defs" 2>/dev/null || true)
+  [[ -z $configured_uid_min ]] || uid_min=$configured_uid_min
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    IFS=: read -r name password uid gid gecos home shell extra <<<"$line"
+    [[ -z ${extra:-} && $uid =~ ^[0-9]+$ &&
+      $home == /* ]] || return 1
+    valid_account_name "$name" || return 1
+    (( uid == 0 || (uid >= uid_min && uid != 65534) )) || continue
+    valid_login_shell "$shell" || continue
+    eligible_names+=("$name")
+    if account_has_usable_key "$name" "$uid" "$home"; then
+      keyed_names+=("$name")
+    fi
+  done <"$passwd_file"
+  ((${#eligible_names[@]} > 0))
+}
+
+precedence_is_provable() {
+  /usr/bin/awk '
+    { line=$0; sub(/[[:space:]]*#.*/, "", line); sub(/^[[:space:]]+/, "", line) }
+    line !~ /^[[:space:]]*$/ {
+      split(line,f,/[[:space:]]+/); key=tolower(f[1])
+      if (!included) {
+        if (key=="include" && line ~ /^[Ii][Nn][Cc][Ll][Uu][Dd][Ee][[:space:]]+\/etc\/ssh\/sshd_config\.d\/\*\.conf[[:space:]]*$/) included=1
+        else if (key=="include" || key=="match" || key=="passwordauthentication" || key=="kbdinteractiveauthentication" || key=="authenticationmethods" || key=="pubkeyauthentication" || key=="authorizedkeysfile") exit 1
+      }
+    }
+    END { if (!included) exit 1 }
+  ' "$main_config" || return 1
+  local entry
+  while IFS= read -r entry; do
+    [[ $entry == "${key_only_config##*/}" ]] && continue
+    [[ $entry > "${key_only_config##*/}" ]] || return 1
+  done < <(/usr/bin/find "$dropin_dir" -mindepth 1 -maxdepth 1 -name '*.conf' -printf '%f\n' | LC_ALL=C /usr/bin/sort)
+}
+
+dump_is_key_only() {
+  local dump=$1
+  /usr/bin/grep -qixF 'passwordauthentication no' <<<"$dump" &&
+    /usr/bin/grep -qixF 'kbdinteractiveauthentication no' <<<"$dump" &&
+    /usr/bin/grep -qixF 'authenticationmethods publickey' <<<"$dump" &&
+    /usr/bin/grep -qixF 'pubkeyauthentication yes' <<<"$dump" &&
+    /usr/bin/grep -qixF 'authorizedkeysfile .ssh/authorized_keys' <<<"$dump"
+}
+
+effective_is_key_only() {
+  local dump name keyed admitted_key=0
+  dump=$(/usr/bin/sshd -T) && dump_is_key_only "$dump" || return 1
+  for name in "${eligible_names[@]}"; do
+    dump=$(/usr/bin/sshd -T -C "user=$name,host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22") || return 1
+    dump_is_key_only "$dump" || return 1
+    for keyed in "${keyed_names[@]}"; do
+      if [[ $keyed == "$name" ]] && account_is_admitted "$name" "$dump"; then admitted_key=1; fi
+    done
+  done
+  ((admitted_key))
+}
+
+# Only repair the exact two-directive file emitted by old Omarchy. Preserve an
+# administrator-authored file at either name byte-for-byte.
+if [[ -e $legacy_config || -L $legacy_config ]]; then
+  legacy_is_omarchy_managed || exit 0
+elif [[ ! -e $key_only_config && ! -L $key_only_config ]]; then
+  exit 0
+fi
+if [[ -e $key_only_config || -L $key_only_config ]] && [[ ! -f $key_only_config || -L $key_only_config ]]; then
+  disable_affected
+  exit 0
+fi
+
+if ! enumerate_login_accounts || ((${#keyed_names[@]} == 0)) || ! precedence_is_provable; then
+  disable_affected
+  exit 0
+fi
+
+created=0
+if [[ ! -e $key_only_config ]]; then
+  /usr/bin/install -DT -o root -g root -m 0644 /dev/stdin "$key_only_config" <<'CONF' || exit 1
+# Written by Omarchy once an SSH key was already authorized.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+Match all
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  AuthenticationMethods publickey
+  PubkeyAuthentication yes
+  AuthorizedKeysFile .ssh/authorized_keys
+CONF
+  created=1
+fi
+/usr/bin/ssh-keygen -A || { ((created)) && /usr/bin/rm -f "$key_only_config"; exit 1; }
+if ! /usr/bin/sshd -t || ! effective_is_key_only; then
+  ((created)) && /usr/bin/rm -f "$key_only_config"
+  disable_affected
+  exit 0
+fi
+
+service_active_state && active_status=0 || active_status=$?
+if (( active_status == 2 )); then
+  ((created)) && /usr/bin/rm -f "$key_only_config"
+  echo "Could not determine whether sshd.service is active; refusing to complete the SSH migration." >&2
+  exit 1
+elif (( active_status == 0 )) && ! /usr/bin/systemctl reload sshd.service; then
+  disable_affected
+  exit 0
+fi
+
+if legacy_is_omarchy_managed; then
+  /usr/bin/rm -f -- "$legacy_config"
+fi
