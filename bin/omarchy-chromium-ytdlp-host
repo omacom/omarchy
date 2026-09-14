@@ -15,6 +15,14 @@ export OMARCHY_PATH="${OMARCHY_PATH:-$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." &
 # Make sure the Omarchy bin and yt-dlp are reachable when launched by the browser.
 export PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:$PATH"
 
+# Chromium-family browsers (Vivaldi proprietary codecs, some Chrome builds) inject
+# their bundled libffmpeg via LD_PRELOAD / VIVALDI_PRELOADS. The native-messaging
+# host inherits that environment, so yt-dlp's ffmpeg checks and our thumbnail
+# extraction load the browser's stub instead of system FFmpeg — avutil_configuration()
+# returns NULL and ffmpeg segfaults in strcmp during show_banner. Drop both so every
+# child (yt-dlp, ffmpeg) uses the system libraries.
+unset LD_PRELOAD VIVALDI_PRELOADS
+
 DOWNLOAD_DIR="${OMARCHY_YTDLP_DIR:-$HOME/Videos}"
 
 parse_url() {

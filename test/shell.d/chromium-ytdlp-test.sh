@@ -63,6 +63,20 @@ host_fn() {
   ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "$@"
 }
 
+# Sourcing the host must clear browser codec preloads so ffmpeg/yt-dlp never load
+# a bundled libffmpeg stub (issue #10469).
+preload_check=$(
+  LD_PRELOAD=/opt/vivaldi/libffmpeg.so VIVALDI_PRELOADS=/opt/vivaldi/libffmpeg.so \
+    OMARCHY_PATH="$ROOT" bash -c '
+      source "$1"
+      printf "LD_PRELOAD=%s\n" "${LD_PRELOAD-<unset>}"
+      printf "VIVALDI_PRELOADS=%s\n" "${VIVALDI_PRELOADS-<unset>}"
+    ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host"
+)
+[[ $preload_check == $'LD_PRELOAD=<unset>\nVIVALDI_PRELOADS=<unset>' ]] ||
+  fail "yt-dlp native host unsets browser LD_PRELOAD and VIVALDI_PRELOADS" "$preload_check"
+pass "yt-dlp native host unsets browser LD_PRELOAD and VIVALDI_PRELOADS"
+
 download_dir="$TMPDIR/videos"
 mkdir -p "$download_dir" "$TMPDIR/outside"
 good_file="$download_dir/clip [id].mp4"
