@@ -801,3 +801,119 @@ mapfile -d '' -t launch_args <"$launch_log"
   ${launch_args[4]} == "Review this project" ]] ||
   fail "OpenClaw receives prompts through --message" "argv: ${launch_args[*]}"
 pass "OpenClaw receives prompts through --message"
+
+# Axon uses the real installer against stubbed executables.
+(
+  # Keep absence genuine, without inheriting developer-installed Axon/Bun.
+  export PATH="$mock_bin:$ROOT/bin:/usr/bin:/bin"
+  cat >"$test_tmp/axon-template" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "--version" ]]; then
+  [[ -f $OMARCHY_TEST_AXON_READY ]]
+else
+  printf '%s\0' axon "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
+fi
+SH
+  cat >"$mock_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+command -v "$1" >/dev/null 2>&1
+SH
+  cat >"$mock_bin/mise" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_HISTORY"
+printf '%s\0' "$@" >"$OMARCHY_TEST_MISE_LOG"
+expected=(use -g --fuzzy npm:@arcforge/axon@latest)
+(( $# == ${#expected[@]} )) || exit 2
+for arg in "${expected[@]}"; do
+  [[ $1 == "$arg" ]] || exit 2
+  shift
+done
+[[ ${OMARCHY_TEST_MISE_FAIL:-false} != "true" ]] || exit 1
+cp "$OMARCHY_TEST_AXON_TEMPLATE" "$OMARCHY_TEST_AXON_BIN"
+chmod +x "$OMARCHY_TEST_AXON_BIN"
+if [[ ${OMARCHY_TEST_AXON_BROKEN:-false} != "true" ]]; then
+  touch "$OMARCHY_TEST_AXON_READY"
+fi
+SH
+  printf '#!/bin/bash\nexit 0\n' >"$mock_bin/bun"
+  chmod +x "$mock_bin/bun" "$mock_bin/omarchy-cmd-present" "$mock_bin/mise"
+  export OMARCHY_TEST_AXON_TEMPLATE="$test_tmp/axon-template"
+  export OMARCHY_TEST_AXON_BIN="$mock_bin/axon"
+  export OMARCHY_TEST_AXON_READY="$test_tmp/axon-ready"
+  unset OMARCHY_TEST_MISSING_COMMAND
+  hash -r
+
+  : >"$mise_history"
+  if omarchy-install-axon-cli --check; then
+    fail "Axon check rejects an unavailable CLI"
+  fi
+  [[ ! -s $mise_history ]] || fail "Axon check does not install anything"
+  if omarchy-install-axon-cli --invalid >"$test_tmp/axon-invalid" 2>&1; then
+    fail "Axon installer rejects unknown options"
+  fi
+
+  if omarchy-install-axon-cli "" >"$test_tmp/axon-empty" 2>&1; then
+    fail "Axon installer rejects an empty argument"
+  fi
+
+  for mode in --check --now; do
+    if omarchy-install-axon-cli "$mode" unexpected >"$test_tmp/axon-extra" 2>&1; then
+      fail "Axon installer rejects extra arguments for $mode"
+    fi
+  done
+  [[ ! -s $mise_history ]] || fail "invalid Axon arguments cause no installation"
+
+  printf '%s\n' pi >"$agent_file"
+  : >"$terminal_log"
+  : >"$launch_log"
+  : >"$inline_log"
+  omarchy-default-agent axon
+  mapfile -d '' -t terminal_args <"$terminal_log"
+  [[ ${terminal_args[*]} == "omarchy-default-agent --install axon" ]] ||
+    fail "missing Axon opens the installation terminal"
+  [[ $(omarchy-default-agent) == "pi" && ! -s $launch_log && ! -s $inline_log ]] ||
+    fail "missing Axon waits before selecting or launching"
+
+  : >"$inline_log"
+  : >"$terminal_log"
+  if OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent --install axon >"$test_tmp/axon-failure" 2>&1; then
+    fail "Axon installation propagates mise failure"
+  fi
+  [[ $(omarchy-default-agent) == "pi" && ! -s $launch_log && ! -s $inline_log ]] ||
+    fail "failed Axon installation preserves the default and skips launch"
+  [[ ! -s $terminal_log ]] || fail "failed Axon installation does not open another terminal"
+
+  if OMARCHY_TEST_AXON_BROKEN=true omarchy-default-agent --install axon >"$test_tmp/axon-broken" 2>&1; then
+    fail "Axon installation rejects an unusable CLI after mise succeeds"
+  fi
+  [[ $(omarchy-default-agent) == "pi" && ! -s $launch_log && ! -s $inline_log ]] ||
+    fail "broken Axon preserves the default and skips every launch"
+  [[ ! -s $terminal_log ]] || fail "broken Axon does not open another terminal"
+
+  rm -f "$mock_bin/axon"
+  : >"$mise_history"
+  omarchy-default-agent --install axon >"$test_tmp/axon-installed"
+  [[ $(omarchy-default-agent) == "axon" ]] || fail "Axon selection is stored"
+  [[ $(cat "$mise_history") == "use -g --fuzzy npm:@arcforge/axon@latest" ]] ||
+    fail "Axon installs only its fuzzy npm selection"
+  mapfile -d '' -t inline_args <"$inline_log"
+  [[ ${#inline_args[@]} == 2 && ${inline_args[0]} == "axon" && ${inline_args[1]} == "@axon/zeno" ]] ||
+    fail "new Axon launches Zeno inline"
+
+  : >"$mise_history"
+  omarchy-install-axon-cli --check
+  omarchy-default-agent axon
+  omarchy-install-axon-cli
+  [[ ! -s $mise_history ]] || fail "working Axon is preserved without mise changes"
+  assert_launched axon "starts Zeno" axon @axon/zeno
+
+  assert_launch axon axon @axon/zeno -p "Review this project"
+  # Shell syntax is intentionally literal test data, not an expansion.
+  # shellcheck disable=SC2016
+  literal_axon_prompt='--help $(touch "'$test_tmp'/axon-must-not-run"); $HOME'
+  literal_axon_prompt+=$'\nquotes " and trailing\\ '
+  omarchy-agent-prompt "$literal_axon_prompt"
+  assert_launched axon "preserves literal prompt text" axon @axon/zeno -p "$literal_axon_prompt"
+  [[ ! -e $test_tmp/axon-must-not-run ]] || fail "Axon prompt is never evaluated"
+  pass "Axon installs through mise, preserves working installs, and launches literal Zeno prompts"
+)
