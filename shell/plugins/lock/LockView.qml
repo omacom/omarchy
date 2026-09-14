@@ -176,7 +176,15 @@ Item {
           if (submitted.length > 0) root.submitPassword(submitted)
         }
 
+        Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
+          // Hyprland can wake DPMS on this same keypress. Swallow it so the
+          // wake key never becomes the first password character.
+          if (root.displaysBlank) {
+            root.wakeRequested()
+            event.accepted = true
+            return
+          }
           root.wakeRequested()
           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
             root.passwordTextEdited("")
