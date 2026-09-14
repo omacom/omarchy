@@ -85,6 +85,76 @@ assertDeepEqual(
   'weather builds future Open-Meteo forecast days'
 )
 
+const openMeteoWithSun = {
+  daily: {
+    time: ['2026-05-25', '2026-05-26'],
+    temperature_2m_max: [20.1, 21.6],
+    temperature_2m_min: [12.2, 13.1],
+    weather_code: [0, 63],
+    sunrise: ['2026-05-25T05:36', '2026-05-26T05:35'],
+    sunset: ['2026-05-25T18:47', '2026-05-26T18:48']
+  }
+}
+assertDeepEqual(
+  weather.openMeteoForecastDays(openMeteoWithSun, '2026-05-25')[0],
+  {
+    date: '2026-05-26',
+    maxtempC: '22',
+    mintempC: '13',
+    maxtempF: '71',
+    mintempF: '56',
+    openMeteoWeatherCode: 63,
+    sunrise: '05:35',
+    sunset: '18:48'
+  },
+  'weather carries local sunrise/sunset on Open-Meteo forecast days'
+)
+
+assertEqual(weather.timeOnly('2026-05-25T05:36'), '05:36', 'weather strips open-meteo ISO timestamps to a clock time')
+assertEqual(weather.timeOnly('09:05 AM'), '09:05', 'weather normalizes wttr AM times to 24h')
+assertEqual(weather.timeOnly('05:36 PM'), '17:36', 'weather normalizes wttr PM times to 24h')
+assertEqual(weather.timeOnly('12:15 AM'), '00:15', 'weather maps wttr midnight to 00:xx')
+assertEqual(weather.timeOnly('12:30 PM'), '12:30', 'weather keeps wttr noon at 12:xx')
+assertEqual(weather.timeOnly('nope'), 'nope', 'weather leaves unparseable times alone')
+
+assertDeepEqual(
+  weather.sunTimes(openMeteoWithSun, null, '2026-05-25'),
+  { sunrise: '05:36', sunset: '18:47' },
+  'weather normalizes open-meteo sunrise/sunset to local clock times'
+)
+const sunTodayAtEnd = {
+  daily: {
+    time: ['2026-05-26', '2026-05-27', '2026-05-25'],
+    temperature_2m_max: [21.6, 18.2, 20.1],
+    temperature_2m_min: [13.1, 10.8, 12.2],
+    weather_code: [63, 95, 0],
+    sunrise: ['2026-05-26T05:35', '2026-05-27T05:34', '2026-05-25T05:36'],
+    sunset: ['2026-05-26T18:48', '2026-05-27T18:49', '2026-05-25T18:47']
+  }
+}
+assertDeepEqual(
+  weather.sunTimes(sunTodayAtEnd, null, '2026-05-25'),
+  { sunrise: '05:36', sunset: '18:47' },
+  'weather picks the daily entry that matches today, not the first one'
+)
+assertEqual(weather.sunTimes({}, null, '2026-05-25'), null, 'weather returns no sun times without data')
+assertDeepEqual(
+  weather.sunTimes({}, { weather: [{ astronomy: [{ sunrise: '05:36 AM', sunset: '06:47 PM' }] }] }, '2026-05-25'),
+  { sunrise: '05:36', sunset: '18:47' },
+  'weather falls back to wttr astronomy for today'
+)
+assertEqual(weather.sunTimesForDay(null), null, 'weather returns no sun times for a missing forecast day')
+assertDeepEqual(
+  weather.sunTimesForDay({ date: '2026-05-26', sunrise: '05:35', sunset: '18:48' }),
+  { sunrise: '05:35', sunset: '18:48' },
+  'weather reads normalized sun times off Open-Meteo forecast days'
+)
+assertDeepEqual(
+  weather.sunTimesForDay({ date: '2026-05-26', astronomy: [{ sunrise: '05:35 AM', sunset: '06:48 PM' }] }),
+  { sunrise: '05:35', sunset: '18:48' },
+  'weather normalizes sun times off wttr forecast days too'
+)
+
 assertDeepEqual(
   weather.openMeteoCurrentCondition({ current: { temperature_2m: 21.4, apparent_temperature: 19.8, wind_speed_10m: 14.3, relative_humidity_2m: 63 } }),
   { temp_C: '21', temp_F: '71', FeelsLikeC: '20', FeelsLikeF: '68', windspeedKmph: '14', windspeedMiles: '9', humidity: '63' },
@@ -136,6 +206,49 @@ assert(
 assert(
   panelSource.includes('text: root.label || "—"'),
   'weather hero and bar use the same resolved icon'
+)
+assert(
+  panelSource.includes('&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'),
+  'weather requests sunrise and sunset from open-meteo daily'
+)
+assert(
+  panelSource.includes('text: "SUNRISE"') && panelSource.includes('text: "SUNSET"'),
+  'weather hero shows sunrise and sunset columns'
+)
+assert(
+  (function() {
+    var sunriseStart = panelSource.indexOf('id: sunriseCol')
+    var sunsetStart = panelSource.indexOf('id: sunsetCol')
+    if (sunriseStart < 0 || sunsetStart < 0 || sunsetStart < sunriseStart) return false
+
+    // Extract only the x: bindings: the sunrise column's block runs up to the
+    // sunset column's declaration, the sunset column's block runs to the end
+    // of the hero section. Tolerant to reformatting of the arithmetic, but
+    // each binding must still name its two adjacent stats columns.
+    var sunriseBlock = panelSource.slice(sunriseStart, sunsetStart)
+    var sunsetBlock = panelSource.slice(sunsetStart, panelSource.indexOf('// ---- Geocoding suggestions'))
+
+    function xBinding(block) {
+      var lines = String(block || '').split('\n')
+      for (var i = 0; i < lines.length; i++)
+        if (/^\s*x\s*:/.test(lines[i])) return lines[i]
+      return ''
+    }
+
+    var sunriseX = xBinding(sunriseBlock)
+    var sunsetX = xBinding(sunsetBlock)
+    return sunriseX.includes('feelsCol') && sunriseX.includes('windCol')
+      && sunsetX.includes('windCol') && sunsetX.includes('humidCol')
+  })(),
+  'weather sun times keep their own row and center between the adjacent stats columns'
+)
+assert(
+  panelSource.includes('PanelToolTip {') && panelSource.includes('sunTooltipText'),
+  'weather forecast days expose a hover tooltip with sun times'
+)
+assert(
+  panelSource.includes('parts.push("Sunrise " + sun.sunrise)') && panelSource.includes('parts.push("Sunset " + sun.sunset)'),
+  'weather forecast day tooltips label sunrise and sunset times'
 )
 assert(
   panelSource.includes('onReturnRequested: root.startEditingLocation()'),
