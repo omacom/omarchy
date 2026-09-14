@@ -1,7 +1,9 @@
+var MAX_TIMEOUT_SECONDS = 2147483 // Math.floor(2147483647 / 1000)
+
 function secondsFromConfig(value, fallback) {
   var n = Number(value)
   if (!isFinite(n) || n < 0) return fallback
-  return Math.floor(n)
+  return Math.min(Math.floor(n), MAX_TIMEOUT_SECONDS)
 }
 
 function eventParts(event, count) {
@@ -45,6 +47,7 @@ function screensaverWindowsAfter(windows, address, visible) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    MAX_TIMEOUT_SECONDS: MAX_TIMEOUT_SECONDS,
     secondsFromConfig: secondsFromConfig,
     eventParts: eventParts,
     screensaverWindowsAfter: screensaverWindowsAfter
