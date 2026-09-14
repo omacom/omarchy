@@ -110,6 +110,14 @@ Item {
   property var clickTargets: []
   property var moduleSlots: []
   property var pluginBarApis: ({})
+
+  onCenterHoverRevealSuppressedChanged: {
+    for (var id in pluginBarApis) {
+      var api = pluginBarApis[id]
+      if (api && api.centerHoverRevealSuppressed !== root.centerHoverRevealSuppressed)
+        api.centerHoverRevealSuppressed = root.centerHoverRevealSuppressed
+    }
+  }
   property var pluginObjectOwners: []
 
   Component {
@@ -135,6 +143,7 @@ Item {
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
     api._centerHoverRevealSuppressed = Qt.binding(function() { return root.centerHoverRevealSuppressed })
+    api.centerHoverRevealSuppressed = root.centerHoverRevealSuppressed
     root.syncPluginBarApiObjects(api)
   }
 
