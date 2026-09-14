@@ -9,6 +9,14 @@
 # also make USB touchscreens) are left out to avoid nagging laptops with no
 # reader — those still match on the product string below when present.
 fingerprint_vendors=" 27c6 138a 06cb 08ff 1c7a 147e "
+
+# Exact vendor:product pairs, for vendors too broad to list above. Broadcom
+# (0a5c) also ships Bluetooth radios, hubs and ControlVault modules on machines
+# with no reader, and the Latitude 9440's descriptor is the bare string "58200"
+# — so neither match above can catch it. Pairs are trusted outright.
+#   0a5c:5843  Broadcom BCM58200 ControlVault 3 (Dell Latitude 9440 2-in-1)
+fingerprint_devices=" 0a5c:5843 "
+
 usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
 
 # libfprint drives every reader it supports from userspace over libusb, so a
@@ -48,6 +56,12 @@ for dev in "$usb_devices_path"/*; do
 
   if [[ -r $dev/idVendor ]]; then
     vendor=$(<"$dev/idVendor")
+
+    if [[ -r $dev/idProduct ]]; then
+      product_id=$(<"$dev/idProduct")
+      [[ $fingerprint_devices == *" $vendor:$product_id "* ]] && exit 0
+    fi
+
     [[ $fingerprint_vendors == *" $vendor "* ]] &&
       ! has_kernel_driver "$dev" && exit 0
   fi

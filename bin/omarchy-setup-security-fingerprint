@@ -78,9 +78,22 @@ fi
 # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
 # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
 # one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+packages=(libfprint-git fprintd usbutils)
+
+# --ask 4 accepts any replacement, not just the stock-libfprint one it was
+# written for. Readers libfprint cannot drive at all run on a TOD stack instead
+# — a libfprint fork plus a vendor blob — and that fork provides libfprint too,
+# so this would remove the only driver they have without asking. Check who owns
+# the library: the TOD packages are named differently per vendor.
+libfprint_owner=$(pacman -Qqo /usr/lib/libfprint-2.so.2 2>/dev/null || true)
+if [[ -n $libfprint_owner && $libfprint_owner != "libfprint" && $libfprint_owner != "libfprint-git" ]]; then
+  echo -e "\e[33mlibfprint is provided by $libfprint_owner; keeping it and skipping libfprint-git.\e[0m"
+  packages=(fprintd usbutils)
+fi
+
+if omarchy-pkg-missing "${packages[@]}"; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+  sudo pacman -S --needed --noconfirm --ask 4 "${packages[@]}"
 fi
 
 # Enroll first fingerprint
