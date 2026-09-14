@@ -60,8 +60,9 @@ guidance does not drift from the router.
 
 # Runtime Environment
 
-- `$OMARCHY_PATH` is set at the top level by the uwsm session environment and is always available to Omarchy runtime code.
+- `$OMARCHY_PATH` is established by `default/bash/env-bootstrap`, which runs only from a login shell, an interactive rc, or the uwsm session environment. `sudo` execs the router under its default `env_reset`, so it drops `OMARCHY_PATH` and no shell that would re-establish it runs.
 - Commands in `bin/` and Quickshell QML should rely on `$OMARCHY_PATH` / `Quickshell.env("OMARCHY_PATH")`; do not derive fallback paths from `HOME`, `Quickshell.shellDir`, or re-export/default `OMARCHY_PATH` manually.
+- Root entry points are the exception: a command reachable as root may resolve an unset `OMARCHY_PATH` from the root-owned `/etc/omarchy.conf` that `omarchy-dev-link` writes, defaulting it to the packaged `/usr/share/omarchy`.
 
 # Privileged Commands
 
