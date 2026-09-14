@@ -1,11 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Launch the Omarchy shell with its log kept in the journal
+# omarchy:summary=Launch the Omarchy shell or locker with its log kept in the journal
+# omarchy:args=[--lock]
 # omarchy:hidden=true
+
+config="$OMARCHY_PATH/shell"
+log_tag=omarchy-shell
+if [[ ${1:-} == "--lock" && $# == 1 ]]; then
+  config="$OMARCHY_PATH/shell/lock.qml"
+  log_tag=omarchy-lock
+  # The locker needs little allocation parallelism; fewer arenas retain less memory.
+  export MALLOC_CONF="${MALLOC_CONF:+$MALLOC_CONF,}narenas:2"
+elif (( $# > 0 )); then
+  echo "Usage: omarchy-launch-shell [--lock]" >&2
+  exit 1
+fi
 
 # Quickshell only logs to its instance runtime dir (tmpfs), so when the shell
 # dies the idle/lock event trail is gone after a reboot. The journal keeps it
-# across sessions, bounded and timestamped, under the omarchy-shell tag.
+# across sessions, bounded and timestamped, under each process's tag.
 #
 # Backgrounded because bash defers a trap until a foreground command returns but
 # interrupts wait. systemd-cat execs, so the job is Quickshell itself.
@@ -16,7 +29,7 @@
 # generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
   QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
-    systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
+    systemd-cat -t "$log_tag" -- quickshell -n -p "$config" &
   shell_pid=$!
 
   local status
@@ -82,10 +95,10 @@ while true; do
   fi
 
   if (( ++attempts > 5 )); then
-    logger -t omarchy-shell "Giving up on the Omarchy shell after $attempts relaunches in under a minute."
+    logger -t "$log_tag" "Giving up on $log_tag after $attempts relaunches in under a minute."
     exit 1
   fi
 
-  logger -t omarchy-shell "Omarchy shell exited with status $status; relaunching."
+  logger -t "$log_tag" "$log_tag exited with status $status; relaunching."
   sleep 1
 done

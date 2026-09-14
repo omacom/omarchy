@@ -1,6 +1,8 @@
 # Shell Plugins
 
-The Omarchy desktop runs as a single long-lived Quickshell process called `omarchy-shell`, and almost everything you see on screen is a plugin inside it. The bar is a plugin. So are the panels that drop down from it, the fullscreen overlays like the emoji picker and the clipboard manager, the Omarchy menu itself, the lock screen, the polkit dialog, and the headless services that watch your battery and warm your screen up at night.
+The Omarchy desktop runs as a single long-lived Quickshell process called `omarchy-shell`, and almost everything you see on screen is a plugin inside it. The bar is a plugin. So are the panels that drop down from it, the fullscreen overlays like the emoji picker and the clipboard manager, the Omarchy menu itself, the polkit dialog, and the headless services that watch your battery and warm your screen up at night.
+
+The lock screen runs separately, so restarting or customizing the shell leaves it working.
 
 That's not just an implementation detail. It means you can turn pieces of the desktop off, swap them out, or write your own without touching a line of Omarchy's source.
 

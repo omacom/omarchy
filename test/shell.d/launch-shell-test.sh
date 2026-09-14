@@ -28,8 +28,9 @@ cat >"$fake_bin/quickshell" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
-printf 'watcher=%s popup=%s\n' \
-  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
+printf 'watcher=%s popup=%s malloc=%s\n' \
+  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" \
+  "${MALLOC_CONF:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
 
 launches=$(wc -l <"$OMARCHY_TEST_QS_LOG")
 status=$(awk -v n="$launches" 'NR == n { print; found = 1 } END { if (!found) print "0" }' <<<"$OMARCHY_TEST_QS_STATUSES")
@@ -99,13 +100,14 @@ launch_shell() {
   OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
   OMARCHY_TEST_HYPRCTL_MISSES="${3:-0}" \
   OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
-    timeout 30 "$ROOT/bin/omarchy-launch-shell"
+    timeout 30 "$ROOT/bin/omarchy-launch-shell" ${4:+--lock}
 }
 
 launches() {
   wc -l <"$qs_log" | tr -d ' '
 }
 
+unset MALLOC_CONF
 launch_shell '0' || fail "a clean launch succeeds"
 [[ $(launches) == 1 ]] || fail "a shell that exits cleanly is not relaunched" "$(<"$qs_log")"
 grep -F -- "-n -p $shell_root/shell" "$qs_log" >/dev/null || fail "the shell launches from OMARCHY_PATH"
@@ -113,9 +115,19 @@ pass "a shell that exits cleanly is left alone"
 
 # A misspelled variable would leave Quickshell hot-reloading the tree pacman
 # rewrites underneath it, which is what crashes the restart that follows.
-[[ $(<"$qs_env_log") == "watcher=1 popup=1" ]] ||
+[[ $(<"$qs_env_log") == "watcher=1 popup=1 malloc=unset" ]] ||
   fail "the shell launches with Quickshell's own reloading off" "$(<"$qs_env_log")"
 pass "the shell launches with Quickshell's config watcher and reload popup off"
+
+MALLOC_CONF='dirty_decay_ms:1000,narenas:8' launch_shell '0' || fail "the main shell accepts allocator settings"
+[[ $(<"$qs_env_log") == "watcher=1 popup=1 malloc=dirty_decay_ms:1000,narenas:8" ]] ||
+  fail "the main shell keeps its allocator settings" "$(<"$qs_env_log")"
+pass "the main shell's allocator configuration is unchanged"
+
+MALLOC_CONF='dirty_decay_ms:1000,narenas:8' launch_shell '0' 0 0 lock || fail "the locker accepts allocator settings"
+[[ $(<"$qs_env_log") == "watcher=1 popup=1 malloc=dirty_decay_ms:1000,narenas:8,narenas:2" ]] ||
+  fail "the locker caps arenas while preserving other allocator settings" "$(<"$qs_env_log")"
+pass "only the locker caps allocation arenas while preserving other settings"
 
 # Qt leaves through _exit(), so Quickshell's crash handler never relaunches it.
 launch_shell $'255\n0' || fail "a shell that died on a Wayland error is relaunched"
@@ -202,3 +214,11 @@ launch_pid=""
 [[ -f $qs_terminated ]] || fail "the running shell is signalled when the supervisor is"
 [[ $(launches) == 1 ]] || fail "the signalled shell is not relaunched" "$(<"$qs_log")"
 pass "stopping the supervisor stops the shell it is watching"
+
+launch_shell $'255\n0' 0 0 lock || fail "the independent locker is supervised"
+[[ $(launches) == 2 ]] || fail "the locker is relaunched after failure"
+grep -Fx -- "-n -p $shell_root/shell/lock.qml" "$qs_log" >/dev/null || fail "the locker has its own configuration identity"
+grep -F 'omarchy-lock exited with status 255' "$logger_log" >/dev/null || fail "the locker has its own journal tag"
+[[ $(<"$qs_env_log") == $'watcher=1 popup=1 malloc=narenas:2\nwatcher=1 popup=1 malloc=narenas:2' ]] ||
+  fail "the locker retains its arena cap across supervised relaunches" "$(<"$qs_env_log")"
+pass "the locker shares supervision but has a separate configuration and log"
