@@ -5,7 +5,10 @@
 
 FRAMEWORK16_THEME=$HOME/.local/state/omarchy/current/theme/keyboard.rgb
 
-if omarchy-cmd-present qmk_hid && [[ -f $FRAMEWORK16_THEME ]]; then
+# Gate on actual Framework 16 hardware (same check install/udev use). qmk_hid
+# targets any connected VIA device, so keying off "qmk_hid is installed" alone
+# would poke a non-Framework QMK keyboard (e.g. a Keychron) on other machines.
+if omarchy-hw-framework16 && omarchy-cmd-present qmk_hid && [[ -f $FRAMEWORK16_THEME ]]; then
   hex=$(cat "$FRAMEWORK16_THEME")
   hex="${hex#\#}"
 
@@ -20,14 +23,19 @@ h, s, v = colorsys.rgb_to_hsv(r, g, b)
 print(int(h * 255), int(s * 255))
 " "$hex")
 
-  # Guard each call with a timeout: qmk_hid targets any connected VIA device, so
-  # on a machine with a non-Framework-16 QMK keyboard it can latch onto the wrong
-  # board and block indefinitely. This hook runs inside omarchy-theme-set's
-  # run_parallel batch (which is waited on), so a hang here stalls the entire
-  # theme switch. A timeout keeps a stuck device from ever wedging a theme change.
-  timeout 5 qmk_hid via --rgb-effect 1 2>/dev/null
-  timeout 5 qmk_hid via --rgb-hue "$h" 2>/dev/null
-  timeout 5 qmk_hid via --rgb-saturation "$s" 2>/dev/null
-  timeout 5 qmk_hid via --rgb-brightness 100 2>/dev/null
-  timeout 5 qmk_hid via --save 2>/dev/null
+  # Pin Framework 16's VID/PID (matches default/udev/framework16-qmk-hid.rules)
+  # so qmk_hid addresses only the Framework keyboard, never some other VIA board.
+  apply_framework16_rgb() {
+    qmk_hid --vid 32ac --pid 0012 via --rgb-effect 1
+    qmk_hid --vid 32ac --pid 0012 via --rgb-hue "$1"
+    qmk_hid --vid 32ac --pid 0012 via --rgb-saturation "$2"
+    qmk_hid --vid 32ac --pid 0012 via --rgb-brightness 100
+    qmk_hid --vid 32ac --pid 0012 via --save
+  }
+
+  # Belt-and-suspenders: this hook runs inside omarchy-theme-set's waited-on
+  # run_parallel batch, so even a wedged Framework keyboard must not stall the
+  # theme switch. One outer timeout bounds the whole sequence.
+  export -f apply_framework16_rgb
+  timeout 10 bash -c 'apply_framework16_rgb "$@"' _ "$h" "$s" 2>/dev/null
 fi
