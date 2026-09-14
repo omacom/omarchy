@@ -42,7 +42,8 @@ After activation, `omarchy-theme-set` fires the `theme-set` hook
 parallel retint of running apps — terminals, Hyprland, btop, browser, editors,
 and the rest of the `post_theme_commands` list in `bin/omarchy-theme-set`.
 Making a new app follow theme changes means adding its restart/retint command
-to that list. Runs serialize on a `flock`, so scripted theme changes queue
+to that list. Grok Build has no custom theme file; `omarchy-theme-set-grok`
+sets `theme = "terminal"` so the TUI uses the terminal palette Omarchy already retints. Runs serialize on a `flock`, so scripted theme changes queue
 instead of racing.
 
 ## What an installed theme may not ship
