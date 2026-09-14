@@ -64,6 +64,13 @@ Item {
   property bool rowsLoaded: false
   property string activeMenu: "root"
   property string filterText: ""
+  // Where the next character lands. Every filter write goes through setFilter,
+  // which puts it at the end unless the caller says otherwise; the handful of
+  // direct `filterText = ""` resets only ever empty the text, which the clamp
+  // below covers. Named caretPos, not cursor: `cursorActive` and
+  // `settleCursor` already mean the highlighted row.
+  property int caretPos: 0
+  onFilterTextChanged: if (root.caretPos > root.filterText.length) root.caretPos = root.filterText.length
   property int selectedIndex: 0
   property bool cursorActive: false
   property int requestSerial: 0
@@ -716,14 +723,46 @@ Item {
     revealCursor()
   }
 
-  function setFilter(nextFilter) {
+  // nextCaret defaults to the end of the new text, which is where every caller
+  // that only appends or clears wants it.
+  function setFilter(nextFilter, nextCaret) {
     panel.freezeCardTop()
     root.filterText = nextFilter
+    root.caretPos = nextCaret === undefined
+      ? nextFilter.length
+      : Math.max(0, Math.min(nextCaret, nextFilter.length))
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
     if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
     root.rebuildDisplay()
+  }
+
+  // Typed text is inserted at the caret rather than appended, which is the
+  // whole point of having one. The arithmetic itself lives in MenuModel.js so
+  // it can be tested without a running shell.
+  function insertAtCaret(text) {
+    var edit = MenuModel.caretInsert(root.filterText, root.caretPos, text)
+    root.setFilter(edit.text, edit.caret)
+  }
+
+  // Backspace, Ctrl+Backspace and Ctrl+U, applied at the caret instead of at
+  // the end of the line. Assumes Util.editsFilter(event, root.filterText).
+  function editFilterAtCaret(event) {
+    if (event.key === Qt.Key_U) {                 // Ctrl+U still clears outright
+      root.setFilter("", 0)
+      return
+    }
+
+    var edit = MenuModel.caretDelete(root.filterText, root.caretPos, (event.modifiers & Qt.ControlModifier) !== 0)
+    if (edit.text === root.filterText) return     // caret at the start, nothing behind it
+    root.setFilter(edit.text, edit.caret)
+  }
+
+  // A step, or a word with Ctrl. The query itself does not change, so this
+  // deliberately does not rebuild the display.
+  function moveCaret(event, direction) {
+    root.caretPos = MenuModel.caretStep(root.filterText, root.caretPos, direction, (event.modifiers & Qt.ControlModifier) !== 0)
   }
 
   function setActiveMenu(id, pushHistory, fromPointer) {
@@ -1134,10 +1173,23 @@ Item {
             else root.cancel()
             event.accepted = true
           } else if (Util.editsFilter(event, root.filterText)) {
-            root.setFilter(Util.editedFilter(event, root.filterText))
+            root.editFilterAtCaret(event)
             event.accepted = true
           } else if ((event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.filterText) {
             root.goBack()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Left) {
+            // With a query typed, Left walks back through it. At its start it
+            // stops rather than navigating: leaving the menu from the middle of
+            // something half-typed is never what the keypress meant, and an
+            // empty query still goes back through the branch above.
+            root.moveCaret(event, -1)
+            event.accepted = true
+          } else if (event.key === Qt.Key_Home && root.filterText) {
+            root.caretPos = 0
+            event.accepted = true
+          } else if (event.key === Qt.Key_End && root.filterText) {
+            root.caretPos = root.filterText.length
             event.accepted = true
           } else if (event.key === Qt.Key_Up) {
             root.select(-1)
@@ -1151,6 +1203,13 @@ Item {
           } else if (event.key === Qt.Key_PageDown) {
             root.select(6)
             event.accepted = true
+          } else if (event.key === Qt.Key_Right && root.caretPos < root.filterText.length) {
+            // Right keeps activating the row, but only once there is nothing
+            // left of the query to walk through -- which is where the caret
+            // always sat before it could be moved, so the old reflex still
+            // works on a query you have just finished typing.
+            root.moveCaret(event, 1)
+            event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Right) {
             if (root.dmenuActive) {
               if (root.mode === "input") root.applyDmenuSelection(root.filterText)
@@ -1159,7 +1218,7 @@ Item {
             else root.settleCursor()
             event.accepted = true
           } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
-            root.setFilter(root.filterText + event.text)
+            root.insertAtCaret(event.text)
             event.accepted = true
           }
         }
@@ -1198,35 +1257,50 @@ Item {
           radius: root.cornerRadius
           color: "transparent"
 
-          // Query, then the caret, then the prompt while nothing is typed.
-          // The caret trails what you type — and stands alone ahead of the
-          // prompt before the first keystroke — so the header reads as a
-          // field you type into rather than a heading. Without it a typed
-          // expression just appears where a title used to be, with no sign
-          // of where the next character lands.
+          // The query, split at the caret, then the prompt while nothing is
+          // typed. The caret sits between the two halves rather than after the
+          // whole string, so it marks the insertion point instead of merely
+          // saying that one exists. Without it a typed expression just appears
+          // where a title used to be, with no sign of where the next character
+          // lands and no way to go back and fix a digit in the middle.
           Row {
+            id: headerRow
+
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.spacing.xxs
+            // No spacing: the caret is the separator, and any gap here would
+            // shift the characters around it every time it moved.
+            spacing: 0
+
+            // Room the two halves share. The caret is never given up, so its
+            // width comes off the top.
+            readonly property real textRoom: Math.max(0, width - caret.width)
+            readonly property real headWant: Math.min(queryHead.implicitWidth, textRoom)
+            readonly property real tailWant: Math.min(queryTail.implicitWidth, textRoom)
+            // When the whole query cannot fit, what is behind the caret must
+            // not push the caret off the end, so it keeps at most half the room
+            // once the text ahead of it needs the rest.
+            readonly property real headRoom: headWant + tailWant <= textRoom
+              ? headWant
+              : Math.max(textRoom - tailWant, textRoom / 2)
 
             Text {
-              id: queryText
+              id: queryHead
 
-              visible: root.filterText.length > 0
-              // Elides on the left, so the tail of a long query — and the
-              // caret pinned to it — stay on screen as you keep typing.
-              width: Math.min(implicitWidth, Math.max(0, parent.width - caret.width - parent.spacing))
+              visible: root.caretPos > 0
+              // Elides on the left so the characters nearest the caret survive.
+              // An elided line renders narrower than the width it was given, so
+              // it is right-aligned to stay against the caret rather than
+              // leaving a gap the caret appears to float in.
+              width: Math.min(implicitWidth, headerRow.headRoom)
               anchors.verticalCenter: parent.verticalCenter
               textFormat: Text.PlainText
-              text: root.filterText
+              text: root.filterText.slice(0, root.caretPos)
               color: root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.heading
               elide: Text.ElideLeft
-              // An elided line renders narrower than the width it was given;
-              // right-aligning keeps its tail against the caret instead of
-              // leaving a gap the caret appears to float in.
               horizontalAlignment: Text.AlignRight
             }
 
@@ -1234,9 +1308,10 @@ Item {
               id: caret
 
               // Blinks while the menu is taking keys, and goes solid on every
-              // keystroke so the character just typed is never read against a
-              // blinked-off caret. running is driven from here rather than
-              // bound, because relight()'s restart() would break the binding.
+              // keystroke and every move so the character just typed, or the
+              // one just stepped over, is never read against a blinked-off
+              // caret. running is driven from here rather than bound, because
+              // relight()'s restart() would break the binding.
               property bool blinking: root.opened && !root.deleteConfirmOpen
               property bool lit: true
 
@@ -1269,14 +1344,32 @@ Item {
                 target: root
 
                 function onFilterTextChanged() { caret.relight() }
+                function onCaretPosChanged() { caret.relight() }
               }
+            }
+
+            Text {
+              id: queryTail
+
+              visible: root.caretPos < root.filterText.length
+              width: Math.min(implicitWidth, Math.max(0, headerRow.textRoom - headerRow.headRoom))
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: root.filterText.slice(root.caretPos)
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.heading
+              elide: Text.ElideRight
             }
 
             Text {
               id: promptText
 
               visible: !root.filterText
-              width: Math.max(0, parent.width - caret.width - parent.spacing)
+              // The caret is flush against the query by design; the prompt is
+              // a label rather than text you are editing, so it keeps a gap.
+              leftPadding: Style.spacing.xs
+              width: Math.max(0, parent.width - caret.width)
               anchors.verticalCenter: parent.verticalCenter
               textFormat: Text.PlainText
               text: root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…")
