@@ -21,6 +21,13 @@ BarWidget {
     return 0
   }
 
+  // Once every bar marks its own monitor's workspace, several markers are lit
+  // at once and the bars no longer say which one has the keyboard. Dim the
+  // marker on a monitor that is displaying its active workspace but is not
+  // focused, so "where am I typing" stays readable at a glance. Defaults to
+  // true so the single-monitor case is never dimmed.
+  readonly property bool monitorFocused: barMonitor ? barMonitor.focused : true
+
   function workspaceById(id) {
     var values = Hyprland.workspaces.values
     for (var i = 0; i < values.length; i++) {
@@ -73,7 +80,7 @@ BarWidget {
 
         bar: root.bar
         text: focused ? "\uDB85\uDCFB" : (modelData === 10 ? "0" : String(modelData))
-        opacity: occupied || focused ? 1 : 0.5
+        opacity: focused ? (root.monitorFocused ? 1 : 0.6) : (occupied ? 1 : 0.5)
         horizontalMargin: 6
         verticalPadding: 6
         fixedWidth: root.vertical ? root.barSize : Style.space(20)
