@@ -338,6 +338,132 @@ function matchesQuery(entry, query, visible) {
   return true
 }
 
+// The match-quality tier a row sits in, highest first. Frecency reorders rows
+// *within* a tier but never across one, so a frequently used description match
+// can never displace an exact-labeled result.
+// Subtrees that act *on* software rather than run it. Their rows are named
+// after the target ("Remove > Browser > Edge" is labelled just "Edge"), so a
+// bare product name matches them more literally than the application itself,
+// whose label carries a vendor prefix ("Microsoft Edge"). Searching a product
+// name means "run this" far more often than "reconfigure or uninstall this",
+// and for remove.* guessing wrong destroys something, so these rows only reach
+// their full tier when the query names the verb as well.
+var MANAGEMENT_PREFIXES = ["remove.", "install.", "setup.", "update."]
+
+function managementVerbs(id) {
+  if (id.indexOf("remove.") === 0) return ["remove", "uninstall", "delete"]
+  if (id.indexOf("install.") === 0) return ["install", "add"]
+  if (id.indexOf("setup.") === 0) return ["setup", "set", "default", "configure"]
+  if (id.indexOf("update.") === 0) return ["update", "upgrade", "channel"]
+  return []
+}
+
+function isManagementRow(entry) {
+  if (!entry || entry.kind === "app") return false
+  var id = String(entry.id || "")
+  for (var i = 0; i < MANAGEMENT_PREFIXES.length; i++) {
+    if (id.indexOf(MANAGEMENT_PREFIXES[i]) === 0) return true
+  }
+  return false
+}
+
+// True when the query itself asks for the management action, which is what
+// lets "remove edge" still rank the uninstall row first.
+function namesManagementVerb(entry, query) {
+  var verbs = managementVerbs(String(entry.id || ""))
+  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  for (var i = 0; i < terms.length; i++) {
+    if (terms[i] && verbs.indexOf(terms[i]) >= 0) return true
+  }
+  return false
+}
+
+function searchMatchPriority(entry, query) {
+  var needle = String(query || "").toLowerCase().trim()
+  if (!entry || !needle) return 0
+
+  // "remove edge" has to score against the part that names the target: these
+  // rows are labelled "Edge", so the verb never matches the label itself.
+  if (isManagementRow(entry) && namesManagementVerb(entry, needle)) {
+    var verbs = managementVerbs(String(entry.id || ""))
+    var rest = needle.split(/\s+/).filter(function(term) {
+      return term && verbs.indexOf(term) < 0
+    }).join(" ")
+    // The verb alone ("remove") names the subtree rather than a row in it;
+    // fall through so the row is scored on the whole query as before.
+    if (rest) return searchMatchPriority({
+      kind: entry.kind,
+      label: entry.label,
+      aliases: entry.aliases,
+      description: entry.description,
+      id: ""
+    }, rest)
+  }
+
+  var label = String(entry.label || "").toLowerCase()
+
+  var tier = 0
+  if (label === needle) tier = 7
+  // Mirrors searchScore: an app whose name contains the query as a whole word
+  // ("zen" for Zen Browser) belongs in the exact tier.
+  else if (entry.kind === "app" && label.split(/\s+/).indexOf(needle) >= 0) tier = 7
+  else {
+    var aliases = Array.isArray(entry.aliases) ? entry.aliases : []
+    for (var i = 0; i < aliases.length && tier === 0; i++) {
+      if (String(aliases[i] || "").toLowerCase().trim() === needle) tier = 6
+    }
+    if (tier === 0 && label.indexOf(needle) === 0) tier = 5
+    for (var j = 0; j < aliases.length && tier === 0; j++) {
+      if (String(aliases[j] || "").toLowerCase().trim().indexOf(needle) === 0) tier = 4
+    }
+    if (tier === 0 && label.indexOf(needle) >= 0) tier = 3
+    else if (tier === 0 && nameSearchText(entry).indexOf(needle) >= 0) tier = 2
+    else if (tier === 0 && descriptionTextMatches(needle, String(entry.description || "").toLowerCase())) tier = 1
+  }
+
+  // An installed application outranks the management rows named after it, so
+  // typing a product name reaches the app instead of the uninstaller. Held to
+  // tier 2 rather than 0 so these rows stay findable, above description-only
+  // noise, and ahead of nothing the user was plausibly after.
+  if (tier > 2 && isManagementRow(entry) && !namesManagementVerb(entry, needle)) return 2
+
+  return tier
+}
+
+// Ordering for search results: match tier, then frecency, then the existing
+// static relevance. Note searchScore sorts ascending (lower is better) while
+// priority and frecency sort descending.
+// Where a query lands in an application's name is mostly an accident of
+// branding: "chrom" is a prefix of Chromium but sits mid-label in Google
+// Chrome, and the same vendor prefix pushes Microsoft Edge under a bare
+// "Edge". That distinction is too weak to outweigh which browser the user
+// actually opens, so for application rows the label-prefix and label-substring
+// tiers are compared as one band and usage decides inside it. Rows that have
+// never been used keep their static order, so this only ever promotes an app
+// the user has actually chosen.
+function rankingTier(row) {
+  var tier = Number(row && row.matchPriority) || 0
+  if (row && row.kind === "app" && tier === 3) return 5
+  return tier
+}
+
+function compareSearchRows(a, b) {
+  var priority = rankingTier(b) - rankingTier(a)
+  if (priority !== 0) return priority
+
+  // Equal-tier rows are ordered by decayed usage. Comparing floats for
+  // equality is pointless, so anything under this counts as a tie and falls
+  // through to the static order.
+  var frecency = (Number(b.frecency) || 0) - (Number(a.frecency) || 0)
+  if (Math.abs(frecency) > 1e-9) return frecency
+
+  var recent = (Number(b.lastUsedAt) || 0) - (Number(a.lastUsedAt) || 0)
+  if (recent !== 0) return recent
+
+  if (a.score !== b.score) return a.score - b.score
+  return String(a.path || "").localeCompare(String(b.path || ""))
+}
+
 function searchScore(items, entry, query) {
   var needle = String(query || "").toLowerCase().trim()
   var label = entry.label.toLowerCase()
@@ -518,6 +644,9 @@ if (typeof module !== "undefined") {
     termInSearchWords: termInSearchWords,
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
+    searchMatchPriority: searchMatchPriority,
+    rankingTier: rankingTier,
+    compareSearchRows: compareSearchRows,
     searchScore: searchScore,
     displayRow: displayRow
   }
