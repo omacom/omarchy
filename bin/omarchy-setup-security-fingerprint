@@ -83,6 +83,20 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
 fi
 
+# omarchy-hw-fingerprint only proves a reader is present, not that libfprint
+# can drive it. Some readers (Goodix TLS-encrypted sensors like 27c6:55b4, an
+# Elan MOC sensor outside the elanmoc table) enumerate on USB but have no
+# libfprint driver at all, so fprintd-list reports zero devices. Catch that
+# here with a diagnosis instead of sending the user into fprintd-enroll, which
+# will just hang waiting on a reader nothing will ever answer for, then tell
+# them to "try again" when no amount of retrying can succeed.
+if ! fprintd-list "$USER" &>/dev/null; then
+  echo -e "\e[31mA fingerprint reader was detected, but libfprint has no driver for it.\e[0m"
+  echo "Retrying enrollment won't help — this exact sensor isn't supported yet."
+  echo "Check https://fprint.freedesktop.org/supported-devices.html, or ask in the Omarchy Discord (https://omarchy.org/discord)."
+  exit 1
+fi
+
 # Enroll first fingerprint
 echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
 echo -e "Keep moving the finger around on sensor until the process completes.\n"
