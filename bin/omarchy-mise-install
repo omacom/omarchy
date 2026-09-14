@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Install a small mise-backed wrapper for a given tool.
+# omarchy:summary=Install a mise-backed symlink for a given tool.
 # omarchy:args=<package> [command-name [bin-name]]
 
 if [[ -z $1 ]]; then
@@ -13,7 +13,7 @@ command=${2:-$1}
 bin=${3:-$command}
 
 # The command name becomes a file name under ~/.local/bin, so a slash in it
-# writes the wrapper somewhere else and the rm below deletes somewhere else. A
+# writes the link somewhere else and the rm below deletes somewhere else. A
 # leading dot hides it or walks up, and a leading dash makes a name that reads
 # as an option to whatever picks it up. Checked before anything is removed or
 # written, and kept to those shapes so package names like npm:playwright still
@@ -27,33 +27,23 @@ esac
 
 mkdir -p "$HOME/.local/bin"
 
-# The heredoc below is unquoted, so whatever these hold is written into the
-# wrapper as shell source. Quote them the way omarchy-install-and-launch does, so
-# a package name carrying shell characters stays one argument instead of running.
-printf -v package_arg '%q' "$package"
-printf -v bin_arg '%q' "$bin"
-
-# Keep values that are inert inside double quotes in the form existing migrations
-# recognize, including mise backend options that %q would unnecessarily escape.
-case "$package" in
-  *'$'* | *'`'* | *'"'* | *'\'* | *'!'* | *[[:cntrl:]]*) ;;
-  *) package_arg="\"$package\"" ;;
-esac
-case "$bin" in
-  *'$'* | *'`'* | *'"'* | *'\'* | *'!'* | *[[:cntrl:]]*) ;;
-  *) bin_arg="\"$bin\"" ;;
-esac
-
+# Shell wrappers re-exec through `mise x … -- $bin`, so argv[0] becomes $bin
+# instead of whatever name the caller used (Claude Code's built-in grep calls
+# its binary as ugrep via exec -a). Symlink the real binary so the kernel
+# keeps the intended invocation name.
+#
 # These tools install and upgrade on first run, so mise's release cooldown would
 # hold a new version back for days after it ships. Exported rather than set on
-# the install line alone, so resolving the version to execute agrees with the
-# one just installed.
-rm -f "$HOME/.local/bin/$command"
-cat >"$HOME/.local/bin/$command" <<EOF
-#!/bin/bash
+# the install line alone, so resolving the version to link agrees with the one
+# just installed.
 export MISE_MINIMUM_RELEASE_AGE=0
-mise use -g --quiet $package_arg || exit 1
-exec mise x $package_arg -- $bin_arg "\$@"
-EOF
+mise use -g --quiet "$package" || exit 1
 
-chmod +x "$HOME/.local/bin/$command"
+install_root=$(mise where "$package") || exit 1
+target="$install_root/$bin"
+if [[ ! -x $target ]]; then
+  exit 1
+fi
+
+rm -f "$HOME/.local/bin/$command"
+ln -sf "$target" "$HOME/.local/bin/$command"
