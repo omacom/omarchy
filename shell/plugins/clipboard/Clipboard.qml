@@ -74,6 +74,10 @@ Item {
 
   function saveHistory() {
     historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    // FileView creates the JSON at umask 022 (0644). Image blobs from
+    // capture.sh are already 0600; the text dump of the same clipboard
+    // should not be world-readable.
+    Quickshell.execDetached(["chmod", "600", root.historyPath])
   }
 
   function addClipboardEntry(entry) {
