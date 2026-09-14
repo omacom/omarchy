@@ -60,6 +60,7 @@ hl.config({
     repeat_rate = 40,
     repeat_delay = 250,
     numlock_by_default = true,
+    resolve_binds_by_sym = true,
 
     touchpad = {
       natural_scroll = false,
