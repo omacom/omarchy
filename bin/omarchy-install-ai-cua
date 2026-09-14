@@ -36,22 +36,26 @@ if [[ -t 0 ]]; then
 fi
 
 # The Hyprland plugin gives the driver a compositor route for input. It is
-# built against one exact Hyprland release and only published on the channels
-# where that pairing was qualified, so it can be absent or unresolvable here,
-# and neither undoes the driver install above. Installing it loads nothing:
-# activation is a deliberate per-session step the package documents.
+# built against one exact Hyprland release, so it can be absent from the
+# channel or present but unresolvable against the Hyprland that is installed
+# (edge moves first), and neither undoes the driver install above. -Sp resolves
+# the transaction without root, so the mismatch is named instead of surfacing
+# as a failed sudo pacman run. Installing the plugin loads nothing: activation
+# is a deliberate per-session step the package documents.
 plugin_installed=false
-if pacman -Si cua-hyprland-plugin &>/dev/null; then
-  echo ""
+echo ""
+if ! pacman -Si cua-hyprland-plugin &>/dev/null; then
+  echo "The Cua Hyprland plugin is not available in your package channel; Cua Driver works without it."
+elif ! pacman -Sp cua-hyprland-plugin &>/dev/null; then
+  pinned=$(pacman -Si cua-hyprland-plugin | grep -o 'hyprland=[^ ]*' | head -1)
+  echo "The Cua Hyprland plugin is built for ${pinned:-another Hyprland release} and this machine has hyprland=$(pacman -Q hyprland | cut -d' ' -f2); skipping it. Cua Driver works without it."
+else
   echo "Installing the Cua Hyprland plugin..."
   if omarchy-pkg-add cua-hyprland-plugin; then
     plugin_installed=true
   else
-    echo "The Cua Hyprland plugin did not install: it needs the exact Hyprland release it was built for. Cua Driver works without it." >&2
+    echo "The Cua Hyprland plugin did not install. Cua Driver works without it." >&2
   fi
-else
-  echo ""
-  echo "The Cua Hyprland plugin is not available in your package channel; Cua Driver works without it."
 fi
 
 echo ""
