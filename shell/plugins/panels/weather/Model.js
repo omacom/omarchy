@@ -91,6 +91,19 @@ function formatTemp(value, useImperial) {
   return value + "°" + (useImperial ? "F" : "C")
 }
 
+// Wind follows the same imperial/metric decision as temperature, except that
+// metric-Russian renders m/s (see localeUsesMsWind). Both wind speeds arrive
+// pre-rounded in the normalized wttr shape.
+function formatWind(windspeedKmph, windspeedMiles, useImperial, useMsWind) {
+  if (useImperial) return windspeedMiles + " mph"
+  if (useMsWind) {
+    var n = parseFloat(String(windspeedKmph))
+    if (isNaN(n)) return ""
+    return (Math.round(n / 3.6)) + " m/s"
+  }
+  return windspeedKmph + " km/h"
+}
+
 function normalizedUnit(value) {
   return String(value || "").replace(/^\s+|\s+$/g, "").toLowerCase()
 }
@@ -98,6 +111,13 @@ function normalizedUnit(value) {
 function localeUsesImperial(localeName) {
   var name = String(localeName || "").replace(".", "_")
   return /^en[_-]US($|[_.-])/.test(name) || /^en[_-]LR($|[_.-])/.test(name) || /^my($|[_.-])/.test(name)
+}
+
+// Russian forecasts are read in m/s (Roshydromet standard), so the wind row
+// converts km/h to m/s in Russian locales instead of showing km/h.
+function localeUsesMsWind(localeName) {
+  var name = String(localeName || "").replace(".", "_")
+  return /^ru($|[_.-])/.test(name)
 }
 
 function countryUsesImperial(countryName) {
@@ -275,8 +295,10 @@ if (typeof module !== "undefined") {
     roundedTemp: roundedTemp,
     celsiusToFahrenheit: celsiusToFahrenheit,
     formatTemp: formatTemp,
+    formatWind: formatWind,
     normalizedUnit: normalizedUnit,
     localeUsesImperial: localeUsesImperial,
+    localeUsesMsWind: localeUsesMsWind,
     countryUsesImperial: countryUsesImperial,
     shouldUseImperial: shouldUseImperial,
     dayName: dayName,
