@@ -243,7 +243,11 @@ Panel {
     open: root.opened
     centerOnBar: true
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(560))
+    // Sized to the hero row's actual content instead of a flat constant:
+    // the 52px hero date ("September 13") can exceed the old fixed width
+    // under roomier spacing/font scales, and the Flickable below clips it.
+    // fittedContentWidth still caps the result to the available screen width.
+    contentWidth: panel.fittedContentWidth(Math.max(Style.space(560), heroRow.implicitWidth + panel.padding * 2 + Style.space(24)))
     contentHeight: panel.fittedContentHeight(calendarColumn.implicitHeight)
 
     PanelKeyCatcher {
