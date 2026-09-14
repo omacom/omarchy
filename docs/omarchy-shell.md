@@ -135,6 +135,7 @@ string on a miss.
     "position": "top",
     "transparent": false,
     "centerAnchor": "omarchy.clock",
+    "trayMenuMaxHeight": 420,
     "layout": {
       "left":   [ { "id": "omarchy.menu" } ],
       "center": [ { "id": "omarchy.clock", "format": "HH:mm" } ],
@@ -162,6 +163,11 @@ Rules:
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 8. `version: 1` is required.
+
+Set `bar.trayMenuMaxHeight` to a positive integer to control the tray menu's
+preferred maximum height in theme-scaled units. The default is `420`. Invalid
+or missing values use the default, and the popup still clamps to the usable
+monitor area.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user
