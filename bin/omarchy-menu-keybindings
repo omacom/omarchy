@@ -4,7 +4,9 @@
 
 # Hyprland's Lua config provider currently reports Lua binds as dispatcher
 # __lua in `hyprctl binds`. Keep a lightweight source-derived cache so the
-# menu can still show and dispatch those bindings.
+# menu can still show and dispatch those bindings. A bind given a Lua function
+# leaves no expression to keep; the menu keeps which bind it is instead, and
+# calls the function through the registry ref Hyprland reports for that bind.
 declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
@@ -262,6 +264,11 @@ modmask_to_text() {
   esac
 }
 
+# What tells one Lua function bind from another in `hyprctl binds` output.
+lua_bind_identity() {
+  printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$1" "$2" "$3" "$4" "$5"
+}
+
 # Fetch dynamic keybindings from Hyprland.
 #
 # Also do some pre-processing:
@@ -270,7 +277,7 @@ modmask_to_text() {
 # - Map numeric modifier key mask to a textual rendition
 # - Output comma-separated values that the parser can understand
 dynamic_bindings() {
-  local modmask key keycode description dispatcher arg modifiers cache_key
+  local modmask submap key keycode description dispatcher arg modifiers cache_key raw_key
 
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
@@ -279,13 +286,15 @@ dynamic_bindings() {
     function emit() {
       if (!seen) return
       seen = 0
-      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
+      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["submap"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
     }
     /^bind/ { emit(); seen = 1; delete f; next }
     seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
     END { emit() }
   ' |
-    while IFS=$'\x1f' read -r modmask key keycode description dispatcher arg; do
+    while IFS=$'\x1f' read -r modmask submap key keycode description dispatcher arg; do
+      raw_key="$key"
+
       # Lua binds report their full display key ("SUPER + code:20"); the
       # modifiers are already carried separately in modmask.
       key="${key##* + }"
@@ -300,8 +309,15 @@ dynamic_bindings() {
 
       if [[ $dispatcher == "__lua" && -n $description && -n $key ]]; then
         cache_key="$modmask,$description,$key"
-        dispatcher="${LUA_BIND_DISPATCHER_MAP["$cache_key"]}"
-        arg="${LUA_BIND_ARG_MAP["$cache_key"]}"
+
+        # A bind given a Lua function has no entry in the cache. Keep which
+        # bind it is, as Hyprland reports it, so the menu can still call it.
+        if [[ -n ${LUA_BIND_DISPATCHER_MAP["$cache_key"]} || -z $arg ]]; then
+          dispatcher="${LUA_BIND_DISPATCHER_MAP["$cache_key"]}"
+          arg="${LUA_BIND_ARG_MAP["$cache_key"]}"
+        else
+          arg=$(lua_bind_identity "$modmask" "$submap" "$raw_key" "$keycode" "$description")
+        fi
       fi
 
       [[ -z $description && $dispatcher == "__lua" ]] && continue
@@ -530,7 +546,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
+    printf 'v14\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
@@ -601,6 +617,36 @@ dispatch_lua_expression() {
   return 1
 }
 
+# Hyprland keeps the function of a Lua bind in the Lua registry under the ref
+# it reports as the bind's arg, and calls it through that ref on a key press.
+# A reload can hand the same ref to another bind, so look the selected bind up
+# again and call the ref Hyprland reports for it now.
+dispatch_lua_function_binding() {
+  local identity="$1"
+  local binds ref
+
+  binds=$(hyprctl binds) || return 1
+
+  ref=$(awk -v identity="$identity" '
+    function emit() {
+      if (!seen) return
+      seen = 0
+      if (f["dispatcher"] != "__lua") return
+      if (f["modmask"] "\x1f" f["submap"] "\x1f" f["key"] "\x1f" f["keycode"] "\x1f" f["description"] != identity) return
+      matches++
+      ref = f["arg"]
+    }
+    /^bind/ { emit(); seen = 1; delete f; next }
+    seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
+    END { emit(); if (matches == 1) print ref }
+  ' <<<"$binds")
+
+  # Exactly one bind, with a numeric ref; anything else leaves nothing to call.
+  [[ $ref =~ ^[0-9]+$ ]] || return 1
+
+  dispatch_lua_expression "debug.getregistry()[$ref]"
+}
+
 dispatch_exec_binding() {
   local command="$1"
 
@@ -640,6 +686,9 @@ dispatch_binding() {
       ;;
     lua)
       [[ -n $arg ]] && hyprctl dispatch "$arg"
+      ;;
+    __lua)
+      [[ -n $arg ]] && dispatch_lua_function_binding "$arg"
       ;;
     "") return 1 ;;
     *)
