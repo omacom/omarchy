@@ -4,6 +4,24 @@
 
 set -euo pipefail
 
+print_only=false
+if [[ ${1:-} == "--print" || ${1:-} == "-p" ]]; then
+  print_only=true
+fi
+
+menu_error() {
+  local message="$1"
+  printf '%s\n' "$message" >&2
+  if [[ $print_only == "false" ]]; then
+    if [[ -n ${2:-} ]]; then
+      omarchy-notification-send -u normal "Keybindings menu" "$2" \
+        --exec omarchy-launch-terminal bash -c 'printf "%s\n\n" "$1"; read -r -p "Press Enter to close."' keybindings-recovery "$message" || true
+    else
+      omarchy-notification-send -u normal "Keybindings menu" "$message" || true
+    fi
+  fi
+}
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
@@ -70,7 +88,9 @@ dynamic_bindings() {
   local snapshot
   if ! snapshot=$(timeout 5 hyprctl repl 'return omarchy_keybindings.snapshot()') ||
     ! jq -e '(.generation | test("^[0-9a-f-]+$")) and (.bindings | type == "array")' <<<"$snapshot" >/dev/null 2>&1; then
-    echo "Could not read live keybindings. Reload Hyprland, then reopen the menu." >&2
+    menu_error 'Could not read live keybindings. Reload Hyprland. If this persists, add the following before any bindings or module imports in ~/.config/hypr/hyprland.lua, then reload:
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")' \
+      "Reload Hyprland. If this persists, click for bootstrap.lua setup instructions."
     return 1
   fi
 
@@ -340,7 +360,7 @@ dispatch_binding() {
       local generation id
       IFS=: read -r generation id <<<"$arg"
       [[ $generation =~ ^[0-9a-f-]+$ && $id =~ ^[0-9]+$ ]] || return 1
-      hyprctl dispatch "function() return omarchy_keybindings.invoke(\"$generation\", $id) end"
+      dispatch_lua_expression "function() return omarchy_keybindings.invoke(\"$generation\", $id) end"
       ;;
     sendshortcut)
       [[ -n $arg ]] && dispatch_sendshortcut_binding "$arg"
@@ -349,7 +369,7 @@ dispatch_binding() {
   esac
 }
 
-if [[ ${1:-} == "--print" || ${1:-} == "-p" ]]; then
+if [[ $print_only == "true" ]]; then
   output_keybindings
 else
   records=$(output_binding_records) || exit
@@ -362,6 +382,9 @@ else
     done <<<"$records"
     [[ $label == "$selection" ]] || exit 1
 
-    dispatch_binding "$dispatcher" "$arg"
+    if ! dispatch_binding "$dispatcher" "$arg"; then
+      menu_error "Could not run this keybinding. It may have changed or been disabled. Reopen the menu and try again."
+      exit 1
+    fi
   fi
 fi

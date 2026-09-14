@@ -8,10 +8,10 @@ tmpdir=$(mktemp -d) && [[ -n $tmpdir && -d $tmpdir ]] ||
   fail "the test gets a temporary directory to stub Hyprland in"
 trap 'rm -rf "$tmpdir"' EXIT
 
-home="$tmpdir/home"
+task_home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
-mkdir -p "$home/.config" "$stub_bin"
-cp -r "$ROOT/config/hypr" "$home/.config/hypr"
+mkdir -p "$task_home/.config" "$stub_bin"
+cp -r "$ROOT/config/hypr" "$task_home/.config/hypr"
 
 # Exercise the real menu against a live-registry protocol fixture. The menu
 # must not execute the user config or a separate Lua interpreter.
@@ -42,7 +42,7 @@ STUB
 }
 
 keybindings() {
-  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$task_home" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
     bash "$ROOT/bin/omarchy-menu-keybindings" --print
 }
@@ -214,16 +214,17 @@ for action in "${expected_alternatives[@]}"; do
 done
 pass "every action named as having an alternative is bound twice"
 
-# Reading the menu must never evaluate user configuration, even when that
-# configuration contains arbitrary loops or side effects.
-printf 'while true do end\n' >"$home/.config/hypr/hyprland.lua"
-cat >"$stub_bin/lua" <<'STUB'
+# Record attempts even if the menu were to ignore the interpreter's failure.
+# The real configuration-loop regression belongs to the VM acceptance test.
+cat >"$stub_bin/lua" <<STUB
 #!/bin/bash
+touch "$tmpdir/lua-called"
 exit 99
 STUB
 chmod +x "$stub_bin/lua"
-keybindings >/dev/null || fail "listing needs neither configuration replay nor an external Lua interpreter"
-pass "listing needs neither configuration replay nor an external Lua interpreter"
+keybindings >/dev/null || fail "listing needs no external Lua interpreter"
+[[ ! -e $tmpdir/lua-called ]] || fail "listing must not start an external Lua interpreter"
+pass "listing never starts an external Lua interpreter"
 
 stub_hyprctl <<'BINDS'
 {"keys":"MOD3 + code:20","description":"Quotes \"and\", backslashes \\ and Unicode →","identity":1,"submap":""}
@@ -243,13 +244,46 @@ cat >"$stub_bin/omarchy-menu-select" <<'STUB'
 grep 'Duplicate \[2\]$'
 STUB
 chmod +x "$stub_bin/omarchy-menu-select"
-env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" OMARCHY_PATH="$ROOT" \
-  bash "$ROOT/bin/omarchy-menu-keybindings" || fail "menu selection invokes retained binding"
+cat >"$stub_bin/omarchy-notification-send" <<STUB
+#!/bin/bash
+printf '%s\n' "\$@" >>"$tmpdir/notifications"
+STUB
+chmod +x "$stub_bin/omarchy-notification-send"
+interactive_keybindings() {
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$task_home" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings"
+}
+interactive_keybindings || fail "menu selection invokes retained binding"
 grep -F 'omarchy_keybindings.invoke("abc-def", 3)' "$tmpdir/dispatch" >/dev/null || fail "selection invokes the chosen duplicate, not its neighbor"
+[[ ! -e $tmpdir/notifications ]] || fail "successful selection must not notify"
 pass "menu selection invokes the chosen duplicate by validated token"
+
+# hyprctl can return a Lua error as text with a successful process status.
+for result in 'Keybindings changed; reopen the menu' 'Keybinding was removed or disabled'; do
+  cat >"$stub_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  repl) cat "$tmpdir/snapshot.json" ;;
+  dispatch) echo '$result' ;;
+esac
+STUB
+  if interactive_keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "Lua invocation errors must fail the menu"; fi
+  grep -q 'Reopen the menu' "$tmpdir/notifications" || fail "rejected selection must notify the desktop"
+  grep -q 'Reopen the menu' "$tmpdir/err" || fail "rejected selection must also explain failure on stderr"
+  rm "$tmpdir/notifications"
+done
+sed -i 's/dispatch).*/dispatch) exit 4 ;;/' "$stub_bin/hyprctl"
+if interactive_keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "dispatch transport errors must fail the menu"; fi
+[[ -s $tmpdir/notifications ]] || fail "dispatch transport errors must notify"
+rm "$tmpdir/notifications"
+pass "stale, disabled and disconnected selections report visible failures"
 
 printf 'not JSON\n' >"$tmpdir/snapshot.json"
 if keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "invalid registry response must fail"; fi
 [[ ! -s $tmpdir/out ]] || fail "invalid registry response must not present a partial menu"
 grep -q 'Reload Hyprland' "$tmpdir/err" || fail "missing registry gives a useful recovery message"
-pass "invalid registry responses fail visibly without a partial menu"
+grep -Fq 'dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")' "$tmpdir/err" || fail "missing bootstrap gives the exact recovery line"
+[[ ! -e $tmpdir/notifications ]] || fail "print mode must not send desktop notifications"
+if interactive_keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "interactive missing registry must fail"; fi
+grep -Fq '/default/hypr/bootstrap.lua' "$tmpdir/notifications" || fail "missing registry must show recovery instructions on the desktop"
+pass "missing registry gives bootstrap guidance in stderr and interactive notifications"

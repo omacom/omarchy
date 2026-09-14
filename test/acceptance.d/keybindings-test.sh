@@ -118,3 +118,72 @@ menu_pid=""
 (( $(wc -l <"$test_dir/actions") == before + 1 )) || fail "menu invokes the selected closure once"
 pass "real menu search and selection execute the retained closure"
 screenshot success-keybindings-after-selection
+
+# Failures after selection must reach a desktop user, not just the launcher's
+# stderr. Keep the real menu open while invalidating its captured selection.
+for change in disabled reload; do
+  omarchy-shell notifications dismissAll >/dev/null
+  omarchy-menu-keybindings >"$test_dir/menu-output" 2>&1 &
+  menu_pid=$!
+  wait_until "menu opens before $change" 10 layer_present omarchy-menu
+  wtype 'QA retained closure'
+  wait_until "closure is searchable before $change" 10 screen_contains 'QA retained closure'
+  before=$(wc -l <"$test_dir/actions")
+  if [[ $change == "disabled" ]]; then
+    hyprctl eval 'qa_keybindings.closure:set_enabled(false)' >/dev/null
+  else
+    hyprctl reload >/dev/null
+    wait_until "fixture reloads before selecting stale entry" 10 fixture_loaded
+  fi
+  wtype -k Return
+  wait_until "menu closes after $change rejection" 10 layer_absent omarchy-menu
+  if wait "$menu_pid"; then fail "$change selection must fail"; fi
+  menu_pid=""
+  [[ $(wc -l <"$test_dir/actions") == "$before" ]] || fail "$change selection must not execute an action"
+  wait_until "$change selection shows a recovery notification" 10 screen_contains 'Reopen the menu'
+  screenshot "success-keybindings-$change-notification"
+  hyprctl eval 'qa_keybindings.closure:set_enabled(true)' >/dev/null
+done
+
+# A hand-edited entrypoint can set package.path without loading bootstrap.
+# Exercise the migration and recover by applying its exact documented line.
+omarchy-shell notifications dismissAll >/dev/null
+awk '
+  index($0, "/default/hypr/bootstrap.lua") {
+    print "package.path = os.getenv(\"HOME\") .. \"/.local/state/?.lua;\" .. os.getenv(\"HOME\") .. \"/.config/?.lua;\" .. os.getenv(\"OMARCHY_PATH\") .. \"/?.lua;\" .. package.path"
+    next
+  }
+  { print }
+' "$config" >"$test_dir/no-bootstrap.lua"
+cp "$test_dir/no-bootstrap.lua" "$config"
+hyprctl reload >/dev/null
+registry_absent() { [[ $(hyprctl repl 'return type(omarchy_keybindings)') == "nil" ]]; }
+wait_until "custom entrypoint loads without a registry" 10 registry_absent
+[[ -z $(hyprctl configerrors | tr -d '\n') ]] || fail "custom entrypoint remains valid Lua"
+for session in offline expired live; do
+  case "$session" in
+    offline) signature="" ;;
+    expired) signature="qa-compositor-that-has-exited" ;;
+    live) signature="$HYPRLAND_INSTANCE_SIGNATURE" ;;
+  esac
+  HYPRLAND_INSTANCE_SIGNATURE="$signature" bash -euo pipefail "$ROOT/migrations/1789328800.sh" >"$test_dir/migration-output" || fail "$session migration must not block the queue"
+  grep -Fq 'dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")' "$test_dir/migration-output" || fail "$session migration must explain the missing bootstrap"
+  cmp "$config" "$test_dir/no-bootstrap.lua" || fail "migration must preserve the custom entrypoint"
+done
+pass "offline, expired and live migrations preserve custom Lua and explain recovery"
+if omarchy-menu-keybindings >"$test_dir/menu-output" 2>&1; then fail "missing registry must fail"; fi
+wait_until "missing registry shows bootstrap recovery instructions" 10 screen_contains 'bootstrap.lua'
+screenshot success-keybindings-bootstrap-notification
+omarchy-shell notifications invokeLast >/dev/null
+wait_until "notification opens complete setup instructions" 10 screen_contains 'Press Enter to close'
+screenshot success-keybindings-bootstrap-instructions
+wtype -k Return
+{
+  echo 'dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")'
+  cat "$test_dir/no-bootstrap.lua"
+} >"$config"
+hyprctl reload >/dev/null
+wait_until "documented bootstrap line restores the collector" 10 fixture_loaded
+omarchy-menu-keybindings --print >"$test_dir/recovered-menu"
+grep -q 'QA retained closure' "$test_dir/recovered-menu" || fail "recovered custom entrypoint lists its real bindings"
+omarchy-shell notifications dismissAll >/dev/null
