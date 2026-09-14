@@ -117,6 +117,12 @@ QtObject {
     return event.key === Qt.Key_Backspace           // plain, Shift, or Ctrl Backspace
   }
 
+  // True when `key` was pressed together with Ctrl: the vim-style Ctrl+{h,j,k,l}
+  // aliases searchable panels wire up alongside their arrow-key equivalents.
+  function ctrlKey(event, key) {
+    return event.key === key && !!(event.modifiers & Qt.ControlModifier)
+  }
+
   // New filter text after applying an edit key. Assumes editsFilter(event, text).
   function editedFilter(event, text) {
     if (event.key === Qt.Key_U) return ""                        // Ctrl+U: clear
