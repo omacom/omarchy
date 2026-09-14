@@ -29,14 +29,46 @@ pass "Claude collector counts each API message once"
   fail "Claude collector keeps mutually exclusive token categories" "$result"
 pass "Claude collector keeps mutually exclusive token categories"
 
+
 [[ $(jq -r '.id + "/" + .usageStatusText' <<<"$result") == "claude/Waiting for auth" ]] ||
   fail "Claude collector identifies itself and reports missing auth" "$result"
 pass "Claude collector identifies itself and reports missing auth"
 
+# A streamed response is several lines sharing one message id. The first
+# line's output_tokens is a placeholder and the last line has the real count,
+# so the message is counted from the line with the highest output.
+STREAM_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$STREAM_HOME"' EXIT
+stream_projects="$STREAM_HOME/.claude/projects/example"
+mkdir -p "$stream_projects"
+cat >"$stream_projects/session.jsonl" <<EOF
+{"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-1","message":{"id":"message-1","role":"assistant","model":"claude-test","usage":{"input_tokens":8,"cache_creation_input_tokens":100,"cache_read_input_tokens":2000,"output_tokens":1}}}
+{"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-2","message":{"id":"message-1","role":"assistant","model":"claude-test","usage":{"input_tokens":8,"cache_creation_input_tokens":100,"cache_read_input_tokens":2000,"output_tokens":1}}}
+{"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-3","message":{"id":"message-1","role":"assistant","model":"claude-test","usage":{"input_tokens":8,"cache_creation_input_tokens":100,"cache_read_input_tokens":2000,"output_tokens":260}}}
+{"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-4","message":{"id":"message-2","role":"assistant","model":"claude-test","usage":{"input_tokens":10,"cache_creation_input_tokens":300,"cache_read_input_tokens":4000,"output_tokens":1}}}
+{"timestamp":"$timestamp","type":"assistant","sessionId":"session-1","uuid":"event-5","message":{"id":"message-2","role":"assistant","model":"claude-fallback","usage":{"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":3500,"output_tokens":40}}}
+EOF
+
+result=$(HOME="$STREAM_HOME" XDG_CACHE_HOME="$STREAM_HOME/.cache" XDG_DATA_HOME="$STREAM_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+
+[[ $(jq -c '.modelUsage["claude-test"]' <<<"$result") == '{"cacheCreationInputTokens":100,"cacheReadInputTokens":2000,"inputTokens":8,"outputTokens":260}' ]] ||
+  fail "Claude collector counts a streamed message from its final usage line" "$result"
+pass "Claude collector counts a streamed message from its final usage line"
+
+# A response that fell back to another model mid-stream has lines that are
+# separate snapshots: the final line's model and cache figures are kept whole
+# rather than a maximum taken per field across both.
+[[ $(jq -c '.modelUsage["claude-fallback"]' <<<"$result") == '{"cacheCreationInputTokens":0,"cacheReadInputTokens":3500,"inputTokens":10,"outputTokens":40}' ]] ||
+  fail "Claude collector keeps the final line whole after a mid-stream fallback" "$result"
+[[ $(jq -r '.totalPrompts' <<<"$result") == "2" ]] ||
+  fail "Claude collector keeps the final line whole after a mid-stream fallback" "$result"
+pass "Claude collector keeps the final line whole after a mid-stream fallback"
+
 # A machine with no transcripts and no stats-cache still gets today's counts
 # from history.jsonl alone.
 HISTORY_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME"' EXIT
 mkdir -p "$HISTORY_HOME/.claude"
 
 now_ms=$(($(date +%s) * 1000))
@@ -56,7 +88,7 @@ pass "Claude collector falls back to history.jsonl without a stats-cache"
 # A subscription burned entirely through opencode has no ~/.claude transcripts;
 # usage must come from opencode's message database, filtered to Anthropic.
 OPENCODE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME" "$OPENCODE_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME" "$OPENCODE_HOME"' EXIT
 
 python3 - "$OPENCODE_HOME/.local/share/opencode/opencode.db" <<'PY'
 import json
@@ -106,7 +138,7 @@ pass "Claude collector ignores prefix-colliding providers, user messages, and ma
 # Pi and omp can both spend a Claude subscription without writing native
 # Claude Code transcripts. Their compatible JSONL sessions must be included.
 PI_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$PI_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$STREAM_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$PI_HOME"' EXIT
 mkdir -p "$PI_HOME/.pi/agent/sessions/project" "$PI_HOME/.omp/agent/sessions/project"
 
 cat >"$PI_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
