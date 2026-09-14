@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true on x86_64 machines (Install menu arch gate).
+
+[[ ${OMARCHY_UNAME_M:-$(uname -m)} == x86_64 ]]
