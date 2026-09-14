@@ -300,6 +300,7 @@ def scan_native_codex_sessions():
 
   for path in files:
     current_model = "codex"
+    previous_total = None
     try:
       with path.open(errors="replace") as handle:
         for raw in handle:
@@ -319,6 +320,15 @@ def scan_native_codex_sessions():
           if payload.get("type") != "token_count":
             continue
           info = payload.get("info") or {}
+          # A turn is sometimes logged twice with the same last_token_usage
+          # and an unchanged running total. Skip an event whose running
+          # total did not move. A drop can indicate a resumed or compacted
+          # session and still counts, and the first event of a file has no
+          # previous total, so this check never skips it.
+          running = (info.get("total_token_usage") or {}).get("total_tokens")
+          if running is not None and running == previous_total:
+            continue
+          previous_total = running
           # total_token_usage is cumulative for the session. Adding every
           # snapshot makes usage grow quadratically, so count the last turn.
           usage = info.get("last_token_usage") or {}
