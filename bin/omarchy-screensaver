@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Run the Omarchy screensaver using random effects from TTE.
+# omarchy:summary=Run the Omarchy screensaver using the Matrix digital rain effect.
 
 screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
@@ -35,10 +35,31 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# The compositor can map the screensaver window before focus has settled on it,
+# which would trip the focus check below a moment after launch and dismiss the
+# screensaver immediately. Wait until the window has focus (or a short grace
+# period elapses) before arming that check.
+wait_for_focus() {
+  local deadline=$((SECONDS + 3))
+  while ((SECONDS < deadline)); do
+    screensaver_in_focus && return 0
+    sleep 0.1
+  done
+}
+
+wait_for_focus
+
+logo="$HOME/.config/omarchy/branding/screensaver.txt"
+[[ -f $logo ]] || logo="$OMARCHY_PATH/logo.txt"
+
 while true; do
-  ttfx -i ~/.config/omarchy/branding/screensaver.txt \
-    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
-    --random-effect --no-eol --no-restore-cursor &
+  ttfx -i "$logo" \
+    --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c \
+    --no-eol --no-restore-cursor \
+    matrix \
+    --rain-color-gradient 00ff41 00e63c 00c832 00a328 007a1f 004a12 \
+    --highlight-color d2ffd6 \
+    --rain-time 45 &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
     if read -n1 -t 1 || ! screensaver_in_focus; then
