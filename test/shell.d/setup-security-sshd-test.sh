@@ -115,3 +115,16 @@ fi
 ! grep -q "Password logins are off" "$test_dir/invalid.output" ||
   fail "SSH setup must not claim rejected hardening succeeded"
 pass "SSH setup fails safely when sshd rejects the config"
+
+mkdir -p "$test_dir/bad-key/home" "$test_dir/bad-key/root"
+: >"$test_dir/bad-key.calls"
+if HOME="$test_dir/bad-key/home" TEST_ROOT="$test_dir/bad-key/root" CALL_LOG="$test_dir/bad-key.calls" \
+  PATH="$stub_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-setup-security-sshd" --key="not-a-key" >"$test_dir/bad-key.output" 2>&1; then
+  fail "SSH setup must reject an invalid key"
+fi
+! grep -qF "systemctl enable --now sshd.service" "$test_dir/bad-key.calls" ||
+  fail "SSH setup must not start sshd before a key is authorized"
+! grep -qF "ufw limit 22/tcp" "$test_dir/bad-key.calls" ||
+  fail "SSH setup must not open the firewall before a key is authorized"
+pass "SSH setup leaves sshd and the firewall alone when the key is rejected"
