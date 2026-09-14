@@ -43,8 +43,24 @@ printf 'package.path = "/custom/?.lua;" .. package.path\n' >"$task_home/.config/
 cp "$task_home/.config/hypr/hyprland.lua" "$tmpdir/original.lua"
 for i in 1 2; do
   HOME="$task_home" HYPRLAND_INSTANCE_SIGNATURE= bash -euo pipefail "$ROOT/migrations/1789328800.sh" >"$tmpdir/message"
-  grep -Fq 'dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")' "$tmpdir/message" || fail "custom entrypoint receives the exact missing bootstrap line"
+  grep -Fq 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$tmpdir/message" || fail "custom entrypoint receives the exact missing bootstrap line"
   grep -Fq 'before any bindings or module imports' "$tmpdir/message" || fail "bootstrap guidance explains load order"
   cmp "$task_home/.config/hypr/hyprland.lua" "$tmpdir/original.lua" || fail "custom Lua must remain intact"
 done
 pass "custom entrypoints get actionable bootstrap guidance without a rewrite"
+
+sed -n '/^dofile(/p' "$tmpdir/message" >"$tmpdir/recovery.lua"
+for install_path in /usr/share/omarchy "$tmpdir/custom install"; do
+  env -u OMARCHY_PATH lua - "$tmpdir/recovery.lua" "$install_path" <<'LUA' || fail "bootstrap recovery resolves the install path without requiring OMARCHY_PATH"
+local recovery = assert(loadfile(arg[1]))
+local expected = arg[2]
+local getenv = os.getenv
+os.getenv = function(name)
+  if name == "OMARCHY_PATH" and expected ~= "/usr/share/omarchy" then return expected end
+  return getenv(name)
+end
+dofile = function(path) assert(path == expected .. "/default/hypr/bootstrap.lua", path) end
+recovery()
+LUA
+done
+pass "bootstrap recovery supports an unset OMARCHY_PATH and custom install paths"

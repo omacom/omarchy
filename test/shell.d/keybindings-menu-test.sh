@@ -282,8 +282,9 @@ printf 'not JSON\n' >"$tmpdir/snapshot.json"
 if keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "invalid registry response must fail"; fi
 [[ ! -s $tmpdir/out ]] || fail "invalid registry response must not present a partial menu"
 grep -q 'Reload Hyprland' "$tmpdir/err" || fail "missing registry gives a useful recovery message"
-grep -Fq 'dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")' "$tmpdir/err" || fail "missing bootstrap gives the exact recovery line"
+grep -Fq 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$tmpdir/err" || fail "missing bootstrap gives the exact recovery line"
 [[ ! -e $tmpdir/notifications ]] || fail "print mode must not send desktop notifications"
 if interactive_keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "interactive missing registry must fail"; fi
 grep -Fq '/default/hypr/bootstrap.lua' "$tmpdir/notifications" || fail "missing registry must show recovery instructions on the desktop"
+grep -A1 -x -- '-t' "$tmpdir/notifications" | grep -qx '30000' || fail "bootstrap notification must allow thirty seconds to open its instructions"
 pass "missing registry gives bootstrap guidance in stderr and interactive notifications"

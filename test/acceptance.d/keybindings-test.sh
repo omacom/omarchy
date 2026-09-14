@@ -167,19 +167,20 @@ for session in offline expired live; do
     live) signature="$HYPRLAND_INSTANCE_SIGNATURE" ;;
   esac
   HYPRLAND_INSTANCE_SIGNATURE="$signature" bash -euo pipefail "$ROOT/migrations/1789328800.sh" >"$test_dir/migration-output" || fail "$session migration must not block the queue"
-  grep -Fq 'dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")' "$test_dir/migration-output" || fail "$session migration must explain the missing bootstrap"
+  grep -Fq 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$test_dir/migration-output" || fail "$session migration must explain the missing bootstrap"
   cmp "$config" "$test_dir/no-bootstrap.lua" || fail "migration must preserve the custom entrypoint"
 done
 pass "offline, expired and live migrations preserve custom Lua and explain recovery"
 if omarchy-menu-keybindings >"$test_dir/menu-output" 2>&1; then fail "missing registry must fail"; fi
 wait_until "missing registry shows bootstrap recovery instructions" 10 screen_contains 'bootstrap.lua'
 screenshot success-keybindings-bootstrap-notification
-omarchy-shell notifications invokeLast >/dev/null
+output=$(omarchy-shell notifications invokeLast)
+[[ $output == "ok" ]] || fail "bootstrap notification must still be available to invoke" "$output"
 wait_until "notification opens complete setup instructions" 10 screen_contains 'Press Enter to close'
 screenshot success-keybindings-bootstrap-instructions
 wtype -k Return
 {
-  echo 'dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")'
+  echo 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")'
   cat "$test_dir/no-bootstrap.lua"
 } >"$config"
 hyprctl reload >/dev/null
