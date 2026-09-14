@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Install on-demand desktops for AI agents
+# omarchy:args=[--monitor OUTPUT] [--port PORT] [--no-start]
+# omarchy:examples=omarchy install ai agent-desktop | omarchy install ai agent-desktop --monitor DP-1
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+omarchy-pkg-add nodejs npm python jq grim wtype wlrctl xorg-xwayland wayvnc python-gobject gtk3 webkit2gtk-4.1
+omarchy-notification-send "Installing agent desktops" "Configuring background desktops and the native tiled viewer. The viewer opens when the first desktop starts."
+python "$OMARCHY_PATH/default/agent-desktop/install.py" "$@"
+omarchy-notification-send "Agent desktops installed" "Restart your agent CLI to load the desktop skill."
