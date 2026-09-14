@@ -2,5 +2,26 @@
 
 # omarchy:summary=Print the detected Hyprland touchpad or trackpad device name
 
-device=$(hyprctl devices -j | jq -r '[.mice[] | .name | select(test("touchpad|trackpad"; "i"))] | first // empty')
-[[ -n $device ]] && echo "$device"
+# Dual-screen laptops (Zenbook Duo and similar) expose each panel digitizer as
+# both a Hyprland touch/tablet device and a mouse named *-touchpad. Taking the
+# first name matching touchpad|trackpad then disables a screen, not the
+# keyboard cover — which is what the hardware toggle is for, including when
+# that cover is on Bluetooth after undock.
+device=$(hyprctl devices -j | jq -r '
+  (.touch // [] | map(.name)) + (.tablets // [] | map(.name)) as $digitizers
+  | [
+      .mice[]?
+      | .name
+      | select(test("touchpad|trackpad"; "i"))
+      | select(
+          . as $name
+          | ($digitizers | index($name | sub("-touchpad$|-trackpad$"; ""))) == null
+        )
+    ]
+  | first // empty
+')
+if [[ -n $device ]]; then
+  echo "$device"
+else
+  exit 1
+fi
