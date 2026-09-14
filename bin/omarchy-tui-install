@@ -40,7 +40,7 @@ install_user_icon() {
 if (( $# != 4 )); then
   echo -e "\e[32mLet's create a TUI shortcut you can start with the app launcher.\n\e[0m"
   APP_NAME=$(gum input --prompt "Name> " --placeholder "My TUI")
-  APP_EXEC=$(gum input --prompt "Launch Command> " --placeholder "lazydocker or bash -c 'dust; read -n 1 -s'")
+  APP_EXEC=$(gum input --prompt "Launch Command> " --placeholder "lazygit or bash -c 'dust; read -n 1 -s'")
   WINDOW_STYLE=$(gum choose --header "Window style" float tile)
   ICON_REF=$(gum input --prompt "Icon URL/name> " --placeholder "See https://dashboardicons.com or enter an installed icon name")
 else

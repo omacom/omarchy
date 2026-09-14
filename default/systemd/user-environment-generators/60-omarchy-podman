@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Package updates precede workload migration. Do not redirect SDK clients while
+# a custom workload still needs Docker, or override a configured endpoint.
+if [[ -z ${DOCKER_HOST:-} && -z ${DOCKER_CONTEXT:-} &&
+      $(pacman -Qq docker 2>/dev/null) == "podman-docker" ]]; then
+  if (( EUID == 0 )); then
+    echo "DOCKER_HOST=unix:///run/podman/podman.sock"
+  elif [[ -n ${XDG_RUNTIME_DIR:-} ]]; then
+    printf 'DOCKER_HOST=unix://%s/podman/podman.sock\n' "$XDG_RUNTIME_DIR"
+  fi
+fi

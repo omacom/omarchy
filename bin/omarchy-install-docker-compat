@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Add optional Docker command and API compatibility for Podman
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user." >&2
+  exit 1
+fi
+
+if provider=$(pacman -Qq docker 2>/dev/null); then
+  if [[ $provider != "podman-docker" ]]; then
+    echo "An existing Docker engine must be migrated before installing Podman compatibility." >&2
+    exit 1
+  fi
+else
+  pacman -Qq >/dev/null
+fi
+
+systemctl --user show-environment >/dev/null
+omarchy-pkg-add podman-docker
+systemctl --user enable --now podman.socket
+systemctl --user daemon-reload
+if [[ -z ${DOCKER_HOST:-} && -z ${DOCKER_CONTEXT:-} ]]; then
+  export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/podman/podman.sock"
+  dbus-update-activation-environment --systemd DOCKER_HOST
+fi
+echo "Docker compatibility is installed. Open a new login session to refresh terminal environments."

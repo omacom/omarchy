@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Manage containers and images in Podman Desktop
+
+systemctl --user start podman.socket || exit 1
+# Recover a socket unlinked by an earlier, unwrapped Desktop process. Restart
+# only the API service/socket; running containers are independent of them.
+if [[ ! -S $XDG_RUNTIME_DIR/podman/podman.sock ]]; then
+  systemctl --user stop podman.service || exit 1
+  systemctl --user restart podman.socket || exit 1
+fi
+
+PATH="$OMARCHY_PATH/default/podman/desktop:$PATH" exec /usr/bin/podman-desktop "$@"

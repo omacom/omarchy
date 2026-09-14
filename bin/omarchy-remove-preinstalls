@@ -8,6 +8,15 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
   omarchy-webapp-remove-all
   omarchy-tui-remove-all
 
+  podman_launcher="$HOME/.local/share/applications/io.podman_desktop.PodmanDesktop.desktop"
+  if [[ -f $podman_launcher ]] && grep -qx 'Exec=omarchy-launch-podman' "$podman_launcher"; then
+    rm -f "$podman_launcher"
+  fi
+  podman_tui_launcher="$HOME/.local/share/applications/Podman TUI.desktop"
+  if [[ -f $podman_tui_launcher ]] && grep -qx 'Exec=omarchy-launch-podman-tui' "$podman_tui_launcher"; then
+    rm -f "$podman_tui_launcher"
+  fi
+
   mkdir -p ~/.local/state/omarchy
   touch ~/.local/state/omarchy/preinstalls-removed
   hyprctl reload
@@ -48,7 +57,8 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
     obs-studio \
     kdenlive \
     moonlight-qt \
-    lazydocker \
+    podman-desktop \
+    podman-tui \
     omacut \
     omacalc \
     omawrite

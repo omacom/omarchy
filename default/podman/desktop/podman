@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Podman Desktop starts its own API service, even when systemd owns the socket.
+# It can replace that socket and unlink it on exit. Reuse the managed service;
+# this PATH entry applies only to Desktop's children, never to normal shells.
+if (( $# == 3 )) && [[ $1 == "system" && $2 == "service" && $3 == "--time=0" ]]; then
+  systemctl --user start podman.socket
+else
+  exec /usr/bin/podman "$@"
+fi

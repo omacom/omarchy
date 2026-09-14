@@ -3,7 +3,7 @@
 systemctl enable cups.service
 systemctl enable avahi-daemon.service
 systemctl enable linux-modules-cleanup.service
-systemctl enable docker.socket
+systemctl --global enable podman.socket podman-restart.service
 systemctl enable systemd-resolved.service
 systemctl enable NetworkManager.service
 # Don't let network-online.target hold up graphical.target waiting for

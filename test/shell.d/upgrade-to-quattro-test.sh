@@ -32,6 +32,54 @@ grep -F 'omarchy-update-mise' "$upgrade_to_quattro" >/dev/null
 grep -F 'run_final_system_package_upgrade' "$upgrade_to_quattro" >/dev/null
 pass "Omarchy 4 upgrade completes package update checks"
 
+# Exercise the real manifest selection without running a package transaction.
+# Native installs keep the shim optional; upgrades retain Docker until migration.
+package_selection=$(function_body install_omarchy_quattro_packages | grep 'mapfile -t base_packages')
+package_selection=${package_selection//\/usr\/share\/omarchy/\$ROOT}
+eval "$package_selection"
+if grep -qx podman-docker "$ROOT/install/omarchy-base.packages"; then
+  fail "fresh installs must keep Docker command compatibility optional"
+fi
+printf '%s\n' "${base_packages[@]}" | grep -qx podman || fail "upgrade installs Podman before migration"
+if printf '%s\n' "${base_packages[@]}" | grep -qx podman-docker; then
+  fail "upgrade replaces Docker before workload migration"
+fi
+pass "Omarchy 4 upgrade defers the Docker shim until workload migration"
+
+# Run the actual transition calls in a separate shell so set -e remains active
+# even though the test captures its status. An older packaged tree can lack
+# either unit; failure must warn and leave the rest of the transition reachable.
+user_enable_body=$(function_body enable_global_user_service)
+user_enable_calls=$(function_body apply_system_transition | grep '  enable_global_user_service ')
+for stub_enable_status in 0 1; do
+  user_enable_output=$(bash -s -- "$user_enable_body" "$user_enable_calls" "$stub_enable_status" <<'SH'
+set -euo pipefail
+calls=()
+as_root() {
+  [[ $1 == "systemctl" && $2 == "--global" && $3 == "enable" && $# == 4 ]] || exit 90
+  calls+=("$4")
+  return "$stub_enable_status"
+}
+warn() { printf 'warning: %s\n' "$*"; }
+eval "enable_global_user_service() { $1
+}"
+stub_enable_status=$3
+eval "$2"
+[[ ${calls[*]} == "podman.socket podman-restart.service" ]]
+echo continued
+SH
+  ) || fail "user unit enable status $stub_enable_status aborted the upgrade"
+  grep -qx continued <<<"$user_enable_output" || fail "upgrade continues after user unit setup"
+  if (( stub_enable_status == 0 )); then
+    [[ $user_enable_output == "continued" ]] || fail "successful user unit setup should not warn"
+  else
+    for unit in podman.socket podman-restart.service; do
+      grep -F "Could not enable user unit $unit" <<<"$user_enable_output" >/dev/null || fail "missing $unit should warn"
+    done
+  fi
+done
+pass "Omarchy 4 upgrade tolerates missing packaged user units under set -e"
+
 grep -F 'run_post_upgrade_migrations' "$upgrade_to_quattro" >/dev/null
 grep -F 'omarchy-migrate' "$upgrade_to_quattro" >/dev/null
 grep -F 'dust' "$upgrade_to_quattro" >/dev/null

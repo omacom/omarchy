@@ -93,6 +93,25 @@ pass "declining Remove Preinstalls changes nothing"
 [[ -f $marker ]] || fail "Remove Preinstalls records the opt-out"
 pass "Remove Preinstalls records the opt-out"
 
+podman_launcher="$test_home/.local/share/applications/io.podman_desktop.PodmanDesktop.desktop"
+mkdir -p "$(dirname "$podman_launcher")"
+cp "$ROOT/applications/io.podman_desktop.PodmanDesktop.desktop" "$podman_launcher"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ ! -e $podman_launcher ]] || fail "Remove Preinstalls leaves a broken Podman launcher"
+printf 'Exec=my-container-manager\n' >"$podman_launcher"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ -f $podman_launcher ]] || fail "Remove Preinstalls deletes a user-managed Podman launcher"
+pass "Remove Preinstalls removes the shipped Podman launcher and preserves a custom one"
+
+podman_tui_launcher="$test_home/.local/share/applications/Podman TUI.desktop"
+cp "$ROOT/applications/Podman TUI.desktop" "$podman_tui_launcher"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ ! -e $podman_tui_launcher ]] || fail "Remove Preinstalls leaves a broken Podman TUI launcher"
+printf 'Exec=my-container-manager\n' >"$podman_tui_launcher"
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+[[ -f $podman_tui_launcher ]] || fail "Remove Preinstalls deletes a user-managed Podman TUI launcher"
+pass "Remove Preinstalls removes the shipped Podman TUI launcher and preserves a custom one"
+
 # Hermes' wrapper is only a preinstall when omarchy-install-hermes-cli wrote it.
 # The desktop app's command and an official install live at the same path and
 # are the user's, whether or not any package says so.

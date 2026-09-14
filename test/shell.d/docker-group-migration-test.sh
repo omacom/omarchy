@@ -5,7 +5,7 @@
 # the group change actually takes effect (group membership is fixed at login),
 # refresh the stale Docker launcher entry, and stay idempotent on reruns.
 #
-# The real omarchy-remove-security-sudoless-docker and omarchy-state run here
+# The historical migration and real omarchy-state run here
 # (from the repo bin); only the privileged/system calls are stubbed, so the whole
 # chain — including the reboot flag — is exercised.
 

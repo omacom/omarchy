@@ -57,7 +57,7 @@ prepare_user_mount_sources
 write 4G 2 64G alice s3cret Europe/Copenhagen
 resolve_caller
 [[ -f $COMPOSE ]] || fail "writer produced a compose file"
-grep -q 'image: dockurr/windows' "$COMPOSE" || fail "image is pinned"
+grep -q 'image: docker.io/dockurr/windows' "$COMPOSE" || fail "image is pinned"
 grep -q -- '- NET_ADMIN' "$COMPOSE" || fail "cap_add is pinned"
 grep -q -- "- $EXPECTED_STORAGE:/storage" "$COMPOSE" || fail "storage uses the protected anchor"
 grep -q -- "- $EXPECTED_SHARED:/shared" "$COMPOSE" || fail "shared uses the protected anchor"
@@ -68,6 +68,14 @@ grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected
 [[ $(stat -Lc '%a' "$EXPECTED_STORAGE") == 700 && $(stat -Lc '%a' "$EXPECTED_SHARED") == 700 ]] || fail "mount leaves are not private"
 grep -q -- '- /:/' "$COMPOSE" && fail "compose contains host-root bind"
 pass "writer emits fixed anchors bound to exact private source inodes"
+
+# Dockur's Samba initialization sets setgid on the shared directory. A later
+# launch must normalize the already-mounted inode without rejecting the VM.
+chmod g+s "$HOME/Windows"
+prepare_caller_mounts || fail "Samba setgid prevented relaunch"
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "shared directory special bits survived normalization"
+mounts_ready || fail "normalized shared mount is not ready"
+pass "relaunch clears Samba's setgid bit on the pinned shared inode"
 
 # Input cannot widen a mount or compose field.
 rm -f "$COMPOSE"
@@ -338,7 +346,7 @@ write 4G 2 64G alias pw UTC
 resolve_caller
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 dc() { :; }
-docker() { [[ $1 == inspect ]] && return 1; :; }
+podman() { [[ $1 == --remote=false ]] || fail "Windows must use local Podman"; shift; [[ $1 == inspect ]] && return 1; :; }
 __priv_remove 2>/dev/null && fail "removal accepted a shared bind alias into storage"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "bind-alias removal refusal changed state"
 [[ $(mount_layer_count "$EXPECTED_STORAGE") == 1 && $(mount_layer_count "$EXPECTED_SHARED") == 1 ]] || fail "bind-alias removal refusal changed mounts"
@@ -367,7 +375,7 @@ touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mv "$HOME/Windows" "$HOME/.windows/moved-shared"
 ln -s "$HOME/.windows/moved-shared" "$HOME/Windows"
 dc() { :; }
-docker() { [[ $1 == inspect ]] && return 1; :; }
+podman() { [[ $1 == --remote=false ]] || fail "Windows must use local Podman"; shift; [[ $1 == inspect ]] && return 1; :; }
 __priv_remove 2>/dev/null && fail "removal accepted a shared inode moved below storage"
 [[ -f $HOME/.windows/disk.img && -f $HOME/.windows/moved-shared/keep.txt && -f $COMPOSE ]] || fail "overlap rejection changed disk, shared data, or compose"
 pass "removal revalidates pinned ancestry and leaves moved shared data untouched"
@@ -440,12 +448,12 @@ resolve_caller
 touch "$HOME/.windows/disk.img" "$HOME/Windows/keep.txt"
 mount --no-canonicalize --bind "$HOME/.windows" "$EXPECTED_STORAGE"
 dc() { :; }
-docker() { [[ $1 == inspect ]] && return 1; :; }
+podman() { [[ $1 == --remote=false ]] || fail "Windows must use local Podman"; shift; [[ $1 == inspect ]] && return 1; :; }
 __priv_remove 2>/dev/null && fail "removal accepted stacked storage mount"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "rejected removal changed state"
 umount -- "$EXPECTED_STORAGE"
 dc() { return 1; }
-__priv_remove 2>/dev/null && fail "removal deleted data after docker-compose down failed"
+__priv_remove 2>/dev/null && fail "removal deleted data after podman-compose down failed"
 [[ -f $HOME/.windows/disk.img && -f $HOME/Windows/keep.txt && -f $COMPOSE ]] || fail "failed down changed data or compose"
 dc() { :; }
 __priv_remove
