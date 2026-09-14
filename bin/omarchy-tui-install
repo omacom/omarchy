@@ -14,7 +14,17 @@ safe_icon_name() {
 }
 
 owned_icon_slug() {
-  safe_icon_name "$1" | tr '\n' '-' | sed 's/-\+/-/g; s/^-//; s/-$//'
+  # Basename collision: "Alpha Beta" and "Alpha-Beta" both slug to alpha-beta,
+  # so the second install overwrites the first icon and either removal orphans
+  # or steals it. Suffix a short hash of the full name so distinct names own
+  # distinct files while the basename stays human-readable. Never empty: the
+  # tui fallback covers punctuation- or emoji-only names.
+  local base hash
+  base=$(safe_icon_name "$1" | tr '\n' '-' | sed 's/-\+/-/g; s/^-//; s/-$//')
+  base=${base%$'\n'}
+  [[ -n $base ]] || base="tui"
+  hash=$(printf '%s' "$1" | sha1sum | cut -c1-8)
+  printf '%s-%s\n' "$base" "$hash"
 }
 
 require_plain_name() {
@@ -99,6 +109,11 @@ if [[ -z $APP_NAME || -z $APP_EXEC || -z $ICON_REF ]]; then
   exit 1
 fi
 
+if [[ $APP_NAME =~ ^[[:space:]]*$ ]]; then
+  echo "App name cannot be blank."
+  exit 1
+fi
+
 require_plain_name "$APP_NAME"
 
 DESKTOP_DIR="$HOME/.local/share/applications"
@@ -106,7 +121,6 @@ DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
 mkdir -p "$DESKTOP_DIR"
 
 icon_slug=$(owned_icon_slug "$APP_NAME")
-[[ -n $icon_slug ]] || icon_slug="tui"
 owned_icon=""
 if [[ $ICON_REF =~ ^https?:// ]]; then
   ICON_VALUE=$icon_slug

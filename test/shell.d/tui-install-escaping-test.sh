@@ -126,8 +126,12 @@ run_remove 'My App' >/dev/null
   fail "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
 pass "tui remove leaves an unrelated shared icon that shares the bundled icon slug"
 
+my_app_marker=$(desktop_value "$applications/My App.desktop" X-Omarchy-OwnedIcon 2>/dev/null || true)
+[[ -z $my_app_marker ]] || fail "a bundled icon reference records no owned icon" "$my_app_marker"
 touch "$icons_dir/my-app.png"
 install_tui 'My App Png' htop tile my-app
+my_app_png_marker=$(desktop_value "$applications/My App Png.desktop" X-Omarchy-OwnedIcon 2>/dev/null || true)
+[[ -z $my_app_png_marker ]] || fail "a bundled png reference records no owned icon" "$my_app_png_marker"
 run_remove 'My App Png' >/dev/null
 [[ -f "$icons_dir/my-app.png" ]] ||
   fail "tui remove leaves a pre-existing shared png that shares the bundled icon slug"
@@ -213,18 +217,20 @@ icon_src="$test_tmp/icon.png"
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d >"$icon_src"
 install_tui "$multiline_name" htop tile "$icon_src"
 multiline_file="$applications/$multiline_name.desktop"
-multiline_slug=line-one-line-two
+multiline_marker=$(desktop_value "$multiline_file" X-Omarchy-OwnedIcon)
 
 (( $(grep -c '^X-Omarchy-OwnedIcon=' "$multiline_file") == 1 )) ||
   fail "a multiline name writes one owned-icon line" "$(grep X-Omarchy-OwnedIcon "$multiline_file" || true)"
-[[ -f "$icons_dir/$multiline_slug.png" ]] ||
+[[ $multiline_marker == line-one-line-two-????????".png" ]] ||
+  fail "a multiline name installs its icon under a single-line hashed slug" "$multiline_marker"
+[[ -f "$icons_dir/$multiline_marker" ]] ||
   fail "a multiline name installs its icon under a single-line slug"
 if command -v desktop-file-validate >/dev/null; then
   desktop-file-validate "$multiline_file" >/dev/null ||
     fail "a multiline name still validates as a desktop entry"
 fi
 run_remove "$multiline_name" >/dev/null
-[[ -f "$icons_dir/$multiline_slug.png" ]] &&
+[[ -f "$icons_dir/$multiline_marker" ]] &&
   fail "tui remove deletes an owned icon installed for a multiline name"
 pass "a multiline name round-trips owned-icon metadata and removal"
 
@@ -245,3 +251,58 @@ FAKE_PICK=$'\t'"${literal_row_label}"$'\t'"${literal_file}" \
 [[ -f $literal_file ]] &&
   fail "tui remove deletes a literal backslash-t name through the picker"
 pass "tui remove deletes a literal backslash-t name through the picker"
+
+install_tui 'Alpha Beta' htop tile "$icon_src"
+install_tui 'Alpha-Beta' htop tile "$icon_src"
+alpha_beta_icon=$(desktop_value "$applications/Alpha Beta.desktop" X-Omarchy-OwnedIcon)
+alpha_dash_beta_icon=$(desktop_value "$applications/Alpha-Beta.desktop" X-Omarchy-OwnedIcon)
+[[ -n $alpha_beta_icon && -n $alpha_dash_beta_icon && $alpha_beta_icon != "$alpha_dash_beta_icon" ]] ||
+  fail "colliding names own distinct icon files" "$alpha_beta_icon vs $alpha_dash_beta_icon"
+[[ -f "$icons_dir/$alpha_beta_icon" && -f "$icons_dir/$alpha_dash_beta_icon" ]] ||
+  fail "colliding names install both icons"
+run_remove 'Alpha Beta' >/dev/null
+[[ -f "$applications/Alpha-Beta.desktop" ]] ||
+  fail "removing one colliding name keeps the other launcher"
+[[ -f "$icons_dir/$alpha_dash_beta_icon" ]] ||
+  fail "removing one colliding name keeps the other icon" "$(ls "$icons_dir")"
+[[ -f "$icons_dir/$alpha_beta_icon" ]] &&
+  fail "removing one colliding name deletes its own icon"
+run_remove 'Alpha-Beta' >/dev/null
+[[ -f "$icons_dir/$alpha_dash_beta_icon" ]] &&
+  fail "removing the second colliding name deletes its own icon"
+pass "colliding icon slugs install and remove independently"
+
+if run_install '   ' htop tile someicon >/dev/null 2>&1; then
+  fail "tui install rejects a whitespace-only name"
+fi
+[[ -e "$applications/   .desktop" ]] &&
+  fail "tui install writes no launcher for a whitespace-only name"
+pass "tui install rejects a whitespace-only name"
+# Blank names are rejected at install time now, but a pre-fix launcher with a
+# spaces-only name must still be removable from the command line.
+printf '[Desktop Entry]\nName=   \nExec=xdg-terminal-exec --app-id=TUI.tile -e htop\nType=Application\n' >"$applications/   .desktop"
+run_remove '   ' >/dev/null
+[[ -f "$applications/   .desktop" ]] &&
+  fail "tui remove deletes a legacy whitespace-only launcher"
+pass "tui remove deletes a legacy whitespace-only launcher"
+
+newline_name=$(printf 'newline-legacy')
+newline_file="$applications/$newline_name.desktop"
+# Blank names are rejected at install time now, so stage the pre-fix launcher
+# directly: its escaped Name decodes to a newline, which the picker surfaces
+# as an empty label alongside the path.
+printf '[Desktop Entry]\nName=\\n\nExec=xdg-terminal-exec --app-id=TUI.tile -e htop\nType=Application\n' >"$newline_file"
+newline_row=$'\t'$'\t'"${newline_file}"
+FAKE_PICK="$newline_row" \
+  HOME="$HOME" PATH="$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  bash "$ROOT/bin/omarchy-tui-remove" >/dev/null
+[[ -f $newline_file ]] &&
+  fail "tui remove deletes a newline-only name through the picker"
+pass "tui remove deletes a newline-only name through the picker"
+guard_home="$test_tmp/guard-home"
+mkdir -p "$guard_home/.local/share/applications"
+guard_when=$(node -e 'const fs=require("fs");const text=fs.readFileSync("default/omarchy/omarchy-menu.jsonc","utf8");const m=text.match(/"remove\.tui":\s*\{[^}]*"when":"((?:[^"\\]|\\.)*)"/);if(!m){process.exit(1)}process.stdout.write(JSON.parse("\""+m[1]+"\""))')
+if HOME="$guard_home" bash -c "$guard_when" >/dev/null 2>&1; then
+  fail "the remove-tui menu guard stays hidden with no launchers"
+fi
+pass "the remove-tui menu guard stays hidden with no launchers"

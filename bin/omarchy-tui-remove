@@ -6,8 +6,7 @@
 set -e
 
 ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
-DESKTOP_DIR="$HOME/.local/share/applications/"
-
+DESKTOP_DIR="$HOME/.local/share/applications"
 desktop_value() {
   local file="$1" key="$2"
   sed -n "s/^$key=//p" "$file" | head -1
@@ -24,13 +23,28 @@ desktop_string_unescape() {
 }
 
 remove_owned_icon() {
-  local basename="$1"
+  # `basename` is too close to the basename(1) helper and hid a $ICON_DIR
+  # typo as a path bug; use a distinct name for the owned file.
+  local owned_name="$1" desktop_file="$2"
+  local file marker
 
-  [[ $basename =~ ^[[:alnum:]-]+\.[[:alnum:]]+$ ]] || return 0
+  [[ $owned_name =~ ^[[:alnum:]-]+\.[[:alnum:]]+$ ]] || return 0
 
-  rm -f "$ICON_DIR/$basename"
+  # Hashed slugs make collisions unlikely, but never delete a file another
+  # launcher still claims: a second install may share the basename through a
+  # copied entry or a hash collision.
+  for file in "${TUI_PATHS[@]}"; do
+    [[ $file != "$desktop_file" ]] || continue
+    marker=$(desktop_value "$file" X-Omarchy-OwnedIcon)
+    [[ -n $marker ]] || continue
+    marker=$(desktop_string_unescape "$marker")
+    if [[ $marker == "$owned_name" ]]; then
+      return 0
+    fi
+  done
+
+  rm -f "$ICON_DIR/$owned_name"
 }
-
 picker_row_label() {
   local label="$1"
 
@@ -111,9 +125,17 @@ else
   APP_NAME="$*"
 fi
 
-if [[ -z $APP_NAME ]]; then
+if [[ -z $APP_NAME && -z $desktop_file ]]; then
   echo "You must select a TUI to remove."
   exit 1
+fi
+
+if [[ -z $APP_NAME ]]; then
+  # A newline-only name decodes to an empty picker label, so the path the row
+  # carried is the identity. Expansion keeps the newline where basename()
+  # would strip it through command substitution.
+  APP_NAME=${desktop_file##*/}
+  APP_NAME=${APP_NAME%.desktop}
 fi
 
 if [[ -z $desktop_file ]]; then
@@ -135,7 +157,7 @@ if [[ -f $desktop_file ]]; then
 fi
 
 if [[ $launcher_removed == true && $has_owned_marker == true && -n $owned_icon ]]; then
-  remove_owned_icon "$owned_icon"
+  remove_owned_icon "$owned_icon" "$desktop_file"
 fi
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
   omarchy-notification-send -g  "TUI removed" "$APP_NAME"
