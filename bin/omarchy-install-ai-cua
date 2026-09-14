@@ -13,6 +13,12 @@ fi
 echo "Installing Cua Driver..."
 omarchy-pkg-add cua-driver-bin
 
+# The driver takes its native Wayland backend only when this reaches the
+# process serving the calls. default/hypr/envs.lua exports it to every session
+# from the next login; this hands it to the one already running.
+systemctl --user set-environment CUA_DRIVER_RS_ENABLE_WAYLAND=1 2>/dev/null || true
+dbus-update-activation-environment CUA_DRIVER_RS_ENABLE_WAYLAND=1 2>/dev/null || true
+
 # The skill pack is what teaches an agent the driver's snapshot-then-act loop:
 # the driver fetches the release matching its own version and links it into
 # every agent skills directory that exists, and Omarchy's companion adds the
