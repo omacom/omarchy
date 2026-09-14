@@ -90,6 +90,28 @@ def local_date_from_timestamp(value: Any) -> str:
     return local_date_string()
 
 
+def local_weekday_hour(value: Any) -> tuple[int, int] | None:
+  # Local-time (weekday, hour) for a record timestamp — weekday 0=Sunday —
+  # or None when the value carries no usable time. Mirrors the parsing
+  # order of local_date_from_timestamp so both grains always agree.
+  if value is None:
+    return None
+  try:
+    if isinstance(value, (int, float)):
+      seconds = float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+      stamp = dt.datetime.fromtimestamp(seconds)
+    else:
+      raw = str(value).strip()
+      if not raw:
+        return None
+      stamp = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+      if stamp.tzinfo is not None:
+        stamp = stamp.astimezone()
+  except Exception:
+    return None
+  return ((stamp.weekday() + 1) % 7, stamp.hour)
+
+
 def usage_token(usage: dict[str, Any], snake_key: str, camel_key: str) -> int:
   value = usage.get(snake_key, usage.get(camel_key, 0))
   try:
@@ -129,6 +151,7 @@ def scan_projects(projects_path: Path) -> dict[str, Any]:
   today_sessions: set[str] = set()
   today_tokens: dict[str, int] = {}
   usage_by_model: dict[str, dict[str, int]] = {}
+  usage_by_hour: dict[tuple[int, int], int] = {}
   prompts = 0
   today_prompt_count = 0
   today_token_total = 0
@@ -188,6 +211,16 @@ def scan_projects(projects_path: Path) -> dict[str, Any]:
             # legacy name shared with synced snapshots.
             recent[day]["messageCount"] += total
 
+          # usageByHour: all-time weekday × hour buckets in local time,
+          # feeding the agents-panel punchcard. Same message stream, same
+          # totals — just a different grain. Zero-token rows already
+          # filtered above.
+          stamp = entry.get("timestamp") or message.get("timestamp")
+          weekday_hour = local_weekday_hour(stamp)
+          if weekday_hour is not None:
+            hourly_key = (weekday_hour[0], weekday_hour[1])
+            usage_by_hour[hourly_key] = usage_by_hour.get(hourly_key, 0) + total
+
           if day == today:
             today_prompt_count += 1
             today_sessions.add(session_key)
@@ -202,6 +235,13 @@ def scan_projects(projects_path: Path) -> dict[str, Any]:
     "todayTotalTokens": today_token_total,
     "todayTokensByModel": today_tokens,
     "recentDays": [recent[day] for day in recent_dates],
+    # Sparse all-time weekday × hour punchcard buckets, local time, the
+    # same totals as modelUsage (one reality per record). Sorted by
+    # (weekday, hour); empty hours are absent, never zero.
+    "usageByHour": [
+      {"weekday": wd, "hour": hr, "tokens": usage_by_hour[(wd, hr)]}
+      for (wd, hr) in sorted(usage_by_hour)
+    ],
     "modelUsage": usage_by_model,
     "totalPrompts": prompts,
     "totalSessions": len(sessions),
@@ -558,6 +598,13 @@ def merge_stats(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
       target[field] = number(target.get(field)) + number(count)
   merged["modelUsage"] = usage
 
+  # Extras grow the model totals without hourly buckets of their own, so a
+  # merged punchcard would cover less than the record it travels in. Drop
+  # the claim rather than emit grains that disagree; the reconcile gate in
+  # main() holds every printed record to exactly this.
+  if extra.get("modelUsage"):
+    merged.pop("usageByHour", None)
+
   by_date: dict[str, int] = {}
   for source in (base.get("recentDays") or [], extra.get("recentDays") or []):
     for day in source:
@@ -849,6 +896,28 @@ def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[s
 # -------------------------------------------------------------------- record
 
 
+def usage_grain_divergence(stats: dict[str, Any]) -> str | None:
+  # Reconcile-or-abort: usageByHour and modelUsage are two grains of one
+  # message stream, so their all-time token totals must agree exactly. A
+  # timestamp one grain placed and the other rejected, or anything else
+  # that drifts them, means the record would tell two stories — refuse it
+  # rather than print a punchcard the totals contradict. None when the
+  # record claims no punchcard at all.
+  hourly = stats.get("usageByHour")
+  if not isinstance(hourly, list):
+    return None
+  hour_total = sum(number(entry.get("tokens")) for entry in hourly if isinstance(entry, dict))
+  model_total = sum(
+    number(count)
+    for bucket in (stats.get("modelUsage") or {}).values()
+    if isinstance(bucket, dict)
+    for count in bucket.values()
+  )
+  if hour_total == model_total:
+    return None
+  return f"usageByHour tokens {hour_total} != modelUsage tokens {model_total}"
+
+
 def main() -> int:
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true", help="rescan transcripts and re-probe limits, ignoring caches")
@@ -878,6 +947,14 @@ def main() -> int:
   opencode = scan_opencode_usage(scan_age)
   if opencode is not None:
     stats = merge_stats(stats, opencode)
+
+  # The emit gate runs before anything else touches disk or network: a
+  # divergent record costs no limits probe, and omarchy-agent-usage-update
+  # keeps the last good record when this exits nonzero without printing.
+  divergence = usage_grain_divergence(stats)
+  if divergence is not None:
+    print(f"Refusing to emit a Claude usage record with disagreeing grains: {divergence}", file=sys.stderr)
+    return 1
 
   access_token, expires_at_ms, plan = oauth_login(claude_dir)
   limits = collect_limits(access_token, expires_at_ms, args.force)
