@@ -26,6 +26,31 @@ hl.config({
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.
 
+### My mouse or other USB peripherals are frozen after waking from sleep
+
+On some AMD systems, USB controllers fail to come back cleanly after waking from sleep (deep sleep on some AMD systems): the mouse, keyboard, or a USB receiver still shows up as connected, but stops responding until you unplug and replug it (or reboot). The kernel log shows the controller failing to resume:
+
+```text
+xHC error in resume, USBSTS 0x401, Reinit
+xHCI host controller not responding, assume dead
+HC died; cleaning up
+```
+
+This is a known upstream AMD xHCI resume bug ([Bugzilla 221073](https://bugzilla.kernel.org/show_bug.cgi?id=221073)), not something caused by Omarchy. Two workarounds are known:
+
+1. **Force legacy interrupts on the xHCI driver (the reliable workaround).** Adding `xhci_hcd.quirks=0x40` (the XHCI_BROKEN_MSI quirk) to the kernel command line makes the controller use a regular interrupt instead of MSI, which sidesteps the resume failure on the machines reported in the bug. Verified on the user's hardware: after enabling it, the controllers moved from MSI-X to IO-APIC INTx and the errors stopped (boot 2026-08-20).
+2. **Use a lighter sleep state (helps in some cases, not a complete fix).** With s2idle, the USB controllers stay powered. Add `mem_sleep_default=s2idle` to your kernel command line in the boot loader (Limine by default), or for the current session only, run `echo s2idle > /sys/power/mem_sleep` (as root). It uses a bit more battery while suspended and has its own wake-up quirks — see [the manual on system sleep](36-system-sleep.md) — and on the user's hardware the failure still reappeared after long sleeps, so this is a partial mitigation, not the reliable fix (221073 itself is a resume-from-s2idle failure class).
+
+If a peripheral is already frozen right now, you can usually bring it back without a reboot by reloading the xHCI driver for your controller. Find its address with `lspci -nn | grep -i xhci`, then (as root):
+
+```bash
+echo -n 0000:30:00.3 > /sys/bus/pci/drivers/xhci_hcd/unbind
+sleep 2
+echo -n 0000:30:00.3 > /sys/bus/pci/drivers/xhci_hcd/bind
+```
+
+(substitute the address of your own controller; the devices on that bus will re-enumerate. Only unbind the controller whose peripherals are frozen — if the controller also hosts your storage or the keyboard you're typing on, those will drop too). Note that disabling USB autosuspend alone (`usbcore.autosuspend=-1`) does not help with this particular bug, and Omarchy's shipped autosuspend config in `/etc/modprobe.d/omarchy-usb-autosuspend.conf` is ignored when `usbcore` is built into the kernel.
+
 ### Why are my external speakers not playing?
 
 Probably because they're not set as the primary output. Click on the speaker icon on the right side of the bar, and it'll open the volume popup where you can pick the output device (and mix per-app volumes too).
