@@ -1,0 +1,498 @@
+#!/bin/bash
+
+# omarchy:summary=Install an AppImage and create a desktop launcher
+# omarchy:args=[path-or-url] [name] [--replace]
+
+set -e
+
+APPIMAGE_DIR="$HOME/Applications"
+ICON_BASE="$HOME/.local/share/icons/hicolor"
+DESKTOP_DIR="$HOME/.local/share/applications"
+
+# Helpers below are copied from omarchy-webapp-install rather than sourced.
+# /usr/share/omarchy/bin has no shared library -- webapp-install and tui-install
+# each carry their own copy of safe_icon_name -- and a script that sources a lib
+# is not runnable from $PATH alone, nor upstreamable.
+
+safe_icon_name() {
+  printf '%s\n' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//'
+}
+
+require_plain_name() {
+  # The name becomes a filename. A slash would turn it into directory levels, so
+  # the launcher lands somewhere omarchy-appimage-remove cannot address.
+  if [[ $1 == */* ]]; then
+    echo "App name cannot contain '/': $1" >&2
+    exit 1
+  fi
+
+  # A control character would put a newline in the launcher's filename, which the
+  # newline-delimited removal picker cannot round-trip. Values written into the
+  # file are escaped regardless; this stops the filename itself being unusable.
+  if [[ $1 == *[$'\t\n\r']* ]]; then
+    echo "App name cannot contain a tab, carriage return or newline." >&2
+    exit 1
+  fi
+}
+
+desktop_string_escape() {
+  # Desktop Entry "string" value: a raw newline would start a new key line and let
+  # a value inject a second Exec=. Escape backslash first, then tab/CR/LF and a
+  # leading space. Every value written into the .desktop file passes through here.
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//$'\t'/\\t}
+  value=${value//$'\r'/\\r}
+  value=${value//$'\n'/\\n}
+  [[ $value == " "* ]] && value="\\s${value# }"
+
+  printf '%s' "$value"
+}
+
+desktop_exec_arg() {
+  # One Exec argument, double-quoted per the freedesktop Exec spec: inside quotes
+  # " ` $ \ take a backslash and a literal % becomes %%.
+  local escaped
+  # SC2016: the single quotes are correct -- these are sed scripts, and $ and `
+  # must reach sed literally rather than being expanded by the shell.
+  # shellcheck disable=SC2016
+  escaped=$(printf '%s' "$1" \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/`/\\`/g' -e 's/\$/\\$/g' -e 's/%/%%/g')
+  printf '"%s"' "$escaped"
+}
+
+desktop_payload_path() {
+  # Duplicated in omarchy-appimage-remove for the no-shared-library reason;
+  # the two copies must stay in step.
+  # The payload path is stored in its own X-AppImage-Payload key rather than
+  # parsed back out of Exec. Exec still carries the fully quoted and escaped
+  # path -- that is how the app launches, and the spec requires it -- but reading
+  # it back meant undoing two escaping layers in a fixed order, which is how a
+  # payload once survived removal. A dedicated key goes through desktop-entry
+  # string escaping only, and install rejects tab, CR and LF in the path, so the
+  # only escapes that can appear are a doubled backslash and a leading \s.
+  local payload
+  payload=$(sed -n 's/^X-AppImage-Payload=//p' "$1" | head -1)
+  [[ $payload == "\\s"* ]] && payload=" ${payload#\\s}"
+  printf '%s' "${payload//\\\\/\\}"
+}
+
+payload_in_use() {
+  # $2, when given, is a launcher to ignore: the one being replaced still points
+  # at its own payload, and that must not count as a conflicting user.
+  local wanted="$1" ignore="${2-}" file
+  [[ -d $DESKTOP_DIR ]] || return 1
+  while IFS= read -r -d '' file; do
+    [[ -n $ignore && $file == "$ignore" ]] && continue
+    grep -q '^Exec=.*omarchy-launch-appimage' "$file" || continue
+    [[ $(desktop_payload_path "$file") == "$wanted" ]] && return 0
+  done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
+  return 1
+}
+
+remove_icons_for() {
+  local icon_name="$1" icon
+  while IFS= read -r -d '' icon; do
+    rm -f "$icon"
+  done < <(find "$ICON_BASE" -mindepth 2 -maxdepth 3 -type f -name "$icon_name.*" -print0 2>/dev/null)
+}
+
+require_appimage() {
+  # Type lives in the ELF e_ident padding at offset 8: 41 49 01 or 41 49 02.
+  # Reading it beats probing with --appimage-extract, which cannot tell a type-1
+  # bundle from a file that is not an AppImage at all.
+  local file="$1" elf magic
+  elf=$(od -An -tx1 -j0 -N4 "$file" 2>/dev/null | tr -d ' \n')
+  magic=$(od -An -tx1 -j8 -N3 "$file" 2>/dev/null | tr -d ' \n')
+
+  if [[ $elf != "7f454c46" ]]; then
+    echo "Not an AppImage (not an ELF binary): $file" >&2
+    exit 1
+  fi
+
+  case $magic in
+  414901) APPIMAGE_TYPE=1 ;;
+  414902) APPIMAGE_TYPE=2 ;;
+  *)
+    echo "Not an AppImage (no AppImage magic at offset 8): $file" >&2
+    exit 1
+    ;;
+  esac
+}
+
+icon_extension() {
+  # From content, not from the path. .DirIcon is a real bundle convention and
+  # carries no extension at all, and the extraction directory lives under
+  # ~/.cache, so the last dot in the path is usually inside a directory
+  # component -- ${path##*.} on it yields "DirIcon", or worse a path fragment
+  # when .DirIcon points at an extensionless file.
+  case "$(file -b --mime-type "$1" 2>/dev/null)" in
+  image/png) printf 'png' ;;
+  image/svg+xml) printf 'svg' ;;
+  image/jpeg) printf 'jpg' ;;
+  image/webp) printf 'webp' ;;
+  image/x-icon | image/vnd.microsoft.icon) printf 'ico' ;;
+  *) printf 'png' ;;
+  esac
+}
+
+icon_install_dir() {
+  # Bundles ship icons at their real resolution, so file them under the matching
+  # hicolor size rather than dropping everything in 256x256 the way
+  # omarchy-webapp-install does. Only sizes hicolor's index.theme declares are
+  # used: an icon written to an undeclared directory -- 1024x1024, which bundles
+  # like Ledger Live ship -- is never found by freedesktop icon lookup. A
+  # non-square, oversized or unrecognised icon falls back to 256x256, which is
+  # wrong about the resolution but at least resolvable.
+  local src="$1" dims w h
+  case "${src,,}" in
+  *.svg | *.svgz)
+    printf '%s/scalable/apps' "$ICON_BASE"
+    return
+    ;;
+  esac
+
+  dims=$(file -b "$src" 2>/dev/null | grep -oE '[0-9]+ x [0-9]+' | head -1)
+  w=${dims%% x *}
+  h=${dims##* x }
+  if [[ -n $w && $w == "$h" ]]; then
+    case $w in
+    16 | 22 | 24 | 32 | 48 | 64 | 72 | 96 | 128 | 192 | 256 | 512)
+      printf '%s/%sx%s/apps' "$ICON_BASE" "$w" "$w"
+      return
+      ;;
+    esac
+  fi
+
+  printf '%s/256x256/apps' "$ICON_BASE"
+}
+
+desktop_value() {
+  [[ -n $BUNDLED_DESKTOP ]] || return 0
+  sed -n "s/^$1=//p" "$BUNDLED_DESKTOP" | head -1
+}
+
+# --- preflight ---
+
+if ! ldconfig -p 2>/dev/null | grep -q 'libfuse\.so\.2'; then
+  echo -e "\e[33mWarning:\e[0m libfuse.so.2 is missing; most AppImages will not start."
+  echo "         Install it with: omarchy pkg add fuse2"
+fi
+
+# --- input ---
+
+REPLACE=false
+ARGS=()
+for arg in "$@"; do
+  if [[ $arg == "--replace" ]]; then
+    REPLACE=true
+  else
+    ARGS+=("$arg")
+  fi
+done
+set -- ${ARGS[@]+"${ARGS[@]}"}
+
+if (($# == 0)); then
+  echo -e "\e[32mLet's install an AppImage you can start with the app launcher.\n\e[0m"
+
+  # Offer the AppImages that are actually lying around rather than a filesystem
+  # browser: gum input has no path completion, and a Downloads folder with
+  # hundreds of files buries the one wanted file ten screens down. Newest first,
+  # since the thing just downloaded is nearly always the thing being installed.
+  # gum filter then narrows by typing, which is what tab completion was for.
+  TYPE_MANUALLY="Enter a path or URL..."
+  CANDIDATES=()
+  while IFS= read -r candidate; do
+    [[ -n $candidate ]] && CANDIDATES+=("$candidate")
+  done < <(
+    find "$HOME/Downloads" "$HOME/Desktop" "$HOME" -maxdepth 1 -type f -iname '*.AppImage' \
+      -printf '%T@\t%p\n' 2>/dev/null | sort -rn | cut -f2- | awk '!seen[$0]++'
+  )
+
+  SOURCE=""
+  if ((${#CANDIDATES[@]})); then
+    SOURCE=$(printf '%s\n' "${CANDIDATES[@]}" "$TYPE_MANUALLY" \
+      | gum filter --placeholder "Type to narrow, or pick one" --height 12) || SOURCE=""
+    [[ $SOURCE == "$TYPE_MANUALLY" ]] && SOURCE=""
+  fi
+
+  if [[ -z $SOURCE ]]; then
+    # SC2088: the tilde is placeholder text shown to the user, not a path this
+    # script expands.
+    # shellcheck disable=SC2088
+    SOURCE=$(gum input --prompt "AppImage path or URL> " \
+      --placeholder "~/Downloads/Foo.AppImage or https://example.com/Foo.AppImage")
+  fi
+  APP_NAME=""
+  INTERACTIVE=true
+else
+  SOURCE="$1"
+  APP_NAME="${2-}"
+  INTERACTIVE=false
+fi
+
+if [[ -z $SOURCE ]]; then
+  echo "You must provide an AppImage path or URL." >&2
+  exit 1
+fi
+
+mkdir -p "$APPIMAGE_DIR" "$ICON_BASE" "$DESKTOP_DIR"
+
+# Everything that can refuse the install is evaluated before the payload is
+# moved, so a rejected install leaves the user's file where they left it.
+STAGING=""
+WORKDIR=""
+cleanup() {
+  [[ -n $STAGING && -e $STAGING ]] && rm -f "$STAGING"
+  [[ -n $WORKDIR && -d $WORKDIR ]] && rm -rf "$WORKDIR"
+  return 0
+}
+trap cleanup EXIT
+
+if [[ $SOURCE =~ ^https?:// ]]; then
+  FILENAME=$(basename "${SOURCE%%\?*}")
+  [[ $FILENAME == *.AppImage ]] || FILENAME="$FILENAME.AppImage"
+  TARGET="$APPIMAGE_DIR/$FILENAME"
+  STAGING="$APPIMAGE_DIR/.$FILENAME.download.$$"
+  echo "Downloading $FILENAME..."
+  curl -fL --progress-bar -o "$STAGING" "$SOURCE"
+  SOURCE_FILE="$STAGING"
+  DOWNLOADED=true
+else
+  SOURCE="${SOURCE/#\~/$HOME}"
+  if [[ ! -f $SOURCE ]]; then
+    echo "No such file: $SOURCE" >&2
+    echo "If you installed it already, the payload now lives in $APPIMAGE_DIR." >&2
+    exit 1
+  fi
+  TARGET="$APPIMAGE_DIR/$(basename "$SOURCE")"
+  SOURCE_FILE="$SOURCE"
+  DOWNLOADED=false
+fi
+
+if [[ $TARGET == *[$'\t\n\r']* ]]; then
+  echo "AppImage path cannot contain a tab, carriage return or newline." >&2
+  exit 1
+fi
+
+require_appimage "$SOURCE_FILE"
+
+# Reading the metadata means executing the bundle, and a browser saves downloads
+# without the executable bit. The payload is marked executable again after the
+# move; doing it here too is what makes metadata extraction work at all on a
+# freshly downloaded file.
+chmod +x "$SOURCE_FILE"
+
+# --- read the bundle's own metadata ---
+#
+# Full extract rather than a targeted pattern extract: .DirIcon is usually a
+# symlink into usr/share/icons, so a pattern extract leaves it dangling. Extract
+# under the cache, not $TMPDIR -- /tmp is tmpfs on Omarchy, so a large bundle
+# would spend its uncompressed size in RAM.
+
+CACHE_BASE="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-appimage"
+mkdir -p "$CACHE_BASE"
+WORKDIR=$(mktemp -d "$CACHE_BASE/extract-XXXXXX")
+
+BUNDLED_DESKTOP=""
+if ((APPIMAGE_TYPE == 2)); then
+  if (cd "$WORKDIR" && "$SOURCE_FILE" --appimage-extract >/dev/null 2>&1) \
+    && [[ -d $WORKDIR/squashfs-root ]]; then
+    BUNDLED_DESKTOP=$(find "$WORKDIR/squashfs-root" -maxdepth 1 -name '*.desktop' 2>/dev/null \
+      | sort | head -1)
+  else
+    # A type-2 bundle that will not extract is a real failure, not the expected
+    # type-1 fallback: without its metadata the app is named after its filename
+    # and gets a generic icon. Missing FUSE is the usual cause. Say so, loudly --
+    # the degradation is otherwise silent and looks like the tool being dumb.
+    echo -e "\e[33mWarning:\e[0m could not extract $(basename "$SOURCE_FILE") to read its metadata." >&2
+    echo "         Falling back to the filename and a generic icon." >&2
+    echo "         The bundle may be damaged, or its runtime may need libfuse.so.2" >&2
+    echo "         (omarchy pkg add fuse2). Re-run afterwards for the real name and icon." >&2
+  fi
+
+  if [[ -z $BUNDLED_DESKTOP && -d $WORKDIR/squashfs-root ]]; then
+    echo -e "\e[33mWarning:\e[0m no desktop entry inside the bundle; using the filename." >&2
+  fi
+fi
+
+if [[ -z $APP_NAME ]]; then
+  APP_NAME=$(desktop_value Name)
+fi
+if [[ -z $APP_NAME ]]; then
+  APP_NAME=$(basename "$TARGET" .AppImage)
+fi
+if [[ $INTERACTIVE == true ]]; then
+  APP_NAME=$(gum input --prompt "Name> " --value "$APP_NAME")
+fi
+
+if [[ -z $APP_NAME ]]; then
+  echo "You must provide a name." >&2
+  exit 1
+fi
+require_plain_name "$APP_NAME"
+
+DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
+OLD_PAYLOAD=""
+if [[ -e $DESKTOP_FILE ]]; then
+  OLD_PAYLOAD=$(desktop_payload_path "$DESKTOP_FILE")
+  OLD_VERSION=$(sed -n 's/^X-AppImage-Version=//p' "$DESKTOP_FILE" | head -1)
+  NEW_VERSION=$(desktop_value X-AppImage-Version)
+
+  # Name the versions when both bundles declare one -- "4.17.1 -> 4.19.0" is the
+  # difference between a confident upgrade and a guess.
+  WHICH="\"$APP_NAME\""
+  if [[ -n $OLD_VERSION && -n $NEW_VERSION ]]; then
+    WHICH="$WHICH $OLD_VERSION with $NEW_VERSION"
+  elif [[ -n $NEW_VERSION ]]; then
+    WHICH="$WHICH with $NEW_VERSION"
+  fi
+
+  if [[ $REPLACE == false && $INTERACTIVE == true ]]; then
+    if gum confirm "Replace the installed $WHICH?"; then
+      REPLACE=true
+    fi
+  fi
+
+  if [[ $REPLACE == false ]]; then
+    echo "A launcher named \"$APP_NAME\" already exists." >&2
+    echo "Re-run with --replace to upgrade it in place," >&2
+    echo "remove it first with: omarchy-appimage-remove \"$APP_NAME\"," >&2
+    echo "or install under a different name: omarchy-appimage-install <source> <name>" >&2
+    exit 1
+  fi
+fi
+
+# Overwriting a payload another launcher points at would break that launcher.
+if [[ -e $TARGET && ! $SOURCE_FILE -ef $TARGET ]] && payload_in_use "$TARGET" "$DESKTOP_FILE"; then
+  echo "$TARGET already exists and is used by an installed AppImage." >&2
+  echo "Remove that one first, or rename the file you are installing." >&2
+  exit 1
+fi
+
+CATEGORIES=$(desktop_value Categories)
+WM_CLASS=$(desktop_value StartupWMClass)
+ICON_KEY=$(desktop_value Icon)
+MIME_TYPES=$(desktop_value MimeType)
+APP_COMMENT=$(desktop_value Comment)
+[[ -n $APP_COMMENT ]] || APP_COMMENT="$APP_NAME"
+
+# --- stage the payload ---
+#
+# Always via a temporary name inside the target directory, then rename into
+# place. When source and target share a filesystem both steps are renames; when
+# they do not, the copy lands on the temporary name, so an interrupted install
+# never leaves a partial payload at the final path.
+
+if [[ $SOURCE_FILE -ef $TARGET ]]; then
+  echo "Already in place: $TARGET"
+else
+  if [[ $DOWNLOADED == false ]]; then
+    STAGING="$APPIMAGE_DIR/.$(basename "$TARGET").staging.$$"
+    mv "$SOURCE_FILE" "$STAGING"
+  fi
+  mv "$STAGING" "$TARGET"
+  STAGING=""
+  if [[ $DOWNLOADED == true ]]; then
+    echo "Downloaded to $TARGET"
+  else
+    echo "Moved $SOURCE -> $TARGET"
+  fi
+fi
+
+chmod +x "$TARGET"
+
+if [[ $REPLACE == true ]]; then
+  if [[ -n $OLD_PAYLOAD && $OLD_PAYLOAD != "$TARGET" && -f $OLD_PAYLOAD ]]; then
+    rm -f "$OLD_PAYLOAD"
+    echo "Removed the previous payload $OLD_PAYLOAD"
+  fi
+  # Sweep the old icon before writing the new one: a different resolution lands
+  # in a different hicolor directory and would otherwise linger.
+  remove_icons_for "$(safe_icon_name "$APP_NAME")"
+fi
+
+# --- icon ---
+
+ICON_VALUE=$(safe_icon_name "$APP_NAME")
+ICON_SRC=""
+
+if [[ -d $WORKDIR/squashfs-root ]]; then
+  if [[ -n $ICON_KEY ]]; then
+    # Biggest matching PNG wins; file size is a good enough proxy for resolution.
+    ICON_SRC=$(find "$WORKDIR/squashfs-root" -name "$ICON_KEY.png" -type f -printf '%s %p\n' 2>/dev/null \
+      | sort -rn | head -1 | cut -d' ' -f2-)
+  fi
+  if [[ -z $ICON_SRC && -e $WORKDIR/squashfs-root/.DirIcon ]]; then
+    ICON_SRC=$(readlink -f "$WORKDIR/squashfs-root/.DirIcon")
+  fi
+fi
+
+ICON_INSTALLED=false
+if [[ -n $ICON_SRC && -f $ICON_SRC ]]; then
+  EXT=$(icon_extension "$ICON_SRC")
+  ICON_DIR=$(icon_install_dir "$ICON_SRC" "$EXT")
+  # The payload has already moved by this point, so a failure here must not
+  # abort under set -e and strand it with no launcher.
+  if mkdir -p "$ICON_DIR" 2>/dev/null && cp "$ICON_SRC" "$ICON_DIR/$ICON_VALUE.$EXT" 2>/dev/null; then
+    ICON_INSTALLED=true
+    gtk-update-icon-cache "$ICON_BASE" &>/dev/null || true
+  else
+    echo "Could not install the bundle's icon; falling back to a generic one." >&2
+  fi
+fi
+
+if [[ $ICON_INSTALLED == false ]]; then
+  [[ -n $ICON_SRC ]] || echo "No icon found inside the bundle; falling back to a generic one."
+  ICON_VALUE="application-x-executable"
+fi
+
+# --- launcher ---
+
+EXEC_COMMAND="omarchy-launch-appimage $(desktop_exec_arg "$TARGET") %U"
+
+name_field=$(desktop_string_escape "$APP_NAME")
+comment_field=$(desktop_string_escape "$APP_COMMENT")
+exec_field=$(desktop_string_escape "$EXEC_COMMAND")
+icon_field=$(desktop_string_escape "$ICON_VALUE")
+
+cat >"$DESKTOP_FILE" <<DESKTOP
+[Desktop Entry]
+Version=1.0
+Name=$name_field
+Comment=$comment_field
+Exec=$exec_field
+Terminal=false
+Type=Application
+Icon=$icon_field
+StartupNotify=true
+DESKTOP
+
+if [[ -n $CATEGORIES ]]; then
+  printf 'Categories=%s\n' "$(desktop_string_escape "$CATEGORIES")" >>"$DESKTOP_FILE"
+fi
+if [[ -n $WM_CLASS ]]; then
+  printf 'StartupWMClass=%s\n' "$(desktop_string_escape "$WM_CLASS")" >>"$DESKTOP_FILE"
+fi
+# Carried through so the app keeps its URL scheme handlers -- Ledger Live
+# registers x-scheme-handler/ledgerlive, which is lost if this is dropped.
+if [[ -n $MIME_TYPES ]]; then
+  printf 'MimeType=%s\n' "$(desktop_string_escape "$MIME_TYPES")" >>"$DESKTOP_FILE"
+fi
+# The payload path, for removal and collision checks. Exec carries it too, but
+# only this key is ever read back.
+printf 'X-AppImage-Payload=%s\n' "$(desktop_string_escape "$TARGET")" >>"$DESKTOP_FILE"
+
+# Recorded so a later install can say what it is replacing.
+BUNDLE_VERSION=$(desktop_value X-AppImage-Version)
+if [[ -n $BUNDLE_VERSION ]]; then
+  printf 'X-AppImage-Version=%s\n' "$(desktop_string_escape "$BUNDLE_VERSION")" >>"$DESKTOP_FILE"
+fi
+
+chmod +x "$DESKTOP_FILE"
+update-desktop-database "$DESKTOP_DIR" &>/dev/null || true
+
+echo -e "You can now find $APP_NAME using the app launcher (SUPER + SPACE)\n"

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Launch an installed AppImage
+# omarchy:args=<path-to-appimage> [args...]
+
+set -e
+
+APPIMAGE="${1-}"
+shift || true
+
+if [[ -z $APPIMAGE ]]; then
+  echo "Usage: omarchy-launch-appimage <path-to-appimage> [args...]" >&2
+  exit 1
+fi
+
+# Notify rather than dying quietly: this runs from a .desktop launcher, where a
+# non-zero exit with no output is invisible to the user.
+if [[ ! -x $APPIMAGE ]]; then
+  omarchy-notification-send -g "AppImage missing" "$APPIMAGE"
+  exit 1
+fi
+
+exec setsid uwsm-app -- "$APPIMAGE" "$@"
