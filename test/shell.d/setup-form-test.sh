@@ -216,6 +216,8 @@ assert_status 0 "timezone prompt accepts the geo guess"
 [[ $(field timezone) == "Europe/Copenhagen" ]] || fail "timezone prompt keeps the chosen timezone"
 grep -qF -- '--selected Europe/Copenhagen' "$GUM_ARGS" || fail "timezone prompt preselects the geo guess"
 grep -qF UTC "$tmp_dir/stdin.1" || fail "timezone prompt offers the system timezone list"
+grep -qFx Asia/Ashgabat "$tmp_dir/stdin.1" || fail "timezone prompt offers the canonical zone"
+! grep -qFx Asia/Ashkhabad "$tmp_dir/stdin.1" || fail "timezone prompt drops tzdata backward-compatibility aliases"
 pass "timezone prompt preselects the geo guess when one is available"
 
 # An unnetworked first boot has no guess, and the fallback has to survive `set -e`
