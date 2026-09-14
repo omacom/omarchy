@@ -112,6 +112,17 @@ case "$gpu_mode" in
     omarchy-system-reboot
   fi
   ;;
+"Vfio")
+  # supergfxd persists the sleep hook's transient Vfio request. A resume that
+  # cannot confirm the switch back leaves the saved mode there, and Vfio is
+  # not one of the two modes this script cycles between. Put the saved mode
+  # back to the Integrated end it came from so the cycle works again.
+  if gum confirm "GPU mode is stuck on Vfio. Restore integrated GPU and reboot?"; then
+    sudo sed -i 's/"mode": ".*"/"mode": "Integrated"/' /etc/supergfxd.conf
+
+    omarchy-system-reboot
+  fi
+  ;;
 *)
   echo "Hybrid GPU not found or in unknown mode."
   exit 1
