@@ -30,6 +30,16 @@ setup_pam_config() {
   fi
 
   # Configure polkit
+  #
+  # Arch ships polkit's stack at /usr/lib/pam.d/polkit-1, and PAM prefers
+  # /etc/pam.d — so writing there shadows the vendor stack rather than extending
+  # it, dropping pam_faillock's lockout along with pam_env, pam_limits and
+  # pam_systemd_home. Seed from the vendor file and insert into that, as sudo is.
+  if [[ ! -f /etc/pam.d/polkit-1 && -f /usr/lib/pam.d/polkit-1 ]]; then
+    echo "Seeding polkit configuration from the vendor stack..."
+    sudo cp /usr/lib/pam.d/polkit-1 /etc/pam.d/polkit-1
+  fi
+
   if [[ -f /etc/pam.d/polkit-1 ]]; then
     if ! grep -q 'pam_fprintd.so' /etc/pam.d/polkit-1; then
       echo "Configuring polkit for fingerprint authentication..."
@@ -45,13 +55,13 @@ setup_pam_config() {
     # line defined above, shared with the two sed insertions so the gate cannot
     # drift between files. The only path in it is the fixed /usr/bin one.
     sudo tee /etc/pam.d/polkit-1 >/dev/null <<EOF
+#%PAM-1.0
 $fprintd_gate
 auth      sufficient pam_fprintd.so
-auth      required pam_unix.so
-
-account   required pam_unix.so
-password  required pam_unix.so
-session   required pam_unix.so
+auth      include   system-auth
+account   include   system-auth
+password  include   system-auth
+session   include   system-auth
 EOF
   fi
 }
