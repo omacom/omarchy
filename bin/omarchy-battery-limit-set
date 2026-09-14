@@ -91,15 +91,18 @@ restore_battery() {
 
 # The subshell owns both the lock and traps, including on an interrupted apply.
 apply_limit() (
-  local limit=$1 threshold start_path end_value start_value i
+  local limit=$1 threshold battery start_path end_value start_value i
   local -a thresholds=() ends=() starts=()
   local touched=0 staged="" committed=false
 
   exec 9>"$LOCK_FILE"
   flock -x 9
 
-  for threshold in "$power_supply_path"/BAT*/charge_control_end_threshold; do
+  for threshold in "$power_supply_path"/*/charge_control_end_threshold; do
     [[ -e $threshold ]] || continue
+    battery=${threshold%/*}
+    # Peripheral batteries do not power the machine. Keep unscoped older drivers.
+    [[ -r $battery/scope && $(<"$battery/scope") == "Device" ]] && continue
     end_value=$(read_threshold "$threshold")
     valid_threshold "$end_value" || { echo "Error: invalid current threshold at $threshold." >&2; exit 1; }
     start_path="${threshold%/*}/charge_control_start_threshold"

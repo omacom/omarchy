@@ -183,3 +183,42 @@ value=$(OMARCHY_POWER_SUPPLY_PATH="$fixture" "$getter")
 [[ $value == "80" || $value == "90" ]] ||
   fail "battery-limit-get prints one battery's threshold when several exist" "got: $value"
 pass "battery-limit-get reads the first battery when several exist"
+
+# Not every system battery is named BAT*. Apple Silicon calls its battery
+# macsmc-battery; other drivers use their own names. Matching only BAT* hides
+# the charge limit entirely on that hardware.
+non_bat=$(mktemp -d)
+mkdir -p "$non_bat/macsmc-battery"
+printf '80\n' >"$non_bat/macsmc-battery/charge_control_end_threshold"
+printf 'System\n' >"$non_bat/macsmc-battery/scope"
+
+OMARCHY_POWER_SUPPLY_PATH="$non_bat" "$hw" ||
+  fail "hw battery-charge-limit finds a battery not named BAT*"
+pass "hw battery-charge-limit finds a battery not named BAT*"
+
+value=$(OMARCHY_POWER_SUPPLY_PATH="$non_bat" "$getter")
+[[ $value == "80" ]] ||
+  fail "battery-limit-get reads a battery not named BAT*" "got: ${value:-<empty>}"
+pass "battery-limit-get reads a battery not named BAT*"
+
+# A peripheral battery (a wireless mouse, say) reports scope=Device and does not
+# power the machine. It must never be mistaken for the system battery, even when
+# it exposes a charge control of its own.
+mkdir -p "$non_bat/hidpp_battery_0"
+printf '50\n' >"$non_bat/hidpp_battery_0/charge_control_end_threshold"
+printf 'Device\n' >"$non_bat/hidpp_battery_0/scope"
+
+value=$(OMARCHY_POWER_SUPPLY_PATH="$non_bat" "$getter")
+[[ $value == "80" ]] ||
+  fail "battery-limit-get skips peripheral batteries" "got: ${value:-<empty>}"
+pass "battery-limit-get skips peripheral batteries (scope=Device)"
+
+peripheral_only=$(mktemp -d)
+mkdir -p "$peripheral_only/hidpp_battery_0"
+printf '50\n' >"$peripheral_only/hidpp_battery_0/charge_control_end_threshold"
+printf 'Device\n' >"$peripheral_only/hidpp_battery_0/scope"
+
+OMARCHY_POWER_SUPPLY_PATH="$peripheral_only" "$hw" &&
+  fail "hw battery-charge-limit ignores peripheral-only charge controls"
+pass "hw battery-charge-limit exits 1 when only a peripheral exposes a control"
+rm -rf "$non_bat" "$peripheral_only"
