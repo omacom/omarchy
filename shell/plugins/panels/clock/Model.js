@@ -233,8 +233,9 @@ function lifeProgressPercent(age, expectancy) {
 // panel jump under the pointer.
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
-  var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
-  var cursor = new Date(year, month, 1 - leading)
+  // Midday, not midnight: a midnight DST jump leaves no midnight to walk from.
+  var leading = (new Date(year, month, 1, 12).getDay() - start + 7) % 7
+  var cursor = new Date(year, month, 1 - leading, 12)
   var today = String(todayKey || "")
   var weeks = []
 
@@ -274,7 +275,7 @@ function monthGrid(year, month, weekStart, todayKey) {
 }
 
 function stepMonth(year, month, delta) {
-  var target = new Date(year, Number(month) + Number(delta), 1)
+  var target = new Date(year, Number(month) + Number(delta), 1, 12)
   return { year: target.getFullYear(), month: target.getMonth() }
 }
 
