@@ -13,6 +13,7 @@ cat > "$fixture/run" <<'SH'
 set -euo pipefail
 source "$ROOT/bin/omarchy-battery-limit-set"
 require_root() { :; }
+systemctl() { [[ $FAULT != "enable" ]]; }
 power_supply_path="$FIXTURE/sys"
 STATE_FILE="$FIXTURE/config/battery-limit"
 LOCK_FILE="$FIXTURE/lock"
@@ -106,13 +107,15 @@ run_apply
 assert_value "$fixture/sys/BAT0/charge_control_start_threshold" 75 "existing minimum is preserved"
 pass "successful maximum-only changes preserve the independent minimum"
 
-reset_fixture
-FAULT=prepare
-run_apply
-(( status != 0 )) || fail "preparing state must fail"
-[[ ! -s $fixture/writes ]] || fail "failed persistence preparation must not touch hardware"
-assert_restored
-pass "persistence is prepared before hardware writes"
+for fault in prepare enable; do
+  reset_fixture
+  FAULT=$fault
+  run_apply
+  (( status != 0 )) || fail "$fault must fail"
+  [[ ! -s $fixture/writes ]] || fail "$fault must not touch hardware"
+  assert_restored
+  pass "$fault failure prevents hardware writes"
+done
 
 reset_fixture
 COUPLED=true FAULT=reject
@@ -146,6 +149,30 @@ run_apply
 (( status != 0 )) || fail "missing hardware must fail"
 assert_value "$fixture/config/battery-limit" 100 "missing hardware preserves saved choice"
 pass "no capable batteries preserves saved state"
+
+for preset in 90 100; do
+  reset_fixture
+  PRESET=$preset
+  run_apply
+  (( status == 0 )) || fail "preset $preset applies"
+  assert_value "$fixture/sys/BAT0/charge_control_end_threshold" "$preset" "preset applied to first battery"
+  assert_value "$fixture/sys/BAT1/charge_control_end_threshold" "$preset" "preset applied to second battery"
+  assert_value "$fixture/config/battery-limit" "$preset" "preset persisted"
+  pass "preset $preset applies and persists"
+done
+PRESET=80
+
+reset_fixture
+rm "$fixture/config/battery-limit"
+mv "$fixture/sys/BAT0" "$fixture/sys/macsmc-battery"
+printf 'System\n' > "$fixture/sys/macsmc-battery/scope"
+printf 'Device\n' > "$fixture/sys/BAT1/scope"
+run_apply
+(( status == 0 )) || fail "first apply on non-BAT system battery"
+assert_value "$fixture/sys/macsmc-battery/charge_control_end_threshold" 80 "non-BAT system battery applied"
+assert_value "$fixture/sys/BAT1/charge_control_end_threshold" 100 "peripheral is untouched"
+assert_value "$fixture/config/battery-limit" 80 "first successful choice persisted"
+pass "first apply discovers system batteries by capability and leaves peripherals untouched"
 
 reset_fixture
 FAULT=slow bash "$fixture/run" > "$fixture/first-output" 2>&1 &

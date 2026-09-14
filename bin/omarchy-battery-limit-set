@@ -150,6 +150,9 @@ apply_limit() (
   staged=$(mktemp "${STATE_FILE%/*}/.battery-limit.XXXXXX")
   printf '%s\n' "$limit" > "$staged"
   chmod 0644 "$staged"
+  # The settings package ships the unit on new and existing installations.
+  # Enable it only when the user explicitly saves a charge limit.
+  systemctl enable omarchy-battery-limit.service
 
   for (( i=0; i<${#thresholds[@]}; i++ )); do
     touched=$((i + 1))
