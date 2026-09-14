@@ -182,8 +182,6 @@ Item {
             || event.key === Qt.Key_Escape
             || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)
 
-          // Hyprland can wake DPMS on this same keypress. Swallow a wake key
-          // (and drop any half-typed password) so it is never inserted.
           root.wakeRequested()
           if (clearPassword) root.passwordTextEdited("")
           event.accepted = clearPassword
