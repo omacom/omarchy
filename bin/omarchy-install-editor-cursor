@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Install Cursor and configure Omarchy defaults for secrets and theme
+
+echo "Installing Cursor..."
+omarchy-pkg-add cursor-bin || exit 1
+
+mkdir -p ~/.cursor ~/.config/Cursor/User
+
+cat > ~/.cursor/argv.json << 'EOF'
+// This configuration file allows you to pass permanent command line arguments to VS Code.
+// Only a subset of arguments is currently supported to reduce the likelihood of breaking
+// the installation.
+//
+// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT
+//
+// NOTE: Changing this file requires a restart of VS Code.
+{
+  "password-store":"gnome-libsecret"
+}
+EOF
+
+# Ensure Cursor's own auto-update feature is turned off
+if [[ ! -f ~/.config/Cursor/User/settings.json ]]; then
+  printf '{\n  "update.mode": "none"\n}\n' > ~/.config/Cursor/User/settings.json
+fi
+
+# Apply Omarchy theme to Cursor
+omarchy-theme-set-vscode
+
+setsid uwsm-app -- gtk-launch cursor >/dev/null 2>&1 &
