@@ -4,6 +4,12 @@ Networking in Omarchy is handled by NetworkManager, and you drive it from the ne
 
 That panel scans for Wi-Fi networks, shows signal strength, and connects. Ethernet needs nothing at all — plug it in and it works. If you'd rather stay in the terminal, `nmtui` gives you the same controls, and there's an `omarchy network` command group too.
 
+## Networks that have to know you first
+
+Campus, office, and some guest networks only admit devices whose MAC address has been registered with whoever runs the network. There is nothing to pick in the Wi-Fi panel until that is done, so the first login on a machine with no link opens a terminal guide instead of the panel. You can bring it back any time from _Setup > Network > Connection Guide_, or with `omarchy network onboard`.
+
+It prints the MAC address of every physical interface — `omarchy network onboard --macs-only | wl-copy` puts one on the clipboard to paste into a registration form — followed by the `nmcli` recipes for joining from the terminal, including hidden networks and the WPA2-Enterprise username-and-password case that usually accompanies MAC registration. It ends by offering the Wi-Fi panel, so nothing here traps you in the terminal if you would rather point and click; `Super + Ctrl + W` opens that panel at any time regardless.
+
 ## Sharing your Wi-Fi
 
 Rather than reading a long password out loud, run _Setup > Network > QR Code_ while you're on Wi-Fi. That puts a QR code on screen that any phone camera can scan to join. It's one of those things you'll use more than you'd expect once you know it's there.
