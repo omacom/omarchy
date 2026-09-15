@@ -35,6 +35,7 @@ RESOLUTION=""
 FULLSCREEN="false"
 STOP_RECORDING="false"
 RECORDING_FILE="/tmp/omarchy-screenrecord-filename"
+GSR_SOCKET="${XDG_RUNTIME_DIR:-/tmp}/omarchy-gsr.sock"
 REGION_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-screenrecord-region"
 LOG_FILE=$([[ ${OMARCHY_SCREENRECORD_DEBUG:-false} == "true" ]] && echo "/tmp/omarchy-screenrecord.log" || echo "/dev/null")
 
@@ -188,7 +189,7 @@ start_screenrecording() {
   [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
 
   echo "===== $(date '+%F %T') args: $* target: $target =====" >>"$LOG_FILE"
-  gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 2>>"$LOG_FILE" &
+  gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -ipc "$GSR_SOCKET" -o "$filename" "${audio_args[@]}" 2>>"$LOG_FILE" &
   local pid=$!
 
   while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]]; do
@@ -202,22 +203,16 @@ start_screenrecording() {
 }
 
 stop_screenrecording() {
-  pkill -SIGINT -f "^gpu-screen-recorder" # SIGINT required to save video properly
-
-  # Wait a maximum of 5 seconds to finish before hard killing
-  local count=0
-  while pgrep -f "^gpu-screen-recorder" >/dev/null && ((count < 50)); do
-    sleep 0.1
-    count=$((count + 1))
-  done
+  # gsr-cli stop asks the instance on GSR_SOCKET to save and waits until it has.
+  local stopped=0
+  if gsr-cli -ipc "$GSR_SOCKET" stop >/dev/null 2>&1; then
+    stopped=1
+  fi
 
   toggle_screenrecording_indicator
   cleanup_webcam
 
-  if pgrep -f "^gpu-screen-recorder" >/dev/null; then
-    pkill -9 -f "^gpu-screen-recorder"
-    omarchy-notification-send -u critical -t 5000 "Screen recording error" "Recording process had to be force-killed. Video may be corrupted."
-  else
+  if ((stopped)); then
     finalize_recording
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
     echo "$filename"
@@ -237,6 +232,8 @@ stop_screenrecording() {
       sleep 2
       rm -f "$preview"
     ) &
+  else
+    omarchy-notification-send -u critical -t 5000 "Screen recording error" "Could not stop the recording through gsr-cli."
   fi
 
   rm -f "$RECORDING_FILE"
@@ -247,7 +244,7 @@ toggle_screenrecording_indicator() {
 }
 
 screenrecording_active() {
-  pgrep -f "^gpu-screen-recorder" >/dev/null
+  gsr-cli -ipc "$GSR_SOCKET" status >/dev/null 2>&1
 }
 
 finalize_recording() {
