@@ -26,9 +26,38 @@ as_root() {
   fi
 }
 
+# libpinpam.so is stacked into the shared password service, not a separate
+# omarchy-lock-<method> file like fingerprint's, because the lock screen's
+# PamContext responds to whatever prompt it gets with the typed text
+# regardless of its wording (see shell/plugins/lock/Service.qml), so a PIN
+# entered into the existing password field authenticates transparently. This
+# file is fully regenerated on every run, so pin_configured has to be known up
+# front and re-checked every time, the same way the fingerprint branch below
+# re-checks its own hardware state on every run instead of trusting the past.
+pin_configured=0
+if [[ -x /usr/bin/pinutil ]]; then
+  if pin_status=$(timeout 5 /usr/bin/pinutil --machine status "$target_user" 2>/dev/null); then
+    [[ $pin_status == *'"Ok":null'* ]] || pin_configured=1
+  fi
+fi
+
 echo "Configuring lock screen password authentication..."
 
-as_root tee /etc/pam.d/omarchy-lock-password >/dev/null <<'EOF'
+if (( pin_configured )); then
+  as_root tee /etc/pam.d/omarchy-lock-password >/dev/null <<'EOF'
+#%PAM-1.0
+auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120
+auth       sufficient                  libpinpam.so
+-auth      [success=2 default=ignore]  pam_systemd_home.so
+auth       [success=1 default=bad]     pam_unix.so try_first_pass nullok
+auth       [default=die]               pam_faillock.so authfail deny=10 unlock_time=120
+auth       optional                    pam_permit.so
+auth       required                    pam_env.so
+auth       required                    pam_faillock.so authsucc
+account    include                     system-local-login
+EOF
+else
+  as_root tee /etc/pam.d/omarchy-lock-password >/dev/null <<'EOF'
 #%PAM-1.0
 auth       required                    pam_faillock.so preauth silent deny=10 unlock_time=120
 -auth      [success=2 default=ignore]  pam_systemd_home.so
@@ -39,6 +68,7 @@ auth       required                    pam_env.so
 auth       required                    pam_faillock.so authsucc
 account    include                     system-local-login
 EOF
+fi
 
 if [[ -x /usr/bin/fprintd-list ]] &&
   /usr/bin/fprintd-list "$target_user" 2>/dev/null | grep -qi finger; then

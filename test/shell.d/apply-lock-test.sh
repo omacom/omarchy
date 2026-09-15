@@ -29,6 +29,17 @@ if grep -F 'omarchy-cmd-present fprintd-list' "$apply_lock" >/dev/null ||
 fi
 pass "the lock helper pins fprintd-list to its packaged system path"
 
+grep -F '[[ -x /usr/bin/pinutil ]]' "$apply_lock" >/dev/null ||
+  fail "the lock helper checks the trusted pinutil executable"
+grep -F 'timeout 5 /usr/bin/pinutil --machine status "$target_user"' "$apply_lock" >/dev/null ||
+  fail "the lock helper invokes pinutil by its trusted absolute path, with a timeout"
+if grep -F 'omarchy-cmd-present pinutil' "$apply_lock" >/dev/null ||
+  grep -E '(^|[[:space:];&|])pinutil([[:space:]]|$)' "$apply_lock" >/dev/null ||
+  grep -E 'command[[:space:]]+-v[[:space:]]+pinutil' "$apply_lock" >/dev/null; then
+  fail "the lock helper does not resolve pinutil through PATH"
+fi
+pass "the lock helper pins pinutil to its packaged system path"
+
 # Exercise the helper as real root when the suite already has it, or as root in
 # an unprivileged user namespace otherwise. A hardened kernel can disable user
 # namespaces, so preserve the static coverage above and skip only this probe.
@@ -56,6 +67,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 poison_bin="$test_tmp/poison-bin"
 trusted_root_bin="$test_tmp/trusted-root-bin"
 trusted_fprintd="$test_tmp/trusted-fprintd-list"
+trusted_pinutil="$test_tmp/trusted-pinutil"
 password_pam="$test_tmp/omarchy-lock-password"
 fingerprint_pam="$test_tmp/omarchy-lock-fingerprint"
 attack_marker="$test_tmp/user-fprintd-list-ran"
@@ -71,7 +83,7 @@ mkdir -p "$poison_bin" "$trusted_root_bin"
 
 # The runtime copy pins to this isolated root path. It contains every bare
 # command the exercised helper needs, but deliberately no fprintd-list.
-for helper in grep rm tee; do
+for helper in grep rm tee timeout; do
   ln -s "/usr/bin/$helper" "$trusted_root_bin/$helper"
 done
 
@@ -96,7 +108,33 @@ printf '%s\n' "$*" >"$TEST_ATTACK_ARGS"
 echo "Fingerprints are enrolled"
 EOF
 
-chmod +x "$trusted_fprintd" "$poison_bin/fprintd-list"
+# Answers a fixed enrollment state for every helper variant. Whether pinutil
+# is trusted by absolute path is covered statically above (grep on the
+# production source); this fixture only exercises the pin_configured branch.
+cat >"$trusted_pinutil" <<'EOF'
+#!/bin/bash
+
+# --machine/-m is a global option and comes before the subcommand
+# (`pinutil --machine status <user>`, not `pinutil status <user> --machine`).
+if [[ $1 == --machine || $1 == -m ]]; then
+  shift
+fi
+
+case "$1" in
+  status)
+    case "${TEST_PIN_STATUS:-not-enrolled}" in
+      enrolled) printf '{"Ok":{"used":1,"limit":5,"locked":false}}\n' ;;
+      not-enrolled) printf '{"Ok":null}\n' ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+
+chmod +x "$trusted_fprintd" "$poison_bin/fprintd-list" "$trusted_pinutil"
 
 prepare_helper() {
   local destination="$1" keep_root_path="$2" use_absolute_fprintd="$3"
@@ -106,6 +144,7 @@ prepare_helper() {
     -v fingerprint_pam="$fingerprint_pam" \
     -v trusted_root_bin="$trusted_root_bin" \
     -v trusted_fprintd="$trusted_fprintd" \
+    -v trusted_pinutil="$trusted_pinutil" \
     -v keep_root_path="$keep_root_path" \
     -v use_absolute_fprintd="$use_absolute_fprintd" '
     {
@@ -135,6 +174,14 @@ prepare_helper() {
         } else {
           print "  fprintd-list \"$target_user\" 2>/dev/null | grep -qi finger; then"
         }
+        next
+      }
+      if (line == "if [[ -x /usr/bin/pinutil ]]; then") {
+        print "if [[ -x \"" trusted_pinutil "\" ]]; then"
+        next
+      }
+      if (line == "  if pin_status=$(timeout 5 /usr/bin/pinutil --machine status \"$target_user\" 2>/dev/null); then") {
+        print "  if pin_status=$(timeout 5 \"" trusted_pinutil "\" --machine status \"$target_user\" 2>/dev/null); then"
         next
       }
       if (line == "if omarchy-shell lock status >/dev/null 2>&1; then") {
@@ -204,3 +251,22 @@ grep -Fx "$target_user" "$attack_args" >/dev/null ||
   fail "the planted fprintd-list receives the target user"
 [[ -s $fingerprint_pam ]] || fail "the planted fprintd-list controls the fingerprint PAM branch"
 pass "the root lock-helper matrix rejects the vulnerable PATH lookup"
+
+# PIN is stacked into the shared password PAM service (unlike fingerprint,
+# which gets its own file) because the lock screen's password PamContext
+# already forwards whatever the user typed to any prompt it receives,
+# regardless of wording -- so a PIN entered into the existing password field
+# authenticates transparently with no separate UI. Exercise both states of the
+# trusted pinutil fixture through the fully hardened helper.
+reset_runtime_files
+TEST_PIN_STATUS=enrolled run_as_root "$patched_helper" "the hardened lock helper runs with a PIN enrolled"
+grep -Fq 'auth       sufficient                  libpinpam.so' "$password_pam" ||
+  fail "the password PAM stack adds PIN when one is enrolled" "$(cat "$password_pam")"
+pass "the lock helper adds PIN to the password PAM stack when one is enrolled"
+
+reset_runtime_files
+TEST_PIN_STATUS=not-enrolled run_as_root "$patched_helper" "the hardened lock helper runs with no PIN enrolled"
+if grep -Fq 'libpinpam.so' "$password_pam"; then
+  fail "the password PAM stack excludes PIN when none is enrolled" "$(cat "$password_pam")"
+fi
+pass "the lock helper leaves PIN out of the password PAM stack when none is enrolled"
