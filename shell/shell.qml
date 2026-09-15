@@ -688,9 +688,15 @@ ShellRoot {
       return shell.pluginRegistry.installedPlugins[id] || null
     }
 
+    // File-based bar widgets get this facade instead of createScopedPluginShell.
+    // PluginShellApi.serviceFor() is unconditionally null unless _serviceLookup
+    // is set, so own-service panels silently no-op without it (#11949).
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: target,
       barConfig: shell.publicBarConfig(),
+      _serviceLookup: function(requestedId) {
+        return shell.pluginServiceFor(target, requestedId)
+      },
       _summon: function(requestedId, payloadJson) {
         if (!owns(requestedId)
             && !shell.pluginCloneMaySummon(currentManifest(), requestedId)) return false
