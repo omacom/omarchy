@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# omarchy:summary=Repair a broken passwordless default keyring before the session uses it
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Omarchy ships a passwordless cleartext default keyring so autologin can unlock
+# secrets without a PAM password. That format stores each secret on one
+# `secret=` line. Any Secret Service client that writes a multi-line value
+# (legal per the API) corrupts the file; gnome-keyring then rejects the whole
+# keyring and creates a password-protected replacement that autologin can never
+# unlock (#11159).
+#
+# Run early in the graphical session, before apps ask for secrets: restore a
+# fresh cleartext default when the on-disk keyring is unparseable or when
+# `default` points at a password-protected keyring.
+
+KEYRING_DIR="${OMARCHY_KEYRING_DIR:-$HOME/.local/share/keyrings}"
+CLEARTEXT_NAME="Default_keyring"
+CLEARTEXT_FILE="$KEYRING_DIR/$CLEARTEXT_NAME.keyring"
+DEFAULT_FILE="$KEYRING_DIR/default"
+
+write_cleartext_stub() {
+  local target=$1
+
+  mkdir -p "$KEYRING_DIR"
+  cat >"$target" <<EOF
+[keyring]
+display-name=Default keyring
+ctime=$(date +%s)
+mtime=0
+lock-on-idle=false
+lock-after=false
+EOF
+  chmod 700 "$KEYRING_DIR"
+  chmod 600 "$target"
+}
+
+# Cleartext keyrings are a desktop-entry-like keyfile. Every non-section,
+# non-blank line must be key=value. A multi-line secret leaves bare continuation
+# lines that break that rule.
+cleartext_keyring_is_valid() {
+  local file=$1
+  local line key
+
+  [[ -f $file ]] || return 1
+  [[ $(head -c 8 "$file" 2>/dev/null) == "[keyring" ]] || return 1
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    [[ -z $line ]] && continue
+    [[ $line == \[* ]] && continue
+
+    if [[ $line != *=* ]]; then
+      return 1
+    fi
+
+    key=${line%%=*}
+    [[ $key =~ ^[A-Za-z0-9_@:-]+$ ]] || return 1
+  done <"$file"
+
+  return 0
+}
+
+keyring_looks_encrypted() {
+  local file=$1
+
+  [[ -f $file ]] || return 1
+  # Cleartext always starts with the [keyring] header. Encrypted / binary
+  # keyrings do not.
+  [[ $(head -c 8 "$file" 2>/dev/null) != "[keyring" ]]
+}
+
+backup_file() {
+  local file=$1
+  local stamp
+  stamp=$(date +%Y%m%d%H%M%S)
+  mv -f "$file" "$file.broken-$stamp"
+}
+
+mkdir -p "$KEYRING_DIR"
+chmod 700 "$KEYRING_DIR" 2>/dev/null || true
+
+default_name=""
+if [[ -f $DEFAULT_FILE ]]; then
+  default_name=$(tr -d '[:space:]' <"$DEFAULT_FILE")
+fi
+
+default_path=""
+if [[ -n $default_name ]]; then
+  default_path="$KEYRING_DIR/$default_name.keyring"
+fi
+
+repaired=0
+
+# Password-protected default under autologin: reset to the cleartext stub.
+if [[ -n $default_path ]] && keyring_looks_encrypted "$default_path"; then
+  backup_file "$default_path"
+  repaired=1
+fi
+
+# Corrupt cleartext default (or missing): replace with a fresh stub.
+if [[ ! -f $CLEARTEXT_FILE ]] || ! cleartext_keyring_is_valid "$CLEARTEXT_FILE"; then
+  if [[ -f $CLEARTEXT_FILE ]]; then
+    backup_file "$CLEARTEXT_FILE"
+  fi
+  write_cleartext_stub "$CLEARTEXT_FILE"
+  repaired=1
+fi
+
+# Always keep the default pointer on the passwordless cleartext keyring.
+if [[ ! -f $DEFAULT_FILE ]] || [[ $default_name != "$CLEARTEXT_NAME" ]]; then
+  printf '%s\n' "$CLEARTEXT_NAME" >"$DEFAULT_FILE"
+  chmod 644 "$DEFAULT_FILE"
+  repaired=1
+fi
+
+if (( repaired )); then
+  echo "Repaired Omarchy default keyring under $KEYRING_DIR" >&2
+fi
+
+exit 0
