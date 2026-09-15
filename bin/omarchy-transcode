@@ -14,7 +14,7 @@ Usage:
   omarchy transcode [--path path] [input] [format] [resolution] [quality]
 
 With no input, pick a picture or video from ~/Pictures and ~/Videos,
-or only from --path when provided. Then pick the output format and resolution.
+or only from --path when provided. Then pick the output format, resolution, and for videos the quality.
 
 Options:
   --path path  Limit interactive fuzzy file selection to this path
@@ -155,6 +155,135 @@ copy_to_clipboard() {
   printf '%s\n' "$uri" | wl-copy --type text/uri-list
 }
 
+# Prints the input's duration in seconds, or fails when ffprobe cannot produce
+# a numeric value (N/A, an unreadable stream, a probe error) -- callers then
+# degrade to qualitative rows. No -- terminator: matches the repo's existing
+# ffprobe call sites.
+video_duration() {
+  local duration
+  duration=$(ffprobe -v error -show_entries format=duration \
+    -of default=noprint_wrappers=1:nokey=1 "$1" 2>/dev/null || true)
+  [[ $duration =~ ^[0-9.]+$ ]] || return 1
+  printf '%s' "$duration"
+}
+
+# 192 when the input has an audio stream, 0 when it provably has none; a failed
+# probe keeps 192 -- conservative over-estimate, never under.
+video_audio_kbps() {
+  local streams
+  if streams=$(ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$1" 2>/dev/null); then
+    [[ $streams == *audio* ]] || { echo 0; return; }
+  fi
+  echo 192
+}
+
+# Display token for a tier: "CRF N" for mp4 (codec keyed on resolution,
+# mirroring transcode_video's x264/x265 split), "N fps" for gif. The nine
+# CRF/fps constants deliberately duplicate transcode_video's quality case --
+# the subtext must name the effective codec's CRF, and a shared table would
+# refactor that code inside the PR #6698 conflict window.
+quality_token() {
+  local format="$1" resolution="$2" quality="$3"
+
+  case "$format" in
+  mp4)
+    if [[ $resolution == "4k" ]]; then
+      case "$quality" in
+      high) printf 'CRF 20' ;;
+      medium) printf 'CRF 24' ;;
+      low) printf 'CRF 28' ;;
+      esac
+    else
+      case "$quality" in
+      high) printf 'CRF 18' ;;
+      medium) printf 'CRF 23' ;;
+      low) printf 'CRF 28' ;;
+      esac
+    fi
+    ;;
+  gif)
+    case "$quality" in
+    high) printf '15 fps' ;;
+    medium) printf '10 fps' ;;
+    low) printf '5 fps' ;;
+    esac
+    ;;
+  esac
+  # Unknown format prints nothing; callers use the qualitative fallback.
+}
+
+# Video bitrate midpoint in kbps for the mp4 estimate (locked Mbps table).
+# Unknown resolution prints nothing, which drives the qualitative fallback.
+quality_kbps() {
+  case "$1" in
+  720p)  case "$2" in high) echo 2500  ;; medium) echo 1500 ;; low) echo 700  ;; esac ;;
+  1080p) case "$2" in high) echo 5500  ;; medium) echo 3000 ;; low) echo 1400 ;; esac ;;
+  4k)    case "$2" in high) echo 16000 ;; medium) echo 9000 ;; low) echo 4500 ;; esac ;;
+  esac
+}
+
+# "~N MB" at 1-2 sig figs, or "larger than source" when the estimate would
+# exceed the input's byte size. An empty $4 (stat failed) disables the
+# comparison. The -v values are regex-gated to digits upstream, which is what
+# makes the awk assignments safe.
+estimate_label() {
+  awk -v dur="$1" -v kbps="$2" -v audio="$3" -v src="$4" 'BEGIN {
+    bytes = dur * (kbps + audio) * 125          # kbps * 1000 / 8 bytes per second
+    if (src != "" && bytes > src) { print "larger than source"; exit }
+    mb = bytes / 1048576                      # MiB, the scale the completion notification reports
+    if (mb < 1) { print "~1 MB"; exit }
+    d = int(log(mb) / log(10)) - 1            # round to 2 significant figures
+    if (d < -1) d = -1
+    r = int(mb / (10 ^ d) + 0.5) * (10 ^ d)
+    printf "~%d MB", r
+  }'
+}
+
+# Builds the quality rows as "\t<tier>\t<subtext>" argv (the leading tab is the
+# empty glyph field), pre-highlights medium, and prints the picked tier. The
+# "label\tsubtext" return is stripped at the first tab and re-validated here so
+# a foreign label dies inside the helper, before the notification boundary --
+# never reaching output_path or ffmpeg.
+select_quality() {
+  local input="$1" format="$2" resolution="$3"
+  local duration="" src_bytes="" audio_kbps=192 tier subtext selection
+  local rows=()
+
+  if [[ $format == "mp4" ]]; then
+    duration=$(video_duration "$input") || duration=""
+    src_bytes=$(stat -c %s "$input" 2>/dev/null || true)
+    [[ $src_bytes =~ ^[0-9]+$ ]] || src_bytes=""
+    audio_kbps=$(video_audio_kbps "$input")
+  fi
+
+  for tier in high medium low; do
+    if [[ $format == "gif" ]]; then
+      subtext=$(quality_token gif "$resolution" "$tier")
+    elif [[ -n $duration && -n $(quality_kbps "$resolution" "$tier") ]]; then
+      subtext="$(quality_token mp4 "$resolution" "$tier") · $(estimate_label "$duration" "$(quality_kbps "$resolution" "$tier")" "$audio_kbps" "$src_bytes")"
+    else
+      case "$tier" in
+      high) subtext="Best quality" ;;
+      medium) subtext="Balanced" ;;
+      low) subtext="Smallest file" ;;
+      esac
+    fi
+    rows+=($'\t'"$tier"$'\t'"$subtext")
+  done
+
+  selection=$(omarchy-menu-select "Select quality" "${rows[@]}" -- --default-index 1) || return
+
+  selection="${selection%%$'\t'*}"
+  case "$selection" in
+  high | medium | low) ;;
+  *)
+    echo "Invalid video quality: $selection (expected high, medium, or low)" >&2
+    return 1
+    ;;
+  esac
+  printf '%s' "$selection"
+}
+
 main() {
   local input="" format="" resolution="" search_path=""
   local type output quality positional=()
@@ -231,6 +360,10 @@ main() {
     else
       resolution=$(omarchy-menu-select "Select resolution" 4k 1080p 720p)
     fi
+  fi
+
+  if [[ $type == "video" && -z $quality ]]; then
+    quality=$(select_quality "$input" "$format" "$resolution")
   fi
 
   output=$(output_path "$input" "$format" "$resolution" "$quality")

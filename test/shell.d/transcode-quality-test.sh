@@ -49,15 +49,61 @@ cat >"$STUB_DIR/omarchy-notification-send" <<'SH'
 printf 'notification: %s\n' "$*" >>"$CALLS"
 SH
 
-# Tripwires: every row below passes all four positionals, so a menu invocation
-# means the run went interactive -- exiting 1 fails the run under set -e.
-for command in omarchy-menu-file omarchy-menu-select; do
+# omarchy-menu-file stays a pure tripwire: no row below goes through the file
+# pick, so an invocation means the run went interactive where it must not --
+# exiting 1 fails the run under set -e.
+for command in omarchy-menu-file; do
   cat >"$STUB_DIR/$command" <<'SH'
 #!/bin/bash
 printf 'menu invoked: %s\n' "${0##*/}" >>"$CALLS"
 exit 1
 SH
 done
+
+# omarchy-menu-select is dual-mode. With FAKE_PICK unset it keeps the tripwire
+# semantics for the rows that must never go interactive (all-four-positional
+# video runs, picture rows, qualities rejected pre-prompt). With FAKE_PICK set
+# it records the argv it was offered and answers with that pick -- rows that
+# omit the quality positional legitimately fire the quality menu and must set
+# it. An empty FAKE_PICK is Esc, matching the real script's exit-1 on an empty
+# selection; printf '%s' not '%s\n' because the real script cats the selection
+# file with no trailing newline.
+cat >"$STUB_DIR/omarchy-menu-select" <<'SH'
+#!/bin/bash
+printf 'menu-select: %s\n' "$*" >>"$CALLS"
+if [[ -z ${FAKE_PICK+x} ]]; then
+  exit 1
+fi
+[[ -n $FAKE_PICK ]] || exit 1
+printf '%s' "$FAKE_PICK"
+SH
+
+# ffprobe dispatches on argv: the audio-presence probe carries
+# `stream=codec_type` glued to `-show_entries`, so ` stream=codec_type ` in
+# " $* " selects that arm -- a bare ` codec_type ` glob never matches the real
+# argv. That arm exits 0 with empty output on a successful no-stream probe,
+# which must stay distinguishable from probe failure or the conservative-192
+# rule cannot be exercised. Any other call is the duration probe: FAKE_DURATION
+# unset fails hard with no output; FAKE_PROBE_RC overrides the exit status.
+cat >"$STUB_DIR/ffprobe" <<'SH'
+#!/bin/bash
+printf 'ffprobe: %s\n' "$*" >>"$CALLS"
+case " $* " in
+*" stream=codec_type "*)
+  if [[ ${FAKE_AUDIO:-yes} == "yes" ]]; then
+    echo audio
+  fi
+  exit 0
+  ;;
+*)
+  if [[ -n ${FAKE_DURATION+x} ]]; then
+    printf '%s\n' "$FAKE_DURATION"
+    exit "${FAKE_PROBE_RC:-0}"
+  fi
+  exit 1
+  ;;
+esac
+SH
 
 chmod +x "$STUB_DIR"/*
 
@@ -76,7 +122,11 @@ run_transcode() {
   return "$status"
 }
 
-touch "$TMPDIR/in.mov" "$TMPDIR/img.png"
+# A sized fixture: stat reports 120 MiB, above the largest pinned estimate
+# (~107 MiB at dur=157/1080p/high), so estimate rows render numbers instead of
+# degrading to larger-than-source. Sparse, so it costs no real blocks.
+truncate -s 120M "$TMPDIR/in.mov"
+touch "$TMPDIR/img.png"
 
 # The explicit `medium` and the omitted quality must generate byte-identical
 # ffmpeg argv -- and that line must equal the literal known-good invocation,
@@ -92,7 +142,7 @@ run_transcode "$TMPDIR/in.mov" mp4 1080p medium
 grep '^ffmpeg ' "$calls" >"$TMPDIR/argv-explicit-medium" ||
   fail "explicit medium records an ffmpeg line" "$(cat "$calls")"
 
-run_transcode "$TMPDIR/in.mov" mp4 1080p
+FAKE_PICK=$'medium\tBalanced' run_transcode "$TMPDIR/in.mov" mp4 1080p
 grep '^ffmpeg ' "$calls" >"$TMPDIR/argv-omitted-medium" ||
   fail "omitted quality records an ffmpeg line" "$(cat "$calls")"
 
@@ -131,7 +181,7 @@ pass "high quality selects x264 crf 18 and writes in-1080p-high.mp4"
 # An existing output dedupes to -2 instead of tripping ffmpeg's overwrite
 # prompt -- the stubs never create it, so the fixture is the only file.
 touch "$TMPDIR/in-1080p.mp4"
-run_transcode "$TMPDIR/in.mov" mp4 1080p
+FAKE_PICK=$'medium\tBalanced' run_transcode "$TMPDIR/in.mov" mp4 1080p
 grep -Fx "out=$TMPDIR/in-1080p-2.mp4" "$calls" >/dev/null ||
   fail "an existing output dedupes to -2" "$(cat "$calls")"
 rm -f "$TMPDIR/in-1080p.mp4"
@@ -203,7 +253,7 @@ pass "gif low selects fps=5"
 # The dedupe counter climbs past every existing name and appends to the whole
 # computed name, quality suffix included.
 touch "$TMPDIR/in-1080p.mp4" "$TMPDIR/in-1080p-2.mp4"
-run_transcode "$TMPDIR/in.mov" mp4 1080p
+FAKE_PICK=$'medium\tBalanced' run_transcode "$TMPDIR/in.mov" mp4 1080p
 grep -Fx "out=$TMPDIR/in-1080p-3.mp4" "$calls" >/dev/null ||
   fail "two existing outputs dedupe to -3" "$(cat "$calls")"
 rm -f "$TMPDIR/in-1080p.mp4" "$TMPDIR/in-1080p-2.mp4"
@@ -228,7 +278,7 @@ pass "an existing picture output dedupes to -2"
 # A dangling symlink fails -e but must still dedupe -- without -L ffmpeg would
 # write through the link to an unrelated target (T-05-01).
 ln -s /nonexistent "$TMPDIR/in-1080p.mp4"
-run_transcode "$TMPDIR/in.mov" mp4 1080p
+FAKE_PICK=$'medium\tBalanced' run_transcode "$TMPDIR/in.mov" mp4 1080p
 grep -Fx "out=$TMPDIR/in-1080p-2.mp4" "$calls" >/dev/null ||
   fail "a dangling symlink still dedupes via -L" "$(cat "$calls")"
 rm -f "$TMPDIR/in-1080p.mp4"
@@ -257,7 +307,7 @@ pass "a non-tier quality is rejected pre-notification"
 
 # An empty 4th positional is "not specified": byte-identical medium argv and
 # the unsuffixed name.
-run_transcode "$TMPDIR/in.mov" mp4 1080p ""
+FAKE_PICK=$'medium\tBalanced' run_transcode "$TMPDIR/in.mov" mp4 1080p ""
 grep '^ffmpeg ' "$calls" >"$TMPDIR/argv-empty" ||
   fail "an empty quality records an ffmpeg line" "$(cat "$calls")"
 if ! cmp -s "$TMPDIR/argv-empty" "$TMPDIR/expected-medium-argv"; then
@@ -290,7 +340,7 @@ pass "a -- passthrough produces the bare low argv"
 # Spaced filenames survive as single argv elements end to end; %q records the
 # escaped form.
 touch "$TMPDIR/my clip.mov"
-run_transcode "$TMPDIR/my clip.mov" mp4 1080p
+FAKE_PICK=$'medium\tBalanced' run_transcode "$TMPDIR/my clip.mov" mp4 1080p
 grep -F -- "-i $(printf '%q' "$TMPDIR/my clip.mov")" "$calls" >/dev/null ||
   fail "a spaced input stays one argv element" "$(cat "$calls")"
 grep -Fx "out=$(printf '%q' "$TMPDIR/my clip-1080p.mp4")" "$calls" >/dev/null ||
@@ -311,3 +361,201 @@ grep -F '[quality]' "$TMPDIR/stdout" >/dev/null ||
 grep -F 'Videos: high, medium, low' "$TMPDIR/stdout" >/dev/null ||
   fail "usage lists the video quality tiers" "$(cat "$TMPDIR/stdout")"
 pass "usage documents [quality] and the video tiers"
+
+# An unset video quality fires the Select quality menu end to end: tab-joined
+# rows (leading tab = empty glyph field) carrying CRF N · ~N MB subtexts at the
+# locked 1080p midpoints plus the 192k audio term, and --default-index 1
+# pre-highlighting medium.
+FAKE_DURATION=60 FAKE_PICK=$'medium\tCRF 23 · ~23 MB' \
+  run_transcode "$TMPDIR/in.mov" mp4 1080p
+grep -F 'Select quality' "$calls" >/dev/null ||
+  fail "an unset video quality fires the Select quality menu" "$(cat "$calls")"
+grep -F -- '--default-index 1' "$calls" >/dev/null ||
+  fail "the quality menu pre-highlights medium" "$(cat "$calls")"
+for row in $'\thigh\tCRF 18 · ~41 MB' $'\tmedium\tCRF 23 · ~23 MB' $'\tlow\tCRF 28 · ~11 MB'; do
+  grep -F "$row" "$calls" >/dev/null ||
+    fail "the quality menu offers a $row row" "$(cat "$calls")"
+done
+pass "the quality menu fires with CRF N · ~N MB rows and medium pre-highlighted"
+
+# The Enter-default pick is the medium row: the recorded ffmpeg argv is
+# byte-identical to positional medium and lands on the unsuffixed name.
+grep '^ffmpeg ' "$calls" >"$TMPDIR/argv-menu-medium" ||
+  fail "a medium menu pick records an ffmpeg line" "$(cat "$calls")"
+if ! cmp -s "$TMPDIR/argv-menu-medium" "$TMPDIR/expected-medium-argv"; then
+  fail "a medium menu pick produces the literal medium ffmpeg argv" \
+    "$(diff -u "$TMPDIR/expected-medium-argv" "$TMPDIR/argv-menu-medium")"
+fi
+grep -Fx "out=$TMPDIR/in-1080p.mp4" "$calls" >/dev/null ||
+  fail "a medium menu pick writes the unsuffixed output name" "$(cat "$calls")"
+pass "a medium menu pick equals positional medium byte-for-byte"
+
+# The label<TAB>subtext return is stripped at the first tab before the tier
+# case -- a `low\t...` pick selects crf 28 and the -low suffix.
+FAKE_DURATION=60 FAKE_PICK=$'low\tCRF 28 · ~11 MB' \
+  run_transcode "$TMPDIR/in.mov" mp4 1080p
+grep '^ffmpeg ' "$calls" | grep -F -- '-crf 28' >/dev/null ||
+  fail "a low menu pick selects x264 crf 28" "$(cat "$calls")"
+grep -Fx "out=$TMPDIR/in-1080p-low.mp4" "$calls" >/dev/null ||
+  fail "a low menu pick appends -low to the output name" "$(cat "$calls")"
+pass "a menu pick strips the subtext before tier matching"
+
+# The four-positional path never goes interactive: no menu, no probe -- and
+# the same medium argv as always.
+run_transcode "$TMPDIR/in.mov" mp4 1080p medium
+if grep -q '^menu-select:' "$calls" || grep -q '^ffprobe:' "$calls"; then
+  fail "a four-positional run never prompts or probes" "$(cat "$calls")"
+fi
+grep '^ffmpeg ' "$calls" >"$TMPDIR/argv-noninteractive" ||
+  fail "a four-positional run records an ffmpeg line" "$(cat "$calls")"
+if ! cmp -s "$TMPDIR/argv-noninteractive" "$TMPDIR/expected-medium-argv"; then
+  fail "a four-positional medium produces the literal medium argv" \
+    "$(diff -u "$TMPDIR/expected-medium-argv" "$TMPDIR/argv-noninteractive")"
+fi
+pass "a four-positional run never prompts or probes"
+
+# Esc semantics: an empty pick exits the menu stub with 1, which propagates
+# through the command substitution and aborts the run silently -- before the
+# Transcoding notification, same as the sibling prompts.
+if FAKE_PICK="" FAKE_DURATION=60 run_transcode "$TMPDIR/in.mov" mp4 1080p; then
+  fail "an empty menu pick aborts the run"
+fi
+if grep -q 'notification:' "$calls" || grep -q '^ffmpeg ' "$calls"; then
+  fail "an empty menu pick aborts before the notification" "$(cat "$calls")"
+fi
+pass "an empty menu pick aborts before the notification"
+
+# Sig-fig rendering: a 157 s clip at 1080p rounds each estimate to 1-2
+# significant figures (~110 / ~60 / ~30 MB) -- never a decimal point.
+FAKE_DURATION=157 FAKE_PICK=$'medium\tCRF 23 · ~60 MB' \
+  run_transcode "$TMPDIR/in.mov" mp4 1080p
+for row in 'CRF 18 · ~110 MB' 'CRF 23 · ~60 MB' 'CRF 28 · ~30 MB'; do
+  grep -F "$row" "$calls" >/dev/null ||
+    fail "a 157 s clip offers a $row row" "$(cat "$calls")"
+done
+if grep '^menu-select: ' "$calls" | grep -E '~[0-9]*\.[0-9]' >/dev/null; then
+  fail "estimates never render a decimal point" "$(cat "$calls")"
+fi
+pass "estimates render at 1-2 significant figures with no decimals"
+
+# A 15 MiB source sits between the low (~11 MB) and medium (~23 MB) estimates
+# at 60 s/1080p, so only the exceeding tiers degrade -- per-row, never the
+# whole menu.
+truncate -s 15M "$TMPDIR/small.mov"
+FAKE_DURATION=60 FAKE_PICK=$'low\tCRF 28 · ~11 MB' \
+  run_transcode "$TMPDIR/small.mov" mp4 1080p
+grep -F $'\thigh\tCRF 18 · larger than source' "$calls" >/dev/null ||
+  fail "the high row degrades when its estimate exceeds the source" "$(cat "$calls")"
+grep -F $'\tmedium\tCRF 23 · larger than source' "$calls" >/dev/null ||
+  fail "the medium row degrades when its estimate exceeds the source" "$(cat "$calls")"
+grep -F $'\tlow\tCRF 28 · ~11 MB' "$calls" >/dev/null ||
+  fail "the low row keeps its estimate under the source size" "$(cat "$calls")"
+rm -f "$TMPDIR/small.mov"
+pass "larger than source degrades per row, not per menu"
+
+# Below every tier estimate, all three rows degrade together.
+truncate -s 1024 "$TMPDIR/tiny.mov"
+FAKE_DURATION=60 FAKE_PICK=$'medium\tCRF 23 · larger than source' \
+  run_transcode "$TMPDIR/tiny.mov" mp4 1080p
+for row in $'\thigh\tCRF 18 · larger than source' $'\tmedium\tCRF 23 · larger than source' $'\tlow\tCRF 28 · larger than source'; do
+  grep -F "$row" "$calls" >/dev/null ||
+    fail "a tiny source degrades the $row row" "$(cat "$calls")"
+done
+rm -f "$TMPDIR/tiny.mov"
+pass "a tiny source degrades all three rows to larger than source"
+
+# An N/A duration fails the numeric gate, so all three rows fall back to the
+# qualitative vocabulary -- never a subtext/no-subtext mix, never an abort.
+FAKE_DURATION=N/A FAKE_PICK=$'medium\tBalanced' \
+  run_transcode "$TMPDIR/in.mov" mp4 1080p
+for subtext in 'Best quality' 'Balanced' 'Smallest file'; do
+  grep -F "$subtext" "$calls" >/dev/null ||
+    fail "an N/A duration offers the $subtext fallback" "$(cat "$calls")"
+done
+if grep '^menu-select: ' "$calls" | grep -F '~' >/dev/null; then
+  fail "an N/A duration renders no estimates" "$(cat "$calls")"
+fi
+grep '^ffmpeg ' "$calls" >/dev/null ||
+  fail "an N/A duration still transcodes the pick" "$(cat "$calls")"
+pass "an N/A duration falls back to qualitative rows and still transcodes"
+
+# A probe that dies outright degrades identically -- cosmetic fallback, and
+# the run still reaches ffmpeg.
+FAKE_PROBE_RC=1 FAKE_PICK=$'medium\tBalanced' \
+  run_transcode "$TMPDIR/in.mov" mp4 1080p
+for subtext in 'Best quality' 'Balanced' 'Smallest file'; do
+  grep -F "$subtext" "$calls" >/dev/null ||
+    fail "a failed probe offers the $subtext fallback" "$(cat "$calls")"
+done
+if grep '^menu-select: ' "$calls" | grep -F '~' >/dev/null; then
+  fail "a failed probe renders no estimates" "$(cat "$calls")"
+fi
+grep '^ffmpeg ' "$calls" >/dev/null ||
+  fail "a failed probe still transcodes the pick" "$(cat "$calls")"
+pass "a failed probe degrades to qualitative rows without aborting"
+
+# A proven-audio-less source drops the 192k term: 60 s at 1080p renders
+# ~39/~21/~10 MB instead of ~41/~23/~11.
+FAKE_AUDIO=no FAKE_DURATION=60 FAKE_PICK=$'medium\tCRF 23 · ~21 MB' \
+  run_transcode "$TMPDIR/in.mov" mp4 1080p
+for row in $'\thigh\tCRF 18 · ~39 MB' $'\tmedium\tCRF 23 · ~21 MB' $'\tlow\tCRF 28 · ~10 MB'; do
+  grep -F "$row" "$calls" >/dev/null ||
+    fail "a source with no audio stream offers a $row row" "$(cat "$calls")"
+done
+pass "a source with no audio stream drops the 192k estimate term"
+
+# gif rows carry fps subtexts, never size estimates, and the gif path never
+# spawns ffprobe.
+FAKE_PICK=$'low\t5 fps' run_transcode "$TMPDIR/in.mov" gif 720p
+for subtext in '15 fps' '10 fps' '5 fps'; do
+  grep -F "$subtext" "$calls" >/dev/null ||
+    fail "the gif menu offers a $subtext row" "$(cat "$calls")"
+done
+if grep '^menu-select: ' "$calls" | grep -F '~' >/dev/null; then
+  fail "gif rows never carry size estimates" "$(cat "$calls")"
+fi
+if grep -q '^ffprobe:' "$calls"; then
+  fail "the gif path never probes the input" "$(cat "$calls")"
+fi
+grep '^ffmpeg ' "$calls" | grep -F 'fps=5\,' >/dev/null ||
+  fail "a low gif pick selects fps=5" "$(cat "$calls")"
+grep -Fx "out=$TMPDIR/in-720p-low.gif" "$calls" >/dev/null ||
+  fail "a low gif pick writes in-720p-low.gif" "$(cat "$calls")"
+pass "gif rows carry fps subtexts and never probe the input"
+
+# Pictures stop after the resolution prompt: no quality menu, no probe.
+run_transcode "$TMPDIR/img.png" jpg medium
+if grep -q '^menu-select:' "$calls" || grep -q '^ffprobe:' "$calls"; then
+  fail "a picture run never prompts for quality or probes" "$(cat "$calls")"
+fi
+grep '^magick ' "$calls" | grep -F -- '-resize 2160x\>' >/dev/null ||
+  fail "a picture run still resizes" "$(cat "$calls")"
+grep -Fx "out=$TMPDIR/img-medium.jpg" "$calls" >/dev/null ||
+  fail "a picture run writes img-medium.jpg" "$(cat "$calls")"
+pass "a picture run never prompts for quality or probes"
+
+# A pick outside the tier vocabulary is re-validated inside select_quality and
+# dies there -- the menu and probes ran, but nothing reached the notification.
+if FAKE_DURATION=60 FAKE_PICK=$'bogus\tjunk' run_transcode "$TMPDIR/in.mov" mp4 1080p; then
+  fail "a foreign-label menu pick is rejected"
+fi
+grep -F 'Invalid video quality' "$TMPDIR/stderr" >/dev/null ||
+  fail "a foreign-label pick reports Invalid video quality" "$(cat "$TMPDIR/stderr")"
+grep -q '^menu-select:' "$calls" ||
+  fail "a foreign-label pick still records the menu call" "$(cat "$calls")"
+if grep -q 'notification:' "$calls" || grep -q '^ffmpeg ' "$calls"; then
+  fail "a foreign-label pick dies before the notification" "$(cat "$calls")"
+fi
+pass "a foreign-label menu pick is rejected before the notification"
+
+# An unknown format still fires the (all-qualitative) quality menu, then fails
+# in transcode_video after the notification -- the pre-existing orphan, pinned
+# so it cannot silently change.
+if FAKE_PICK=$'low\tSmallest file' run_transcode "$TMPDIR/in.mov" avi 1080p; then
+  fail "an unknown video format is rejected"
+fi
+grep -F 'Smallest file' "$calls" >/dev/null ||
+  fail "an unknown format offers qualitative rows" "$(cat "$calls")"
+grep -F 'Invalid video format' "$TMPDIR/stderr" >/dev/null ||
+  fail "an unknown video format reports Invalid video format" "$(cat "$TMPDIR/stderr")"
+pass "an unknown format prompts with qualitative rows then fails Invalid video format"
