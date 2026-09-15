@@ -9,6 +9,17 @@ require_command lua
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
+# The module forks the detector and the host layout helper through
+# OMARCHY_PATH. Point it at a root whose default/ is the real one and whose
+# bin/ carries the real detector next to a helper that reports no host
+# monitors, so no modetest runs against the machine this test happens to be on.
+scratch_root="$tmp_dir/root"
+mkdir -p "$scratch_root/bin"
+ln -s "$ROOT/default" "$scratch_root/default"
+ln -s "$ROOT/bin/omarchy-hw-vmware" "$scratch_root/bin/omarchy-hw-vmware"
+printf '#!/bin/bash\n' >"$scratch_root/bin/omarchy-hyprland-monitor-vmware-layout"
+chmod +x "$scratch_root/bin/omarchy-hyprland-monitor-vmware-layout"
+
 # Each argument is a PCI device as "vendor:class", in sysfs's own format.
 write_pci_devices() {
   rm -rf "$tmp_dir/devices"
@@ -26,10 +37,12 @@ write_pci_devices() {
   done
 }
 
-# Loads only the vmware module under a recording hl: env calls print as they
-# happen, so an env line before "start" would be a parse-time call.
+# Loads only the vmware module under a recording hl: env and exec calls print
+# as they happen, so an env line before "start" would be a parse-time call.
+# The host layout half of the module is covered by
+# hyprland-vmware-layout-test.sh; here its handler is collected and left alone.
 run_vmware_module() {
-  HOME="$tmp_dir/home" OMARCHY_PATH="$ROOT" OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" lua <<'LUA'
+  HOME="$tmp_dir/home" OMARCHY_PATH="$scratch_root" OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" lua <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local start_handlers = {}
@@ -38,9 +51,13 @@ hl = {
   env = function(name, value)
     print("env\t" .. name .. "=" .. value)
   end,
+  exec_cmd = function(command)
+    print("exec\t" .. command)
+  end,
   on = function(event, callback)
-    assert(event == "hyprland.start", "unexpected event: " .. tostring(event))
-    table.insert(start_handlers, callback)
+    if event == "hyprland.start" then
+      table.insert(start_handlers, callback)
+    end
   end,
 }
 
@@ -58,7 +75,7 @@ LUA
 # hyprland-default-config-test.sh, then fires the collected start handlers in
 # registration order, the way Hyprland does.
 run_omarchy_config() {
-  HOME="$tmp_dir/home" XDG_CONFIG_HOME="$tmp_dir/home/.config" XDG_STATE_HOME="$tmp_dir/home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" lua <<'LUA'
+  HOME="$tmp_dir/home" XDG_CONFIG_HOME="$tmp_dir/home/.config" XDG_STATE_HOME="$tmp_dir/home/.local/state" OMARCHY_PATH="$scratch_root" OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" lua <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -124,10 +141,10 @@ mkdir -p "$tmp_dir/home"
 # VMware SVGA adapter, the device every VMware guest has.
 write_pci_devices 0x15ad:0x030000
 output=$(run_vmware_module)
-expected=$'start\t1\nenv\tLIBGL_ALWAYS_SOFTWARE=1'
+expected=$'start\t2\nenv\tLIBGL_ALWAYS_SOFTWARE=1\nexec\tuwsm-app -- omarchy-hyprland-monitor-vmware-sync'
 [[ $output == "$expected" ]] ||
-  fail "a VMware guest sets LIBGL_ALWAYS_SOFTWARE from the start handler only" "$output"
-pass "a VMware guest sets LIBGL_ALWAYS_SOFTWARE from the start handler only"
+  fail "a VMware guest sets LIBGL_ALWAYS_SOFTWARE from the start handler only, before launching the layout sync" "$output"
+pass "a VMware guest sets LIBGL_ALWAYS_SOFTWARE from the start handler only, before launching the layout sync"
 
 # AMD integrated graphics.
 write_pci_devices 0x1002:0x030000
