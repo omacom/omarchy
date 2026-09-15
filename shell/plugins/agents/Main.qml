@@ -250,6 +250,10 @@ Item {
       ready: record.ready === true || synced,
       usageStatusText: String(record.usageStatusText || ""),
       authHelpText: String(record.authHelpText || ""),
+      // When the collector last wrote this record. The panel flags records
+      // that age past the refresh cadence — a stale record means the
+      // collector is not running, not that the numbers are quiet.
+      updatedAtMs: Number(new Date(String(record.updatedAt || "")).getTime()) || 0,
 
       // Rate limits and balances stay per-account and are never merged
       // across devices.
