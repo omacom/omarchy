@@ -2,11 +2,24 @@
 
 # omarchy:summary=Toggle the layout on the current active workspace between dwindle and scrolling
 
-ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
-[[ $ACTIVE_WORKSPACE =~ ^-?[0-9]+$ ]] || exit 1
-CURRENT_LAYOUT=$(hyprctl activeworkspace -j | jq -r '.tiledLayout')
+# hyprctl activeworkspace never reports a special workspace, so an open scratchpad
+# has to be read off the focused monitor instead. Special workspace ids are handed
+# out at runtime (-98, -97, ...), so address it by its stable name.
+SPECIAL_WORKSPACE=$(hyprctl monitors -j | jq -r 'first(.[] | select(.focused) | .specialWorkspace.name // "")')
+
+if [[ -n $SPECIAL_WORKSPACE ]]; then
+  ACTIVE_WORKSPACE=$SPECIAL_WORKSPACE
+  LAYOUT_KEY=${SPECIAL_WORKSPACE//[^A-Za-z0-9._-]/_}
+  CURRENT_LAYOUT=$(hyprctl workspaces -j | jq -r --arg name "$SPECIAL_WORKSPACE" 'first(.[] | select(.name == $name) | .tiledLayout // "")')
+else
+  ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
+  [[ $ACTIVE_WORKSPACE =~ ^-?[0-9]+$ ]] || exit 1
+  LAYOUT_KEY=$ACTIVE_WORKSPACE
+  CURRENT_LAYOUT=$(hyprctl activeworkspace -j | jq -r '.tiledLayout')
+fi
+
 LAYOUTS_DIR="$HOME/.local/state/omarchy/workspace-layouts"
-LAYOUT_FILE="$LAYOUTS_DIR/$ACTIVE_WORKSPACE.lua"
+LAYOUT_FILE="$LAYOUTS_DIR/$LAYOUT_KEY.lua"
 
 case "$CURRENT_LAYOUT" in
   dwindle) NEW_LAYOUT=scrolling ;;
