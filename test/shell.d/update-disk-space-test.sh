@@ -7,7 +7,9 @@ source "$(dirname "$0")/base-test.sh"
 unset GUM_STATUS
 unset OMARCHY_UPDATE_FORCE
 unset TEST_AVAILABLE_BYTES
+unset TEST_ESP_AVAILABLE_BYTES
 unset TEST_DF_INVALID
+unset OMARCHY_TEST_LIMINE_DEFAULT
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -17,6 +19,7 @@ test_home="$test_tmp/home"
 runtime_dir="$test_tmp/runtime"
 snapshot_marker="$test_tmp/snapshot"
 gum_marker="$test_tmp/gum"
+limine_default="$test_tmp/limine-default"
 mkdir -p "$stub_bin" "$test_home" "$runtime_dir"
 
 run_update() {
@@ -26,7 +29,9 @@ run_update() {
   LC_ALL=C \
   OMARCHY_UPDATE_LOGGED=1 \
   TEST_AVAILABLE_BYTES=${TEST_AVAILABLE_BYTES:-$((9 * 1024 * 1024 * 1024))} \
+  TEST_ESP_AVAILABLE_BYTES=${TEST_ESP_AVAILABLE_BYTES:-} \
   TEST_DF_INVALID=${TEST_DF_INVALID:-0} \
+  OMARCHY_TEST_LIMINE_DEFAULT=${OMARCHY_TEST_LIMINE_DEFAULT:-} \
   SNAPSHOT_MARKER="$snapshot_marker" \
   GUM_MARKER="$gum_marker" \
   GUM_STATUS=${GUM_STATUS:-1} \
@@ -45,8 +50,18 @@ SH
 }
 
 write_stub df '
+path=/
+for arg; do
+  case $arg in
+    -*) ;;
+    *) path=$arg ;;
+  esac
+done
+
 if (( TEST_DF_INVALID )); then
   printf "Avail\nunknown\n"
+elif [[ -n ${TEST_ESP_AVAILABLE_BYTES:-} && $path != / ]]; then
+  printf "Avail\n%s\n" "$TEST_ESP_AVAILABLE_BYTES"
 else
   printf "Avail\n%s\n" "$TEST_AVAILABLE_BYTES"
 fi'
@@ -78,7 +93,10 @@ for command in \
   omarchy-hook \
   omarchy-update-analyze-logs \
   omarchy-shell \
-  omarchy-update-restart; do
+  omarchy-update-restart \
+  omarchy-update-stay-awake \
+  omarchy-update-status \
+  omarchy-update-lock; do
   write_stub "$command" 'exit 0'
 done
 write_stub omarchy-update-available 'exit 1'
@@ -139,3 +157,47 @@ output=$(TEST_DF_INVALID=1 run_update -y)
 [[ -z $output ]] || fail "failed disk-space detection remains silent"
 [[ -f $snapshot_marker ]] || fail "failed disk-space detection does not block the update"
 pass "failed disk-space detection silently continues"
+
+rm -f "$snapshot_marker" "$gum_marker"
+set +e
+output=$(
+  TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) \
+  TEST_ESP_AVAILABLE_BYTES=$((100 * 1024 * 1024)) \
+  PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-requires-free-space"
+)
+status=$?
+set -e
+(( status == 1 )) || fail "free-space helper exits non-zero when the ESP is short"
+[[ $output == *"You need at least 300 MiB free on /boot"* ]] || fail "low ESP space names the mountpoint"
+pass "free-space helper reports low ESP space"
+
+rm -f "$snapshot_marker" "$gum_marker"
+set +e
+output=$(
+  TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) \
+  TEST_ESP_AVAILABLE_BYTES=$((100 * 1024 * 1024)) \
+  run_update -y
+)
+status=$?
+set -e
+(( status == 1 )) || fail "non-interactive update exits non-zero with a short ESP"
+[[ $output == *"You need at least 300 MiB free on /boot"* ]] || fail "short ESP emits a warning"
+[[ ! -f $snapshot_marker ]] || fail "short ESP stops before snapshotting"
+pass "non-interactive update stops with a short ESP"
+
+printf 'ESP_PATH="/efi"\n' >"$limine_default"
+rm -f "$snapshot_marker" "$gum_marker"
+set +e
+output=$(
+  TEST_AVAILABLE_BYTES=$((10 * 1024 * 1024 * 1024)) \
+  TEST_ESP_AVAILABLE_BYTES=$((100 * 1024 * 1024)) \
+  OMARCHY_TEST_LIMINE_DEFAULT="$limine_default" \
+  PATH="$stub_bin:$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-update-requires-free-space"
+)
+status=$?
+set -e
+(( status == 1 )) || fail "free-space helper honors ESP_PATH from limine defaults"
+[[ $output == *"You need at least 300 MiB free on /efi"* ]] || fail "ESP_PATH is used in the warning"
+pass "ESP check follows ESP_PATH from /etc/default/limine"
