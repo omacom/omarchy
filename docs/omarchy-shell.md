@@ -198,7 +198,7 @@ The shell exposes these tokens to QML via three singletons in
   `Color.polkit.*`, `Color.lock.*`, `Color.imagePicker.*`). Clipboard
   and emojis share `Color.menu.*`; the `[launcher]` section is consumed
   by the launcher outside shell QML.
-- `Style` — structural tokens (`cornerRadius`), shared interactive
+- `Style` — structural tokens (`cornerRadius`, `cornerRoundingPower`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
   the type scale (`Style.font.*`), and bar dimensions
   (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`).
@@ -206,6 +206,14 @@ The shell exposes these tokens to QML via three singletons in
   `BorderSurface` from `qs.Ui` when a border should honor shell theme
   gradients or per-side widths. `Color.<section>.border` is only the
   flat-color fallback for code that cannot render a real border.
+
+### Corner geometry
+
+`Style.cornerRadius` and `Style.cornerRoundingPower` mirror Hyprland's `decoration:rounding` and `decoration:rounding_power` through the existing style refresh lifecycle. Power 1 gives chamfered corners, power 2 gives circular corners, and higher powers give progressively squarer superellipse corners. Missing or invalid power readings preserve the previous value, initially 2.
+
+Use `CornerRectangle` from `qs.Ui` for theme-shaped fills and simple uniform borders, or `BorderSurface` for shell border specs (including gradients and per-side widths). Both expose `color`, `radius`, and `roundingPower`; `CornerRectangle` also supports `border.color` and `border.width`. Set `radius: Style.cornerRadius` to follow the theme. Circular corners and zero-radius surfaces use native Qt rectangles; other powers share path geometry between fills and borders. These components do not add rounded clipping or change input regions.
+
+Intentional circles and pills, such as avatars, slider knobs, and switch tracks, should remain native `Rectangle`s or explicitly set `roundingPower: 2` on a `BorderSurface`.
 
 ### Interactive states
 

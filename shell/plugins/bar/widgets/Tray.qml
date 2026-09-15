@@ -560,7 +560,7 @@ BarWidget {
           width: menuHeader.width
           implicitHeight: Style.space(30)
 
-          Rectangle {
+          CornerRectangle {
             anchors.fill: parent
             radius: Math.max(2, Style.cornerRadius)
             color: backMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.foreground) : "transparent"
@@ -675,7 +675,7 @@ BarWidget {
                 opacity: 0.45
               }
 
-              Rectangle {
+              CornerRectangle {
                 visible: !menuRow.modelData.isSeparator
                 anchors.fill: parent
                 radius: Math.max(2, Style.cornerRadius)

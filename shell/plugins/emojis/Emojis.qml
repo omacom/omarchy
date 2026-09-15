@@ -240,7 +240,7 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: root.contentSpacing
 
-        Rectangle {
+        CornerRectangle {
           width: parent.width
           height: root.headerHeight
           radius: root.cornerRadius
@@ -273,7 +273,7 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
-            delegate: Rectangle {
+            delegate: CornerRectangle {
               required property int index
               required property string emoji
 

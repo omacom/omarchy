@@ -85,6 +85,7 @@ Item {
     width: root.knobSize
     height: root.knobSize
     radius: root.knobSize / 2
+    roundingPower: 2
     color: root.knobColor
     borderSpec: Border.flat(root.bar ? root.bar.background : "#101315", Math.max(1, Style.space(2)))
     anchors.verticalCenter: track.verticalCenter

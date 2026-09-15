@@ -641,7 +641,7 @@ Panel {
 
             // Clear back to IP auto-detect. While a committed location is
             // loading, this same compact affordance becomes a spinner.
-            Rectangle {
+            CornerRectangle {
               width: Style.space(18)
               height: Style.space(18)
               anchors.verticalCenter: parent.verticalCenter
@@ -746,7 +746,7 @@ Panel {
         Repeater {
           model: root.locationSuggestions
 
-          Rectangle {
+          CornerRectangle {
             required property var modelData
             required property int index
             width: parent.width
