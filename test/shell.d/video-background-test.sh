@@ -174,6 +174,7 @@ assert(
 assert(
   batteryService.includes('UPower.onBattery && PowerProfiles.profile === PowerProfile.PowerSaver') &&
     !batteryService.includes('powerprofilesctl') &&
+    !batteryService.includes('busctl') &&
     !batteryService.includes('interval: 2000'),
   'the battery service tracks native power-saver changes without spawning profile readers'
 )
