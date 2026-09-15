@@ -303,6 +303,36 @@ Item {
       id: lockSurface
       color: Color.background
 
+      // The password field asserts focus when the lock starts, but after
+      // suspend the surface is hidden while asleep and shown again on resume,
+      // and the earlier focus is not restored with it. Re-assert once the
+      // compositor actually presents the surface so the user can type without
+      // clicking first. These handlers live here (not on the service root)
+      // because lockSurface is a per-screen template component.
+      onVisibleChanged: {
+        if (visible && root.locked) Qt.callLater(lockView.forcePasswordFocus)
+      }
+
+      Connections {
+        target: root
+        function onRefocusPasswordChanged() {
+          if (root.refocusPassword && root.locked) {
+            root.refocusPassword = false
+            Qt.callLater(lockView.forcePasswordFocus)
+          }
+        }
+      }
+
+      // Resume on the same outputs reaches this process with no screen or
+      // visibility change, so a once-only focus call does not survive it. The
+      // guard keeps the editable field focused while the lock stays visible.
+      Timer {
+        interval: 1000
+        repeat: true
+        running: root.locked
+        onTriggered: lockView.ensurePasswordFocus()
+      }
+
       LockView {
         id: lockView
         anchors.fill: parent
@@ -325,6 +355,10 @@ Item {
 
     }
   }
+
+  // Debounce flag set on output reconfiguration (e.g. resume). The lock
+  // surface reacts to it by re-asserting password-field focus.
+  property bool refocusPassword: false
 
   PanelWindow {
     id: previewWindow
@@ -542,6 +576,10 @@ Item {
       // A monitor still coming up has no workspace, so cannot answer yet.
       strandedLockRetryTimer.rearm()
       root.checkStrandedLock()
+
+      // Outputs are reconfigured on resume; flag the surfaces so they
+      // re-assert password-field focus once back on screen.
+      if (root.locked) root.refocusPassword = true
     }
   }
 

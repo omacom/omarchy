@@ -52,6 +52,10 @@ Item {
     passwordInput.forceActiveFocus()
   }
 
+  function ensurePasswordFocus() {
+    if (root.inputEnabled && passwordInput.enabled && !passwordInput.activeFocus) forcePasswordFocus()
+  }
+
   function clearPassword() {
     passwordTextEdited("")
   }
@@ -143,6 +147,7 @@ Item {
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
+        focus: root.inputEnabled && visible
         clip: true
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
