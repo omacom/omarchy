@@ -83,7 +83,7 @@ QtObject {
   readonly property QtObject tooltip: QtObject {
     property color background: root.composed("tooltip.background", "tooltip.background-alpha", root.background, 1.0)
     property color text: root.pick("tooltip.text", root.foreground)
-    property color border: root.composed("tooltip.border", "tooltip.border-alpha", root.foreground, 1.0)
+    property color border: root.composed("tooltip.border", "tooltip.border-alpha", root.accent, 1.0)
   }
   readonly property QtObject notifications: QtObject {
     property color background: root.composed("notifications.background", "notifications.background-alpha", root.background, 1.0)
@@ -94,7 +94,7 @@ QtObject {
   readonly property QtObject menu: QtObject {
     property color background: root.composed("menu.background", "menu.background-alpha", root.background, 1.0)
     property color text: root.pick("menu.text", root.foreground)
-    property color border: root.composed("menu.border", "menu.border-alpha", root.foreground, 1.0)
+    property color border: root.composed("menu.border", "menu.border-alpha", root.accent, 1.0)
     property color scrim: root.composed("menu.scrim", "menu.scrim-alpha", root.background, 0.5)
     property color selectedBackground: root.composed("menu.selected-background", "menu.selected-background-alpha", root.foreground, 0.08)
     property color selectedText: root.pick("menu.selected-text", root.accent)
