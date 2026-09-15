@@ -20,8 +20,11 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property bool faceAuthenticating: false
+  property bool faceExplicit: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  property bool faceConfigured: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -43,7 +46,7 @@ Item {
   property bool strandedLockResolved: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
-  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
+  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating || faceAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
 
@@ -130,9 +133,13 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    faceAuthenticating = false
+    faceExplicit = false
     fingerprintRetryTimer.stop()
+    faceRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
+    if (facePam.active) facePam.abort()
   }
 
   function beginLock() {
@@ -150,6 +157,7 @@ Item {
     Qt.callLater(function() {
       root.refreshBackground()
       root.refreshFingerprintStatus()
+      root.refreshFaceStatus()
     })
 
     return true
@@ -244,6 +252,40 @@ Item {
     runWake()
   }
 
+  function refreshFaceStatus() {
+    if (!faceCheckProc.running) faceCheckProc.running = true
+  }
+
+  function startFace(explicit) {
+    if (!lockRequested || !sessionLock.secure || !faceConfigured) return
+    if (facePam.active || faceAuthenticating || authenticatingPassword) return
+
+    faceExplicit = !!explicit
+    faceAuthenticating = true
+    failureMessage = ""
+    if (!facePam.start()) {
+      faceAuthenticating = false
+      faceExplicit = false
+    }
+  }
+
+  function handleFaceFinished(result) {
+    var wasExplicit = faceExplicit
+    faceAuthenticating = false
+    faceExplicit = false
+
+    if (!lockRequested) return
+    if (result === PamResult.Success) {
+      finishUnlock()
+    } else {
+      if (wasExplicit) {
+        failureMessage = "Face not recognized"
+        runWake()
+      }
+      if (faceConfigured) faceRetryTimer.restart()
+    }
+  }
+
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
@@ -277,6 +319,7 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+        root.startFace(false)
       }
     }
 
@@ -309,7 +352,9 @@ Item {
         backgroundPath: root.backgroundPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        faceConfigured: root.faceConfigured
         authenticatingPassword: root.authenticatingPassword
+        faceAuthenticating: root.faceAuthenticating
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
         inputEnabled: root.lockRequested
@@ -319,6 +364,7 @@ Item {
         passwordText: root.enteredPassword
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
+        onSubmitFace: root.startFace(true)
         onClearFailureRequested: root.failureMessage = ""
         onWakeRequested: root.runWake()
       }
@@ -341,7 +387,9 @@ Item {
       backgroundPath: root.backgroundPath
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured
+      faceConfigured: root.faceConfigured
       authenticatingPassword: false
+      faceAuthenticating: false
       failureMessage: ""
       failedAttempts: 0
       inputEnabled: false
@@ -394,11 +442,40 @@ Item {
     }
   }
 
+  PamContext {
+    id: facePam
+    config: "omarchy-lock-face"
+    user: root.userName
+
+    onCompleted: function(result) {
+      root.handleFaceFinished(result)
+    }
+
+    onError: function(error) {
+      var wasExplicit = root.faceExplicit
+      root.faceAuthenticating = false
+      root.faceExplicit = false
+      if (!root.lockRequested) return
+      if (wasExplicit) {
+        root.failureMessage = "Face not recognized"
+        root.runWake()
+      }
+      if (root.faceConfigured) faceRetryTimer.restart()
+    }
+  }
+
   Timer {
     id: fingerprintRetryTimer
     interval: 250
     repeat: false
     onTriggered: root.startFingerprint()
+  }
+
+  Timer {
+    id: faceRetryTimer
+    interval: 1200
+    repeat: false
+    onTriggered: root.startFace(false)
   }
 
   Process {
@@ -424,6 +501,18 @@ Item {
       root.fingerprintConfigured = String(fingerprintCheckStdout.text || "").trim() === "yes"
       if (root.lockRequested && root.fingerprintConfigured) root.startFingerprint()
       else if (!root.fingerprintConfigured && fingerprintPam.active) fingerprintPam.abort()
+    }
+  }
+
+  Process {
+    id: faceCheckProc
+    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-face ]] && command -v facelock >/dev/null 2>&1 && facelock is-enrolled --quiet; then echo yes; else echo no; fi"]
+    stdout: StdioCollector { id: faceCheckStdout; waitForEnd: true }
+    onExited: {
+      root.faceConfigured = String(faceCheckStdout.text || "").trim() === "yes"
+      root.logEvent("face-configured=" + root.faceConfigured)
+      if (root.lockRequested && root.sessionLock.secure && root.faceConfigured) root.startFace(false)
+      else if (!root.faceConfigured && facePam.active) facePam.abort()
     }
   }
 
@@ -490,10 +579,10 @@ Item {
         root.armBlankTimer()
         return
       }
-      // Only a password check in flight should hold the display up. The
-      // fingerprint PAM stays armed for the whole lock, so gating on
-      // `authenticating` here would keep the panel lit until unlock.
-      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
+      // Only a password check or a face scan in flight should hold the
+      // display up. The fingerprint PAM stays armed for the whole lock, so
+      // gating on `authenticating` here would keep the panel lit until unlock.
+      if (root.lockRequested && !root.authenticatingPassword && !root.faceAuthenticating) root.runBlank()
     }
   }
 
@@ -551,6 +640,12 @@ Item {
     else armBlankTimer()
   }
 
+  onFaceAuthenticatingChanged: {
+    if (!lockRequested) return
+    if (faceAuthenticating) idleBlankTimer.stop()
+    else armBlankTimer()
+  }
+
   FileView {
     path: "/etc/pam.d/omarchy-lock-password"
     watchChanges: true
@@ -574,6 +669,7 @@ Item {
   Component.onCompleted: {
     refreshBackground()
     refreshFingerprintStatus()
+    refreshFaceStatus()
     checkStrandedLock()
   }
 
@@ -600,6 +696,8 @@ Item {
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
+        face: root.faceConfigured,
+        faceAuthenticating: root.faceAuthenticating,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
@@ -609,6 +707,7 @@ Item {
     function preview(): string {
       root.refreshBackground()
       root.refreshFingerprintStatus()
+      root.refreshFaceStatus()
       root.previewVisible = true
       return "ok"
     }

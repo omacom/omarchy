@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# omarchy:summary=Set up Facelock face authentication for sudo, polkit, and lock screen
+# omarchy:requires-sudo=true
+
+set -e
+
+# Quickshell's PamContext helper is not in a logind session. Facelock's default
+# abort_if_ssh=true treats that as a remote login and never opens the camera.
+# The lock screen then flashes "Scanning…" without IR capture.
+configure_facelock_for_lock_screen() {
+  sudo python3 - <<'PY'
+from pathlib import Path
+
+path = Path("/etc/facelock/config.toml")
+text = path.read_text()
+if "abort_if_ssh = false" in text:
+    raise SystemExit(0)
+old = text
+text = text.replace(
+    "# abort_if_ssh = true",
+    "abort_if_ssh = false",
+    1,
+)
+if text == old:
+    if "\n[security]\n" in text:
+        text = text.replace("\n[security]\n", "\n[security]\nabort_if_ssh = false\n", 1)
+    else:
+        text += "\n[security]\nabort_if_ssh = false\n"
+path.write_text(text)
+PY
+
+  sudo mkdir -p /etc/systemd/system/facelock-daemon.service.d
+  # The shipped unit uses ProtectSystem=strict, so TPM/keyfile writes under
+  # /etc/facelock fail with a read-only filesystem and enrollment is refused.
+  sudo tee /etc/systemd/system/facelock-daemon.service.d/omarchy-writable-keys.conf >/dev/null <<'EOF'
+[Service]
+ReadWritePaths=/etc/facelock
+EOF
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now facelock-daemon.service
+  sudo systemctl restart facelock-daemon.service
+}
+
+setup_lock_face_pam() {
+  echo "Configuring lock screen for face authentication..."
+  sudo tee /etc/pam.d/omarchy-lock-face >/dev/null <<'EOF'
+#%PAM-1.0
+auth       required                    pam_deny.so
+account    include                     system-local-login
+EOF
+
+  if [[ ! -f /etc/pam.d/polkit-1 ]]; then
+    sudo tee /etc/pam.d/polkit-1 >/dev/null <<'EOF'
+#%PAM-1.0
+auth      include system-auth
+account   include system-auth
+password  include system-auth
+session   include system-auth
+EOF
+  fi
+
+  sudo facelock pam add \
+    --service omarchy-lock-face \
+    --service sudo \
+    --service polkit-1 \
+    --no-confirm
+}
+
+
+echo -e "\e[32mSetting up Facelock face authentication.\n\e[0m"
+
+if omarchy-pkg-missing onnxruntime; then
+  echo "Installing onnxruntime..."
+  omarchy-pkg-add onnxruntime
+fi
+
+if omarchy-pkg-missing facelock-bin && omarchy-pkg-missing facelock; then
+  echo "Installing Facelock from the AUR..."
+  omarchy-pkg-aur-add facelock-bin
+fi
+
+if omarchy-cmd-missing facelock; then
+  echo -e "\e[31mFacelock did not install.\e[0m"
+  exit 1
+fi
+
+echo "Running Facelock setup (models, daemon, TPM encryption)..."
+sudo facelock setup --no-pam --systemd --non-interactive --yes --no-enroll \
+  --models standard --execution-provider cpu --encryption tpm \
+  || sudo facelock setup --no-pam --systemd --non-interactive --yes --no-enroll \
+    --models standard --execution-provider cpu --encryption keyfile
+
+configure_facelock_for_lock_screen
+
+echo -e "\e[32m\nLook at the camera to enroll your face.\e[0m"
+echo -e "Stay in frame until enrollment completes.\n"
+
+if sudo facelock enroll --user "$USER" --label primary; then
+  setup_lock_face_pam
+  echo -e "\e[32m\nFace authentication is now configured.\e[0m"
+  echo "Lock with Super + Ctrl + L and look at the camera. Password still works."
+else
+  echo -e "\e[31m\nEnrollment failed. Run omarchy setup security face again.\e[0m"
+  exit 1
+fi
