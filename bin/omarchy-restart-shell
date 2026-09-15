@@ -61,6 +61,10 @@ relock_session() {
   return 1
 }
 
+# Announce a deliberate restart before the bar disappears. Failure of the
+# reservation host must not prevent recovery of the main shell.
+timeout --kill-after=1s 1s quickshell ipc -n -p "$CONFIG_DIR/bar-reservation" call reservation restarting >/dev/null 2>&1 || true
+
 # Each kill stops the oldest matching instance and only returns once it has
 # fully exited, so the no-duplicate launch below can't race a dying shell.
 while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
