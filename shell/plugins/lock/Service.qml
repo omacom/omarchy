@@ -41,6 +41,10 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Compositor finished / dropped the ext-session-lock without PAM success.
+  // Must not be treated as unlock (#10459).
+  property int lockLossRelocks: 0
+  property double lockLossWindowStartedAt: 0
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -158,15 +162,66 @@ Item {
   function finishUnlock() {
     if (!root.locked && !lockRequested) return
 
+    // Clear the request before dropping the compositor lock so
+    // onLockStateChanged does not treat this as an involuntary loss.
     lockRequested = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
+    lockLossProbeRetryTimer.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
+  }
+
+  // ext-session-lock finished without PAM. Never wake the desktop for that.
+  function handleInvoluntaryLockLoss() {
+    logEvent("lock-lost: unauthenticated")
+    pendingSessionLock = false
+    sessionLockStabilizeTimer.stop()
+    pendingSessionLockTimer.stop()
+    resetAuthenticationState()
+
+    if (!lockLossProbeProc.running) lockLossProbeProc.running = true
+  }
+
+  function noteLockLossRelock() {
+    var now = Date.now()
+    if (lockLossWindowStartedAt === 0 || now - lockLossWindowStartedAt > 60000) {
+      lockLossWindowStartedAt = now
+      lockLossRelocks = 0
+    }
+    lockLossRelocks += 1
+    return lockLossRelocks <= 3
+  }
+
+  function onLockLossProbeFinished(exitCode) {
+    if (!lockRequested) return
+
+    // Undetermined (outputs still settling): retry shortly.
+    if (exitCode === 2) {
+      logEvent("lock-lost: probe-undetermined")
+      lockLossProbeRetryTimer.restart()
+      return
+    }
+
+    // Compositor still holds the lock — re-requesting in-process can qFatal
+    // in quickshell 0.3.1; leave recovery to a shell restart / stranded check.
+    if (exitCode === 0) {
+      logEvent("lock-lost: compositor still locked")
+      return
+    }
+
+    // Session is open: take the lock again before the desktop is usable.
+    if (!noteLockLossRelock()) {
+      logEvent("lock-lost: relock-rate-limited")
+      return
+    }
+
+    logEvent("lock-lost: session is open, relocking")
+    queueSessionLock()
   }
 
   function armBlankTimer() {
@@ -289,13 +344,10 @@ Item {
         pendingSessionLockTimer.stop()
       }
 
+      // Authenticated unlock clears lockRequested in finishUnlock first.
+      // Anything else is the compositor dropping the lock — fail closed (#10459).
       if (!locked && root.lockRequested) {
-        root.lockRequested = false
-        root.pendingSessionLock = false
-        sessionLockStabilizeTimer.stop()
-        pendingSessionLockTimer.stop()
-        root.resetAuthenticationState()
-        root.runWake()
+        root.handleInvoluntaryLockLoss()
       }
     }
 
@@ -443,6 +495,14 @@ Item {
   }
 
   Process {
+    id: lockLossProbeProc
+    command: ["bash", "-c", "omarchy-hyprland-session-locked"]
+    onExited: function(exitCode) {
+      root.onLockLossProbeFinished(exitCode)
+    }
+  }
+
+  Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
   }
@@ -509,6 +569,16 @@ Item {
     interval: 100
     repeat: true
     onTriggered: root.requestSessionLock()
+  }
+
+  Timer {
+    id: lockLossProbeRetryTimer
+    interval: 300
+    repeat: false
+    onTriggered: {
+      if (root.lockRequested && !lockLossProbeProc.running)
+        lockLossProbeProc.running = true
+    }
   }
 
   Timer {
