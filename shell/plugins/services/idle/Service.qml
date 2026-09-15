@@ -25,6 +25,48 @@ Item {
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  // Authentication services are deliberately absent from PluginShellApi.
+  // Only a recent, successful lock IPC response may authorize the input guard.
+  property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  property bool lockActive: true
+  property double lockCheckedAt: 0
+  property double lockProbeStartedAt: 0
+  readonly property int lockStatusMaxAge: 1000
+
+  function invalidateLockStatus() {
+    root.lockActive = true
+    root.lockCheckedAt = 0
+    amigaScreensaver.dismiss()
+  }
+
+  function lockStatusAllowsAmiga() {
+    var age = Date.now() - root.lockCheckedAt
+    if (root.lockActive || root.lockCheckedAt <= 0 || age < 0 || age >= root.lockStatusMaxAge) {
+      root.invalidateLockStatus()
+      return false
+    }
+    return true
+  }
+
+  function refreshLockStatus() {
+    if (lockStatusProbe.running) return
+    root.lockProbeStartedAt = Date.now()
+    lockStatusProbe.outputReady = false
+    lockStatusProbe.exitReady = false
+    lockStatusProbe.running = true
+  }
+
+  function acceptLockStatus(text, exitCode, exitStatus) {
+    // Age from request start, not completion: delayed replies cannot renew a lease.
+    var age = Date.now() - root.lockProbeStartedAt
+    if (exitCode !== 0 || exitStatus !== 0 || String(text).trim() !== "false"
+        || age < 0 || age >= root.lockStatusMaxAge) {
+      root.invalidateLockStatus()
+      return
+    }
+    root.lockCheckedAt = root.lockProbeStartedAt
+    root.lockActive = false
+  }
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
@@ -70,6 +112,8 @@ Item {
   }
 
   function lockSystem(reason) {
+    root.invalidateLockStatus()
+    root.lockProbeStartedAt = 0 // Reject any unlocked reply already in flight.
     logEvent("lock-system", reason || "requested")
     screensaverTimer.stop()
     lockTimer.stop()
@@ -286,6 +330,48 @@ Item {
     function onRawEvent(event) { root.handleHyprlandEvent(event) }
   }
 
+  Timer {
+    interval: 250
+    running: true
+    repeat: true
+    onTriggered: root.refreshLockStatus()
+  }
+
+  Timer {
+    interval: 100
+    running: true
+    repeat: true
+    onTriggered: root.lockStatusAllowsAmiga()
+  }
+
+  Process {
+    id: lockStatusProbe
+    // Bound the whole canonical IPC helper, including any nested qs process.
+    command: ["timeout", "--kill-after=0.2s", "0.8s", root.omarchyPath + "/bin/omarchy-shell", "lock", "isLocked"]
+    property bool outputReady: false
+    property bool exitReady: false
+    property int resultCode: -1
+    property int resultStatus: -1
+    function finish() {
+      if (outputReady && exitReady)
+        root.acceptLockStatus(lockStatusOutput.text, resultCode, resultStatus)
+    }
+    stdout: StdioCollector {
+      id: lockStatusOutput
+      waitForEnd: true
+      onStreamFinished: {
+        lockStatusProbe.outputReady = true
+        lockStatusProbe.finish()
+      }
+    }
+    onExited: function(exitCode, exitStatus) {
+      resultCode = exitCode
+      resultStatus = exitStatus
+      exitReady = true
+      finish()
+    }
+  }
+
   Process {
     id: screensaverProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "screensaver exitCode=" + exitCode + " status=" + exitStatus) }
@@ -333,10 +419,58 @@ Item {
   Component.onCompleted: {
     logEvent("service-ready")
     refreshStayAwakeState()
+    refreshLockStatus()
+  }
+
+  AmigaScreensaver {
+    id: amigaScreensaver
+    onOpened: owner => root.handleScreensaverWindowOpened("amiga-" + owner)
+    onClosed: owner => root.handleScreensaverWindowClosed("amiga-" + owner)
   }
 
   IpcHandler {
     target: "idle"
+
+    function amigaLocale(): string {
+      return JSON.stringify({ LANGUAGE: Quickshell.env("LANGUAGE"), LC_ALL: Quickshell.env("LC_ALL"), LC_MESSAGES: Quickshell.env("LC_MESSAGES"), LANG: Quickshell.env("LANG") })
+    }
+
+    function amigaRuntime(userPrefix: bool): string {
+      var directory = userPrefix ? root.home + "/.local/lib" : "/usr/lib"
+      return amigaScreensaver.configure("file://" + directory + "/omarchy-amiga-runtime/guard/Guard.qml")
+    }
+
+    function amigaBegin(owner: string, monitor: string, hintOn: string, hintOff: string): string {
+      if (!root.lockStatusAllowsAmiga()) {
+        root.refreshLockStatus()
+        return "locked"
+      }
+      return amigaScreensaver.begin(owner, monitor, hintOn, hintOff)
+    }
+
+    function amigaPoll(owner: string): string {
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.poll(owner)
+    }
+
+    function amigaPresent(owner: string, monitor: string, appId: string, title: string): string {
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.present(owner, monitor, appId, title)
+    }
+
+    function amigaAudioApplied(owner: string, revision: int, muted: bool): string {
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.audioApplied(owner, revision, muted)
+    }
+
+    function amigaCover(owner: string): string {
+      if (!root.lockStatusAllowsAmiga()) return "closed"
+      return amigaScreensaver.cover(owner)
+    }
+
+    function amigaEnd(owner: string): string {
+      return amigaScreensaver.end(owner)
+    }
 
     function status(): string {
       return root.statusJson()
