@@ -56,5 +56,5 @@ omarchy tailscale receive [directory]         # Save incoming Taildrop files
 Shrink large captures before sharing them:
 
 ```bash
-omarchy transcode <input> [format] [resolution]   # Re-encode pictures/videos for sharing
+omarchy transcode <input> [format] [resolution] [quality]   # Re-encode pictures/videos for sharing
 ```
