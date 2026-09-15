@@ -79,3 +79,42 @@ set -e
 grep -qF 'supergfxd is not responding' <<<"$output" ||
   fail "hybrid GPU mode query diagnoses a blocked client" "$output"
 pass "hybrid GPU mode query kills a client that ignores the timeout signal"
+
+# supergfxd persists the sleep hook's transient Vfio request. The toggle used
+# to have no case for that mode and exited with "unknown mode", so the machine
+# had no supported way back to either end of the cycle. Reported in #11808.
+cat >"$fake_bin/supergfxctl" <<'STUB'
+#!/bin/bash
+echo Vfio
+STUB
+
+cat >"$fake_bin/gum" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+
+cat >"$fake_bin/sudo" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_TMP/sudo-calls"
+STUB
+
+cat >"$fake_bin/omarchy-system-reboot" <<'STUB'
+#!/bin/bash
+printf 'rebooted\n' >"$TEST_TMP/rebooted"
+STUB
+
+chmod +x "$fake_bin"/*
+rm -f "$test_tmp/sudo-calls" "$test_tmp/rebooted"
+
+set +e
+output=$(TEST_TMP="$test_tmp" PATH="$fake_bin:$PATH" bash "$ROOT/bin/omarchy-toggle-hybrid-gpu" 2>&1)
+status=$?
+set -e
+
+((status == 0)) || fail "hybrid GPU toggle accepts a saved Vfio mode" "$output"
+grep -qF 'unknown mode' <<<"$output" &&
+  fail "hybrid GPU toggle no longer rejects a saved Vfio mode" "$output"
+grep -qF '"mode": "Integrated"' "$test_tmp/sudo-calls" ||
+  fail "hybrid GPU toggle restores the Integrated mode from Vfio" "$(<"$test_tmp/sudo-calls")"
+[[ -f $test_tmp/rebooted ]] || fail "hybrid GPU toggle reboots after leaving Vfio"
+pass "hybrid GPU toggle recovers a machine left in Vfio mode"
