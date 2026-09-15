@@ -74,13 +74,40 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
-# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
-# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
-# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
-# one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+# Prefer libfprint-git (tracks upstream ahead of Arch). Stock libfprint is
+# still replaced so a new reader only needs a pin bump in omarchy-pkgs. A
+# community fork that already provides libfprint / libfprint-2 must be left
+# alone — pacman -Qq is provides-aware, while omarchy-pkg-missing libfprint-git
+# is not, and --ask 4 would otherwise silently evict the working driver
+# (see #11899). After any package change, restart fprintd so enroll/verify
+# talk to the on-disk library instead of a stale in-memory .so.
+libfprint_pkgs=()
+while IFS= read -r pkg; do
+  [[ -n $pkg ]] && libfprint_pkgs+=("$pkg")
+done < <(pacman -Qq libfprint libfprint-2 libfprint-git 2>/dev/null | sort -u)
+
+need_packages=()
+if ((${#libfprint_pkgs[@]} == 0)) ||
+  { ((${#libfprint_pkgs[@]} == 1)) && [[ ${libfprint_pkgs[0]} == libfprint ]]; }; then
+  # Missing entirely, or only Arch stock — install / replace with libfprint-git.
+  need_packages+=(libfprint-git)
+fi
+if omarchy-pkg-missing fprintd; then
+  need_packages+=(fprintd)
+fi
+if omarchy-pkg-missing usbutils; then
+  need_packages+=(usbutils)
+fi
+
+if ((${#need_packages[@]} > 0)); then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+  # Conflicts with stock libfprint: --noconfirm would answer N; --ask 4 accepts
+  # the replacement in one transaction so a failed install leaves the existing
+  # driver in place.
+  sudo pacman -S --needed --noconfirm --ask 4 "${need_packages[@]}"
+  # D-Bus activation keeps a running fprintd mapped to the library that was
+  # just replaced; without a restart, enroll can "succeed" against the old .so.
+  sudo systemctl try-restart fprintd.service 2>/dev/null || true
 fi
 
 # Enroll first fingerprint
