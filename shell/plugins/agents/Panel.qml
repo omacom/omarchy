@@ -30,6 +30,9 @@ Panel {
   }
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
 
+  readonly property string home: Quickshell.env("HOME") || ""
+  readonly property string selectedPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/selected"
+
   property bool cursorActive: false
 
   // Countdowns and "updated" read this instead of Date.now() so the
@@ -53,6 +56,18 @@ Panel {
     if (providers.length === 0) return
     var wrapped = ((index % providers.length) + providers.length) % providers.length
     selectedProviderId = providers[wrapped].providerId
+    persistSelection(selectedProviderId)
+  }
+
+  function persistSelection(id) {
+    if (!id || id === "agents-panel") return
+    selectedFile.setText(id + "\n")
+  }
+
+  function applyRememberedSelection(id) {
+    var value = String(id || "").trim()
+    if (value === "" || value === "agents-panel") return
+    selectedProviderId = value
   }
 
   function refreshNow() {
@@ -60,6 +75,7 @@ Panel {
   }
 
   function launchAgent() {
+    persistSelection(selectedProviderId || (provider ? provider.providerId : ""))
     if (root.bar) root.bar.run("omarchy-agent --pick")
     root.close()
   }
@@ -333,6 +349,16 @@ Panel {
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
     function next(): string { root.selectProvider(root.providerIndex + 1); return "ok" }
+    function launch(): string { root.launchAgent(); return "ok" }
+  }
+
+  FileView {
+    id: selectedFile
+    path: root.selectedPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.applyRememberedSelection(text())
   }
 
   BarIconButton {
