@@ -71,6 +71,8 @@ PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
   fail "image menu rebuilds every row after cache invalidation"
 [[ $(head -n 1 "$cache_dir/$cache_key.signature") == "v4" ]] ||
   fail "image menu invalidates stale row caches"
+[[ $(head -n 1 "$cache_dir/$cache_key.fast-signature") == "v4" ]] ||
+  fail "image menu invalidates stale fast row caches"
 [[ ! -e $stale_tmp ]] ||
   fail "image menu clears partial thumbnails left by killed generators"
 pass "image menu recovers stranded locks and stale rows"
@@ -139,3 +141,33 @@ PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" VIPSTHUMBNAIL_CALLS_FILE="$t
 
 (( $(wc -l <"$tmp/calls") == 6 )) || fail "image menu releases thumbnail locks after generation"
 pass "image menu owns locks for exactly one generator lifetime"
+
+# Seed a successful row cache, then overwrite one existing image with a
+# different size while restoring the directory mtime so a dir-only
+# signature would still match (#11806).
+rm -rf "$cache_home"
+mkdir -p "$cache_home"
+
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
+
+cache_dir="$cache_home/omarchy/image-selector"
+old_row=$(awk -F '\t' -v path="$images/one.png" '$1 == path { print; exit }' "$cache_dir/$cache_key.rows")
+old_thumb=${old_row#*$'\t'}
+[[ -n $old_thumb && -f $old_thumb ]] || fail "image menu caches a thumbnail for the seed image"
+
+dir_mtime=$(stat -Lc '%Y' "$images")
+printf 'overwritten image bytes that are a different size' >"$images/one.png"
+touch -d "@$dir_mtime" "$images"
+[[ $(stat -Lc '%Y' "$images") == "$dir_mtime" ]] ||
+  fail "overwrite fixture keeps the directory mtime unchanged"
+
+PATH="$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" \
+  "$ROOT/bin/omarchy-menu-images" --cache-only "$images"
+
+new_row=$(awk -F '\t' -v path="$images/one.png" '$1 == path { print; exit }' "$cache_dir/$cache_key.rows")
+new_thumb=${new_row#*$'\t'}
+[[ $new_thumb != "$old_thumb" ]] ||
+  fail "image menu does not reuse a thumbnail after an in-place overwrite" "$new_row"
+[[ -f $new_thumb ]] || fail "image menu writes a new thumbnail after an in-place overwrite"
+pass "image menu invalidates rows after an in-place overwrite"
