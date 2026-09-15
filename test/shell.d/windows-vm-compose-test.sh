@@ -213,6 +213,17 @@ mv -T -- "$raced_shared" "$HOME/Windows"
 unset -f dc
 pass "a post-validation path swap cannot redirect Docker away from the pinned shared inode"
 
+# The guest's Samba server marks the shared directory setgid while Windows
+# runs. User-side hardening must clear that bit explicitly -- GNU chmod
+# preserves it under four-digit numeric modes -- or the privileged 0700
+# verification aborts every later launch and removal.
+reset_case
+prepare_user_mount_sources
+chmod 2700 "$HOME/Windows"
+prepare_user_mount_sources || fail "user preflight rejected a setgid shared source"
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "user-side hardening left setgid on the shared source"
+pass "user-side hardening clears a setgid shared source"
+
 # Run the same attack as a genuinely concurrent process. A successful bring-up
 # deliberately waits inside the Docker boundary until the attacker has replaced
 # the familiar path with /, then verifies that the real bind anchor still names
