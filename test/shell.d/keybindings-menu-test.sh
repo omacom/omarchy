@@ -34,7 +34,7 @@ stub_hyprctl() {
     cat
     echo 'BINDS'
     echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
+    echo '  -j) printf '\''%s\n'\'' '\''{"keyboards":[{"main":true,"layout":"us","active_layout_index":0,"rules":"evdev","model":"pc105","variant":"","options":""}]}'\'' ;;'
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
