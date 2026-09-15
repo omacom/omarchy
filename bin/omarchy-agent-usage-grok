@@ -30,6 +30,9 @@ from datetime import datetime, timedelta, timezone
 AGENT_ID = "grok"
 AGENT_NAME = "Grok"
 AUTH_HELP = "Run `grok login` to authenticate."
+SCOPE_NOTE = (
+  "Only Grok CLI sessions on this machine are counted. Usage from grok.com, "
+  "the Grok app, or another machine does not appear here.")
 
 GROK_HOME = os.path.expanduser(os.environ.get("GROK_HOME", "~/.grok"))
 SESSION_DB = os.path.join(GROK_HOME, "sessions", "session_search.sqlite")
@@ -56,13 +59,12 @@ LIMITS_ONLY_REUSE_SECONDS = 900
 # prepaid credit ledger, which this is not.
 TICKS_PER_USD = 1_000_000_000
 
-# The access token's `tier` claim is a plain integer and xAI publishes no
-# mapping for it. Only values confirmed against a real account are named; an
-# unknown tier falls back to the panel's generic label rather than stating a
-# guessed plan as fact.
-TIER_LABELS = {
-  1: "SuperGrok",
-}
+# Deliberately empty. The access token carries a numeric `tier` claim, but it
+# is not a stable plan id: one account read 1 and, two days later with no plan
+# change to explain it, 7. xAI publishes no mapping, so an unmapped tier falls
+# back to the panel's generic label — never wrong — rather than putting a
+# guessed plan name in someone's bar.
+TIER_LABELS = {}
 
 
 def grok_binary():
@@ -210,6 +212,7 @@ def local_stats(binary, max_age_seconds):
   cached = read_cache()
   now = time.time()
 
+  unread = []
   model_usage = {}
   tokens_by_day = {}
   models_by_day = {}
@@ -228,11 +231,13 @@ def local_stats(binary, max_age_seconds):
       stats = session_usage(binary, session_id)
       if stats is None:
         # Keep the last good reading rather than dropping the session from
-        # the totals because one call failed.
+        # the totals because one call failed, and leave readAt where it was
+        # so the next run retries instead of treating this as freshly read.
         if not isinstance(entry, dict) or "stats" not in entry:
+          unread.append(session_id)
           continue
-        stats = entry["stats"]
-      entry = {"updatedAt": updated_at, "readAt": now, "stats": stats}
+      else:
+        entry = {"updatedAt": updated_at, "readAt": now, "stats": stats}
     fresh[session_id] = entry
     stats = entry["stats"]
 
@@ -283,6 +288,7 @@ def local_stats(binary, max_age_seconds):
     "activeDates": sorted(active_days),
     "modelUsage": model_usage,
     "notionalCostUsd": round(cost_ticks / TICKS_PER_USD, 4),
+    "unreadSessions": len(unread),
   }
 
 
@@ -325,9 +331,22 @@ def main():
     max_age = 0 if args.force else (
       LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SESSION_REUSE_SECONDS)
     record.update(local_stats(binary, max_age))
-    if record["totalSessions"] == 0:
+    unread = record.pop("unreadSessions", 0)
+    week = sum(int(day.get("messageCount") or 0) for day in record["recentDays"])
+    # Silently under-reporting is the worst outcome here: an incomplete read,
+    # or work done somewhere this collector cannot see, would otherwise be
+    # indistinguishable from an idle week.
+    if unread:
+      record["usageStatusText"] = f"{unread} session(s) could not be read"
       record["authHelpText"] = (
-        "No local Grok sessions yet — usage appears once you run grok here.")
+        "`grok usage` did not answer for every session, so these totals are "
+        "incomplete. They fill in on the next refresh.")
+    elif record["totalSessions"] == 0:
+      record["usageStatusText"] = "No local Grok sessions"
+      record["authHelpText"] = SCOPE_NOTE
+    elif week == 0:
+      record["usageStatusText"] = "Nothing recorded this week"
+      record["authHelpText"] = SCOPE_NOTE
 
   print(json.dumps(record))
   return 0
