@@ -14,4 +14,6 @@ assert(/if \(buttonCode === Qt\.RightButton\) root\.launchAgent\(\)/.test(panelS
 assert(/else if \(buttonCode === Qt\.MiddleButton\) root\.selectProvider\(root\.providerIndex \+ 1\)/.test(panelSource), 'agents middle click still advances the subscription')
 assert(/else root\.toggle\(\)/.test(panelSource), 'agents left click still toggles the panel')
 assert(!/if \(buttonCode === Qt\.RightButton\) root\.refreshNow\(\)/.test(panelSource), 'agents right click no longer refreshes')
+assert(/normalizeAgentId/.test(panelSource), 'agents panel normalizes default agent name')
+assert(/omarchy\/defaults\/agent/.test(panelSource), 'agents panel watches system default agent setting')
 JS
