@@ -53,6 +53,8 @@ An Omarchy preference for a supported Chromium app-mode browser can preserve cur
 
 Tested the installed Zen 1.22.1b in a fresh, isolated profile with `browser.taskbarTabs.enabled=true`, using headless mode and Marionette to inspect the actual browser window. The command requested `https://example.com/path?test=one` with a new taskbar-tab ID. The resulting window had a native `taskbartab` attribute and loaded `https://example.com/`. Zen's generated registry recorded the origin as `startUrl` and created a native desktop shortcut in the isolated data directory. No profile-storage edits were used to create it.
 
-A screenshot of that window shows a wide empty sidebar, consistent with the reported Zen layout issue. The user's regular profile and browsing session were not changed.
+A second fresh-profile test opened a normal HTTPS page, confirmed the address-bar app button was visible, and clicked it. Zen replaced the normal browser window with a native web-app window and created its own desktop shortcut. This verifies the flag and manual app-creation workflow, independently of the command-line recovery test.
+
+A screenshot of the command-line test window shows a wide empty sidebar, consistent with the reported Zen layout issue. The user's regular profile and browsing session were not changed.
 
 ![Isolated Zen native web app with an empty sidebar](images/zen-webapp-probe.png)
