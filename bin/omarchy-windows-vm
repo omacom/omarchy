@@ -514,6 +514,8 @@ mounted_leaf_matches() {
   [[ $(mount_layer_count "$stable") == 1 ]] || return 1
   actual=$(stat -Lc '%d:%i' "$stable" 2>/dev/null) || return 1
   owner=$(stat -Lc '%u' "$stable" 2>/dev/null) || return 1
+  chmod 00700 -- "$stable" 2>/dev/null || chmod 0700 -- "$stable" 2>/dev/null || true
+  chmod ug-s -- "$stable" 2>/dev/null || true
   mode=$(stat -Lc '%a' "$stable" 2>/dev/null) || return 1
   [[ $actual == "$identity" && $owner == "$CALLER_UID" && $mode == 700 ]]
 }
@@ -579,12 +581,15 @@ prepare_caller_mounts() {
 
   # Privacy is an explicit preflight step for both already-pinned sources, not
   # a side effect halfway through the two-mount transaction. Old umask-022
-  # installs are hardened together before either Docker-facing anchor changes.
+  # installs and Samba setgid bits are hardened together before either
+  # Docker-facing anchor changes.
+  chmod 00700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" 2>/dev/null ||
   chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
   }
+  chmod ug-s -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" 2>/dev/null || true
   storage_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$storage_fd" 2>/dev/null) || storage_mode=""
   shared_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$shared_fd" 2>/dev/null) || shared_mode=""
   if [[ $storage_mode != 700 || $shared_mode != 700 ]]; then
@@ -1015,7 +1020,8 @@ prepare_user_mount_sources() {
     echo "omarchy-windows-vm: storage and shared must be different directories" >&2
     return 1
   }
-  chmod 0700 -- "$storage" "$shared"
+  chmod 00700 -- "$storage" "$shared" 2>/dev/null || chmod 0700 -- "$storage" "$shared" || true
+  chmod ug-s -- "$storage" "$shared" 2>/dev/null || true
 }
 
 storage_space_path() {

@@ -123,6 +123,15 @@ if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared
 fi
 pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves deny another account"
 
+# Samba or container services may apply setgid (e.g. 2700) to the shared directory.
+# Mount verification must clear setgid and maintain verified 0700 privacy.
+chmod 2700 /home/shared-target
+mounts_ready || fail "mount verification rejected setgid shared directory"
+[[ $(command stat -Lc '%a' "$EXPECTED_SHARED") == 700 ]] || fail "setgid was not stripped from shared mount"
+with_vm_lock prepare_caller_mounts || fail "prepare_caller_mounts failed with setgid shared directory"
+[[ $(command stat -Lc '%a' "$EXPECTED_SHARED") == 700 ]] || fail "setgid was not stripped after prepare_caller_mounts"
+pass "setgid on shared directory is cleared and maintains verified 0700 privacy"
+
 # Existing production boundary components are never repaired in place when
 # their ownership or write permissions are unsafe. Both the preparation path
 # and the final pre-Docker guard must fail closed without disturbing the binds.
