@@ -18,7 +18,8 @@
 # so it never reaches the shell as SIGINT. Act on the status, never on a trap.
 #
 # Callers supply `notice <message> <seconds>` for validation feedback, and set
-# the variables these prompts write: keyboard, keyboard_label, username,
+# the variables these prompts write: keyboard, keyboard_label, language,
+# language_label, username,
 # password, password_confirmation, full_name, email_address, hostname, timezone.
 
 OMARCHY_FORM_BACK=1
@@ -99,6 +100,39 @@ omarchy_prompt_keyboard() {
 
   keyboard_label="$choice"
   keyboard=$(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | awk -F'|' -v c="$choice" '$1==c{print $2; exit}')
+}
+
+# gum filter rather than gum choose because the list is three hundred long --
+# the same reason the timezone prompt filters.
+#
+# The default is not derived from the keyboard layout, tempting as that is.
+# Layout codes are country codes and locale prefixes are language codes, and
+# they collide: the Slovenian layout is "si", while si_LK is Sinhala. A guess
+# that confident and that wrong is worse than no guess, and filtering for
+# "Slov" costs four keystrokes.
+OMARCHY_LANGUAGE_DEFAULT="American English (United States)"
+
+omarchy_prompt_language() {
+  local choice status
+
+  choice=$(omarchy_language_labels |
+    gum filter --height 10 --header "Select language" --value "$OMARCHY_LANGUAGE_DEFAULT") && status=0 || status=$?
+  ((status == 0)) || return $status
+
+  # Nothing selected keeps the default rather than leaving the system with no
+  # language at all, the same way the timezone prompt falls back to UTC.
+  [[ -n $choice ]] || choice="$OMARCHY_LANGUAGE_DEFAULT"
+
+  language_label="$choice"
+  # No `exit` after the match: omarchy-locale-list is upstream in the pipe, and
+  # leaving early hands it a SIGPIPE that a `set -e` caller reads as failure.
+  language=$(omarchy-locale-list | awk -F'\t' -v c="$choice" '
+    { label = $2 ($3 != "" ? " (" $3 ")" : "") }
+    label == c && !found { found = 1; print $1 }')
+}
+
+omarchy_language_labels() {
+  omarchy-locale-list | awk -F'\t' '{ print $2 ($3 != "" ? " (" $3 ")" : "") }' | sort
 }
 
 omarchy_prompt_username() {
