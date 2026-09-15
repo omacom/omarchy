@@ -2,9 +2,14 @@
 ufw default deny incoming
 ufw default allow outgoing
 
-# Allow ports for LocalSend.
-ufw allow 53317/udp
-ufw allow 53317/tcp
+# Allow ports for LocalSend, scoped to private network ranges rather than
+# the whole internet. IPv6 addresses are frequently globally routable
+# without NAT, so an unscoped rule would expose the receiver beyond the
+# local network on many home/mobile connections.
+for net in 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12; do
+  ufw allow from "$net" to any port 53317 proto tcp
+  ufw allow from "$net" to any port 53317 proto udp
+done
 
 # Allow Docker containers to use DNS on host.
 ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns'
