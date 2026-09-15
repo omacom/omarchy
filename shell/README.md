@@ -97,6 +97,8 @@ Entry points may declare `omarchyPath`, `shell`, `manifest`, `pluginRegistry`, a
 
 Widgets rendered by a third-party replacement bar receive a service-less entry facade with target-scoped lifecycle and settings operations. Their live service objects are available only when the trusted built-in bar hosts them; otherwise the replacement bar could request and retain any configured widget's service.
 
+An optional top-level `postEnable` string is printed after `omarchy plugin enable` (and after `omarchy plugin add --enable`). It is display-only: control bytes are stripped, and the text is never executed.
+
 The full schema lives in `services/PluginRegistry.qml`.
 
 ## Installing a third-party plugin

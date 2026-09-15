@@ -43,3 +43,27 @@ if run_enable omarchy.bar --section right >/dev/null 2>&1; then
   fail "plugin enable accepted placement for a full bar"
 fi
 pass "plugin enable rejects placement for full bars"
+
+hint_dir="$TMPDIR/home/.config/omarchy/plugins/acme.hint"
+mkdir -p "$hint_dir"
+cat >"$hint_dir/manifest.json" <<'JSON'
+{
+  "schemaVersion": 1,
+  "id": "acme.hint",
+  "name": "Hint",
+  "version": "1.0.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "postEnable": "Jump on connect needs a Hyprland loader.\n  ~/.config/omarchy/plugins/seanpk.dock-workspaces/bin/install-loader"
+}
+JSON
+printf 'import QtQuick\nItem {}\n' >"$hint_dir/Widget.qml"
+
+hint_out=$(run_enable acme.hint)
+[[ $hint_out == *"Enabled acme.hint"* ]] ||
+  fail "plugin enable still reports Enabled" "$hint_out"
+[[ $hint_out == *"install-loader"* ]] ||
+  fail "plugin enable did not print postEnable" "$hint_out"
+[[ $hint_out != *$'\033'* ]] ||
+  fail "plugin enable left an escape in postEnable" "$hint_out"
+pass "plugin enable prints a plugin's postEnable text"
