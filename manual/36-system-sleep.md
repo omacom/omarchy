@@ -10,7 +10,7 @@ You can see what your machine offers with `omarchy powerprofiles list`, and set 
 
 ### Toggle suspend
 
-You toggle suspend by running `omarchy toggle suspend` from the terminal. That just reveals/hides the option under _System_ (or `Super + Esc`), and then you can see if it works consistently on your system. If not, you can hide it again with the same command.
+You toggle suspend by running `omarchy toggle suspend` from the terminal. That reveals/hides the option under _System_ (or `Super + Esc`) and also prevents automatic idle suspend while it is off. You can then see if suspend works consistently on your system and turn it off again with the same command if needed.
 
 ### Toggle hibernation
 
