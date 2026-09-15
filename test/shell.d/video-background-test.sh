@@ -174,7 +174,8 @@ assert(
 assert(
   batteryService.includes('property string activePowerProfile') &&
     batteryService.includes('UPower.onBattery && activePowerProfile === "power-saver"') &&
-    batteryService.includes('["powerprofilesctl", "get"]') &&
+    batteryService.includes('"get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"') &&
+    !batteryService.includes('["powerprofilesctl"') &&
     batteryService.includes('interval: 2000'),
   'the battery service tracks the active power-saver profile'
 )
