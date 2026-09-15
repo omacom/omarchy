@@ -6,7 +6,22 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
+# Terminals say nothing about the pointer unless asked to. 1003 reports every
+# pointer motion, and 1006 switches the reports to an encoding that still works
+# past column 223, which a fullscreen terminal on a wide monitor easily exceeds.
+# Together they turn mouse movement into bytes on stdin, which is what the watch
+# loop below already reads as "the user is back".
+enable_pointer_reports() {
+  printf '\033[?1003h\033[?1006h'
+}
+
+disable_pointer_reports() {
+  printf '\033[?1006l\033[?1003l'
+}
+
 exit_screensaver() {
+  disable_pointer_reports
+  [[ -n $saved_tty_settings ]] && stty "$saved_tty_settings" 2>/dev/null
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
@@ -22,6 +37,12 @@ hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprc
 
 tty=$(tty 2>/dev/null)
 
+# Pointer reports and keystrokes both arrive as bytes on this pty, and the line
+# discipline would paint them over the effect before the loop below consumes
+# them.
+saved_tty_settings=$(stty -g 2>/dev/null)
+stty -echo 2>/dev/null
+
 # Terminals allocate the pty at the default 80x24 and only resize it once the
 # compositor has told the window how big it is. ttfx measures the terminal once,
 # at startup, so starting it before the resize lands sizes an 80x24 canvas and
@@ -33,7 +54,24 @@ wait_for_terminal_resize() {
   done
 }
 
+# omarchy-launch-screensaver focuses each monitor in turn to place a window on
+# it, and the pointer warps along with that focus. Those warps land around the
+# time this window maps and read exactly like the user moving the mouse, so drop
+# what the terminal reports until it has been quiet long enough for the warps to
+# be over. The cap keeps a user who is genuinely moving the mouse from holding
+# the drain open.
+drain_pointer_reports() {
+  local reports i
+  for ((i = 0; i < 5; i++)); do
+    reports=""
+    read -rsn 256 -t 0.4 reports
+    [[ -z $reports ]] && break
+  done
+}
+
 wait_for_terminal_resize
+enable_pointer_reports
+drain_pointer_reports
 
 while true; do
   ttfx -i ~/.config/omarchy/branding/screensaver.txt \
@@ -41,7 +79,7 @@ while true; do
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if read -rsn1 -t 1 || ! screensaver_in_focus; then
       exit_screensaver
     fi
   done
