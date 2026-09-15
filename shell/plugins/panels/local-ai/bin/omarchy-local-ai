@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# omarchy:summary=Run the validated local model for this GPU and open coding agents on it
+# omarchy:args=<snapshot|load|unload|open-agent [name]|share [--key value]|agent-dir <path>>
+#
+# Five verbs. `snapshot` is a pure read that rewrites the state file the panel watches. `load`
+# and `unload` spawn a worker that holds the op lock; everything they do is logged. `open-agent`
+# launches an agent with the endpoint in its environment. `share` toggles the tailnet route.
+set -euo pipefail
+HERE=$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")")" && pwd)
+SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
+# shellcheck source=../lib/common.sh
+source "$HERE/../lib/common.sh"
+# shellcheck source=../lib/priv.sh
+source "$HERE/../lib/priv.sh"
+# shellcheck source=../lib/hardware.sh
+source "$HERE/../lib/hardware.sh"
+# shellcheck source=../lib/recipes.sh
+source "$HERE/../lib/recipes.sh"
+# shellcheck source=../lib/weights.sh
+source "$HERE/../lib/weights.sh"
+# shellcheck source=../lib/share.sh
+source "$HERE/../lib/share.sh"
+# shellcheck source=../lib/runtime.sh
+source "$HERE/../lib/runtime.sh"
+# shellcheck source=../lib/agents.sh
+source "$HERE/../lib/agents.sh"
+# shellcheck source=../lib/snapshot.sh
+source "$HERE/../lib/snapshot.sh"
+
+# tools or the recipe file missing: say so where the card reads it, even though nothing else can run
+missing=""; for t in jq curl; do command -v "$t" >/dev/null 2>&1 || missing+=" $t"; done
+if [[ -n $missing ]]; then broken="missing tool:$missing (sudo pacman -S$missing)"
+elif ! recipes_ok; then broken="recipes.json is missing or broken: reinstall the plugin"; fi
+if [[ -n ${broken:-} ]]; then
+  fail "$broken" || :
+  [[ ${1:-snapshot} == snapshot ]] && printf '{"state":"error","error":"%s","operation":{},"model":null,"reason":"","share":{},"agents":{}}\n' "$broken"
+  exit 1
+fi
+
+spawn() { # spawn <op-name> <worker-verb>: detach a worker; it takes the lock itself and reports through the ledger
+  local name=$1; shift; state_dir
+  if [[ ${OMARCHY_AI_FOREGROUND:-0} == 1 ]]; then "$SELF" "$@" >/dev/null 2>>"$LOGFILE" || true; return; fi
+  # the worker is its own session so closing the panel's process never kills it; its pid goes into
+  # the ledger right away so the panel turns busy on the next snapshot, not a second later
+  if command -v setsid >/dev/null 2>&1; then setsid "$SELF" "$@" >/dev/null 2>>"$LOGFILE" </dev/null & disown
+  else "$SELF" "$@" >/dev/null 2>>"$LOGFILE" </dev/null & disown; fi
+  op_pending "$name" "$!"
+}
+
+current_recipe() { # the one recipe for this machine, gated; prints json or fails out loud
+  local m id r gate
+  m=$(match_hardware); id=$(jq -r .hardwareId <<<"$m")
+  [[ -n $id ]] || { fail "$(jq -r .reason <<<"$m")"; return 1; }
+  r=$(recipe_for "$id") || return 1
+  r=$(jq -c --argjson m "$m" '. + {gpuIndex:$m.gpu.index, match:{backend:$m.gpu.backend}}' <<<"$r")
+  gate=$(gate_reason "$r"); [[ -z $gate ]] || { fail "recipe refused: $gate"; return 1; }
+  driver_ok "$(jq -r .driver <<<"$m")" "$(jq -r '.minDriver // ""' <<<"$r")" \
+    || { fail "needs NVIDIA driver $(jq -r .minDriver <<<"$r") or newer"; return 1; }
+  printf '%s\n' "$r"
+}
+
+w_load() {
+  guard || { log "error: another operation is running"; exit 1; }
+  trap worker_exit EXIT   # a step that dies unexpectedly still leaves a reason on the card, never a silent idle
+  local r id t0
+  op download "" "checking the GPU and recipe" 0
+  r=$(current_recipe 2>"$STATE/gate.err") || oops "$(sed -n '$s/^local-ai: //p' "$STATE/gate.err")"
+  id=$(jq -r .id <<<"$r")
+  if docker_direct; then # the daemon answers this user: say now what would stop a pull; a missing NVIDIA runtime is set up behind one prompt
+    if ! why=$(docker_ok "$(jq -r .match.backend <<<"$r")"); then
+      [[ $why == *"NVIDIA container toolkit"* ]] || oops "$why"
+      op download "$id" "setting up the NVIDIA container toolkit (your password)" 0
+      elevated toolkit >"$STATE/phase.out" 2>>"$LOGFILE" || oops "$why"
+    fi
+  fi
+  op download "$id" "checking" 0
+  local need=0; weights_present "$r" || need=1
+  weights_plan "$r" 2>"$STATE/gate.err" || oops "$(sed -n '$s/^local-ai: //p' "$STATE/gate.err")"
+  mount_dirs "$r"; write_assets "$r"; ensure_key
+  printf '%s\n' "$r" >"$STATE/recipe.json"; printf '%s\n' "$r" >"$STATE/gateway.recipe.json"
+  if (( need )) && host_hf >/dev/null; then # the host's own hf, as this user, no docker and no prompt
+    download_host "$r" 2>"$STATE/gate.err" || oops "$(sed -n '$s/^local-ai: //p' "$STATE/gate.err")"; weights_mark "$r"; need=0
+  fi
+  t0=$SECONDS
+  # every docker call of this Start in one phase: images, weights when still needed, set aside, engine, gateway
+  PHASE_EXPECT_BYTES=$WEXP PHASE_WEIGHTS_DIR=$WBASE phase_run start download "$id" "$STATE/recipe.json" "$need" || oops "$PHASE_REASON"
+  (( need )) && weights_mark "$r"
+  if ! accept "$r" 2>"$STATE/accept.err"; then
+    local why; why=$(sed -n '$s/^local-ai: //p' "$STATE/accept.err" 2>/dev/null); [[ -n $why ]] || why="engine failed to start (see $LOGFILE)"
+    log "rollback: $why"; op starting "$id" "rolling back" 0
+    privileged restore >"$STATE/phase.out" 2>>"$LOGFILE" || why+="; the previous model could not be restored (see $LOGFILE)"
+    oops "$why"
+  fi
+  # the previous pair stays set aside (stopped) until the next Start or Stop drops it: no second prompt on success
+  # how long Start took from the first container step to accepted: the next Start's progress bar
+  lwrite '.lastStartSeconds=($s|tonumber)' --arg s "$((SECONDS - t0))"
+  op_done; log "ready $id"
+}
+
+w_unload() {
+  guard || { log "error: another operation is running"; exit 1; }
+  trap worker_exit EXIT
+  op unload "" "stopping" 0
+  docker_direct || op unload "" "waiting for your password" 0
+  privileged stop >"$STATE/phase.out" 2>>"$LOGFILE" || { why=$(grep '^reason ' "$STATE/phase.out" | tail -1 | cut -c8-); oops "${why:-Stop failed (see $LOGFILE)}"; }
+  share_forget   # only once the published gateway is really gone
+  lwrite '.accepted={recipeId:"",servedModel:"",registry:"",apis:[]}'
+  op_done; log "unloaded"
+}
+
+usage() {
+  echo 'Usage: omarchy-local-ai <command>
+  snapshot               refresh and print the state the panel renders
+  load                   download if needed, then start the model for this GPU
+  unload                 stop the model; keep downloads
+  open-agent [name]      open an installed coding agent on the running model
+  share [--key <value>]  toggle sharing on your tailnet, or replace the key
+  agent-dir <path>       directory agents open in (default: where the shell started)
+  agent-args <name> [-- flags]  extra flags for one agent when opened from the panel (none to clear)
+  gpu [auto|<backend:index>]  which detected card to use (snapshot lists them); auto = largest card with a recipe'
+}
+
+cmd=${1:-help}; shift || true
+case $cmd in
+  snapshot) snapshot_write; cat "$SNAPSHOT" ;;
+  load) [[ -z $(busy_pid) ]] || fail "another operation is running" || exit 1; spawn download _worker-load ;;
+  unload) [[ -z $(busy_pid) ]] || fail "another operation is running" || exit 1; spawn unload _worker-unload ;;
+  open-agent) snapshot_write; open_agent "${1:-}" 2>"$STATE/agent.err" || { m=$(sed -n '$s/^local-ai: //p' "$STATE/agent.err"); refuse "${m:-agent launch failed (see $LOGFILE)}"; exit 1; } ;;
+  share) guard || exit 1; share_toggle "$@" ;;
+  agent-args) [[ -n ${1:-} ]] && printf '%s\n' "${AGENTS[@]}" | grep -qx -- "$1" || { fail "agent-args <agent> [-- flags...], one of: ${AGENTS[*]}"; exit 1; }; n=$1; shift; [[ ${1:-} == -- ]] && shift; mkdir -p "$STATE/agents/args"; if (( $# )); then printf '%s\0' "$@" >"$STATE/agents/args/$n"; else rm -f "$STATE/agents/args/$n"; fi; log "agent-args $n: $*" ;;
+  gpu) case ${1:-} in
+         ""|auto) rm -f "$STATE/gpu"; log "gpu auto" ;;
+         *) [[ $1 =~ ^[a-z-]+:[0-9]+$ ]] || { fail "gpu <backend:index>, as listed in the snapshot"; exit 1; }
+            state_dir; printf '%s' "$1" >"$STATE/gpu"; log "gpu $1" ;;
+       esac; snapshot_write; jq -c '.gpus' "$SNAPSHOT" ;;
+  agent-dir) [[ -d ${1:-} ]] && { (cd "$1" && pwd) >"$STATE/agent-dir"; log "agent-dir $1"; } || { fail "agent-dir: not a directory: ${1:-}"; exit 1; } ;;
+  _root) # a phase run as root by pkexec (see lib/priv.sh); never spawned by anything but this script's own privileged().
+         # Its environment comes from the user's 0600 file, OMARCHY_AI_* assignments only, then this script re-executes itself.
+         [[ $(id -u) == 0 || -n ${OMARCHY_AI_TEST_ROOT:-} ]] || { fail "_root is for pkexec"; exit 1; }
+         [[ -f ${1:-} && -n ${2:-} && -n ${3:-} ]] || { fail "_root <env-file> <sha> <phase>"; exit 1; }
+         if [[ -z ${OMARCHY_AI_ROOT_PHASE:-} ]]; then
+           envf=$1; want=$2; shift 2; envs=$(cat "$envf")   # read once; hash what was read, not the file again
+           [[ $(sha_of "$envs") == "$want" ]] || { printf 'reason the settings changed while the password prompt was open; nothing was run\n'; exit 1; }
+           real=1; [[ $(id -u) == 0 && -z ${OMARCHY_AI_TEST_ROOT:-} ]] || real=0
+           re='^(OMARCHY_AI_[A-Z_]+|HF_TOKEN|https?_proxy|HTTPS?_PROXY|no_proxy|NO_PROXY)=[^$`]*$'
+           while IFS= read -r line; do
+             [[ $line =~ $re ]] || continue
+             if (( real )); then case ${line%%=*} in OMARCHY_AI_USER_HOME|OMARCHY_AI_STATE|OMARCHY_AI_MODEL_ROOT|OMARCHY_AI_CACHE_ROOT|OMARCHY_AI_HF_HOME|OMARCHY_AI_RECIPES|OMARCHY_AI_RUN_AS) continue ;; esac; fi   # root decides these itself
+             export "$line"
+           done <<<"$envs"
+           # who asked: pkexec says, and that user's home is where everything root touches must live
+           [[ ${PKEXEC_UID:-} =~ ^[0-9]+$ && ${PKEXEC_UID:-0} -gt 0 ]] || { printf 'reason this must run through pkexec\n'; exit 1; }
+           export OMARCHY_AI_RUN_AS="$PKEXEC_UID:$(id -g "$PKEXEC_UID" 2>/dev/null || printf '%s' "$PKEXEC_UID")"
+           if (( real )); then home=$(getent passwd "$PKEXEC_UID" | cut -d: -f6); [[ -d $home ]] || { printf 'reason no home directory for uid %s\n' "$PKEXEC_UID"; exit 1; }
+             export OMARCHY_AI_USER_HOME=$home; unset OMARCHY_AI_STATE OMARCHY_AI_MODEL_ROOT OMARCHY_AI_CACHE_ROOT OMARCHY_AI_HF_HOME OMARCHY_AI_RECIPES; fi
+           export OMARCHY_AI_ROOT_PHASE=1; exec "$SELF" _root "$envf" "$want" "$@"
+         fi
+         shift 2; p=$1; shift; "phase_$p" "$@" ;;
+  _worker-load) w_load ;;
+  _worker-unload) w_unload ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac
