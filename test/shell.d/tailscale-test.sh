@@ -207,4 +207,90 @@ assertDeepEqual(
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+assertEqual(tailscale.exitNodeLabel({
+  HostName: 'Firezone',
+  DNSName: 'ny-exit-node.tailcb223.ts.net',
+  DisplayName: 'Firezone'
+}), 'ny-exit-node', 'tailscale prefers the MagicDNS name on exit node rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  HostName: 'atl-exit-node',
+  DNSName: 'atl-exit-node.tailcb223.ts.net',
+  DisplayName: 'atl-exit-node'
+}), 'atl-exit-node', 'tailscale leaves matching exit node names alone')
+
+assertEqual(tailscale.exitNodeLabel({
+  MullvadRegion: true,
+  DisplayName: 'Stockholm, Sweden',
+  DNSName: 'se-sto-wg-001.mullvad.ts.net'
+}), 'Stockholm, Sweden', 'tailscale keeps the region label on Mullvad region rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  Mullvad: true,
+  DisplayName: 'Stockholm, Sweden',
+  DNSName: 'se-sto-wg-001.mullvad.ts.net'
+}), 'Stockholm, Sweden', 'tailscale keeps the region label on Mullvad peer rows')
+
+assertEqual(tailscale.exitNodeLabel({
+  AddMullvad: true,
+  DisplayName: 'Choose Mullvad region'
+}), 'Choose Mullvad region', 'tailscale keeps the synthetic add-Mullvad row label')
+
+assertEqual(tailscale.exitNodeLabel({ HostName: 'Firezone', DisplayName: 'Firezone' }), 'Firezone', 'tailscale falls back to the hostname when DNS is missing')
+assertEqual(tailscale.exitNodeLabel(null), 'Unknown', 'tailscale labels a missing exit node peer as Unknown')
+
+assert(/readonly property string peerName: tailscale\.exitNodeLabel\(peer\)/.test(panelSource), 'tailscale labels exit node rows with the MagicDNS helper')
+assert(/readonly property string peerName: peer \? String\(peer\.DisplayName \|\| peer\.HostName \|\| "Unknown"\) : "Unknown"/.test(panelSource), 'tailscale keeps the friendly hostname on machine rows')
+const SELF = '7119035026267488'
+
+assertEqual(tailscale.peerGroup({ UserID: SELF, Tags: ['tag:exit-node'] }, SELF), 'tagged', 'tailscale groups my tagged device as tagged')
+assertEqual(tailscale.peerGroup({ UserID: '999', Tags: ['tag:server'] }, SELF), 'tagged', 'tailscale groups another user tagged device as tagged')
+assertEqual(tailscale.peerGroup({ UserID: SELF, Tags: [] }, SELF), 'mine', 'tailscale groups my untagged device as mine')
+assertEqual(tailscale.peerGroup({ UserID: '999', Tags: [] }, SELF), 'other', 'tailscale groups another user device as other')
+assertEqual(tailscale.peerGroup(null, SELF), 'other', 'tailscale groups a missing peer as other')
+assertEqual(tailscale.peerGroup({ UserID: '', Tags: [] }, SELF), 'other', 'tailscale groups an ownerless peer as other')
+assertEqual(tailscale.peerGroup({ UserID: SELF, Tags: [] }, ''), 'other', 'tailscale groups every peer as other without a self id')
+
+const grouped = tailscale.groupPeers([
+  { HostName: 'a', UserID: SELF, Tags: [] },
+  { HostName: 'b', UserID: '999', Tags: ['tag:x'] },
+  { HostName: 'c', UserID: '999', Tags: [] },
+  { HostName: 'd', UserID: SELF, Tags: [] }
+], SELF)
+
+assertDeepEqual(grouped.mine.map(function (p) { return p.HostName }), ['a', 'd'], 'tailscale collects my devices in order')
+assertDeepEqual(grouped.tagged.map(function (p) { return p.HostName }), ['b'], 'tailscale collects tagged devices in order')
+assertDeepEqual(grouped.other.map(function (p) { return p.HostName }), ['c'], 'tailscale collects other devices in order')
+
+assertDeepEqual(tailscale.groupPeers([], SELF), { mine: [], tagged: [], other: [] }, 'tailscale groups an empty peer list into empty groups')
+assertDeepEqual(tailscale.groupPeers(null, SELF), { mine: [], tagged: [], other: [] }, 'tailscale groups a missing peer list into empty groups')
+const firezone = {
+  HostName: 'Firezone',
+  DisplayName: 'Firezone',
+  DNSName: 'ny-exit-node.tailcb223.ts.net',
+  OS: 'linux',
+  TailscaleIPs: ['100.95.213.121']
+}
+
+assert(tailscale.peerMatchesQuery(firezone, 'fire'), 'tailscale matches a peer by display name')
+assert(tailscale.peerMatchesQuery(firezone, 'FIRE'), 'tailscale matches a peer case-insensitively')
+assert(tailscale.peerMatchesQuery(firezone, 'ny-exit'), 'tailscale matches a peer by MagicDNS name')
+assert(tailscale.peerMatchesQuery(firezone, '100.95'), 'tailscale matches a peer by IP address')
+assert(!tailscale.peerMatchesQuery(firezone, 'zzz'), 'tailscale rejects a non-matching query')
+assert(tailscale.peerMatchesQuery(firezone, ''), 'tailscale treats an empty query as matching')
+assert(tailscale.peerMatchesQuery(firezone, '   '), 'tailscale treats a blank query as matching')
+assert(tailscale.peerMatchesQuery(null, ''), 'tailscale treats an empty query as matching even without a peer')
+assert(!tailscale.peerMatchesQuery(null, 'fire'), 'tailscale rejects a real query against a missing peer')
+
+const searchable = [firezone, {
+  HostName: 'atl-exit-node',
+  DisplayName: 'atl-exit-node',
+  DNSName: 'atl-exit-node.tailcb223.ts.net',
+  TailscaleIPs: []
+}]
+
+assertEqual(tailscale.filterPeers(searchable, 'fire').length, 1, 'tailscale filters peers down to a single match')
+assertEqual(tailscale.filterPeers(searchable, 'exit-node').length, 2, 'tailscale filters peers on a shared DNS fragment')
+assertEqual(tailscale.filterPeers(searchable, '').length, 2, 'tailscale returns every peer for an empty query')
+assertEqual(tailscale.filterPeers(null, 'x').length, 0, 'tailscale filters a missing peer list to nothing')
 JS
