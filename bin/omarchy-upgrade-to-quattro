@@ -409,12 +409,15 @@ configure_pacman_channel() {
   local tmp
 
   tmp=$(mktemp)
+  # Do not plant an Optional/trust-all SigLevel override. Packages from
+  # [omarchy] are signed; the section must inherit the global Required
+  # DatabaseOptional (see default/pacman/pacman-*.conf and the migrations that
+  # strip the old override).
   awk -v server="$package_server" '
     BEGIN { in_omarchy = 0; wrote = 0 }
     /^[[:space:]]*\[omarchy\][[:space:]]*$/ {
       if (!wrote) {
         print "[omarchy]"
-        print "SigLevel = Optional TrustAll"
         print "Server = " server
         wrote = 1
       }
@@ -427,7 +430,6 @@ configure_pacman_channel() {
       if (!wrote) {
         print ""
         print "[omarchy]"
-        print "SigLevel = Optional TrustAll"
         print "Server = " server
       }
     }
