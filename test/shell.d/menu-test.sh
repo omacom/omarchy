@@ -31,6 +31,7 @@ assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
     id: 'style.theme',
+    declared: { label: true, aliases: true, description: true, action: true },
     parent: 'style',
     kind: 'action',
     icon: '',
@@ -57,6 +58,51 @@ const merged = menu.mergeMenuSources(parsed, user)
 assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entries override default entries')
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
+
+// An extension that names one field replaces that field only. normalizeItem
+// fills in every other one, and copying those placeholders over the shipped
+// row used to blank its label, action, provider and aliases.
+const shipped = menu.parseMenuJsonc(defaultMenuJsonc)
+const shippedById = {}
+shipped.forEach(entry => { shippedById[entry.id] = entry })
+const untouched = menu.mergeMenuSources(shipped, [])
+const reIconed = menu.mergeMenuSources(shipped, menu.parseMenuJsonc('{"apps":{"icon":"X"},"about":{"icon":"Y"}}'))
+assertEqual(reIconed.items.apps.icon, 'X', 'menu applies the field an extension declares')
+assertEqual(reIconed.items.apps.label, shippedById.apps.label, 'menu keeps a label the extension never mentioned')
+assertEqual(reIconed.items.apps.provider, shippedById.apps.provider, 'menu keeps a provider the extension never mentioned')
+assertDeepEqual(reIconed.items.apps.aliases, shippedById.apps.aliases, 'menu keeps aliases the extension never mentioned')
+assertEqual(reIconed.items.about.action, shippedById.about.action, 'menu keeps an action the extension never mentioned')
+assertEqual(reIconed.items.about.order, untouched.items.about.order, 'menu keeps an overridden row in its original position')
+
+// kind is derived, so it has to follow the merged row rather than either half.
+const kindOf = (base, ext) =>
+  menu.mergeMenuSources(menu.parseMenuJsonc(base), menu.parseMenuJsonc(ext)).items.tools.kind
+assertEqual(kindOf('{"tools":{"label":"Tools"}}', '{"tools":{"action":"run"}}'), 'action', 'menu promotes a submenu an extension gives an action')
+assertEqual(kindOf('{"tools":{"action":"run"}}', '{"tools":{"icon":"T"}}'), 'action', 'menu leaves a re-iconed action row an action')
+assertEqual(kindOf('{"tools":{"label":"Tools"}}', '{"tools":{"target":"style"}}'), 'link', 'menu turns a submenu an extension retargets into a link')
+assertEqual(kindOf('{"tools":{"label":"Tools"}}', '{"tools":{"icon":"T"}}'), 'menu', 'menu leaves a re-iconed submenu a submenu')
+
+// A brand new id has nothing to inherit, so it still gets every default.
+const added = menu.mergeMenuSources(shipped, menu.parseMenuJsonc('{"personal":{"icon":"P"}}'))
+assertDeepEqual(
+  Object.keys(added.items.personal).sort(),
+  Object.keys(added.items.about).sort(),
+  'menu gives a brand new extension id the same fields as a shipped row'
+)
+assertEqual(added.items.personal.label, 'personal', 'menu falls back to the id for a new row with no label')
+assertEqual(added.items.personal.parent, 'root', 'menu roots a new top-level extension row')
+
+// An explicit parent still wins; the derived one is only a fallback.
+const reparented = menu.mergeMenuSources(shipped, menu.parseMenuJsonc('{"about":{"parent":"style"}}'))
+assertEqual(reparented.items.about.parent, 'style', 'menu honors a parent an extension declares')
+
+// Every consumer reads the merged row, so it must carry the shipped shape and
+// none of the bookkeeping that produced it.
+assertDeepEqual(
+  Object.keys(reIconed.items).filter(id => 'declared' in reIconed.items[id]),
+  [],
+  'menu keeps the declared marker out of merged rows'
+)
 
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
