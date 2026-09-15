@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Omarchy: drop clean page caches before hibernate so the snapshot allocation
+# doesn't have to reclaim them inside the single-threaded memory-freeing storm.
+# The kernel discards clean caches anyway when it needs memory for the image;
+# doing it first turns a ~70s CPU-bound stall into an instant shrink.
+
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+
+if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
+  # Parallelize compression to nproc threads (default: 3). The knob resets each
+  # boot; setting it here reapplies it when hibernation is actually used.
+  if [[ -w /sys/power/hibernate_compression_threads ]]; then
+    nproc=$(nproc 2>/dev/null || echo 0)
+    if [[ $nproc -gt 0 ]]; then
+      echo "$nproc" > /sys/power/hibernate_compression_threads 2>/dev/null || true
+    fi
+  fi
+
+  sync
+  echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+fi
