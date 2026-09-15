@@ -52,10 +52,15 @@ light surfaces — and the bar glyph stands in when there is none.
 
 | Collector | Limits | Local stats |
 |---|---|---|
+| `antigravity` | Antigravity local Hub RPC (`RetrieveUserQuotaSummary` for Gemini and Claude/GPT session/weekly quotas) | `~/.gemini/antigravity-cli` conversations SQLite metadata and history |
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
+Antigravity limits query the running local Antigravity Hub language server
+via its local port (`RetrieveUserQuotaSummary`), falling back to the last
+cached quota snapshot when the hub is offline. Transcripts and token usage
+are parsed from local conversation SQLite databases and history logs.
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
 `CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads

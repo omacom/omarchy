@@ -1,0 +1,466 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Antigravity usage into one display-ready JSON record.
+
+Everything the agents panel shows for Antigravity comes from this one
+command: local conversation SQLite metadata from ~/.gemini/antigravity-cli,
+and authoritative rate limits from Antigravity's local Hub RPC endpoint.
+The panel itself only ever reads the JSON this prints; it never talks
+directly to disk formats or endpoints.
+"""
+
+import datetime as dt
+import glob
+import json
+import os
+import re
+import sqlite3
+import subprocess
+import sys
+import urllib.request
+from pathlib import Path
+
+
+def parse_varint(buf, pos):
+    res, shift = 0, 0
+    while pos < len(buf):
+        b = buf[pos]
+        pos += 1
+        res |= (b & 0x7F) << shift
+        if (b & 0x80) == 0:
+            break
+        shift += 7
+    return res, pos
+
+
+def parse_proto(buf):
+    fields = {}
+    pos = 0
+    while pos < len(buf):
+        tag_wire, pos = parse_varint(buf, pos)
+        tag, wire = tag_wire >> 3, tag_wire & 7
+        if wire == 0:
+            val, pos = parse_varint(buf, pos)
+        elif wire == 2:
+            l, pos = parse_varint(buf, pos)
+            val = buf[pos : pos + l]
+            pos += l
+        elif wire == 1:
+            val = buf[pos : pos + 8]
+            pos += 8
+        elif wire == 5:
+            val = buf[pos : pos + 4]
+            pos += 4
+        else:
+            break
+        fields.setdefault(tag, []).append(val)
+    return fields
+
+
+def find_hub_port():
+    try:
+        out = subprocess.check_output(
+            ["pgrep", "-fa", "agy.*--hub-port="], text=True
+        )
+        m = re.search(r"--hub-port=(\d+)", out)
+        if m:
+            return int(m.group(1))
+    except Exception:
+        pass
+
+    for cmd_file in Path("/proc").glob("*/cmdline"):
+        try:
+            cmd = (
+                cmd_file.read_bytes()
+                .replace(b"\x00", b" ")
+                .decode("utf-8", errors="ignore")
+            )
+            if "agy" in cmd and "--hub-port=" in cmd:
+                m = re.search(r"--hub-port=(\d+)", cmd)
+                if m:
+                    return int(m.group(1))
+        except Exception:
+            continue
+    return None
+
+
+def fetch_limits():
+    cache_dir = Path.home() / ".cache" / "omarchy" / "agent-usage"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "antigravity-quota-cache.json"
+
+    port = find_hub_port()
+    if port:
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/")
+            html = (
+                urllib.request.urlopen(req, timeout=1.5)
+                .read()
+                .decode("utf-8", errors="ignore")
+            )
+            m_csrf = re.search(r'\"csrfToken\":\"([^\"]+)\"', html)
+            csrf = m_csrf.group(1) if m_csrf else ""
+
+            post_req = urllib.request.Request(
+                f"http://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary",
+                data=b"{}",
+                headers={
+                    "Content-Type": "application/json",
+                    "x-codeium-csrf-token": csrf,
+                },
+            )
+            res = urllib.request.urlopen(post_req, timeout=2.0).read().decode("utf-8")
+            data = json.loads(res)
+
+            limits = []
+            now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
+
+            # Structured slots for exactly 4 limits; filled from API
+            # data and emitted even when usage is 0%.
+            gemini_session = {
+                "group": "Gemini Models",
+                "title": "Session",
+                "label": "Session (5-hour)",
+                "percent": 0.0,
+                "remainingFraction": 0.0,
+                "isRemaining": True,
+                "resetsAt": "",
+            }
+            gemini_weekly = {
+                "group": "Gemini Models",
+                "title": "Weekly",
+                "label": "Weekly (7-day)",
+                "percent": 0.0,
+                "remainingFraction": 0.0,
+                "isRemaining": True,
+                "resetsAt": "",
+            }
+            claude_session = {
+                "group": "Claude & GPT Models",
+                "title": "Session",
+                "label": "Session (5-hour)",
+                "percent": 0.0,
+                "remainingFraction": 0.0,
+                "isRemaining": True,
+                "resetsAt": "",
+            }
+            claude_weekly = {
+                "group": "Claude & GPT Models",
+                "title": "Weekly",
+                "label": "Weekly (7-day)",
+                "percent": 0.0,
+                "remainingFraction": 0.0,
+                "isRemaining": True,
+                "resetsAt": "",
+            }
+
+            groups = data.get("response", {}).get("groups", [])
+            for g in groups:
+                display_name = g.get("displayName", "")
+                buckets = g.get("buckets", [])
+                is_gemini = "Gemini" in display_name or any(
+                    "gemini" in b.get("bucketId", "") for b in buckets
+                )
+                is_3p = (
+                    "Claude" in display_name
+                    or "3p" in display_name
+                    or any("3p" in b.get("bucketId", "") for b in buckets)
+                )
+                if not is_gemini and not is_3p:
+                    continue
+
+                for b in buckets:
+                    b_id = b.get("bucketId", "")
+                    win = b.get("window", "")
+                    rem = float(b.get("remainingFraction", 0.0))
+                    rem_pct = round(max(0.0, min(1.0, rem)), 4)
+                    reset_at = b.get("resetTime", "")
+
+                    is_session = win == "5h" or "5h" in b_id
+                    is_weekly = win == "weekly" or "weekly" in b_id
+
+                    if is_gemini and is_session:
+                        gemini_session["percent"] = rem_pct
+                        gemini_session["remainingFraction"] = rem_pct
+                        gemini_session["resetsAt"] = reset_at
+                    elif is_gemini and is_weekly:
+                        gemini_weekly["percent"] = rem_pct
+                        gemini_weekly["remainingFraction"] = rem_pct
+                        gemini_weekly["resetsAt"] = reset_at
+                    elif is_3p and is_session:
+                        claude_session["percent"] = rem_pct
+                        claude_session["remainingFraction"] = rem_pct
+                        claude_session["resetsAt"] = reset_at
+                    elif is_3p and is_weekly:
+                        claude_weekly["percent"] = rem_pct
+                        claude_weekly["remainingFraction"] = rem_pct
+                        claude_weekly["resetsAt"] = reset_at
+
+            # Grouped: Gemini Models (Session, Weekly), Claude & GPT Models (Session, Weekly)
+            limits = [gemini_session, gemini_weekly, claude_session, claude_weekly]
+            cache_file.write_text(
+                json.dumps({"limits": limits, "cachedAt": now_iso})
+            )
+            return limits, False
+        except Exception:
+            pass
+
+    if cache_file.exists():
+        try:
+            cached = json.loads(cache_file.read_text())
+            limits = cached.get("limits", [])
+            now_utc = dt.datetime.now(dt.timezone.utc)
+            for l in limits:
+                rat = l.get("resetsAt", "")
+                if rat:
+                    try:
+                        r_dt = dt.datetime.fromisoformat(
+                            rat.replace("Z", "+00:00")
+                        )
+                        if now_utc >= r_dt:
+                            l["percent"] = 0.0
+                    except Exception:
+                        pass
+            return limits, True
+        except Exception:
+            pass
+
+    return [], True
+
+
+def main():
+    flags = set(sys.argv[1:])
+    force = "--force" in flags
+    limits_only = "--limits-only" in flags
+
+    home = Path.home()
+    state_dir = (
+        Path(os.environ.get("XDG_STATE_HOME", home / ".local" / "state"))
+        / "omarchy"
+        / "agents"
+        / "usage"
+    )
+    existing_file = state_dir / "antigravity.json"
+
+    limits, retry_advised = fetch_limits()
+
+    if limits_only and not force and existing_file.exists():
+        try:
+            record = json.loads(existing_file.read_text())
+            record["limits"] = limits
+            record["updatedAt"] = dt.datetime.now(dt.timezone.utc).isoformat()
+            if retry_advised:
+                record["retryAdvised"] = True
+            elif "retryAdvised" in record:
+                del record["retryAdvised"]
+            json.dump(record, sys.stdout, indent=2)
+            print()
+            return
+        except Exception:
+            pass
+
+    gemini_dirs = [
+        home / ".gemini" / "antigravity-cli",
+        home / ".gemini" / "antigravity",
+    ]
+
+    today_date = dt.datetime.now().date()
+    today_str = today_date.strftime("%Y-%m-%d")
+    date_format = "%Y-%m-%d"
+    recent_dates = [
+        (today_date - dt.timedelta(days=i)).strftime(date_format)
+        for i in range(6, -1, -1)
+    ]
+    day_tokens = {d: 0 for d in recent_dates}
+    active_dates = set()
+
+    total_prompts = 0
+    today_prompts = 0
+    total_sessions = 0
+    today_sessions = 0
+    model_usage = {}
+    today_tokens_by_model = {}
+    today_total_tokens = 0
+
+    seen_session_dirs = set()
+    seen_db_files = set()
+
+    for gdir in gemini_dirs:
+        if not gdir.exists():
+            continue
+
+        history_file = gdir / "history.jsonl"
+        brain_dir = gdir / "brain"
+        conv_dir = gdir / "conversations"
+
+        if history_file.exists():
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = json.loads(line)
+                            ts = entry.get("timestamp")
+                            if ts:
+                                item_date = dt.datetime.fromtimestamp(
+                                    ts / 1000.0
+                                ).date()
+                                date_str = item_date.strftime(date_format)
+                                total_prompts += 1
+                                active_dates.add(date_str)
+                                if item_date == today_date:
+                                    today_prompts += 1
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        if brain_dir.exists() and brain_dir.is_dir():
+            for item in brain_dir.iterdir():
+                if item.is_dir() and item.name not in (
+                    "scratch",
+                    ".user_uploaded",
+                ):
+                    if item.name not in seen_session_dirs:
+                        seen_session_dirs.add(item.name)
+                        total_sessions += 1
+                        try:
+                            mtime = dt.datetime.fromtimestamp(
+                                item.stat().st_mtime
+                            ).date()
+                            if mtime == today_date:
+                                today_sessions += 1
+                        except Exception:
+                            pass
+
+        if conv_dir.exists() and conv_dir.is_dir():
+            for db_file in conv_dir.glob("*.db"):
+                if db_file.name in seen_db_files:
+                    continue
+                seen_db_files.add(db_file.name)
+
+                cid = db_file.stem
+                transcript_file = (
+                    brain_dir
+                    / cid
+                    / ".system_generated"
+                    / "logs"
+                    / "transcript.jsonl"
+                )
+                step_dates = {}
+                fallback_date = dt.datetime.fromtimestamp(
+                    db_file.stat().st_mtime
+                ).strftime(date_format)
+
+                if transcript_file.exists():
+                    try:
+                        with open(
+                            transcript_file, "r", encoding="utf-8"
+                        ) as tf:
+                            for line in tf:
+                                if not line.strip():
+                                    continue
+                                row = json.loads(line)
+                                idx = row.get("step_index")
+                                cat = row.get("created_at")
+                                if idx is not None and cat:
+                                    step_dates[idx] = cat[:10]
+                    except Exception:
+                        pass
+
+                try:
+                    conn = sqlite3.connect(f"file:{db_file}?mode=ro", uri=True)
+                    c = conn.cursor()
+                    c.execute("SELECT idx, data FROM gen_metadata")
+                    for idx, data in c.fetchall():
+                        step_date = step_dates.get(idx, fallback_date)
+                        active_dates.add(step_date)
+
+                        f1 = parse_proto(data)
+                        inner_raw = f1.get(1, [b""])[0]
+                        f2 = parse_proto(inner_raw)
+                        model = (
+                            f2.get(19, [b""])[0].decode(
+                                "utf-8", errors="ignore"
+                            )
+                            or "gemini-3.8-flash"
+                        ).strip()
+
+                        usage_raw = f2.get(4, [b""])[0]
+                        f_usage = parse_proto(usage_raw)
+                        prompt = f_usage.get(1, [0])[0]
+                        cand = f_usage.get(2, [0])[0]
+                        thought = f_usage.get(5, [0])[0]
+                        cached = f_usage.get(6, [0])[0]
+
+                        inp = prompt
+                        out = cand + thought
+                        read_cached = cached
+                        step_total = inp + out + read_cached
+
+                        if model not in model_usage:
+                            model_usage[model] = {
+                                "inputTokens": 0,
+                                "outputTokens": 0,
+                                "cacheReadInputTokens": 0,
+                                "cacheCreationInputTokens": 0,
+                            }
+                        model_usage[model]["inputTokens"] += inp
+                        model_usage[model]["outputTokens"] += out
+                        model_usage[model]["cacheReadInputTokens"] += read_cached
+
+                        if step_date in day_tokens:
+                            day_tokens[step_date] += step_total
+
+                        if step_date == today_str:
+                            today_total_tokens += step_total
+                            today_tokens_by_model[model] = (
+                                today_tokens_by_model.get(model, 0) + step_total
+                            )
+                    conn.close()
+                except Exception:
+                    pass
+
+    recent_days = [
+        {"date": d, "messageCount": day_tokens[d]} for d in recent_dates
+    ]
+
+    record = {
+        "schemaVersion": 1,
+        "id": "antigravity",
+        "name": "Antigravity",
+        "ready": True,
+        "hasLocalStats": True,
+        "hasPromptStats": True,
+        "scope": "device",
+        "tierLabel": "Pro",
+        "usageStatusText": "",
+        "authHelpText": "",
+        "limits": limits,
+        "todayPrompts": today_prompts,
+        "todaySessions": today_sessions,
+        "todayTotalTokens": today_total_tokens,
+        "todayTokensByModel": today_tokens_by_model,
+        "recentDays": recent_days,
+        "totalPrompts": total_prompts,
+        "totalSessions": total_sessions,
+        "activeDays": len(active_dates),
+        "activeDates": sorted(list(active_dates)),
+        "modelUsage": model_usage,
+        "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+
+    if retry_advised:
+        record["retryAdvised"] = True
+
+    json.dump(record, sys.stdout, indent=2)
+    print()
+
+
+if __name__ == "__main__":
+    main()
+
