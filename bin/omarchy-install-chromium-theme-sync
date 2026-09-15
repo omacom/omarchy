@@ -1,0 +1,116 @@
+#!/bin/bash
+
+# omarchy:summary=Register the bundled Theme Sync extension and its native messaging host
+# omarchy:args=[flags-file ...]
+
+set -euo pipefail
+
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+HOST_NAME="com.omarchy.theme"
+EXTENSION_DIR="$OMARCHY_PATH/default/chromium/extensions/theme-sync"
+EXTENSION_KEY=$(jq -er '.key | select(type == "string" and length > 0)' "$EXTENSION_DIR/manifest.json")
+manifest=$(jq -e --arg path "$OMARCHY_PATH/bin/omarchy-browser-theme-host" '.path = $path' \
+  "$OMARCHY_PATH/default/chromium/native-messaging-hosts/$HOST_NAME.json")
+
+# Keep extension list separators and physical newlines out of the target path.
+if [[ $EXTENSION_DIR == *[,$'\n\r']* ]]; then
+  echo "Theme Sync extension path cannot contain commas or newlines: $EXTENSION_DIR" >&2
+  exit 1
+fi
+
+staged=""
+trap 'status=$?; if [[ -n $staged ]]; then rm -f -- "$staged"; fi; exit "$status"' EXIT
+
+# Profile root : launcher flags basename. Only Chromium is seeded unconditionally;
+# other browsers qualify through an existing profile or a selected flags file.
+browsers=(
+  chromium:chromium
+  google-chrome:chrome
+  google-chrome-beta:chrome-beta
+  google-chrome-unstable:chrome-dev
+  google-chrome-unstable:chrome-unstable
+  BraveSoftware/Brave-Browser:brave
+  BraveSoftware/Brave-Browser-Beta:brave-beta
+  BraveSoftware/Brave-Browser-Nightly:brave-nightly
+  BraveSoftware/Brave-Origin:brave-origin
+  BraveSoftware/Brave-Origin-Beta:brave-origin-beta
+  BraveSoftware/Brave-Origin-Nightly:brave-origin-nightly
+  microsoft-edge:microsoft-edge-stable
+  microsoft-edge-beta:microsoft-edge-beta
+  microsoft-edge-dev:microsoft-edge-dev
+  helium:helium
+  vivaldi:vivaldi
+  vivaldi-snapshot:vivaldi-snapshot
+  opera:opera
+  opera-beta:opera-beta
+  opera-developer:opera-developer
+)
+
+flags_files=()
+for flags_file in "$@"; do
+  flags_files+=("$(realpath -m -- "$flags_file")")
+done
+for browser in "${browsers[@]}"; do
+  browser_dir="$CONFIG_HOME/${browser%%:*}"
+  flags_file="$CONFIG_HOME/${browser#*:}-flags.conf"
+
+  if (( $# == 0 )) && [[ $browser == "chromium:chromium" || -e $flags_file || -L $flags_file ]]; then
+    flags_files+=("$flags_file")
+  fi
+
+  selected=false
+  if (( $# > 0 )); then
+    resolved_flags_file=$(realpath -m -- "$flags_file")
+    for requested_file in "${flags_files[@]}"; do
+      if [[ $requested_file == "$resolved_flags_file" ]]; then
+        selected=true
+        break
+      fi
+    done
+  fi
+
+  if [[ $browser == "chromium:chromium" || -d $browser_dir || -e $flags_file || -L $flags_file || $selected == "true" ]]; then
+    host_dir="$browser_dir/NativeMessagingHosts"
+    host_file="$host_dir/$HOST_NAME.json"
+    mkdir -p -- "$host_dir"
+    staged=$(mktemp "$host_dir/.$HOST_NAME.XXXXXX")
+    printf '%s\n' "$manifest" >"$staged"
+    chmod 644 "$staged"
+    if [[ ! -L $host_file ]] && cmp -s -- "$staged" "$host_file"; then
+      rm -f -- "$staged"
+    else
+      # Replace only this generated manifest, never follow a manifest symlink.
+      mv -fT -- "$staged" "$host_file"
+    fi
+    staged=""
+  fi
+done
+
+for flags_file in "${flags_files[@]}"; do
+  # Follow dotfile symlinks, but replace their target atomically and keep its mode.
+  flags_file=$(realpath -m -- "$flags_file")
+  source_file="$OMARCHY_PATH/config/chromium-flags.conf"
+  if [[ -e $flags_file ]]; then
+    if [[ ! -f $flags_file ]]; then
+      echo "Not a regular browser flags file: $flags_file" >&2
+      exit 1
+    fi
+    source_file="$flags_file"
+  fi
+
+  mkdir -p -- "$(dirname -- "$flags_file")"
+  staged=$(mktemp "$(dirname -- "$flags_file")/.theme-sync-flags.XXXXXX")
+  /usr/bin/python "$OMARCHY_PATH/default/chromium/theme-sync-flags.py" \
+    "$source_file" "$EXTENSION_DIR" "$EXTENSION_KEY" >"$staged"
+  if [[ -f $flags_file ]]; then
+    chmod --reference="$flags_file" "$staged"
+  else
+    chmod 644 "$staged"
+  fi
+  if cmp -s -- "$staged" "$flags_file"; then
+    rm -f -- "$staged"
+  else
+    mv -fT -- "$staged" "$flags_file"
+  fi
+  staged=""
+done
