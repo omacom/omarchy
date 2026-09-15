@@ -74,6 +74,17 @@ EOF
     sudo systemctl enable --now coolercontrold.service || echo "WARNING: Failed to enable coolercontrold" >&2
   fi
 
+  # CoolerControl cannot PWM these EC fans (RPM-only). Cooler Boost is the
+  # binary "fast fans" flag and is not turned on by silent/auto curves. On the
+  # Titan GT77HX, enable a watcher that flips it at 80C (off again at 70C).
+  if omarchy-hw-msi-titan; then
+    sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/omarchy-msi-cooler-boost-watch.service" \
+      /etc/systemd/system/omarchy-msi-cooler-boost-watch.service
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now omarchy-msi-cooler-boost-watch.service || \
+      echo "WARNING: Failed to enable omarchy-msi-cooler-boost-watch" >&2
+  fi
+
   # NVIDIA-settings for GPU monitoring and tuning on MSI dGPU laptops
   if omarchy-hw-nvidia; then
     if ! omarchy-pkg-present nvidia-settings 2>/dev/null; then

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer is an MSI Titan GT77HX
+# omarchy:hidden=true
+
+dmi_path="${OMARCHY_DMI_ID_PATH:-/sys/class/dmi/id}"
+
+sys_vendor=$(cat "$dmi_path/sys_vendor" 2>/dev/null)
+[[ $sys_vendor == "Micro-Star International Co., Ltd." ]] || exit 1
+
+combined="$(cat "$dmi_path/product_family" 2>/dev/null) $(cat "$dmi_path/product_name" 2>/dev/null)"
+grep -qi "Titan GT77HX" <<<"$combined"

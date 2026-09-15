@@ -156,3 +156,9 @@ grep -q "set -euo pipefail" "$ROOT/install/hardware/msi.sh" || fail "set -euo pi
 
 pass "msi.sh does NOT use local keyword"
 ! grep -qw "local" "$ROOT/install/hardware/msi.sh" || fail "local keyword found"
+
+pass "msi.sh installs Cooler Boost watcher on Titan"
+grep -q "omarchy-hw-msi-titan" "$ROOT/install/hardware/msi.sh" || fail "titan gate missing"
+
+pass "msi.sh references cooler-boost unit"
+grep -q "omarchy-msi-cooler-boost-watch.service" "$ROOT/install/hardware/msi.sh" || fail "cooler-boost unit missing"
