@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=True when OpenClaw is already available (package, PATH, or gateway)
+# omarchy:hidden=true
+
+# The Install > AI entry used to key only on the pacman package. A newer
+# OpenClaw installed outside the package (npm, a manual build) still puts
+# `openclaw` on PATH and may already be running a gateway. Re-offering the
+# package in that state can put an older /usr/bin/openclaw ahead of the
+# working one and break a migrated state database.
+
+if omarchy-pkg-present openclaw 2>/dev/null; then
+  exit 0
+fi
+
+if command -v openclaw >/dev/null 2>&1; then
+  exit 0
+fi
+
+if systemctl --user is-enabled --quiet openclaw-gateway.service 2>/dev/null; then
+  exit 0
+fi
+
+if [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/openclaw-gateway.service ]]; then
+  exit 0
+fi
+
+exit 1

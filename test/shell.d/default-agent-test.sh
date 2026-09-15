@@ -743,6 +743,13 @@ cat >"$mock_bin/omarchy-pkg-present" <<'SH'
 #!/bin/bash
 [[ $1 == openclaw && ${OMARCHY_TEST_OPENCLAW_INSTALLED:-false} == "true" ]]
 SH
+# install-openclaw-cli now asks omarchy-openclaw-present (package, PATH, or
+# gateway). Drive that with the same fixture flag so a leftover openclaw stub
+# cannot masquerade as an install.
+cat >"$mock_bin/omarchy-openclaw-present" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_OPENCLAW_INSTALLED:-false} == "true" ]]
+SH
 cat >"$mock_bin/omarchy-pkg-add" <<'SH'
 #!/bin/bash
 printf '%s\n' "pkg-add $*" >>"$OMARCHY_TEST_STUB_LOG"
@@ -751,12 +758,8 @@ cat >"$mock_bin/omarchy-launch-openclaw" <<'SH'
 #!/bin/bash
 printf '%s\0' omarchy-launch-openclaw "$@" >"$OMARCHY_TEST_AGENT_INLINE_LOG"
 SH
-cat >"$mock_bin/openclaw" <<'SH'
-#!/bin/bash
-exit 0
-SH
-chmod +x "$mock_bin/omarchy-pkg-present" "$mock_bin/omarchy-pkg-add" \
-  "$mock_bin/omarchy-launch-openclaw" "$mock_bin/openclaw"
+chmod +x "$mock_bin/omarchy-pkg-present" "$mock_bin/omarchy-openclaw-present" \
+  "$mock_bin/omarchy-pkg-add" "$mock_bin/omarchy-launch-openclaw"
 
 : >"$launch_log"
 : >"$terminal_log"
