@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# omarchy:summary=Copy a text screensaver source into a private playback directory
+# omarchy:hidden=true
+# omarchy:args=<file-or-directory> <playback-directory>
+
+python3 - "$@" <<'PY'
+import os
+import re
+import stat
+import sys
+import unicodedata
+
+MAX_ENTRIES = 4096
+MAX_ARTWORKS = 128
+MAX_BYTES = 1048576
+# Colour is allowed, nothing else: SGR sequences (ESC [ params m) whose
+# parameters are the attribute and colour forms ttfx accepts. Anything ttfx
+# would refuse or overflow on (values above 255, wrong 38/48 arity) rejects
+# the file here instead of failing in the renderer.
+SGR = re.compile(r"\x1b\[[0-9;]{0,64}m")
+
+
+def valid_sgr(params):
+  if params == "":
+    return True
+  values = params.split(";")
+  if len(values) > 16 or not all(value.isdigit() and len(value) <= 3 for value in values):
+    return False
+  index = 0
+  while index < len(values):
+    value = int(values[index])
+    if value > 255:
+      return False
+    if value in (38, 48):
+      form = values[index + 1:index + 2]
+      if form == ["5"] and index + 2 < len(values) and int(values[index + 2]) <= 255:
+        index += 3
+        continue
+      if form == ["2"] and index + 4 < len(values) and all(int(v) <= 255 for v in values[index + 2:index + 5]):
+        index += 5
+        continue
+      return False
+    index += 1
+  return True
+
+
+def read_artwork(path, directory=None):
+  # Open first, then check the same descriptor we read. A swapped symlink is
+  # refused, and a FIFO cannot block between enumeration and validation.
+  if path is None:
+    fd = os.dup(directory)
+  else:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+  with os.fdopen(fd, "rb") as source:
+    before = os.fstat(source.fileno())
+    if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= MAX_BYTES:
+      return None
+    data = source.read(MAX_BYTES + 1)
+    after = os.fstat(source.fileno())
+  if len(data) > MAX_BYTES or (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+    return None
+  text = data.decode("utf-8").replace("\r\n", "\n")
+  # Artwork is data, not terminal commands (including OSC clipboard sequences).
+  # Colour sequences are checked and removed first; the size limits apply to
+  # what is actually visible, and any other control or format character rejects
+  # the file. The cheap line checks run before the per-character scan so a
+  # large file cannot stall preparation.
+  if not all(valid_sgr(match.group(0)[2:-1]) for match in SGR.finditer(text)):
+    return None
+  visible = SGR.sub("", text)
+  lines = visible.splitlines()
+  if not visible.strip() or len(lines) > 128 or any(len(line.expandtabs(4)) > 512 for line in lines):
+    return None
+  if any(unicodedata.category(char).startswith("C") and char not in "\n\t" for char in visible):
+    return None
+  return text.encode("utf-8")
+
+
+def prepare(source, destination):
+  if source.startswith("~/"):
+    source = os.path.join(os.environ["HOME"], source[2:])
+  if not os.path.isabs(source):
+    raise ValueError("source must be an absolute path or start with ~/")
+
+  # Resolve the explicitly selected root once. Children are opened relative to
+  # its descriptor, never by re-traversing a directory that can be replaced.
+  source = os.path.realpath(source)
+  root = os.open(source, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+  try:
+    if stat.S_ISDIR(os.fstat(root).st_mode):
+      names = []
+      with os.scandir(root) as entries:
+        for index, entry in enumerate(entries):
+          if index >= MAX_ENTRIES:
+            raise ValueError("collection exceeds 4096 directory entries")
+          if entry.name.lower().endswith(".txt") and not entry.name.startswith("."):
+            names.append(entry.name)
+      candidates = [(name, root) for name in sorted(names, key=os.fsencode)]
+    else:
+      candidates = [(None, root)]
+
+    count = 0
+    for path, directory in candidates:
+      try:
+        data = read_artwork(path, directory)
+      except (OSError, UnicodeError):
+        continue
+      if data is None:
+        continue
+      # The caller owns this freshly created private directory. Fixed names
+      # keep source filenames out of both shell parsing and the renderer.
+      output = os.path.join(destination, f"{count:03d}.txt")
+      fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+      with os.fdopen(fd, "wb") as target:
+        target.write(data)
+      count += 1
+      if count == MAX_ARTWORKS:
+        break
+    if not count:
+      raise ValueError("source contains no usable text artwork")
+  finally:
+    os.close(root)
+
+
+try:
+  if len(sys.argv) != 3:
+    raise ValueError("expected a source and private playback directory")
+  prepare(sys.argv[1], sys.argv[2])
+except (OSError, ValueError) as error:
+  print(f"omarchy-screensaver-prepare: {error}", file=sys.stderr)
+  sys.exit(1)
+PY

@@ -1,0 +1,148 @@
+#!/bin/bash
+
+# omarchy:summary=Convert a local raster image folder into a screensaver text collection
+# omarchy:hidden=true
+# omarchy:args=<image-directory> [--mode <color|braille|block>]
+
+python3 - "$@" <<'PY'
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def interrupted(number, _frame):
+  raise SystemExit(128 + number)
+
+
+for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+  signal.signal(number, interrupted)
+
+
+def convert(command, environment, deadline):
+  child = subprocess.Popen(command, env=environment, stdout=subprocess.DEVNULL,
+                           start_new_session=True)
+  try:
+    if child.wait(timeout=max(0.01, min(15, deadline - time.monotonic()))) != 0:
+      raise ValueError("image conversion failed; selection unchanged")
+  finally:
+    # Reap only this converter's process group, including ImageMagick on timeout.
+    if child.poll() is None:
+      os.killpg(child.pid, signal.SIGKILL)
+      child.wait()
+
+
+def main():
+  arguments = sys.argv[1:]
+  mode = 'color'
+  if '--mode' in arguments:
+    position = arguments.index('--mode')
+    mode = arguments[position + 1] if position + 1 < len(arguments) else ''
+    arguments = arguments[:position] + arguments[position + 2:]
+  if len(arguments) != 1 or mode not in ('color', 'braille', 'block'):
+    raise ValueError("expected an image directory and optionally --mode color|braille|block")
+  source = Path(arguments[0]).expanduser().resolve(strict=True)
+  root = os.open(source, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+  base = Path.home() / '.local/share/omarchy/screensavers'
+  base.mkdir(parents=True, exist_ok=True)
+  output = Path(tempfile.mkdtemp(prefix='import-', dir=base))
+  try:
+    names = []
+    with os.scandir(root) as entries:
+      for index, entry in enumerate(entries):
+        if index >= 4096:
+          raise ValueError("folder exceeds 4096 entries")
+        if not entry.name.startswith('.') and Path(entry.name).suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp'):
+          names.append(entry.name)
+    # Numeric filenames such as 1, 2, ... 18 keep their expected order.
+    names.sort(key=lambda name: [((0, int(p)) if p.isdigit() else (1, os.fsencode(p)))
+                                for p in re.split(r'([0-9]+)', name)])
+    if not names or len(names) > 128:
+      raise ValueError("choose a folder with 1–128 PNG, JPEG or WebP images")
+    deadline = time.monotonic() + 120
+    total = 0
+    records = []
+    with tempfile.TemporaryDirectory(prefix='omarchy-image-import-') as temporary:
+      scratch = Path(temporary)
+      # Keep the native converter, but restrict this batch to raster coders and
+      # bounded resources. No delegates, SVG external references or URL coders.
+      (scratch / 'policy.xml').write_text('''<policymap>
+<policy domain="delegate" rights="none" pattern="*"/>
+<policy domain="filter" rights="none" pattern="*"/>
+<policy domain="coder" rights="none" pattern="*"/>
+<policy domain="coder" rights="read|write" pattern="{PNG,JPEG,WEBP,PBM,PGM,PPM,PNM,INFO}"/>
+<policy domain="path" rights="none" pattern="@*"/>
+<policy domain="resource" name="memory" value="128MiB"/>
+<policy domain="resource" name="map" value="256MiB"/>
+<policy domain="resource" name="disk" value="1GiB"/>
+<policy domain="resource" name="width" value="16384"/>
+<policy domain="resource" name="height" value="16384"/>
+<policy domain="resource" name="list-length" value="8"/>
+<policy domain="resource" name="thread" value="1"/>
+</policymap>''')
+      environment = dict(os.environ, MAGICK_CONFIGURE_PATH=str(scratch),
+                         MAGICK_TEMPORARY_PATH=str(scratch))
+      for name in names:
+        try:
+          fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW, dir_fd=root)
+        except OSError:
+          continue
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+          os.close(fd)
+          continue
+        with os.fdopen(fd, 'rb') as stream:
+          if not 0 < before.st_size <= 20 * 1024 * 1024:
+            raise ValueError("image exceeds 20 MiB; selection unchanged")
+          data = stream.read(20 * 1024 * 1024 + 1)
+          after = os.fstat(stream.fileno())
+        if len(data) != before.st_size or (before.st_mtime_ns, before.st_ctime_ns) != (after.st_mtime_ns, after.st_ctime_ns):
+          raise ValueError("image changed during read")
+        total += len(data)
+        if total > 256 * 1024 * 1024 or time.monotonic() > deadline:
+          raise ValueError("import exceeds batch resource limit")
+        if data.startswith(b'\x89PNG\r\n\x1a\n'):
+          suffix = '.png'
+        elif data.startswith(b'\xff\xd8\xff'):
+          suffix = '.jpg'
+        elif data.startswith(b'RIFF') and data[8:12] == b'WEBP':
+          suffix = '.webp'
+        else:
+          raise ValueError("unsupported raster signature; selection unchanged")
+        snapshot = scratch / ('input' + suffix)
+        snapshot.write_bytes(data)
+        target = output / f'{len(records):03d}.txt'
+        convert(['omarchy-transcode-ascii', str(snapshot), str(target), '--mode', mode], environment, deadline)
+        snapshot.unlink()
+        records.append({'source': name, 'artwork': target.name})
+        print(f'Converted {len(records)}/{len(names)}', file=sys.stderr)
+      if not records:
+        raise ValueError("folder contains no regular raster images")
+      # Apply exactly the same text validation used at playback startup.
+      with tempfile.TemporaryDirectory(dir=scratch) as validation:
+        subprocess.run(['omarchy-screensaver-prepare', str(output), validation],
+                       check=True, timeout=5, stdout=subprocess.DEVNULL)
+        if len(list(Path(validation).glob('*.txt'))) != len(records):
+          raise ValueError("converted artwork failed text validation")
+    (output / 'manifest.json').write_text(json.dumps({'source': str(source), 'mode': mode, 'images': records}, indent=2))
+    print(output)
+  except BaseException:
+    shutil.rmtree(output)
+    raise
+  finally:
+    os.close(root)
+
+
+try:
+  main()
+except (OSError, ValueError, subprocess.SubprocessError) as error:
+  print(f'omarchy-screensaver-import: {error}', file=sys.stderr)
+  sys.exit(1)
+PY

@@ -3,26 +3,61 @@
 # omarchy:summary=Edit, set, or reset screensaver branding
 # omarchy:group=branding
 # omarchy:name=screensaver
-# omarchy:args=<image|text|reset>
-# omarchy:examples=omarchy branding screensaver image | omarchy branding screensaver text | omarchy branding screensaver reset
+# omarchy:args=<image|images|folder|text|reset> [path]
+# omarchy:examples=omarchy branding screensaver images ~/Pictures/giants | omarchy branding screensaver folder ~/Pictures/ascii | omarchy branding screensaver image | omarchy branding screensaver text | omarchy branding screensaver reset
 
 set -euo pipefail
 
+source omarchy-shell-config
+
+select_source() {
+  commit 'if type != "object" then error("shell config must be an object") else . end
+    | if $source == "" then del(.screensaver.source)
+      else .screensaver.source = $source end' --arg source "$1"
+}
+
 case "${1:-}" in
+images)
+  directory=${2:-}
+  [[ -n $directory ]] || directory=$(omarchy-file-select --title "Pick screensaver image folder" --directory)
+  omarchy-notification-send "Preparing screensaver" "Converting the image folder to text artwork" || true
+  if ! collection=$(timeout 130s omarchy-screensaver-import "$directory"); then
+    omarchy-notification-send "Screensaver import failed" "The previous selection is unchanged" || true
+    exit 1
+  fi
+  select_source "$collection"
+  omarchy-launch-screensaver force >/dev/null 2>&1
+  ;;
+folder)
+  directory=${2:-}
+  [[ -n $directory ]] || directory=$(omarchy-file-select --title "Pick screensaver text folder" --directory)
+  directory=$(realpath -e -- "$directory")
+  [[ -d $directory ]] || fail "select a text directory"
+  validation=$(mktemp -d)
+  trap 'rm -rf -- "$validation"; cleanup_shell_config_tmp' EXIT
+  timeout 5s omarchy-screensaver-prepare "$directory" "$validation"
+  select_source "$directory"
+  omarchy-launch-screensaver force >/dev/null 2>&1
+  ;;
 image)
-  image=$(omarchy-file-select --title "Pick PNG or SVG for screensaver" --extensions "png svg")
+  image=$(omarchy-file-select --title "Pick screensaver image" --extensions "png jpg jpeg webp svg")
   if omarchy-transcode-ascii "$image" ~/.config/omarchy/branding/screensaver.txt; then
+    select_source ""
     omarchy-launch-screensaver force >/dev/null 2>&1
   fi
   ;;
 text)
-  omarchy-launch-editor ~/.config/omarchy/branding/screensaver.txt >/dev/null 2>&1 && omarchy-launch-screensaver force >/dev/null 2>&1
+  omarchy-launch-editor ~/.config/omarchy/branding/screensaver.txt >/dev/null 2>&1
+  select_source ""
+  omarchy-launch-screensaver force >/dev/null 2>&1
   ;;
 reset)
-  cp "$OMARCHY_PATH/logo.txt" ~/.config/omarchy/branding/screensaver.txt && omarchy-launch-screensaver force >/dev/null 2>&1
+  cp "$OMARCHY_PATH/logo.txt" ~/.config/omarchy/branding/screensaver.txt
+  select_source ""
+  omarchy-launch-screensaver force >/dev/null 2>&1
   ;;
 *)
-  echo "Usage: omarchy-branding-screensaver <image|text|reset>" >&2
+  echo "Usage: omarchy-branding-screensaver <image|images|folder|text|reset> [path]" >&2
   exit 1
   ;;
 esac
