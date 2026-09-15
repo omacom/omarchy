@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=List or toggle user startup applications.
+# omarchy:args=[list|toggle] [desktop-file]
+
+set -euo pipefail
+
+autostart_dir="$HOME/.config/autostart"
+
+desktop_name() {
+  local file="$1"
+  awk -F= '
+    /^\[Desktop Entry\]$/ { in_entry=1; next }
+    /^\[/ { in_entry=0 }
+    in_entry && $1 == "Name" { print substr($0, index($0, "=") + 1); exit }
+  ' "$file"
+}
+
+startup_state() {
+  if grep -qiE '^Hidden[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$1"; then
+    printf 'OFF'
+  else
+    printf 'ON'
+  fi
+}
+
+list_apps() {
+  local file name state
+  [[ -d $autostart_dir ]] || return 0
+  while IFS= read -r -d '' file; do
+    name=$(desktop_name "$file")
+    [[ -n $name ]] || name="${file##*/}"
+    name=${name//$'\t'/ }
+    name=${name//$'\n'/ }
+    state=$(startup_state "$file")
+    printf '%s [%s]\t%s\t%s\n' "$name" "$state" "${file##*/}" "$state"
+  done < <(find "$autostart_dir" -maxdepth 1 -type f -name '*.desktop' -print0 | sort -z)
+}
+
+toggle_app() {
+  local app="$1"
+  local file="$autostart_dir/$app"
+  [[ $app == *.desktop && $app != */* ]] || {
+    echo "Invalid desktop file: $app" >&2
+    return 2
+  }
+  [[ -f $file ]] || {
+    echo "Startup app not found: $app" >&2
+    return 1
+  }
+
+  if grep -qiE '^Hidden[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$file"; then
+    sed -i -E 's/^Hidden[[:space:]]*=[[:space:]]*true[[:space:]]*$/Hidden=false/I' "$file"
+  elif grep -qiE '^Hidden[[:space:]]*=' "$file"; then
+    sed -i -E 's/^Hidden[[:space:]]*=.*/Hidden=true/I' "$file"
+  else
+    sed -i '/^\[Desktop Entry\]$/a Hidden=true' "$file"
+  fi
+}
+
+case "${1:-}" in
+  list)
+    [[ $# -eq 1 ]] || { echo "Usage: omarchy-startup-apps list" >&2; exit 2; }
+    list_apps
+    ;;
+  toggle)
+    [[ $# -eq 2 ]] || { echo "Usage: omarchy-startup-apps toggle DESKTOP_FILE" >&2; exit 2; }
+    toggle_app "$2"
+    ;;
+  *)
+    echo "Usage: omarchy-startup-apps [list|toggle] [desktop-file]" >&2
+    exit 2
+    ;;
+esac
