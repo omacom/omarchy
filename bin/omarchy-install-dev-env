@@ -12,7 +12,7 @@ if [[ -z $1 ]]; then
 fi
 
 install_php() {
-  omarchy-pkg-add php composer php-sqlite xdebug
+  omarchy-pkg-add php composer php-sqlite php-gd php-imagick xdebug
 
   # Install Path for Composer
   if [[ :$PATH: != *:$HOME/.config/composer/vendor/bin:* ]]; then
@@ -32,6 +32,15 @@ install_php() {
     "openssl"
     "pdo_sqlite"
     "pdo_mysql"
+    "bz2"
+    "calendar"
+    "dba"
+    "exif"
+    "ffi"
+    "ftp"
+    "gd"
+    "gmp"
+    "ldap"
   )
 
   # Enable Xdebug
@@ -39,6 +48,9 @@ install_php() {
     -e 's/^;zend_extension=xdebug.so/zend_extension=xdebug.so/' \
     -e 's/^;xdebug.mode=debug/xdebug.mode=debug/' \
     /etc/php/conf.d/xdebug.ini
+
+  # Enable Imagick via the snippet its package ships
+  sudo sed -i 's/^;\s*extension\s*=\s*imagick/extension=imagick/' /etc/php/conf.d/imagick.ini
 
   for ext in "${extensions_to_enable[@]}"; do
     sudo sed -i "s/^;extension=${ext}/extension=${ext}/" "$php_ini_path"
