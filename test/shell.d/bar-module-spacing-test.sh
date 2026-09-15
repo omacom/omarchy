@@ -51,6 +51,12 @@ function pairGap(spanA, paintedA, spanB, paintedB, half, cap) {
 assertEqual(pairGap(27, 11, 27, 11, 6, 3), 12, 'two icons land on the uniform gap')
 assertEqual(pairGap(27, 11, 30, 13, 6, 3), 12, 'icon and pill land on the uniform gap')
 assertEqual(pairGap(27, 43, 27, 11, 6, 3), 12, 'overflowing paint and icon land on the uniform gap')
+// Scaled bar font (half gap 8, intrude 5): a wide-bearing text pill next to
+// a status icon. The pill needs 4.5px of intrusion; a narrower cap would
+// clamp and leave a 16.5px residual instead of the uniform 16px.
+assertEqual(bar.slotPad(37, 12, 8, 5), -4.5, 'a scaled pill intrudes past the old cap')
+assertEqual(bar.slotPad(37, 12, 8, 4), -4, 'a narrower cap clamps instead of equalizing')
+assertEqual(pairGap(37, 12, 28, 11, 8, 5), 16, 'scaled pill and icon land on the uniform gap')
 
 // The bar measures the button inside the widget root: paint metrics live
 // on the button, never on the root, while popup buttons nest deeper.
