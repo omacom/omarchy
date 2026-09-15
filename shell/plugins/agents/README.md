@@ -55,6 +55,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions), limited to turns the subscription actually served |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `local` | None — self-hosted work is not metered | The turns the subscription collectors skip: Codex, pi, and opencode sessions served by a self-hosted endpoint |
 
 Every collector counts only the turns its own subscription paid for. Codex
 CLI in particular will front any OpenAI-compatible backend — `--oss`, or a
@@ -71,6 +72,33 @@ falls back to local stats only. A non-default Claude directory is honored via
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
+
+### Local
+
+The `local` collector is the counterpart to the subscription ones. They answer
+"what did this cost me"; it answers "how much ran on hardware I own" — Codex
+CLI pointed at Ollama, opencode on a local gateway, pi on llama.cpp. Every turn
+the other collectors skip as foreign lands here instead, so nothing a coding
+agent does goes uncounted.
+
+An endpoint counts as self-hosted when its URL resolves to a loopback,
+private, or link-local address, or to a bare or LAN hostname — `localhost`,
+`10.0.0.50`, `gpu-box`, `server.home` all qualify, so a model served by
+another machine on your network counts the same as one on this one. Provider
+ids with no URL to resolve (opencode and pi record the id but not the
+endpoint) fall back to a list of well-known runtimes: Ollama, LM Studio,
+llama.cpp, vLLM, LocalAI and friends. Neither list is exhaustive, so a custom
+gateway can be named in `~/.config/omarchy/agents/local.json`:
+
+```json
+{"providers": ["homelab", "my-gateway"]}
+```
+
+A third-party API that is neither this subscription nor your own hardware —
+OpenRouter, say — is counted by no collector on purpose.
+
+There are no limits and no balance: the only meter on self-hosted work is the
+electricity bill, so the panel draws the token history and nothing else.
 
 ### Fireworks balance
 
