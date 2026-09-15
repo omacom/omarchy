@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Install and configure the Omawake wake-word daemon
+# omarchy:requires-sudo=true
+
+set -e
+
+if gum confirm "Install Omawake, run guided setup, and enable its user service?"; then
+  omarchy-pkg-add omawake-bin
+
+  omawake setup
+  omawake setup check
+  omawake setup systemd
+
+  omarchy-notification-send "Omawake Ready" "The wake-word daemon is configured and running."
+fi

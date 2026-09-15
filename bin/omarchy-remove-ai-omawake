@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Omawake and its configuration
+# omarchy:requires-sudo=true
+
+set -e
+
+if omarchy-pkg-present omawake-bin; then
+  echo "Uninstall Omawake and remove its model, cache, and configuration."
+
+  omawake setup systemd --uninstall || true
+  omarchy-pkg-drop omawake-bin
+  rm -rf ~/.cache/omawake ~/.config/omawake ~/.local/share/omawake ~/.local/state/omawake
+
+  omarchy-notification-send "Omawake Removed" "Omawake and its local data were removed."
+else
+  echo "Omawake was not installed."
+fi
