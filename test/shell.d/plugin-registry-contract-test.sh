@@ -18,7 +18,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-require_compositor "plugin registry contract test"
+if [[ ${OMARCHY_TEST_HEADLESS:-} == "1" ]]; then
+  export QT_QPA_PLATFORM=offscreen
+  export QT_QUICK_BACKEND=software
+  export QT_QPA_PLATFORMTHEME=none
+  unset WAYLAND_DISPLAY DISPLAY
+else
+  require_compositor "plugin registry contract test"
+fi
 
 if ! command -v quickshell >/dev/null 2>&1; then
   pass "quickshell not installed; skipping plugin registry contract test"
@@ -32,6 +39,10 @@ result="$TMPDIR/result.json"
 log="$TMPDIR/quickshell.log"
 config_dir="$TMPDIR/plugin-registry"
 mkdir -p "$config_dir" "$TMPDIR/home"
+if [[ ${OMARCHY_TEST_HEADLESS:-} == "1" ]]; then
+  mkdir -m 700 "$TMPDIR/runtime"
+  export XDG_RUNTIME_DIR="$TMPDIR/runtime"
+fi
 cp "$SHELL_TEST_DIR/fixtures/plugin-registry/shell.qml" "$config_dir/shell.qml"
 ln -s "$ROOT/shell/services" "$config_dir/services"
 ln -s "$ROOT/shell/Commons" "$config_dir/Commons"

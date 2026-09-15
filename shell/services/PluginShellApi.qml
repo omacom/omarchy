@@ -11,6 +11,9 @@ QtObject {
   id: api
 
   required property string pluginId
+  property var runtime: null
+  readonly property var desktopGeometry: _desktopGeometry
+  property var _desktopGeometry: null
 
   property var appLibrary: null
   property var bar: null

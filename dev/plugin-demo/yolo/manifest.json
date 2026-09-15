@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.yolo-clock",
+  "name": "YOLO Demo Clock",
+  "version": "1.0.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "barWidget": { "defaultSection": "right", "allowMultiple": false }
+}

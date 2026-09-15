@@ -15,12 +15,14 @@ mkdir -p "$STUB_DIR"
 # The picker reads the plugin list from omarchy-plugin-list and hands what it
 # decided to a verb-specific command, so stubbing both ends shows which plugin
 # a pick actually resolved to -- the thing a source-level check cannot see.
-cat >"$STUB_DIR/omarchy-plugin-list" <<'STUB'
+for command in omarchy-plugin-list omarchy-plugin-catalog; do
+cat >"$STUB_DIR/$command" <<'STUB'
 #!/bin/bash
 cat "$FAKE_PLUGINS"
 STUB
+done
 
-for command in omarchy-plugin-enable omarchy-plugin-disable; do
+for command in omarchy-plugin-enable omarchy-plugin-disable omarchy-plugin-review; do
   cat >"$STUB_DIR/$command" <<'STUB'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$FAKE_CALLS"
@@ -97,6 +99,20 @@ pick enable "$(printf 'Weather\tacme.weather')"
 [[ $CALLS == *"omarchy-plugin-enable acme.weather"* ]] \
   || fail "picker delegates plugin enablement to the plugin command" "$CALLS"
 pass "picker delegates plugin enablement to the plugin command"
+
+cat >"$TMPDIR/plugins.json" <<'JSON'
+[
+  {"id": "acme.sandbox", "name": "Sandbox", "enabled": false, "firstParty": false, "sandboxed": true},
+  {"id": "omarchy.clock", "name": "Clock", "enabled": false, "firstParty": true}
+]
+JSON
+
+pick enable "$(printf 'Sandbox\tacme.sandbox')"
+[[ $CALLS == *"omarchy-plugin-review acme.sandbox --ui"* ]] || fail "sandbox enable bypassed review" "$CALLS"
+pass "menu enable opens sandbox review without approving or starting it"
+pick review "$(printf 'Sandbox\tacme.sandbox')"
+[[ $ROWS == *"Sandbox"* && $ROWS != *"Clock"* && $CALLS == *"omarchy-plugin-review acme.sandbox --ui"* ]] || fail "review picker did not select a sandbox" "$ROWS $CALLS"
+pass "review picker offers only sandbox plugins"
 
 # Clone offers only first-party plugins that no installed clone points back at,
 # then hands the pick to the clone command, which opens the result in $EDITOR.

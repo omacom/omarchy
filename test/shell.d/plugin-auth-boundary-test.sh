@@ -34,7 +34,7 @@ qml_matches() {
   tr '\n\r\t' '   ' < "$file" | grep -Eq "$pattern"
 }
 
-qml_matches "$shell_qml" 'comp\.createObject\( *manifest\.__isFirstParty *&& *!authenticationService *\? *serviceHost *: *null *\)' ||
+qml_matches "$shell_qml" 'comp\.createObject\( *manifest\.__isFirstParty *&& *!authenticationService *\? *serviceHost *: *null *, *initial *\)' ||
   fail "third-party and authentication services are detached from the host object tree"
 qml_matches "$shell_qml" 'AuthServiceStore\.put\( *key, *inst *\)' ||
   fail "authentication services are retained outside the host service map"

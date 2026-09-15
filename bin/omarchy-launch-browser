@@ -17,17 +17,22 @@ else
   private_flag="--incognito"
 fi
 
-systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-  --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
-
+browser_args=()
 url=""
 for argument in "$@"; do
-  if [[ $argument != "--private" ]]; then
-    url=$argument
-    break
+  if [[ $argument == "--private" ]]; then
+    browser_args+=("$private_flag")
+  else
+    browser_args+=("$argument")
+    if [[ -z $url ]]; then
+      url=$argument
+    fi
   fi
 done
+
+systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+  --property=StandardOutput=null --property=StandardError=null \
+  uwsm-app -- "$browser_exec" "${browser_args[@]}"
 
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true

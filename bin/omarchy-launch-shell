@@ -16,6 +16,7 @@
 # generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
   QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
+    QML_IMPORT_PATH="$OMARCHY_PATH/lib/qml${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
 

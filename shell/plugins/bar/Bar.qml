@@ -1283,68 +1283,13 @@ Item {
       }
     }
 
-    PopupWindow {
-      id: tooltipWindow
-
+    BarToolTip {
       visible: root.tooltipShown && root.tooltipTarget !== null && root.tooltipText !== "" && root.targetBelongsToWindow(root.tooltipTarget, barWindow)
-      color: "transparent"
-      implicitWidth: Math.ceil(tooltipBubble.implicitWidth)
-      implicitHeight: Math.ceil(tooltipBubble.implicitHeight)
-
-      anchor {
-        id: tooltipAnchor
-        window: barWindow
-        adjustment: PopupAdjustment.Slide
-        edges: Edges.Top | Edges.Left
-        gravity: Edges.Bottom | Edges.Right
-        rect.width: 1
-        rect.height: 1
-
-        onAnchoring: {
-          var target = root.tooltipTarget
-          if (!root.targetBelongsToWindow(target, barWindow)) return
-
-          var popupWidth = tooltipWindow.implicitWidth
-          var popupHeight = tooltipWindow.implicitHeight
-          var localX = target.width / 2 - popupWidth / 2
-          var localY = target.height + 6
-
-          if (root.position === "bottom") {
-            localY = -popupHeight - 6
-          } else if (root.position === "left") {
-            localX = target.width + 6
-            localY = target.height / 2 - popupHeight / 2
-          } else if (root.position === "right") {
-            localX = -popupWidth - 6
-            localY = target.height / 2 - popupHeight / 2
-          }
-
-          var point = barWindow.contentItem.mapFromItem(target, localX, localY)
-          tooltipAnchor.rect.x = Math.round(point.x)
-          tooltipAnchor.rect.y = Math.round(point.y)
-        }
-      }
-
-      BorderSurface {
-        id: tooltipBubble
-        implicitWidth: tooltipLabel.implicitWidth + 20
-        implicitHeight: tooltipLabel.implicitHeight + 14
-        color: Color.tooltip.background
-        borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
-        radius: Style.cornerRadius
-
-        Text {
-          id: tooltipLabel
-          textFormat: Text.PlainText
-          anchors.centerIn: parent
-          text: root.tooltipText
-          color: Color.tooltip.text
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          horizontalAlignment: Text.AlignHCenter
-          verticalAlignment: Text.AlignVCenter
-        }
-      }
+      target: root.tooltipTarget
+      text: root.tooltipText
+      ownerWindow: barWindow
+      position: root.position
+      fontFamily: root.fontFamily
     }
 
     Component {
@@ -1780,6 +1725,7 @@ Item {
     readonly property string customType: root.customModuleType(entry)
     readonly property var registryMetadata: root.barWidgetRegistry.metadataFor(root.canonicalWidgetId(moduleName))
     readonly property bool firstParty: registryMetadata && registryMetadata.firstParty === true
+    readonly property string runtimeUrl: registryMetadata ? String(registryMetadata.runtimeUrl || "") : ""
     readonly property string pluginApiId: registered ? root.canonicalWidgetId(moduleName) : "bar-entry:" + moduleName
     // Re-evaluate when the registry mutates (Component reference changes,
     // plugin enabled/disabled, etc.). Reading the `widgets` property creates
@@ -1794,7 +1740,7 @@ Item {
     readonly property bool commandCustom: customType === "command"
     readonly property bool registered: registryComponent !== null
     readonly property var activeItem: {
-      if (registered) return registryLoader.item
+      if (registered) return runtimeUrl ? runtimeLoader.item : registryLoader.item
       if (qmlCustom) return qmlLoader.item
       return componentLoader.item
     }
@@ -1849,7 +1795,7 @@ Item {
 
     Loader {
       id: registryLoader
-      active: slot.registered
+      active: slot.registered && !slot.runtimeUrl
       sourceComponent: slot.registered ? slot.registryComponent : null
       anchors.fill: parent
       opacity: slot.dragSource ? 0.22 : 1.0
@@ -1857,6 +1803,19 @@ Item {
         slot.injectProps()
         Qt.callLater(slot.injectProps)
       }
+    }
+
+    PluginLoader {
+      id: runtimeLoader
+      active: slot.registered && !!slot.runtimeUrl
+      entryUrl: slot.runtimeUrl
+      prepare: () => {
+        const api = root.pluginBarApiFor(slot.pluginApiId, slot.moduleName, true)
+        return {runtime: api.shell.runtime, bar: api, settings: slot.moduleSettings}
+      }
+      anchors.fill: parent
+      opacity: slot.dragSource ? 0.22 : 1.0
+      onLoaded: slot.injectProps()
     }
 
     Loader {

@@ -8,6 +8,12 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/bin"
 
+cat >"$tmp/bin/ip" <<'EOF'
+#!/bin/bash
+# No default route: sharing a connected local Wi-Fi network must still work.
+exit 2
+EOF
+
 cat >"$tmp/bin/nmcli" <<'EOF'
 #!/bin/bash
 if [[ $* == *"DEVICE,TYPE,STATE"* ]]; then
@@ -28,7 +34,7 @@ payload=$(</dev/stdin)
 printf '%s' "$payload" >"$QR_PAYLOAD_FILE"
 printf '##    \n  ##  \n    ##\n'
 EOF
-chmod +x "$tmp/bin/nmcli" "$tmp/bin/qrencode"
+chmod +x "$tmp/bin/ip" "$tmp/bin/nmcli" "$tmp/bin/qrencode"
 
 run_success_case() {
   local description=$1 fields=$2 expected_payload=$3
@@ -83,7 +89,7 @@ run_success_case \
 
 # With no interface argument the helper finds the connected Wi-Fi device.
 run_success_case \
-  "network QR helper detects the Wi-Fi interface" \
+  "network QR helper detects the Wi-Fi interface without a default route" \
   $'Cafe Detected\nwpa-psk\nsecret\nno\n' \
   'WIFI:T:WPA;S:Cafe Detected;P:secret;;' \
   --meta

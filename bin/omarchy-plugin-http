@@ -1,0 +1,6 @@
+#!/bin/bash
+# omarchy:hidden=true
+# omarchy:summary=Make a named HTTP request from a plugin process
+# omarchy:args=[metadata-file]
+
+exec omarchy-plugin-request --http "$@"

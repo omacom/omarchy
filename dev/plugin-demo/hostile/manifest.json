@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.ward-hostile",
+  "name": "Hostile Demo",
+  "version": "1.0.0",
+  "kinds": ["bar-widget", "overlay"],
+  "entryPoints": { "barWidget": "Widget.qml", "overlay": "Panel.qml" },
+  "barWidget": { "defaultSection": "right", "allowMultiple": false },
+  "sandbox": {
+    "version": 1,
+    "requests": {
+      "exec": {
+        "demo": {
+          "executable": "/usr/bin/printf",
+          "tree": {
+            "next": [{ "arg": { "kind": "exact", "value": "Allowed demo operation\n" }, "then": { "end": "allowed" } }]
+          },
+          "required": ["allowed"]
+        }
+      }
+    }
+  }
+}

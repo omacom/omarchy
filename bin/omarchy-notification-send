@@ -19,6 +19,7 @@ print_id=0
 exec_args=()
 exec_present=0
 parsed_option_args=0
+literal_text=0
 
 usage() {
   echo "Usage: omarchy-notification-send [--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--image <path-or-uri>] <headline> [description] [--exec <program> [args...]]" >&2
@@ -83,7 +84,11 @@ parse_omarchy_option() {
 }
 
 while (($# > 0)); do
-  if parse_omarchy_option "$@"; then
+  if [[ $1 == "--" ]]; then
+    literal_text=1
+    shift
+    break
+  elif parse_omarchy_option "$@"; then
     shift "$parsed_option_args"
   else
     break
@@ -109,13 +114,16 @@ known_flag() {
   return 1
 }
 
-if (($# > 0)) && ! known_flag "$1"; then
+if (($# > 0)) && { (( literal_text )) || ! known_flag "$1"; }; then
   description=$1
   shift
 fi
 
 while (($# > 0)); do
-  if [[ $1 == "--exec" ]]; then
+  if (( literal_text )); then
+    usage
+    exit 1
+  elif [[ $1 == "--exec" ]]; then
     # --exec consumes the rest of the line as the click command's argv. The
     # caller's shell already tokenized those words into discrete arguments, and
     # the shell runs them as-is (never re-parsed), so untrusted data in an

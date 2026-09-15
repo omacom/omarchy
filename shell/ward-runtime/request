@@ -1,0 +1,7 @@
+#!/bin/bash
+
+if [[ $# == 1 && $1 == "--grants" ]]; then
+  head -c 65536 /run/plugin/grants.json
+else
+  exec /bootstrap "$@"
+fi

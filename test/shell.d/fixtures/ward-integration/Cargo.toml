@@ -1,0 +1,11 @@
+[package]
+name = "omarchy-ward-integration"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+omarchy-ward = { path = "../../../../native/ward", features = ["graphics"] }
+serde_json = "1.0.151"
+tempfile = "3.27.0"
+smithay = { version = "=0.7.0", default-features = false, features = ["wayland_frontend", "backend_egl", "backend_gbm", "renderer_gl", "desktop"] }

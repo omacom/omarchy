@@ -101,6 +101,12 @@ The full schema lives in `services/PluginRegistry.qml`.
 
 ## Installing a third-party plugin
 
+Ward is Omarchy's isolated plugin security system. A plugin that declares the
+`sandbox` manifest entry is reviewed, approved at an exact revision, and run
+through the native Ward host with only the selected capabilities. The
+The manifest key remains `sandbox` and the existing `omarchy plugin` commands
+are unchanged.
+
 A plugin is a **git repo** with a `manifest.json` at its root. Adding one
 clones it straight into `~/.config/omarchy/plugins/<id>/` (named by the
 manifest id); updating is a fast-forward pull of that checkout.

@@ -1,0 +1,6 @@
+#!/bin/bash
+# omarchy:hidden=true
+# omarchy:summary=Run a named host command from a plugin process
+# omarchy:args=<name> [arguments]
+
+exec omarchy-plugin-request --exec "$@"
