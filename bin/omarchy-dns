@@ -190,7 +190,7 @@ set_connection_dns() {
       ipv4.dns "$ipv4_dns" \
       ipv6.ignore-auto-dns yes \
       ipv6.dns "$ipv6_dns" \
-      >/dev/null
+      >/dev/null || echo "omarchy-dns: skipped $uuid" >&2
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
@@ -210,7 +210,7 @@ clear_connection_dns() {
       ipv4.dns "" \
       ipv6.ignore-auto-dns no \
       ipv6.dns "" \
-      >/dev/null
+      >/dev/null || echo "omarchy-dns: skipped $uuid" >&2
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
