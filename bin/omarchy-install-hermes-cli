@@ -241,7 +241,6 @@ export UV_PYTHON="$python"
 # Exported rather than set on the install line alone, so the version resolved
 # to run agrees with the one just installed. Hermes ships several times a week
 # and mise's cooldown would otherwise hold a new release back for days.
-export MISE_MINIMUM_RELEASE_AGE=0
 
 # mise up -- which omarchy update runs -- reinstalls without that pin, so this
 # asks which interpreter is actually there rather than whether anything is.
