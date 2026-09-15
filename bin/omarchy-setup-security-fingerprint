@@ -78,9 +78,19 @@ fi
 # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
 # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
 # one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+# Keep an alternate fprintd client stack (such as python-validity) intact. Its
+# client package conflicts with the stock fprintd daemon, but provides the same
+# CLI and PAM module used below.
+fingerprint_packages=(libfprint-git)
+if ! pacman -Q fprintd-clients >/dev/null 2>&1 &&
+  ! pacman -Q fprintd-clients-git >/dev/null 2>&1; then
+  fingerprint_packages+=(fprintd)
+fi
+fingerprint_packages+=(usbutils)
+
+if omarchy-pkg-missing "${fingerprint_packages[@]}"; then
   echo "Installing required packages..."
-  sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
+  sudo pacman -S --needed --noconfirm --ask 4 "${fingerprint_packages[@]}"
 fi
 
 # Enroll first fingerprint
