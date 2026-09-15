@@ -202,8 +202,19 @@ fi
 # Default Exec quotes the URL as one Exec-spec argument; the whole line then gets
 # the file-syntax escaping below (unescaped first at read time per spec, so the
 # layers compose). $CUSTOM_EXEC is a full command line, so it gets file-syntax only.
+# Interactive installs can open in a Chromium app window or the desktop default
+# browser; both still get X-Omarchy-WebApp so remove menus keep finding them.
 if [[ -n $CUSTOM_EXEC ]]; then
   EXEC_COMMAND=$CUSTOM_EXEC
+elif [[ $INTERACTIVE_MODE == "true" ]]; then
+  case $(gum choose "Chromium app window" "Default browser" --header "How should this web app open?") in
+  "Default browser")
+    EXEC_COMMAND="xdg-open $(desktop_exec_arg "$APP_URL")"
+    ;;
+  *)
+    EXEC_COMMAND="omarchy-launch-webapp $(desktop_exec_arg "$APP_URL")"
+    ;;
+  esac
 else
   EXEC_COMMAND="omarchy-launch-webapp $(desktop_exec_arg "$APP_URL")"
 fi
@@ -227,6 +238,7 @@ Terminal=false
 Type=Application
 Icon=$icon_field
 StartupNotify=true
+X-Omarchy-WebApp=true
 EOF
 
 # Add mime types if provided

@@ -29,6 +29,8 @@ desktop=$(desktop_for Example)
 grep -Fxq 'Name=Example' "$desktop" || fail "webapp install writes the app name"
 grep -Fxq 'Exec=omarchy-launch-webapp "https://example.com"' "$desktop" ||
   fail "webapp install launches the https URL" "$(cat "$desktop")"
+grep -Fxq 'X-Omarchy-WebApp=true' "$desktop" ||
+  fail "webapp install marks the launcher as an Omarchy web app" "$(cat "$desktop")"
 pass "webapp install writes an https desktop entry"
 
 if install_webapp "Plain" "example.org/app" "webapp" >"$tmpdir/out" 2>"$tmpdir/err"; then
@@ -122,3 +124,53 @@ grep -Fq 'must be http or https' "$tmpdir/err" ||
   fail "interactive webapp install refuses before fetching the URL" "$(cat "$tmpdir/curl-log")"
 [[ ! -e $(desktop_for Evil) ]] || fail "interactive webapp install writes no desktop file"
 pass "interactive webapp install refuses a bad URL before fetching it"
+
+# Interactive installs ask how to open the app. Choosing the default browser
+# must still leave an Omarchy web-app marker so remove menus keep finding it.
+printf 'Browser\nhttps://example.com/\nDefault browser\n' >"$tmpdir/answers"
+: >"$tmpdir/gum-count"
+: >"$tmpdir/curl-log"
+
+# Icon fetch should succeed so gum is not asked for an icon URL before the
+# browser choice; answer curl with a tiny PNG when writing -o.
+cat >"$stubs/curl" <<'CURL'
+#!/bin/bash
+out=""
+prev=""
+for arg in "$@"; do
+  [[ $prev == "-o" ]] && out="$arg"
+  prev="$arg"
+done
+if [[ -n $out ]]; then
+  printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d >"$out"
+  exit 0
+fi
+exit 1
+CURL
+chmod +x "$stubs/curl"
+
+if ! GUM_ANSWERS="$tmpdir/answers" GUM_COUNT="$tmpdir/gum-count" \
+  PATH="$stubs:$PATH" HOME="$home" "$ROOT/bin/omarchy-webapp-install" \
+  >"$tmpdir/out" 2>"$tmpdir/err"; then
+  fail "interactive webapp install accepts default browser" "$(cat "$tmpdir/err")"
+fi
+
+browser_desktop=$(desktop_for Browser)
+grep -Fxq 'Exec=xdg-open "https://example.com/"' "$browser_desktop" ||
+  fail "interactive webapp install writes xdg-open for default browser" "$(cat "$browser_desktop")"
+grep -Fxq 'X-Omarchy-WebApp=true' "$browser_desktop" ||
+  fail "interactive default-browser install keeps the Omarchy web app marker" "$(cat "$browser_desktop")"
+pass "interactive webapp install can open with the default browser"
+
+# Remove must discover default-browser launchers via the marker, not Exec alone.
+printf '#!/bin/bash\n:\n' >"$stubs/update-desktop-database"
+printf '#!/bin/bash\n:\n' >"$stubs/omarchy-notification-send"
+chmod +x "$stubs/update-desktop-database" "$stubs/omarchy-notification-send"
+
+if ! HOME="$home" PATH="$stubs:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+  "$ROOT/bin/omarchy-webapp-remove" "Browser" >"$tmpdir/out" 2>"$tmpdir/err"; then
+  fail "webapp remove finds a default-browser web app" "$(cat "$tmpdir/err")"
+fi
+[[ ! -e $browser_desktop ]] ||
+  fail "webapp remove deletes a default-browser web app"
+pass "webapp remove finds default-browser launchers via X-Omarchy-WebApp"
