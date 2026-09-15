@@ -30,6 +30,11 @@ if [[ -n $NODE_PACKAGE_DIR ]]; then
     mkdir -p "$NODE_INSTALL_DIR"
     tar -xzf "$NODE_TARBALL" --strip-components=1 -C "$NODE_INSTALL_DIR"
     mise use -g node@"$NODE_VERSION"
+
+    # That pinned the exact bundled version, which would exempt Node from
+    # mise up forever. Loosen it to latest, like an online install gets:
+    # mise resolves latest to the installed version while offline.
+    mise config set tools.node latest --file "$HOME/.config/mise/config.toml"
   fi
 else
   mise use -g node@latest
