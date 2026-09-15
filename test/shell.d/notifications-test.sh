@@ -211,6 +211,48 @@ assertEqual(notifications.parseExecArgv('["mpv",5]'), null, 'notifications rejec
 assertEqual(notifications.parseExecArgv('["--include=x","y"]'), null, 'notifications reject a leading-dash program in the exec argv')
 assertEqual(notifications.parseExecArgv('["",""]'), null, 'notifications reject an empty program in the exec argv')
 
+// Quickshell 0.3.1 can wrap D-Bus hints so custom keys are only readable via
+// .value(name) / .get(name). Bracket indexing alone must not be the only path
+// or click-to-exec silently no-ops (#8346).
+assertEqual(
+  notifications.stringHint({ 'omarchy-exec-argv': '["notify-send","hi"]' }, 'omarchy-exec-argv'),
+  '["notify-send","hi"]',
+  'notifications read string hints from plain objects'
+)
+assertEqual(
+  notifications.stringHint({
+    value: function(key) {
+      return key === 'omarchy-exec-argv' ? '["notify-send","hi"]' : undefined
+    }
+  }, 'omarchy-exec-argv'),
+  '["notify-send","hi"]',
+  'notifications read string hints through QVariantMap.value()'
+)
+assertEqual(
+  notifications.stringHint({
+    get: function(key) {
+      return key === 'omarchy-glyph' ? '!' : undefined
+    }
+  }, 'omarchy-glyph'),
+  '!',
+  'notifications read string hints through Map.get()'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    value: function(key) {
+      return key === 'omarchy-exec-argv' ? '["mpv","--","/tmp/a.mp4"]' : undefined
+    }
+  }),
+  '["mpv","--","/tmp/a.mp4"]',
+  'notifications recover omarchy-exec-argv when only .value() can see the key'
+)
+assertEqual(notifications.stringHint(null, 'omarchy-exec-argv'), '', 'notifications treat a missing hints map as empty')
+assertEqual(
+  notifications.stringHint({ value: function() { return undefined } }, 'omarchy-exec-argv'),
+  '',
+  'notifications fail closed when the hint accessor returns nothing'
+)
+
 // The argv vector rides on the snapshot as the raw JSON string, so the model's
 // value comparison stays a plain string compare and the file round-trip is
 // lossless.

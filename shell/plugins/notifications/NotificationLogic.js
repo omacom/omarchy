@@ -126,12 +126,28 @@ function isEphemeralApp(appName) {
   return name === "notify-send" || name === "omarchy-action"
 }
 
+// Read a string hint from a notification's hints map. Quickshell 0.3.1 can
+// expose D-Bus a{sv} hints as a QVariantMap wrapper where bracket indexing
+// for custom keys returns undefined; .value(name) / .get(name) still work.
+// Prefer those accessors, then fall back to plain indexing for plain objects
+// used in tests and older builds. Empty string on any miss — click-to-exec
+// must fail closed when the hint cannot be read (#8346).
 function stringHint(hints, name) {
   try {
-    if (hints) {
-      var value = hints[name]
-      if (value !== undefined && value !== null) return String(value)
+    if (!hints) return ""
+
+    var value
+    if (typeof hints.value === "function") {
+      try { value = hints.value(name) } catch (e) { value = undefined }
     }
+    if ((value === undefined || value === null) && typeof hints.get === "function") {
+      try { value = hints.get(name) } catch (e) { value = undefined }
+    }
+    if (value === undefined || value === null) {
+      try { value = hints[name] } catch (e) { value = undefined }
+    }
+
+    if (value !== undefined && value !== null) return String(value)
   } catch (e) {
   }
   return ""
