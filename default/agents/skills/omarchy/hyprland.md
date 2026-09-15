@@ -59,7 +59,7 @@ Tell the user which action was replaced. Use `hl.unbind(...)` to remove a bindin
 Edit `~/.config/hypr/monitors.lua`. Format:
 ```lua
 hl.monitor({ output = "eDP-1", mode = "1920x1080@60", position = "0x0", scale = 1 })
-hl.monitor({ output = "HDMI-A-1", mode = "2560x1440@144", position = "1920x0", scale = 1 })
+hl.monitor({ output = "HDMI-A-1", mode = "2560x1440@144", position = "auto-right", scale = 1 })
 ```
 
 List monitors and supported modes: `hyprctl monitors all`
