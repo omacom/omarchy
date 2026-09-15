@@ -1,0 +1,229 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the OpenCode usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Print the OpenCode usage record as JSON.
+
+Tokens come from ~/.local/share/opencode/opencode.db: completed assistant
+messages carry per-turn usage under data.tokens. A message without
+time.completed is still streaming and is skipped. Dates use the message
+clock (milliseconds), never "now" — a missing stamp is dropped so old
+turns cannot land on today.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sqlite3
+import sys
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "opencode"
+AGENT_NAME = "OpenCode"
+
+
+def opencode_db_path() -> Path:
+    data = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    return data / "opencode" / "opencode.db"
+
+
+def recent_dates(today: date) -> list[str]:
+    return [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+
+
+def empty_bucket() -> dict[str, int]:
+    return {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+    }
+
+
+def add_bucket(target: dict[str, int], inp: int, out: int, cache_read: int, cache_write: int) -> None:
+    target["inputTokens"] += inp
+    target["outputTokens"] += out
+    target["cacheReadInputTokens"] += cache_read
+    target["cacheCreationInputTokens"] += cache_write
+
+
+def number(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def stamp_seconds(value: Any) -> float:
+    try:
+        stamp = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if stamp <= 0:
+        return 0
+    return stamp / 1000 if stamp > 10_000_000_000 else stamp
+
+
+def day_from_stamp(value: Any) -> str:
+    seconds = stamp_seconds(value)
+    if not seconds:
+        return ""
+    try:
+        return datetime.fromtimestamp(seconds).astimezone().date().isoformat()
+    except (OSError, OverflowError, ValueError):
+        return ""
+
+
+def empty_stats(today: date) -> dict[str, Any]:
+    week = recent_dates(today)
+    return {
+        "todayPrompts": 0,
+        "todaySessions": 0,
+        "todayTotalTokens": 0,
+        "todayTokensByModel": {},
+        "recentDays": [{"date": day, "messageCount": 0} for day in week],
+        "history": [],
+        "totalPrompts": 0,
+        "totalSessions": 0,
+        "activeDays": 0,
+        "activeDates": [],
+        "modelUsage": {},
+        "hasLocalStats": True,
+        "hasPromptStats": True,
+    }
+
+
+def scan_db(path: Path) -> dict[str, Any]:
+    models: dict[str, dict[str, int]] = defaultdict(empty_bucket)
+    daily_models: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    daily_prompts: dict[str, int] = defaultdict(int)
+    daily_sessions: dict[str, set[str]] = defaultdict(set)
+    sessions: set[str] = set()
+    prompts = 0
+    try:
+        conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    except sqlite3.Error:
+        return {}
+    try:
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA query_only = ON")
+        try:
+            rows = conn.execute("SELECT m.session_id, m.time_created, m.data FROM message m")
+        except sqlite3.Error:
+            return {}
+        for row in rows:
+            try:
+                data = json.loads(row["data"])
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(data, dict) or data.get("role") != "assistant":
+                continue
+            usage = data.get("tokens") or {}
+            if not usage or not (data.get("time") or {}).get("completed"):
+                continue
+            cache = usage.get("cache") or {}
+            inp = number(usage.get("input"))
+            out = number(usage.get("output")) + number(usage.get("reasoning"))
+            cache_read = number(cache.get("read"))
+            cache_write = number(cache.get("write"))
+            total = inp + out + cache_read + cache_write
+            if total <= 0:
+                continue
+            created = (data.get("time") or {}).get("created")
+            day = day_from_stamp(created if created else row["time_created"])
+            if not day:
+                continue
+            model = str(data.get("modelID") or "unknown").rstrip("/").split("/")[-1]
+            session_id = str(row["session_id"])
+            add_bucket(models[model], inp, out, cache_read, cache_write)
+            daily_models[day][model] += total
+            daily_prompts[day] += 1
+            daily_sessions[day].add(session_id)
+            sessions.add(session_id)
+            prompts += 1
+    finally:
+        conn.close()
+    return {
+        "models": models,
+        "daily_models": daily_models,
+        "daily_prompts": daily_prompts,
+        "daily_sessions": daily_sessions,
+        "sessions": sessions,
+        "prompts": prompts,
+    }
+
+
+def collect(db_path: Path | None = None) -> dict[str, Any]:
+    today = datetime.now().astimezone().date()
+    today_s = today.isoformat()
+    week = recent_dates(today)
+    path = db_path or opencode_db_path()
+    scanned = scan_db(path) if path.is_file() else {}
+    if not scanned:
+        return empty_stats(today)
+
+    history = []
+    for day in sorted(set(scanned["daily_models"]) | set(scanned["daily_prompts"])):
+        tokens_by_model = dict(scanned["daily_models"][day])
+        history.append({
+            "date": day,
+            "messageCount": sum(tokens_by_model.values()),
+            "tokensByModel": tokens_by_model,
+            "prompts": scanned["daily_prompts"].get(day, 0),
+            "sessions": len(scanned["daily_sessions"].get(day, set())),
+        })
+
+    today_models = dict(scanned["daily_models"].get(today_s, {}))
+    by_date = {row["date"]: row["messageCount"] for row in history}
+    recent = [{"date": day, "messageCount": by_date.get(day, 0)} for day in week]
+    active = [row["date"] for row in history if row["messageCount"] or row["prompts"]]
+    return {
+        "todayPrompts": scanned["daily_prompts"].get(today_s, 0),
+        "todaySessions": len(scanned["daily_sessions"].get(today_s, set())),
+        "todayTotalTokens": sum(today_models.values()),
+        "todayTokensByModel": today_models,
+        "recentDays": recent,
+        "history": history,
+        "totalPrompts": scanned["prompts"],
+        "totalSessions": len(scanned["sessions"]),
+        "activeDays": len(active),
+        "activeDates": active,
+        "modelUsage": {model: dict(bucket) for model, bucket in scanned["models"].items()},
+        "hasLocalStats": True,
+        "hasPromptStats": True,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Print the OpenCode usage record as JSON")
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--limits-only", action="store_true")
+    parser.parse_args()
+
+    stats = collect()
+    ready = stats["totalPrompts"] > 0 or stats["totalSessions"] > 0 or bool(stats["modelUsage"])
+    record = {
+        "schemaVersion": 1,
+        "id": AGENT_ID,
+        "name": AGENT_NAME,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "ready": ready,
+        "tierLabel": "Local",
+        "usageStatusText": "",
+        "authHelpText": "",
+        "limits": [],
+        "scope": "device",
+    }
+    record.update(stats)
+    json.dump(record, sys.stdout, separators=(",", ":"), sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
