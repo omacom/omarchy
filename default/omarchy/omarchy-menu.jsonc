@@ -26,8 +26,8 @@
   "trigger": {"icon":"󱓞","label":"Trigger"},
   "style": {"icon":"","label":"Style"},
   "setup": {"icon":"","label":"Setup","aliases":["settings"]},
-  "install": {"icon":"󰉉","label":"Install"},
-  "remove": {"icon":"󰭌","label":"Remove","aliases":["uninstall"]},
+  "install": {"icon":"󰉉","label":"Install","when":"! omarchy-profile-child"},
+  "remove": {"icon":"󰭌","label":"Remove","aliases":["uninstall"],"when":"! omarchy-profile-child"},
   "update": {"icon":"","label":"Update","aliases":["restart","refresh"]},
   "about": {"icon":"","label":"About","action":"omarchy-launch-about"},
   "system": {"icon":"","label":"System","aliases":["power-menu"]},
@@ -50,7 +50,7 @@
   "learn.bash": {"icon":"󱆃","label":"Bash","action":"omarchy-launch-webapp 'https://devhints.io/bash'"},
   "learn.tmux-keybindings": {"icon":"","label":"Tmux","action":"omarchy-menu-tmux-keybindings"},
   "learn.herdr-keybindings": {"icon":"","label":"Herdr","action":"omarchy-menu-herdr-keybindings"},
-  "learn.community": {"icon":"󰙯","label":"Community","action":"omarchy-launch-discord-community"},
+  "learn.community": {"icon":"󰙯","label":"Community","when":"! omarchy-profile-child","action":"omarchy-launch-discord-community"},
 
   // Trigger
   "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
@@ -350,13 +350,13 @@
   "remove.development.elixir.phoenix": {"icon":"","label":"Phoenix","when":"[[ -d $HOME/.local/share/mise/installs/elixir ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-dev-env phoenix'"},
 
   // Update
-  "update.omarchy": {"icon":"","iconFont":"omarchy","label":"Omarchy","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update"},
-  "update.channel": {"icon":"󰔫","label":"Channel"},
+  "update.omarchy": {"icon":"","iconFont":"omarchy","label":"Omarchy","when":"! omarchy-profile-child","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update"},
+  "update.channel": {"icon":"󰔫","label":"Channel","when":"! omarchy-profile-child"},
   "update.config": {"icon":"","label":"Config","title":"Reset to default"},
   "update.themes": {"icon":"󰸌","label":"Extra Themes","when":"omarchy-theme-extras","action":"omarchy-launch-floating-terminal-with-presentation omarchy-theme-update"},
   "update.process": {"icon":"","label":"Process","title":"Restart"},
   "update.hardware": {"icon":"󰇅","label":"Hardware","title":"Restart"},
-  "update.firmware": {"icon":"","label":"Firmware","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},
+  "update.firmware": {"icon":"","label":"Firmware","when":"! omarchy-profile-child","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},
   "update.password": {"icon":"","label":"Password"},
   "update.timezone": {"icon":"","label":"Timezone","action":"omarchy-menu-timezone"},
   "update.time": {"icon":"","label":"Time","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-time"},

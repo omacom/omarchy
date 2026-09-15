@@ -89,6 +89,22 @@ function o.preinstalled_bindings_enabled()
   return not file_exists((os.getenv("HOME") or "") .. "/.local/state/omarchy/preinstalls-removed")
 end
 
+-- Same rule as bin/omarchy-profile-child: the marker is one word, and bash
+-- $(<file) strips trailing newlines, so "child\n" is a child install.
+function o.child_profile()
+  local path = os.getenv("OMARCHY_PROFILE_FILE") or "/etc/omarchy/profile"
+  local file = io.open(path, "r")
+  if not file then
+    return false
+  end
+
+  local content = file:read("*a") or ""
+  file:close()
+  content = content:gsub("\n+$", "")
+  return content == "child"
+end
+
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
 

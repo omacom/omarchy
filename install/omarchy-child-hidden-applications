@@ -1,0 +1,13 @@
+# Launcher names omitted from ~/.local/share/applications on a child install.
+# Each line is the .desktop basename without the suffix; omarchy-refresh-applications
+# deletes them after copying the adult set (skel already planted them).
+WhatsApp
+X
+HEY
+Docker
+Basecamp
+Discord
+Zoom
+Google Contacts
+Google Messages
+Google Photos

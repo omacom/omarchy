@@ -51,14 +51,27 @@ grep -Fq 'OMARCHY_PROFILE_FILE:-/etc/omarchy/profile' "$predicate" || fail "omar
 grep -Fq 'export OMARCHY_INSTALL_PROFILE=' "$apply_system" || fail "omarchy-apply-system exports the profile for the install leaves"
 pass "omarchy-apply-system records the install profile where the predicate reads it"
 
-# The child package list exists for the ISO to vendor, and stays comment-only
-# until the child app set lands.
+# The child package list exists for the ISO to vendor. Phase 1 fills it with
+# the extra apps a child install pacstraps on top of the base set.
 
 child_packages="$ROOT/install/omarchy-child.packages"
 [[ -f $child_packages ]] || fail "install/omarchy-child.packages ships"
-if grep -vE '^[[:space:]]*(#|$)' "$child_packages" >/dev/null; then
-  fail "install/omarchy-child.packages carries no packages until the child app set lands"
-fi
+mapfile -t child_pkgs < <(grep -vE '^[[:space:]]*(#|$)' "$child_packages")
+(( ${#child_pkgs[@]} > 0 )) || fail "install/omarchy-child.packages lists the child app set"
+printf '%s\n' "${child_pkgs[@]}" | grep -qxF gcompris-qt || fail "the child app set includes gcompris-qt"
 grep -Fq 'omarchy-child.packages' "$ROOT/bin/omarchy-reinstall-pkgs" || fail "omarchy-reinstall-pkgs includes the child list"
 grep -Fq 'omarchy-profile-child' "$ROOT/bin/omarchy-reinstall-pkgs" || fail "omarchy-reinstall-pkgs includes the child list only on child installs"
 pass "the child package list is wired for the ISO and for reinstalls"
+
+hidden="$ROOT/install/omarchy-child-hidden-applications"
+[[ -f $hidden ]] || fail "install/omarchy-child-hidden-applications ships"
+hidden_count=0
+while IFS= read -r name || [[ -n $name ]]; do
+  [[ -z $name || $name == \#* ]] && continue
+  [[ -f "$ROOT/applications/${name}.desktop" ]] || fail "hidden launcher '$name' is a shipped desktop file"
+  hidden_count=$((hidden_count + 1))
+done <"$hidden"
+(( hidden_count > 0 )) || fail "install/omarchy-child-hidden-applications lists launchers to drop"
+grep -Fq 'omarchy-child-hidden-applications' "$ROOT/bin/omarchy-refresh-applications" ||
+  fail "omarchy-refresh-applications reads the hidden launcher list"
+pass "the child hidden-launcher list names shipped desktop files"

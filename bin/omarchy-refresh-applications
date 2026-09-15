@@ -6,6 +6,18 @@
 mkdir -p ~/.local/share/applications
 cp "$OMARCHY_PATH"/applications/*.desktop ~/.local/share/applications/
 
+# Skel already planted the adult set. On a child install, drop the launchers
+# listed in omarchy-child-hidden-applications rather than skipping the copy.
+if omarchy-profile-child; then
+  hidden="$OMARCHY_PATH/install/omarchy-child-hidden-applications"
+  if [[ -f $hidden ]]; then
+    while IFS= read -r name || [[ -n $name ]]; do
+      [[ -z $name || $name == \#* ]] && continue
+      rm -f "$HOME/.local/share/applications/${name}.desktop"
+    done <"$hidden"
+  fi
+fi
+
 if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/
 fi

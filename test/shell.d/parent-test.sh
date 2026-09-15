@@ -201,6 +201,16 @@ menu="$ROOT/default/omarchy/omarchy-menu.jsonc"
 grep -q '"setup.security.passwordless-sudo": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Passwordless Sudo stays off a child install's menu"
 grep -q '"setup.security.sudoless-docker": {[^}]*"when":"! omarchy-profile-child && omarchy-sudo-docker --configured"' "$menu" || fail "Sudoless Docker stays off a child install's menu"
 grep -q '"setup.security.fido2": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Fido2 setup stays off a child install's menu"
+grep -q '"install": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Install stays off a child install's menu"
+grep -q '"remove": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Remove stays off a child install's menu"
+grep -q '"update.omarchy": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Update > Omarchy stays off a child install's menu"
+grep -q '"update.channel": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Update > Channel stays off a child install's menu"
+grep -q '"update.firmware": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Update > Firmware stays off a child install's menu"
+grep -q '"learn.community": {[^}]*"when":"! omarchy-profile-child"' "$menu" || fail "Learn > Community stays off a child install's menu"
+if grep -q '"system": {[^}]*omarchy-profile-child' "$menu"; then
+  fail "System stays on a child install so lock and power remain reachable"
+fi
+grep -q '"update.password.parent": {[^}]*"when":"omarchy-profile-child"' "$menu" || fail "Update > Password > Parent stays on a child install"
 pass "the menu keeps the grants that would land on the kid account off a child install"
 
 # Features plug in as omarchy-parent-<name> beside this command: help lists
