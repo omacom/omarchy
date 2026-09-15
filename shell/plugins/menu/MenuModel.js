@@ -490,6 +490,18 @@ function guardScript(items) {
   return guards ? guardPrelude(guards) + guards : ""
 }
 
+// defaultIndex positions the cursor on open only; it is not a persistent
+// anchor. setFilter resets selectedIndex to 0 on the first keystroke, which
+// is right: typing means the user is searching, not confirming the caller's
+// default.
+function dmenuDefaultIndex(payload, optionCount) {
+  var count = Number(optionCount) || 0
+  var index = Math.floor(Number(payload && payload.defaultIndex))
+  if (!(index > 0)) return 0
+  if (index >= count) return count > 0 ? count - 1 : 0
+  return index
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     guardReaders: GUARD_READERS,
@@ -519,6 +531,7 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
-    displayRow: displayRow
+    displayRow: displayRow,
+    dmenuDefaultIndex: dmenuDefaultIndex
   }
 }

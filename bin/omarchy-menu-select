@@ -11,6 +11,8 @@
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+#
+# Passing "--default-index N" after "--" pre-highlights row N of the menu.
 
 set -euo pipefail
 
@@ -25,6 +27,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+menu_defaultindex=""
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -47,6 +50,14 @@ while (( $# > 0 )); do
             exit 1
           fi
           menu_maxheight="$1"
+          ;;
+        --default-index)
+          shift
+          if (( $# == 0 )); then
+            echo "omarchy-menu-select: --default-index requires a value" >&2
+            exit 1
+          fi
+          menu_defaultindex="$1"
           ;;
       esac
       shift
@@ -83,8 +94,9 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  $payload->{defaultIndex} = int($ARGV[6]) if length($ARGV[6] // "");
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$menu_defaultindex")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 
