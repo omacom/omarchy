@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer has an Apple T2 security chip.
+# omarchy:hidden=true
+
+# Vendor 106b (Apple), devices 1801/1802. Read cached sysfs IDs rather than
+# lspci, which reads PCI config space. The chatty lspci | grep -q form also
+# SIGPIPE'd on a long device list and looked like "no T2" under pipefail.
+
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+for device in "$pci_devices_path"/*; do
+  [[ -r $device/vendor && -r $device/device ]] || continue
+  [[ $(<"$device/vendor") == "0x106b" ]] || continue
+  case $(<"$device/device") in
+    0x1801 | 0x1802) exit 0 ;;
+  esac
+done
+
+exit 1
