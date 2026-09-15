@@ -717,6 +717,7 @@ Item {
   function modelWordCase(word) {
     if (word === "gpt") return "GPT"
     if (word === "deepseek") return "DeepSeek"
+    if (word === "gemini") return "Gemini"
     return word.charAt(0).toUpperCase() + word.slice(1)
   }
 
