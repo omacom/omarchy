@@ -18,42 +18,147 @@ case "${1:-}" in
     ;;
 esac
 
-battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
-[[ -z $battery ]] && exit 0
+batteries=$(upower -e 2>/dev/null | grep BAT)
+[[ -z $batteries ]] && exit 0
 
-battery_info=$(upower -i "$battery")
+# Aggregate across every present pack instead of reporting whichever pack
+# `upower -e` lists first: on multi-battery machines that can be a small
+# parked cell while a bigger pack does all the work.
+pack_count=0
+total_energy=0
+total_full=0
+total_rate=0
+agg_state=""
+all_full=true
+any_pending=false
+first_info=""
+first_native=""
+first_state=""
+cycle_list=""
 
-percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
-capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
-time_remaining=$(awk '/time to (empty|full)/ {
-  value = $4
-  unit = $5
-  if (unit ~ /^minute/) {
-    printf "%dm", int(value)
-  } else {
-    hours = int(value)
-    minutes = int((value - hours) * 60)
-    if (minutes > 0) {
-      printf "%dh %dm", hours, minutes
+while IFS= read -r battery; do
+  [[ -n $battery ]] || continue
+  info=$(upower -i "$battery" 2>/dev/null) || continue
+  native=$(awk '$1 == "native-path:" { print $2; exit }' <<<"$info")
+  [[ -n $native ]] || continue
+  pack_sys="$power_supply_path/$native"
+
+  pack_full=$(awk '$1 == "energy-full:" { print $2; exit }' <<<"$info")
+  pack_upower_rate=$(awk '$1 == "energy-rate:" { print $2; exit }' <<<"$info")
+  pack_state=$(awk '/state/ { print $2; exit }' <<<"$info")
+  if (( pack_count == 0 )); then
+    first_info="$info"
+    first_native="$native"
+    first_state="$pack_state"
+  fi
+
+  if [[ -r $pack_sys/energy_now ]]; then
+    pack_energy=$(awk -v microwatthours="$(<"$pack_sys/energy_now")" 'BEGIN { print microwatthours / 1000000 }')
+  elif [[ -r $pack_sys/charge_now && -r $pack_sys/voltage_now ]]; then
+    pack_energy=$(awk -v microamphours="$(<"$pack_sys/charge_now")" -v microvolts="$(<"$pack_sys/voltage_now")" 'BEGIN { print microamphours * microvolts / 1000000000000 }')
+  else
+    pack_energy=$(awk '$1 == "energy:" { print $2; exit }' <<<"$info")
+  fi
+
+  # Same instantaneous-rate preference as the single-pack path below: sysfs
+  # first, UPower's lagging energy-rate only as a fallback.
+  if [[ -r $pack_sys/power_now ]]; then
+    pack_rate=$(awk -v microwatts="$(<"$pack_sys/power_now")" 'BEGIN { print microwatts / 1000000 }')
+  elif [[ -r $pack_sys/current_now && -r $pack_sys/voltage_now ]]; then
+    pack_rate=$(awk -v microamps="$(<"$pack_sys/current_now")" -v microvolts="$(<"$pack_sys/voltage_now")" 'BEGIN { print microamps * microvolts / 1000000000000 }')
+  else
+    pack_rate="${pack_upower_rate:-0}"
+  fi
+
+  if [[ -r $pack_sys/cycle_count ]]; then
+    [[ -n $cycle_list ]] && cycle_list+=", "
+    cycle_list+=$(<"$pack_sys/cycle_count")
+  fi
+
+  total_energy=$(awk -v a="$total_energy" -v b="${pack_energy:-0}" 'BEGIN { print a + b }')
+  total_full=$(awk -v a="$total_full" -v b="${pack_full:-0}" 'BEGIN { print a + b }')
+  total_rate=$(awk -v a="$total_rate" -v b="${pack_rate:-0}" 'BEGIN { print a + b }')
+
+  if [[ $pack_state == "discharging" ]]; then
+    agg_state="discharging"
+  elif [[ -z $agg_state && $pack_state == "charging" ]]; then
+    agg_state="charging"
+  fi
+  [[ $pack_state == "fully-charged" ]] || all_full=false
+  [[ $pack_state == "pending-charge" ]] && any_pending=true
+
+  pack_count=$((pack_count + 1))
+done <<<"$batteries"
+
+(( pack_count > 0 )) || exit 0
+
+if [[ -z $agg_state ]]; then
+  if [[ $all_full == "true" ]]; then
+    agg_state="fully-charged"
+  elif [[ $any_pending == "true" ]]; then
+    agg_state="pending-charge"
+  else
+    agg_state="$first_state"
+  fi
+fi
+
+if (( pack_count == 1 )); then
+  battery_info="$first_info"
+  native_path="$first_native"
+
+  percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
+  capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
+  time_remaining=$(awk '/time to (empty|full)/ {
+    value = $4
+    unit = $5
+    if (unit ~ /^minute/) {
+      printf "%dm", int(value)
     } else {
-      printf "%dh", hours
+      hours = int(value)
+      minutes = int((value - hours) * 60)
+      if (minutes > 0) {
+        printf "%dh %dm", hours, minutes
+      } else {
+        printf "%dh", hours
+      }
     }
-  }
-  exit
-}' <<<"$battery_info")
-power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
-native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
-battery_path="$power_supply_path/$native_path"
+    exit
+  }' <<<"$battery_info")
+  power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
+  battery_path="$power_supply_path/$native_path"
 
-# UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
-# the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
-    'BEGIN { print microamps * microvolts / 1000000000000 }')
+  # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
+  # the instantaneous sysfs reading when available so the open panel stays live.
+  if [[ -r $battery_path/power_now ]]; then
+    power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
+  elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+    power_rate_raw=$(awk \
+      -v microamps="$(<"$battery_path/current_now")" \
+      -v microvolts="$(<"$battery_path/voltage_now")" \
+      'BEGIN { print microamps * microvolts / 1000000000000 }')
+  fi
+
+  state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
+else
+  percentage=$(awk -v e="$total_energy" -v f="$total_full" 'BEGIN { if (f > 0) printf "%d", (e / f * 100) + 0.5; else print 0 }')
+  capacity=$(awk -v f="$total_full" 'BEGIN { printf "%d", f }')
+  power_rate_raw="$total_rate"
+  state="$agg_state"
+  time_remaining=""
+  if awk -v rate="$total_rate" 'BEGIN { exit !(rate > 0) }'; then
+    if [[ $state == "charging" ]]; then
+      hours_left=$(awk -v e="$total_energy" -v f="$total_full" -v r="$total_rate" 'BEGIN { print (f - e) / r }')
+    else
+      hours_left=$(awk -v e="$total_energy" -v r="$total_rate" 'BEGIN { print e / r }')
+    fi
+    total_minutes=$(awk -v h="$hours_left" 'BEGIN { printf "%d", (h * 60) + 0.5 }')
+    if (( total_minutes < 60 )); then
+      time_remaining="${total_minutes}m"
+    else
+      time_remaining="$((total_minutes / 60))h"
+      (( total_minutes % 60 > 0 )) && time_remaining+=" $((total_minutes % 60))m"
+    fi
+  fi
 fi
 
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
@@ -61,9 +166,8 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   sub(/\.0$/, "", rounded)
   print rounded
 }')
-state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"${battery_info:-}")
+threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"${battery_info:-}")
 
 [[ -z $threshold_end ]] && threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
 [[ -z $threshold_start ]] && threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
@@ -107,7 +211,7 @@ if [[ $shell_output == "true" ]]; then
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
-  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  cycles="$cycle_list"
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 
