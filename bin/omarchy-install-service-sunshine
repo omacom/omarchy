@@ -71,6 +71,9 @@ enable_hyprland_autostart() {
 
 echo "Installing Sunshine..."
 omarchy-pkg-add sunshine
+# Stable can lag the security-fixed Sunshine build tracked in #10836; pull the
+# edge package when the just-installed version is still below that floor.
+omarchy-pkg-upgrade-sunshine-security
 systemctl --user enable --now sunshine
 
 echo "Opening Sunshine firewall ports..."
