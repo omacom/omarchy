@@ -7,9 +7,9 @@
 # The long-running desktop can retain an old SHELL after chsh, even when an
 # app is restarted. Resolve the account again for each app launch.
 login_shell=$(getent passwd "$EUID" | cut -d: -f7)
+# Set it inside the launched command so UWSM service mode also receives it.
 if [[ $login_shell == /* && -x $login_shell ]]; then
-  export SHELL="$login_shell"
+  exec uwsm-app -- env "SHELL=$login_shell" gtk-launch "$@"
+else
+  exec uwsm-app -- gtk-launch "$@"
 fi
-
-# Keep gtk-launch's desktop ID handling and UWSM's separate application scope.
-exec uwsm-app -- gtk-launch "$@"

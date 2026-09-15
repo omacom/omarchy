@@ -18,8 +18,10 @@ printf 'account:x:1000:1000::/home/account:%s\n' "$PASSWD_SHELL"
 STUB
 cat > "$scratch/bin/uwsm-app" <<'STUB'
 #!/bin/bash
-[[ $1 == "--" && $2 == "gtk-launch" ]] || exit 1
+[[ $1 == "--" ]] || exit 1
 shift
+# Service units start with the user manager's environment.
+if [[ ${SERVICE_MODE:-0} == 1 ]]; then export SHELL=/bin/bash; fi
 exec "$@"
 STUB
 cat > "$scratch/bin/gtk-launch" <<'STUB'
@@ -41,6 +43,10 @@ pass "a stale desktop SHELL is replaced with the current account's shell"
 PASSWD_SHELL=/bin/bash SHELL=/bin/sh "$ROOT/bin/omarchy-launch-desktop" example.desktop
 [[ $(head -n 1 "$LAUNCH_LOG") == "/bin/bash" ]] || fail "launch re-reads the login shell"
 pass "later launches pick up another login-shell change"
+
+SERVICE_MODE=1 SHELL=/bin/bash "$ROOT/bin/omarchy-launch-desktop" example.desktop
+[[ $(head -n 1 "$LAUNCH_LOG") == "/bin/sh" ]] || fail "service launch receives the resolved shell"
+pass "the resolved shell survives a service manager's stale environment"
 
 for unavailable in '' /nonexistent/login-shell; do
   PASSWD_SHELL="$unavailable" SHELL=/bin/sh "$ROOT/bin/omarchy-launch-desktop" example.desktop
