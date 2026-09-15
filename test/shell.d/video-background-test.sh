@@ -172,11 +172,11 @@ assert(
   'the lock screen stops playback once displays go dark or power-saver is active'
 )
 assert(
-  batteryService.includes('property string activePowerProfile') &&
+  batteryService.includes('readonly property string activePowerProfile') &&
     batteryService.includes('UPower.onBattery && activePowerProfile === "power-saver"') &&
-    batteryService.includes('"get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"') &&
-    !batteryService.includes('["powerprofilesctl"') &&
-    batteryService.includes('interval: 2000'),
+    batteryService.includes('PowerProfiles.profile') &&
+    !batteryService.includes('interval: 2000') &&
+    !batteryService.includes('busctl'),
   'the battery service tracks the active power-saver profile'
 )
 assert(
