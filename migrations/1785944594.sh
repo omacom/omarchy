@@ -1,6 +1,10 @@
 echo "Update T2 Mac suspend, Touch Bar, and fan defaults"
 
-if ! lspci -nn | grep "106b:180[12]" >/dev/null; then
+source "$OMARCHY_PATH/install/helpers/pci-sysfs.sh"
+
+# Detect the Apple T2 security chip from its cached sysfs PCI IDs rather than
+# lspci, which reads config space and resumes runtime-suspended devices.
+if ! omarchy-pci-id 0x106b 0x1801 0x1802; then
   exit 0
 fi
 
