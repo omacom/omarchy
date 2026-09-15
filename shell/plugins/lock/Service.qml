@@ -41,6 +41,10 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Guards against overlapping sessionLock.locked = true writes. A second
+  // acquire while the first is still in flight makes Quickshell abort with
+  // "Tried to show lockscreen surfaces without active lock" (#9654).
+  property bool sessionLockAcquirePending: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -72,6 +76,7 @@ Item {
 
   function requestSessionLock() {
     if (!lockRequested || sessionLock.locked || sessionLock.secure) return
+    if (sessionLockAcquirePending) return
     if (sessionLockStabilizeTimer.running) return
 
     if (!hasRealScreen()) {
@@ -83,6 +88,8 @@ Item {
 
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
+    sessionLockAcquirePending = true
+    sessionLockAcquireWatchdog.restart()
     sessionLock.locked = true
   }
 
@@ -160,8 +167,10 @@ Item {
 
     lockRequested = false
     pendingSessionLock = false
+    sessionLockAcquirePending = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
+    sessionLockAcquireWatchdog.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
@@ -274,8 +283,10 @@ Item {
       root.logEvent("secure=" + secure)
       if (secure) {
         root.pendingSessionLock = false
+        root.sessionLockAcquirePending = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        sessionLockAcquireWatchdog.stop()
         root.startFingerprint()
       }
     }
@@ -285,8 +296,15 @@ Item {
 
       if (locked) {
         root.pendingSessionLock = false
+        root.sessionLockAcquirePending = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        sessionLockAcquireWatchdog.stop()
+      }
+
+      if (!locked) {
+        root.sessionLockAcquirePending = false
+        sessionLockAcquireWatchdog.stop()
       }
 
       if (!locked && root.lockRequested) {
@@ -509,6 +527,24 @@ Item {
     interval: 100
     repeat: true
     onTriggered: root.requestSessionLock()
+  }
+
+  // If acquire never reaches locked/secure, clear the pending flag so a later
+  // requestSessionLock can try again instead of wedging forever (#9654).
+  Timer {
+    id: sessionLockAcquireWatchdog
+    interval: 2000
+    repeat: false
+    onTriggered: {
+      if (!root.sessionLockAcquirePending) return
+      if (sessionLock.locked || sessionLock.secure) {
+        root.sessionLockAcquirePending = false
+        return
+      }
+      root.sessionLockAcquirePending = false
+      root.logEvent("lock-acquire: watchdog-reset")
+      if (root.lockRequested) root.queueSessionLock()
+    }
   }
 
   Timer {
