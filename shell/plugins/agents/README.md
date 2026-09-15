@@ -50,6 +50,14 @@ prints the record contract (see the `claude` and `codex` collectors in
 with an `assets/<id>-light.svg` twin if the mark needs a dark variant for
 light surfaces — and the bar glyph stands in when there is none.
 
+User collectors live in `~/.config/omarchy/agents/collectors/` as
+`omarchy-agent-usage-<group>` executables and run through the same update
+command (and the panel's refresh timer) as the packaged ones — no separate
+scheduling needed. A collector may print one record, or an object of several
+records keyed by id when one scan feeds several tabs; each is fanned out to
+its own usage file, and ids the collector stops emitting are retired. Target
+one group with `omarchy-agent-usage-update --force <group>`.
+
 | Collector | Limits | Local stats |
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
