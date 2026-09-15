@@ -40,7 +40,7 @@ _Trigger > Speed Test > Disk Speed Test_ measures live read and write speed on y
 
 ### Why can't I sign into my Google account in Chromium?
 
-The plain open source Chromium build doesn't ship with the OAuth credentials that Google requires for account sign-in. Run _Install > Service > Chromium Account_ in the Omarchy menu to add them, restart the browser, and the sign-in will go through.
+Google only allows full account sign-in in Google Chrome, not in open-source Chromium. The old Omarchy workaround that injected Chrome's OAuth credentials into Chromium also made Chromium crash (SIGTRAP) on Google Search and during sign-in, so it was removed. Install Chrome from _Install > Browser > Chrome_ (or _Install > Service > Google Account (Chrome)_), use that for Google accounts, and keep Chromium as your everyday browser if you prefer.
 
 ### How do I add a printer?
 
