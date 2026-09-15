@@ -1,6 +1,6 @@
 # Zen web apps on Linux
 
-Investigated on 2026-09-15. This note separates installed-source findings from browser behavior that still needs runtime verification.
+Investigated on 2026-09-15 using upstream documentation, installed-source inspection, and isolated browser tests.
 
 ## Result
 

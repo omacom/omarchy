@@ -29,7 +29,7 @@ The web-app setting starts at **Automatic**. In this mode, Omarchy uses the regu
 
 Zen has a separate native web-app feature. In Zen's `about:config`, set `browser.taskbarTabs.enabled` to `true`, then use the app button in the address bar on an HTTPS site. Zen creates its own app shortcut and uses that browser profile. Set the preference back to `false` to disable the feature.
 
-This is separate from Omarchy's _Install > Web App_ command. In Zen 1.22.1b, the native command-line recovery path drops URL paths and query strings, and the app window can show an empty sidebar. Omarchy therefore does not list Zen as an app-mode browser. See [the investigation](../docs/zen-webapps-research.md) for the tested behavior and upstream issues.
+This is separate from Omarchy's _Install > Web App_ command. In Zen 1.22.1b, the native command-line recovery path drops URL paths and query strings, and the app window can show an empty sidebar. Omarchy therefore does not list Zen as an app-mode browser. See [Zen’s layout issue](https://github.com/zen-browser/desktop/issues/14314) and [Mozilla’s start-page issue](https://bugzilla.mozilla.org/show_bug.cgi?id=2035949).
 
 By default, Omarchy already ships with an assortment of default apps:
 
