@@ -130,6 +130,9 @@ string on a miss.
     "screensaver": 150,
     "lock": 300
   },
+  "lock": {
+    "fingerprintLidClosed": "skip"
+  },
   "bar": {
     "id": "omarchy.bar",
     "position": "top",
@@ -161,7 +164,8 @@ Rules:
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
-8. `version: 1` is required.
+8. `lock.fingerprintLidClosed` is `"skip"` or `"try"`. `skip` (the packaged default) does not arm lock-screen fingerprint PAM while the lid is shut; password unlock still works. `try` keeps fingerprint armed for docked or USB readers. A missing key is `try`, so a customized `shell.json` that never grew this object keeps current quattro behavior. This is a lock-service policy, not a PAM line — skipping `pam_fprintd` on the lock stack would unlock.
+9. `version: 1` is required.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user

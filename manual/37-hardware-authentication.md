@@ -6,7 +6,7 @@ A lot of laptops come with a fingerprint sensor to do authentication. You can us
 
 That'll install the fingerprint package, collect your print, verify it, and you'll be set to go using your fingerprint to unlock from the lock screen (which you can trigger with `Super + Ctrl + L`), enter sudo mode, and authorize system prompts.
 
-When your laptop lid is closed, the fingerprint prompt is automatically skipped, so you go straight to the password prompt instead of waiting on a sensor you can't reach. If you otherwise need to work on an external keyboard that doesn't have a sensor, just hit `CTRL + C`, when you're prompted for your fingerprint during `sudo`.
+When your laptop lid is closed, sudo and system prompts skip the fingerprint reader and go straight to the password. The lock screen does the same by default (`lock.fingerprintLidClosed` is `skip` in `~/.config/omarchy/shell.json`). Set that key to `try` if you unlock with a docked or USB reader while the lid is shut. If you otherwise need to work on an external keyboard that doesn't have a sensor, just hit `CTRL + C` when you're prompted for your fingerprint during `sudo`.
 
 You can remove the fingerprint authentication under _Remove > Security > Fingerprint_ in the Omarchy menu.
 
