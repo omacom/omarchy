@@ -7,6 +7,7 @@ import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
 import qs.Ui
+import "BackgroundVariants.js" as BackgroundVariants
 
 Item {
   id: root
@@ -27,6 +28,17 @@ Item {
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
+  property var displayedCandidates: []
+  signal captureBackground()
+
+  BackgroundVariantCatalog {
+    id: variantCatalog
+    path: root.currentBackground
+    revision: root.backgroundVersion
+    onResolved: {
+      if (!root.incomingBackground) root.displayedCandidates = candidates
+    }
+  }
 
   // Injected by the first-party service loader; used to reach the lock and idle
   // services so playback can stop whenever nothing can see the wallpaper.
@@ -66,6 +78,9 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
+    // Capture what each output actually shows, including its selected variant.
+    // The theme command's old snapshot contains only the default image.
+    captureBackground()
     currentBackground = finalPath
     backgroundVersion += 1
     revealStartedVersion = -1
@@ -81,6 +96,7 @@ Item {
       // A theme switch can replace the file behind an unchanged path, which
       // an unchanged property would never pick up.
       if (displayedBackground === finalPath) displayedReloads += 1
+      displayedCandidates = []
       displayedBackground = finalPath
       revealProgress = 1
       return
@@ -126,6 +142,16 @@ Item {
     revealStartedVersion = backgroundVersion
     applyPendingTheme()
     revealAnimation.restart()
+  }
+
+  function finishTransition() {
+    if (!finishingTransition) return
+    for (var i = 0; i < backgroundPanels.instances.length; i++) {
+      if (!backgroundPanels.instances[i].backgroundReady) return
+    }
+    incomingBackground = ""
+    oldBackground = ""
+    finishingTransition = false
   }
 
   function openSelector() {
@@ -197,17 +223,22 @@ Item {
     easing.type: Easing.InOutCubic
     onFinished: {
       if (root.incomingBackground) {
+        root.displayedReloads += 1
+        root.displayedCandidates = variantCatalog.candidates
         root.displayedBackground = root.currentBackground || root.incomingBackground
         root.finishingTransition = true
       }
       root.revealProgress = 1
+      Qt.callLater(root.finishTransition)
     }
   }
 
   Component.onCompleted: refreshBackground()
 
   Variants {
+    id: backgroundPanels
     model: Quickshell.screens
+    onInstancesChanged: Qt.callLater(root.finishTransition)
 
     PanelWindow {
       id: panel
@@ -243,12 +274,27 @@ Item {
         && String(Quickshell.screens[0].name || "") === String(modelData.name || "")
 
       property bool maskReady: false
+      readonly property bool backgroundReady: base.ready
+      property var failedVariants: []
+      readonly property real pixelScale: modelData.devicePixelRatio
+      readonly property string displayedPath: BackgroundVariants.choose(
+        root.displayedCandidates.filter(function(candidate) { return panel.failedVariants.indexOf(candidate.path) === -1 }),
+        root.displayedBackground, modelData.width, modelData.height, pixelScale)
+      readonly property string incomingPath: BackgroundVariants.choose(
+        variantCatalog.candidates.filter(function(candidate) { return panel.failedVariants.indexOf(candidate.path) === -1 }),
+        root.incomingBackground, modelData.width, modelData.height, pixelScale)
+
+      function rejectVariant(path) {
+        if (failedVariants.indexOf(path) === -1) failedVariants = failedVariants.concat([path])
+      }
 
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+        if (variantCatalog.busy) return
         if (incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
           if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+          if (variantCatalog.busy) return
           if (incomingFrame.status !== Image.Ready) return
           root.startReveal(panel)
         })
@@ -262,30 +308,30 @@ Item {
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
+        path: panel.displayedPath
         reloads: root.displayedReloads
         playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
         audioEnabled: panel.firstScreen
         onReadyChanged: {
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.finishingTransition = false
-          }
+          if (ready) Qt.callLater(root.finishTransition)
         }
       }
 
-      Image {
+      Connections {
+        target: base.current
+        ignoreUnknownSignals: true
+        function onStatusChanged() {
+          if (base.current && base.current.status === Image.Error) panel.rejectVariant(panel.displayedPath)
+        }
+      }
+
+      ShaderEffectSource {
         id: oldFrame
         anchors.fill: parent
-        source: root.imageUrl(root.oldBackground)
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: false
+        sourceItem: root.oldBackground !== "" ? base : null
+        live: false
         smooth: true
-        mipmap: true
         visible: root.oldBackground !== "" && root.revealProgress < 1
-        onStatusChanged: panel.maybeStartReveal()
       }
 
       Item {
@@ -304,13 +350,16 @@ Item {
         Image {
           id: incomingFrame
           anchors.fill: parent
-          source: root.imageUrl(root.incomingBackground)
+          source: root.incomingBackground && !variantCatalog.busy ? root.imageUrl(panel.incomingPath) : ""
           fillMode: Image.PreserveAspectCrop
           asynchronous: true
           cache: false
           smooth: true
           mipmap: true
-          onStatusChanged: panel.maybeStartReveal()
+          onStatusChanged: {
+            if (status === Image.Error) panel.rejectVariant(panel.incomingPath)
+            panel.maybeStartReveal()
+          }
         }
       }
 
@@ -344,10 +393,19 @@ Item {
 
       Connections {
         target: root
+        function onCaptureBackground() {
+          oldFrame.scheduleUpdate()
+          panel.failedVariants = []
+        }
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
           panel.maybeStartReveal()
         }
+      }
+
+      Connections {
+        target: variantCatalog
+        function onResolved() { panel.maybeStartReveal() }
       }
 
       MouseArea {

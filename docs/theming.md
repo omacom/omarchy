@@ -15,6 +15,29 @@ ship `backgrounds/` (users overlay their own via
 
 A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
+## Background image variants
+
+A still image can have alternatives in a sibling directory named after the image without its extension:
+
+```text
+backgrounds/
+  01-ink-signature.webp
+  01-ink-signature/
+    5120x2160.webp
+    portrait.png
+  02-paper-signature.webp
+  02-paper-signature/
+    5120x2160.webp
+```
+
+The top-level file is both the default image and the design's identity. The existing picker, cycling commands, and current-background symlink continue to refer to that file. Nested alternatives do not add picker entries. Themes therefore work without variant support, using their default images.
+
+The desktop background plugin considers the default plus JPG, JPEG, PNG, WebP, and BMP files immediately inside its matching directory. It reads actual image dimensions; filenames do not declare dimensions. Choose distinct default basenames within a background directory. GIF and video wallpapers retain their existing behavior and do not participate in variant selection.
+
+Each output independently chooses the least-cropped aspect ratio, then the smallest sufficient resolution at that aspect ratio, or the largest available if all would require enlargement. Logical output dimensions multiplied by pixel density account for scaling and rotation. Screen changes reevaluate selection without rescanning images. Metadata is cached under `~/.cache/omarchy/background-dimensions` (or `$XDG_CACHE_HOME`) by path, size, modification time, and change time. Selecting a different background or applying a theme refreshes its candidate list; unreadable alternatives are skipped.
+
+The same convention works for additional user backgrounds. The lock screen and picker previews continue to use the default image. Selecting an alternative file directly displays that file normally unless it also has a matching sibling directory.
+
 ## Theme activation flow
 
 `omarchy-theme-set <name>` builds a clean staging directory at
