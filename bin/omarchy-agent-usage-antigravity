@@ -1,0 +1,737 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Google Antigravity usage into one display-ready JSON record.
+
+Local stats come from Antigravity conversation transcripts and history logs
+under ~/.gemini/antigravity-cli/. Limits, tier, and session window calculations
+come from the Google Cloud Code API (v1internal:loadCodeAssist and
+v1internal:retrieveUserQuotaSummary) with local rolling calculations as fallback.
+The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import fcntl
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "antigravity"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Run `agy` to authenticate."
+
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+PROBE_MIN_INTERVAL_SECONDS = 15
+
+
+def app_root() -> Path:
+  return Path(os.environ.get("AGY_DIR", Path.home() / ".gemini/antigravity-cli")).resolve()
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def scan_cache_paths() -> tuple[Path, Path]:
+  root = cache_root()
+  return root / f"{AGENT_ID}-stats-cache.json", root / f"{AGENT_ID}-stats-cache.lock"
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> Any:
+  try:
+    stat = path.stat()
+  except OSError:
+    return None
+  age = time.time() - stat.st_mtime
+  if age > max_age_seconds:
+    return None
+  try:
+    with path.open("r", encoding="utf-8") as f:
+      return json.load(f)
+  except Exception:
+    return None
+
+
+def write_json(path: Path, payload: Any) -> None:
+  path.parent.mkdir(parents=True, exist_ok=True)
+  fd, tmp_path = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+  tmp = Path(tmp_path)
+  try:
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+      json.dump(payload, f, separators=(",", ":"))
+      f.write("\n")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def check_auth() -> tuple[bool, str, str, str, int]:
+  """Check authentication state via Secret Service keyring."""
+  try:
+    raw = subprocess.check_output(
+        ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+        timeout=3,
+    )
+    if raw.strip():
+      data = json.loads(raw)
+      auth_method = data.get("auth_method", "consumer")
+      token_dict = data.get("token") or {}
+      access_token = str(token_dict.get("access_token") or data.get("access_token") or "")
+      expiry_raw = str(token_dict.get("expiry") or data.get("expiry") or "")
+      expires_at_ms = 0
+      if expiry_raw:
+        try:
+          if expiry_raw.isdigit():
+            expires_at_ms = int(expiry_raw)
+            if expires_at_ms < 1e12:
+              expires_at_ms *= 1000
+          else:
+            dt = datetime.fromisoformat(expiry_raw.replace("Z", "+00:00"))
+            expires_at_ms = int(dt.timestamp() * 1000)
+        except Exception:
+          expires_at_ms = 0
+
+      id_token = data.get("id_token")
+      email = ""
+      if id_token:
+        parts = id_token.split(".")
+        if len(parts) >= 2:
+          padded = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(padded))
+          email = claims.get("email", "")
+      return True, email, auth_method, access_token, expires_at_ms
+  except Exception:
+    pass
+  return False, "", "consumer", "", 0
+
+
+def normalize_tier_label(tier_name: str, tier_id: str = "") -> str:
+  tier_id_lower = tier_id.lower()
+  tier_name_lower = tier_name.lower()
+  if "ultra" in tier_id_lower or "ultra" in tier_name_lower:
+    return "Ultra"
+  if "pro" in tier_id_lower or "pro" in tier_name_lower:
+    return "Pro"
+  if "free" in tier_id_lower or "free" in tier_name_lower:
+    return "Free"
+  if tier_name.lower().startswith("google ai "):
+    return tier_name[10:].strip()
+  if tier_name:
+    return tier_name
+  if tier_id:
+    return tier_id.replace("-tier", "").capitalize()
+  return "Free"
+
+
+def extract_tier(data: dict[str, Any], auth_method: str = "consumer") -> str:
+  paid_tier = data.get("paidTier")
+  if isinstance(paid_tier, dict):
+    t_name = str(paid_tier.get("name") or "").strip()
+    t_id = str(paid_tier.get("id") or "").strip()
+    if t_name or t_id:
+      return normalize_tier_label(t_name, t_id)
+
+  current_tier = data.get("currentTier")
+  if isinstance(current_tier, dict):
+    c_id = str(current_tier.get("id") or "").strip()
+    c_name = str(current_tier.get("name") or "").strip()
+    if c_id or c_name:
+      return normalize_tier_label(c_name, c_id)
+
+  if auth_method == "enterprise":
+    return "Enterprise"
+  if auth_method in ("cloud", "vertex"):
+    return "Cloud"
+  return "Free"
+
+
+def normalize_reset_at(value: Any) -> str:
+  if value is None:
+    return ""
+  raw = str(value).strip()
+  if raw == "":
+    return ""
+  if raw.isdigit():
+    ts = int(raw)
+    if ts < 1e12:
+      ts *= 1000
+    try:
+      return datetime.fromtimestamp(ts / 1000, timezone.utc).isoformat()
+    except Exception:
+      return raw
+  try:
+    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    return parsed.isoformat()
+  except Exception:
+    return raw
+
+
+def extract_limits(data: dict[str, Any]) -> list[dict[str, Any]]:
+  groups = data.get("groups")
+  if not isinstance(groups, list):
+    return []
+
+  gemini_group = None
+  other_groups = []
+  for g in groups:
+    if not isinstance(g, dict):
+      continue
+    name = str(g.get("displayName") or "").lower()
+    if "gemini" in name or gemini_group is None:
+      gemini_group = g
+    else:
+      other_groups.append(g)
+
+  limits = []
+  # Primary group: gemini models
+  if gemini_group:
+    buckets = gemini_group.get("buckets") or []
+    bucket_5h = None
+    bucket_weekly = None
+    for b in buckets:
+      if not isinstance(b, dict):
+        continue
+      w = str(b.get("window") or "").lower()
+      bid = str(b.get("bucketId") or "").lower()
+      dname = str(b.get("displayName") or "").lower()
+      if w == "5h" or "5h" in bid or "five" in dname:
+        bucket_5h = b
+      elif w == "weekly" or "weekly" in bid or "week" in dname:
+        bucket_weekly = b
+
+    # Enforce Session (5-hour) first, then Weekly (7-day)
+    if bucket_5h:
+      rem = float(bucket_5h.get("remainingFraction", 1.0))
+      used = round(max(0.0, min(1.0, 1.0 - rem)), 4)
+      limits.append({
+          "label": "Session (5-hour)",
+          "title": "Session",
+          "percent": used,
+          "resetsAt": normalize_reset_at(bucket_5h.get("resetTime")),
+      })
+    if bucket_weekly:
+      rem = float(bucket_weekly.get("remainingFraction", 1.0))
+      used = round(max(0.0, min(1.0, 1.0 - rem)), 4)
+      limits.append({
+          "label": "Weekly (7-day)",
+          "title": "Weekly",
+          "percent": used,
+          "resetsAt": normalize_reset_at(bucket_weekly.get("resetTime")),
+      })
+
+  # Scoped limits for other groups (e.g. Claude and GPT models)
+  for g in other_groups:
+    g_name = str(g.get("displayName") or "").strip()
+    short_name = "Claude/GPT" if "claude" in g_name.lower() else (g_name or "3P")
+    for b in (g.get("buckets") or []):
+      if not isinstance(b, dict):
+        continue
+      rem = float(b.get("remainingFraction", 1.0))
+      used = round(max(0.0, min(1.0, 1.0 - rem)), 4)
+      # Only show secondary model limits if there has been usage
+      if used > 0:
+        w = str(b.get("window") or "").lower()
+        w_title = "Weekly" if "week" in w else "Session"
+        title = f"{short_name} {w_title}"
+        limits.append({
+            "label": title,
+            "title": title,
+            "percent": used,
+            "resetsAt": normalize_reset_at(b.get("resetTime")),
+        })
+
+  return limits
+
+
+def probe_antigravity(access_token: str, endpoint_base: str = "") -> dict[str, Any]:
+  if not endpoint_base:
+    endpoint_base = os.environ.get("CLOUD_CODE_URL", "https://daily-cloudcode-pa.googleapis.com").rstrip("/")
+
+  headers = {
+      "Authorization": f"Bearer {access_token}",
+      "Content-Type": "application/json",
+      "User-Agent": "antigravity",
+  }
+
+  result: dict[str, Any] = {
+      "ok": False,
+      "tierLabel": "",
+      "limits": [],
+      "helpText": "",
+      "rateLimited": False,
+      "transport": False,
+  }
+
+  tier = ""
+  try:
+    req = urllib.request.Request(f"{endpoint_base}/v1internal:loadCodeAssist", data=b"{}", headers=headers)
+    with urllib.request.urlopen(req, timeout=8) as resp:
+      payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+      tier = extract_tier(payload)
+  except urllib.error.HTTPError as err:
+    if err.code == 429:
+      result["rateLimited"] = True
+    elif err.code == 401:
+      result["helpText"] = "Antigravity authentication expired. Run `agy` to authenticate."
+      return result
+  except Exception:
+    result["transport"] = True
+    result["helpText"] = "Could not reach Antigravity service."
+
+  limits = []
+  try:
+    req = urllib.request.Request(f"{endpoint_base}/v1internal:retrieveUserQuotaSummary", data=b"{}", headers=headers)
+    with urllib.request.urlopen(req, timeout=8) as resp:
+      payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+      limits = extract_limits(payload)
+  except urllib.error.HTTPError as err:
+    if err.code == 429:
+      result["rateLimited"] = True
+    elif err.code == 401:
+      result["helpText"] = "Antigravity authentication expired. Run `agy` to authenticate."
+      return result
+  except Exception:
+    result["transport"] = True
+
+  result["ok"] = bool(tier or limits)
+  result["tierLabel"] = tier
+  result["limits"] = limits
+  return result
+
+
+def limit_window_open(entry: dict[str, Any], now: datetime) -> bool:
+  raw = str(entry.get("resetsAt") or "")
+  if raw == "":
+    return True
+  try:
+    resets_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except Exception:
+    return True
+  if resets_at.tzinfo is None:
+    resets_at = resets_at.replace(tzinfo=timezone.utc)
+  return resets_at > now
+
+
+def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
+  entries = cached.get("limits")
+  if not isinstance(entries, list):
+    return []
+  now = datetime.now(timezone.utc)
+  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+
+
+def detect_tier_label(
+    root_dir: Path,
+    auth_ok: bool,
+    email: str,
+    auth_method: str = "consumer",
+    probed_tier: str = "",
+    cached_tier: str = "",
+) -> str:
+  if not auth_ok:
+    return ""
+
+  if os.environ.get("AGY_TIER"):
+    return os.environ["AGY_TIER"]
+
+  cfg_file = Path.home() / ".config" / "omarchy" / "agents" / "antigravity.json"
+  if cfg_file.exists():
+    try:
+      with cfg_file.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+        if data.get("tier"):
+          return str(data["tier"])
+    except Exception:
+      pass
+
+  if probed_tier:
+    return probed_tier
+
+  if cached_tier:
+    return cached_tier
+
+  if auth_method == "enterprise":
+    return "Enterprise"
+  if auth_method in ("cloud", "vertex"):
+    return "Cloud"
+
+  return "Pro"
+
+
+def collect_local_stats(root_dir: Path, now: datetime) -> dict[str, Any]:
+  today_str = now.strftime("%Y-%m-%d")
+  recent_dates = [(now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+  recent = {d: {"date": d, "messageCount": 0} for d in recent_dates}
+
+  history_file = root_dir / "history.jsonl"
+  brain_dir = root_dir / "brain"
+
+  today_prompts = 0
+  total_prompts = 0
+  active_dates: set[str] = set()
+  today_sessions: set[str] = set()
+  total_sessions: set[str] = set()
+
+  if history_file.exists():
+    try:
+      with history_file.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+          line = line.strip()
+          if not line:
+            continue
+          try:
+            entry = json.loads(line)
+            ts = entry.get("timestamp")
+            if not ts:
+              continue
+            try:
+              if isinstance(ts, (int, float)):
+                dt = datetime.fromtimestamp(ts / 1000.0, timezone.utc)
+              else:
+                dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            except Exception:
+              continue
+            d_str = dt.strftime("%Y-%m-%d")
+            active_dates.add(d_str)
+            total_prompts += 1
+            conv_id = entry.get("conversationId") or entry.get("conversation_id")
+            if conv_id:
+              total_sessions.add(conv_id)
+            if d_str == today_str:
+              today_prompts += 1
+              if conv_id:
+                today_sessions.add(conv_id)
+          except Exception:
+            continue
+    except Exception:
+      pass
+
+  # Fallback to conversation summaries if history.jsonl is sparse
+  summaries_db = root_dir / "conversation_summaries.db"
+  if summaries_db.exists():
+    try:
+      conn = sqlite3.connect(f"file:{summaries_db}?mode=ro", uri=True)
+      cur = conn.cursor()
+      for row in cur.execute("SELECT conversation_id, last_modified_time FROM conversation_summaries"):
+        cid, lmt = row[0], str(row[1] or "")
+        if cid:
+          total_sessions.add(cid)
+        if lmt.startswith(today_str):
+          today_sessions.add(cid)
+      conn.close()
+    except Exception:
+      pass
+
+  # Compute token counts across conversation transcripts
+  model_usage: dict[str, dict[str, int]] = {}
+  today_tokens = 0
+  today_tokens_by_model: dict[str, int] = {}
+
+  if brain_dir.exists():
+    try:
+      for conv_folder in brain_dir.iterdir():
+        if not conv_folder.is_dir():
+          continue
+        tr_file = conv_folder / ".system_generated/logs/transcript.jsonl"
+        if not tr_file.exists():
+          continue
+        try:
+          with tr_file.open("r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+              line = line.strip()
+              if not line:
+                continue
+              try:
+                step = json.loads(line)
+                m_name = step.get("model") or "gemini-3.8-flash-high"
+                if m_name not in model_usage:
+                  model_usage[m_name] = {
+                      "inputTokens": 0,
+                      "outputTokens": 0,
+                      "cacheReadInputTokens": 0,
+                      "cacheCreationInputTokens": 0,
+                  }
+
+                step_usage = step.get("usage")
+                is_model = step.get("source") == "MODEL" or step.get("type") == "PLANNER_RESPONSE"
+                if isinstance(step_usage, dict):
+                  inp = int(step_usage.get("prompt_token_count") or step_usage.get("input_tokens") or 0)
+                  out = int(step_usage.get("candidates_token_count") or step_usage.get("output_tokens") or 0)
+                  tok = inp + out
+                  model_usage[m_name]["inputTokens"] += inp
+                  model_usage[m_name]["outputTokens"] += out
+                else:
+                  c_text = step.get("content") or ""
+                  t_text = step.get("thinking") or ""
+                  tok = max(1, (len(c_text) + len(t_text)) // 4)
+                  if is_model:
+                    model_usage[m_name]["outputTokens"] += tok
+                  else:
+                    model_usage[m_name]["inputTokens"] += tok
+
+                created = step.get("created_at")
+                is_today = False
+                if created:
+                  step_d = created[:10]
+                  if step_d in recent:
+                    recent[step_d]["messageCount"] += tok
+                  if step_d == today_str:
+                    is_today = True
+                else:
+                  is_today = True
+
+                if is_today:
+                  today_tokens += tok
+                  today_tokens_by_model[m_name] = today_tokens_by_model.get(m_name, 0) + tok
+              except Exception:
+                continue
+        except Exception:
+          continue
+    except Exception:
+      pass
+
+  return {
+      "todayPrompts": today_prompts,
+      "todaySessions": len(today_sessions),
+      "todayTotalTokens": today_tokens,
+      "todayTokensByModel": today_tokens_by_model,
+      "recentDays": [recent[d] for d in recent_dates],
+      "totalPrompts": total_prompts,
+      "totalSessions": len(total_sessions),
+      "activeDays": len(active_dates),
+      "activeDates": sorted(list(active_dates)),
+      "modelUsage": model_usage,
+  }
+
+
+def calculate_limits(root_dir: Path, now: datetime) -> list[dict[str, Any]]:
+  """Fallback calculation of rolling limits from local history files."""
+  history_file = root_dir / "history.jsonl"
+  five_hours_ago_ts = int((now - timedelta(hours=5)).timestamp() * 1000)
+
+  prompts_5h = 0
+  oldest_5h_ts = None
+  prompts_7d = 0
+
+  seven_days_ago_ts = int((now - timedelta(days=7)).timestamp() * 1000)
+
+  if history_file.exists():
+    try:
+      with history_file.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+          line = line.strip()
+          if not line:
+            continue
+          try:
+            entry = json.loads(line)
+            ts = entry.get("timestamp")
+            if not ts:
+              continue
+            if ts >= seven_days_ago_ts:
+              prompts_7d += 1
+            if ts >= five_hours_ago_ts:
+              prompts_5h += 1
+              if oldest_5h_ts is None or ts < oldest_5h_ts:
+                oldest_5h_ts = ts
+          except Exception:
+            continue
+    except Exception:
+      pass
+
+  # Rolling 5h reset
+  if oldest_5h_ts:
+    reset_5h = datetime.fromtimestamp(oldest_5h_ts / 1000.0, timezone.utc) + timedelta(hours=5)
+  else:
+    reset_5h = now + timedelta(hours=5)
+
+  # Check if a 429 / resource exhausted error happened recently
+  cli_log = root_dir / "cli.log"
+  rate_limited = False
+  if cli_log.exists():
+    try:
+      stat = cli_log.stat()
+      if (time.time() - stat.st_mtime) < 18000:
+        with cli_log.open("r", encoding="utf-8", errors="ignore") as f:
+          content = f.read()[-8192:]
+          if "RESOURCE_EXHAUSTED" in content or "rate limit exceeded" in content.lower():
+            rate_limited = True
+    except Exception:
+      pass
+
+  session_pct = 1.0 if rate_limited else round(min(1.0, prompts_5h / 50.0), 2)
+  weekly_pct = round(min(1.0, prompts_7d / 250.0), 2)
+
+  return [
+      {
+          "label": "Session (5-hour)",
+          "title": "Session",
+          "percent": session_pct,
+          "resetsAt": reset_5h.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+      },
+      {
+          "label": "Weekly (7-day)",
+          "title": "Weekly",
+          "percent": weekly_pct,
+          "resetsAt": (now + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+      },
+  ]
+
+
+def collect_limits(
+    root_dir: Path,
+    now: datetime,
+    auth_ok: bool,
+    access_token: str,
+    expires_at_ms: int,
+    auth_method: str,
+    force: bool,
+) -> tuple[list[dict[str, Any]], str, str, str]:
+  """Collect limits via API probe, falling back to cached or rolling local stats."""
+  limits_cache = cache_root() / f"{AGENT_ID}-limits.json"
+  cached = read_fresh_json(limits_cache, float("inf")) or {}
+  fallback = usable_cached_limits(cached)
+  cached_tier = str(cached.get("tierLabel") or "")
+
+  if not auth_ok:
+    return [], "", "Sign in to see limits", AUTH_HELP
+
+  # If access token is empty, we cannot probe the remote endpoint
+  if not access_token:
+    limits = fallback if fallback else calculate_limits(root_dir, now)
+    return limits, cached_tier, "", AUTH_HELP
+
+  # Check reuse window for limits probe (PROBE_MIN_INTERVAL_SECONDS)
+  fetched_at = float(cached.get("fetchedAtMs") or 0) / 1000.0
+  if fallback and not force and (time.time() - fetched_at) < PROBE_MIN_INTERVAL_SECONDS:
+    return fallback, cached_tier, "", AUTH_HELP
+
+  # Perform live probe
+  probe = probe_antigravity(access_token)
+  if probe["ok"]:
+    probed_limits = probe["limits"]
+    probed_tier = probe["tierLabel"]
+    write_json(
+        limits_cache,
+        {
+            "fetchedAtMs": round(time.time() * 1000),
+            "limits": probed_limits,
+            "tierLabel": probed_tier,
+        },
+    )
+    return probed_limits, probed_tier, "", AUTH_HELP
+
+  # Probe failed
+  help_text = probe["helpText"] if probe.get("helpText") else AUTH_HELP
+  usage_status = ""
+  if probe.get("rateLimited"):
+    usage_status = "Antigravity limits rate limited"
+  elif probe.get("transport"):
+    usage_status = ""
+
+  if fallback:
+    return fallback, cached_tier, usage_status, help_text
+
+  # Fallback to local rolling calculation
+  local_limits = calculate_limits(root_dir, now)
+  return local_limits, cached_tier, usage_status, help_text
+
+
+def main() -> None:
+  parser = argparse.ArgumentParser(description=__doc__)
+  parser.add_argument("--force", action="store_true", help="Bypass local caches and force a fresh scan")
+  parser.add_argument("--limits-only", action="store_true", help="Recompute only rate limits if cache is fresh")
+  args = parser.parse_args()
+
+  root_dir = app_root()
+  now = datetime.now(timezone.utc)
+  today_str = now.strftime("%Y-%m-%d")
+
+  auth_ok, email, auth_method, access_token, expires_at_ms = check_auth()
+
+  cache_file, lock_file = scan_cache_paths()
+  stats = None
+
+  if not args.force:
+    max_age = LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS
+    cached = read_fresh_json(cache_file, max_age)
+    if isinstance(cached, dict) and cached.get("scanDate") == today_str:
+      stats = cached.get("stats")
+
+  if stats is None:
+    try:
+      with lock_file.open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        stats = collect_local_stats(root_dir, now)
+        write_json(cache_file, {"schemaVersion": 1, "scanDate": today_str, "stats": stats})
+    except Exception as exc:
+      print(f"omarchy-agent-usage-antigravity: cache lock failed ({exc}), scanning directly", file=sys.stderr)
+      stats = collect_local_stats(root_dir, now)
+
+  limits, probed_tier, usage_status_text, auth_help_text = collect_limits(
+      root_dir,
+      now,
+      auth_ok,
+      access_token,
+      expires_at_ms,
+      auth_method,
+      args.force,
+  )
+
+  cached_limits_file = cache_root() / f"{AGENT_ID}-limits.json"
+  cached_payload = read_fresh_json(cached_limits_file, float("inf")) or {}
+  cached_tier = str(cached_payload.get("tierLabel") or "")
+  tier_label = detect_tier_label(root_dir, auth_ok, email, auth_method, probed_tier, cached_tier)
+
+  total_prompts = stats.get("totalPrompts", 0)
+  ready = auth_ok or total_prompts > 0 or len(limits) > 0
+  has_local_stats = total_prompts > 0
+
+  record = {
+      "schemaVersion": 1,
+      "id": AGENT_ID,
+      "name": AGENT_NAME,
+      "updatedAt": now.strftime("%Y-%m-%dT%H:%M:%S.%f+00:00"),
+      "ready": ready,
+      "hasLocalStats": has_local_stats,
+      "todayPrompts": stats.get("todayPrompts", 0),
+      "todaySessions": stats.get("todaySessions", 0),
+      "todayTotalTokens": stats.get("todayTotalTokens", 0),
+      "todayTokensByModel": stats.get("todayTokensByModel", {}),
+      "recentDays": stats.get("recentDays", []),
+      "totalPrompts": total_prompts,
+      "totalSessions": stats.get("totalSessions", 0),
+      "activeDays": stats.get("activeDays", 0),
+      "activeDates": stats.get("activeDates", []),
+      "modelUsage": stats.get("modelUsage", {}),
+      "limits": limits,
+      "tierLabel": tier_label,
+      "usageStatusText": usage_status_text,
+      "authHelpText": auth_help_text,
+  }
+
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
