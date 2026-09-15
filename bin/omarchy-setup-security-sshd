@@ -37,7 +37,7 @@ while (( $# > 0 )); do
   -h | --help)
     echo "Usage: omarchy-setup-security-sshd [--key=<public-key>] [--gh-keys <github-username>]"
     echo
-    echo "Sets up the OpenSSH server, opens the SSH port in the UFW firewall,"
+    echo "Sets up the OpenSSH server, binds sshd to localhost by default (not world-reachable),"
     echo "and authorizes an SSH key (from GitHub, pasted, or passed via --key)."
     echo
     echo "Passing --key or --gh-keys skips the prompts, so the command can run"
@@ -57,6 +57,30 @@ if [[ -n $KEY && -n $GITHUB_USER ]]; then
   exit 2
 fi
 
+
+bind_localhost() {
+  local config=/etc/ssh/sshd_config.d/20-omarchy-localhost.conf
+
+  echo "Binding sshd to localhost only..."
+  sudo install -Dm644 /dev/stdin "$config" <<'CONF'
+# Written by omarchy-setup-security-sshd. Loopback only by default.
+# To expose SSH remotely:
+#   1. remove this file (or comment the ListenAddress lines)
+#   2. sudo ufw limit 22/tcp comment "omarchy-sshd" && sudo ufw reload
+#   3. sudo systemctl reload sshd
+ListenAddress 127.0.0.1
+ListenAddress ::1
+CONF
+
+  if ! sudo sshd -t; then
+    echo -e "\e[31msshd rejected the localhost bind config; removing it.\e[0m" >&2
+    sudo rm -f "$config"
+    return 0
+  fi
+
+  sudo systemctl reload sshd.service || true
+}
+
 setup_sshd() {
   echo "Installing and starting the OpenSSH server..."
   omarchy-pkg-add openssh
@@ -64,14 +88,12 @@ setup_sshd() {
 }
 
 open_firewall() {
+  # Default is localhost-only (bind_localhost). Do not open port 22 publicly.
   if omarchy-cmd-missing ufw; then
-    echo "UFW is not installed; skipping firewall rule."
     return
   fi
-
-  echo "Opening the SSH port in the firewall (rate limited against brute force)..."
-  sudo ufw limit 22/tcp comment "omarchy-sshd" >/dev/null
-  sudo ufw reload >/dev/null
+  echo "SSH firewall port left closed (localhost bind only)."
+  echo "Remote: clear ListenAddress drop-in, then: sudo ufw limit 22/tcp comment \"omarchy-sshd\""
 }
 
 valid_key() {
@@ -190,6 +212,7 @@ CONF
 echo -e "\e[32mSetting up SSH server access with key-based authentication.\n\e[0m"
 
 setup_sshd
+bind_localhost
 open_firewall
 
 echo
