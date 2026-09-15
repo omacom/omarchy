@@ -37,20 +37,22 @@ A third-party plugin is just a git repo with a `manifest.json` at its root.
 omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
 ```
 
+If the repo is listed on [omarchyplugins.com](https://omarchyplugins.com), you get the exact commit the marketplace last verified, not whatever upstream pushed an hour ago, and it tells you when newer, unverified commits exist. Verification means the marketplace's automated checks passed for that commit. It's not a security audit. A repo that isn't listed, has no verified snapshot yet, or can't be checked because the marketplace is unreachable installs upstream HEAD with a warning, and `--head` installs upstream HEAD on purpose. If the verified commit has disappeared from the upstream repo, it refuses to install rather than quietly handing you HEAD in its place. Rerun with `--head` if you want upstream HEAD anyway.
+
 Before it does anything, it tells you plainly that plugins run as arbitrary, unsandboxed code inside your long-lived shell process, shows you the URL, and asks you to confirm. Take that seriously. The third-party plugin interface does not directly expose authentication services, and a replacement bar receives only limited capabilities for configured non-authentication UI. Visual plugins still share the shell's QML scene and can walk ordinary parent objects, while all plugin code runs with everything your user account can reach. Authentication state is protected separately by keeping those services outside the reachable host object graph. Only add repos you're willing to run, and read them before you enable them.
 
 A replacement bar can render installed widgets, but service-backed third-party widgets may have reduced functionality there because the bar is not allowed to request another plugin's live service object. Switch back to the built-in `omarchy.bar` if such a widget needs its companion service.
 
 Then it clones the repo into a staging directory, validates the manifest, refuses the install if another plugin already claims that id, and moves it into `~/.config/omarchy/plugins/<id>/`. Without `--enable` it asks whether you want it on now, and you can say no and go read the code first. It never runs anything from the plugin, never executes an install hook, and never asks for sudo — it clones files, checks the manifest, and flips a bit over IPC.
 
-Updating is a fast-forward pull of that same checkout:
+Updating fast-forwards that same checkout, and it stays on the track you added it with. A plugin added at a verified snapshot moves to the marketplace's newest verified snapshot. One added from upstream HEAD — with `--head`, because it wasn't listed, or because you added it before verified installs existed — pulls upstream HEAD like always:
 
 ```
 omarchy plugin update acme.weather
 omarchy plugin update
 ```
 
-With no id it updates every git-managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation.
+With no id it updates every git-managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation. If the marketplace withdraws a plugin's snapshot or delists it, the plugin stays where it is until you decide. `omarchy plugin update acme.weather --head` switches it to following upstream HEAD for good.
 
 ```
 omarchy plugin remove acme.weather

@@ -2,8 +2,8 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url] [--enable] [--yes]
-# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
+# omarchy:args=[git-url] [--enable] [--head] [--yes]
+# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add https://github.com/acme/omarchy-weather.git --head
 # omarchy:alias=omarchy plugin install
 
 set -euo pipefail
@@ -13,6 +13,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
+INSTALL_HEAD=0
 
 fail() {
   echo "omarchy-plugin-add: $*" >&2
@@ -67,12 +68,16 @@ while (( $# > 0 )); do
     enable_after=true
     shift
     ;;
+  --head)
+    INSTALL_HEAD=1
+    shift
+    ;;
   --yes | -y)
     ASSUME_YES=1
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url] [--enable] [--head] [--yes]"
     exit 0
     ;;
   -*)
@@ -100,6 +105,43 @@ fi
 # cloning it.
 omarchy-git-url-check "$url" || exit 1
 
+# A repository listed on the plugin marketplace installs at the snapshot the
+# marketplace verified, not at whatever upstream HEAD holds today. --head opts
+# out, and a repository with no verified snapshot, or one the marketplace cannot
+# be asked about, installs HEAD with a warning.
+source_state="head"
+verified_commit="-"
+upstream_commit="-"
+if (( ! INSTALL_HEAD )); then
+  lookup=$(omarchy-plugin-marketplace-lookup "$url") ||
+    fail "could not check the plugin marketplace for a verified snapshot"
+  read -r source_state verified_commit upstream_commit <<<"$lookup"
+fi
+
+case "$source_state" in
+verified)
+  echo "Installing the snapshot the plugin marketplace verified (${verified_commit:0:12}). Verification means its automated checks passed for that exact commit; it is not a security audit." >&2
+  if [[ $upstream_commit != "-" && $upstream_commit != "$verified_commit" ]]; then
+    echo "Upstream has newer commits that are not verified; pass --head to install those instead." >&2
+  fi
+  ;;
+unverified)
+  echo "⚠️  This repository is listed on the plugin marketplace but has no verified snapshot. Installing unverified upstream HEAD." >&2
+  ;;
+unlisted)
+  echo "⚠️  This repository is not listed on the plugin marketplace, so nothing has verified it. Installing unverified upstream HEAD." >&2
+  ;;
+unreachable)
+  echo "⚠️  Could not reach the plugin marketplace to look for a verified snapshot. Installing unverified upstream HEAD." >&2
+  ;;
+head)
+  echo "⚠️  --head installs the latest upstream commit and skips marketplace verification. That code may not have been checked by anyone." >&2
+  ;;
+*)
+  fail "unexpected marketplace lookup result: $lookup"
+  ;;
+esac
+
 if (( ! ASSUME_YES )); then
   cat >&2 <<WARN
 
@@ -122,10 +164,34 @@ if ! git clone -- "$url" "$stage"; then
   fail "failed to clone $url"
 fi
 
+# Move the checkout to the verified snapshot before validating it, so the code
+# that passes validation is the code that gets installed. The snapshot is
+# normally in the default branch's history; fetch it by id when it is not. When
+# upstream no longer has it at all, refuse rather than swap in unverified HEAD
+# after the user agreed to the verified snapshot: a vanished snapshot is exactly
+# what a rewritten or compromised repository looks like.
+channel="head"
+if [[ $source_state == "verified" ]]; then
+  if ! git -C "$stage" cat-file -e "$verified_commit^{commit}" 2>/dev/null; then
+    git -C "$stage" fetch --quiet origin "$verified_commit" 2>/dev/null || true
+  fi
+  if git -C "$stage" cat-file -e "$verified_commit^{commit}" 2>/dev/null &&
+    git -C "$stage" reset --quiet --hard "$verified_commit"; then
+    channel="verified"
+  else
+    rm -rf "$stage"
+    fail "refusing to add: the verified snapshot $verified_commit is no longer available upstream. Install unverified upstream HEAD on purpose with: omarchy plugin add $url --head"
+  fi
+fi
+
 if ! omarchy-plugin-validate "$stage"; then
   rm -rf "$stage"
   fail "refusing to add: validation failed"
 fi
+
+# omarchy-plugin-update reads this to keep following verified snapshots, or
+# upstream HEAD, the same way the plugin was added.
+git -C "$stage" config omarchy.channel "$channel"
 
 id=$(jq -r '.id' "$stage/manifest.json")
 existing_manifest=$(plugin_id_manifest "$id") || {
@@ -144,7 +210,11 @@ if [[ -e $target || -L $target ]]; then
 fi
 
 mv "$stage" "$target"
-echo "Added $id into $target"
+if [[ $channel == "verified" ]]; then
+  echo "Added $id at verified snapshot ${verified_commit:0:12} into $target"
+else
+  echo "Added $id into $target"
+fi
 
 omarchy-shell shell rescanPlugins >/dev/null
 
