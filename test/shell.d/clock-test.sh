@@ -110,6 +110,47 @@ assertDeepEqual(julySunday.map(week => week.week), [27, 28, 29, 30, 31, 32], 'ca
 const januarySunday = calendar.monthGrid(2021, 0, 0, '')
 assertEqual(januarySunday[0].week, 53, 'calendar carries the previous ISO year into a straddling first row')
 
+// Zones that start DST at 00:00 have a calendar day with no local midnight, and
+// the engines disagree about which side of the gap it falls on: V4 resolves it
+// backward onto the previous date, V8 forward. Node therefore cannot see the
+// duplicated day the shell draws, so pin the property that makes the question
+// moot -- the grid is walked in UTC and never asks for a wall clock.
+const RealDate = Date
+class LocalTimeIsForbidden extends RealDate {
+  constructor(...args) {
+    if (args.length > 1) throw new Error('built a Date from local components')
+    super(...args)
+  }
+  getFullYear() { throw new Error('read the local year') }
+  getMonth() { throw new Error('read the local month') }
+  getDate() { throw new Error('read the local day') }
+  getDay() { throw new Error('read the local weekday') }
+  setDate() { throw new Error('stepped the local day') }
+}
+
+function withoutLocalTime(build) {
+  global.Date = LocalTimeIsForbidden
+  try {
+    return { value: build(), localTimeUse: '' }
+  } catch (error) {
+    return { value: null, localTimeUse: error.message }
+  } finally {
+    global.Date = RealDate
+  }
+}
+
+const september = withoutLocalTime(() => calendar.monthGrid(2026, 8, 0, ''))
+assertEqual(september.localTimeUse, '', 'calendar builds the month grid without reading local time')
+assertDeepEqual(
+  september.value.slice(0, 2).flatMap(week => week.days).map(day => day.day),
+  [30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  'calendar runs September 2026 straight through the Chilean DST midnight'
+)
+
+const stepped = withoutLocalTime(() => calendar.stepMonth(2026, 8, 1))
+assertEqual(stepped.localTimeUse, '', 'calendar steps months without reading local time')
+assertDeepEqual(stepped.value, { year: 2026, month: 9 }, 'calendar steps from September to October')
+
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
 assertDeepEqual(calendar.stepMonth(2026, 0, -1), { year: 2025, month: 11 }, 'calendar steps back across the new year')
