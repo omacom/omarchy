@@ -16,14 +16,14 @@ setup_pam_config() {
   # fixed /usr/bin path the omarchy package always provides, so the gate keeps
   # working across package installs and dev-link — the latter overlays
   # $OMARCHY_PATH trees but leaves /usr/bin untouched.
-  local fprintd_gate="auth      [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed"
+  local fprintd_gate="auth      [success=ignore default=1] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-open"
 
   # Configure sudo
   if ! grep -q pam_fprintd.so /etc/pam.d/sudo; then
     echo "Configuring sudo for fingerprint authentication..."
     sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/sudo
   fi
-  if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/sudo; then
+  if ! grep -q 'omarchy-hw-laptop-open' /etc/pam.d/sudo; then
     echo "Adding clamshell gate to sudo..."
     # Insert immediately before pam_fprintd so success=1 skips exactly it.
     sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/sudo
@@ -35,7 +35,7 @@ setup_pam_config() {
       echo "Configuring polkit for fingerprint authentication..."
       sudo sed -i '1i auth      sufficient pam_fprintd.so' /etc/pam.d/polkit-1
     fi
-    if ! grep -q 'omarchy-hw-laptop-closed' /etc/pam.d/polkit-1; then
+    if ! grep -q 'omarchy-hw-laptop-open' /etc/pam.d/polkit-1; then
       echo "Adding clamshell gate to polkit..."
       sudo sed -i "/pam_fprintd\.so/i $fprintd_gate" /etc/pam.d/polkit-1
     fi
@@ -58,8 +58,13 @@ EOF
 
 setup_lock_fingerprint_pam() {
   echo "Configuring lock screen for fingerprint authentication..."
-  sudo tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<'EOF'
+  # Same clamshell gate as sudo/polkit: lid closed → skip pam_fprintd (fail closed
+  # here — this stack has no password fallback; password runs in a parallel PAM
+  # service). Re-enrollment must keep rewriting the gate so it cannot be wiped.
+  local fprintd_gate="auth      [success=ignore default=1] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-open"
+  sudo tee /etc/pam.d/omarchy-lock-fingerprint >/dev/null <<EOF
 #%PAM-1.0
+$fprintd_gate
 auth       required                    pam_fprintd.so
 account    include                     system-local-login
 EOF
