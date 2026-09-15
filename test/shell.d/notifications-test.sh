@@ -696,6 +696,18 @@ assert(
   'notifications service protects restored popups from new-generation id collisions'
 )
 assert(
+  /notification\.closed\.connect\(function\(\) \{[\s\S]{0,600}?service\.removePopupOnServerClose\(snapshot\)/.test(serviceQml),
+  'notifications service withdraws the toast when its server object closes'
+)
+assert(
+  /function removePopupOnServerClose\(snapshot\)[\s\S]{0,500}?if \(isRestoredRow\(row\)\) continue[\s\S]{0,200}?archivePopupFileFor\(row\)[\s\S]{0,100}?popupModel\.remove\(i\)/.test(serviceQml),
+  'notifications service archives (not deletes) the popup of a server-closed notification, past restored rows'
+)
+assert(
+  /removePopupOnServerClose\(snapshot\)[\s\S]{0,300}?if \(NotificationLogic\.popupFileName\(row\) !== fileName\) continue/.test(serviceQml),
+  'notifications service matches a server-closed notification by popup file identity, not originalId alone'
+)
+assert(
   /var ref = !restored && originalId >= 0 \? liveRefs\[originalId\] : null/.test(serviceQml),
   'notifications service never resolves a restored popup to a live server object'
 )
