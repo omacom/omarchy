@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a supported browser and clean up Omarchy browser defaults
-# omarchy:args=<chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chrome|brave|brave-origin|edge|vivaldi|firefox|zen>
 # omarchy:examples=omarchy remove browser firefox | omarchy remove browser brave
 # omarchy:requires-sudo=true
 
@@ -53,6 +53,12 @@ brave-origin)
     sudo rm -rf /etc/brave
   fi
   ;;
+vivaldi)
+  echo "Removing Vivaldi..."
+  set_fallback_default_browser vivaldi-stable.desktop
+  omarchy-pkg-drop vivaldi
+  rm -f ~/.config/vivaldi-stable.conf
+  ;;
 firefox)
   echo "Removing Firefox..."
   set_fallback_default_browser firefox.desktop
@@ -64,7 +70,7 @@ zen)
   omarchy-pkg-drop zen-browser-bin
   ;;
 *)
-  echo "Usage: omarchy-remove-browser <chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-remove-browser <chrome|brave|brave-origin|edge|vivaldi|firefox|zen>"
   exit 1
   ;;
 esac
