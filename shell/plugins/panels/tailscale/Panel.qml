@@ -42,7 +42,16 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property bool showPeers: tailscale.active && tailscale.peers.length > 0
+  // This machine first, then the tailnet. `tailscale.peers` still means the
+  // other machines, so the empty state below keeps reading correctly.
+  readonly property var machineRows: {
+    var rows = []
+    if (tailscale.selfPeer) rows.push(tailscale.selfPeer)
+    var list = tailscale.peers || []
+    for (var i = 0; i < list.length; i++) rows.push(list[i])
+    return rows
+  }
+  readonly property bool showPeers: tailscale.active && machineRows.length > 0
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
@@ -58,8 +67,8 @@ Panel {
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
 
   function selectedPeer() {
-    if (tailscale.peers.length === 0) return null
-    return tailscale.peers[Math.max(0, Math.min(peerIndex, tailscale.peers.length - 1))]
+    if (machineRows.length === 0) return null
+    return machineRows[Math.max(0, Math.min(peerIndex, machineRows.length - 1))]
   }
 
   function selectedExitNode() {
@@ -181,7 +190,7 @@ Panel {
     if (headerIndex < 0) headerIndex = 0
     if (headerIndex > 0) headerIndex = 0
     if (accountIndex >= tailscale.accounts.length) accountIndex = Math.max(0, tailscale.accounts.length - 1)
-    if (peerIndex >= tailscale.peers.length) peerIndex = Math.max(0, tailscale.peers.length - 1)
+    if (peerIndex >= machineRows.length) peerIndex = Math.max(0, machineRows.length - 1)
     if (exitNodeIndex >= exitNodes.length) exitNodeIndex = Math.max(0, exitNodes.length - 1)
     if (mullvadRegionIndex >= filteredMullvadRegions.length) mullvadRegionIndex = Math.max(0, filteredMullvadRegions.length - 1)
     if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
@@ -219,7 +228,7 @@ Panel {
         if (dy < 0) {
           if (peerIndex <= 0) focusSection = showExitNodes ? "exitNodes" : (tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : "header"))
           else peerIndex--
-        } else if (peerIndex < tailscale.peers.length - 1) {
+        } else if (peerIndex < machineRows.length - 1) {
           peerIndex++
         }
       } else if (focusSection === "exitNodes") {
@@ -698,7 +707,7 @@ Panel {
               spacing: Style.space(6)
 
               Repeater {
-                model: tailscale.peers
+                model: root.machineRows
                 PeerRow {
                   required property var modelData
                   required property int index
@@ -874,6 +883,7 @@ Panel {
       return String(peer.TailscaleIPv6[0] || "")
     }
     readonly property string peerDns: peer ? String(peer.DNSName || "") : ""
+    readonly property bool isSelf: peer ? peer.IsSelf === true : false
     readonly property var copyOptions: {
       var options = []
       if (peerName !== "") options.push({ kind: "name", label: peerName })
@@ -963,6 +973,7 @@ Panel {
           Layout.fillWidth: true
           text: {
             var parts = []
+            if (peerRow.isSelf) parts.push("This device")
             if (peerRow.peerIp !== "") parts.push(peerRow.peerIp)
             if (peerRow.peerDns !== "") parts.push(peerRow.peerDns)
             return parts.join(" · ")
