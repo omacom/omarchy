@@ -395,10 +395,11 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
 var GUARD_READERS = [
   "omarchy-channel-current",
   "omarchy-default-agent",
+  "omarchy-default-aur-helper",
   "omarchy-default-browser",
   "omarchy-default-editor",
   "omarchy-default-terminal",
-  "omarchy-dns"
+  "omarchy-dns",
 ]
 
 // Package and command presence account for most of what the guards ask, and

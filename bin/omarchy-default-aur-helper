@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# omarchy:summary=Set the default AUR helper used for AUR packages
+# omarchy:group=default
+# omarchy:name=aur-helper
+# omarchy:args=[yay|paru]
+# omarchy:examples=omarchy default aur-helper | omarchy default aur-helper paru
+
+installing=false
+if [[ ${1:-} == "--install" ]]; then
+  installing=true
+  shift
+fi
+
+helper_file="$HOME/.config/omarchy/defaults/aur-helper"
+
+if (($# == 0)); then
+  omarchy-pkg-aur-helper
+  exit
+fi
+
+case "$1" in
+yay | paru) helper="$1" ;;
+*)
+  echo "Usage: omarchy-default-aur-helper <yay|paru>" >&2
+  exit 1
+  ;;
+esac
+
+if omarchy-cmd-missing "$helper"; then
+  if [[ $installing == "false" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-default-aur-helper --install "$helper"
+  fi
+
+  echo "Installing $helper..."
+  other="yay"
+  [[ $helper == "yay" ]] && other="paru"
+  if omarchy-cmd-present "$other"; then
+    "$other" -S --noconfirm --needed "$helper" || exit 1
+  elif [[ $helper == "paru" ]]; then
+    sudo pacman -S --noconfirm --needed "$helper" || exit 1
+  else
+    echo "No AUR helper installed: yay lives in the AUR, so install paru first (sudo pacman -S paru)" >&2
+    exit 1
+  fi
+fi
+
+mkdir -p "$(dirname "$helper_file")"
+printf '%s\n' "$helper" >"$helper_file"
+
+echo "$helper is now the default AUR helper"
+omarchy-notification-send "$helper is now the default AUR helper" || true
