@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the default file manager determined by xdg-mime
+# omarchy:args=[directory]
+
+default_fm=$(xdg-mime query default inode/directory 2>/dev/null)
+if [[ -z $default_fm ]]; then
+  default_fm="org.gnome.Nautilus.desktop"
+fi
+
+fm_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_fm 2>/dev/null | head -1)
+
+if [[ -z $fm_exec ]]; then
+  fm_exec="nautilus"
+fi
+
+target_dir="${1:-$HOME}"
+
+exec setsid uwsm-app -- "$fm_exec" "$target_dir"
