@@ -73,30 +73,43 @@ Panel {
   // ---------------------------------------------------------------- settings
 
   // Merges the flipped id into a copy of the existing providers map; other
-  // entries stay verbatim. The map is an opt-out denylist, so writing the
-  // whole catalog would turn missing ids off.
+  // entries stay verbatim. The flipped entry is a shallow copy of that id's
+  // object with enabled overwritten, so extra keys a user wrote by hand
+  // survive. The map is an opt-out denylist, so writing the whole catalog
+  // would turn missing ids off.
   //
-  // Applied locally first so the switch throws on the click itself (clock
-  // panel persistSettings). updateEntryInline returns false both when it
-  // refuses and when the map is unchanged, so compare before notifying.
+  // Applied locally first so the switch throws on the click itself. A missing
+  // writer or a refused updateEntryInline restores the previous settings and
+  // notifies. An identical map is a no-op: no write, no notify.
   function setProviderEnabled(id, enabled) {
     var target = String(id)
     var current = settings && settings.providers ? settings.providers : {}
     var next = ({})
     for (var key in current) next[key] = current[key]
-    next[target] = { enabled: enabled === true }
-    var mapChanged = JSON.stringify(current) !== JSON.stringify(next)
+    var flipped = ({})
+    var prior = current[target]
+    if (prior && typeof prior === "object") {
+      for (var extra in prior) flipped[extra] = prior[extra]
+    }
+    flipped.enabled = enabled === true
+    next[target] = flipped
+    if (JSON.stringify(current) === JSON.stringify(next)) return
 
+    var previous = settings
     var entry = { id: root.moduleName }
     for (var existing in settings) if (existing !== "id") entry[existing] = settings[existing]
     entry.providers = next
 
     root.settings = entry
 
-    if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function")
-      return
-    if (!root.bar.shell.updateEntryInline(root.moduleName, entry) && mapChanged)
-      root.bar.run(["omarchy-notification-send", "Couldn't save provider settings", "The panel is still showing the switch you flipped."].map(function(part) {
+    var saved = false
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      saved = root.bar.shell.updateEntryInline(root.moduleName, entry) === true
+    if (saved) return
+
+    root.settings = previous
+    if (root.bar)
+      root.bar.run(["omarchy-notification-send", "Couldn't save provider settings", "The switch was put back."].map(function(part) {
         return Util.shellQuote(part)
       }).join(" "))
   }
@@ -106,22 +119,55 @@ Panel {
     if (panelFlick) panelFlick.contentY = 0
   }
 
-  function toggleSettings() {
-    settingsOpen = !settingsOpen
-    if (settingsOpen) settingsIndex = 0
+  function openSettingsView() {
+    settingsOpen = true
+    settingsIndex = 0
+    cursorActive = true
     if (panelFlick) panelFlick.contentY = 0
+  }
+
+  function toggleSettings() {
+    if (settingsOpen) closeSettings()
+    else openSettingsView()
+  }
+
+  function clampSettingsIndex() {
+    var ids = usage.providerIds || []
+    var last = ids.length > 0 ? ids.length - 1 : 0
+    settingsIndex = clamp(settingsIndex, 0, last)
+  }
+
+  function ensureSettingsCursorVisible() {
+    if (!panelFlick || !settingsRepeater) return
+    var item = settingsRepeater.itemAt(settingsIndex)
+    if (!item) return
+    Qt.callLater(function() {
+      if (!panelFlick || !item) return
+      var margin = Style.space(6)
+      var point = item.mapToItem(panelFlick.contentItem, 0, 0)
+      var top = point.y
+      var bottom = top + item.height
+      var viewTop = panelFlick.contentY
+      var viewBottom = viewTop + panelFlick.height
+      var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+      if (top < viewTop + margin) panelFlick.contentY = Math.max(0, top - margin)
+      else if (bottom > viewBottom - margin) panelFlick.contentY = Math.min(maxY, bottom + margin - panelFlick.height)
+    })
   }
 
   function moveSettingsCursor(dy) {
     var ids = usage.providerIds || []
     if (ids.length === 0) return
     cursorActive = true
-    settingsIndex = ((settingsIndex + dy) % ids.length + ids.length) % ids.length
+    clampSettingsIndex()
+    settingsIndex = clamp(settingsIndex + dy, 0, ids.length - 1)
+    ensureSettingsCursorVisible()
   }
 
   function activateSettingsCursor() {
     var ids = usage.providerIds || []
-    if (settingsIndex < 0 || settingsIndex >= ids.length) return
+    clampSettingsIndex()
+    if (ids.length === 0) return
     var id = ids[settingsIndex]
     setProviderEnabled(id, !usage.providerEnabled(id))
   }
@@ -374,8 +420,8 @@ Panel {
     // The dashboard is the panel, except when there is no dashboard to show:
     // with everything switched off the provider list is the only content, so
     // open straight onto it instead of an empty card.
-    settingsOpen = allProvidersOff
-    if (settingsOpen) settingsIndex = 0
+    if (allProvidersOff) openSettingsView()
+    else settingsOpen = false
     usage.refreshLimits()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -386,6 +432,7 @@ Panel {
     // The bar hands over `bar`, `moduleName` and `settings` together, so a
     // non-null bar is the moment this widget's own settings exist.
     settingsReady: !!root.bar
+    onProviderIdsChanged: root.clampSettingsIndex()
   }
 
   // Cheap enough to keep running: it only re-evaluates text bindings, and a
@@ -851,6 +898,7 @@ Panel {
           }
 
           Repeater {
+            id: settingsRepeater
             model: usage.providerIds
 
             Toggle {
