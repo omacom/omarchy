@@ -78,4 +78,31 @@ grep -F 'https://example.test/fallback' "$launch_log" >/dev/null ||
 grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
 
-pass "browser launcher follows opened links to the browser workspace"
+# Test wrapped Exec= entries (issue #11718: flatpak, env, wrapper scripts)
+cat >"$test_home/.local/share/applications/flatpak-firefox.desktop" <<'EOF'
+[Desktop Entry]
+Exec=/usr/bin/flatpak run org.mozilla.firefox %u
+EOF
+
+cat >"$mock_bin/xdg-settings" <<'SH'
+#!/bin/bash
+echo flatpak-firefox.desktop
+SH
+
+rm -f "$launch_log" "$focus_log"
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/flatpak"
+
+grep -F '/usr/bin/flatpak run org.mozilla.firefox https://example.test/flatpak' "$launch_log" >/dev/null ||
+  fail "browser launcher preserves full flatpak wrapped Exec command line"
+
+rm -f "$launch_log" "$focus_log"
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" --private "https://example.test/flatpak-private"
+
+grep -F '/usr/bin/flatpak run org.mozilla.firefox --private-window https://example.test/flatpak-private' "$launch_log" >/dev/null ||
+  fail "browser launcher applies private flag to wrapped browser before the URL"
+
+pass "browser launcher follows opened links to the browser workspace and supports wrapped Exec commands"

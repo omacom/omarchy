@@ -7,28 +7,88 @@ default_browser=$(env -u BROWSER xdg-settings get default-web-browser)
 if [[ -z $default_browser ]]; then
   default_browser=$(xdg-mime query default x-scheme-handler/https)
 fi
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
-if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+desktop_file=$(ls {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
+exec_line=$(sed -n 's/^Exec=//p' "$desktop_file" 2>/dev/null | head -1)
+if [[ -z $exec_line ]]; then
+  exec_line="$default_browser"
+fi
+
+moz_regex='(firefox|librewolf|waterfox|tor-browser|mozilla)'
+if [[ ${exec_line,,} =~ $moz_regex ]] || \
+   (${exec_line%% *} --help 2>/dev/null | grep -q MOZ_LOG); then
   private_flag="--private-window"
-elif [[ $browser_exec =~ edge ]]; then
+elif [[ ${exec_line,,} =~ edge ]]; then
   private_flag="--inprivate"
 else
   private_flag="--incognito"
 fi
 
-systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-  --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
-
+is_private=false
 url=""
 for argument in "$@"; do
-  if [[ $argument != "--private" ]]; then
-    url=$argument
-    break
+  if [[ $argument == "--private" ]]; then
+    is_private=true
+  elif [[ -z $url ]]; then
+    url="$argument"
   fi
 done
 
+eval "tokens=($exec_line)"
+
+cmd=()
+has_url_slot=false
+
+for token in "${tokens[@]}"; do
+  case "$token" in
+    %u|%U)
+      has_url_slot=true
+      if [[ -n $url ]]; then
+        if [[ $is_private == true ]]; then
+          cmd+=("$private_flag")
+          is_private=false
+        fi
+        cmd+=("$url")
+      fi
+      ;;
+    %f|%F|%i|%c|%k|%%)
+      ;;
+    *)
+      cmd+=("$token")
+      ;;
+  esac
+done
+
+if [[ $is_private == true ]]; then
+  cmd+=("$private_flag")
+fi
+
+if [[ -n $url && $has_url_slot == false ]]; then
+  cmd+=("$url")
+fi
+
+systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+  --property=StandardOutput=null --property=StandardError=null \
+  uwsm-app -- "${cmd[@]}"
+
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
+  focus_name=""
+  for token in "${tokens[@]}"; do
+    base=$(basename "$token" 2>/dev/null || true)
+    base="${base%-stable}"
+    if [[ $base =~ ^(chromium|google-chrome|brave|firefox|edge|vivaldi|opera|helium|zen|librewolf|waterfox|tor-browser) ]]; then
+      focus_name="$base"
+      break
+    elif [[ $token =~ \.([^.]+)$ ]]; then
+      sub="${BASH_REMATCH[1],,}"
+      if [[ $sub =~ ^(chromium|chrome|brave|firefox|edge|vivaldi|opera|helium|zen|librewolf|waterfox) ]]; then
+        focus_name="$sub"
+        break
+      fi
+    fi
+  done
+  if [[ -z $focus_name ]]; then
+    focus_name="$(basename "${tokens[0]}" -stable)"
+  fi
+  omarchy-hyprland-focus-app "^${focus_name}.*$" || true
 fi

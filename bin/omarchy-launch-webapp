@@ -10,4 +10,19 @@ google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
 *) browser="chromium.desktop" ;;
 esac
 
-exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"
+desktop_file=$(ls {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1)
+exec_line=$(sed -n 's/^Exec=//p' "$desktop_file" 2>/dev/null | head -1)
+if [[ -z $exec_line ]]; then
+  exec_line="$browser"
+fi
+
+eval "tokens=($exec_line)"
+cmd=()
+for token in "${tokens[@]}"; do
+  case "$token" in
+    %u|%U|%f|%F|%i|%c|%k|%%) ;;
+    *) cmd+=("$token") ;;
+  esac
+done
+
+exec setsid uwsm-app -- "${cmd[@]}" --app="$1" "${@:2}"
