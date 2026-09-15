@@ -58,6 +58,12 @@ omarchy plugin remove acme.weather
 
 Removal disables the plugin first, then deletes it if it's a git checkout (the repo is still upstream) or unlinks it if it's a symlink. A hand-made plugin folder with no git repo gets moved to a timestamped backup inside the plugins directory instead of being deleted outright.
 
+Some plugins also install local services, account connections or tools outside their folder. A plugin can declare an uninstall entry point to clean up that local setup. Removal tells you when it will execute this plugin-provided code and asks for confirmation. The cleanup runs visibly as your user, after disabling the plugin but before removing its files. If it fails or is canceled, the files stay available for retry; the plugin may remain disabled.
+
+For automation, `omarchy plugin remove acme.weather --yes` also approves cleanup and passes `--yes` to it. Read the plugin's removal policy first: the hook must disclose what it removes or retains. Omarchy does not automatically elevate privileges or decide what should happen to cloud resources.
+
+If you do not trust the hook, or it is broken, use `omarchy plugin remove acme.weather --skip-cleanup`. This removes the plugin without executing its cleanup; services, credentials or other local setup may remain. Symlinked plugin folders are always unlinked without executing a hook.
+
 ## Cloning a built-in to modify it
 
 This is my favorite part. If you want to change how a built-in widget behaves, don't edit the files under `$OMARCHY_PATH` — those belong to the package and the next update will overwrite them. Clone it instead:
@@ -96,6 +102,8 @@ omarchy plugin validate ./my-plugin
 That runs the same checks the shell does at load time: the schema version, the required fields, an id that isn't reserved, entry points that are safe relative paths and actually exist, an entry point for every kind you claimed, and no symlinks anywhere inside the folder.
 
 For the full picture, the source is the documentation: `shell/README.md` in the Omarchy repo covers the manifest schema, the shell's IPC contract, and the exact shape of `shell.json`, and `shell/plugins/README.md` lists every first-party plugin with its id, kinds, and entry points.
+
+Plugins with external local setup can declare `entryPoints.uninstall` as a relative path to an executable in their repository. The [uninstall hook contract](https://github.com/omacom/omarchy/blob/quattro/docs/plugin-uninstall.md) explains confirmation, failure handling and automation. Adding or updating a plugin never executes this entry point.
 
 ## Sharing yours with the world
 
