@@ -495,6 +495,41 @@ pass "clipboard file paste helper copy-only copies file content"
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
 
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '{"class":"%s"}' "${HYPRCTL_CLASS:-}"
+SH
+chmod +x "$TMPDIR/bin/hyprctl"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_CLASS="foot" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image.png"
+
+[[ $(<"$TMPDIR/wtype") == "$TMPDIR/image.png" ]] || fail "clipboard file paste helper types image path into terminals"
+pass "clipboard file paste helper types image path into terminals"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_CLASS="firefox" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image.png"
+
+[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard file paste helper pastes images into GUI apps with shift insert"
+pass "clipboard file paste helper pastes images into GUI apps with shift insert"
+
+printf 'note text' >"$TMPDIR/note.txt"
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_CLASS="foot" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" text/plain "$TMPDIR/note.txt"
+
+[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard file paste helper pastes non-images into terminals with shift insert"
+pass "clipboard file paste helper pastes non-images into terminals with shift insert"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_CLASS="" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image.png"
+
+[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard file paste helper falls back to shift insert without focus info"
+pass "clipboard file paste helper falls back to shift insert without focus info"
+
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
