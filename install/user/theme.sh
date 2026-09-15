@@ -5,7 +5,7 @@ if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
   # iso-chroot and provision-owner both run without a live session to notify.
   if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} != "runtime" ]]; then
     OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"
-    rm -f ~/.config/chromium/SingletonLock # otherwise archiso owns the Chromium singleton
+    rm -f ~/.config/BraveSoftware/Brave-Origin/SingletonLock # otherwise archiso owns the browser singleton
   else
     omarchy-theme-set "Tokyo Night"
   fi
