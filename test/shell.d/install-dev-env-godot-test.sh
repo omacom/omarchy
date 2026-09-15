@@ -83,7 +83,7 @@ run_godot() {
     OMARCHY_PATH="$ROOT" \
     OMARCHY_TEST_LOG="$log_file" \
     OMARCHY_TEST_STUB_BIN="$stub_bin" \
-    "$ROOT/bin/omarchy-$action-dev-env" godot "$@" </dev/null
+    "$ROOT/bin/omarchy-$action-godot" "$@" </dev/null
 }
 
 settings_file() {
@@ -154,7 +154,7 @@ if grep -Fq -- '--inline' "$(settings_file)"; then
   fail "godot install must not use --inline; Godot has no terminal" "$(cat "$(settings_file)")"
 fi
 [[ -f $(nvim_lsp_file) ]] || fail "godot install nvim writes a Neovim LSP snippet"
-grep -Fq 'omarchy-godot-lsp: managed by omarchy-install-dev-env' "$(nvim_lsp_file)" ||
+grep -Fq 'omarchy-godot-lsp: managed by omarchy-install-godot' "$(nvim_lsp_file)" ||
   fail "godot install nvim marks the Neovim LSP snippet"
 pass "godot install nvim wires Neovim in a terminal"
 
@@ -206,7 +206,7 @@ grep -Fxq -- '-- user godot config' "$(nvim_lsp_file)" ||
 pass "godot remove keeps an unmanaged Neovim Godot config"
 
 if PATH="$stub_bin:$ROOT/bin" HOME="$home" OMARCHY_PATH="$ROOT" \
-  "$ROOT/bin/omarchy-install-dev-env" godot zed >"$test_tmp/install-zed.out" 2>"$test_tmp/install-zed.err" </dev/null; then
+  "$ROOT/bin/omarchy-install-godot" zed >"$test_tmp/install-zed.out" 2>"$test_tmp/install-zed.err" </dev/null; then
   fail "godot install rejects an editor that is not installed" "$(cat "$test_tmp/install-zed.out")"
 fi
 grep -Fq "not installed" "$test_tmp/install-zed.err" ||
@@ -233,7 +233,7 @@ if command -v script >/dev/null; then
     OMARCHY_PATH="$ROOT" \
     OMARCHY_TEST_LOG="$log_file" \
     OMARCHY_TEST_STUB_BIN="$stub_bin" \
-    script -qefc "$ROOT/bin/omarchy-install-dev-env godot" /dev/null \
+    script -qefc "$ROOT/bin/omarchy-install-godot" /dev/null \
     >"$test_tmp/install-prompt.out" 2>"$test_tmp/install-prompt.err" ||
     fail "interactive godot install should succeed" "$(cat "$test_tmp/install-prompt.err")"
   grep -Fq $'gum\tchoose' "$log_file" ||
@@ -255,6 +255,22 @@ fi
 
 grep -Fq 'org\\.godotengine\\.Godot' "$ROOT/default/hypr/apps/godot.lua" ||
   fail "Hyprland ships Godot window rules"
-grep -Fq 'prefer_wayland' "$ROOT/bin/omarchy-install-dev-env" ||
+grep -Fq 'prefer_wayland' "$ROOT/bin/omarchy-install-godot" ||
   fail "godot install prefers Wayland in editor settings"
 pass "Hyprland window rules cover the Godot editor and game windows"
+
+: >"$log_file"
+rm -f "$(settings_file)"
+run_godot_via_dev_env() {
+  HOME="$home" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_TEST_LOG="$log_file" \
+    OMARCHY_TEST_STUB_BIN="$stub_bin" \
+    "$ROOT/bin/omarchy-install-dev-env" godot "$@" </dev/null
+}
+run_godot_via_dev_env >"$test_tmp/install-wrapper.out"
+grep -Fxq $'pkg-add\tgodot' "$log_file" || fail "install-dev-env godot calls omarchy-install-godot" "$(cat "$log_file")"
+grep -Fq 'text_editor/external/use_external_editor = false' "$(settings_file)" ||
+  fail "install-dev-env godot keeps the built-in editor when non-interactive" "$(cat "$(settings_file)")"
+pass "install-dev-env godot delegates to omarchy-install-godot"

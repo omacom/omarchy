@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Godot and Omarchy-managed desktop and editor wiring
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+desktop="$HOME/.local/share/applications/org.godotengine.Godot.desktop"
+nvim_lsp="$HOME/.config/nvim/after/plugin/omarchy-godot.lua"
+
+echo -e "Removing Godot...\n"
+omarchy-pkg-drop godot
+
+if [[ -f $desktop ]] && grep -q '^X-Omarchy-Managed=godot$' "$desktop"; then
+  rm -f "$desktop"
+  update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+fi
+
+if [[ -f $nvim_lsp ]] && grep -q 'omarchy-godot-lsp: managed by omarchy-install' "$nvim_lsp"; then
+  rm -f "$nvim_lsp"
+fi
+
+echo -e "\nDone!"
