@@ -27,9 +27,10 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
-there is no switch row at all; with none, the module leaves the bar entirely
-rather than sitting there with nothing to say. A CLI installed mid-session
-shows up at the next refresh, so nothing polls the disk waiting for it.
+there is no switch row at all. Switching every agent off leaves the bar icon
+in place so the switches stay reachable; a machine that has never recorded
+usage still draws nothing. A CLI installed mid-session shows up at the next
+refresh, so nothing polls the disk waiting for it.
 
 That self-hiding is why the widget ships in the default bar layout: a machine
 that has never run an AI coding agent draws nothing, and the icon arrives on
@@ -96,7 +97,9 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
-  Tab moves to the neighboring bar panel, Esc closes.
+  `s` or the gear opens the provider switches (`j`/`k` move, Enter or Space
+  flips, `h`/`l` do nothing). Tab moves to the neighboring bar panel. Esc
+  leaves the switches when a dashboard exists, otherwise it closes the panel.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
 ## Settings
@@ -120,9 +123,25 @@ omarchy bar set omarchy.agents refreshIntervalSec 300 --json
 omarchy bar set omarchy.agents syncDir '~/Sync/agent-usage'
 ```
 
-Per-agent enablement is nested, and `set` writes its key literally rather
-than walking a dotted path — so pass the whole `providers` object as JSON (or
-edit `shell.json` directly):
+### Which agents are live
+
+The gear in the panel hero (or `s`) swaps the dashboard for a switch per
+agent. Flipping a switch merges that one id into the existing `providers`
+map; other entries stay as they were. The updater's `--except` list is the
+ids in that map with `enabled` set to `false`.
+
+Off hides the agent in the panel and bar and stops its collector refreshing.
+Agents default to on: a missing map, or a map that does not name an id,
+counts as enabled. Only `enabled: false` turns one off.
+
+Switching every agent off leaves the bar icon in place so the switches stay
+reachable, and the panel opens onto them. Empty leftover records do not keep
+the icon around. To remove the widget itself, use
+`omarchy plugin disable omarchy.agents`.
+
+The same map can be written by hand. `set` writes its key literally rather
+than walking a dotted path, so pass the whole object as JSON (or edit
+`shell.json` directly):
 
 ```bash
 omarchy bar set omarchy.agents providers '{

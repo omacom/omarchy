@@ -32,6 +32,12 @@ Panel {
 
   property bool cursorActive: false
 
+  // The dashboard and the provider switches share one panel: opening settings
+  // swaps the content rather than stacking a second surface over it.
+  property bool settingsOpen: false
+  property int settingsIndex: 0
+  readonly property bool allProvidersOff: providers.length === 0 && usage.collectedCount > 0
+
   // Countdowns and "updated" read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
@@ -62,6 +68,62 @@ Panel {
   function launchAgent() {
     if (root.bar) root.bar.run("omarchy-agent --pick")
     root.close()
+  }
+
+  // ---------------------------------------------------------------- settings
+
+  // Merges the flipped id into a copy of the existing providers map; other
+  // entries stay verbatim. The map is an opt-out denylist, so writing the
+  // whole catalog would turn missing ids off.
+  //
+  // Applied locally first so the switch throws on the click itself (clock
+  // panel persistSettings). updateEntryInline returns false both when it
+  // refuses and when the map is unchanged, so compare before notifying.
+  function setProviderEnabled(id, enabled) {
+    var target = String(id)
+    var current = settings && settings.providers ? settings.providers : {}
+    var next = ({})
+    for (var key in current) next[key] = current[key]
+    next[target] = { enabled: enabled === true }
+    var mapChanged = JSON.stringify(current) !== JSON.stringify(next)
+
+    var entry = { id: root.moduleName }
+    for (var existing in settings) if (existing !== "id") entry[existing] = settings[existing]
+    entry.providers = next
+
+    root.settings = entry
+
+    if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function")
+      return
+    if (!root.bar.shell.updateEntryInline(root.moduleName, entry) && mapChanged)
+      root.bar.run(["omarchy-notification-send", "Couldn't save provider settings", "The panel is still showing the switch you flipped."].map(function(part) {
+        return Util.shellQuote(part)
+      }).join(" "))
+  }
+
+  function closeSettings() {
+    settingsOpen = false
+    if (panelFlick) panelFlick.contentY = 0
+  }
+
+  function toggleSettings() {
+    settingsOpen = !settingsOpen
+    if (settingsOpen) settingsIndex = 0
+    if (panelFlick) panelFlick.contentY = 0
+  }
+
+  function moveSettingsCursor(dy) {
+    var ids = usage.providerIds || []
+    if (ids.length === 0) return
+    cursorActive = true
+    settingsIndex = ((settingsIndex + dy) % ids.length + ids.length) % ids.length
+  }
+
+  function activateSettingsCursor() {
+    var ids = usage.providerIds || []
+    if (settingsIndex < 0 || settingsIndex >= ids.length) return
+    var id = ids[settingsIndex]
+    setProviderEnabled(id, !usage.providerEnabled(id))
   }
 
   // ---------------------------------------------------------------- limits
@@ -297,7 +359,10 @@ Panel {
   // Nothing to report, nothing in the bar: Bar.qml collapses a slot whose item
   // is invisible, so the icon appears the moment the first scan finds usage and
   // stays away entirely on a machine that has never run either CLI.
-  visible: providers.length > 0
+  // Collected-with-data, not enabled, is the all-off latch — switching every
+  // provider off must leave the icon that reaches the switches. Empty leftover
+  // records do not count, so they cannot keep a dead icon in the bar.
+  visible: providers.length > 0 || usage.collectedCount > 0
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -306,6 +371,11 @@ Panel {
     cursorActive = false
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
+    // The dashboard is the panel, except when there is no dashboard to show:
+    // with everything switched off the provider list is the only content, so
+    // open straight onto it instead of an empty card.
+    settingsOpen = allProvidersOff
+    if (settingsOpen) settingsIndex = 0
     usage.refreshLimits()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -313,6 +383,9 @@ Panel {
   Main {
     id: usage
     settings: root.settings
+    // The bar hands over `bar`, `moduleName` and `settings` together, so a
+    // non-null bar is the moment this widget's own settings exist.
+    settingsReady: !!root.bar
   }
 
   // Cheap enough to keep running: it only re-evaluates text bindings, and a
@@ -358,13 +431,17 @@ Panel {
     contentWidth: panel.fittedContentWidth(Style.space(380))
     // Taller than the control panels on purpose: this one is a dashboard, and
     // the whole point is reading limits and history without scrolling.
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(640))
+    contentHeight: panel.fittedContentHeight(root.settingsOpen ? settingsColumn.implicitHeight : column.implicitHeight, Style.space(640))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
 
       onMoveRequested: function(dx, dy) {
+        if (root.settingsOpen) {
+          if (dy !== 0) root.moveSettingsCursor(dy)
+          return
+        }
         if (dx !== 0) {
           root.cursorActive = true
           root.selectProvider(root.providerIndex + dx)
@@ -373,16 +450,29 @@ Panel {
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
       }
-      onActivateRequested: root.refreshNow()
-      onCloseRequested: root.close()
+      onActivateRequested: {
+        if (root.settingsOpen) {
+          if (root.cursorActive) root.activateSettingsCursor()
+          return
+        }
+        root.refreshNow()
+      }
+      // Escape backs out of the settings view before it closes the panel when
+      // a dashboard still exists; with everything off there is nothing to
+      // back out to, so it closes.
+      onCloseRequested: if (root.settingsOpen && root.providers.length > 0) root.closeSettings()
+        else root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
-      onTextKey: function(t) { if (t === "r" || t === "R") root.refreshNow() }
+      onTextKey: function(t) {
+        if (t === "r" || t === "R") root.refreshNow()
+        else if (t === "s" || t === "S") root.toggleSettings()
+      }
 
       Flickable {
         id: panelFlick
         anchors.fill: parent
         contentWidth: width
-        contentHeight: column.implicitHeight
+        contentHeight: root.settingsOpen ? settingsColumn.implicitHeight : column.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
@@ -391,6 +481,7 @@ Panel {
 
         Column {
           id: column
+          visible: !root.settingsOpen
           width: panelFlick.width
           spacing: Style.space(12)
 
@@ -403,6 +494,24 @@ Panel {
             meta: root.heroMeta(root.provider)
             foreground: root.foreground
             fontFamily: root.fontFamily
+
+            // The switches sit behind the gear rather than on the provider
+            // tabs: a tab that turns its own provider off is a tab that can
+            // pull the panel out from under the thing you were reading.
+            trailingControl: Component {
+              Button {
+                iconText: "󰒓"
+                tooltipText: "Providers"
+                selected: root.settingsOpen
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                iconSize: Style.font.body
+                horizontalPadding: Style.space(8)
+                verticalPadding: Style.space(6)
+                onClicked: root.toggleSettings()
+                onHovered: function(isHovered) { if (isHovered) root.cursorActive = true }
+              }
+            }
 
             iconComponent: Component {
               Item {
@@ -446,16 +555,42 @@ Panel {
             }
           }
 
-          Text {
+          // Two empty states that look identical and are not: nothing has ever
+          // reported, or everything that reported is switched off. The second
+          // one needs a way back to the switches, since the hero that carries
+          // the gear has no provider to hang on.
+          Column {
             visible: root.providers.length === 0
             width: parent.width
             topPadding: Style.space(24)
-            text: "No AI coding subscriptions found.\nAgents show up here once you've used them."
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-            horizontalAlignment: Text.AlignHCenter
-            wrapMode: Text.WordWrap
+            spacing: Style.space(14)
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.allProvidersOff
+                ? "Every provider is switched off."
+                : "No AI coding subscriptions found.\nAgents show up here once you've used them."
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              horizontalAlignment: Text.AlignHCenter
+              wrapMode: Text.WordWrap
+            }
+
+            Button {
+              visible: root.allProvidersOff
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "Providers"
+              iconText: "󰒓"
+              bordered: true
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              fontSize: Style.font.bodySmall
+              iconSize: Style.font.bodySmall
+              verticalPadding: Style.spacing.controlPaddingY
+              onClicked: root.toggleSettings()
+            }
           }
 
           // ---------- Provider switch ----------
@@ -694,6 +829,70 @@ Panel {
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
+          }
+        }
+
+        // ---------- Settings: which providers are live ----------
+        //
+        // The Repeater model is the stable id list, not a rebuilt catalog, so
+        // an open-panel refreshLimits() cannot tear the rows down under the
+        // pointer. Name, enabled, and collected are read through functions.
+        Column {
+          id: settingsColumn
+          visible: root.settingsOpen
+          width: panelFlick.width
+          spacing: Style.space(12)
+
+          PanelSectionHeader {
+            width: parent.width
+            text: "PROVIDERS"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+
+          Repeater {
+            model: usage.providerIds
+
+            Toggle {
+              required property var modelData
+              required property int index
+
+              width: parent.width
+              label: usage.providerName(modelData)
+              description: usage.providerCollected(modelData) ? "" : "Nothing collected on this machine"
+              checked: usage.providerEnabled(modelData)
+              hasCursor: root.cursorActive && index === root.settingsIndex
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: root.setProviderEnabled(modelData, !usage.providerEnabled(modelData))
+              onHovered: function(isHovered) {
+                if (isHovered) {
+                  root.cursorActive = true
+                  root.settingsIndex = index
+                }
+              }
+            }
+          }
+
+          Text {
+            width: parent.width
+            text: "Off hides an agent here and stops the collector refreshing it. Agents stay on until you switch them off."
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
+          }
+
+          Button {
+            visible: root.providers.length > 0
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Done"
+            bordered: true
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.bodySmall
+            verticalPadding: Style.spacing.controlPaddingY
+            onClicked: root.closeSettings()
           }
         }
       }
