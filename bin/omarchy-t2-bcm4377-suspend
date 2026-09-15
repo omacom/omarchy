@@ -1,0 +1,109 @@
+#!/bin/bash
+
+# omarchy:summary=Unload BCM4377 Wi-Fi and Bluetooth around suspend
+# omarchy:group=hw
+# omarchy:args=<pre|post>
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# brcmfmac times out in brcmf_pcie_pm_enter_D3 (pci_pm_suspend returns -5),
+# which aborts both deep and s2idle. Unload has to happen before sleep.target:
+# a systemd-sleep hook runs after user.slice is frozen, when NetworkManager
+# still holds the interface and `modprobe -r brcmfmac` can fail.
+#
+# hci_bcm4377 must be unloaded too. Left bound, it wakes hung and later raises
+# a PCIe error that DPC-isolates the whole combo chip (Wi-Fi dies until reboot).
+# Stop bluetoothd first so the module can actually leave.
+#
+# Reloading brcmfmac the instant the system wakes has hard-crashed this chip.
+# Defer that reload ~15s, then rebind Bluetooth.
+
+set -euo pipefail
+
+has_bcm4377() {
+  local dev
+  for dev in /sys/bus/pci/devices/*; do
+    [[ -r $dev/vendor && -r $dev/device ]] || continue
+    if [[ $(<"$dev/vendor") == "0x14e4" ]]; then
+      case $(<"$dev/device") in
+        0x4488|0x5fa0) return 0 ;;
+      esac
+    fi
+  done
+  return 1
+}
+
+loaded() {
+  [[ -d /sys/module/$1 ]]
+}
+
+wifi_ifaces() {
+  local path driver
+  for path in /sys/class/net/*/device/driver; do
+    [[ -e $path ]] || continue
+    driver=$(basename "$(readlink -f "$path")")
+    [[ $driver == "brcmfmac" ]] || continue
+    basename "$(dirname "$(dirname "$path")")"
+  done
+}
+
+release_wifi() {
+  local iface
+  for iface in $(wifi_ifaces); do
+    nmcli device disconnect "$iface" >/dev/null 2>&1 || true
+    ip link set "$iface" down >/dev/null 2>&1 || true
+  done
+}
+
+unload_bluetooth() {
+  loaded hci_bcm4377 || return 0
+  systemctl stop bluetooth.service >/dev/null 2>&1 || true
+  modprobe -r hci_bcm4377 || true
+  if loaded hci_bcm4377; then
+    echo "warning: failed to unload hci_bcm4377" >&2
+  else
+    echo "unloaded hci_bcm4377 before suspend"
+  fi
+}
+
+pre() {
+  has_bcm4377 || exit 0
+
+  unload_bluetooth
+
+  loaded brcmfmac || exit 0
+
+  release_wifi
+
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    loaded brcmfmac_wcc && modprobe -r brcmfmac_wcc || true
+    if ! loaded brcmfmac || modprobe -r brcmfmac; then
+      echo "unloaded brcmfmac before suspend (attempt $attempt)"
+      exit 0
+    fi
+    sleep 0.4
+  done
+
+  echo "failed to unload brcmfmac; BCM4377 will abort suspend" >&2
+  exit 1
+}
+
+post() {
+  has_bcm4377 || exit 0
+
+  systemctl stop t2-wifi-reload.service t2-wifi-reload.timer \
+    omarchy-t2-bcm4377-reload.service omarchy-t2-bcm4377-reload.timer >/dev/null 2>&1 || true
+  systemd-run --collect --on-active=15s --unit=omarchy-t2-bcm4377-reload \
+    /bin/bash -c 'modprobe brcmfmac; modprobe brcmfmac_wcc || true; systemctl start omarchy-t2-bcm4377-rebind.service'
+  echo "scheduled brcmfmac/bluetooth reload in 15s"
+}
+
+case "${1:-}" in
+  pre) pre ;;
+  post) post ;;
+  *)
+    echo "usage: omarchy-t2-bcm4377-suspend <pre|post>" >&2
+    exit 2
+    ;;
+esac
