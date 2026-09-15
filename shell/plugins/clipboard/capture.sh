@@ -6,9 +6,19 @@
 
 set -o pipefail
 
+# Largest text entry kept inline in history, in bytes. ClipboardHistory.js holds
+# the same limit in UTF-16 units, and a byte count is never smaller than the unit
+# count of the text it decodes to, so an entry accepted here is accepted there.
+ENTRY_LIMIT=${CLIPBOARD_ENTRY_LIMIT:-2097152}
+# A copy over ENTRY_LIMIT is kept as a file with a short preview in history, up to
+# this size; anything larger is reported as skipped.
+LARGE_LIMIT=${CLIPBOARD_LARGE_LIMIT:-268435456}
+
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
 IMAGE_DIR="$STATE_DIR/clipboard-images"
 mkdir -p "$IMAGE_DIR"
+TEXT_DIR="$STATE_DIR/clipboard-text"
+PREVIEW_BYTES=8192
 
 types=$(wl-paste --list-types 2>/dev/null || true)
 
@@ -42,7 +52,7 @@ emit_image() {
     '{type:"image", mime:$mime, path:$path, capturedAt:$captured_at}'
 }
 
-emit_text() {
+emit_small_text() {
   perl -MEncode=decode,FB_CROAK,LEAVE_SRC -MJSON::PP=encode_json -0777 -e '
     my $raw = <STDIN>;
     exit unless length $raw;
@@ -87,6 +97,81 @@ emit_text() {
     $text = decode("UTF-8", $raw) unless defined $text;
     print "{\"type\":\"text\",\"text\":", encode_json($text), "}\n";
   '
+}
+
+emit_skipped() {
+  printf '{"type":"skipped","reason":"too-large"}\n'
+}
+
+# A copy over the entry limit, kept as <sha256>.txt like an image. The encoding is
+# decided from a sample, by the same NUL-padding test emit_small_text applies to
+# the whole text, and converted as a stream, so the copy is never loaded whole.
+emit_large_text() {
+  local raw=$1 encoding converted bytes hash file
+
+  encoding=$(head -c 65536 -- "$raw" | perl -0777 -ne '
+    if (/^(?:\xFF\xFE|\xFE\xFF)/) { print "UTF-16"; exit }
+    my $units = int(length($_) / 2);
+    exit unless $units && index($_, "\0") >= 0;
+    my ($even, $odd) = (0, 0);
+    for (my $i = 0; $i + 1 < length($_); $i += 2) {
+      $even++ if substr($_, $i, 1) eq "\0";
+      $odd++ if substr($_, $i + 1, 1) eq "\0";
+    }
+    if ($odd * 4 >= $units * 3 && $even * 4 < $units) { print "UTF-16LE" }
+    elsif ($even * 4 >= $units * 3 && $odd * 4 < $units) { print "UTF-16BE" }
+  ')
+
+  if [[ -n $encoding ]]; then
+    converted=$(mktemp --tmpdir="$TEXT_DIR" clipboard.XXXXXX) || { rm -f -- "$raw"; return 0; }
+    if iconv -f "$encoding" -t UTF-8 "$raw" >"$converted" 2>/dev/null; then
+      mv -f -- "$converted" "$raw"
+    else
+      rm -f -- "$converted"
+    fi
+  fi
+
+  bytes=$(stat -c %s -- "$raw")
+  if (( bytes > LARGE_LIMIT )); then
+    rm -f -- "$raw"
+    emit_skipped
+    return 0
+  fi
+
+  hash=$(sha256sum -- "$raw" | cut -d' ' -f1)
+  file="$TEXT_DIR/$hash.txt"
+  if [[ -f $file && ! -L $file ]]; then
+    rm -f -- "$raw"
+    # A fresh mtime keeps prune-text.sh from deleting it before its entry is back.
+    touch -- "$file"
+  else
+    mv -f -- "$raw" "$file"
+  fi
+
+  head -c "$PREVIEW_BYTES" -- "$file" | iconv -c -f UTF-8 -t UTF-8 \
+    | jq -cRs --arg path "$file" --argjson bytes "$bytes" '{type: "largetext", path: $path, bytes: $bytes, preview: .}'
+}
+
+# The copy goes to a file first, bounded at the large-copy limit, so neither this
+# script nor the shell ever holds more of it than it keeps.
+emit_text() {
+  local raw size
+  mkdir -p "$TEXT_DIR"
+  raw=$(mktemp --tmpdir="$TEXT_DIR" clipboard.XXXXXX) || return 0
+  head -c $((LARGE_LIMIT + 1)) >"$raw"
+  size=$(stat -c %s -- "$raw")
+
+  if (( size == 0 )); then
+    rm -f -- "$raw"
+  elif (( size > LARGE_LIMIT )); then
+    rm -f -- "$raw"
+    emit_skipped
+  elif (( size <= ENTRY_LIMIT )); then
+    emit_small_text <"$raw"
+    rm -f -- "$raw"
+  else
+    emit_large_text "$raw"
+  fi
 }
 
 case "${1:-}" in

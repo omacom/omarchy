@@ -205,6 +205,39 @@ assert(
   hugeFileRow.entryType === 'file' && hugeFileRow.fullText.split('\n').every(path => path.endsWith('.mp4')),
   'clipboard display rows cap a huge file list without truncating a path'
 )
+// History byte bounds: one large copy used to be carried whole through the
+// watcher line, every save and every startup load.
+const MiB = 1024 * 1024
+const hex = (c) => c.repeat(64)
+const largePath = '/home/u/.local/state/omarchy/clipboard-text/' + hex('a') + '.txt'
+const large = (path, bytes, preview) => ({ type: 'largetext', path, bytes, preview })
+const captureSource = fs.readFileSync(path.join(root, 'shell/plugins/clipboard/capture.sh'), 'utf8')
+
+assertEqual(clipboard.entryTextLimit, 2 * MiB, 'clipboard keeps up to 2 MiB of text inline')
+assertEqual(Number((captureSource.match(/CLIPBOARD_ENTRY_LIMIT:-(\d+)/) || [])[1]), clipboard.entryTextLimit, 'clipboard capture and history agree on the inline limit')
+assertEqual(Number((captureSource.match(/CLIPBOARD_LARGE_LIMIT:-(\d+)/) || [])[1]), clipboard.largeTextLimit, 'clipboard capture and history agree on the large-copy limit')
+assert(clipboard.normalizeEntry({ type: 'text', text: 'a'.repeat(clipboard.entryTextLimit + 1) }) === null, 'clipboard rejects inline text over the limit')
+assertEqual(clipboard.parseHistory('not json'), null, 'clipboard reports unreadable history as unreadable, not empty')
+assertEqual(clipboard.parseHistory(JSON.stringify(Array.from({ length: 700 }, (_, i) => 'entry ' + i)), 500).length, 500, 'clipboard stops loading at the entry limit')
+assertEqual(clipboard.captureResult('{"type":"skipped","reason":"too-large"}').kind, 'skipped', 'clipboard capture reports a skipped copy')
+assertEqual(clipboard.captureResult('x'.repeat(clipboard.captureLineLimit + 1)).kind, 'skipped', 'clipboard refuses an oversized watcher line before parsing it')
+
+const keptLarge = clipboard.normalizeEntry(large(largePath, 3 * MiB, 'x'.repeat(9000)))
+assert(keptLarge && keptLarge.preview.length === clipboard.largePreviewLimit, 'clipboard keeps a large copy with a capped preview')
+assertEqual(clipboard.normalizeEntry(large('/etc/passwd', 3 * MiB, 'x')), null, 'clipboard rejects a large copy outside its folder')
+assertEqual(clipboard.displayRows([keptLarge], '', 50)[0].mime, 'text/plain;charset=utf-8', 'clipboard pastes a large copy as UTF-8 text')
+let disk = []
+for (let i = 0; i < 5; i++) disk = clipboard.addEntry(disk, large(largePath.replace(hex('a'), hex(String(i))), 250 * MiB, 'p' + i), 500)
+assertEqual(disk.length, 4, 'clipboard drops the oldest large copies past 1 GiB')
+assertDeepEqual(clipboard.largeTextNames([keptLarge, large('/etc/passwd', 1, 'x')]), [hex('a') + '.txt'], 'clipboard names only valid large copies to keep')
+
+// The loader must accept anything the writer can produce.
+const heavy = String.fromCodePoint(0x4e2d)
+let filled = []
+for (let i = 0; i < 24; i++) filled = clipboard.addEntry(filled, { type: 'text', text: i + heavy.repeat(512 * 1024) }, 500)
+filled = clipboard.addEntry(filled, { type: 'text', text: String.fromCodePoint(1).repeat(clipboard.entryTextLimit) }, 500)
+assert(Buffer.byteLength(JSON.stringify(filled, null, 2) + '\n') <= clipboard.historyFileLimit, 'clipboard never writes a history its loader would refuse')
+
 JS
 
 TMPDIR=$(mktemp -d)
@@ -518,3 +551,43 @@ TENSAKU_OUT="$TMPDIR/tensaku" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/tensaku") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Tensaku"
 pass "clipboard open helper opens image entries in Tensaku"
+
+# History byte bounds and large copies. These get their own wl-paste: the
+# watcher-lifecycle checks above leave a shared one that never returns.
+mkdir -p "$TMPDIR/bounds/state" "$TMPDIR/bounds/bin"
+cat >"$TMPDIR/bounds/bin/wl-paste" <<'SH'
+#!/bin/bash
+[[ $1 == "--list-types" ]] && printf 'text/plain\n'
+exit 0
+SH
+chmod +x "$TMPDIR/bounds/bin/wl-paste"
+bounds_capture() { XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/bounds/state" PATH="$TMPDIR/bounds/bin:$PATH" "$@" "$ROOT/shell/plugins/clipboard/capture.sh" text; }
+
+capture_output=$(printf '0123456789abcdefX' | bounds_capture env CLIPBOARD_ENTRY_LIMIT=16)
+large_path=$(jq -r '.path // empty' <<<"$capture_output")
+[[ $(jq -r .type <<<"$capture_output") == largetext && -f $large_path && $(<"$large_path") == 0123456789abcdefX ]] || fail "clipboard capture keeps a copy over the inline limit as a file" "$capture_output"
+pass "clipboard capture keeps a copy over the inline limit as a file"
+
+capture_output=$(head -c 33 /dev/zero | tr '\0' a | bounds_capture env CLIPBOARD_ENTRY_LIMIT=16 CLIPBOARD_LARGE_LIMIT=32)
+[[ $capture_output == '{"type":"skipped","reason":"too-large"}' ]] || fail "clipboard capture skips a copy over the large-copy limit" "$capture_output"
+pass "clipboard capture skips a copy over the large-copy limit"
+
+history_file="$TMPDIR/bounds/history.json"
+printf '[{"type":"text","text":"hi"}]' >"$history_file"
+[[ $(bash "$ROOT/shell/plugins/clipboard/load-history.sh" "$history_file" 1048576) == '[{"type":"text","text":"hi"}]' ]] || fail "clipboard history loader hands over a normal history"
+pass "clipboard history loader hands over a normal history"
+
+printf '[{"type":"text"' >"$history_file"
+[[ $(bash "$ROOT/shell/plugins/clipboard/load-history.sh" "$history_file" 1048576) == '[]' && ! -e $history_file ]] && compgen -G "$history_file.rejected-*" >/dev/null || fail "clipboard history loader renames an invalid history aside"
+pass "clipboard history loader renames an invalid history aside"
+
+printf '["target"]' >"$TMPDIR/bounds/target.json"; ln -sfn "$TMPDIR/bounds/target.json" "$TMPDIR/bounds/link.json"
+[[ $(bash "$ROOT/shell/plugins/clipboard/load-history.sh" "$TMPDIR/bounds/link.json" 1048576) == '[]' && $(<"$TMPDIR/bounds/target.json") == '["target"]' ]] || fail "clipboard history loader never follows a symlinked history"
+pass "clipboard history loader never follows a symlinked history"
+
+text_dir="$TMPDIR/bounds/prune/omarchy/clipboard-text"; mkdir -p "$text_dir"
+keep=$(printf 'a%.0s' $(seq 64)).txt; drop=$(printf 'b%.0s' $(seq 64)).txt
+printf k >"$text_dir/$keep"; printf d >"$text_dir/$drop"; touch -d '2 minutes ago' "$text_dir/$keep" "$text_dir/$drop"
+bash "$ROOT/shell/plugins/clipboard/prune-text.sh" "$text_dir" "$TMPDIR/bounds/prune/omarchy/clipboard-history.json" "$keep"
+[[ -f $text_dir/$keep && ! -e $text_dir/$drop ]] || fail "clipboard deletes large copies history no longer uses"
+pass "clipboard deletes large copies history no longer uses"
