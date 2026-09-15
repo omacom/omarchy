@@ -178,3 +178,29 @@ declaring `kinds: ["bar-widget"]` and a `barWidget` entry point. See
 [../../README.md](../../README.md) for the manifest schema. Rescan, enable,
 and place third-party plugins with `omarchy-shell shell rescanPlugins`,
 `omarchy plugin enable`, and `omarchy bar move`.
+
+## Background components in derived bars
+
+A bar derived from `Bar.qml` can set `backgroundComponent` to a QML `Component` whose root is an `Item`. The component is instantiated separately for each monitor and sized to that monitor's bar. Its parent exposes `backgroundColor` (the live theme fill), `barPosition` (`top`, `bottom`, `left`, `right`) and `barVertical`. The item's own width and height track the bar; it should not impose a different size on its parent.
+
+Within an Omarchy shell that provides this hook, a replacement bar can inherit the stock type without copying its implementation:
+
+```qml
+import QtQuick
+import qs.plugins.bar as Stock
+
+Stock.Bar {
+  backgroundComponent: Component {
+    Rectangle {
+      id: fill
+      gradient: Gradient {
+        orientation: fill.parent.barVertical ? Gradient.Vertical : Gradient.Horizontal
+        GradientStop { position: 0; color: fill.parent.backgroundColor }
+        GradientStop { position: 1; color: "#253653" }
+      }
+    }
+  }
+}
+```
+
+Use an explicit id for the background item when binding from nested objects (for example, `id: fill` and `fill.parent.backgroundColor`). The loader sits behind widgets and is disabled for input, so backgrounds cannot intercept bar clicks. Full transparency unloads the component. Setting `backgroundComponent` back to `null`, or a component that fails to create, restores the theme fill. A successfully created transparent item intentionally replaces the fill with transparency. This hook only paints inside the bar window; it does not add space for external shadows, style popup controls.

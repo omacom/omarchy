@@ -78,6 +78,9 @@ Item {
   property color barForeground: useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
   property color background: Color.bar.background
+  // Optional passive background supplied by a derived bar. Null keeps the
+  // theme fill; transparent mode unloads the component on every monitor.
+  property Component backgroundComponent: null
   property color urgent: Color.bar.active
 
   Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: 420; easing.type: Easing.InOutCubic } }
@@ -1263,10 +1266,24 @@ Item {
 
     implicitWidth: root.vertical ? root.barSize : 0
     implicitHeight: root.vertical ? 0 : root.barSize
-    color: root.transparent ? "transparent" : root.background
+    color: root.transparent || backgroundLoader.item ? "transparent" : root.background
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
+
+    Loader {
+      id: backgroundLoader
+      anchors.fill: parent
+      z: -1
+      enabled: false
+      active: !root.transparent && root.backgroundComponent !== null
+      sourceComponent: root.backgroundComponent
+
+      // Scalar rendering inputs, available through the created item's parent.
+      readonly property color backgroundColor: root.background
+      readonly property string barPosition: root.position
+      readonly property bool barVertical: root.vertical
+    }
 
     Loader {
       anchors.fill: parent
