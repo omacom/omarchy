@@ -83,3 +83,20 @@ omarchy-launch-webapp "$url"
 mapfile -d '' -t launch < "$TEST_LAUNCH"
 [[ ${launch[0]} == "chromium" ]] || fail "automatic mode restores fallback"
 pass "returning to automatic mode restores the previous behavior"
+
+cat > "$TEST_BIN/omarchy-launch-floating-terminal-with-presentation" <<'STUB'
+#!/bin/bash
+printf '%s\0' "$@" > "$TEST_LAUNCH"
+STUB
+chmod +x "$TEST_BIN/omarchy-launch-floating-terminal-with-presentation"
+run_node_test <<'JS'
+const fs = require('fs')
+const { spawnSync } = require('child_process')
+const model = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const menu = model.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
+const entry = menu.find(item => item.id === 'remove.browser.helium')
+assert(entry, 'Helium removal is present in the menu')
+const result = spawnSync('bash', ['-c', entry.action], { env: process.env, encoding: 'utf8' })
+assertEqual(result.status, 0, 'Helium removal dispatch succeeds')
+assertEqual(fs.readFileSync(process.env.TEST_LAUNCH, 'utf8'), 'omarchy-remove-browser helium\0', 'Helium removal opens a terminal for authentication')
+JS
