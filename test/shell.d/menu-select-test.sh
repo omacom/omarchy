@@ -113,9 +113,9 @@ grep -Fq '"defaultIndex":0' "$payloads" ||
   fail "menu select coerces a non-finite default index to 0" "$(cat "$payloads")"
 pass "menu select coerces a non-finite default index to 0"
 
-# The flag is new surface: no shipped caller passes it yet, so every existing
-# invocation keeps its absent-field payload. Phase 6 adopts it first.
-sweep=$(grep -rln -- '--default-index' "$ROOT/bin" | grep -v '/omarchy-menu-select$' || true)
+# The flag's only shipped caller is omarchy-transcode (Phase 6 adopted it
+# first); every other invocation keeps its absent-field payload.
+sweep=$(grep -rln -- '--default-index' "$ROOT/bin" | grep -v -e '/omarchy-menu-select$' -e '/omarchy-transcode$' || true)
 [[ -z $sweep ]] ||
-  fail "no existing caller passes --default-index yet" "$sweep"
-pass "no existing caller passes --default-index yet"
+  fail "omarchy-transcode is the only caller passing --default-index" "$sweep"
+pass "omarchy-transcode is the only caller passing --default-index"
