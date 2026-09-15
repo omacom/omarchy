@@ -26,6 +26,11 @@ exec_bind() {
   printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: %s\n' "$1" "$2" "$3" "$4"
 }
 
+# A bind given a Lua function reports the registry ref Hyprland calls it by.
+lua_function_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: __lua\n\targ: %s\n' "$1" "$2" "$3" "$4"
+}
+
 stub_hyprctl() {
   {
     echo '#!/bin/bash'
@@ -194,6 +199,107 @@ rendered=$(keybindings)
 (( $(grep -c '→ Close window$' <<<"$rendered") == 2 )) ||
   fail "chords whose dispatch is unknown stay apart" "$rendered"
 pass "chords whose dispatch is unknown stay apart"
+
+# A bind given a Lua function, like Reset zoom, leaves nothing in the source
+# cache for the menu to replay. Its row keeps which bind it is instead, as
+# Hyprland reports it, while a bind the source resolves keeps its expression
+# even though Hyprland reports a ref for it too.
+stub_hyprctl <<BINDS
+$(lua_function_bind 76 "SUPER CTRL ALT + Z" "Reset zoom" 264)
+$(lua_function_bind 64 "SUPER + W" "Close window" 261)
+BINDS
+
+eval "$(sed -n '/^lua_bind_identity()/,/^}/p; /^dispatch_lua_expression()/,/^}/p; /^dispatch_lua_function_binding()/,/^}/p; /^dispatch_binding()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
+
+keybindings >/dev/null
+records=$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)
+identity=$(lua_bind_identity 76 "" "SUPER CTRL ALT + Z" 0 "Reset zoom")
+[[ $(awk -F '\t' '$1 ~ /→ Reset zoom$/ { print $2 "\t" $3 }' <<<"$records") == "__lua	$identity" ]] ||
+  fail "a Lua function bind keeps which bind it is" "$records"
+[[ $(awk -F '\t' '$1 ~ /→ Close window$/ { print $2 }' <<<"$records") == "lua" ]] ||
+  fail "a bind the source resolves keeps its expression over its ref" "$records"
+pass "a Lua function bind keeps which bind it is"
+
+# Selecting that row looks the bind up again and calls the ref Hyprland reports
+# for it now: a reload can hand the old ref to another bind, and a stale ref
+# would run whatever took it over.
+stub_hyprctl_dispatch() {
+  {
+    echo '#!/bin/bash'
+    echo 'printf "%s\n" "$*" >>"'"$tmpdir"'/hyprctl.log"'
+    echo 'case "$1" in'
+    echo '  binds) cat "'"$tmpdir"'/binds"; exit "$(cat "'"$tmpdir"'/binds-status")" ;;'
+    echo '  dispatch) echo ok ;;'
+    echo 'esac'
+  } >"$stub_bin/hyprctl"
+  chmod +x "$stub_bin/hyprctl"
+  cat >"$tmpdir/binds"
+  echo 0 >"$tmpdir/binds-status"
+  rm -f "$tmpdir/hyprctl.log"
+}
+
+dispatched() {
+  grep -x "dispatch debug.getregistry()\[$1\]" "$tmpdir/hyprctl.log"
+}
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "SUPER CTRL ALT + Z" "Reset zoom" 264)
+BINDS
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "selecting a Lua function bind dispatches it"
+dispatched 264 >/dev/null ||
+  fail "a Lua function bind is called through the ref Hyprland reports" "$(cat "$tmpdir/hyprctl.log")"
+pass "selecting a Lua function bind calls it through its ref"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 64 "SUPER + D" "Different action" 264)
+$(lua_function_bind 76 "SUPER CTRL ALT + Z" "Reset zoom" 300)
+BINDS
+PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind whose ref moved after a reload still dispatches"
+dispatched 300 >/dev/null && ! dispatched 264 >/dev/null ||
+  fail "a bind whose ref moved is called through its new ref, not the old one" "$(cat "$tmpdir/hyprctl.log")"
+pass "a bind whose ref moved after a reload is called through its new ref"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 64 "SUPER + D" "Different action" 264)
+BINDS
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind Hyprland no longer reports is refused"
+! grep -q '^dispatch' "$tmpdir/hyprctl.log" ||
+  fail "a bind Hyprland no longer reports dispatches nothing" "$(cat "$tmpdir/hyprctl.log")"
+pass "a bind Hyprland no longer reports dispatches nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "SUPER CTRL ALT + Z" "Reset zoom" 264)
+$(lua_function_bind 76 "SUPER CTRL ALT + Z" "Reset zoom" 300)
+BINDS
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "two binds that match the same identity are refused"
+! grep -q '^dispatch' "$tmpdir/hyprctl.log" ||
+  fail "two binds that match the same identity dispatch nothing" "$(cat "$tmpdir/hyprctl.log")"
+pass "two binds that match the same identity dispatch nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "SUPER CTRL ALT + Z" "Reset zoom" "")
+BINDS
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a bind reported without a numeric ref is refused"
+! grep -q '^dispatch' "$tmpdir/hyprctl.log" ||
+  fail "a bind reported without a numeric ref dispatches nothing" "$(cat "$tmpdir/hyprctl.log")"
+pass "a bind reported without a numeric ref dispatches nothing"
+
+stub_hyprctl_dispatch <<BINDS
+$(lua_function_bind 76 "SUPER CTRL ALT + Z" "Reset zoom" 264)
+BINDS
+echo 1 >"$tmpdir/binds-status"
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "$identity" >/dev/null ||
+  fail "a failed hyprctl binds is refused even with matching output"
+! grep -q '^dispatch' "$tmpdir/hyprctl.log" ||
+  fail "a failed hyprctl binds dispatches nothing" "$(cat "$tmpdir/hyprctl.log")"
+! PATH="$stub_bin:$PATH" dispatch_binding "__lua" "" >/dev/null ||
+  fail "a Lua bind with nothing to look up is refused"
+pass "a failed hyprctl binds dispatches nothing"
 
 # What the menu is expected to pair up, written out here rather than read from
 # the script, so dropping an action from the list fails instead of shrinking
