@@ -23,5 +23,11 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+# Entering full screen hides the bar, leaving shows it: invert the action for
+# the bar half, whose on/off words are the other way round (on = visible).
+case $ACTION in
+  on) omarchy-toggle-bar off ;;
+  off) omarchy-toggle-bar on ;;
+  *) omarchy-toggle-bar "$ACTION" ;;
+esac
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
