@@ -424,9 +424,13 @@ Panel {
   }
 
   function setOutputVolume(v) {
-    if (!volumeSink || !volumeSink.audio) return outputVolume
+    if (!volumeSink) return outputVolume
     var volume = Math.max(0, Math.min(1, v))
-    volumeSink.audio.volume = volume
+    if (volumeSink.audio) volumeSink.audio.volume = volume
+
+    var targetSink = volumeSinkName !== "" ? volumeSinkName : (volumeSink.name ? String(volumeSink.name) : "@DEFAULT_SINK@")
+    var pct = Math.round(volume * 100)
+    Quickshell.execDetached(["pactl", "set-sink-volume", targetSink, pct + "%"])
     return volume
   }
 
@@ -445,6 +449,8 @@ Panel {
 
   function toggleOutputMute() {
     if (volumeSink && volumeSink.audio) volumeSink.audio.muted = !volumeSink.audio.muted
+    var targetSink = volumeSinkName !== "" ? volumeSinkName : (volumeSink && volumeSink.name ? String(volumeSink.name) : "@DEFAULT_SINK@")
+    Quickshell.execDetached(["pactl", "set-sink-mute", targetSink, "toggle"])
   }
 
   function toggleInputMute() {
@@ -456,8 +462,12 @@ Panel {
   // muting a single channel from the row below flipping the master switch.
   function toggleAllMuted() {
     var mute = anyAudible
-    if (hasOutput) volumeSink.audio.muted = mute
-    if (hasInput) source.audio.muted = mute
+    if (hasOutput) {
+      if (volumeSink && volumeSink.audio) volumeSink.audio.muted = mute
+      var targetSink = volumeSinkName !== "" ? volumeSinkName : (volumeSink && volumeSink.name ? String(volumeSink.name) : "@DEFAULT_SINK@")
+      Quickshell.execDetached(["pactl", "set-sink-mute", targetSink, mute ? "1" : "0"])
+    }
+    if (hasInput && source && source.audio) source.audio.muted = mute
   }
 
   function setDefaultSink(node) {
