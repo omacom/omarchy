@@ -722,10 +722,15 @@ ShellRoot {
   }
 
   function pluginShellFor(manifest) {
-    if (!manifest || manifest.__isFirstParty) return shell
-    var key = String(manifest.id || "")
+    var key = String(manifest && manifest.id || "")
     if (!key) return null
-    return shell.createScopedPluginShell(manifest, key, true, shell.pluginHasBarCapabilities(manifest))
+    // Instantiator delegates can convert manifest arrays to V4Sequence values.
+    // Use only the registry's validated metadata for capability decisions.
+    var registeredManifest = shell.pluginRegistry.installedPlugins[key]
+    if (!registeredManifest) return null
+    if (registeredManifest.__isFirstParty) return shell
+    return shell.createScopedPluginShell(registeredManifest, key, true,
+      shell.pluginHasBarCapabilities(registeredManifest))
   }
 
   function pluginRegistryFor(manifest) {
