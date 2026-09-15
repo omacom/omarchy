@@ -6,10 +6,12 @@
 | disk encryption | шифрування диска | |
 | distribution | дистрибутив | |
 | dual boot | подвійне завантаження | Не «дуалбут» |
+| floating window | плаваюче вікно | |
 | full-disk install | встановлення на весь диск | |
 | hotkey | клавіатурне скорочення | |
 | package | пакунок | |
 | tiling window manager | мозаїчний менеджер вікон | |
 | wired keyboard | дротова клавіатура | |
+| workspace | робочий простір | |
 
 Назви Omarchy, Arch, Hyprland, Quickshell, програм, команд, клавіш і пунктів інтерфейсу залишаємо в оригіналі.
