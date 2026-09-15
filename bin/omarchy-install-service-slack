@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Install Slack as a web app with support for slack:// links.
+
+set -e
+
+echo "Installing Slack..."
+omarchy-webapp-install \
+  "Slack" \
+  "https://app.slack.com/client" \
+  "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/slack.png" \
+  "omarchy-webapp-handler-slack %u" \
+  "x-scheme-handler/slack"
+
+update-desktop-database "$HOME/.local/share/applications"
+
+echo ""
+echo "You can now find Slack using the app launcher (SUPER + SPACE)"
