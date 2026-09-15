@@ -12,7 +12,22 @@ if [[ ${1:-} == "--once" ]]; then
   shift
 fi
 
-dir="${1:-${XDG_DOWNLOAD_DIR:-$HOME/Downloads}}"
+# XDG_DOWNLOAD_DIR is not exported into the graphical session environment;
+# it only exists as a line in ~/.config/user-dirs.dirs, so the service would
+# always fall back to ~/Downloads and recreate it on every login. Resolve the
+# default through xdg-user-dir instead.
+default_download_dir() {
+  local dir=""
+  if [[ -n ${XDG_DOWNLOAD_DIR:-} ]]; then
+    dir="$XDG_DOWNLOAD_DIR"
+  elif command -v xdg-user-dir >/dev/null 2>&1; then
+    dir=$(xdg-user-dir DOWNLOAD 2>/dev/null) || dir=""
+  fi
+  [[ -n $dir ]] || dir="$HOME/Downloads"
+  printf '%s\n' "$dir"
+}
+
+dir="${1:-$(default_download_dir)}"
 
 # Taildrop lands in a staging directory next door rather than straight in the
 # downloads directory: waiting for a delivery can take hours, and everything

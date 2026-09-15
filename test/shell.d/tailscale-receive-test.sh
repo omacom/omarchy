@@ -98,3 +98,27 @@ pass "taildrop receive ignores downloads that arrive while it waits"
 [[ -z $(ls -A "$downloads/.omarchy-taildrop") ]] ||
   fail "taildrop receive empties its staging directory" "$(ls -A "$downloads/.omarchy-taildrop")"
 pass "taildrop receive empties its staging directory"
+
+# Without an explicit directory the receiver must honor a customized XDG
+# download dir instead of recreating ~/Downloads on every login.
+cat >"$WORKDIR/bin/xdg-user-dir" <<SH
+#!/bin/bash
+[[ \$1 == "DOWNLOAD" ]] || exit 1
+printf '%s\n' "$WORKDIR/mydl"
+SH
+chmod +x "$WORKDIR/bin/xdg-user-dir"
+
+xdg_home="$WORKDIR/fakehome"
+mkdir -p "$xdg_home" "$WORKDIR/mydl"
+printf 'txt' >"$WORKDIR/outbox/later.txt"
+: >"$WORKDIR/notifications"
+
+XDG_DOWNLOAD_DIR= HOME="$xdg_home" PATH="$WORKDIR/bin:$PATH" "$ROOT/bin/omarchy-tailscale-receive" --once
+
+[[ -f $WORKDIR/mydl/later.txt ]] ||
+  fail "taildrop receive defaults to the xdg-user-dir download directory" "$(ls "$WORKDIR/mydl")"
+pass "taildrop receive defaults to the xdg-user-dir download directory"
+
+[[ ! -e $xdg_home/Downloads ]] ||
+  fail "taildrop receive does not recreate ~/Downloads" "$(ls "$xdg_home")"
+pass "taildrop receive does not recreate ~/Downloads"
