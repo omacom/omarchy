@@ -18,6 +18,10 @@ The majority of these environments are managed by [Mise](https://mise.jdx.dev/).
 
 To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Ruby and set it as the global default. Or, if your project has a .ruby-version file, you can just run `mise i` in the root of that project.
 
+## Kujo
+
+[Kujo](https://kujolang.ai) is a programming language and runtime for AI-native software and local automation. It is included on new Omarchy installations. Run `kujo --version` to check the installed version and `kujo run script.kujo` to run a program.
+
 ## Docker
 
 [Docker](https://www.docker.com/) hardly needs any introduction. It allows you to run isolated containers, and Omarchy installs everything needed to run it well, including Docker itself and [Docker Compose](https://docs.docker.com/compose/).
