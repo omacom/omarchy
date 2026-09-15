@@ -10,29 +10,45 @@ Item {
   property url mediaSource: ""
   property bool playbackEnabled: true
   property bool audioEnabled: false
+  property bool loop: true
+  property int fadeOutDuration: 0
   property int mediaGeneration: 0
   property bool priming: false
   property int primingGeneration: -1
   property bool frameReceived: false
+  property bool primedForPlayback: false
   readonly property bool ready: player.hasVideo
+  readonly property real fadeOutProgress: fadeOutDuration > 0 && player.duration > 0
+    ? Math.max(0, Math.min(1, (player.position - (player.duration - fadeOutDuration)) / fadeOutDuration))
+    : 0
+
+  signal finished()
+  signal firstFramePrimed()
 
   onMediaSourceChanged: {
     mediaGeneration += 1
     priming = false
     primingGeneration = -1
     frameReceived = false
+    primedForPlayback = false
     primePauseTimer.stop()
     framePauseTimer.stop()
     output.clearOutput()
   }
 
   onPlaybackEnabledChanged: {
+    const restartFromPrimedFrame = playbackEnabled && primedForPlayback
     priming = false
     frameReceived = false
+    primedForPlayback = false
     primePauseTimer.stop()
     framePauseTimer.stop()
-    if (playbackEnabled) player.play()
-    else player.pause()
+    if (playbackEnabled) {
+      if (restartFromPrimedFrame) player.position = 0
+      player.play()
+    } else {
+      player.pause()
+    }
   }
 
   function pauseAfterPrimedFrame() {
@@ -44,6 +60,8 @@ Item {
     primePauseTimer.stop()
     framePauseTimer.stop()
     player.pause()
+    primedForPlayback = frameReceived
+    if (primedForPlayback) root.firstFramePrimed()
   }
 
   // A paused MediaPlayer can load a source without presenting its first frame.
@@ -91,19 +109,25 @@ Item {
     source: root.mediaSource
     videoOutput: output
     audioOutput: audioLoader.item
-    loops: MediaPlayer.Infinite
+    loops: root.loop ? MediaPlayer.Infinite : 1
     autoPlay: root.playbackEnabled
     onMediaStatusChanged: {
+      if (mediaStatus === MediaPlayer.EndOfMedia) {
+        root.finished()
+        return
+      }
       if (mediaStatus !== MediaPlayer.LoadedMedia) return
 
       if (!root.playbackEnabled) {
         root.priming = true
         root.primingGeneration = root.mediaGeneration
         root.frameReceived = false
+        root.primedForPlayback = false
         primePauseTimer.restart()
       }
       player.play()
     }
+    onErrorOccurred: root.finished()
   }
 
   Connections {
