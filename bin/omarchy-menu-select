@@ -11,6 +11,11 @@
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+#
+# With --keep-open, Enter drops the picked row from the list instead of closing
+# the menu, so several options can be picked in one visit. Each pick is printed,
+# one per line, the moment it is made, so a caller reading the output line by
+# line can act on it while the menu is still up.
 
 set -euo pipefail
 
@@ -25,6 +30,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+menu_keep_open=""
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -47,6 +53,9 @@ while (( $# > 0 )); do
             exit 1
           fi
           menu_maxheight="$1"
+          ;;
+        --keep-open)
+          menu_keep_open=1
           ;;
       esac
       shift
@@ -83,17 +92,46 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  $payload->{keepOpen} = JSON::PP::true if length($ARGV[6] // "");
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$menu_keep_open")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 
-while [[ ! -e $done_file ]]; do
-  sleep 0.05
-done
+if [[ -n $menu_keep_open ]]; then
+  # A line caught mid-write is held until it completes. The menu writes the
+  # done marker only behind the last pick, so one drain after it gets them all.
+  exec {selection_fd}<"$selection_file"
+  picked=0
+  partial=""
 
-if [[ -s $selection_file ]]; then
-  cat "$selection_file"
+  drain_picks() {
+    local line=""
+    while IFS= read -r -u "$selection_fd" line; do
+      printf '%s\n' "$partial$line"
+      partial=""
+      picked=1
+    done
+    partial+=$line
+  }
+
+  while [[ ! -e $done_file ]]; do
+    drain_picks
+    sleep 0.05
+  done
+  drain_picks
+
+  if (( ! picked )); then
+    exit 1
+  fi
 else
-  exit 1
+  while [[ ! -e $done_file ]]; do
+    sleep 0.05
+  done
+
+  if [[ -s $selection_file ]]; then
+    cat "$selection_file"
+  else
+    exit 1
+  fi
 fi
