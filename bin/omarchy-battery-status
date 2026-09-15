@@ -18,13 +18,24 @@ case "${1:-}" in
     ;;
 esac
 
-battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
-[[ -z $battery ]] && exit 0
+mapfile -t batteries < <(upower -e 2>/dev/null | grep BAT)
+(( ${#batteries[@]} > 0 )) || exit 0
 
-battery_info=$(upower -i "$battery")
+# The first pack still supplies what UPower's composite device lacks, such as
+# the charge thresholds.
+battery_info=$(upower -i "${batteries[0]}")
 
-percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
-capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
+# Packs charge and drain one at a time, so any single one misstates the
+# machine as a whole. UPower's DisplayDevice sums them, and is what the bar
+# icon and the panel's progress bar already draw from.
+if (( ${#batteries[@]} > 1 )); then
+  composite_info=$(upower -i /org/freedesktop/UPower/devices/DisplayDevice)
+else
+  composite_info=$battery_info
+fi
+
+percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$composite_info")
+capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$composite_info")
 time_remaining=$(awk '/time to (empty|full)/ {
   value = $4
   unit = $5
@@ -40,20 +51,37 @@ time_remaining=$(awk '/time to (empty|full)/ {
     }
   }
   exit
-}' <<<"$battery_info")
-power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
-native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
-battery_path="$power_supply_path/$native_path"
+}' <<<"$composite_info")
+power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$composite_info")
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
-# the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
-    'BEGIN { print microamps * microvolts / 1000000000000 }')
+# the instantaneous sysfs reading when available so the open panel stays live,
+# summed across every pack so the rate describes the whole machine.
+live_rate=0
+live_rate_found=false
+for battery in "${batteries[@]}"; do
+  if [[ $battery == "${batteries[0]}" ]]; then
+    native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
+  else
+    native_path=$(upower -i "$battery" | awk '/native-path/ { print $2; exit }')
+  fi
+  battery_path="$power_supply_path/$native_path"
+
+  if [[ -r $battery_path/power_now ]]; then
+    live_rate=$(awk -v total="$live_rate" -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print total + microwatts / 1000000 }')
+    live_rate_found=true
+  elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+    live_rate=$(awk \
+      -v total="$live_rate" \
+      -v microamps="$(<"$battery_path/current_now")" \
+      -v microvolts="$(<"$battery_path/voltage_now")" \
+      'BEGIN { print total + microamps * microvolts / 1000000000000 }')
+    live_rate_found=true
+  fi
+done
+
+if [[ $live_rate_found == "true" ]]; then
+  power_rate_raw=$live_rate
 fi
 
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
@@ -61,7 +89,7 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   sub(/\.0$/, "", rounded)
   print rounded
 }')
-state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
+state=$(awk '/state/ { print $2; exit }' <<<"$composite_info")
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
