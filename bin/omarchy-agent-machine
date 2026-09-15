@@ -1,0 +1,6 @@
+#!/bin/bash
+# omarchy:summary=Manage computers contributing remote agent usage
+# omarchy:args=<add|list|rename|remove|refresh> [args...]
+# omarchy:examples=omarchy agent machine add workbox --label Laptop | omarchy agent machine list --json | omarchy agent machine refresh --force
+
+exec python3 "$OMARCHY_PATH/default/agent-remote/main.py" "$@"

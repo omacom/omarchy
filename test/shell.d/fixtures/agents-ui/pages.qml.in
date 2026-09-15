@@ -1,0 +1,454 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Window
+import QtTest
+import "RemoteUsage.js" as RemoteUsage
+Item {
+  id: root; width: 380; height: 220
+  property color foreground: "white"
+  property color dim: "gray"
+  property color urgent: "red"
+  property color track: "#333"
+  property color surface: "#111"
+  property string fontFamily: "monospace"
+  property real nowMs: 1
+  property bool cursorActive: false
+  property bool machinesOpen: false
+  property bool opened: true
+  property bool detailsOpen: false
+  property int usageCursor: 0
+  property int focusSection: 0
+  property int machineIndex: 0
+  property real verticalContentInset: 20
+  property real availableCardHeight: 0
+  property var switchedPanels: []
+  property alias usageService: usage
+  function showMachines() { machinesOpen=true }
+  LEAVE_FUNCTION
+  function selectMachine() {}
+  function switchPanel(direction) { switchedPanels = switchedPanels.concat([direction]) }
+  function refreshNow() {}
+  function close() {}
+  SCROLL_FUNCTION
+  CONTENT_ITEM_FUNCTION
+  TOP_FUNCTION
+  ACTIVE_FUNCTION
+  FITTED_FUNCTION
+  COVERAGE_FUNCTION
+  MACHINE_COMPONENT
+  property int providerIndex: 0
+  property var providers: []
+  readonly property var provider: providers.length ? providers[providerIndex] : null
+  QtObject { id: testBorder; function flat(c,w) { return {} } }
+  QtObject { id: testColor; property color foreground: "white"; property color urgent: "red" }
+  QtObject { id: button; property string text: "A" }
+  QtObject { id: testStyle
+    property var font: ({caption:10,bodySmall:11,body:12,display:24})
+    property var spacing: ({sm:6,md:10,lg:16,xl:20,controlHeight:28,controlPaddingY:6})
+    property real cornerRadius: 4
+    function space(n) { return n }
+  }
+  component LegacyScopeState: QtObject {
+    id: root
+    property bool legacySync: false
+    property var rawLocalProviders: []
+    property var localProviders: []
+    function syncConfigured() { return legacySync }
+    function providerEnabled(providerId) { return true }
+    SCOPE_STATE
+  }
+  LegacyScopeState { id: scopeState }
+  QtObject { id: usage
+    property var remoteMachines: []
+    property bool machineBusy: false
+    property string machineError: ""
+    signal machineCommandFinished(bool success)
+    function manageMachine(args) {}
+    property bool useScopeState: false
+    property string syncStatusText: ""
+    function machineStatus(now, providerId) {
+      return useScopeState ? scopeState.machineStatus(now,providerId) : ""
+    }
+    property bool remoteActive: false
+    property var allProviders: []
+    property var preparedProviderViews: []
+    property var machineChoices: [{id:"all",label:"All"},{id:"local",label:"This computer"}]
+    property string selectedMachineId: "all"
+    property var pricing: QtObject {
+      property int revision: 0
+      property var callCounts: ({daily:0,model:0})
+      function modelWindowPresentation(p) {
+        callCounts.model++
+        var currentRevision=revision
+        return p ? (currentRevision%2===1 && p.revisedPresentation ? p.revisedPresentation : p.presentation)
+          : {available:false, models:[], summaries:[]}
+      }
+      function dailyRows(p) {
+        callCounts.daily++
+        if (!p) return []
+        var rows=[]
+        for(var i=0;i<7;i++) rows.push({date:"2026-09-"+(11-i),value:"12/$34.56",tokens:12,pricingEnabled:true})
+        return rows
+      }
+      function dailyHeading() { return "TOKENS / COST" }
+    }
+    function formatTokenCount(n) { return String(n) }
+  }
+  component PanelHero: Item {
+    property string title; property string meta; property color foreground; property string fontFamily; property Component iconComponent
+    implicitHeight: 40
+  }
+  component Button: Item {
+    property string tooltipText
+    property string text; property bool selected; property bool hasCursor; property bool bordered
+    property bool leftAlign: false
+    property color foreground; property string fontFamily; property real fontSize; property real verticalPadding
+    property bool focusable: false
+    signal clicked(); signal hovered(bool isHovered)
+    implicitHeight: 26
+  }
+  component PanelSectionHeader: Text { property color foreground; property string fontFamily; font.pixelSize:10; topPadding:2 }
+  component PanelSeparator: Rectangle { property color foreground; height:1; width:parent.width }
+  component BorderSurface: Rectangle { property var borderSpec }
+  component PanelToolTip: Item { property string text; property string fontFamily }
+  function alpha(c,a) { return Qt.rgba(c.r,c.g,c.b,a) }
+  function clamp(v,a,b) { return Math.max(a,Math.min(b,v)) }
+  function limitWindows(p) { return p ? p.limits : [] }
+  function providerSupportsPricing(p) { return !!p && (p.providerId==="codex" || p.providerId==="claude" || p.providerId==="kimi") }
+  function pricedModelRows(rows) { return rows }
+  function pricedSummaryRows(rows) { return rows }
+  function modelRows(p) { return p ? p.presentation.models : [] }
+  function pricingLimitationText(p) { return p ? (p.note || "") : "" }
+  function heroMeta() { return "Subscription" }
+  function iconCandidatesForProvider() { return [] }
+  FOOTER_FUNCTION
+  function weekPeak() { return 100 }
+  function todayDate() { return "2026-09-11" }
+  function dayLabel() { return "Today" }
+  function dayTooltip() { return "day detail" }
+  function modelTooltip() { return "model detail" }
+  function resetMsFor() { return 10000 }
+  function formatDuration() { return "5m" }
+  function formatMoney() { return "$1.00" }
+  function balanceDetailText() { return "" }
+  function selectProvider(i) { providerIndex=i }
+  KEY_COMPONENT
+  KEY_CATCHER
+    Flickable {
+      id: panelFlick
+      anchors.fill: parent
+      contentWidth: width
+      contentHeight: contentStack.implicitHeight
+      clip: true
+      boundsBehavior: Flickable.StopAtBounds
+      flickableDirection: Flickable.VerticalFlick
+      interactive: contentHeight > height
+      ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+      STACK
+    }
+  }
+  COMPONENTS
+  TestCase {
+    name: "ProviderPageSize"; when: windowShown
+    function init() {
+      root.opened=true; root.machinesOpen=false; root.detailsOpen=false
+      root.focusSection=0; root.usageCursor=0; root.providerIndex=0
+      usage.remoteMachines=[]; usage.machineBusy=false; usage.machineError=""
+      usage.useScopeState=false
+      machineSettings.mode=""; machineSettings.selectedId=""
+      usage.pricing.revision=0
+      scopeState.legacySync=false; scopeState.remoteSnapshot=({machines:[]})
+      scopeState.rawLocalProviders=[]; scopeState.localProviders=[]
+      scopeState.selectedMachineId="all"
+    }
+    function textItem(item, fragment) {
+      if (item.text !== undefined && String(item.text).indexOf(fragment)>=0) return item
+      var children=item.children || []
+      for(var i=0;i<children.length;i++) {
+        var match=textItem(children[i],fragment)
+        if (match) return match
+      }
+      return null
+    }
+    function matchingItems(item, exactText) {
+      var matches=[]
+      if(item.text!==undefined && String(item.text)===exactText) matches.push(item)
+      var children=item.children || []
+      for(var i=0;i<children.length;i++) matches=matches.concat(matchingItems(children[i],exactText))
+      return matches
+    }
+    function visibleCount(items) {
+      var count=0
+      for(var i=0;i<items.length;i++) if(items[i].visible) count++
+      return count
+    }
+    function fixture(name,models,limits) {
+      var rows=[], days=[], windows=[]
+      for(var i=0;i<models;i++) rows.push({name:"Model "+i,total:10,value:"12/$34.56",pricingPresentation:true})
+      for(var j=0;j<7;j++) days.push({date:"2026-09-11",value:"12/$34.56",tokens:12,pricingEnabled:true})
+      for(var k=0;k<limits;k++) windows.push({title:"Window "+k,percent:0.5,resetAt:""})
+      return {providerName:name,providerId:"codex",recentDays:days,limits:windows,note:"",
+        knownUsage:true,usageIncomplete:false,presentation:{available:true,models:rows,summaries:rows.slice(0,3)}}
+    }
+    function machine(id) {
+      return {id:id,label:"Computer "+id,target:"fixture.invalid",user:"tester",platform:"Linux",status:"current"}
+    }
+    function showScopes(scopes,activeScope) {
+      var views=[]
+      for(var scopeId in scopes) {
+        var choices=scopes[scopeId]
+        for(var i=0;i<choices.length;i++)
+          views.push({scopeId:scopeId,provider:choices[i],providers:choices,providerIndex:i})
+      }
+      usage.preparedProviderViews=views
+      usage.selectedMachineId=activeScope
+      root.providers=scopes[activeScope]
+      root.providerIndex=0
+    }
+    function showProviders(values) { showScopes({all:values},"all") }
+    function test_emptyState() {
+      showProviders([]);wait(1)
+      verify(emptyState.visible)
+      verify(contentStack.implicitHeight>0,"empty-state message keeps a visible panel")
+    }
+    function test_largestUnselectedPage() {
+      showProviders([fixture("small",1,1),fixture("large",6,3)])
+      wait(50)
+      var small=providerPages.itemAt(0),large=providerPages.itemAt(1)
+      verify(large.implicitHeight>640,"fixture exceeds old fixed cap")
+      verify(large.implicitHeight>small.implicitHeight)
+      compare(large.detailCount,16,"detail cursor counts every rendered day/model/summary row")
+      verify(large.detailItemAt(0) && large.detailItemAt(15),"detail cursor resolves first and last rendered rows")
+      compare(large.detailItemAt(16),null,"detail cursor rejects positions beyond rendered rows")
+      compare(contentStack.implicitHeight,large.implicitHeight+computerBar.height+testStyle.space(12),"largest hidden page determines size before switching")
+      var height=contentStack.implicitHeight
+      root.providerIndex=1;wait(1)
+      compare(contentStack.implicitHeight,height,"switching must not resize")
+      compare(small.opacity,0);compare(large.opacity,1)
+      verify(!small.enabled && large.enabled,"hidden pages cannot intercept input")
+      showProviders([fixture("small",2,1),fixture("large",6,3)]);wait(1)
+      compare(providerPages.itemAt(0),small,"record refresh must preserve page instances")
+      compare(contentStack.implicitHeight,height,"same largest contents preserve height")
+    }
+    function test_largest_page_across_five_and_ten_machine_scopes() {
+      var scopes={all:[fixture("all",1,0)],local:[fixture("local",2,1)]}
+      for(var i=0;i<10;i++) {
+        var page=fixture("computer "+(i+1),i===9 ? 8 : 1,i===9 ? 4 : 0)
+        if(i===4) { page.usageIncomplete=true; page.note="One remote source is unavailable." }
+        if(i===7) { page.knownUsage=false; page.usageIncomplete=true; page.presentation={available:false,models:[],summaries:[]} }
+        scopes["machine"+i]=[page]
+      }
+      showScopes(scopes,"all"); wait(80)
+      var maximumHeight=contentStack.implicitHeight
+      usage.pricing.callCounts.daily=0; usage.pricing.callCounts.model=0
+      root.providers=scopes.machine9; usage.selectedMachineId="machine9"; wait(10)
+      compare(contentStack.implicitHeight,maximumHeight,"opening the largest computer does not grow the panel")
+      root.providers=scopes.machine4; usage.selectedMachineId="machine4"; wait(10)
+      compare(contentStack.implicitHeight,maximumHeight,"partial five-machine scope does not shrink the panel")
+      root.providers=scopes.all; usage.selectedMachineId="all"; wait(10)
+      compare(contentStack.implicitHeight,maximumHeight,"returning to All does not shrink the panel")
+      compare(usage.pricing.callCounts.daily,0,"scope switching does not re-evaluate prepared daily history")
+      compare(usage.pricing.callCounts.model,0,"scope switching does not rebuild prepared model pricing")
+    }
+    function test_hidden_and_open_snapshot_and_price_revisions_replace_the_maximum() {
+      showScopes({all:[fixture("old tall",8,4)],local:[fixture("old local",1,0)]},"all"); wait(50)
+      var firstPage=providerPages.itemAt(0), secondPage=providerPages.itemAt(1)
+      var oldHeight=contentStack.implicitHeight
+      root.opened=false
+      var replacement=fixture("replacement",1,0)
+      replacement.revisedPresentation=fixture("repriced",7,0).presentation
+      showScopes({all:[replacement],local:[fixture("local",1,0)]},"all"); wait(50)
+      compare(providerPages.itemAt(0),firstPage,"same-shape provider refresh reuses the active page")
+      compare(providerPages.itemAt(1),secondPage,"same-shape provider refresh reuses the hidden page")
+      var currentHeight=contentStack.implicitHeight
+      verify(currentHeight<oldHeight,"a hidden snapshot replacement drops an obsolete former maximum")
+      usage.pricing.revision=1; wait(50)
+      verify(contentStack.implicitHeight>currentHeight,"hidden price-result revision invalidates the prepared layout")
+      root.opened=true; usage.pricing.revision=2; wait(50)
+      compare(contentStack.implicitHeight,currentHeight,"open price-result revision replaces stale model rows")
+    }
+    function test_hidden_pages_and_settings_never_show_usage_tooltips() {
+      showProviders([fixture("first",1,0),fixture("second",1,0)]); wait(30)
+      root.focusSection=3; root.usageCursor=0; root.detailsOpen=true; wait(10)
+      var tips=matchingItems(root,"day detail")
+      verify(tips.length>1,"the fixture includes active and hidden production row tooltips")
+      compare(visibleCount(tips),1,"only the selected provider page exposes a tooltip")
+      root.providerIndex=1; wait(10)
+      compare(visibleCount(tips),1,"provider switching never exposes the hidden tooltip")
+      root.machinesOpen=true; wait(10)
+      compare(visibleCount(tips),0,"settings suppresses every usage tooltip")
+    }
+    function test_empty_five_and_ten_machine_rows_set_the_global_maximum() {
+      showProviders([]); usage.remoteMachines=[]; wait(50)
+      var list=machineSettings.machineListForTest
+      var emptyListHeight=list.height
+      var emptyHeight=contentStack.implicitHeight
+      var five=[]
+      for(var i=0;i<5;i++) five.push(machine(String(i+1)))
+      usage.remoteMachines=five; wait(50); list.forceLayout()
+      var fiveListHeight=list.height
+      var fiveHeight=contentStack.implicitHeight
+      verify(fiveListHeight>emptyListHeight,"five full rows replace the empty-list measurement")
+      verify(fiveHeight>emptyHeight,"five full rows contribute to the global panel maximum")
+      var fifth=list.itemAtIndex(4)
+      verify(fifth && fifth.y+fifth.height<=fiveListHeight,"the fifth row is not hidden in an inner viewport")
+      var ten=[]
+      for(var j=0;j<10;j++) ten.push(machine(String(j+1)))
+      usage.remoteMachines=ten; wait(50); list.forceLayout()
+      var tenListHeight=list.height
+      var tenHeight=contentStack.implicitHeight
+      verify(tenListHeight>fiveListHeight,"ten full rows increase the real list measurement")
+      verify(tenHeight>fiveHeight,"ten full rows increase the current global maximum")
+      var tenth=list.itemAtIndex(9)
+      verify(tenth && tenth.y+tenth.height<=tenListHeight,"the tenth row is not hidden in an artificial six-row viewport")
+      root.machinesOpen=true; machineSettings.edit("add"); wait(20)
+      compare(contentStack.implicitHeight,tenHeight,"the reserved Add form fits the ten-row global maximum")
+      machineSettings.back(); machineSettings.edit("rename"); wait(20)
+      compare(contentStack.implicitHeight,tenHeight,"the reserved Rename form fits the ten-row global maximum")
+      machineSettings.back(); machineSettings.removeSelected(); wait(20)
+      compare(contentStack.implicitHeight,tenHeight,"the reserved confirmation fits the ten-row global maximum")
+    }
+    function test_clipped_tenth_machine_uses_outer_scroll_and_escape_restores_top() {
+      showProviders([])
+      var ten=[]
+      for(var i=0;i<10;i++) ten.push(machine(String(i+1)))
+      usage.remoteMachines=ten; wait(50)
+      machineSettings.selectedId="1"
+      root.machinesOpen=true; root.focusSection=2; panelFlick.contentY=0
+      keyCatcher.forceActiveFocus()
+      for(var j=0;j<9;j++) keyClick("j")
+      wait(50)
+      compare(machineSettings.selectedId,"10","keyboard navigation reaches the tenth machine")
+      var row=machineSettings.machineListForTest.itemAtIndex(9)
+      var position=row.mapToItem(contentStack,0,0).y
+      verify(position>=panelFlick.contentY && position+row.height<=panelFlick.contentY+panelFlick.height,
+        "the outer production Flickable reveals a clipped machine row")
+      verify(panelFlick.contentY>0,"the real screen-bound fallback scrolls the full settings view")
+      keyClick(Qt.Key_Escape); wait(20)
+      verify(!root.machinesOpen)
+      compare(panelFlick.contentY,0,"leaving settings restores the provider/computer controls")
+    }
+    function test_clipped_live_removal_keeps_surviving_ninth_machine_visible() {
+      showProviders([])
+      var ten=[]
+      for(var i=0;i<10;i++) ten.push(machine(String(i+1)))
+      usage.remoteMachines=ten; wait(50)
+      root.machinesOpen=true; machineSettings.selectedId="10"
+      machineSettings.revealSelected(); wait(30)
+      usage.remoteMachines=ten.slice(0,9); wait(50)
+      compare(machineSettings.selectedId,"9","live removal chooses the nearest surviving machine")
+      var row=machineSettings.machineListForTest.itemAtIndex(8)
+      var position=row.mapToItem(contentStack,0,0).y
+      verify(position>=panelFlick.contentY && position+row.height<=panelFlick.contentY+panelFlick.height,
+        "replacement layout reveals the surviving ninth row in the outer viewport")
+    }
+    function test_real_content_uses_screen_bound_only_when_needed() {
+      showProviders([fixture("large",8,4)]); wait(50)
+      var desired=contentStack.implicitHeight+root.verticalContentInset
+      root.availableCardHeight=desired+100
+      compare(root.fittedContentHeight(contentStack.implicitHeight),Math.round(desired),
+        "all real content fits when the screen has room")
+      root.availableCardHeight=desired-100
+      compare(root.fittedContentHeight(contentStack.implicitHeight),Math.round(desired-100),
+        "only the actual available screen height clips the real content")
+      verify(panelFlick.interactive,"the production Flickable remains the clipped fallback")
+      root.availableCardHeight=0
+    }
+    function test_hidden_rows_are_not_keyboard_targets() {
+      var hidden=fixture("hidden",4,0)
+      hidden.knownUsage=false; hidden.usageIncomplete=true
+      showProviders([hidden]); wait(10)
+      var page=providerPages.itemAt(0)
+      compare(page.detailCount,0,"hidden usage and model rows are excluded from cursor indexing")
+      var notice=textItem(page,"No zero usage is assumed")
+      verify(notice && notice.visible,"unknown remote coverage has a rendered notice")
+      root.focusSection=2; keyCatcher.forceActiveFocus(); keyClick("j")
+      compare(root.focusSection,0,"gear navigation skips hidden detail rows")
+    }
+    function test_known_incomplete_subtotal_remains_rendered() {
+      var partial=fixture("partial",2,0)
+      partial.usageIncomplete=true
+      showProviders([partial]); wait(10)
+      var page=providerPages.itemAt(0)
+      verify(page.detailCount>0,"known subtotal rows remain available")
+      var notice=textItem(page,"Known usage subtotal shown")
+      verify(notice && notice.visible)
+    }
+    function test_models_and_summaries_start_after_visible_days_only() {
+      var modelsOnly=fixture("models-only",2,0)
+      modelsOnly.recentDays=[]
+      showProviders([modelsOnly]); wait(10)
+      var page=providerPages.itemAt(0)
+      compare(page.detailCount,4,"hidden priced day rows do not occupy cursor positions")
+      compare(page.detailItemAt(0).cursorIndex,0,"first model starts at the first visible position")
+      compare(page.detailItemAt(2).cursorIndex,2,"first summary follows the two rendered model rows")
+    }
+    function test_rendered_day_count_sets_model_offsets_and_scrolls() {
+      var provider=fixture("unpriced",6,0)
+      provider.providerId="fireworks"
+      provider.recentDays=provider.recentDays.slice(0,2)
+      showProviders([provider]); wait(20)
+      var page=providerPages.itemAt(0)
+      compare(page.detailCount,8,"cursor count follows two rendered days plus six models")
+      compare(page.detailItemAt(2).cursorIndex,2,"first model follows actual rendered day count")
+      root.focusSection=3; root.usageCursor=0; keyCatcher.forceActiveFocus()
+      for(var i=1;i<8;i++) {
+        keyClick("j")
+        compare(root.focusSection,3,"cursor remains in usage before boundary at step "+i)
+        compare(root.usageCursor,i,"cursor advances to rendered row "+i)
+      }
+      wait(10)
+      var row=page.detailItemAt(root.usageCursor)
+      var position=row.mapToItem(contentStack,0,0).y
+      verify(position>=panelFlick.contentY && position+row.height<=panelFlick.contentY+panelFlick.height,
+        "actual clipped provider row is brought into the Flickable viewport")
+      keyClick("j"); wait(10)
+      compare(root.focusSection,0,"last rendered row leaves usage")
+      compare(panelFlick.contentY,0,"leaving usage reveals the top provider controls")
+    }
+    function test_legacy_sync_removes_invalid_machine_scopes_without_hiding_management() {
+      var account=fixture("Local Codex",1,1)
+      var saved=machine("saved")
+      saved.identity="saved-device"
+      scopeState.rawLocalProviders=[account]
+      scopeState.localProviders=[account]
+      scopeState.remoteSnapshot=({machines:[saved]})
+      wait(10)
+      verify(scopeState.remoteActive,"SSH scopes activate before legacy sync is enabled")
+      compare(scopeState.machineChoices.length,3,"saved SSH scope is selectable when SSH views are active")
+      scopeState.selectedMachineId="saved"
+      verify(scopeState.machineScopes.saved!==undefined,"the selected saved machine has a prepared scope")
+
+      scopeState.legacySync=true
+      wait(10)
+      verify(!scopeState.remoteActive,"legacy sync disables parallel SSH aggregation")
+      compare(scopeState.machineChoices.length,2,"legacy sync exposes only valid All/local usage scopes")
+      compare(scopeState.selectedMachineId,"all","an invalid selected SSH scope normalizes to All")
+      compare(scopeState.enabledProviders[0],account,"legacy All keeps the existing local/synced presentation")
+      compare(scopeState.enabledProviders[0].limits.length,1,"local account limits remain attached")
+      compare(scopeState.machineStatus(root.nowMs,"codex"),
+        "SSH views require legacy synced aggregation to be Off","scope status explains the unavailable SSH views")
+
+      usage.useScopeState=true
+      usage.remoteMachines=scopeState.remoteMachines
+      usage.remoteActive=scopeState.remoteActive
+      usage.machineChoices=scopeState.machineChoices
+      usage.selectedMachineId=scopeState.selectedMachineId
+      usage.allProviders=scopeState.allProviders
+      usage.preparedProviderViews=scopeState.preparedProviderViews
+      root.providers=scopeState.enabledProviders
+      root.providerIndex=0
+      wait(30)
+      compare(root.footerText(account),"SSH views require legacy synced aggregation to be Off",
+        "the production footer consumes the explanatory scope status")
+      var activePage=root.activeProviderPage()
+      verify(activePage!==null,"normalization leaves a real production provider page visible")
+      var notice=textItem(activePage,"SSH views require legacy synced aggregation to be Off")
+      verify(notice && notice.visible,"the visible All page truthfully explains why SSH scopes are unavailable")
+
+      root.machinesOpen=true
+      wait(20)
+      compare(machineSettings.machineListForTest.count,1,"saved-machine management stays available under legacy sync")
+    }
+  }
+}
