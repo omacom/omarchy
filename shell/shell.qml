@@ -198,8 +198,7 @@ ShellRoot {
 
   function isBarOptionManifest(manifest) {
     return manifest
-      && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf("bar") !== -1
+      && shell.manifestHasKind(manifest, "bar")
       && manifest.entryPoints
       && manifest.entryPoints.bar
   }
@@ -347,8 +346,16 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    if (!manifest || !manifest.kinds) return false
+    var kinds = manifest.kinds
+    if (Array.isArray(kinds)) return kinds.indexOf(kind) !== -1
+    try {
+      if (typeof kinds.indexOf === "function") return kinds.indexOf(kind) !== -1
+      for (var i = 0; i < kinds.length; i++) {
+        if (kinds[i] === kind) return true
+      }
+    } catch (e) { }
+    return false
   }
 
   function pluginHasBarCapabilities(manifest) {
