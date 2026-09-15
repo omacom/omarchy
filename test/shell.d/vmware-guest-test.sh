@@ -34,6 +34,10 @@ SH
 
 cat >"$test_tmp/bin/systemctl" <<'SH'
 #!/bin/bash
+if [[ $1 == "is-enabled" ]]; then
+  [[ ${TEST_UNIT_ENABLED:-0} == "1" ]]
+  exit
+fi
 printf 'systemctl %s\n' "$*" >>"$CALL_LOG"
 SH
 
@@ -76,6 +80,7 @@ run_leaf() {
   PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
     CALL_LOG="$call_log" \
     TEST_PKG_ADD_STATUS="${1:-0}" \
+    TEST_UNIT_ENABLED="${TEST_UNIT_ENABLED:-0}" \
     OMARCHY_PCI_DEVICES_PATH="$test_tmp/devices" \
     bash -eE -c 'source "$1"' bash "$leaf"
 }
@@ -96,3 +101,54 @@ vmware_guest
 run_leaf 1 && fail "a failing package install fails the leaf"
 grep -q '^systemctl' "$call_log" && fail "a failing package install skips enabling the units"
 pass "a failing package install fails the leaf without enabling the units"
+
+# The migration runner uses bash -euo pipefail and only records the migration
+# when it exits clean, so a failed install has to leave the marker unset.
+migration="$ROOT/migrations/1789452465.sh"
+[[ -f $migration ]] || fail "a migration installs the guest tools on existing installs"
+pass "a migration installs the guest tools on existing installs"
+
+marker="$test_tmp/state/marker"
+
+run_migration() {
+  : >"$call_log"
+  PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
+    CALL_LOG="$call_log" \
+    OMARCHY_PATH="$ROOT" \
+    TEST_PKG_ADD_STATUS="${1:-0}" \
+    TEST_UNIT_ENABLED="${TEST_UNIT_ENABLED:-0}" \
+    OMARCHY_PCI_DEVICES_PATH="$test_tmp/devices" \
+    OMARCHY_VMWARE_TOOLS_MARKER="$marker" \
+    bash -euo pipefail "$migration" >/dev/null
+}
+
+vmware_guest
+run_migration || fail "the migration installs, enables, and starts the guest tools"
+expected=$'pkg-add open-vm-tools\nsystemctl enable vmtoolsd.service vmware-vmblock-fuse.service\nsystemctl start vmtoolsd.service\nsystemctl start vmware-vmblock-fuse.service'
+[[ $(<"$call_log") == "$expected" ]] ||
+  fail "the migration installs, enables, and starts the guest tools" "$(<"$call_log")"
+[[ -e $marker ]] || fail "the migration records machine-wide completion"
+pass "the migration installs, enables, and starts the guest tools"
+
+run_migration || fail "the migration no-ops once the marker exists"
+[[ -s $call_log ]] && fail "the migration no-ops once the marker exists" "$(<"$call_log")"
+pass "the migration no-ops once the marker exists"
+
+rm -f "$marker"
+TEST_UNIT_ENABLED=1 run_migration || fail "the migration no-ops when the unit is already enabled"
+[[ -s $call_log || -e $marker ]] && fail "an installer-provisioned guest is left alone without sudo" "$(<"$call_log")"
+pass "an installer-provisioned guest is left alone without sudo"
+
+rm -f "$marker"
+amd_laptop
+run_migration || fail "the migration no-ops on other hardware"
+[[ -s $call_log ]] && fail "the migration no-ops on other hardware" "$(<"$call_log")"
+[[ -e $marker ]] && fail "the migration leaves no marker on other hardware"
+pass "the migration no-ops on other hardware"
+
+rm -f "$marker"
+vmware_guest
+run_migration 1 && fail "a failing package install leaves the migration pending"
+grep -q '^systemctl' "$call_log" && fail "a failing package install skips the units"
+[[ -e $marker ]] && fail "a failing package install leaves no marker"
+pass "a failing package install leaves the migration pending without a marker"
