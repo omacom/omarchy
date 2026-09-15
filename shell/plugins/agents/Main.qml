@@ -206,7 +206,30 @@ Item {
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
+    // Tab order follows `providerOrder` in shell.json: position 0 is the
+    // default tab shown on open. Providers not listed there keep the
+    // historical alphabetical fallback, keeping this fully backwards
+    // compatible when `providerOrder` is absent or partial.
+    result.sort(function(a, b) {
+      var ra = providerRank(a.providerId), rb = providerRank(b.providerId)
+      if (ra !== rb) return ra - rb
+      return a.providerId < b.providerId ? -1 : (a.providerId > b.providerId ? 1 : 0)
+    })
     return result
+  }
+
+  // Index of the provider in the user's explicit `providerOrder` list.
+  // Unlisted providers sort last, alphabetically among themselves.
+  // NOTE: no Array.isArray gate — the shell delivers settings lists as
+  // array-like sequences that fail that check while supporting length and
+  // indexOf just fine.
+  function providerRank(id) {
+    var order = settings ? settings.providerOrder : null
+    if (order && typeof order.indexOf === "function") {
+      var idx = order.indexOf(id)
+      if (idx !== -1) return idx
+    }
+    return 1000000
   }
 
   function providerEnabled(id) {
