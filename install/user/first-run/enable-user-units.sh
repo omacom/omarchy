@@ -13,6 +13,7 @@ set -euo pipefail
 
 systemctl --user daemon-reload
 systemctl --user enable --now \
+  docker.service \
   bt-agent.service \
   omarchy-recover-internal-monitor.service \
   omarchy-sleep-lock.service \

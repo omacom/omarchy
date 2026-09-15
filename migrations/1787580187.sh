@@ -1,22 +1,18 @@
-echo "Move this install to the opt-in docker group default (the group is root-equivalent)"
+echo "Remove root-equivalent Docker group access"
 
 # The docker group grants passwordless root (a container can bind-mount / and
-# rewrite the host), so Omarchy no longer puts users in it by default. Bring
-# existing installs in line: remove this user from the group if present. The
-# change applies after a reboot, so it stays reachable until then. Anyone who
-# wants passwordless docker back can opt in, behind a warning, with
-# Setup > Security > Sudoless Docker. Reuses the removal command so there is one
-# source of truth for the privileged change and its notice; DEFER_REBOOT keeps
-# it from prompting mid-update — omarchy-update-restart handles the reboot once
-# the whole update has finished.
-if id -nG "$USER" | grep -qw docker; then
-  OMARCHY_DEFER_REBOOT=1 omarchy-remove-security-sudoless-docker
+# rewrite the host), so remove the current user from it when present. The later
+# rootless Docker migration provides unprivileged CLI access and restricts the
+# old socket immediately; this historical step still marks the required login
+# refresh and stays self-contained after retiring the old toggle commands.
+docker_user=$(id -un)
+if id -nG "$docker_user" | grep -qw docker; then
+  sudo gpasswd -d "$docker_user" docker >/dev/null
+  omarchy-state set reboot-required
 fi
 
-# The Docker app entry copied into ~/.local/share/applications used to run
-# lazydocker directly; it now needs the wrapper that prompts for daemon access
-# (or runs directly under sudoless Docker). Refresh just that file.
+# Refresh the Docker app entry so it uses the current rootless-aware launcher.
 dest="$HOME/.local/share/applications/Docker.desktop"
-if [[ -f $dest ]]; then
+if [[ -f $dest && -f $OMARCHY_PATH/applications/Docker.desktop ]]; then
   cp "$OMARCHY_PATH/applications/Docker.desktop" "$dest"
 fi

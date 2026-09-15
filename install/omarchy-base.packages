@@ -23,6 +23,7 @@ ddcutil
 docker
 docker-buildx
 docker-compose
+docker-rootless-extras
 dosfstools
 dotnet-runtime
 dua-cli
@@ -40,6 +41,7 @@ ffmpegthumbnailer
 fontconfig
 foot
 fzf
+fuse-overlayfs
 git
 gnome-keyring
 gnome-themes-extra
@@ -112,9 +114,11 @@ qt6-multimedia
 qt6-multimedia-ffmpeg
 quickshell
 ripgrep
+rootlesskit
 ruby
 tensaku
 sddm
+slirp4netns
 slurp
 socat
 starship
