@@ -153,6 +153,6 @@ scala)
   mise use --global scala-cli@latest
   ;;
 godot)
-  exec omarchy-install-godot "${@:2}"
+  exec omarchy-install-development-godot "${@:2}"
   ;;
 esac

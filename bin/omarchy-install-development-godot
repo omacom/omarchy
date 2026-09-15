@@ -2,7 +2,7 @@
 
 # omarchy:summary=Install Godot with native Wayland, the GDScript language server, and an editor of your choice
 # omarchy:args=[editor]
-# omarchy:examples=omarchy install godot | omarchy install godot nvim
+# omarchy:examples=omarchy install development godot | omarchy install development godot nvim
 # omarchy:requires-sudo=true
 
 set -euo pipefail
@@ -96,7 +96,7 @@ godot_write_nvim_lsp() {
   fi
 
   cat >"$nvim_lsp" <<'EOF'
--- omarchy-godot-lsp: managed by omarchy-install-godot
+-- omarchy-godot-lsp: managed by omarchy-install-development-godot
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "gdscript", "gdshader" },
   group = vim.api.nvim_create_augroup("OmarchyGodotLsp", { clear = true }),
