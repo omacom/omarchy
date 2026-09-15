@@ -146,17 +146,21 @@ function glyphFromHints(hints) {
 // clickable (a libnotify action can't — its sender is gone). Run via
 // Util.execArgv as bash positional parameters, never a shell string, so
 // attacker-controlled values (a title, a filename) can't become commands.
-function execArgvFromHints(hints) {
-  return stringHint(hints, "omarchy-exec-argv")
+function execArgvFromHints(hints, sessionToken) {
+  var argv = stringHint(hints, "omarchy-exec-argv")
+  if (!argv) return ""
+  var token = stringHint(hints, "omarchy-exec-token")
+  if (!sessionToken || !token || token !== String(sessionToken)) return ""
+  return argv
 }
 
 // Validate a persisted omarchy-exec-argv into a runnable argv, or null. This is
 // a STRUCTURAL check only: it fails closed on a malformed hint (non-array, a
 // non-string or empty program, or a leading-dash program that argv would read as
 // an option). It does not judge intent — a well-formed ["bash","-c",…] is
-// accepted. WHICH senders may set this hint is a separate boundary: any
-// session-bus process can, by the freedesktop protocol's design (see
-// docs/notifications.md), which is equivalent to same-uid code execution.
+// accepted. WHICH senders may set a runnable click argv is gated by a per-session
+// token (omarchy-exec-token) that only host processes can read from
+// $XDG_RUNTIME_DIR (see docs/notifications.md / issue #8433).
 function parseExecArgv(value) {
   var text = String(value || "")
   if (!text) return null
@@ -180,7 +184,7 @@ function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
 
-function snapshotOf(notification, timestamp) {
+function snapshotOf(notification, timestamp, sessionToken) {
   var n = notification || {}
   var id = n.id || 0
   var expireTimeout = Number(n.expireTimeout || 0)
@@ -194,7 +198,7 @@ function snapshotOf(notification, timestamp) {
     body: n.body || "",
     image: n.image || "",
     glyph: glyphFromHints(n.hints),
-    execArgv: execArgvFromHints(n.hints),
+    execArgv: execArgvFromHints(n.hints, sessionToken),
     urgency: n.urgency,
     expireTimeout: expireTimeout,
     timestamp: timestamp === undefined ? Date.now() : timestamp
