@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Install Bitwarden and launch it.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Bitwarden..."
+omarchy-pkg-add bitwarden
+
+if omarchy-pkg-missing bitwarden-cli; then
+  echo "Installing Bitwarden CLI..."
+  if ! omarchy-pkg-add bitwarden-cli; then
+    echo ""
+    echo "Bitwarden desktop was installed, but Bitwarden CLI was skipped."
+    echo "It depends on nodejs-lts-jod, which conflicts with the installed nodejs package"
+    echo "(often pulled in by Cursor or Zed)."
+    echo "Install the CLI later with: sudo pacman -S bitwarden-cli"
+  fi
+fi
+
+echo "Opening Bitwarden..."
+setsid uwsm-app -- gtk-launch bitwarden >/dev/null 2>&1 &
+
+echo ""
+echo "Bitwarden has been installed."
