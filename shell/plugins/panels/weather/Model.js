@@ -265,6 +265,389 @@ function iconForCode(code, night) {
   }
 }
 
+// ---- Rain tables: MET Norway amounts + Open-Meteo probabilities ----
+//
+// Slots are pure data for the expandable day tables. MET Norway carries
+// rain amounts, temperatures, and symbol codes but no probability of
+// precipitation outside the Nordics; Open-Meteo hourly
+// precipitation_probability fills that column. MET instants are UTC;
+// slot boundaries are local wall time, derived from the system time zone,
+// so midnight and DST transitions fall out of the local Date getters.
+// Any value without data stays null and formats as a dash.
+var MET_USER_AGENT = "omarchy-weather/1.0 https://github.com/omacom/omarchy"
+var MET_FETCH_MIN_INTERVAL_MS = 30 * 60 * 1000
+var MET_CACHE_SUBDIR = "weather"
+var MET_API_URL = "https://api.met.no/weatherapi/locationforecast/2.0/complete"
+var TWO_HOUR_SLOT_COUNT = 12
+var MISSING_VALUE = "–"
+
+function pad2(value) {
+  var n = parseInt(value, 10)
+  if (isNaN(n)) return "00"
+  return (n < 10 ? "0" : "") + n
+}
+
+function round1(value) {
+  if (value === null || value === undefined) return null
+  var n = parseFloat(String(value))
+  return isNaN(n) ? null : Math.round(n * 10) / 10
+}
+
+// Coordinates for MET Norway: at most 4 decimals. Null when unparseable.
+function roundCoord(value) {
+  var n = parseFloat(String(value))
+  if (isNaN(n)) return null
+  return Math.round(n * 10000) / 10000
+}
+
+function metUrl(lat, lon) {
+  var la = roundCoord(lat)
+  var lo = roundCoord(lon)
+  if (la === null || lo === null) return ""
+  return MET_API_URL + "?lat=" + la + "&lon=" + lo
+}
+
+// Coordinates shared by the Open-Meteo and MET Norway fetches: saved
+// coordinates when present, else the area wttr.in reported for auto-detect.
+// Pure so Panel.qml delegates to it (and tests drive the real rule).
+function forecastCoords(configuredLocationState, sourceReport, fallbackArea) {
+  var lat = parseFloat(String(configuredLocationState ? configuredLocationState.latitude : null))
+  var lon = parseFloat(String(configuredLocationState ? configuredLocationState.longitude : null))
+  if (isNaN(lat) || isNaN(lon)) {
+    var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : fallbackArea
+    if (!area) return null
+    lat = parseFloat(String(area.latitude || ""))
+    lon = parseFloat(String(area.longitude || ""))
+  }
+  if (isNaN(lat) || isNaN(lon)) return null
+  return [lat, lon]
+}
+
+function floorUtcHour(ms) {
+  return Math.floor(ms / 3600000) * 3600000
+}
+
+function localDateOf(ms) {
+  var d = new Date(ms)
+  return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate())
+}
+
+function localHourOf(ms) {
+  return new Date(ms).getHours()
+}
+
+function localHourKey(ms) {
+  return localDateOf(ms) + "T" + pad2(localHourOf(ms))
+}
+
+function localDayLabel(ms) {
+  return pad2(new Date(ms).getHours())
+}
+
+// UTC instant of a local wall hour on a local date. Parsing without a zone
+// keeps it in the system time zone, so DST transitions resolve correctly.
+function localWallMs(dateString, hour) {
+  var day = String(dateString || "").slice(0, 10)
+  var h = parseInt(hour, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || isNaN(h) || h < 0 || h > 24) return NaN
+  if (h === 24) {
+    var next = shiftDateString(day, 1)
+    return next === "" ? NaN : localWallMs(next, 0)
+  }
+  return new Date(day + "T" + pad2(h) + ":00:00").getTime()
+}
+
+function shiftDateString(day, deltaDays) {
+  var base = new Date(day + "T12:00:00").getTime()
+  if (isNaN(base)) return ""
+  return localDateOf(base + deltaDays * 86400000)
+}
+
+// MET Locationforecast timeseries → UTC-hour lookups. next_1_hours carries
+// only precipitation_amount; instant carries air_temperature on every entry
+// (kept separately so quarter-start temperatures outlive hourly coverage).
+function indexMetTimeseries(timeseries) {
+  var hourly = {}
+  var sixHour = {}
+  var instant = {}
+  var list = timeseries && timeseries.length ? timeseries : []
+  for (var i = 0; i < list.length; i++) {
+    var entry = list[i] || {}
+    var ms = Date.parse(entry.time)
+    if (isNaN(ms)) continue
+    var data = entry.data || {}
+    var details = data.instant && data.instant.details ? data.instant.details : null
+    var temp = details ? details.air_temperature : null
+    if (temp === undefined) temp = null
+    if (temp !== null && !isNaN(parseFloat(String(temp)))) instant[ms] = parseFloat(String(temp))
+    if (data.next_1_hours) {
+      var one = data.next_1_hours.details || {}
+      var onePrecip = one.precipitation_amount === undefined ? null : one.precipitation_amount
+      hourly[ms] = {
+        tempC: instant[ms] !== undefined ? instant[ms] : null,
+        precipMm: onePrecip,
+        symbol: data.next_1_hours.summary ? data.next_1_hours.summary.symbol_code || null : null
+      }
+    }
+    if (data.next_6_hours) {
+      var six = data.next_6_hours.details || {}
+      sixHour[ms] = {
+        precipMm: six.precipitation_amount === undefined ? null : six.precipitation_amount,
+        symbol: data.next_6_hours.summary ? data.next_6_hours.summary.symbol_code || null : null,
+        tminC: six.air_temperature_min === undefined ? null : six.air_temperature_min,
+        tmaxC: six.air_temperature_max === undefined ? null : six.air_temperature_max
+      }
+    }
+  }
+  return { hourly: hourly, sixHour: sixHour, instant: instant }
+}
+
+// Open-Meteo hourly precipitation_probability → local "YYYY-MM-DDTHH" map.
+// Hourly times already arrive in local wall time (timezone=auto).
+function indexPrecipitationProbability(hourly) {
+  var index = {}
+  if (!hourly || !hourly.time || !hourly.precipitation_probability) return index
+  for (var i = 0; i < hourly.time.length; i++) {
+    var key = String(hourly.time[i] || "").slice(0, 13)
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(key)) continue
+    var p = hourly.precipitation_probability[i]
+    if (p === null || p === undefined || p === "") index[key] = null
+    else index[key] = isNaN(parseFloat(String(p))) ? null : parseFloat(String(p))
+  }
+  return index
+}
+
+function chanceForHours(probIndex, hoursMs) {
+  var best = null
+  for (var i = 0; i < hoursMs.length; i++) {
+    var p = probIndex[localHourKey(hoursMs[i])]
+    if (p === null || p === undefined) continue
+    if (best === null || p > best) best = p
+  }
+  return best
+}
+
+// Wetter hour wins; the first hour wins ties and beats missing data.
+function pickWetterSymbol(candidates) {
+  var best = null
+  var bestPrecip = -1
+  for (var i = 0; i < candidates.length; i++) {
+    var c = candidates[i] || {}
+    if (!c.symbol) continue
+    var p = (c.precipMm === null || c.precipMm === undefined) ? -1 : parseFloat(String(c.precipMm))
+    if (isNaN(p)) p = -1
+    if (best === null || p > bestPrecip) {
+      best = c
+      bestPrecip = p
+    }
+  }
+  return best ? best.symbol : null
+}
+
+// MET symbol_code (e.g. partlycloudy_night) onto the widget's glyphs via the
+// existing wttr.in code mapping. Unknown codes fall back to the cloudy glyph,
+// matching iconForCode's default.
+var MET_SYMBOL_CODES = {
+  clearsky: 113, fair: 116, partlycloudy: 116, cloudy: 119, fog: 143,
+  lightrainshowers: 263, rainshowers: 308, heavyrainshowers: 359,
+  lightrainshowersandthunder: 200, rainshowersandthunder: 389, heavyrainshowersandthunder: 389,
+  lightrain: 266, rain: 308, heavyrain: 359,
+  lightrainandthunder: 200, rainandthunder: 389, heavyrainandthunder: 389,
+  lightsleet: 311, sleet: 320, heavysleet: 377,
+  lightsleetshowers: 362, sleetshowers: 365, heavysleetshowers: 374,
+  lightsnow: 323, snow: 326, heavysnow: 338,
+  lightsnowshowers: 326, snowshowers: 368, heavysnowshowers: 338,
+  lightsnowandthunder: 392, snowandthunder: 395, heavysnowandthunder: 395,
+  lightfog: 143
+}
+
+function iconForMetSymbol(symbolCode) {
+  var raw = String(symbolCode || "")
+  if (raw === "") return ""
+  var night = /_night$/.test(raw)
+  var base = raw.replace(/_(day|night|polartwilight)$/, "")
+  var code = MET_SYMBOL_CODES[base]
+  if (code === undefined) code = 119
+  return iconForCode(code, night)
+}
+
+function tempForHour(met, ms) {
+  if (met && met.instant && met.instant[ms] !== undefined) return met.instant[ms]
+  if (met && met.hourly && met.hourly[ms]) return met.hourly[ms].tempC
+  return null
+}
+
+// Next 24 elapsed hours as 2-hour slots from the current hour. Labels are
+// local HH-HH; aggregation is over exact UTC hours so midnight and DST need
+// no special cases.
+function buildTwoHourSlots(metIndex, probIndex, nowMs, count) {
+  var met = metIndex || { hourly: {}, sixHour: {}, instant: {} }
+  met.hourly = met.hourly || {}
+  met.sixHour = met.sixHour || {}
+  met.instant = met.instant || {}
+  var probs = probIndex || {}
+  var n = (count === undefined || count === null) ? TWO_HOUR_SLOT_COUNT : Math.max(0, parseInt(count, 10) || 0)
+  var start = floorUtcHour(nowMs)
+  if (isNaN(start)) return []
+  var slots = []
+  for (var i = 0; i < n; i++) {
+    var h0 = start + i * 2 * 3600000
+    var h1 = h0 + 3600000
+    var e0 = met.hourly[h0] || null
+    var e1 = met.hourly[h1] || null
+    var rain = null
+    if (e0 && e0.precipMm !== null && e0.precipMm !== undefined) rain = parseFloat(String(e0.precipMm))
+    if (e1 && e1.precipMm !== null && e1.precipMm !== undefined) {
+      var second = parseFloat(String(e1.precipMm))
+      rain = (rain === null || isNaN(rain) ? 0 : rain) + second
+    }
+    if (rain !== null && isNaN(rain)) rain = null
+    var symbol = pickWetterSymbol([
+      e0 ? { precipMm: e0.precipMm, symbol: e0.symbol } : null,
+      e1 ? { precipMm: e1.precipMm, symbol: e1.symbol } : null
+    ])
+    slots.push({
+      startMs: h0,
+      endMs: h0 + 2 * 3600000,
+      label: localDayLabel(h0) + "-" + localDayLabel(h0 + 2 * 3600000),
+      tempC: tempForHour(met, h0),
+      rainMm: round1(rain),
+      chance: chanceForHours(probs, [h0, h1]),
+      symbol: symbol,
+      icon: symbol ? iconForMetSymbol(symbol) : ""
+    })
+  }
+  return slots
+}
+
+// A local calendar day as 00-06/06-12/12-18/18-24 slots. Rain sums hourly
+// values where they fully cover the quarter, else falls back to the
+// next_6_hours amount at the quarter start. DST-short/long quarters simply
+// contain fewer/more UTC hours.
+function buildSixHourSlots(metIndex, probIndex, dateString) {
+  var day = String(dateString || "").slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return []
+  var met = metIndex || { hourly: {}, sixHour: {}, instant: {} }
+  met.hourly = met.hourly || {}
+  met.sixHour = met.sixHour || {}
+  met.instant = met.instant || {}
+  var probs = probIndex || {}
+  var slots = []
+  for (var q = 0; q < 4; q++) {
+    var qStart = localWallMs(day, q * 6)
+    var qEnd = localWallMs(day, q * 6 + 6)
+    if (isNaN(qStart) || isNaN(qEnd)) continue
+    var hours = []
+    for (var h = qStart; h < qEnd; h += 3600000) hours.push(h)
+    var rain = null
+    var fullCover = hours.length > 0
+    var sum = 0
+    for (var k = 0; k < hours.length; k++) {
+      var e = met.hourly[hours[k]]
+      if (!e || e.precipMm === null || e.precipMm === undefined || isNaN(parseFloat(String(e.precipMm)))) {
+        fullCover = false
+        break
+      }
+      sum += parseFloat(String(e.precipMm))
+    }
+    var fallbackSix = null
+    if (fullCover) {
+      rain = sum
+    } else {
+      fallbackSix = met.sixHour[qStart] || null
+      if (!fallbackSix) {
+        for (var m = 0; m < hours.length; m++) {
+          if (met.sixHour[hours[m]]) {
+            fallbackSix = met.sixHour[hours[m]]
+            break
+          }
+        }
+      }
+      rain = fallbackSix ? fallbackSix.precipMm : null
+      if (rain !== null && rain !== undefined && isNaN(parseFloat(String(rain)))) rain = null
+    }
+    var cands = []
+    for (var c = 0; c < hours.length; c++) {
+      var he = met.hourly[hours[c]]
+      if (he) cands.push({ precipMm: he.precipMm, symbol: he.symbol })
+    }
+    var symbol = pickWetterSymbol(cands)
+    if (!symbol && fallbackSix) symbol = fallbackSix.symbol
+    slots.push({
+      startMs: qStart,
+      endMs: qEnd,
+      label: pad2(q * 6) + "-" + pad2(q * 6 + 6),
+      tempC: tempForHour(met, qStart),
+      rainMm: round1(rain),
+      chance: chanceForHours(probs, hours),
+      symbol: symbol,
+      icon: symbol ? iconForMetSymbol(symbol) : ""
+    })
+  }
+  return slots
+}
+
+// Total rain over displayed slots; null when every slot is missing.
+function dayRainTotal(slots) {
+  var total = null
+  var list = slots || []
+  for (var i = 0; i < list.length; i++) {
+    var r = list[i] ? list[i].rainMm : null
+    if (r === null || r === undefined || isNaN(parseFloat(String(r)))) continue
+    total = (total === null ? 0 : total) + parseFloat(String(r))
+  }
+  return round1(total)
+}
+
+function formatSlotTemp(celsius, useImperial) {
+  if (celsius === null || celsius === undefined || celsius === "") return MISSING_VALUE
+  var n = parseFloat(String(celsius))
+  if (isNaN(n)) return MISSING_VALUE
+  var v = useImperial ? (n * 9 / 5 + 32) : n
+  return String(Math.round(v)) + "°"
+}
+
+function formatRain(mm) {
+  var r = round1(mm)
+  return r === null ? MISSING_VALUE : r.toFixed(1)
+}
+
+function formatChance(p) {
+  if (p === null || p === undefined || p === "") return MISSING_VALUE
+  var n = parseFloat(String(p))
+  return isNaN(n) ? MISSING_VALUE : String(Math.round(n)) + "%"
+}
+
+function formatDayRain(mm) {
+  var r = round1(mm)
+  return r === null ? MISSING_VALUE : r.toFixed(1) + " mm"
+}
+
+// Day rows: today plus up to three following days, so the next-24-hours
+// 2-hour table has a home and later days expand to 6-hour quarters.
+function openMeteoDayRows(dailyForecastReport, todayString) {
+  var daily = dailyForecastReport && dailyForecastReport.daily ? dailyForecastReport.daily : null
+  if (!daily || !daily.time) return []
+  var today = String(todayString || "").slice(0, 10)
+  var rows = []
+  for (var i = 0; i < daily.time.length && rows.length < 4; ++i) {
+    var date = String(daily.time[i] || "").slice(0, 10)
+    if (date < today) continue
+    var maxC = daily.temperature_2m_max ? daily.temperature_2m_max[i] : ""
+    var minC = daily.temperature_2m_min ? daily.temperature_2m_min[i] : ""
+    rows.push({
+      date: date,
+      isToday: date === today,
+      maxtempC: roundedTemp(maxC),
+      mintempC: roundedTemp(minC),
+      maxtempF: roundedTemp(celsiusToFahrenheit(maxC)),
+      mintempF: roundedTemp(celsiusToFahrenheit(minC)),
+      openMeteoWeatherCode: daily.weather_code ? daily.weather_code[i] : null
+    })
+  }
+  return rows
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
@@ -290,6 +673,35 @@ if (typeof module !== "undefined") {
     bareTempForDay: bareTempForDay,
     dayIcon: dayIcon,
     iconForOpenMeteoCode: iconForOpenMeteoCode,
-    iconForCode: iconForCode
+    iconForCode: iconForCode,
+    MET_USER_AGENT: MET_USER_AGENT,
+    MET_FETCH_MIN_INTERVAL_MS: MET_FETCH_MIN_INTERVAL_MS,
+    MET_CACHE_SUBDIR: MET_CACHE_SUBDIR,
+    MET_API_URL: MET_API_URL,
+    TWO_HOUR_SLOT_COUNT: TWO_HOUR_SLOT_COUNT,
+    MISSING_VALUE: MISSING_VALUE,
+    pad2: pad2,
+    roundCoord: roundCoord,
+    metUrl: metUrl,
+    forecastCoords: forecastCoords,
+    floorUtcHour: floorUtcHour,
+    localDateOf: localDateOf,
+    localHourOf: localHourOf,
+    localHourKey: localHourKey,
+    localWallMs: localWallMs,
+    shiftDateString: shiftDateString,
+    indexMetTimeseries: indexMetTimeseries,
+    indexPrecipitationProbability: indexPrecipitationProbability,
+    chanceForHours: chanceForHours,
+    pickWetterSymbol: pickWetterSymbol,
+    iconForMetSymbol: iconForMetSymbol,
+    buildTwoHourSlots: buildTwoHourSlots,
+    buildSixHourSlots: buildSixHourSlots,
+    dayRainTotal: dayRainTotal,
+    formatSlotTemp: formatSlotTemp,
+    formatRain: formatRain,
+    formatChance: formatChance,
+    formatDayRain: formatDayRain,
+    openMeteoDayRows: openMeteoDayRows
   }
 }
