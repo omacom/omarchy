@@ -1,9 +1,54 @@
 #!/bin/bash
 
-# omarchy:summary=Remove Steam and all of its game libraries, configs, and caches.
+# omarchy:summary=Remove Steam and all of its game libraries, configs, and caches, and close Omarchy-managed Remote Play ports.
 # omarchy:requires-sudo=true
 
 set -e
+
+TCP_PORTS=(27036)
+UDP_PORTS=(27031:27036 10400:10401)
+PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
+
+delete_ufw_rule() {
+  sudo ufw --force delete "$@" >/dev/null 2>&1 || true
+}
+
+close_ufw_port_for_private_lans() {
+  local proto="$1"
+  local port="$2"
+  local cidr
+
+  for cidr in "${PRIVATE_CIDRS[@]}"; do
+    delete_ufw_rule allow in proto "$proto" from "$cidr" to any port "$port"
+  done
+}
+
+close_ufw_port_for_tailscale() {
+  local proto="$1"
+  local port="$2"
+
+  delete_ufw_rule allow in on tailscale0 to any port "$port" proto "$proto"
+}
+
+close_ufw_ports() {
+  local port
+
+  if omarchy-cmd-missing ufw; then
+    return
+  fi
+
+  for port in "${TCP_PORTS[@]}"; do
+    close_ufw_port_for_private_lans tcp "$port"
+    close_ufw_port_for_tailscale tcp "$port"
+  done
+
+  for port in "${UDP_PORTS[@]}"; do
+    close_ufw_port_for_private_lans udp "$port"
+    close_ufw_port_for_tailscale udp "$port"
+  done
+
+  sudo ufw reload
+}
 
 omarchy-pkg-drop steam
 
@@ -13,5 +58,7 @@ rm -rf \
   "$HOME/.config/steam" \
   "$HOME/.cache/steam"
 
+close_ufw_ports
+
 echo ""
-echo "Steam and its data have been removed."
+echo "Steam and its data have been removed, and its Omarchy-managed Remote Play ports have been closed."
