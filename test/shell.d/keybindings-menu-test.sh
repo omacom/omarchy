@@ -4,6 +4,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
 require_command xkbcli
+require_command timeout
 
 tmpdir=$(mktemp -d) && [[ -n $tmpdir && -d $tmpdir ]] ||
   fail "the test gets a temporary directory to stub Hyprland in"
@@ -220,3 +221,30 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# User config can inspect runtime collections before declaring more binds.
+# The scanner's stand-ins must end iteration and keep scanning those binds.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+hl.config({ general = { gaps_in = 5 } })
+hl.bind("SUPER + W", hl.dsp.window.close(), { description = "Close window" })
+for _, monitor in ipairs(hl.get_monitors()) do
+  hl.monitor({ output = monitor.name, disabled = true })
+end
+for _, tag in ipairs(hl.get_active_window().tags) do
+  hl.config({})
+end
+hl.bind("SUPER + X", hl.dsp.window.close(), { description = "Close window" })
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + W" "Close window")
+$(lua_bind 64 "SUPER + X" "Close window")
+BINDS
+
+rendered=$(timeout --kill-after=1s 5s env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/collection-cache" OMARCHY_PATH="$ROOT" DEBUG=1 \
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print) ||
+  fail "scanning runtime collections finishes without hanging"
+grep -q 'SUPER + W / SUPER + X  *→ Close window' <<<"$rendered" ||
+  fail "the scanner resolves bindings declared after runtime collection loops" "$rendered"
+pass "runtime collection loops terminate and the scanner resolves later bindings"
