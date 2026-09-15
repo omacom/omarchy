@@ -55,6 +55,7 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `deepseek` | Live prepaid balance from `GET https://api.deepseek.com/user/balance`, with the optional `fundedAmount` estimate for the funded-versus-spent line | pi/omp session files whose assistant messages ran on the deepseek provider, plus opencode sessions on a deepseek provider |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
@@ -62,7 +63,12 @@ falls back to local stats only. A non-default Claude directory is honored via
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+signed in there. DeepSeek reads `DEEPSEEK_API_KEY` first, then the key pi
+stores in `~/.pi/agent/auth.json`, then the key opencode stores in its own
+`auth.json` when DeepSeek is signed in there. Its `fundedAmount` estimate
+lives in `~/.config/omarchy/agents/deepseek.json`, the same shape the
+fireworks collector uses; without it the panel shows the live remaining
+credit and skips the funded-versus-spent line.
 
 ### Fireworks balance
 
