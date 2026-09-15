@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Launch a desktop entry using the account's current login shell
+# omarchy:args=<desktop-id> [uris...]
+# omarchy:hidden=true
+
+# The long-running desktop can retain an old SHELL after chsh, even when an
+# app is restarted. Resolve the account again for each app launch.
+login_shell=$(getent passwd "$EUID" | cut -d: -f7)
+if [[ $login_shell == /* && -x $login_shell ]]; then
+  export SHELL="$login_shell"
+fi
+
+# Keep gtk-launch's desktop ID handling and UWSM's separate application scope.
+exec uwsm-app -- gtk-launch "$@"
