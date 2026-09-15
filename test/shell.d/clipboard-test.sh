@@ -561,7 +561,9 @@ cat >"$TMPDIR/bounds/bin/wl-paste" <<'SH'
 exit 0
 SH
 chmod +x "$TMPDIR/bounds/bin/wl-paste"
-bounds_capture() { XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/bounds/state" PATH="$TMPDIR/bounds/bin:$PATH" "$@" "$ROOT/shell/plugins/clipboard/capture.sh" text; }
+bounds_capture_as() { local mode=$1; shift; XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/bounds/state" PATH="$TMPDIR/bounds/bin:$PATH" "$@" "$ROOT/shell/plugins/clipboard/capture.sh" "$mode"; }
+bounds_capture() { bounds_capture_as text "$@"; }
+bounds_leftover() { find "$TMPDIR/bounds/state" -name 'clipboard.*' | head -1; }
 
 capture_output=$(printf '0123456789abcdefX' | bounds_capture env CLIPBOARD_ENTRY_LIMIT=16)
 large_path=$(jq -r '.path // empty' <<<"$capture_output")
@@ -571,6 +573,29 @@ pass "clipboard capture keeps a copy over the inline limit as a file"
 capture_output=$(head -c 33 /dev/zero | tr '\0' a | bounds_capture env CLIPBOARD_ENTRY_LIMIT=16 CLIPBOARD_LARGE_LIMIT=32)
 [[ $capture_output == '{"type":"skipped","reason":"too-large"}' ]] || fail "clipboard capture skips a copy over the large-copy limit" "$capture_output"
 pass "clipboard capture skips a copy over the large-copy limit"
+
+capture_output=$(head -c 1048576 /dev/zero | bounds_capture_as image/png env CLIPBOARD_IMAGE_LIMIT=16 || true)
+[[ $capture_output == '{"type":"skipped","reason":"too-large"}' && -z $(bounds_leftover) ]] || fail "clipboard capture skips an image over the limit and deletes what it read" "$capture_output $(bounds_leftover)"
+pass "clipboard capture skips an image over the limit and deletes what it read"
+
+printf 'same-image' | bounds_capture_as image/png >/dev/null
+capture_output=$(printf 'same-image' | bounds_capture_as image/png)
+[[ $(jq -r .type <<<"$capture_output") == image && -z $(bounds_leftover) ]] || fail "clipboard capture of an image already kept leaves no temporary file" "$capture_output $(bounds_leftover)"
+pass "clipboard capture of an image already kept leaves no temporary file"
+
+# A clipboard owner that sends a few bytes and then never ends its stream.
+for mode in image/png text; do
+  start=$SECONDS
+  capture_output=$(bounds_capture_as "$mode" env CLIPBOARD_READ_DEADLINE=1 < <(printf abc; sleep 6))
+  (( SECONDS - start <= 3 )) && [[ $capture_output == '{"type":"skipped","reason":"too-large"}' && -z $(bounds_leftover) ]] \
+    || fail "clipboard capture drops a stalled $mode stream at the read deadline" "$capture_output took $((SECONDS - start))s $(bounds_leftover)"
+  pass "clipboard capture drops a stalled $mode stream at the read deadline"
+done
+
+bounds_capture_as image/png env CLIPBOARD_READ_DEADLINE=1 < <(printf abc; sleep 6) >/dev/null &
+sleep 0.3; kill -TERM $! 2>/dev/null || true; wait $! 2>/dev/null || true
+[[ -z $(bounds_leftover) ]] || fail "clipboard capture killed mid-read leaves no partial file" "$(bounds_leftover)"
+pass "clipboard capture killed mid-read leaves no partial file"
 
 history_file="$TMPDIR/bounds/history.json"
 printf '[{"type":"text","text":"hi"}]' >"$history_file"
