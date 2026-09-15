@@ -347,8 +347,11 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    // Instantiator model roles wrap arrays in Qt sequence objects. Normalize
+    // those before testing kinds, just as we detach public manifest data.
+    var kinds = manifest && manifest.kinds
+      ? JSON.parse(JSON.stringify(manifest.kinds)) : []
+    return Array.isArray(kinds) && kinds.indexOf(kind) !== -1
   }
 
   function pluginHasBarCapabilities(manifest) {
