@@ -1,0 +1,20 @@
+[Desktop Entry]
+Version=1.0
+Name=NetClaw
+Comment=Your network engineering coworker
+Exec=omarchy-launch-netclaw
+Terminal=false
+Type=Application
+Icon=netclaw
+Categories=Network;System;
+Keywords=Network;Automation;NetClaw;MCP;
+StartupNotify=true
+Actions=Dashboard;Setup;
+
+[Desktop Action Dashboard]
+Name=Dashboard
+Exec=omarchy-netclaw-dashboard
+
+[Desktop Action Setup]
+Name=Setup integrations
+Exec=omarchy-launch-floating-terminal-with-presentation omarchy-netclaw-setup

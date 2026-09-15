@@ -1,0 +1,21 @@
+#!/bin/bash
+# omarchy:summary=Ensure NetClaw is configured for the default agent
+# omarchy:args=[--check|--now]
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+# shellcheck source=default/netclaw/runtime.sh
+source "$OMARCHY_PATH/default/netclaw/runtime.sh"
+ready() {
+  [[ -f $netclaw_state/configured && -x $netclaw_dir/scripts/netclaw && -f $HOME/.openclaw/openclaw.json ]]
+}
+case "${1:---now}" in
+  --check) ready ;;
+  --now)
+    if ! ready; then
+      omarchy-netclaw-setup
+    fi
+    ready
+    ;;
+  *) echo "Usage: omarchy-install-netclaw-cli [--check|--now]" >&2; exit 1 ;;
+esac

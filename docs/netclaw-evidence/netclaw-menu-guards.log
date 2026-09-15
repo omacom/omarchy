@@ -1,0 +1,18 @@
+ok - guard script reports a when: as <id>:w:<0|1>
+ok - guard script reports a checked: as <id>:c:<0|1>
+ok - guard script reports a disabled: as <id>:d:<0|1>
+ok - guard script skips items with nothing to evaluate
+ok - guard script is empty when no item carries a guard
+ok - guard script reads a value command once for the whole batch
+ok - guard script substitutes the captured answer into the expression
+ok - guard script captures readers before any guard runs, since $() would trap a lazy memo in its subshell
+ok - guard script leaves every form but the plain substitution to run the real command
+ok - guard script captures nothing when no guard uses the plain substitution
+ok - guard readers cover every command the shipped menu reads from more than one row
+ok - guard prelude resolves packages through provides, wrapping, and constraints as pacman does
+ok - guard prelude resolves commands as omarchy-cmd-present and omarchy-cmd-missing do
+ok - guard prelude compares a captured reader exactly as the substitution it replaced
+ok - guard batch survives a reader that exits nonzero under errexit
+ok - Extra Themes shows exactly when omarchy-theme-update has something to pull
+ok - omarchy-theme-extras lists every clone and nothing else
+ok - omarchy-theme-update pulls each clone by its whole path

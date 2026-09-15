@@ -82,6 +82,10 @@ grok)
   command=(grok --permission-mode bypassPermissions)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
+netclaw)
+  command=(omarchy-netclaw-chat)
+  [[ -n ${prompt:-} ]] && command+=(--message "$prompt")
+  ;;
 openclaw)
   # The launcher owns onboarding and the gateway dance: OpenClaw's terminal UI
   # must attach to the running gateway (the embedded `openclaw chat` refuses to

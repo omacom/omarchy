@@ -1,0 +1,37 @@
+[
+  {
+    "session": "native-sonnet5-cisco-demo",
+    "sequence": 53,
+    "tool_result": "{\n  \"content\": [\n    {\n      \"text\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show version\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\",\n      \"type\": \"text\"\n    }\n  ],\n  \"isError\": false,\n  \"structuredContent\": {\n    \"result\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show version\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\"\n  }\n}"
+  },
+  {
+    "session": "native-sonnet5-cisco-demo",
+    "sequence": 63,
+    "tool_result": "{\n  \"content\": [\n    {\n      \"text\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show version\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\",\n      \"type\": \"text\"\n    }\n  ],\n  \"isError\": false,\n  \"structuredContent\": {\n    \"result\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show version\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\"\n  }\n}"
+  },
+  {
+    "session": "native-sonnet5-cisco-demo",
+    "sequence": 81,
+    "tool_result": "{\n  \"content\": [\n    {\n      \"text\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show version\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\",\n      \"type\": \"text\"\n    }\n  ],\n  \"isError\": false,\n  \"structuredContent\": {\n    \"result\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show version\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\"\n  }\n}"
+  },
+  {
+    "session": "native-sonnet5-cisco-demo",
+    "sequence": 99,
+    "tool_result": "{\n  \"content\": [\n    {\n      \"text\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show ip interface brief\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\",\n      \"type\": \"text\"\n    }\n  ],\n  \"isError\": false,\n  \"structuredContent\": {\n    \"result\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show ip interface brief\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\"\n  }\n}"
+  },
+  {
+    "session": "native-sonnet5-cisco-demo",
+    "sequence": 105,
+    "tool_result": "{\n  \"content\": [\n    {\n      \"text\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show interfaces\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\",\n      \"type\": \"text\"\n    }\n  ],\n  \"isError\": false,\n  \"structuredContent\": {\n    \"result\": \"{\\n  \\\"status\\\": \\\"error\\\",\\n  \\\"device\\\": \\\"iosxe-sandbox\\\",\\n  \\\"command\\\": \\\"show interfaces\\\",\\n  \\\"error\\\": \\\"failed to connect to iosxe-sandbox\\\\nFailed while bringing device to \\\\\\\"any\\\\\\\" state\\\",\\n  \\\"attempts_made\\\": 1\\n}\"\n  }\n}"
+  },
+  {
+    "session": "recording-netbox-simple",
+    "sequence": 15,
+    "tool_result": "{\n  \"content\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"Error calling tool 'netbox_get_objects': Client error '403 Forbidden' for url 'https://demo.netbox.dev/api/dcim/devices/?status=active&limit=5&offset=0'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403\"\n    }\n  ],\n  \"isError\": true\n}"
+  },
+  {
+    "session": "recording-netbox-simple",
+    "sequence": 19,
+    "tool_result": "--- dcim.site with empty filters dict ---\n{\n  \"content\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"Error calling tool 'netbox_get_objects': Client error '403 Forbidden' for url 'https://demo.netbox.dev/api/dcim/sites/?limit=1&offset=0&brief=1'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403\"\n    }\n  ],\n  \"isError\": true\n}\n2026-09-10T14:14:58Z"
+  }
+]

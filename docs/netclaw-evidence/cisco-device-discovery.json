@@ -1,0 +1,12 @@
+{
+  "content": [
+    {
+      "text": "{\n  \"status\": \"completed\",\n  \"devices\": {\n    \"iosxe-sandbox\": {\n      \"os\": \"iosxe\",\n      \"type\": \"router\",\n      \"platform\": \"router\",\n      \"connections\": [\n        \"cli\"\n      ]\n    }\n  }\n}",
+      "type": "text"
+    }
+  ],
+  "isError": false,
+  "structuredContent": {
+    "result": "{\n  \"status\": \"completed\",\n  \"devices\": {\n    \"iosxe-sandbox\": {\n      \"os\": \"iosxe\",\n      \"type\": \"router\",\n      \"platform\": \"router\",\n      \"connections\": [\n        \"cli\"\n      ]\n    }\n  }\n}"
+  }
+}

@@ -26,6 +26,7 @@ function normalizeItem(id, raw) {
     kind: kind,
     icon: value.icon || "",
     iconFont: value.iconFont || "",
+    appIcon: value.appIcon || "",
     label: value.label || id,
     title: value.title || "",
     target: value.target || "",
@@ -179,6 +180,10 @@ function resolveRoute(items, itemOrder, input) {
   if (!raw || raw === "go" || raw === "menu") return "root"
   if (item(items, raw)) return raw
   var order = Array.isArray(itemOrder) ? itemOrder : []
+  for (var k = 0; k < order.length; k++) {
+    var candidate = item(items, order[k])
+    if (candidate && candidate.kind !== "app" && candidate.id.toLowerCase().replace(/_/g, "-") === raw) return candidate.id
+  }
   for (var i = 0; i < order.length; i++) {
     var entry = item(items, order[i])
     if (!entry || entry.kind === "app" || !entry.aliases) continue

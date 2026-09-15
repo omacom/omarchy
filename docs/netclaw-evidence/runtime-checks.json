@@ -1,0 +1,26 @@
+{
+  "pyats": {
+    "exit_code": 0,
+    "output": "Using Python 3.12.14 environment at: .local/share/omarchy/netclaw-pyats-python\nChecked 151 packages in 8ms\nAll installed packages are compatible"
+  },
+  "netbox": {
+    "exit_code": 0,
+    "output": "Using Python 3.12.14 environment at: .local/share/omarchy/netclaw-netbox-python\nChecked 70 packages in 1ms\nAll installed packages are compatible"
+  },
+  "servicenow": {
+    "exit_code": 0,
+    "output": "Using Python 3.12.14 environment at: .local/share/omarchy/netclaw-servicenow-python\nChecked 32 packages in 1ms\nAll installed packages are compatible"
+  },
+  "gateway_active": {
+    "exit_code": 0,
+    "output": "active"
+  },
+  "gateway_enabled": {
+    "exit_code": 0,
+    "output": "enabled"
+  },
+  "linger": {
+    "exit_code": 0,
+    "output": "Linger=yes"
+  }
+}

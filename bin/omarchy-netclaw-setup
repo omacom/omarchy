@@ -1,0 +1,216 @@
+#!/bin/bash
+# omarchy:summary=Set up NetClaw with the full component catalog by default
+# omarchy:args=[--all|--profile <name>|--add "component ..."]
+# omarchy:examples=omarchy netclaw setup | omarchy netclaw setup --profile recommended
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+# shellcheck source=default/netclaw/runtime.sh
+source "$OMARCHY_PATH/default/netclaw/runtime.sh"
+if (( EUID == 0 )); then
+  echo "Run NetClaw setup as your desktop user, not root." >&2
+  exit 1
+fi
+case "${1:-}" in
+  "") (( $# == 0 )) ;;
+  --all) (( $# == 1 )) ;;
+  --profile|--add) [[ $# == 2 && -n $2 ]] ;;
+  *) echo 'Usage: omarchy netclaw setup [--all|--profile <name>|--add "component ..."]' >&2; exit 1 ;;
+esac
+# Upstream creates ~/.local/bin/netclaw with ln -sf; protect foreign commands.
+if [[ -e $HOME/.local/bin/netclaw || -L $HOME/.local/bin/netclaw ]]; then
+  if [[ ! -L $HOME/.local/bin/netclaw ]] || [[ $(readlink -f "$HOME/.local/bin/netclaw") != "$(readlink -f "$netclaw_dir/scripts/netclaw")" ]]; then
+    echo "An existing ~/.local/bin/netclaw belongs to another installation. Move it before setup." >&2
+    exit 1
+  fi
+fi
+setup_args=("$@")
+if (( $# == 0 )); then
+  setup_args=(--all)
+fi
+umask 077
+mkdir -p "$netclaw_state"
+exec 8>"$netclaw_state/setup.lock"
+flock -n 8 || { echo "NetClaw setup is still running. Wait for it to finish, then open Chat or Dashboard again." >&2; exit 1; }
+omarchy-pkg-add openclaw nodejs npm python uv
+omarchy-netclaw-prepare
+if [[ ! -x $NETCLAW_PY ]]; then
+  uv venv --python 3.12 --seed "$netclaw_python"
+fi
+# Use Omarchy's returning onboarding flow before upstream's installer sees it.
+omarchy-openclaw-onboard
+[[ -f $HOME/.openclaw/openclaw.json ]] || { echo "Complete provider onboarding before installing NetClaw." >&2; exit 1; }
+
+# Upstream deploys its persona and skills into the shared OpenClaw workspace.
+# Keep a private recovery copy before every attempt, including failed attempts.
+backup=$(mktemp -d "$netclaw_state/backup-XXXXXX")
+cp -a "$HOME/.openclaw" "$backup/openclaw"
+echo "OpenClaw backup: $backup/openclaw"
+rm -f "$netclaw_state/configured" "$netclaw_state/components-installed"
+(
+  cd "$netclaw_dir"
+  # Upstream document and newer component installers expect this source root.
+  export REPO_ROOT="$netclaw_dir"
+  # Route upstream's first-run wizard through the same literal-input adapter.
+  # shellcheck disable=SC2329 # Invoked by the sourced upstream installer.
+  bash() {
+    if [[ ${1:-} == "$netclaw_dir/scripts/setup.sh" ]]; then
+      python3 "$OMARCHY_PATH/default/netclaw/credential-setup.py" "$netclaw_dir"
+    else
+      command bash "$@"
+    fi
+  }
+  # Source to inspect upstream's failure summary: its installer can exit zero
+  # even when selected components failed. Never mark that installation complete.
+  source "$netclaw_dir/scripts/install.sh" --runtime openclaw "${setup_args[@]}"
+  [[ -z ${PROBLEM_COMPONENTS:-} ]] || exit 1
+  [[ -f $HOME/.openclaw/netclaw-components.conf && -f $HOME/.openclaw/workspace/SOUL.md ]]
+  touch "$netclaw_state/components-installed"
+)
+[[ -f $netclaw_state/components-installed ]] || exit 1
+rm -f "$netclaw_state/components-installed"
+
+# Current NetClaw pyATS requires MCP 2, while other catalog components still
+# require MCP 1. Give its existing skill interpreter override a private runtime
+# so adding NetBox cannot downgrade the Cisco tools' dependencies.
+pyats_python=""
+if grep -qx 'pyats' "$HOME/.openclaw/netclaw-components.conf"; then
+  pyats_venv="$HOME/.local/share/omarchy/netclaw-pyats-python"
+  pyats_python="$pyats_venv/bin/python3"
+  if [[ ! -x $pyats_python ]]; then
+    uv venv --python 3.12 --seed "$pyats_venv"
+  fi
+  uv pip install --python "$pyats_python" --requirement "$netclaw_dir/mcp-servers/pyATS_MCP/requirements.txt"
+  uv pip check --python "$pyats_python"
+fi
+
+# NetBox's current project requires FastMCP 3 and package imports. Upstream's
+# installer still installs FastMCP 2 without installing the project itself.
+netbox_python=""
+if grep -qx 'netbox' "$HOME/.openclaw/netclaw-components.conf"; then
+  netbox_venv="$HOME/.local/share/omarchy/netclaw-netbox-python"
+  netbox_python="$netbox_venv/bin/python3"
+  if [[ ! -x $netbox_python ]]; then
+    uv venv --python 3.12 --seed "$netbox_venv"
+  fi
+  uv pip install --python "$netbox_python" "$netclaw_dir/mcp-servers/netbox-mcp-server"
+  uv pip check --python "$netbox_python"
+fi
+
+servicenow_python=""
+if grep -qx 'servicenow' "$HOME/.openclaw/netclaw-components.conf"; then
+  servicenow_venv="$HOME/.local/share/omarchy/netclaw-servicenow-python"
+  servicenow_python="$servicenow_venv/bin/python3"
+  if [[ ! -x $servicenow_python ]]; then
+    uv venv --python 3.12 --seed "$servicenow_venv"
+  fi
+  uv pip install --python "$servicenow_python" "$netclaw_dir/mcp-servers/servicenow-mcp"
+  uv pip check --python "$servicenow_python"
+fi
+
+# The persona defers detailed guidance to these files, but the upstream
+# deployment loop only copies the six primary workspace documents.
+for reference in SOUL-SKILLS.md SOUL-EXPERTISE.md TOOLS-REFERENCE.md; do
+  if [[ -f $netclaw_dir/$reference ]]; then
+    cp "$netclaw_dir/$reference" "$HOME/.openclaw/workspace/$reference"
+  fi
+done
+
+python3 "$OMARCHY_PATH/default/netclaw/workspace-compat.py" "$HOME/.openclaw/workspace" --configure-limits
+
+# Keep credentials and mutable inventory outside the source checkout. Upstream
+# points at its example testbed during deployment; restore the OS-owned path.
+mkdir -p "$HOME/.config/netclaw" "$HOME/.openclaw/workspace/testbed"
+inventory="$HOME/.config/netclaw/testbed.yaml"
+if [[ ! -e $inventory ]]; then
+  install -m 600 "$OMARCHY_PATH/default/netclaw/testbed.yaml" "$inventory"
+fi
+python3 - "$HOME/.openclaw/.env" "$inventory" "$pyats_python" "$netbox_python" "$netclaw_dir" "$OMARCHY_PATH/default/netclaw/component-launcher.py" "$servicenow_python" <<'PYTHON'
+import json
+import pathlib
+import shutil
+import shlex
+import sys
+path = pathlib.Path(sys.argv[1])
+lines = path.read_text().splitlines() if path.exists() else []
+lines = [line for line in lines if not line.startswith(("PYATS_TESTBED_PATH=", "PYATS_PYTHON="))]
+lines.append("PYATS_TESTBED_PATH=" + json.dumps(sys.argv[2]))
+if sys.argv[3]:
+    lines.append("PYATS_PYTHON=" + json.dumps(sys.argv[3]))
+launchers = pathlib.Path.home() / ".local/share/omarchy/netclaw-launchers"
+launchers.mkdir(parents=True, exist_ok=True)
+client = launchers / "mcp-call.py"
+shutil.copyfile(pathlib.Path(sys.argv[6]).with_name("mcp-call.py"), client)
+client.with_suffix(".json").write_text(json.dumps({"backend": sys.argv[5] + "/scripts/mcp-call.py"}))
+lines = [line for line in lines if not line.startswith("MCP_CALL=")]
+lines.append("MCP_CALL=" + json.dumps(str(client)))
+if sys.argv[3]:
+    launchers.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(pathlib.Path(sys.argv[6]).with_name("pyats-stdio.py"), launchers / "pyats-stdio.py")
+for name, python, args, key in [
+    ("pyats", sys.argv[3], ["-u", str(launchers / "pyats-stdio.py"), sys.argv[5] + "/mcp-servers/pyATS_MCP/pyats_mcp_server.py"], "PYATS_MCP_SCRIPT"),
+    ("netbox", sys.argv[4], ["-m", "netbox_mcp_server.server"], "NETBOX_MCP_SCRIPT"),
+    ("servicenow", sys.argv[7], ["-m", "servicenow_mcp.cli"], "SERVICENOW_MCP_SCRIPT"),
+]:
+    if not python:
+        continue
+    launchers.mkdir(parents=True, exist_ok=True)
+    script = launchers / (name + ".py")
+    shutil.copyfile(sys.argv[6], script)
+    config = {"python": python, "args": args}
+    if name == "pyats":
+        config["environment"] = {"PYATS_MCP_CONNECTION_TIMEOUT": "300"}
+    if name == "servicenow":
+        config["environment"] = {"TOOL_PACKAGE_CONFIG_PATH": sys.argv[5] + "/mcp-servers/servicenow-mcp/config/tool_packages.yaml"}
+    script.with_suffix(".json").write_text(json.dumps(config))
+    lines = [line for line in lines if not line.startswith(key + "=")]
+    lines.append(key + "=" + json.dumps(str(script)))
+components = (path.parent / "netclaw-components.conf").read_text().splitlines()
+if "document" in components:
+    # Upstream installs the writer but does not persist its detected command.
+    command = shlex.join([str(pathlib.Path.home() / ".local/share/omarchy/netclaw-python/bin/python3"), "-u", sys.argv[5] + "/mcp-servers/document-mcp/server.py"])
+    lines = [line for line in lines if not line.startswith("DOCUMENT_MCP_CMD=")]
+    lines.append("DOCUMENT_MCP_CMD=" + json.dumps(command))
+if "markmap" in components:
+    candidates = [pathlib.Path(sys.argv[5]) / relative for relative in (
+        "mcp-servers/markmap_mcp/markmap-mcp/dist/index.js",
+        "mcp-servers/markmap_mcp/dist/index.js",
+    )]
+    backend = next((candidate for candidate in candidates if candidate.is_file()), None)
+    if backend is None:
+        raise SystemExit("Markmap's built MCP entry point is missing")
+    launchers.mkdir(parents=True, exist_ok=True)
+    for name in ("markmap-launcher.mjs", "markmap-document.mjs"):
+        shutil.copyfile(pathlib.Path(sys.argv[6]).with_name(name), launchers / name)
+    script = launchers / "markmap-launcher.mjs"
+    script.with_suffix(".json").write_text(json.dumps({"backend": str(backend)}))
+    lines = [line for line in lines if not line.startswith("MARKMAP_MCP_SCRIPT=")]
+    lines.append("MARKMAP_MCP_SCRIPT=" + json.dumps(str(script)))
+path.write_text("\n".join(lines) + "\n")
+PYTHON
+ln -sfn "$inventory" "$HOME/.openclaw/workspace/testbed/testbed.yaml"
+
+# MCP subprocesses launched by the gateway must use the same Python as setup.
+mkdir -p "$HOME/.config/systemd/user/openclaw-gateway.service.d"
+cat > "$HOME/.config/systemd/user/openclaw-gateway.service.d/20-netclaw.conf" <<'UNIT'
+[Service]
+Environment="PATH=%h/.local/share/omarchy/netclaw-python/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"
+Environment="NETCLAW_PY=%h/.local/share/omarchy/netclaw-python/bin/python3"
+Environment="NETCLAW_VENV=%h/.local/share/omarchy/netclaw-python"
+UMask=0077
+UNIT
+systemctl --user daemon-reload
+openclaw gateway restart
+healthy=false
+for _ in {1..15}; do
+  if openclaw health; then
+    healthy=true
+    break
+  fi
+  sleep 2
+done
+[[ $healthy == "true" ]] || exit 1
+chmod 600 "$HOME/.openclaw/.env"
+git -C "$netclaw_dir" rev-parse HEAD > "$netclaw_state/configured"
+netclaw_integration_revision > "$netclaw_state/integration-revision"
+echo "NetClaw is configured. Launch with: omarchy netclaw chat"

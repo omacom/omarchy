@@ -1,0 +1,136 @@
+ok - static desktop submenus route case insensitively
+ok - NetClaw keeps its submenu when the app provider refreshes
+ok - NetClaw appears once under Apps
+ok - NetClaw submenu keeps its app icon
+ok - ordinary applications remain launchable
+ok - NetClaw submenu includes chat
+ok - NetClaw submenu includes dashboard
+ok - NetClaw submenu includes setup
+ok - NetClaw submenu includes credentials
+ok - NetClaw submenu includes upgrade
+ok - NetClaw submenu includes status
+ok - NetClaw submenu includes logs
+ok - NetClaw submenu includes start
+ok - NetClaw submenu includes restart
+ok - NetClaw submenu includes stop
+ok - menu parses JSONC with comments and trailing commas
+ok - menu normalizes parsed items
+ok - menu user entries override default entries
+ok - menu preserves original order on override
+ok - menu injects root when merging sources
+ok - menu slugifies provider rows
+ok - menu builds item paths
+ok - menu builds parent paths
+ok - menu detects descendants
+ok - menu counts children
+ok - menu appends checked marker
+ok - menu marks a disabled row as something you already have
+ok - menu leaves an uninstalled row unmarked
+ok - menu hides a submenu with no visible children
+ok - menu shows a submenu with a visible child
+ok - menu hides recursively empty submenus
+ok - menu keeps provider-backed submenus visible
+ok - menu keeps a disabled row visible
+ok - menu disables a row whose disabled: succeeded
+ok - menu leaves a row selectable when its disabled: failed
+ok - menu never disables a row that declares no disabled:
+ok - menu display rows carry their disabled state
+ok - menu search skips disabled rows, which belong to the submenu they sit in rather than a list of what you can do
+ok - menu matches labels and aliases
+ok - menu matches aliases
+ok - menu rejects missing terms
+ok - menu hides invisible matches
+ok - menu scores name matches above description matches
+ok - menu builds display rows
+ok - menu ranks an installed app above menu entries matching the query equally well
+ok - menu ranks an app matching the query as a whole word above exact-labeled menu entries
+ok - menu keeps a better-matching menu entry above a weaker app match
+ok - menu routes an exact id even when an app keyword matches it
+ok - menu never routes to an app row through its keywords
+ok - menu routes declared aliases to their item
+ok - menu normalizes underscores in routes
+ok - menu routes empty input to root
+ok - menu falls through to the literal input
+ok - menu still finds an app by its keywords in search
+ok - menu delegates route resolution to the shared model
+ok - menu lists Emoji first under Trigger
+ok - menu opens the emoji picker from Trigger
+ok - menu update Omarchy entry uses the Omarchy glyph
+ok - menu update Omarchy entry renders the private glyph with the Omarchy font
+ok - menu hides Extra Themes until a theme cloned from git is there to update
+ok - menu keeps Input as a direct config action
+ok - menu places Direct Boot directly under Setup
+ok - menu exposes Reset Computer under Setup
+ok - menu lists Reset Computer last under Setup
+ok - menu exposes every supported coding agent with its own glyph under Defaults > Agent
+ok - menu sorts coding agents alphabetically
+ok - menu always exposes every supported browser, terminal, and editor under Defaults
+ok - menu removes Crush from Install > AI
+ok - menu never hides an Install row because the software is already there
+ok - menu dims the Install rows for software that is already installed
+ok - menu asks the same presence question it used to hide the row with
+ok - menu keeps hiding Chromium Account without Chromium, and dims it once the account is set up
+ok - menu still hides Remove rows for software that is not installed
+ok - menu orders Remove categories like their Install counterparts, followed by Remove-only categories
+ok - menu places Passwordless Sudo under Setup > Security
+ok - menu removes the relocated toggles from Trigger > Toggle
+ok - menu groups Menu Bar positions in a submenu
+ok - menu lists all Menu Bar positions under Position
+ok - menu exposes Menu Bar transparency as a toggle
+ok - menu manages plugins from Setup > Plugins
+ok - menu picks a plugin the way it already picks a theme or a timezone
+ok - menu always offers Enable and Disable, which cover the built-in plugins too
+ok - menu hides Remove until a plugin the user installed exists to delete
+ok - menu adds a plugin through the CLI, where the trust warning and clone output are visible
+ok - plugin picker offers what each verb can act on
+ok - plugin picker leaves plugin-kind decisions to its data and the plugin command
+ok - plugin enable reports a bar as replacing the one in use, whether enabled or freshly added
+ok - interactive plugin add selects the manifest placement or center fallback by default
+ok - plugin picker delegates enable and disable without interpreting plugin kinds
+ok - plugin picker shows the id as row subtext and acts on the id the selection hands back
+ok - menu select mode reads a leading icon and a trailing subtext off an option
+ok - plugin picker removes where the confirmation and backup path are visible
+ok - menu re-enumerates the font list every time it is opened
+ok - menu invalidates volatile providers when entering a menu, not on every keystroke
+ok - menu search never restarts a volatile provider
+ok - menu only shows Laptop Display on laptops
+ok - menu only shows Mirror Display on laptops
+ok - menu only shows webcam screen recording when a webcam is available
+ok - menu rows support per-icon font families
+ok - menu keyboard navigation disarms pointer selection
+ok - menu keyboard navigation skips disabled rows in the direction of travel
+ok - menu reads selectability off the row
+ok - menu refuses to activate a disabled row
+ok - menu leaves the cursor put when the pointer crosses a disabled row
+ok - menu renders a disabled row faded, and leaves it at that
+ok - menu parks the cursor on a selectable row after the rows change
+ok - menu ties the cursor to a selectable row existing, both ways
+ok - menu filter changes disarm pointer selection
+ok - menu route changes only accept an initial pointer sample for mouse activation
+ok - menu Left key follows empty-filter Backspace navigation
+ok - menu uses shared pointer movement gate in card coordinates
+ok - menu resets pointer movement gate when pointer selection is disarmed
+ok - app merge appends app rows after the static menu items
+ok - repeating the app merge with the same entries does not duplicate rows
+ok - app merge drops rows for entries that went away
+ok - app merge lists an app once even when two desktop entries share an id
+ok - app merge heals an order entry whose item went missing instead of duplicating it
+ok - app merge leaves the map it was handed untouched
+ok - provider merge appends its rows
+ok - repeating a provider merge does not duplicate rows
+ok - provider merge drops rows the provider no longer lists
+ok - provider merge leaves rows belonging to another provider alone
+ok - menu slugs collide across plugin ids that differ only in separator
+ok - menu keeps colliding provider rows apart so none is dropped
+ok - menu assigns the rebuilt app item map instead of mutating it in place
+ok - menu assigns the rebuilt provider item map instead of mutating it in place
+ok - menu never writes into the item map held by the var property
+ok - menu openExistingMenu function exists
+ok - menu openExistingMenu ignores a stale hidden-pointer position when becoming visible
+ok - menu openDmenu function exists
+ok - menu openDmenu ignores a stale hidden-pointer position when becoming visible
+ok - menu only selects from pointer after real movement
+ok - menu row hover routes through pointer movement gate
+ok - menu samples pointer movement immediately when entering a row
+ok - mouse activation carries pointer intent into subordinate menus
+ok - Omarchy icon font includes the official agent marks
