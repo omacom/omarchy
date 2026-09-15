@@ -341,6 +341,39 @@ Panel {
     bar: root.bar
     text: "󱚣"
     active: root.alarming
+    iconComponent: Component {
+      Item {
+        id: barMark
+        property var candidates: root.iconCandidatesForProvider(root.provider, root.bar ? root.bar.background : Color.background)
+        property string candidatesKey: candidates.join("\n")
+        property int candidateIndex: 0
+        onCandidatesKeyChanged: candidateIndex = 0
+
+        anchors.fill: parent
+
+        Image {
+          id: barMarkImage
+          anchors.fill: parent
+          anchors.margins: Style.space(2)
+          source: barMark.candidateIndex < barMark.candidates.length ? barMark.candidates[barMark.candidateIndex] : ""
+          sourceSize.width: button.opticalSize * 2
+          sourceSize.height: button.opticalSize * 2
+          fillMode: Image.PreserveAspectFit
+          onStatusChanged: if (status === Image.Error && barMark.candidateIndex < barMark.candidates.length)
+            Qt.callLater(function() { barMark.candidateIndex++ })
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          anchors.centerIn: parent
+          visible: barMarkImage.status !== Image.Ready
+          text: button.text
+          color: button.active && button.useActiveColor ? button.activeColor : button.foreground
+          font.family: root.fontFamily
+          font.pixelSize: button.fontSize
+        }
+      }
+    }
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
       else if (buttonCode === Qt.MiddleButton) root.selectProvider(root.providerIndex + 1)
