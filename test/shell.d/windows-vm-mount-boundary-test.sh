@@ -123,6 +123,16 @@ if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared
 fi
 pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves deny another account"
 
+# The guest's Samba server marks the shared directory setgid while Windows
+# runs. Hardening must clear that bit explicitly -- GNU chmod preserves a
+# directory's setgid bit under four-digit numeric modes -- or every later
+# launch and removal aborts at the 0700 verification.
+chmod 2700 /home/shared-target
+with_vm_lock prepare_caller_mounts || fail "root could not harden a setgid shared source"
+[[ $(command stat -Lc '%a' /home/shared-target) == 700 ]] || fail "setgid bit survived source hardening"
+mounts_ready || fail "verified mounts rejected after setgid hardening"
+pass "setgid shared source from the guest is hardened back to 0700"
+
 # Existing production boundary components are never repaired in place when
 # their ownership or write permissions are unsafe. Both the preparation path
 # and the final pre-Docker guard must fail closed without disturbing the binds.
