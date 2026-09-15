@@ -1,11 +1,269 @@
 #!/bin/bash
 
 # omarchy:summary=Update Omarchy and system packages
-# omarchy:args=[-y]
-# omarchy:examples=omarchy update | omarchy update -y
+# omarchy:args=[--yes|-y|--non-interactive] [--hooks=run|skip] [--aur=run|skip] [--mise=run|skip] [--orphans=ask|keep|remove] [--reboot=ask|never|if-needed] [--restarts=run|skip]
+# omarchy:examples=omarchy update | omarchy update --yes --orphans=keep --reboot=never | omarchy update --non-interactive --mise=run
 # omarchy:requires-sudo=true
 
-set -e
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: omarchy update [--yes|-y|--non-interactive] [--hooks=run|skip] [--aur=run|skip] [--mise=run|skip] [--orphans=ask|keep|remove] [--reboot=ask|never|if-needed] [--restarts=run|skip]
+
+Update Omarchy and system packages.
+
+Modes:
+  (no flags)        Interactive. Defaults: hooks/aur/mise/restarts=run, orphans=ask, reboot=ask.
+  -y, --yes         Unattended first-party full pipeline. Defaults: hooks/aur/mise/restarts=run, orphans=keep, reboot=never.
+                    Cooperative/best-effort for user hooks and external execution, not a universal no-prompt guarantee.
+  --non-interactive Unattended strict mode. Defaults: hooks/aur/mise=skip, restarts=run, orphans=keep, reboot=never.
+                    Built-in operations are nonprompting or fail; skipped optional steps are reported.
+                    Not an adversarial sandbox; arbitrary privileged hooks/package scripts are outside the guarantee.
+
+Policies (exact --name=value only, override mode defaults, order-independent):
+  --hooks=run|skip
+  --aur=run|skip
+  --mise=run|skip
+  --orphans=ask|keep|remove
+  --reboot=ask|never|if-needed
+  --restarts=run|skip
+
+Rules:
+  Repeating the same policy with the same value is allowed; contradictory repeats fail (exit 2).
+  -y, --yes and --non-interactive may combine; strict wins regardless of order.
+  ask with either unattended mode fails (exit 2) regardless of flag order.
+  Unknown args, missing/invalid values, and positional args fail (exit 2) before any transcript, lock, or side effects.
+  If -h/--help is present anywhere, this usage is printed (exit 0) without validating other args or running any steps.
+
+Destructive policies:
+  --orphans=remove authorizes removing current orphan packages without confirmation (existing recursive semantics).
+  --reboot=if-needed authorizes reboot only after all required work succeeds and update-owned inhibitors are released.
+  Automatic reboot can close unsaved applications; it never reboots midway or after failure.
+
+Examples:
+  omarchy update
+  omarchy update --yes
+  omarchy update --non-interactive
+  omarchy update --non-interactive --mise=run
+  omarchy update --yes --orphans=keep --reboot=never
+
+Exit codes:
+  0  selected mandatory work completed (deliberately skipped optional work is reported)
+  2  CLI misuse
+  nonzero  required step failure; downstream destructive work is not run
+USAGE
+}
+
+cli_error() {
+  echo "omarchy update: $1" >&2
+  exit 2
+}
+
+for arg in "$@"; do
+  if [[ $arg == "-h" || $arg == "--help" ]]; then
+    usage
+    exit 0
+  fi
+done
+
+has_yes=0
+has_strict=0
+declare -A seen_policy=()
+hooks_val=""
+aur_val=""
+mise_val=""
+orphans_val=""
+reboot_val=""
+restarts_val=""
+
+for arg in "$@"; do
+  if [[ $arg == "-y" || $arg == "--yes" ]]; then
+    has_yes=1
+  elif [[ $arg == "--non-interactive" ]]; then
+    has_strict=1
+  elif [[ $arg == --hooks=* || $arg == --aur=* || $arg == --mise=* || $arg == --orphans=* || $arg == --reboot=* || $arg == --restarts=* ]]; then
+    name="${arg%%=*}"
+    name="${name#--}"
+    value="${arg#*=}"
+    if [[ -z $value ]]; then
+      cli_error "missing value for --$name (exact --$name=value required)"
+    fi
+    case "$name" in
+      hooks|aur|mise)
+        if [[ $value != "run" && $value != "skip" ]]; then
+          cli_error "invalid value for --$name: $value (expected run|skip)"
+        fi
+        ;;
+      orphans)
+        if [[ $value != "ask" && $value != "keep" && $value != "remove" ]]; then
+          cli_error "invalid value for --orphans: $value (expected ask|keep|remove)"
+        fi
+        ;;
+      reboot)
+        if [[ $value != "ask" && $value != "never" && $value != "if-needed" ]]; then
+          cli_error "invalid value for --reboot: $value (expected ask|never|if-needed)"
+        fi
+        ;;
+      restarts)
+        if [[ $value != "run" && $value != "skip" ]]; then
+          cli_error "invalid value for --restarts: $value (expected run|skip)"
+        fi
+        ;;
+    esac
+    if [[ -n ${seen_policy[$name]:-} ]]; then
+      if [[ ${seen_policy[$name]} != "$value" ]]; then
+        cli_error "contradictory values for --$name: ${seen_policy[$name]} vs $value"
+      fi
+    else
+      seen_policy[$name]="$value"
+    fi
+    case "$name" in
+      hooks)
+        hooks_val="$value"
+        ;;
+      aur)
+        aur_val="$value"
+        ;;
+      mise)
+        mise_val="$value"
+        ;;
+      orphans)
+        orphans_val="$value"
+        ;;
+      reboot)
+        reboot_val="$value"
+        ;;
+      restarts)
+        restarts_val="$value"
+        ;;
+    esac
+  elif [[ $arg == --* || $arg == -* ]]; then
+    cli_error "unknown argument: $arg"
+  else
+    cli_error "unexpected positional argument: $arg"
+  fi
+done
+
+mode="interactive"
+if (( has_strict )); then
+  mode="strict"
+elif (( has_yes )); then
+  mode="full"
+fi
+
+if [[ -z $hooks_val ]]; then
+  if [[ $mode == "strict" ]]; then
+    hooks_val="skip"
+  else
+    hooks_val="run"
+  fi
+fi
+if [[ -z $aur_val ]]; then
+  if [[ $mode == "strict" ]]; then
+    aur_val="skip"
+  else
+    aur_val="run"
+  fi
+fi
+if [[ -z $mise_val ]]; then
+  if [[ $mode == "strict" ]]; then
+    mise_val="skip"
+  else
+    mise_val="run"
+  fi
+fi
+if [[ -z $orphans_val ]]; then
+  if [[ $mode == "interactive" ]]; then
+    orphans_val="ask"
+  else
+    orphans_val="keep"
+  fi
+fi
+if [[ -z $reboot_val ]]; then
+  if [[ $mode == "interactive" ]]; then
+    reboot_val="ask"
+  else
+    reboot_val="never"
+  fi
+fi
+if [[ -z $restarts_val ]]; then
+  restarts_val="run"
+fi
+
+if [[ $mode != "interactive" ]]; then
+  if [[ $orphans_val == "ask" ]]; then
+    cli_error "--orphans=ask cannot be used with --yes/--non-interactive"
+  fi
+  if [[ $reboot_val == "ask" ]]; then
+    cli_error "--reboot=ask cannot be used with --yes/--non-interactive"
+  fi
+fi
+
+if [[ $mode == "interactive" ]]; then
+  unset OMARCHY_UPDATE_UNATTENDED || true
+  unset OMARCHY_UPDATE_STRICT || true
+elif [[ $mode == "full" ]]; then
+  export OMARCHY_UPDATE_UNATTENDED=1
+  unset OMARCHY_UPDATE_STRICT || true
+else
+  export OMARCHY_UPDATE_UNATTENDED=1
+  export OMARCHY_UPDATE_STRICT=1
+fi
+export OMARCHY_UPDATE_HOOKS="$hooks_val"
+export OMARCHY_UPDATE_AUR="$aur_val"
+export OMARCHY_UPDATE_MISE="$mise_val"
+export OMARCHY_UPDATE_ORPHANS="$orphans_val"
+export OMARCHY_UPDATE_REBOOT="$reboot_val"
+export OMARCHY_UPDATE_RESTARTS="$restarts_val"
+
+if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+  if [[ -z ${OMARCHY_PATH:-} ]]; then
+    echo "omarchy update: OMARCHY_PATH is not set" >&2
+    exit 1
+  fi
+  adapter_dir="$OMARCHY_PATH/default/omarchy/update-bin"
+  expected_sudo="$adapter_dir/sudo"
+  need_runner=0
+  if [[ ${OMARCHY_UPDATE_ENV_READY:-} != "1" ]]; then
+    need_runner=1
+  else
+    resolved_sudo=$(type -P sudo 2>/dev/null || true)
+    if [[ $resolved_sudo != "$expected_sudo" ]]; then
+      canonical_resolved=$(readlink -f "$resolved_sudo" 2>/dev/null || true)
+      canonical_expected=$(readlink -f "$expected_sudo" 2>/dev/null || true)
+      if [[ -z $canonical_resolved || -z $canonical_expected || $canonical_resolved != "$canonical_expected" ]]; then
+        need_runner=1
+      fi
+    fi
+    if (( need_runner == 0 )); then
+      real_sudo="${OMARCHY_UPDATE_REAL_SUDO:-}"
+      if [[ -z $real_sudo || $real_sudo != /* ]]; then
+        need_runner=1
+      elif [[ ! -x $real_sudo ]]; then
+        need_runner=1
+      elif [[ $real_sudo == "$adapter_dir/"* ]]; then
+        need_runner=1
+      else
+        canonical_real=$(readlink -f "$real_sudo" 2>/dev/null || true)
+        canonical_sudo=$(readlink -f "$expected_sudo" 2>/dev/null || true)
+        canonical_dir=$(readlink -f "$adapter_dir" 2>/dev/null || true)
+        if [[ -n $canonical_real && -n $canonical_sudo && $canonical_real == "$canonical_sudo" ]]; then
+          need_runner=1
+        elif [[ -n $canonical_real && -n $canonical_dir && $canonical_real == "$canonical_dir/"* ]]; then
+          need_runner=1
+        fi
+      fi
+    fi
+  fi
+  if (( need_runner )); then
+    if [[ ${OMARCHY_UPDATE_RUN_REEXEC:-} == "1" ]]; then
+      echo "omarchy update: privilege environment is not ready and re-entry failed; refusing to continue" >&2
+      exit 1
+    fi
+    exec env OMARCHY_UPDATE_RUN_REEXEC=1 omarchy-update-run "$0" "$@"
+  fi
+fi
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
@@ -21,11 +279,21 @@ trap 'omarchy-update-stay-awake stop' EXIT
 
 omarchy-update-requires-free-space
 
-# -y is a promise not to ask anything. Steps that would need an answer report
-# and move on instead of waiting on a prompt nobody is here to give.
-[[ ${1:-} != "-y" ]] || export OMARCHY_UPDATE_UNATTENDED=1
+if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+  if [[ ${OMARCHY_UPDATE_STRICT:-} == "1" ]]; then
+    echo "Unattended update (strict): hooks=$OMARCHY_UPDATE_HOOKS, aur=$OMARCHY_UPDATE_AUR, mise=$OMARCHY_UPDATE_MISE, orphans=$OMARCHY_UPDATE_ORPHANS, reboot=$OMARCHY_UPDATE_REBOOT, restarts=$OMARCHY_UPDATE_RESTARTS"
+  else
+    echo "Unattended update (full): hooks=$OMARCHY_UPDATE_HOOKS, aur=$OMARCHY_UPDATE_AUR, mise=$OMARCHY_UPDATE_MISE, orphans=$OMARCHY_UPDATE_ORPHANS, reboot=$OMARCHY_UPDATE_REBOOT, restarts=$OMARCHY_UPDATE_RESTARTS"
+  fi
+  if [[ $OMARCHY_UPDATE_ORPHANS == "remove" ]]; then
+    echo "Orphan policy: remove -- orphaned packages will be removed without confirmation"
+  fi
+  if [[ $OMARCHY_UPDATE_REBOOT == "if-needed" ]]; then
+    echo "Reboot policy: if-needed -- system will reboot automatically when required (may close unsaved applications)"
+  fi
+fi
 
-if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
+if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]] || omarchy-update-confirm; then
   # Before the snapshot: the cache is on the snapshotted subvolume, so pruning
   # after it frees nothing until that snapshot ages out.
   omarchy-update-pkg-prune
@@ -46,9 +314,34 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
   omarchy-migrate
-  omarchy-hook post-update
-  omarchy-update-aur-pkgs
-  omarchy-update-mise
+
+  if [[ $OMARCHY_UPDATE_HOOKS == "skip" ]]; then
+    echo "Skipping post-update hooks (--hooks=skip)"
+  else
+    if [[ ${OMARCHY_UPDATE_STRICT:-} == "1" ]]; then
+      echo "Warning: --hooks=run in strict mode relaxes the non-interactive guarantee; arbitrary hook code may prompt" >&2
+    fi
+    omarchy-hook post-update
+  fi
+
+  if [[ $OMARCHY_UPDATE_AUR == "skip" ]]; then
+    echo "Skipping AUR package updates (--aur=skip)"
+  else
+    if [[ ${OMARCHY_UPDATE_STRICT:-} == "1" ]]; then
+      echo "Warning: --aur=run in strict mode relaxes the non-interactive guarantee; arbitrary AUR code may prompt" >&2
+    fi
+    omarchy-update-aur-pkgs
+  fi
+
+  if [[ $OMARCHY_UPDATE_MISE == "skip" ]]; then
+    echo "Skipping mise updates (--mise=skip)"
+  else
+    if [[ ${OMARCHY_UPDATE_STRICT:-} == "1" ]]; then
+      echo "Warning: --mise=run in strict mode relaxes the non-interactive guarantee; arbitrary mise code may prompt" >&2
+    fi
+    omarchy-update-mise
+  fi
+
   omarchy-update-orphan-pkgs
 
   omarchy-update-analyze-logs

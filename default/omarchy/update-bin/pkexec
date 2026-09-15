@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Unattended pkexec adapter, installed only on the PATH of omarchy-update-run
+# descendants. No nonprompting form is accepted by policy under unattended
+# updates, so fail closed with an actionable message and never
+# exec the real pkexec. Not a security sandbox: absolute-path, cleared-PATH,
+# or custom programs can bypass PATH adapters.
+
+set -euo pipefail
+
+echo "omarchy-update pkexec adapter: unattended auth cannot use graphical prompt (pkexec); run interactively or avoid the privileged step" >&2
+exit 1

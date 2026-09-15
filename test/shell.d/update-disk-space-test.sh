@@ -24,6 +24,7 @@ run_update() {
   XDG_RUNTIME_DIR="$runtime_dir" \
   PATH="$stub_bin:$ROOT/bin:$PATH" \
   LC_ALL=C \
+  OMARCHY_PATH="$ROOT" \
   OMARCHY_UPDATE_LOGGED=1 \
   TEST_AVAILABLE_BYTES=${TEST_AVAILABLE_BYTES:-$((9 * 1024 * 1024 * 1024))} \
   TEST_DF_INVALID=${TEST_DF_INVALID:-0} \
@@ -61,6 +62,18 @@ exit 0'
 write_stub omarchy-snapshot '
 touch "$SNAPSHOT_MARKER"
 exit 0'
+
+write_stub sudo '
+if [[ ${1:-} == "-n" ]]; then
+  shift
+fi
+if [[ ${1:-} == "--" ]]; then
+  shift
+fi
+if (( $# == 0 )); then
+  exit 0
+fi
+exec "$@"'
 
 for command in \
   omarchy-cmd-present \
@@ -116,7 +129,7 @@ pass "interactive update stops before confirmation with low disk space"
 
 rm -f "$snapshot_marker" "$gum_marker"
 output=$(OMARCHY_UPDATE_FORCE=1 run_update -y)
-[[ -z $output ]] || fail "forced update does not emit the free-space warning"
+[[ $output != *"You need at least 10 GiB free"* ]] || fail "forced update does not emit the free-space warning"
 [[ ! -f $gum_marker ]] || fail "forced non-interactive update does not prompt"
 [[ -f $snapshot_marker ]] || fail "forced update continues with low disk space"
 pass "forced update skips the free-space requirement"
@@ -136,6 +149,6 @@ pass "interactive update keeps the normal confirmation prompt when space is suff
 
 rm -f "$snapshot_marker"
 output=$(TEST_DF_INVALID=1 run_update -y)
-[[ -z $output ]] || fail "failed disk-space detection remains silent"
+[[ $output != *"You need at least 10 GiB free"* ]] || fail "failed disk-space detection remains silent"
 [[ -f $snapshot_marker ]] || fail "failed disk-space detection does not block the update"
 pass "failed disk-space detection silently continues"

@@ -28,6 +28,38 @@ Your packages aren't the only thing that goes stale. Many laptops and peripheral
 
 If you're already familiar with Arch, you might be tempted to just run `pacman -Syu` or `yay -Syu` yourself, but if you do that, you'll miss the snapshot, migrations, and configuration updates that Omarchy runs together with new packages. That's why Omarchy will actually stop a direct system upgrade and point you to `omarchy update` instead. (If you really know what you're doing, the guard will tell you how to bypass it for a single transaction.)
 
+### Non-interactive updates
+
+Running `omarchy update` with no flags stays interactive and asks before orphan removal and reboot. For scripting, `-y` and `--yes` mean the same unattended full pipeline, while `--non-interactive` means unattended strict mode with external steps skipped by default. Every policy flag uses the exact `--name=value` form and overrides its mode default.
+
+| Flag | Values | No flags (interactive) | `-y` / `--yes` (full) | `--non-interactive` (strict) |
+| --- | --- | --- | --- | --- |
+| `--hooks` | `run`, `skip` | `run` | `run` | `skip` |
+| `--aur` | `run`, `skip` | `run` | `run` | `skip` |
+| `--mise` | `run`, `skip` | `run` | `run` | `skip` |
+| `--orphans` | `ask`, `keep`, `remove` | `ask` | `keep` | `keep` |
+| `--reboot` | `ask`, `never`, `if-needed` | `ask` | `never` | `never` |
+| `--restarts` | `run`, `skip` | `run` | `run` | `run` |
+
+```bash
+omarchy update --yes
+omarchy update --non-interactive
+omarchy update --non-interactive --mise=run
+omarchy update --yes --orphans=keep --reboot=never
+```
+
+Unattended updates need sudo authorization already in place (a cached sudo ticket or NOPASSWD). Without it the update fails promptly instead of opening a password or graphical dialog, starting with the keyring check. Repeating a policy with the same value is fine, but contradictory repeats, `ask` combined with an unattended mode, unknown flags, and positional arguments all fail immediately with exit code 2 before anything changes.
+
+What runs and what is only reported depends on the policy. Skipped hooks, AUR, and mise steps are reported (for example `Skipping mise updates (--mise=skip)`), kept orphans are listed and retained, and a needed-but-unperformed reboot is reported per trigger (for example `Reboot required: ...`) without rebooting. Exit code 0 means the selected mandatory work finished and any skipped work was reported; it does not mean every optional component was updated.
+
+> **Warning: `--orphans=remove` removes packages without confirmation.** It authorizes removing the currently detected orphan packages with recursive semantics. Only use it when you mean it.
+
+> **Warning: `--reboot=if-needed` reboots automatically and can close unsaved applications.** It reboots only after the whole pipeline succeeds and update-owned inhibitors are released; it never reboots midway or after a failure.
+
+Scripted mode is cooperative, not a sandbox. User hooks, AUR package scripts, mise backends, and git credential helpers are external code that can still prompt, so `-y`/`--yes` is best-effort there rather than a universal no-prompt guarantee. Strict mode skips hooks, AUR, and mise by default for this reason; adding `--hooks=run`, `--aur=run`, or `--mise=run` opts back in per step with a warning that the non-interactive guarantee is relaxed for that component. `--restarts=skip` defers service and shell restarts while keeping restart markers, and `--reboot=never` reports reboot need without rebooting.
+
+Required migrations still run in order and cannot be skipped by these flags. A migration that cannot finish unattended (for example one needing a browser closed) exits nonzero, stays pending, and stops what follows; the login notifier keeps prompting until `omarchy-migrate` is run interactively. A package conflict that needs a human answer also exits nonzero with instructions to rerun `omarchy update` interactively instead of guessing.
+
 ### Rolling back bad updates
 
 If you ever have a problem after doing an update, you can rollback your system to the snapshot taken before the update. Just restart and pick the snapshot in the boot loading menu from before you started the update.

@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Unattended sudo adapter, installed only on the PATH of omarchy-update-run
+# descendants. Always runs the captured real sudo with -n prepended (caller -n
+# duplicates are tolerated by sudo), so no password, askpass, or stdin-auth fallback can prompt.
+#
+# Supported safe surface: plain `sudo <command> [args...]`, `sudo env ...`,
+# `sudo tee/mv/mkdir/pacman/snapper/systemctl/...`, `sudo -n`, `sudo -v`,
+# `-E`, `-u/-g/-U/-r/-t/-C/-D/-R/-T` with values, long equivalents with
+# `=value` or a separate value, and the `--` separator.
+# Rejected before the command separator: -S/--stdin, -A/--askpass,
+# -p/--prompt (including combined short clusters like -Sn). Anything after
+# `--` or after the command name is a target-command argument and is passed
+# through untouched (e.g. `sudo -- printf '%s' --askpass` is allowed).
+# Never adds --preserve-env. Never reads stdin itself; stdin flows to the
+# real sudo child (e.g. `echo hi | sudo tee file`). Not a security sandbox:
+# absolute-path, cleared-PATH, or custom programs can bypass PATH adapters.
+
+set -euo pipefail
+
+if [[ -z ${OMARCHY_UPDATE_REAL_SUDO:-} ]]; then
+  echo "omarchy-update sudo adapter: OMARCHY_UPDATE_REAL_SUDO is not set; run through omarchy-update-run" >&2
+  exit 1
+fi
+
+real_sudo="$OMARCHY_UPDATE_REAL_SUDO"
+
+if [[ $real_sudo != /* ]]; then
+  echo "omarchy-update sudo adapter: OMARCHY_UPDATE_REAL_SUDO is not an absolute path: $real_sudo" >&2
+  exit 1
+fi
+
+if [[ ! -x $real_sudo ]]; then
+  echo "omarchy-update sudo adapter: real sudo is not executable: $real_sudo" >&2
+  exit 1
+fi
+
+self_path=$(readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]:-$0}")
+self_dir=$(dirname "$self_path")
+canonical_real=$(readlink -f "$real_sudo" 2>/dev/null || true)
+if [[ -n $canonical_real && $canonical_real == "$self_path" ]]; then
+  echo "omarchy-update sudo adapter: real sudo points at the adapter itself, refusing recursion" >&2
+  exit 1
+fi
+if [[ -n $canonical_real && $canonical_real == "$self_dir/"* ]]; then
+  echo "omarchy-update sudo adapter: real sudo lives inside the adapter directory, refusing recursion: $real_sudo" >&2
+  exit 1
+fi
+if [[ $real_sudo == "$self_dir/"* ]]; then
+  echo "omarchy-update sudo adapter: real sudo lives inside the adapter directory, refusing recursion: $real_sudo" >&2
+  exit 1
+fi
+
+scan_args=()
+if (( $# > 0 )); then
+  scan_args=("$@")
+fi
+
+idx=0
+total=${#scan_args[@]}
+while (( idx < total )); do
+  token="${scan_args[$idx]}"
+  if [[ $token == "--" ]]; then
+    break
+  fi
+  if [[ $token == "-" ]]; then
+    break
+  fi
+  if [[ $token == --* ]]; then
+    name="${token%%=*}"
+    if [[ $name == "--stdin" || $name == "--askpass" || $name == "--prompt" ]]; then
+      echo "omarchy-update sudo adapter: refusing prompt-enabling option: $token" >&2
+      exit 1
+    fi
+    case "$name" in
+      --prompt|--user|--group|--other-user|--role|--type|--chdir|--chroot|--close-from|--command-timeout)
+        if [[ $token != *"="* ]]; then
+          idx=$((idx + 1))
+        fi
+        ;;
+    esac
+    idx=$((idx + 1))
+    continue
+  fi
+  if [[ $token == -* ]]; then
+    cluster="${token#-}"
+    pos=0
+    cluster_len=${#cluster}
+    while (( pos < cluster_len )); do
+      ch="${cluster:$pos:1}"
+      if [[ $ch == "S" || $ch == "A" || $ch == "p" ]]; then
+        echo "omarchy-update sudo adapter: refusing prompt-enabling option: -$ch in $token" >&2
+        exit 1
+      fi
+      if [[ $ch == "C" || $ch == "D" || $ch == "g" || $ch == "R" || $ch == "r" || $ch == "T" || $ch == "t" || $ch == "U" || $ch == "u" ]]; then
+        rest="${cluster:$((pos + 1))}"
+        if [[ -z $rest ]]; then
+          idx=$((idx + 1))
+        fi
+        break
+      fi
+      pos=$((pos + 1))
+    done
+    idx=$((idx + 1))
+    continue
+  fi
+  break
+done
+
+exec "$real_sudo" -n "$@"
