@@ -24,6 +24,17 @@ Panel {
   // icon, so the open-panel mark takes the painted width instead of the
   // icon-sized fraction of the slot the fallback assumes.
   readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
+  // Design capacity and health arrive together or not at all — a pack whose
+  // firmware omits the design figure yields neither. Gating every derived row
+  // on the pair keeps the two stat columns the same height and keeps the
+  // health section from rendering with nothing behind it.
+  readonly property bool hasHealthInfo: !!(batteryInfo.design && batteryInfo.health)
+  readonly property int healthLevel: Model.healthLevel(batteryInfo.health)
+  // A pack fresh off the line can charge past its own design capacity, so
+  // the bar clamps rather than overrunning its track.
+  readonly property real healthFraction: Math.max(0, Math.min(1, healthLevel / 100))
+  readonly property string healthVerdict: Model.healthVerdict(batteryInfo.health)
+  readonly property string healthHint: Model.healthHint(batteryInfo.health)
   readonly property bool batteryPresent: {
     var device = UPower.displayDevice
     return !!(device && device.isPresent)
@@ -433,8 +444,25 @@ Panel {
           Column {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
-            InfoPair { label: "Battery size"; value: root.batteryInfo.size || "" }
-            InfoPair { label: "Charge cycles"; value: root.batteryInfo.cycles || "—" }
+            InfoPair {
+              // The nameplate figure when the design capacity is known. Falls
+              // back to what the pack holds today when it is not, which is the
+              // only number available in that case.
+              label: "Battery size"
+              value: (root.hasHealthInfo ? root.batteryInfo.design : root.batteryInfo.size) || ""
+            }
+            InfoPair {
+              label: "Current capacity"
+              value: root.batteryInfo.size || ""
+              visible: root.hasHealthInfo
+            }
+            // Cycles live in the health section when there is one. This is the
+            // fallback home for packs that report no design capacity.
+            InfoPair {
+              label: "Charge cycles"
+              value: root.batteryInfo.cycles || "—"
+              visible: !root.hasHealthInfo
+            }
           }
 
           Column {
@@ -449,6 +477,108 @@ Panel {
               value: root.chargeThresholdActive ? "Holding" : (root.batteryFull ? "-" : (root.batteryInfo.rate || ""))
             }
           }
+        }
+
+        // ---------- Battery health ----------
+        // A worn pack charges to well under its nameplate capacity, and the
+        // stats above say so without saying what it means. Hidden wholesale
+        // when the design figure is unavailable.
+        PanelSeparator {
+          visible: root.hasHealthInfo
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.hasHealthInfo
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: "BATTERY HEALTH"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          // The hero's shape — verdict, caption, right-aligned number — one
+          // type size down, so it reads as the panel's second story rather
+          // than competing with the charge level above it.
+          Item {
+            width: parent.width
+            implicitHeight: Math.max(healthLabels.implicitHeight, healthValue.implicitHeight)
+
+            Column {
+              id: healthLabels
+              anchors.left: parent.left
+              anchors.right: healthValue.left
+              anchors.rightMargin: Style.space(10)
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(2)
+
+              Text {
+                textFormat: Text.PlainText
+                text: root.healthVerdict
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+                font.bold: true
+                elide: Text.ElideRight
+                width: parent.width
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                text: root.healthHint.toUpperCase()
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                font.letterSpacing: 1.2
+                elide: Text.ElideRight
+                width: parent.width
+              }
+            }
+
+            Text {
+              id: healthValue
+              textFormat: Text.PlainText
+              text: root.batteryInfo.health || ""
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.display
+              font.bold: true
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+            }
+          }
+
+          // The charge bar's vocabulary at two thirds the height, so the two
+          // bars read as "right now" and "over the pack's life" rather than as
+          // the same measurement twice.
+          Item {
+            width: parent.width
+            implicitHeight: Style.space(6)
+
+            Rectangle {
+              id: healthTrack
+              anchors.fill: parent
+              radius: height / 2
+              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+            }
+
+            Rectangle {
+              anchors.left: healthTrack.left
+              anchors.verticalCenter: healthTrack.verticalCenter
+              height: healthTrack.height
+              radius: healthTrack.radius
+              color: root.bar.foreground
+              opacity: 0.75
+              width: Math.max(healthTrack.height, healthTrack.width * root.healthFraction)
+
+              Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
+            }
+          }
+
+          InfoPair { label: "Charge cycles"; value: root.batteryInfo.cycles || "—" }
         }
 
         // ---------- Power profile picker ----------
