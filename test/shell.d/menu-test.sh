@@ -39,6 +39,7 @@ assertDeepEqual(
     title: '',
     target: '',
     description: 'appearance colors',
+    keybinding: '',
     action: 'omarchy-theme-set',
     provider: '',
     aliases: ['theme'],
@@ -59,6 +60,34 @@ assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order
 assert(merged.items.root, 'menu injects root when merging sources')
 
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
+assertDeepEqual(
+  menu.keybindingHints(JSON.stringify([
+    { key: 'SUPER + K', description: 'Keybindings' },
+    { key: 'SUPER + SHIFT + K', description: 'Keybindings' },
+    { key: 'SUPER + SPACE', description: 'Apps menu' }
+  ])),
+  {
+    keybindings: 'SUPER + K  ·  SUPER + SHIFT + K',
+    'apps menu': 'SUPER + SPACE'
+  },
+  'menu groups keybinding hints by their descriptions'
+)
+assertEqual(
+  menu.keybindingHint({ label: 'Apps', keybinding: 'Apps menu' }, { 'apps menu': 'SUPER + SPACE' }),
+  'SUPER + SPACE',
+  'menu resolves an explicit keybinding description'
+)
+assertEqual(
+  menu.keybindingHint({ label: 'Keybindings' }, { keybindings: 'SUPER + K' }),
+  'SUPER + K',
+  'menu falls back to the row label for a keybinding description'
+)
+assert(
+  /function reloadKeybindingHints\(\)[\s\S]*?\["omarchy-menu-keybindings", "--json"\]/.test(menuQml)
+    && /required property string shortcut/.test(menuQml)
+    && /text: row\.shortcut/.test(menuQml),
+  'menu reloads structured keybinding hints and renders them at the row edge'
+)
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')
 assert(menu.isDescendantOf(merged.items, 'style.theme', 'style'), 'menu detects descendants')
@@ -120,6 +149,7 @@ assertDeepEqual(
     path: 'Style › Theme picker',
     childCount: 0,
     action: 'custom-theme',
+    shortcut: '',
     provider: '',
     score: 12,
     section: 'search'
@@ -184,6 +214,8 @@ assertEqual(
   'omarchy-menu-emoji',
   'menu opens the emoji picker from Trigger'
 )
+assertEqual(defaultById.apps.keybinding, 'Apps menu', 'menu annotates Apps with its binding description')
+assertEqual(defaultById.system.keybinding, 'System menu', 'menu annotates System with its binding description')
 assert(
   defaultById['update.omarchy'].icon === '\ue900',
   'menu update Omarchy entry uses the Omarchy glyph'
