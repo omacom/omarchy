@@ -1,16 +1,33 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a development environment that was previously installed via omarchy-install-dev-env.
-# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala|godot>
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>" >&2
+  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala|godot>" >&2
   exit 1
 fi
 
 remove_php() {
   omarchy-pkg-drop php composer php-sqlite xdebug
+}
+
+remove_godot() {
+  local desktop="$HOME/.local/share/applications/org.godotengine.Godot.desktop"
+  local nvim_lsp="$HOME/.config/nvim/after/plugin/omarchy-godot.lua"
+
+  echo -e "Removing Godot...\n"
+  omarchy-pkg-drop godot
+
+  if [[ -f $desktop ]] && grep -q '^X-Omarchy-Managed=godot$' "$desktop"; then
+    rm -f "$desktop"
+    update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+  fi
+
+  if [[ -f $nvim_lsp ]] && grep -q 'omarchy-godot-lsp: managed by omarchy-install-dev-env' "$nvim_lsp"; then
+    rm -f "$nvim_lsp"
+  fi
 }
 
 case "$1" in
@@ -103,6 +120,9 @@ scala)
   mise uninstall scala-cli --all
   mise rm -g scala
   mise rm -g scala-cli
+  ;;
+godot)
+  remove_godot
   ;;
 *)
   echo "Unknown environment: $1"
