@@ -22,6 +22,8 @@ If you hit `Super + Shift + 2`, you'll move the current focused application onto
 
 If you hold down `Super` and use the mouse to click on a window, you'll be able to rearrange where it sits. If you hold `Super` and use the right button on the mouse, you can freely resize the window.
 
+To position a floating window with the keyboard, focus it with `Super + Arrow`, then use `Super + Ctrl + Shift + Arrow` to move it in 25-pixel steps. Hold the shortcut to keep moving. If the window is tiled, press `Super + T` first to make it floating; press `Super + T` again when you want it back in the tiled layout. `Super + Shift + Arrow` continues to swap tiled windows.
+
 You close a window on `Super + W` or `Super + Q` (and close all windows on `Ctrl + Alt + Delete`).
 
 You can also go full screen with `Super + F` or even just full-width (keeping the top bar) with `Super + Alt + F` or full-screen within a window with `Super + Ctrl + F` (good for YouTube!).
