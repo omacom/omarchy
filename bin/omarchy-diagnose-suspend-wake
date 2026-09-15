@@ -22,6 +22,8 @@
 set -uo pipefail
 
 SECONDS_DEFAULT=60
+SETTLE_SECONDS=5 # pause between suspend cycles so drivers (esp. wifi) fully
+                  # come back up before the next one - see the diagnose loop
 ACPI_WAKEUP=/proc/acpi/wakeup
 STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-diagnose-suspend-wake.state"
 RULE_FILE=/etc/udev/rules.d/91-omarchy-diagnosed-wake.rules
@@ -188,6 +190,17 @@ run_test() {
   fi
 }
 
+# Several suspend/resume transitions back to back, with no gap between them,
+# has been observed to wedge a wifi chip's firmware interface badly enough
+# that only a reboot clears it (brcmfmac on Broadcom parts; likely not the
+# only affected driver) - independent of which wake sources are enabled or
+# disabled. A short pause after each resume gives drivers time to fully
+# settle before the next suspend starts, which is cheap insurance against
+# that even though it can't guarantee avoiding it on fragile hardware.
+settle() {
+  sleep "$SETTLE_SECONDS"
+}
+
 # --- subcommands --------------------------------------------------------------
 
 cmd_status() {
@@ -242,13 +255,17 @@ cmd_diagnose() {
   fi
 
   echo "This will suspend the machine repeatedly (up to $((${#candidates[@]} + 2)) times," \
-    "~${seconds}s each) to isolate which device wakes it early. Save your work first."
+    "~${seconds}s each, ${SETTLE_SECONDS}s apart) to isolate which device wakes it early." \
+    "Save your work first. On some hardware, many suspend cycles in a row can leave a" \
+    "wifi/USB driver wedged until the next reboot (independent of anything this tool" \
+    "changes) - if networking looks broken afterward, that's the likely cause."
   read -r -p "Continue? [y/N] " reply
   [[ $reply =~ ^[Yy]$ ]] || { echo "Aborted."; return 1; }
 
   echo "==> Baseline: does sleep hold at all right now?"
   local baseline
   baseline=$(run_test "$seconds")
+  settle
   if [[ $baseline == "held" ]]; then
     echo "Held cleanly - no spurious wake detected. Nothing to fix."
     return 0
@@ -268,6 +285,7 @@ cmd_diagnose() {
   echo "==> Control: does sleep hold with everything disabled?"
   local control
   control=$(run_test "$seconds")
+  settle
   if [[ $control != "held" ]]; then
     echo "Still woke early even with every known wake source off. The cause isn't" \
       "in this candidate list (could be EC/firmware-level) - restoring and stopping."
@@ -283,6 +301,7 @@ cmd_diagnose() {
     set_candidate "$name" "$kind" "$node" enabled
     local result
     result=$(run_test "$seconds")
+    settle
     if [[ $result == "woke-early" ]]; then
       echo "    culprit - disabling it again and keeping it off."
       set_candidate "$name" "$kind" "$node" disabled
