@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# omarchy:summary=Resync Hyprland's outputs with the VMware host layout on every DRM hotplug
+# omarchy:hidden=true
+
+# vmtoolsd pushes each VMware Workstation topology change into vmwgfx as a DRM
+# hotplug. Hyprland raises no Lua event for a push that adds no connector (a
+# window resize, a removal that moves the survivors, leaving full screen), so
+# the hotplugs are watched on the udev side and the resync that lives in
+# default/hypr/vmware.lua is asked to run. hyprctl eval gives that Lua 250 ms
+# for its read of the kernel layout, where an event or timer callback would
+# get 50 ms. No monitor name passes through here.
+
+omarchy-hw-vmware || exit 0
+
+INSTANCE_DIR="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE"
+
+sync_layout() {
+  # Only the compositor this was started for; a copy outliving it must not go
+  # on poking whatever instance comes next.
+  [[ -S $INSTANCE_DIR/.socket.sock ]] || exit 0
+  hyprctl eval 'o.vmware_layout.sync()' >/dev/null 2>&1 || true
+}
+
+# A resize of the VMware window arrives as a burst of hotplugs. Drain the burst
+# until it goes quiet, then resync once against the layout it settled on.
+settle() {
+  local event
+  while read -r -t 0.3 event; do
+    :
+  done
+}
+
+# The config pinned the layout it read when it loaded; anything pushed since
+# is caught here.
+sync_layout
+
+# udevadm monitor is meant to run for the whole session. If it ends anyway,
+# say so and start it again while the compositor is still there, rather than
+# leaving the rest of the session without resyncs.
+while true; do
+  while read -r event; do
+    [[ $event =~ ^UDEV[[:space:]]+\[ ]] || continue
+    settle
+    sync_layout
+  done < <(udevadm monitor -u -s drm)
+
+  [[ -S $INSTANCE_DIR/.socket.sock ]] || exit 0
+  logger -t omarchy-hyprland-monitor-vmware-sync "udevadm monitor ended; restarting it"
+  sleep 2
+done
