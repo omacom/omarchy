@@ -9,33 +9,87 @@ declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
-# Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
-# via the compiled keymap, with a small fallback for common keys so the menu
-# remains readable if xkbcli cannot resolve a symbol.
-parse_keycodes() {
-  awk '
-    BEGIN {
-      split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
-      for (i in fallbacks) {
-        separator = index(fallbacks[i], "=")
-        keycode_symbol[substr(fallbacks[i], 1, separator - 1)] = substr(fallbacks[i], separator + 1)
-      }
+# Resolve only physical code: labels using the main keyboard reported by
+# Hyprland (or the sole keyboard when main is unavailable). Never guess US
+# when a device or keymap cannot be resolved.
+load_keybindings_keymap() {
+  local devices keyboard rules model layout variant options
+  KEYBINDINGS_KEYMAP=""
+  KEYBINDINGS_GROUP=""
+  devices=$(hyprctl -j devices 2>/dev/null) || return 1
+  keyboard=$(jq -ce '
+    .keyboards | if length == 1 then .[0] else
+      map(select(.main == true)) | select(length == 1) | .[0] end
+  ' <<<"$devices" 2>/dev/null) || return 1
+  rules=$(jq -r '.rules // "evdev"' <<<"$keyboard")
+  model=$(jq -r '.model // "pc105"' <<<"$keyboard")
+  layout=$(jq -er '.layout | select(type == "string" and length > 0)' <<<"$keyboard") || return 1
+  KEYBINDINGS_GROUP=$(jq -er '
+    (.layout | split(",") | length) as $count |
+    (if .active_layout_index == null and $count == 1 then 0 else .active_layout_index end) |
+    select(type == "number" and . >= 0 and . < $count and floor == .) | . + 1
+  ' <<<"$keyboard") || return 1
+  variant=$(jq -r '.variant // ""' <<<"$keyboard")
+  options=$(jq -r '.options // ""' <<<"$keyboard")
+  KEYBINDINGS_KEYMAP=$(xkbcli compile-keymap --rules "$rules" --model "$model" \
+    --layout "$layout" --variant "$variant" --options "$options" </dev/null 2>/dev/null) || return 1
 
-      # </dev/null keeps xkbcli from consuming the binding records on stdin
-      keymap_cmd = "xkbcli compile-keymap </dev/null"
+  # devices exposes RMLVO, not the actual compositor keymap. Reject an obvious
+  # mismatch (for example a custom kb_file) rather than label it as US. Custom
+  # maps retaining a standard group name cannot be detected through this API.
+  local active_keymap compiled_name
+  active_keymap=$(jq -r '.active_keymap // ""' <<<"$keyboard")
+  compiled_name=$(awk -v group="$KEYBINDINGS_GROUP" '
+    # Anchor the group name: type declarations also contain level_name[N].
+    match($0, /^\s*name\[(Group)?([0-9]+)\]\s*=\s*"([^"]*)"/, m) && m[2] == group { print m[3]; exit }
+  ' <<<"$KEYBINDINGS_KEYMAP")
+  [[ -n $compiled_name && ( -z $active_keymap || $active_keymap == "$compiled_name" ) ]]
+}
+
+parse_keycodes() {
+  awk -v group="$KEYBINDINGS_GROUP" '
+    BEGIN {
       section = ""
-      while ((keymap_cmd | getline line) > 0) {
+      while ((getline line < "/dev/fd/3") > 0) {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
         if (line ~ /xkb_symbols/)  { section = "syms";  continue }
-        if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
-        if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+        if (section == "codes" && match(line, /<([^>]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
+        if (section == "syms") {
+          if (match(line, /key\s*<([^>]+)>\s*\{/, m)) {
+            name = m[1]
+            block = ""
+          }
+          block = block " " line
+          if (name != "" && line ~ /};/) {
+            # A compact key has one group shared by all layouts. Expanded
+            # keys carry explicit symbols[N] (older xkbcli uses GroupN).
+            if (match(block, /\{\s*\[\s*([^, \]]+)/, m)) {
+              sym_by_name[name] = m[1]
+            } else {
+              delete symbols
+              groups = 0
+              rest = block
+              while (match(rest, /symbols\[(Group)?([0-9]+)\]\s*=\s*\[\s*([^, \]]+)/, m)) {
+                symbols[m[2]] = m[3]
+                if (m[2] + 0 > groups) groups = m[2] + 0
+                rest = substr(rest, RSTART + RLENGTH)
+              }
+              if (groups > 0) {
+                selected = (group - 1) % groups + 1
+                if (block ~ /groupsClamp/ && group > groups) selected = groups
+                if (group > groups && match(block, /groupsRedirect\s*=\s*(Group)?([0-9]+)/, m)) selected = m[2]
+                sym_by_name[name] = symbols[selected]
+              }
+            }
+            name = ""
+          }
+        }
       }
-      close(keymap_cmd)
 
       for (name in code_by_name) {
         code = code_by_name[name]
         symbol = sym_by_name[name]
-        if (code != "" && symbol != "" && symbol != "NoSymbol") keycode_symbol[code] = toupper(symbol)
+        if (code != "" && symbol ~ /^[A-Za-z0-9_]+$/ && symbol != "NoSymbol") keycode_symbol[code] = toupper(symbol)
       }
 
       # Read off the keysym rather than the keycode, so the key left of 1 reads
@@ -49,21 +103,20 @@ parse_keycodes() {
       mouse_symbol["274"] = "MIDDLE MOUSE BUTTON"
     }
     {
-      if (match($0, /code:([0-9]+)/, match_parts)) {
-        code = match_parts[1]
-        symbol = keycode_symbol[code]
-        if (symbol == "") symbol = "code:" code
-        sub("code:" code, symbol)
-      } else if (match($0, /mouse:([0-9]+)/, match_parts)) {
-        code = match_parts[1]
-        symbol = mouse_symbol[code]
-        if (symbol == "") symbol = "mouse:" code
-        sub("mouse:" code, symbol)
+      # Only replace the second CSV field. Descriptions and dispatcher args
+      # may themselves contain code:N or mouse:N and must remain byte-for-byte.
+      if (match($0, /^[^,]*,(code|mouse):([0-9]+),/, match_parts)) {
+        code = match_parts[2]
+        symbol = match_parts[1] == "code" ? keycode_symbol[code] : mouse_symbol[code]
+        if (symbol != "") {
+          prefix = substr($0, 1, index($0, ","))
+          $0 = prefix symbol substr($0, RLENGTH)
+        }
       }
 
       print
     }
-  '
+  ' 3<<<"$KEYBINDINGS_KEYMAP"
 }
 
 # Supplement `hyprctl binds` for Lua-only binds that Hyprland currently
@@ -530,8 +583,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+    printf 'v14\n%s\n%s\n' "$KEYBINDINGS_GROUP" "$KEYBINDINGS_KEYMAP"
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
 }
@@ -555,6 +607,15 @@ refresh_keybindings_cache() {
 
 output_binding_records() {
   local cache_dir cache_file cache_name
+
+  # Compile once per invocation. Hash the exact snapshot used for labels so
+  # group changes, RMLVO changes and XKB data updates cannot reuse stale rows.
+  # Unresolved maps are shown as code:N and retried next time, never cached.
+  if ! load_keybindings_keymap; then
+    KEYBINDINGS_KEYMAP=""
+    output_binding_records_uncached
+    return
+  fi
 
   cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
   cache_name="keybindings-$(keybindings_cache_key).records"
