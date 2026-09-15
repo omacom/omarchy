@@ -1,16 +1,38 @@
 #!/bin/bash
-# Exercise the real EUID-0/PKEXEC_UID boundary in an isolated user+mount namespace.
+# Exercise the real EUID-0/PKEXEC_UID boundary in an isolated mount namespace.
 
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-if ((EUID != 0)); then
-  if unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
+# The tmpfs mounts below hide /run, /var and /home, so they are only ever safe
+# inside this file's own mount namespace. Being root is not that isolation: a
+# root test runner -- a container, a root CI job, sudo ./test/all -- reaches
+# this file with EUID 0 and, without the unshare, lands those mounts on the
+# live system, where they hide the running session's runtime state and every
+# home directory (the checkout included) until the machine reboots. So re-exec
+# into a namespace whatever the uid, and skip when one cannot be created.
+if [[ ${OMARCHY_WINDOWS_BOUNDARY_NAMESPACE:-0} != 1 ]]; then
+  export OMARCHY_WINDOWS_BOUNDARY_NAMESPACE=1
+  export OMARCHY_WINDOWS_BOUNDARY_CALLER_MOUNT_NS=$(readlink /proc/self/ns/mnt)
+  if ((EUID == 0)); then
+    # Already uid 0, so a mount namespace alone buys the isolation the user
+    # namespace exists to grant the unprivileged path.
+    if unshare --mount true 2>/dev/null; then
+      exec unshare --mount --propagation private bash "$0"
+    fi
+  elif unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
     exec unshare --user --map-auto --map-root-user --mount --propagation private bash "$0"
   fi
-  pass "automatic subordinate-id namespace unavailable; skipping root Windows VM boundary probe"
+  pass "private mount namespace unavailable; skipping root Windows VM boundary probe"
   exit 0
 fi
+
+# Fail closed instead of mounting over the live system should the re-exec above
+# ever stop isolating this process.
+[[ -n ${OMARCHY_WINDOWS_BOUNDARY_CALLER_MOUNT_NS:-} &&
+  $(readlink /proc/self/ns/mnt) != "$OMARCHY_WINDOWS_BOUNDARY_CALLER_MOUNT_NS" ]] ||
+  fail "refusing to mount: boundary probe is still in the caller's mount namespace"
+((EUID == 0)) || fail "boundary probe needs uid 0 inside its own namespace"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT

@@ -127,6 +127,7 @@ only a live session can prove.
   with `HOME` pointed at a `mktemp -d` directory (cleaned up via
   `trap ... EXIT`) and `OMARCHY_PATH="$ROOT"`, so tests exercise the checkout
   without touching the developer's machine.
+- **Mounts belong in a namespace, and being root does not prove one.** A test that mounts re-execs itself through `unshare ... --mount --propagation private` and gates that re-exec on a marker variable it exports first, never on `EUID`. A root runner — a container, a root CI job, `sudo ./test/all` — already satisfies a uid check, so gating on uid sends its `tmpfs` mounts to the live `/run`, `/var` and `/home`, where they hide the running session and the checkout until the machine reboots. Skip the file when no namespace can be created, and after the re-exec compare `/proc/self/ns/mnt` against the caller's recorded namespace so a re-exec that silently stopped isolating fails closed instead of mounting. `test/shell.d/mount-namespace-isolation-test.sh` holds both halves in place for every mounting test.
 - **Migrations run directly.** A migration test builds the legacy state in a
   fake `$HOME`, runs `bash -euo pipefail "$ROOT/migrations/<ts>.sh"`, and
   asserts the resulting state — including running it twice to prove
