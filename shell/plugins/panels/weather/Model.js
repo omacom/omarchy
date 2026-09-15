@@ -192,6 +192,53 @@ function weatherResponseCompletesSave(hasConfiguredCoordinates, source) {
   return hasConfiguredCoordinates ? source === "open-meteo" : source === "wttr"
 }
 
+// Shared lat/lon for Open-Meteo forecast and air-quality fetches: stored
+// coordinates win, otherwise the wttr nearest_area (auto-detect).
+function openMeteoCoordinates(configuredLatitude, configuredLongitude, area) {
+  var lat = parseFloat(String(configuredLatitude))
+  var lon = parseFloat(String(configuredLongitude))
+  if (!isNaN(lat) && !isNaN(lon)) return { lat: lat, lon: lon }
+  if (!area) return null
+  lat = parseFloat(String(area.latitude || ""))
+  lon = parseFloat(String(area.longitude || ""))
+  if (isNaN(lat) || isNaN(lon)) return null
+  return { lat: lat, lon: lon }
+}
+
+function aqiBand(value, scale) {
+  var n = parseFloat(value)
+  if (isNaN(n)) return null
+  n = Math.round(n)
+  if (scale === "us") {
+    if (n <= 50) return { label: "Good", level: 0, value: n }
+    if (n <= 100) return { label: "Moderate", level: 1, value: n }
+    if (n <= 150) return { label: "Sensitive", level: 2, value: n }
+    if (n <= 200) return { label: "Unhealthy", level: 3, value: n }
+    if (n <= 300) return { label: "Very unhealthy", level: 4, value: n }
+    return { label: "Hazardous", level: 5, value: n }
+  }
+  if (n <= 20) return { label: "Good", level: 0, value: n }
+  if (n <= 40) return { label: "Fair", level: 1, value: n }
+  if (n <= 60) return { label: "Moderate", level: 2, value: n }
+  if (n <= 80) return { label: "Poor", level: 3, value: n }
+  if (n <= 100) return { label: "Very poor", level: 4, value: n }
+  return { label: "Extreme", level: 5, value: n }
+}
+
+function parseAirQuality(raw) {
+  try {
+    var data = JSON.parse(String(raw || "{}"))
+    var current = data.current
+    if (!current) return null
+    var us = aqiBand(current.us_aqi, "us")
+    var eu = aqiBand(current.european_aqi, "eu")
+    if (!us && !eu) return null
+    return { us: us, eu: eu }
+  } catch (e) {
+    return null
+  }
+}
+
 function wttrNextForecastDays(report, todayString) {
   var days = report && report.weather ? report.weather : []
   var result = []
@@ -285,6 +332,9 @@ if (typeof module !== "undefined") {
     currentIcon: currentIcon,
     provisionalCurrentIcon: provisionalCurrentIcon,
     weatherResponseCompletesSave: weatherResponseCompletesSave,
+    openMeteoCoordinates: openMeteoCoordinates,
+    aqiBand: aqiBand,
+    parseAirQuality: parseAirQuality,
     wttrNextForecastDays: wttrNextForecastDays,
     buildForecastDays: buildForecastDays,
     bareTempForDay: bareTempForDay,

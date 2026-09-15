@@ -145,6 +145,47 @@ assert(
   panelSource.split('root.controller.show()\n    locationFile.reload()\n    root.refresh()').length === 3,
   'weather reloads external location changes whenever either open path runs'
 )
+assertDeepEqual(
+  weather.openMeteoCoordinates(34.02577, -118.7804, { latitude: 1, longitude: 2 }),
+  { lat: 34.02577, lon: -118.7804 },
+  'weather prefers stored coordinates for Open-Meteo'
+)
+assertDeepEqual(
+  weather.openMeteoCoordinates(null, null, { latitude: '40.7', longitude: '-74.0' }),
+  { lat: 40.7, lon: -74.0 },
+  'weather falls back to wttr area coordinates for Open-Meteo'
+)
+assertEqual(weather.openMeteoCoordinates(null, null, null), null, 'weather waits for coordinates before Open-Meteo')
+assertEqual(weather.openMeteoCoordinates('nope', -118.7, null), null, 'weather ignores a partial stored coordinate pair')
+
+assertDeepEqual(weather.aqiBand(42, 'us'), { label: 'Good', level: 0, value: 42 }, 'weather maps US AQI good')
+assertDeepEqual(weather.aqiBand(101, 'us'), { label: 'Sensitive', level: 2, value: 101 }, 'weather maps US AQI sensitive')
+assertDeepEqual(weather.aqiBand(201, 'us'), { label: 'Very unhealthy', level: 4, value: 201 }, 'weather maps US AQI very unhealthy')
+assertDeepEqual(weather.aqiBand(12, 'eu'), { label: 'Good', level: 0, value: 12 }, 'weather maps European AQI good')
+assertDeepEqual(weather.aqiBand(85, 'eu'), { label: 'Very poor', level: 4, value: 85 }, 'weather maps European AQI very poor')
+assertEqual(weather.aqiBand('nope', 'us'), null, 'weather ignores invalid AQI')
+
+assertDeepEqual(
+  weather.parseAirQuality(JSON.stringify({ current: { us_aqi: 55, european_aqi: 33 } })),
+  { us: { label: 'Moderate', level: 1, value: 55 }, eu: { label: 'Fair', level: 1, value: 33 } },
+  'weather parses Open-Meteo air quality'
+)
+assertEqual(weather.parseAirQuality('{}'), null, 'weather returns no air quality without current data')
+assertEqual(weather.parseAirQuality('{'), null, 'weather handles invalid air quality JSON')
+
+assert(
+  panelSource.includes('https://air-quality-api.open-meteo.com/v1/air-quality'),
+  'weather fetches air quality from Open-Meteo'
+)
+assert(
+  panelSource.includes('text: "AIR"'),
+  'weather shows an AIR cell in the current-conditions row'
+)
+assert(
+  panelSource.includes('root.refreshAirQuality(parsed)'),
+  'weather fetches air quality from wttr auto-detect coordinates'
+)
+
 assert(!weather.weatherResponseCompletesSave(true, 'wttr'), 'weather keeps the spinner through a non-authoritative pinned-location response')
 assert(weather.weatherResponseCompletesSave(true, 'open-meteo'), 'weather completes a pinned-location save with Open-Meteo data')
 assert(weather.weatherResponseCompletesSave(false, 'wttr'), 'weather completes a name-only location save with wttr data')
