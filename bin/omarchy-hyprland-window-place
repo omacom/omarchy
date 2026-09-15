@@ -1,0 +1,259 @@
+#!/bin/bash
+
+# omarchy:summary=Place the focused window in a named screen region
+# omarchy:args=<left|right|top|bottom|topleft|topright|bottomleft|bottomright|first-third|center-third|last-third|first-two-thirds|last-two-thirds|center|center-half|center-large|maximize|maximize-height|maximize-width|next-display|prev-display|larger|smaller> [--dry-run]
+# omarchy:examples=omarchy-hyprland-window-place left | omarchy-hyprland-window-place center-large --dry-run
+
+set -euo pipefail
+
+MARGIN=12
+
+usage() {
+  cat >&2 <<USAGE
+Usage: omarchy-hyprland-window-place <preset> [--dry-run]
+
+Presets: left, right, top, bottom, topleft, topright, bottomleft, bottomright,
+         first-third, left-third, center-third, last-third, right-third, left-two-thirds, right-two-thirds, center, center-half, center-large, maximize,
+         maximize-height, maximize-width, next-display, prev-display,
+         larger, smaller
+
+Places the focused window in a named region of the focused monitor with a
+${MARGIN}px margin, floating it first when tiled. --dry-run prints the
+geometry without moving anything.
+USAGE
+  exit "$1"
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  usage 0
+else
+  preset=${1:-}
+fi
+
+dry_run=0
+if [[ -n ${2:-} ]]; then
+  if [[ ${2:-} == "--dry-run" ]]; then
+    dry_run=1
+  else
+    usage 2
+  fi
+fi
+
+case "$preset" in
+left | right | top | bottom | topleft | topright | bottomleft | bottomright | first-third | left-third | center-third | last-third | right-third | first-two-thirds | left-two-thirds | last-two-thirds | right-two-thirds | center | center-half | center-large | maximize | maximize-height | maximize-width | next-display | prev-display | larger | smaller) ;;
+*) usage 2 ;;
+esac
+
+read -r mx my mw mh < <(hyprctl -j monitors | jq -er '
+  first(.[] | select(.focused == true)) |
+  . as $monitor |
+  (($monitor.transform // 0) % 2 == 1) as $rotated |
+  [
+    .x,
+    .y,
+    (((if $rotated then .height else .width end) / .scale) | floor),
+    (((if $rotated then .width else .height end) / .scale) | floor)
+  ] | @tsv
+') || exit 1
+
+x0=$((mx + MARGIN))
+y0=$((my + MARGIN))
+aw=$((mw - 2 * MARGIN))
+ah=$((mh - 2 * MARGIN))
+
+if ((aw <= 0 || ah <= 0)); then
+  echo "Monitor too small for a ${MARGIN}px margin" >&2
+  exit 1
+fi
+
+half_w=$(((aw - MARGIN) / 2))
+third_w=$(((aw - 2 * MARGIN) / 3))
+half_h=$(((ah - MARGIN) / 2))
+
+# Presets that keep or scale the live window need its geometry too.
+needs_window=0
+case "$preset" in
+  center | maximize-height | maximize-width | larger | smaller) needs_window=1 ;;
+esac
+
+if ((needs_window)); then
+  read -r wx wy ww wh < <(hyprctl activewindow -j | jq -er '[.at[0], .at[1], .size[0], .size[1]] | @tsv') || exit 1
+fi
+
+move=""
+
+case "$preset" in
+left)
+  x=$x0
+  y=$y0
+  w=$half_w
+  h=$ah
+  ;;
+right)
+  x=$((x0 + half_w + MARGIN))
+  y=$y0
+  w=$half_w
+  h=$ah
+  ;;
+top)
+  x=$x0
+  y=$y0
+  w=$aw
+  h=$half_h
+  ;;
+bottom)
+  x=$x0
+  y=$((y0 + half_h + MARGIN))
+  w=$aw
+  h=$half_h
+  ;;
+topleft)
+  x=$x0
+  y=$y0
+  w=$half_w
+  h=$half_h
+  ;;
+topright)
+  x=$((x0 + half_w + MARGIN))
+  y=$y0
+  w=$half_w
+  h=$half_h
+  ;;
+bottomleft)
+  x=$x0
+  y=$((y0 + half_h + MARGIN))
+  w=$half_w
+  h=$half_h
+  ;;
+bottomright)
+  x=$((x0 + half_w + MARGIN))
+  y=$((y0 + half_h + MARGIN))
+  w=$half_w
+  h=$half_h
+  ;;
+first-third | left-third)
+  x=$x0
+  y=$y0
+  w=$third_w
+  h=$ah
+  ;;
+center-third)
+  x=$((x0 + third_w + MARGIN))
+  y=$y0
+  w=$third_w
+  h=$ah
+  ;;
+last-third | right-third)
+  x=$((x0 + aw - third_w))
+  y=$y0
+  w=$third_w
+  h=$ah
+  ;;
+first-two-thirds | left-two-thirds)
+  x=$x0
+  y=$y0
+  w=$((2 * third_w + MARGIN))
+  h=$ah
+  ;;
+last-two-thirds | right-two-thirds)
+  x=$((x0 + aw - 2 * third_w - MARGIN))
+  y=$y0
+  w=$((2 * third_w + MARGIN))
+  h=$ah
+  ;;
+center-half)
+  w=$((aw / 2))
+  h=$((ah / 2))
+  x=$((mx + (mw - w) / 2))
+  y=$((my + (mh - h) / 2))
+  ;;
+center-large)
+  w=$((aw * 3 / 4))
+  h=$((ah * 3 / 4))
+  x=$((mx + (mw - w) / 2))
+  y=$((my + (mh - h) / 2))
+  ;;
+maximize)
+  x=$x0
+  y=$y0
+  w=$aw
+  h=$ah
+  ;;
+center)
+  w=$ww
+  h=$wh
+  x=$((mx + (mw - w) / 2))
+  y=$((my + (mh - h) / 2))
+  ;;
+maximize-height)
+  x=$wx
+  y=$y0
+  w=$ww
+  h=$ah
+  ;;
+maximize-width)
+  x=$x0
+  y=$wy
+  w=$aw
+  h=$wh
+  ;;
+larger | smaller)
+  if [[ $preset == "larger" ]]; then
+    w=$((ww * 115 / 100))
+    h=$((wh * 115 / 100))
+  else
+    w=$((ww * 100 / 115))
+    h=$((wh * 100 / 115))
+  fi
+  if ((w < 200)); then w=200; fi
+  if ((h < 120)); then h=120; fi
+  if ((w > aw)); then w=$aw; fi
+  if ((h > ah)); then h=$ah; fi
+  x=$((wx + (ww - w) / 2))
+  y=$((wy + (wh - h) / 2))
+  if ((x < x0)); then x=$x0; fi
+  if ((y < y0)); then y=$y0; fi
+  if ((x + w > x0 + aw)); then x=$((x0 + aw - w)); fi
+  if ((y + h > y0 + ah)); then y=$((y0 + ah - h)); fi
+  ;;
+next-display)
+  move="mon:+1"
+  ;;
+prev-display)
+  move="mon:-1"
+  ;;
+esac
+
+hypr_dispatch() {
+  local lua="$1"
+  shift
+
+  hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
+}
+
+if [[ -n $move ]]; then
+  if ((dry_run == 0)); then
+    addr=$(hyprctl activewindow -j | jq -r .address) || exit 1
+    [[ -n $addr && $addr != "null" ]] || exit 1
+    hypr_dispatch "hl.dsp.window.move({ window = \"address:$addr\", monitor = \"${move#mon:}\" })" movewindow "$move" "address:$addr" >/dev/null
+    echo "Moved active window to $preset"
+  else
+    echo "Would move active window to $preset"
+  fi
+  exit 0
+fi
+
+if ((dry_run == 0)); then
+  addr=$(hyprctl activewindow -j | jq -r .address) || exit 1
+  [[ -n $addr && $addr != "null" ]] || exit 1
+  window="address:$addr"
+  floating=$(hyprctl activewindow -j | jq -r '.floating // false')
+  if [[ $floating != "true" ]]; then
+    hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+  fi
+  hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $w, y = $h })" resizeactive exact "$w" "$h" "$window"
+  hypr_dispatch "hl.dsp.window.move({ window = \"$window\", x = $x, y = $y })" moveactive "$x" "$y" "$window"
+  echo "Placed $preset at ${x},${y} ${w}x${h}"
+else
+  echo "Would place $preset at ${x},${y} ${w}x${h}"
+fi
