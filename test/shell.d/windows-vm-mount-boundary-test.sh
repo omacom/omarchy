@@ -123,6 +123,20 @@ if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared
 fi
 pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves deny another account"
 
+# The dockur/windows container's own SMB/9p sharing of the *shared* leaf marks
+# it setgid while the VM is running. A bare numeric `chmod 0700` is a silent
+# no-op on a directory that already carries setgid -- GNU chmod only clears
+# that bit via an explicit symbolic operation -- so without that, every launch
+# after the first would fail this preflight forever. Reproduce the drift on
+# the legacy source and confirm re-running prepare_caller_mounts recovers it.
+chmod 2700 /home/shared-target
+[[ $(command stat -Lc '%a' /home/shared-target) == 2700 ]] || fail "test setup did not reproduce the setgid drift"
+with_vm_lock prepare_caller_mounts || fail "root failed to recover from a setgid-tainted shared source"
+[[ $(command stat -Lc '%a' /home/shared-target) == 700 ]] || fail "setgid bit survived prepare_caller_mounts"
+[[ $(command stat -Lc '%a' "$EXPECTED_SHARED") == 700 ]] || fail "setgid bit survived on the mount anchor"
+mounts_ready || fail "final guard rejected a source recovered from setgid drift"
+pass "prepare_caller_mounts clears a setgid bit the running VM container left on the shared source"
+
 # Existing production boundary components are never repaired in place when
 # their ownership or write permissions are unsafe. Both the preparation path
 # and the final pre-Docker guard must fail closed without disturbing the binds.
