@@ -67,7 +67,25 @@ launcher_entry_runs() {
     target=${target%%[[:space:]]*}
   fi
   [[ -n $target ]] || return 1
-  [[ $target == *\\* ]] && return 0
+  # The launcher decodes desktop-entry string escapes before running the
+  # command; judging the raw form here would call any escaped target live
+  # forever, so decode it the same way. Leftover backslash means an escape
+  # this decoder does not know, and the entry is left to the launcher like
+  # one with a relative command.
+  local decoded=$target placeholder=$'\x01' unknown=$'\x02'
+  decoded=${decoded//\\\\/$placeholder}
+  decoded=${decoded//\\/$unknown}
+  decoded=${decoded//${unknown}s/ }
+  decoded=${decoded//${unknown}t/$'\t'}
+  decoded=${decoded//${unknown}n/$'\n'}
+  decoded=${decoded//${unknown}r/$'\r'}
+  if [[ $decoded == *$unknown* ]]; then
+    # An escape this decoder does not know leaves the command unreadable:
+    # the entry is kept, never judged dead, while the scan hides its ID.
+    return 0
+  fi
+  decoded=${decoded//${placeholder}/\\}
+  target=$decoded
   if [[ $target == /* ]]; then
     [[ -e $target ]]
   elif [[ $target == */* ]]; then
@@ -136,7 +154,10 @@ if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
   # the venv that just went. The launcher re-reads its hidden entries only when
   # a .desktop file changes, so an entry left pointing at nothing would stay on
   # offer until something else changed one; deleting it is that change.
-  entry="$HOME/.local/share/applications/hermes.desktop"
+  # The runtime writes its entry under the XDG data home, wherever that is;
+  # a custom XDG_DATA_HOME left $HOME/.local/share alone to delete.
+  [[ -n ${XDG_DATA_HOME-} ]] && entry_dir="$XDG_DATA_HOME/applications" || entry_dir="$HOME/.local/share/applications"
+  entry="$entry_dir/hermes.desktop"
   if [[ -f $entry ]] && ! launcher_entry_runs "$entry"; then
     rm -f "$entry"
   fi

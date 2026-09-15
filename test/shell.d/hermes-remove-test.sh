@@ -86,6 +86,7 @@ remove() {
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" \
+    XDG_DATA_HOME="${OMARCHY_TEST_XDG_DATA_HOME-}" \
     bash "$test_tmp/remover" </dev/null >"$test_tmp/output" 2>&1
 }
 
@@ -206,6 +207,41 @@ remove || fail "remove succeeds with a launcher entry using an escaped path"
 [[ -f $test_home/.local/share/applications/hermes.desktop ]] ||
   fail "a launcher entry whose command carries a desktop-entry escape survives removal"
 pass "removal leaves a launcher entry whose command it cannot decode"
+
+# The runtime registers its entry under the XDG data home, wherever that is:
+# a custom XDG_DATA_HOME must have its entry deleted just the same.
+seed_install
+mkdir -p "$test_home/xdg/applications"
+printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
+  >"$test_home/.local/bin/hermes"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s" desktop\n' "$test_home/.local/bin/hermes" \
+  >"$test_home/xdg/applications/hermes.desktop"
+OMARCHY_TEST_XDG_DATA_HOME="$test_home/xdg" remove || fail "remove succeeds with the entry under XDG_DATA_HOME"
+[[ ! -e $test_home/xdg/applications/hermes.desktop ]] ||
+  fail "the launcher entry under a custom XDG_DATA_HOME is deleted"
+pass "removal deletes the launcher entry under a custom XDG_DATA_HOME"
+
+# A desktop-entry escape is decoded by the remover as the launcher would
+# decode it, so an entry whose decoded target is gone is judged dead.
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s/Hermes\\sDesktop/bin/hermes" desktop\n' "$test_home" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with an escaped launcher entry whose target is gone"
+[[ ! -e $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry whose escaped target is gone is deleted"
+pass "removal deletes a launcher entry whose escaped target is gone"
+
+# An escape the remover does not know leaves the command unreadable: the
+# entry is never judged dead and is kept, whatever the scan thinks of it.
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s/Hermes\\aDesktop/bin/hermes" desktop\n' "$test_home" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with a launcher entry using an unknown escape"
+[[ -f $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry with an unknown escape was deleted"
+pass "removal keeps a launcher entry whose escape it cannot decode"
 
 # Removal also asks the installer to tear down a mise CLI the app superseded, so
 # a copy left from before the app took over does not linger once Hermes is gone.
