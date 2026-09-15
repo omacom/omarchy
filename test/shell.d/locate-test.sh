@@ -37,7 +37,7 @@ check(not (root / "install/config/locate.sh").exists() and not (root / "migratio
 for directory in ("bin", "install", "migrations"):
   for path in (root / directory).rglob("*"):
     if path.is_file():
-      content = path.read_text()
+      content = path.read_text(errors="ignore")
       if "OMARCHY_UPDATEDB_CONF_PATH" in content or "config/locate.sh" in content:
         raise SystemExit("not ok - retired locate configuration path remains in " + str(path))
 check(True, "runtime and installation no longer reference the configuration rewrite")
