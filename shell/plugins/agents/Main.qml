@@ -250,6 +250,8 @@ Item {
       ready: record.ready === true || synced,
       usageStatusText: String(record.usageStatusText || ""),
       authHelpText: String(record.authHelpText || ""),
+      icon: String(record.icon || ""),
+      iconLight: String(record.iconLight || ""),
 
       // Rate limits and balances stay per-account and are never merged
       // across devices.
