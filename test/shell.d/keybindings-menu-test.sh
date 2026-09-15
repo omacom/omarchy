@@ -46,6 +46,12 @@ keybindings() {
     bash "$ROOT/bin/omarchy-menu-keybindings" --print
 }
 
+keybindings_json() {
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings" --json
+}
+
 # Closing a window and toggling the scratchpad are two of the actions Omarchy
 # binds twice on purpose. The last bind carries the longest description Omarchy
 # ships, which is what puts a row closest to the width the menu allows.
@@ -64,6 +70,14 @@ rendered=$(keybindings)
 grep -q 'SUPER + F  *→ Full screen' <<<"$rendered" ||
   fail "a chord with no alternative renders on its own" "$rendered"
 pass "the keybindings menu renders its entries"
+
+rendered_json=$(keybindings_json)
+jq -e '
+  any(.[]; .key == "SUPER + F" and .description == "Full screen") and
+  any(.[]; .key == "SUPER + W / SUPER + Q" and .description == "Close window")
+' <<<"$rendered_json" >/dev/null ||
+  fail "the keybindings menu exports hints as JSON" "$rendered_json"
+pass "the keybindings menu exports structured hints"
 
 (( $(grep -c '→ Close window$' <<<"$rendered") == 1 )) ||
   fail "an alternative chord joins the row of the first one" "$rendered"

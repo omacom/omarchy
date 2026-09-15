@@ -74,6 +74,9 @@ Item {
   property var providersLoaded: ({})
   property var providerQueue: []
   property int providerRevision: 0
+  // Active Hyprland bindings keyed by their menu-facing description.
+  property var keybindingHints: ({})
+  readonly property bool hasKeybindingHints: Object.keys(root.keybindingHints).length > 0
 
   // Shared application engine (entries, hidden filters, icons, launch,
   // removal), owned by the shell and also used by the standalone launcher.
@@ -108,7 +111,7 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : (root.hasKeybindingHints ? Style.space(390) : Style.space(300))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -516,7 +519,13 @@ Item {
   }
 
   function displayRow(entry, detail, score, section) {
-    return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
+    return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section, root.keybindingHints)
+  }
+
+  function reloadKeybindingHints() {
+    if (keybindingProc.running) return
+    keybindingProc.command = ["omarchy-menu-keybindings", "--json"]
+    keybindingProc.running = true
   }
 
   function rowSelectable(index) {
@@ -585,6 +594,7 @@ Item {
         path: "",
         childCount: 0,
         action: "",
+        shortcut: "",
         provider: "",
         score: i,
         section: ""
@@ -849,6 +859,7 @@ Item {
     root.evaluateGuards()
     opened = true
     rebuildDisplay()
+    reloadKeybindingHints()
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
@@ -944,6 +955,18 @@ Item {
     onExited: {
       if (root.applySerial === root.requestSerial)
         root.opened = false
+    }
+  }
+
+  // A machine-readable export keeps the menu independent of the formatted
+  // keybindings picker and includes users' active Hyprland overrides.
+  Process {
+    id: keybindingProc
+    stdout: StdioCollector { id: keybindingStdout; waitForEnd: true }
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode !== 0 || exitStatus !== 0) return
+      root.keybindingHints = MenuModel.keybindingHints(keybindingStdout.text)
+      if (root.opened && !root.dmenuActive) root.rebuildDisplay()
     }
   }
 
@@ -1259,6 +1282,7 @@ Item {
               required property string detail
               required property string path
               required property string action
+              required property string shortcut
               required property int childCount
               required property bool disabled
 
@@ -1355,11 +1379,25 @@ Item {
 
               Row {
                 id: trail
-                width: Style.space(14)
+                width: shortcutText.width + Style.space(14)
                 anchors.right: parent.right
                 anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
                 spacing: 0
+
+                Text {
+                  id: shortcutText
+                  textFormat: Text.PlainText
+                  visible: row.shortcut.length > 0
+                  text: row.shortcut
+                  width: Math.min(implicitWidth, Style.space(150))
+                  color: row.hasCursor ? root.selectedText : root.foreground
+                  opacity: 0.55
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                  anchors.verticalCenter: parent.verticalCenter
+                }
 
                 Text {
                   textFormat: Text.PlainText
