@@ -324,7 +324,9 @@ ShellRoot {
   }
 
   function publicBarConfig() {
-    return JSON.parse(JSON.stringify(shell.barConfig || {}))
+    var config = shell.shellConfig && Util.isPlainObject(shell.shellConfig.bar)
+      ? shell.shellConfig.bar : builtinShellConfig.bar
+    return JSON.parse(JSON.stringify(config))
   }
 
   function barConfigFor(manifest) {
