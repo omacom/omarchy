@@ -269,7 +269,7 @@ Item {
       }
 
       // Fingerprint mode shows just the sensor icon, centered and alone \u2014 no
-      // padlock, no field, no prompt text.
+      // padlock or field. Reader status appears below the card.
       OpticalGlyph {
         anchors.centerIn: parent
         width: Math.round(root.fieldHeight * 0.7)
@@ -361,6 +361,29 @@ Item {
             onClicked: passwordInput.forceActiveFocus()
           }
         }
+      }
+    }
+
+    Rectangle {
+      visible: root.fingerprintMode
+      width: Math.min(Style.space(360), panel.width - Style.gapsOut * 2)
+      height: readinessText.implicitHeight + Style.space(16)
+      anchors.horizontalCenter: card.horizontalCenter
+      anchors.top: card.bottom
+      anchors.topMargin: Style.space(10)
+      radius: root.cornerRadius
+      color: root.background
+      Text {
+        id: readinessText
+        anchors.centerIn: parent
+        width: parent.width - Style.space(24)
+        text: root.currentSupplementary || "Preparing fingerprint reader…"
+        textFormat: Text.PlainText
+        wrapMode: Text.WordWrap
+        horizontalAlignment: Text.AlignHCenter
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
       }
     }
 

@@ -8,6 +8,7 @@ Item {
 
   property string backgroundPath: ""
   property int backgroundVersion: 0
+  property string fingerprintMessage: ""
   property bool fingerprintConfigured: false
   property bool authenticatingPassword: false
   property string failureMessage: ""
@@ -119,6 +120,21 @@ Item {
       hoverEnabled: true
       onClicked: { root.wakeRequested(); root.forcePasswordFocus() }
       onPositionChanged: root.wakeRequested()
+    }
+
+    Text {
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: parent.verticalCenter
+      anchors.topMargin: root.fieldHeight / 2 + 16
+      width: Math.min(parent.width - 32, root.fieldWidth + 100)
+      visible: root.fingerprintConfigured
+      text: root.fingerprintMessage || "Preparing fingerprint reader…"
+      textFormat: Text.PlainText
+      wrapMode: Text.WordWrap
+      horizontalAlignment: Text.AlignHCenter
+      color: Color.lock.text
+      font.family: Style.font.family
+      font.pixelSize: Math.round(root.fieldFontSize * 0.65)
     }
 
     BorderSurface {
