@@ -1824,7 +1824,11 @@ Item {
     // How far slot padding may intrude into a widget's own empty margins to
     // enforce the gap above when a widget demands wider bearings. Never
     // reaches paint, but neighbouring hit areas overlap by up to this much.
-    readonly property int paintIntrude: Style.space(3)
+    // Sized to cover the widest production bearing spread: a text pill at a
+    // scaled bar font carries ~halfGap + 4.5px of bearing per side against an
+    // icon's ~halfGap, so the cap must clear that or the pair keeps a
+    // subpixel residual (16.34px vs 16px at font 16).
+    readonly property int paintIntrude: Style.space(4)
     // Size the slot lays out for its content (what implicitWidth used to be).
     readonly property real contentWidth: activeItem && activeItem.visible
       ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
