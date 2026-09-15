@@ -2,19 +2,53 @@
 
 # Turn off keyboard backlight before hibernate to prevent hang on power-off.
 # The ASUS keyboard controller can block S4 shutdown if LEDs are active.
+#
+# Clearing the LED is one-way — the level cannot be read back once it is 0 — so
+# the keyboard came back dark after every hibernate and stayed that way until a
+# brightness key was pressed. Record the level before the clear and write it
+# back in the post phase.
 
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+level_record=/run/omarchy-keyboard-backlight-level
 
-if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
-  device=""
-  for candidate in /sys/class/leds/*kbd_backlight*; do
-    if [[ -e "$candidate" ]]; then
-      device="$(basename "$candidate")"
-      break
+read_level() {
+  local value
+  value=$(cat "/sys/class/leds/$1/brightness" 2>/dev/null) || value=0
+
+  if [[ $value =~ ^[0-9]+$ ]]; then
+    printf '%s' "$value"
+  else
+    printf '0'
+  fi
+}
+
+device=""
+for candidate in /sys/class/leds/*kbd_backlight*; do
+  if [[ -e $candidate ]]; then
+    device="$(basename "$candidate")"
+    break
+  fi
+done
+
+if [[ -z $device || $sleep_action != "hibernate" ]]; then
+  exit 0
+fi
+
+led=/sys/class/leds/$device/brightness
+
+if [[ $1 == "pre" ]]; then
+  printf '%s\n' "$(read_level "$device")" >"$level_record"
+  printf '0\n' >"$led" 2>/dev/null
+else
+  if [[ -r $level_record ]]; then
+    level=$(cat "$level_record")
+    rm -f "$level_record"
+
+    # A lit LED wins: the idle-restore plugin or a lock's own restore may have
+    # put a level back already, and this must not fight either of them.
+    current=$(read_level "$device")
+    if [[ $level =~ ^[0-9]+$ ]] && (( level > 0 )) && (( current == 0 )); then
+      printf '%s\n' "$level" >"$led" 2>/dev/null
     fi
-  done
-
-  if [[ -n "$device" ]]; then
-    brightnessctl -d "$device" set 0 >/dev/null 2>&1
   fi
 fi
