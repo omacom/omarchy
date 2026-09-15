@@ -8,8 +8,15 @@
 # record; this writes them to ~/.local/state/omarchy/agents/usage/ where the
 # agents panel watches them. Adding an agent is adding a collector — the
 # panel picks up any record that appears here.
+#
+# User collectors live in ~/.config/omarchy/agents/collectors/ and run the
+# same way. A collector may also print an object of several records keyed by
+# id (one DB scan feeding several tabs); each is fanned out to its own file,
+# and ids a collector stops emitting are retired.
 
 USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
+USER_COLLECTORS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/agents/collectors"
+PRODUCER_STATE="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/agent-usage/update-producers.json"
 mkdir -p "$USAGE_DIR"
 
 flags=()
@@ -46,14 +53,54 @@ collect() {
     echo "omarchy-agent-usage-update: $agent collector failed" >&2
     return 1
   fi
-  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX")
-  printf '%s\n' "$record" >"$tmp"
-  mv "$tmp" "$USAGE_DIR/$agent.json"
+  if jq -e 'type == "object" and (.id | type == "string")' >/dev/null 2>&1 <<<"$record"; then
+    tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX")
+    printf '%s\n' "$record" >"$tmp"
+    mv "$tmp" "$USAGE_DIR/$agent.json"
+  elif jq -e 'type == "object" and (has("id") | not) and ([to_entries[] | .value | type == "object" and has("id")] | length > 0 and all)' >/dev/null 2>&1 <<<"$record"; then
+    fan_out "$agent" "$record"
+  else
+    echo "omarchy-agent-usage-update: $agent collector printed neither a record nor records" >&2
+    return 1
+  fi
+}
+
+# Write each record of a multi-record collector to its own usage file, and
+# retire files from ids this collector produced before but emits no longer
+# (a renamed tab would otherwise sit frozen at its last numbers forever).
+# Ownership is tracked in a cache-dir sidecar the panel never reads.
+fan_out() {
+  local group="$1" records="$2"
+  local ids tmp producers stale id
+  ids=$(jq -r 'keys[]' <<<"$records")
+  while IFS= read -r id; do
+    [[ -n $id ]] || continue
+    tmp=$(mktemp "$USAGE_DIR/.$id.XXXXXX")
+    jq -c --arg id "$id" '.[$id]' <<<"$records" >"$tmp"
+    mv "$tmp" "$USAGE_DIR/$id.json"
+  done <<<"$ids"
+
+  mkdir -p "${PRODUCER_STATE%/*}"
+  producers=$(cat "$PRODUCER_STATE" 2>/dev/null || echo '{}')
+  stale=$(jq -r --arg g "$group" 'to_entries[] | select(.value == $g) | .key' <<<"$producers")
+  while IFS= read -r id; do
+    [[ -n $id ]] || continue
+    grep -qxF "$id" <<<"$ids" && continue
+    rm -f "$USAGE_DIR/$id.json"
+  done <<<"$stale"
+
+  tmp=$(mktemp "${PRODUCER_STATE%/*}/.producers.XXXXXX")
+  jq --arg g "$group" --argjson fresh "$(printf '%s\n' "$ids" | jq -R . | jq -s .)" '
+    with_entries(select(.value != $g))
+    | . + ($fresh | map({key: ., value: $g}) | from_entries)
+  ' <<<"$producers" >"$tmp"
+  mv "$tmp" "$PRODUCER_STATE"
 }
 
 pids=()
-for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
+for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-* "$USER_COLLECTORS_DIR"/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
+  [[ $collector -ef "$0" ]] && continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue

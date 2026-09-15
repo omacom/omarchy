@@ -59,6 +59,138 @@ Panel {
     usage.refreshAll(true)
   }
 
+  // Opencode Go connection settings. The gear in the hero toggles an
+  // inline card (under the provider tabs) where the workspace ID and
+  // auth cookie are pasted; Apply writes
+  // ~/.config/omarchy/agents/opencode-go.json and refetches.
+  // Grey whenever the Go limits are known-stale: a failed Test/Apply,
+  // or a record whose cached meters outlived its probe. Local token
+  // stats stay full-bright — only the limit meters dim.
+  readonly property bool goMetersDimmed: root.isGoProvider
+    && (!root.goFetchOk || (root.provider && root.provider.limitsStale === true))
+
+  // The gear wears an alert badge whenever the Go tab has something to
+  // say — unconfigured, stale, or freshly failed — since the red status
+  // box is hidden for Go. The tooltip carries the one-line reason.
+  readonly property bool goNeedsAttention: root.isGoProvider && !!root.provider
+    && (String(root.provider.usageStatusText || "") !== ""
+      || root.provider.limitsStale === true
+      || (root.provider.limits || []).length === 0)
+
+  function goAttentionReason() {
+    if (!root.provider) return ""
+    var statusText = String(root.provider.usageStatusText || "")
+    if (statusText !== "") return root.goTerseReason(statusText)
+    if ((root.provider.limits || []).length === 0) return "Not connected."
+    if (root.provider.limitsStale === true) return "Stale."
+    return ""
+  }
+  property bool goSettingsOpen: false
+  property string goApplyStatus: ""
+  property bool goApplying: false
+  property string goPendingConfig: ""
+  // Last fetch outcome. A failed Test/Apply greys the card's meters via
+  // the wrapper below instead of printing a large error block.
+  property bool goFetchOk: true
+  // Whether the in-flight fetch was started by Apply (true) or Test (false).
+  property bool goWasApply: false
+  readonly property bool isGoProvider: !!root.provider && root.provider.providerId === "opencode-go"
+  readonly property string goConfigPath: usage.home + "/.config/omarchy/agents/opencode-go.json"
+
+  function openGoSettings() {
+    root.goApplyStatus = ""
+    root.goApplying = false
+    root.goSettingsOpen = true
+    goConfigFile.reload()
+  }
+
+  function closeGoSettings() {
+    root.goSettingsOpen = false
+    keyCatcher.forceActiveFocus()
+  }
+
+  function goPrefillFromConfig(content) {
+    var ws = "", ck = ""
+    try {
+      var parsed = JSON.parse(String(content || ""))
+      if (parsed && typeof parsed === "object") {
+        ws = String(parsed.workspaceId || "")
+        ck = String(parsed.authCookie || parsed.auth || "")
+      }
+    } catch (e) {}
+    wsField.text = ws
+    authField.text = ck
+    Qt.callLater(function() { wsField.forceActiveFocus() })
+  }
+
+  // The workspace field accepts a bare wrk_… ID or the whole page URL;
+  // the ID is pulled out before anything is saved.
+  function goWorkspaceIdFromInput(text) {
+    var raw = String(text || "").trim()
+    var match = /workspace\/(wrk_[A-Za-z0-9_-]+)/i.exec(raw)
+    if (match) return match[1]
+    return raw
+  }
+
+  function goApply() {
+    var ws = root.goWorkspaceIdFromInput(wsField.text)
+    var ck = authField.text.trim()
+    if (ws === "" || ck === "") {
+      root.goApplyStatus = "Paste both values first."
+      return
+    }
+    if (ws.toLowerCase().indexOf("wrk_") !== 0) {
+      root.goApplyStatus = "Need the wrk_… URL or ID."
+      return
+    }
+    root.goApplying = true
+    root.goFetchOk = true
+    root.goWasApply = true
+    root.goApplyStatus = "Saving…"
+    root.goPendingConfig = JSON.stringify({ workspaceId: ws, authCookie: ck })
+    goMkdirProcess.command = ["mkdir", "-p", usage.home + "/.config/omarchy/agents"]
+    goMkdirProcess.running = true
+  }
+
+  // Test refetches with whatever config is already saved (nothing is
+  // written) and reports one terse word on the outcome.
+  function goTest() {
+    if (root.goApplying) return
+    root.goApplying = true
+    root.goFetchOk = true
+    root.goWasApply = false
+    root.goApplyStatus = "Testing…"
+    goFetchProcess.command = ["omarchy-agent-usage-update", "--force", "opencode"]
+    goFetchProcess.running = true
+  }
+
+  // The record watcher reloads asynchronously after the fetch lands, so
+  // judge the outcome a beat later, from the provider state itself. Stale
+  // cached limits count as failure even though meters are drawn.
+  function goEvaluateFetch() {
+    if (!root.isGoProvider || !root.provider) {
+      root.goApplyStatus = "Done."
+      return
+    }
+    var stale = root.provider.limitsStale === true
+    var statusText = String(root.provider.usageStatusText || "")
+    if (!stale && root.limits.length > 0 && statusText === "") {
+      root.goFetchOk = true
+      root.goApplyStatus = root.goWasApply ? "Saved." : "Updated."
+    } else {
+      root.goFetchOk = false
+      root.goApplyStatus = root.goTerseReason(statusText)
+    }
+    root.goWasApply = false
+  }
+
+  function goTerseReason(statusText) {
+    if (statusText.indexOf("expired") >= 0) return "Expired cookie."
+    if (statusText.indexOf("not connected") >= 0) return "Not connected."
+    if (statusText.indexOf("unavailable") >= 0) return "Unreachable."
+    return statusText !== "" ? statusText : "Failed."
+  }
+
   function launchAgent() {
     if (root.bar) root.bar.run("omarchy-agent --pick")
     root.close()
@@ -315,6 +447,69 @@ Panel {
     settings: root.settings
   }
 
+  // Go settings helpers. The config file is read to prefill the form and
+  // written on Apply; the mkdir + fetch chain runs the opencode collector
+  // group through the shared update command, and the record watcher picks
+  // the new limits up on its own.
+  FileView {
+    id: goConfigFile
+    path: root.goConfigPath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+    onLoaded: if (root.goSettingsOpen) root.goPrefillFromConfig(text())
+    onLoadFailed: if (root.goSettingsOpen) root.goPrefillFromConfig("")
+  }
+
+  Process {
+    id: goMkdirProcess
+    running: false
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.goApplying = false
+        root.goFetchOk = false
+        root.goApplyStatus = "Save failed."
+        return
+      }
+      goConfigFile.setText(root.goPendingConfig + "\n")
+      root.goApplyStatus = "Fetching…"
+      goFetchProcess.command = ["omarchy-agent-usage-update", "--force", "opencode"]
+      goFetchProcess.running = true
+    }
+  }
+
+  Process {
+    id: goFetchProcess
+    running: false
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        var detail = goFetchStderr.text.trim()
+        if (detail !== "") console.warn("agents/go-settings", detail)
+        root.goApplying = false
+        root.goFetchOk = false
+        root.goWasApply = false
+        root.goApplyStatus = "Failed."
+        return
+      }
+      goEvalTimer.restart()
+    }
+
+    stderr: StdioCollector {
+      id: goFetchStderr
+      waitForEnd: true
+    }
+  }
+
+  Timer {
+    id: goEvalTimer
+    interval: 800
+    repeat: false
+    onTriggered: {
+      root.goApplying = false
+      root.goEvaluateFetch()
+    }
+  }
+
   // Cheap enough to keep running: it only re-evaluates text bindings, and a
   // stale "resets in 2h" on a panel that is open is worse than a timer.
   Timer {
@@ -363,6 +558,9 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      // While a Go settings field owns the keyboard, panel shortcuts
+      // (h/j/k/l/r/…) must not fire on the typed text.
+      blocked: wsField.activeFocus || authField.activeFocus
 
       onMoveRequested: function(dx, dy) {
         if (dx !== 0) {
@@ -403,6 +601,51 @@ Panel {
             meta: root.heroMeta(root.provider)
             foreground: root.foreground
             fontFamily: root.fontFamily
+            // Gear opens the Go connection settings. Only the opencode-go
+            // tab has anything to configure, so other tabs keep the hero
+            // exactly as it was (trailingInset collapses when hidden).
+            // Icons are Nerd Fonts glyphs (here: FA gear). Attention is a
+            // plain accent dot pinned to the glyph's own top-right corner —
+            // inset by the button padding so it rides the icon, not the box.
+            // It is purely visual; clicks pass through to the button.
+            trailingControl: Component {
+              Item {
+                visible: root.isGoProvider
+                implicitWidth: gearButton.implicitWidth
+                implicitHeight: gearButton.implicitHeight
+
+                Button {
+                  id: gearButton
+                  anchors.fill: parent
+                  iconText: ""
+                  tooltipText: root.goNeedsAttention
+                    ? "Go settings — " + root.goAttentionReason()
+                    : (root.goSettingsOpen ? "Close Go settings" : "Go settings")
+                  selected: root.goSettingsOpen
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  onClicked: {
+                    if (root.goSettingsOpen) root.closeGoSettings()
+                    else root.openGoSettings()
+                  }
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  visible: root.goNeedsAttention
+                  anchors.top: gearButton.top
+                  anchors.right: gearButton.right
+                  anchors.topMargin: gearButton.verticalPadding - 3
+                  anchors.rightMargin: gearButton.horizontalPadding - 2
+                  text: "●"
+                  // The kit control's own accent: identical to what
+                  // selected/hover states beside it use.
+                  color: gearButton.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: Math.max(8, Math.round(Style.font.caption * 0.8))
+                }
+              }
+            }
 
             iconComponent: Component {
               Item {
@@ -494,9 +737,123 @@ Panel {
             }
           }
 
+          // ---------- Go settings (inline card) ----------
+          PanelSeparator {
+            visible: root.goSettingsOpen && root.isGoProvider
+            foreground: root.foreground
+          }
+
+          Column {
+            id: goSettingsCard
+            visible: root.goSettingsOpen && root.isGoProvider
+            width: parent.width
+            spacing: Style.space(10)
+
+            PanelSectionHeader {
+              width: parent.width
+              text: "GO SETTINGS"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: "Workspace URL"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+            }
+
+            TextField {
+              id: wsField
+              width: parent.width
+              placeholderText: "https://opencode.ai/workspace/wrk_…/go"
+              foreground: root.foreground
+              font.family: root.fontFamily
+              onAccepted: authField.forceActiveFocus()
+              Keys.onEscapePressed: root.closeGoSettings()
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: "Auth cookie"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+            }
+
+            TextField {
+              id: authField
+              width: parent.width
+              password: true
+              placeholderText: "auth cookie value"
+              foreground: root.foreground
+              font.family: root.fontFamily
+              onAccepted: root.goApply()
+              Keys.onEscapePressed: root.closeGoSettings()
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: "https://opencode.ai > Press F12 > Application > Storage > Cookies"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            Row {
+              id: goApplyRow
+              width: parent.width
+              spacing: Style.spacing.md
+
+              Button {
+                id: goApplyButton
+                text: root.goApplying ? "Applying…" : "Apply"
+                enabled: !root.goApplying
+                bordered: true
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                fontSize: Style.font.bodySmall
+                verticalPadding: Style.spacing.controlPaddingY
+                onClicked: root.goApply()
+              }
+
+              Button {
+                id: goTestButton
+                text: "Test"
+                enabled: !root.goApplying
+                bordered: true
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                fontSize: Style.font.bodySmall
+                verticalPadding: Style.spacing.controlPaddingY
+                tooltipText: "Refetch with the saved config"
+                onClicked: root.goTest()
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                width: goApplyRow.width - goApplyButton.width - goTestButton.width - goApplyRow.spacing * 2
+                text: root.goApplyStatus
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideRight
+                wrapMode: Text.WordWrap
+              }
+            }
+          }
+
           // ---------- Status ----------
+          // Go reports trouble through its gear badge instead of this box,
+          // so the tab stays quiet even when unconfigured.
           BorderSurface {
-            visible: !!root.provider && String(root.provider.usageStatusText || "") !== ""
+            visible: !!root.provider && !root.isGoProvider && String(root.provider.usageStatusText || "") !== ""
             width: parent.width
             implicitHeight: statusText.implicitHeight + Style.spacing.xl * 2
             color: root.alpha(root.urgent, 0.10)
@@ -593,6 +950,8 @@ Panel {
             visible: root.limits.length > 0
             width: parent.width
             spacing: Style.space(10)
+            // Same stale treatment as the settings card above: dim, don't shout.
+            opacity: root.goMetersDimmed ? 0.4 : 1
 
             PanelSectionHeader {
               text: "LIMITS"
@@ -699,6 +1058,7 @@ Panel {
       }
     }
   }
+
 
   // A limit window: label and percentage, meter, and reset countdown.
   component LimitRow: Column {
