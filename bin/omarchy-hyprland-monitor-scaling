@@ -71,6 +71,31 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
+# A monitor can have its own hl.monitor({ output = "..." }) block that still
+# references the shared omarchy_monitor_scale variable (Omarchy's own
+# commented example in monitors.lua encourages exactly this for a second
+# monitor). If we always rewrote that shared variable below, scaling one
+# monitor would silently rescale every other monitor referencing it too.
+# Update the monitor's own line in place instead, when it has one, so the
+# change stays scoped to the monitor the user is actually looking at.
+persist_named_monitor_scale() {
+  local monitor="$1"
+  local new_scale="$2"
+  local monitor_lua="$3"
+
+  [[ -f $monitor_lua ]] || return 1
+  grep -Fq "output = \"$monitor\"" "$monitor_lua" || return 1
+
+  local tmp
+  tmp=$(mktemp)
+  MONITOR="$monitor" NEW_SCALE="$new_scale" awk '
+    BEGIN { needle = "output = \"" ENVIRON["MONITOR"] "\""; scale = ENVIRON["NEW_SCALE"] }
+    index($0, needle) > 0 { sub(/scale = [^, }]+/, "scale = " scale) }
+    { print }
+  ' "$monitor_lua" >"$tmp"
+  mv "$tmp" "$monitor_lua"
+}
+
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
@@ -97,9 +122,13 @@ set_scale() {
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
+  # Persist to monitors.lua so the scale survives reboots. A monitor with its
+  # own hl.monitor({ output = "..." }) block is handled first, above; only
+  # fall back to the shared catch-all defaults when there's no dedicated line
+  # for this monitor to update instead.
+  if persist_named_monitor_scale "$active_monitor" "$new_scale" "$monitor_lua"; then
+    :
+  elif [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
     sed -i -E \
       -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
       -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
