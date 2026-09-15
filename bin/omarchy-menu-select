@@ -94,7 +94,10 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
-  $payload->{defaultIndex} = int($ARGV[6]) if length($ARGV[6] // "");
+  if (length($ARGV[6] // "")) {
+    my $di = int($ARGV[6]);
+    $payload->{defaultIndex} = ("$di" =~ /^-?[0-9]+$/) ? $di + 0 : 0;
+  }
   print encode_json($payload)
 ' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$menu_defaultindex")
 

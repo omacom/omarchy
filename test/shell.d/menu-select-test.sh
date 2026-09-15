@@ -98,6 +98,21 @@ grep -Fq '"defaultIndex":0' "$payloads" ||
   fail "menu select coerces a non-numeric default index to 0" "$(cat "$payloads")"
 pass "menu select coerces a non-numeric default index to 0"
 
+# A value perl int() numifies to non-finite (1e1000, inf, nan) must not leak a
+# bare Inf/NaN token into the JSON payload -- that would make decode_json die
+# inside the shell, the doneFile handshake never completes, and this script
+# spins forever. The timeout guards the failure mode (hang), not the runtime.
+: >"$payloads"
+if ! timeout 10 bash -c '
+  PATH="$1:$PATH" CAPTURED_PAYLOADS="$2" FAKE_PICK=a \
+    "$3/bin/omarchy-menu-select" Pick a b c -- --default-index 1e1000 >/dev/null
+' _ "$STUB_DIR" "$payloads" "$ROOT"; then
+  fail "menu select coerces a non-finite default index to 0" "timed out or exited non-zero"
+fi
+grep -Fq '"defaultIndex":0' "$payloads" ||
+  fail "menu select coerces a non-finite default index to 0" "$(cat "$payloads")"
+pass "menu select coerces a non-finite default index to 0"
+
 # The flag is new surface: no shipped caller passes it yet, so every existing
 # invocation keeps its absent-field payload. Phase 6 adopts it first.
 sweep=$(grep -rln -- '--default-index' "$ROOT/bin" | grep -v '/omarchy-menu-select$' || true)
