@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Upgrade Chromium to the in-the-wild CVE floor when the installed package is older.
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Stable can lag Arch when the Omarchy stable mirror freezes (#10732). Chromium
+# 152.0.7977.82 fixes CVE-2026-85046 (known in-the-wild). Until the mirror is
+# ahead of that floor, pull a new enough build from a known package URL when
+# Chromium is installed and behind.
+
+CHROMIUM_MIN_VERSION="${OMARCHY_CHROMIUM_MIN_VERSION:-152.0.7977.82-1}"
+OMARCHY_STABLE_MIRROR="${OMARCHY_STABLE_MIRROR:-https://stable-mirror.omarchy.org}"
+ARCH_EXTRA_MIRROR="${OMARCHY_ARCH_EXTRA_MIRROR:-https://geo.mirror.pkgbuild.com}"
+
+if ! pacman -Q chromium &>/dev/null; then
+  exit 0
+fi
+
+current=$(pacman -Q chromium | awk '{print $2}')
+if [[ $(vercmp "$current" "$CHROMIUM_MIN_VERSION") -ge 0 ]]; then
+  exit 0
+fi
+
+arch=$(uname -m)
+case $arch in
+  x86_64 | aarch64) ;;
+  *)
+    echo "Chromium $current is older than the security floor $CHROMIUM_MIN_VERSION, but no package URL is configured for $arch." >&2
+    exit 0
+    ;;
+esac
+
+pkg="chromium-${CHROMIUM_MIN_VERSION}-${arch}.pkg.tar.zst"
+candidates=(
+  "$OMARCHY_STABLE_MIRROR/extra/os/$arch/$pkg"
+  "$ARCH_EXTRA_MIRROR/extra/os/$arch/$pkg"
+)
+
+pkg_url=""
+for url in "${candidates[@]}"; do
+  if curl -fsI --connect-timeout 5 --max-time 20 "$url" >/dev/null 2>&1; then
+    pkg_url=$url
+    break
+  fi
+done
+
+if [[ -z $pkg_url ]]; then
+  echo "Chromium $current is older than $CHROMIUM_MIN_VERSION, but no mirror still serves that build." >&2
+  exit 0
+fi
+
+echo "Upgrading Chromium $current → $CHROMIUM_MIN_VERSION (CVE-2026-85046 floor)..."
+sudo pacman -U --noconfirm "$pkg_url"
