@@ -313,13 +313,42 @@ run_root_transaction() {
       done
     fi
 
+    # Older publishers could leave these package destinations user-owned
+    # (mode 0700). validate_trusted_directory correctly refuses that state, so
+    # Style > Unlock stays stuck until metadata is repaired. Claim the leaf
+    # directories back for root first, still refusing symlinks, then validate.
+    repair_legacy_destination_directory() {
+      local directory=$1 uid directory_mode
+
+      [[ -e $directory || -L $directory ]] || return 0
+
+      failure_context="legacy destination directory $directory"
+      [[ -d $directory && ! -L $directory ]]
+
+      uid=$(stat -c %u -- "$directory")
+      directory_mode=$(stat -c %a -- "$directory")
+      if (( uid == 0 )) && (( (8#$directory_mode & 0022) == 0 )); then
+        return 0
+      fi
+
+      failure_context="repairing legacy destination directory $directory"
+      chown root:root -- "$directory"
+      chmod 0755 -- "$directory"
+      find "$directory" -xdev \( -type f -o -type d \) -exec chown root:root -- {} +
+      find "$directory" -xdev -type d -exec chmod 0755 -- {} +
+      find "$directory" -xdev -type f -exec chmod 0644 -- {} +
+    }
+
     if (( ${#plymouth_assets[@]} )); then
+      repair_legacy_destination_directory "$theme_dir"
       validate_trusted_directory "$theme_dir"
       if [[ $mode == "refresh-plymouth" ]]; then
+        repair_legacy_destination_directory "$theme_dir/logos"
         validate_trusted_directory "$theme_dir/logos"
       fi
     fi
     if (( ${#sddm_assets[@]} )); then
+      repair_legacy_destination_directory "$sddm_dir"
       validate_trusted_directory "$sddm_dir"
     fi
 
