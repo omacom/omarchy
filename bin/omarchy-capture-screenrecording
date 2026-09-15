@@ -22,8 +22,12 @@
 OUTPUT_DIR="${OMARCHY_SCREENRECORD_DIR:-${XDG_VIDEOS_DIR:-$HOME/Videos}}"
 
 if [[ ! -d $OUTPUT_DIR ]]; then
-  omarchy-notification-send -u critical -t 3000 "Screen recording directory does not exist: $OUTPUT_DIR"
-  exit 1
+  mkdir -p "$OUTPUT_DIR" 2>/dev/null || {
+    if [[ " $* " != *" --stop-recording "* ]]; then
+      omarchy-notification-send -u critical -t 3000 "Screen recording directory does not exist: $OUTPUT_DIR"
+      exit 1
+    fi
+  }
 fi
 
 DESKTOP_AUDIO="false"
@@ -108,7 +112,11 @@ start_webcam_overlay() {
 }
 
 cleanup_webcam() {
-  pkill -f "WebcamOverlay" 2>/dev/null
+  pkill -f '(^|/)mpv.*WebcamOverlay' 2>/dev/null || true
+  if pgrep -f '(^|/)mpv.*WebcamOverlay' >/dev/null 2>&1; then
+    sleep 0.2
+    pkill -9 -f '(^|/)mpv.*WebcamOverlay' 2>/dev/null || true
+  fi
   rm -f "$REGION_FILE"
 }
 
@@ -282,6 +290,7 @@ finalize_recording() {
 if screenrecording_active; then
   stop_screenrecording
 elif [[ $STOP_RECORDING == "true" ]]; then
+  cleanup_webcam
   exit 1
 else
   start_screenrecording || cleanup_webcam
