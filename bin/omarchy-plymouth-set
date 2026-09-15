@@ -314,13 +314,19 @@ run_root_transaction() {
     fi
 
     if (( ${#plymouth_assets[@]} )); then
+      # Pre-4.0 installs left this directory user-owned; migration 1789384000
+      # reclaims it. Surface that repair when the refusal is the ownership check.
+      failure_hint="if $theme_dir is user-owned from a pre-4.0 install, run: sudo chown root:root $theme_dir && sudo chmod 755 $theme_dir"
       validate_trusted_directory "$theme_dir"
       if [[ $mode == "refresh-plymouth" ]]; then
         validate_trusted_directory "$theme_dir/logos"
       fi
+      failure_hint=
     fi
     if (( ${#sddm_assets[@]} )); then
+      failure_hint="if $sddm_dir is user-owned from a pre-4.0 install, run: sudo chown root:root $sddm_dir && sudo chmod 755 $sddm_dir"
       validate_trusted_directory "$sddm_dir"
+      failure_hint=
     fi
 
     publish_asset() {
