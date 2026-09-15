@@ -104,8 +104,8 @@ reset_fixture
 printf '75\n' > "$fixture/sys/BAT0/charge_control_start_threshold"
 run_apply
 (( status == 0 )) || fail "apply with an independent minimum"
-assert_value "$fixture/sys/BAT0/charge_control_start_threshold" 75 "existing minimum is preserved"
-pass "successful maximum-only changes preserve the independent minimum"
+assert_value "$fixture/sys/BAT0/charge_control_start_threshold" 75 "charging start is five points below maximum"
+pass "presets use a five-point gap when a start threshold is available"
 
 for fault in prepare enable; do
   reset_fixture

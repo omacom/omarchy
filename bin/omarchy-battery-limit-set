@@ -81,7 +81,11 @@ restore_battery() {
       write_threshold "$start_path" "$old_start" || return 1
     fi
   fi
-  write_threshold "$end_path" "$old_end" || return 1
+  # The end write may have been rejected after start was lowered. Restore
+  # start without retrying an unchanged, possibly read-only end control.
+  if [[ $(read_threshold "$end_path") != "$old_end" ]]; then
+    write_threshold "$end_path" "$old_end" || return 1
+  fi
   if [[ -n $old_start && $(read_threshold "$start_path") != "$old_start" ]]; then
     write_threshold "$start_path" "$old_start" || return 1
   fi
@@ -92,6 +96,7 @@ restore_battery() {
 # The subshell owns both the lock and traps, including on an interrupted apply.
 apply_limit() (
   local limit=$1 threshold battery start_path end_value start_value i
+  local target_start=$(( $1 - 5 ))
   local -a thresholds=() ends=() starts=()
   local touched=0 staged="" committed=false
 
@@ -156,9 +161,33 @@ apply_limit() (
 
   for (( i=0; i<${#thresholds[@]}; i++ )); do
     touched=$((i + 1))
+    start_path="${thresholds[i]%/*}/charge_control_start_threshold"
+    # Keep a five-point recharge gap where the driver exposes a start control.
+    # Otherwise an old 75% start can leave a battery at 78% idle after choosing
+    # 90%. Lower start first when decreasing the limit; raise end first when
+    # increasing it so drivers requiring start < end accept both transitions.
+    if [[ -n ${starts[i]} ]] && (( target_start < starts[i] )); then
+      if ! write_threshold "$start_path" "$target_start" ||
+        [[ $(read_threshold "$start_path") != "$target_start" ]]; then
+        echo "Error: battery did not accept charging start $target_start at $start_path." >&2
+        exit 1
+      fi
+    fi
     if ! write_threshold "${thresholds[i]}" "$limit" ||
       [[ $(read_threshold "${thresholds[i]}") != "$limit" ]]; then
       echo "Error: battery did not accept charge limit $limit at ${thresholds[i]}." >&2
+      exit 1
+    fi
+    if [[ -n ${starts[i]} && $(read_threshold "$start_path") != "$target_start" ]]; then
+      if ! write_threshold "$start_path" "$target_start" ||
+        [[ $(read_threshold "$start_path") != "$target_start" ]]; then
+        echo "Error: battery did not accept charging start $target_start at $start_path." >&2
+        exit 1
+      fi
+    fi
+    # A driver can couple the controls in either direction.
+    if [[ $(read_threshold "${thresholds[i]}") != "$limit" ]]; then
+      echo "Error: charging start changed the requested maximum at ${thresholds[i]}." >&2
       exit 1
     fi
   done
