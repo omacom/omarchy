@@ -79,6 +79,8 @@ chmod +x "$stub_bin"/*
 export PATH="$stub_bin:$ROOT/bin:$PATH"
 # The resize helper anchors to a region file here, so keep it out of the real one
 export XDG_RUNTIME_DIR="$tmp_dir"
+export OMARCHY_SCREENRECORD_DIR="$tmp_dir/Videos"
+mkdir -p "$OMARCHY_SCREENRECORD_DIR"
 export OMARCHY_TEST_MENU_ARGS="$tmp_dir/menu-args"
 export OMARCHY_TEST_RECORDER_ARGS="$tmp_dir/recorder-args"
 export OMARCHY_TEST_NOTIFICATION_ARGS="$tmp_dir/notification-args"
@@ -299,3 +301,18 @@ grep -F 'move = { "(monitor_w-monitor_h*2/9-40)", "(monitor_h-monitor_h/4-40)" }
 grep -F 'move = { "(monitor_w-monitor_h*3/10-40)", "(monitor_h-monitor_h*27/80-40)" }' "$webcam_rules" >/dev/null || \
   fail "large webcam starts at its final corner position"
 pass "webcam size rules place the initial window in its final corner"
+
+grep -E 'pkill -f .*\(\^\|/\)mpv.*WebcamOverlay' "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null ||
+  fail "cleanup_webcam targets mpv binary specifically"
+pass "cleanup_webcam targets mpv binary specifically"
+
+grep -E 'pkill -9 -f .*\(\^\|/\)mpv.*WebcamOverlay' "$ROOT/bin/omarchy-capture-screenrecording" >/dev/null ||
+  fail "cleanup_webcam escalates to SIGKILL"
+pass "cleanup_webcam escalates to SIGKILL"
+
+fake_region="$XDG_RUNTIME_DIR/omarchy-screenrecord-region"
+touch "$fake_region"
+"$ROOT/bin/omarchy-capture-screenrecording" --stop-recording 2>/dev/null || true
+[[ ! -f $fake_region ]] || fail "--stop-recording removes region file when recorder is inactive"
+pass "--stop-recording removes region file and cleans up webcam when recorder is inactive"
+
