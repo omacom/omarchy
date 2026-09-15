@@ -74,6 +74,9 @@ assert_detects "a reader is detected by an existing product-name match"
 write_usb_devices '27c6:1234'
 assert_detects "a reader is detected by an existing vendor match"
 
+write_usb_devices '2808:a97a'
+assert_detects "a FocalTech reader is detected by its vendor match"
+
 bind_driver() {
   local dev="$1" driver="$2"
 
