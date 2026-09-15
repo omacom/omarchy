@@ -161,6 +161,13 @@ if [[ -s $calls ]]; then
 fi
 pass "picture quality rejection precedes every side effect"
 
+# `medium` is rejected on pictures too -- the gate is [[ -n $quality ]], not
+# a non-default check, so the locked vocabulary never leaks into slot 3.
+if run_transcode "$TMPDIR/img.png" jpg medium medium; then
+  fail "a picture transcode rejects quality=medium"
+fi
+pass "a picture transcode rejects quality=medium"
+
 # 4k picks libx265 -preset slow; each tier pins its locked CRF (D-00a).
 run_transcode "$TMPDIR/in.mov" mp4 4k high
 grep '^ffmpeg ' "$calls" | grep -F -- '-c:v libx265 -preset slow -crf 20' >/dev/null ||
