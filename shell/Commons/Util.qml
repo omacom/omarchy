@@ -44,6 +44,10 @@ QtObject {
     return "file://" + String(path).split("/").map(encodeURIComponent).join("/")
   }
 
+  function isVideoPath(path) {
+    return /\.(mp4|m4v|mov|webm|mkv|avi)$/i.test(String(path || ""))
+  }
+
   // Single-quote a string for bash. The replace handles embedded single
   // quotes by closing, escaping, and re-opening the literal.
   function shellQuote(value) {
@@ -52,6 +56,15 @@ QtObject {
 
   function execDetached(command) {
     Quickshell.execDetached(["bash", "-lc", command])
+  }
+
+  // Run an argv vector without a shell interpreting it: the constant `exec "$@"`
+  // means the args only ever land in positional parameters, which bash expands
+  // without re-tokenizing — so untrusted data ($(id), a filename) stays literal.
+  // The login shell (-l) keeps the PATH/session env GUI targets (tensaku, mpv,
+  // xdg-open) need. Prefer this over execDetached for anything built from input.
+  function execArgv(argv) {
+    Quickshell.execDetached(["bash", "-lc", 'exec "$@"', "bash"].concat(argv))
   }
 
   function isPlainObject(value) {

@@ -5,8 +5,8 @@ system.
 
 ## Mental model
 
-Two Arch packages are built from this one repo (PKGBUILDs live in
-`omarchy-pkgs/pkgbuilds/`):
+Two Arch packages are built from this one repo (PKGBUILDs live in the
+separate `omarchy-pkgs` repository, under `pkgbuilds/`):
 
 - **`omarchy`** — runtime binaries (`bin/`, including `bin/omarchy-dev-*`),
   install/finalize scripts (`install/`), migrations, themes, and the
@@ -22,9 +22,13 @@ Two Arch packages are built from this one repo (PKGBUILDs live in
   (`omarchy-debug`, `omarchy-debug-idle`, `omarchy-upload-log`) needed by
   the live ISO env.
 
-Two other packages live in `omarchy-pkgs/` but stand alone:
+Two other packages live in `omarchy-pkgs` but stand alone:
 `omarchy-keyring` (GPG keys for pacman) and `omarchy-nvim` (the Neovim
 setup; independently seeds `/etc/skel`).
+
+Some trees ship in neither package and exist only in the repo: `manual/`
+(user manual chapters), `agents/skills/` (contributor task guides), `docs/`,
+`test/`, and `plans/`.
 
 Three layers populate `$HOME`:
 
@@ -32,15 +36,23 @@ Three layers populate `$HOME`:
    Arch's `useradd -m` copies that tree into a new user's `$HOME` at user
    creation. This is the only mechanism that touches a brand-new user's home
    for these files.
-2. **Finalize** — `omarchy-finalize-user` runs once per user and handles the
-   things `/etc/skel` can't do because they need `$HOME` expansion, the live
-   `$OMARCHY_PATH`, or runtime detection of system state.
+2. **Finalize** — `omarchy-provision-user` (routed as `omarchy finalize
+   user`) runs once per user and handles the things `/etc/skel` can't do
+   because they need `$HOME` expansion, the live `$OMARCHY_PATH`, or runtime
+   detection of system state.
 3. **Resync** — `omarchy-reinstall-configs` is the explicit, destructive
    command for an existing user to clobber their configs back to shipped
    defaults.
 
 `/etc/skel` only fires at user creation. Existing users picking up new
 defaults must use the resync command.
+
+Deferred-provisioning installs (`omarchy-apply-system --defer-provisioning`)
+create no user at all: the ISO leaves `/var/lib/omarchy/provisioning/pending`
+behind, which arms `omarchy-provision-owner.service` (shipped from
+`install/provisioning/`, alongside the factory-reset finish unit and
+`setup-form.sh`). On first boot `bin/omarchy-provision-owner` creates the
+user on tty1 and runs the finalize step itself.
 
 Current generated theme state lives under
 `~/.local/state/omarchy/current/`. Keep `~/.config/omarchy/` for files a user
@@ -72,6 +84,7 @@ version                        ──►  omarchy             /usr/share/omarchy
 config/**                      ──►  omarchy-settings    /etc/skel/.config/**         (seeds new users)
                                                         /usr/share/omarchy/config/** (resync source)
 etc/fastfetch/config.jsonc     ──►  omarchy-settings    /etc/fastfetch/config.jsonc
+etc/xdg/kitty/kitty.conf       ──►  omarchy-settings    /etc/xdg/kitty/kitty.conf
 
 applications/*.desktop         ──►  omarchy-settings    /etc/skel/.local/share/applications/
                                                         /usr/share/omarchy/applications/
@@ -82,7 +95,12 @@ applications/icons/*           ──►  omarchy-settings    /usr/share/icons/h
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
   ├─ mkinitcpio.conf.d/{omarchy_hooks,thunderbolt_module}.conf
-  └─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
+  ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
+  ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
+  │  profile.d/omarchy.sh, …                            (a summary — `ls etc/` for the full ~17-entry tree)
+  └─ security/faillock.conf, nsswitch.conf,
+     cups/cups-browsed.conf, plymouth/plymouthd.conf    /usr/share/omarchy/etc-overrides/
+                                                          → /etc/* (post_install cp -f, see below)
 
 default/limine/limine.conf     ──►  omarchy-settings    /usr/share/omarchy/default/limine/limine.conf
 default/limine/default.conf    ──►  omarchy-settings    /usr/share/omarchy/default/limine/default.conf
@@ -95,7 +113,8 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   │                                                       (sourced by every shell/session entry point; see "Env bootstrap")
   ├─ bashrc                                             /usr/share/omarchy/etc-overrides/dot.bashrc
   │                                                       → /etc/skel/.bashrc (post_install cp -f)
-  ├─ hypr/toggles/flags.lua                             /etc/skel/.local/state/omarchy/toggles/hypr/
+  ├─ hypr/toggles/*.lua (flags,
+  │    single-window-aspect-ratio, window-no-gaps)      /etc/skel/.local/state/omarchy/toggles/hypr/
   ├─ nautilus-python/extensions/*.py                    /etc/skel/.local/share/nautilus-python/extensions/
   ├─ tensaku/state.toml                                 /etc/skel/.local/state/tensaku/state.toml
   ├─ uwsm/env.d/10-omarchy                              /usr/share/uwsm/env.d/
@@ -104,7 +123,7 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   │                                                       + symlink /etc/fonts/conf.d/50-omarchy.conf
   ├─ xdg-terminal-exec/*.list                           /usr/share/xdg-terminal-exec/
   ├─ applications/mimeapps.list                         /usr/share/applications/mimeapps.list
-  ├─ systemd/user/*.{service,path}                      /usr/lib/systemd/user/
+  ├─ systemd/user/*.service                             /usr/lib/systemd/user/
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
   ├─ systemd/system-sleep/unmount-fuse                  /usr/lib/systemd/system-sleep/
   ├─ systemd/zram-generator.conf.d/90-omarchy.conf      /usr/lib/systemd/zram-generator.conf.d/
@@ -112,10 +131,7 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ sddm/omarchy/                                      /usr/share/sddm/themes/omarchy/
   ├─ sddm/hyprland.lua                                  /usr/share/sddm/hyprland.lua
   ├─ wayland-sessions/omarchy.desktop                   /usr/local/share/wayland-sessions/
-  ├─ plymouth/                                          /usr/share/plymouth/themes/omarchy/
-  └─ security/faillock, nsswitch, cups-browsed,
-     plymouthd.conf, os-release                         /usr/share/omarchy/etc-overrides/
-                                                          → /etc/* (post_install cp -f, see below)
+  └─ plymouth/                                          /usr/share/plymouth/themes/omarchy/
 
 logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy/  (resync source)
                                                         /usr/share/pixmaps/omarchy.png
@@ -123,17 +139,28 @@ logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy
                                                         /etc/skel/.config/omarchy/branding/{about,screensaver}.txt
 ```
 
+The hardware-conditional `force-igpu` and `keyboard-backlight` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`.
+
 ### Why `etc-overrides/` exists
 
 Some files under `/etc/` (`.bashrc` in `/etc/skel`, `nsswitch.conf`,
-`security/faillock.conf`, `cups/cups-browsed.conf`, `plymouth/plymouthd.conf`,
-`os-release`) are owned by upstream Arch packages, so we can't install over
-them via pacman without a file conflict. Instead they ship at
+`security/faillock.conf`, `cups/cups-browsed.conf`, `plymouth/plymouthd.conf`)
+are owned by upstream Arch packages, so we can't install over them via pacman
+without a file conflict. Instead their sources (under `etc/` in the repo;
+`.bashrc` from `default/bashrc`) ship at
 `/usr/share/omarchy/etc-overrides/` and the `omarchy-settings` `post_install`
 / `post_upgrade` scriptlet `cp -f`'s them into place.
 
 Tradeoff: user edits to those files get clobbered on every `omarchy-settings`
 upgrade. This is documented in the PKGBUILD.
+
+## Locate indexing
+
+`default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf` ships through `omarchy-settings` to `/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf`. It replaces the existing service's `ExecStart` with `updatedb --prune-bind-mounts=no --add-prunepaths=/.snapshots`, keeping Btrfs subvolume mounts searchable and excluding Snapper snapshots. The upstream service retains its timer, resource limits, and sandbox; Omarchy's existing AC-power condition still applies.
+
+`/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. Installer and AUR package refreshes pass the same options directly because installation may run without systemd and an explicitly requested refresh should work on battery.
+
+Arch's systemd package hook reloads units when the vendor drop-in is installed or upgraded. The settings package containing the drop-in must ship alongside the runtime package that removes the old configuration helper and migration. Pacman removes those retired files; no new state migration is needed. A running indexer finishes with its original options, and subsequent service starts use the drop-in. For an immediate local test after installing the packages, restart `plocate-updatedb.service` while connected to AC power.
 
 ## Env bootstrap (`default/bash/env-bootstrap`)
 
@@ -146,6 +173,10 @@ Single source of truth for `OMARCHY_PATH` and dev-link-aware `PATH`. It:
 - Prepends `$OMARCHY_PATH/bin` to `PATH` **only when** `OMARCHY_PATH` is
   not `/usr/share/omarchy`. On a production install the binaries are
   already on `PATH` as `/usr/bin/omarchy-*` via the `omarchy` package.
+- Appends `~/.local/share/mise/shims` and `~/.local/bin` so login shells and
+  the uwsm session find mise-managed tools — kept in sync with the PAM `PATH`
+  line written by `install/config/ssh-command-path.sh`, which covers SSH
+  commands that run no shell setup at all.
 
 Sourced by every entry point that needs the env set:
 
@@ -171,15 +202,13 @@ yet and silently runs the packaged copy of one it has. The drop-in is validated
 with `visudo -c` before install and removed by `omarchy-dev-unlink`; unlike
 `/etc/omarchy.conf`, it takes effect without a reboot.
 
-## Runtime finalization (`omarchy-finalize-user`)
+## Runtime finalization (`omarchy-provision-user`)
 
 Runs once per user. It does **not** copy `~/.config/**`, `~/.bashrc`,
 `flags.lua`, or the nautilus extensions — `/etc/skel` already seeded those.
 It only does the things `/etc/skel` can't:
 
-- Skill symlinks `~/.{agents,claude,codex,pi/agent}/skills/omarchy` →
-  `$OMARCHY_PATH/default/agents/skills/omarchy`. Symlinks (not copies) so
-  `omarchy dev link` against a dev checkout repoints them correctly.
+- Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (currently `omarchy` and `diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
 - `xdg-user-dirs-update` (Templates/Public/Desktop folded back into `$HOME`)
   and `~/.config/gtk-3.0/bookmarks` (needs `$HOME` expansion).
 - Hyprland's package-owned default input reads `XKBLAYOUT` / `XKBVARIANT`
@@ -187,21 +216,23 @@ It only does the things `/etc/skel` can't:
 - `xdg-settings set default-web-browser chromium.desktop` and
   `xdg-mime default HEY.desktop x-scheme-handler/mailto` (XDG-aware paths).
 - `omarchy-refresh-applications` (composes generated `.desktop` launchers).
-- Sources `install/user/all.sh` — theme, git, mise, keyring, per-user
-  hardware quirks (asus mic/mixer, framework f13 audio, …).
+- Sources `install/user/all.sh` — theme, chromium, git, xcompose, mise,
+  keyring, per-user hardware quirks (asus mic/mixer, framework f13 audio, …).
 - On `--first-install`, marks every shipped user migration as already applied
   for the freshly-created user.
 
 Idempotency marker: `~/.local/state/omarchy/done/finalize-user`, managed
 by `omarchy-done`.
 
-The ISO calls it as `omarchy-finalize-user --force --first-install` in the
+The ISO calls it as `omarchy-provision-user --force --first-install` in the
 target chroot as the install user, after `omarchy-apply-system` has finished
-the root-side work.
+the root-side work. `omarchy-provision-owner` makes the same call (with
+`OMARCHY_SETUP_CONTEXT=provision-owner`) when it creates the user during
+deferred first-boot provisioning.
 
 ## Migrations (`omarchy-migrate`)
 
-See [`migrations.md`](migrations.md) for the full migration model, authoring
+See [`migrations.md`](../agents/skills/migrations.md) for the full migration model, authoring
 guidelines, and troubleshooting notes.
 
 Omarchy migrations live in `migrations/*.sh` and run per-user through
@@ -213,9 +244,10 @@ machine-wide repairs should no-op when another user already applied them.
 
 Each graphical user has `omarchy-migrate-notify.service`, started once per login
 through `WantedBy=graphical-session.target` and ordered after that target so
-notification actions can safely launch through UWSM. The package also ships
-`omarchy-update-user-notify.service` as a symlink onto it, so users enabled
-under the old unit name keep working before they reach migration `1785095882`.
+notification actions can safely launch through UWSM. The `omarchy-pkgs`
+PKGBUILD has shipped `omarchy-update-user-notify.service` as a symlink onto
+it, so users enabled under the old unit name keep working before they reach
+migration `1785095882`.
 It runs `omarchy-migrate-notify` as
 that user, which checks `omarchy-migrate --pending`. If this user has missing
 migration state, it shows a notification that opens a terminal for
@@ -234,27 +266,31 @@ transaction in the already-visible update terminal, then runs
 
 ## First-run (`omarchy-provision-first-run`)
 
-Runs once on first interactive login, after the user manager is live. Used
-for steps that need a running graphical session and/or a working user
-systemd instance:
+Runs once on first interactive login, after the user manager is live. It
+first runs `omarchy-provision-user || true` so finalize catches up if it
+never ran, then handles the steps that need a running graphical session
+and/or a working user systemd instance:
 
-- `omarchy-hook-install post-update install-voxtype.hook` — register the
-  Voxtype post-update hook.
-- `install/user/first-run/enable-user-units.sh` — `systemctl --user enable`
-  the shipped user units (`bt-agent`, `omarchy-sleep-lock`,
-  `omarchy-recover-internal-monitor`, `omarchy-migrate-notify.service`,
-  `omarchy-fcitx5.service`).
+- `omarchy-hook-install post-update` for the three shipped hooks
+  (`install-voxtype.hook`, `setup-fingerprint.hook`, `setup-agent.hook`).
+- `install/user/first-run/enable-user-units.sh` — daemon-reload, then
+  `systemctl --user enable --now` the shipped user units (`bt-agent`,
+  `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
+  `omarchy-migrate-notify.service`, `omarchy-fcitx5.service`,
+  `omarchy-crash-watch.service`) so they run in the first session too.
   Done here, not at finalize, because
   the user manager isn't reachable from the ISO chroot; `ConditionPath*`
   in the unit files keeps services inert when they don't apply.
 - `install/user/first-run/gnome-theme.sh`,
   `install/user/first-run/gtk-primary-paste.sh` — GNOME/GTK settings that
   need the dconf daemon.
+- `install/user/first-run/audio-tuning.sh` — apply speaker tuning.
 - `install/user/first-run/welcome.sh` — keybindings toast that greets the
-  first login and opens the cheatsheet when clicked.
-- `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits for a live
-  notification server before firing, then waits detached on `nm-online` so the
-  update prompt only lands once there is a connection).
+  first login and opens the cheatsheet when clicked. The caller runs
+  `omarchy-notification-wait` once before this and the Wi-Fi step, so both
+  toasts land on a live notification server.
+- `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
+  `nm-online` so the update prompt only lands once there is a connection).
 
 The entire sequence has one idempotency marker:
 `~/.local/state/omarchy/done/first-run-user`, managed by `omarchy-done`.
@@ -274,8 +310,8 @@ the legacy finalization marker from `~/.local/state/omarchy/` into `done/`.
 finalization. It sources:
 
 - `install/config/all.sh` — theme links, lockout limits, lockscreen PAM,
-  powerprofilesctl shebang fix, docker setup, Snapper retention, locate
-  index tuning, service enablement, firewall.
+  powerprofilesctl shebang fix, SSH command path and keepalive, docker setup,
+  Snapper retention, locate index tuning, service enablement, firewall.
 - `install/hardware/all.sh` via `omarchy-apply-hardware` — vendor- and
   device-specific kernel modules, udev rules, microcode, wireless regdom,
   ASUS / Framework / Intel / Apple / Lenovo quirks.
@@ -284,6 +320,10 @@ finalization. It sources:
 
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.
+
+The package lists the ISO pacstraps live at `install/omarchy-base.packages`
+and `install/omarchy-other.packages`; the ISO builder also reads them when
+constructing its offline mirror.
 
 ## Explicit resync (`omarchy-reinstall-configs`)
 
@@ -310,10 +350,10 @@ return to the packaged default.
 | --- | --- |
 | Default file at `~/.config/foo/` | `config/foo/` |
 | `/etc/` drop-in we own outright | `etc/` |
-| `/etc/` file owned by an upstream package | `default/`, then add to `etc-overrides` in `omarchy-settings` PKGBUILD + scriptlet |
-| Package-owned system file (e.g. systemd user service/path in `/usr/lib`) | `default/`, document the mapping in `default/package-defaults.tsv`, then add the `install -Dm644` line in `omarchy-settings` PKGBUILD |
+| `/etc/` file owned by an upstream package | `etc/` (see `etc/security/faillock.conf`), then add to `etc-overrides` in `omarchy-settings` PKGBUILD + scriptlet |
+| Package-owned system file (e.g. systemd user service in `/usr/lib`) | `default/`, then add the `install -Dm644` line in `omarchy-settings` PKGBUILD |
 | Per-user file that's static but lives outside `~/.config` | `default/`, then add `install -Dm644 ... $pkgdir/etc/skel/...` in `omarchy-settings` PKGBUILD |
-| Runtime tweak that needs `$HOME` or live system state | extend `omarchy-finalize-user`, or add a per-user leaf under `install/user/` and wire into `install/user/all.sh` |
+| Runtime tweak that needs `$HOME` or live system state | extend `omarchy-provision-user`, or add a per-user leaf under `install/user/` and wire into `install/user/all.sh` |
 | One-time root-side setup step | `install/config/*.sh` or `install/hardware/*.sh`, wire into `install/config/all.sh` or `install/hardware/all.sh` |
 | One-time fix for existing installs | `migrations/<unix-timestamp>.sh` |
 | Package-owned path something else may already write | Prefer a path nothing else writes, such as a vendor drop-in under `/usr/lib`. Otherwise the `--overwrite` entry in `bin/omarchy-update-system-pkgs` has to ship a release before the file |
@@ -321,3 +361,9 @@ return to the packaged default.
 | New stock theme | `themes/<name>/` (+ matching templates under `default/themed/` if they need theme colors) |
 | User-installed theme | `~/.config/omarchy/themes/<name>/` |
 | Generated current theme/background state | `~/.local/state/omarchy/current/` |
+
+## Kitty defaults and user overrides
+
+Kitty loads `/etc/xdg/kitty/kitty.conf` before `~/.config/kitty/kitty.conf`. The `omarchy-settings` package owns the system file; the user template contains only the active theme include and commented examples for personal overrides. Keeping the theme include in the user file lets users remove it without changing the packaged defaults. Individual inherited keybindings can be unmapped with an empty `map <shortcut>` directive, or all inherited bindings can be cleared with `clear_all_shortcuts yes`.
+
+The system default uses `allow_remote_control socket-only` so Omarchy can query the active terminal directory over its Unix socket while Kitty rejects remote-control requests arriving through terminal output. Changing this setting requires restarting Kitty. The migration refreshes the exact previous stock config with a backup; customized configs retain their settings and ordering, with only explicit unrestricted `yes`, `y`, or `true` remote-control settings commented out.
