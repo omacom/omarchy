@@ -3,6 +3,24 @@
 # omarchy:summary=Launch the Omarchy shell with its log kept in the journal
 # omarchy:hidden=true
 
+# Keep the reservation host outside the process that loads plugins. The display
+# hash keeps the Unix socket short and separates simultaneous Wayland sessions.
+bar_reservation_call() {
+  [[ -n ${OMARCHY_BAR_SOCKET:-} ]] || return 0
+  timeout --kill-after=1s 1s quickshell ipc -n -p "$OMARCHY_PATH/shell/bar-reservation" call reservation "$1" >/dev/null 2>&1 || true
+}
+
+unset OMARCHY_BAR_SOCKET
+if [[ -n ${XDG_RUNTIME_DIR:-} && -n ${WAYLAND_DISPLAY:-} && -f $OMARCHY_PATH/shell/bar-reservation/shell.qml ]]; then
+  bar_display_id=$(printf '%s' "$WAYLAND_DISPLAY" | sha256sum | cut -c1-16)
+  export OMARCHY_BAR_SOCKET="$XDG_RUNTIME_DIR/omarchy-bar-$bar_display_id.sock"
+  if ! QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
+    timeout --kill-after=1s 5s quickshell -d -n -p "$OMARCHY_PATH/shell/bar-reservation" >/dev/null 2>&1; then
+    logger -t omarchy-shell "Bar reservation host unavailable; using the bar's own exclusive zone."
+    unset OMARCHY_BAR_SOCKET
+  fi
+fi
+
 # Quickshell only logs to its instance runtime dir (tmpfs), so when the shell
 # dies the idle/lock event trail is gone after a reboot. The journal keeps it
 # across sessions, bounded and timestamped, under the omarchy-shell tag.
@@ -83,9 +101,11 @@ while true; do
 
   if (( ++attempts > 5 )); then
     logger -t omarchy-shell "Giving up on the Omarchy shell after $attempts relaunches in under a minute."
+    bar_reservation_call failed
     exit 1
   fi
 
+  bar_reservation_call crashed
   logger -t omarchy-shell "Omarchy shell exited with status $status; relaunching."
   sleep 1
 done
