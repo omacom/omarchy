@@ -378,6 +378,20 @@ grep -Fq 'omarchy-crash-mute' "$skill" ||
   fail "the diagnosis no longer names the command that mutes, so the offer it makes cannot be carried out"
 pass "the diagnosis names the command that mutes"
 
+# gdb decides on debuginfod during startup, before -ex commands run, and never
+# retries the executable lookup; only -iex enables it in time, so -ex leaves
+# the crashed program's own frames unsymbolized while libraries still resolve.
+grep -Fq -- "-iex 'set debuginfod enabled on'" "$skill" ||
+  fail "the diagnosis enables debuginfod with -ex, which runs after gdb's startup lookup and leaves the crashed executable unsymbolized"
+pass "the diagnosis enables debuginfod before gdb's startup lookup"
+
+# A bare `bt` only prints the selected thread's stack, but the skill asks for
+# other threads' stacks to show work in flight; `thread apply all bt` is the
+# only form that collects them.
+grep -Fq -- "-ex 'thread apply all bt'" "$skill" ||
+  fail "the diagnosis backtraces only the selected thread, so the work-in-flight stacks the report asks for are never collected"
+pass "the diagnosis collects every thread's backtrace"
+
 grep -Fq 'GROUP_DESCRIPTIONS[crash]' "$ROOT/bin/omarchy" ||
   fail "the crash group has no description, so the router lists a group it cannot describe"
 pass "the crash group is described in the router"
