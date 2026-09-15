@@ -282,10 +282,10 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            visible: dropbox.actionStatus !== "" || dropbox.lastError !== ""
+            visible: text !== ""
             width: parent.width
-            text: dropbox.actionStatus !== "" ? dropbox.actionStatus : dropbox.lastError
-            color: dropbox.lastError !== "" && dropbox.actionStatus === "" ? root.urgent : root.dim
+            text: dropbox.actionStatus !== "" ? dropbox.actionStatus : dropbox.linkError !== "" ? dropbox.linkError : dropbox.lastError
+            color: dropbox.actionStatus !== "" ? root.dim : root.urgent
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap

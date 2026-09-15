@@ -37,6 +37,8 @@ Item {
   // on the URL. When a URL was seen, login() reopens it instead of running
   // dropbox-cli start again.
   property bool linkPending: false
+  // Survives unlinked status polls, but clears on retry or authentication.
+  property string linkError: ""
   property string _loginUrl: ""
   readonly property bool linkUrlKnown: _loginUrl !== ""
 
@@ -94,7 +96,7 @@ Item {
     quotaKnown = parsed.quotaKnown === true
     files = parsed.files || []
     lastError = ""
-    if (linkPending && authenticated) finishLink()
+    if (authenticated) finishLink()
   }
 
   function elideStatus(text) {
@@ -104,10 +106,12 @@ Item {
 
   function login() {
     if (!installed || loginProcess.running) return
-    if (linkPending && linkUrlKnown) {
-      Qt.openUrlExternally(_loginUrl)
-      actionStatus = "Reopened the Dropbox page"
-      actionStatusTimer.restart()
+    if (linkPending) {
+      if (linkUrlKnown) {
+        Qt.openUrlExternally(_loginUrl)
+        actionStatus = "Reopened the Dropbox page"
+        actionStatusTimer.restart()
+      }
       return
     }
     _loginOutput = ""
@@ -171,6 +175,7 @@ Item {
     // so clear the transient status rather than doubling it up.
     actionStatusTimer.stop()
     actionStatus = ""
+    linkError = ""
     linkPending = true
     linkWait.ticks = 0
     linkWait.restart()
@@ -180,7 +185,7 @@ Item {
     linkWait.stop()
     linkPending = false
     _loginUrl = ""
-    actionStatus = ""
+    linkError = ""
   }
 
   function handleLoginOutput(data, isError) {
@@ -230,10 +235,7 @@ Item {
       ticks += 1
       if (ticks >= 100) {
         root.finishLink()
-        // Set actionStatus too, the way controlProcess reports failures:
-        // applyStatus clears lastError on the next poll.
-        root.lastError = "Dropbox never confirmed the link. Try logging in again."
-        root.actionStatus = root.lastError
+        root.linkError = "Dropbox never confirmed the link. Try logging in again."
         return
       }
       root.refresh()
