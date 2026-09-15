@@ -1,14 +1,28 @@
 #!/bin/bash
 
-# omarchy:summary=Launch a URL as a web app in the default supported browser
+# omarchy:summary=Launch a URL as a web app in the selected web app browser
 # omarchy:args=<url>
 
-browser=$(omarchy-cmd-default-browser)
+browser=$(omarchy-default-webapp-browser) || exit 1
 
-case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
-esac
+if [[ $browser == "auto" ]]; then
+  selected=false
+  browser=$(omarchy-cmd-default-browser)
+  case $browser in
+  google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+  *) browser="chromium.desktop" ;;
+  esac
+else
+  selected=true
+  case $browser in
+  chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+  *)
+    echo "omarchy-launch-webapp: unsupported web app browser $browser; choose one with 'omarchy default webapp-browser'" >&2
+    omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappBrowserMissing)" "$(omarchy-i18n browser.webappBrowserMissingHint)"
+    exit 1
+    ;;
+  esac
+fi
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
 # omarchy-launch-browser does, so a browser it resolved is one this can start.
@@ -22,14 +36,21 @@ for data_dir in "${data_dirs[@]}"; do
 done
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
-# which fails a keybinding silently. A web app runs in a Chromium-based
-# browser, so say that rather than claiming no browser is set.
-if [[ -z $browser_exec ]]; then
-  echo "omarchy-launch-webapp: web apps need a Chromium-based browser; install Chromium with 'omarchy install browser chromium'" >&2
-  omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappNeedsChromium)" "$(omarchy-i18n browser.webappNeedsChromiumHint)"
+# which fails a keybinding silently. A selected browser that was removed says
+# so, rather than opening a different browser profile. Otherwise a web app
+# runs in a Chromium-based browser, so say that rather than claiming no
+# browser is set.
+if [[ -z $browser_exec ]] || omarchy-cmd-missing "$browser_exec"; then
+  if [[ $selected == "true" ]]; then
+    echo "omarchy-launch-webapp: web app browser $browser is not installed; choose another with 'omarchy default webapp-browser'" >&2
+    omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappBrowserMissing)" "$(omarchy-i18n browser.webappBrowserMissingHint)"
+  else
+    echo "omarchy-launch-webapp: web apps need a Chromium-based browser; install Chromium with 'omarchy install browser chromium'" >&2
+    omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.webappNeedsChromium)" "$(omarchy-i18n browser.webappNeedsChromiumHint)"
+  fi
   exit 1
 fi
 
 if ! omarchy-cmd-browser-handoff "$browser_exec" --app="$1" "${@:2}"; then
-  exec setsid uwsm-app -- $browser_exec --app="$1" "${@:2}"
+  exec setsid uwsm-app -- "$browser_exec" --app="$1" "${@:2}"
 fi
