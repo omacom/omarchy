@@ -39,6 +39,7 @@ remove_legacy_wrapper ghui ghui npm:@kitlangton/ghui
 remove_legacy_wrapper hunk hunk aqua:modem-dev/hunk
 remove_legacy_wrapper hey hey-cli github:basecamp/hey-cli
 remove_legacy_wrapper ori ori github:OpenRouterLabs/ori-releases
+remove_legacy_wrapper cf npm:cf
 remove_legacy_wrapper cursor-agent cursor-agent
 remove_legacy_wrapper basecamp basecamp github:basecamp/basecamp-cli
 remove_legacy_wrapper muse muse 'http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]'
