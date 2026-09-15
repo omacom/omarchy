@@ -19,6 +19,13 @@ Item {
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  // Where capture.sh keeps copies too large to hold in history.
+  property string textDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/clipboard-text"
+  // False until history has loaded, and for good if it could not be read: a save
+  // before then would write a partial history over the real one.
+  property bool historyWritable: false
+  // The last copy was too large to keep. Cleared by the next copy that is kept.
+  property bool lastCopySkipped: false
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -68,12 +75,21 @@ Item {
   }
 
   function loadHistory(raw) {
-    root.history = ClipboardHistory.parseHistory(raw)
+    var loaded = ClipboardHistory.parseHistory(raw, root.historyLimit)
+    root.history = loaded || []
+    root.historyWritable = loaded !== null
     if (root.opened) root.rebuildDisplay()
   }
 
   function saveHistory() {
-    historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
+    if (!root.historyWritable) return
+    var kept = root.history.slice(0, root.historyLimit)
+    historyFile.setText(JSON.stringify(kept, null, 2) + "\n")
+    // Delete large-copy files history no longer uses. Only a history that loaded
+    // gets here, so one that could not be read never loses its copies. This runs
+    // on every save; it could be skipped while history holds no large copy.
+    Quickshell.execDetached(["bash", root.omarchyPath + "/shell/plugins/clipboard/prune-text.sh", root.textDir, root.historyPath]
+      .concat(ClipboardHistory.largeTextNames(kept)))
   }
 
   function addClipboardEntry(entry) {
@@ -81,12 +97,15 @@ Item {
     if (!normalized) return
 
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
+    root.lastCopySkipped = false
     root.saveHistory()
     if (root.opened) root.rebuildDisplay()
   }
 
   function addClipboardJson(line) {
-    root.addClipboardEntry(ClipboardHistory.parseEntryJson(line))
+    var result = ClipboardHistory.captureResult(line)
+    if (result.kind === "skipped") root.lastCopySkipped = true
+    else if (result.kind === "entry") root.addClipboardEntry(result.entry)
   }
 
   function requestClearHistory() {
@@ -215,7 +234,7 @@ Item {
   function applySelected(row) {
     if (!row) return
     root.opened = false
-    if (row.entryType === "image") {
+    if (row.entryType === "image" || row.entryType === "largetext") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
     } else if (row.fullText) {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
@@ -225,7 +244,7 @@ Item {
   function copySelected(row) {
     if (!row) return
     root.opened = false
-    if (row.entryType === "image") {
+    if (row.entryType === "image" || row.entryType === "largetext") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", "--copy-only", row.mime, row.path])
     } else if (row.fullText) {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--copy-only", "--history-index", String(row.historyIndex)])
@@ -233,12 +252,13 @@ Item {
   }
 
   function openSelected(row) {
-    if (!row) return
+    // A large copy has no Open yet; the file itself is in clipboard-text.
+    if (!row || row.entryType === "largetext") return
     root.opened = false
     Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
   }
 
-  Component.onCompleted: initProc.running = true
+  Component.onCompleted: loadProc.running = true
 
   ListModel { id: displayModel }
 
@@ -247,15 +267,27 @@ Item {
     referenceItem: card
   }
 
+  // Write-only. Reading goes through load-history.sh, which bounds and checks the
+  // file first; nothing else writes it, so there is nothing to watch for.
   FileView {
     id: historyFile
     path: root.historyPath
-    watchChanges: true
+    preload: false
     atomicWrites: true
     printErrors: false
-    onLoaded: root.loadHistory(text())
-    onLoadFailed: root.loadHistory("[]")
-    onFileChanged: reload()
+  }
+
+  // Watchers start only once history has loaded, so no copy can be saved over a
+  // history that has not been read yet.
+  Process {
+    id: loadProc
+    command: ["bash", root.omarchyPath + "/shell/plugins/clipboard/load-history.sh", root.historyPath, String(ClipboardHistory.historyFileLimit)]
+    stdout: StdioCollector { id: loadOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.loadHistory(loadOutput.text)
+      else console.warn("clipboard: history could not be read (load-history.sh exited " + exitCode + "), not saving over it")
+      initProc.running = true
+    }
   }
 
   // Reap watchers left behind by a previous shell instance, then start our
@@ -466,6 +498,35 @@ Item {
                 clip: true
                 spacing: Style.space(4)
                 boundsBehavior: Flickable.StopAtBounds
+
+                // Where the copy would have appeared, a quiet note that it was not kept.
+                // Its height comes from font metrics rather than from laying the text out,
+                // so the layout can never feed back into the note's own size.
+                header: Item {
+                  width: resultList.width
+                  height: root.lastCopySkipped ? skippedMetrics.height + Style.space(8) : 0
+
+                  FontMetrics {
+                    id: skippedMetrics
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: Style.space(12)
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.lastCopySkipped
+                    text: "Last copy not saved · too large or too slow"
+                    color: root.foreground
+                    opacity: 0.5
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                  }
+                }
 
                 delegate: Rectangle {
                   id: row
