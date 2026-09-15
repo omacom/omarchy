@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Lock when the lid is closed and no external monitor remains
+# omarchy:hidden=true
+
+# Shared by the lid-close binding and clamshell reconciliation. A docked lid
+# close must stay unlocked (clamshell use on the external display). Closing the
+# lid while undocked, or losing the last external display while the lid is
+# already closed, must lock: otherwise the session keeps accepting keyboard
+# input with no visible output.
+if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
+  omarchy-system-lock >/dev/null 2>&1 || true
+fi

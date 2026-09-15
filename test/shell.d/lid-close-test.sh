@@ -37,7 +37,7 @@ SH
 }
 
 run_lid_close() {
-  CALL_LOG="$call_log" PATH="$mock_bin:$PATH" "$lid_close"
+  CALL_LOG="$call_log" PATH="$mock_bin:$ROOT/bin:$PATH" "$lid_close"
   mapfile -t calls <"$call_log"
 }
 

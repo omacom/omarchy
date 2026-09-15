@@ -248,5 +248,9 @@ omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true
 if omarchy-hw-clamshell && omarchy-hyprland-monitor-external-active; then
   disable_internal
 else
+  # Monitor removal while the lid is already closed never re-fires the lid
+  # binding, so secure the session here before the hidden panel is re-enabled
+  # and can take unseen keystrokes (see #9301).
+  omarchy-system-secure-if-closed-undocked
   enable_internal
 fi
