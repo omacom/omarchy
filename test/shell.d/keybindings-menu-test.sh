@@ -26,15 +26,27 @@ exec_bind() {
   printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: %s\n' "$1" "$2" "$3" "$4"
 }
 
+# The menu asks Hyprland which layout is live before it resolves keycodes.
+# Leaving these empty stands in for a keyboard Hyprland reports nothing about,
+# which is what sends the menu back to the default keymap.
+stub_kb_layout=""
+stub_kb_variant=""
+stub_layout_index=0
+
 stub_hyprctl() {
   {
     echo '#!/bin/bash'
+    printf 'case "$1 $2" in\n'
+    printf '  "getoption input:kb_layout") echo "str: %s"; exit ;;\n' "$stub_kb_layout"
+    printf '  "getoption input:kb_variant") echo "str: %s"; exit ;;\n' "$stub_kb_variant"
+    printf 'esac\n'
     echo 'case "$1" in'
     echo '  binds) cat <<'"'"'BINDS'"'"''
     cat
     echo 'BINDS'
     echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
+    printf '  devices) echo "active layout index: %s"; echo "active keymap: %s"; echo "main: yes" ;;\n' \
+      "$stub_layout_index" "${stub_kb_layout:-English (US)}"
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
@@ -130,6 +142,63 @@ rendered=$(keybindings)
 grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
+
+# A keycode is a position on the keyboard, not a key. code:20 sits right of 0,
+# where a US layout prints - and a German one ß, so the menu has to resolve it
+# against the layout in use rather than the one xkbcli compiles by default.
+keycode_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: \n\tkeycode: %s\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: true\n' "$1" "$2" "$3"
+}
+
+stub_hyprctl <<BINDS
+$(keycode_bind 64 20 "Expand window left")
+$(keycode_bind 64 21 "Shrink window left")
+BINDS
+
+rendered=$(keybindings)
+grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" ||
+  fail "a keyboard Hyprland says nothing about still reads as the default keymap" "$rendered"
+pass "a keyboard Hyprland says nothing about still reads as the default keymap"
+
+stub_kb_layout="de"
+stub_kb_variant="mac"
+stub_hyprctl <<BINDS
+$(keycode_bind 64 20 "Expand window left")
+$(keycode_bind 64 21 "Shrink window left")
+BINDS
+
+rendered=$(keybindings)
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" ||
+  fail "a keycode reads as the key the active layout prints there" "$rendered"
+! grep -qE 'MINUS|EQUAL' <<<"$rendered" ||
+  fail "no entry still names the key a US layout would have" "$rendered"
+pass "a keycode reads as the key the active layout prints there"
+
+# ß and ´ are what the keys say. SSHARP and DEAD_ACUTE are what xkb calls them,
+# and no keyboard prints either.
+grep -q 'SUPER + ´  *→ Shrink window left' <<<"$rendered" ||
+  fail "a keysym with no printable name reads as the character instead" "$rendered"
+! grep -qE 'SSHARP|DEAD_ACUTE' <<<"$rendered" ||
+  fail "no entry falls back to the xkb name of a key" "$rendered"
+pass "a keysym with no printable name reads as the character instead"
+
+# kb_layout can list several layouts. The one the keyboard reports as active is
+# the one the menu has to name keys after, not simply the first in the list.
+stub_kb_layout="us,de"
+stub_kb_variant=","
+stub_layout_index=1
+stub_hyprctl <<BINDS
+$(keycode_bind 64 20 "Expand window left")
+BINDS
+
+rendered=$(keybindings)
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" ||
+  fail "the active layout wins over the first one listed" "$rendered"
+pass "the active layout wins over the first one listed"
+
+stub_kb_layout=""
+stub_kb_variant=""
+stub_layout_index=0
 
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
