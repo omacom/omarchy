@@ -30,6 +30,15 @@ Item {
   property var files: []
   property string actionStatus: ""
   property string lastError: ""
+  // True from a login attempt until a status poll reports a linked account.
+  // The unlinked daemon opens the account-link page in the browser on its
+  // own and may not answer its command socket at all, so the link URL is
+  // not necessarily ever seen here; the wait has to start on the click, not
+  // on the URL. When a URL was seen, login() reopens it instead of running
+  // dropbox-cli start again.
+  property bool linkPending: false
+  property string _loginUrl: ""
+  readonly property bool linkUrlKnown: _loginUrl !== ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 60, 10, 3600)
   readonly property bool busy: statusProcess.running || loginProcess.running || controlProcess.running
@@ -85,6 +94,7 @@ Item {
     quotaKnown = parsed.quotaKnown === true
     files = parsed.files || []
     lastError = ""
+    if (linkPending && authenticated) finishLink()
   }
 
   function elideStatus(text) {
@@ -94,6 +104,12 @@ Item {
 
   function login() {
     if (!installed || loginProcess.running) return
+    if (linkPending && linkUrlKnown) {
+      Qt.openUrlExternally(_loginUrl)
+      actionStatus = "Reopened the Dropbox page"
+      actionStatusTimer.restart()
+      return
+    }
     _loginOutput = ""
     _loginError = ""
     _loginUrlOpened = false
@@ -142,12 +158,29 @@ Item {
     var match = String(text || "").match(/https?:\/\/\S+/)
     if (match && match[0]) {
       _loginUrlOpened = true
-      Qt.openUrlExternally(match[0])
-      actionStatus = "Opened Dropbox login"
-      actionStatusTimer.restart()
+      _loginUrl = match[0]
+      Qt.openUrlExternally(_loginUrl)
+      beginLinkWait()
       return true
     }
     return false
+  }
+
+  function beginLinkWait() {
+    // The login button carries the "finish linking" state while this runs,
+    // so clear the transient status rather than doubling it up.
+    actionStatusTimer.stop()
+    actionStatus = ""
+    linkPending = true
+    linkWait.ticks = 0
+    linkWait.restart()
+  }
+
+  function finishLink() {
+    linkWait.stop()
+    linkPending = false
+    _loginUrl = ""
+    actionStatus = ""
   }
 
   function handleLoginOutput(data, isError) {
@@ -180,6 +213,30 @@ Item {
       ticks += 1
       if (root.running || ticks >= 15) startupRamp.running = false
       else root.refresh()
+    }
+  }
+
+  Timer {
+    // The browser half of linking takes as long as the user takes. Without
+    // this, a completed link was only noticed by the next periodic refresh —
+    // up to a minute later — and the panel sat on "Login to Dropbox" in the
+    // meantime, inviting a second click that restarted the whole flow.
+    id: linkWait
+    property int ticks: 0
+    interval: 3000
+    repeat: true
+    running: false
+    onTriggered: {
+      ticks += 1
+      if (ticks >= 100) {
+        root.finishLink()
+        // Set actionStatus too, the way controlProcess reports failures:
+        // applyStatus clears lastError on the next poll.
+        root.lastError = "Dropbox never confirmed the link. Try logging in again."
+        root.actionStatus = root.lastError
+        return
+      }
+      root.refresh()
     }
   }
 
@@ -245,8 +302,10 @@ Item {
         root.lastError = root.elideStatus(combined || "Dropbox login failed")
         root.actionStatus = root.lastError
       } else if (!opened) {
-        root.actionStatus = ""
+        // No URL, but no failure either: the daemon is up and has opened
+        // the link page itself, so wait for the link the same way.
         root.lastError = ""
+        root.beginLinkWait()
       }
       delayedRefresh.restart()
     }

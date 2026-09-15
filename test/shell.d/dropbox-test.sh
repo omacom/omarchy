@@ -32,3 +32,16 @@ assertEqual(
   'dropbox file metadata includes relative time and folder'
 )
 JS
+
+run_node_test "dropbox link wait wiring" <<'JS'
+const fs = require('fs')
+const service = fs.readFileSync(root + '/shell/plugins/panels/dropbox/Service.qml', 'utf8')
+const panel = fs.readFileSync(root + '/shell/plugins/panels/dropbox/Panel.qml', 'utf8')
+
+assert(/function openAuthUrlFrom\(text\)[\s\S]*?beginLinkWait\(\)/.test(service), 'opening the account-link page starts the link wait')
+assert(/if \(linkPending && authenticated\) finishLink\(\)/.test(service), 'a status poll that reports a linked account ends the link wait')
+assert(/function login\(\)[\s\S]*?if \(linkPending && linkUrlKnown\)[\s\S]*?Qt\.openUrlExternally\(_loginUrl\)/.test(service), 'login while a link is pending reopens the page instead of re-running dropbox-cli start')
+assert(/else if \(!opened\) \{[\s\S]{0,400}?root\.beginLinkWait\(\)/.test(service), 'a login attempt that yields no URL still starts the link wait')
+assert(/Dropbox never confirmed the link[\s\S]{0,200}root\.actionStatus = root\.lastError/.test(service), 'an exhausted link wait surfaces an error that survives the next status poll')
+assert(/dropbox\.linkPending \? "Finish linking in your browser"/.test(panel), 'the login button says to finish linking while a link is pending')
+JS
