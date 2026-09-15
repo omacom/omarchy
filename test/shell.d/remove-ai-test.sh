@@ -378,3 +378,47 @@ rc=0
 ! grep -q '^drop:openclaw$' "$TEST_LOG" ||
   fail "OpenClaw removal aborts when systemd cannot be reached" "package dropped anyway"
 pass "OpenClaw removal aborts when systemd cannot be reached"
+
+# Ghost's removal takes the package, its daemon unit, and its HUD plugin, and
+# nothing of the owner's: ghost homes, credentials, and daemon state stay where
+# they are.
+cat >"$tmp_dir/bin/systemctl" <<'SCRIPT'
+#!/bin/bash
+printf 'systemctl:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+cat >"$tmp_dir/bin/omarchy" <<'SCRIPT'
+#!/bin/bash
+printf 'omarchy:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/systemctl" "$tmp_dir/bin/omarchy"
+cat >"$tmp_dir/bin/omarchy-pkg-present" <<'SCRIPT'
+#!/bin/bash
+[[ $1 == ghost ]]
+SCRIPT
+chmod +x "$tmp_dir/bin/omarchy-pkg-present"
+
+: >"$TEST_LOG"
+fresh_home
+mkdir -p "$HOME/ghosts/casper" "$HOME/.config/ghost" "$HOME/.local/state/ghost" \
+  "$HOME/.config/omarchy/plugins"
+ln -sfn /usr/share/ghost/plugin "$HOME/.config/omarchy/plugins/ferdousbhai.ghost"
+"$ROOT/bin/omarchy-remove-ai-ghost" >/dev/null
+
+grep -q '^drop:ghost$' "$TEST_LOG" || fail "Ghost removal drops the package"
+pass "Ghost removal drops the package"
+
+grep -q '^systemctl:--user disable --now ghostd.service$' "$TEST_LOG" ||
+  fail "Ghost removal stops the daemon before the package goes"
+pass "Ghost removal stops the daemon before the package goes"
+
+grep -q '^omarchy:plugin remove ferdousbhai.ghost --yes$' "$TEST_LOG" ||
+  fail "Ghost removal takes the HUD plugin out of the running shell"
+pass "Ghost removal takes the HUD plugin out of the running shell"
+
+[[ ! -e $HOME/.config/omarchy/plugins/ferdousbhai.ghost ]] ||
+  fail "Ghost removal unlinks the plugin from the user's plugins directory"
+pass "Ghost removal unlinks the plugin from the user's plugins directory"
+
+[[ -d $HOME/ghosts/casper && -d $HOME/.config/ghost && -d $HOME/.local/state/ghost ]] ||
+  fail "Ghost removal keeps ghost homes, settings, and state"
+pass "Ghost removal keeps ghost homes, settings, and state"

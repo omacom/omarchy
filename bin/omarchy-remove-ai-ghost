@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Ghost, keeping every ghost home and credential in place.
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# The HUD plugin and the daemon hold the package's files open, so both go first.
+# `plugin remove` disables it and unlinks the symlink; the rm covers a shell
+# that is not running to answer.
+omarchy plugin remove ferdousbhai.ghost --yes 2>/dev/null || true
+rm -f "$HOME/.config/omarchy/plugins/ferdousbhai.ghost"
+systemctl --user disable --now ghostd.service 2>/dev/null || true
+systemctl --user daemon-reload
+
+omarchy-pkg-drop ghost
+
+echo ""
+echo "Ghost has been removed. Your ghosts (~/ghosts), settings, and state are still there."
