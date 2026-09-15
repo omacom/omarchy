@@ -110,6 +110,23 @@ assertDeepEqual(julySunday.map(week => week.week), [27, 28, 29, 30, 31, 32], 'ca
 const januarySunday = calendar.monthGrid(2021, 0, 0, '')
 assertEqual(januarySunday[0].week, 53, 'calendar carries the previous ISO year into a straddling first row')
 
+// DST midnight spring-forward stability (e.g. Chile / America/Santiago, September 2026):
+// The calendar grid must walk consecutive calendar days without duplicating or shifting
+// cells even when local midnight is skipped by a Daylight Saving transition.
+const september = calendar.monthGrid(2026, 8, 1, '2026-09-14')
+assertEqual(september.length, 6, 'september grid has six rows')
+const septemberDays = september.flatMap(week => week.days)
+const sep5 = septemberDays.filter(day => day.key === '2026-09-05')
+const sep6 = septemberDays.filter(day => day.key === '2026-09-06')
+assertEqual(sep5.length, 1, 'september 5 appears exactly once in the grid')
+assertEqual(sep6.length, 1, 'september 6 appears exactly once in the grid')
+assertEqual(sep5[0].weekday, 6, 'september 5 is Saturday')
+assertEqual(sep6[0].weekday, 0, 'september 6 is Sunday')
+const sep14 = septemberDays.find(day => day.key === '2026-09-14')
+assert(!!sep14, 'september 14 is present in the grid')
+assertEqual(sep14.weekday, 1, 'september 14 correctly sits under Monday')
+assert(sep14.today, 'september 14 marks today correctly')
+
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
 assertDeepEqual(calendar.stepMonth(2026, 0, -1), { year: 2025, month: 11 }, 'calendar steps back across the new year')
