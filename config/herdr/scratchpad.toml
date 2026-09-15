@@ -32,3 +32,7 @@ enabled = true
 
 [session]
 resume_agents_on_restore = false
+
+[update]
+# The shipped config.toml turns herdr's own check off: pacman owns the update.
+version_check = false
