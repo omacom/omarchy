@@ -115,8 +115,8 @@ assert(
   'a theme switch that keeps the video path still reopens the replaced file'
 )
 assert(
-  barTextColor.includes('magick "$background_path[0]"'),
-  'bar colour sampling reads one frame instead of decoding a whole video'
+  barTextColor.includes('magick "$sample_path[0]"'),
+  'bar colour sampling reads one resolved frame instead of decoding a whole video'
 )
 assert(
   menuImages.includes('pending_video_file') && /video_jobs=\$\(\( \$\(nproc\) \/ 4 \)\)/.test(menuImages),
