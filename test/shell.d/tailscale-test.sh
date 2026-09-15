@@ -8,8 +8,12 @@ run_node_test <<'JS'
 const fs = require('fs')
 const tailscale = requireFromRoot('shell/plugins/panels/tailscale/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Panel.qml', 'utf8')
+const serviceSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Service.qml', 'utf8')
 
 assert(/function toggleTailscale\(\): string \{ tailscale\.toggleTailscale\(\); return "ok" \}/.test(panelSource), 'tailscale exposes the connection toggle over IPC')
+assert(panelSource.includes('onToggled: tailscale.toggleReceiver()'), 'tailscale panel exposes the automatic file receiver toggle')
+assert(serviceSource.includes('["systemctl", "--user", "enable", "--now", "omarchy-tailscale-receive.service"]'), 'tailscale receiver toggle enables and starts automatic receiving')
+assert(serviceSource.includes('["systemctl", "--user", "disable", "--now", "omarchy-tailscale-receive.service"]'), 'tailscale receiver toggle stops and disables automatic receiving')
 
 assertDeepEqual(
   tailscale.filterIPv4(['100.64.0.1', 'fd7a:115c:a1e0::1', '192.168.1.2']),
