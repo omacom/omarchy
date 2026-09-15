@@ -22,6 +22,9 @@ hl.config({
       -- Use natural (inverse) scrolling
       natural_scroll = true,
 
+      -- Allow tapping the pad to click (Omarchy default: off)
+      tap_to_click = true,
+
       -- Use two-finger clicks for right-click instead of lower-right corner
       clickfinger_behavior = true,
 
@@ -34,6 +37,8 @@ hl.config({
 -- Scroll faster in the terminal
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
+
+Tap-to-click is off by default, so the trackpad only clicks on a physical press. Two-finger clicks still right-click. Turn tapping back on with `tap_to_click = true` as in the example above.
 
 You can [see all the input options](https://wiki.hypr.land/Configuring/Basics/Variables/#input) on the Hyprland wiki for inputs.
 
