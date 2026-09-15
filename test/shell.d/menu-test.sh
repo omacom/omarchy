@@ -169,6 +169,21 @@ assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'power_menu'), 'sy
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, ''), 'root', 'menu routes empty input to root')
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'no-such-route'), 'no-such-route', 'menu falls through to the literal input')
 assert(menu.matchesQuery(routed.items['apps.htop'], 'system', true), 'menu still finds an app by its keywords in search')
+
+// The JSONC header calls aliases "alternate `omarchy menu summon <name>` routes;
+// also searchable", so a route has to be findable by the spelling it is
+// declared and documented in, not only by the one with its separators removed.
+assert(menu.matchesQuery(routed.items['system'], 'power-menu', true), 'menu finds a row by an alias typed with its separators')
+assert(menu.matchesQuery(routed.items['system'], 'power menu', true), 'menu still finds the same alias typed as separate words')
+assert(menu.matchesQuery(routed.items['trigger.capture'], 'screen-record', true), 'menu finds a hyphenated alias that no other alias spells out')
+assert(
+  menu.matchesQuery(menu.normalizeItem('install.docker-tui', { label: 'Docker TUI', action: 'install-docker-tui' }), 'docker-tui', true),
+  'menu finds a hyphenated id typed with its separator'
+)
+assert(
+  menu.matchesQuery(menu.normalizeItem('install.docker-tui', { label: 'Docker TUI', action: 'install-docker-tui' }), 'docker tui', true),
+  'menu still finds a hyphenated id typed as separate words'
+)
 assert(
   /function resolveRoute\(input\) \{\s*\n\s*return MenuModel\.resolveRoute\(root\.items, root\.itemOrder, input\)\s*\n\s*\}/.test(menuQml),
   'menu delegates route resolution to the shared model'
