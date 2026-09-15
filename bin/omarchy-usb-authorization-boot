@@ -1,0 +1,497 @@
+#!/bin/bash
+
+# omarchy:summary=Manage USB authorization from the start of kernel boot
+# omarchy:args=<enable|disable>
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+drop_in=/etc/limine-entry-tool.d/usb-authorization.conf
+setting='KERNEL_CMDLINE[default]+=" usbcore.authorized_default=0"'
+limine_conf=/boot/limine.conf
+limine_defaults=/etc/default/limine
+boot_path=/boot
+kernel_parameter=usbcore.authorized_default=0
+snapshot_begin='# Omarchy USB authorization begin'
+snapshot_setting='SNAPSHOT_KERNEL_PARAMETERS+=usbcore.authorized_default=0'
+snapshot_end='# Omarchy USB authorization end'
+
+usb_authorization_cmdline_has_parameter() {
+  local cmdline="$1" parameter="$2" word
+
+  for word in $cmdline; do
+    [[ $word == "$parameter" ]] && return 0
+  done
+
+  return 1
+}
+
+usb_authorization_secure_boot_enabled() {
+  local value variable
+
+  for variable in /sys/firmware/efi/efivars/SecureBoot-*; do
+    [[ -r $variable ]] || continue
+    value=$(od -An -t u1 -j 4 -N 1 "$variable")
+    value=${value//[[:space:]]/}
+    [[ $value == "1" ]] && return 0
+  done
+
+  return 1
+}
+
+usb_authorization_verify_boot_entries() {
+  local expected="$1" config="$2" esp="$3"
+  local machine_id="${4:-$(</etc/machine-id)}"
+  local secure_boot="${5:-auto}"
+  local actual_hash embedded_cmdline expected_hash image mode path paths section
+
+  if [[ $secure_boot == "auto" ]]; then
+    if usb_authorization_secure_boot_enabled; then
+      secure_boot=enabled
+    else
+      secure_boot=disabled
+    fi
+  fi
+
+  if [[ ! -r $config ]]; then
+    echo "Cannot verify the generated Limine boot entries in $config." >&2
+    return 1
+  fi
+
+  paths=$(mktemp /tmp/omarchy-usb-boot-paths.XXXXXXXXXX)
+  section=$(mktemp /tmp/omarchy-usb-boot-cmdline.XXXXXXXXXX)
+
+  if ! awk -v expected="$expected" -v machine_id="$machine_id" -v parameter="$kernel_parameter" '
+    function contains_parameter(value, count, fields, field_index) {
+      count = split(value, fields, /[[:space:]]+/)
+      for (field_index = 1; field_index <= count; field_index++) {
+        if (fields[field_index] == parameter) return 1
+      }
+      return 0
+    }
+
+    function finish_entry(found) {
+      if (!target_os || !is_kernel) return
+      entries++
+
+      if (has_cmdline) {
+        found = contains_parameter(cmdline)
+        if ((expected == "enabled" && !found) || (expected == "disabled" && found)) bad = 1
+      }
+
+      if (path == "") {
+        bad = 1
+      } else {
+        print (has_cmdline ? "external" : "embedded") "\t" path
+      }
+    }
+
+    /^\/[^/]/ {
+      finish_entry()
+      target_os = 0
+      is_kernel = 0
+      has_cmdline = 0
+      cmdline = ""
+      path = ""
+      next
+    }
+
+    /^[[:space:]]*comment:[[:space:]]*machine-id=/ {
+      target_os = index($0, "machine-id=" machine_id) > 0
+      next
+    }
+
+    /^[[:space:]]*\/\// {
+      finish_entry()
+      is_kernel = 0
+      has_cmdline = 0
+      cmdline = ""
+      path = ""
+      next
+    }
+
+    /^[[:space:]]*comment:[[:space:]]*kernel-id=/ {
+      is_kernel = target_os
+      next
+    }
+
+    is_kernel && /^[[:space:]]*path:[[:space:]]*/ {
+      path = $0
+      sub(/^[[:space:]]*path:[[:space:]]*/, "", path)
+      next
+    }
+
+    is_kernel && /^[[:space:]]*cmdline:[[:space:]]*/ {
+      has_cmdline = 1
+      cmdline = $0
+      sub(/^[[:space:]]*cmdline:[[:space:]]*/, "", cmdline)
+      next
+    }
+
+    END {
+      finish_entry()
+      if (entries == 0) bad = 1
+      exit bad
+    }
+  ' "$config" >"$paths"; then
+    rm -f "$paths" "$section"
+    echo "The generated Limine kernel entries do not all have USB authorization $expected." >&2
+    return 1
+  fi
+
+  while IFS=$'\t' read -r mode path; do
+    if [[ $path != 'boot():/'* ]]; then
+      rm -f "$paths" "$section"
+      echo "Cannot verify the kernel image referenced by Limine: $path" >&2
+      return 1
+    fi
+
+    image="$esp/${path#'boot():/'}"
+    image=${image%%#*}
+    if [[ ! -r $image ]]; then
+      rm -f "$paths" "$section"
+      echo "Cannot verify the kernel image referenced by Limine: $image" >&2
+      return 1
+    fi
+
+    if [[ $path == *'#'* ]]; then
+      expected_hash=${path##*#}
+      actual_hash=$(b2sum "$image")
+      actual_hash=${actual_hash%% *}
+      if [[ $actual_hash != "$expected_hash" ]]; then
+        rm -f "$paths" "$section"
+        echo "The verification hash for $image does not match the generated Limine entry." >&2
+        return 1
+      fi
+    fi
+
+    : >"$section"
+    if ! objcopy -O binary --only-section=.cmdline "$image" "$section" 2>/dev/null; then
+      [[ $mode == "external" ]] && continue
+      rm -f "$paths" "$section"
+      echo "Cannot inspect the embedded kernel command line in $image." >&2
+      return 1
+    fi
+    embedded_cmdline=$(tr '\0' '\n' <"$section")
+
+    # Without Secure Boot, Limine's external command line takes precedence.
+    # Under Secure Boot, systemd-stub uses a nonempty embedded .cmdline.
+    if [[ $mode == "external" && $secure_boot == "disabled" ]]; then
+      continue
+    fi
+
+    # A signed UKI can ignore Limine's external cmdline and use its embedded
+    # .cmdline instead. If one exists, both representations must agree.
+    if [[ -z $embedded_cmdline ]]; then
+      if [[ $mode == "external" || $expected == "disabled" ]]; then
+        continue
+      fi
+      rm -f "$paths" "$section"
+      echo "The generated kernel image $image has no verifiable kernel command line." >&2
+      return 1
+    fi
+
+    if [[ $expected == "enabled" ]]; then
+      if ! usb_authorization_cmdline_has_parameter "$embedded_cmdline" "$kernel_parameter"; then
+        rm -f "$paths" "$section"
+        echo "The generated kernel image $image does not enable boot-time USB authorization." >&2
+        return 1
+      fi
+    elif usb_authorization_cmdline_has_parameter "$embedded_cmdline" "$kernel_parameter"; then
+      rm -f "$paths" "$section"
+      echo "The generated kernel image $image still enables boot-time USB authorization." >&2
+      return 1
+    fi
+  done <"$paths"
+
+  rm -f "$paths" "$section"
+}
+
+usb_authorization_rebuild_and_verify() {
+  local expected="$1" config="$2" esp="$3"
+  local machine_id="${4:-$(</etc/machine-id)}" secure_boot="${5:-auto}"
+
+  if ! limine-mkinitcpio; then
+    return 1
+  fi
+
+  # limine-mkinitcpio-hook can swallow an individual kernel build failure and
+  # still return success, so its exit status alone is not a safety boundary.
+  usb_authorization_verify_boot_entries "$expected" "$config" "$esp" "$machine_id" "$secure_boot"
+}
+
+usb_authorization_snapshot_block_status() {
+  local config="$1"
+
+  [[ -r $config ]] || return 2
+  awk -v begin="$snapshot_begin" -v setting="$snapshot_setting" -v end="$snapshot_end" '
+    $0 == begin { begin_count++; state = 1; next }
+    $0 == setting { setting_count++; if (state == 1) state = 2; next }
+    $0 == end { end_count++; if (state == 2) valid_count++; state = 0; next }
+    { state = 0 }
+    END {
+      if (begin_count == 0 && setting_count == 0 && end_count == 0) exit 1
+      if (begin_count == 1 && setting_count == 1 && end_count == 1 && valid_count == 1) exit 0
+      exit 2
+    }
+  ' "$config"
+}
+
+usb_authorization_enable_snapshot_setting() {
+  local config="$1" status temporary
+
+  if usb_authorization_snapshot_block_status "$config"; then
+    return 0
+  else
+    status=$?
+  fi
+  if (( status != 1 )); then
+    echo "Refusing to modify the USB authorization block in $config." >&2
+    return 1
+  fi
+
+  temporary=$(mktemp "${config}.XXXXXXXXXX")
+  cp --preserve=mode,ownership "$config" "$temporary"
+  {
+    cat "$config"
+    printf '\n%s\n%s\n%s\n' "$snapshot_begin" "$snapshot_setting" "$snapshot_end"
+  } >"$temporary"
+  mv -f "$temporary" "$config"
+}
+
+usb_authorization_disable_snapshot_setting() {
+  local config="$1" status temporary
+
+  if usb_authorization_snapshot_block_status "$config"; then
+    status=0
+  else
+    status=$?
+  fi
+  (( status == 1 )) && return 0
+  if (( status != 0 )); then
+    echo "Refusing to modify the USB authorization block in $config." >&2
+    return 1
+  fi
+
+  temporary=$(mktemp "${config}.XXXXXXXXXX")
+  cp --preserve=mode,ownership "$config" "$temporary"
+  awk -v begin="$snapshot_begin" '
+    $0 == begin { skip = 2; next }
+    skip > 0 { skip--; next }
+    { print }
+  ' "$config" >"$temporary"
+  mv -f "$temporary" "$config"
+}
+
+usb_authorization_rewrite_boot_cmdlines() {
+  local expected="$1" config="$2" machine_id="${3:-$(</etc/machine-id)}"
+  local backup temporary
+
+  backup=$(mktemp "${config}.omarchy-usb-backup.XXXXXXXXXX")
+  temporary=$(mktemp "${config}.omarchy-usb-new.XXXXXXXXXX")
+  cp --preserve=mode,ownership "$config" "$backup"
+  cp --preserve=mode,ownership "$config" "$temporary"
+
+  if ! awk -v expected="$expected" -v machine_id="$machine_id" -v parameter="$kernel_parameter" '
+    function rewrite_cmdline(line, prefix, value, count, fields, field_index, result, found) {
+      prefix = line
+      sub(/cmdline:.*/, "cmdline:", prefix)
+      value = line
+      sub(/^[[:space:]]*cmdline:[[:space:]]*/, "", value)
+      count = split(value, fields, /[[:space:]]+/)
+      result = ""
+      found = 0
+      for (field_index = 1; field_index <= count; field_index++) {
+        if (fields[field_index] == parameter) {
+          found = 1
+          continue
+        }
+        if (fields[field_index] != "") result = result (result == "" ? "" : " ") fields[field_index]
+      }
+      if (expected == "enabled") result = result (result == "" ? "" : " ") parameter
+      return prefix (result == "" ? "" : " ") result
+    }
+
+    /^\/[^/]/ { target_os = 0 }
+    /^[[:space:]]*comment:[[:space:]]*machine-id=/ {
+      target_os = index($0, "machine-id=" machine_id) > 0
+    }
+    target_os && /^[[:space:]]*cmdline:[[:space:]]*/ {
+      print rewrite_cmdline($0)
+      next
+    }
+    { print }
+  ' "$config" >"$temporary"; then
+    rm -f "$backup" "$temporary"
+    return 1
+  fi
+
+  mv -f "$temporary" "$config"
+  if ! limine-enroll-config; then
+    mv -f "$backup" "$config"
+    limine-enroll-config >/dev/null 2>&1 || true
+    echo "Restored $config because its bootloader verification data could not be updated." >&2
+    return 1
+  fi
+
+  rm -f "$backup"
+}
+
+usb_authorization_rewrite_snapshot_manifest() {
+  local expected="$1" manifest="$2" temporary
+
+  [[ -e $manifest ]] || return 0
+  temporary=$(mktemp "${manifest}.omarchy-usb.XXXXXXXXXX")
+  if ! cp --preserve=mode,ownership "$manifest" "$temporary"; then
+    rm -f "$temporary"
+    return 1
+  fi
+
+  # Limine uses the cached lines when present, and structured command lines
+  # otherwise. Update both, including nested kernels and restore entries.
+  if ! jq --arg expected "$expected" --arg parameter "$kernel_parameter" '
+    def cmdline:
+      if type != "string" then error("Invalid snapshot command line") else
+        [splits("[[:space:]]+") | select(length > 0 and . != $parameter)]
+        | if $expected == "enabled" then . + [$parameter] else . end
+        | join(" ")
+      end;
+    def lines:
+      map(if test("^\\s*(cmdline|kernel_cmdline):"; "i") then
+        capture("^(?<prefix>\\s*(?:cmdline|kernel_cmdline):\\s*)(?<value>.*)$"; "i")
+        | .prefix + (.value | cmdline)
+      else . end);
+    def kernel:
+      .cmdlineDetails |= map(.cmdline |= cmdline | .snapshotCmdline |= cmdline)
+      | .allInConfig |= lines
+      | .allInSnapshotConfig |= lines
+      | .subKernels |= map(kernel);
+    if .jsonFormatVersion != "1.3.0" or (.snapshotEntries | type) != "array" then
+      error("Unsupported Limine snapshot manifest format")
+    else
+      .snapshotEntries |= map(.kernelEntries |= map(kernel))
+    end
+  ' "$manifest" >"$temporary"; then
+    rm -f "$temporary"
+    echo "Cannot update stored USB boot policy in $manifest." >&2
+    return 1
+  fi
+
+  mv -f "$temporary" "$manifest"
+}
+
+usb_authorization_sync_and_verify() (
+  local expected="$1" config="$2" esp="$3"
+  local machine_id="${4:-$(</etc/machine-id)}" manifest
+
+  # Share Limine's lock so a concurrent watcher cannot restore an old manifest
+  # while we update it. The sync wrapper must not reacquire our lock.
+  exec 9>/run/lock/boot-partition.lock
+  flock --timeout 30 9 || return 1
+
+  # Recover/upgrade the manifest first, including backups if necessary.
+  limine-snapper-sync --no-mutex --no-hooks || return 1
+  for manifest in \
+    "$esp/$machine_id/limine_history/snapshots.json" \
+    "$esp/$machine_id/limine_history/snapshots.json.old" \
+    "/var/cache/boot/$machine_id/lss/snapshots.json"; do
+    usb_authorization_rewrite_snapshot_manifest "$expected" "$manifest" || return 1
+  done
+
+  usb_authorization_rewrite_boot_cmdlines "$expected" "$config" "$machine_id" || return 1
+  # Verify the regenerated menu, so synchronization cannot mask stale stored
+  # command lines with a one-time edit to limine.conf.
+  limine-snapper-sync --no-mutex --no-hooks || return 1
+  limine-enroll-config || return 1
+  usb_authorization_verify_boot_entries "$expected" "$config" "$esp" "$machine_id"
+)
+
+main() {
+  local had_drop_in=0 had_snapshot_setting=0 snapshot_status temporary
+
+  if (( EUID != 0 )); then
+    echo "Error: omarchy-usb-authorization-boot must run as root" >&2
+    exit 1
+  fi
+
+  case "${1:-}" in
+  enable)
+  if usb_authorization_snapshot_block_status "$limine_defaults"; then
+    snapshot_status=0
+  else
+    snapshot_status=$?
+  fi
+  if (( snapshot_status == 2 )); then
+    echo "Refusing to modify the USB authorization block in $limine_defaults." >&2
+    exit 1
+  fi
+
+  # Quote the expected value because the Limine key contains glob brackets.
+  if [[ -e $drop_in ]] && [[ $(<"$drop_in") != "$setting" ]]; then
+    echo "Refusing to replace the existing $drop_in." >&2
+    exit 1
+  fi
+
+  usb_authorization_enable_snapshot_setting "$limine_defaults"
+
+  if [[ ! -e $drop_in ]]; then
+    install -d -m755 "${drop_in%/*}"
+    temporary=$(mktemp "${drop_in}.XXXXXXXXXX")
+    trap 'rm -f "$temporary"' EXIT
+    printf '%s\n' "$setting" >"$temporary"
+    chmod 644 "$temporary"
+    mv -f "$temporary" "$drop_in"
+    trap - EXIT
+  fi
+
+  if ! limine-mkinitcpio ||
+    ! usb_authorization_sync_and_verify enabled "$limine_conf" "$boot_path"; then
+    echo "Boot-time USB authorization remains configured in $drop_in; rerun this command after fixing the boot-image error." >&2
+    exit 1
+  fi
+  ;;
+  disable)
+  if usb_authorization_snapshot_block_status "$limine_defaults"; then
+    had_snapshot_setting=1
+  else
+    snapshot_status=$?
+    if (( snapshot_status == 2 )); then
+      echo "Refusing to modify the USB authorization block in $limine_defaults." >&2
+      exit 1
+    fi
+  fi
+
+  if [[ -e $drop_in ]]; then
+    if [[ $(<"$drop_in") != "$setting" ]]; then
+      echo "Refusing to remove the modified $drop_in." >&2
+      exit 1
+    fi
+    had_drop_in=1
+    rm -f "$drop_in"
+  fi
+
+  usb_authorization_disable_snapshot_setting "$limine_defaults"
+  if ! limine-mkinitcpio ||
+    ! usb_authorization_sync_and_verify disabled "$limine_conf" "$boot_path"; then
+    if (( had_drop_in )); then
+      printf '%s\n' "$setting" >"$drop_in"
+      chmod 644 "$drop_in"
+    fi
+    if (( had_snapshot_setting )); then
+      usb_authorization_enable_snapshot_setting "$limine_defaults"
+    fi
+    echo "USBGuard remains required because the boot images could not be verified as default-allow." >&2
+    exit 1
+  fi
+  ;;
+  *)
+  echo "Usage: omarchy-usb-authorization-boot <enable|disable>" >&2
+  exit 2
+  ;;
+  esac
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

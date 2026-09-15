@@ -747,6 +747,12 @@ create_user() {
   echo "%wheel ALL=(ALL:ALL) ALL" >/etc/sudoers.d/00-omarchy-wheel
   chmod 440 /etc/sudoers.d/00-omarchy-wheel
 
+  if omarchy-pkg-present usbguard; then
+    source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
+    usb_authorization_add_user "$username"
+    systemctl try-restart usbguard.service
+  fi
+
   source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
   for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
     [[ -d $dir || -L $dir ]] || continue

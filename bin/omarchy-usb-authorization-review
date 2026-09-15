@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Review a blocked USB device authorization request
+
+set -euo pipefail
+
+token="${1:-}"
+if [[ ! $token =~ ^request-[0-9a-f]{64}$ ]]; then
+  echo "This USB authorization request is invalid or expired." >&2
+  exit 1
+fi
+
+request="$HOME/.local/state/omarchy/usb-authorization/requests/$token.json"
+if [[ ! -f $request || -L $request ]]; then
+  echo "This USB authorization request is no longer available." >&2
+  exit 1
+fi
+
+id=$(jq -er '.id | select(test("^[0-9]+$"))' "$request")
+expected_rule=$(jq -er '.rule | select(type == "string" and length > 0)' "$request")
+read_blocked_rule() {
+  local line
+
+  while IFS= read -r line; do
+    if [[ $line == "$id: "* ]]; then
+      printf '%s\n' "${line#"$id: "}"
+      return 0
+    fi
+  done < <(usbguard list-devices --blocked)
+
+  return 1
+}
+
+current_rule=$(read_blocked_rule || true)
+
+if [[ -z $current_rule || $current_rule != "$expected_rule" ]]; then
+  rm -f "$request"
+  echo "That USB device was removed or changed. Connect it again to review it." >&2
+  exit 1
+fi
+
+gum style --foreground 212 --bold "Blocked USB accessory"
+echo
+echo "The following details come from the device and can be forged:"
+printf '%s\n' "$current_rule" | LC_ALL=C tr -c '\11\12\15\40-\176' '?'
+echo
+
+choice=$(gum choose \
+  "Allow once" \
+  "Always allow this device" \
+  "Keep blocked") || exit 130
+
+if [[ $choice != "Keep blocked" ]]; then
+  current_rule=$(read_blocked_rule || true)
+  if [[ -z $current_rule || $current_rule != "$expected_rule" ]]; then
+    rm -f "$request"
+    echo "That USB device was removed or changed. Connect it again to review it." >&2
+    exit 1
+  fi
+fi
+
+case "$choice" in
+"Allow once")
+  # Target the complete identity rule instead of USBGuard's numeric ID. IDs can
+  # be reassigned when the daemon restarts while the review dialog is open.
+  usbguard allow-device "$expected_rule"
+  echo "USB accessory allowed until it is disconnected."
+  ;;
+"Always allow this device")
+  usbguard allow-device --permanent "$expected_rule"
+  echo "USB accessory added to the trusted policy."
+  ;;
+"Keep blocked")
+  echo "USB accessory remains blocked."
+  ;;
+esac
+
+rm -f "$request"

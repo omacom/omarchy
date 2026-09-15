@@ -1,0 +1,17 @@
+[Unit]
+Description=Ask before allowing new USB devices
+After=graphical-session.target dbus.socket
+Requires=dbus.socket
+PartOf=graphical-session.target
+ConditionEnvironment=OMARCHY_PATH
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+ExecCondition=/usr/bin/systemctl is-active --quiet usbguard.service
+ExecStart=/usr/bin/bash -lc 'exec "$OMARCHY_PATH/bin/omarchy-usb-authorization-watch"'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
