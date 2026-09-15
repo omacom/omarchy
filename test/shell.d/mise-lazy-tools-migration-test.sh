@@ -51,6 +51,7 @@ write_wrapper codex codex
 write_wrapper npm:playwright playwright
 write_wrapper github:can1357/oh-my-pi omp
 write_wrapper aqua:google-antigravity/antigravity-cli agy
+write_wrapper npm:cf cf
 cat >"$test_home/.local/bin/hunk" <<'SH'
 #!/bin/bash
 echo user-owned
@@ -59,7 +60,7 @@ chmod +x "$test_home/.local/bin/hunk"
 
 bash -euo pipefail "$ROOT/migrations/1788262200.sh" >/dev/null
 
-for command in codex playwright omp agy cursor-agent basecamp muse; do
+for command in codex playwright omp agy cf cursor-agent basecamp muse; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "lazy-tool migration removes the recognized $command wrapper"
 done
 grep -Fx 'echo user-owned' "$test_home/.local/bin/hunk" >/dev/null || fail "lazy-tool migration preserves a user-owned command"
@@ -68,7 +69,7 @@ grep -Fx 'locked_scopes = ["project", "global"]' "$mise_config" >/dev/null ||
   fail "lazy-tool migration excludes system tools from invocation-wide locked mode"
 grep -Eq '^uv = \{ version = "latest", lazy = true, minimum_release_age = "0s" \}$' "$mise_config" ||
   fail "lazy-tool migration declares uv"
-[[ $(grep -c 'lazy = true' "$mise_config") == 19 ]] || fail "lazy-tool migration declares every default tool"
+[[ $(grep -c 'lazy = true' "$mise_config") == 20 ]] || fail "lazy-tool migration declares every default tool"
 grep -Fx 'reshim --system' "$mise_log" >/dev/null || fail "lazy-tool migration reconciles bootstrap shims"
 pass "lazy-tool migration replaces recognized wrappers with native lazy declarations"
 
