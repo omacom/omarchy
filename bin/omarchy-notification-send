@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Send an Omarchy desktop notification
-# omarchy:args=[--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--image <path-or-uri>] <headline> [description] [--exec <program> [args...]]
-# omarchy:examples=omarchy notification send "Reminder" "5 minutes are up" -g 󰢌
+# omarchy:args=[--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--image <path-or-uri>] [--deadline <seconds>] [--deadline-text <template>] <headline> [description] [--action <id>=<label> <program> [args...] \;]... [--exec <program> [args...]]
+# omarchy:examples=omarchy notification send "Reminder" "5 minutes are up" -g 󰢌 | omarchy notification send "Update ready" --action now=Restart omarchy-restart-shell \; --deadline 30 --deadline-text "Later in {s} s"
 
 set -euo pipefail
 
@@ -19,9 +19,40 @@ print_id=0
 exec_args=()
 exec_present=0
 parsed_option_args=0
+# Buttons: the D-Bus actions array as id/label pairs, and one argv per id in
+# the omarchy-action-argv hint (a JSON object), built only from --action.
+action_pairs=()
+action_argv_json='{}'
+deadline_seconds=""
+deadline_text=""
 
 usage() {
-  echo "Usage: omarchy-notification-send [--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--image <path-or-uri>] <headline> [description] [--exec <program> [args...]]" >&2
+  echo "Usage: omarchy-notification-send [--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--image <path-or-uri>] [--deadline <seconds>] [--deadline-text <template>] <headline> [description] [--action <id>=<label> <program> [args...] \\;]... [--exec <program> [args...]]" >&2
+}
+
+# The argv rules shared by --exec and --action: a program must be there, and a
+# single word with a space is almost always a whole command passed as one
+# quoted string — which would run a program literally named that. Splitting it
+# ourselves is exactly the injection we avoid, so reject it and point at the
+# unquoted form instead.
+check_argv() { # flag args...
+  local flag=$1
+  shift
+  if (($# == 0)) || [[ -z $1 ]]; then
+    echo "$flag needs a command: $flag <program> [args...]" >&2
+    exit 1
+  fi
+  if (($# == 1)) && [[ $1 == *[[:space:]]* ]]; then
+    echo "$flag takes the command as separate words, not one quoted string." >&2
+    echo "Write:  $flag $1" >&2
+    exit 1
+  fi
+}
+
+# NUL-delimit into jq so every byte survives as data: jq's own --args would eat
+# a bare "--", and a newline in an arg must not split the vector.
+argv_json() {
+  printf '%s\0' "$@" | jq -Rsc 'split("\u0000")[:-1]'
 }
 
 # Recognize a known option, in both `--flag value` and `--flag=value` forms.
@@ -47,7 +78,7 @@ parse_omarchy_option() {
   fi
 
   case $opt in
-  -g | --glyph | -u | --urgency | --app-name | -i | --icon | --image | -r | --replace-id | -t | --expire-time) ;;
+  -g | --glyph | -u | --urgency | --app-name | -i | --icon | --image | -r | --replace-id | -t | --expire-time | --deadline | --deadline-text) ;;
   *) return 1 ;;
   esac
 
@@ -76,6 +107,14 @@ parse_omarchy_option() {
     }
     expire_timeout=$val
     ;;
+  --deadline)
+    [[ $val =~ ^[0-9]+$ ]] && ((val > 0)) || {
+      echo "Invalid $opt value (seconds expected): $val" >&2
+      exit 1
+    }
+    deadline_seconds=$val
+    ;;
+  --deadline-text) deadline_text=$val ;;
   esac
 
   parsed_option_args=$nargs
@@ -103,10 +142,54 @@ shift
 # Only a recognized option flag or --exec in that slot is not the description.
 known_flag() {
   case $1 in
-  -g | --glyph | -u | --urgency | --app-name | -i | --icon | -t | --expire-time | --image | -r | --replace-id | -p | --print-id | --exec) return 0 ;;
-  --glyph=* | --urgency=* | --app-name=* | --icon=* | --expire-time=* | --image=* | --replace-id=*) return 0 ;;
+  -g | --glyph | -u | --urgency | --app-name | -i | --icon | -t | --expire-time | --image | -r | --replace-id | -p | --print-id | --deadline | --deadline-text | --action | --exec) return 0 ;;
+  --glyph=* | --urgency=* | --app-name=* | --icon=* | --expire-time=* | --image=* | --replace-id=* | --deadline=* | --deadline-text=*) return 0 ;;
   esac
   return 1
+}
+
+# --action <id>=<label> <program> [args...] \;
+#
+# A button. Like --exec, the command is the words that follow, already split by
+# the caller's shell and never re-parsed; unlike --exec there can be several, so
+# each one ends at a lone ";" (written \; as for find -exec), or at the end of
+# the line for the last one. The id names the button to the shell and keys its
+# argv in the omarchy-action-argv hint; the label is what the button says.
+parse_action() { # args... (after --action); sets consumed
+  consumed=0
+  if (($# == 0)) || [[ $1 != *=* ]]; then
+    echo "--action needs <id>=<label> <program> [args...]" >&2
+    exit 1
+  fi
+  local spec=$1 id label
+  id=${spec%%=*}
+  label=${spec#*=}
+  shift
+  consumed=1
+  if [[ ! $id =~ ^[A-Za-z0-9_.-]+$ ]] || [[ -z $label ]]; then
+    echo "--action needs <id>=<label> with a plain id and a label: $spec" >&2
+    exit 1
+  fi
+  if [[ $id == "default" ]]; then
+    echo "--action id \"default\" is the click itself; use --exec for that" >&2
+    exit 1
+  fi
+  if jq -e --arg id "$id" 'has($id)' <<<"$action_argv_json" >/dev/null; then
+    echo "--action id given twice: $id" >&2
+    exit 1
+  fi
+  local argv=()
+  while (($# > 0)) && [[ $1 != ";" ]]; do
+    argv+=("$1")
+    shift
+    consumed=$((consumed + 1))
+  done
+  if (($# > 0)); then
+    consumed=$((consumed + 1)) # the ";"
+  fi
+  check_argv "--action $spec" "${argv[@]+"${argv[@]}"}"
+  action_pairs+=("$id" "$label")
+  action_argv_json=$(jq -c --arg id "$id" --argjson argv "$(argv_json "${argv[@]}")" '. + {($id): $argv}' <<<"$action_argv_json")
 }
 
 if (($# > 0)) && ! known_flag "$1"; then
@@ -127,6 +210,12 @@ while (($# > 0)); do
     exec_args=("$@")
     exec_present=1
     break
+  elif [[ $1 == "--action" ]]; then
+    # Same position rule as --exec: only after the positionals, so a headline
+    # that is literally "--action" is text.
+    shift
+    parse_action "$@"
+    shift "$consumed"
   elif parse_omarchy_option "$@"; then
     shift "$parsed_option_args"
   else
@@ -160,26 +249,31 @@ if [[ -n $image ]]; then
 fi
 
 if ((exec_present)); then
-  if ((${#exec_args[@]} == 0)) || [[ -z ${exec_args[0]} ]]; then
-    echo "--exec needs a command: --exec <program> [args...]" >&2
-    exit 1
+  check_argv "--exec" "${exec_args[@]+"${exec_args[@]}"}"
+  hints+=(omarchy-exec-argv s "$(argv_json "${exec_args[@]}")")
+fi
+
+if ((${#action_pairs[@]} > 0)); then
+  hints+=(omarchy-action-argv s "$action_argv_json")
+fi
+
+# A deadline is the moment the notification stops meaning anything - the shell
+# counts down to it and expires the toast exactly there, whatever the usual
+# lifetime and the hover pause would have done. Sent as an absolute epoch so a
+# toast restored after a shell restart keeps the same moment.
+if [[ -n $deadline_seconds ]]; then
+  deadline_ms=$(($(date +%s%3N) + deadline_seconds * 1000))
+  hints+=(omarchy-deadline-ms s "$deadline_ms")
+  if [[ -n $deadline_text ]]; then
+    hints+=(omarchy-deadline-text s "$deadline_text")
   fi
-  # A single word with a space is almost always a whole command passed as one
-  # quoted string — which would run a program literally named that. Splitting it
-  # ourselves is exactly the injection we avoid, so reject it and point at the
-  # unquoted form instead.
-  if ((${#exec_args[@]} == 1)) && [[ ${exec_args[0]} == *[[:space:]]* ]]; then
-    echo "--exec takes the command as separate words, not one quoted string." >&2
-    echo "Write:  --exec ${exec_args[0]}" >&2
-    exit 1
-  fi
-  # NUL-delimit into jq so every byte survives as data: jq's own --args would eat
-  # a bare "--", and a newline in an arg must not split the vector.
-  exec_argv_json=$(printf '%s\0' "${exec_args[@]}" | jq -Rsc 'split("\u0000")[:-1]')
-  hints+=(omarchy-exec-argv s "$exec_argv_json")
+elif [[ -n $deadline_text ]]; then
+  echo "--deadline-text needs --deadline <seconds>" >&2
+  exit 1
 fi
 
 hint_count=$((${#hints[@]} / 3))
+action_count=${#action_pairs[@]}
 
 # Call org.freedesktop.Notifications.Notify directly — never notify-send. Its
 # argv parsing is the surface that reinterprets a relayed headline like
@@ -190,14 +284,15 @@ hint_count=$((${#hints[@]} / 3))
 # omarchy-exec-argv is set only from --exec.
 #
 # Signature susssasa{sv}i: app_name, replaces_id, app_icon, summary, body,
-# actions (empty), hints, expire_timeout. replaces_id (from -r) updates a toast
-# in place; -p prints the returned id so a caller can reuse it.
+# actions (id/label pairs, from --action only), hints, expire_timeout.
+# replaces_id (from -r) updates a toast in place; -p prints the returned id so a
+# caller can reuse it.
 notify_cmd=(
   busctl --user -- call
   org.freedesktop.Notifications /org/freedesktop/Notifications
   org.freedesktop.Notifications Notify susssasa{sv}i
   "$app_name" "$replaces_id" "$app_icon" "$headline" "$description"
-  0
+  "$action_count" "${action_pairs[@]+"${action_pairs[@]}"}"
   "$hint_count" "${hints[@]}"
   "$expire_timeout"
 )

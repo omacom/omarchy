@@ -632,7 +632,7 @@ assert(
   'notifications service re-persists a silenced notification updated while its write was queued'
 )
 assert(
-  /rows\.push\(NotificationLogic\.persistablePopup\(\{[\s\S]{0,400}?\}, imagesDir\)\.entry\)/.test(serviceQml),
+  /rows\.push\(NotificationLogic\.persistablePopup\(\{[\s\S]{0,600}?\}, imagesDir\)\.entry\)/.test(serviceQml),
   'notifications service replays carried-over toasts from their persisted image copies'
 )
 assert(
@@ -723,4 +723,83 @@ assert(
   !/pendingModel|pastModel/.test(serviceQml),
   'notifications service keeps no in-memory history models'
 )
+JS
+
+# ---------------------------------------------------------------- buttons and deadlines
+run_node_test <<'JS'
+const fs = require('fs')
+const notifications = requireFromRoot('shell/plugins/notifications/NotificationLogic.js')
+
+// Buttons come from the freedesktop actions array; the "default" action is the
+// card click and is not a button.
+assertEqual(
+  notifications.actionsFromNotification({ actions: [
+    { identifier: 'default', text: 'Open' },
+    { identifier: 'allow', text: 'Allow' },
+    { identifier: 'deny', text: 'Deny' }
+  ] }),
+  '[{"id":"allow","label":"Allow"},{"id":"deny","label":"Deny"}]',
+  'notifications turn actions into buttons and drop the default one'
+)
+assertEqual(notifications.actionsFromNotification({}), '[]', 'notifications with no actions have no buttons')
+assertDeepEqual(
+  notifications.parseActions('[{"id":"allow","label":"Allow"},{"id":"","label":"x"},{"label":"no id"}]'),
+  [{ id: 'allow', label: 'Allow' }],
+  'notifications parse persisted buttons and drop entries without an id'
+)
+assertDeepEqual(notifications.parseActions('not json'), [], 'notifications parse malformed button JSON as no buttons')
+
+// One argv per button in omarchy-action-argv, validated like the click argv.
+const argv = '{"allow":["omarchy-shell","x","answer","allow"],"bad":"string","dash":["-rf","/"],"empty":[]}'
+assertDeepEqual(
+  notifications.parseActionArgv(argv, 'allow'),
+  ['omarchy-shell', 'x', 'answer', 'allow'],
+  'notifications resolve a button id to its argv'
+)
+assertEqual(notifications.parseActionArgv(argv, 'bad'), null, 'notifications fail closed on a non-array action argv')
+assertEqual(notifications.parseActionArgv(argv, 'dash'), null, 'notifications fail closed on a dash-leading action program')
+assertEqual(notifications.parseActionArgv(argv, 'empty'), null, 'notifications fail closed on an empty action argv')
+assertEqual(notifications.parseActionArgv(argv, 'missing'), null, 'notifications return nothing for an unknown button id')
+assertEqual(notifications.parseActionArgv('["not","an","object"]', 'allow'), null, 'notifications fail closed when the action hint is not an object')
+assertEqual(notifications.parseActionArgv('', 'allow'), null, 'notifications return nothing without an action hint')
+
+// The snapshot carries the buttons and their argv, and an in-place update
+// rewrites them along with everything else the card draws.
+const snap = notifications.snapshotOf({
+  id: 7, appName: 'x', summary: 's', urgency: 1,
+  actions: [{ identifier: 'allow', text: 'Allow' }],
+  hints: { 'omarchy-action-argv': argv }
+}, 1000)
+assertEqual(snap.actionsJson, '[{"id":"allow","label":"Allow"}]', 'notifications snapshot the buttons')
+assertEqual(snap.actionArgv, argv, 'notifications snapshot the action argv hint')
+assert(notifications.popupRoles().includes('actionsJson') && notifications.popupRoles().includes('actionArgv'),
+  'notifications write buttons through on an in-place update')
+assertEqual(notifications.historyEntry({}).actionsJson, '[]', 'notifications history rows default to no buttons')
+
+// Deadlines: an absolute moment, a countdown to it, and expiry exactly there.
+assertEqual(notifications.deadlineFromHints({ 'omarchy-deadline-ms': '1700000000000' }), 1700000000000, 'notifications read the deadline hint')
+assertEqual(notifications.deadlineFromHints({ 'omarchy-deadline-ms': 'soon' }), 0, 'notifications ignore a non-numeric deadline')
+assertEqual(notifications.deadlineFromHints({}), 0, 'notifications default to no deadline')
+assertEqual(notifications.countdownText('Deny in {s} s', 10000, 7400), 'Deny in 3 s', 'notifications count down in whole seconds, rounding up')
+assertEqual(notifications.countdownText('', 10000, 7400), '3 s', 'notifications count down without a template')
+assertEqual(notifications.countdownText('Gone', 10000, 7400), 'Gone 3 s', 'notifications append the seconds to a template without a slot')
+assertEqual(notifications.countdownText('x {s}', 10000, 12000), 'x 0', 'notifications never count below zero')
+assert(notifications.popupExpired({ deadlineMs: 5000, timestamp: 0 }, 0, 5000), 'notifications expire at a declared deadline even with no lifetime')
+assert(!notifications.popupExpired({ deadlineMs: 5000, timestamp: 0 }, 1000, 4999), 'notifications keep a toast until its declared deadline whatever the lifetime')
+assert(notifications.popupRoles().includes('deadlineMs') && notifications.popupRoles().includes('deadlineText'),
+  'notifications write the deadline through on an in-place update')
+const replayed = notifications.historyRows(JSON.stringify({ id: 1, originalId: 1, summary: 's', deadlineMs: 1, deadlineText: 'x', timestamp: 5 }), [], 1, 10)
+assertEqual(replayed[0].deadlineMs, 0, 'notifications replay history without a deadline')
+assertEqual(replayed[0].deadlineText, '', 'notifications replay history without a countdown')
+
+const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/notifications/Service.qml'), 'utf8')
+const cardQml = fs.readFileSync(path.join(root, 'shell/plugins/notifications/components/NotificationCard.qml'), 'utf8')
+assert(
+  /function invokePopupAction\(index, actionId\)[\s\S]{0,400}?parseActionArgv\(entry \? entry\.actionArgv : "", actionId\)[\s\S]{0,120}?Util\.execArgv\(argv\)/.test(serviceQml),
+  'notifications service runs a button argv itself, like the click argv'
+)
+assert(/"actionsChanged"/.test(serviceQml), 'notifications service watches the actions of a notification updated in place')
+assert(/ticking: !cardSlot\.hasDeadline/.test(serviceQml), 'notifications service does not run the lifetime timer against a declared deadline')
+assert(/signal actionRequested\(string id\)/.test(cardQml), 'notification card raises a signal per button')
+assert(/onActionRequested: function\(id\) \{ service\.invokePopupAction\(cardSlot\.index, id\) \}/.test(serviceQml), 'notifications service wires the card buttons')
 JS
