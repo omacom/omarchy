@@ -188,6 +188,47 @@ assertEqual(
   'tailnet.example',
   'tailscale labels connections by tailnet when nickname is missing'
 )
+assertDeepEqual(
+  accounts.accounts.map(account => tailscale.accountDetail(account)),
+  ['dhh.github · dhh@github', '37signals.com · david@37signals.com'],
+  'tailscale details nicknamed connections with their tailnet and login'
+)
+
+// Tailscale names a profile after its login until the user picks a nickname,
+// so one login on two tailnets lists the same nickname twice.
+const sameLogin = tailscale.parseAccounts(JSON.stringify([
+  {
+    id: '11f3',
+    nickname: 'user@github',
+    tailnet: 'user.github',
+    account: 'user@github',
+    selected: true
+  },
+  {
+    id: '7665',
+    nickname: 'user@github',
+    tailnet: 'acme.org.github',
+    account: 'user@github',
+    selected: false
+  }
+]))
+
+assertEqual(sameLogin.selectedAccountLabel, 'user.github', 'tailscale labels a default-named connection by tailnet')
+assertDeepEqual(
+  sameLogin.accounts.map(account => tailscale.accountLabel(account)),
+  ['user.github', 'acme.org.github'],
+  'tailscale tells apart tailnets that share one login'
+)
+assertDeepEqual(
+  sameLogin.accounts.map(account => tailscale.accountDetail(account)),
+  ['user@github', 'user@github'],
+  'tailscale details default-named connections with their login only'
+)
+assertEqual(
+  tailscale.accountDetail({ nickname: '', tailnet: '', account: 'user@example', id: 'abcd' }),
+  '',
+  'tailscale leaves the detail empty when nothing is left to show'
+)
 
 assertDeepEqual(
   tailscale.loginPlan(true, 'https://login.tailscale.com/a/existing'),

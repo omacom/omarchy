@@ -804,6 +804,7 @@ Panel {
     readonly property bool selectedAccount: account && account.selected === true
     readonly property bool switchingAccount: account && tailscale.switchingAccountId === String(account.id || "")
     readonly property string accountText: account ? tailscale.accountLabel(account) : "Account"
+    readonly property string accountDetail: account ? tailscale.accountDetail(account) : ""
 
     hasCursor: root.cursorActive && root.focusSection === "accounts" && root.accountIndex === rowIndex
     current: selectedAccount
@@ -841,16 +842,32 @@ Panel {
         }
       }
 
-      Text {
-        textFormat: Text.PlainText
-        text: accountRow.accountText
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        font.bold: accountRow.selectedAccount
-        elide: Text.ElideRight
+      Column {
         width: parent.width - Style.space(22) - Style.space(8)
         anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(1)
+
+        Text {
+          textFormat: Text.PlainText
+          text: accountRow.accountText
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          font.bold: accountRow.selectedAccount
+          elide: Text.ElideRight
+          width: parent.width
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          visible: accountRow.accountDetail !== ""
+          text: accountRow.accountDetail
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
       }
     }
 
