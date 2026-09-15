@@ -14,7 +14,9 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 - **Subscription switch** — one chip per enabled agent (`h`/`l` or click).
   It appears only when more than one agent is enabled.
 - **Limits** — the percentage of each allowance used, a matching meter, and
-  the time until the session or weekly window resets.
+  the time until the session or weekly window resets. A tick on the meter
+  marks the pace: how much of the allowance an even spend would have used by
+  now, so usage right of the tick runs out before the reset.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.

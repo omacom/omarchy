@@ -229,15 +229,40 @@ assertDeepEqual(
     { label: 'Opus 5 (1M context) Weekly', title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.78, resetAt: '' },
-    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '' }
+    { title: 'Session', percent: 0.78, resetAt: '', spanMs: 5 * 3600 * 1000 },
+    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '', spanMs: 7 * 24 * 3600 * 1000 }
   ],
   'agents panel titles a limit off the collector when it states one'
 )
 
 assertDeepEqual(
   limitWindows({ limits: [{ label: 'Weekly (7-day)', percent: 0.12, resetsAt: '' }] }),
-  [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
+  [{ title: 'Weekly', percent: 0.12, resetAt: '', spanMs: 7 * 24 * 3600 * 1000 }],
   'agents panel still reads a window out of a label that carries no title'
 )
+JS
+
+# The pace tick marks how much of a window an even spend would have used by
+# now. It needs the window's span, so a misparsed label must hide it rather
+# than draw it at the far end.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const start = source.indexOf('function windowIsLong')
+const end = source.indexOf('function formatDuration')
+assert(start > 0 && end > start, 'agents panel exposes its pace helpers')
+
+const hour = 3600 * 1000
+const panelRoot = { nowMs: Date.parse('2026-09-15T12:00:00Z') }
+const helpers = new Function('root', 'function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }\n'
+  + source.slice(start, end) + '\nreturn { limitWindow, paceFor }')(panelRoot)
+const at = ms => new Date(panelRoot.nowMs + ms).toISOString()
+const pace = (label, resetsAt, title) => Math.round(helpers.paceFor(helpers.limitWindow(label, 0.5, resetsAt, title)) * 1000) / 1000
+
+assertEqual(pace('Session (5-hour)', at(4 * hour)), 0.2, 'agents pace is the elapsed share of a five-hour session')
+assertEqual(pace('Weekly (7-day)', at(3.5 * 24 * hour)), 0.5, 'agents pace is the elapsed share of a weekly window')
+assertEqual(pace('5h window', at(5 * hour)), 0, 'agents pace starts at zero right after a reset')
+assertEqual(pace('Weekly (7-day)', ''), -1, 'agents pace is hidden without a reset time')
+assertEqual(pace('Opus 5 (1M context)', at(2 * hour), 'Opus 5'), -1, 'agents pace is hidden when the parsed span is shorter than the reset')
+assert(/pace: root\.paceFor\(limitRow\.window\)/.test(source), 'agents limit meters draw the pace tick')
 JS
