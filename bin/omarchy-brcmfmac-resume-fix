@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# omarchy:summary=Reload brcmfmac after resume; some Broadcom parts never recover from S3 on their own
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# The PCIe/msgbuf brcmfmac parts (BCM43602, BCM4350/4355/4364, BCM4377/4378/4387)
+# are known to leave the firmware unresponsive after S3 on some machines: every
+# command times out (`brcmf_msgbuf_query_dcmd: Timeout on response for query
+# command`) until the driver is unloaded and reloaded. This is a long-standing
+# upstream bug with no real fix (same signature as Debian #849381, open since
+# kernel 4.8); unbinding and rebinding the PCI device is the standard
+# workaround. Unbind/bind is used rather than `modprobe -r`/`modprobe`, because
+# something (NetworkManager's open netdev, a cfg80211 wdev reference) reliably
+# keeps the module in use across resume, so it can never actually be unloaded --
+# calling modprobe again in that state is a no-op, since the module was never
+# removed from the kernel and modprobe will not re-probe a device that was
+# manually detached via sysfs.
+
+set -u
+
+lspci="${OMARCHY_LSPCI:-lspci}"
+sysfs="${OMARCHY_PCI_SYSFS:-/sys/bus/pci}"
+
+# Every Broadcom part brcmfmac drives over PCIe with the msgbuf protocol --
+# the same table fix-brcmfmac-supplicant.sh matches, since it's exactly the
+# population that can hit this resume bug.
+wifi=$("$lspci" -Dnn 2>/dev/null | grep -E '14e4:(43ba|43bb|43bc|43a3|43dc|4464|4488|4425|4433)' | head -1 | cut -d' ' -f1)
+
+if [[ -z $wifi ]]; then
+  echo "omarchy-brcmfmac-resume-fix: no matching Broadcom Wi-Fi device found, nothing to do"
+  exit 0
+fi
+
+driver_link="$sysfs/devices/$wifi/driver"
+driver=$(basename "$(readlink -f "$driver_link" 2>/dev/null)" 2>/dev/null)
+
+if [[ $driver != brcmfmac ]]; then
+  echo "omarchy-brcmfmac-resume-fix: driver bound to $wifi is '${driver:-none}', not brcmfmac -- nothing to do"
+  exit 0
+fi
+
+echo "omarchy-brcmfmac-resume-fix: reloading brcmfmac after resume ($wifi)"
+
+if ! echo "$wifi" >"$sysfs/drivers/brcmfmac/unbind" 2>/dev/null; then
+  echo "omarchy-brcmfmac-resume-fix: PCI unbind failed"
+  exit 1
+fi
+
+sleep 1
+
+if ! echo "$wifi" >"$sysfs/drivers/brcmfmac/bind" 2>/dev/null; then
+  echo "omarchy-brcmfmac-resume-fix: PCI bind failed"
+  exit 1
+fi
+
+# The bind write itself is synchronous, but give the firmware a moment to
+# settle before reporting the verdict.
+for _ in 1 2 3 4 5; do
+  [[ -e $driver_link ]] && break
+  sleep 1
+done
+
+now=$(basename "$(readlink -f "$driver_link" 2>/dev/null)" 2>/dev/null)
+echo "omarchy-brcmfmac-resume-fix: done, driver now bound: ${now:-none}"
+[[ $now == brcmfmac ]]
