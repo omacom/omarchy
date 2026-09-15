@@ -18,12 +18,10 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.
-- **Tokens by day** — one row per day for the last week: day, bar, tokens, with today
-  bolded at the bottom. Hover today for its prompt and session count.
-- **Tokens by model** — tokens per model with the bar behind each row scaled
-  to the heaviest model,
-  the same way the weekly chart scales to its busiest day. Hover for the
-  input / output / cache split.
+- **Tokens by day** — one row per day for the last week, with today bolded at the bottom. Local Codex, Claude, and Kimi rows append estimated API-equivalent USD cost when an exact tariff is available; hover a row for component prices, provenance, assumptions, and missing coverage.
+- **Tokens by model** — providers without local pricing coverage retain their token-only model rows. Local Codex, Claude, and Kimi sources use 30-local-day buckets for one combined token/known-API-cost-estimate table: the four heaviest models followed by Today, 7 days, and 30 days summaries. Window totals include every model even when only four fit on screen. A visible note names excluded missing-price models when known; hover retains detailed priced-token coverage.
+
+Token and cost values use fixed, right-aligned columns, including one- through five-digit amounts. The panel uses the height of the largest provider page so switching subscriptions does not resize it; scrolling is needed only when the available screen cannot fit that content. Usage records are parsed and compacted in a background worker, and tab labels never traverse the full usage history. Reopening within 15 seconds reuses the current refresh; an explicit refresh still requests fresh data.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
@@ -55,6 +53,37 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+
+## API-equivalent daily cost
+
+Prices are maintained manually. Edit the JSON file below for local changes; maintain the bundled table and its source/date metadata in `ApiCost.js` when updating shipped defaults. No scraper, network price lookup, or background price import runs.
+
+Kimi uses the same public `dailyUsage` formatter and 7-/30-day presentation as Codex and Claude. Pricing requires a recorded raw model and an exact user tariff; current Wire records provide no model, so their cost remains unknown even when manual rates exist, and no bundled alias is inferred.
+
+Codex and Claude `dailyUsage` records use the shared public `ApiCost.js` interface to build the seven displayed calendar-day rows. Native Codex; Pi/OMP records whose provider equals `openai-codex` or whose API begins with `openai-codex`; and OpenCode records whose provider equals `openai` retain their source, literal raw model, local day, and independently measured token categories in that record. Native Claude transcripts, Pi/OMP records whose provider equals `anthropic`, and OpenCode records whose provider equals `anthropic` do the same. Claude stats-cache token totals remain visible but unpriced when category splits are absent; history message counts are prompts, never tokens. Each value keeps the existing token abbreviation and adds a no-space cost suffix: `2.4M/$8.20` for a known amount or known subtotal, or `2.4M/—` when no cost can be established. When any amount is incomplete, a visible note says costs exclude usage with missing prices or token details. A known zero tariff remains `$0.00`. Labels and token-based bars preserve the corresponding numeric `recentDays` total even when a bucket has only independently measured categories and a null total; `dailyUsage` then supplies the explicitly partial price rather than replacing or shrinking the visible consumption.
+
+The daily heading says `API COST UNAVAILABLE` when every displayed cost is unknown, while retaining the token values and `/—` markers. A known zero or any known subtotal keeps the USD estimate heading.
+
+Bundled rates are versioned fallback data, not a claim that they were confirmed today. The bundled catalog records the official OpenAI and Claude Platform source URLs, retrieval timestamps, SHA-256 values, and price dates. Claude's standard catalog uses exact published model IDs and the documented `claude-sonnet-4-5` alias. Missing cache-duration metadata is disclosed as a standard 5-minute-write estimate. Recognized 5-minute or 1-hour metadata prices the measured cache-write total at its matching rate; mixed writes require a complete numeric 5-minute/1-hour split that reconciles to that total. Missing, invalid, conflicting, or unknown duration evidence leaves cache-write money unknown. An exact manual cache-write rate remains authoritative for valid 1-hour and reconciled mixed usage, with that applicability assumption disclosed. Tooltips label results as API-equivalent estimates in USD rather than subscription bills and expose the effective tariff, source, price date, fallback or override origin, component costs, assumptions, and missing coverage.
+
+Exact bundled model IDs, provider-documented exact aliases, and the provisional Guardian estimate below resolve. Similar prefixes and unknown suffixes remain unpriced. Missing request-level tariff/context metadata permits a disclosed standard short-context estimate; an observed processing mode without a validated applicable tariff makes its affected cost components unknown. Legacy-only and synchronized token totals have no matching versioned pricing scope in this ticket, so they retain their tokens and show unknown cost rather than reusing a local subtotal.
+
+For `codex-auto-review`, the user explicitly chose a provisional GPT-5.4 API-equivalent estimate on 2026-09-10. OpenAI's [Auto-review article](https://alignment.openai.com/auto-review/) dated 2026-04-30 names GPT-5.4 Thinking (low reasoning); this is not proof of the current underlying or billed model. The [official GPT-5.4 model page](https://developers.openai.com/api/docs/models/gpt-5.4), verified via Firecrawl on 2026-09-10, lists standard rates of $2.50 input, $15 output and $0.25 cached input per million tokens. Cache-write pricing remains unknown (`null`). This uses the existing standard short-context estimate, not special-tier or long-context billing. Existing tooltip assumptions disclose the provisional mapping; recorded model IDs stay unchanged. Exact manual rates or aliases for `codex-auto-review` take precedence.
+
+`~/.config/omarchy/agents/pricing.json` can replace or extend exact model rates and add exact aliases. The panel validates every edit and notices both later saves and a file first created after login without requiring a shell restart:
+
+```json
+{
+  "models": {
+    "gpt-6-astra": { "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5 }
+  },
+  "aliases": {
+    "my-exact-agent-id": "gpt-6-astra"
+  }
+}
+```
+
+Rates are USD per one million tokens and must be finite, nonnegative JSON numbers. Explicit `cacheRead` and `cacheWrite` values, including zero, win. If either cache field is omitted from an otherwise valid manual tariff, the documented compatibility assumptions are cache read at one tenth of manual input and cache write equal to manual input; the tooltip identifies each assumption. An explicitly invalid field rejects that manual tariff, leaving a valid bundled fallback available. There is no automatic price refresh or provider import. Saving this local file reprices existing usage; it does not modify session history.
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
