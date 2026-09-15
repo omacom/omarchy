@@ -362,6 +362,60 @@ function searchScore(items, entry, query) {
   return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
 }
 
+// ---------------------------------------------------------------------------
+// Caret arithmetic
+// ---------------------------------------------------------------------------
+// The menu header is not a TextInput -- the whole surface handles its own keys
+// -- so inserting, deleting and stepping have to be done by hand. Kept here,
+// away from QML, so the awkward cases (a caret in the middle, a word jump over
+// runs of spaces, an index that outlived its text) can be tested in node.
+//
+// Every function clamps its index rather than trusting it: filterText is reset
+// from several places, and a stale caret must land somewhere sane instead of
+// slicing a string at a negative offset.
+
+function clampCaret(text, at) {
+  var length = String(text || "").length
+  var index = Math.round(Number(at))
+  if (!isFinite(index)) return length
+  return Math.max(0, Math.min(index, length))
+}
+
+function caretInsert(text, at, inserted) {
+  var value = String(text || "")
+  var add = String(inserted == null ? "" : inserted)
+  var index = clampCaret(value, at)
+  return { text: value.slice(0, index) + add + value.slice(index), caret: index + add.length }
+}
+
+// Backspace, and Ctrl+Backspace when byWord. Deletes behind the caret only;
+// forward delete has no key free on this surface, where Delete removes the
+// selected launcher entry.
+function caretDelete(text, at, byWord) {
+  var value = String(text || "")
+  var index = clampCaret(value, at)
+  if (index <= 0) return { text: value, caret: 0 }
+
+  var head = value.slice(0, index)
+  head = byWord ? head.replace(/\s+$/, "").replace(/\S+$/, "") : head.slice(0, -1)
+  return { text: head + value.slice(index), caret: head.length }
+}
+
+// One character, or one word when byWord: to the far side of any spaces and
+// then over the word itself, so a caret never comes to rest inside a run of
+// spaces the way a plain "skip to the next space" would leave it.
+function caretStep(text, at, direction, byWord) {
+  var value = String(text || "")
+  var index = clampCaret(value, at)
+  if (!byWord) return clampCaret(value, index + (direction < 0 ? -1 : 1))
+
+  if (direction < 0)
+    return value.slice(0, index).replace(/\s+$/, "").replace(/\S+$/, "").length
+
+  var rest = value.slice(index).replace(/^\s+/, "").replace(/^\S+/, "")
+  return value.length - rest.length
+}
+
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
   var target = entry.kind === "link" ? entry.target : entry.id
   return {
@@ -519,6 +573,10 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
-    displayRow: displayRow
+    displayRow: displayRow,
+    clampCaret: clampCaret,
+    caretInsert: caretInsert,
+    caretDelete: caretDelete,
+    caretStep: caretStep
   }
 }
