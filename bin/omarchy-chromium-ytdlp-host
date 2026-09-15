@@ -25,6 +25,48 @@ valid_url() {
   [[ $1 =~ ^https?:// ]]
 }
 
+# Write the tab's cookies as a Netscape jar for yt-dlp --cookies.
+# Rejects control characters so a cookie cannot forge a jar record.
+write_tab_cookies() {
+  local payload=$1 dest=$2
+  local lines
+
+  lines=$(jq -r '
+    (.cookies // [])
+    | .[]
+    | select((.name | type == "string") and (.name | length > 0))
+    | select(.value | type == "string")
+    | select((.domain | type == "string") and (.domain | length > 0))
+    | select((.path | type == "string") and (.path | startswith("/")))
+    | select(
+        (.name | test("[\t\n\r]") | not) and
+        (.value | test("[\t\n\r]") | not) and
+        (.domain | test("[\t\n\r]") | not) and
+        (.path | test("[\t\n\r]") | not)
+      )
+    | [
+        (if .httpOnly == true then "#HttpOnly_" else "" end) + .domain,
+        (if (.domain | startswith(".")) then "TRUE" else "FALSE" end),
+        .path,
+        (if .secure == true then "TRUE" else "FALSE" end),
+        (if .session == true or (.expirationDate | type != "number") then "0"
+         else (.expirationDate | floor | tostring) end),
+        .name,
+        .value
+      ]
+    | @tsv
+  ' <<<"$payload") || return 1
+
+  [[ -n $lines ]] || return 1
+  printf '%s\n' '# Netscape HTTP Cookie File' "$lines" >"$dest"
+}
+
+ytdlp_simulate() {
+  local target=$1
+  shift
+  yt-dlp "$@" --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$target" >/dev/null 2>&1
+}
+
 # A printed path is only usable if it is a regular file inside DOWNLOAD_DIR.
 # Forged records (leading-dash mpv options, paths with control chars, or
 # anything that escaped the download directory) must not reach the click command.
@@ -82,13 +124,24 @@ osd_close() {
 
 download_url() {
   local url="$1"
+  local cookies_args=()
 
   mkdir -p "$DOWNLOAD_DIR"
 
+  if [[ -n ${OMARCHY_YTDLP_COOKIES:-} && -f $OMARCHY_YTDLP_COOKIES ]]; then
+    trap 'rm -f "${OMARCHY_YTDLP_COOKIES:-}"' EXIT
+    cookies_args=(--cookies "$OMARCHY_YTDLP_COOKIES")
+  fi
+
   # Don't show anything until yt-dlp confirms there's actually a video to grab.
-  if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
-    omarchy-notification-send -u critical -g 󰅖 "No video found for download" "$url"
-    exit 0
+  # Stale tab cookies should not block a public download.
+  if ! ytdlp_simulate "$url" "${cookies_args[@]}"; then
+    if ((${#cookies_args[@]} > 0)) && ytdlp_simulate "$url"; then
+      cookies_args=()
+    else
+      omarchy-notification-send -u critical -g 󰅖 "No video found for download" "$url"
+      exit 0
+    fi
   fi
 
   osd_progress 0
@@ -122,7 +175,7 @@ download_url() {
       title=$(decode_title "${line#OMARCHY_TITLE$'\t'}") || title=""
       ;;
     esac
-  done < <(PYTHONUNBUFFERED=1 yt-dlp --no-playlist --no-simulate \
+  done < <(PYTHONUNBUFFERED=1 yt-dlp "${cookies_args[@]}" --no-playlist --no-simulate \
     --quiet --no-warnings --no-exec --no-exec-before-download --progress --newline \
     --progress-template $'download:OMARCHY_PROG\t%(progress._percent_str)s' \
     --paths "$DOWNLOAD_DIR" -o '%(title)s.%(ext)s' \
@@ -167,7 +220,7 @@ download_url() {
 }
 
 main() {
-  local length payload url
+  local length payload url cookiefile
 
   # Detached worker: this is what actually runs yt-dlp and fires notifications.
   if [[ ${1:-} == "--download" ]]; then
@@ -186,6 +239,14 @@ main() {
   url=$(parse_url "$payload")
   [[ -n $url ]] || exit 0
   valid_url "$url" || exit 0
+
+  cookiefile=$(mktemp --tmpdir omarchy-ytdlp-cookies.XXXXXX)
+  chmod 600 "$cookiefile"
+  if write_tab_cookies "$payload" "$cookiefile"; then
+    export OMARCHY_YTDLP_COOKIES=$cookiefile
+  else
+    rm -f "$cookiefile"
+  fi
 
   # Detach the download so this host exits promptly and frees the browser's port.
   setsid -f "$SCRIPT_PATH" --download "$url" </dev/null >/dev/null 2>&1
