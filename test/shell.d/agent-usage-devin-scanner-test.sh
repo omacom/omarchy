@@ -8,6 +8,10 @@ require_command python3
 TEST_HOME=$(mktemp -d)
 trap 'rm -rf "$TEST_HOME"' EXIT
 
+# Every collector run must use the test cache root: without this, scans would
+# write to (or read from) the real XDG cache when it is set in the environment.
+export XDG_CACHE_HOME="$TEST_HOME/.cache"
+
 DEVIN_DATA_DIR="$TEST_HOME/.local/share/devin/cli"
 mkdir -p "$DEVIN_DATA_DIR"
 
@@ -144,8 +148,11 @@ conn.commit()
 conn.close()
 PY
 
+# Clear the scan cache the earlier scenarios wrote so this run starts cold
+rm -f "$TEST_HOME/.cache/omarchy/agent-usage/devin-scan-"*
+
 # First run populates the cache
-result1=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" XDG_CACHE_HOME="$TEST_HOME/.cache" \
+result1=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" \
   "$ROOT/bin/omarchy-agent-usage-devin")
 [[ $(jq -r '.todayTotalTokens' <<<"$result1") == "15" ]] ||
   fail "Devin collector first scan populates cache" "$result1"
@@ -162,14 +169,14 @@ conn.close()
 PY
 
 # Second run without --force should still serve the cached value (15, not 165)
-result2=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" XDG_CACHE_HOME="$TEST_HOME/.cache" \
+result2=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" \
   "$ROOT/bin/omarchy-agent-usage-devin")
 [[ $(jq -r '.todayTotalTokens' <<<"$result2") == "15" ]] ||
   fail "Devin collector serves cached scan without --force" "$result2"
 pass "Devin collector serves cached scan without --force"
 
 # --force bypasses the cache and sees the new data (165)
-result3=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" XDG_CACHE_HOME="$TEST_HOME/.cache" \
+result3=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" \
   "$ROOT/bin/omarchy-agent-usage-devin" --force)
 [[ $(jq -r '.todayTotalTokens' <<<"$result3") == "165" ]] ||
   fail "Devin collector --force rescans past the cache" "$result3"
@@ -220,7 +227,7 @@ with open(os.path.join(cache_dir, "user_status.test123.bin"), "w") as f:
     json.dump(cache, f)
 PY
 
-result=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" XDG_CACHE_HOME="$TEST_HOME/.cache" \
+result=$(HOME="$TEST_HOME" DEVIN_DATA_DIR="$DEVIN_DATA_DIR" \
   "$ROOT/bin/omarchy-agent-usage-devin" --force)
 [[ $(jq -r '.tierLabel' <<<"$result") == "Pro" ]] ||
   fail "Devin collector reads plan name from user-status cache" "$result"
