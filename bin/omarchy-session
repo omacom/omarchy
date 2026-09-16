@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Save and reopen supported desktop applications
+# omarchy:args=<save|restore|status|forget|watch|prepare-exit> [--yes]
+# omarchy:examples=omarchy session save | omarchy session restore
+
+exec python3 "$OMARCHY_PATH/default/session/session.py" "$@"

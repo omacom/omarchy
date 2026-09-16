@@ -77,3 +77,13 @@ If you insist on hacking on the internal Omarchy files, switch to the dev channe
 ### Resetting any changes
 
 If you end up making a mess of the configurations, you can always revert them to the defaults via _Update > Config_ in the Omarchy menu. Or by running `omarchy reinstall configs` to reset everything.
+
+## Remembering your desktop
+
+Choose **Setup > Session Restore** to enable reopening supported applications at login. It is off until you enable it. **System > Session** shows the saved applications, saves the current desktop, reopens saved applications, or forgets the saved desktop. Disable Session Restore before forgetting if you want automatic saving to stop.
+
+While enabled, Omarchy remembers supported applications every 30 seconds and saves again before its Logout, Reboot, and Shutdown actions close your windows. It opens each application once and moves its first matching window to its saved numbered workspace. Applications already running are left alone. A temporary empty desktop does not erase the last automatic snapshot; choose Save Session to deliberately replace it with an empty one.
+
+Applications must have a desktop entry matching their Wayland app ID or StartupWMClass. Applications manage their own documents and tabs; terminal jobs, unsaved work, multiple windows per application, exact tiled layouts, floating geometry, and special workspaces are not restored. Applications without a matching desktop entry are skipped. Session state stays on this machine, and contains only application identities and workspace numbers.
+
+Use `omarchy setup session --enable` or `--disable` from the terminal. `omarchy session status`, `save`, `restore`, and `forget` provide the same actions as the menu. Restoring after a crash or a shutdown outside the Omarchy menu uses the most recent automatic snapshot.
