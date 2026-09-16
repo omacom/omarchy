@@ -53,7 +53,21 @@ that it is actually implicated.
 
 ## Symbolize when you can
 
-This is Arch, which runs a public debuginfod server:
+Omarchy is Arch, which runs a public debuginfod server. Prefer
+`coredumpctl debug` (systemd 252+), which hands the core straight to gdb
+without leaving a copy of process memory on disk:
+
+```bash
+DEBUGINFOD_URLS="https://debuginfod.archlinux.org" \
+  coredumpctl debug <pid> \
+  --debugger-arguments="-batch -ex 'set debuginfod enabled on' -ex 'bt'"
+```
+
+On a non-Arch host, point `DEBUGINFOD_URLS` at that distro's server (or leave
+it unset and let gdb's default config resolve one) instead of the Arch URL.
+
+If this coredumpctl predates `debug`, or you need the core on disk for later
+inspection, dump it yourself — and then clean it up:
 
 ```bash
 core=$(mktemp -t crash-XXXXXX.core)
