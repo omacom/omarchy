@@ -235,7 +235,7 @@ estimate_label() {
     d = int(log(mb) / log(10)) - 1            # round to 2 significant figures
     if (d < -1) d = -1
     r = int(mb / (10 ^ d) + 0.5) * (10 ^ d)
-    printf "~%d MB", r
+    printf "~%.0f MB", r
   }'
 }
 

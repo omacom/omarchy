@@ -638,3 +638,15 @@ grep 'notification:' "$calls" | grep -F 'Transcoded to 1080p mp4' |
   fail "a deduped output reports its own size" "$(cat "$calls")"
 rm -f "$TMPDIR/in-1080p.mp4" "$TMPDIR/in-1080p-2.mp4"
 pass "a deduped output reports the size of the file actually written"
+
+# Sub-10 MiB estimates round instead of flooring (WR-01): 18 s at 720p is
+# 5.8/3.6/1.9 MiB + 192k audio -- %.0f renders ~6/~4/~2 where the old %d
+# floored to ~5/~3/~1. All three sit far below the 120 MiB fixture, so no
+# larger-than-source degrade interferes.
+FAKE_DURATION=18 FAKE_PICK=$'medium\tCRF 23 · ~4 MB' \
+  run_transcode "$TMPDIR/in.mov" mp4 720p
+for row in $'\thigh\tCRF 18 · ~6 MB' $'\tmedium\tCRF 23 · ~4 MB' $'\tlow\tCRF 28 · ~2 MB'; do
+  grep -F "$row" "$calls" >/dev/null ||
+    fail "an 18 s 720p clip offers a $row row" "$(cat "$calls")"
+done
+pass "sub-10 MiB estimates round instead of flooring"
