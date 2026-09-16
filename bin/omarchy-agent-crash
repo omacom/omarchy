@@ -49,4 +49,4 @@ mechanism, read the skill files directly and follow them instead:
 PROMPT
 )
 
-exec omarchy-agent --prompt "$prompt"
+exec omarchy-agent --fallback --prompt "$prompt"
