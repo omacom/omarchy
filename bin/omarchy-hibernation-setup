@@ -2,14 +2,17 @@
 
 # omarchy:summary=Set up hibernation with swap and boot resume configuration
 # omarchy:requires-sudo=true
-# omarchy:args=[--force] [--no-rebuild]
+# omarchy:args=[--force] [--no-rebuild] [--size <SIZE>]
 
 FORCE=false
 NO_REBUILD=false
+SWAPSIZE=""
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
     --no-rebuild) NO_REBUILD=true ;;
+    --size) shift; SWAPSIZE="$1" ;;
+    --size=*) SWAPSIZE="${arg#--size=}" ;;
   esac
 done
 
@@ -59,21 +62,28 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
-# Check if hibernation is already configured
-if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
-  # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
-  if [[ -f $RESUME_DROP_IN ]] && grep -q 'resume_offset="$' "$RESUME_DROP_IN" && [[ -f $SWAP_FILE ]]; then
+# Check if hibernation is already configured. Skip this guard entirely under
+# --force so a half-configured or stale state can always be rebuilt (see #7619).
+if ! $FORCE && [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
+  # The mkinitcpio resume hook exists, so either the setup is complete or a
+  # previous run failed after writing the hook but before writing (or correctly
+  # populating) the resume drop-in. Self-heal the incomplete cases rather than
+  # claiming "already set up" while resume= is absent from the boot cmdline.
+  needs_resume=true
+  if [[ -f $RESUME_DROP_IN ]] && grep -qE 'resume_offset=[0-9]+' "$RESUME_DROP_IN" && [[ -f $SWAP_FILE ]]; then
+    # Drop-in present with a numeric offset and the swapfile exists: verify the
+    # offset still matches the file's current physical layout before trusting it.
     RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE" 2>/dev/null)
-    if [[ -n $RESUME_OFFSET ]]; then
-      echo "Fixing empty resume_offset ($RESUME_OFFSET)"
-      sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" "$RESUME_DROP_IN"
-      if ! $NO_REBUILD; then
-        sudo limine-mkinitcpio
-      fi
+    if [[ -n $RESUME_OFFSET ]] && grep -q "resume_offset=$RESUME_OFFSET" "$RESUME_DROP_IN"; then
+      needs_resume=false
     fi
   fi
-  echo "Hibernation is already set up"
-  exit 0
+  if $needs_resume; then
+    echo "Repairing incomplete hibernation resume configuration"
+  else
+    echo "Hibernation is already set up"
+    exit 0
+  fi
 fi
 
 if ! $FORCE; then
@@ -83,20 +93,60 @@ if ! $FORCE; then
   fi
 fi
 
-SWAP_SUBVOLUME="/swap"
+SWAP_SUBVOLUME="@swap"
+SWAP_MOUNT="${SWAP_FILE%/swapfile}"    # /swap
 
-# Create btrfs subvolume for swap
-if ! sudo btrfs subvolume show "$SWAP_SUBVOLUME" &>/dev/null; then
-  echo "Creating Btrfs subvolume"
-  sudo btrfs subvolume create "$SWAP_SUBVOLUME"
-  sudo chattr +C "$SWAP_SUBVOLUME"
+# Detect the top-level btrfs device backing the mount.
+ROOT_DEVICE="$(findmnt -no SOURCE / | sed 's/\[.*\]//')"
+ROOT_UUID="$(findmnt -no UUID /)"
+
+# Create the swap subvolume as a TOP-LEVEL btrfs subvolume (its own subvolume id
+# under subvolid 5), NOT nested inside the root @. systemd >= 259 refuses to
+# hibernate into a btrfs swapfile that lives on the root subvolume tree (it
+# reports CanHibernate as unavailable), so the swapfile must sit on its own
+# top-level subvolume. Creating it via `btrfs subvolume create /swap` while the
+# root @ is mounted nests it as @/swap, which is exactly the broken layout.
+BTRFS_TOP="$(mktemp -d)"
+# Mount only long enough to (re)create or clean up subvolumes.
+sudo mount -t btrfs -o subvolid=5 "$ROOT_DEVICE" "$BTRFS_TOP"
+if ! sudo btrfs subvolume show "$BTRFS_TOP/$SWAP_SUBVOLUME" &>/dev/null; then
+  echo "Creating top-level Btrfs subvolume '$SWAP_SUBVOLUME'"
+  sudo btrfs subvolume create "$BTRFS_TOP/$SWAP_SUBVOLUME"
+fi
+# Remove a stale nested @/swap left by a previous (broken) installer run.
+if sudo btrfs subvolume show "$BTRFS_TOP/@/swap" &>/dev/null; then
+  echo "Removing stale nested @/swap (broken layout)"
+  sudo btrfs subvolume delete "$BTRFS_TOP/@/swap"
+fi
+sudo umount "$BTRFS_TOP" && rmdir "$BTRFS_TOP"
+
+# Ensure @swap is mounted at /swap (nodatacow is required for a swapfile).
+if ! findmnt -n "$SWAP_MOUNT" &>/dev/null; then
+  echo "Mounting $SWAP_MOUNT"
+  sudo install -d -m 0755 "$SWAP_MOUNT"
+  sudo mount -t btrfs -o subvol=${SWAP_SUBVOLUME},nodatacow "$ROOT_DEVICE" "$SWAP_MOUNT"
+fi
+# Persist the @swap mount in fstab.
+if ! grep -q "subvol=${SWAP_SUBVOLUME}[ ,]" /etc/fstab 2>/dev/null && \
+   ! grep -qE "[[:space:]]${SWAP_MOUNT}[[:space:]]" /etc/fstab 2>/dev/null; then
+  echo "Adding $SWAP_MOUNT mount to /etc/fstab"
+  printf "\n# @swap subvolume for hibernation\nUUID=%s %s btrfs subvol=%s,nodatacow 0 0\n" "$ROOT_UUID" "$SWAP_MOUNT" "$SWAP_SUBVOLUME" | sudo tee -a /etc/fstab >/dev/null
 fi
 
 # Create swapfile
 if ! sudo swaplabel "$SWAP_FILE" &>/dev/null; then
   echo "Creating swapfile in Btrfs subvolume"
-  MEM_TOTAL_KB="$(awk '/MemTotal/ {print $2}' /proc/meminfo)k"
-  sudo btrfs filesystem mkswapfile -s "$MEM_TOTAL_KB" "$SWAP_FILE"
+  if [[ -n $SWAPSIZE ]]; then
+    MEM_TOTAL_ARG="$SWAPSIZE"
+  else
+    # Size to RAM rounded up to the next GiB, plus 2 GiB of headroom so the
+    # suspend image (plus page-cache flush overhead) always fits.
+    RAM_KIB="$(awk '/^MemTotal:/{print $2}' /proc/meminfo)"
+    RAM_GIB=$(( (RAM_KIB + 1048575) / 1048576 ))
+    MEM_TOTAL_ARG="$(( RAM_GIB + 2 ))G"
+  fi
+  echo "  Swap size: $MEM_TOTAL_ARG"
+  sudo btrfs filesystem mkswapfile -s "$MEM_TOTAL_ARG" "$SWAP_FILE"
 fi
 
 # Add swapfile to fstab
