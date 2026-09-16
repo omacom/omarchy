@@ -29,6 +29,11 @@ AGENT_ID = "codex"
 AGENT_NAME = "Codex"
 AUTH_HELP = "Run `codex login` to authenticate."
 
+# session_meta.model_provider for the built-in OpenAI backend, which is the
+# only one this subscription pays for. Any other id is a custom provider in
+# config.toml pointed at some other endpoint.
+NATIVE_PROVIDER = "openai"
+
 # A scan this recent is only reused to dedup concurrent collector runs (the
 # update command backgrounds one per agent while the panel refreshes on its
 # own); every periodic widget refresh lands a real rescan, however low
@@ -306,6 +311,19 @@ def scan_native_codex_sessions():
           try:
             entry = json.loads(raw)
           except Exception:
+            continue
+          if entry.get("type") == "session_meta":
+            # Codex CLI happily fronts any OpenAI-compatible backend (`--oss`,
+            # or a custom model_provider in config.toml). Those turns bill the
+            # local box or a third party, never this subscription, so drop the
+            # whole rollout the way the pi and opencode scans drop foreign
+            # providers. The field is written once, on the first record.
+            meta = entry.get("payload") or {}
+            provider = str(meta.get("model_provider") or "")
+            # Rollouts predating the field carry no provider at all; count
+            # those rather than silently lose the history.
+            if provider and provider != NATIVE_PROVIDER:
+              break
             continue
           if entry.get("type") == "turn_context":
             payload = entry.get("payload") or {}
