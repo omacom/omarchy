@@ -92,8 +92,14 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
     selectionFile => decode("UTF-8", $ARGV[2]),
     doneFile => decode("UTF-8", $ARGV[3])
   };
-  $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
-  $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  if (length($ARGV[4] // "")) {
+    my $w = int($ARGV[4]);
+    $payload->{width} = ("$w" =~ /^-?[0-9]+$/) ? $w + 0 : 0;
+  }
+  if (length($ARGV[5] // "")) {
+    my $mh = int($ARGV[5]);
+    $payload->{maxHeight} = ("$mh" =~ /^-?[0-9]+$/) ? $mh + 0 : 0;
+  }
   if (length($ARGV[6] // "")) {
     my $di = int($ARGV[6]);
     $payload->{defaultIndex} = ("$di" =~ /^-?[0-9]+$/) ? $di + 0 : 0;

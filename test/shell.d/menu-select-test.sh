@@ -113,6 +113,19 @@ grep -Fq '"defaultIndex":0' "$payloads" ||
   fail "menu select coerces a non-finite default index to 0" "$(cat "$payloads")"
 pass "menu select coerces a non-finite default index to 0"
 
+# The sibling numeric args get the same guard: a non-finite --width or
+# --maxheight must not leak a bare Inf/NaN token into the payload either.
+: >"$payloads"
+if ! timeout 10 bash -c '
+  PATH="$1:$PATH" CAPTURED_PAYLOADS="$2" FAKE_PICK=a \
+    "$3/bin/omarchy-menu-select" Pick a b c -- --width 1e1000 --maxheight inf >/dev/null
+' _ "$STUB_DIR" "$payloads" "$ROOT"; then
+  fail "menu select coerces non-finite width/maxHeight to 0" "timed out or exited non-zero"
+fi
+grep -Fq '"width":0' "$payloads" && grep -Fq '"maxHeight":0' "$payloads" ||
+  fail "menu select coerces non-finite width/maxHeight to 0" "$(cat "$payloads")"
+pass "menu select coerces non-finite width/maxHeight to 0"
+
 # The flag's only shipped caller is omarchy-transcode (Phase 6 adopted it
 # first); every other invocation keeps its absent-field payload.
 sweep=$(grep -rln -- '--default-index' "$ROOT/bin" | grep -v -e '/omarchy-menu-select$' -e '/omarchy-transcode$' || true)
