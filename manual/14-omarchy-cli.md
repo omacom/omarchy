@@ -57,6 +57,32 @@ Capture commands — Screenshots and screen recording:
 
 Every command takes `--help` too, whether you ask a whole group (`omarchy capture --help`) or a single command (`omarchy capture screenshot --help`).
 
+### Abbreviating commands
+
+You don't have to type every word in full. As long as what you type is an unambiguous prefix of each word, the CLI works out the rest: `omarchy pl u` runs `omarchy plugin update`, and `omarchy th set tokyo-night` runs `omarchy theme set tokyo-night`. The full spelling always works and is what every help screen shows first; the shortest one appears under it:
+
+```
+~ ❯ omarchy plugin update --help
+Usage:
+  omarchy plugin update [id] [--yes]
+
+Short form:
+  omarchy p u
+```
+
+If an abbreviation could mean several things, nothing runs and you get the list of candidates instead:
+
+```
+~ ❯ omarchy p l
+Ambiguous Omarchy command: omarchy p l
+Could be:
+  omarchy plugin list
+  omarchy plymouth list
+  omarchy powerprofiles list
+```
+
+Pair that with a shell alias like `alias o=omarchy` and `o p u` updates your plugins. Keep the full spelling in scripts and keybindings, though — a command added in a later release could make a short form ambiguous.
+
 ### Opening the menu from the terminal
 
 The Omarchy menu is scriptable as well, which is handy for your own keybindings. `omarchy menu` opens it at the root, and you can jump straight to any point in the tree by naming it: `omarchy menu summon style.theme` goes right to the theme picker, `omarchy menu toggle system` opens the system menu and closes it again if it's already up, and `omarchy menu close` puts it away.

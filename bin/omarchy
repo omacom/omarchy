@@ -7,6 +7,15 @@ METADATA_SCAN_LIMIT=80
 
 COMMAND_KEYS=()
 ROUTE_COLLISIONS=()
+EXPANDED_ARGS=()
+ABBREVIATION_EXPANDED="false"
+ABBREVIATION_CANDIDATES_LOADED="false"
+COMMANDS_LOADED="false"
+declare -A ABBREVIATION_CANDIDATES
+declare -A ABBREVIATION_MATCH_KEYS
+declare -A ABBREVIATION_MATCH_ROUTES
+ABBREVIATION_MATCH_COUNT=0
+ABBREVIATION_MATCH_EXACT=0
 declare -A COMMAND_ROUTE
 declare -A COMMAND_FALLBACK_ROUTE
 declare -A COMMAND_BINARY
@@ -315,11 +324,15 @@ register_command() {
 load_commands() {
   local file=""
 
+  [[ $COMMANDS_LOADED == "true" ]] && return
+
   for file in "$OMARCHY_BIN_DIR"/omarchy-*; do
     [[ -f $file && -x $file ]] || continue
+    [[ -n ${BINARY_TO_KEY[${file##*/}]} ]] && continue
     register_command "$file"
   done
 
+  COMMANDS_LOADED="true"
 }
 
 load_command_by_binary() {
@@ -734,7 +747,10 @@ show_commands_check() {
 }
 
 show_command_json() {
-  emit_command_record "$1" | jq -Rn "$(commands_json_filter) | {ok: true, command: .commands[0]}"
+  local short=""
+
+  short=$(shortest_abbreviation "$1")
+  emit_command_record "$1" | jq -Rn --arg short "$short" "$(commands_json_filter) | {ok: true, command: (.commands[0] + {short: (if \$short == \"\" then null else \$short end)})}"
 }
 
 parse_commands_args() {
@@ -867,9 +883,18 @@ show_command_help() {
   local args="${COMMAND_ARGS[$key]}"
   local example=""
   local alias=""
+  local short=""
 
   echo "Usage:"
   echo "  ${COMMAND_USAGE[$key]}"
+
+  short=$(shortest_abbreviation "$key")
+  if [[ -n $short ]]; then
+    echo ""
+    echo "Short form:"
+    echo "  $short"
+  fi
+
   echo ""
   echo "${COMMAND_SUMMARY[$key]}"
 
@@ -929,6 +954,196 @@ resolve_route() {
   done
 
   return 1
+}
+
+# Abbreviations are an alternative spelling, never a replacement: they resolve as a last resort, once every exact route
+# has failed, so `omarchy pl u` runs `omarchy plugin update` only because no other visible route has words those tokens
+# prefix. Candidates are every visible route plus each visible group as a one-word entry (so `omarchy pl` shows the plugin
+# group help). Hidden commands never take part: install-time plumbing like `provision user` must not steal `p u` from
+# `plugin update`. A group whose root command already registered that route keeps the command's key, so its aliases
+# stay one command.
+load_abbreviation_candidates() {
+  local route=""
+  local key=""
+  local group=""
+
+  [[ $ABBREVIATION_CANDIDATES_LOADED == "true" ]] && return
+  load_commands
+
+  for route in "${!ROUTE_TO_KEY[@]}"; do
+    key="${ROUTE_TO_KEY[$route]}"
+    [[ ${COMMAND_HIDDEN[$key]} == "true" ]] && continue
+    ABBREVIATION_CANDIDATES["$route"]="$key"
+  done
+
+  for key in "${COMMAND_KEYS[@]}"; do
+    [[ ${COMMAND_HIDDEN[$key]} == "true" ]] && continue
+    group="${COMMAND_GROUP[$key]}"
+    [[ -n ${COMMAND_NAME[$key]} ]] || continue
+    [[ -n ${ABBREVIATION_CANDIDATES["omarchy $group"]} ]] || ABBREVIATION_CANDIDATES["omarchy $group"]="group:$group"
+  done
+
+  ABBREVIATION_CANDIDATES_LOADED="true"
+}
+
+# Each argument must prefix the candidate word at the same position; the longest match wins, then the one with more
+# exact words. Sets ABBREVIATION_MATCH_KEYS (key -> route) and ABBREVIATION_MATCH_ROUTES (route -> key) to the survivors,
+# plus ABBREVIATION_MATCH_COUNT and ABBREVIATION_MATCH_EXACT for the winning score.
+match_abbreviation() {
+  local argc="$1"
+  shift
+  local args=("$@")
+  local candidate=""
+  local key=""
+  local words=()
+  local count=0
+  local exact=0
+  local index=0
+  local matched="true"
+
+  ABBREVIATION_MATCH_COUNT=0
+  ABBREVIATION_MATCH_EXACT=0
+  ABBREVIATION_MATCH_KEYS=()
+  ABBREVIATION_MATCH_ROUTES=()
+
+  for candidate in "${!ABBREVIATION_CANDIDATES[@]}"; do
+    read -r -a words <<<"${candidate#omarchy }"
+    count=${#words[@]}
+    (( count >= 1 && count <= argc )) || continue
+
+    matched="true"
+    exact=0
+    for (( index = 0; index < count; index++ )); do
+      if [[ ${words[index]} == "${args[index]}" ]]; then
+        exact=$((exact + 1))
+      elif [[ -z ${args[index]} || ${args[index]} == -* || ${words[index]} != "${args[index]}"* ]]; then
+        matched="false"
+        break
+      fi
+    done
+    [[ $matched == "true" ]] || continue
+
+    key="${ABBREVIATION_CANDIDATES[$candidate]}"
+    if (( count > ABBREVIATION_MATCH_COUNT || (count == ABBREVIATION_MATCH_COUNT && exact > ABBREVIATION_MATCH_EXACT) )); then
+      ABBREVIATION_MATCH_COUNT=$count
+      ABBREVIATION_MATCH_EXACT=$exact
+      ABBREVIATION_MATCH_KEYS=(["$key"]="$candidate")
+      ABBREVIATION_MATCH_ROUTES=(["$candidate"]="$key")
+    elif (( count == ABBREVIATION_MATCH_COUNT && exact == ABBREVIATION_MATCH_EXACT )); then
+      ABBREVIATION_MATCH_KEYS["$key"]="$candidate"
+      ABBREVIATION_MATCH_ROUTES["$candidate"]="$key"
+    fi
+  done
+
+  (( ABBREVIATION_MATCH_COUNT > 0 ))
+}
+
+# Two different commands left standing means the abbreviation is ambiguous: nothing runs and the candidates are listed.
+expand_abbreviated_route() {
+  local argc="$1"
+  shift
+  local args=("$@")
+  local candidate=""
+  local words=()
+
+  load_abbreviation_candidates
+  match_abbreviation "$argc" "${args[@]}" || return 1
+
+  if (( ${#ABBREVIATION_MATCH_KEYS[@]} > 1 )); then
+    echo "Ambiguous Omarchy command: omarchy ${args[*]}" >&2
+    echo "Could be:" >&2
+    for candidate in "${!ABBREVIATION_MATCH_ROUTES[@]}"; do
+      printf '%s\n' "$candidate"
+    done | sort | sed 's/^/  /' >&2
+    return 2
+  fi
+
+  # Every exact-word match is a route the router already rejected, so only a real expansion is worth dispatching again.
+  (( ABBREVIATION_MATCH_EXACT < ABBREVIATION_MATCH_COUNT )) || return 1
+
+  for candidate in "${!ABBREVIATION_MATCH_ROUTES[@]}"; do
+    read -r -a words <<<"${candidate#omarchy }"
+  done
+  EXPANDED_ARGS=("${words[@]}" "${args[@]:ABBREVIATION_MATCH_COUNT}")
+  return 0
+}
+
+# The shortest spelling of a command's canonical route that still resolves to it alone, for help output. Only routes
+# with the same number of words can compete (the longest match wins), and a competitor is only a problem while every
+# word after the current one could still hide behind the full canonical word. Each position takes the shortest prefix
+# that leaves no such competitor, then the result is checked against the real matcher; a route that cannot be shortened
+# prints nothing.
+shortest_abbreviation() {
+  local key="$1"
+  local route="${COMMAND_ROUTE[$key]}"
+  local words=()
+  local count=0
+  local candidate=""
+  local candidate_words=()
+  local competitors=()
+  local alive=()
+  local short=()
+  local prefix=""
+  local index=0
+  local later=0
+  local length=0
+  local conflict="false"
+  local shadowed="true"
+
+  load_abbreviation_candidates
+  read -r -a words <<<"${route#omarchy }"
+  count=${#words[@]}
+
+  for candidate in "${!ABBREVIATION_CANDIDATES[@]}"; do
+    [[ ${ABBREVIATION_CANDIDATES[$candidate]} == "$key" ]] && continue
+    read -r -a candidate_words <<<"${candidate#omarchy }"
+    (( ${#candidate_words[@]} == count )) || continue
+    competitors+=("${candidate#omarchy }")
+  done
+
+  for (( index = 0; index < count; index++ )); do
+    for (( length = 1; length <= ${#words[index]}; length++ )); do
+      prefix="${words[index]:0:length}"
+      conflict="false"
+
+      for candidate in ${competitors[@]+"${competitors[@]}"}; do
+        read -r -a candidate_words <<<"$candidate"
+        [[ ${candidate_words[index]} == "$prefix"* ]] || continue
+
+        shadowed="true"
+        for (( later = index + 1; later < count; later++ )); do
+          if [[ ${candidate_words[later]} != "${words[later]}"* ]]; then
+            shadowed="false"
+            break
+          fi
+        done
+
+        if [[ $shadowed == "true" ]]; then
+          conflict="true"
+          break
+        fi
+      done
+
+      [[ $conflict == "false" ]] && break
+    done
+
+    short+=("$prefix")
+
+    alive=()
+    for candidate in ${competitors[@]+"${competitors[@]}"}; do
+      read -r -a candidate_words <<<"$candidate"
+      [[ ${candidate_words[index]} == "$prefix"* ]] && alive+=("$candidate")
+    done
+    competitors=(${alive[@]+"${alive[@]}"})
+  done
+
+  [[ "${short[*]}" != "${words[*]}" ]] || return 1
+
+  match_abbreviation "$count" "${short[@]}" || return 1
+  (( ${#ABBREVIATION_MATCH_KEYS[@]} == 1 )) || return 1
+  [[ -n ${ABBREVIATION_MATCH_KEYS[$key]} ]] || return 1
+
+  printf 'omarchy %s' "${short[*]}"
 }
 
 suggest_command() {
@@ -1059,6 +1274,20 @@ dispatch_or_help() {
 
   if show_prefix_help "omarchy ${args[*]}"; then
     return 0
+  fi
+
+  if [[ $ABBREVIATION_EXPANDED != "true" ]]; then
+    expand_abbreviated_route "$#" "${args[@]}"
+    case $? in
+    0)
+      ABBREVIATION_EXPANDED="true"
+      dispatch_or_help "${EXPANDED_ARGS[@]}"
+      return $?
+      ;;
+    2)
+      return 127
+      ;;
+    esac
   fi
 
   echo "Unknown Omarchy command: omarchy ${args[*]}" >&2
