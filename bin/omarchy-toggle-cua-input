@@ -12,7 +12,7 @@ set -euo pipefail
 FLAG=cua-input
 MODULE=/usr/lib/cua/hyprland/cua-hyprland-plugin.so
 KIT=/usr/share/cua-hyprland-plugin
-MIN_VERSION=0.26.1-4
+MIN_VERSION=0.26.1-5
 # nf-md-robot_excited, escaped so this file reads without a Nerd Font.
 readonly GLYPH=$'\U000f16a4'
 
@@ -38,8 +38,8 @@ plugin_loaded() {
   hyprctl -j plugin list 2>/dev/null | jq -e 'map(select(.name == "cua-hyprland-plugin")) | length > 0' >/dev/null
 }
 
-layout_independent() {
-  hyprctl -j cua:status 2>/dev/null | jq -e '.keyboard_layout_independent == true' >/dev/null
+keyboard_capabilities_current() {
+  hyprctl -j cua:status 2>/dev/null | jq -e '.keyboard_layout_independent == true and .foreground_numlock_compatible == true' >/dev/null
 }
 
 package_current() {
@@ -88,7 +88,7 @@ turn_on() {
   compatible || refuse "The Cua Hyprland plugin does not match the running Hyprland; update it and log out and back in."
 
   load_plugin || refuse "The Cua Hyprland plugin could not load; check the session logs."
-  if ! layout_independent; then
+  if ! keyboard_capabilities_current; then
     refuse "Log out and back in to use the updated Cua plugin, then turn Cua Input on again."
   fi
   omarchy-hyprland-toggle "$FLAG" on >/dev/null
@@ -120,7 +120,7 @@ load_at_start() {
     notify "Cua input turned off" "The Cua Hyprland plugin could not load; check the session logs."
     exit 0
   fi
-  if ! layout_independent; then
+  if ! keyboard_capabilities_current; then
     omarchy-hyprland-toggle "$FLAG" off >/dev/null
     notify "Cua input turned off" "Log out and back in to use the updated plugin, then turn Cua Input on again."
     exit 0

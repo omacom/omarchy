@@ -18,7 +18,11 @@ case "$*" in
     if [[ ${TEST_PLUGIN_LOADED:-0} == 1 ]]; then echo '[{"name":"cua-hyprland-plugin","handle":"1"}]'; else echo '[]'; fi ;;
   "-j cua:status")
     if [[ ${TEST_CUA_READY:-0} == 1 ]]; then ready=true; else ready=false; fi
-    printf '{"configured":%s,"transport":{"ready":%s},"keyboard_layout_independent":%s}\n' "$ready" "$ready" "${TEST_LAYOUT_INDEPENDENT:-true}" ;;
+    numlock_capability=""
+    if [[ ${TEST_NUMLOCK_COMPATIBLE:-true} != missing ]]; then
+      numlock_capability=",\"foreground_numlock_compatible\":${TEST_NUMLOCK_COMPATIBLE:-true}"
+    fi
+    printf '{"configured":%s,"transport":{"ready":%s},"keyboard_layout_independent":%s%s}\n' "$ready" "$ready" "${TEST_LAYOUT_INDEPENDENT:-true}" "$numlock_capability" ;;
   "-j getoption input:kb_layout") printf '{"str":"%s"}\n' "${TEST_LAYOUT:-us}" ;;
   "-j getoption input:kb_variant") printf '{"str":"%s"}\n' "${TEST_VARIANT:-}" ;;
   "plugin load "*) printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"; exit "${TEST_LOAD_STATUS:-0}" ;;
@@ -48,7 +52,7 @@ SCRIPT
 cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 [[ $* == "-Q cua-hyprland-plugin" ]] || exit 1
-printf 'cua-hyprland-plugin %s\n' "${TEST_PLUGIN_VERSION:-0.26.1-4}"
+printf 'cua-hyprland-plugin %s\n' "${TEST_PLUGIN_VERSION:-0.26.1-5}"
 SCRIPT
 
 cat >"$tmp_dir/bin/omarchy-pkg-present" <<'SCRIPT'
@@ -115,7 +119,7 @@ pass "cua input config preserves human keyboard settings"
 # Older packages cannot supply the runtime capability, even if a stub reports it.
 fresh_home
 rc=0
-TEST_PLUGIN_VERSION=0.26.1-3 "$toggle" on 2>/dev/null || rc=$?
+TEST_PLUGIN_VERSION=0.26.1-4 "$toggle" on 2>/dev/null || rc=$?
 [[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input refuses older packages"
 ! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input refuses older packages" "plugin loaded anyway"
 pass "cua input refuses older packages"
@@ -131,6 +135,30 @@ TEST_PLUGIN_LOADED=1 TEST_LAYOUT_INDEPENDENT=false "$toggle" on 2>/dev/null || r
 grep -q 'Log out and back in' "$TEST_LOG" || fail "cua input disables a stale loaded module" "restart instruction missing"
 grep -q '^hyprctl:reload$' "$TEST_LOG" || fail "cua input disables a stale loaded module" "old keymap not restored"
 pass "cua input disables a stale loaded module without replacing it"
+
+# Package 4 already has independent keymaps, but lacks the Num Lock fix.
+# Both interactive enable and startup must reject that still-mapped module.
+for action in on --load; do
+  fresh_home
+  mkdir -p "$(dirname "$(flag_file)")"
+  cp "$ROOT/default/hypr/toggles/cua-input.lua" "$(flag_file)"
+  rc=0
+  TEST_PLUGIN_LOADED=1 TEST_NUMLOCK_COMPATIBLE=missing "$toggle" "$action" 2>/dev/null || rc=$?
+  if [[ $action == on ]]; then
+    [[ $rc != 0 ]] || fail "cua input refuses the old Num Lock guard during $action"
+  fi
+  [[ ! -e $(flag_file) ]] || fail "cua input refuses the old Num Lock guard during $action" "flag remains"
+  ! grep -q '^hyprctl:plugin ' "$TEST_LOG" || fail "cua input refuses the old Num Lock guard during $action" "module replaced"
+  grep -q 'Log out and back in' "$TEST_LOG" || fail "cua input refuses the old Num Lock guard during $action" "restart instruction missing"
+  pass "cua input refuses the old Num Lock guard during $action without replacing the module"
+done
+
+# Compiled capabilities are available before input is enabled or ready.
+fresh_home
+TEST_CUA_READY=0 "$toggle" on
+[[ -e $(flag_file) ]] || fail "cua input checks compiled capabilities before input is ready"
+grep -q '^notify:.*Cua plugin loaded, input not ready' "$TEST_LOG" || fail "cua input checks compiled capabilities before input is ready" "not-ready state hidden"
+pass "cua input checks compiled capabilities before input is ready"
 
 # A failed load must clear a legacy flag rather than leave its keyboard override.
 for action in on --load; do
