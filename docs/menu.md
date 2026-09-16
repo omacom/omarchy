@@ -130,6 +130,26 @@ Adding a provider means adding an entry to the `providers` map in `Menu.qml`
 (script, icon, `actionFor`, optionally `volatile`) and pointing a submenu at
 it with `provider:`.
 
+## Learned search ranking
+
+Opening the menu without typing keeps the declared menu order. Once a query is
+present, results are ordered by match quality first, and history only breaks
+ties inside a tier — an exact label always outranks a heavily used description
+match.
+
+History is scored as *frecency* (`MenuUsage.js`), the model Firefox uses for the
+URL bar: each activation contributes `exp(-ln(2)/30 * age_in_days)`, so it is
+worth half as much after 30 days. A raw counter would leave whatever you used
+most last year permanently ahead of what you use today; decay makes ranking
+follow current habit, and abandoned entries fade out on their own. Menu and link
+traversals count for less than app and action activations, since they are
+usually a step on the way somewhere else.
+
+Scores are stored at their last-activation timestamp and decayed on read, so a
+write touches only the activated row. Records that decay into noise are pruned
+on write. History lives in `~/.local/state/omarchy/launcher-usage.json`
+(atomic writes); delete it to reset ranking.
+
 ## Driving the menu from the CLI
 
 `bin/omarchy-menu` is a thin wrapper over the standard plugin IPC surface:
