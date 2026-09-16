@@ -189,8 +189,10 @@ pass "an existing output dedupes to -2"
 
 # The deduped path must be resolved -- and the encode started -- only after
 # the "Transcoding" notification, so failure states are never orphaned.
-notify_line=$(grep -n 'Transcoding' "$calls" | head -n1 | cut -d: -f1)
-ffmpeg_line=$(grep -n '^ffmpeg ' "$calls" | head -n1 | cut -d: -f1)
+notify_line=$(grep -n 'Transcoding' "$calls" | head -n1 | cut -d: -f1 || true)
+ffmpeg_line=$(grep -n '^ffmpeg ' "$calls" | head -n1 | cut -d: -f1 || true)
+[[ -n $notify_line && -n $ffmpeg_line ]] ||
+  fail "the Transcoding notification and ffmpeg call both recorded" "$(cat "$calls")"
 (( notify_line < ffmpeg_line )) ||
   fail "the Transcoding notification precedes the ffmpeg call" "$(cat "$calls")"
 pass "the Transcoding notification precedes the ffmpeg call"
