@@ -105,6 +105,7 @@ Item {
   property real barDragOffsetY: 0
   property bool barMoveActive: false
   property bool barMoveTakePointer: false
+  property bool barMovePointerArmed: false
   property string barMoveCandidate: ""
   property var barMoveWindow: null
   property var barMoveScreen: null
@@ -505,6 +506,7 @@ Item {
     if (!barMoveScreen) return
     barMoveCandidate = position
     barMoveTakePointer = false
+    barMovePointerArmed = false
     barMoveActive = true
   }
 
@@ -513,12 +515,47 @@ Item {
     barMoveCandidate = nearestScreenEdge(screenPoint, barMoveScreen)
   }
 
+  function takeBarMovePointer() {
+    if (!barMoveActive) return
+    var handoff = BarModel.barMovePointerAfterHandoff()
+    barMoveTakePointer = handoff.takePointer === true
+    // Arm at handoff: the overlay never saw the original press, so a release
+    // with no further motion would otherwise never finish.
+    barMovePointerArmed = handoff.armed === true
+    barMoveHandoffAbortTimer.restart()
+  }
+
+  function applyBarMovePointerButtons(buttons) {
+    var action = BarModel.barMoveReleaseAction(barMovePointerArmed, buttons)
+    if (action === "hold") {
+      barMovePointerArmed = true
+      barMoveHandoffAbortTimer.stop()
+      return
+    }
+    if (action === "finish") {
+      barMovePointerArmed = false
+      finishBarMove()
+    }
+  }
+
+  function abortBarMove(kind) {
+    var reason = BarModel.barMoveAbortReason({
+      escape: kind === "escape",
+      secondaryClick: kind === "secondary",
+      handoffTimedOut: kind === "timeout"
+    })
+    if (!reason) return
+    clearBarMove()
+  }
+
   function clearBarMove() {
     barMoveActive = false
     barMoveTakePointer = false
+    barMovePointerArmed = false
     barMoveCandidate = ""
     barMoveWindow = null
     barMoveScreen = null
+    barMoveHandoffAbortTimer.stop()
   }
 
   function finishBarMove() {
@@ -1180,6 +1217,12 @@ Item {
     onTriggered: if (!root.targetTooltipHovered(root.tooltipTarget)) root.hideTooltip(root.tooltipTarget)
   }
 
+  Timer {
+    id: barMoveHandoffAbortTimer
+    interval: 400
+    onTriggered: root.abortBarMove("timeout")
+  }
+
   // Presence of the `bar-off` flag = bar hidden. Watching the parent toggles
   // directory because FileView can't observe a file that doesn't exist yet,
   // and the flag is created/removed by `omarchy-toggle-bar`.
@@ -1491,8 +1534,9 @@ Item {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "omarchy-bar-move-ghost"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    property bool movePointerArmed: false
+    WlrLayershell.keyboardFocus: root.barMoveTakePointer && moveGhostWindow.visible
+      ? WlrKeyboardFocus.OnDemand
+      : WlrKeyboardFocus.None
 
     anchors {
       top: true
@@ -1512,43 +1556,60 @@ Item {
     }
     mask: moveGhostInput
 
-    onVisibleChanged: if (!visible) moveGhostWindow.movePointerArmed = false
-
     function applyMovePoint(x, y) {
       root.updateBarMove({ x: x, y: y })
     }
 
-    function finishMoveIfReleased(buttons) {
-      if (buttons & Qt.LeftButton) {
-        moveGhostWindow.movePointerArmed = true
-        return
-      }
-      if (!moveGhostWindow.movePointerArmed) return
-      moveGhostWindow.movePointerArmed = false
-      root.finishBarMove()
-    }
-
     HoverHandler {
+      id: moveHover
       enabled: root.barMoveTakePointer && moveGhostWindow.visible
       onPointChanged: {
         var buttons = 0
         try { buttons = point.pressedButtons } catch (e) { buttons = 0 }
         moveGhostWindow.applyMovePoint(point.position.x, point.position.y)
-        moveGhostWindow.finishMoveIfReleased(buttons)
+        root.applyBarMovePointerButtons(buttons)
+      }
+    }
+
+    // HoverHandler may not emit on a button-up with no motion. Poll the
+    // current point so an armed handoff can finish from a still release.
+    Timer {
+      interval: 32
+      repeat: true
+      running: root.barMoveTakePointer && moveGhostWindow.visible
+      onTriggered: {
+        var buttons = 0
+        try { buttons = moveHover.point.pressedButtons } catch (e) { buttons = 0 }
+        root.applyBarMovePointerButtons(buttons)
       }
     }
 
     MouseArea {
       anchors.fill: parent
       enabled: root.barMoveTakePointer && moveGhostWindow.visible
-      acceptedButtons: Qt.LeftButton
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
       hoverEnabled: true
+      focus: enabled
+
+      onEnabledChanged: if (enabled) forceActiveFocus()
+
+      Keys.onEscapePressed: root.abortBarMove("escape")
+
       onPositionChanged: function(mouse) {
+        if (!(mouse.buttons & Qt.LeftButton)) return
         moveGhostWindow.applyMovePoint(mouse.x, mouse.y)
       }
+      onPressed: function(mouse) {
+        if (mouse.button === Qt.RightButton) {
+          root.abortBarMove("secondary")
+          mouse.accepted = true
+          return
+        }
+        root.barMovePointerArmed = true
+      }
       onReleased: function(mouse) {
-        moveGhostWindow.movePointerArmed = false
-        root.finishBarMove()
+        if (mouse.button !== Qt.LeftButton) return
+        root.applyBarMovePointerButtons(0)
       }
     }
 
@@ -1765,7 +1826,7 @@ Item {
       // instead of aborting. An empty desktop has no mapped client under the
       // cursor, so the wallpaper would otherwise cancel the drag.
       if (root.barMoveActive) {
-        root.barMoveTakePointer = true
+        root.takeBarMovePointer()
         return
       }
       root.clearBarMove()

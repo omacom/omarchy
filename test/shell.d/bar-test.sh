@@ -39,11 +39,45 @@ if ! perl -0ne 'exit(/function beginBarMove\b[\s\S]*?BarModel\.barMoveEligible\(
 fi
 pass "bar move start asks eligibility without requiring mapped clients"
 
-if ! perl -0ne 'exit(/onCanceled:\s*\{[\s\S]*?\bbarMoveActive\b[\s\S]*?barMoveTakePointer\s*=\s*true[\s\S]*?clearBarMove\(\)/s ? 0 : 1)' \
+if ! perl -0ne 'exit(/onCanceled:\s*\{[\s\S]*?\bbarMoveActive\b[\s\S]*?takeBarMovePointer\(\)[\s\S]*?clearBarMove\(\)/s ? 0 : 1)' \
   "$ROOT/shell/plugins/bar/Bar.qml"; then
   fail "bar move must hand a lost grab to the overlay instead of aborting"
 fi
 pass "bar move hands a lost grab to the overlay instead of aborting"
+
+# Handoff must arm the pointer. The overlay never saw the original press, so
+# a cancel at the strip edge and a still release would otherwise never finish
+# and leave the ghost mapped. Escape, a secondary click, and a short timeout
+# abort that same stuck state.
+if ! perl -0ne 'exit(/function takeBarMovePointer\b[\s\S]*?barMovePointerAfterHandoff[\s\S]*?barMovePointerArmed\s*=\s*handoff\.armed/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move handoff must arm the pointer so a still release can finish"
+fi
+pass "bar move handoff arms the pointer so a still release can finish"
+
+if ! perl -0ne 'exit(/function abortBarMove\b[\s\S]*?barMoveAbortReason[\s\S]*?clearBarMove\(\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must abort a handed-off gesture that never sees a release"
+fi
+pass "bar move aborts a handed-off gesture that never sees a release"
+
+if ! perl -0ne 'exit(/id: barMoveHandoffAbortTimer[\s\S]*?abortBarMove\("timeout"\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must time out a handed-off gesture that never confirms the button"
+fi
+pass "bar move times out a handed-off gesture that never confirms the button"
+
+if ! perl -0ne 'exit(/Keys\.onEscapePressed:\s*root\.abortBarMove\("escape"\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must abort a handed-off gesture on Escape"
+fi
+pass "bar move aborts a handed-off gesture on Escape"
+
+if ! perl -0ne 'exit(/RightButton[\s\S]*?abortBarMove\("secondary"\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must abort a handed-off gesture on a secondary click"
+fi
+pass "bar move aborts a handed-off gesture on a secondary click"
 
 run_node_test <<'JS'
 const fs = require('fs')
@@ -323,6 +357,26 @@ assert(
   /barMoveTakePointer/.test(barSource) &&
     /width: root\.barMoveTakePointer && moveGhostWindow\.visible \? moveGhostWindow\.width : 0/.test(barSource),
   'bar move overlay captures the pointer only after the strip loses the grab'
+)
+assertDeepEqual(
+  bar.barMovePointerAfterHandoff(),
+  { takePointer: true, armed: true },
+  'bar move handoff arms the pointer when it takes it'
+)
+assertEqual(bar.barMoveReleaseAction(true, 0), 'finish', 'an armed handoff finishes when the button is already up')
+assertEqual(bar.barMoveReleaseAction(true, 1), 'hold', 'an armed handoff holds while the left button is down')
+assertEqual(bar.barMoveReleaseAction(false, 0), 'ignore', 'an unarmed pointer with no button does not finish')
+assertEqual(bar.barMoveAbortReason({ escape: true }), 'escape', 'bar move aborts a handed-off gesture on Escape')
+assertEqual(bar.barMoveAbortReason({ secondaryClick: true }), 'secondary', 'bar move aborts a handed-off gesture on a secondary click')
+assertEqual(bar.barMoveAbortReason({ handoffTimedOut: true }), 'timeout', 'bar move aborts a handed-off gesture when the handoff times out')
+assertEqual(bar.barMoveAbortReason({}), '', 'bar move does not abort without an abort signal')
+assert(
+  /function takeBarMovePointer\(\) \{[\s\S]*?BarModel\.barMovePointerAfterHandoff\(\)/.test(barSource),
+  'bar move applies the armed handoff from the model'
+)
+assert(
+  /function abortBarMove\(kind\) \{[\s\S]*?BarModel\.barMoveAbortReason\(/.test(barSource),
+  'bar move routes abort signals through the model'
 )
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
