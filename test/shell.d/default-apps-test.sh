@@ -252,7 +252,7 @@ grep -Fxq 'sudo:install -d -m 0755 -o root -g root /opt/zen-browser-bin/distribu
   fail "Zen browser installer creates its distribution directory"
 grep -Fxq 'sudo:find /opt/zen-browser-bin/distribution -mindepth 1 -maxdepth 1 ! -user root -exec rm -rf -- {} +' "$setup_log" ||
   fail "Zen browser installer drops non-root files from its distribution directory"
-grep -Fxq "sudo:install -m 644 -o root -g root -T $ROOT/default/firefox/policies.json /opt/zen-browser-bin/distribution/policies.json" "$setup_log" ||
+grep -Fxq "sudo:install -m 644 -o root -g root -T $ROOT/default/firefox/zen-policies.json /opt/zen-browser-bin/distribution/policies.json" "$setup_log" ||
   fail "Zen browser installer copies policies.json without following a destination symlink"
 [[ -e $installed_dir/zen-browser ]] || fail "Zen browser installer marks zen-browser installed"
 pass "Zen browser installer restores the complete Omarchy setup"
