@@ -30,6 +30,21 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# Reposition-drag must stay eligible with zero mapped clients. The bar is a
+# layer surface; requiring an xdg-toplevel made the gesture die on an empty
+# desktop and again after the last window closed.
+if ! perl -0ne 'exit(/function beginBarMove\b[\s\S]*?BarModel\.barMoveEligible\(\{\s*mappedClients:\s*\[\]/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move start must ask eligibility without requiring mapped clients"
+fi
+pass "bar move start asks eligibility without requiring mapped clients"
+
+if ! perl -0ne 'exit(/onCanceled:\s*\{[\s\S]*?\bbarMoveActive\b[\s\S]*?barMoveTakePointer\s*=\s*true[\s\S]*?clearBarMove\(\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must hand a lost grab to the overlay instead of aborting"
+fi
+pass "bar move hands a lost grab to the overlay instead of aborting"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
@@ -282,6 +297,32 @@ assert(
   /width: root\.vertical \? Style\.space\(2\) : slot\.panelIndicatorExtent/.test(indicator) &&
   /height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(indicator),
   'bar sizes the open-panel mark from the same content hint on both axes'
+)
+
+const emptyDesktop = { mappedClients: [], screens: [{ name: 'eDP-1', width: 1920, height: 1080 }] }
+const occupiedDesktop = { mappedClients: [{ mapped: true }], screens: emptyDesktop.screens }
+assertEqual(bar.barMoveEligible(emptyDesktop), true, 'bar move is eligible with zero mapped clients')
+assertEqual(bar.barMoveEligible(occupiedDesktop), true, 'bar move is eligible with mapped clients')
+assertEqual(bar.barMoveEligible({ mappedClients: [], screens: [] }), false, 'bar move is not eligible without a screen')
+assertEqual(
+  bar.resolveBarMoveScreen(null, emptyDesktop.screens, 'eDP-1'),
+  emptyDesktop.screens[0],
+  'bar move resolves a screen without a layer window or mapped client'
+)
+const windowScreen = { name: 'DP-1' }
+assertEqual(
+  bar.resolveBarMoveScreen({ screen: windowScreen }, emptyDesktop.screens, 'eDP-1'),
+  windowScreen,
+  'bar move prefers the grabbing window screen when it has one'
+)
+assert(
+  /BarModel\.barMoveEligible\(\{\s*mappedClients:\s*\[\],\s*screens: screens \}\)/.test(barSource),
+  'bar move treats mapped clients as irrelevant to eligibility'
+)
+assert(
+  /barMoveTakePointer/.test(barSource) &&
+    /width: root\.barMoveTakePointer && moveGhostWindow\.visible \? moveGhostWindow\.width : 0/.test(barSource),
+  'bar move overlay captures the pointer only after the strip loses the grab'
 )
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
