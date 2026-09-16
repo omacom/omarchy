@@ -1,0 +1,19 @@
+# tier path (relative to home). Only audited regular files are ever stored.
+# Local files have history but are never published or overwritten by a pull.
+shared .bashrc
+shared .XCompose
+shared .config/hypr/bindings.lua
+shared .config/hypr/looknfeel.lua
+local .config/hypr/hyprland.lua
+local .config/hypr/monitors.lua
+local .config/hypr/input.lua
+local .config/hypr/autostart.lua
+shared .config/omarchy/shell.json
+shared .config/omarchy/extensions/*.jsonc
+shared .config/alacritty/*.toml
+shared .config/foot/foot.ini
+shared .config/ghostty/config
+shared .config/kitty/*.conf
+shared .config/btop/btop.conf
+shared .config/starship.toml
+shared .config/tmux/tmux.conf

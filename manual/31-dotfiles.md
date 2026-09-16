@@ -77,3 +77,21 @@ If you insist on hacking on the internal Omarchy files, switch to the dev channe
 ### Resetting any changes
 
 If you end up making a mess of the configurations, you can always revert them to the defaults via _Update > Config_ in the Omarchy menu. Or by running `omarchy reinstall configs` to reset everything.
+
+## Preference history and sharing
+
+Choose **Setup > Preferences** to start keeping local history. If you already use Stow, chezmoi, yadm, or symlinked configuration files, Dots stands down so your existing manager stays in charge. Nothing is uploaded or applied automatically.
+
+**System > Preferences** provides Save Snapshot, Review Changes, Local History, and Restore a File. Restoring a file saves its current version first, so a restore can itself be undone. History lives on this computer; use a home-folder backup to protect it from disk failure.
+
+To share preferences, choose **Create a private GitHub repository** in **Setup > Preferences** (requires signing in with `gh auth login`), or use an existing private Git repository. Choose that same repository on each computer. Use its SSH URL and make sure SSH access already works. The terminal equivalent is `omarchy dots setup --repo git@github.com:you/private-preferences.git`. A local bare Git repository also works. No cloud-backup account is required.
+
+On the computer with the settings you want, choose **Publish Settings**, review the file diff, and confirm. On another computer, choose **Apply Settings**. Your current files are saved locally before anything is replaced. Independent edits are merged. When the same setting changed in both places, no files are applied: choose **Resolve Conflicts**, review each file, choose this machine's version or the shared version, then **Continue Update**. To keep both versions' ideas, choose one, apply, edit the result, and publish it. **Cancel Update** leaves your local edits in place; it also undoes an interrupted application when those files have not been edited again.
+
+If someone published since your last pull, publishing stops and asks you to apply shared settings first. Removing a shared file is a change too: deletion travels to the other computer when it has no conflicting local edit. The preview shows additions, changes, and deletions. `omarchy dots pull --dry-run` previews without changing your preferences.
+
+The shared list is deliberately small: `.bashrc`, `.XCompose`, keybindings, look-and-feel, shell layout, menu extensions, and selected terminal, prompt, tmux, and btop settings. Monitor, input, autostart, and main Hyprland configuration have local history but never travel between computers. Installed plugins, themes, wallpaper files, credentials, browser profiles, and session snapshots are not published. References in shared preferences still require the referenced applications and themes to be installed on the receiving computer. Use compatible Omarchy versions on both machines; Dots does not translate old configuration formats.
+
+Only those audited files can be tracked. Review their contents before publishing: a shell configuration can still contain a token or a machine-specific path you put there. Use a private repository. Published preferences have their own history; your automatic recovery snapshots never leave this computer. Local file permissions are restricted when applying shared preferences.
+
+For terminal use: `omarchy dots snapshot`, `log`, `diff`, `push`, `pull`, and `status`. `omarchy dots restore .bashrc --at <snapshot>` restores a version from Local History. Resolve with `omarchy dots resolve <file> --take ours` or `--take theirs`, then `omarchy dots continue`. `omarchy dots abort` cancels a pending update. `--yes` on push, pull, or restore skips its confirmation for scripts.
