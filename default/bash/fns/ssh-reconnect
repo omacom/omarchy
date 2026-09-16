@@ -5,14 +5,14 @@
 # the connection dies instead of exiting cleanly, those modes stay armed on the
 # local terminal, and every mouse move floods the prompt with escape junk.
 ssh() {
-  local rc started
+  local rc started attempt
 
   started=$SECONDS
   command ssh "$@"
   rc=$?
 
   [[ -t 1 ]] || return $rc
-  _ssh_disarm
+  _ssh_disarm $((rc == 255 && SECONDS - started >= 30))
 
   # Reconnect only when an interactive session drops: ssh exits 255 for
   # transport failures, but a fast 255 with no established session is a
@@ -31,18 +31,28 @@ ssh() {
     while true; do
       echo "Connection lost. Reconnecting (Ctrl-C to stop)..."
       sleep 2
+      attempt=$SECONDS
       command ssh "$@"
       rc=$?
-      _ssh_disarm
+      _ssh_disarm $((rc == 255 && SECONDS - attempt >= 30))
       (( rc != 255 )) && exit $rc
     done
   )
 }
 
-# Disarm mouse tracking (1000/1002/1003, 1006 encoding), focus reporting
-# (1004), and the alternate screen (1049), and show the cursor again.
+# Disarm mouse tracking (1000/1002/1003, 1006 encoding) and focus reporting
+# (1004), and show the cursor again. None of those move the cursor, so they are
+# safe after every ssh. Pass 1 to also leave the alternate screen (1049).
+#
+# 1049 is deliberately not unconditional. Leaving the alternate screen also
+# restores the cursor position the terminal saved when something entered it, so
+# sending it after an ssh that never entered it restores a stale position and
+# the shell then draws over lines already on screen. Only a session that was
+# established and then dropped can have left it armed.
 _ssh_disarm() {
-  printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h'
+  printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?25h'
+  (( ${1:-0} )) && printf '\e[?1049l'
+  return 0
 }
 
 # True for an interactive session: a destination and no remote command. The
