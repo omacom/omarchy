@@ -1,0 +1,164 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Muse usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Muse usage into one display-ready JSON record.
+
+Local stats come from Muse Code session logs
+($XDG_DATA_HOME/muse/sessions/*/*/*/*/session.jsonl). Each model response is
+logged twice — once as a record.quantity line and once as a model/usage
+line — so only lines carrying both a model name and a usage payload are
+counted. Muse exposes no limits endpoint, so limits stay empty and the
+agents panel falls back to local stats, the same way it does for a
+signed-out collector. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+AGENT_ID = "muse"
+AGENT_NAME = "Muse"
+AUTH_HELP = "Muse exposes no limits endpoint; showing local session stats only."
+
+
+def number(value):
+  try:
+    return int(value or 0)
+  except Exception:
+    return 0
+
+
+def model_name(raw):
+  if isinstance(raw, dict):
+    for key in ("model_id", "model", "name"):
+      value = str(raw.get(key) or "").strip()
+      if value:
+        break
+    else:
+      return "muse"
+  else:
+    value = str(raw or "").strip()
+  if not value or value == "same-as-main":
+    return "muse"
+  return value
+
+
+def sessions_root():
+  data_home = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
+  return Path(data_home) / "muse" / "sessions"
+
+
+def local_day(recorded_at):
+  # recorded_at is microseconds since the epoch.
+  try:
+    return datetime.fromtimestamp(number(recorded_at) / 1_000_000).strftime("%Y-%m-%d")
+  except Exception:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def run_local_scan():
+  now = datetime.now()
+  today = now.strftime("%Y-%m-%d")
+  recent_dates = [(now - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+  today_tokens_by_model = {}
+  model_usage = {}
+  today_sessions = set()
+  all_sessions = set()
+  today_prompts = 0
+  total_prompts = 0
+
+  def add_tokens(model, usage):
+    entry = model_usage.setdefault(
+      model,
+      {"inputTokens": 0, "outputTokens": 0, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+    )
+    entry["inputTokens"] += number(usage.get("input_tokens"))
+    entry["outputTokens"] += number(usage.get("output_tokens")) + number(usage.get("reasoning_tokens"))
+    entry["cacheReadInputTokens"] += number(usage.get("cache_read_tokens")) + number(usage.get("cached_tokens"))
+    entry["cacheCreationInputTokens"] += number(usage.get("cache_write_tokens"))
+
+  root = sessions_root()
+  if root.is_dir():
+    for log in sorted(root.glob("*/*/*/*/session.jsonl")):
+      try:
+        handle = log.open()
+      except OSError:
+        continue
+      with handle:
+        for line in handle:
+          try:
+            record = json.loads(line)
+          except Exception:
+            continue
+          if not isinstance(record, dict):
+            continue
+          event = record.get("payload", {}).get("event") if isinstance(record.get("payload"), dict) else None
+          if not isinstance(event, dict):
+            continue
+          usage = event.get("usage")
+          if not isinstance(usage, dict) or "input_tokens" not in usage:
+            continue
+          model = model_name(event.get("model"))
+          day = local_day(record.get("recorded_at"))
+          total = (
+            number(usage.get("input_tokens"))
+            + number(usage.get("output_tokens"))
+            + number(usage.get("reasoning_tokens"))
+          )
+          add_tokens(model, usage)
+          total_prompts += 1
+          all_sessions.add(str(log))
+          if day in recent:
+            recent[day]["messageCount"] += 1
+          if day == today:
+            today_prompts += 1
+            today_sessions.add(str(log))
+            today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total
+
+  today_total = sum(today_tokens_by_model.values())
+  active_dates = sorted({day for day, row in recent.items() if row["messageCount"] > 0})
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": [recent[day] for day in recent_dates],
+    "totalPrompts": total_prompts,
+    "totalSessions": len(all_sessions),
+    "activeDays": len(active_dates),
+    "activeDates": active_dates,
+    "modelUsage": model_usage,
+  }
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  # Accepted for CLI compatibility with the other collectors; a Muse scan is
+  # a plain directory walk, so both flags are currently no-ops.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.parse_args()
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now().astimezone().isoformat(),
+    "ready": True,
+    "hasLocalStats": True,
+    "limits": [],
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": AUTH_HELP,
+  }
+  record.update(run_local_scan())
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
