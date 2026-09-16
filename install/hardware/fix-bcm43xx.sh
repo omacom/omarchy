@@ -6,5 +6,10 @@ pci_info=$(lspci -nn)
 
 if (echo "$pci_info" | grep -q "14e4:43a0" || echo "$pci_info" | grep -q "14e4:4331"); then
   echo "BCM4360 / BCM4331 detected"
+  for kernel in linux linux-lts linux-omarchy linux-t2; do
+    if omarchy-pkg-present "$kernel"; then
+      omarchy-pkg-add "$kernel-headers"
+    fi
+  done
   omarchy-pkg-add broadcom-wl-dkms
 fi
