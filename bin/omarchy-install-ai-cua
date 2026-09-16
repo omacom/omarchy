@@ -47,7 +47,7 @@ fi
 # (edge moves first), and neither undoes the driver install above. -Sp resolves
 # the transaction without root, so the mismatch is named instead of surfacing
 # as a failed sudo pacman run. Installing the plugin loads nothing: activation
-# is a deliberate step, omarchy-toggle-cua-input, because it changes the keymap.
+# is a deliberate step, omarchy-toggle-cua-input, because it enables compositor input.
 plugin_installed=false
 echo ""
 if ! pacman -Si cua-hyprland-plugin &>/dev/null; then
@@ -70,7 +70,7 @@ if [[ $skills_installed == true ]]; then
   echo "Agents pick up the Cua skills in their next session."
 fi
 if [[ $plugin_installed == true ]]; then
-  echo "The Hyprland plugin is installed but not loaded. Trigger > Toggle > Cua Input loads it and"
-  echo "turns on its input route, which holds a plain US keymap while on. The plugin pins the"
-  echo "exact Hyprland release, so updates that move Hyprland wait until it is removed."
+  echo "Trigger > Toggle > Cua Input enables the plugin without changing your keyboard settings."
+  echo "After a plugin update, log out and back in before enabling it. The plugin pins the exact"
+  echo "Hyprland release, so updates that move Hyprland wait until it is removed."
 fi

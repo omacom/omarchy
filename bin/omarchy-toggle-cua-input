@@ -1,24 +1,18 @@
 #!/bin/bash
 
-# omarchy:summary=Toggle the Cua Hyprland plugin's input route; holds a plain US keymap while on
+# omarchy:summary=Toggle the Cua Hyprland plugin's input route
 # omarchy:args=[on|off|toggle|--status|--load]
 # omarchy:examples=omarchy toggle cua-input | omarchy toggle cua-input off | omarchy-toggle-cua-input --status
 
-# The cua-hyprland-plugin package deliberately ships no hook, autoload, or
-# config edit: activation is an explicit step after its compatibility check
-# passes in a fresh session, and its input route only admits one exact keymap
-# (rules evdev, model pc105, layout us, no variant, options, or file), which
-# drops Omarchy's Compose-on-Caps-Lock while it is on. This is that step made
-# reversible. on checks, loads, and lands the default/hypr/toggles/cua-input.lua
-# flag; off removes the flag and reloads. The flag runs --load at each session
-# start, since a loaded module does not outlive the session. Turning input off
-# leaves the module mapped, as the package requires; it goes with the session.
+# Activation checks the package and running module without replacing a mapped
+# plugin. Turning input off leaves the module loaded until the session ends.
 
 set -euo pipefail
 
 FLAG=cua-input
 MODULE=/usr/lib/cua/hyprland/cua-hyprland-plugin.so
 KIT=/usr/share/cua-hyprland-plugin
+MIN_VERSION=0.26.1-4
 # nf-md-robot_excited, escaped so this file reads without a Nerd Font.
 readonly GLYPH=$'\U000f16a4'
 
@@ -32,6 +26,9 @@ notify() {
 }
 
 refuse() {
+  if omarchy-hyprland-toggle-enabled "$FLAG"; then
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+  fi
   notify "Cua input stays off" "$1"
   echo "$1" >&2
   exit 1
@@ -39,6 +36,17 @@ refuse() {
 
 plugin_loaded() {
   hyprctl -j plugin list 2>/dev/null | jq -e 'map(select(.name == "cua-hyprland-plugin")) | length > 0' >/dev/null
+}
+
+layout_independent() {
+  hyprctl -j cua:status 2>/dev/null | jq -e '.keyboard_layout_independent == true' >/dev/null
+}
+
+package_current() {
+  local version comparison
+  version=$(pacman -Q cua-hyprland-plugin | cut -d' ' -f2) || return 1
+  comparison=$(vercmp "$version" "$MIN_VERSION") || return 1
+  (( comparison >= 0 ))
 }
 
 input_ready() {
@@ -75,24 +83,18 @@ turn_on() {
   omarchy-pkg-present cua-hyprland-plugin ||
     refuse "The Cua Hyprland plugin is not installed; Install > AI > Cua adds it."
 
-  # The flag replaces the keymap with a plain US one, which is only a small
-  # change for someone already typing on one.
-  if ! omarchy-hyprland-toggle-enabled "$FLAG"; then
-    local layout variant
-    layout=$(hyprctl -j getoption input:kb_layout | jq -r '.str')
-    variant=$(hyprctl -j getoption input:kb_variant | jq -r '.str')
-    if [[ $layout != "us" || -n $variant ]]; then
-      refuse "The Cua plugin only admits a plain US keyboard layout, and this session uses '$layout${variant:+ ($variant)}'."
-    fi
+  package_current || refuse "Update cua-hyprland-plugin to $MIN_VERSION or newer to preserve your keyboard settings."
+
+  compatible || refuse "The Cua Hyprland plugin does not match the running Hyprland; update it and log out and back in."
+
+  load_plugin || refuse "The Cua Hyprland plugin could not load; check the session logs."
+  if ! layout_independent; then
+    refuse "Log out and back in to use the updated Cua plugin, then turn Cua Input on again."
   fi
-
-  compatible || refuse "The Cua Hyprland plugin does not match the running Hyprland; leaving it unloaded."
-
-  load_plugin
   omarchy-hyprland-toggle "$FLAG" on >/dev/null
 
   if input_ready; then
-    notify "Cua input on" "Caps Lock is a plain Caps Lock until this is turned off."
+    notify "Cua input on" "Your keyboard layout and remaps stay unchanged."
   else
     notify "Cua plugin loaded, input not ready" "hyprctl -j cua:status has the details."
   fi
@@ -100,20 +102,39 @@ turn_on() {
 
 turn_off() {
   omarchy-hyprland-toggle "$FLAG" off >/dev/null
-  notify "Cua input off" "Your keymap is back; the plugin stays loaded until you log out."
+  notify "Cua input off" "The plugin stays loaded until you log out."
 }
 
 # What the flag runs at session start.
 load_at_start() {
   omarchy-hyprland-toggle-enabled "$FLAG" || exit 0
 
-  if ! omarchy-pkg-present cua-hyprland-plugin || ! compatible; then
+  if ! omarchy-pkg-present cua-hyprland-plugin || ! package_current || ! compatible; then
     omarchy-hyprland-toggle "$FLAG" off >/dev/null
-    notify "Cua input turned off" "The Cua Hyprland plugin is missing or no longer matches Hyprland."
+    notify "Cua input turned off" "Update the Cua Hyprland plugin and check that it matches the running Hyprland."
     exit 0
   fi
 
-  load_plugin
+  if ! load_plugin; then
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+    notify "Cua input turned off" "The Cua Hyprland plugin could not load; check the session logs."
+    exit 0
+  fi
+  if ! layout_independent; then
+    omarchy-hyprland-toggle "$FLAG" off >/dev/null
+    notify "Cua input turned off" "Log out and back in to use the updated plugin, then turn Cua Input on again."
+    exit 0
+  fi
+
+  # Refresh legacy keyboard overrides, but never recreate a flag removed by
+  # a concurrent off while verification ran. nocreat still truncates the file.
+  local flag_file="$HOME/.local/state/omarchy/toggles/hypr/$FLAG.lua"
+  if dd if="$OMARCHY_PATH/default/hypr/toggles/$FLAG.lua" of="$flag_file" conv=nocreat status=none 2>/dev/null; then
+    hyprctl reload >/dev/null
+  elif [[ -e $flag_file ]]; then
+    notify "Cua input flag could not refresh" "Turn Cua Input off and on again to refresh its configuration."
+    return 1
+  fi
 }
 
 case "${1:-toggle}" in
