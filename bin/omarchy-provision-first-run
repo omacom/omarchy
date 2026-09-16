@@ -43,8 +43,6 @@ if omarchy-done check "$FIRST_RUN_DONE" && (( force == 0 )); then
   exit 0
 fi
 
-omarchy-provision-user "${finalize_user_args[@]}" || true
-
 mkdir -p "$state_dir"
 
 FIRST_RUN_LOG="$state_dir/first-run.log"
@@ -67,6 +65,9 @@ run_first_run_step() {
     log_first_run "Failed: $name (exit code: $status)"
   fi
 }
+
+run_first_run_step "finalize user setup" \
+  omarchy-provision-user "${finalize_user_args[@]}"
 
 run_first_run_step "install Voxtype post-update hook" \
   omarchy-hook-install post-update "$OMARCHY_PATH/install/user/first-run/install-voxtype.hook"
