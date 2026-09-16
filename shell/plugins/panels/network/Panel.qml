@@ -441,6 +441,16 @@ Panel {
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
     if (connectedWifiNetwork) return "wifi"
+    // The scan-list `.connected` flag above can fail to land on networks
+    // with many BSSIDs under one SSID (e.g. enterprise/802.1X setups like
+    // eduroam): NetworkManager has a fully active wifi connection, but none
+    // of the scanned network objects gets flagged connected, so the check
+    // above never fires. `info` comes from `omarchy-network-status
+    // --verbose`, which derives its answer from the live default route plus
+    // the device's own NM state rather than the scan list, so it stays
+    // correct when the scan list doesn't. Trust it as a fallback here.
+    // See #12028.
+    if (info.type === "wifi" && info.iface) return "wifi"
     return "disconnected"
   }
   readonly property int signalStrength: connectedWifiNetwork
