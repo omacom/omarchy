@@ -14,6 +14,28 @@ color="${color#\#}"
 
 [[ $color =~ ^[0-9A-Fa-f]{6}$ ]] || exit 0
 
+# LEDs render the raw accent dim, so brighten it the way the theme engine
+# derives its bright_* variants (a 20% mix toward white) and run the devices
+# at full brightness.
+brighten_color() {
+  awk -v hex="$1" '
+    function hex_value(char) {
+      return index("0123456789abcdef", tolower(char)) - 1
+    }
+    function hex_pair_to_int(hex, idx) {
+      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
+    }
+    BEGIN {
+      red = int(hex_pair_to_int(hex, 1) * 0.8 + 255 * 0.2 + 0.5)
+      green = int(hex_pair_to_int(hex, 3) * 0.8 + 255 * 0.2 + 0.5)
+      blue = int(hex_pair_to_int(hex, 5) * 0.8 + 255 * 0.2 + 0.5)
+      printf "%02x%02x%02x\n", red, green, blue
+    }
+  '
+}
+
+color=$(brighten_color "$color")
+
 # A device-native gradient effect wins when one exists; everything else gets
 # the static theme accent. Detection runs once and every apply is bounded, so
 # a missing server or a slow scan never stalls the theme switch.
@@ -56,13 +78,13 @@ if [[ -n $devices ]]; then
 fi
 
 if (( ${#GRADIENT_MODE_FOR_DEVICE[@]} == 0 && ${#DEVICE_IDS[@]} == 0 )); then
-  timeout 20 openrgb -m static -c "$color" >/dev/null 2>&1 || true
+  timeout 20 openrgb -m static -c "$color" -b 100 >/dev/null 2>&1 || true
 else
   for id in "${DEVICE_IDS[@]}"; do
     if [[ -n ${GRADIENT_MODE_FOR_DEVICE[$id]:-} ]]; then
-      timeout 20 openrgb -d "$id" -m "${GRADIENT_MODE_FOR_DEVICE[$id]}" -c "$color" >/dev/null 2>&1 || true
+      timeout 20 openrgb -d "$id" -m "${GRADIENT_MODE_FOR_DEVICE[$id]}" -c "$color" -b 100 >/dev/null 2>&1 || true
     else
-      timeout 20 openrgb -d "$id" -m static -c "$color" >/dev/null 2>&1 || true
+      timeout 20 openrgb -d "$id" -m static -c "$color" -b 100 >/dev/null 2>&1 || true
     fi
   done
 fi

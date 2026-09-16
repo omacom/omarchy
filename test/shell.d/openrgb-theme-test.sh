@@ -38,8 +38,9 @@ PLAIN_DEVICES='0: Logitech G512 RGB
 : >"$call_log"
 OPENRGB_LIST_DEVICES="$PLAIN_DEVICES" run_openrgb_theme
 (( $(grep -c '^openrgb' "$call_log") == 3 )) || fail "static accent needs one detection and one apply per device" "$(cat "$call_log")"
-grep -F 'openrgb -d 0 -m static -c 7aa2f7' "$call_log" >/dev/null || fail "static accent reaches every detected device" "$(cat "$call_log")"
-grep -F 'openrgb -d 1 -m static -c 7aa2f7' "$call_log" >/dev/null || fail "static accent reaches every detected device" "$(cat "$call_log")"
+grep -F 'openrgb -d 0 -m static -c 95b5f9 -b 100' "$call_log" >/dev/null || fail "static accent reaches every detected device" "$(cat "$call_log")"
+grep -F 'openrgb -d 1 -m static -c 95b5f9 -b 100' "$call_log" >/dev/null || fail "static accent reaches every detected device" "$(cat "$call_log")"
+grep -F '7aa2f7' "$call_log" >/dev/null && fail "raw accent is brightened before applying" "$(cat "$call_log")"
 pass "static accent reaches every detected device"
 
 : >"$call_log"
@@ -47,13 +48,13 @@ OPENRGB_LIST_DEVICES='0: Fake Board
   Modes: Direct Static Gradient Wave
 1: Other Pad
   Modes: [Direct] Off Static '"'"'Rainbow Gradient'"'"'' run_openrgb_theme
-grep -F 'openrgb -d 0 -m Gradient -c 7aa2f7' "$call_log" >/dev/null || fail "bare gradient mode wins on its device" "$(cat "$call_log")"
-grep -F 'openrgb -d 1 -m Rainbow Gradient -c 7aa2f7' "$call_log" >/dev/null || fail "quoted gradient mode wins on its device" "$(cat "$call_log")"
+grep -F 'openrgb -d 0 -m Gradient -c 95b5f9 -b 100' "$call_log" >/dev/null || fail "bare gradient mode wins on its device" "$(cat "$call_log")"
+grep -F 'openrgb -d 1 -m Rainbow Gradient -c 95b5f9 -b 100' "$call_log" >/dev/null || fail "quoted gradient mode wins on its device" "$(cat "$call_log")"
 pass "gradient-capable devices prefer their gradient mode"
 
 : >"$call_log"
 OPENRGB_LIST_DEVICES="$PLAIN_DEVICES" OPENRGB_LIST_FAIL=1 run_openrgb_theme || fail "failed detection still exits zero"
-grep -F 'openrgb -m static -c 7aa2f7' "$call_log" >/dev/null || fail "failed detection falls back to static broadcast" "$(cat "$call_log")"
+grep -F 'openrgb -m static -c 95b5f9 -b 100' "$call_log" >/dev/null || fail "failed detection falls back to static broadcast" "$(cat "$call_log")"
 pass "failed detection falls back to static broadcast"
 
 mv "$test_home/.local/state/omarchy/current/theme/keyboard.rgb" "$test_home/.local/state/omarchy/current/theme/keyboard.rgb.bak"
@@ -86,5 +87,5 @@ pass "missing openrgb binary is a silent no-op"
 : >"$call_log"
 HOME="$test_home" CALL_LOG="$call_log" OPENRGB_LIST_DEVICES="$PLAIN_DEVICES" \
   PATH="$mock_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-keyboard"
-grep -F 'openrgb -d 0 -m static -c 7aa2f7' "$call_log" >/dev/null || fail "keyboard dispatcher applies the OpenRGB theme" "$(cat "$call_log")"
+grep -F 'openrgb -d 0 -m static -c 95b5f9 -b 100' "$call_log" >/dev/null || fail "keyboard dispatcher applies the OpenRGB theme" "$(cat "$call_log")"
 pass "keyboard dispatcher applies the OpenRGB theme"
