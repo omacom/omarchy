@@ -340,8 +340,6 @@ Panel {
   onOpenedChanged: if (opened) {
     cursorActive = false
     if (panelFlick) panelFlick.contentY = 0
-    // Any open, by hand or by loginCompleted, satisfies a pending reopen.
-    tailscale.requestReopenAfterLogin(false)
     tailscale.refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
@@ -363,12 +361,9 @@ Panel {
     function onPeersChanged() { root.ensureCursor() }
     function onAccountsChanged() { root.ensureCursor() }
     function onAccountsAccessDeniedChanged() { root.ensureCursor() }
-    function onAuthUrlOpened() {
-      var wasOpen = root.opened
-      root.close()
-      tailscale.requestReopenAfterLogin(wasOpen)
-    }
-    function onLoginCompleted() { root.open() }
+    // Login may finish after the user has started typing in another window.
+    // Update the bar state, but never reopen the keyboard-grabbing panel.
+    function onAuthUrlOpened() { root.close() }
   }
 
   IpcHandler {
@@ -489,7 +484,7 @@ Panel {
                   id: powerSwitch
                   visible: tailscale.installed
                   checked: tailscale.active
-                  busy: tailscale.busy || tailscale.connecting
+                  busy: tailscale.busy || tailscale.connecting || tailscale.waitingForLogin
                   opacity: tailscale.connecting ? 0.55 : 1.0
                   hasCursor: header.ringVisible
                   foreground: hero.foreground
@@ -507,14 +502,24 @@ Panel {
           }
 
           Text {
+            id: statusMessage
             textFormat: Text.PlainText
-            visible: tailscale.actionStatus !== "" || tailscale.lastError !== ""
+            visible: text !== ""
             width: parent.width
-            text: tailscale.actionStatus !== "" ? tailscale.actionStatus : tailscale.lastError
+            // Reserve two lines so login progress and a wrapped timeout have the same height.
+            height: Math.max(implicitHeight, statusMeasure.implicitHeight)
+            text: tailscale.actionStatus || tailscale.lastError || (tailscale.needsLogin ? "Sign in to connect this device." : "")
             color: tailscale.lastError !== "" && tailscale.actionStatus === "" ? root.urgent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
+
+            Text {
+              id: statusMeasure
+              visible: false
+              text: "M\nM"
+              font: statusMessage.font
+            }
           }
 
           CursorSurface {
@@ -675,12 +680,12 @@ Panel {
           }
 
           PanelSeparator {
-            visible: tailscale.installed && tailscale.active
+            visible: tailscale.installed && tailscale.running
             foreground: root.foreground
           }
 
           Column {
-            visible: tailscale.installed && tailscale.active
+            visible: tailscale.installed && tailscale.running
             width: parent.width
             spacing: Style.space(10)
 
@@ -691,7 +696,7 @@ Panel {
             }
 
             Text {
-              visible: tailscale.installed && tailscale.active && tailscale.peers.length === 0
+              visible: tailscale.installed && tailscale.running && tailscale.peers.length === 0
               width: parent.width
               text: "No machines found on this tailnet."
               color: root.dim

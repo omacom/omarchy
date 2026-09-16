@@ -8,7 +8,6 @@ Item {
   id: root
 
   signal authUrlOpened()
-  signal loginCompleted()
 
   property var settings: ({})
 
@@ -59,9 +58,10 @@ Item {
   property string _actionError: ""
   property string _loginOutput: ""
   property string _loginError: ""
+  readonly property bool waitingForLogin: _loginInProgress
+  property bool _loginTimedOut: false
   property bool _loginInProgress: false
   property bool _loginUrlOpened: false
-  property bool _reopenAfterLogin: false
   property int _stateWatchBackoffMs: 2000
   property string _preLoginAuthUrl: ""
   property double _lastAccountsRefreshMs: 0
@@ -300,21 +300,24 @@ Item {
     if (needsLogin) statusText = "Needs login"
     else if (running) {
       statusText = "Connected"
+      if (_loginInProgress || _loginTimedOut) actionStatus = ""
+      _loginTimedOut = false
       _loginInProgress = false
       _loginUrlOpened = false
       _preLoginAuthUrl = ""
       loginTimeoutTimer.stop()
-      if (_reopenAfterLogin) {
-        _reopenAfterLogin = false
-        reopenExpiryTimer.stop()
-        loginCompleted()
-      }
     } else if (backendState === "Stopped") {
       statusText = "Disconnected"
     } else {
       statusText = backendState
     }
     lastError = ""
+    // A stopped daemon may reveal an expired key only after the resume request.
+    // Continue that user-requested connection once the request has exited.
+    if (needsLogin && _desired === 1 && !loginProcess.running) {
+      connectTimeoutTimer.stop()
+      loginOrUp()
+    }
   }
 
   function parseAccounts(raw) {
@@ -341,13 +344,18 @@ Item {
     // No progress status here — the greyed icon and hero line already convey
     // the optimistic off; only surface a message if the command fails.
     _desired = 0
+    _loginInProgress = false
+    loginTimeoutTimer.stop()
     connectTimeoutTimer.stop()
-    requestReopenAfterLogin(false)
     runAction(["tailscale", "down"])
   }
 
   function loginOrUp() {
-    if (!installed || loginProcess.running) return
+    if (!installed || loginProcess.running || _loginInProgress) return
+    _loginTimedOut = false
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     _desired = -1
     var plan = Model.loginPlan(needsLogin, authUrl)
     if (plan.authUrl !== "") {
@@ -357,7 +365,7 @@ Item {
     }
     _loginOutput = ""
     _loginError = ""
-    if (needsLogin) actionStatus = "Starting Tailscale login…"
+    if (needsLogin) actionStatus = "Waiting for Tailscale login link…"
     else {
       _desired = 1
       connectTimeoutTimer.restart()
@@ -365,7 +373,7 @@ Item {
     _loginInProgress = needsLogin
     _loginUrlOpened = false
     _preLoginAuthUrl = authUrl
-    loginProcess.command = plan.command
+    loginProcess.command = timedCommand(plan.command)
     loginProcess.running = true
     if (needsLogin) loginTimeoutTimer.restart()
   }
@@ -375,8 +383,11 @@ Item {
     if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running) return
     _switchOutput = ""
     _switchError = ""
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     switchingAccountId = accountId
-    switchProcess.command = ["tailscale", "switch", accountId]
+    switchProcess.command = timedCommand(["tailscale", "switch", accountId])
     switchProcess.running = true
   }
 
@@ -396,8 +407,11 @@ Item {
     if (!active && target === "") return
     _exitNodeOutput = ""
     _exitNodeError = ""
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     settingExitNodeId = String(peer.id || "")
-    exitNodeProcess.command = ["tailscale", "set", "--exit-node=" + target]
+    exitNodeProcess.command = timedCommand(["tailscale", "set", "--exit-node=" + target])
     exitNodeProcess.running = true
   }
 
@@ -410,12 +424,29 @@ Item {
     operatorProcess.running = true
   }
 
+  function timedCommand(command) {
+    // Bound finite CLI requests, including a child that ignores termination.
+    // This does not cancel work already accepted by tailscaled.
+    // Keep the supervisor alive when it must kill the CLI, so QML receives 137.
+    return ["timeout", "--foreground", "--kill-after=2s", "20s"].concat(command)
+  }
+
+  function showActionError(exitCode, output, fallback) {
+    var timedOut = exitCode === 124 || exitCode === 137
+    lastError = timedOut ? "Tailscale command timed out. Check its status before retrying." : (elideStatus(output) || fallback)
+    actionStatus = lastError
+    if (timedOut) actionStatusTimer.stop()
+    else actionStatusTimer.restart()
+  }
+
   function runAction(command, label) {
     if (actionProcess.running) return
     _actionOutput = ""
     _actionError = ""
+    lastError = ""
+    actionStatusTimer.stop()
     actionStatus = label || ""
-    actionProcess.command = command
+    actionProcess.command = timedCommand(command)
     actionProcess.running = true
   }
 
@@ -430,17 +461,12 @@ Item {
     connectTimeoutTimer.stop()
     Quickshell.execDetached(["omarchy-launch-browser", url])
     // Close the panel before dropping the optimistic state so its connected
-    // sections do not visibly collapse on the way out. The panel answers with
-    // requestReopenAfterLogin, so only a panel the user had open comes back.
+    // sections do not visibly collapse on the way out.
     authUrlOpened()
+    actionStatus = ""
+    lastError = ""
     _desired = -1
     return true
-  }
-
-  function requestReopenAfterLogin(wasOpen) {
-    _reopenAfterLogin = wasOpen === true
-    if (_reopenAfterLogin) reopenExpiryTimer.restart()
-    else reopenExpiryTimer.stop()
   }
 
   function handleLoginOutput(data, isError) {
@@ -548,24 +574,18 @@ Item {
   }
 
   Timer {
-    // A login the user walked away from should not pop the panel open when
-    // Tailscale eventually comes up some other way.
-    id: reopenExpiryTimer
-    interval: 300000
-    repeat: false
-    onTriggered: root._reopenAfterLogin = false
-  }
-
-  Timer {
     id: loginTimeoutTimer
-    interval: 10000
+    interval: 25000
     repeat: false
     onTriggered: {
       if (!root._loginInProgress || root._loginUrlOpened) return
-      if (!root.openAuthUrl(root.authUrl)) {
-        root._loginInProgress = false
-        root.actionStatus = "Tailscale login link not available yet"
-      }
+      root._loginTimedOut = true
+      root._loginInProgress = false
+      root._desired = -1
+      if (loginProcess.running) loginProcess.running = false
+      actionStatusTimer.stop()
+      root.actionStatus = "No login link received within 25 seconds. Check your network and try again."
+      stateWatchRefreshTimer.restart()
     }
   }
 
@@ -660,9 +680,7 @@ Item {
       var stderr = String(actionStderr.text || root._actionError || "")
       if (exitCode !== 0) {
         root._desired = -1
-        root.lastError = elideStatus(stderr || stdout || "Tailscale command failed")
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, "Tailscale command failed")
       } else {
         root.lastError = ""
         root.actionStatus = ""
@@ -682,16 +700,20 @@ Item {
       // The success body is the full prefs object; nothing here needs it.
       root._loginOutput = ""
       root._loginError = ""
+      if (root._loginTimedOut) {
+        delayedRefresh.restart()
+        return
+      }
       if (exitCode !== 0 && !root._loginUrlOpened) {
+        loginTimeoutTimer.stop()
         root._desired = -1
         root._loginInProgress = false
         connectTimeoutTimer.stop()
-        root.lastError = elideStatus(combined) || "Could not start Tailscale"
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, combined, "Could not start Tailscale")
       } else {
         root.lastError = ""
-        root.actionStatus = ""
+        // The request completes before the daemon supplies the login URL.
+        if (!root._loginInProgress) root.actionStatus = ""
       }
       delayedRefresh.restart()
     }
@@ -707,9 +729,7 @@ Item {
       var stdout = String(switchStdout.text || root._switchOutput || "")
       var stderr = String(switchStderr.text || root._switchError || "")
       if (exitCode !== 0) {
-        root.lastError = elideStatus(stderr || stdout || "Account switch failed")
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, "Account switch failed")
       } else {
         root.lastError = ""
         root.actionStatus = ""
@@ -730,9 +750,7 @@ Item {
       var stdout = String(exitNodeStdout.text || root._exitNodeOutput || "")
       var stderr = String(exitNodeStderr.text || root._exitNodeError || "")
       if (exitCode !== 0) {
-        root.lastError = elideStatus(stderr || stdout || "Exit node selection failed")
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, "Exit node selection failed")
       } else {
         root.lastError = ""
         root.actionStatus = ""
