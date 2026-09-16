@@ -59,17 +59,66 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
-# Check if hibernation is already configured
+reconcile_resume_parameters() {
+  local device offset desired current staged
+  RESUME_CHANGED=false
+  RESUME_PREVIOUS=""
+
+  if ! device=$(findmnt -no SOURCE -T "$SWAP_FILE") || [[ -z $device ]]; then
+    echo "Could not determine the device containing $SWAP_FILE" >&2
+    return 1
+  fi
+  device=${device%%\[*}
+  if [[ ! $device =~ ^/dev/[[:alnum:]_./:+-]+$ ]] ||
+    ! offset=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE") ||
+    [[ ! $offset =~ ^[0-9]+$ ]]; then
+    echo "Could not determine valid resume parameters for $SWAP_FILE" >&2
+    return 1
+  fi
+
+  desired="KERNEL_CMDLINE[default]+=\" resume=$device resume_offset=$offset\""
+  if [[ -f $RESUME_DROP_IN ]]; then
+    current=$(<"$RESUME_DROP_IN")
+    [[ $current != "$desired" ]] || return 0
+    # Only replace the single line this command owns. Custom drop-ins need
+    # manual reconciliation so unrelated kernel parameters are not discarded.
+    if [[ ! $current =~ ^KERNEL_CMDLINE\[default\]\+=\"[[:space:]]resume=[^\"[:space:]]+[[:space:]]resume_offset=[0-9]*\"$ ]]; then
+      echo "Custom resume configuration in $RESUME_DROP_IN; update its resume parameters manually." >&2
+      return 1
+    fi
+  fi
+
+  RESUME_PREVIOUS=${current:-}
+  staged=$(mktemp) || return 1
+  printf '%s\n' "$desired" >"$staged"
+  if sudo mkdir -p "${RESUME_DROP_IN%/*}" && install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
+    rm -f "$staged"
+    RESUME_CHANGED=true
+    echo "Updated resume parameters for $SWAP_FILE"
+  else
+    rm -f "$staged"
+    return 1
+  fi
+}
+
+# Recreated swapfiles can move even when hibernation is already configured.
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
-  # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
-  if [[ -f $RESUME_DROP_IN ]] && grep -q 'resume_offset="$' "$RESUME_DROP_IN" && [[ -f $SWAP_FILE ]]; then
-    RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE" 2>/dev/null)
-    if [[ -n $RESUME_OFFSET ]]; then
-      echo "Fixing empty resume_offset ($RESUME_OFFSET)"
-      sudo sed -i "s/resume_offset=\"$/resume_offset=$RESUME_OFFSET\"/" "$RESUME_DROP_IN"
-      if ! $NO_REBUILD; then
-        sudo limine-mkinitcpio
+  reconcile_resume_parameters || exit 1
+  if $RESUME_CHANGED && ! $NO_REBUILD; then
+    if ! sudo limine-mkinitcpio; then
+      # Leave the old configuration in place so the next setup retries the
+      # rebuild instead of mistaking an unchanged drop-in for an updated UKI.
+      if [[ -n $RESUME_PREVIOUS ]]; then
+        previous=$(mktemp) || exit 1
+        printf '%s\n' "$RESUME_PREVIOUS" >"$previous"
+        install_root_file "$previous" "$RESUME_DROP_IN" 0644 ||
+          echo "Could not restore $RESUME_DROP_IN; rebuild the initramfs manually." >&2
+        rm -f "$previous"
+      else
+        sudo rm -f -- "$RESUME_DROP_IN"
       fi
+      echo "Could not rebuild the initramfs; retry hibernation setup after fixing the build error." >&2
+      exit 1
     fi
   fi
   echo "Hibernation is already set up"
@@ -121,25 +170,13 @@ if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/keyboard-back
   exit 1
 fi
 
+# Validate and install resume parameters before writing the setup marker.
+reconcile_resume_parameters || exit 1
+
 # Add resume hook to mkinitcpio
 sudo mkdir -p /etc/mkinitcpio.conf.d
 echo "Adding resume hook to $MKINITCPIO_CONF"
 echo "HOOKS+=(resume)" | sudo tee "$MKINITCPIO_CONF" >/dev/null
-
-# Add resume= kernel parameters so the initramfs resume hook knows where to find the
-# hibernation image. Without these, resume happens late (after GPU drivers load) and fails.
-if [[ ! -f $RESUME_DROP_IN ]]; then
-  echo "Adding resume kernel parameters"
-  sudo swapon -p 0 "$SWAP_FILE" 2>/dev/null
-  RESUME_DEVICE=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
-  RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE")
-  if [[ -n $RESUME_OFFSET ]]; then
-    sudo mkdir -p /etc/limine-entry-tool.d
-    echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null
-  else
-    echo "Warning: Could not determine resume offset for $SWAP_FILE" >&2
-  fi
-fi
 
 # Use ACPI alarm for RTC wakeup on s2idle systems (needed for suspend-then-hibernate)
 if grep -q "\[s2idle\]" /sys/power/mem_sleep 2>/dev/null; then
