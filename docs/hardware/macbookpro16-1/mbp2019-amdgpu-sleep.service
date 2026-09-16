@@ -1,0 +1,24 @@
+[Unit]
+Description=Quiesce the MacBook Radeon controller across system sleep
+DefaultDependencies=no
+Before=sleep.target
+StopWhenUnneeded=yes
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/bash /usr/local/libexec/mbp2019-amdgpu-sleep pre
+ExecStop=/usr/bin/bash /usr/local/libexec/mbp2019-amdgpu-sleep post
+RuntimeDirectory=mbp2019-amdgpu-sleep
+RuntimeDirectoryMode=0700
+TimeoutStartSec=20
+TimeoutStopSec=20
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectSystem=strict
+PrivateTmp=yes
+
+[Install]
+RequiredBy=sleep.target

@@ -1,0 +1,39 @@
+[Unit]
+Description=Guarded demand-based Radeon low/high clocks for MacBookPro16,1
+Requires=mbp2019-amdgpu-power-prep.service
+BindsTo=t2fanrd.service thermald.service
+After=mbp2019-amdgpu-power-prep.service t2fanrd.service thermald.service
+ConditionPathExists=/sys/bus/pci/devices/0000:03:00.0/power_dpm_force_performance_level
+
+[Service]
+Type=simple
+ExecStartPre=/usr/local/bin/mbp2019-amdgpu-power-prep
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/mbp2019_amdgpu_demand.py --run --seconds 0
+ExecStopPost=/usr/local/bin/mbp2019-amdgpu-power-prep
+Restart=no
+TimeoutStartSec=20
+TimeoutStopSec=15
+RuntimeDirectory=mbp2019-amdgpu-demand
+RuntimeDirectoryMode=0755
+UMask=0022
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/sys/bus/pci/devices/0000:03:00.0/power_dpm_force_performance_level
+ReadWritePaths=/run/mbp2019-amdgpu-power
+
+[Install]
+WantedBy=multi-user.target
