@@ -27,3 +27,11 @@ rg -q 'tag = "-default-opacity"' "$windows_vm_rules" ||
 rg -q 'opacity = "1 1"' "$windows_vm_rules" ||
   fail "Windows VM stays fully opaque"
 pass "Windows VM stays fully opaque"
+
+rg -q 'chmod u-s,g-s -- "/proc/\$BASHPID/fd/\$storage_fd"' "$windows_vm_command" ||
+  fail "Windows VM clears setgid on pinned mount sources before the 700 guard"
+rg -q 'chmod u-s,g-s -- "\$storage" "\$shared"' "$windows_vm_command" ||
+  fail "Windows VM clears setgid on user mount sources"
+rg -q 'mount sources must be mode 700' "$windows_vm_command" ||
+  fail "Windows VM reports the observed mode when the privacy guard fails"
+pass "Windows VM strips stray setgid bits from shared-folder sources"

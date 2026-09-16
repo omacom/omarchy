@@ -69,6 +69,14 @@ grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected
 grep -q -- '- /:/' "$COMPOSE" && fail "compose contains host-root bind"
 pass "writer emits fixed anchors bound to exact private source inodes"
 
+reset_case
+mkdir -p "$HOME/.windows" "$HOME/Windows"
+chmod 2700 "$HOME/Windows" "$HOME/.windows"
+prepare_user_mount_sources
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "shared setgid survived user preflight"
+[[ $(stat -Lc '%a' "$HOME/.windows") == 700 ]] || fail "storage setgid survived user preflight"
+pass "setgid bits are stripped from Windows mount sources"
+
 # Input cannot widen a mount or compose field.
 rm -f "$COMPOSE"
 write 4G 2 64G 'x -v /:/h' p UTC 2>/dev/null && fail "malicious username accepted"
