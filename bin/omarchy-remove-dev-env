@@ -53,9 +53,7 @@ symfony)
   omarchy-pkg-drop symfony-cli
   ;;
 python)
-  echo -e "Removing Python...\n"
-  mise uninstall python --all
-  mise rm -g python
+  echo -e "Removing uv...\n"
   rm -rf ~/.local/bin/uv ~/.local/bin/uvx ~/.cargo/bin/uv 2>/dev/null || true
   ;;
 elixir|phoenix)
