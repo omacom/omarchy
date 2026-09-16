@@ -49,6 +49,37 @@ Item {
     return Util.isVideoPath(path)
   }
 
+  // Optional per-screen wallpapers, keyed by output name:
+  //
+  //   "background": { "screens": { "DP-1": "~/Pictures/portrait.png" } }
+  //
+  // One wallpaper across every output assumes the outputs are alike. A rotated
+  // or otherwise odd-aspect screen gets cropped to fit by the shared image, so
+  // it can be given one of its own instead. Named screens ignore the global
+  // wallpaper entirely and never take part in a theme transition, because the
+  // image they show does not change when the theme does.
+  readonly property var screenBackgrounds: shell && Util.isPlainObject(shell.shellConfig)
+    && Util.isPlainObject(shell.shellConfig.background)
+    && Util.isPlainObject(shell.shellConfig.background.screens)
+    ? shell.shellConfig.background.screens : ({})
+
+  function backgroundOverrideFor(screenName) {
+    if (!screenName) return ""
+    var override = String(screenBackgrounds[screenName] || "").trim()
+    if (!override) return ""
+    // shell.json is hand-edited, so a leading ~ is worth accepting; nothing
+    // else in the shell expands one, and an unexpanded path just fails to load.
+    if (override === "~") return home
+    if (override.indexOf("~/") === 0) return home + override.substring(1)
+    return override
+  }
+
+  // The shared wallpaper unless this screen was given one of its own.
+  function backgroundFor(screenName, fallbackPath) {
+    var override = backgroundOverrideFor(screenName)
+    return override !== "" ? override : fallbackPath
+  }
+
   function imageUrl(path) {
     return Util.fileUrl(path)
   }
@@ -213,6 +244,9 @@ Item {
       id: panel
       required property var modelData
 
+      readonly property string screenName: modelData && modelData.name ? String(modelData.name) : ""
+      readonly property bool hasOverride: root.backgroundOverrideFor(screenName) !== ""
+
       screen: modelData
       visible: !remapGuard.remapping
       anchors { top: true; bottom: true; left: true; right: true }
@@ -262,7 +296,7 @@ Item {
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
+        path: root.backgroundFor(panel.screenName, root.displayedBackground)
         reloads: root.displayedReloads
         playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
         audioEnabled: panel.firstScreen
@@ -284,14 +318,14 @@ Item {
         cache: false
         smooth: true
         mipmap: true
-        visible: root.oldBackground !== "" && root.revealProgress < 1
+        visible: !panel.hasOverride && root.oldBackground !== "" && root.revealProgress < 1
         onStatusChanged: panel.maybeStartReveal()
       }
 
       Item {
         id: incomingLayer
         anchors.fill: parent
-        visible: root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
+        visible: !panel.hasOverride && root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
         layer.enabled: root.incomingBackground !== "" && root.revealProgress < 1
         layer.smooth: true
         layer.effect: MultiEffect {
