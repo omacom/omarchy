@@ -328,6 +328,37 @@ function canForgetNetwork(network) {
   return !!(network && network.known && !network.connected)
 }
 
+function wifiRowsEqual(left, right) {
+  if (left === right) return true
+  if (!Array.isArray(left) || !Array.isArray(right)) return false
+  if (left.length !== right.length) return false
+
+  for (var i = 0; i < left.length; i++) {
+    var a = left[i]
+    var b = right[i]
+    if (a === b) continue
+    if (!a || !b) return false
+    if (a.ssid !== b.ssid) return false
+    if (a.connected !== b.connected) return false
+    if (a.known !== b.known) return false
+    if (a.signal !== b.signal) return false
+    if (a.security !== b.security) return false
+  }
+  return true
+}
+
+// Layout thrash and a closed panel can deliver a stale click or keyboard
+// activate. A connection-activate in those cases tears the radio down for a
+// full reconnect (~15s). Refuse the D-Bus call unless the user can see the
+// panel and the list is done settling.
+function shouldCommitWifiAction(state) {
+  return !!(state && state.opened && !state.layoutBusy)
+}
+
+function shouldActivateWifiConnection(state) {
+  return shouldCommitWifiAction(state) && !state.alreadyConnected
+}
+
 // The password arrives on stdin and reaches nmcli through the scriptable
 // `connection edit` editor -- argv is world-readable in /proc, so the secret
 // must never be an argument (printf is a bash builtin, so no process spawns
@@ -391,6 +422,9 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
+    wifiRowsEqual: wifiRowsEqual,
+    shouldCommitWifiAction: shouldCommitWifiAction,
+    shouldActivateWifiConnection: shouldActivateWifiConnection,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase
