@@ -24,9 +24,13 @@ esac
 SH
 
 # The encoders record their argv -- %q-joined so spaced filenames stay one
-# logical line -- plus the output path on its own out= line. They never create
-# the output file: realpath tolerates a missing final component, and a stub
-# touch would leak files into $TMPDIR and make dedupe rows self-collide.
+# logical line -- plus the output path on its own out= line. They create the
+# output file only under FAKE_OUT_BYTES (truncate -s the last positional, the
+# output path for both encoder argv shapes): realpath tolerates a missing
+# final component, and an unconditional touch would leak files into $TMPDIR
+# and make dedupe rows self-collide -- rows that set the knob own the file
+# and rm -f it after asserting. FAKE_ENCODE_RC exits the stub non-zero to
+# prove the done notification never fires on encode failure.
 for command in ffmpeg magick; do
   cat >"$STUB_DIR/$command" <<'SH'
 #!/bin/bash
@@ -36,6 +40,10 @@ for command in ffmpeg magick; do
   printf '\n'
   printf 'out=%q\n' "${!#}"
 } >>"$CALLS"
+if [[ -n ${FAKE_OUT_BYTES:-} ]]; then
+  truncate -s "$FAKE_OUT_BYTES" "${!#}"
+fi
+exit "${FAKE_ENCODE_RC:-0}"
 SH
 done
 
@@ -108,9 +116,10 @@ SH
 chmod +x "$STUB_DIR"/*
 
 # Runs the real script against the stubs. Truncating $calls is the only
-# per-run reset -- stubs never write outputs, so any row that pre-creates a
-# collision fixture owns it and must rm -f it right after asserting. ffmpeg
-# argv lines also accumulate in $ffmpeg_calls for the no-overwrite-flag pin.
+# per-run reset -- stubs write outputs only under FAKE_OUT_BYTES, so any row
+# that pre-creates a collision fixture (or sets the knob) owns those files and
+# must rm -f them right after asserting. ffmpeg argv lines also accumulate in
+# $ffmpeg_calls for the no-overwrite-flag pin.
 run_transcode() {
   local status=0
 
@@ -561,3 +570,71 @@ grep -F 'Smallest file' "$calls" >/dev/null ||
 grep -F 'Invalid video format' "$TMPDIR/stderr" >/dev/null ||
   fail "an unknown video format reports Invalid video format" "$(cat "$TMPDIR/stderr")"
 pass "an unknown format prompts with qualitative rows then fails Invalid video format"
+
+# The done notification reports the output's real size: FAKE_OUT_BYTES makes
+# the stub write a 38.00 MiB file, the script's own stat+awk chain measures
+# it, and the body lands as "(38 MB)" -- the same MiB scale the ~N MB menu
+# estimates use. Assertions filter on 'Transcoded to' because the start
+# notification body carries its own parenthetical. The knob-created output
+# is this row's fixture -- rm -f it after asserting.
+FAKE_OUT_BYTES=39845888 run_transcode "$TMPDIR/in.mov" mp4 1080p medium
+grep 'notification:' "$calls" | grep -F 'Transcoded to 1080p mp4' |
+  grep -F 'Saved and copied to clipboard (38 MB).' >/dev/null ||
+  fail "the video done notification reports the output size" "$(cat "$calls")"
+rm -f "$TMPDIR/in-1080p.mp4"
+pass "the video done notification reports the output size"
+
+FAKE_OUT_BYTES=39845888 run_transcode "$TMPDIR/img.png" jpg medium
+grep 'notification:' "$calls" | grep -F 'Transcoded to medium jpg' |
+  grep -F 'Saved and copied to clipboard (38 MB).' >/dev/null ||
+  fail "the picture done notification reports the output size" "$(cat "$calls")"
+rm -f "$TMPDIR/img-medium.jpg"
+pass "the picture done notification reports the output size"
+
+# With no FAKE_OUT_BYTES the stub creates nothing, stat fails inside
+# output_size_label, and the body degrades to the plain sentence -- the run
+# still exits 0 and no size is ever fabricated.
+run_transcode "$TMPDIR/in.mov" mp4 1080p medium
+grep 'notification:' "$calls" | grep -F 'Transcoded to 1080p mp4' |
+  grep -E 'Saved and copied to clipboard\.$' >/dev/null ||
+  fail "a missing output degrades the done notification to the plain body" "$(cat "$calls")"
+if grep 'notification:' "$calls" | grep -F 'Transcoded to' | grep -F ' MB)' >/dev/null; then
+  fail "a missing output never fabricates a size" "$(cat "$calls")"
+fi
+pass "a missing output degrades to the plain body without lying"
+
+# A failed encode aborts before the done notification under set -e. The
+# Transcoding start notification is a pre-existing orphan (pinned, not
+# fixed), but zero "Transcoded to" lines may appear -- the notification can
+# never claim a size for an output that does not exist.
+if FAKE_ENCODE_RC=1 run_transcode "$TMPDIR/in.mov" mp4 1080p medium; then
+  fail "a failed encode exits non-zero"
+fi
+grep -F 'Transcoding video' "$calls" >/dev/null ||
+  fail "a failed encode still records the start notification" "$(cat "$calls")"
+if grep 'notification:' "$calls" | grep -F 'Transcoded to' >/dev/null; then
+  fail "a failed encode never sends the done notification" "$(cat "$calls")"
+fi
+pass "a failed encode sends zero done notifications"
+
+# The gif arm shares main()'s video tail, so the size reaches it too -- a
+# cheap pin that no arm is left on the plain body.
+FAKE_OUT_BYTES=39845888 run_transcode "$TMPDIR/in.mov" gif 720p low
+grep 'notification:' "$calls" | grep -F 'Transcoded to 720p gif' |
+  grep -F 'Saved and copied to clipboard (38 MB).' >/dev/null ||
+  fail "the gif done notification reports the output size" "$(cat "$calls")"
+rm -f "$TMPDIR/in-720p-low.gif"
+pass "the gif done notification reports the output size"
+
+# A deduped output reports the size of the file actually written: $output
+# resolved to -2 before the notifications, so stat measures in-1080p-2.mp4 --
+# never the pre-existing collision fixture.
+touch "$TMPDIR/in-1080p.mp4"
+FAKE_OUT_BYTES=39845888 run_transcode "$TMPDIR/in.mov" mp4 1080p medium
+grep -Fx "out=$TMPDIR/in-1080p-2.mp4" "$calls" >/dev/null ||
+  fail "an existing output dedupes to -2 with FAKE_OUT_BYTES set" "$(cat "$calls")"
+grep 'notification:' "$calls" | grep -F 'Transcoded to 1080p mp4' |
+  grep -F 'Saved and copied to clipboard (38 MB).' >/dev/null ||
+  fail "a deduped output reports its own size" "$(cat "$calls")"
+rm -f "$TMPDIR/in-1080p.mp4" "$TMPDIR/in-1080p-2.mp4"
+pass "a deduped output reports the size of the file actually written"

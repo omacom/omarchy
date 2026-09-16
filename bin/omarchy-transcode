@@ -284,9 +284,18 @@ select_quality() {
   printf '%s' "$selection"
 }
 
+# Human-readable size of a finished output ("38 MB"), or fails when stat
+# cannot read it -- callers degrade the notification body rather than lie.
+output_size_label() {
+  local bytes
+  bytes=$(stat -c %s "$1" 2>/dev/null || true)
+  [[ $bytes =~ ^[0-9]+$ ]] || return 1
+  awk -v b="$bytes" 'BEGIN { printf "%.0f MB", b / 1048576 }'
+}
+
 main() {
   local input="" format="" resolution="" search_path=""
-  local type output quality positional=()
+  local type output quality size positional=()
 
   while (( $# > 0 )); do
     case "$1" in
@@ -372,11 +381,13 @@ main() {
     omarchy-notification-send -g  "Transcoding video…" "$(basename -- "$input") to $format ($resolution)"
     transcode_video "$input" "$format" "$resolution" "$output" "$quality"
     copy_to_clipboard "$output"
-    omarchy-notification-send -g  "Transcoded to $resolution $format" "Saved and copied to clipboard."
+    size=$(output_size_label "$output" || true)
+    omarchy-notification-send -g  "Transcoded to $resolution $format" "Saved and copied to clipboard${size:+ ($size)}."
   else
     transcode_picture "$input" "$format" "$resolution" "$output"
     copy_to_clipboard "$output"
-    omarchy-notification-send -g  "Transcoded to $resolution $format" "Saved and copied to clipboard."
+    size=$(output_size_label "$output" || true)
+    omarchy-notification-send -g  "Transcoded to $resolution $format" "Saved and copied to clipboard${size:+ ($size)}."
   fi
 }
 
