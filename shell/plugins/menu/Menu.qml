@@ -141,8 +141,10 @@ Item {
     Util.execDetached(command)
   }
 
+  // Menu rows only surface their detail while a search is narrowing them;
+  // dmenu rows carry caller-supplied subtext that must always be visible.
   function rowHeightForDetail(detail) {
-    return root.filterText && detail ? root.detailRowHeight : root.baseRowHeight
+    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
   }
 
   // Height the card can devote to rows before running off the screen — or
@@ -152,8 +154,11 @@ Item {
   function availableRowsHeight() {
     var top = panel.cardTop >= 0 ? panel.cardTop : Style.gapsOut
     var available = panel.height - top - Style.gapsOut - root.contentMargin * 2 - root.headerHeight - root.contentSpacing
+    // The starting menu sets the ceiling along with the offset: drilling into
+    // a longer submenu scrolls behind the fold instead of growing the card.
+    if (panel.maxRowsHeight >= 0) available = Math.min(available, panel.maxRowsHeight)
     // A card that swallows the whole screen reads as a page, not a menu.
-    return Math.min(available, Math.round(panel.height * 0.6))
+    return Math.min(available, Math.round(panel.height * 0.7))
   }
 
   // When every row fits, the list gets its full height. When they don't,
@@ -203,7 +208,7 @@ Item {
     var total = 0
     for (var i = 0; i < displayModel.count; i++) {
       if (i > 0) total += root.rowSpacing
-      total += root.baseRowHeight
+      total += root.rowHeightForDetail(displayModel.get(i).detail)
       totals.push(total)
     }
 
@@ -312,6 +317,7 @@ Item {
         aliases: aliases,
         when: "",
         checked: "",
+        disabled: "",
         order: 0
       })
     }
@@ -377,6 +383,7 @@ Item {
         aliases: [],
         when: "",
         checked: "",
+        disabled: "",
         order: 0
       })
     }
@@ -465,9 +472,10 @@ Item {
     return MenuModel.isVisible(root.items, root.itemOrder, root.whenResults, entry)
   }
 
-  // Label with the ✓ marker baked in when `checked:` evaluated truthy.
+  // Label with the ✓ marker baked in when `checked:` or `disabled:` evaluated
+  // truthy.
   function labelFor(entry) {
-    return MenuModel.labelFor(entry, root.checkedResults)
+    return MenuModel.labelFor(entry, root.checkedResults, root.disabledResults)
   }
 
   function searchableToken(value) {
@@ -490,8 +498,17 @@ Item {
     return MenuModel.descriptionTextMatches(query, text)
   }
 
+  // Rows whose `disabled:` evaluated truthy stay listed but dimmed, and the
+  // cursor steps over them.
+  function isDisabled(entry) {
+    return MenuModel.isDisabled(root.disabledResults, entry)
+  }
+
+  // A disabled row earns its place in the submenu it belongs to, where the
+  // list around it is the point. Search is a list of what you can do, so it
+  // leaves them out.
   function matchesQuery(entry, query) {
-    return MenuModel.matchesQuery(entry, query, root.isVisible(entry))
+    return MenuModel.matchesQuery(entry, query, root.isVisible(entry) && !root.isDisabled(entry))
   }
 
   function searchScore(entry, query) {
@@ -499,7 +516,38 @@ Item {
   }
 
   function displayRow(entry, detail, score, section) {
-    return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, entry, detail, score, section)
+    return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
+  }
+
+  function rowSelectable(index) {
+    if (index < 0 || index >= displayModel.count) return false
+    return !displayModel.get(index).disabled
+  }
+
+  // First selectable row at or past `from`, continuing in the direction of
+  // travel and wrapping. -1 when every row is disabled, which leaves the menu
+  // with no cursor at all rather than one parked on a row Enter won't run.
+  function nextSelectable(from, direction) {
+    var count = displayModel.count
+    if (count === 0) return -1
+
+    var step = direction < 0 ? -1 : 1
+    var index = ((from % count) + count) % count
+    for (var i = 0; i < count; i++) {
+      if (root.rowSelectable(index)) return index
+      index = (index + step + count) % count
+    }
+
+    return -1
+  }
+
+  // Park the cursor on a selectable row after the rows underneath it changed.
+  // A menu with nothing selectable in it -- every app in it already installed
+  // -- shows no cursor at all, and grows one the moment a row can take it.
+  function settleCursor() {
+    var target = root.nextSelectable(root.selectedIndex, 1)
+    root.selectedIndex = target >= 0 ? target : 0
+    root.cursorActive = target >= 0
   }
 
   function rebuildDmenuDisplay() {
@@ -513,15 +561,19 @@ Item {
 
     var query = root.filterText.trim().toLowerCase()
     for (var i = 0; i < root.dmenuOptions.length; i++) {
-      // An option may lead with an icon, as "<glyph>\t<label>". Only the label
-      // is filtered against and handed back, so the caller never sees a glyph
-      // it has to strip off the selection.
+      // An option is "<label>", "<glyph>\t<label>", or
+      // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
+      // selection; the subtext renders under the label, filters alongside it,
+      // and returns with the selection as a stable key for same-named rows.
       var parts = String(root.dmenuOptions[i] || "").split("\t")
       var icon = parts.length > 1 ? parts.shift() : ""
-      var label = parts.join("\t")
-      if (query && label.toLowerCase().indexOf(query) < 0) continue
+      var label = parts.shift() || ""
+      var detail = parts.join("\t")
+      if (query && label.toLowerCase().indexOf(query) < 0
+          && detail.toLowerCase().indexOf(query) < 0) continue
       displayModel.append({
         itemId: "dmenu." + i,
+        disabled: false,
         kind: "dmenu",
         icon: icon,
         iconFont: "",
@@ -529,7 +581,7 @@ Item {
         appId: "",
         label: label,
         target: "",
-        detail: "",
+        detail: detail,
         path: "",
         childCount: 0,
         action: "",
@@ -622,9 +674,7 @@ Item {
     for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
     layoutSerial += 1
 
-    if (displayModel.count === 0) selectedIndex = 0
-    else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
-    else if (selectedIndex < 0) selectedIndex = 0
+    root.settleCursor()
 
     Qt.callLater(function() {
       if (displayModel.count > 0) root.revealCursor()
@@ -657,12 +707,12 @@ Item {
     if (displayModel.count === 0) return
 
     root.disarmPointer()
-    if (!cursorActive) {
-      cursorActive = true
-      selectedIndex = delta < 0 ? displayModel.count - 1 : 0
-    } else {
-      selectedIndex = (selectedIndex + delta + displayModel.count) % displayModel.count
-    }
+    var from = cursorActive ? selectedIndex + delta : (delta < 0 ? displayModel.count - 1 : 0)
+    var target = root.nextSelectable(from, delta)
+    if (target < 0) return
+
+    cursorActive = true
+    selectedIndex = target
     revealCursor()
   }
 
@@ -714,11 +764,12 @@ Item {
         return
       }
       if (index < 0 || index >= displayModel.count) return
-      root.applyDmenuSelection(displayModel.get(index).label)
+      var picked = displayModel.get(index)
+      root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
       return
     }
 
-    if (index < 0 || index >= displayModel.count) return
+    if (!root.rowSelectable(index)) return
 
     var row = displayModel.get(index)
     if (row.kind === "menu" || row.kind === "link") {
@@ -838,17 +889,7 @@ Item {
   // in JSONC (`power`, `reminder-set`). Unknown strings fall through to the
   // id-as-route behavior so misspellings still attempt to open the literal id.
   function resolveRoute(input) {
-    var raw = String(input || "").toLowerCase().replace(/_/g, "-")
-    if (!raw || raw === "go" || raw === "menu") return "root"
-    for (var i = 0; i < root.itemOrder.length; i++) {
-      var entry = root.items[root.itemOrder[i]]
-      if (!entry || !entry.aliases) continue
-      for (var j = 0; j < entry.aliases.length; j++) {
-        var alias = String(entry.aliases[j] || "").toLowerCase().replace(/_/g, "-")
-        if (alias === raw) return entry.id
-      }
-    }
-    return raw
+    return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
   function openRoute(initialMenu) {
@@ -875,6 +916,7 @@ Item {
 
   function selectFromPointer(index, item, mouse) {
     if (!pointerGate.moved(item, mouse)) return
+    if (!root.rowSelectable(index)) return
     root.cursorActive = true
     root.selectedIndex = index
   }
@@ -948,19 +990,27 @@ Item {
 
   property var whenResults: ({})       // id → true|false (allow visibility)
   property var checkedResults: ({})    // id → true|false (show ✓)
+  property var disabledResults: ({})   // id → true|false (dim, skip cursor)
+  property bool guardsPending: false
 
   function evaluateGuards() {
-    var script = ""
-    var ids = Object.keys(root.items)
-    for (var i = 0; i < ids.length; i++) {
-      var entry = root.items[ids[i]]
-      if (!entry) continue
-      if (entry.when) script += "if { " + entry.when + "; } >/dev/null 2>&1; then echo " + ids[i] + ":w:1; else echo " + ids[i] + ":w:0; fi\n"
-      if (entry.checked) script += "if { " + entry.checked + "; } >/dev/null 2>&1; then echo " + ids[i] + ":c:1; else echo " + ids[i] + ":c:0; fi\n"
+    // Process ignores a command change while it is running, and `collected`
+    // belongs to the run in flight, so a second evaluation cannot overwrite
+    // the first: it would throw away the lines already read and never start.
+    // The surviving tail then lands as the whole answer, and every id lost
+    // with it goes back to showing, since a `when:` only hides on an explicit
+    // false. Wait for the run in flight and evaluate once it lands instead.
+    if (guardProc.running) {
+      root.guardsPending = true
+      return
     }
+    root.guardsPending = false
+
+    var script = MenuModel.guardScript(root.items)
     if (!script) {
       root.whenResults = ({})
       root.checkedResults = ({})
+      root.disabledResults = ({})
       return
     }
     guardProc.collected = ""
@@ -974,9 +1024,19 @@ Item {
     stdout: SplitParser {
       onRead: function(data) { guardProc.collected += data + "\n" }
     }
-    onExited: {
+    onExited: function(exitCode, exitStatus) {
+      // A batch that was killed rather than finished has only told us about
+      // the rows it reached, and a row whose `when:` went unanswered shows.
+      // Keep the last complete set rather than let a half-read one through.
+      // A signal leaves the exit code at 0, so the status is what tells us.
+      if (exitCode !== 0 || exitStatus !== 0) {
+        if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
+        return
+      }
+
       var nextWhen = ({})
       var nextChecked = ({})
+      var nextDisabled = ({})
       var lines = guardProc.collected.split("\n")
       for (var i = 0; i < lines.length; i++) {
         var line = lines[i].trim()
@@ -991,10 +1051,15 @@ Item {
         var tag = rest.substring(tagAt + 1)
         if (tag === "w") nextWhen[id] = value
         else if (tag === "c") nextChecked[id] = value
+        else if (tag === "d") nextDisabled[id] = value
       }
       root.whenResults = nextWhen
       root.checkedResults = nextChecked
+      root.disabledResults = nextDisabled
       if (root.opened) root.rebuildDisplay()
+      // Run the evaluation that had to stand aside. Deferred by a turn so the
+      // process is settled before its command is set again.
+      if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
     }
   }
   PanelWindow {
@@ -1010,14 +1075,20 @@ Item {
     // The card opens centered exactly as always. The first search keystroke
     // or submenu move freezes the top line where it currently sits — from
     // then on the card grows and shrinks downward instead of re-centering
-    // on every resize, which made the menu jump around. Closing unfreezes.
+    // on every resize, which made the menu jump around. The rows height is
+    // frozen at the same moment, so the starting menu also caps how tall the
+    // card may grow from there. Closing unfreezes both.
     property int cardTop: -1
+    property int maxRowsHeight: -1
     readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
     readonly property int effectiveCardTop: cardTop >= 0 ? cardTop : centeredTop
     function freezeCardTop() {
-      if (visible && cardTop < 0) cardTop = effectiveCardTop
+      if (visible && cardTop < 0) {
+        cardTop = effectiveCardTop
+        maxRowsHeight = root.visibleRowsHeight
+      }
     }
-    onVisibleChanged: if (!visible) cardTop = -1
+    onVisibleChanged: if (!visible) { cardTop = -1; maxRowsHeight = -1 }
 
     Rectangle {
       anchors.fill: parent
@@ -1085,7 +1156,7 @@ Item {
               if (root.mode === "input") root.applyDmenuSelection(root.filterText)
               else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
-            else if (displayModel.count > 0) root.cursorActive = true
+            else root.settleCursor()
             event.accepted = true
           } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
             root.setFilter(root.filterText + event.text)
@@ -1128,6 +1199,7 @@ Item {
           color: "transparent"
 
           Text {
+            textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
@@ -1188,6 +1260,7 @@ Item {
               required property string path
               required property string action
               required property int childCount
+              required property bool disabled
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
@@ -1195,6 +1268,9 @@ Item {
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
+              // Faded: the row is here to say the software is already
+              // installed, not to be picked.
+              opacity: row.disabled ? 0.4 : 1
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
@@ -1212,6 +1288,7 @@ Item {
 
               Text {
                 id: iconText
+                textFormat: Text.PlainText
                 visible: row.hasIcon && !row.isApp
                 text: row.icon
                 color: row.hasCursor ? root.selectedText : root.foreground
@@ -1253,6 +1330,7 @@ Item {
 
                 Text {
                   id: labelText
+                  textFormat: Text.PlainText
                   width: parent.width
                   text: row.label
                   color: row.hasCursor ? root.selectedText : root.foreground
@@ -1263,9 +1341,10 @@ Item {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   width: parent.width
                   text: row.detail
-                  visible: root.filterText && row.detail.length > 0
+                  visible: (root.filterText || row.kind === "dmenu") && row.detail.length > 0
                   color: root.foreground
                   opacity: 0.52
                   font.family: root.fontFamily
@@ -1283,6 +1362,7 @@ Item {
                 spacing: 0
 
                 Text {
+                  textFormat: Text.PlainText
                   visible: false
                   text: row.childCount
                   color: root.foreground
@@ -1293,6 +1373,7 @@ Item {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   text: row.kind === "menu" || row.kind === "link" ? "›" : ""
                   color: row.hasCursor ? root.selectedText : root.foreground
                   opacity: row.kind === "menu" || row.kind === "link" ? 0.36 : 0
@@ -1307,7 +1388,7 @@ Item {
                 id: mouseArea
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
+                cursorShape: row.disabled ? Qt.ArrowCursor : Qt.PointingHandCursor
                 onEntered: root.selectFromPointer(row.index, row, {
                   x: mouseArea.mouseX,
                   y: mouseArea.mouseY
@@ -1316,6 +1397,7 @@ Item {
                   root.selectFromPointer(row.index, row, mouse)
                 }
                 onClicked: {
+                  if (row.disabled) return
                   root.cursorActive = true
                   root.selectedIndex = row.index
                   root.activateIndex(row.index, true)
@@ -1376,6 +1458,7 @@ Item {
             }
 
             Text {
+              textFormat: Text.PlainText
               text: root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet"
               color: root.foreground
               opacity: 0.7

@@ -28,6 +28,9 @@
           "verticalFormat": "HH\n\u2014\nmm"
         },
         {
+          "id": "omarchy.keyboard-layout"
+        },
+        {
           "id": "omarchy.weather"
         },
         {
@@ -39,7 +42,7 @@
           "id": "omarchy.tray"
         },
         {
-          "id": "omarchy.model-usage"
+          "id": "omarchy.agents"
         },
         {
           "id": "omarchy.bluetooth"

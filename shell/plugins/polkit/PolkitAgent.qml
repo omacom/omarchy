@@ -383,8 +383,13 @@ Item {
           spacing: Style.space(14)
 
           Text {
-            text: "\uf023"
-            color: root.errorFlash ? Color.polkit.textError : root.accent
+            textFormat: Text.PlainText
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
+            color: root.errorFlash ? Color.polkit.textError : root.foreground
+            opacity: root.errorFlash ? 1 : 0.36
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
             width: Style.space(26)
@@ -527,6 +532,7 @@ Item {
 
       Text {
         id: justificationText
+        textFormat: Text.PlainText
         anchors.fill: parent
         anchors.leftMargin: Style.space(12)
         anchors.rightMargin: Style.space(12)

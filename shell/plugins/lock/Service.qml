@@ -31,9 +31,21 @@ Item {
   property int backgroundVersion: 0
   property string lastEvent: "init"
   property string lastEventAt: ""
+  property bool displaysBlank: false
+  // displaysBlank tracks what the lock asked for; Hyprland reports what each
+  // panel actually did. While a video is on show the two are reconciled, so a
+  // blank that failed keeps playing and a panel woken behind the lock's back
+  // (a resume that kept the same outputs) resumes instead of freezing.
+  property var monitorDpms: ({})
+  property bool monitorDpmsKnown: false
+  readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
+  property bool strandedLock: false
+  property bool strandedLockResolved: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
+  readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
+  readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
 
   function realScreenCount() {
     var screens = Quickshell.screens || []
@@ -72,6 +84,29 @@ Item {
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
     sessionLock.locked = true
+  }
+
+  // ext-session-lock outlives its client, and a restart carries no lock over, so
+  // a session locked this early is an orphan behind Hyprland's failsafe. Outputs
+  // are often still absent here, so ask until the answer means something.
+  function checkStrandedLock() {
+    if (strandedLockResolved || strandedLockCheckProc.running) return
+
+    // A lock this shell took is nobody's orphan.
+    if (locked || lockRequested) {
+      strandedLockResolved = true
+      return
+    }
+
+    strandedLockCheckProc.running = true
+  }
+
+  function recoverStrandedLock() {
+    if (!strandedLock || locked || !passwordPamConfigured) return
+
+    strandedLock = false
+    logEvent("lock-stranded: recovering")
+    beginLock()
   }
 
   function refreshBackground() {
@@ -140,12 +175,40 @@ Item {
   }
 
   function runWake() {
+    root.displaysBlank = false
+    root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
   }
 
   function runBlank() {
+    root.displaysBlank = true
+    root.monitorDpmsKnown = false
     if (!blankProcess.running) blankProcess.running = true
+  }
+
+  function screenBlank(screenName) {
+    var name = String(screenName || "")
+    if (!monitorDpmsKnown || !(name in monitorDpms)) return displaysBlank
+    return !monitorDpms[name]
+  }
+
+  function applyMonitorDpms(text) {
+    var monitors
+    try {
+      monitors = JSON.parse(String(text || ""))
+    } catch (error) {
+      return
+    }
+    if (!Array.isArray(monitors)) return
+
+    var dpms = {}
+    for (var i = 0; i < monitors.length; i++) {
+      var monitor = monitors[i]
+      if (monitor && monitor.name && !monitor.disabled) dpms[String(monitor.name)] = !!monitor.dpmsStatus
+    }
+    monitorDpms = dpms
+    monitorDpmsKnown = true
   }
 
   function submitPassword(value) {
@@ -251,6 +314,8 @@ Item {
         failedAttempts: root.failedAttempts
         inputEnabled: root.lockRequested
         loadBackground: root.locked
+        displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
+        powerSaverActive: root.powerSaverActive
         passwordText: root.enteredPassword
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
@@ -281,6 +346,7 @@ Item {
       failedAttempts: 0
       inputEnabled: false
       loadBackground: root.previewVisible
+      powerSaverActive: root.powerSaverActive
       passwordText: ""
     }
 
@@ -362,6 +428,21 @@ Item {
   }
 
   Process {
+    id: strandedLockCheckProc
+    command: ["bash", "-c", "omarchy-hyprland-session-locked"]
+    onExited: function(exitCode) {
+      // No output to read the lock off yet.
+      if (exitCode === 2) return
+
+      root.strandedLockResolved = true
+
+      // A lock taken while this was in flight is this shell's own.
+      root.strandedLock = exitCode === 0 && !root.locked && !root.lockRequested
+      root.recoverStrandedLock()
+    }
+  }
+
+  Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
   }
@@ -369,6 +450,31 @@ Item {
   Process {
     id: blankProcess
     command: ["bash", "-c", "omarchy-brightness-keyboard off; omarchy-brightness-display off"]
+  }
+
+  // Quickshell exposes no DPMS signal, so the panel state is polled while a
+  // video is the locked wallpaper. A wake or blank request drops the last
+  // answer, so its optimistic state applies until the next poll confirms it.
+  Process {
+    id: monitorDpmsProcess
+    command: ["hyprctl", "monitors", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: root.applyMonitorDpms(text)
+    }
+  }
+
+  Timer {
+    id: monitorDpmsTimer
+    interval: 3000
+    repeat: true
+    triggeredOnStart: true
+    running: root.locked && root.videoBackground
+    onTriggered: {
+      if (!monitorDpmsProcess.running) monitorDpmsProcess.running = true
+    }
+    onRunningChanged: {
+      if (!running) root.monitorDpmsKnown = false
+    }
   }
 
   Timer {
@@ -384,7 +490,10 @@ Item {
         root.armBlankTimer()
         return
       }
-      if (root.lockRequested && !root.authenticating) root.runBlank()
+      // Only a password check in flight should hold the display up. The
+      // fingerprint PAM stays armed for the whole lock, so gating on
+      // `authenticating` here would keep the panel lit until unlock.
+      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
     }
   }
 
@@ -402,14 +511,43 @@ Item {
     onTriggered: root.requestSessionLock()
   }
 
-  Connections {
-    target: Quickshell
-    function onScreensChanged() { root.requestSessionLock() }
+  Timer {
+    id: strandedLockRetryTimer
+    interval: 500
+    repeat: true
+    // Covers the compositor settling; screens coming back re-arm it.
+    readonly property int budget: 20
+    property int remaining: 20
+    running: !root.strandedLockResolved && remaining > 0
+
+    function rearm() {
+      if (!root.strandedLockResolved) remaining = budget
+    }
+
+    onTriggered: {
+      remaining -= 1
+      root.checkStrandedLock()
+    }
   }
 
-  onAuthenticatingChanged: {
+  Connections {
+    target: Quickshell
+    function onScreensChanged() {
+      // A panel coming back is a display turning on that runWake did not ask
+      // for, so the blank state has to be given up here or a visible lock
+      // wallpaper stays frozen until the next keypress.
+      root.displaysBlank = false
+      root.requestSessionLock()
+
+      // A monitor still coming up has no workspace, so cannot answer yet.
+      strandedLockRetryTimer.rearm()
+      root.checkStrandedLock()
+    }
+  }
+
+  onAuthenticatingPasswordChanged: {
     if (!lockRequested) return
-    if (authenticating) idleBlankTimer.stop()
+    if (authenticatingPassword) idleBlankTimer.stop()
     else armBlankTimer()
   }
 
@@ -422,9 +560,21 @@ Item {
     onFileChanged: reload()
   }
 
+  // No lock before PAM is known good. An answer from before then may be stale --
+  // the failsafe can be cleared from a TTY -- so re-ask rather than act on it.
+  onPasswordPamConfiguredChanged: {
+    if (!passwordPamConfigured) return
+
+    strandedLock = false
+    strandedLockResolved = false
+    strandedLockRetryTimer.rearm()
+    checkStrandedLock()
+  }
+
   Component.onCompleted: {
     refreshBackground()
     refreshFingerprintStatus()
+    checkStrandedLock()
   }
 
   IpcHandler {

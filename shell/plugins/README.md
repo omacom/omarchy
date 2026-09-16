@@ -27,7 +27,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Network       | `omarchy.network`         | `bar-widget`            | `panels/network/Panel.qml`            |
 | Power         | `omarchy.power`           | `bar-widget`            | `panels/power/Panel.qml`              |
 | Tailscale     | `omarchy.tailscale`       | `bar-widget`            | `panels/tailscale/Panel.qml`          |
-| Model usage   | `omarchy.model-usage`     | `bar-widget`            | `model-usage/Panel.qml`               |
+| Agents   | `omarchy.agents`     | `bar-widget`            | `agents/Panel.qml`               |
 | Weather       | `omarchy.weather`         | `bar-widget`            | `panels/weather/BarWidget.qml`        |
 | Media         | `omarchy.media`           | `service`, `bar-widget` | `services/media/Service.qml`, `services/media/BarWidget.qml` |
 | Battery       | `omarchy.battery`         | `service`               | `services/battery/Service.qml`        |
@@ -83,6 +83,9 @@ separate PAM services: `omarchy-lock-password` for password auth and,
 only when fingerprints are enrolled, `omarchy-lock-fingerprint` for
 fingerprint auth. It mirrors the previous lock screen field dimensions,
 colors, blurred wallpaper, placeholder, and Hyprland-driven corners.
+The plugin sets `keepLoaded: true` so a plugin hot-reload (for example
+an installed bar widget changing on disk) does not destroy the lock
+client while Hyprland still holds the session lock.
 
 ## Polkit agent
 
