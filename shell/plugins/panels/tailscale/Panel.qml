@@ -42,17 +42,17 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property bool showPeers: tailscale.active && tailscale.peers.length > 0
+  readonly property bool showPeers: tailscale.running && tailscale.peers.length > 0
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
-  readonly property bool showExitNodes: tailscale.active && (exitNodes.length > 0 || tailscale.mullvadRegions.length > 0)
+  readonly property bool showExitNodes: tailscale.running && (exitNodes.length > 0 || tailscale.mullvadRegions.length > 0)
   readonly property var filteredMullvadRegions: filteredMullvadRegionNodes()
   // Only claim the header cursor when the switch is actually on screen —
   // "header" stays navigable, but an absent CLI leaves nothing to highlight.
   readonly property bool headerHasCursor: cursorActive && focusSection === "header" && tailscale.installed
   readonly property color iconColor: tailscale.active ? foreground : dim
-  readonly property string toggleHint: tailscale.active ? "Turn Tailscale off" : (tailscale.needsLogin ? "Authorize this device" : "Turn Tailscale on")
+  readonly property string toggleHint: tailscale.connecting ? "Connecting Tailscale" : (tailscale.active ? "Turn Tailscale off" : (tailscale.needsLogin ? "Authorize this device" : "Turn Tailscale on"))
   readonly property color barIconColor: tailscale.active ? barForeground : Qt.darker(barForeground, 1.55)
   readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
@@ -361,6 +361,9 @@ Panel {
     function onPeersChanged() { root.ensureCursor() }
     function onAccountsChanged() { root.ensureCursor() }
     function onAccountsAccessDeniedChanged() { root.ensureCursor() }
+    // Login may finish after the user has started typing in another window.
+    // Update the bar state, but never reopen the keyboard-grabbing panel.
+    function onAuthUrlOpened() { root.close() }
   }
 
   IpcHandler {
@@ -458,10 +461,10 @@ Panel {
               id: hero
               width: parent.width
               title: tailscale.installed ? (tailscale.selfName || "Tailscale") : "Tailscale"
-              meta: tailscale.active ? root.heroPhraseText : "Tailscale is disconnected"
+              meta: tailscale.connecting ? "Connecting…" : (tailscale.active ? root.heroPhraseText : "Tailscale is disconnected")
               foreground: root.foreground
               fontFamily: root.fontFamily
-              iconOpacity: tailscale.active ? 1.0 : 0.5
+              iconOpacity: tailscale.connecting ? 0.65 : (tailscale.active ? 1.0 : 0.5)
               // Status only — the switch owns toggling, mouse and keyboard alike.
               iconComponent: Component {
                 TailscaleIcon {
@@ -481,7 +484,8 @@ Panel {
                   id: powerSwitch
                   visible: tailscale.installed
                   checked: tailscale.active
-                  busy: tailscale.busy
+                  busy: tailscale.busy || tailscale.connecting || tailscale.waitingForLogin
+                  opacity: tailscale.connecting ? 0.55 : 1.0
                   hasCursor: header.ringVisible
                   foreground: hero.foreground
                   onHovered: function(on) { if (on) header.focusHero() }
@@ -498,14 +502,24 @@ Panel {
           }
 
           Text {
+            id: statusMessage
             textFormat: Text.PlainText
-            visible: tailscale.actionStatus !== "" || tailscale.lastError !== ""
+            visible: text !== ""
             width: parent.width
-            text: tailscale.actionStatus !== "" ? tailscale.actionStatus : tailscale.lastError
+            // Reserve two lines so login progress and a wrapped timeout have the same height.
+            height: Math.max(implicitHeight, statusMeasure.implicitHeight)
+            text: tailscale.actionStatus || tailscale.lastError || (tailscale.needsLogin ? "Sign in to connect this device." : "")
             color: tailscale.lastError !== "" && tailscale.actionStatus === "" ? root.urgent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
+
+            Text {
+              id: statusMeasure
+              visible: false
+              text: "M\nM"
+              font: statusMessage.font
+            }
           }
 
           CursorSurface {
@@ -666,12 +680,12 @@ Panel {
           }
 
           PanelSeparator {
-            visible: tailscale.installed && tailscale.active
+            visible: tailscale.installed && tailscale.running
             foreground: root.foreground
           }
 
           Column {
-            visible: tailscale.installed && tailscale.active
+            visible: tailscale.installed && tailscale.running
             width: parent.width
             spacing: Style.space(10)
 
@@ -682,7 +696,7 @@ Panel {
             }
 
             Text {
-              visible: tailscale.installed && tailscale.active && tailscale.peers.length === 0
+              visible: tailscale.installed && tailscale.running && tailscale.peers.length === 0
               width: parent.width
               text: "No machines found on this tailnet."
               color: root.dim
