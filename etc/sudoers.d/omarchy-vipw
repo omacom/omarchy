@@ -1,0 +1,4 @@
+# vipw and vigr read $EDITOR and otherwise hardcode /usr/bin/vi, which Omarchy
+# does not ship. Carry the caller's editor across sudo the way the stock
+# sudoers already does for visudo.
+Defaults!/usr/bin/vipw,/usr/bin/vigr env_keep += "EDITOR"
