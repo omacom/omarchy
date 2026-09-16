@@ -41,6 +41,7 @@ sof-firmware
 thermald
 webp-pixbuf-loader
 yay-debug
+thinkpad-t14-amd-touchpad-dkms
 tuxedo-drivers-nocompatcheck-dkms
 yt6801-dkms
 zram-generator
