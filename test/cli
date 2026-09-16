@@ -834,3 +834,25 @@ pass "command JSON help reports null when there is no short form"
 
 output=$("$TMPDIR/omarchy" abbrx)
 assert_output_contains "a full route still dispatches exactly even when a longer sibling shares its prefix" "$output" "abbrx-ran"
+
+# Every short form the main help advertises must resolve to the command printed next to it.
+advertised=0
+while IFS=$'\t' read -r full short; do
+  [[ -n $full && -n $short ]] || continue
+  advertised=$((advertised + 1))
+  # shellcheck disable=SC2086
+  resolved=$("$CLI" ${short#omarchy } --help --json 2>/dev/null | jq -r '.command.route' || true)
+  [[ $resolved == "$full" ]] || fail "main help short form '$short' resolves to '$full' (got '$resolved')"
+done < <("$CLI" --help | awk '
+  /^Short forms:/ { active = 1; next }
+  /^$/ { active = 0 }
+  active && /^  omarchy .*  omarchy / {
+    line = $0
+    sub(/^  /, "", line)
+    split(line, cols, /  +/)
+    full = cols[1]; short = cols[2]
+    sub(/ <[a-z-]+>$/, "", full); sub(/ <[a-z-]+>$/, "", short)
+    printf "%s\t%s\n", full, short
+  }')
+(( advertised >= 6 )) || fail "main help advertises short forms"
+pass "main help short forms resolve to the commands they advertise"

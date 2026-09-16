@@ -546,6 +546,15 @@ Common commands:
   omarchy screenshot          Take a screenshot
   omarchy debug               Print debugging information
 
+Short forms:
+  Any unambiguous prefix of each word works too; every command's --help shows its shortest one.
+  omarchy update              omarchy upd
+  omarchy theme list          omarchy t l
+  omarchy theme set <name>    omarchy t set <name>
+  omarchy font list           omarchy f l
+  omarchy plugin update       omarchy p u
+  omarchy toggle nightlight   omarchy t n
+
 Groups:
 EOF
   show_group_list
