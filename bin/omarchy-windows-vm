@@ -515,7 +515,7 @@ mounted_leaf_matches() {
   actual=$(stat -Lc '%d:%i' "$stable" 2>/dev/null) || return 1
   owner=$(stat -Lc '%u' "$stable" 2>/dev/null) || return 1
   mode=$(stat -Lc '%a' "$stable" 2>/dev/null) || return 1
-  [[ $actual == "$identity" && $owner == "$CALLER_UID" && $mode == 700 ]]
+  [[ $actual == "$identity" && $owner == "$CALLER_UID" && "${mode: -3}" == 700 ]]
 }
 
 bind_mount_leaf() {
