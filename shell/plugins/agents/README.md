@@ -13,8 +13,11 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
   Auth and endpoint problems replace the plan line and repeat in a card.
 - **Subscription switch** — one chip per enabled agent (`h`/`l` or click).
   It appears only when more than one agent is enabled.
-- **Limits** — the percentage of each allowance used, a matching meter, and
-  the time until the session or weekly window resets.
+- **Bar display** — toggles for today's token total, the fullest limit
+  percentage, and whether limit percentages read as used or left. These
+  choices persist in the widget's shell entry.
+- **Limits** — the percentage of each allowance used or left, a matching
+  meter, and the time until the session or weekly window resets.
 - **Balance** — prepaid agents report a credit ledger instead of limits:
   remaining credit, a fuel-gauge meter that drains toward empty, and
   funded-versus-spent detail.
@@ -96,24 +99,30 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
-  Tab moves to the neighboring bar panel, Esc closes.
+  Tab moves to the neighboring bar panel, Esc closes. The Bar display section
+  toggles today's usage and the limit percentage in the bar, and switches limit
+  wording between used and left.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
 ## Settings
 
 Settings live in the widget's entry in `~/.config/omarchy/shell.json`. The
 top-level keys can be set with
-`omarchy bar set omarchy.agents <key> <value>`:
+`omarchy bar set omarchy.agents <key> <value>`. The display toggles are also
+available in the panel's Bar display section:
 
 | Key | Default | What it does |
 |---|---|---|
+| `showDailyUsage` | `false` | Show today's token total in the status bar for the selected subscription |
+| `showLimitPercentage` | `false` | Show the fullest session or weekly limit percentage in the status bar |
+| `showLimitRemaining` | `false` | Display limit percentages as left instead of used, in the status bar and panel |
 | `refreshIntervalSec` | `900` | How often the usage records regenerate |
 | `syncMode` | `"Off"` | `"On"` writes this machine's snapshot and merges the others |
 | `syncDir` | `""` | A folder synced by Syncthing, Dropbox, rsync, … |
 | `syncFileName` | `<hostname>.json` | This machine's snapshot file |
 | `syncDeviceId` | hostname | Stable device name inside the snapshot |
 
-Numbers need `--json`, or they land in `shell.json` as strings:
+Numbers and booleans need `--json`, or they land in `shell.json` as strings:
 
 ```bash
 omarchy bar set omarchy.agents refreshIntervalSec 300 --json
