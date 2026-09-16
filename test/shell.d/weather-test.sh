@@ -182,3 +182,23 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
+
+mkdir -p "$test_tmp/bin"
+cat >"$test_tmp/bin/curl" <<'STUB'
+#!/bin/bash
+printf '%s' "$WTTR_LOCATION"
+STUB
+chmod +x "$test_tmp/bin/curl"
+
+detected_location() {
+  WTTR_LOCATION="$1" PATH="$test_tmp/bin:$PATH" weather_location
+}
+
+[[ $(detected_location "Copenhagen, Denmark") == "Copenhagen" ]] || fail "weather location auto-detect keeps the city from a named location"
+pass "weather location auto-detect keeps the city from a named location"
+
+[[ $(detected_location "48.855800,2.349400") == "48.855800,2.349400" ]] || fail "weather location auto-detect keeps both coordinates when wttr.in cannot name the IP"
+pass "weather location auto-detect keeps both coordinates when wttr.in cannot name the IP"
+
+[[ $(detected_location "-33.8688,151.2093") == "-33.8688,151.2093" ]] || fail "weather location auto-detect keeps negative coordinates"
+pass "weather location auto-detect keeps negative coordinates"
