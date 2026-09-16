@@ -256,11 +256,13 @@ select_quality() {
     audio_kbps=$(video_audio_kbps "$input")
   fi
 
+  local kbps
   for tier in high medium low; do
+    kbps=$(quality_kbps "$resolution" "$tier")
     if [[ $format == "gif" ]]; then
       subtext=$(quality_token gif "$resolution" "$tier")
-    elif [[ -n $duration && -n $(quality_kbps "$resolution" "$tier") ]]; then
-      subtext="$(quality_token mp4 "$resolution" "$tier") · $(estimate_label "$duration" "$(quality_kbps "$resolution" "$tier")" "$audio_kbps" "$src_bytes")"
+    elif [[ -n $duration && -n $kbps ]]; then
+      subtext="$(quality_token mp4 "$resolution" "$tier") · $(estimate_label "$duration" "$kbps" "$audio_kbps" "$src_bytes")"
     else
       case "$tier" in
       high) subtext="Best quality" ;;
