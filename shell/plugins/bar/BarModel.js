@@ -208,8 +208,54 @@ function nearestDropTarget(candidates, point, vertical) {
   return best
 }
 
+// Symmetric slot padding that normalizes ink-to-ink gaps: a slot whose
+// content paints `paintedExtent` wide inside `contentSpan` holds its paint
+// `halfGap` from each slot edge, so neighbours always land 2*halfGap apart.
+// Negative bearings (paint wider than the slot) pad extra instead of
+// touching the neighbour. Zero spans stay collapsed so hidden widgets keep
+// contributing no gap. `maxIntrude` lets the padding go negative into the
+// widget's own empty margins to enforce gaps smaller than the widest
+// bearing; it never reaches paint, but neighbouring hit areas overlap by
+// that much, so keep it small.
+function slotPad(contentSpan, paintedExtent, halfGap, maxIntrude) {
+  var span = Number(contentSpan)
+  if (!isFinite(span) || span <= 0) return 0
+  var half = Number(halfGap)
+  if (!isFinite(half) || half <= 0) return 0
+  var painted = Number(paintedExtent)
+  if (!isFinite(painted) || painted < 0) painted = span
+  var cap = Number(maxIntrude)
+  if (!isFinite(cap) || cap < 0) cap = 0
+  return Math.max(-cap, half - (span - painted) / 2)
+}
+
+// Bar buttons are always the widget root itself or a direct child of it;
+// buttons inside the popup nest deeper and must never be measured. Returns
+// the first object exposing bar paint metrics, or null. Duck-typed so the
+// same function runs against live QObjects and plain test fixtures.
+function hasPaintMetrics(value) {
+  if (!value) return false
+  return "glyphPaintedWidth" in value || "labelTightWidth" in value
+    || "labelWidth" in value || "iconContentItem" in value
+    || "opticalSize" in value
+}
+
+function paintChild(item) {
+  if (!item) return null
+  if (hasPaintMetrics(item)) return item
+  var kids = item.children
+  if (!kids || typeof kids.length !== "number") return null
+  for (var i = 0; i < kids.length; i++) {
+    if (hasPaintMetrics(kids[i])) return kids[i]
+  }
+  return null
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    hasPaintMetrics: hasPaintMetrics,
+    paintChild: paintChild,
+    slotPad: slotPad,
     isDrawnSlot: isDrawnSlot,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
