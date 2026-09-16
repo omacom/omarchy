@@ -89,6 +89,11 @@ disabled_ghost='[
   { "name": "eDP-2", "description": "Apple Computer Inc Color LCD", "make": "Apple Computer Inc", "model": "Color LCD", "availableModes": ["2880x1800@60.00Hz"], "mirrorOf": "none", "disabled": false, "focused": true, "width": 2880, "height": 1800 }
 ]'
 
+swapped_ghost='[
+  { "name": "eDP-1", "description": "Apple Computer Inc Color LCD", "make": "Apple Computer Inc", "model": "Color LCD", "availableModes": ["2880x1800@60.00Hz"], "mirrorOf": "none", "disabled": false, "focused": true, "width": 2880, "height": 1800 },
+  { "name": "eDP-2", "description": "", "make": "", "model": "", "availableModes": [], "mirrorOf": "none", "disabled": false, "focused": false, "width": 0, "height": 0 }
+]'
+
 monitor_state "$extended"
 assert_line_count "monitor state answers every line while extended"
 assert_line 0 42 "monitor state reports brightness"
@@ -137,3 +142,9 @@ assert_line_count "monitor state answers every line with a disabled ghost connec
 [[ ${state_lines[7]-} == '[{"name":"eDP-2","enabled":true,"focused":true,"width":2880,"height":1800}]' ]] ||
   fail "monitor state omits a disabled empty internal connector" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state omits a disabled empty internal connector"
+
+monitor_state "$swapped_ghost"
+assert_line_count "monitor state answers every line when the ghost is eDP-2"
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":true,"width":2880,"height":1800}]' ]] ||
+  fail "monitor state omits an empty duplicate regardless of eDP numbering" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state omits an empty duplicate regardless of eDP numbering"
