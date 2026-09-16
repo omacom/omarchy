@@ -13,7 +13,7 @@ sinks=$(timeout 2 pactl -f json list sinks |
 sinks_count=$(jq 'length' <<<"$sinks")
 
 if (( sinks_count == 0 )); then
-  omarchy-osd -m "No audio devices found"
+  omarchy-osd -m "$(omarchy-i18n "No audio devices found")"
   exit 1
 fi
 

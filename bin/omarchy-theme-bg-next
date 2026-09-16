@@ -17,7 +17,7 @@ mapfile -d '' -t BACKGROUNDS < <(
 TOTAL=${#BACKGROUNDS[@]}
 
 if (( TOTAL == 0 )); then
-  omarchy-notification-send "No background was found for theme" -t 2000
+  omarchy-notification-send "$(omarchy-i18n "No background was found for theme")" -t 2000
 else
   # Get current background from symlink
   if [[ -L $CURRENT_BACKGROUND_LINK ]]; then

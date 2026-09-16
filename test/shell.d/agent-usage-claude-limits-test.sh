@@ -221,6 +221,8 @@ const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 const start = source.indexOf('function windowIsLong')
 const end = source.indexOf('// The window that decides')
 assert(start > 0 && end > start, 'agents panel exposes its limit-window helpers')
+const I18nModel = require(process.env.ROOT + '/shell/Commons/I18nModel.js')
+const I18n = { tr: (source, args) => I18nModel.interpolate(source, args) }
 eval(source.slice(start, end))
 
 assertDeepEqual(

@@ -346,7 +346,8 @@ Panel {
             spacing: Style.space(2)
 
             Text {
-              text: "Battery"
+              textFormat: Text.PlainText
+              text: I18n.tr("Battery")
               color: root.bar.foreground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.title
@@ -358,7 +359,7 @@ Panel {
             Text {
               id: heroStatus
               textFormat: Text.PlainText
-              text: root.heroStatusText.toUpperCase()
+              text: I18n.tr(root.heroStatusText).toUpperCase()
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
@@ -446,7 +447,7 @@ Panel {
             }
             InfoPair {
               label: root.chargeThresholdActive ? "Battery state" : (root.discharging ? "Discharging" : "Charging")
-              value: root.chargeThresholdActive ? "Holding" : (root.batteryFull ? "-" : (root.batteryInfo.rate || ""))
+              value: root.chargeThresholdActive ? I18n.tr("Holding") : (root.batteryFull ? "-" : (root.batteryInfo.rate || ""))
             }
           }
         }
@@ -461,7 +462,7 @@ Panel {
           spacing: Style.space(10)
 
           PanelSectionHeader {
-            text: "POWER PROFILE"
+            text: I18n.tr("POWER PROFILE")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
           }
@@ -514,7 +515,7 @@ Panel {
     width: parent.width
     spacing: Style.space(8)
 
-    InfoLabel { text: label }
+    InfoLabel { text: label !== "" ? I18n.tr(label) : "" }
     Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth - parent.spacing * 2); height: 1 }
     InfoValue { text: value }
   }

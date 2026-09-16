@@ -21,9 +21,9 @@ pending_migrations=$(omarchy-migrate --pending 2>/dev/null) || exit 0
 pending_count=$(printf '%s\n' "$pending_migrations" | sed '/^[[:space:]]*$/d' | wc -l)
 
 if (( pending_count == 1 )); then
-  message="Click to run 1 pending migration."
+  message=$(omarchy-i18n "Click to run 1 pending migration.")
 else
-  message="Click to run $pending_count pending migrations."
+  message=$(omarchy-i18n "Click to run %1 pending migrations." "Click to run %1 pending migrations." "$pending_count")
 fi
 
 # This runs from omarchy-migrate-notify.service after graphical-session.target,
@@ -40,7 +40,8 @@ fi
 
 # The shell keeps the click command with the toast, so this oneshot can hand the
 # invitation over and exit instead of staying activated until it is answered.
-omarchy-notification-send -u critical -g  "Pending Omarchy Migrations" "$message" \
+headline=$(omarchy-i18n "Pending Omarchy Migrations")
+omarchy-notification-send -u critical -g  "$headline" "$message" \
   --exec omarchy-launch-floating-terminal-with-presentation omarchy-migrate && exit 0
 
 # Reached when the notification could not be handed off, so fall back to telling

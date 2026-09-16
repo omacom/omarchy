@@ -176,31 +176,37 @@ main() {
 
   if [[ -z $format ]]; then
     if [[ $type == "picture" ]]; then
-      format=$(omarchy-menu-select "Select format" jpg png)
+      format=$(omarchy-menu-select "$(omarchy-i18n "Select format")" jpg png)
     else
-      format=$(omarchy-menu-select "Select format" mp4 gif)
+      format=$(omarchy-menu-select "$(omarchy-i18n "Select format")" mp4 gif)
     fi
   fi
 
   if [[ -z $resolution ]]; then
     if [[ $type == "picture" ]]; then
-      resolution=$(omarchy-menu-select "Select resolution" high medium low)
+      resolution=$(omarchy-menu-select "$(omarchy-i18n "Select resolution")" high medium low)
     else
-      resolution=$(omarchy-menu-select "Select resolution" 4k 1080p 720p)
+      resolution=$(omarchy-menu-select "$(omarchy-i18n "Select resolution")" 4k 1080p 720p)
     fi
   fi
 
   output=$(output_path "$input" "$format" "$resolution")
 
+  local trans_title trans_done trans_saved
+  trans_done=$(omarchy-i18n "Transcoded to %1 %2" "Transcoded to %1 %2" "$resolution" "$format")
+  trans_saved=$(omarchy-i18n "Saved and copied to clipboard.")
+
   if [[ $type == "video" ]]; then
-    omarchy-notification-send -g  "Transcoding video…" "$(basename -- "$input") to $format ($resolution)"
+    local trans_msg
+    trans_msg=$(omarchy-i18n "%1 to %2 (%3)" "%1 to %2 (%3)" "$(basename -- "$input")" "$format" "$resolution")
+    omarchy-notification-send -g  "$(omarchy-i18n "Transcoding video…")" "$trans_msg"
     transcode_video "$input" "$format" "$resolution" "$output"
     copy_to_clipboard "$output"
-    omarchy-notification-send -g  "Transcoded to $resolution $format" "Saved and copied to clipboard."
+    omarchy-notification-send -g  "$trans_done" "$trans_saved"
   else
     transcode_picture "$input" "$format" "$resolution" "$output"
     copy_to_clipboard "$output"
-    omarchy-notification-send -g  "Transcoded to $resolution $format" "Saved and copied to clipboard."
+    omarchy-notification-send -g  "$trans_done" "$trans_saved"
   fi
 }
 

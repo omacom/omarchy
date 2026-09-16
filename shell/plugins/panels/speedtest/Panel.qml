@@ -149,7 +149,7 @@ Item {
       }
 
       if (!root.expectedStop && exitCode !== 0) {
-        root.error = root.stderrText || "Speed test failed"
+        root.error = root.stderrText || I18n.tr("Speed test failed")
         root.phase = ""
         root.running = false
         return
@@ -186,9 +186,9 @@ Item {
     fontFamily: Style.font.family
     layerNamespace: "omarchy-network-speedtest"
     title: root.connectionName
-    leftLabel: "DOWNLOAD"
-    rightLabel: "UPLOAD"
-    runAgainTooltip: "Measure again via fast.com"
+    leftLabel: I18n.tr("DOWNLOAD")
+    rightLabel: I18n.tr("UPLOAD")
+    runAgainTooltip: I18n.tr("Measure again via fast.com")
     running: root.running
     leftValue: root.downloadValue
     rightValue: root.uploadValue

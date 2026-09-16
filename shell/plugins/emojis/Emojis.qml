@@ -251,7 +251,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search emojis…"
+            text: root.filterText || I18n.tr("Search emojis…")
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -329,7 +329,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: "No matches for “" + root.filterText + "”"
+              text: I18n.tr("No matches for “%1”", [root.filterText])
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily

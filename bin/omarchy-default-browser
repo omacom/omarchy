@@ -48,4 +48,5 @@ fi
 
 env -u BROWSER xdg-settings set default-web-browser "$desktop_id" || exit 1
 
-omarchy-notification-send -g $glyph "$name is now the default browser"
+notif_msg=$(omarchy-i18n "%1 is now the default browser" "$name is now the default browser" "$name")
+omarchy-notification-send -g $glyph "$notif_msg"
