@@ -580,14 +580,19 @@ prepare_caller_mounts() {
   # Privacy is an explicit preflight step for both already-pinned sources, not
   # a side effect halfway through the two-mount transaction. Old umask-022
   # installs are hardened together before either Docker-facing anchor changes.
-  chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
+  # A numeric chmod alone is not reliably enough to clear pre-existing special
+  # bits on every system (e.g. setgid the guest's Samba share left on the
+  # shared source): strip them explicitly with a symbolic chmod too.
+  if ! chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" ||
+    ! chmod u-s,g-s,-t -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd"; then
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
-  }
+  fi
   storage_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$storage_fd" 2>/dev/null) || storage_mode=""
   shared_mode=$(stat -Lc '%a' "/proc/$BASHPID/fd/$shared_fd" 2>/dev/null) || shared_mode=""
   if [[ $storage_mode != 700 || $shared_mode != 700 ]]; then
+    echo "omarchy-windows-vm: could not reduce $LEGACY_STORAGE or $LEGACY_SHARED to private (0700, no special bits) permissions; a service inside the VM (e.g. the shared folder's Samba share) may have left extra permission or setgid/setuid/sticky bits behind. Fix manually with: chmod 0700 '$LEGACY_STORAGE' '$LEGACY_SHARED' && chmod u-s,g-s,-t '$LEGACY_STORAGE' '$LEGACY_SHARED'" >&2
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
