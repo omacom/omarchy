@@ -856,3 +856,23 @@ done < <("$CLI" --help | awk '
   }')
 (( advertised >= 6 )) || fail "main help advertises short forms"
 pass "main help short forms resolve to the commands they advertise"
+
+# Every group short form the main help lists must behave like the full group name (the fast path only loads a group's
+# filename-prefixed binaries, so compare the header rather than the full listing).
+advertised=0
+while read -r group short; do
+  [[ $short =~ ^[a-z]+$ ]] || continue
+  advertised=$((advertised + 1))
+  expected=$("$CLI" "$group" --help 2>&1 | head -2 || true)
+  actual=$("$CLI" "$short" --help 2>&1 | head -2 || true)
+  [[ $actual == "$expected" ]] || fail "main help group short form '$short' behaves like '$group' (got: $actual)"
+  [[ $actual != Ambiguous* ]] || fail "main help group short form '$short' is unambiguous"
+done < <("$CLI" --help | awk '/^Groups/ { active = 1; next } /^$/ { active = 0 } active && NF >= 3 { print $1, $2 }')
+(( advertised >= 50 )) || fail "main help lists group short forms"
+pass "main help group short forms behave like the full group names"
+
+output=$("$CLI" --help)
+if grep -Eq '^  bar +[a-z]+ +Omarchy shell bar' <<<"$output"; then
+  fail "a group shadowed by longer names lists no short form"
+fi
+pass "a group shadowed by longer names lists no short form"

@@ -118,6 +118,19 @@ table — the one place where help left the fast path's single-header load.
 Group help and `omarchy commands --json` do not compute short forms, as doing
 so for hundreds of commands at once would dominate their runtime.
 
+The top-level group listing shows each group's shortest prefix too. A bare
+abbreviated group only competes with other one-word routes, and a header can
+only put a route on one word through `group=` or a one-word alias, so one
+grep over the headers collects every competitor (filename groups, metadata
+groups, one-word aliases, and every advertised `GROUP_DESCRIPTIONS` entry)
+without the full metadata load; hidden commands are included since an extra
+competitor can only lengthen a short form. In a sorted list the longest
+prefix a name shares with any other is shared with a neighbour, so one pass
+over the sorted routes settles every group. An advertised group whose commands
+are all hidden abbreviates like any other, since the listing advertises it
+either way. Expanded words re-enter dispatch where the full spelling would,
+so a short form behaves exactly like the long one.
+
 ## Groups and the top-level listing
 
 Group help is synthesized from metadata, not written anywhere. A command

@@ -81,7 +81,7 @@ Could be:
   omarchy powerprofiles list
 ```
 
-Pair that with a shell alias like `alias o=omarchy` and `o p u` updates your plugins. Keep the full spelling in scripts and keybindings, though — a command added in a later release could make a short form ambiguous.
+The group list at the bottom of `omarchy` shows each group's shortest prefix next to its name. Pair all that with a shell alias like `alias o=omarchy` and `o p u` updates your plugins. Keep the full spelling in scripts and keybindings, though — a command added in a later release could make a short form ambiguous.
 
 ### Opening the menu from the terminal
 
