@@ -315,6 +315,18 @@ if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
 fi
 
+# Every generated theme file comes from the palette, and foot's include of the
+# generated foot.ini is not optional the way ghostty's config-file is. Staging a
+# theme that has no palette therefore leaves the default terminal unable to
+# start, with no terminal left to set a working theme from. Refuse before the
+# swap so the theme that is already applied stays applied.
+if [[ ! -f $NEXT_THEME_PATH/colors.toml ]]; then
+  echo "Theme '$THEME_NAME' has no colors.toml, so none of its theme files can be generated." >&2
+  echo "A theme needs colors.toml, or an alacritty.toml to derive one from." >&2
+  rm -rf "$NEXT_THEME_PATH"
+  exit 1
+fi
+
 # Generate dynamic configs
 omarchy-theme-set-templates
 
