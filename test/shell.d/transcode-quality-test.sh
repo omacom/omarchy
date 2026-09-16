@@ -639,8 +639,17 @@ grep 'notification:' "$calls" | grep -F 'Transcoded to 1080p mp4' |
 rm -f "$TMPDIR/in-1080p.mp4" "$TMPDIR/in-1080p-2.mp4"
 pass "a deduped output reports the size of the file actually written"
 
-# Sub-10 MiB estimates round instead of flooring (WR-01): 18 s at 720p is
-# 5.8/3.6/1.9 MiB + 192k audio -- %.0f renders ~6/~4/~2 where the old %d
+# A non-empty output under 1 MiB reads "(<1 MB)", never "(0 MB)" -- a zero
+# size on a real file would read as a lie next to the ~1 MB estimate floor.
+FAKE_OUT_BYTES=200000 run_transcode "$TMPDIR/in.mov" mp4 1080p medium
+grep 'notification:' "$calls" | grep -F 'Transcoded to 1080p mp4' |
+  grep -F 'Saved and copied to clipboard (<1 MB).' >/dev/null ||
+  fail "a sub-1 MiB output reports <1 MB, not 0 MB" "$(cat "$calls")"
+rm -f "$TMPDIR/in-1080p.mp4"
+pass "a sub-1 MiB output reports <1 MB"
+
+# Sub-10 MiB estimates round instead of flooring (WR-01): 18 s at 720p with
+# 192k audio is 5.8/3.6/1.9 MiB -- %.0f renders ~6/~4/~2 where the old %d
 # floored to ~5/~3/~1. All three sit far below the 120 MiB fixture, so no
 # larger-than-source degrade interferes.
 FAKE_DURATION=18 FAKE_PICK=$'medium\tCRF 23 · ~4 MB' \

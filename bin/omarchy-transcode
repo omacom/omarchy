@@ -290,7 +290,10 @@ output_size_label() {
   local bytes
   bytes=$(stat -c %s "$1" 2>/dev/null || true)
   [[ $bytes =~ ^[0-9]+$ ]] || return 1
-  awk -v b="$bytes" 'BEGIN { printf "%.0f MB", b / 1048576 }'
+  awk -v b="$bytes" 'BEGIN {
+    if (b > 0 && b < 1048576) { printf "<1 MB"; exit }
+    printf "%.0f MB", b / 1048576
+  }'
 }
 
 main() {
