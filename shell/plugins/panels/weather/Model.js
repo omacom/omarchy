@@ -182,6 +182,37 @@ function currentIcon(current, fallback) {
   return fallback || ""
 }
 
+// Open-Meteo is the coordinates-path source for the bar icon. Always resolve
+// a label from that payload (current conditions, or weather_code alone) so a
+// failed wttr.in TLS handshake cannot leave the stored icon empty.
+function labelFromOpenMeteo(parsed, previousLabel) {
+  var parsedCurrent = openMeteoCurrentCondition(parsed)
+  var icon = currentIcon(parsedCurrent, "")
+  if (icon) return icon
+
+  var raw = parsed && parsed.current ? parsed.current : null
+  if (raw && raw.weather_code !== undefined && raw.weather_code !== null)
+    return iconForOpenMeteoCode(raw.weather_code, Number(raw.is_day) === 0)
+
+  return previousLabel || ""
+}
+
+// A configured weather widget stays in the bar even when the icon has not
+// arrived yet. Gating visibility on a non-empty label hid the slot entirely
+// while wttr.in served an expired certificate (issue #11999).
+function barWidgetVisible(panelReady, _label) {
+  return !!panelReady
+}
+
+// Prefer the last successful icon; show a placeholder rather than collapsing
+// the slot when both providers have failed or the first fetch is still in flight.
+function resolvedBarLabel(label, fallback) {
+  var icon = String(label || "")
+  if (icon) return icon
+  var lastGood = String(fallback || "")
+  return lastGood || "—"
+}
+
 // wttr.in has no day/night flag. Use its icon only to fill an empty initial
 // state, never to replace a day/night-aware icon resolved by Open-Meteo.
 function provisionalCurrentIcon(current, resolvedIcon) {
@@ -283,6 +314,9 @@ if (typeof module !== "undefined") {
     openMeteoForecastDays: openMeteoForecastDays,
     openMeteoCurrentCondition: openMeteoCurrentCondition,
     currentIcon: currentIcon,
+    labelFromOpenMeteo: labelFromOpenMeteo,
+    barWidgetVisible: barWidgetVisible,
+    resolvedBarLabel: resolvedBarLabel,
     provisionalCurrentIcon: provisionalCurrentIcon,
     weatherResponseCompletesSave: weatherResponseCompletesSave,
     wttrNextForecastDays: wttrNextForecastDays,

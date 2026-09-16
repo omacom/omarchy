@@ -402,9 +402,8 @@ Panel {
         }
         try {
           var parsed = JSON.parse(raw)
-          var parsedCurrent = Model.openMeteoCurrentCondition(parsed)
           root.dailyForecastReport = parsed
-          root.label = Model.currentIcon(parsedCurrent, root.label)
+          root.label = Model.labelFromOpenMeteo(parsed, root.label)
           root.dailyForecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "open-meteo"))
             root.finishSavingLocation()
