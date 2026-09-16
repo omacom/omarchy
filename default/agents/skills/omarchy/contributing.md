@@ -32,7 +32,7 @@ omarchy debug --no-sudo --print
 
 **Capture the problem on screen.** A screenshot or short recording of the bug
 is often worth more than the description — see [`capture.md`](capture.md) for
-`omarchy capture screenshot` and `omarchy screenrecord`. Keep recordings short
+`omarchy capture screenshot` and `omarchy capture screenrecording`. Keep recordings short
 and focused on the misbehavior. GitHub issue attachments are added by
 drag-and-drop in the web form, so save the capture and hand the user the file
 path to attach (`gh` cannot upload media).

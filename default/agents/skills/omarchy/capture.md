@@ -20,9 +20,9 @@ directory (override with `OMARCHY_SCREENSHOT_DIR`).
 ## Screen Recording
 
 ```bash
-omarchy screenrecord --fullscreen             # Start recording the full screen
+omarchy capture screenrecording --fullscreen   # Start recording the full screen
 # ...exercise whatever you want on film...
-omarchy screenrecord --stop-recording         # Stop; prints the saved path
+omarchy capture screenrecording --stop-recording  # Stop; prints the saved path
 ```
 
 Optional flags: `--with-desktop-audio`, `--with-microphone-audio`,
