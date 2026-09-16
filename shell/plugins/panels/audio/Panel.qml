@@ -577,10 +577,13 @@ Panel {
   PwObjectTracker { objects: root.candidateSources }
   PwObjectTracker { objects: root.audioStreams }
 
-  PwNodePeakMonitor {
-    id: inputPeakMonitor
+  // Reading PwNodePeakMonitor directly leaves the meter at zero for any source
+  // on a pro-audio profile. InputMeter keeps that monitor where it works and
+  // captures the rest through pw-record.
+  InputMeter {
+    id: inputMeter
     node: root.source
-    enabled: root.opened && !!root.source
+    active: root.opened && !!root.source
   }
 
   Process {
@@ -942,7 +945,7 @@ Panel {
 
                   Rectangle {
                     height: parent.height
-                    width: parent.width * Math.max(0, Math.min(1, inputPeakMonitor.peak))
+                    width: parent.width * Math.max(0, Math.min(1, inputMeter.peak))
                     color: root.bar.foreground
                     Behavior on width { NumberAnimation { duration: 70 } }
                   }

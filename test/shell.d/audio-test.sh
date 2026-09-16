@@ -13,6 +13,13 @@ assert(!audio.isPlaybackStream({ isStream: false, isSink: true }), 'audio reject
 assert(audio.isAudioSource({ audio: {} }), 'audio detects nodes with audio as sources')
 assert(audio.isAudioSource({ type: 'Audio/Source' }), 'audio detects typed source nodes')
 
+const AUX = 4096
+assert(!audio.needsProcessMeter([3, 4], AUX), 'audio meters positioned channels natively')
+assert(!audio.needsProcessMeter([], AUX), 'audio meters unbound nodes natively until channels are known')
+assert(!audio.needsProcessMeter(null, AUX), 'audio meters nodes without a channel list natively')
+assert(audio.needsProcessMeter([AUX, AUX + 1], AUX), 'audio meters AUX channels through the process')
+assert(audio.needsProcessMeter([3, 0], AUX), 'audio meters unknown channels through the process')
+
 assertEqual(audio.outputVolumeName(0, false), 'Silenced', 'audio labels silent output')
 assertEqual(audio.outputVolumeName(0.9, false), 'Party mode', 'audio labels loud output')
 assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted output')
@@ -47,3 +54,33 @@ assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spo
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
 JS
+
+# input-peak's arithmetic, with a stub pw-record on PATH standing in for the
+# device: two 40 ms windows of stereo f32 samples, peaking at 0.5 and then 0.25.
+stub_dir=$(mktemp -d)
+trap 'rm -rf "$stub_dir"' EXIT
+cat > "$stub_dir/pw-record" <<'STUB'
+#!/bin/bash
+node -e '
+  const frames = 640, channels = 2
+  const out = new Float32Array(frames * channels * 2)
+  out[0] = -0.5
+  out[frames * channels + 1] = 0.25
+  process.stdout.write(Buffer.from(out.buffer))
+'
+STUB
+chmod +x "$stub_dir/pw-record"
+
+peaks=$(PATH="$stub_dir:$PATH" bash "$ROOT/shell/plugins/panels/audio/input-peak" stub-node 2 | tr '\n' ' ')
+if [[ $peaks == "0.50000 0.25000 " ]]; then
+  pass "input-peak reports the largest magnitude per window across channels"
+else
+  fail "input-peak reports the largest magnitude per window across channels" "got: $peaks"
+fi
+
+peaks=$(PATH="$stub_dir:$PATH" bash "$ROOT/shell/plugins/panels/audio/input-peak" stub-node 0 | tr '\n' ' ')
+if [[ $peaks == "0.50000 0.00000 0.25000 0.00000 " ]]; then
+  pass "input-peak treats a channel count below one as mono"
+else
+  fail "input-peak treats a channel count below one as mono" "got: $peaks"
+fi
