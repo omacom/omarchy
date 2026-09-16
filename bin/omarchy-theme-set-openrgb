@@ -14,11 +14,12 @@ color="${color#\#}"
 
 [[ $color =~ ^[0-9A-Fa-f]{6}$ ]] || exit 0
 
-# LEDs render the raw accent dim, so brighten it the way the theme engine
-# derives its bright_* variants (a 20% mix toward white) and run the devices
-# at full brightness.
+# LEDs render the raw accent dim, so mix it toward white before applying and
+# run the devices at full brightness.
+OPENRGB_BRIGHTEN_AMOUNT=0.4
+
 brighten_color() {
-  awk -v hex="$1" '
+  awk -v hex="$1" -v amount="$OPENRGB_BRIGHTEN_AMOUNT" '
     function hex_value(char) {
       return index("0123456789abcdef", tolower(char)) - 1
     }
@@ -26,9 +27,9 @@ brighten_color() {
       return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
     }
     BEGIN {
-      red = int(hex_pair_to_int(hex, 1) * 0.8 + 255 * 0.2 + 0.5)
-      green = int(hex_pair_to_int(hex, 3) * 0.8 + 255 * 0.2 + 0.5)
-      blue = int(hex_pair_to_int(hex, 5) * 0.8 + 255 * 0.2 + 0.5)
+      red = int(hex_pair_to_int(hex, 1) * (1 - amount) + 255 * amount + 0.5)
+      green = int(hex_pair_to_int(hex, 3) * (1 - amount) + 255 * amount + 0.5)
+      blue = int(hex_pair_to_int(hex, 5) * (1 - amount) + 255 * amount + 0.5)
       printf "%02x%02x%02x\n", red, green, blue
     }
   '
