@@ -374,6 +374,38 @@ main() {
     fi
   fi
 
+  if [[ $type == "video" ]]; then
+    case "$format" in
+    mp4 | gif) ;;
+    *)
+      echo "Invalid video format: $format" >&2
+      return 1
+      ;;
+    esac
+    case "$resolution" in
+    4k | 1080p | 720p) ;;
+    *)
+      echo "Invalid video resolution: $resolution" >&2
+      return 1
+      ;;
+    esac
+  else
+    case "$format" in
+    jpg | png) ;;
+    *)
+      echo "Invalid picture format: $format" >&2
+      return 1
+      ;;
+    esac
+    case "$resolution" in
+    high | medium | low) ;;
+    *)
+      echo "Invalid picture resolution: $resolution" >&2
+      return 1
+      ;;
+    esac
+  fi
+
   if [[ $type == "video" && -z $quality ]]; then
     quality=$(select_quality "$input" "$format" "$resolution")
   fi

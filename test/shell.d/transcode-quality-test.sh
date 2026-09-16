@@ -559,17 +559,19 @@ if grep -q 'notification:' "$calls" || grep -q '^ffmpeg ' "$calls"; then
 fi
 pass "a foreign-label menu pick is rejected before the notification"
 
-# An unknown format still fires the (all-qualitative) quality menu, then fails
-# in transcode_video after the notification -- the pre-existing orphan, pinned
-# so it cannot silently change.
+# An unknown format fails validation in main() before any menu or
+# notification -- format/resolution validate ahead of the quality prompt and
+# the start notification, so no orphan "Transcoding" toast can appear.
 if FAKE_PICK=$'low\tSmallest file' run_transcode "$TMPDIR/in.mov" avi 1080p; then
   fail "an unknown video format is rejected"
 fi
-grep -F 'Smallest file' "$calls" >/dev/null ||
-  fail "an unknown format offers qualitative rows" "$(cat "$calls")"
 grep -F 'Invalid video format' "$TMPDIR/stderr" >/dev/null ||
   fail "an unknown video format reports Invalid video format" "$(cat "$TMPDIR/stderr")"
-pass "an unknown format prompts with qualitative rows then fails Invalid video format"
+if grep -q '^menu-select:' "$calls" || grep -q 'notification:' "$calls" ||
+  grep -q '^ffmpeg ' "$calls"; then
+  fail "an unknown format dies before any menu, notification, or encode" "$(cat "$calls")"
+fi
+pass "an unknown format fails before any menu or notification"
 
 # The done notification reports the output's real size: FAKE_OUT_BYTES makes
 # the stub write a 38.00 MiB file, the script's own stat+awk chain measures
@@ -604,9 +606,9 @@ fi
 pass "a missing output degrades to the plain body without lying"
 
 # A failed encode aborts before the done notification under set -e. The
-# Transcoding start notification is a pre-existing orphan (pinned, not
-# fixed), but zero "Transcoded to" lines may appear -- the notification can
-# never claim a size for an output that does not exist.
+# Transcoding start notification legitimately preceded the encode attempt,
+# but zero "Transcoded to" lines may appear -- the notification can never
+# claim a size for an output that does not exist.
 if FAKE_ENCODE_RC=1 run_transcode "$TMPDIR/in.mov" mp4 1080p medium; then
   fail "a failed encode exits non-zero"
 fi
