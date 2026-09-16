@@ -20,6 +20,10 @@ ConditionEnvironment=WAYLAND_DISPLAY
 
 [Service]
 Type=simple
+# Keep ~/.XCompose.omarchy in sync with the packaged emoji table before fcitx5
+# reads compose. Package updates that touch default/xcompose then reach
+# sandboxed apps on the next login without a migration or manual restart.
+ExecStartPre=/usr/bin/omarchy-refresh-xcompose
 # notificationitem duplicates the tray entry omarchy already renders itself.
 ExecStart=/usr/bin/fcitx5 --disable notificationitem
 # always, not on-failure: fcitx5 exits 0 when it detects another instance owning

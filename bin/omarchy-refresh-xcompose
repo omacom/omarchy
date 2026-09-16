@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Refresh the home-local XCompose emoji table from the packaged tree
+# omarchy:hidden=true
+
+# Sandboxed apps include %H/.XCompose.omarchy rather than the packaged path under
+# /usr (Steam pressure-vessel, Flatpaks). Keep that home copy in sync with
+# $OMARCHY_PATH/default/xcompose so package updates reach them without a
+# migration. Safe to run from fcitx5 ExecStartPre, install, and restart.
+packaged_xcompose="${OMARCHY_PATH:-/usr/share/omarchy}/default/xcompose"
+home_xcompose="${HOME}/.XCompose.omarchy"
+
+[[ -f $packaged_xcompose ]] || exit 0
+
+# Refresh when missing or older than the packaged table. The home file is a
+# package mirror for sandboxes, not a user edit surface.
+if [[ ! -f $home_xcompose || $packaged_xcompose -nt $home_xcompose ]]; then
+  cp "$packaged_xcompose" "$home_xcompose"
+  chmod 644 "$home_xcompose"
+fi
