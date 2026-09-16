@@ -46,9 +46,9 @@ Panel {
   }
 
   function close() {
-    setCenterHoverRevealSuppressed(false)
     if (root.editingLocation) root.cancelEditingLocation()
     root.controller.hide()
+    setCenterHoverRevealSuppressed(false)
   }
 
   function toggle() {

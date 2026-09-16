@@ -23,7 +23,11 @@ QtObject {
   property bool foregroundAnimationEnabled: true
   property bool centerSectionRevealHeld: false
   property bool _centerHoverRevealSuppressed: false
-  readonly property bool centerHoverRevealSuppressed: _centerHoverRevealSuppressed
+  // Writable on purpose. Clones of clock/weather still assign this property;
+  // a readonly alias throws, which aborts Panel.close() before hide() and
+  // leaves the Exclusive omarchy-keyboard-panel overlay mapped.
+  property bool centerHoverRevealSuppressed: _centerHoverRevealSuppressed
+  property bool _syncingCenterHoverReveal: false
   property var activePopout: null
   property var clickTargets: []
   property var layoutConfig: ({})
@@ -43,6 +47,16 @@ QtObject {
 
   function setCenterHoverRevealSuppressed(value) {
     if (_setCenterHoverRevealSuppressed) _setCenterHoverRevealSuppressed(!!value)
+  }
+
+  onCenterHoverRevealSuppressedChanged: {
+    if (_syncingCenterHoverReveal) return
+    if (centerHoverRevealSuppressed === _centerHoverRevealSuppressed) return
+    if (_setCenterHoverRevealSuppressed)
+      _setCenterHoverRevealSuppressed(!!centerHoverRevealSuppressed)
+    _syncingCenterHoverReveal = true
+    centerHoverRevealSuppressed = Qt.binding(function() { return api._centerHoverRevealSuppressed })
+    _syncingCenterHoverReveal = false
   }
 
   function showTooltip(target, text) {
