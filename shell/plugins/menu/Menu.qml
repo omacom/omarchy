@@ -1315,8 +1315,11 @@ Item {
                 source: row.isApp && root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : ""
                 asynchronous: true
                 anchors.left: parent.left
-                anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2
-                y: contentColumn.y + labelText.y + (labelText.height - height) / 2
+                // Keep icon geometry on whole pixels: odd icon sizes would
+                // otherwise land on half pixels, forcing a bilinear resample
+                // of the whole image that reads as blur.
+                anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + Math.round((Style.space(36) - width) / 2)
+                y: Math.round(contentColumn.y + labelText.y + (labelText.height - height) / 2)
               }
 
               Column {
