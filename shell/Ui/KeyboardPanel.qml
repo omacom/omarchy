@@ -215,25 +215,37 @@ PanelWindow {
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
+  // Whether the overlay surface is inset around reserved bands (Auto mode
+  // mapped while the bar or an OSK holds an exclusive zone) or still covers
+  // the full screen (Ignore mode, Auto before the first map, or Auto with
+  // nothing reserved, e.g. a hidden bar). Width/height report 100x100 before
+  // the first map, so only trust them once the backing window is visible.
+  readonly property bool insetOverlay: backingWindowVisible
+    && (Math.abs(width - screenW) > 1 || Math.abs(height - screenH) > 1)
+  // Screen-space origin of this surface. A PanelWindow root exposes no x/y
+  // position (reading them yields undefined and poisons the card origin to
+  // NaN, parking every panel at the top-left), so derive it from the bar edge
+  // the inset surface starts after instead: a top/left bar pushes the surface
+  // past its edge, while bottom/right bars and fullscreen windows start at
+  // the output origin.
+  readonly property real originX: (barPos === "left" && insetOverlay) ? barW : 0
+  readonly property real originY: (barPos === "top" && insetOverlay) ? barH : 0
   // ExclusionMode.Auto with all four anchors sets exclusiveZone 0: the
   // compositor insets this overlay around the bar/OSK reserved bands.
-  // Prefer the surface size when we have it so a tall panel cannot extend
-  // into those bands; fall back to screen size minus the bar when the
-  // window is still fullscreen (Ignore, or Auto before the first map).
+  // Prefer the surface size once mapped so a tall panel cannot extend
+  // into those bands; fall back to screen size while fullscreen.
   readonly property real availableCardWidth: {
-    var surface = width > 0 ? width : screenW
+    var surface = root.insetOverlay ? width : screenW
     if (surface <= 0) return 0
-    var barReserve = 0
-    if ((barPos === "left" || barPos === "right") && (width <= 0 || Math.abs(width - screenW) < 1))
-      barReserve = barW + gap
+    // An inset surface already excludes the bar band; a fullscreen window
+    // still spans it, so keep the bar out of the card budget there.
+    var barReserve = (barPos === "left" || barPos === "right") && !root.insetOverlay ? barW + gap : 0
     return Math.max(120, surface - barReserve - margin * 2)
   }
   readonly property real availableCardHeight: {
-    var surface = height > 0 ? height : screenH
+    var surface = root.insetOverlay ? height : screenH
     if (surface <= 0) return 0
-    var barReserve = 0
-    if ((barPos === "top" || barPos === "bottom") && (height <= 0 || Math.abs(height - screenH) < 1))
-      barReserve = barH + gap
+    var barReserve = (barPos === "top" || barPos === "bottom") && !root.insetOverlay ? barH + gap : 0
     return Math.max(120, surface - barReserve - margin * 2)
   }
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
@@ -301,13 +313,13 @@ PanelWindow {
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
     y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
-    // Screen-space origin is relative to the output. Auto-mode exclusive
-    // zone 0 insets this surface around the bar/OSK, so translate into
-    // the window; Ignore-mode (x=y=0) is a no-op.
-    var localX = x - root.x
-    var localY = y - root.y
-    var surfaceW = width > 0 ? width : screenW
-    var surfaceH = height > 0 ? height : screenH
+    // Screen-space origin is relative to the output. The inset Auto surface
+    // starts past the bar edge (see originX/originY); a fullscreen window
+    // shares the output origin so the translation is a no-op there.
+    var localX = x - root.originX
+    var localY = y - root.originY
+    var surfaceW = root.insetOverlay ? width : screenW
+    var surfaceH = root.insetOverlay ? height : screenH
     localX = Math.max(margin, Math.min(localX, surfaceW - contentWidth - margin))
     localY = Math.max(margin, Math.min(localY, surfaceH - contentHeight - margin))
     return Qt.point(Math.round(localX), Math.round(localY))
@@ -443,17 +455,25 @@ PanelWindow {
     property bool hoveringBar: false
     cursorShape: hoveringBar ? Qt.PointingHandCursor : Qt.ArrowCursor
 
+    // Mouse coordinates are window-local. The inset overlay starts past the
+    // bar edge (see originX/originY), so translate to screen coordinates
+    // before testing against screen-space bar geometry; a fullscreen window
+    // shares the output origin and the translation is a no-op there.
     function inBarRegion(px, py) {
-      if (root.barPos === "bottom") return py >= root.screenH - root._barStripSize
-      if (root.barPos === "left") return px <= root._barStripSize
-      if (root.barPos === "right") return px >= root.screenW - root._barStripSize
-      return py <= root._barStripSize
+      var sy = py + root.originY
+      var sx = px + root.originX
+      if (root.barPos === "bottom") return sy >= root.screenH - root._barStripSize
+      if (root.barPos === "left") return sx <= root._barStripSize
+      if (root.barPos === "right") return sx >= root.screenW - root._barStripSize
+      return sy <= root._barStripSize
     }
 
     function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
+      var sx = px + root.originX
+      var sy = py + root.originY
+      if (root.barPos === "bottom") return Qt.point(sx, sy - (root.screenH - root.barH))
+      if (root.barPos === "right") return Qt.point(sx - (root.screenW - root.barW), sy)
+      return Qt.point(sx, sy)
     }
 
     function pressTargetAt(px, py) {

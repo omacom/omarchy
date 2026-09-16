@@ -22,7 +22,15 @@ assert(
   'bar panels settle on OnDemand keyboard focus so pointer input can reach an OSK'
 )
 assert(
-  /localX = x - root\.x/.test(panelQml) && /localY = y - root\.y/.test(panelQml),
+  /localX = x - root\.originX/.test(panelQml) && /localY = y - root\.originY/.test(panelQml),
   'panel cards are positioned in the inset overlay, not double-offset by the bar exclusive zone'
+)
+assert(
+  !/root\.x/.test(panelQml) && !/root\.y/.test(panelQml),
+  'panel positioning never reads PanelWindow x/y (undefined there, NaNs the card origin to top-left)'
+)
+assert(
+  /insetOverlay: backingWindowVisible/.test(panelQml),
+  'panel overlay measurements wait for the mapped surface instead of trusting pre-map geometry'
 )
 JS
