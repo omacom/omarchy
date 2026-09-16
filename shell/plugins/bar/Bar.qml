@@ -45,12 +45,14 @@ Item {
   property var fallbackBarConfig: ({
     position: "top",
     transparent: false,
+    transparencyToggle: true,
     centerAnchor: "omarchy.clock",
     layout: { left: [], center: [], right: [] }
   })
   property var layoutConfig: fallbackBarConfig.layout
   property string centerAnchor: ""
   property bool requestedTransparent: false
+  property bool transparencyToggle: true
   property bool useTransparentForeground: false
   property bool transparent: false
   property bool centerSectionHovered: false
@@ -583,6 +585,7 @@ Item {
 
     position = normalizePosition(config.position)
     setRequestedTransparency(config.transparent === true)
+    transparencyToggle = config.transparencyToggle !== false
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
 
     // layoutEntries feeds plain JS arrays to the module Repeaters, and QML
@@ -1709,7 +1712,7 @@ Item {
         suppressClick = false
         return
       }
-      if (mouse.button === Qt.LeftButton) {
+      if (root.transparencyToggle && mouse.button === Qt.LeftButton) {
         root.toggleTransparency()
         mouse.accepted = true
       }
