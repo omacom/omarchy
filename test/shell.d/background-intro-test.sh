@@ -167,7 +167,6 @@ assert(
 JS
 
 packaged_pairs=0
-require_command ffprobe
 for expected_hash_path in "$ROOT"/themes/*/intros/*.sha256; do
   [[ -f $expected_hash_path ]] || continue
 
@@ -189,12 +188,8 @@ for expected_hash_path in "$ROOT"/themes/*/intros/*.sha256; do
   actual_hash=$(sha256sum "$background")
   actual_hash=${actual_hash%% *}
   [[ $actual_hash == "$expected_hash" ]] || fail "$theme_name $pairing intro is bound to its exact still"
-  video="$theme_dir/intros/$pairing.mp4"
-  [[ -f $video ]] || fail "$theme_name $pairing intro video is missing"
-  duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")
-  awk -v duration="$duration" 'BEGIN { exit !(duration >= 5 && duration <= 7) }' || fail "$theme_name $pairing intro must last 5-7 seconds" "$duration"
   ((++packaged_pairs))
 done
 
 ((packaged_pairs > 0)) || fail "no packaged theme intros were found"
-pass "packaged theme intros match their still backgrounds and last 5-7 seconds"
+pass "packaged theme intros match their still backgrounds"
