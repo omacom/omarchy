@@ -1,0 +1,134 @@
+#!/bin/bash
+
+# omarchy:summary=Validate or run a plugin's pre-remove hook
+# omarchy:group=plugin
+# omarchy:hidden=true
+# omarchy:args=<plugin-folder> <mode> [snapshot]
+
+set -euo pipefail
+
+fail() {
+  echo "omarchy-plugin-pre-remove: $*" >&2
+  exit 1
+}
+
+(( $# >= 2 && $# <= 3 )) || fail "usage: omarchy-plugin-pre-remove <plugin-folder> --check|--snapshot|--expect <snapshot>"
+plugin_dir="$1"
+mode="$2"
+expected_snapshot=""
+case "$mode" in
+--check | --snapshot) (( $# == 2 )) || fail "unexpected argument: $3" ;;
+--expect)
+  (( $# == 3 )) || fail "--expect requires the original snapshot"
+  expected_snapshot="$3"
+  ;;
+*) fail "unknown option: $mode" ;;
+esac
+[[ -e $plugin_dir || -L $plugin_dir ]] || fail "plugin folder not found: $plugin_dir"
+
+root_state="directory"
+hook=""
+manifest=""
+
+# A dangling installed-root symlink is still safe to unlink during recovery.
+if [[ -L $plugin_dir && ! -e $plugin_dir ]]; then
+  root_state="dangling"
+  IFS= read -r -d '' root < <(/usr/bin/realpath -msz -- "$plugin_dir") \
+    || fail "cannot resolve plugin folder: $plugin_dir"
+else
+  [[ -d $plugin_dir ]] || fail "plugin folder not found: $plugin_dir"
+  IFS= read -r -d '' root < <(/usr/bin/realpath -ez -- "$plugin_dir") \
+    || fail "cannot resolve plugin folder: $plugin_dir"
+  manifest="$root/manifest.json"
+  # An absent manifest must not prevent recovery of an old or broken installation.
+  if [[ -e $manifest || -L $manifest ]]; then
+    [[ -f $manifest ]] || fail "manifest.json is not a readable file: $manifest"
+    # Keep the path JSON-encoded until every character has been checked: Bash
+    # cannot represent NUL, and command substitution strips trailing newlines.
+    # Slurping rejects empty manifests and multiple JSON documents.
+    hook_json=$(/usr/bin/jq -ce -s '
+      if length != 1 or (.[0] | type) != "object" then
+        error("manifest must contain one JSON object")
+      else .[0] end
+      | if has("hooks") then
+          if (.hooks | type) != "object" then error("hooks must be an object")
+          elif (.hooks | has("preRemove")) then
+            .hooks.preRemove
+            | if type != "string" then error("hooks.preRemove must be a string")
+              elif length == 0 or startswith("/") or contains("..") then
+                error("hooks.preRemove must be a nonempty safe relative path without ..")
+              elif (explode | all(. >= 32 and (. < 127 or . > 159)) | not) then
+                error("hooks.preRemove may not contain control characters")
+              else . end
+          else "" end
+        else "" end
+    ' "$manifest") || fail "invalid pre-remove declaration or manifest in $manifest"
+    hook=$(/usr/bin/jq -r '.' <<<"$hook_json")
+  fi
+fi
+
+if [[ -n $hook ]]; then
+  # Resolve only the installed root; refuse every symlink within the hook path.
+  # All validation uses absolute paths without entering the checkout.
+  remaining="$hook"
+  candidate="$root"
+  while :; do
+    component="${remaining%%/*}"
+    candidate="$candidate/$component"
+    [[ ! -L $candidate ]] || fail "pre-remove hook path contains a symlink: $hook"
+    [[ $remaining == */* ]] || break
+    remaining="${remaining#*/}"
+  done
+  [[ -f $root/$hook && -x $root/$hook ]] || fail "pre-remove hook must be an executable file: $hook"
+fi
+
+if [[ $mode == "--check" ]]; then
+  [[ -z $hook ]] || printf '%s\n' "$hook"
+  exit 0
+fi
+
+# These host tools are installed by Omarchy. Absolute paths avoid resolving a
+# plugin-supplied executable through a relative entry in the caller's PATH.
+root_identity=$(/usr/bin/stat -c '%d:%i:%f' -- "$root") || fail "cannot identify plugin folder: $root"
+root_target=""
+manifest_digest="absent"
+hook_identity=""
+hook_digest=""
+if [[ $root_state == "dangling" ]]; then
+  IFS= read -r -d '' root_target < <(/usr/bin/readlink -z -- "$root") \
+    || fail "cannot read dangling plugin symlink: $root"
+elif [[ -e $manifest || -L $manifest ]]; then
+  manifest_digest=$(/usr/bin/sha256sum <"$manifest") || fail "cannot fingerprint manifest: $manifest"
+  manifest_digest="${manifest_digest%% *}"
+fi
+if [[ -n $hook ]]; then
+  hook_identity=$(/usr/bin/stat -c '%d:%i:%f' -- "$root/$hook") || fail "cannot identify pre-remove hook: $hook"
+  hook_digest=$(/usr/bin/sha256sum <"$root/$hook") || fail "cannot fingerprint pre-remove hook: $hook"
+  hook_digest="${hook_digest%% *}"
+fi
+# NUL separators keep paths and states unambiguous. This detects changes between
+# confirmation and revalidation; it is not an atomic defense against hostile edits.
+fingerprint=$(printf '%s\0' 'pre-remove-v1' "$root_state" "$root" "$root_identity" "$root_target" \
+  "$manifest_digest" "$hook" "$hook_identity" "$hook_digest" | /usr/bin/sha256sum) \
+  || fail "cannot fingerprint pre-remove state"
+fingerprint="${fingerprint%% *}"
+snapshot=$(/usr/bin/jq -cn --arg hook "$hook" --arg fingerprint "$fingerprint" '{hook: $hook, fingerprint: $fingerprint}')
+if [[ $mode == "--snapshot" ]]; then
+  printf '%s\n' "$snapshot"
+  exit 0
+fi
+[[ $snapshot == "$expected_snapshot" ]] || fail "pre-remove state changed after confirmation; retry removal and confirm the current hook"
+[[ -n $hook ]] || exit 0
+
+caller_env=()
+mapfile -d '' -t caller_env < <(/usr/bin/env -0)
+
+# Hooks are trusted user code, not sandboxed. A transient user service waits for
+# the whole inherited cgroup, even after its leader exits, and kills that cgroup
+# on timeout. Execute the exact relative hook with the caller's environment and
+# stdin at EOF; --collect also unloads failed units after --wait reports status.
+/usr/bin/systemd-run --user --wait --pipe --collect --quiet --service-type=exec --expand-environment=no \
+  --property=ExitType=cgroup --property=KillMode=control-group \
+  --property=RuntimeMaxSec=60s --property=TimeoutStopSec=5s \
+  --working-directory="$root" -- /usr/bin/env -i "${caller_env[@]}" "./$hook" </dev/null \
+  || fail "pre-remove hook '$hook' failed (status $?); inspect cleanup effects and fix the hook before retrying removal"
