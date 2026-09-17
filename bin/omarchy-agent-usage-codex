@@ -107,10 +107,10 @@ total_sessions = set()
 seen_pi_messages = set()
 
 
-def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, cache_write):
+def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, cache_write, count=1):
   global today_prompts, today_total_tokens, total_prompts
   total = input_tokens + output_tokens + cache_read + cache_write
-  total_prompts += 1
+  total_prompts += count
   total_sessions.add(session_key)
   active_days.add(day)
 
@@ -129,7 +129,7 @@ def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, 
     recent[day]["messageCount"] += total
 
   if day == today:
-    today_prompts += 1
+    today_prompts += count
     today_sessions.add(session_key)
     today_total_tokens += total
     today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total
@@ -283,10 +283,108 @@ def scan_opencode_sessions():
   return True
 
 
-def scan_native_codex_sessions():
+def native_signature(stat):
+  return [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
+
+
+def native_anchor(handle, offset):
+  # Check both ends of the consumed prefix before trusting an append. Native
+  # rollouts are append-only; --force remains the full rebuild escape hatch.
+  handle.seek(0)
+  head = handle.read(min(offset, 4096))
+  handle.seek(max(0, offset - 4096))
+  tail = handle.read(min(offset, 4096))
+  return hashlib.sha256(head + tail).hexdigest()
+
+
+def valid_native_record(record):
+  try:
+    return (
+      isinstance(record, dict)
+      and len(record["signature"]) == 5
+      and all(type(n) is int and n >= 0 for n in record["signature"])
+      and type(record["offset"]) is int
+      and 0 <= record["offset"] <= record["signature"][2]
+      and isinstance(record["model"], str)
+      and isinstance(record["anchor"], str)
+      and isinstance(record["rows"], list)
+      and all(isinstance(row, list) and len(row) == 7
+              and (row[0] is None or isinstance(row[0], str))
+              and isinstance(row[1], str)
+              and all(type(n) is int for n in row[2:])
+              and row[6] > 0 for row in record["rows"])
+    )
+  except (KeyError, TypeError):
+    return False
+
+
+def read_native_session(path, previous=None):
+  with path.open("rb") as handle:
+    signature = native_signature(os.fstat(handle.fileno()))
+    if valid_native_record(previous) and previous["signature"] == signature:
+      return previous
+    append = (valid_native_record(previous)
+              and previous["signature"][:2] == signature[:2]
+              and previous["signature"][2] < signature[2]
+              and previous["signature"][3] <= signature[3]
+              and native_anchor(handle, previous["offset"]) == previous["anchor"])
+    offset = previous["offset"] if append else 0
+    current_model = previous["model"] if append else "codex"
+    buckets = {(row[0], row[1]): row[2:].copy() for row in previous["rows"]} if append else {}
+    handle.seek(offset)
+    while handle.tell() < signature[2]:
+      raw = handle.readline(signature[2] - handle.tell())
+      # A writer may still be finishing this line. Retry it next scan.
+      if not raw.endswith(b"\n"):
+        break
+      offset = handle.tell()
+      try:
+        entry = json.loads(raw.decode("utf-8", errors="replace"))
+        if entry.get("type") == "turn_context":
+          payload = entry.get("payload") or {}
+          current_model = model_name(payload.get("model") or payload.get("model_slug") or current_model)
+          continue
+        payload = entry.get("payload") or entry
+        if entry.get("type") == "response_item" and isinstance(payload, dict):
+          payload = payload.get("payload") or payload
+        if not isinstance(payload, dict) or payload.get("type") != "token_count":
+          continue
+        usage = (payload.get("info") or {}).get("last_token_usage") or {}
+        cache_read = number(usage.get("cached_input_tokens"))
+        cache_write = number(usage.get("cache_write_input_tokens"))
+        input_tokens = max(0, number(usage.get("input_tokens")) - cache_read - cache_write)
+        output_tokens = number(usage.get("output_tokens"))
+        if not (input_tokens or output_tokens or cache_read or cache_write):
+          continue
+        timestamp = entry.get("timestamp")
+        day = local_day(timestamp) if timestamp else None
+        bucket = buckets.setdefault((day, current_model), [0, 0, 0, 0, 0])
+        for i, value in enumerate((input_tokens, output_tokens, cache_read, cache_write, 1)):
+          bucket[i] += value
+      except (ValueError, TypeError, AttributeError):
+        continue
+    anchor = native_anchor(handle, offset)
+    # Do not persist a snapshot if the writer changed the file during reading.
+    if native_signature(os.fstat(handle.fileno())) != signature:
+      signature = None
+    return {"signature": signature, "offset": offset, "model": current_model,
+            "anchor": anchor, "rows": [[day, model, *values] for (day, model), values in buckets.items()]}
+
+
+def scan_native_codex_sessions(cache_file=None, force=False):
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   roots = [codex_home / "sessions", codex_home / "archived_sessions"]
   files = []
+  cached = {}
+  zone = [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
+  if cache_file is not None and not force:
+    try:
+      envelope = json.loads(cache_file.read_text())
+      if envelope.get("schemaVersion") == 1 and envelope.get("zone") == zone and isinstance(envelope.get("files"), dict):
+        cached = envelope["files"]
+    except (OSError, ValueError, AttributeError):
+      pass
+  updated = {}
   cutoff = time.time() - 30 * 24 * 60 * 60
   for root in roots:
     if not root.exists():
@@ -299,42 +397,24 @@ def scan_native_codex_sessions():
         pass
 
   for path in files:
-    current_model = "codex"
     try:
-      with path.open(errors="replace") as handle:
-        for raw in handle:
-          try:
-            entry = json.loads(raw)
-          except Exception:
-            continue
-          if entry.get("type") == "turn_context":
-            payload = entry.get("payload") or {}
-            current_model = model_name(payload.get("model") or payload.get("model_slug") or current_model)
-            continue
-          payload = entry.get("payload") or entry
-          if entry.get("type") == "response_item" and isinstance(payload, dict):
-            payload = payload.get("payload") or payload
-          if not isinstance(payload, dict):
-            continue
-          if payload.get("type") != "token_count":
-            continue
-          info = payload.get("info") or {}
-          # total_token_usage is cumulative for the session. Adding every
-          # snapshot makes usage grow quadratically, so count the last turn.
-          usage = info.get("last_token_usage") or {}
-          cache_read = number(usage.get("cached_input_tokens"))
-          cache_write = number(usage.get("cache_write_input_tokens"))
-          # Cached tokens are included in input_tokens, and reasoning tokens
-          # are included in output_tokens. Keep the cache split without
-          # counting either category twice.
-          input_tokens = max(0, number(usage.get("input_tokens")) - cache_read - cache_write)
-          output_tokens = number(usage.get("output_tokens"))
-          if not (input_tokens or output_tokens or cache_read or cache_write):
-            continue
-          day = local_day(entry.get("timestamp") or path.stat().st_mtime)
-          add_usage(day, str(path), current_model, input_tokens, output_tokens, cache_read, cache_write)
-    except Exception:
+      key = str(path)
+      previous = cached.get(key)
+      if valid_native_record(previous) and previous["signature"] == native_signature(path.stat()):
+        record = previous
+      else:
+        record = read_native_session(path, previous)
+      for day, model, input_tokens, output_tokens, cache_read, cache_write, count in record["rows"]:
+        add_usage(day or local_day(path.stat().st_mtime), key, model, input_tokens, output_tokens, cache_read, cache_write, count)
+      if record["signature"] is not None:
+        updated[key] = record
+    except OSError:
       continue
+  if cache_file is not None:
+    try:
+      write_json(cache_file, {"schemaVersion": 1, "zone": zone, "files": updated})
+    except Exception as exc:
+      print(f"omarchy-agent-usage-codex: could not write native scan cache ({exc})", file=sys.stderr)
 
 
 def cache_root():
@@ -432,9 +512,9 @@ def local_stats():
   }
 
 
-def run_local_scans():
+def run_local_scans(native_cache=None, force=False):
   scan_pi_sessions()
-  scan_native_codex_sessions()
+  scan_native_codex_sessions(native_cache, force)
   complete = scan_opencode_sessions()
   return local_stats(), complete
 
@@ -466,7 +546,9 @@ def _cached_local_stats(max_age):
     cached = read_cached_stats(cache_file, max_age)
     if cached is not None:
       return cached
-    stats, complete = run_local_scans()
+    # The existing collector lock also serializes incremental cache updates.
+    native_cache = cache_file.with_name(cache_file.name.replace("codex-scan-", "codex-native-"))
+    stats, complete = run_local_scans(native_cache, force=max_age <= 0)
     # An interrupted scan still serves this run, but caching it would
     # suppress the missing usage for every reader until the cache expires.
     if complete:
