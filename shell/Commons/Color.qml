@@ -11,6 +11,7 @@ import "BorderGeometry.js" as Geometry
 // don't appear in shell.toml fall back to the foundational palette.
 QtObject {
   id: root
+  readonly property bool externalContext: Quickshell.env("OMARCHY_PLUGIN_CONTEXT") === "1"
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
@@ -133,6 +134,7 @@ QtObject {
   }
 
   function loadColors(raw) {
+    if (externalContext) return
     var lines = String(raw || "").split("\n")
     var foundAccent = false
     var foundMuted = false
@@ -210,11 +212,13 @@ QtObject {
   }
 
   function loadShell(raw) {
+    if (externalContext) return
     themeShellValues = parseShell(raw)
     mergeShell()
   }
 
   function loadUserShell(raw) {
+    if (externalContext) return
     userShellValues = parseShell(raw)
     mergeShell()
   }

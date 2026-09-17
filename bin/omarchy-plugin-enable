@@ -82,7 +82,32 @@ placement=$(jq -cn \
     + (if $after == "" then {} else {after: $after} end)
   ')
 
+catalog=$(omarchy-plugin-catalog)
+installation_error=$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .installation.error // empty' <<<"$catalog")
+[[ -z $installation_error ]] || fail "$installation_error"
+if jq -e --arg id "$id" 'any(.[]; .id == $id and .sandboxed)' <<<"$catalog" >/dev/null; then
+  approvals=$(printf '%s' '{"operation":"list"}' | omarchy-ward-runtime)
+  jq -e --arg id "$id" 'any(.[]; .id == $id and .approved and .error == null)' <<<"$approvals" >/dev/null ||
+    fail "review and approve an exact revision first: omarchy plugin review $id"
+fi
+
 result=$(omarchy-shell shell enablePlugin "$id" "$placement")
+if [[ $result == "starting" ]]; then
+  for (( attempt = 0; attempt < 80; attempt++ )); do
+    status=$(omarchy-shell shell pluginStatus "$id")
+    state=$(jq -r '.state' <<<"$status")
+    if [[ $state == "running" ]]; then
+      result="ok"
+      break
+    elif [[ $state == "error" ]]; then
+      fail "$(jq -r '.error' <<<"$status")"
+    elif [[ $state != "starting" ]]; then
+      fail "native plugin startup was cancelled"
+    fi
+    sleep 0.1
+  done
+  [[ $result == "ok" ]] || fail "native plugin is still starting; inspect: omarchy-shell shell pluginStatus $id"
+fi
 if [[ $result == "unknown" ]]; then
   fail "plugin '$id' is not known; run: omarchy-shell shell rescanPlugins"
 elif [[ $result != "ok" ]]; then

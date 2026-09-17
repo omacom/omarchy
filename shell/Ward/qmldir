@@ -1,0 +1,2 @@
+module qs.Ward
+singleton Desktop 1.0 Desktop.qml

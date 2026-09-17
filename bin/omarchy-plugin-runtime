@@ -1,0 +1,7 @@
+#!/bin/bash
+# omarchy:hidden=true
+# omarchy:summary=Run portable plugin operations for an explicitly trusted installation
+# omarchy:args=<id> <operation> [arguments]
+
+set -euo pipefail
+exec /usr/bin/python3 -B "$OMARCHY_PATH/default/omarchy/plugin-runtime.py" "$@"

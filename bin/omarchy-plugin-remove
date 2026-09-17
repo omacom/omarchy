@@ -8,6 +8,8 @@
 set -euo pipefail
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+[[ $STATE_DIR == /* ]] || { echo "omarchy-plugin-remove: state path must be absolute" >&2; exit 1; }
 ASSUME_YES=0
 
 fail() {
@@ -30,7 +32,7 @@ confirm() {
 }
 
 valid_plugin_id() {
-  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
+  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ && $1 != *..* ]]
 }
 
 id=""
@@ -56,8 +58,6 @@ while (( $# > 0 )); do
   esac
 done
 
-[[ -d $PLUGINS_DIR ]] || fail "no plugins installed"
-
 if [[ -z $id ]]; then
   interactive || fail "a plugin-id is required"
   id=$(find "$PLUGINS_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) \
@@ -69,52 +69,71 @@ fi
 valid_plugin_id "$id" || fail "invalid plugin id '$id'"
 
 target="$PLUGINS_DIR/$id"
-[[ -e $target || -L $target ]] || fail "plugin '$id' is not installed"
+# Removal and publication must never interleave checkout/provenance changes.
+mkdir -p "$PLUGINS_DIR"
+exec {install_lock}>"$PLUGINS_DIR/.install.lock"
+flock "$install_lock"
+catalog=$(omarchy-plugin-catalog)
 
 was_enabled=""
-shell_plugins=$(omarchy-shell shell listPlugins)
-if [[ -n $shell_plugins ]]; then
-  was_enabled=$(jq -r --arg id "$id" '
-    .[] | select(.id == $id) | .enabled
-  ' <<<"$shell_plugins")
+sandboxed=false
+if jq -e --arg id "$id" 'any(.[]; .id == $id and .sandboxed and .wardIdentity != false)' <<<"$catalog" >/dev/null; then
+  sandboxed=true
+else
+  if [[ ! -e $target && ! -L $target && ! -e $STATE_DIR/plugins/$id && ! -L $STATE_DIR/plugins/$id ]]; then
+    jq -e --arg id "$id" 'any(.[]; .id == $id and (.firstParty | not))' <<<"$catalog" >/dev/null || fail "plugin '$id' is not installed"
+  fi
+  shell_plugins=$(omarchy-shell shell listPlugins)
+  if [[ -n $shell_plugins ]]; then
+    was_enabled=$(jq -r --arg id "$id" '
+      .[] | select(.id == $id) | .enabled
+    ' <<<"$shell_plugins")
+  fi
 fi
 
 cloned_from=""
-if [[ -f $target/manifest.json ]]; then
+if [[ $sandboxed != "true" && -f $target/manifest.json ]]; then
   cloned_from=$(jq -r '.omarchy.clonedFrom // empty' "$target/manifest.json")
 fi
 
-if [[ -L $target ]]; then
-  confirm "Unlink '$id' (symlink -> $(readlink "$target"))?" || fail "aborted"
-elif [[ -d $target/.git ]]; then
-  confirm "Delete '$id'? Its git repo remains upstream." || fail "aborted"
-else
-  confirm "Remove '$id'? The folder will be backed up." || fail "aborted"
-fi
+confirm "Permanently remove '$id', its saved plugin data, permissions and installation history? Original sources and files accessed through permissions are not deleted." || fail "aborted"
 
-if [[ $was_enabled == "true" ]]; then
+# These are exact per-plugin children, never a grant's host path. Refuse
+# redirected state parents instead of recursively following them elsewhere.
+[[ ! -L $STATE_DIR && ! -L $STATE_DIR/plugins ]] || fail "plugin state directory must not be a symlink"
+
+if [[ $sandboxed == "true" ]]; then
+  omarchy-shell -q shell setPluginEnabled "$id" false >/dev/null
+  # Native removal confirms controller shutdown, then purges approval and all
+  # owned snapshots. Keep the external isolation marker until checkout removal.
+  jq -cn --arg id "$id" '{operation: "remove", id: $id}' | omarchy-ward-runtime >/dev/null
+elif [[ $was_enabled == "true" ]]; then
   omarchy-shell shell setPluginEnabled "$id" false >/dev/null
 fi
 
-if [[ -L $target ]]; then
+source "$OMARCHY_PATH/bin/omarchy-shell-config"
+forget_plugin_config "$id"
+
+if [[ ! -e $target && ! -L $target ]]; then
+  echo "No checkout remains for $id."
+elif [[ -L $target ]]; then
   rm -f "$target"
   echo "Unlinked $id."
-elif [[ -d $target/.git ]]; then
+else
   rm -rf "$target"
   echo "Removed $id."
-else
-  base="$PLUGINS_DIR/.${id}.bak.$(date -u +%Y%m%d%H%M%S)"
-  backup="$base"
-  n=1
-  while [[ -e $backup ]]; do
-    backup="${base}-${n}"
-    n=$((n + 1))
-  done
-  mv "$target" "$backup" || fail "failed to move $target to backup"
-  echo "Removed $id. Backup at: $backup"
 fi
 
-omarchy-shell shell rescanPlugins >/dev/null
+rm -rf -- "$STATE_DIR/plugins/$id"
+omarchy-plugin-installation forget "$id"
+omarchy-plugin-isolation forget "$id"
+
+if [[ $sandboxed == "true" ]]; then
+  omarchy-shell -q shell rescanPlugins >/dev/null
+else
+  omarchy-shell shell rescanPlugins >/dev/null
+fi
+echo "Saved plugin data, permissions, reviewed snapshots and installation records removed."
 
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
   echo "Restored $cloned_from."

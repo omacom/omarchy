@@ -348,6 +348,7 @@ QtObject {
   }
 
   function refresh() {
+    if (Color.externalContext) return
     hyprctlProc.running = true
     gapsOutProc.running = true
   }
@@ -461,6 +462,7 @@ QtObject {
   // set <name>` rewrites ~/.config/fontconfig/fonts.conf and restarts the
   // shell, but rerun on file change anyway so manual edits propagate too.
   function resolveFontFamily() {
+    if (Color.externalContext) return
     fcMatchProc.running = true
   }
 

@@ -1,26 +1,31 @@
 #!/bin/bash
 
-# omarchy:summary=Pick a shell plugin to enable, disable, clone, or remove
+# omarchy:summary=Pick a shell plugin to review, enable, disable, clone, or remove
 # omarchy:group=menu
 # omarchy:name=plugin
-# omarchy:args=<enable|disable|clone|remove>
+# omarchy:args=<review|enable|disable|clone|remove>
 
 set -euo pipefail
 
 PLUGIN_ICON=$'\U000f0431'
 
 case "${1:-}" in
+  review) filter='.sandboxed' ;;
   enable) filter='(.enabled | not)' ;;
   disable) filter='.canDisable and .enabled' ;;
   clone) filter='.firstParty and (.id as $id | ($plugins | map(.clonedFrom // "") | index($id)) == null)' ;;
   remove) filter='(.firstParty | not)' ;;
   *)
-    echo "Usage: omarchy-menu-plugin <enable|disable|clone|remove>" >&2
+    echo "Usage: omarchy-menu-plugin <review|enable|disable|clone|remove>" >&2
     exit 1
     ;;
 esac
 
-plugins=$(omarchy-plugin-list --json)
+if [[ $1 == "review" ]]; then
+  plugins=$(omarchy-plugin-catalog)
+else
+  plugins=$(omarchy-plugin-list --json)
+fi
 
 # The id rides along as row subtext: it tells same-named plugins apart on
 # screen and comes back with the selection as the key to act on.
@@ -41,6 +46,8 @@ if [[ $1 == "clone" ]]; then
     "omarchy-plugin-clone $(printf '%q' "$id") --edit"
 elif [[ $1 == "remove" ]]; then
   omarchy-launch-floating-terminal-with-presentation "omarchy-plugin-remove $(printf '%q' "$id")"
+elif [[ $1 == "review" ]] || { [[ $1 == "enable" ]] && jq -e --arg id "$id" 'any(.[]; .id == $id and .sandboxed)' <<<"$plugins" >/dev/null; }; then
+  omarchy-plugin-review "$id" --ui
 else
   "omarchy-plugin-$1" "$id"
 fi

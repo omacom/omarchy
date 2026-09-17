@@ -32,6 +32,10 @@ A new shell test only needs the right name: drop `<area>-test.sh` into
 `test/shell.d/` and `./test/shell` picks it up automatically. Shared fixtures
 live under `test/shell.d/fixtures/`.
 
+Ward's native tests under `native/ward` use synthetic plugins and generic resource contracts. Omarchy adapter, shared-output, activation, reviewer and authoring-documentation coverage lives in `test/shell.d/fixtures/ward-integration`, invoked by `ward-integration-test.sh` only with the explicit systemd, graphics, Qt-module, executable and separately staged adapter opt-ins documented in [the runtime contract](ward-runtime.md). Both crates share the root Cargo workspace, lockfile and `target/` directory; their existing `--manifest-path` commands still select the intended crate. The graphics tests render on a private display, not the active desktop. Concrete third-party compatibility experiments also belong outside Ward; first-party plugins are not sandbox-port targets.
+
+Ward's opt-in audio test uses `OMARCHY_TEST_AUDIO=1 cargo test --manifest-path native/ward/Cargo.toml --lib private_pipewire -- --test-threads=1`. It starts an isolated PipeWire server with synthetic source/sink nodes and a policy-only WirePlumber profile with hardware monitoring disabled; it never records the real microphone or desktop output. The normal library suite tests PCM direction, buffering, capacity and process cleanup with fake byte producers/consumers. `OMARCHY_TEST_SYSTEMD=1 OMARCHY_TEST_WARD_HOST=<absolute-native-executable> cargo test --manifest-path native/ward/Cargo.toml --lib network_proxy -- --test-threads=1` additionally verifies selected/denied stream socket mounts, private loopback, blocked direct networking, disabled nested namespaces and zero capabilities inside a bounded real worker. No audio samples or public network requests are needed for that boundary test.
+
 ## The base-test.sh contract
 
 Every shell test starts the same way:

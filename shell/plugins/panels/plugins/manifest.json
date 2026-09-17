@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.plugins",
+  "name": "Plugins",
+  "description": "Install, review and manage desktop plugins.",
+  "version": "1.0.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "Panel.qml" }
+}

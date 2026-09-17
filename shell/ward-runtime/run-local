@@ -1,0 +1,3 @@
+#!/bin/bash
+# This helper stays inside the worker; only named exec calls cross the broker.
+exec /usr/bin/python3 -B "$OMARCHY_PATH/lib/plugin-job.py" "$@"

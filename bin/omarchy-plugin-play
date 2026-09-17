@@ -1,0 +1,13 @@
+#!/bin/bash
+# omarchy:hidden=true
+# omarchy:summary=Play a local audio file from a plugin process
+# omarchy:args=<local-file> [volume]
+
+set -euo pipefail
+if (( $# < 1 || $# > 2 )) || [[ ! ${2:-1} =~ ^(0(\.[0-9]{1,3})?|1(\.0{1,3})?)$ ]]; then
+  echo "Usage: omarchy-plugin-play <local-file> [volume: 0..1]" >&2
+  exit 2
+fi
+[[ -f $1 ]] || { echo "Audio input must be a local regular file" >&2; exit 2; }
+ffmpeg -nostdin -v error -protocol_whitelist file,pipe -i "$1" -vn \
+  -af "volume=${2:-1}" -f s16le -ar 48000 -ac 2 - | omarchy-plugin-request --audio-playback

@@ -1,0 +1,7 @@
+#!/bin/bash
+# omarchy:hidden=true
+# omarchy:summary=Request a portable operation from a plugin process
+# omarchy:args=<operation> [arguments]
+
+set -euo pipefail
+exec omarchy-plugin-runtime "${OMARCHY_PLUGIN_ID:?This helper requires a plugin process}" "$@"

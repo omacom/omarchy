@@ -2,6 +2,7 @@ module qs.Ui
 
 BarIndicator 1.0 BarIndicator.qml
 BarIconButton 1.0 BarIconButton.qml
+BarToolTip 1.0 BarToolTip.qml
 BarWidget 1.0 BarWidget.qml
 BackgroundMedia 1.0 BackgroundMedia.qml
 BackgroundVideo 1.0 BackgroundVideo.qml
@@ -17,6 +18,7 @@ MultiSelect 1.0 MultiSelect.qml
 NumberField 1.0 NumberField.qml
 OpticalGlyph 1.0 OpticalGlyph.qml
 Panel 1.0 Panel.qml
+PluginLoader 1.0 PluginLoader.qml
 PanelActionButton 1.0 PanelActionButton.qml
 PanelController 1.0 PanelController.qml
 PanelKeyCatcher 1.0 PanelKeyCatcher.qml

@@ -164,6 +164,13 @@ load
 [[ ${args[11]} == "--exec" ]] || fail "a --exec-looking headline is kept as text"
 pass "a --exec-looking positional is not treated as the delimiter"
 
+: >"$args_file"
+send --app-name "Plugin test" -- "--exec" "--image" >/dev/null
+load
+[[ ${args[11]} == "--exec" && ${args[12]} == "--image" ]] || fail "explicit end of options preserves literal notification text"
+has_hint omarchy-exec-argv && fail "literal notification text cannot add a click command"
+pass "end of options keeps arbitrary plugin title and body text inert"
+
 # A single quoted whole-command is rejected (splitting it ourselves is the
 # injection we avoid).
 if send "Head" --exec "omarchy toggle something" 2>/dev/null; then

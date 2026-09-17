@@ -60,3 +60,26 @@ commit() {
   _SHELL_CONFIG_TMP=""
   refresh_shell_config
 }
+
+# Complete uninstall also clears stale/offline placements and inline settings.
+# Never create a user config solely to remove an entry that was never present.
+forget_plugin_config() {
+  local plugin_id="$1"
+  local matches
+  [[ -f $CONFIG_FILE ]] || return 0
+  matches=$(jq -r --arg id "$plugin_id" '
+    def entry_id: if type == "object" then .id else . end;
+    [(.plugins[]? | entry_id), (.bar.layout[][]? | entry_id), .bar.id,
+      .disabledPlugins[]?, .cloneSourceRestores[]?] | any(. == $id)
+  ' "$CONFIG_FILE") || fail "could not read shell config for plugin removal"
+  if [[ $matches == "true" ]]; then
+    commit "$NORMALIZE"'
+      | def keep: map(select((if type == "object" then .id else . end) != $id));
+      .plugins |= keep
+      | .bar.layout.left |= keep | .bar.layout.center |= keep | .bar.layout.right |= keep
+      | if .bar.id == $id then del(.bar.id) else . end
+      | if (.disabledPlugins | type) == "array" then .disabledPlugins |= keep else . end
+      | if (.cloneSourceRestores | type) == "array" then .cloneSourceRestores |= keep else . end
+    ' --arg id "$plugin_id"
+  fi
+}

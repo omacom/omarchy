@@ -1,0 +1,39 @@
+[package]
+name = "omarchy-ward"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+graphics = ["dep:smithay"]
+qt-bridge = ["dep:cxx", "dep:cxx-build"]
+
+[dependencies]
+libc = "0.2.189"
+rustix = { version = "1.1.4", features = ["net", "fs", "process"] }
+sha2 = "0.10.9"
+ed25519-dalek = "2.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+base64 = "0.22.1"
+regex = { version = "=1.13.1", default-features = false, features = ["std", "perf"] }
+tempfile = "3.27.0"
+url = "2.5.8"
+ureq = { version = "=3.3.0", default-features = false, features = ["rustls"] }
+smithay = { version = "=0.7.0", optional = true, default-features = false, features = ["wayland_frontend", "backend_egl", "backend_gbm", "renderer_gl", "desktop"] }
+cxx = { version = "1.0", optional = true }
+
+[build-dependencies]
+cxx-build = { version = "1.0", optional = true }
+
+[dev-dependencies]
+wayland-client = "0.31.10"
+wayland-backend = "0.3"
+wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
+wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"

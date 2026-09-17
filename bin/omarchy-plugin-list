@@ -25,7 +25,31 @@ while (( $# > 0 )); do
   shift
 done
 
-plugins=$(omarchy-shell shell listPlugins)
+catalog=$(omarchy-plugin-catalog)
+# The catalog is authoritative even before the shell's asynchronous rescan.
+# Approval comes from Rust; enabled describes shell activation, not grants.
+shell_plugins=$(omarchy-shell shell listPlugins 2>/dev/null) || shell_plugins='[]'
+native_error=""
+native='[]'
+if jq -e 'any(.[]; .sandboxed and .wardIdentity != false)' <<<"$catalog" >/dev/null; then
+  if ! native=$(printf '%s' '{"operation":"list"}' | omarchy-ward-runtime); then
+    native='[]'
+    native_error="Ward management unavailable; approval and running state are unknown"
+  fi
+fi
+plugins=$(jq -cn --argjson catalog "$catalog" --argjson live "$shell_plugins" --argjson native "$native" --arg nativeError "$native_error" '
+    $catalog | map(. as $entry |
+      (first($live[] | select(.id == $entry.id)) // {}) as $running |
+      (first($native[] | select(.id == $entry.id)) // {}) as $approval |
+      ($entry + {enabled: null} + $running + {installed: $entry.installed}) |
+      if $entry.sandboxed then . + {
+        enabled: ($running.enabled // false),
+        approved: (if $nativeError != "" then null else ($approval.approved // false) end),
+        revision: ($approval.revision // null),
+        grants: ($approval.grants // {}),
+        error: ([($entry.error // $approval.error // empty), (if $nativeError != "" then $nativeError else empty end)] | if length > 0 then join("; ") else null end)
+      } else . end)
+  ')
 
 if [[ $json == "true" ]]; then
   printf '%s\n' "$plugins"
@@ -35,12 +59,18 @@ fi
 jq -r '
   .[] |
   [ .id,
-    (if .enabled then "enabled" else "disabled" end),
+    (if .error and .enabled then "running/error"
+      elif .error then "error"
+      elif .enabled then "enabled"
+      elif .approved then "approved"
+      elif .enabled == null then "unknown"
+      else "disabled" end),
     (if .firstParty then "first-party" else "third-party" end),
+    (.executionMode // (if .sandboxed then "ward" else "legacy-trusted" end)),
     ((.kinds // []) | join(",")),
     (.name // "")
   ] | @tsv
 ' <<<"$plugins" | awk -F '\t' '
-  BEGIN { printf "%-32s %-9s %-11s %-18s %s\n", "ID", "STATE", "SOURCE", "KINDS", "NAME" }
-  { printf "%-32s %-9s %-11s %-18s %s\n", $1, $2, $3, $4, $5 }
+  BEGIN { printf "%-32s %-9s %-11s %-15s %-18s %s\n", "ID", "STATE", "SOURCE", "MODE", "KINDS", "NAME" }
+  { printf "%-32s %-9s %-11s %-15s %-18s %s\n", $1, $2, $3, $4, $5, $6 }
 '

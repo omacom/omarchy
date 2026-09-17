@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Stage disposable Git sources. Does not install, approve, enable or publish.
+set -euo pipefail
+demo_root=$(mktemp -d /tmp/omarchy-plugin-demo.XXXXXXXX)
+for name in hostile yolo; do
+  mkdir "$demo_root/$name"
+  cp -a "$OMARCHY_PATH/dev/plugin-demo/$name/." "$demo_root/$name/"
+  git -C "$demo_root/$name" init --template= -q
+  git -C "$demo_root/$name" add .
+  git -C "$demo_root/$name" -c core.hooksPath=/dev/null -c commit.gpgsign=false \
+    -c user.name="Omarchy Demo" -c user.email="demo@localhost" commit -qm "Stage demo plugin"
+done
+jq -cn --arg root "$demo_root" '{root: $root, hostile: ($root + "/hostile"), yolo: ($root + "/yolo")}'
