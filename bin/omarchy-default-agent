@@ -67,7 +67,7 @@ else
   # only shadow it, since the mise shims precede ~/.local/bin on PATH.
   user_install() {
     [[ -x $HOME/.local/bin/$agent ]] &&
-      { [[ -L $HOME/.local/bin/$agent ]] || ! grep -q '^mise use -g' "$HOME/.local/bin/$agent"; }
+      { [[ -L $HOME/.local/bin/$agent ]] || ! grep -qE '^(mise use -g|exec mise x)' "$HOME/.local/bin/$agent"; }
   }
   agent_present() { user_install || mise where "$agent_package" &>/dev/null; }
   agent_install() { user_install || mise use -g "$agent_package"; }
