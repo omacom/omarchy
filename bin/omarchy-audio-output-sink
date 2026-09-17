@@ -7,26 +7,43 @@
 
 set -uo pipefail
 
-# A DSP sink -- a speaker tuning filter-chain, or EasyEffects -- can be the
-# selected output without being where loudness lives. Changing its volume alters
-# the level going *into* the processing: the display moves while the speakers do
-# not, and on a chain with a compressor or limiter the tone changes too. Resolve
+# A DSP sink -- a speaker tuning filter-chain, EasyEffects, JamesDSP, or a null-sink --
+# can be the selected output without being where loudness lives. Changing its volume
+# alters the level going *into* the processing: the display moves while the speakers
+# do not, and on a chain with a compressor or limiter the tone changes too. Resolve
 # through it to the physical sink it feeds.
 #
 # With no argument this resolves the current default output, so when headphones or
 # HDMI are selected it returns those, not the speakers a tuning happens to front.
-# Callers that need to describe some *other* output -- an output switcher naming
-# the next one in the rotation -- pass that sink explicitly.
 
 sink="${1:-$(pactl get-default-sink 2>/dev/null)}"
 
-if [[ -z $sink || $sink == alsa_output.* ]]; then
+# If it is already a physical hardware sink, return immediately.
+if [[ -z $sink || $sink == alsa_output.* || $sink == bluez_output.* ]]; then
   printf '%s\n' "$sink"
   exit 0
 fi
 
-# A DSP sink feeds its physical output through a stream of its own; follow that
-# stream down to the sink underneath.
+# 1. Generic PipeWire graph resolution:
+# Check if any physical sink (ALSA/BlueZ) is currently receiving audio from upstream links.
+physical_sink="$(pw-link -l 2>/dev/null | awk '
+  /^(alsa_output|bluez_output).*:playback_/ {
+    split($1, parts, ":")
+    target = parts[1]
+    getline
+    if ($1 == "|<-") {
+      print target
+      exit
+    }
+  }
+')"
+
+if [[ -n $physical_sink ]]; then
+  printf '%s\n' "$physical_sink"
+  exit 0
+fi
+
+# 2. Fallback via PulseAudio sink-inputs (for compatibility with legacy modules/filters)
 downstream="$(pactl list sink-inputs 2>/dev/null |
   awk -v virt="$sink" '
     /^Sink Input #/ {target = ""}
@@ -36,9 +53,6 @@ downstream="$(pactl list sink-inputs 2>/dev/null |
       sub(/.*node\.name = "/, "", name)
       sub(/"$/, "", name)
       if (index(name, virt) == 1 && target != "") {print target; exit}
-    }
-    /application\.name = "EasyEffects"/ {
-      if (virt == "easyeffects_sink" && target != "") {print target; exit}
     }')"
 
 if [[ -n $downstream ]]; then
@@ -50,6 +64,14 @@ if [[ -n $downstream ]]; then
   fi
 fi
 
-# Nothing resolvable downstream -- the DSP sink may simply be idle and unlinked.
-# Fall back to the sink itself so callers still have something to act on.
+# 3. If EasyEffects is idle (no active streams in pw-link), check its configured target device
+if [[ $sink == "easyeffects_sink" ]]; then
+  target="$(grep '^outputDevice=' "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" 2>/dev/null | cut -d= -f2-)"
+  if [[ -n $target && ($target == alsa_output.* || $target == bluez_output.*) ]]; then
+    printf '%s\n' "$target"
+    exit 0
+  fi
+fi
+
+# Nothing resolvable downstream -- fallback to the sink itself.
 printf '%s\n' "$sink"
