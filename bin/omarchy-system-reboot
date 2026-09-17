@@ -4,9 +4,21 @@
 # omarchy:examples=omarchy reboot | omarchy system reboot
 # omarchy:aliases=omarchy reboot
 
-# Schedule the reboot in the user manager so closing the terminal's systemd
-# scope cannot terminate it before it runs.
-systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl reboot --no-wall || exit 1
+# tmux/SSH/bare TTY often drop the session bus even when a graphical session exists.
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  export XDG_RUNTIME_DIR=/run/user/$(id -u)
+fi
+if [[ -z ${DBUS_SESSION_BUS_ADDRESS:-} && -S $XDG_RUNTIME_DIR/bus ]]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+
+# Schedule in the user manager so closing the terminal's systemd scope cannot
+# terminate it. Fall back to the system manager when no user bus is available.
+if ! systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl reboot --no-wall; then
+  if ! systemd-run --system --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl reboot --no-wall; then
+    exit 1
+  fi
+fi
 
 omarchy-osd -i reboot -m "Rebooting" -d 5000
 
