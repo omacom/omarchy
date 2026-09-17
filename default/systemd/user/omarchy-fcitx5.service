@@ -17,6 +17,14 @@ PartOf=graphical-session.target
 # working one -- Wants= does not restart what is already running. Skip the start
 # instead; the unit stays enabled and starts for real at graphical login.
 ConditionEnvironment=WAYLAND_DISPLAY
+# Restart=always below is what makes an absent binary expensive: systemd retries
+# every RestartSec forever, so an install that never got fcitx5 -- it is in
+# omarchy-base.packages, but a trimmed or derived image can ship this unit
+# without it -- spends the whole session failing at 203/EXEC twice a second.
+# Enabling this unit is unconditional in first-run/enable-user-units.sh, whose
+# own comment says ConditionPath* is what keeps an enabled unit inert where it
+# does not apply; this unit was missing its half of that.
+ConditionPathExists=/usr/bin/fcitx5
 
 [Service]
 Type=simple
