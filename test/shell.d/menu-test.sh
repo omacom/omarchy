@@ -97,6 +97,11 @@ assert(
   'menu search skips disabled rows, which belong to the submenu they sit in rather than a list of what you can do'
 )
 
+assert(
+  /if \(drilldownRows\[f\]\.kind === "app"\) appRows\.push\(drilldownRows\[f\]\)[\s\S]*?rows = appRows\.concat\(currentRows\)\.concat\(deeperRows\)/.test(menuQml),
+  'menu pins matching app rows above the direct children in search'
+)
+
 const entry = merged.items['style.theme']
 assert(menu.matchesQuery(entry, 'theme', true), 'menu matches labels and aliases')
 assert(menu.matchesQuery(entry, 'colors', true), 'menu matches aliases')
