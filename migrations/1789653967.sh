@@ -60,22 +60,26 @@ os.close(fd)
   fi
 fi
 
-# Keep the codec out of D3cold during suspend, or the speaker amp loses power
-# and audio is dead until reboot. Mirror fix-suspend-nvme.sh's systemd service.
-audio_d3cold="/sys/bus/pci/devices/0000:00:1f.3/d3cold_allowed"
-suspend_service="/etc/systemd/system/omarchy-macbook12-audio-suspend.service"
-if [[ -f $audio_d3cold && ! -f $suspend_service ]]; then
-  sudo tee "$suspend_service" >/dev/null <<'EOF'
-[Unit]
-Description=Omarchy MacBook12 Audio Suspend Fix
-
-[Service]
-ExecStart=/bin/bash -c 'echo 0 > /sys/bus/pci/devices/0000\:00\:1f.3/d3cold_allowed'
-
-[Install]
-WantedBy=multi-user.target
+# s2idle suspend kills the speaker amp (audio dead until reboot); the
+# d3cold_allowed pin does not prevent it. Plain freeze (writing "freeze" to
+# /sys/power/state) preserves audio across suspend. These machines have no S3
+# (mem_sleep rejects "freeze"), so MemorySleepMode= forces the freeze path.
+sleep_drop="/etc/systemd/sleep.conf.d/99-macbook12-audio.conf"
+if [[ ! -f $sleep_drop ]]; then
+  sudo mkdir -p /etc/systemd/sleep.conf.d
+  sudo tee "$sleep_drop" >/dev/null <<'EOF'
+[Sleep]
+SuspendState=freeze
+MemorySleepMode=
 EOF
-  sudo systemctl enable omarchy-macbook12-audio-suspend.service
+fi
+
+# Remove the earlier d3cold service if present - it was disproven (audio still
+# dies after s2idle resume with the pin active) and is superseded by the
+# freeze drop-in above.
+if [[ -f /etc/systemd/system/omarchy-macbook12-audio-suspend.service ]]; then
+  sudo systemctl disable --now omarchy-macbook12-audio-suspend.service 2>/dev/null || true
+  sudo rm -f /etc/systemd/system/omarchy-macbook12-audio-suspend.service
 fi
 
 # The driver binds at boot and the amp is energised by the startup chime.

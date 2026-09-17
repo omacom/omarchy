@@ -40,12 +40,16 @@ pass "script un-mutes the EFI startup chime"
 grep -q '0x80' "$leaf" || fail "script clears the chime mute bit (0x80)"
 pass "script clears the chime mute bit (0x80)"
 
-# Test 4: Codec is kept out of D3cold across suspend
-grep -q 'd3cold_allowed' "$leaf" || fail "script pins the audio codec out of D3cold"
-pass "script pins the audio codec out of D3cold"
+# Test 4: Suspend is pinned to the freeze path (s2idle kills the speaker amp;
+# the d3cold_allowed pin was verified NOT to prevent it)
+grep -q 'SuspendState=freeze' "$leaf" || fail "script pins suspend to the freeze sleep state"
+pass "script pins suspend to the freeze sleep state"
 
-grep -q 'omarchy-macbook12-audio-suspend.service' "$leaf" || fail "script installs a systemd suspend-fix service"
-pass "script installs a systemd suspend-fix service"
+grep -q 'MemorySleepMode=' "$leaf" || fail "script empties MemorySleepMode to force the /sys/power/state freeze path"
+pass "script empties MemorySleepMode to force the /sys/power/state freeze path"
+
+grep -q 'sleep.conf.d/99-macbook12-audio.conf' "$leaf" || fail "script installs a systemd sleep.conf.d drop-in"
+pass "script installs a systemd sleep.conf.d drop-in"
 
 # Test 5: Included in hardware setup
 grep -q 'apple/fix-macbook12-audio.sh' "$all" || fail "the audio fix runs during hardware setup"
