@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Native messaging host: copy a Chromium tab URL to the clipboard
+# omarchy:summary=Native messaging host for Omarchy's Chromium browser integration
 # omarchy:hidden=true
 
 set -euo pipefail
@@ -13,12 +13,23 @@ parse_url() {
   jq -r '.url // empty' 2>/dev/null <<<"$1" || true
 }
 
+parse_action() {
+  jq -r '.action // "copy"' 2>/dev/null <<<"$1" || true
+}
+
 copy_url() {
   local url="$1"
 
   [[ -n $url ]] || return 1
   printf '%s' "$url" | wl-copy --type text/plain
   omarchy-notification-send -g 󰅍 "URL copied to clipboard"
+}
+
+open_url() {
+  local url="$1"
+
+  [[ ${url,,} =~ ^https?://[^[:space:]]+$ ]] || return 1
+  omarchy-launch-browser "$url" >/dev/null 2>&1
 }
 
 reply_copied() {
@@ -29,20 +40,41 @@ reply_copied() {
   fi
 }
 
+reply_opened() {
+  if [[ $1 == "true" ]]; then
+    printf '\x0f\x00\x00\x00{"opened":true}'
+  else
+    printf '\x10\x00\x00\x00{"opened":false}'
+  fi
+}
+
 main() {
-  local length payload url
+  local length payload action url
 
   length=$(head -c4 | od -An -v -tu4 --endian=little | tr -d ' ')
   [[ -n ${length:-} ]] && (( length > 0 )) || exit 0
 
   payload=$(head -c "$length")
+  action=$(parse_action "$payload")
   url=$(parse_url "$payload")
 
-  if copy_url "$url"; then
-    reply_copied true
-  else
-    reply_copied false
-  fi
+  case $action in
+  copy)
+    if copy_url "$url"; then
+      reply_copied true
+    else
+      reply_copied false
+    fi
+    ;;
+  open)
+    if open_url "$url"; then
+      reply_opened true
+    else
+      reply_opened false
+    fi
+    ;;
+  *) reply_opened false ;;
+  esac
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
