@@ -74,6 +74,14 @@ Item {
     recordsChanged()
   }
 
+  function reloadAgentRecords() {
+    for (var i = 0; i < agentInstantiator.count; i++) {
+      var agent = agentInstantiator.objectAt(i)
+      if (agent && agent.reloadFromDisk) agent.reloadFromDisk()
+    }
+    recordsChanged()
+  }
+
   function recordsChanged() {
     dataRevision++
     scheduleLimitsRetry()
@@ -130,6 +138,7 @@ Item {
     running: false
     onExited: {
       root.rescanAgents()
+      root.reloadAgentRecords()
       if (root.pendingUpdateKind !== "") {
         var kind = root.pendingUpdateKind
         root.pendingUpdateKind = ""
@@ -217,6 +226,7 @@ Item {
   // All-time keeps a quiet day from hiding an agent; today's counts admit a
   // machine whose only source is history.jsonl, which knows nothing older.
   function providerHasData(p) {
+    if (String(p.providerId) === "claude") return true
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
