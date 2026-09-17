@@ -47,7 +47,12 @@ if [[ -f ~/.config/ghostty/config ]]; then
 fi
 
 if [[ -f ~/.config/foot/foot.ini ]]; then
-  sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
+  # Change only the family and keep whatever :size= the display-text-size
+  # command set; previously this hardcoded :size=9 and clobbered the user's
+  # chosen terminal size every time a font change flowed through here.
+  current_size=$(sed -n 's/^font=.*:size=\([0-9.]*\).*/\1/p' ~/.config/foot/foot.ini | head -1)
+  foot_size="${current_size:-9}"
+  sed -i "s/^font=.*/font=$font_name:size=$foot_size/g" ~/.config/foot/foot.ini
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
