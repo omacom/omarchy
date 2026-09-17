@@ -37,7 +37,7 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 
 The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, an NVMe suspend fix for those same models, and the speaker audio fix on the 12-inch MacBook (MacBook9,1 / MacBook10,1).
 
-The 12-inch MacBook uses a Cirrus Logic CS4208 codec whose speaker amplifier is not enabled by the in-tree driver. The installer adds the community `macbook12-audio-driver` (via DKMS), un-mutes the EFI startup chime (which the firmware requires to power the speaker amp), and keeps the codec out of D3cold so audio survives suspend. You will hear the startup chime on boot; that is expected and is what energises the amp. Volume is controlled in software.
+The 12-inch MacBook uses a Cirrus Logic CS4208 codec whose speaker amplifier is not enabled by the in-tree driver. The installer adds the community `macbook12-audio-driver` (via DKMS), un-mutes the EFI startup chime (which the firmware requires to power the speaker amp), and pins suspend to the freeze path so audio survives suspend/resume. You will hear the startup chime on boot; that is expected and is what energises the amp. Volume is controlled in software.
 
 ### Known Limitations
 
