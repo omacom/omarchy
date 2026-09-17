@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a development environment that was previously installed via omarchy-install-dev-env.
-# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala|terraform>
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala>" >&2
+  echo "Usage: omarchy-remove-dev-env <ruby|node|bun|deno|go|php|laravel|symfony|python|elixir|phoenix|zig|rust|java|dotnet|ocaml|clojure|scala|terraform>" >&2
   exit 1
 fi
 
@@ -103,6 +103,12 @@ scala)
   mise uninstall scala-cli --all
   mise rm -g scala
   mise rm -g scala-cli
+  ;;
+terraform)
+  echo -e "Removing Terraform...\n"
+  mise uninstall terraform --all
+  mise rm -g terraform
+  rm -rf ~/.terraform.d/plugin-cache
   ;;
 *)
   echo "Unknown environment: $1"
