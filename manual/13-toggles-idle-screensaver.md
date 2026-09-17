@@ -94,6 +94,20 @@ You can start it on demand from _System > Screensaver_ (`Super + Esc`), which fo
 
 The logo it draws is yours to change, under _Style > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md).
 
+Each run of the screensaver picks a random effect from `ttfx`, the terminal text-effects engine underneath it — beams, matrix-style digital rain, fireworks, and dozens more. To pin it to one effect instead, add `screensaverEffect` to the `idle` block in `~/.config/omarchy/shell.json`:
+
+```json
+{
+  "idle": {
+    "screensaver": 150,
+    "lock": 300,
+    "screensaverEffect": "matrix"
+  }
+}
+```
+
+The name has to match one of `ttfx`'s effects (run `ttfx --help` for the full list); an unrecognized name falls back to the random rotation and sends a notification saying so.
+
 ### The lock screen
 
 `Super + Ctrl + L` locks the machine. That runs the lock screen from the Omarchy shell, blanks the display, resets your keyboard layout to the first one so you're not typing your password in the wrong alphabet, and — if you have it running — locks 1Password on the way out.
