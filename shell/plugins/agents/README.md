@@ -21,7 +21,8 @@ Every subscription on one page, limits first.
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
-  row's tooltip names it. A lapsed or missing Claude, Codex, or Grok sign-in
+  row's tooltip names it. An account with usage credits gets one more line
+  for them, and its tooltip gives the money spent of the cap. A lapsed or missing Claude, Codex, or Grok sign-in
   shows a _Sign-in required_ link that signs that account in again from the
   panel. Any other trouble — a paused token, another agent's sign-in, an
   endpoint that didn't answer — leaves the last known limits on show, with a
@@ -71,7 +72,7 @@ Adding an agent needs no QML changes: ship a collector that follows the contract
 
 | Collector | Limits | Local stats |
 |---|---|---|
-| `claude` | Anthropic's OAuth usage endpoint (5-hour session, 7-day weekly, and any model-scoped windows) | `~/.claude/projects` transcripts, pi/omp sessions and opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
+| `claude` | Anthropic's OAuth usage endpoint (5-hour session, 7-day weekly, any model-scoped windows, and usage credits) | `~/.claude/projects` transcripts, pi/omp sessions and opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server's `account/rateLimits/read`, every bucket (general windows plus any model's own), plus an individual spend cap and its reported reset time when present | native Codex CLI session files on the built-in `openai` provider, pi/omp sessions on `openai-codex`, and opencode sessions on the `openai` provider |
 | `grok` | The credits endpoint behind Grok's `/usage` view (the billing period's included usage), plus the monthly included quota of a unified-billing account | Each session's `usage.json` (the ledger `grok usage` prints: tokens by model per finished turn, one turn per typed prompt, a fork's copied turns counted once), plus `summary.json` for sessions |
 | `kimi` | Kimi Code quotas (5-hour session, weekly, and monthly allowances) | Kimi Code's per-agent `wire.jsonl` session logs under its home on Kimi's routes, pi, omp, and opencode sessions on the Kimi Code plan (`kimi-coding`, `kimi-code`, `kimi-code-plan-global`, `kimi-code-plan-cn`) or Moonshot's API (`moonshotai`, `moonshotai-cn`, `moonshot`), plus Claude Code turns sent to Kimi's or Moonshot's API or answered by a `kimi-*` or `moonshot*` model |
