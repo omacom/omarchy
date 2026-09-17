@@ -210,5 +210,11 @@ check(
   '_syncServices still drops disabled or removed services'
 )
 
+const registrySource = fs.readFileSync(path.join(root, 'shell/services/PluginRegistry.qml'), 'utf8')
+check(
+  /command: \[\s*"setpriv",\s*"--pdeathsig",\s*"TERM",\s*"inotifywait"/.test(registrySource),
+  'local plugin watcher dies with the shell via pdeathsig'
+)
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
