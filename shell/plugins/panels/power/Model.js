@@ -38,6 +38,11 @@ function parseProfiles(raw, previousIndex) {
   }
 }
 
+function parseChargeLimit(raw) {
+  var text = String(raw || "").trim()
+  return /^(0|[1-9][0-9]?|100)$/.test(text) ? Number(text) : null
+}
+
 function profileIcon(name) {
   if (name === "power-saver") return "󰌪"
   if (name === "balanced") return "󰊚"
@@ -95,6 +100,7 @@ if (typeof module !== "undefined") {
     selectProfileIndex: selectProfileIndex,
     parseKeyValue: parseKeyValue,
     parseProfiles: parseProfiles,
+    parseChargeLimit: parseChargeLimit,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
