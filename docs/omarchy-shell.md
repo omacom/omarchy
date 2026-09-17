@@ -104,7 +104,7 @@ or `omarchy.power`. There is no `bar` target.
 | `toggle <id> <payloadJson>`           | summon if closed, hide if open  |
 | `togglePanelAt <section> <index>`     | toggle the panel at a bar position |
 | `call <id> <method> <arg>`            | call an already-loaded plugin   |
-| `rescanPlugins`                       | re-walk plugin dirs and hot-reload plugin code |
+| `rescanPlugins`                       | re-walk plugin dirs and hot-reload plugin code (entry-point URLs are cache-busted so edited QML is re-read; a full `omarchy restart shell` is still the fallback if a reload looks stale) |
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | flip the bar background between solid and transparent |
