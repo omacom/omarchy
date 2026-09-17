@@ -26,7 +26,27 @@ assert(
 )
 
 assert(
-  (serviceQml.match(/fingerprintFailureNonce \+= 1/g) || []).length >= 2,
-  'both fingerprint failure paths raise the failure signal'
+  /onPamMessage: root\.fingerprintAttemptEngaged = true/.test(serviceQml),
+  'the service records whether the reader ever asked for a finger'
+)
+
+assert(
+  /function scheduleFingerprintRetry\(\)/.test(serviceQml),
+  'the lock service centralises the fingerprint retry'
+)
+
+assert(
+  (serviceQml.match(/scheduleFingerprintRetry\(\)/g) || []).length >= 3,
+  'both fingerprint failure paths retry through the shared helper'
+)
+
+assert(
+  /interval: root\.fingerprintRetryDelay/.test(serviceQml),
+  'the retry interval follows the backoff delay'
+)
+
+assert(
+  /fingerprintRetryDelay = Math\.min\(/.test(serviceQml),
+  'a reader that never engaged backs the retry off instead of flashing'
 )
 JS
