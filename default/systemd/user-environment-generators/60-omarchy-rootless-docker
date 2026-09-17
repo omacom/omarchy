@@ -1,0 +1,6 @@
+#!/bin/sh
+
+if [ -f "$HOME/.local/state/omarchy/rootless-docker/enabled" ]; then
+  runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+  printf 'DOCKER_HOST=unix://%s/docker.sock\n' "$runtime_dir"
+fi
