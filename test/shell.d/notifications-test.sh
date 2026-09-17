@@ -508,6 +508,60 @@ assertDeepEqual(
   'notifications restore nothing from an empty popup dir'
 )
 
+// Critical toasts stay until handled. Only a sender that opts in with
+// --expire-critical has its timeout honored, and then for up to a minute.
+assertEqual(notifications.popupDuration(2, 0, false, 0, 2), 0, 'critical popups never expire by default')
+assertEqual(notifications.popupDuration(2, 30000, false, 0, 2), 0, 'a critical popup ignores its timeout without the expire-critical opt-in')
+assertEqual(notifications.popupDuration(2, 60000, true, 0, 2), 60000, 'an expiring critical popup honors a one-minute timeout')
+assertEqual(notifications.popupDuration(2, 600000, true, 0, 2), 60000, 'an expiring critical popup is capped at a minute')
+assertEqual(notifications.popupDuration(2, 0, true, 0, 2), 0, 'an expiring critical popup without a timeout still stays until handled')
+assertEqual(notifications.popupDuration(1, 60000, true, 0, 2), 30000, 'the expire-critical opt-in does not lift the cap on normal popups')
+assertEqual(notifications.popupDuration(0, 0, false, 0, 2), 5000, 'low popups keep the short default lifetime')
+assertEqual(notifications.popupDuration(1, 0, false, 0, 2), 8000, 'normal popups keep the default lifetime')
+
+const groupedSnapshot = notifications.snapshotOf({
+  id: 5,
+  appName: 'omarchy-action',
+  summary: 'Process crashed: mldr',
+  urgency: 2,
+  expireTimeout: 60000,
+  hints: { 'omarchy-group': 'crash:mldr', 'omarchy-expire-critical': 'true' }
+}, 10)
+assertEqual(groupedSnapshot.group, 'crash:mldr', 'notifications read the group key from its hint')
+assertEqual(groupedSnapshot.groupCount, 1, 'a fresh notification stands for itself alone')
+assertEqual(groupedSnapshot.expireCritical, true, 'notifications read the expire-critical opt-in from its hint')
+assertEqual(notifications.snapshotOf({ id: 6, hints: {} }, 10).expireCritical, false, 'notifications leave critical toasts unexpiring without the hint')
+assert(
+  notifications.sameGroup({ app: 'omarchy-action', group: 'crash:mldr' }, groupedSnapshot),
+  'a repeat matches the toast holding its group'
+)
+assert(
+  !notifications.sameGroup({ app: 'omarchy-action', group: 'crash:foot' }, groupedSnapshot),
+  'a toast holding another group stays apart'
+)
+assert(
+  !notifications.sameGroup({ app: 'Slack', group: 'crash:mldr' }, groupedSnapshot),
+  'another sender using the same group key stays apart'
+)
+assert(
+  !notifications.sameGroup({ app: 'omarchy-action', group: '' }, { app: 'omarchy-action', group: '' }),
+  'ungrouped notifications never absorb one another'
+)
+assertEqual(notifications.groupedSummary('Process crashed: mldr', 1), 'Process crashed: mldr', 'a single notification shows no count')
+assertEqual(notifications.groupedSummary('Process crashed: mldr', 5), 'Process crashed: mldr (×5)', 'a grouped toast shows how many it stands for')
+
+// The group, its count, and the timeout opt-in ride through the popup file, so
+// a shell restart brings back a toast the next repeat can still find.
+const groupedFile = notifications.serializePopup(Object.assign({}, groupedSnapshot, { groupCount: 4 }), 1)
+const restoredGroup = notifications.parsePopupFiles(groupedFile, 1)[0]
+assertEqual(restoredGroup.group, 'crash:mldr', 'a restored popup keeps its group')
+assertEqual(restoredGroup.groupCount, 4, 'a restored popup keeps its count')
+assertEqual(restoredGroup.expireCritical, true, 'a restored popup keeps its expire-critical opt-in')
+assertEqual(notifications.historyRows(groupedFile, [], 1, 10)[0].groupCount, 4, 'history keeps a grouped toast\'s count')
+assertEqual(notifications.historyRows(groupedFile, [], 1, 10)[0].expireCritical, false, 'replayed history drops the expire-critical opt-in with the timeout')
+assertEqual(notifications.popupEntry({ id: 1, timestamp: 5 }, 1).groupCount, 1, 'a popup file from before grouping restores as one notification')
+assertEqual(notifications.popupEntry({ id: 1, timestamp: 5 }, 1).group, '', 'a popup file from before grouping restores ungrouped')
+
 assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups never expire on restore')
 assert(!notifications.popupExpired({ timestamp: 1000 }, 8000, 5000), 'popups within their lifetime are restored')
 assert(notifications.popupExpired({ timestamp: 1000 }, 8000, 9000), 'popups past their lifetime are not restored')
@@ -632,7 +686,7 @@ assert(
   'notifications service re-persists a silenced notification updated while its write was queued'
 )
 assert(
-  /rows\.push\(NotificationLogic\.persistablePopup\(\{[\s\S]{0,400}?\}, imagesDir\)\.entry\)/.test(serviceQml),
+  /rows\.push\(NotificationLogic\.persistablePopup\(rowEntry\(row\), imagesDir\)\.entry\)/.test(serviceQml),
   'notifications service replays carried-over toasts from their persisted image copies'
 )
 assert(
@@ -718,6 +772,42 @@ assert(
 assert(
   /function clear\(\): string \{\s*service\.clearHistory\(\)/.test(serviceQml),
   'notifications clear IPC forgets the recorded history'
+)
+assert(
+  /removePopupsByOriginalId\(snapshot\.originalId[\s\S]{0,300}?absorbGroupedPopups\(snapshot\)[\s\S]{0,300}?popupModel\.insert\(0, snapshot\)/.test(serviceQml),
+  'notifications service folds a grouped notification into the toast holding its group before showing it'
+)
+assert(
+  /function absorbGroupedPopups\(snapshot\)[\s\S]{0,900}?if \(isRestoredRow\(row\)\) \{\s*\n\s*delete restoredPopups\[fileName\]/.test(serviceQml),
+  'notifications service lets a grouped notification absorb a toast restored from before a shell restart'
+)
+assert(
+  /function deleteShownPopupFileFor\(row\)[\s\S]{0,200}?\[\[ -e \$1\/\$2\.json \]\] \|\| exit 0/.test(serviceQml),
+  'notifications service leaves a replayed history entry\'s image copies alone when a group absorbs its row'
+)
+assert(
+  /var grouped = groupedPopupIndex\(restored\)/.test(serviceQml),
+  'notifications service folds a restored toast into a repeat that beat the restore'
+)
+assert(
+  /updated\.groupCount = row\.groupCount/.test(serviceQml),
+  'notifications service keeps a grouped toast\'s count through an in-place update'
+)
+assert(
+  /service\.durationFor\(cardSlot\.urgency, cardSlot\.expireTimeout, cardSlot\.expireCritical\)/.test(serviceQml),
+  'notifications service times each toast by its expire-critical opt-in'
+)
+assert(
+  /durationFor\(entry\.urgency, entry\.expireTimeout, entry\.expireCritical\)/.test(serviceQml),
+  'notifications service judges a restored toast by the same expire-critical opt-in'
+)
+assert(
+  /text: NotificationLogic\.groupedSummary\(root\.summary, root\.groupCount\)/.test(cardQml),
+  'the notification card shows how many notifications a grouped toast stands for'
+)
+assert(
+  /id: closeArea[\s\S]{0,200}?onClicked: root\.closeRequested\(\)/.test(cardQml),
+  'the notification card offers a close button that dismisses without running the click action'
 )
 assert(
   !/pendingModel|pastModel/.test(serviceQml),

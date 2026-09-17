@@ -95,27 +95,9 @@ Item {
   // many `showHistory` can replay.
   readonly property int historyLimit: 10
 
-  readonly property int lowPopupDuration: 5000
-  readonly property int normalPopupDuration: 8000
-  readonly property int maxPopupDuration: 30000
-
-  function durationFor(urgency, expireTimeout) {
-    switch (urgency) {
-    case NotificationUrgency.Critical:
-      return 0
-    case NotificationUrgency.Low:
-      return Math.min(maxPopupDuration, Math.max(lowPopupDuration, requestedDuration(expireTimeout)))
-    default:
-      return Math.min(maxPopupDuration, Math.max(normalPopupDuration, requestedDuration(expireTimeout)))
-    }
-  }
-
-  function requestedDuration(expireTimeout) {
-    // FreeDesktop notification spec (and Quickshell) report expireTimeout in
-    // milliseconds, so pass it through directly.
-    var ms = Number(expireTimeout || 0)
-    if (!isFinite(ms) || ms <= 0) return 0
-    return Math.round(ms)
+  function durationFor(urgency, expireTimeout, expireCritical) {
+    return NotificationLogic.popupDuration(
+      urgency, expireTimeout, expireCritical, NotificationUrgency.Low, NotificationUrgency.Critical)
   }
 
   // DND bypass: only let through notifications we trust to be intentional
@@ -189,6 +171,13 @@ Item {
     // Repeater is mid-incubation while we mutate its model.
     Qt.callLater(function() {
       removePopupsByOriginalId(snapshot.originalId, NotificationLogic.popupFileName(snapshot))
+      // Counted here rather than on arrival: an earlier repeat may itself be
+      // waiting on this same deferral to reach the model.
+      var absorbed = absorbGroupedPopups(snapshot)
+      if (absorbed > 0) {
+        snapshot.groupCount += absorbed
+        persistPopupFile(snapshot)
+      }
       popupModel.insert(0, snapshot)
       // An update that arrived while the insert was deferred found no row to
       // write to, and a property that already changed will not change again.
@@ -271,6 +260,8 @@ Item {
       var row = popupModel.get(i)
       if (!row || row.originalId !== originalId || row.timestamp !== timestamp) continue
       if (!NotificationLogic.popupRowChanged(row, updated)) return
+      // The object knows nothing of the toasts this one absorbed.
+      updated.groupCount = row.groupCount
       for (var r = 0; r < roles.length; r++) popupModel.setProperty(i, roles[r], updated[roles[r]])
       // The file name is the timestamp and id this popup was persisted under,
       // so the rewrite lands on the same file: a restart restores the version
@@ -307,6 +298,62 @@ Item {
       if (isRestoredRow(row)) continue
       if (NotificationLogic.popupFileName(row) !== keepFileName) deletePopupFileFor(row)
       popupModel.remove(i)
+    }
+  }
+
+  // A grouped notification takes the place of every toast on screen holding
+  // its group, restored ones included: unlike an id, the key means the same
+  // thing to every server generation, so a repeat still lands on the toast a
+  // restart brought back. The absorbed files are deleted rather than archived,
+  // for the reason removePopupsByOriginalId gives — the survivor carries the
+  // count into history. Returns how many notifications the absorbed toasts
+  // stood for.
+  function absorbGroupedPopups(snapshot) {
+    var absorbed = 0
+    var keepFileName = NotificationLogic.popupFileName(snapshot)
+    for (var i = popupModel.count - 1; i >= 0; i--) {
+      var row = popupModel.get(i)
+      if (!NotificationLogic.sameGroup(row, snapshot)) continue
+      absorbed += Math.max(1, row.groupCount || 1)
+      var fileName = NotificationLogic.popupFileName(row)
+      if (fileName !== keepFileName) deleteShownPopupFileFor(row)
+      if (isRestoredRow(row)) {
+        delete restoredPopups[fileName]
+      } else if (row.originalId !== snapshot.originalId && liveRefs[row.originalId]) {
+        // Its toast is gone, so nothing else would ever let the server object go.
+        releaseSilenced(liveRefs[row.originalId], row.originalId)
+      }
+      popupModel.remove(i)
+    }
+    return absorbed
+  }
+
+  // The on-screen row holding entry's group, or -1.
+  function groupedPopupIndex(entry) {
+    for (var i = 0; i < popupModel.count; i++) {
+      if (NotificationLogic.sameGroup(popupModel.get(i), entry)) return i
+    }
+    return -1
+  }
+
+  // A plain copy of a model row, in the shape persistence and replay take.
+  function rowEntry(row) {
+    return {
+      id: row.id,
+      originalId: row.originalId,
+      app: row.app,
+      appIcon: row.appIcon,
+      summary: row.summary,
+      body: row.body,
+      image: row.image,
+      glyph: row.glyph || "",
+      execArgv: row.execArgv || "",
+      group: row.group || "",
+      groupCount: row.groupCount || 1,
+      urgency: row.urgency,
+      expireTimeout: row.expireTimeout || 0,
+      expireCritical: !!row.expireCritical,
+      timestamp: row.timestamp
     }
   }
 
@@ -525,6 +572,16 @@ Item {
       popupStateDir, NotificationLogic.imageStem(row), imagesDir])
   }
 
+  // deletePopupFileFor, for a row that may be a history replay. A replayed row
+  // has no file of its own here, and the image copies its stem names belong to
+  // the archived entry it was read from, so they go only with a popup file.
+  function deleteShownPopupFileFor(row) {
+    enqueuePopupFileJob(["bash", "-c",
+      "[[ -e $1/$2.json ]] || exit 0\n" +
+      "rm -f \"$1/$2.json\" \"$3/$2\"-*", "--",
+      popupStateDir, NotificationLogic.imageStem(row), imagesDir])
+  }
+
   // ---------------------------------------------------- history
   //
   // A popup that leaves the screen keeps its file — it just moves one level
@@ -657,19 +714,7 @@ Item {
     for (var i = 0; i < popupModel.count; i++) {
       var row = popupModel.get(i)
       if (!row || row.originalId < 0) continue
-      rows.push(NotificationLogic.persistablePopup({
-        id: row.id,
-        originalId: row.originalId,
-        app: row.app,
-        appIcon: row.appIcon,
-        summary: row.summary,
-        body: row.body,
-        image: row.image,
-        glyph: row.glyph || "",
-        execArgv: row.execArgv || "",
-        urgency: row.urgency,
-        timestamp: row.timestamp
-      }, imagesDir).entry)
+      rows.push(NotificationLogic.persistablePopup(rowEntry(row), imagesDir).entry)
     }
     return rows
   }
@@ -691,8 +736,11 @@ Item {
         image: "",
         glyph: "󰂚",
         execArgv: "",
+        group: "",
+        groupCount: 1,
         urgency: NotificationUrgency.Low,
         expireTimeout: 0,
+        expireCritical: false,
         timestamp: Date.now()
       })
       return
@@ -724,7 +772,7 @@ Item {
     var live = []
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i]
-      var duration = durationFor(entry.urgency, entry.expireTimeout)
+      var duration = durationFor(entry.urgency, entry.expireTimeout, entry.expireCritical)
       if (NotificationLogic.popupExpired(entry, duration, now)) {
         // It would have expired on screen had the shell kept running, so it
         // gets archived exactly like an expiry that happened while it did.
@@ -766,6 +814,19 @@ Item {
           }
         }
         if (duplicate) continue
+        // A repeat that arrived while the restore was reading is the newest of
+        // this group, and a torn replace can leave two files of one group
+        // behind. Either way this older toast folds its count into the row on
+        // screen rather than showing beside it.
+        var grouped = groupedPopupIndex(restored)
+        if (grouped >= 0) {
+          var survivor = popupModel.get(grouped)
+          popupModel.setProperty(grouped, "groupCount",
+            Math.max(1, survivor.groupCount || 1) + Math.max(1, restored.groupCount || 1))
+          deleteShownPopupFileFor(restored)
+          persistPopupFile(rowEntry(popupModel.get(grouped)))
+          continue
+        }
         // Append (entries are newest-first) so restored toasts stack in
         // their original order below anything that just arrived. Restored
         // popups have no liveRefs entry — the server object died with the
@@ -1000,8 +1061,10 @@ Item {
             required property string body
             required property string image
             required property string glyph
+            required property int groupCount
             required property int urgency
             required property double expireTimeout
+            required property bool expireCritical
             required property double timestamp
 
             // Each card sizes itself based on mode (text vs media); the slot
@@ -1010,7 +1073,7 @@ Item {
             Layout.alignment: Qt.AlignRight
             implicitHeight: card.implicitHeight
 
-            readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout)
+            readonly property real lifetime: service.durationFor(cardSlot.urgency, cardSlot.expireTimeout, cardSlot.expireCritical)
             property real remainingLifetime: 1.0
             readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
 
@@ -1044,6 +1107,7 @@ Item {
               app: cardSlot.app
               appIcon: cardSlot.appIcon
               summary: cardSlot.summary
+              groupCount: cardSlot.groupCount
               body: cardSlot.body
               image: cardSlot.image
               urgency: cardSlot.urgency
