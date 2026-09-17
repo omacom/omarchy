@@ -20,6 +20,7 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property int fingerprintFailureNonce: 0
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
@@ -261,6 +262,7 @@ Item {
     if (result === PamResult.Success) {
       finishUnlock()
     } else if (fingerprintConfigured) {
+      fingerprintFailureNonce += 1
       fingerprintRetryTimer.restart()
     }
   }
@@ -309,6 +311,8 @@ Item {
         backgroundPath: root.backgroundPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        fingerprintAuthenticating: root.fingerprintAuthenticating
+        fingerprintFailureNonce: root.fingerprintFailureNonce
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -390,7 +394,10 @@ Item {
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      if (root.lockRequested && root.fingerprintConfigured) {
+        root.fingerprintFailureNonce += 1
+        fingerprintRetryTimer.restart()
+      }
     }
   }
 
