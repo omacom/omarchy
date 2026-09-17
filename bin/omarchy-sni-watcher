@@ -1,0 +1,156 @@
+#!/usr/bin/python3
+import sys
+import gi
+gi.require_version('Gio', '2.0')
+gi.require_version('GLib', '2.0')
+from gi.repository import Gio, GLib
+import logging
+import warnings
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+class SNIWatcher:
+    def __init__(self):
+        self.items = []
+        self.hosts = []
+        self.item_watchers = {}
+        self.sender_to_services = {}
+        
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        
+        introspection_xml = """
+        <node>
+          <interface name="org.kde.StatusNotifierWatcher">
+            <method name="RegisterStatusNotifierItem">
+              <arg type="s" name="service" direction="in"/>
+            </method>
+            <method name="RegisterStatusNotifierHost">
+              <arg type="s" name="service" direction="in"/>
+            </method>
+            <property name="RegisteredStatusNotifierItems" type="as" access="read"/>
+            <property name="IsStatusNotifierHostRegistered" type="b" access="read"/>
+            <property name="ProtocolVersion" type="i" access="read"/>
+            <signal name="StatusNotifierItemRegistered">
+              <arg type="s" name="service"/>
+            </signal>
+            <signal name="StatusNotifierItemUnregistered">
+              <arg type="s" name="service"/>
+            </signal>
+            <signal name="StatusNotifierHostRegistered"/>
+            <signal name="StatusNotifierHostUnregistered"/>
+          </interface>
+        </node>
+        """
+        
+        self.node_info = Gio.DBusNodeInfo.new_for_xml(introspection_xml)
+        self.interface_info = self.node_info.interfaces[0]
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.registration_id = self.bus.register_object(
+                "/StatusNotifierWatcher",
+                self.interface_info,
+                self.handle_method_call,
+                self.handle_get_property,
+                self.handle_set_property
+            )
+        
+        # REPLACE existing watcher if there is one
+        Gio.bus_own_name_on_connection(
+            self.bus,
+            "org.kde.StatusNotifierWatcher",
+            Gio.BusNameOwnerFlags.REPLACE,
+            self.on_name_acquired,
+            self.on_name_lost
+        )
+
+    def on_name_acquired(self, connection, name):
+        logging.info(f"Acquired DBus name {name}")
+
+    def on_name_lost(self, connection, name):
+        logging.error(f"Lost DBus name {name} - another watcher claimed it?")
+        sys.exit(1)
+
+    def on_sender_vanished(self, connection, name):
+        logging.info(f"Owner vanished: {name}")
+        services = self.sender_to_services.pop(name, [])
+        for s in services:
+            if s in self.items:
+                self.items.remove(s)
+                connection.emit_signal(
+                    None,
+                    "/StatusNotifierWatcher",
+                    "org.kde.StatusNotifierWatcher",
+                    "StatusNotifierItemUnregistered",
+                    GLib.Variant("(s)", (s,))
+                )
+        if name in self.item_watchers:
+            Gio.bus_unwatch_name(self.item_watchers[name])
+            del self.item_watchers[name]
+
+    def handle_method_call(self, connection, sender, object_path, interface_name, method_name, parameters, invocation):
+        if method_name == "RegisterStatusNotifierItem":
+            service = parameters.unpack()[0]
+            if service not in self.items:
+                logging.info(f"Registering SNI item: {service} (from {sender})")
+                self.items.append(service)
+                
+                connection.emit_signal(
+                    None,
+                    "/StatusNotifierWatcher",
+                    "org.kde.StatusNotifierWatcher",
+                    "StatusNotifierItemRegistered",
+                    GLib.Variant("(s)", (service,))
+                )
+                
+                if sender not in self.sender_to_services:
+                    self.sender_to_services[sender] = []
+                self.sender_to_services[sender].append(service)
+                
+                if sender not in self.item_watchers:
+                    watch_id = Gio.bus_watch_name_on_connection(
+                        self.bus,
+                        sender,
+                        Gio.BusNameWatcherFlags.NONE,
+                        None,
+                        self.on_sender_vanished
+                    )
+                    self.item_watchers[sender] = watch_id
+                    
+            invocation.return_value(None)
+            
+        elif method_name == "RegisterStatusNotifierHost":
+            service = parameters.unpack()[0]
+            if service not in self.hosts:
+                logging.info(f"Registering SNI host: {service} (from {sender})")
+                self.hosts.append(service)
+                connection.emit_signal(
+                    None,
+                    "/StatusNotifierWatcher",
+                    "org.kde.StatusNotifierWatcher",
+                    "StatusNotifierHostRegistered",
+                    None
+                )
+            invocation.return_value(None)
+        else:
+            invocation.return_error_literal(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD, "Unknown method")
+
+    def handle_get_property(self, connection, sender, object_path, interface_name, property_name):
+        if property_name == "RegisteredStatusNotifierItems":
+            return GLib.Variant("as", self.items)
+        elif property_name == "IsStatusNotifierHostRegistered":
+            return GLib.Variant("b", len(self.hosts) > 0)
+        elif property_name == "ProtocolVersion":
+            return GLib.Variant("i", 0)
+        return None
+
+    def handle_set_property(self, connection, sender, object_path, interface_name, property_name, value):
+        return False
+
+if __name__ == '__main__':
+    watcher = SNIWatcher()
+    loop = GLib.MainLoop()
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        pass
