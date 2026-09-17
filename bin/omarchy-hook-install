@@ -15,6 +15,17 @@ fi
 
 HOOK_TYPE=$1
 HOOK_FILE=$2
+
+# Hook types are the same labels omarchy-hook runs (post-update, theme-set).
+# The type becomes a directory under the hooks directory. A slash would turn
+# it into directory levels. A bare `.` or `..` is a name the runner already
+# refuses, so installing under it would write a hook nothing can run. Refuse
+# those rather than mkdir/cp into them. Dots inside a name (a..b) are fine.
+if [[ -z $HOOK_TYPE || $HOOK_TYPE == */* || $HOOK_TYPE == "." || $HOOK_TYPE == ".." ]]; then
+  echo "Invalid hook name: $HOOK_TYPE" >&2
+  exit 2
+fi
+
 HOOK_DIR="$HOME/.config/omarchy/hooks/$HOOK_TYPE.d"
 HOOK_NAME=$(basename "$HOOK_FILE")
 HOOK_PATH="$HOOK_DIR/$HOOK_NAME"

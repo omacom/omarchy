@@ -86,6 +86,10 @@ if ! agent_install; then
   exit 1
 fi
 
+if [[ $agent == "claude" ]]; then
+  omarchy-install-chromium-claude 2>/dev/null || true
+fi
+
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
