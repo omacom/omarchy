@@ -2,5 +2,61 @@
 
 # omarchy:summary=Print the detected Hyprland touchpad or trackpad device name
 
-device=$(hyprctl devices -j | jq -r '[.mice[] | .name | select(test("touchpad|trackpad"; "i"))] | first // empty')
-[[ -n $device ]] && echo "$device"
+devices_json=$(hyprctl devices -j)
+mapfile -t devices < <(jq -r '.mice[] | .name | select(test("touchpad|trackpad"; "i"))' <<<"$devices_json")
+(( ${#devices[@]} > 0 )) || exit 1
+
+# Prefer a known internal pad when an external trackpad is also connected.
+# Keep the existing fallback for external-only pads and unknown hardware.
+if (( ${#devices[@]} > 1 )); then
+  mapfile -t all_names < <(jq -r '.. | objects | .name? // empty' <<<"$devices_json")
+  declare -A seen=() duplicates=() internal=()
+  input_class_path="${OMARCHY_INPUT_CLASS_PATH:-/sys/class/input}"
+  shopt -s nullglob
+
+  for event in "$input_class_path"/event*; do
+    # An incomplete name inventory could hide an external namesake.
+    if ! name=$(cat "$event/device/name" 2>/dev/null) || [[ -z $name ]]; then
+      internal=()
+      break
+    fi
+    # Match Hyprland's lowercasing and space/comma/newline replacement.
+    name=$(LC_ALL=C tr '[:upper:]' '[:lower:]' <<<"$name")
+    name=${name// /-}
+    name=${name//,/-}
+    name=${name//$'\n'/-}
+    if [[ -n ${seen[$name]:-} ]]; then
+      duplicates["$name"]=1
+    fi
+    seen["$name"]=1
+
+    properties=$(udevadm info --query=property --path="$event" 2>/dev/null) || continue
+    if grep -qx 'ID_INPUT_TOUCHPAD=1' <<<"$properties" &&
+      grep -qx 'ID_INPUT_TOUCHPAD_INTEGRATION=internal' <<<"$properties" &&
+      ! grep -qx 'ID_INPUT_POINTINGSTICK=1' <<<"$properties"; then
+      internal["$name"]=1
+    fi
+  done
+
+  preferred=()
+  for device in "${devices[@]}"; do
+    # Hyprland suffixes colliding names across HID classes. Without event
+    # paths in its JSON, a suffixed or duplicate name cannot identify a pad.
+    ambiguous=false
+    for other in "${all_names[@]}"; do
+      if [[ $other == "$device"-* && ${other#"$device"-} =~ ^[0-9]+$ ]]; then
+        ambiguous=true
+        break
+      fi
+    done
+    if [[ -n ${internal[$device]:-} && -z ${duplicates[$device]:-} && ! $device =~ -[0-9]+$ && $ambiguous == "false" ]]; then
+      preferred+=("$device")
+    fi
+  done
+  if (( ${#preferred[@]} == 1 )); then
+    printf '%s\n' "${preferred[0]}"
+    exit 0
+  fi
+fi
+
+printf '%s\n' "${devices[0]}"
