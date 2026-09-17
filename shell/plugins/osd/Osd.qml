@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Pipewire
 import Quickshell.Wayland
 import qs.Commons
 import qs.Ui
@@ -78,6 +79,73 @@ Item {
   }
 
   function close() { opened = false }
+
+  // Volume changed anywhere other than the volume keys never reaches this OSD.
+  // The keys run omarchy-audio-output-volume, which asks for the OSD itself; a
+  // Bluetooth headset's own buttons, pavucontrol and per-app sliders all move
+  // the same output without going near that command, so the change happened
+  // silently. Watch the output directly and announce those the same way.
+  //
+  // Resolution follows omarchy-audio-output-sink rather than
+  // Pipewire.defaultAudioSink, because a DSP sink -- a speaker tuning, or
+  // EasyEffects -- can be the selected output without being where loudness
+  // lives. Reading the default alone would report the level going *into* the
+  // processing and disagree with the figure the keys just showed.
+  property string volumeSinkName: ""
+
+  readonly property var defaultSink: Pipewire.defaultAudioSink
+
+  readonly property var volumeSink: {
+    if (volumeSinkName === "" || !defaultSink) return defaultSink
+    if (volumeSinkName === String(defaultSink.name)) return defaultSink
+    var candidates = Pipewire.nodes ? Pipewire.nodes.values : []
+    for (var i = 0; i < candidates.length; i++) {
+      var node = candidates[i]
+      if (node && node.isSink && !node.isStream && String(node.name) === volumeSinkName && node.audio)
+        return node
+    }
+    return defaultSink
+  }
+
+  readonly property int volumePercent: volumeSink && volumeSink.audio ? Math.round(volumeSink.audio.volume * 100) : 0
+  readonly property bool volumeMuted: volumeSink && volumeSink.audio ? volumeSink.audio.muted : false
+
+  // One settled state of one output. Selecting a different output lands a
+  // different level without anyone having touched a volume control, so that
+  // level is adopted as the new baseline instead of being announced.
+  readonly property string volumeState: volumeSink
+    ? String(volumeSink.name) + "|" + volumePercent + "|" + volumeMuted
+    : ""
+  property string lastVolumeState: ""
+
+  onDefaultSinkChanged: resolveVolumeSink()
+  Component.onCompleted: resolveVolumeSink()
+
+  function resolveVolumeSink() {
+    if (!volumeSinkProc.running) volumeSinkProc.running = true
+  }
+
+  onVolumeStateChanged: {
+    var previous = lastVolumeState
+    lastVolumeState = volumeState
+    // Nothing to compare against until the sink has bound once.
+    if (volumeState === "" || previous === "") return
+    if (volumeState.split("|")[0] !== previous.split("|")[0]) return
+    show(volumeMuted || volumePercent === 0 ? "volume-muted" : "volume-high",
+         "", String(volumePercent), "100", "", "1200")
+  }
+
+  // PipeWire only publishes volume updates for nodes that are being tracked.
+  PwObjectTracker { objects: root.volumeSink ? [root.volumeSink] : [] }
+
+  Process {
+    id: volumeSinkProc
+    command: ["omarchy-audio-output-sink"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.volumeSinkName = String(text).trim()
+    }
+  }
 
   Timer {
     id: hideTimer
