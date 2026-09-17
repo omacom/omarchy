@@ -38,4 +38,14 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) PATH="${PATH:+$PATH:}$HOME/.local/bin" ;;
 esac
+# GHCup puts ghc/cabal/hls here. Append the directory so session apps see
+# them without sourcing ~/.ghcup/env (user-writable shell).
+case ":$PATH:" in
+  *":$HOME/.ghcup/bin:"*) ;;
+  *)
+    if [ -d "$HOME/.ghcup/bin" ]; then
+      PATH="${PATH:+$PATH:}$HOME/.ghcup/bin"
+    fi
+    ;;
+esac
 export PATH
