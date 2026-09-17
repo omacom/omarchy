@@ -55,7 +55,16 @@ assert_power_calls reboot reboot
 run_power_command shutdown
 assert_power_calls shutdown poweroff
 
-for action in reboot shutdown; do
+run_power_command logout
+cat >"$test_tmp/logout-expected.log" <<EOF
+systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms uwsm stop
+omarchy-hyprland-window-close-all 
+sleep 1
+EOF
+diff -u "$test_tmp/logout-expected.log" "$call_log" || fail "logout runs after being scheduled outside the terminal scope"
+pass "logout runs after being scheduled outside the terminal scope"
+
+for action in reboot shutdown logout; do
   : >"$call_log"
   if PATH="$mock_bin:$PATH" CALL_LOG="$call_log" FAIL_SYSTEMD_RUN=true "$ROOT/bin/omarchy-system-$action"; then
     fail "$action aborts when scheduling fails"
