@@ -152,8 +152,22 @@ assert(
   'menu ranks an app matching the query as a whole word above exact-labeled menu entries'
 )
 assert(
-  rankScore('style.font', 'font') < rankScore('apps.fontforge', 'font'),
-  'menu keeps a better-matching menu entry above a weaker app match'
+  rankScore('apps.fontforge', 'font') < rankScore('style.font', 'font'),
+  'menu ranks an installed app above a menu entry even when the menu entry matches better'
+)
+
+// "vsc" matches the VSCode menu entries by label prefix but the installed
+// app only by keyword substring, so without an apps-first bias the app
+// sorts second. The menu must still put the app on top.
+const vscRanked = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
+  { id: 'apps.code', parent: 'apps', kind: 'app', label: 'Visual Studio Code', description: 'Text Editor', aliases: ['Text Editor', 'vscode'] }
+])
+const vscScore = (id, query) => menu.searchScore(vscRanked.items, vscRanked.items[id], query)
+assert(
+  ['setup.default.editor.vscode', 'install.editor.vscode'].every(
+    id => vscScore('apps.code', 'vsc') < vscScore(id, 'vsc')
+  ),
+  'menu ranks the installed VS Code app above its VSCode menu entries for vsc'
 )
 
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
