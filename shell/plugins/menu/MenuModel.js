@@ -490,6 +490,35 @@ function guardScript(items) {
   return guards ? guardPrelude(guards) + guards : ""
 }
 
+function webSearchLooksLikeUrl(query) {
+  var q = String(query || "").trim()
+  // A space reads as search, matching the browser omnibox: URLs do not
+  // carry raw whitespace.
+  if (!q || /\s/.test(q)) return false
+  return /^[a-z][a-z0-9+.-]*:/i.test(q) || q.indexOf(".") >= 0 || /^localhost([:/?#]|$)/i.test(q)
+}
+
+// Turn a menu-search query into the URL to open: a bare URL (with a scheme
+// added when missing, http for localhost) or a search-engine query when the
+// text does not read as a URL. `template` is the search URL with a
+// {searchTerms} placeholder; Google is the fallback.
+function webSearchTarget(query, template) {
+  var q = String(query || "").trim()
+  if (!q) return ""
+  if (webSearchLooksLikeUrl(q)) {
+    if (/^localhost([:/?#]|$)/i.test(q)) return "http://" + q
+    if (/^[^:/?#]+\.[^:/?#]+:\d+(?:[/?#]|$)/.test(q)) return "https://" + q
+    if (/^[a-z][a-z0-9+.-]*:/i.test(q)) return q
+    return "https://" + q
+  }
+  var tpl = String(template || "")
+  // Only an http(s) template may reach the browser: anything else lets whatever
+  // writes shell.json choose the scheme (javascript:, file:) or pass a leading
+  // dash that the browser parses as a flag rather than a URL.
+  if (!/^https?:\/\//i.test(tpl)) tpl = "https://www.google.com/search?q={searchTerms}"
+  return tpl.split("{searchTerms}").join(encodeURIComponent(q))
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     guardReaders: GUARD_READERS,
@@ -519,6 +548,8 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
-    displayRow: displayRow
+    displayRow: displayRow,
+    webSearchLooksLikeUrl: webSearchLooksLikeUrl,
+    webSearchTarget: webSearchTarget
   }
 }
