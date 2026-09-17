@@ -1,0 +1,134 @@
+#!/bin/bash
+
+# omarchy:summary=Show a listed theme's palette, artist and install notes
+# omarchy:group=theme
+# omarchy:args=<theme-name>
+# omarchy:examples=omarchy theme info sunset-drive
+
+set -euo pipefail
+
+fail() {
+  echo "omarchy-theme-info: $*" >&2
+  exit 1
+}
+
+(( $# >= 1 )) || fail "a theme name is required"
+
+entry=$(omarchy-theme-catalog --entry "$1")
+[[ -n $entry ]] || fail "'$1' is not a listed theme. Browse them with: omarchy theme browse"
+
+heading() {
+  printf '\n\e[1m  %s\e[0m\n' "$1"
+}
+
+field() {
+  [[ -n $2 ]] || return 0
+  printf '  \e[2m%-9s\e[0m %s\n' "$1" "$2"
+}
+
+# A hex value means nothing next to its own name, so each one is printed in a
+# block painted that colour.
+swatch() {
+  local key="$1"
+  local hex="$2"
+
+  if [[ $hex =~ ^#([0-9a-fA-F]{6})$ ]]; then
+    printf '  \e[48;2;%d;%d;%dm    \e[0m %-20s %s\n' \
+      "$((16#${hex:1:2}))" "$((16#${hex:3:2}))" "$((16#${hex:5:2}))" "$key" "$hex"
+  else
+    printf '  %-20s %s\n' "$key" "$hex"
+  fi
+}
+
+# The validator's codes are written for the marketplace's own pages, so each one
+# is spelled out here rather than printed raw.
+warning_label() {
+  case "$1" in
+  IGNORED_ON_INSTALL) echo "ships files Omarchy will not install" ;;
+  NON_THEME_PAYLOAD) echo "carries files that are neither colour nor art" ;;
+  VSCODE_EXTENSION) echo "names a VS Code extension, which is not installed" ;;
+  VSCODE_JSON_INVALID) echo "its vscode.json could not be read" ;;
+  PALETTE_PARTIAL) echo "palette is missing keys, which Omarchy derives" ;;
+  PALETTE_UNKNOWN_KEYS) echo "palette has keys Omarchy does not read" ;;
+  PALETTE_LEGACY) echo "palette comes from an alacritty.toml, not colors.toml" ;;
+  MODE_UNDECLARED) echo "no mode declared; inferred from the palette" ;;
+  MODE_MISMATCH) echo "declared mode disagrees with the palette" ;;
+  PREVIEW_ASPECT) echo "its preview is not the shape the switcher shows" ;;
+  BACKGROUNDS_LARGE) echo "backgrounds are large to download" ;;
+  BACKGROUND_HEAVY) echo "a single background is unusually large" ;;
+  BACKGROUND_VIDEO) echo "includes a video background" ;;
+  BACKGROUND_FILENAME) echo "a background is named in a way Omarchy may not order" ;;
+  BACKGROUND_SKIPPED) echo "a background was skipped as unreadable" ;;
+  ICONS_THEME_UNKNOWN) echo "names an icon theme this machine may not have" ;;
+  KEYBOARD_RGB_INVALID) echo "its keyboard.rgb could not be read" ;;
+  UNLOCK_PAIR) echo "ships only one half of the unlock images" ;;
+  NO_LICENSE_FILE) echo "no LICENSE file" ;;
+  REPO_NO_LICENSE) echo "no licence declared on the repository" ;;
+  REPO_NO_TOPIC) echo "the repository carries no omarchy-theme topic" ;;
+  NO_README) echo "no README" ;;
+  *) echo "see the theme's page" ;;
+  esac
+}
+
+slug=$(jq -r '.slug' <<<"$entry")
+commit=$(jq -r '.commit' <<<"$entry")
+description=$(jq -r '.description // ""' <<<"$entry")
+
+heading "$(jq -r '.name' <<<"$entry")"
+[[ -n $description ]] && printf '  %s\n\n' "$description"
+
+field "Repo" "$(jq -r '.repo' <<<"$entry")"
+field "Artist" "$(jq -r 'if (.author | type) == "object" then (.author.login // "") else (.author // "") end' <<<"$entry")"
+field "Mode" "$(jq -r '[.mode, .hue] | map(select(. != null and . != "")) | join(" · ")' <<<"$entry")"
+field "License" "$(jq -r '.license // "none"' <<<"$entry")"
+field "Layout" "$(jq -r '.generation // ""' <<<"$entry")"
+field "Stars" "$(jq -r '.stars // 0' <<<"$entry")"
+field "Commit" "${commit:0:12}"
+
+# Found by the listed name the marker carries, not the directory: the two can
+# differ, and the marker is what omarchy-theme-update goes by.
+mapfile -t pinned < <(omarchy-theme-pinned || true)
+for dir in "${pinned[@]}"; do
+  here=$(jq -r --arg name "$slug" 'select(.name == $name) | .commit // ""' "$dir/.marketplace")
+  [[ -n $here ]] || continue
+
+  if [[ $here == "$commit" ]]; then
+    field "Installed" "${here:0:12} (current)"
+  else
+    field "Installed" "${here:0:12} (omarchy theme update moves it to ${commit:0:12})"
+  fi
+  break
+done
+
+palette=$(jq -r '(.colors // {}) | to_entries[] | "\(.key)\t\(.value)"' <<<"$entry")
+if [[ -n $palette ]]; then
+  heading "Palette"
+  while IFS=$'\t' read -r key value; do
+    swatch "$key" "$value"
+  done <<<"$palette"
+fi
+
+backgrounds=$(jq -r 'if .backgrounds then
+    "\(.backgrounds.count) file(s), \((.backgrounds.total_bytes / 1048576) | floor) MB\(if .backgrounds.has_video then ", includes video" else "" end)"
+  else "" end' <<<"$entry")
+if [[ -n $backgrounds ]]; then
+  heading "Backgrounds"
+  printf '  %s\n' "$backgrounds"
+fi
+
+ignored=$(jq -r '(.ignored_on_install // []) | join(" ")' <<<"$entry")
+if [[ -n $ignored ]]; then
+  heading "Not installed"
+  printf '  %s\n' "$ignored"
+  printf '  A theme installed from a git repo cannot supply Lua, a terminal config, or vscode.json.\n'
+fi
+
+warnings=$(jq -r '(.warnings // [])[]' <<<"$entry")
+if [[ -n $warnings ]]; then
+  heading "Validator notes"
+  while IFS= read -r code; do
+    printf '  %s — %s\n' "$code" "$(warning_label "$code")"
+  done <<<"$warnings"
+fi
+
+printf '\n  https://themes.omarchy.org/themes/%s\n\n' "$slug"

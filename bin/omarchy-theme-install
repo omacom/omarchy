@@ -1,36 +1,19 @@
 #!/bin/bash
 
-# omarchy:summary=Install a theme from a git repository
-# omarchy:args=[git-repo-url]
-# omarchy:examples=omarchy theme install https://github.com/example/omarchy-example-theme.git
-# omarchy:examples=omarchy theme install git@github.com:example/omarchy-example-theme.git
-
-if [[ -z $1 ]]; then
-  echo -e "\e[32mSee https://omarchy.org/themes/\n\e[0m"
-  REPO_URL=$(gum input --placeholder="Git repo URL (https or git@host:org/repo.git)" --header="")
-else
-  REPO_URL="$1"
-fi
-
-if [[ -z $REPO_URL ]]; then
-  exit 1
-fi
-
-# Refuse a URL that names a git option or a transport helper before cloning. The
-# check is shared with omarchy-plugin-add and explains itself; a missing checker
-# leaves this non-zero, which refuses the URL rather than cloning it.
-omarchy-git-url-check "$REPO_URL" || exit 1
+# omarchy:summary=Install a theme from the marketplace or a git repository
+# omarchy:args=[theme-name|git-repo-url]
+# omarchy:examples=omarchy theme install sunset-drive | omarchy theme install https://github.com/tahayvr/omarchy-sunset-drive-theme | omarchy theme install git@github.com:tahayvr/omarchy-sunset-drive-theme.git
 
 THEMES_DIR="$HOME/.config/omarchy/themes"
 
-# Strip user@host: prefix from scp-style SSH URLs so basename sees just the path.
-# git reads a URL as scp-style when a colon appears before any slash, so the path
-# after it need not hold one: `git@host:omarchy-blue-theme.git` is a repo in that
-# user's home, and leaving its prefix on names the theme after the whole URL.
-REPO_PATH="$REPO_URL"
-[[ $REPO_PATH != *"://"* && $REPO_PATH == *:* && ${REPO_PATH%%:*} != */* ]] && REPO_PATH="${REPO_PATH#*:}"
-THEME_NAME=$(basename -- "$REPO_PATH" .git | sed -E 's/^omarchy-//; s/-theme$//' | tr '[:upper:]' '[:lower:]')
-THEME_PATH="$THEMES_DIR/$THEME_NAME"
+# Every address git understands carries a slash or a colon, so a bare name is a
+# catalog lookup. A local directory still clones when spelled `./theme`.
+looks_like_a_theme_name() {
+  local candidate="$1"
+
+  [[ $candidate != *[/:]* ]] || return 1
+  (LC_ALL=C; [[ $candidate =~ ^[a-z0-9_][a-z0-9._+-]*$ ]])
+}
 
 # The name comes from the URL, is joined into a path that is about to be
 # removed, and then names a directory the rest of Omarchy passes around by
@@ -42,22 +25,158 @@ THEME_PATH="$THEMES_DIR/$THEME_NAME"
 # which also covers `host:-s/foo.git` leaving basename with `.git`.
 # A bracket range follows the locale's collation, not ASCII: `[a-z]` takes in
 # `é` under en_US.UTF-8. Pin the locale so the set is the one written here.
-if ! (LC_ALL=C; [[ $THEME_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]); then
-  echo "Error: '$REPO_URL' does not give a usable theme name."
+theme_name_from_url() {
+  local url="$1"
+  local path="$url"
+  local name
+
+  # Strip user@host: prefix from scp-style SSH URLs so basename sees just the
+  # path. git reads a URL as scp-style when a colon appears before any slash, so
+  # the path after it need not hold one: `git@host:omarchy-blue-theme.git` is a
+  # repo in that user's home, and leaving its prefix on names the theme after
+  # the whole URL.
+  [[ $path != *"://"* && $path == *:* && ${path%%:*} != */* ]] && path="${path#*:}"
+  name=$(basename -- "$path" .git | sed -E 's/^omarchy-//; s/-theme$//' | tr '[:upper:]' '[:lower:]')
+
+  (LC_ALL=C; [[ $name =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]) || return 1
+  printf '%s' "$name"
+}
+
+clone_theme() {
+  local url="$1"
+  local path="$2"
+
+  # A symlink here is someone's own working copy, the same distinction
+  # omarchy-theme-set and omarchy-theme-extras draw. Replacing a clone is what
+  # installing means; unlinking a working copy is not.
+  if [[ -L $path ]]; then
+    echo "Error: $path is a symlink to your own theme. Remove it first if you want to install over it."
+    return 1
+  fi
+
+  [[ -d $path ]] && rm -rf "$path"
+
+  if ! git clone -- "$url" "$path"; then
+    echo "Error: Failed to clone theme repo."
+    return 1
+  fi
+}
+
+# What the marketplace listed is a repository at one commit, and that is the
+# commit its validator checked. Following the branch instead would install
+# whatever landed since, so the commit is what gets checked out -- and a repo
+# that no longer has it is a failure to report, not something to paper over by
+# taking HEAD.
+pin_theme() {
+  local path="$1"
+  local commit="$2"
+
+  if ! git -C "$path" cat-file -e "$commit^{commit}" 2>/dev/null &&
+    ! git -C "$path" fetch --quiet origin "$commit" 2>/dev/null; then
+    return 1
+  fi
+
+  git -C "$path" checkout --quiet --detach "$commit"
+}
+
+# Records where the theme came from so omarchy-theme-update can move it to the
+# next validated commit rather than pull a branch it is deliberately not on. The
+# dotfile is never staged by omarchy-theme-set, and git is told to ignore it so
+# the clone still reads as clean.
+mark_theme() {
+  local path="$1"
+  local name="$2"
+  local repo="$3"
+  local commit="$4"
+
+  jq -n --arg name "$name" --arg repo "$repo" --arg commit "$commit" \
+    --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{schema_version: 1, name: $name, repo: $repo, commit: $commit, installed_at: $at}' \
+    >"$path/.marketplace"
+  echo ".marketplace" >>"$path/.git/info/exclude"
+}
+
+install_from_catalog() {
+  local name="$1"
+  local entry
+  local repo
+  local commit
+  local derived
+  local path
+
+  entry=$(omarchy-theme-catalog --entry "$name") || return 1
+
+  if [[ -z $entry ]]; then
+    echo "Error: '$name' is not a listed theme. Browse them with: omarchy theme browse"
+    return 1
+  fi
+
+  repo=$(jq -r '.repo' <<<"$entry")
+  commit=$(jq -r '.commit' <<<"$entry")
+
+  omarchy-git-url-check "$repo" || return 1
+
+  # omarchy-theme-set and every picker after it address a theme by directory
+  # name, so the directory is what this machine derives from the URL. The
+  # marketplace derives the same way; should they ever disagree, the marker
+  # keeps the listed name so the theme can still be found again.
+  derived=$(theme_name_from_url "$repo") || {
+    echo "Error: '$repo' does not give a usable theme name."
+    return 1
+  }
+
+  if [[ $derived != "$name" ]]; then
+    echo "Note: the marketplace lists this as '$name'; installing it as '$derived'."
+  fi
+
+  path="$THEMES_DIR/$derived"
+  clone_theme "$repo" "$path" || return 1
+
+  if ! pin_theme "$path" "$commit"; then
+    rm -rf "$path"
+    echo "Error: '$name' no longer has the commit the marketplace validated. Try: omarchy theme browse --refresh"
+    return 1
+  fi
+
+  mark_theme "$path" "$name" "$repo" "$commit"
+  omarchy-theme-set "$derived"
+}
+
+install_from_url() {
+  local url="$1"
+  local name
+  local path
+
+  omarchy-git-url-check "$url" || return 1
+
+  name=$(theme_name_from_url "$url") || {
+    echo "Error: '$url' does not give a usable theme name."
+    return 1
+  }
+
+  path="$THEMES_DIR/$name"
+  clone_theme "$url" "$path" || return 1
+
+  # Apply the new theme with omarchy-theme-set, which stages only the files an
+  # extra theme is allowed to contribute and names anything it dropped.
+  omarchy-theme-set "$name"
+}
+
+if [[ -z $1 ]]; then
+  echo -e "\e[32mSee https://themes.omarchy.org, or run: omarchy theme browse\n\e[0m"
+  TARGET=$(gum input --placeholder="Theme name, or git repo URL (https or git@host:org/repo.git)" --header="")
+else
+  TARGET="$1"
+fi
+
+if [[ -z $TARGET ]]; then
   exit 1
 fi
 
-# Remove existing theme if present
-if [[ -d $THEME_PATH ]]; then
-  rm -rf "$THEME_PATH"
-fi
+mkdir -p "$THEMES_DIR"
 
-# Clone the repo directly to ~/.config/omarchy/themes
-if ! git clone -- "$REPO_URL" "$THEME_PATH"; then
-  echo "Error: Failed to clone theme repo."
-  exit 1
+if looks_like_a_theme_name "$TARGET"; then
+  install_from_catalog "$TARGET"
+else
+  install_from_url "$TARGET"
 fi
-
-# Apply the new theme with omarchy-theme-set, which stages only the files an
-# extra theme is allowed to contribute and names anything it dropped.
-omarchy-theme-set "$THEME_NAME"

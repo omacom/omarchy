@@ -2,9 +2,93 @@
 
 # omarchy:summary=Update user-installed git themes
 
+# A theme installed from the marketplace sits on the commit its validator
+# checked, deliberately not on a branch, so pulling one would both fail and undo
+# the pin. Those move to the newest validated commit instead; a theme the user
+# cloned themselves still follows its branch.
+
+THEME_MOVED=0
+
+update_pinned() {
+  local theme="$1"
+  local name
+  local installed
+  local entry
+  local latest
+
+  name=$(jq -r '.name // empty' "$theme/.marketplace")
+  installed=$(jq -r '.commit // empty' "$theme/.marketplace")
+
+  # A catalog that cannot be read is not a theme that was delisted.
+  if ! entry=$(omarchy-theme-catalog --entry "$name"); then
+    echo "  could not read the marketplace; left at ${installed:0:12}"
+    return 1
+  fi
+
+  latest=$(jq -r '.commit // empty' <<<"$entry")
+
+  if [[ -z $latest ]]; then
+    echo "  no longer listed on the marketplace; left at ${installed:0:12}"
+    return 0
+  fi
+
+  if [[ $latest == "$installed" ]]; then
+    echo "  already at the validated commit ${installed:0:12}"
+    return 0
+  fi
+
+  if ! git -C "$theme" cat-file -e "$latest^{commit}" 2>/dev/null &&
+    ! git -C "$theme" fetch --quiet origin "$latest" 2>/dev/null; then
+    echo "  could not fetch ${latest:0:12}; left at ${installed:0:12}"
+    return 1
+  fi
+
+  git -C "$theme" checkout --quiet --detach "$latest" || return 1
+
+  jq --arg commit "$latest" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '.commit = $commit | .installed_at = $at' "$theme/.marketplace" >"$theme/.marketplace.new" &&
+    mv -f "$theme/.marketplace.new" "$theme/.marketplace"
+
+  echo "  ${installed:0:12} -> ${latest:0:12}"
+  THEME_MOVED=1
+}
+
+update_checkout() {
+  local theme="$1"
+  local before
+
+  before=$(git -C "$theme" rev-parse HEAD 2>/dev/null)
+  git -C "$theme" pull
+
+  if [[ $(git -C "$theme" rev-parse HEAD 2>/dev/null) != "$before" ]]; then
+    THEME_MOVED=1
+  fi
+}
+
 mapfile -t themes < <(omarchy-theme-extras)
 
+current=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+restage=0
+
 for theme in "${themes[@]}"; do
-  echo "Updating: $(basename "$theme")"
-  git -C "$theme" pull
+  name=$(basename "$theme")
+  echo "Updating: $name"
+
+  THEME_MOVED=0
+  if [[ -f $theme/.marketplace ]]; then
+    update_pinned "$theme"
+  else
+    update_checkout "$theme"
+  fi
+
+  if (( THEME_MOVED )) && [[ $name == "$current" ]]; then
+    restage=1
+  fi
 done
+
+# A theme that changed under the running desktop is still the old one until it
+# is staged again.
+if (( restage )); then
+  echo "Re-applying $current"
+  omarchy-theme-set "$current"
+fi

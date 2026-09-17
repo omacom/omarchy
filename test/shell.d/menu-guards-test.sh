@@ -269,7 +269,8 @@ git_calls=$(mktemp)
 trap 'rm -rf "$stub_dir" "$themes_home" "$git_calls"' EXIT
 HOME="$themes_home/many" LC_ALL=C GIT_CALLS="$git_calls" PATH="$ROOT/bin:$stub_dir:$PATH" \
   "$ROOT/bin/omarchy-theme-update" >/dev/null 2>&1
-pulled=$(<"$git_calls")
+# omarchy-theme-update also reads HEAD around each pull; only the pulls matter here.
+pulled=$(grep -F '<pull>' "$git_calls")
 [[ $pulled == "<-C><$many/tokyo night><pull>"$'\n'"<-C><$many/zen><pull>" ]] ||
   fail "omarchy-theme-update pulls each clone by its whole path" "got: $pulled"
 pass "omarchy-theme-update pulls each clone by its whole path"
