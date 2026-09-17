@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# omarchy:summary=Set up experimental Codex Remote access from ChatGPT mobile
+# omarchy:args=[--remove]
+
+set -euo pipefail
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+install_dir="$HOME/.local/share/omarchy/codex-remote/bin"
+launcher="$HOME/.local/bin/codex-remote"
+config="$config_home/omarchy/codex-remote.conf"
+unit="$config_home/systemd/user/omarchy-codex-remote.service"
+managed_marker="# omarchy:managed=codex-remote"
+
+refuse_foreign_file() {
+  local path="$1"
+
+  if [[ -e $path || -L $path ]]; then
+    if [[ ! -f $path ]] || ! grep -Fxq "$managed_marker" "$path"; then
+      echo "Refusing to replace a file not managed by Omarchy: $path" >&2
+      exit 1
+    fi
+  fi
+}
+
+remove_managed_file() {
+  local path="$1"
+
+  if [[ -f $path ]] && grep -Fxq "$managed_marker" "$path"; then
+    rm -f "$path"
+  fi
+}
+
+remove_remote() {
+  systemctl --user disable --now omarchy-codex-remote.service >/dev/null 2>&1 || true
+  remove_managed_file "$launcher"
+  remove_managed_file "$config"
+  remove_managed_file "$unit"
+  systemctl --user daemon-reload
+
+  echo "Codex Remote integration removed."
+  echo "The standalone Codex runtime and your Codex data were kept."
+}
+
+case "${1:-}" in
+  "") ;;
+  --remove)
+    remove_remote
+    exit 0
+    ;;
+  -h | --help)
+    cat <<'EOF'
+Usage: omarchy setup codex remote [--remove]
+
+Installs an experimental Linux host for Codex Remote and a codex-remote
+launcher. The normal Mise-managed codex command is left unchanged.
+
+Remote officially supports macOS and Windows hosts. This Linux integration
+uses experimental interfaces in the current Codex CLI and may change.
+EOF
+    exit 0
+    ;;
+  *)
+    echo "omarchy-setup-codex-remote: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+esac
+
+refuse_foreign_file "$launcher"
+refuse_foreign_file "$config"
+refuse_foreign_file "$unit"
+
+echo "Installing OpenAI's standalone Codex runtime for experimental Remote support..."
+installer="$(mktemp)"
+trap 'rm -f "$installer"' EXIT
+curl -fsSL https://chatgpt.com/codex/install.sh -o "$installer"
+
+# Put the isolated destination in PATH only for the installer invocation. This
+# keeps the official installer from adding it to a shell profile and shadowing
+# Omarchy's Mise-managed codex command.
+env \
+  PATH="$install_dir:$PATH" \
+  CODEX_HOME="$codex_home" \
+  CODEX_INSTALL_DIR="$install_dir" \
+  CODEX_NON_INTERACTIVE=1 \
+  sh "$installer"
+
+install -Dm755 "$OMARCHY_PATH/default/codex/codex-remote" "$launcher"
+install -Dm644 "$OMARCHY_PATH/default/systemd/user/omarchy-codex-remote.service" "$unit"
+mkdir -p "$(dirname "$config")"
+printf '%s\nCODEX_REMOTE_HOME=%q\n' "$managed_marker" "$codex_home" >"$config"
+
+systemctl --user daemon-reload
+systemctl --user enable --now omarchy-codex-remote.service
+
+cat <<'EOF'
+
+Codex Remote is running.
+
+Pair a phone:
+  codex-remote pair
+
+Start or resume shared terminal sessions with codex-remote instead of codex:
+  codex-remote
+  codex-remote resume
+
+Sessions already open through the normal codex command must be stopped once
+and resumed through codex-remote before ChatGPT mobile can open them live.
+
+Remove this integration with:
+  omarchy setup codex remote --remove
+EOF

@@ -1,0 +1,21 @@
+# omarchy:managed=codex-remote
+
+[Unit]
+Description=Codex Remote Control (experimental Linux host)
+Documentation=https://learn.chatgpt.com/docs/remote-connections
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=%h/.local/bin/codex-remote
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=%h/.local/bin/codex-remote --daemon-start
+ExecStop=%h/.local/bin/codex-remote --daemon-stop
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=45
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

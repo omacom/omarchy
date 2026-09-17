@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# omarchy:managed=codex-remote
+
+# Launch interactive Codex sessions through the app-server daemon used by
+# ChatGPT Remote, so the terminal and paired clients share one thread owner.
+
+set -euo pipefail
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+config="$config_home/omarchy/codex-remote.conf"
+
+if [[ ! -r $config ]]; then
+  echo "Codex Remote is not configured. Run: omarchy setup codex remote" >&2
+  exit 1
+fi
+
+# Written by omarchy-setup-codex-remote with shell escaping.
+# shellcheck disable=SC1090
+source "$config"
+export CODEX_HOME="$CODEX_REMOTE_HOME"
+
+managed_codex="$HOME/.local/share/omarchy/codex-remote/bin/codex"
+daemon_socket="$CODEX_REMOTE_HOME/app-server-control/app-server-control.sock"
+
+if [[ ! -x $managed_codex ]]; then
+  echo "Codex Remote's standalone runtime is missing. Re-run:" >&2
+  echo "  omarchy setup codex remote" >&2
+  exit 1
+fi
+
+start_daemon() {
+  "$managed_codex" remote-control start >/dev/null
+}
+
+ensure_daemon() {
+  local attempt
+
+  if [[ ! -S $daemon_socket ]]; then
+    start_daemon
+  fi
+
+  for attempt in {1..50}; do
+    [[ -S $daemon_socket ]] && return 0
+    sleep 0.1
+  done
+
+  echo "Codex Remote started, but its socket did not appear at:" >&2
+  echo "  $daemon_socket" >&2
+  return 1
+}
+
+case "${1:-}" in
+  --daemon-start)
+    start_daemon
+    exit 0
+    ;;
+  --daemon-stop)
+    "$managed_codex" remote-control stop
+    exit 0
+    ;;
+  pair)
+    ensure_daemon
+    exec "$managed_codex" remote-control pair "${@:2}"
+    ;;
+  -h | --help | help)
+    cat <<'EOF'
+Usage: codex-remote [OPTIONS] [PROMPT]
+       codex-remote <resume|fork|agents|queue> [ARGS]
+       codex-remote pair
+
+Runs interactive Codex sessions through the daemon shared with ChatGPT Remote.
+Use the normal codex command for non-interactive and maintenance commands.
+EOF
+    exit 0
+    ;;
+  agents)
+    ensure_daemon
+    exec "$managed_codex" --remote "unix://$daemon_socket" agents "${@:2}"
+    ;;
+  queue)
+    ensure_daemon
+    exec "$managed_codex" queue --remote "unix://$daemon_socket" "${@:2}"
+    ;;
+  exec | e | review | login | logout | mcp | plugin | app-server | remote-control | completion | update | doctor | sandbox | debug | apply | a | archive | delete | migrate-rollouts | unarchive | cloud | exec-server | features)
+    echo "'$1' does not use the shared interactive daemon. Run it with codex instead." >&2
+    exit 2
+    ;;
+  *)
+    ensure_daemon
+    exec "$managed_codex" --remote "unix://$daemon_socket" "$@"
+    ;;
+esac
