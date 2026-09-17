@@ -25,6 +25,58 @@ if grep -F 'pacman -Sy --noconfirm archlinux-keyring omarchy-keyring' "$upgrade_
 fi
 pass "Omarchy 4 upgrade forces a database refresh before installing keyrings"
 
+# Packages from [omarchy] are signed. Planting Optional TrustAll here undoes
+# migrations/1787589206.sh and leaves upgrades accepting unsigned packages.
+pacman_body=$(function_body configure_pacman_channel)
+if grep -F 'TrustAll' <<<"$pacman_body" >/dev/null; then
+  fail "Omarchy 4 upgrade must not set SigLevel = Optional TrustAll on [omarchy]"
+fi
+grep -F 'print "Server = " server' <<<"$pacman_body" >/dev/null ||
+  fail "Omarchy 4 upgrade still rewrites the [omarchy] Server line"
+pass "Omarchy 4 upgrade leaves [omarchy] on the global Required SigLevel"
+
+# Exercise the awk that configure_pacman_channel embeds: an existing TrustAll
+# override in the [omarchy] section must be discarded with the old section.
+rewritten=$(
+  awk -v server='https://pkgs.omarchy.org/stable/$arch' '
+    BEGIN { in_omarchy = 0; wrote = 0 }
+    /^[[:space:]]*\[omarchy\][[:space:]]*$/ {
+      if (!wrote) {
+        print "[omarchy]"
+        print "Server = " server
+        wrote = 1
+      }
+      in_omarchy = 1
+      next
+    }
+    /^[[:space:]]*\[/ { in_omarchy = 0 }
+    !in_omarchy { print }
+    END {
+      if (!wrote) {
+        print ""
+        print "[omarchy]"
+        print "Server = " server
+      }
+    }
+  ' <<'PACMAN'
+SigLevel = Required DatabaseOptional
+[core]
+Include = /etc/pacman.d/mirrorlist
+[omarchy]
+SigLevel = Optional TrustAll
+Server = https://pkgs.omarchy.org/stable/$arch
+[extra]
+Include = /etc/pacman.d/mirrorlist
+PACMAN
+)
+grep -F 'SigLevel = Optional TrustAll' <<<"$rewritten" >/dev/null &&
+  fail "channel rewrite must drop Optional TrustAll from [omarchy]"
+grep -F '[omarchy]' <<<"$rewritten" >/dev/null || fail "channel rewrite keeps [omarchy]"
+grep -F 'Server = https://pkgs.omarchy.org/stable/$arch' <<<"$rewritten" >/dev/null ||
+  fail "channel rewrite keeps the Omarchy Server"
+pass "Omarchy 4 upgrade channel rewrite drops Optional TrustAll"
+
+
 grep -F 'pacman -Syu --needed' "$upgrade_to_quattro" >/dev/null
 grep -F 'omarchy-update-aur-pkgs' "$upgrade_to_quattro" >/dev/null
 grep -F 'omarchy-update-available' "$upgrade_to_quattro" >/dev/null
