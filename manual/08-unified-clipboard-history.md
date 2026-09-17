@@ -15,7 +15,16 @@ _Note that most agent harnesses will use `Ctrl + V` for pasting images, but `Sup
 
 ### Clipboard history
 
-The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, select your entry with return, and then that'll be placed on the clipboard ready to paste on `Super + V`.
+The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, then:
+
+| Hotkey | Action |
+| ------- | ----------- |
+| Return | Paste the selected entry into the previously focused window |
+| Ctrl + Return | Type the selected text as keystrokes (~20 characters/sec) instead of pasting — useful when paste is blocked |
+| Shift + Return | Copy the entry to the clipboard without pasting |
+| Alt + Return | Open the entry (URL in the browser, otherwise in the editor) |
+
+Typing is text-only; images still paste. After a regular Return paste, the entry is also on the clipboard, ready for `Super + V` if you need it again.
 
  ![clipboard-history](images/clipboard-history.webp)
 

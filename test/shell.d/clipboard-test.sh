@@ -143,6 +143,22 @@ assert(
   'clipboard End selects the last entry'
 )
 assert(
+  /root\.cursorActive && root\.wantsType\(event\)[\s\S]*root\.typeIndex\(root\.selectedIndex\)/.test(clipboardQml),
+  'clipboard Ctrl+Enter types the selected entry'
+)
+assert(
+  clipboardQml.includes('omarchy-clipboard-paste-text", "--type", "--history-index"'),
+  'clipboard type action calls the paste helper with --type'
+)
+assert(
+  /target: "omarchy.clipboard"[\s\S]*function typeCurrent\(\): string/.test(clipboardQml),
+  'clipboard exposes typeCurrent over IPC'
+)
+assert(
+  clipboardQml.includes('o.bind(\\"CTRL + RETURN\\"'),
+  'clipboard binds Ctrl+Return at the compositor while the overlay is open'
+)
+assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(clipboardQml),
   'clipboard uses shared pointer movement gate in card coordinates'
 )
@@ -483,6 +499,16 @@ pass "clipboard paste helper copy-only copies history entry text"
 
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard paste helper copy-only skips typing"
 pass "clipboard paste helper copy-only skips typing"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --type --history-index 1
+
+[[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard type helper copies history entry text"
+pass "clipboard type helper copies history entry text"
+
+[[ $(<"$TMPDIR/wtype") == "-d 50 -" ]] || fail "clipboard type helper types history entries through wtype stdin" "actual: $(<"$TMPDIR/wtype")"
+pass "clipboard type helper types history entries through wtype stdin"
 
 printf 'image-data' >"$TMPDIR/image.png"
 rm -f "$TMPDIR/wtype"
