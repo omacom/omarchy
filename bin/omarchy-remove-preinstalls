@@ -17,15 +17,27 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
        ~/.local/bin/gh ~/.local/bin/opencode ~/.local/bin/playwright ~/.local/bin/playwright-cli ~/.local/bin/pi \
        ~/.local/bin/omp ~/.local/bin/ori ~/.local/bin/grok ~/.local/bin/crush ~/.local/bin/ghui ~/.local/bin/hunk
 
-  # Cursor's own installer links ~/.local/bin/cursor-agent as well, so only
-  # the mise wrapper omarchy-mise-install wrote is a preinstall.
-  if [[ -f ~/.local/bin/cursor-agent && ! -L ~/.local/bin/cursor-agent ]] &&
+  # Cursor's own installer also links ~/.local/bin/cursor-agent, so only drop
+  # Omarchy's install: the old mise wrapper script, or a symlink whose target is
+  # an absolute path (mise where) rather than Cursor's same-directory link.
+  if [[ -L ~/.local/bin/cursor-agent ]]; then
+    cursor_target=$(readlink ~/.local/bin/cursor-agent)
+    if [[ $cursor_target == /* ]]; then
+      rm -f ~/.local/bin/cursor-agent
+    fi
+  elif [[ -f ~/.local/bin/cursor-agent ]] &&
     grep -Eq '^mise use -g .*"cursor-agent"' ~/.local/bin/cursor-agent; then
     rm -f ~/.local/bin/cursor-agent
   fi
 
-  # Preserve a user-managed Muse launcher at the same path.
-  if [[ -f ~/.local/bin/muse && ! -L ~/.local/bin/muse ]] &&
+  # Preserve a user-managed Muse launcher. Omarchy's mise install is either the
+  # old wrapper script or an absolute symlink from mise where.
+  if [[ -L ~/.local/bin/muse ]]; then
+    muse_target=$(readlink ~/.local/bin/muse)
+    if [[ $muse_target == /* ]]; then
+      rm -f ~/.local/bin/muse
+    fi
+  elif [[ -f ~/.local/bin/muse ]] &&
     grep -Eq '^mise use -g .*"http:muse\[' ~/.local/bin/muse; then
     rm -f ~/.local/bin/muse
   fi
