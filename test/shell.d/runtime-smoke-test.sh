@@ -6,11 +6,16 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 TMPDIR=""
 QS_PID=""
+LOCK_PID=""
 
 cleanup() {
   if [[ -n $QS_PID ]] && kill -0 "$QS_PID" 2>/dev/null; then
     kill "$QS_PID" 2>/dev/null || true
     wait "$QS_PID" 2>/dev/null || true
+  fi
+  if [[ -n $LOCK_PID ]] && kill -0 "$LOCK_PID" 2>/dev/null; then
+    kill "$LOCK_PID" 2>/dev/null || true
+    wait "$LOCK_PID" 2>/dev/null || true
   fi
   [[ -n $TMPDIR && -d $TMPDIR ]] && rm -rf "$TMPDIR"
   return 0
@@ -339,6 +344,15 @@ PATH="$stub_bin:$ROOT/bin:$PATH" \
   quickshell -p "$test_root/shell" --no-color >"$log" 2>&1 &
 QS_PID=$!
 
+OMARCHY_PATH="$test_root" \
+HOME="$test_home" \
+XDG_CONFIG_HOME="$test_home/.config" \
+XDG_CACHE_HOME="$test_home/.cache" \
+XDG_STATE_HOME="$test_home/.local/state" \
+PATH="$stub_bin:$ROOT/bin:$PATH" \
+  quickshell -p "$test_root/shell/lock.qml" --no-color >"$TMPDIR/locker.log" 2>&1 &
+LOCK_PID=$!
+
 for _ in {1..80}; do
   if shell_ipc_quiet shell ping >/dev/null 2>&1; then
     break
@@ -420,6 +434,7 @@ pass "shell IPC summon and hide contract works"
 jq -e '.hasPlayer | type == "boolean"' <<<"$(shell_ipc media status)" >/dev/null || fail_with_log "media IPC returns status JSON"
 jq -e '.enabled | type == "boolean"' <<<"$(shell_ipc idle status)" >/dev/null || fail_with_log "idle IPC returns status JSON"
 jq -e '.locked | type == "boolean"' <<<"$(shell_ipc lock status)" >/dev/null || fail_with_log "lock IPC returns status JSON"
+lock_before_rescan=$(shell_ipc lock status)
 [[ $(shell_ipc shell setPluginEnabled "$keep_service_id" true) == "ok" ]] ||
   fail_with_log "keepLoaded fixture service could not be enabled"
 keep_marker_set=""
@@ -456,11 +471,10 @@ shell_ipc_quiet image-selector cancel "$selector_done_file" >/dev/null
 rm -f "$selector_selection_file" "$selector_done_file"
 pass "image selector IPC survives plugin rescan"
 
-lock_status_after=$(shell_ipc lock status)
-jq -e '.locked | type == "boolean"' <<<"$lock_status_after" >/dev/null || fail_with_log "lock IPC survives plugin rescan"
-lock_event_after=$(jq -r '.lastEvent // empty' <<<"$lock_status_after")
-[[ $lock_event_after != lock-stranded* ]] ||
-  fail_with_log "plugin rescan does not strand the session lock ($lock_event_after)"
+[[ $(shell_ipc lock status) == "$lock_before_rescan" ]] || fail_with_log "plugin rescan preserves the independent locker state"
+kill -0 "$LOCK_PID" || fail_with_log "plugin rescan preserves the independent locker process"
+pass "independent locker survives plugin rescan"
+
 # A recreated instance would answer with a fresh, empty marker.
 [[ $(shell_ipc acme-keep get) == "survived" ]] ||
   fail_with_log "plugin rescan keeps the keepLoaded service instance mounted"
@@ -747,3 +761,9 @@ jq -e '.currentAllowed == false and .retainedAllowed == false' \
   fail_with_log "cached plugin facades revoke capabilities removed from the manifest"
 }
 pass "manifest reload revokes cached facade capabilities"
+quickshell kill -p "$test_root/shell" >/dev/null
+wait "$QS_PID"
+QS_PID=""
+kill -0 "$LOCK_PID" || fail_with_log "stopping the main configuration preserves the independent locker process"
+[[ $(shell_ipc lock status) == "$lock_before_rescan" ]] || fail_with_log "lock IPC remains available with the main shell stopped"
+pass "stopping the main shell preserves the independent locker and its IPC"
