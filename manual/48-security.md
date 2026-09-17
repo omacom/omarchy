@@ -30,7 +30,7 @@ If you configure passwordless sudo yourself, a `NOPASSWD` rule for `%wheel` in `
 
 Run `sudo -l` to inspect the rules that apply to your account. Use `sudo visudo -f /etc/sudoers.d/<filename>` to edit the conflicting file, then `sudo visudo -c` to check the configuration. To check whether a command works without a password or a cached authentication timestamp, run `sudo -k -n true`. Prefer the timed _Passwordless Sudo_ option above when you only need temporary access.
 
-`pkexec` and many graphical administration tools use Polkit, which has its own authorization rules. Neither sudo's `NOPASSWD` setting nor Omarchy's _Passwordless Sudo_ toggle disables Polkit authentication. Login, screen unlock, and keyring passwords are separate too.
+`pkexec` and many graphical administration tools use Polkit, which has its own authorization rules. Neither sudo's `NOPASSWD` setting nor Omarchy's _Passwordless Sudo_ toggle disables Polkit authentication. Login and screen-unlock authentication are separate from sudo and Polkit, while Omarchy's default keyring is passwordless; custom keyring configurations may prompt separately.
 
 ## Signing Keys
 
