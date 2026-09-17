@@ -26,6 +26,13 @@ Item {
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
+  // The lock plugin is a service in this same process, so its state is readable
+  // directly. The shell-out guard below cannot see a lock that is still in
+  // flight, and reports nothing at all when the IPC call fails.
+  readonly property var lockService: shell && shell.serviceFor ? shell.serviceFor("omarchy.lock") : null
+  readonly property bool lockInFlight: lockCommandPending || !!(lockService && lockService.locked)
+
+  property bool lockCommandPending: false
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
@@ -64,6 +71,11 @@ Item {
   }
 
   function launchScreensaver() {
+    if (root.lockInFlight) {
+      logEvent("screensaver-skip", "lock-in-flight")
+      return
+    }
+
     root.screensaverStartedThisCycle = true
     screensaverLaunchGraceTimer.restart()
     runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
@@ -77,12 +89,29 @@ Item {
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
     resetScreensaverWindows()
-    runProcess(lockProcess, "lock", "omarchy-system-lock")
+
+    // omarchy-system-lock takes about a second to reach the lock service, and
+    // until it gets there the lock is not visible to anything. Cover that with
+    // the command itself -- bounded, so a lock that never returns cannot park
+    // idle handling for the rest of the session.
+    if (runProcess(lockProcess, "lock", "omarchy-system-lock")) {
+      root.lockCommandPending = true
+      lockCommandTimer.restart()
+    }
   }
 
   function startIdleCycle() {
     if (root.idledThisCycle) {
       logEvent("idle-cycle-already-running")
+      return
+    }
+
+    // lockSystem() clears idledThisCycle before the lock exists, so the next
+    // idle re-assertion is free to start a whole new cycle -- and with the
+    // usual screensaver <= lock configuration that cycle launches a screensaver
+    // immediately, into a session that is on its way down.
+    if (root.lockInFlight) {
+      logEvent("idle-cycle-skip", "lock-in-flight")
       return
     }
 
@@ -185,6 +214,7 @@ Item {
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
       idle: idleMonitor.isIdle,
+      lockInFlight: root.lockInFlight,
       inIdleCycle: root.idledThisCycle,
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
@@ -271,6 +301,16 @@ Item {
   }
 
   Timer {
+    id: lockCommandTimer
+    interval: 15000
+    repeat: false
+    onTriggered: {
+      root.lockCommandPending = false
+      root.logEvent("lock-command-timeout")
+    }
+  }
+
+  Timer {
     id: screensaverLaunchGraceTimer
     interval: 3000
     repeat: false
@@ -292,7 +332,11 @@ Item {
   }
   Process {
     id: lockProcess
-    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus) }
+    onExited: function(exitCode, exitStatus) {
+      root.lockCommandPending = false
+      lockCommandTimer.stop()
+      root.logEvent("process-exit", "lock exitCode=" + exitCode + " status=" + exitStatus)
+    }
   }
   Process {
     id: wakeProcess
