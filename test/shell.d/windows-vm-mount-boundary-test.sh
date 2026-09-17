@@ -143,6 +143,23 @@ chown root:root "$USERS_DIR"
 mounts_ready || fail "restored production boundaries were rejected"
 pass "root rejects wrong-owned and group-writable production mount boundaries without mutation"
 
+# dockur marks an empty /shared setgid (chmod 2777) on first boot, and a numeric
+# chmod keeps setuid/setgid on directories. Hardening has to clear the special
+# bits behind live anchors and again when the binds are recreated after reboot.
+chmod 2777 /home/shared-target
+chmod 6755 /home/storage-target
+with_vm_lock prepare_caller_mounts || fail "root rejected setgid sources behind live anchors"
+mounts_ready || fail "final guard rejected re-hardened setgid sources"
+umount "$EXPECTED_SHARED"
+umount "$EXPECTED_STORAGE"
+chmod 2777 /home/shared-target
+chmod 6755 /home/storage-target
+with_vm_lock prepare_caller_mounts || fail "root could not rebind setgid sources"
+[[ $(command stat -Lc '%u:%a' "$EXPECTED_STORAGE") == 1000:700 &&
+  $(command stat -Lc '%u:%a' "$EXPECTED_SHARED") == 1000:700 ]] || fail "setgid sources were not hardened to 0700"
+mounts_ready || fail "final guard rejected rebound setgid sources"
+pass "hardening clears the setuid/setgid bits a numeric chmod keeps on directories"
+
 expected_space=$(command df -P -- /home/storage-target | awk 'NR==2 {print int($4/1024/1024)}')
 actual_space=$(available_storage_gb)
 [[ $actual_space == "$expected_space" ]] || fail "disk-space helper did not measure the storage target filesystem"
