@@ -24,7 +24,7 @@ SH
 cat >"$work/bin/fcitx5-remote" <<'SH'
 #!/bin/bash
 case "$1" in
-  --check) exit 0 ;;
+  --check) printf '1\n' ;;
   -q) printf 'Default\n' ;;
   *) exit 1 ;;
 esac
@@ -64,6 +64,8 @@ grep -F '<Save>' "$log" >/dev/null ||
   fail "Japanese input asks Fcitx to save the updated group"
 grep -F 'Japanese input is ready' "$work/output" >/dev/null ||
   fail "Japanese input reports when setup is complete"
+! grep -Fx '1' "$work/output" >/dev/null ||
+  fail "Japanese input does not print the Fcitx readiness state"
 pass "Japanese input installs and registers Mozc"
 
 : >"$log"

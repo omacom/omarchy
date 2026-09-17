@@ -9,7 +9,7 @@ omarchy-restart-xcompose
 
 fcitx_ready=false
 for _ in {1..50}; do
-  if fcitx5-remote --check; then
+  if fcitx5-remote --check >/dev/null 2>&1; then
     fcitx_ready=true
     break
   fi
