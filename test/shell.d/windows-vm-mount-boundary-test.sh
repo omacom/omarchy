@@ -150,7 +150,7 @@ actual_space=$(available_storage_gb)
 pass "disk-space accounting measures the actual storage filesystem, not home"
 
 # Exercise the real root writer and final guard against the production paths.
-printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=alice\nPASSWORD=pw\nTZ=UTC\n' |
+printf 'RAM=4G\nCORES=2\nDISK=64G\nUSERNAME=alice\nPASSWORD=pw\nREGION=en-US\n' |
   with_vm_lock __priv_write_compose
 [[ $(command stat -Lc '%u:%a' "$COMPOSE_FILE") == 0:640 ]] || fail "root compose ownership/mode is wrong"
 with_vm_lock assert_mounts_safe || fail "final root mount/compose assertion rejected the verified pair"
