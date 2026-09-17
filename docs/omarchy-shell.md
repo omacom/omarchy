@@ -130,6 +130,10 @@ string on a miss.
     "screensaver": 150,
     "lock": 300
   },
+  "nightlight": {
+    "night": 4000,
+    "day": 6500
+  },
   "bar": {
     "id": "omarchy.bar",
     "position": "top",
@@ -161,7 +165,12 @@ Rules:
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
 7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
-8. `version: 1` is required.
+8. `nightlight.night` and `nightlight.day` are the hyprsunset temperatures
+   (kelvin) that night light toggles between; defaults 4000 and 6500. Night
+   light reads as on below both 6000 and `day`, so a warm `day` (say 4000
+   with `night` 2700) keeps a permanent warm baseline that still toggles.
+   Invalid or inverted values fall back to the defaults.
+9. `version: 1` is required.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user
