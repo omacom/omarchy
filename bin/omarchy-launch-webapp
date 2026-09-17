@@ -5,9 +5,57 @@
 
 browser=$(xdg-settings get default-web-browser)
 
+# Web apps need Chromium's --app mode. Only redirect defaults known NOT to
+# support it (the Firefox family); every other default -- Chrome, Brave,
+# Edge, Opera, Vivaldi, Helium and future Chromium forks -- is used as-is, so
+# new browsers keep working without allowlist updates.
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+firefox* | zen* | floorp* | librewolf* | waterfox*) browser="" ;;
 esac
 
-exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"
+resolve_exec() {
+  sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$HOME/.local/share/applications/$1" "$HOME/.nix-profile/share/applications/$1" /usr/share/applications/$1 2>/dev/null | head -1
+}
+
+browser_usable() {
+  local binary
+  binary=$(resolve_exec "$1")
+  if [[ -z $binary ]]; then
+    return 1
+  fi
+  if [[ $binary == /* ]]; then
+    [[ -x $binary ]]
+  else
+    omarchy-cmd-present "$binary"
+  fi
+}
+
+# A default whose desktop entry is gone (e.g. Chromium was uninstalled after
+# being set as default) counts as unusable and falls through below.
+if [[ -n $browser ]] && browser_usable "$browser"; then
+  browser_exec=$(resolve_exec "$browser")
+else
+  browser=""
+fi
+
+# Fall back to the first usable installed Chromium-based browser, preferring
+# the user's own installations over system-wide ones.
+if [[ -z $browser ]]; then
+  for dir in "$HOME/.local/share/applications" "$HOME/.nix-profile/share/applications" /usr/share/applications; do
+    for candidate in chromium.desktop google-chrome.desktop brave-browser.desktop brave-origin.desktop microsoft-edge.desktop opera.desktop vivaldi-stable.desktop helium.desktop ungoogled-chromium.desktop; do
+      if [[ -f $dir/$candidate ]] && browser_usable "$candidate"; then
+        browser=$candidate
+        browser_exec=$(resolve_exec "$candidate")
+        break 2
+      fi
+    done
+  done
+fi
+
+if [[ -z $browser ]]; then
+  echo "omarchy-launch-webapp: no usable Chromium-based browser found for --app mode" >&2
+  omarchy-notification-send -u critical "No browser for web apps" "Install Chromium, Chrome, Brave, Edge, or Helium to open web apps."
+  exit 1
+fi
+
+exec setsid uwsm-app -- "$browser_exec" --app="$1" "${@:2}"
