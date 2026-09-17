@@ -266,6 +266,10 @@ Item {
         reloads: root.displayedReloads
         playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
         audioEnabled: panel.firstScreen
+        // Decode still wallpapers near the screen resolution. The 1.6x box
+        // leaves room to crop wide images without scaling them back up.
+        sourceSize.width: Math.ceil(width * Screen.devicePixelRatio * 1.6)
+        sourceSize.height: Math.ceil(height * Screen.devicePixelRatio * 1.6)
         onReadyChanged: {
           if (ready && root.finishingTransition) {
             root.incomingBackground = ""
@@ -284,6 +288,8 @@ Item {
         cache: false
         smooth: true
         mipmap: true
+        sourceSize.width: base.sourceSize.width
+        sourceSize.height: base.sourceSize.height
         visible: root.oldBackground !== "" && root.revealProgress < 1
         onStatusChanged: panel.maybeStartReveal()
       }
@@ -310,6 +316,8 @@ Item {
           cache: false
           smooth: true
           mipmap: true
+          sourceSize.width: base.sourceSize.width
+          sourceSize.height: base.sourceSize.height
           onStatusChanged: panel.maybeStartReveal()
         }
       }
