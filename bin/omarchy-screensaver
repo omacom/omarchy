@@ -20,8 +20,6 @@ printf '\033]11;rgb:00/00/00\007'  # Set background color to black
 
 hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
 
-tty=$(tty 2>/dev/null)
-
 # Terminals allocate the pty at the default 80x24 and only resize it once the
 # compositor has told the window how big it is. ttfx measures the terminal once,
 # at startup, so starting it before the resize lands sizes an 80x24 canvas and
@@ -35,14 +33,25 @@ wait_for_terminal_resize() {
 
 wait_for_terminal_resize
 
+# Branding can be edited or removed by hand; fall back to the stock wordmark
+# rather than handing ttfx a path it cannot open.
+branding=~/.config/omarchy/branding/screensaver.txt
+[[ -r $branding ]] || branding="$OMARCHY_PATH/logo.txt"
+
 while true; do
-  ttfx -i ~/.config/omarchy/branding/screensaver.txt \
+  ttfx -i "$branding" \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
+  ttfx_pid=$!
 
-  while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
+  while kill -0 "$ttfx_pid" 2>/dev/null; do
     if read -n1 -t 1 || ! screensaver_in_focus; then
       exit_screensaver
     fi
   done
+
+  # A ttfx that fails to start exits before the poll above ever runs, which
+  # would otherwise relaunch it in a tight loop with no way to read input and
+  # dismiss the screensaver. Treat its failure as the end of the show.
+  wait "$ttfx_pid" || exit_screensaver
 done
