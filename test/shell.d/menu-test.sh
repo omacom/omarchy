@@ -58,6 +58,31 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+const stock = menu.parseMenuJsonc(`{
+  "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system-logout"},
+  "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available","action":"systemctl hibernate"}
+}`, false)
+const actionOnly = menu.parseMenuJsonc(`{
+  "system.logout": {"action":"custom-logout"},
+  "system.hibernate": {"action":"custom-hibernate"}
+}`, false)
+const patched = menu.mergeMenuSources(stock, actionOnly)
+assertEqual(patched.items['system.logout'].action, 'custom-logout', 'menu extension overrides the declared action')
+assertEqual(patched.items['system.logout'].icon, '󰍃', 'menu extension keeps the shipped icon when omitted')
+assertEqual(patched.items['system.logout'].label, 'Logout', 'menu extension keeps the shipped label when omitted')
+assertEqual(patched.items['system.hibernate'].when, 'omarchy-hibernation-available', 'menu extension keeps the shipped when-guard when omitted')
+assertEqual(patched.items['system.hibernate'].label, 'Hibernate', 'menu extension keeps the shipped hibernate label when omitted')
+
+const explicitEmpty = menu.parseMenuJsonc(`{ "system.logout": {"icon":"","action":"custom-logout"} }`, false)
+const cleared = menu.mergeMenuSources(stock, explicitEmpty)
+assertEqual(cleared.items['system.logout'].icon, '', 'menu extension can still clear a field by setting it empty')
+assertEqual(cleared.items['system.logout'].label, 'Logout', 'menu extension keeps undeclared fields when clearing another')
+
+assert(
+  /parseMenuJsonc\(raw,\s*false\)/.test(menuQml),
+  'menu parses sources raw so unspecified extension fields do not wipe shipped values'
+)
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')

@@ -39,7 +39,7 @@ function normalizeItem(id, raw) {
   }
 }
 
-function parseMenuJsonc(raw) {
+function parseMenuJsonc(raw, normalize) {
   var stripped = stripJsonc(raw)
   if (!stripped.trim()) return []
 
@@ -58,7 +58,18 @@ function parseMenuJsonc(raw) {
   for (var id in source) {
     var entry = source[id]
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
-    out.push(normalizeItem(id, entry))
+    // Fill defaults only when asked. The live menu parses sources raw and
+    // normalizes once after merge, so an extension that sets `action` does
+    // not wipe the shipped icon/label/when with empty placeholders.
+    if (normalize === false) {
+      var item = { id: id }
+      for (var k in entry) {
+        if (Object.prototype.hasOwnProperty.call(entry, k)) item[k] = entry[k]
+      }
+      out.push(item)
+    } else {
+      out.push(normalizeItem(id, entry))
+    }
   }
   return out
 }
@@ -87,7 +98,11 @@ function mergeMenuSources(defaultItems, userItems) {
     nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
     nextOrder.unshift("root")
   }
-  for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
+  for (var k3 = 0; k3 < nextOrder.length; k3++) {
+    var normalized = normalizeItem(nextOrder[k3], nextItems[nextOrder[k3]])
+    normalized.order = k3
+    nextItems[nextOrder[k3]] = normalized
+  }
 
   return {
     items: nextItems,
