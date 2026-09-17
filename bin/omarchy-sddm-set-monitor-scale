@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# omarchy:summary=Write the SDDM greeter monitor scale
+# omarchy:args=[SCALE]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+SCALE_FILE="${OMARCHY_SDDM_MONITOR_SCALE:-/etc/sddm/omarchy-monitor-scale}"
+MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
+
+valid_scale() {
+  [[ $1 == "auto" ]] && return 0
+  [[ $1 =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  awk -v scale="$1" 'BEGIN { exit !(scale >= 1 && scale <= 4) }'
+}
+
+# Value assigned by `local omarchy_monitor_scale = ...`, without quotes or a trailing comment.
+# An expression like `3 / 2` does not match; with no explicit argument the caller writes auto.
+configured_scale() {
+  local value
+  [[ -f $MONITOR_LUA ]] || return 1
+
+  value=$(sed -nE 's/^[[:space:]]*local[[:space:]]+omarchy_monitor_scale[[:space:]]*=[[:space:]]*("[^"]*"|[^"[:space:]]+)[[:space:]]*(--.*)?$/\1/p' "$MONITOR_LUA" | head -1)
+  [[ $value == \"*\" ]] && value="${value:1:-1}"
+  [[ -n $value ]] || return 1
+  printf '%s\n' "$value"
+}
+
+scale=""
+if (($# > 0)); then
+  scale="$1"
+  if ! valid_scale "$scale"; then
+    echo "Invalid monitor scale: $scale" >&2
+    exit 1
+  fi
+else
+  if ! scale=$(configured_scale) || ! valid_scale "$scale"; then
+    scale="auto"
+  fi
+fi
+
+if [[ $scale != "auto" ]]; then
+  scale=$(awk -v scale="$scale" 'BEGIN { printf "%g\n", scale }')
+fi
+
+dest_dir=$(dirname -- "$SCALE_FILE")
+if mkdir -p "$dest_dir" 2>/dev/null && [[ -w $dest_dir ]]; then
+  printf '%s\n' "$scale" >"$SCALE_FILE"
+  chmod 644 "$SCALE_FILE"
+else
+  sudo install -d -m 755 "$dest_dir"
+  printf '%s\n' "$scale" | sudo tee "$SCALE_FILE" >/dev/null
+  # An explicit mode so a restrictive user umask cannot leave the root-owned
+  # drop-in unreadable to the sddm greeter.
+  sudo chmod 644 "$SCALE_FILE"
+fi
