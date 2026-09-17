@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install a supported browser
-# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|vivaldi|firefox|zen>
 # omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
 
 set -e
@@ -75,6 +75,14 @@ brave-origin)
   omarchy-theme-set-browser
   announce_browser_installed "Brave Origin"
   ;;
+vivaldi)
+  echo "Installing Vivaldi..."
+  omarchy-pkg-add vivaldi || exit 1
+
+  # Vivaldi has its own theme engine, so no policy directory or theme color.
+  copy_chromium_flags ~/.config/vivaldi-stable.conf
+  announce_browser_installed "Vivaldi"
+  ;;
 firefox)
   echo "Installing Firefox..."
   omarchy-pkg-add firefox || exit 1
@@ -92,7 +100,7 @@ zen)
   announce_browser_installed "Zen"
   ;;
 *)
-  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|vivaldi|firefox|zen>"
   exit 1
   ;;
 esac
