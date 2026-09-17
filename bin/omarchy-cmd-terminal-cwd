@@ -3,20 +3,152 @@
 # omarchy:summary=Print the current working directory of the active terminal window
 # omarchy:hidden=true
 
+# The directory the user is looking at is not always reachable from the terminal
+# window's process tree. A multiplexer runs its panes under a detached server
+# that is reparented to systemd, so the window's own descendant is just the
+# client: ask the multiplexer for its focused pane instead. Everything else
+# answers from the tree, where the deepest process attached to the terminal is
+# the best guess, whether or not its shell is listed in /etc/shells.
+
 terminal_pid=$(hyprctl activewindow | awk '/pid:/ {print $2}')
-kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
+
+exe_path() {
+  readlink -f "/proc/$1/exe" 2>/dev/null
+}
+
+process_cwd() {
+  readlink -f "/proc/$1/cwd" 2>/dev/null
+}
+
+process_args() {
+  tr '\0' '\n' <"/proc/$1/cmdline" 2>/dev/null
+}
+
+# A process the user can type into: it holds a controlling terminal. Keeps the
+# tree walk from answering for windows that are not terminals at all.
+has_tty() {
+  local stat state ppid pgrp session tty_nr
+
+  [[ -r /proc/$1/stat ]] || return 1
+  stat=$(<"/proc/$1/stat")
+  stat=${stat##*") "} # the pid and the comm come first, and a comm can contain spaces
+  read -r state ppid pgrp session tty_nr _ <<<"$stat"
+
+  (( tty_nr != 0 ))
+}
+
+is_login_shell() {
+  local exe=$1
+
+  [[ -n $exe ]] && grep -Fqsx "$exe" /etc/shells
+}
+
+# Every descendant of a pid, shallowest first. The stock tmux launcher runs
+# `bash -c "tmux attach || tmux new"`, so even a client is not always a direct
+# child of the window.
+descendants() {
+  local queue=("$1") pid children
+
+  while (( ${#queue[@]} > 0 )); do
+    pid=${queue[0]}
+    queue=("${queue[@]:1}")
+    mapfile -t children < <(pgrep -P "$pid")
+    queue+=("${children[@]}")
+
+    [[ $pid == $1 ]] || echo "$pid"
+  done
+}
+
+kitty_cwd() {
+  local socket="$XDG_RUNTIME_DIR/omarchy-kitty-$1"
+
+  if [[ -S $socket ]]; then
+    kitten @ --to "unix:$socket" ls --match "state:focused" 2>/dev/null |
+      jq -r '.[].tabs[].windows[].cwd // empty'
+  fi
+}
+
+# The server holds the pane's directory, and the client that belongs to this
+# window is the one whose pid matches, so other attached clients cannot answer
+# in its place. A client started on a private socket keeps -L/-S in its argv.
+tmux_pane_cwd() {
+  local pid=$1 args=() socket=() i
+
+  mapfile -t args < <(process_args "$pid")
+
+  for (( i = 0; i < ${#args[@]}; i++ )); do
+    case ${args[i]} in
+      -L | -S) socket=("${args[i]}" "${args[i + 1]}") ;;
+    esac
+  done
+
+  timeout 1 tmux "${socket[@]}" list-clients -F '#{client_pid} #{pane_current_path}' 2>/dev/null |
+    awk -v pid="$pid" '$1 == pid { sub(/^[0-9]+ /, ""); print; exit }'
+}
+
+herdr_pane_cwd() {
+  local pid=$1 args=() session="" i
+
+  mapfile -t args < <(process_args "$pid")
+
+  for (( i = 0; i < ${#args[@]}; i++ )); do
+    case ${args[i]} in
+      server) return ;; # the detached server, which has no focus of its own
+      --session) session=${args[i + 1]} ;;
+      --session=*) session=${args[i]#--session=} ;;
+    esac
+  done
+
+  if [[ -n $session ]]; then
+    timeout 1 herdr --session "$session" pane list 2>/dev/null
+  else
+    timeout 1 herdr pane list 2>/dev/null
+  fi |
+    jq -r 'first(.result.panes[] | select(.focused) | .foreground_cwd // .cwd) // empty' 2>/dev/null
+}
+
+# Succeeds for a multiplexer client, printing its focused pane's directory when
+# the multiplexer answers. A client that cannot answer still reports itself, so
+# the tree walk never mistakes the client's own launch directory for the pane's.
+multiplexer_pane_cwd() {
+  case $(basename "$(exe_path "$1")") in
+    tmux) tmux_pane_cwd "$1" ;;
+    herdr) herdr_pane_cwd "$1" ;;
+    *) return 1 ;;
+  esac
+}
+
+terminal_tree_cwd() {
+  local pid pane_cwd pid_cwd pid_exe mux_cwd="" tree_cwd=""
+
+  while read -r pid; do
+    if pane_cwd=$(multiplexer_pane_cwd "$pid"); then
+      [[ -d $pane_cwd && -z $mux_cwd ]] && mux_cwd=$pane_cwd
+      continue
+    fi
+
+    pid_cwd=$(process_cwd "$pid")
+    pid_exe=$(exe_path "$pid")
+
+    if [[ -d $pid_cwd ]] && { has_tty "$pid" || is_login_shell "$pid_exe"; }; then
+      tree_cwd=$pid_cwd
+    fi
+  done < <(descendants "$1")
+
+  if [[ -n $mux_cwd ]]; then
+    echo "$mux_cwd"
+  else
+    echo "$tree_cwd"
+  fi
+}
+
 cwd=""
 
-if [[ -S $kitty_socket ]]; then
-  cwd=$(kitten @ --to "unix:$kitty_socket" ls --match "state:focused" 2>/dev/null |
-    jq -r '.[].tabs[].windows[].cwd // empty')
-else
-  shell_pid=$(pgrep -P "$terminal_pid" | tail -n1)
+if [[ -n $terminal_pid ]]; then
+  cwd=$(kitty_cwd "$terminal_pid")
 
-  if [[ -n $shell_pid ]]; then
-    cwd=$(readlink -f "/proc/$shell_pid/cwd" 2>/dev/null)
-    shell=$(readlink -f "/proc/$shell_pid/exe" 2>/dev/null)
-    grep -Fqsx "$shell" /etc/shells || cwd=""
+  if [[ ! -d $cwd ]]; then
+    cwd=$(terminal_tree_cwd "$terminal_pid")
   fi
 fi
 
