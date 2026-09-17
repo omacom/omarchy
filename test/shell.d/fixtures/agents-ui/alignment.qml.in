@@ -1,0 +1,174 @@
+import QtQuick
+import QtTest
+Item {
+  id: root
+  width: 380; height: 300
+  property color foreground: "white"
+  property color dim: "gray"
+  property color track: "#333333"
+  property string fontFamily: "monospace"
+  QtObject { id: testStyle
+    property var font: ({caption: 10, bodySmall: 11})
+    property var spacing: ({sm: 6, lg: 16, controlHeight: 28})
+    property real cornerRadius: 4
+    function space(n) { return n }
+  }
+  QtObject { id: usage; function formatTokenCount(n) { return String(n) } }
+  function dayLabel() { return "Today" }
+  function dayTooltip() { return "" }
+  function modelTooltip() { return "" }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)) }
+  function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
+  component PanelToolTip: Item { property string text; property string fontFamily }
+  COMPONENTS
+  DayRow { id: day; width: 380 }
+  ModelRow { id: model; width: 380; y: 80 }
+  TextMetrics { id: measure }
+  TestCase {
+    name: "NumericAlignment"
+    when: windowShown
+    function texts(item) {
+      var out = []
+      for (var i = 0; i < item.children.length; i++) {
+        var child = item.children[i]
+        if (child.font !== undefined && child.text !== undefined) out.push(child)
+        out = out.concat(texts(child))
+      }
+      return out
+    }
+    function geometry(item, boundary) {
+      var nodes = texts(item)
+      var slash = null
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i]
+        if (node.text.indexOf(boundary || "/") < 0) continue
+        verify(node.implicitWidth <= node.width + 0.5, "numeric value clips its allocated width: " + node.text)
+        measure.font = node.font
+        measure.text = node.text.slice(0, node.text.indexOf(boundary || "/"))
+        var pad = node.horizontalAlignment === Text.AlignRight ? node.width - node.implicitWidth : 0
+        slash = node.mapToItem(root, pad + measure.advanceWidth, 0).x
+      }
+      verify(slash !== null, "cost separator exists")
+      return slash
+    }
+    function moneyRight(item) {
+      var nodes = texts(item), right = -1
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i]
+        if (!node.text || (node.text[0] !== "$" && node.text[0] !== "." && node.text !== "—")) continue
+        var edge = node.horizontalAlignment === Text.AlignRight ? node.width : node.implicitWidth
+        right = Math.max(right, node.mapToItem(root, edge, 0).x)
+      }
+      verify(right >= 0, "a money value is present")
+      return right
+    }
+    function trackRight(item) {
+      var right = -1
+      function visit(node) {
+        if (node.color !== undefined && node.color == root.track && node.width > 0)
+          right = Math.max(right,node.mapToItem(root,node.width,0).x)
+        var children=node.children || []
+        for(var i=0;i<children.length;i++) visit(children[i])
+      }
+      visit(item)
+      verify(right>=0,"a rendered day track is present")
+      return right
+    }
+    function filledBar(item) {
+      var found=null
+      function visit(node) {
+        if(node.parent && node.parent.color!==undefined && node.parent.color==root.track
+            && node.color!==undefined && node.color!=root.track)
+          found={right:node.mapToItem(root,node.width,0).x,width:node.width}
+        var children=node.children || []
+        for(var i=0;i<children.length;i++) visit(children[i])
+      }
+      visit(item)
+      verify(found!==null,"the actual colored day fill is rendered")
+      return found
+    }
+    function filledModelBar(item) {
+      var found=null
+      function visit(node) {
+        if(node.color!==undefined && node.color==root.alpha(root.foreground,0.14))
+          found={right:node.mapToItem(root,node.width,0).x,width:node.width}
+        var children=node.children || []
+        for(var i=0;i<children.length;i++) visit(children[i])
+      }
+      visit(item)
+      verify(found!==null,"the actual colored model/summary fill is rendered")
+      return found
+    }
+    function test_unpricedWidths() {
+      var widths = []
+      for (var i = 1; i <= 5; i++) {
+        var value = String(Math.pow(10, i) - 1)
+        day.day = {date:"2026-09-11", value:value, pricingEnabled:false}
+        model.row = {name:"A model", total:Number(value), pricingPresentation:false}
+        wait(1)
+        var d = texts(day).filter(function(n) { return n.text === value })[0]
+        var m = texts(model).filter(function(n) { return n.text === value })[0]
+        verify(d.implicitWidth <= d.width && m.implicitWidth <= m.width)
+        if (i === 1) widths = [d.width, m.width]
+        compare(d.width, widths[0]); compare(m.width, widths[1])
+      }
+    }
+    function test_crossSectionAlignment() {
+      day.day = {date:"2026-09-11", value:"12/$123.45", pricingEnabled:true}
+      model.row = {name:"A model", value:"12/$123.45", pricingPresentation:true}
+      wait(1)
+      compare(geometry(day), geometry(model), "day and model columns must align")
+    }
+    function test_digitTransitions() {
+      var referenceDay, referenceModel, referenceMoney, referenceTrack
+      var values = ["1/$1.00","12/$12.00","123/$123.00","1234/$1234","12345/$12345",
+        "1/$0.0001","0/$0.00","—/—","12345/$12345"]
+      for (var i = 0; i < values.length; i++) {
+        var value = values[i]
+        day.day = {date:"2026-09-11", value:value, pricingEnabled:true}
+        model.row = {name:"A long model name", value:value, pricingPresentation:true}
+        wait(1)
+        var d = geometry(day), m = geometry(model)
+        if (i === 0) { referenceDay = d; referenceModel = m }
+        var money = moneyRight(day)
+        if (referenceMoney === undefined) referenceMoney = money
+        var trackEdge = trackRight(day)
+        if (referenceTrack === undefined) referenceTrack = trackEdge
+        compare(money, referenceMoney, "all money values must share the same right edge")
+        compare(trackEdge, referenceTrack, "zero, unknown and known-subtotal rows keep the bar track right-aligned")
+
+        compare(d, referenceDay, "daily token/cost boundary must stay fixed")
+        compare(m, referenceModel, "model token/cost boundary must stay fixed")
+
+      }
+    }
+    function test_colored_day_fills_share_the_right_edge() {
+      day.day={date:"2026-09-11",value:"12345/$12345",pricingEnabled:true}
+      var states=[{ratio:.25,today:false},{ratio:.75,today:false},{ratio:.5,today:true},{ratio:0,today:true}]
+      var referenceRight=-1, quarterWidth=0
+      for(var i=0;i<states.length;i++) {
+        day.ratio=states[i].ratio; day.today=states[i].today; wait(200)
+        var bar=filledBar(day)
+        if(referenceRight<0) referenceRight=bar.right
+        compare(bar.right,referenceRight,"ordinary and today fills align at the track's right edge")
+        if(states[i].ratio===.25) quarterWidth=bar.width
+        if(states[i].ratio===.75) verify(Math.abs(bar.width-quarterWidth*3)<1,"fill width remains proportional")
+        if(states[i].ratio===0) compare(bar.width,0,"zero usage keeps an empty fill")
+      }
+    }
+    function test_partial_model_and_summary_fills_share_the_right_edge() {
+      model.row={name:"A model",value:"12345/$12345",pricingPresentation:true}
+      var states=[{share:.2,summary:false},{share:.6,summary:false},{share:.4,summary:true},{share:0,summary:true}]
+      var referenceRight=-1, fifthWidth=0
+      for(var i=0;i<states.length;i++) {
+        model.share=states[i].share; model.summary=states[i].summary; wait(200)
+        var bar=filledModelBar(model)
+        if(referenceRight<0) referenceRight=bar.right
+        compare(bar.right,referenceRight,"partial model and summary fills align at the row's right edge")
+        if(states[i].share===.2) fifthWidth=bar.width
+        if(states[i].share===.6) verify(Math.abs(bar.width-fifthWidth*3)<1,"model fill width remains proportional")
+        if(states[i].share===0) compare(bar.width,0,"zero-share model keeps an empty fill")
+      }
+    }
+  }
+}
