@@ -580,7 +580,15 @@ prepare_caller_mounts() {
   # Privacy is an explicit preflight step for both already-pinned sources, not
   # a side effect halfway through the two-mount transaction. Old umask-022
   # installs are hardened together before either Docker-facing anchor changes.
-  chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
+  #
+  # A bare numeric mode (e.g. `chmod 0700`) is a silent no-op on a directory
+  # that already carries setuid/setgid: GNU chmod only clears those bits via
+  # an explicit symbolic operation, never via an absolute numeric one. The VM
+  # container's own SMB/9p sharing of the *shared* leaf sets it setgid while
+  # the VM is running, so without the symbolic clear here, every launch after
+  # the first would silently fail this preflight forever.
+  chmod u-s,g-s -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" &&
+    chmod 0700 -- "/proc/$BASHPID/fd/$storage_fd" "/proc/$BASHPID/fd/$shared_fd" || {
     exec {storage_fd}<&-
     exec {shared_fd}<&-
     return 1
