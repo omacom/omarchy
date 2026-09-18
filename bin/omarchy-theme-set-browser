@@ -18,7 +18,10 @@ refresh_running_browser() {
   local pgrep_args="${3:--x}"
 
   if omarchy-cmd-present "$command" && pgrep $pgrep_args "$process" >/dev/null; then
-    "$command" --refresh-platform-policy --no-startup-window &>/dev/null
+    # A policy refresh is best-effort: Chromium-family binaries can sometimes
+    # start a second long-lived browser instead of handing the request to the
+    # running instance. Never let that block a theme change or update forever.
+    timeout --kill-after=1s 10s "$command" --refresh-platform-policy --no-startup-window &>/dev/null || true
   fi
 }
 
