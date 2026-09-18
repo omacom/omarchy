@@ -45,12 +45,14 @@ Item {
   property var fallbackBarConfig: ({
     position: "top",
     transparent: false,
+    transparentOnlyWhenWorkspaceEmpty: false,
     centerAnchor: "omarchy.clock",
     layout: { left: [], center: [], right: [] }
   })
   property var layoutConfig: fallbackBarConfig.layout
   property string centerAnchor: ""
   property bool requestedTransparent: false
+  property bool transparentOnlyWhenWorkspaceEmpty: false
   property bool useTransparentForeground: false
   property bool transparent: false
   property bool centerSectionHovered: false
@@ -582,6 +584,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    transparentOnlyWhenWorkspaceEmpty = config.transparentOnlyWhenWorkspaceEmpty === true
     setRequestedTransparency(config.transparent === true)
     centerAnchor = Util.canonicalWidgetId(config.centerAnchor || "")
 
@@ -1030,9 +1033,20 @@ Item {
   }
 
   function setRequestedTransparency(value) {
-    var nextTransparent = value === true
-    requestedTransparent = nextTransparent
-    if (!nextTransparent) {
+    requestedTransparent = value === true
+    syncTransparency()
+  }
+
+  function shouldBeTransparent() {
+    if (!requestedTransparent) return false
+    if (!transparentOnlyWhenWorkspaceEmpty) return true
+
+    var workspace = Hyprland.focusedWorkspace
+    return workspace !== null && workspace.toplevels.values.length === 0
+  }
+
+  function syncTransparency() {
+    if (!shouldBeTransparent()) {
       foregroundAnimationEnabled = false
       useTransparentForeground = false
       transparent = false
@@ -1040,6 +1054,10 @@ Item {
       restoreForegroundAnimation()
       return
     }
+
+    // The standard transparent bar waits for wallpaper-aware text contrast;
+    // workspace-conditional transparency must change as soon as a workspace clears.
+    if (transparentOnlyWhenWorkspaceEmpty) transparent = true
     scheduleTransparentForegroundRefresh()
   }
 
@@ -1050,7 +1068,7 @@ Item {
   }
 
   function scheduleTransparentForegroundRefresh() {
-    if (!requestedTransparent) {
+    if (!shouldBeTransparent()) {
       transparentForeground = themeForeground
       return
     }
@@ -1058,7 +1076,7 @@ Item {
   }
 
   function refreshTransparentForeground() {
-    if (!requestedTransparent || transparentForegroundProc.running) return
+    if (!shouldBeTransparent() || transparentForegroundProc.running) return
 
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
@@ -1071,6 +1089,7 @@ Item {
   }
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
+  onTransparentOnlyWhenWorkspaceEmptyChanged: syncTransparency()
   onPositionChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
@@ -1091,12 +1110,21 @@ Item {
 
         root.foregroundAnimationEnabled = false
         root.transparentForeground = value
-        if (root.requestedTransparent) {
+        if (root.shouldBeTransparent()) {
           root.useTransparentForeground = true
           root.transparent = true
         }
         root.restoreForegroundAnimation()
       }
+    }
+  }
+
+  Connections {
+    target: Hyprland
+    enabled: root.transparentOnlyWhenWorkspaceEmpty
+    function onRawEvent(event) {
+      // Toplevel membership changes do not always propagate through QML bindings.
+      Qt.callLater(function() { root.syncTransparency() })
     }
   }
 

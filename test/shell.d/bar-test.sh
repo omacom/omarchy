@@ -38,6 +38,11 @@ const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
 
+assert(/transparentOnlyWhenWorkspaceEmpty: false/.test(barSource), 'bar defaults workspace-conditional transparency to off')
+assert(/transparentOnlyWhenWorkspaceEmpty = config\.transparentOnlyWhenWorkspaceEmpty === true/.test(barSource), 'bar reads workspace-conditional transparency from configuration')
+assert(/if \(!transparentOnlyWhenWorkspaceEmpty\) return true/.test(barSource), 'bar retains normal transparency when workspace mode is disabled')
+assert(/enabled: root\.transparentOnlyWhenWorkspaceEmpty/.test(barSource), 'bar listens for workspace changes only in workspace mode')
+
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.
 assert(
