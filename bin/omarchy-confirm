@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# omarchy:summary=Ask a yes/no question that can be answered with the mouse
+# omarchy:group=cmd
+# omarchy:name=confirm
+# omarchy:args=[--default=false] [--affirmative <label>] [--negative <label>] [prompt]
+# omarchy:examples=omarchy confirm "Continue?" | omarchy confirm --default=false "Remove orphans?"
+
+set -euo pipefail
+
+default=true
+affirmative="Yes"
+negative="No"
+prompt=""
+
+usage() {
+  echo "Usage: omarchy-confirm [--default=false] [--affirmative <label>] [--negative <label>] [prompt]" >&2
+}
+
+while (($#)); do
+  case "$1" in
+    --default=false) default=false ;;
+    --default=true) default=true ;;
+    --affirmative)
+      shift
+      (($#)) || { usage; exit 1; }
+      affirmative="$1"
+      ;;
+    --negative)
+      shift
+      (($#)) || { usage; exit 1; }
+      negative="$1"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      usage
+      exit 1
+      ;;
+    *)
+      if [[ -n $prompt ]]; then
+        prompt+=" $1"
+      else
+        prompt="$1"
+      fi
+      ;;
+  esac
+  shift
+done
+
+# Theme colors come from gum_env.lua; source the current values so a theme
+# switch after login is visible in this prompt.
+if [[ -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/bin/omarchy-restart-gum ]]; then
+  # shellcheck disable=SC1091
+  source "$OMARCHY_PATH/bin/omarchy-restart-gum"
+fi
+
+start_pos=1
+[[ $default == true ]] || start_pos=2
+
+color_spec=""
+add_color() {
+  local key=$1
+  local value=$2
+  [[ -n $value ]] || return 0
+  if [[ -n $color_spec ]]; then
+    color_spec+=",$key:$value"
+  else
+    color_spec="$key:$value"
+  fi
+}
+
+add_color fg "${FOREGROUND:-}"
+add_color bg "${BACKGROUND:-}"
+add_color prompt "${GUM_CONFIRM_PROMPT_FOREGROUND:-}"
+add_color fg+ "${GUM_CONFIRM_SELECTED_FOREGROUND:-}"
+add_color bg+ "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
+add_color hl "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
+add_color hl+ "${GUM_CONFIRM_SELECTED_FOREGROUND:-}"
+add_color pointer "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
+
+fzf_args=(
+  --no-input
+  --height=6
+  --reverse
+  --cycle
+  --info=hidden
+  --header="$prompt"
+  --prompt=""
+  --bind "start:pos($start_pos)"
+  --bind "left-click:accept"
+)
+
+if [[ -n $color_spec ]]; then
+  fzf_args+=(--color="$color_spec")
+fi
+
+status=0
+choice=$(printf '%s\n%s\n' "$affirmative" "$negative" | fzf "${fzf_args[@]}") || status=$?
+
+if ((status != 0)); then
+  exit 130
+fi
+
+[[ $choice == "$affirmative" ]]
