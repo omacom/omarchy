@@ -611,6 +611,12 @@ assert(
   !/root\.items\[[^\]]+\] =/.test(menuQml) && !/delete root\.items\[/.test(menuQml),
   'menu never writes into the item map held by the var property'
 )
+assert(
+  /property var selectionStack: \[\]/.test(menuQml)
+    && /itemId: root\.selectedItemId\(\)/.test(menuQml)
+    && /root\.restoreSelection\(saved && saved\.menu === previous \? saved : null\)/.test(menuQml),
+  'menu restores the highlighted parent row after returning from a submenu'
+)
 
 for (const functionName of ['openExistingMenu', 'openDmenu']) {
   const openMatch = menuQml.match(new RegExp(`function ${functionName}\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}`))

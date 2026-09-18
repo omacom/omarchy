@@ -71,6 +71,8 @@ Item {
   property var items: ({})
   property var itemOrder: []
   property var navStack: []
+  // Keep the highlighted row for each parent menu while drilling down.
+  property var selectionStack: []
   property var providersLoaded: ({})
   property var providerQueue: []
   property int providerRevision: 0
@@ -716,6 +718,33 @@ Item {
     revealCursor()
   }
 
+  function selectedItemId() {
+    if (root.selectedIndex < 0 || root.selectedIndex >= displayModel.count) return ""
+    var row = displayModel.get(root.selectedIndex)
+    return String((row && row.itemId) || "")
+  }
+
+  function restoreSelection(saved) {
+    if (!saved) return
+
+    var restored = Number(saved.index)
+    var savedItemId = String(saved.itemId || "")
+    if (savedItemId) {
+      for (var i = 0; i < displayModel.count; i++) {
+        if (String(displayModel.get(i).itemId || "") === savedItemId) {
+          restored = i
+          break
+        }
+      }
+    }
+
+    if (displayModel.count === 0) restored = 0
+    else restored = Math.max(0, Math.min(restored, displayModel.count - 1))
+    root.selectedIndex = restored
+    root.cursorActive = saved.cursorActive !== false
+    Qt.callLater(function() { root.revealCursor() })
+  }
+
   function setFilter(nextFilter) {
     panel.freezeCardTop()
     root.filterText = nextFilter
@@ -729,7 +758,15 @@ Item {
   function setActiveMenu(id, pushHistory, fromPointer) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
-    if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
+    if (pushHistory && id !== root.activeMenu) {
+      root.navStack = root.navStack.concat([root.activeMenu])
+      root.selectionStack = root.selectionStack.concat([{
+        menu: root.activeMenu,
+        index: root.selectedIndex,
+        itemId: root.selectedItemId(),
+        cursorActive: root.cursorActive
+      }])
+    }
     root.activeMenu = id
     root.filterText = ""
     root.selectedIndex = 0
@@ -747,7 +784,12 @@ Item {
     if (root.navStack.length > 0) {
       var previous = root.navStack[root.navStack.length - 1]
       root.navStack = root.navStack.slice(0, root.navStack.length - 1)
+      var saved = root.selectionStack.length > 0
+        ? root.selectionStack[root.selectionStack.length - 1] : null
+      root.selectionStack = root.selectionStack.length > 0
+        ? root.selectionStack.slice(0, root.selectionStack.length - 1) : []
       root.setActiveMenu(previous, false)
+      root.restoreSelection(saved && saved.menu === previous ? saved : null)
       return true
     }
 
@@ -842,6 +884,7 @@ Item {
     doneFile = ""
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
     navStack = []
+    selectionStack = []
     filterText = ""
     selectedIndex = 0
     cursorActive = true
@@ -870,6 +913,7 @@ Item {
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
     activeMenu = "root"
     navStack = []
+    selectionStack = []
     filterText = ""
     selectedIndex = 0
     cursorActive = mode !== "input"
