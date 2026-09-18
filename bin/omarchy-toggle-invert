@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle color inversion for the whole desktop or the focused window
+# omarchy:args=<desktop|window> [on|off|toggle|--status]
+# omarchy:examples=omarchy toggle invert desktop | omarchy toggle invert window off
+
+# Both modes share Hyprland's single screen shader, so the state lives in
+# default/hypr/invert.lua and this command only nudges it. That module writes the
+# status file read back here.
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+STATUS_FILE="$STATE_DIR/invert.status"
+
+usage() {
+  echo "Usage: omarchy-toggle-invert <desktop|window> [on|off|toggle|--status]" >&2
+}
+
+MODE="$1"
+ACTION="${2:-toggle}"
+
+if [[ $MODE != "desktop" && $MODE != "window" ]]; then
+  usage
+  exit 1
+fi
+
+if [[ $ACTION == "--status" ]]; then
+  enabled=false
+  if [[ -r $STATUS_FILE ]] && grep -qx "$MODE=true" "$STATUS_FILE"; then
+    enabled=true
+  fi
+
+  jq -cn --arg mode "$MODE" --argjson enabled "$enabled" '{mode:$mode, enabled:$enabled}'
+  exit 0
+fi
+
+mkdir -p "$STATE_DIR"
+
+case $ACTION in
+  on) call="set('$MODE', true)" ;;
+  off) call="set('$MODE', false)" ;;
+  toggle) call="toggle('$MODE')" ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+
+hyprctl eval "require('default.hypr.invert').$call" >/dev/null

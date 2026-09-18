@@ -124,4 +124,7 @@ o.bind("SUPER + CTRL + ALT + Z", "Reset zoom", function()
   hl.config({ cursor = { zoom_factor = 1 } })
 end)
 
+o.bind("SUPER + CTRL + U", "Toggle focused window color inversion", "omarchy-toggle-invert window")
+o.bind("SUPER + CTRL + ALT + U", "Toggle desktop color inversion", "omarchy-toggle-invert desktop")
+
 o.bind("SUPER + CTRL + L", "Lock system", "omarchy-system-lock")

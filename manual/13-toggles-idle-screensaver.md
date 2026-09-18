@@ -11,6 +11,8 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Toggle | Hotkey | Command |
 | ------ | ------ | ------- |
 | Night light | `Super + Ctrl + N` | `omarchy toggle nightlight` |
+| Invert the focused window | `Super + Ctrl + U` | `omarchy toggle invert window` |
+| Invert the desktop | `Super + Ctrl + Alt + U` | `omarchy toggle invert desktop` |
 | Silence notifications | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
@@ -53,6 +55,20 @@ profile {
 ```
 
 Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~/.config/hypr/autostart.lua`. The 4000K/6500K pair used by the toggle is fixed, so the config file is where you go if you want a different temperature.
+
+### Color inversion
+
+Some windows fight you. A PDF that is black text on white at midnight, a web app with no dark mode, a photo you need to read the shadows out of. `Super + Ctrl + U` inverts the colors of whichever window has focus and leaves the rest of the desktop alone, and `Super + Ctrl + Alt + U` inverts everything instead.
+
+The window one follows focus. Move to another window and the inversion moves with you, including when you drag or resize the window it is sitting on.
+
+The two are independent switches, which makes the combination worth knowing: turn both on and the inversions cancel inside the focused window, so you get a normal-looking window on an inverted desktop. That is the setting for reading one correctly-colored photo or video on a screen you have otherwise darkened.
+
+Both are runtime modes rather than saved settings. They come off on their own when Hyprland reloads, and neither survives a logout.
+
+Hyprland gives a compositor one screen shader and applies it to a whole monitor, so both modes share it and Omarchy generates that shader as you flip the switches. On a rotated monitor the window rectangle cannot be placed reliably, so window inversion falls back to inverting that whole monitor.
+
+Hyprland also re-runs that shader only over the parts of the screen that changed, which would leave everything else showing the previous shader's pixels — a screen broken into inverted and uninverted fragments. Omarchy avoids that by redrawing whole frames for as long as the picture could still be wrong: continuously while window inversion is on, since its rectangle keeps moving, and for a moment after any other switch. So window inversion costs GPU time the whole time it is on, where desktop inversion only costs it briefly and then settles.
 
 ### Do not disturb
 
