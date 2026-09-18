@@ -202,6 +202,10 @@ assert(
   'menu keeps Input as a direct config action'
 )
 assert(
+  defaultById['setup.input-method.chewing'].action.includes('omarchy-setup-input-chewing'),
+  'menu exposes Chewing Traditional Chinese input setup under Setup > Input Method'
+)
+assert(
   defaultById['setup.direct-boot'].action.includes('omarchy-setup-direct-boot'),
   'menu places Direct Boot directly under Setup'
 )
