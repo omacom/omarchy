@@ -6,6 +6,13 @@ Item {
 
   property string path: ""
   property int version: 0
+  property string fill: "crop"
+  property string backdrop: "solid"
+  property color fillColor: "black"
+  property real focalX: 0.5
+  property real focalY: 0.5
+  property bool imageCache: version === 0
+  property bool imageUseSourceSizeCap: version > 0
   property bool playbackEnabled: true
   property bool audioEnabled: false
   // Bumped when the file behind an unchanged path may have been replaced.
@@ -15,6 +22,7 @@ Item {
   property bool reloading: false
   readonly property var current: video ? videoLoader.item : imageLoader.item
   readonly property bool ready: current ? current.ready : false
+  readonly property int status: !video && current ? current.status : (ready ? Image.Ready : Image.Loading)
   readonly property bool video: Util.isVideoPath(path)
   // Cache-bust images selected in a running lock session. FFmpeg treats the
   // query as part of a local filename, so videos must keep their plain URL.
@@ -74,14 +82,18 @@ Item {
   Component {
     id: imageComponent
 
-    Image {
+    WallpaperImage {
       readonly property bool ready: status === Image.Ready
-      source: root.imageUrl
-      fillMode: Image.PreserveAspectCrop
+      path: root.path
+      fill: root.fill
+      backdrop: root.backdrop
+      fillColor: root.fillColor
+      focalX: root.focalX
+      focalY: root.focalY
+      sourceVersion: root.version
+      useSourceSizeCap: root.imageUseSourceSizeCap
       asynchronous: true
-      cache: root.version === 0
-      sourceSize.width: root.version > 0 ? width : 0
-      sourceSize.height: root.version > 0 ? height : 0
+      cache: root.imageCache
     }
   }
 }
