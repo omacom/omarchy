@@ -226,7 +226,6 @@ stop_screenrecording() {
     count=$((count + 1))
   done
 
-  toggle_screenrecording_indicator
   cleanup_webcam
 
   if pgrep -f "^gpu-screen-recorder" >/dev/null; then
@@ -253,6 +252,10 @@ stop_screenrecording() {
       rm -f "$preview"
     ) &
   fi
+
+  # Refresh only after the kill/finalize decision is final: refreshing while the
+  # recorder is still alive leaves the indicator stuck 'active' on a force-kill.
+  toggle_screenrecording_indicator
 
   rm -f "$RECORDING_FILE"
 }
@@ -297,6 +300,9 @@ finalize_recording() {
 if screenrecording_active; then
   stop_screenrecording
 elif [[ $STOP_RECORDING == "true" ]]; then
+  # No recorder is running: resync the indicator so a stale 'active' state
+  # self-heals instead of dead-ending every later click.
+  toggle_screenrecording_indicator
   exit 1
 else
   start_screenrecording || cleanup_webcam
