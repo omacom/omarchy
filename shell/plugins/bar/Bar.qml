@@ -104,6 +104,8 @@ Item {
   property real barDragOffsetX: 0
   property real barDragOffsetY: 0
   property bool barMoveActive: false
+  property bool barMoveTakePointer: false
+  property bool barMovePointerArmed: false
   property string barMoveCandidate: ""
   property var barMoveWindow: null
   property var barMoveScreen: null
@@ -428,12 +430,16 @@ Item {
   function windowScreenPoint(scenePoint, window) {
     var x = scenePoint ? scenePoint.x : 0
     var y = scenePoint ? scenePoint.y : 0
-    if (!window || !window.screen) return { x: x, y: y }
+    var screen = (window && window.screen) || barMoveScreen
+    if (!screen) return { x: x, y: y }
+
+    var height = window && window.height ? window.height : (root.vertical ? 0 : root.barSize)
+    var width = window && window.width ? window.width : (root.vertical ? root.barSize : 0)
 
     if (root.position === "bottom")
-      y += Math.max(0, window.screen.height - window.height)
+      y += Math.max(0, screen.height - height)
     else if (root.position === "right")
-      x += Math.max(0, window.screen.width - window.width)
+      x += Math.max(0, screen.width - width)
 
     return { x: x, y: y }
   }
@@ -485,9 +491,22 @@ Item {
   }
 
   function beginBarMove(window) {
+    var screens = []
+    try {
+      var list = Quickshell.screens
+      for (var i = 0; i < list.length; i++) screens.push(list[i])
+    } catch (e) {}
+
+    // Mapped clients are irrelevant: the bar is a layer surface, and an
+    // empty desktop is still a valid place to drag it to another edge.
+    if (!BarModel.barMoveEligible({ mappedClients: [], screens: screens })) return
+
     barMoveWindow = window
-    barMoveScreen = window ? window.screen : null
+    barMoveScreen = BarModel.resolveBarMoveScreen(window, screens, focusedScreenName())
+    if (!barMoveScreen) return
     barMoveCandidate = position
+    barMoveTakePointer = false
+    barMovePointerArmed = false
     barMoveActive = true
   }
 
@@ -496,11 +515,47 @@ Item {
     barMoveCandidate = nearestScreenEdge(screenPoint, barMoveScreen)
   }
 
+  function takeBarMovePointer() {
+    if (!barMoveActive) return
+    var handoff = BarModel.barMovePointerAfterHandoff()
+    barMoveTakePointer = handoff.takePointer === true
+    // Arm at handoff: the overlay never saw the original press, so a release
+    // with no further motion would otherwise never finish.
+    barMovePointerArmed = handoff.armed === true
+    barMoveHandoffAbortTimer.restart()
+  }
+
+  function applyBarMovePointerButtons(buttons) {
+    var action = BarModel.barMoveReleaseAction(barMovePointerArmed, buttons)
+    if (action === "hold") {
+      barMovePointerArmed = true
+      barMoveHandoffAbortTimer.stop()
+      return
+    }
+    if (action === "finish") {
+      barMovePointerArmed = false
+      finishBarMove()
+    }
+  }
+
+  function abortBarMove(kind) {
+    var reason = BarModel.barMoveAbortReason({
+      escape: kind === "escape",
+      secondaryClick: kind === "secondary",
+      handoffTimedOut: kind === "timeout"
+    })
+    if (!reason) return
+    clearBarMove()
+  }
+
   function clearBarMove() {
     barMoveActive = false
+    barMoveTakePointer = false
+    barMovePointerArmed = false
     barMoveCandidate = ""
     barMoveWindow = null
     barMoveScreen = null
+    barMoveHandoffAbortTimer.stop()
   }
 
   function finishBarMove() {
@@ -1162,6 +1217,12 @@ Item {
     onTriggered: if (!root.targetTooltipHovered(root.tooltipTarget)) root.hideTooltip(root.tooltipTarget)
   }
 
+  Timer {
+    id: barMoveHandoffAbortTimer
+    interval: 400
+    onTriggered: root.abortBarMove("timeout")
+  }
+
   // Presence of the `bar-off` flag = bar hidden. Watching the parent toggles
   // directory because FileView can't observe a file that doesn't exist yet,
   // and the flag is created/removed by `omarchy-toggle-bar`.
@@ -1473,7 +1534,9 @@ Item {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "omarchy-bar-move-ghost"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: root.barMoveTakePointer && moveGhostWindow.visible
+      ? WlrKeyboardFocus.OnDemand
+      : WlrKeyboardFocus.None
 
     anchors {
       top: true
@@ -1482,9 +1545,73 @@ Item {
       right: true
     }
 
-    // Visual-only preview of the candidate edge. Keep the input region empty
-    // so the overlay never steals the gesture area's active pointer grab.
-    mask: Region {}
+    // Stay pass-through while the bar still holds the grab, so a windowed
+    // desktop keeps the original strip-local gesture. On an empty desktop the
+    // pointer leaves the bar onto the wallpaper, Hyprland drops that grab, and
+    // the overlay must then take the pointer or the move dies with zero clients.
+    Region {
+      id: moveGhostInput
+      width: root.barMoveTakePointer && moveGhostWindow.visible ? moveGhostWindow.width : 0
+      height: root.barMoveTakePointer && moveGhostWindow.visible ? moveGhostWindow.height : 0
+    }
+    mask: moveGhostInput
+
+    function applyMovePoint(x, y) {
+      root.updateBarMove({ x: x, y: y })
+    }
+
+    HoverHandler {
+      id: moveHover
+      enabled: root.barMoveTakePointer && moveGhostWindow.visible
+      onPointChanged: {
+        var buttons = 0
+        try { buttons = point.pressedButtons } catch (e) { buttons = 0 }
+        moveGhostWindow.applyMovePoint(point.position.x, point.position.y)
+        root.applyBarMovePointerButtons(buttons)
+      }
+    }
+
+    // HoverHandler may not emit on a button-up with no motion. Poll the
+    // current point so an armed handoff can finish from a still release.
+    Timer {
+      interval: 32
+      repeat: true
+      running: root.barMoveTakePointer && moveGhostWindow.visible
+      onTriggered: {
+        var buttons = 0
+        try { buttons = moveHover.point.pressedButtons } catch (e) { buttons = 0 }
+        root.applyBarMovePointerButtons(buttons)
+      }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      enabled: root.barMoveTakePointer && moveGhostWindow.visible
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
+      hoverEnabled: true
+      focus: enabled
+
+      onEnabledChanged: if (enabled) forceActiveFocus()
+
+      Keys.onEscapePressed: root.abortBarMove("escape")
+
+      onPositionChanged: function(mouse) {
+        if (!(mouse.buttons & Qt.LeftButton)) return
+        moveGhostWindow.applyMovePoint(mouse.x, mouse.y)
+      }
+      onPressed: function(mouse) {
+        if (mouse.button === Qt.RightButton) {
+          root.abortBarMove("secondary")
+          mouse.accepted = true
+          return
+        }
+        root.barMovePointerArmed = true
+      }
+      onReleased: function(mouse) {
+        if (mouse.button !== Qt.LeftButton) return
+        root.applyBarMovePointerButtons(0)
+      }
+    }
 
     // One fixed-geometry slab per edge, crossfaded on candidate changes.
     // Resizing a single slab between edges repaints mid-transition and
@@ -1644,6 +1771,7 @@ Item {
     readonly property real dragThreshold: Style.space(4)
 
     acceptedButtons: Qt.LeftButton
+    preventStealing: true
     cursorShape: dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
     pressAndHoldInterval: 200
 
@@ -1694,7 +1822,18 @@ Item {
     onCanceled: {
       dragging = false
       suppressClick = false
+      // Lost grab after the move started: hand the pointer to the overlay
+      // instead of aborting. An empty desktop has no mapped client under the
+      // cursor, so the wallpaper would otherwise cancel the drag.
+      if (root.barMoveActive) {
+        root.takeBarMovePointer()
+        return
+      }
       root.clearBarMove()
+    }
+
+    Component.onDestruction: {
+      if (root.barMoveActive && !root.barMoveTakePointer) root.clearBarMove()
     }
 
     onClicked: function(mouse) {
