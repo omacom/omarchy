@@ -77,3 +77,5 @@ omarchy font list               # Available fonts
 omarchy font current            # Current font
 omarchy font set <name>         # Change font
 ```
+
+The font is a global setting, not part of a theme. `omarchy font set` rewrites the terminal configs and `~/.config/fontconfig/fonts.conf`, and that choice stays in place across every theme switch; a theme's `shell.*.toml` can scale type through its `[font]` tokens but cannot pick a family. The bar's position and widget layout are global in the same way, kept in `~/.config/omarchy/shell.json`. Change neither while building a theme expecting it to travel with the theme.

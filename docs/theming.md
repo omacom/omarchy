@@ -199,6 +199,8 @@ The running shell reads `shell.toml` into two QML singletons:
 - `Color` for palette and surface roles like `Color.menu.border`.
 - `Style` for controls, spacing, font scale, corner radius, and bar sizing.
 
+Those tokens are the whole of what a theme can style. The monospace font family (`omarchy font set`, written to `~/.config/fontconfig/fonts.conf` and the terminal configs) and the bar's position and widget layout (`~/.config/omarchy/shell.json`) are global user settings: they persist across theme switches, and a theme cannot set them.
+
 ### Borders
 
 Shell border tokens accept either a solid color or a gradient in the same key:
