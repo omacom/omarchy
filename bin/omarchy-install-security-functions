@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Provide internal security helpers for mixed-trust installers
+
+# Install-specific extensions to the shared security primitives. This file is
+# sourced from the same package-owned bin directory as its consumers.
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "omarchy-install-security-functions is an internal function library." >&2
+  exit 64
+fi
+
+source "${BASH_SOURCE[0]%/*}/omarchy-security-functions" || return 126
+
+omarchy_install_security_sanitize_bash_startup_environment() {
+  omarchy_security_sanitize_bash_environment "$@"
+}
+
+omarchy_install_security_finish_privileged_phase() {
+  local message=${1:-Could not invalidate cached sudo authorization.}
+
+  if ! omarchy_security_revoke_sudo_timestamp; then
+    echo "$message" >&2
+    return 1
+  fi
+}
+
+omarchy_install_security_prepare_cold_command_scoped_sudo() {
+  local cold_message=$1 no_update_message=$2
+
+  omarchy_install_security_finish_privileged_phase "$cold_message" || return 1
+  if ! omarchy_security_sudo_supports_no_update; then
+    echo "$no_update_message" >&2
+    return 1
+  fi
+}

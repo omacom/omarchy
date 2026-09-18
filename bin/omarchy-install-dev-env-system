@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Install fixed PHP system prerequisites and configuration
+
+set -euo pipefail
+
+if (( EUID != 0 )) || [[ $- != *p* ]]; then
+  echo "Run this internal helper through the development-environment installer." >&2
+  exit 126
+fi
+
+if (( $# != 1 )); then
+  echo "Expected one supported system environment." >&2
+  exit 2
+fi
+
+packages=(php composer php-sqlite xdebug)
+case "$1" in
+  php) ;;
+  symfony) packages+=(symfony-cli) ;;
+  *)
+    echo "Unsupported system environment." >&2
+    exit 2
+    ;;
+esac
+
+readonly PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+/usr/bin/omarchy-pkg-add "${packages[@]}"
+
+/usr/bin/sed -i \
+  -e 's/^;zend_extension=xdebug.so/zend_extension=xdebug.so/' \
+  -e 's/^;xdebug.mode=debug/xdebug.mode=debug/' \
+  -e 's/^;extension=bcmath/extension=bcmath/' \
+  -e 's/^;extension=intl/extension=intl/' \
+  -e 's/^;extension=iconv/extension=iconv/' \
+  -e 's/^;extension=openssl/extension=openssl/' \
+  -e 's/^;extension=pdo_sqlite/extension=pdo_sqlite/' \
+  -e 's/^;extension=pdo_mysql/extension=pdo_mysql/' \
+  /etc/php/conf.d/xdebug.ini /etc/php/php.ini
