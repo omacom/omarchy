@@ -14,6 +14,10 @@
 # DMA-BUF modifier import on some configurations, leaving recording unable to
 # start.
 #
+# When gsr-kms-server lacks CAP_SYS_ADMIN (Omarchy strips it; see #8245), the
+# KMS path would otherwise fall back to pkexec as full root. Prefer the portal
+# backend in that case unless OMARCHY_SCREENRECORD_USE_KMS=true forces KMS.
+#
 # Env: OMARCHY_SCREENRECORD_DEBUG=true appends gpu-screen-recorder's stderr (and
 # the picker target it was launched with) to
 # $XDG_RUNTIME_DIR/omarchy-screenrecord.log so users can attach a log when
@@ -153,6 +157,17 @@ select_capture_target() {
   echo "region:${BASH_REMATCH[3]}x${BASH_REMATCH[4]}+${BASH_REMATCH[1]}+${BASH_REMATCH[2]}"
 }
 
+# True when gsr-kms-server still carries CAP_SYS_ADMIN (Arch default). Omarchy
+# strips that capability; without it the helper would pkexec as full root.
+gsr_kms_has_sys_admin() {
+  local caps
+
+  [[ -x /usr/bin/gsr-kms-server ]] || return 1
+  command -v getcap >/dev/null 2>&1 || return 1
+  caps=$(getcap /usr/bin/gsr-kms-server 2>/dev/null) || return 1
+  [[ $caps == *cap_sys_admin* || $caps == *CAP_SYS_ADMIN* ]]
+}
+
 start_screenrecording() {
   mkdir -p "$RUNTIME_DIR" || return 1
   # XDG_STATE_HOME may be outside a private home; protect existing fallbacks too.
@@ -161,15 +176,25 @@ start_screenrecording() {
   fi
   local capture_args=()
   local target
+  local use_portal=false
 
-  # Opt-in path for HDR, external-GPU monitors, and window capture (all things
-  # the portal backend supports and the kms backend doesn't). Default flow uses
-  # slurp + the kms backend, which avoids the EGL DMA-BUF modifier import
-  # failures the portal path can hit on some configurations.
-  if [[ $FULLSCREEN == "true" ]]; then
+  # Prefer portal when the KMS helper has no CAP_SYS_ADMIN: without it,
+  # gpu-screen-recorder falls back to pkexec as full root (#8245). Opt into
+  # KMS anyway with OMARCHY_SCREENRECORD_USE_KMS=true (after restoring the
+  # capability), or force portal with OMARCHY_SCREENRECORD_USE_PORTAL=true.
+  if [[ ${OMARCHY_SCREENRECORD_USE_PORTAL:-false} == "true" ]]; then
+    use_portal=true
+  elif [[ ${OMARCHY_SCREENRECORD_USE_KMS:-false} != "true" ]] &&
+    ! gsr_kms_has_sys_admin; then
+    use_portal=true
+  fi
+
+  # Portal covers HDR, external-GPU monitors, and window capture. KMS avoids
+  # EGL DMA-BUF modifier import failures the portal path can hit on some setups.
+  if [[ $FULLSCREEN == "true" && $use_portal != "true" ]]; then
     target="monitor:$(omarchy-hyprland-monitor-focused)"
     capture_args=(-w "${target#monitor:}" -s "${RESOLUTION:-$(default_resolution)}")
-  elif [[ ${OMARCHY_SCREENRECORD_USE_PORTAL:-false} == "true" ]]; then
+  elif [[ $use_portal == "true" ]]; then
     target="portal"
     capture_args=(-w portal -s "${RESOLUTION:-$(default_resolution)}")
   else

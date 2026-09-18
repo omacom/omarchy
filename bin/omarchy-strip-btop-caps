@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Strip file capabilities from btop
+# omarchy:hidden=true
+
+set -euo pipefail
+
+if [[ -x /usr/bin/btop ]] && command -v setcap >/dev/null 2>&1; then
+  setcap -r /usr/bin/btop || true
+fi

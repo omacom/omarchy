@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Strip file capabilities from gsr-kms-server
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# gpu-screen-recorder's Arch package grants CAP_SYS_ADMIN to gsr-kms-server so
+# KMS capture can run without pkexec. That capability is root-equivalent and
+# world-executable (#8245). Omarchy strips it; screen recording falls back to
+# the portal backend when the capability is absent (see
+# omarchy-capture-screenrecording).
+if [[ -x /usr/bin/gsr-kms-server ]] && command -v setcap >/dev/null 2>&1; then
+  setcap -r /usr/bin/gsr-kms-server || true
+fi
