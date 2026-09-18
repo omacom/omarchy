@@ -16,6 +16,7 @@ Item {
 
   // Injected by omarchy-shell (the first-party service loader).
   property var shell: null
+  property string execSessionToken: ""
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   readonly property string home: Quickshell.env("HOME")
@@ -132,7 +133,7 @@ Item {
   }
 
   function snapshotOf(notification) {
-    return NotificationLogic.snapshotOf(notification, Date.now())
+    return NotificationLogic.snapshotOf(notification, Date.now(), service.execSessionToken)
   }
 
   // A notification nobody looks back at:
@@ -409,6 +410,29 @@ Item {
 
   Process { id: focusAppProc; running: false }
 
+  
+  Process {
+    id: writeExecTokenProc
+    running: false
+    command: ["bash", "-c",
+      'runtime="${XDG_RUNTIME_DIR:-}"; ' +
+      '[[ -n $runtime ]] || exit 1; ' +
+      'mkdir -m 700 -p "$runtime/omarchy"; ' +
+      'token=$(openssl rand -hex 32); ' +
+      'umask 077; printf "%s\n" "$token" >"$runtime/omarchy/notification-exec-token"; ' +
+      'chmod 600 "$runtime/omarchy/notification-exec-token"; ' +
+      'printf "%s" "$token"'
+    ]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var tok = text.trim()
+        if (tok.length > 0)
+          service.execSessionToken = tok
+      }
+    }
+  }
+
   Process {
     id: ensureDirsProc
     command: ["mkdir", "-p", service.stateDir, service.popupStateDir, service.historyDir, service.imagesDir]
@@ -490,8 +514,14 @@ Item {
   // must neither hang the serialized queue nor fill the state dir.
   readonly property string copyImagesScript:
     "while (( $# >= 2 )); do\n" +
-    "  if [[ -f $1 ]] && timeout 5 head -c 5242881 -- \"$1\" > \"$2.tmp\" 2>/dev/null &&\n" +
-    "     (( $(stat -c%s -- \"$2.tmp\") <= 5242880 )); then mv -f -- \"$2.tmp\" \"$2\"; else rm -f -- \"$2.tmp\"; fi\n" +
+    "  src=$1 dest=$2\n" +
+    "  real=$(realpath -e -- \"$src\" 2>/dev/null) || { shift 2; continue; }\n" +
+    "  case $real in\n" +
+    "    /tmp/*|/var/tmp/*|/run/user/*|/usr/share/icons/*|/usr/share/pixmaps/*) ;;\n" +
+    "    *) shift 2; continue ;;\n" +
+    "  esac\n" +
+    "  if [[ -f $real && ! -L $src ]] && timeout 5 head -c 5242881 -- \"$real\" > \"$dest.tmp\" 2>/dev/null &&\n" +
+    "     (( $(stat -c%s -- \"$dest.tmp\") <= 5242880 )); then mv -f -- \"$dest.tmp\" \"$dest\"; else rm -f -- \"$dest.tmp\"; fi\n" +
     "  shift 2\n" +
     "done\n"
 
@@ -834,6 +864,7 @@ Item {
 
   Component.onCompleted: {
     ensureDirsProc.running = true
+    writeExecTokenProc.running = true
     // Once mkdir has had a tick, load the existing settings file. FileView
     // surfaces an empty string when the file doesn't exist; loadSettings
     // handles that path.

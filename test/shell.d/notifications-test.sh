@@ -211,6 +211,48 @@ assertEqual(notifications.parseExecArgv('["mpv",5]'), null, 'notifications rejec
 assertEqual(notifications.parseExecArgv('["--include=x","y"]'), null, 'notifications reject a leading-dash program in the exec argv')
 assertEqual(notifications.parseExecArgv('["",""]'), null, 'notifications reject an empty program in the exec argv')
 
+// Quickshell 0.3.1 can wrap D-Bus hints so custom keys are only readable via
+// .value(name) / .get(name). Bracket indexing alone must not be the only path
+// or click-to-exec silently no-ops (#8346).
+assertEqual(
+  notifications.stringHint({ 'omarchy-exec-argv': '["notify-send","hi"]' }, 'omarchy-exec-argv'),
+  '["notify-send","hi"]',
+  'notifications read string hints from plain objects'
+)
+assertEqual(
+  notifications.stringHint({
+    value: function(key) {
+      return key === 'omarchy-exec-argv' ? '["notify-send","hi"]' : undefined
+    }
+  }, 'omarchy-exec-argv'),
+  '["notify-send","hi"]',
+  'notifications read string hints through QVariantMap.value()'
+)
+assertEqual(
+  notifications.stringHint({
+    get: function(key) {
+      return key === 'omarchy-glyph' ? '!' : undefined
+    }
+  }, 'omarchy-glyph'),
+  '!',
+  'notifications read string hints through Map.get()'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    value: function(key) {
+      return key === 'omarchy-exec-argv' ? '["mpv","--","/tmp/a.mp4"]' : undefined
+    }
+  }),
+  '["mpv","--","/tmp/a.mp4"]',
+  'notifications recover omarchy-exec-argv when only .value() can see the key'
+)
+assertEqual(notifications.stringHint(null, 'omarchy-exec-argv'), '', 'notifications treat a missing hints map as empty')
+assertEqual(
+  notifications.stringHint({ value: function() { return undefined } }, 'omarchy-exec-argv'),
+  '',
+  'notifications fail closed when the hint accessor returns nothing'
+)
+
 // The argv vector rides on the snapshot as the raw JSON string, so the model's
 // value comparison stays a plain string compare and the file round-trip is
 // lossless.
@@ -218,13 +260,47 @@ const execSnapshot = notifications.snapshotOf({
   id: 3,
   appName: 'omarchy-action',
   summary: 'Download complete',
-  hints: { 'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]' }
-}, 1)
+  hints: {
+    'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]',
+    'omarchy-exec-token': 'sess'
+  }
+}, 1, 'sess')
 assertEqual(
   execSnapshot.execArgv,
   '["mpv","--","/tmp/clip.mp4"]',
-  'notifications carry the exec argv hint onto the snapshot'
+  'notifications carry the exec argv hint onto the snapshot when the session token matches'
 )
+
+assertEqual(
+  notifications.execArgvFromHints({ 'omarchy-exec-argv': '["true"]' }, 'sess'),
+  '',
+  'notifications drop exec argv without a session token hint'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    'omarchy-exec-argv': '["true"]',
+    'omarchy-exec-token': 'nope'
+  }, 'sess'),
+  '',
+  'notifications drop exec argv when the session token mismatches'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    'omarchy-exec-argv': '["true"]',
+    'omarchy-exec-token': 'sess'
+  }, 'sess'),
+  '["true"]',
+  'notifications keep exec argv when the session token matches'
+)
+assertEqual(
+  notifications.snapshotOf({
+    id: 9,
+    hints: { 'omarchy-exec-argv': '["true"]', 'omarchy-exec-token': 'x' }
+  }, 1, 'sess').execArgv,
+  '',
+  'notifications snapshot clears exec argv without a matching session token'
+)
+
 
 assertDeepEqual(
   notifications.popupPlacement('top', 32, 6),
@@ -448,9 +524,32 @@ assertEqual(
   '/tmp/scoped_dir/logo a.png',
   'notifications resolve file URLs to copyable paths'
 )
-assertEqual(notifications.localImageFile('/tmp/avatar.png'), '/tmp/avatar.png', 'notifications treat absolute paths as copyable')
+assertEqual(notifications.localImageFile('/tmp/avatar.png'), '/tmp/avatar.png', 'notifications treat /tmp paths as copyable')
 assertEqual(notifications.localImageFile('mail'), '', 'notifications leave themed icon names uncopied')
 assertEqual(notifications.localImageFile('image://notifs/1'), '', 'notifications cannot copy in-process image URLs')
+assertEqual(
+  notifications.localImageFile('file:///etc/passwd'),
+  '',
+  'notifications refuse to snapshot /etc paths named as notification images'
+)
+assertEqual(
+  notifications.localImageFile('file:///home/user/.ssh/id_rsa'),
+  '',
+  'notifications refuse to snapshot ssh keys named as notification images'
+)
+assertEqual(
+  notifications.localImageFile('/tmp/../etc/passwd'),
+  '',
+  'notifications refuse a /tmp path that climbs out with ..'
+)
+assert(
+  notifications.isCopyableImagePath('/usr/share/icons/hicolor/48x48/apps/mail.png'),
+  'notifications may snapshot packaged icon files'
+)
+assert(
+  !notifications.isCopyableImagePath('/home/user/.gnupg/private-keys-v1.d/key'),
+  'notifications refuse gnupg paths named as notification images'
+)
 
 const persistable = notifications.persistablePopup(
   { id: 9, originalId: 9, timestamp: 2000, appIcon: 'file:///tmp/scoped/logo.png', image: 'image://notifs/9', summary: 'Hi' },
@@ -467,7 +566,17 @@ assertEqual(
   'notifications persist the image copy instead of the sender-owned original'
 )
 assertEqual(persistable.entry.image, '', 'notifications drop dead in-process image URLs from persisted entries')
-assertEqual(persistable.entry.summary, 'Hi', 'notifications leave the rest of the persisted entry untouched')
+assertEqual(
+  persistable.entry.summary, 'Hi', 'notifications leave the rest of the persisted entry untouched'
+)
+
+const stolen = notifications.persistablePopup(
+  { id: 3, originalId: 3, timestamp: 9, appIcon: 'file:///home/user/.ssh/id_rsa', image: 'file:///etc/shadow' },
+  '/state/images/'
+)
+assertEqual(stolen.copies.length, 0, 'notifications queue no copy jobs for paths outside the allowlist')
+assertEqual(stolen.entry.appIcon, '', 'notifications drop an ssh path from persisted history JSON')
+assertEqual(stolen.entry.image, '', 'notifications drop an /etc path from persisted history JSON')
 
 const repersisted = notifications.persistablePopup(persistable.entry, '/state/images/')
 assertDeepEqual(repersisted.copies, [], 'notifications do not re-copy an entry already pointing at its copies')
@@ -612,8 +721,12 @@ assert(
   'notifications service copies images before writing the JSON that references them'
 )
 assert(
-  /timeout 5 head -c 5242881 -- \\"\$1\\" > \\"\$2\.tmp\\"[\s\S]{0,120}?mv -f -- \\"\$2\.tmp\\" \\"\$2\\"/.test(serviceQml),
+  /timeout 5 head -c 5242881 -- \\"\$real\\" > \\"\$dest\.tmp\\"[\s\S]{0,160}?mv -f -- \\"\$dest\.tmp\\" \\"\$dest\\"/.test(serviceQml),
   'notifications service bounds image copies through a validated temp file'
+)
+assert(
+  /realpath -e -- \\"\$src\\"/.test(serviceQml) && /\/tmp\/\*\|\/var\/tmp\/\*/.test(serviceQml),
+  'notifications service re-checks image copy sources against the allowlist'
 )
 assert(
   /rm -f \\"\$1\/\$2\.json\\" \\"\$3\/\$2\\"-\*/.test(serviceQml),
