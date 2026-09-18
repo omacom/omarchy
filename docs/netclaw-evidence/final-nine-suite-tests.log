@@ -1,0 +1,352 @@
+Running test/shell.d/netclaw-test.sh
+ok - failed provisioning is retryable
+ok - provisioning is idempotent and preserves desktop customization
+ok - onboarding cancellation leaves setup incomplete
+OpenClaw backup: /tmp/tmp.yVUTPPF9N6/home with spaces/.local/state/omarchy/netclaw/backup-w34Hi1/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - setup backs up state, deploys persona references, and configures the shared gateway
+NetClaw is already configured at 20f9c3a3be837528bdf7b2b87a3b69de85634635.
+ok - configured chat, default agent, status, and unchanged updates work
+OpenClaw backup: /tmp/tmp.yVUTPPF9N6/home with spaces/.local/state/omarchy/netclaw/backup-RqXeHG/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - adapter changes refresh installed components with an unchanged upstream pin
+From /tmp/tmp.yVUTPPF9N6/upstream
+ * branch            c57e4d1593affc12e374d9a3b4f63b84b890bb43 -> FETCH_HEAD
+Warning: you are leaving 1 commit behind, not connected to
+any of your branches:
+
+  20f9c3a fixture
+
+If you want to keep it by creating a new branch, this may be a good time
+to do so with:
+
+ git branch <new-branch-name> 20f9c3a
+
+HEAD is now at c57e4d1 update
+OpenClaw backup: /tmp/tmp.yVUTPPF9N6/home with spaces/.local/state/omarchy/netclaw/backup-cUjF6R/openclaw
+NetClaw workspace: 0 skill files, 0 metadata repairs
+NetClaw is configured. Launch with: omarchy netclaw chat
+ok - new distro revision refreshes existing components and records recovery revision
+ok - component launchers isolate dependencies and preserve process semantics
+ok - upstream component failures cannot masquerade as success
+ok - early exit cannot reuse stale completion state
+ok - updates refuse to overwrite local changes
+ok - setup protects foreign NetClaw installations
+ok - gateway controls validate actions
+ok - NetClaw does not extend the root menu
+ok - NetClaw uses the standard Apps provider
+ok - default agent menu includes NetClaw
+Running test/shell.d/netclaw-credentials-test.sh
+ok - credential prompts preserve literal input without command evaluation
+ok - credential persistence preserves special characters, unrelated keys, and private mode
+ok - credential adapter rejects multiline values and changed upstream contracts
+Running test/shell.d/netclaw-workspace-test.sh
+NetClaw workspace: 5 skill files, 3 metadata repairs
+NetClaw workspace: 5 skill files, 0 metadata repairs
+ok - NetClaw preserves skill instructions and makes room for the complete catalog and persona
+ok - Markmap artifacts embed their assets and escape script payloads
+ok - MCP cold startup has a configurable budget without changing tool response deadlines
+Running test/shell.d/netclaw-markmap-test.sh
+ok - Markmap intercepts the ESM MCP, saves HTML artifacts, and protects output paths
+Running test/shell.d/netclaw-launch-test.sh
+ok - desktop chat preserves arguments without pausing on success
+ok - desktop chat keeps failures visible
+ok - dashboard exposes setup failures instead of reporting completion
+Running test/cli
+ok - main help renders
+ok - main help includes hardware group
+ok - main help includes package group
+ok - main help does not show group counts
+ok - commands lists documented commands
+ok - commands --json is valid JSON with full bin coverage
+ok - all included commands have summaries
+ok - JSON uses binary/routes and omits legacy/usage/extra metadata
+ok - commands --check passes
+ok - commands --all does not crash
+ok - fallback commands are inferred and documented
+ok - benchmark command is discoverable in all commands
+ok - JSON exposes direct pkg add route
+ok - Xbox Cloud installer keeps hyphenated canonical route
+ok - Xbox controller installer keeps hyphenated canonical route
+ok - Xbox controller remover keeps hyphenated canonical route
+ok - GeForce NOW installer keeps hyphenated canonical route
+ok - GeForce NOW remover keeps hyphenated canonical route
+ok - GPU lib32 installer keeps hyphenated canonical route
+ok - sudo metadata marks sudo commands
+ok - group help renders
+ok - install group help renders
+ok - install group includes browser route
+ok - bare group renders help instead of picker
+ok - bare group includes browser route
+ok - bare root command with children renders help
+ok - bare toggle help includes child route
+ok - package group includes pkg add fallback route
+ok - restart group includes inferred commands
+ok - restart group includes all restart commands
+ok - hardware group help renders
+ok - hardware group includes touchpad
+ok - partial hardware prefix renders matching commands
+ok - partial hardware prefix includes nested match
+ok - menu group includes share fallback route
+ok - bare required-arg alias renders CLI help
+ok - bare share help uses canonical route
+ok - bare required-arg filename route renders CLI help
+ok - every filename-derived group help represents its bins
+ok - command help renders without executing
+ok - theme set help names binary
+ok - mutating command help does not execute target
+ok - hidden update perform compatibility wrapper is not shown
+ok - a group whose commands are all hidden stays out of the top-level listing
+ok - install-time setup plumbing is hidden from the setup wizards
+ok - hidden setup plumbing still routes
+ok - root alias resolves to command help
+ok - aliases are included in JSON metadata
+ok - pkg add help resolves
+ok - pkg add help shows direct route
+ok - system command help is safe
+ok - benchmark command runs
+find: ‘/home/tester/.config/omarchy/themes/’: No such file or directory
+ok - safe dispatch works for theme list
+ok - safe dispatch works for theme current
+ok - safe dispatch works for font list
+ok - safe dispatch works for font current
+ok - theme template color mix helpers work
+ok - theme template semantic aliases expose legacy palette helpers
+ok - legacy short palette resolves every canonical neutral color
+ok - legacy short palette renders the complete generated theme
+ok - theme OSC aliases semantic colors to ANSI palette
+ok - theme preview shows background to bright_foreground gradient
+ok - theme preview orders light mode ramp light to dark
+ok - theme preview includes dark background slots
+ok - theme preview shows selected text sample
+ok - theme preview shows practical terminal samples
+ok - theme preview shows ANSI palette strips
+ok - tokyo night foreground ramp stays ordered
+ok - built-in colors.toml files omit cursor token
+ok - theme template gradient helpers work
+ok - theme shell section override is merged
+ok - pi theme template is generated from standard themed templates
+ok - theme-specific pi.json overrides the default template
+ok - pi theme sync skips missing Pi agent when not activating
+ok - pi theme file is synced
+ok - pi settings file is generated
+ok - pi synced theme JSON is valid
+ok - pi generated theme is activated
+ok - pi theme activation preserves existing settings
+ok - claude theme template is generated from standard themed templates
+ok - claude theme sync respects CLAUDE_CONFIG_DIR
+ok - claude theme activation preserves configured settings
+ok - headless theme set creates current background symlink
+ok - tmux sync reads mode from colors.toml
+ok - gnome sync reads mode from colors.toml
+ok - vscode generated light theme uses VS Code light uiTheme
+ok - vscode generated theme references current theme file
+ok - vscode generated theme clears obsolete extension marker
+ok - vscode generated theme registers local extension
+ok - binary is executable: omarchy-update
+ok - binary is executable: omarchy-theme-set
+ok - binary is executable: omarchy-capture-screenshot
+ok - binary is executable: omarchy-system-reboot
+ok - binary is executable: omarchy-pkg-add
+ok - all executable bins have slim self-documenting metadata
+ok - unknown metadata values are non-fatal
+ok - partial metadata keeps inferred fallback route
+ok - metadata-looking comments after script body are ignored
+ok - temporary metadata command dispatches
+ok - partial metadata command dispatches
+ok - body metadata command dispatches by filename
+ok - trailing --help after an unresolved word renders help
+ok - partial resolution help lists related commands
+ok - trailing --help after an unresolved word does not execute the command
+ok - trailing -h after an unresolved word renders help
+ok - trailing --help after an unresolved word renders help via alias route
+ok - trailing --help on an alias route does not execute the command
+ok - --json with --help renders JSON help
+ok - a --json embedded inside one argument does not switch help to JSON
+ok - leftover args without a help flag still forward
+ok - a --help behind -- belongs to the command and still forwards
+ok - help lookalike tokens do not trigger help
+Running test/shell.d/default-agent-test.sh
+ok - custom agent lazy stubs preserve their mise packages
+ok - user setup creates the custom agent lazy stubs
+ok - user setup keeps an existing Cursor CLI install
+ok - Muse migration preserves existing installs and the preinstall opt-out
+ok - Cursor CLI migration preserves an existing Cursor CLI install
+ok - Antigravity migration reads the default the way the launcher does
+ok - Antigravity migration only removes the Gemini wrapper Omarchy wrote
+ok - Antigravity migration provisions Antigravity skills
+ok - Antigravity migration respects removed preinstalls
+ok - Antigravity migration never leaves the default naming a missing agent
+ok - Antigravity migration preserves an existing Antigravity install
+ok - agent migrations install working wrappers without overriding the preinstall opt-out
+ok - Remove Preinstalls deletes every optional agent lazy stub
+ok - Remove Preinstalls keeps an official Cursor CLI install
+ok - Remove Preinstalls keeps a user-managed Muse install
+ok - default agent is unset until one is chosen
+ok - agent launcher refuses to launch without a default
+ok - --pick opens the agent defaults menu when none is set
+ok - terminal alias launches the default agent inline
+ok - agent launcher has a keyboard shortcut
+ok - default agent selects and opens every supported provider and alias
+ok - default agent stores its selection in Omarchy user config
+ok - missing agents install visibly and open in the same terminal
+ok - installed agents select and open without notifications
+ok - selecting an official Cursor CLI install skips mise
+ok - a dead file at the wrapper's path does not pass for an install
+ok - default agent rejects unsupported providers without changing the selection
+ok - default agent opens only after mise installs the provider
+ok - default agent reports mise failures without notifications
+ok - failed Muse mise installation preserves the selection and skips login
+ok - Muse installs visibly through mise and opens directly
+ok - installed Muse selects and opens directly
+ok - default agent reports Muse mise failures without changing the selection
+ok - selecting a user-installed Muse preserves its launcher
+ok - agent launcher adapts initial prompts for every supported agent
+ok - Muse receives option-like prompts as one literal argument
+ok - Hermes receives prompted launches as one literal query argument
+ok - agent launcher skips permission prompts for every supported agent
+ok - agent launcher starts the selected agent without an initial prompt
+ok - inline agent launcher runs in the current terminal
+ok - --pick launches once an agent is chosen
+ok - omarchy agent keeps prompts on the prompt route
+ok - agent launcher reports a missing default command
+ok - choosing OpenClaw uses the package and launches its terminal UI
+ok - a missing OpenClaw routes through the install terminal
+ok - installing OpenClaw as default agent adds its package
+ok - OpenClaw receives prompts through --message
+Running test/shell.d/menu-test.sh
+ok - menu parses JSONC with comments and trailing commas
+ok - menu normalizes parsed items
+ok - menu user entries override default entries
+ok - menu preserves original order on override
+ok - menu injects root when merging sources
+ok - menu slugifies provider rows
+ok - menu builds item paths
+ok - menu builds parent paths
+ok - menu detects descendants
+ok - menu counts children
+ok - menu appends checked marker
+ok - menu marks a disabled row as something you already have
+ok - menu leaves an uninstalled row unmarked
+ok - menu hides a submenu with no visible children
+ok - menu shows a submenu with a visible child
+ok - menu hides recursively empty submenus
+ok - menu keeps provider-backed submenus visible
+ok - menu keeps a disabled row visible
+ok - menu disables a row whose disabled: succeeded
+ok - menu leaves a row selectable when its disabled: failed
+ok - menu never disables a row that declares no disabled:
+ok - menu display rows carry their disabled state
+ok - menu search skips disabled rows, which belong to the submenu they sit in rather than a list of what you can do
+ok - menu matches labels and aliases
+ok - menu matches aliases
+ok - menu rejects missing terms
+ok - menu hides invisible matches
+ok - menu scores name matches above description matches
+ok - menu builds display rows
+ok - menu ranks an installed app above menu entries matching the query equally well
+ok - menu ranks an app matching the query as a whole word above exact-labeled menu entries
+ok - menu keeps a better-matching menu entry above a weaker app match
+ok - menu routes an exact id even when an app keyword matches it
+ok - menu never routes to an app row through its keywords
+ok - menu routes declared aliases to their item
+ok - menu normalizes underscores in routes
+ok - menu routes empty input to root
+ok - menu falls through to the literal input
+ok - menu still finds an app by its keywords in search
+ok - menu delegates route resolution to the shared model
+ok - menu lists Emoji first under Trigger
+ok - menu opens the emoji picker from Trigger
+ok - menu update Omarchy entry uses the Omarchy glyph
+ok - menu update Omarchy entry renders the private glyph with the Omarchy font
+ok - menu hides Extra Themes until a theme cloned from git is there to update
+ok - menu keeps Input as a direct config action
+ok - menu places Direct Boot directly under Setup
+ok - menu exposes Reset Computer under Setup
+ok - menu lists Reset Computer last under Setup
+ok - menu exposes every supported coding agent with its own glyph under Defaults > Agent
+ok - menu sorts coding agents alphabetically
+ok - menu always exposes every supported browser, terminal, and editor under Defaults
+ok - menu removes Crush from Install > AI
+ok - menu never hides an Install row because the software is already there
+ok - menu dims the Install rows for software that is already installed
+ok - menu asks the same presence question it used to hide the row with
+ok - menu keeps hiding Chromium Account without Chromium, and dims it once the account is set up
+ok - menu still hides Remove rows for software that is not installed
+ok - menu orders Remove categories like their Install counterparts, followed by Remove-only categories
+ok - menu places Passwordless Sudo under Setup > Security
+ok - menu removes the relocated toggles from Trigger > Toggle
+ok - menu groups Menu Bar positions in a submenu
+ok - menu lists all Menu Bar positions under Position
+ok - menu exposes Menu Bar transparency as a toggle
+ok - menu manages plugins from Setup > Plugins
+ok - menu picks a plugin the way it already picks a theme or a timezone
+ok - menu always offers Enable and Disable, which cover the built-in plugins too
+ok - menu hides Remove until a plugin the user installed exists to delete
+ok - menu adds a plugin through the CLI, where the trust warning and clone output are visible
+ok - plugin picker offers what each verb can act on
+ok - plugin picker leaves plugin-kind decisions to its data and the plugin command
+ok - plugin enable reports a bar as replacing the one in use, whether enabled or freshly added
+ok - interactive plugin add selects the manifest placement or center fallback by default
+ok - plugin picker delegates enable and disable without interpreting plugin kinds
+ok - plugin picker shows the id as row subtext and acts on the id the selection hands back
+ok - menu select mode reads a leading icon and a trailing subtext off an option
+ok - plugin picker removes where the confirmation and backup path are visible
+ok - menu re-enumerates the font list every time it is opened
+ok - menu invalidates volatile providers when entering a menu, not on every keystroke
+ok - menu search never restarts a volatile provider
+ok - menu only shows Laptop Display on laptops
+ok - menu only shows Mirror Display on laptops
+ok - menu only shows webcam screen recording when a webcam is available
+ok - menu rows support per-icon font families
+ok - menu keyboard navigation disarms pointer selection
+ok - menu keyboard navigation skips disabled rows in the direction of travel
+ok - menu reads selectability off the row
+ok - menu refuses to activate a disabled row
+ok - menu leaves the cursor put when the pointer crosses a disabled row
+ok - menu renders a disabled row faded, and leaves it at that
+ok - menu parks the cursor on a selectable row after the rows change
+ok - menu ties the cursor to a selectable row existing, both ways
+ok - menu filter changes disarm pointer selection
+ok - menu route changes only accept an initial pointer sample for mouse activation
+ok - menu Left key follows empty-filter Backspace navigation
+ok - menu uses shared pointer movement gate in card coordinates
+ok - menu resets pointer movement gate when pointer selection is disarmed
+ok - app merge appends app rows after the static menu items
+ok - repeating the app merge with the same entries does not duplicate rows
+ok - app merge drops rows for entries that went away
+ok - app merge lists an app once even when two desktop entries share an id
+ok - app merge heals an order entry whose item went missing instead of duplicating it
+ok - app merge leaves the map it was handed untouched
+ok - provider merge appends its rows
+ok - repeating a provider merge does not duplicate rows
+ok - provider merge drops rows the provider no longer lists
+ok - provider merge leaves rows belonging to another provider alone
+ok - menu slugs collide across plugin ids that differ only in separator
+ok - menu keeps colliding provider rows apart so none is dropped
+ok - menu assigns the rebuilt app item map instead of mutating it in place
+ok - menu assigns the rebuilt provider item map instead of mutating it in place
+ok - menu never writes into the item map held by the var property
+ok - menu openExistingMenu function exists
+ok - menu openExistingMenu ignores a stale hidden-pointer position when becoming visible
+ok - menu openDmenu function exists
+ok - menu openDmenu ignores a stale hidden-pointer position when becoming visible
+ok - menu only selects from pointer after real movement
+ok - menu row hover routes through pointer movement gate
+ok - menu samples pointer movement immediately when entering a row
+ok - mouse activation carries pointer intent into subordinate menus
+ok - Omarchy icon font includes the official agent marks
+Running test/shell.d/restart-shell-test.sh
+ok - shell IPC calls time out when Quickshell is unresponsive
+ok - shell IPC calls fail while Quickshell is still starting
+ok - quiet best-effort IPC calls tolerate a starting shell
+ok - shell IPC targets the newest live Quickshell instance
+ok - menu IPC reaches the running desktop after a development path change
+ok - IPC preserves explicitly targeted running shells
+ok - IPC never retries a timed-out menu toggle
+ok - restart replaces duplicate shell instances from the session checkout
+ok - restart preserves the shell while its lock is active
+ok - restart recovers a locked session whose lock client died
+All NetClaw container suites passed.

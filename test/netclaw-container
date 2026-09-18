@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+image=omarchy-netclaw-test
+# Docker's current context is respected. On Macs using OrbStack, for example:
+# DOCKER_CONTEXT=orbstack ./test/netclaw-container
+# amd64 matches Omarchy; Docker Desktop and OrbStack can emulate it on ARM Macs.
+docker build --platform linux/amd64 -t "$image" -f "$root/test/containers/netclaw/Dockerfile" "$root"
+docker run --rm --platform linux/amd64 --network none "$image"

@@ -1,0 +1,43 @@
+#!/bin/bash
+# omarchy:summary=Provision the pinned NetClaw source and desktop entry for this user
+# omarchy:hidden=true
+
+set -euo pipefail
+# shellcheck source=default/netclaw/runtime.sh
+source "$OMARCHY_PATH/default/netclaw/runtime.sh"
+if (( EUID == 0 )); then
+  echo "Run NetClaw provisioning as your desktop user, not root." >&2
+  exit 1
+fi
+umask 077
+mkdir -p "$netclaw_state" "$HOME/.local/share/omarchy" "$HOME/.local/share/applications"
+exec 9>"$netclaw_state/source.lock"
+flock 9
+revision=$(cat "$OMARCHY_PATH/default/netclaw/revision")
+if [[ ! $revision =~ ^[a-f0-9]{40}$ ]]; then
+  echo "Invalid NetClaw revision." >&2
+  exit 1
+fi
+if [[ ! -e $netclaw_dir ]]; then
+  staging=$(mktemp -d "$HOME/.local/share/omarchy/.netclaw-XXXXXX")
+  trap 'rm -rf "$staging"' EXIT
+  git -C "$staging" init -q
+  git -C "$staging" remote add origin https://github.com/automateyournetwork/netclaw.git
+  git -C "$staging" fetch --depth 1 origin "$revision"
+  git -C "$staging" checkout --detach FETCH_HEAD
+  mv "$staging" "$netclaw_dir"
+else
+  if [[ ! -d $netclaw_dir/.git ]] || [[ $(git -C "$netclaw_dir" remote get-url origin) != "https://github.com/automateyournetwork/netclaw.git" ]]; then
+    echo "NetClaw's managed source path is occupied by another installation: $netclaw_dir" >&2
+    exit 1
+  fi
+fi
+# Do not overwrite a user's customized desktop entry on repeat provisioning.
+if [[ ! -e $HOME/.local/share/applications/NetClaw.desktop ]]; then
+  install -m 644 "$OMARCHY_PATH/applications/NetClaw.desktop" "$HOME/.local/share/applications/NetClaw.desktop"
+fi
+
+# Apps uses the normal desktop entry and icon theme, without a root menu extension.
+icon_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
+mkdir -p "$icon_dir"
+install -m 644 "$OMARCHY_PATH/applications/icons/netclaw.png" "$icon_dir/netclaw.png"

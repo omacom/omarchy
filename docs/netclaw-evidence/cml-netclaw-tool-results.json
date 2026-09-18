@@ -1,0 +1,570 @@
+[
+  {
+    "seq": 30,
+    "timestamp": 1789054100289,
+    "device": "R1",
+    "command": "show version",
+    "status": "completed",
+    "output": {
+      "version": {
+        "version_short": "17.15",
+        "platform": "Linux",
+        "version": "17.15.1",
+        "image_id": "X86_64BI_LINUX-ADVENTERPRISEK9-M",
+        "label": "RELEASE SOFTWARE (fc4)",
+        "os": "IOS",
+        "location": "IOSXE",
+        "image_type": "production image",
+        "copyright_years": "1986-2024",
+        "compiled_date": "Sun 11-Aug-24 22:07",
+        "compiled_by": "mcpre",
+        "rom": "Bootstrap program is Linux",
+        "hostname": "R1",
+        "uptime": "21 minutes",
+        "system_image": "unix:/x86_64_crb_linux-adventerprisek9-ms.iol",
+        "last_reload_reason": "Unknown reason",
+        "chassis_sn": "[REDACTED]",
+        "number_of_intfs": {
+          "Ethernet": "4"
+        },
+        "processor_board_flash": "[REDACTED]",
+        "curr_config_register": "0x0"
+      }
+    }
+  },
+  {
+    "seq": 36,
+    "timestamp": 1789054125956,
+    "device": "R1",
+    "command": "show ip interface brief",
+    "status": "completed",
+    "output": {
+      "interface": {
+        "Ethernet0/0": {
+          "ip_address": "unassigned",
+          "interface_is_ok": "YES",
+          "method": "manual",
+          "status": "up",
+          "protocol": "up"
+        },
+        "Ethernet0/0.10": {
+          "ip_address": "10.100.10.1",
+          "interface_is_ok": "YES",
+          "method": "manual",
+          "status": "up",
+          "protocol": "up"
+        },
+        "Ethernet0/0.20": {
+          "ip_address": "10.100.20.1",
+          "interface_is_ok": "YES",
+          "method": "manual",
+          "status": "up",
+          "protocol": "up"
+        },
+        "Ethernet0/0.999": {
+          "ip_address": "unassigned",
+          "interface_is_ok": "YES",
+          "method": "unset",
+          "status": "up",
+          "protocol": "up"
+        },
+        "Ethernet0/1": {
+          "ip_address": "10.255.255.0",
+          "interface_is_ok": "YES",
+          "method": "manual",
+          "status": "up",
+          "protocol": "up"
+        },
+        "Ethernet0/2": {
+          "ip_address": "10.10.20.171",
+          "interface_is_ok": "YES",
+          "method": "TFTP",
+          "status": "up",
+          "protocol": "up"
+        },
+        "Ethernet0/3": {
+          "ip_address": "unassigned",
+          "interface_is_ok": "YES",
+          "method": "TFTP",
+          "status": "administratively down",
+          "protocol": "down"
+        },
+        "Loopback0": {
+          "ip_address": "10.255.0.1",
+          "interface_is_ok": "YES",
+          "method": "manual",
+          "status": "up",
+          "protocol": "up"
+        }
+      }
+    }
+  },
+  {
+    "seq": 42,
+    "timestamp": 1789054155090,
+    "device": "R1",
+    "command": "show ip ospf neighbor",
+    "status": "completed",
+    "output": {
+      "interfaces": {
+        "Ethernet0/1": {
+          "neighbors": {
+            "10.255.0.2": {
+              "priority": 0,
+              "state": "FULL/  -",
+              "dead_time": "00:00:33",
+              "address": "10.255.255.1"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "seq": 48,
+    "timestamp": 1789054181224,
+    "device": "R1",
+    "command": "show ip bgp summary",
+    "status": "completed",
+    "output": {
+      "bgp_id": 65000,
+      "vrf": {
+        "default": {
+          "neighbor": {
+            "10.255.0.2": {
+              "address_family": {
+                "": {
+                  "version": 4,
+                  "as": 65000,
+                  "msg_rcvd": 10,
+                  "msg_sent": 10,
+                  "tbl_ver": 5,
+                  "input_queue": 0,
+                  "output_queue": 0,
+                  "up_down": "00:05:44",
+                  "state_pfxrcd": "2",
+                  "route_identifier": "10.255.0.1",
+                  "local_as": 65000,
+                  "bgp_table_version": 5,
+                  "routing_table_version": 5,
+                  "attribute_entries": "2/2",
+                  "prefixes": {
+                    "total_entries": 4,
+                    "memory_usage": 992
+                  },
+                  "path": {
+                    "total_entries": 4,
+                    "memory_usage": 544
+                  },
+                  "total_memory": 2128,
+                  "activity_prefixes": "4/0",
+                  "activity_paths": "4/0",
+                  "scan_interval": 60,
+                  "cache_entries": {
+                    "route-map": {
+                      "total_entries": 0,
+                      "memory_usage": 0
+                    },
+                    "filter-list": {
+                      "total_entries": 0,
+                      "memory_usage": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "seq": 54,
+    "timestamp": 1789054208154,
+    "device": "R1",
+    "command": "show ip route bgp",
+    "status": "completed",
+    "output": {
+      "vrf": {
+        "default": {
+          "address_family": {
+            "ipv4": {
+              "routes": {
+                "10.100.30.0/24": {
+                  "route": "10.100.30.0/24",
+                  "active": true,
+                  "metric": 0,
+                  "route_preference": 200,
+                  "source_protocol_codes": "B",
+                  "source_protocol": "bgp",
+                  "next_hop": {
+                    "next_hop_list": {
+                      "1": {
+                        "index": 1,
+                        "next_hop": "10.255.0.2",
+                        "updated": "00:05:16"
+                      }
+                    }
+                  }
+                },
+                "10.100.40.0/24": {
+                  "route": "10.100.40.0/24",
+                  "active": true,
+                  "metric": 0,
+                  "route_preference": 200,
+                  "source_protocol_codes": "B",
+                  "source_protocol": "bgp",
+                  "next_hop": {
+                    "next_hop_list": {
+                      "1": {
+                        "index": 1,
+                        "next_hop": "10.255.0.2",
+                        "updated": "00:05:16"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "seq": 60,
+    "timestamp": 1789054242307,
+    "device": "R1",
+    "command": "show ip dhcp binding",
+    "status": "completed",
+    "output": {
+      "dhcp_binding": {
+        "1": {
+          "ip_address": "10.100.10.100",
+          "client_id": "0152.5400.1991.53",
+          "lease_expiration": "Sep 11 2026 03:23 PM",
+          "type": "Automatic",
+          "state": "Active",
+          "interface": "Ethernet0/0.10"
+        },
+        "2": {
+          "ip_address": "10.100.20.100",
+          "client_id": "0152.5400.0b00.ab",
+          "lease_expiration": "Sep 11 2026 03:23 PM",
+          "type": "Automatic",
+          "state": "Active",
+          "interface": "Ethernet0/0.20"
+        }
+      }
+    }
+  },
+  {
+    "seq": 66,
+    "timestamp": 1789054269506,
+    "device": "R2",
+    "command": "show ip ospf neighbor",
+    "status": "completed",
+    "output": {
+      "interfaces": {
+        "Ethernet0/1": {
+          "neighbors": {
+            "10.255.0.1": {
+              "priority": 0,
+              "state": "FULL/  -",
+              "dead_time": "00:00:37",
+              "address": "10.255.255.0"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "seq": 72,
+    "timestamp": 1789054295281,
+    "device": "R2",
+    "command": "show ip bgp summary",
+    "status": "completed",
+    "output": {
+      "bgp_id": 65000,
+      "vrf": {
+        "default": {
+          "neighbor": {
+            "10.255.0.1": {
+              "address_family": {
+                "": {
+                  "version": 4,
+                  "as": 65000,
+                  "msg_rcvd": 12,
+                  "msg_sent": 12,
+                  "tbl_ver": 5,
+                  "input_queue": 0,
+                  "output_queue": 0,
+                  "up_down": "00:07:38",
+                  "state_pfxrcd": "2",
+                  "route_identifier": "10.255.0.2",
+                  "local_as": 65000,
+                  "bgp_table_version": 5,
+                  "routing_table_version": 5,
+                  "attribute_entries": "2/2",
+                  "prefixes": {
+                    "total_entries": 4,
+                    "memory_usage": 992
+                  },
+                  "path": {
+                    "total_entries": 4,
+                    "memory_usage": 544
+                  },
+                  "total_memory": 2128,
+                  "activity_prefixes": "4/0",
+                  "activity_paths": "4/0",
+                  "scan_interval": 60,
+                  "cache_entries": {
+                    "route-map": {
+                      "total_entries": 0,
+                      "memory_usage": 0
+                    },
+                    "filter-list": {
+                      "total_entries": 0,
+                      "memory_usage": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "seq": 78,
+    "timestamp": 1789054318037,
+    "device": "R2",
+    "command": "show ip route bgp",
+    "status": "completed",
+    "output": {
+      "vrf": {
+        "default": {
+          "address_family": {
+            "ipv4": {
+              "routes": {
+                "10.100.10.0/24": {
+                  "route": "10.100.10.0/24",
+                  "active": true,
+                  "metric": 0,
+                  "route_preference": 200,
+                  "source_protocol_codes": "B",
+                  "source_protocol": "bgp",
+                  "next_hop": {
+                    "next_hop_list": {
+                      "1": {
+                        "index": 1,
+                        "next_hop": "10.255.0.1",
+                        "updated": "00:07:06"
+                      }
+                    }
+                  }
+                },
+                "10.100.20.0/24": {
+                  "route": "10.100.20.0/24",
+                  "active": true,
+                  "metric": 0,
+                  "route_preference": 200,
+                  "source_protocol_codes": "B",
+                  "source_protocol": "bgp",
+                  "next_hop": {
+                    "next_hop_list": {
+                      "1": {
+                        "index": 1,
+                        "next_hop": "10.255.0.1",
+                        "updated": "00:07:06"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "seq": 84,
+    "timestamp": 1789054340834,
+    "device": "R2",
+    "command": "show ip dhcp binding",
+    "status": "completed",
+    "output": {
+      "dhcp_binding": {
+        "1": {
+          "ip_address": "10.100.30.100",
+          "client_id": "0152.5400.1293.4a",
+          "lease_expiration": "Sep 11 2026 03:24 PM",
+          "type": "Automatic",
+          "state": "Active",
+          "interface": "Ethernet0/0.30"
+        },
+        "2": {
+          "ip_address": "10.100.40.100",
+          "client_id": "0152.5400.0e94.5c",
+          "lease_expiration": "Sep 11 2026 03:23 PM",
+          "type": "Automatic",
+          "state": "Active",
+          "interface": "Ethernet0/0.40"
+        }
+      }
+    }
+  },
+  {
+    "seq": 90,
+    "timestamp": 1789054374877,
+    "device": "SW1",
+    "command": "show interfaces trunk",
+    "status": "completed",
+    "output": {
+      "interface": {
+        "Ethernet0/2": {
+          "name": "Ethernet0/2",
+          "mode": "on",
+          "encapsulation": "802.1q",
+          "status": "trunking",
+          "native_vlan": "999",
+          "vlans_allowed_on_trunk": "10,20,999",
+          "vlans_allowed_active_in_mgmt_domain": "10,20,999",
+          "vlans_in_stp_forwarding_not_pruned": "10,20,999"
+        }
+      }
+    }
+  },
+  {
+    "seq": 96,
+    "timestamp": 1789054408620,
+    "device": "SW1",
+    "command": "show spanning-tree summary",
+    "status": "completed",
+    "output": {
+      "root_bridge_for": "VLAN0010, VLAN0020, VLAN0999",
+      "etherchannel_misconfig_guard": true,
+      "extended_system_id": true,
+      "portfast_default": false,
+      "bpdu_guard": false,
+      "bpdu_filter": false,
+      "loop_guard": false,
+      "uplink_fast": false,
+      "backbone_fast": false,
+      "configured_pathcost": {
+        "method": "short"
+      },
+      "mode": {
+        "rapid_pvst": {
+          "VLAN0010": {
+            "blocking": 0,
+            "listening": 0,
+            "learning": 0,
+            "forwarding": 2,
+            "stp_active": 2
+          },
+          "VLAN0020": {
+            "blocking": 0,
+            "listening": 0,
+            "learning": 0,
+            "forwarding": 2,
+            "stp_active": 2
+          },
+          "VLAN0999": {
+            "blocking": 0,
+            "listening": 0,
+            "learning": 0,
+            "forwarding": 1,
+            "stp_active": 1
+          }
+        }
+      },
+      "total_statistics": {
+        "num_of_vlans": 3,
+        "blockings": 0,
+        "listenings": 0,
+        "learnings": 0,
+        "forwardings": 5,
+        "stp_actives": 5
+      }
+    }
+  },
+  {
+    "seq": 102,
+    "timestamp": 1789054466548,
+    "device": "SW2",
+    "command": "show interfaces trunk",
+    "status": "completed",
+    "output": {
+      "interface": {
+        "Ethernet0/2": {
+          "name": "Ethernet0/2",
+          "mode": "on",
+          "encapsulation": "802.1q",
+          "status": "trunking",
+          "native_vlan": "999",
+          "vlans_allowed_on_trunk": "30,40,999",
+          "vlans_allowed_active_in_mgmt_domain": "30,40,999",
+          "vlans_in_stp_forwarding_not_pruned": "30,40,999"
+        }
+      }
+    }
+  },
+  {
+    "seq": 108,
+    "timestamp": 1789054493056,
+    "device": "SW2",
+    "command": "show spanning-tree summary",
+    "status": "completed",
+    "output": {
+      "root_bridge_for": "VLAN0030, VLAN0040, VLAN0999",
+      "etherchannel_misconfig_guard": true,
+      "extended_system_id": true,
+      "portfast_default": false,
+      "bpdu_guard": false,
+      "bpdu_filter": false,
+      "loop_guard": false,
+      "uplink_fast": false,
+      "backbone_fast": false,
+      "configured_pathcost": {
+        "method": "short"
+      },
+      "mode": {
+        "rapid_pvst": {
+          "VLAN0030": {
+            "blocking": 0,
+            "listening": 0,
+            "learning": 0,
+            "forwarding": 2,
+            "stp_active": 2
+          },
+          "VLAN0040": {
+            "blocking": 0,
+            "listening": 0,
+            "learning": 0,
+            "forwarding": 2,
+            "stp_active": 2
+          },
+          "VLAN0999": {
+            "blocking": 0,
+            "listening": 0,
+            "learning": 0,
+            "forwarding": 1,
+            "stp_active": 1
+          }
+        }
+      },
+      "total_statistics": {
+        "num_of_vlans": 3,
+        "blockings": 0,
+        "listenings": 0,
+        "learnings": 0,
+        "forwardings": 5,
+        "stp_actives": 5
+      }
+    }
+  }
+]

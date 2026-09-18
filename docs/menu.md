@@ -33,6 +33,7 @@ submenu. The fields:
 | Field | Meaning |
 |---|---|
 | `icon` | Glyph in the icon column (usually Nerd Font) |
+| `appIcon` | Application icon name or path, rendered as an image for a static entry |
 | `iconFont` | Font family for the glyph when it differs from the menu font — how the private `omarchy` font's brand glyphs render |
 | `label` | Visible row title; defaults to the id |
 | `title` | Header text when the submenu is open; defaults to `label`. Lets a row read "Browser" under Defaults while the open menu says "Default Browser" |
@@ -165,3 +166,5 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+A static submenu can use the exact `apps.<desktop-entry-id>` key to replace its generated launcher row while keeping children under Apps. For example, `apps.NetClaw` keeps the NetClaw actions together and uses `appIcon: "netclaw"` for its installed icon. The app provider preserves static entries with matching ids, so rescanning applications does not duplicate or replace the submenu.

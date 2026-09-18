@@ -1,0 +1,137 @@
+{
+  "collected_at": "2026-09-10T17:59:21.460362+00:00",
+  "scope": "independent read-only REST verification",
+  "records": [
+    {
+      "table": "change_request",
+      "sys_id": "478465b0931b035086f0fef7dd03d644",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": "CHG0030001",
+      "state": "-5",
+      "ip_address": null
+    },
+    {
+      "table": "core_company",
+      "sys_id": "55c4edb0931b035086f0fef7dd03d66f",
+      "status": 200,
+      "identity_matches": true,
+      "name": "Omarchy PR Validation 20260910-SNOW",
+      "number": null,
+      "state": "",
+      "ip_address": null
+    },
+    {
+      "table": "cmdb_ci_ip_router",
+      "sys_id": "24d4edb0931b035086f0fef7dd03d679",
+      "status": 200,
+      "identity_matches": true,
+      "name": "R1",
+      "number": null,
+      "state": null,
+      "ip_address": "10.10.20.171"
+    },
+    {
+      "table": "cmdb_ci_ip_router",
+      "sys_id": "41d421f0931b035086f0fef7dd03d6d5",
+      "status": 200,
+      "identity_matches": true,
+      "name": "R2",
+      "number": null,
+      "state": null,
+      "ip_address": "10.10.20.172"
+    },
+    {
+      "table": "cmdb_ci_ip_switch",
+      "sys_id": "98e4e1f0931b035086f0fef7dd03d648",
+      "status": 200,
+      "identity_matches": true,
+      "name": "SW1",
+      "number": null,
+      "state": null,
+      "ip_address": "10.10.20.173"
+    },
+    {
+      "table": "cmdb_ci_ip_switch",
+      "sys_id": "14e4e1f0931b035086f0fef7dd03d650",
+      "status": 200,
+      "identity_matches": true,
+      "name": "SW2",
+      "number": null,
+      "state": null,
+      "ip_address": "10.10.20.174"
+    },
+    {
+      "table": "cmdb_rel_ci",
+      "sys_id": "ce1569f0931b035086f0fef7dd03d66f",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": null,
+      "state": null,
+      "ip_address": null
+    },
+    {
+      "table": "cmdb_rel_ci",
+      "sys_id": "2615e9f0931b035086f0fef7dd03d65e",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": null,
+      "state": null,
+      "ip_address": null
+    },
+    {
+      "table": "cmdb_rel_ci",
+      "sys_id": "6215e9f0931b035086f0fef7dd03d697",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": null,
+      "state": null,
+      "ip_address": null
+    },
+    {
+      "table": "task_ci",
+      "sys_id": "3425e9f0931b035086f0fef7dd03d69e",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": null,
+      "state": null,
+      "ip_address": null
+    },
+    {
+      "table": "task_ci",
+      "sys_id": "cd252df0931b035086f0fef7dd03d6c9",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": null,
+      "state": null,
+      "ip_address": null
+    },
+    {
+      "table": "task_ci",
+      "sys_id": "cd252df0931b035086f0fef7dd03d6cf",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": null,
+      "state": null,
+      "ip_address": null
+    },
+    {
+      "table": "task_ci",
+      "sys_id": "c9252df0931b035086f0fef7dd03d6d5",
+      "status": 200,
+      "identity_matches": true,
+      "name": null,
+      "number": null,
+      "state": null,
+      "ip_address": null
+    }
+  ],
+  "passed": true
+}
