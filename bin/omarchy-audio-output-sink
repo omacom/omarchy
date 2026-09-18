@@ -46,13 +46,23 @@ fi
 # 2. Fallback via PulseAudio sink-inputs (for compatibility with legacy modules/filters)
 downstream="$(pactl list sink-inputs 2>/dev/null |
   awk -v virt="$sink" '
+    BEGIN {
+      # Si el sink es effect_input.<nombre>, el stream downstream será effect_output.<nombre>
+      alt_virt = virt
+      if (index(virt, "effect_input.") == 1) {
+        sub(/^effect_input\./, "effect_output.", alt_virt)
+      }
+    }
     /^Sink Input #/ {target = ""}
     /^[[:space:]]*Sink:/ {target = $2}
     /node\.name = / {
       name = $0
       sub(/.*node\.name = "/, "", name)
       sub(/"$/, "", name)
-      if (index(name, virt) == 1 && target != "") {print target; exit}
+      if ((index(name, virt) == 1 || index(name, alt_virt) == 1) && target != "") {
+        print target
+        exit
+      }
     }')"
 
 if [[ -n $downstream ]]; then
