@@ -1,9 +1,36 @@
 #!/bin/bash
 
-# omarchy:summary=Remove Steam and all of its game libraries, configs, and caches.
+# omarchy:summary=Remove Steam and all of its game libraries, configs, and caches, and close Omarchy-managed Remote Play ports.
 # omarchy:requires-sudo=true
 
 set -e
+
+# The port set lives in the "Omarchy Steam" UFW application profile that the
+# installer copied into place; delete the rules against it, then the profile.
+UFW_APP="Omarchy Steam"
+UFW_APP_PROFILE_TARGET="/etc/ufw/applications.d/omarchy-steam"
+PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
+
+delete_ufw_rule() {
+  sudo ufw --force delete "$@" >/dev/null 2>&1 || true
+}
+
+close_ufw_ports() {
+  local cidr
+
+  if omarchy-cmd-missing ufw; then
+    return
+  fi
+
+  for cidr in "${PRIVATE_CIDRS[@]}"; do
+    delete_ufw_rule allow in from "$cidr" to any app "$UFW_APP"
+  done
+
+  delete_ufw_rule allow in on tailscale0 to any app "$UFW_APP"
+
+  sudo rm -f "$UFW_APP_PROFILE_TARGET"
+  sudo ufw reload
+}
 
 omarchy-pkg-drop steam
 
@@ -13,5 +40,7 @@ rm -rf \
   "$HOME/.config/steam" \
   "$HOME/.cache/steam"
 
+close_ufw_ports
+
 echo ""
-echo "Steam and its data have been removed."
+echo "Steam and its data have been removed, and its Omarchy-managed Remote Play ports have been closed."

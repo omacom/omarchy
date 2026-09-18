@@ -29,6 +29,16 @@ exit 0
 SH
 done
 
+cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
+#!/bin/bash
+exit 1
+SH
+
+cat >"$mock_bin/sudo" <<'SH'
+#!/bin/bash
+printf 'sudo:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
+SH
+
 cat >"$mock_bin/setsid" <<'SH'
 #!/bin/bash
 printf 'launch:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
