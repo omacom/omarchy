@@ -17,6 +17,12 @@ PartOf=graphical-session.target
 # working one -- Wants= does not restart what is already running. Skip the start
 # instead; the unit stays enabled and starts for real at graphical login.
 ConditionEnvironment=WAYLAND_DISPLAY
+# fcitx5 comes from its own package, and nothing here depends on it hard. Without
+# the binary every start fails 203/EXEC, and Restart=always brings it back two
+# seconds later, forever: RestartSec=2 fits exactly five starts into the default
+# StartLimitBurst=5 per 10s window, so the rate limiter never trips. Skip the
+# start instead; once fcitx5 is installed the next start request works normally.
+ConditionPathExists=/usr/bin/fcitx5
 
 [Service]
 Type=simple
