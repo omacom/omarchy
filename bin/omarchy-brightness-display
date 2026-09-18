@@ -68,7 +68,9 @@ if [[ $step == "off" ]]; then
   if ! use_apple_display && ! use_ddc_display; then
     device="$(omarchy-hw-display)" || device=""
     if [[ -n $device ]]; then
-      backlight_brightness "$device" > "$state_file" 2>/dev/null
+      if [[ ! -s $state_file ]]; then
+        backlight_brightness "$device" > "$state_file" 2>/dev/null
+      fi
       brightnessctl -d "$device" set 0 >/dev/null 2>&1
     fi
   fi
@@ -78,8 +80,9 @@ elif [[ $step == "on" ]]; then
   if ! use_apple_display && ! use_ddc_display; then
     device="$(omarchy-hw-display)" || device=""
     if [[ -n $device && -s $state_file ]]; then
-      brightnessctl -d "$device" set "$(cat "$state_file")%" >/dev/null 2>&1
-      rm -f "$state_file"
+      if brightnessctl -d "$device" set "$(cat "$state_file")%" >/dev/null 2>&1; then
+        rm -f "$state_file"
+      fi
     fi
   fi
   # Skip the dispatch when every active display is already lit: a redundant
