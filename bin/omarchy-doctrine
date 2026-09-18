@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# omarchy:summary=Read the Omarchy Doctrine by DHH
+# omarchy:args=[--plain|--full|--interactive|--web|1-10]
+# omarchy:examples=omarchy doctrine | omarchy doctrine --full | omarchy doctrine --interactive | omarchy doctrine --web
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy doctrine [--plain|--full|--interactive|--web|1-10]"
+}
+
+if (( $# > 1 )); then
+  usage >&2
+  exit 2
+fi
+
+mode=${1:-}
+case "$mode" in
+  "" | --plain | --full | --interactive | --web | [1-9] | 10) ;;
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
+doctrine="$OMARCHY_PATH/default/omarchy/doctrine.md"
+mapfile -t titles < <(sed -n 's/^## //p' "$doctrine")
+website="https://omarchy.org/doctrine/"
+
+print_doctrine() {
+  local number=${1:-0}
+  local width=${2:-80}
+  printf 'The Omarchy Doctrine\nBy DHH\n\n'
+  awk -v number="$number" '
+    /^## / { section++; sub(/^## /, "") }
+    number == 0 || section == number { print }
+  ' "$doctrine" | fmt -w "$width"
+  printf '\n%s\n' "$website"
+}
+
+if [[ $mode == "--web" ]]; then
+  omarchy-launch-browser "$website"
+elif [[ $mode == "--interactive" || $mode =~ ^[0-9]+$ ]]; then
+  if [[ ! -t 0 || ! -t 1 || ${TERM:-dumb} == "dumb" ]]; then
+    if [[ $mode =~ ^[0-9]+$ ]]; then
+      website=$(bash "$OMARCHY_PATH/default/omarchy/doctrine-reader.sh" url "$mode")
+      print_doctrine "$mode"
+    else
+      echo "The interactive reader needs a terminal. Use 'omarchy doctrine' or 'omarchy doctrine --full'." >&2
+      exit 2
+    fi
+  else
+    initial=0
+    [[ $mode == "--interactive" ]] || initial=$mode
+    bash "$OMARCHY_PATH/default/omarchy/doctrine-reader.sh" start "$initial"
+  fi
+elif [[ $mode == "--full" ]]; then
+  print_doctrine
+else
+  printf 'The Omarchy Doctrine\nBy DHH\n\n'
+  for index in "${!titles[@]}"; do
+    printf '%2d. %s\n' "$((index + 1))" "${titles[index]}"
+  done
+  printf '\n%s\n' "$website"
+fi
