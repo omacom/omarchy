@@ -7,8 +7,11 @@ description: >
   Triggers: Hyprland, window rules, animations, keybindings, monitors, gaps, borders,
   blur, opacity, omarchy-shell, bar, terminal config, themes, background,
   night light, idle, lock screen, screenshots, reminders, layer rules, workspace
-  settings, display config, and user-facing omarchy commands. Excludes Omarchy
-  source development through `omarchy dev link` workflows.
+  settings, display config, and user-facing omarchy commands. Also REQUIRED for
+  installing, removing, or upgrading packages on an Omarchy system — pacman,
+  yay, paru, AUR, `omarchy pkg`, `omarchy update`, "install <program>",
+  "update my system". Excludes Omarchy source development through
+  `omarchy dev link` workflows.
 ---
 
 # Omarchy Skill
@@ -214,10 +217,48 @@ omarchy refresh hyprland
 # 3. Restarts the component where the refresh needs it (e.g. `refresh shell`)
 ```
 
+## Package Management
+
+Never call `pacman`, `yay`, or `paru` to change the system. Omarchy wraps them,
+and the manual treats the wrappers as the supported path:
+
+| Task | Command |
+|------|---------|
+| Install repository packages | `omarchy pkg add <pkgs...>` |
+| Install AUR packages | `omarchy pkg aur add <pkgs...>` |
+| Remove packages | `omarchy pkg drop <pkgs...>` |
+| Pick interactively (fuzzy finder) | `omarchy pkg install`, `omarchy pkg aur install`, `omarchy pkg remove` |
+| Check installed state | `omarchy pkg present <pkgs...>`, `omarchy pkg missing <pkgs...>` |
+| Upgrade the whole system | `omarchy update` |
+
+When Omarchy ships an installer for the software, prefer it over a bare
+`omarchy pkg add` — it also wires up configuration, services, and launcher
+entries. Check `omarchy install --help` before falling back to `omarchy pkg`.
+
+**Never run `pacman -Syu` or `yay -Syu`.** `omarchy update` is not just a
+package upgrade: it takes a Snapper snapshot, refreshes keyrings, upgrades
+system and AUR packages, runs migrations and post-update hooks, updates mise,
+prunes orphans, and checks whether a restart is needed. A bare `pacman -Syu`
+skips all of that and can strand config files behind newer libraries. Omarchy
+refuses the transaction through the libalpm hook
+`00-omarchy-update-guard.hook`. Its bypass exists for the user to invoke
+deliberately, not for an agent to reach for on its own:
+
+```bash
+sudo env OMARCHY_ALLOW_DIRECT_PACMAN=1 pacman -Syu
+```
+
+Read-only queries need no wrapper and are safe to run directly: `pacman -Q`,
+`-Qi`, `-Ql`, `-Qo`, `-Si`, `-Ss`, `-Sl`, and `yay -Ss` / `yay -Si` for the AUR.
+
+Installing and removing packages changes the user's system. Confirm before
+running an install or a removal the user did not explicitly ask for, and run
+these in a visible terminal so the user can answer prompts and authenticate.
+
 ## System Commands
 
 ```bash
-omarchy update                  # Full system update
+omarchy update                  # Full system update (never `pacman -Syu`)
 omarchy version                 # Show Omarchy version
 omarchy debug --no-sudo --print # Debug info (ALWAYS use these flags)
 omarchy system lock             # Lock screen
@@ -253,7 +294,7 @@ When user requests system changes:
 2. **Is it a config edit?** Edit in `~/.config/`, never `/usr/share/omarchy/`
 3. **Is it a theme customization?** Follow [`theming.md`](theming.md); create a NEW custom theme directory
 4. **Is it automation?** Follow [`hooks.md`](hooks.md); use `omarchy hook install` and the hook `.d` directories
-5. **Is it a package install?** Use `omarchy pkg add <pkgs...>` (or `omarchy pkg aur add <pkgs...>` for AUR-only packages)
+5. **Is it a package install, removal, or a system upgrade?** Use the `omarchy pkg` and `omarchy update` wrappers, never `pacman` or `yay` directly (see Package Management above)
 6. **Is it built-in shell/plugin code?** Follow [`plugins.md`](plugins.md); clone it with `omarchy plugin clone`, never edit the packaged copy
 7. **Unsure if command exists?** Run `omarchy commands` (or `omarchy <group> --help` for one group)
 
@@ -291,4 +332,6 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Lock after ten minutes" -> Set `idle.lock` to `600` in `~/.config/omarchy/shell.json`
 - "Reset shell/bar to defaults" -> `omarchy refresh shell`
 - "Record my screen" -> `omarchy screenrecord --fullscreen`, then `omarchy screenrecord --stop-recording` (see `capture.md`)
+- "Install ripgrep" -> `omarchy pkg add ripgrep` (never `sudo pacman -S ripgrep`)
+- "Update my system" -> `omarchy update` (never `pacman -Syu` or `yay -Syu`)
 - "Report this bug to Omarchy" -> Gather diagnostics and a capture of the problem, then file it (see `contributing.md`)
