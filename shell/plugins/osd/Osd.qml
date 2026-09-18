@@ -126,7 +126,11 @@ Item {
   PanelWindow {
     id: panel
     visible: root.opened
-    anchors { top: true; bottom: true; left: true; right: true }
+    // Only allocate a surface for the card, not the entire output.
+    anchors { bottom: true }
+    margins { bottom: Style.space(67) }
+    implicitWidth: card.width
+    implicitHeight: card.height
     color: "transparent"
     WlrLayershell.namespace: "omarchy-osd"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -140,9 +144,7 @@ Item {
       id: card
       width: card.borderLeft + root.pad + root.contentWidth + root.pad + card.borderRight
       height: card.borderTop + root.pad + Style.font.displayLarge + root.pad + card.borderBottom
-      anchors.horizontalCenter: parent.horizontalCenter
-      anchors.bottom: parent.bottom
-      anchors.bottomMargin: Style.space(67)
+      anchors.centerIn: parent
       color: Util.alpha(Color.background, 0.97)
       borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
       radius: Style.cornerRadius
