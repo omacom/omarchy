@@ -10,14 +10,19 @@ iso2sd() {
   local drive="$2"
 
   if [[ -z $drive ]]; then
-    local available_sds=$(lsblk -dpno NAME | grep -E '/dev/sd')
+    # Offer only removable or hot-pluggable disks. Matching on the /dev/sd name
+    # instead would offer internal SATA disks, since the kernel names SATA and USB
+    # disks alike, while missing SD cards at /dev/mmcblk and USB enclosures that
+    # present as NVMe.
+    local available_drives=$(lsblk -dpno NAME,RM,HOTPLUG,TYPE |
+      awk '$4 == "disk" && ($2 == 1 || $3 == 1) { print $1 }')
 
-    if [[ -z $available_sds ]]; then
-      echo "No SD drives found and no drive specified"
+    if [[ -z $available_drives ]]; then
+      echo "No removable drives found and no drive specified"
       return 1
     fi
 
-    drive=$(omarchy-drive-select "$available_sds")
+    drive=$(omarchy-drive-select "$available_drives")
 
     if [[ -z $drive ]]; then
       echo "No drive selected"
