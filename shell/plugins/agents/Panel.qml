@@ -23,9 +23,35 @@ Panel {
   // provider whose first scan lands while the panel is open would otherwise
   // shift the list underneath you and swap out what you were reading.
   property string selectedProviderId: ""
+  property string defaultAgentRaw: ""
+
+  FileView {
+    path: (Quickshell.env("HOME") || "") + "/.config/omarchy/defaults/agent"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.defaultAgentRaw = String(text() || "").trim()
+    onFileChanged: reload()
+  }
+
+  function normalizeAgentId(raw) {
+    var id = String(raw || "").trim().toLowerCase()
+    if (id === "agy" || id === "antigravity" || id === "antigravity-cli" || id === "gemini" || id === "gemini-cli")
+      return "antigravity"
+    if (id === "claude-code")
+      return "claude"
+    return id
+  }
+
   readonly property int providerIndex: {
-    for (var i = 0; i < providers.length; i++)
-      if (providers[i].providerId === selectedProviderId) return i
+    if (selectedProviderId !== "") {
+      for (var i = 0; i < providers.length; i++)
+        if (providers[i].providerId === selectedProviderId) return i
+    }
+    var defId = normalizeAgentId(defaultAgentRaw)
+    if (defId !== "") {
+      for (var j = 0; j < providers.length; j++)
+        if (providers[j].providerId === defId) return j
+    }
     return 0
   }
   readonly property var provider: providers.length > 0 ? providers[providerIndex] : null
