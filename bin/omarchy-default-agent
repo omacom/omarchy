@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|mcode]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -42,8 +42,18 @@ muse | muse-code | musecode)
   agent_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
+mcode | minimax-code | minimax)
+  agent="mcode"; name="MiniMax Code"
+  # mcode reaches the system through a dedicated installer rather than a
+  # straight mise package: its npm tarball needs better-sqlite3's optional
+  # native binding and its postinstall script, both of which mise's npm:
+  # shorthand drops, so the binary would install and then crash on first
+  # sqlite touch. The official mcode self-update, when it later runs,
+  # supersedes this copy by version and the installer steps aside.
+  agent_installer="omarchy-install-ai-mcode"
+  ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|mcode>"
   exit 1
   ;;
 esac
