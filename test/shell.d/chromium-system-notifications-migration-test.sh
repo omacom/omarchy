@@ -51,3 +51,24 @@ run_migration
 [[ $(grep -o 'SystemNotifications' "$config_dir/brave-flags.conf" | wc -l) -eq 1 ]] ||
   fail "migration is idempotent for an added feature list"
 pass "migration does not duplicate the system notification feature"
+
+for ending in newline no-newline empty; do
+  flags="$config_dir/microsoft-edge-stable-flags.conf"
+  expected="$test_dir/expected"
+  case $ending in
+    newline) printf '%s\n' '--ozone-platform=wayland' >"$flags" ;;
+    no-newline) printf '%s' '--ozone-platform=wayland' >"$flags" ;;
+    empty) : >"$flags" ;;
+  esac
+  if [[ $ending == "empty" ]]; then
+    printf '%s\n' '--enable-features=SystemNotifications' >"$expected"
+  else
+    printf '%s\n' '--ozone-platform=wayland' '--enable-features=SystemNotifications' >"$expected"
+  fi
+
+  run_migration
+  cmp -s "$expected" "$flags" || fail "migration appends a separate flag with $ending input"
+  run_migration
+  cmp -s "$expected" "$flags" || fail "migration preserves $ending input on a second run"
+  pass "migration preserves flag boundaries and is idempotent with $ending input"
+done

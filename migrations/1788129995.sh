@@ -16,6 +16,9 @@ for flag_file in "${flag_files[@]}"; do
   if grep -q '^--enable-features=' "$flag_file"; then
     sed -i '0,/^--enable-features=/{/^--enable-features=/s/$/,SystemNotifications/;}' "$flag_file"
   else
+    if [[ -s $flag_file && -n $(tail -c 1 "$flag_file") ]]; then
+      printf '\n' >>"$flag_file"
+    fi
     printf '%s\n' '--enable-features=SystemNotifications' >>"$flag_file"
   fi
 done
