@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Create an approval request for a blocked USB device
+
+set -euo pipefail
+
+case "${USBGUARD_IPC_SIGNAL:-}" in
+IPC.Connected) ;;
+Device.PolicyApplied)
+  # PresenceChanged precedes policy evaluation, even for trusted devices.
+  [[ ${USBGUARD_DEVICE_TARGET_NEW:-} == "block" ]] || exit 0
+  ;;
+Device.PresenceChanged)
+  [[ ${USBGUARD_DEVICE_EVENT:-} == "Remove" ]] || exit 0
+  ;;
+*) exit 0 ;;
+esac
+
+requests="$HOME/.local/state/omarchy/usb-authorization/requests"
+mkdir -p "$requests"
+chmod 700 "${requests%/*}" "$requests"
+exec 9>"$requests/.lock"
+
+request_generation() {
+  local daemon_id
+
+  # USBGuard reuses device IDs after restarting. Include both the daemon
+  # invocation and watcher lifetime so old prompts cannot suppress new ones.
+  daemon_id=$(systemctl show usbguard.service --property=InvocationID --value) || return 1
+  [[ $daemon_id =~ ^[0-9a-f]{32}$ ]] || return 1
+  printf '%s:%s' "${OMARCHY_USB_AUTHORIZATION_WATCH_ID:-standalone}" "$daemon_id"
+}
+
+if [[ $USBGUARD_IPC_SIGNAL == "IPC.Connected" ]]; then
+  flock 9
+  generation=$(request_generation) || exit 1
+  for pending in "$requests"/request-*.json; do
+    [[ -f $pending ]] || continue
+    if ! jq -e --arg generation "$generation" '.generation == $generation' "$pending" >/dev/null 2>&1; then
+      rm -f "$pending"
+    fi
+  done
+  flock -u 9
+
+  # USBGuard scans present devices before accepting IPC connections. Repeat
+  # this on every reconnect: temporary approvals disappear on daemon restart.
+  blocked=$(usbguard list-devices --blocked) || exit 1
+  while IFS= read -r line; do
+    if [[ $line =~ ^([0-9]+):[[:space:]](block.*)$ ]]; then
+      USBGUARD_IPC_SIGNAL=Device.PolicyApplied \
+        USBGUARD_DEVICE_ID="${BASH_REMATCH[1]}" \
+        USBGUARD_DEVICE_TARGET_NEW=block \
+        USBGUARD_DEVICE_RULE="${BASH_REMATCH[2]}" \
+        "$OMARCHY_PATH/bin/omarchy-usb-authorization-event" || true
+    fi
+  done <<<"$blocked"
+  exit 0
+fi
+
+[[ ${USBGUARD_DEVICE_ID:-} =~ ^[0-9]+$ ]] || exit 0
+[[ -n ${USBGUARD_DEVICE_RULE:-} ]] || exit 0
+
+# A removed device's final target may be allow even though a blocked request
+# remains. Its identity attributes are unchanged; normalize the target.
+USBGUARD_DEVICE_RULE="block ${USBGUARD_DEVICE_RULE#* }"
+
+# The token is safe to carry through the presentation launcher's command
+# string. The device-controlled rule itself stays in a mode-0600 JSON file and
+# is never interpolated into a shell command.
+token="request-$(printf '%s\0%s' "$USBGUARD_DEVICE_ID" "$USBGUARD_DEVICE_RULE" | sha256sum | cut -d' ' -f1)"
+request="$requests/$token.json"
+# watch executes handlers concurrently. A reconnect scan and a policy event
+# can refer to the same device; publish only one pending request.
+if [[ $USBGUARD_IPC_SIGNAL == "Device.PresenceChanged" ]]; then
+  flock 9
+  blocked=$(usbguard list-devices --blocked) || exit 1
+  # A delayed removal event must not erase a request for a reappeared device.
+  if ! grep -Fqx -- "$USBGUARD_DEVICE_ID: $USBGUARD_DEVICE_RULE" <<<"$blocked"; then
+    rm -f "$request"
+  fi
+  exit 0
+fi
+
+# Keep retrying without needing another USB event. Handlers belong to the
+# watcher service and are stopped with the graphical session.
+while true; do
+  flock 9
+  generation=$(request_generation) || exit 1
+  if [[ -f $request ]] && jq -e --arg generation "$generation" '.generation == $generation' "$request" >/dev/null 2>&1; then
+    exit 0
+  fi
+
+  # Discard events overtaken by another policy decision or device replacement.
+  blocked=$(usbguard list-devices --blocked) || exit 1
+  current=0
+  while IFS= read -r line; do
+    if [[ $line == "$USBGUARD_DEVICE_ID: $USBGUARD_DEVICE_RULE" ]]; then
+      current=1
+      break
+    fi
+  done <<<"$blocked"
+  (( current )) || exit 0
+
+  # Login and shell restarts can leave D-Bus alive before notifications are ready.
+  # Bound each wait so disappeared devices are rechecked between attempts.
+  if ! omarchy-notification-wait 1; then
+    flock -u 9
+    sleep 1
+    continue
+  fi
+
+  temporary=$(mktemp "$requests/.request.XXXXXXXXXX")
+  trap 'rm -f "$temporary"' EXIT
+
+  jq -n \
+    --arg id "$USBGUARD_DEVICE_ID" \
+    --arg rule "$USBGUARD_DEVICE_RULE" \
+    --arg generation "$generation" \
+    '{id: $id, rule: $rule, generation: $generation}' >"$temporary"
+  chmod 600 "$temporary"
+  mv -f "$temporary" "$request"
+
+  if omarchy-notification-send \
+    --app-name omarchy-action \
+    --urgency critical \
+    --glyph 󰖀 \
+    "USB accessory blocked" \
+    "Click to review it. Keep it blocked unless you recognize the device." \
+    --exec omarchy-launch-floating-terminal-with-presentation \
+    omarchy-usb-authorization-review "$token"; then
+    exit 0
+  fi
+  rm -f "$request"
+  flock -u 9
+  sleep 1
+done

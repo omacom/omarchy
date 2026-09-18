@@ -325,6 +325,13 @@ assert(
   'menu places Passwordless Sudo under Setup > Security'
 )
 assert(
+  defaultById['setup.security.usb-authorization'].action.includes('omarchy-setup-security-usb-authorization')
+    && defaultById['remove.security.usb-authorization'].action.includes('omarchy-remove-security-usb-authorization')
+    && defaultById['setup.security.usb-authorization-boot'].action.includes('omarchy-setup-security-usb-authorization --boot')
+    && defaultById['remove.security.usb-authorization-boot'].action.includes('omarchy-remove-security-usb-authorization --boot-only'),
+  'menu can enable and remove USB device authorization under Security'
+)
+assert(
   !defaultById['trigger.toggle.direct-boot'] && !defaultById['trigger.toggle.passwordless-sudo'],
   'menu removes the relocated toggles from Trigger > Toggle'
 )

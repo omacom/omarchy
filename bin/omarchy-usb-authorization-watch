@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Watch USBGuard for devices awaiting user approval
+
+set -euo pipefail
+
+# Starting a new graphical-session watcher must offer fresh prompts even if
+# their old notification actions were dismissed and aged out of history.
+OMARCHY_USB_AUTHORIZATION_WATCH_ID=$(cat /proc/sys/kernel/random/uuid)
+export OMARCHY_USB_AUTHORIZATION_WATCH_ID
+
+event_handler="$OMARCHY_PATH/bin/omarchy-usb-authorization-event"
+
+# The handler scans blocked devices on IPC.Connected, including reconnects
+# after a daemon restart, once the event subscription is established.
+exec usbguard watch --wait --exec "$event_handler"

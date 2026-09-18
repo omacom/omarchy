@@ -1034,6 +1034,12 @@ run_provisioning() {
     limine-update
   fi
 
+  if omarchy-pkg-present usbguard; then
+    log_step "enrolling the owner's USB devices"
+    source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
+    usb_authorization_provision_owner "$username"
+  fi
+
   log_step "cleaning up provisioning state"
   cleanup_oem_state
   log_step "first-boot setup complete"

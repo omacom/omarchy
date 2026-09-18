@@ -345,6 +345,14 @@ stage_full_reset() {
   [[ -f $unit_src/omarchy-provision-owner.service && -x $next/usr/bin/omarchy-provision-owner ]] ||
     fail "the factory snapshot predates provisioning support; cannot reset from it"
 
+  # A normal install's factory snapshot includes the original owner's USB
+  # policy and enabled daemon. Keep input usable during the new owner's setup;
+  # provisioning enrolls their devices before enabling USBGuard again.
+  if [[ -f $next/usr/lib/systemd/system/usbguard.service ]]; then
+    systemctl --root="$next" disable usbguard.service >>"$LOG_FILE" 2>&1 ||
+      fail "could not disable USBGuard in the factory system (see $LOG_FILE)"
+  fi
+
   log "Scrubbing machine identity from the factory system"
   systemd-id128 new >"$next/etc/machine-id"
   rm -f "$next"/etc/ssh/ssh_host_*

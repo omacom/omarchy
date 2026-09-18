@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# omarchy:summary=Ask before new USB devices can access the system
+# omarchy:args=[--boot] [--yes]
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+assume_yes=0
+from_boot=0
+
+while (( $# > 0 )); do
+  case "$1" in
+  --yes) assume_yes=1 ;;
+  --boot) from_boot=1 ;;
+  -h | --help)
+    echo "Usage: omarchy-setup-security-usb-authorization [--boot] [--yes]"
+    echo
+    echo "Trusts USB devices that are connected now, then blocks new devices"
+    echo "until you approve them from an Omarchy notification."
+    echo
+    echo "--boot also blocks USB devices from the start of kernel boot. Connected"
+    echo "devices are added to USBGuard's policy, but remain unavailable before"
+    echo "USBGuard starts, including at an encrypted-disk password prompt."
+    echo "Older snapshots without USBGuard keep all USB disabled after startup,"
+    echo "including keyboards, network adapters, and storage. Use --boot only if"
+    echo "disk unlock and recovery work without any USB devices."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-setup-security-usb-authorization: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
+state_dir="$HOME/.local/state/omarchy/usb-authorization"
+unit_source="$OMARCHY_PATH/default/systemd/user/omarchy-usb-authorization.service"
+unit="$HOME/.config/systemd/user/omarchy-usb-authorization.service"
+rules_file=/etc/usbguard/rules.conf
+daemon_config=/etc/usbguard/usbguard-daemon.conf
+
+source "$OMARCHY_PATH/install/helpers/usb-authorization.sh"
+
+if (( ! assume_yes )); then
+  if (( from_boot )); then
+    gum style --foreground 212 --bold "USB authorization from boot"
+  else
+    gum style --foreground 212 --bold "USB device authorization"
+  fi
+  echo
+  echo "Devices connected now will be trusted. Disconnect anything you do not trust."
+  echo "New USB devices will remain blocked until you approve them."
+  if (( from_boot )); then
+    echo
+    echo "Boot-time protection blocks all USB devices until USBGuard starts."
+    echo "A USB keyboard will not work at an encrypted-disk password prompt, even"
+    echo "when it is connected now."
+    echo
+    echo "Older snapshots without USBGuard keep ALL USB disabled after startup,"
+    echo "including keyboards, network adapters, and storage."
+    echo "Continue only if disk unlock and recovery work without any USB devices."
+  fi
+  echo
+  if (( from_boot )); then
+    gum confirm "Enable USB authorization from kernel boot?" || exit 130
+  else
+    gum confirm "Enable USB device authorization?" || exit 130
+  fi
+fi
+
+omarchy-pkg-add usbguard
+
+usb_authorization_require_secure_settings "$daemon_config"
+
+mkdir -p "$state_dir" "${unit%/*}"
+chmod 700 "$state_dir"
+
+if ! usb_authorization_rules_present "$rules_file"; then
+  policy=$(mktemp "${TMPDIR:-/tmp}/omarchy-usb-policy.XXXXXXXXXX")
+  trap 'rm -f "$policy"' EXIT
+  chmod 600 "$policy"
+  usb_authorization_generate_policy "$policy"
+  sudo install -Dm600 -o root -g root "$policy" "$rules_file"
+  touch "$state_dir/policy-generated-by-omarchy"
+fi
+
+# This user can inspect USBGuard events and approve the device named by an
+# event. Policy and daemon parameters remain unavailable through the IPC ACL.
+sudo usbguard add-user "$USER" \
+  --devices=list,listen,modify \
+  --policy=list \
+  --exceptions=listen
+
+sudo systemctl enable usbguard.service
+# add-user ACL changes are loaded only when the daemon starts, so restart an
+# existing service as well as starting a fresh one.
+sudo systemctl restart usbguard.service
+
+ln -sfn "$unit_source" "$unit"
+systemctl --user daemon-reload
+systemctl --user enable --now omarchy-usb-authorization.service
+
+if (( from_boot )); then
+  # Take the trust snapshot only after USBGuard is enforcing the policy. Every
+  # ID is resolved by the daemon, and no device-controlled descriptor text is
+  # passed to a privileged command.
+  usb_authorization_trust_present_devices
+  sudo omarchy-usb-authorization-boot enable
+fi
+
+echo
+echo "USB device authorization is enabled."
+echo "Devices connected during setup remain trusted; new devices require approval."
+if (( from_boot )); then
+  echo "Boot-time authorization is enabled and takes effect after reboot."
+fi
