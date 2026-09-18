@@ -6,7 +6,7 @@
 
 Everything the agents panel shows for Claude comes from this one
 command: local transcript stats from ~/.claude/projects, the stats-cache and
-history fallbacks for machines without transcripts, pi/omp and opencode
+history fallbacks for machines without transcripts, opencode
 sessions that ran on an Anthropic provider, and the authoritative rate
 limits from Anthropic's OAuth usage endpoint. The panel itself only ever
 reads the JSON this prints; it never talks to disk formats or endpoints.
@@ -870,10 +870,6 @@ def main() -> int:
       today_prompts, today_sessions = today_prompts_from_history(claude_dir)
       if today_prompts or today_sessions:
         stats = dict(stats, todayPrompts=today_prompts, todaySessions=today_sessions)
-
-  pi_usage = scan_pi_usage(scan_age)
-  if pi_usage is not None:
-    stats = merge_stats(stats, pi_usage)
 
   opencode = scan_opencode_usage(scan_age)
   if opencode is not None:
