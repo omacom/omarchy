@@ -58,6 +58,20 @@ run_dev_update /usr/share/omarchy
 [[ ! -s $git_log ]] || fail "package-backed updates do not invoke git" "$(cat "$git_log")"
 pass "package-backed updates skip the dev checkout step"
 
+# Mimic `sudo` wiping the environment: OMARCHY_PATH must not unbound-error under set -u.
+: >"$git_log"
+if ! env -u OMARCHY_PATH \
+  TEST_GIT_LOG="$git_log" \
+  PATH="$stub_bin:$PATH" \
+  "$ROOT/bin/omarchy-update-dev" >"$test_tmp/unset.out" 2>"$test_tmp/unset.err"; then
+  fail "unset OMARCHY_PATH exits cleanly (sudo-like)" "$(cat "$test_tmp/unset.err")"
+fi
+if grep -Fq "OMARCHY_PATH: unbound variable" "$test_tmp/unset.err"; then
+  fail "unset OMARCHY_PATH does not trip nounset" "$(cat "$test_tmp/unset.err")"
+fi
+[[ ! -s $git_log ]] || fail "unset OMARCHY_PATH does not invoke git" "$(cat "$git_log")"
+pass "unset OMARCHY_PATH (sudo-like) skips without unbound-variable"
+
 : >"$git_log"
 run_dev_update "$checkout"
 grep -Fx -- "-C $checkout pull --ff-only" "$git_log" >/dev/null ||
