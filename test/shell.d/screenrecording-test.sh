@@ -410,3 +410,66 @@ pass "without a runtime dir the webcam anchors to the recorded region"
 mode=$(stat -c '%a' "$state_home/omarchy" 2>/dev/null || stat -f '%Lp' "$state_home/omarchy")
 [[ $mode == "700" ]] || fail "fallback directory is private even when it already existed" "mode: $mode"
 pass "fallback directory is private even when it already existed"
+
+# The bar indicator only stays honest if the refresh happens after the recorder
+# is actually gone -- refreshing while it is still alive (the force-kill path)
+# or not refreshing at all (a redundant --stop-recording) leaves it stuck
+# 'active', dead-ending every later click on it.
+sequence_file="$tmp_dir/sequence"
+export OMARCHY_TEST_SEQUENCE="$sequence_file"
+
+cat >"$stub_bin/pkill" <<'SH'
+#!/bin/bash
+printf 'pkill %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
+exit 0
+SH
+
+cat >"$stub_bin/pgrep" <<'SH'
+#!/bin/bash
+[[ ${OMARCHY_TEST_GSR_ALIVE:-false} == "true" ]] && exit 0
+exit 1
+SH
+
+cat >"$stub_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf 'omarchy-shell %s\n' "$*" >>"$OMARCHY_TEST_SEQUENCE"
+exit 0
+SH
+
+cat >"$stub_bin/sleep" <<'SH'
+#!/bin/bash
+exit 0
+SH
+
+chmod +x "$stub_bin"/pkill "$stub_bin"/pgrep "$stub_bin"/omarchy-shell "$stub_bin"/sleep
+
+# A recorder that is still alive when the grace period ends gets SIGKILLed; the
+# indicator refresh must come after that kill, not before it.
+: >"$sequence_file"
+OMARCHY_TEST_GSR_ALIVE=true \
+  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1
+
+kill_line=$(grep -n 'pkill -9' "$sequence_file" | head -1 | cut -d: -f1)
+refresh_line=$(grep -n 'omarchy.indicators refresh' "$sequence_file" | head -1 | cut -d: -f1)
+[[ -n $kill_line && -n $refresh_line && $refresh_line -gt $kill_line ]] ||
+  fail "indicator refresh runs after the force-kill, not before it" "$(cat "$sequence_file")"
+pass "indicator refresh runs after the force-kill, not before it"
+
+grep -F 'force-killed' "$OMARCHY_TEST_NOTIFICATION_ARGS" >/dev/null ||
+  fail "a force-killed recording posts the error notification" "$(cat "$OMARCHY_TEST_NOTIFICATION_ARGS")"
+pass "a force-killed recording posts the error notification"
+
+# Clicking the indicator while it shows a stale 'active' state runs
+# --stop-recording; refreshing there lets the dead button recover by itself.
+: >"$sequence_file"
+if OMARCHY_TEST_GSR_ALIVE=false \
+  OMARCHY_SCREENRECORD_DIR="$recording_dir" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >/dev/null 2>&1; then
+  fail "a redundant --stop-recording exits nonzero"
+fi
+pass "a redundant --stop-recording exits nonzero"
+
+grep -F 'omarchy.indicators refresh' "$sequence_file" >/dev/null ||
+  fail "a redundant --stop-recording resyncs the indicator" "$(cat "$sequence_file")"
+pass "a redundant --stop-recording resyncs the indicator"
