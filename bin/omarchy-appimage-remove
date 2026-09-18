@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# omarchy:summary=Remove an AppImage desktop launcher
+# omarchy:args=[name] [--keep-file]
+
+set -e
+
+ICON_BASE="$HOME/.local/share/icons/hicolor"
+DESKTOP_DIR="$HOME/.local/share/applications"
+
+desktop_payload_path() {
+  # The payload path is stored in its own X-AppImage-Payload key rather than
+  # parsed back out of Exec. Exec still carries the fully quoted and escaped
+  # path -- that is how the app launches, and the spec requires it -- but reading
+  # it back meant undoing two escaping layers in a fixed order, which is how a
+  # payload once survived removal. A dedicated key goes through desktop-entry
+  # string escaping only, and install rejects tab, CR and LF in the path, so the
+  # only escapes that can appear are a doubled backslash and a leading \s.
+  local payload
+  payload=$(sed -n 's/^X-AppImage-Payload=//p' "$1" | head -1)
+  [[ $payload == "\\s"* ]] && payload=" ${payload#\\s}"
+  printf '%s' "${payload//\\\\/\\}"
+}
+
+KEEP_FILE=false
+ARGS=()
+for arg in "$@"; do
+  if [[ $arg == "--keep-file" ]]; then
+    KEEP_FILE=true
+  else
+    ARGS+=("$arg")
+  fi
+done
+
+# Always index the launchers, so removal deletes the file that was found rather
+# than a path rebuilt from the displayed name. Installs predating the name
+# validation could nest the launcher inside directories, and those are exactly
+# the ones a reconstructed path cannot reach.
+APPS=()
+APP_PATHS=()
+while IFS= read -r -d '' file; do
+  if grep -q '^Exec=.*omarchy-launch-appimage' "$file"; then
+    APPS+=("$(basename "${file%.desktop}")")
+    APP_PATHS+=("$file")
+  fi
+done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
+
+path_for_app() {
+  local wanted="$1" i
+  for i in "${!APPS[@]}"; do
+    if [[ ${APPS[$i]} == "$wanted" ]]; then
+      printf '%s\n' "${APP_PATHS[$i]}"
+      return 0
+    fi
+  done
+}
+
+if ((${#ARGS[@]} == 0)); then
+  if ((${#APPS[@]})); then
+    mapfile -t SORTED < <(printf '%s\n' "${APPS[@]}" | sort)
+    APP_NAME=$(omarchy-menu-select "Select AppImage to remove" "${SORTED[@]}" -- --width 520 --maxheight 520)
+  else
+    echo "No AppImages to remove."
+    exit 1
+  fi
+else
+  APP_NAME="${ARGS[*]}"
+fi
+
+if [[ -z $APP_NAME ]]; then
+  echo "You must select an AppImage to remove."
+  exit 1
+fi
+
+DESKTOP_FILE=$(path_for_app "$APP_NAME")
+DESKTOP_FILE="${DESKTOP_FILE:-$DESKTOP_DIR/$APP_NAME.desktop}"
+
+PAYLOAD=""
+if [[ -f $DESKTOP_FILE ]]; then
+  PAYLOAD=$(desktop_payload_path "$DESKTOP_FILE")
+fi
+
+icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+
+rm -f "$DESKTOP_FILE"
+
+# Install files the icon under the hicolor size matching its real resolution, so
+# sweep every size directory rather than assuming 256x256. Missing one orphans
+# the icon.
+while IFS= read -r -d '' icon; do
+  rm -f "$icon"
+done < <(find "$ICON_BASE" -mindepth 2 -maxdepth 3 -type f -name "$icon_name.*" -print0 2>/dev/null)
+
+if [[ $KEEP_FILE == false && -n $PAYLOAD && -f $PAYLOAD ]]; then
+  rm -f "$PAYLOAD"
+fi
+
+if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
+  omarchy-notification-send -g "AppImage removed" "$APP_NAME"
+fi
+
+update-desktop-database "$DESKTOP_DIR" &>/dev/null || true
