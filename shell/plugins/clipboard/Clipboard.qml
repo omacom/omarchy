@@ -363,14 +363,14 @@ Item {
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
-          } else if (event.key === Qt.Key_Delete) {
+          } else if (event.key === Qt.Key_Delete || Util.ctrlKey(event, Qt.Key_H)) {
             if (event.modifiers & Qt.ShiftModifier) root.requestClearHistory()
             else root.removeDisplayIndex(root.selectedIndex)
             event.accepted = true
-          } else if (event.key === Qt.Key_Up) {
+          } else if (event.key === Qt.Key_Up || Util.ctrlKey(event, Qt.Key_K)) {
             root.select(-1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Down) {
+          } else if (event.key === Qt.Key_Down || Util.ctrlKey(event, Qt.Key_J)) {
             root.select(1)
             event.accepted = true
           } else if (event.key === Qt.Key_PageUp) {
@@ -385,7 +385,7 @@ Item {
           } else if (event.key === Qt.Key_End) {
             root.selectAbsolute(displayModel.count - 1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || Util.ctrlKey(event, Qt.Key_L)) {
             if (root.cursorActive && (event.modifiers & Qt.AltModifier)) root.openIndex(root.selectedIndex)
             else if (root.cursorActive && (event.modifiers & Qt.ShiftModifier)) root.copyIndex(root.selectedIndex)
             else if (root.cursorActive) root.activateIndex(root.selectedIndex)

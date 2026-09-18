@@ -203,16 +203,16 @@ Item {
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
-          } else if (event.key === Qt.Key_Left) {
+          } else if (event.key === Qt.Key_Left || Util.ctrlKey(event, Qt.Key_H)) {
             root.select(-1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Right) {
+          } else if (event.key === Qt.Key_Right || Util.ctrlKey(event, Qt.Key_L)) {
             root.select(1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Up) {
+          } else if (event.key === Qt.Key_Up || Util.ctrlKey(event, Qt.Key_K)) {
             root.selectRow(-1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Down) {
+          } else if (event.key === Qt.Key_Down || Util.ctrlKey(event, Qt.Key_J)) {
             root.selectRow(1)
             event.accepted = true
           } else if (event.key === Qt.Key_PageUp) {
