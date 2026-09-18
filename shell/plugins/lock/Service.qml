@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
+import "FingerprintRetry.js" as FingerprintRetry
 
 Item {
   id: root
@@ -22,6 +23,10 @@ Item {
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  property int fingerprintRetryAttempt: 0
+  property string fingerprintLastMessage: ""
+  property bool laptopClosed: false
+  property bool laptopClosedKnown: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -46,6 +51,9 @@ Item {
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
+  readonly property var lockConfig: shell && shell.shellConfig && shell.shellConfig.lock
+    ? shell.shellConfig.lock : ({})
+  readonly property string fingerprintLidClosed: FingerprintRetry.lidClosedPolicy(lockConfig.fingerprintLidClosed)
 
   function realScreenCount() {
     var screens = Quickshell.screens || []
@@ -117,6 +125,31 @@ Item {
     if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
   }
 
+  function refreshLidState() {
+    if (!laptopClosedProc.running) laptopClosedProc.running = true
+  }
+
+  function fingerprintBlockedByLid() {
+    return fingerprintLidClosed === "skip" && laptopClosed
+  }
+
+  function applyLidClosed(closed) {
+    var wasClosed = laptopClosedKnown && laptopClosed
+    laptopClosed = closed
+    laptopClosedKnown = true
+
+    if (!lockRequested || !fingerprintConfigured) return
+
+    if (fingerprintBlockedByLid()) {
+      fingerprintAuthenticating = false
+      fingerprintRetryTimer.stop()
+      if (fingerprintPam.active) fingerprintPam.abort()
+      return
+    }
+
+    if (wasClosed && !closed) startFingerprint()
+  }
+
   function logEvent(event) {
     lastEvent = event
     lastEventAt = new Date().toISOString()
@@ -130,9 +163,23 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintRetryAttempt = 0
+    fingerprintLastMessage = ""
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
+  }
+
+  function scheduleFingerprintRetry(idleTimeout) {
+    if (!lockRequested || !fingerprintConfigured) return
+    if (fingerprintBlockedByLid()) return
+
+    var consume = !idleTimeout
+    fingerprintRetryTimer.interval = consume
+      ? FingerprintRetry.delayForAttempt(fingerprintRetryAttempt)
+      : FingerprintRetry.INITIAL_MS
+    if (consume) fingerprintRetryAttempt += 1
+    fingerprintRetryTimer.restart()
   }
 
   function beginLock() {
@@ -150,6 +197,7 @@ Item {
     Qt.callLater(function() {
       root.refreshBackground()
       root.refreshFingerprintStatus()
+      root.refreshLidState()
     })
 
     return true
@@ -246,11 +294,13 @@ Item {
 
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (fingerprintBlockedByLid()) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
+      scheduleFingerprintRetry()
     }
   }
 
@@ -260,9 +310,12 @@ Item {
     if (!lockRequested) return
     if (result === PamResult.Success) {
       finishUnlock()
-    } else if (fingerprintConfigured) {
-      fingerprintRetryTimer.restart()
+      return
     }
+
+    scheduleFingerprintRetry(
+      result === PamResult.Failed && FingerprintRetry.isIdleTimeout(fingerprintLastMessage)
+    )
   }
 
   WlSessionLock {
@@ -276,6 +329,8 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        root.fingerprintRetryAttempt = 0
+        root.refreshLidState()
         root.startFingerprint()
       }
     }
@@ -388,17 +443,42 @@ Item {
       root.handleFingerprintFinished(result)
     }
 
+    // Quickshell's PamContext.onError always emits completed(Error) next.
+    // Scheduling here would consume two backoff slots per failed conversation.
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+    }
+
+    onPamMessage: {
+      root.fingerprintLastMessage = String(fingerprintPam.message || "")
+      if (!fingerprintPam.messageIsError && fingerprintPam.message) {
+        root.fingerprintRetryAttempt = 0
+      }
     }
   }
 
   Timer {
     id: fingerprintRetryTimer
-    interval: 250
+    interval: FingerprintRetry.INITIAL_MS
     repeat: false
     onTriggered: root.startFingerprint()
+  }
+
+  Timer {
+    id: lidRefreshTimer
+    interval: 1000
+    repeat: true
+    running: root.lockRequested && root.fingerprintLidClosed === "skip"
+    onTriggered: root.refreshLidState()
+  }
+
+  Process {
+    id: laptopClosedProc
+    command: ["bash", "-c", "omarchy-hw-laptop-closed && echo closed || echo open"]
+    stdout: StdioCollector { id: laptopClosedOut; waitForEnd: true }
+    onExited: {
+      root.applyLidClosed(String(laptopClosedOut.text || "").trim() === "closed")
+    }
   }
 
   Process {
