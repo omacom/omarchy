@@ -487,7 +487,7 @@ assert(
   'menu ties the cursor to a selectable row existing, both ways'
 )
 assert(
-  /function setFilter\(nextFilter\)[\s\S]*root\.disarmPointer\(\)/.test(menuQml),
+  /function setFilter\(nextFilter[^)]*\)[\s\S]*root\.disarmPointer\(\)/.test(menuQml),
   'menu filter changes disarm pointer selection'
 )
 assert(
