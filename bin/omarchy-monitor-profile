@@ -1,0 +1,496 @@
+#!/bin/bash
+
+# omarchy:summary=Save, apply, and manage multi-monitor profiles
+# omarchy:args=<save|apply|remove|list|current|deactivate|restore> [name]
+# omarchy:examples=omarchy monitor profile save desk | omarchy monitor profile apply presentation | omarchy monitor profile list
+
+set -o pipefail
+
+PROFILE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/monitor-profiles"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+ACTIVE_FILE="$STATE_DIR/monitor-profile"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-profile.lock"
+
+usage() {
+  cat <<'USAGE'
+Usage: omarchy-monitor-profile <command> [name]
+
+Commands:
+  save NAME       Save the current active monitor layout
+  apply NAME      Apply a saved layout and keep it active across reconnects
+  remove NAME     Remove a saved layout
+  list [--json]   List saved layouts
+  current         Print the active layout name
+  deactivate      Stop automatically restoring the active layout
+  restore         Reapply the active layout when it no longer matches
+USAGE
+}
+
+die() {
+  echo "$*" >&2
+  exit 1
+}
+
+notify() {
+  omarchy-notification-send -u low "$1" >/dev/null 2>&1 || true
+}
+
+validate_name() {
+  [[ ${1:-} =~ ^[[:alnum:]][[:alnum:]_.-]{0,63}$ ]] ||
+    die "Profile names may contain letters, numbers, dots, underscores, and dashes"
+}
+
+profile_file() {
+  printf '%s/%s.json\n' "$PROFILE_DIR" "$1"
+}
+
+active_profile() {
+  local name="" file
+
+  if [[ -r $ACTIVE_FILE ]]; then
+    read -r name <"$ACTIVE_FILE"
+    file="$PROFILE_DIR/$name.json"
+    if [[ $name =~ ^[[:alnum:]][[:alnum:]_.-]{0,63}$ ]] &&
+      [[ -r $file ]] && validate_profile "$file" &&
+      jq -e --arg name "$name" '.name == $name' "$file" >/dev/null; then
+      printf '%s\n' "$name"
+    fi
+  fi
+}
+
+list_json() {
+  local active file
+  local profiles=()
+
+  active=$(active_profile)
+  shopt -s nullglob
+  for file in "$PROFILE_DIR"/*.json; do
+    if validate_profile "$file"; then
+      profiles+=("$file")
+    fi
+  done
+
+  if (( ${#profiles[@]} )); then
+    jq -cs --arg active "$active" '{
+      active: $active,
+      profiles: (map({name, monitors: [.monitors[].name]}) | sort_by(.name))
+    }' "${profiles[@]}"
+  else
+    jq -cn --arg active "$active" '{active: $active, profiles: []}'
+  fi
+}
+
+save_profile() {
+  local name="$1" file monitors primary temporary
+
+  validate_name "$name"
+  file=$(profile_file "$name")
+  monitors=$(hyprctl monitors all -j 2>/dev/null) || die "Could not read the active monitor layout"
+  jq -e 'type == "array" and any(.[]; .name != "FALLBACK" and .disabled != true and .width > 0 and .height > 0)' \
+    <<<"$monitors" >/dev/null || die "No physical monitor is active"
+
+  primary=$(jq -r '[.[] | select(.name != "FALLBACK" and .disabled != true and .width > 0 and .height > 0 and .focused == true)][0].name //
+    [.[] | select(.name != "FALLBACK" and .disabled != true and .width > 0 and .height > 0)][0].name' <<<"$monitors")
+
+  mkdir -p "$PROFILE_DIR"
+  temporary=$(mktemp "$PROFILE_DIR/.${name}.XXXXXX")
+  trap 'rm -f "$temporary"' RETURN
+
+  jq -n --arg name "$name" --arg primary "$primary" --argjson monitors "$monitors" '
+    {
+      version: 1,
+      name: $name,
+      primary: $primary,
+      monitors: [
+        $monitors[]
+        | select(.name != "FALLBACK" and .disabled != true and .width > 0 and .height > 0)
+        | {
+            name,
+            mode: (.currentFormat // ("\(.width)x\(.height)@\(.refreshRate)")),
+            x,
+            y,
+            width,
+            height,
+            refreshRate,
+            scale,
+            transform: (.transform // 0),
+            mirror: (if .mirrorOf == "none" then "" else (.mirrorOf // "") end)
+          }
+      ] | sort_by(.x, .y, .name)
+    }
+  ' >"$temporary"
+
+  mv "$temporary" "$file"
+  trap - RETURN
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$name" >"$ACTIVE_FILE"
+  notify "Saved monitor profile: $name"
+}
+
+validate_profile() {
+  jq -e '
+    .monitors as $monitors
+    | [$monitors[].name] as $names
+    | .version == 1
+      and (.name | type == "string")
+      and (.primary | type == "string" and length > 0)
+      and ($monitors | type == "array" and length > 0)
+      and (($names | length) == ($names | unique | length))
+      and (.primary as $primary | any($names[]; . == $primary))
+      and all($monitors[];
+        (.name | type == "string" and length > 0)
+          and (.name != "FALLBACK")
+          and (.mode | type == "string" and length > 0)
+          and (.x | type == "number")
+          and (.y | type == "number")
+          and (.width | type == "number" and . > 0)
+          and (.height | type == "number" and . > 0)
+          and (.refreshRate | type == "number" and . > 0)
+          and (.scale | type == "number" and . > 0)
+          and (.transform | type == "number")
+          and (.mirror | type == "string")
+          and (. as $monitor |
+            $monitor.mirror == ""
+              or ($monitor.mirror != $monitor.name and any($names[]; . == $monitor.mirror))))
+  ' "$1" >/dev/null 2>&1
+}
+
+lua_quote() {
+  jq -nr --arg value "$1" '$value | @json'
+}
+
+configure_monitor() {
+  local name="$1" mode="$2" position="$3" scale="$4" transform="$5" mirror="${6:-}"
+  local output_lua mode_lua position_lua mirror_lua config
+
+  output_lua=$(lua_quote "$name")
+  mode_lua=$(lua_quote "$mode")
+  position_lua=$(lua_quote "$position")
+  config="hl.monitor({ output = $output_lua, mode = $mode_lua, position = $position_lua, scale = $scale, transform = $transform"
+  if [[ -n $mirror ]]; then
+    mirror_lua=$(lua_quote "$mirror")
+    config+=", mirror = $mirror_lua"
+  fi
+  config+=" })"
+
+  hyprctl eval "$config" >/dev/null 2>&1
+}
+
+disable_monitor() {
+  local output_lua
+  output_lua=$(lua_quote "$1")
+  hyprctl eval "hl.monitor({ output = $output_lua, disabled = true })" >/dev/null 2>&1
+}
+
+wake_monitor() {
+  local output_lua
+  output_lua=$(lua_quote "$1")
+  hyprctl dispatch "hl.dsp.dpms({ action = \"enable\", monitor = $output_lua })" >/dev/null 2>&1 || true
+}
+
+monitor_ready() {
+  local name="$1"
+  hyprctl monitors all -j 2>/dev/null |
+    jq -e --arg name "$name" 'any(.[]; .name == $name and .disabled != true and .width > 0 and .height > 0)' \
+      >/dev/null 2>&1
+}
+
+any_monitor_ready() {
+  hyprctl monitors all -j 2>/dev/null |
+    jq -e 'any(.[]; .name != "FALLBACK" and .disabled != true and .width > 0 and .height > 0)' \
+      >/dev/null 2>&1
+}
+
+wait_for_monitor() {
+  local name="$1" attempt
+
+  for attempt in {1..20}; do
+    monitor_ready "$name" && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+move_workspaces() {
+  local source="$1" destination="$2" workspace workspace_lua destination_lua
+
+  destination_lua=$(lua_quote "$destination")
+
+  while IFS= read -r workspace; do
+    workspace_lua=$(lua_quote "$workspace")
+    hyprctl dispatch "hl.dsp.workspace.move({ workspace = $workspace_lua, monitor = $destination_lua })" \
+      >/dev/null 2>&1 || true
+  done < <(hyprctl workspaces -j 2>/dev/null |
+    jq -r --arg source "$source" '.[] | select(.monitor == $source and .id > 0) | .id')
+}
+
+restore_layout_json() {
+  local layout="$1" workspaces="${2:-[]}" row monitor mode x y scale transform mirror primary primary_lua workspace workspace_lua monitor_lua
+
+  # Re-enable the old active outputs before removing anything introduced by a
+  # failed profile switch, preserving at least one usable scanout throughout.
+  while IFS= read -r row; do
+    monitor=$(jq -r '.name' <<<"$row")
+    mode=$(jq -r '.currentFormat // ("\(.width)x\(.height)@\(.refreshRate)")' <<<"$row")
+    x=$(jq -r '.x' <<<"$row")
+    y=$(jq -r '.y' <<<"$row")
+    scale=$(jq -r '.scale' <<<"$row")
+    transform=$(jq -r '.transform // 0' <<<"$row")
+    mirror=$(jq -r 'if .mirrorOf == "none" then "" else (.mirrorOf // "") end' <<<"$row")
+    configure_monitor "$monitor" "$mode" "${x}x${y}" "$scale" "$transform" "$mirror" || true
+    wake_monitor "$monitor"
+    wait_for_monitor "$monitor" || true
+  done < <(jq -c '[.[] | select(.disabled != true and .width > 0 and .height > 0)] |
+    sort_by(if (.mirrorOf // "none") == "none" then 0 else 1 end, .x, .y)[]' <<<"$layout")
+
+  while IFS= read -r monitor; do
+    disable_monitor "$monitor" || true
+  done < <(jq -r '.[] | select(.disabled == true or .width == 0 or .height == 0) | .name' <<<"$layout")
+
+  while IFS=$'\t' read -r workspace monitor; do
+    [[ -n $workspace && -n $monitor ]] || continue
+    workspace_lua=$(lua_quote "$workspace")
+    monitor_lua=$(lua_quote "$monitor")
+    hyprctl dispatch "hl.dsp.workspace.move({ workspace = $workspace_lua, monitor = $monitor_lua })" \
+      >/dev/null 2>&1 || true
+  done < <(jq -r '.[] | select(.id > 0 and (.monitor | type == "string") and (.monitor | length > 0)) | [.id, .monitor] | @tsv' <<<"$workspaces")
+
+  primary=$(jq -r '[.[] | select(.focused == true and .disabled != true)][0].name // empty' <<<"$layout")
+  if [[ -n $primary ]]; then
+    primary_lua=$(lua_quote "$primary")
+    hyprctl dispatch "hl.dsp.focus({ monitor = $primary_lua })" >/dev/null 2>&1 || true
+  fi
+}
+
+profile_matches() {
+  local file="$1" current
+  current=$(hyprctl monitors all -j 2>/dev/null) || return 1
+
+  jq -e --argjson current "$current" '
+    def close($a; $b): (($a - $b) | fabs) < 0.01;
+    .monitors as $wanted
+    | all($wanted[]; . as $monitor |
+        any($current[];
+          .name == $monitor.name
+            and .disabled != true
+            and .width > 0 and .height > 0
+            and .x == $monitor.x and .y == $monitor.y
+            and .width == $monitor.width and .height == $monitor.height
+            and close(.refreshRate; $monitor.refreshRate)
+            and close(.scale; $monitor.scale)
+            and (.transform // 0) == $monitor.transform
+            and ((.mirrorOf // "none") == (if $monitor.mirror == "" then "none" else $monitor.mirror end))))
+      and all($current[]; . as $actual |
+        if ($actual.disabled != true and $actual.width > 0 and $actual.height > 0 and $actual.name != "FALLBACK")
+        then any($wanted[]; .name == $actual.name)
+        else true
+        end)
+  ' "$file" >/dev/null 2>&1
+}
+
+recover_usable_output() {
+  local file="$1" current row monitor mode scale transform
+
+  any_monitor_ready && return 0
+  current=$(hyprctl monitors all -j 2>/dev/null) || return 1
+
+  # Prefer any connected output from the selected profile, retaining its saved
+  # mode and scale. A temporarily incomplete profile is still better than a
+  # FALLBACK-only desktop.
+  while IFS= read -r row; do
+    monitor=$(jq -r '.name' <<<"$row")
+    jq -e --arg name "$monitor" 'any(.[]; .name == $name)' <<<"$current" >/dev/null || continue
+    mode=$(jq -r '.mode' <<<"$row")
+    scale=$(jq -r '.scale' <<<"$row")
+    transform=$(jq -r '.transform' <<<"$row")
+    configure_monitor "$monitor" "$mode" "0x0" "$scale" "$transform" || true
+    wake_monitor "$monitor"
+    if wait_for_monitor "$monitor"; then
+      notify "Display recovered: $monitor"
+      return 0
+    fi
+  done < <(jq -c '.monitors[]' "$file")
+
+  # If every profiled output is gone, recover any connected physical output.
+  # This covers single-external profiles whose dock or receiver disappears.
+  while IFS= read -r row; do
+    monitor=$(jq -r '.name' <<<"$row")
+    mode=$(jq -r '.currentFormat // "preferred"' <<<"$row")
+    scale=$(jq -r 'if (.scale | type) == "number" and .scale > 0 then .scale else 1 end' <<<"$row")
+    transform=$(jq -r '.transform // 0' <<<"$row")
+    configure_monitor "$monitor" "$mode" "0x0" "$scale" "$transform" || true
+    wake_monitor "$monitor"
+    if wait_for_monitor "$monitor"; then
+      notify "Display recovered: $monitor"
+      return 0
+    fi
+  done < <(jq -c '.[] | select(.name != "FALLBACK")' <<<"$current")
+
+  return 1
+}
+
+apply_profile_locked() {
+  local name="$1" quiet="${2:-false}" file current current_workspaces target primary primary_lua stage_x stage_width row monitor failed_monitor mode x y scale transform mirror position attempt
+  local active_monitors=()
+
+  file=$(profile_file "$name")
+  [[ -r $file ]] || die "Unknown monitor profile: $name"
+  validate_profile "$file" || die "Invalid monitor profile: $name"
+  jq -e --arg name "$name" '.name == $name' "$file" >/dev/null || die "Invalid monitor profile: $name"
+
+  if profile_matches "$file"; then
+    mkdir -p "$STATE_DIR"
+    printf '%s\n' "$name" >"$ACTIVE_FILE"
+    return 0
+  fi
+
+  current=$(hyprctl monitors all -j 2>/dev/null) || die "Could not read the monitor layout"
+  current_workspaces=$(hyprctl workspaces -j 2>/dev/null || printf '%s\n' '[]')
+  target=$(jq -c '[.monitors[].name]' "$file")
+  primary=$(jq -r '.primary' "$file")
+
+  while IFS= read -r monitor; do
+    jq -e --arg name "$monitor" 'any(.[]; .name == $name)' <<<"$current" >/dev/null || {
+      notify "Monitor profile unavailable: $monitor is disconnected"
+      die "Cannot apply $name: $monitor is disconnected"
+    }
+  done < <(jq -r '.monitors[].name' "$file")
+
+  mapfile -t active_monitors < <(jq -r '.[] | select(.disabled != true and .width > 0 and .height > 0 and .name != "FALLBACK") | .name' <<<"$current")
+  stage_x=$(jq -n --argjson current "$current" --slurpfile profile "$file" '
+    ([
+      $current[]
+      | select(.disabled != true and .width > 0 and .height > 0)
+      | .x + ((.width / .scale) | ceil)
+    ] + [
+      $profile[0].monitors[]
+      | .x + ((.width / .scale) | ceil)
+    ] | max) // 0
+  ')
+  (( stage_x += 1024 ))
+
+  # Bring every destination online outside the current layout before disabling
+  # anything. Staging all targets also prevents target-to-target overlap when
+  # two profiles arrange the same outputs differently.
+  while IFS= read -r row; do
+    monitor=$(jq -r '.name' <<<"$row")
+    mode=$(jq -r '.mode' <<<"$row")
+    scale=$(jq -r '.scale' <<<"$row")
+    transform=$(jq -r '.transform' <<<"$row")
+    configure_monitor "$monitor" "$mode" "${stage_x}x0" "$scale" "$transform" || true
+    wake_monitor "$monitor"
+    if ! wait_for_monitor "$monitor"; then
+      failed_monitor="$monitor"
+      restore_layout_json "$current" "$current_workspaces"
+      notify "Monitor profile failed: $failed_monitor did not activate"
+      die "Cannot apply $name: $failed_monitor did not activate"
+    fi
+    stage_width=$(jq -r '(.width / .scale) | ceil' <<<"$row")
+    (( stage_x += stage_width + 1024 ))
+  done < <(jq -c '.monitors[]' "$file")
+
+  for monitor in "${active_monitors[@]}"; do
+    if ! jq -e --arg name "$monitor" 'index($name) != null' <<<"$target" >/dev/null; then
+      move_workspaces "$monitor" "$primary"
+      disable_monitor "$monitor" || true
+    fi
+  done
+
+  # Non-mirrored outputs establish the geometry; mirrored outputs follow once
+  # their source exists. The saved order is left-to-right for stable modesets.
+  while IFS= read -r row; do
+    monitor=$(jq -r '.name' <<<"$row")
+    mode=$(jq -r '.mode' <<<"$row")
+    x=$(jq -r '.x' <<<"$row")
+    y=$(jq -r '.y' <<<"$row")
+    scale=$(jq -r '.scale' <<<"$row")
+    transform=$(jq -r '.transform' <<<"$row")
+    mirror=$(jq -r '.mirror' <<<"$row")
+    position="${x}x${y}"
+    configure_monitor "$monitor" "$mode" "$position" "$scale" "$transform" "$mirror" || true
+    wake_monitor "$monitor"
+  done < <(jq -c '.monitors | sort_by(if .mirror == "" then 0 else 1 end, .x, .y)[]' "$file")
+
+  for attempt in {1..20}; do
+    profile_matches "$file" && break
+    sleep 0.1
+  done
+  if ! profile_matches "$file"; then
+    restore_layout_json "$current" "$current_workspaces"
+    notify "Monitor profile failed: restored the previous layout"
+    die "The $name monitor profile did not settle into its saved layout"
+  fi
+
+  primary_lua=$(lua_quote "$primary")
+  hyprctl dispatch "hl.dsp.focus({ monitor = $primary_lua })" >/dev/null 2>&1 || true
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$name" >"$ACTIVE_FILE"
+  if [[ $quiet != "true" ]]; then
+    notify "Monitor profile: $name"
+  fi
+}
+
+apply_profile() {
+  local name="$1" quiet="${2:-false}"
+  (
+    flock -w 5 9 || die "Another monitor profile change is still running"
+    apply_profile_locked "$name" "$quiet"
+  ) 9>"$LOCK_FILE"
+}
+
+remove_profile() {
+  local name="$1" file active
+  validate_name "$name"
+  file=$(profile_file "$name")
+  [[ -e $file ]] || die "Unknown monitor profile: $name"
+  active=$(active_profile)
+  rm -f "$file"
+  if [[ $active == "$name" ]]; then
+    rm -f "$ACTIVE_FILE"
+  fi
+  notify "Removed monitor profile: $name"
+}
+
+command="${1:-}"
+case "$command" in
+  save)
+    [[ -n ${2:-} ]] || die "A profile name is required"
+    save_profile "$2"
+    ;;
+  apply)
+    [[ -n ${2:-} ]] || die "A profile name is required"
+    validate_name "$2"
+    apply_profile "$2"
+    ;;
+  remove)
+    [[ -n ${2:-} ]] || die "A profile name is required"
+    remove_profile "$2"
+    ;;
+  list)
+    if [[ ${2:-} == "--json" ]]; then
+      list_json
+    else
+      list_json | jq -r '.active as $active | .profiles[] | (if .name == $active then "* " else "  " end) + .name + " (" + (.monitors | join(", ")) + ")"'
+    fi
+    ;;
+  current)
+    active_profile
+    ;;
+  deactivate)
+    rm -f "$ACTIVE_FILE"
+    ;;
+  restore)
+    name=$(active_profile)
+    [[ -n $name ]] || exit 0
+    if ! apply_profile "$name" true 2>/dev/null; then
+      recover_usable_output "$(profile_file "$name")" || die "Could not restore a usable monitor for profile: $name"
+    fi
+    ;;
+  --help|-h|help|"")
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

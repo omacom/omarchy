@@ -111,6 +111,20 @@ function parseDisplays(raw) {
   }
 }
 
+function parseProfiles(raw) {
+  var parsed = {}
+  try {
+    parsed = raw ? JSON.parse(String(raw)) : {}
+  } catch (e) {
+    parsed = {}
+  }
+
+  return {
+    active: typeof parsed.active === "string" ? parsed.active : "",
+    profiles: Array.isArray(parsed.profiles) ? parsed.profiles : []
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampBrightness: clampBrightness,
@@ -119,6 +133,7 @@ if (typeof module !== "undefined") {
     matchingScaleIndex: matchingScaleIndex,
     availableScales: availableScales,
     brightnessName: brightnessName,
-    parseDisplays: parseDisplays
+    parseDisplays: parseDisplays,
+    parseProfiles: parseProfiles
   }
 }
