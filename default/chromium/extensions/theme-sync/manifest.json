@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Omarchy Theme Sync",
+  "version": "1.0",
+  "description": "Share your Omarchy desktop colors with websites and keep them in sync when your theme changes.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq+dVUGv1qYr7foaO13NDQ2cE9qeucF0eWxUgTbbL0qAcDhkNdb2PiQawsGq/lAaZ9xrhYFr6PdnBpUjhM8GD69ujP11pmHP6e9yulVbmOHjfyYJrh2r8JD345tU+aZtWv8MNdyr8z/Q8J70NX75IiVljSatXM8z8nSg4gS34xrcu7TEA2n0mMr2MqricOwf9SqAfwzeZ55JKdq6bVupsAsrVrqtgaxion5/E3dSlIfWgbioIYiMuJhuaA6r7cWBfop3VCnerJ4YJKujNoDiMI19oce78MGCrIq4c7mbTDS/J6PoYcXQPdsWdk2bgLm+I8sMpmE9MwwOR14AtjA6aHQIDAQAB",
+  "permissions": [
+    "nativeMessaging",
+    "storage"
+  ],
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "background": {
+    "service_worker": "background-1.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "page-api.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    }
+  ]
+}
