@@ -592,6 +592,7 @@ prepare_caller_mounts() {
   if [[ $storage_mode != 700 || $shared_mode != 700 ]]; then
     exec {storage_fd}<&-
     exec {shared_fd}<&-
+    echo "omarchy-windows-vm: could not make the VM data directories private: $LEGACY_STORAGE is mode ${storage_mode:-unknown}, $LEGACY_SHARED is mode ${shared_mode:-unknown} (expected 700)" >&2
     return 1
   fi
 

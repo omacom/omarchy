@@ -160,6 +160,16 @@ with_vm_lock prepare_caller_mounts || fail "root could not rebind setgid sources
 mounts_ready || fail "final guard rejected rebound setgid sources"
 pass "hardening clears the setuid/setgid bits a numeric chmod keeps on directories"
 
+# When hardening still leaves a source non-private, the rejection names the
+# directory and its mode instead of failing silently.
+chmod() { command chmod "$@" && command chmod g+s /home/shared-target; }
+hardening_error=$(with_vm_lock prepare_caller_mounts 2>&1) && fail "root accepted a source that stayed setgid after hardening"
+unset -f chmod
+[[ $hardening_error == *"/home/alice/Windows is mode 2700"* ]] || fail "setgid rejection did not name the directory and mode: $hardening_error"
+chmod g-s /home/shared-target
+mounts_ready || fail "verified anchors were disturbed by the rejected hardening"
+pass "a source that cannot be made private is rejected with its path and mode"
+
 expected_space=$(command df -P -- /home/storage-target | awk 'NR==2 {print int($4/1024/1024)}')
 actual_space=$(available_storage_gb)
 [[ $actual_space == "$expected_space" ]] || fail "disk-space helper did not measure the storage target filesystem"
