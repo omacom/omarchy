@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Install Thunderbird and make it the default handler for mailto: links.
+# omarchy:requires-sudo=true
+
+set -e
+
+echo "Installing Thunderbird..."
+omarchy-pkg-add thunderbird
+
+echo "Making Thunderbird handle mailto: links..."
+xdg-mime default org.mozilla.Thunderbird.desktop x-scheme-handler/mailto
+
+echo "Opening Thunderbird..."
+setsid uwsm-app -- /usr/bin/thunderbird >/dev/null 2>&1 &
+
+echo ""
+echo "Thunderbird has been installed and now opens mailto: links."
