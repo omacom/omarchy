@@ -638,6 +638,45 @@ assert(
     && /onClicked:[\s\S]*root\.activateIndex\(row\.index, true\)/.test(menuQml),
   'mouse activation carries pointer intent into subordinate menus'
 )
+
+// defaultIndex resolution lives in MenuModel so the whole contract — absent
+// field, clamping, coercion — is pinned here in one place.
+assertEqual(menu.dmenuDefaultIndex({}, 3), 0, 'menu default index is row 0 when the field is absent')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: 0 }, 3), 0, 'menu default index 0 highlights row 0')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: 1 }, 3), 1, 'menu default index selects the named row')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: 99 }, 3), 2, 'menu default index clamps to the last row')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: -3 }, 3), 0, 'menu default index clamps a negative to row 0')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: 1.9 }, 3), 1, 'menu default index floors a non-integer')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: 'abc' }, 3), 0, 'menu default index treats non-numeric as absent')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: NaN }, 3), 0, 'menu default index treats NaN as absent')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: null }, 3), 0, 'menu default index treats null as absent')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: undefined }, 3), 0, 'menu default index treats undefined as absent')
+assertEqual(menu.dmenuDefaultIndex({ defaultIndex: 1 }, 0), 0, 'menu default index is row 0 on an empty option list')
+
+// openDmenu must route the payload field through the helper and land it on
+// selectedIndex before rebuildDisplay(), where the existing clamp bounds it.
+const openDmenuBody = menuQml.match(/function openDmenu\([^)]*\) \{([\s\S]*?)\n  \}/)[1]
+assert(
+  openDmenuBody.includes('MenuModel.dmenuDefaultIndex(payload'),
+  'menu openDmenu resolves the default index through the MenuModel helper'
+)
+assert(
+  openDmenuBody.includes('selectedIndex = dmenuDefaultIndex'),
+  'menu openDmenu initializes the highlight from the resolved default index'
+)
+assert(
+  openDmenuBody.indexOf('selectedIndex = dmenuDefaultIndex') < openDmenuBody.indexOf('rebuildDisplay()'),
+  'menu openDmenu sets the default index before the display rebuild clamps it'
+)
+assert(
+  !/selectedIndex = 0\b/.test(openDmenuBody),
+  'menu openDmenu no longer hardcodes the highlight to row 0'
+)
+const setFilterBody = menuQml.match(/function setFilter\([^)]*\) \{([\s\S]*?)\n  \}/)[1]
+assert(
+  setFilterBody.includes('root.selectedIndex = 0'),
+  'menu filter reset keeps the default index initial-only'
+)
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")
