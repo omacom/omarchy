@@ -54,8 +54,8 @@ fi
 # Agents launched from the keybinding or menu run unattended, so each one starts
 # with its own spelling of "don't stop to ask". Pi and Ori have none to skip.
 case "$agent" in
-opencode)
-  command=(opencode --auto)
+opencode | kilo)
+  command=("$agent" --auto)
   [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
   ;;
 agy)
