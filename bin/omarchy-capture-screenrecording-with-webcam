@@ -10,11 +10,12 @@ if (( ${#devices[@]} == 0 )); then
 fi
 
 if (( ${#devices[@]} == 1 )); then
-  device="${devices[0]%%[[:space:]]*}"
+  index=0
 else
-  selection=$(omarchy-menu-select "Select Webcam" "${devices[@]}" -- --width 520 --maxheight 520) || exit 1
-  device="${selection%%[[:space:]]*}"
+  index=$(omarchy-menu-select --print-index "Select Webcam" "${devices[@]}" -- --width 520 --maxheight 520) || exit 1
 fi
+
+device="${devices[index]%%[[:space:]]*}"
 
 exec omarchy-capture-screenrecording \
   --with-desktop-audio --with-microphone-audio \
