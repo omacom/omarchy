@@ -239,6 +239,7 @@ assert(/Qt\.RightButton\) root\.cycleFormat\(\)/.test(widgetSource), 'clock righ
 assert(/readonly property string activeFormat: configuredFormat/.test(widgetSource), 'clock shows the format it has stored')
 assert(/entry\[vertical \? "verticalFormat" : "format"\] = next/.test(widgetSource) && /updateEntryInline/.test(widgetSource), 'clock writes a cycled format back to shell.json')
 assert(!/formatIndex/.test(widgetSource), 'clock keeps no session-only format position')
+assert(/Component\.onCompleted: root\.displayDate = new Date\(\)/.test(widgetSource), 'clock paints wall-clock time immediately instead of a stale SystemClock value')
 assert(/else root\.togglePanel\(\)/.test(widgetSource), 'clock left click reveals the calendar')
 assert(/omarchy-menu-timezone/.test(widgetSource), 'clock keeps the timezone picker on middle click')
 
