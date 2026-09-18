@@ -142,6 +142,50 @@ pass "Codex collector counts OpenAI usage, reasoning included, from opencode ses
   fail "Codex collector ignores prefix-colliding providers, user messages, and malformed rows" "$result"
 pass "Codex collector ignores prefix-colliding providers, user messages, and malformed rows"
 
+# An OpenAI API-key holder whose RPC yields no plan is labelled as such
+# instead of falling through to the panel's "Subscription" default — with no
+# auth nag over local stats.
+API_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$API_HOME"' EXIT
+mkdir -p "$API_HOME/bin"
+cp "$TEST_HOME/bin/codex" "$API_HOME/bin/codex"
+
+python3 - "$API_HOME/.local/share/opencode/opencode.db" <<'PY'
+import json
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+db = Path(sys.argv[1])
+db.parent.mkdir(parents=True, exist_ok=True)
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL)")
+now_ms = int(time.time() * 1000)
+conn.execute("INSERT INTO message VALUES ('msg_1', 'ses_1', ?, ?, ?)", (now_ms, now_ms, json.dumps({
+  "role": "assistant",
+  "providerID": "openai",
+  "modelID": "gpt-test",
+  "tokens": {"input": 80, "output": 40},
+  "time": {"created": now_ms},
+})))
+conn.commit()
+conn.close()
+PY
+
+cat >"$API_HOME/.local/share/opencode/auth.json" <<'EOF'
+{"openai": {"type": "api", "key": "sk-test"}}
+EOF
+
+result=$(env -u OPENAI_API_KEY HOME="$API_HOME" CODEX_HOME="$API_HOME/.codex" XDG_DATA_HOME="$API_HOME/.local/share" \
+  PATH="$API_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '.tierLabel' <<<"$result") == "API Platform" ]] ||
+  fail "Codex collector labels an OpenAI API-key holder as API Platform" "$result"
+[[ $(jq -r '.usageStatusText' <<<"$result") == "" ]] ||
+  fail "Codex collector stays silent for API usage with local stats" "$result"
+pass "Codex collector labels OpenAI API-key usage as API Platform"
+
 # A warm cache makes --limits-only cheap: local stats come from the last scan
 # instead of another walk over the opencode database, and --force bypasses it.
 CACHE_HOME=$(mktemp -d)
