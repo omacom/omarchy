@@ -43,7 +43,17 @@ fi
 fast_token="YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
 fast_api_url="https://api.fast.com/netflix/speedtest/v2?https=true&token=$fast_token&urlCount=$url_count"
 
-fast_urls=$(curl -fsS "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
+fast_urls=$(curl -fsS --max-time 3 "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty' 2>/dev/null || true)
+
+if [[ -z $fast_urls ]]; then
+  # Fast.com API is geo-blocked outside the US and fails with 403 or times out.
+  # Fall back to Cloudflare's geo-neutral speed test endpoint.
+  if [[ $direction == "down" ]]; then
+    fast_urls="https://speed.cloudflare.com/__down?bytes=25000000"
+  else
+    fast_urls="https://speed.cloudflare.com/__up"
+  fi
+fi
 
 if [[ -z $fast_urls ]]; then
   echo "Failed to fetch speed test endpoints" >&2
