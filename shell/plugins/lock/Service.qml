@@ -20,6 +20,7 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property int fingerprintFailureTick: 0
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
@@ -130,6 +131,7 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintFailureTick = 0
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
@@ -310,6 +312,7 @@ Item {
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
         authenticatingPassword: root.authenticatingPassword
+        fingerprintFailureTick: root.fingerprintFailureTick
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
         inputEnabled: root.lockRequested
@@ -383,6 +386,12 @@ Item {
     id: fingerprintPam
     config: "omarchy-lock-fingerprint"
     user: root.userName
+
+    // pam_fprintd sends a rejected read as an error message while the PAM
+    // conversation keeps running, so surface each one as a flash.
+    onPamMessage: {
+      if (fingerprintPam.messageIsError) root.fingerprintFailureTick += 1
+    }
 
     onCompleted: function(result) {
       root.handleFingerprintFinished(result)
