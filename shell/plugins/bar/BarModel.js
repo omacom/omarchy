@@ -65,6 +65,46 @@ function entriesAfter(entries, name) {
   return index === -1 ? [] : entries.slice(index + 1)
 }
 
+// The kind half of a widget id. Ids read `<owner>.<kind>` — omarchy.clock,
+// dhh.clock, acme.weather — so the last segment is what the widget *is*,
+// independent of who ships it.
+function widgetKind(id) {
+  var value = String(id || "")
+  var dot = value.lastIndexOf(".")
+  return dot === -1 ? value : value.slice(dot + 1)
+}
+
+// A centerAnchor naming nothing in the center list is a stale pin, not a
+// request to unpin — an empty string is how you ask for that. Cloning,
+// dragging the widget to another region, disabling it, and removing its
+// plugin all splice the entry out and leave the id behind; nothing rewrites
+// centerAnchor. Losing the pin recenters the center list as a group, so the
+// hover reveal of the inactive indicators grows it and every widget in it
+// slides.
+//
+// Exact id wins, so naming the clone (or keeping both) still pins what was
+// named. Otherwise the one center widget of the same kind is the pin: it is
+// what a clone, a rename, or a swapped-in third-party clock leaves behind.
+// Two of a kind is ambiguous, so leave the pin unresolved rather than guess.
+function resolveCenterAnchor(entries, name) {
+  var anchor = String(name || "")
+  if (!anchor) return ""
+  if (entryIndex(entries, anchor) !== -1) return anchor
+  if (!Array.isArray(entries)) return anchor
+
+  var kind = widgetKind(anchor)
+  if (!kind) return anchor
+
+  var match = ""
+  for (var i = 0; i < entries.length; i++) {
+    var id = entryId(entries[i])
+    if (!id || widgetKind(id) !== kind) continue
+    if (match) return anchor
+    match = id
+  }
+  return match || anchor
+}
+
 // A shell.json write that only changes inline widget settings (the battery
 // percentage toggle, a clock format change) must not rebuild the bar.
 // Compare two normalized layouts: when the structure is unchanged — same
@@ -222,6 +262,8 @@ if (typeof module !== "undefined") {
     entryIndex: entryIndex,
     entriesBefore: entriesBefore,
     entriesAfter: entriesAfter,
+    widgetKind: widgetKind,
+    resolveCenterAnchor: resolveCenterAnchor,
     inlineSettingsDelta: inlineSettingsDelta,
     expandPath: expandPath,
     customModuleSafeName: customModuleSafeName,
