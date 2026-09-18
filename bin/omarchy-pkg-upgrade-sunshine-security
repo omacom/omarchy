@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# omarchy:summary=Upgrade Sunshine to the security-fixed edge build when the installed package is older.
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Stable still publishes 2026.516.143833 while edge has 2026.906.222525, which
+# upstream flags as a security release (omacom/omarchy#10836). Until stable
+# catches up, pull that build from the edge package repo when Sunshine is
+# installed and behind. Skip architectures edge does not publish yet.
+
+SUNSHINE_MIN_VERSION="${OMARCHY_SUNSHINE_MIN_VERSION:-2026.906.222525-1.1}"
+OMARCHY_PKGS_EDGE="${OMARCHY_PKGS_EDGE:-https://pkgs.omarchy.org/edge}"
+
+if ! pacman -Q sunshine &>/dev/null; then
+  exit 0
+fi
+
+current=$(pacman -Q sunshine | awk '{print $2}')
+if [[ $(vercmp "$current" "$SUNSHINE_MIN_VERSION") -ge 0 ]]; then
+  exit 0
+fi
+
+arch=$(uname -m)
+case $arch in
+  x86_64 | aarch64) ;;
+  *)
+    echo "Sunshine $current is older than the security floor $SUNSHINE_MIN_VERSION, but no edge package is published for $arch." >&2
+    exit 0
+    ;;
+esac
+
+pkg_url="$OMARCHY_PKGS_EDGE/$arch/sunshine-${SUNSHINE_MIN_VERSION}-${arch}.pkg.tar.zst"
+
+# Probe before asking pacman so a missing arch/build becomes a soft skip
+# instead of a hard failure mid-update.
+if ! curl -fsI --connect-timeout 5 --max-time 20 "$pkg_url" >/dev/null 2>&1; then
+  echo "Sunshine $current is older than $SUNSHINE_MIN_VERSION, but $pkg_url is not available yet." >&2
+  exit 0
+fi
+
+echo "Upgrading Sunshine $current → $SUNSHINE_MIN_VERSION (security release from edge)..."
+sudo pacman -U --noconfirm "$pkg_url"
