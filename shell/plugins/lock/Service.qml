@@ -179,11 +179,13 @@ Item {
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
+    if (lockRequested && fingerprintConfigured && !authenticatingPassword) root.startFingerprint()
   }
 
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
+    fingerprintRetryTimer.stop()
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -246,6 +248,7 @@ Item {
 
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (displaysBlank) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
