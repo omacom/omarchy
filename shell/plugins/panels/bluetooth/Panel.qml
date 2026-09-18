@@ -29,7 +29,7 @@ Panel {
   // Discovering property also reflects sessions other clients hold, which are
   // never this panel's to stop.
   property bool owesDiscoveryStop: false
-  readonly property var devices: Bluetooth.devices ? Bluetooth.devices.values : []
+  readonly property var devices: adapter && adapter.devices ? adapter.devices.values : []
   readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
   property var pendingAudioOutputDevice: null
   property int pendingAudioOutputAttempts: 0
@@ -264,7 +264,9 @@ Panel {
   }
 
   function deviceCommand(action, address) {
-    return ["omarchy-bluetooth-device", action, address]
+    var command = ["omarchy-bluetooth-device", action, address]
+    if (adapter && adapter.adapterId) command.push(String(adapter.adapterId))
+    return command
   }
 
   function runDeviceAction(device, action, pending) {
