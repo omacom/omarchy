@@ -20,6 +20,26 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  // Fingerprint retry policy. Upstream restarts a 250ms timer from both failure
+  // paths with no attempt counter, no cap and no in-flight check, so a press-type
+  // reader is re-armed every ~30s for as long as the machine stays locked and
+  // unattended (omacom/omarchy#9905).
+  property int fingerprintAttempts: 0
+  property bool fingerprintPaused: false
+  // Set when PAM actually asks for a finger. A failure that never asked came out
+  // of the PAM stack rather than the sensor, so retrying it cannot help.
+  property bool fingerprintPrompted: false
+  // One failed session emits both completed(Failed) and error(...); without this
+  // flag a single failure would spend two slots of the attempt budget.
+  property bool fingerprintOutcomeHandled: false
+  property double fingerprintRearmAt: 0
+  readonly property int fingerprintAttemptBudget: 6
+  readonly property int fingerprintBaseDelay: 250
+  readonly property int fingerprintMaxDelay: 4000
+  readonly property int fingerprintRearmCooldown: 5000
+  readonly property int fingerprintRetryDelay: Math.round(Math.min(
+    fingerprintBaseDelay * Math.pow(2, Math.max(0, fingerprintAttempts - 1)),
+    fingerprintMaxDelay))
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
@@ -131,6 +151,9 @@ Item {
     authenticatingPassword = false
     fingerprintAuthenticating = false
     fingerprintRetryTimer.stop()
+    fingerprintAttempts = 0
+    fingerprintPaused = false
+    fingerprintOutcomeHandled = false
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
   }
@@ -246,8 +269,11 @@ Item {
 
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (fingerprintPaused) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
+    fingerprintPrompted = false
+    fingerprintOutcomeHandled = false
     fingerprintAuthenticating = true
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
@@ -261,8 +287,64 @@ Item {
     if (result === PamResult.Success) {
       finishUnlock()
     } else if (fingerprintConfigured) {
-      fingerprintRetryTimer.restart()
+      scheduleFingerprintRetry(result)
     }
+  }
+
+  // Stop instead of slow: an unattended lock should stop arming the reader after a
+  // few attempts, and the user is told why the sensor went quiet, because a
+  // silently dead sensor reads as broken hardware.
+  function pauseFingerprint(reason) {
+    if (fingerprintPaused) return
+    fingerprintPaused = true
+    fingerprintRetryTimer.stop()
+    failureMessage = "Fingerprint paused \u2014 press a key or type your password"
+    logEvent("fingerprint-paused: " + reason)
+  }
+
+  // A failure that never asked for a finger came out of the PAM stack itself
+  // (empty stack, refused module) rather than the sensor, so retrying it cannot help.
+  function fingerprintFailureIsTerminal(result) {
+    if (result === PamResult.MaxTries) return true
+    return !fingerprintPrompted
+  }
+
+  function scheduleFingerprintRetry(result) {
+    if (!lockRequested || !fingerprintConfigured || fingerprintPaused) return
+    if (fingerprintPam.active || fingerprintAuthenticating) return
+    if (fingerprintOutcomeHandled) return
+    fingerprintOutcomeHandled = true
+
+    if (fingerprintFailureIsTerminal(result)) {
+      pauseFingerprint("terminal result " + result)
+      return
+    }
+
+    fingerprintAttempts += 1
+    if (fingerprintAttempts >= fingerprintAttemptBudget) {
+      pauseFingerprint("budget exhausted after " + fingerprintAttempts + " attempts")
+      return
+    }
+
+    logEvent("fingerprint-retry " + fingerprintAttempts + " in " + fingerprintRetryDelay + "ms")
+    fingerprintRetryTimer.restart()
+  }
+
+  // Deliberate interaction means somebody is back at the machine: hand the sensor a
+  // fresh budget. Rate-limited so repeated input cannot re-arm it in a tight loop,
+  // and never called for pointer motion - motion is not intent (LockView).
+  function rearmFingerprintFromInteraction() {
+    if (!lockRequested || !fingerprintPaused || !fingerprintConfigured) return
+    if (!sessionLock.secure) return
+    var now = Date.now()
+    if (now - fingerprintRearmAt < fingerprintRearmCooldown) return
+
+    fingerprintRearmAt = now
+    fingerprintAttempts = 0
+    fingerprintPaused = false
+    failureMessage = ""
+    logEvent("fingerprint-rearmed: interaction")
+    startFingerprint()
   }
 
   WlSessionLock {
@@ -321,6 +403,7 @@ Item {
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
         onWakeRequested: root.runWake()
+        onRearmRequested: root.rearmFingerprintFromInteraction()
       }
 
     }
@@ -384,19 +467,21 @@ Item {
     config: "omarchy-lock-fingerprint"
     user: root.userName
 
+    onPamMessage: root.fingerprintPrompted = true
+
     onCompleted: function(result) {
       root.handleFingerprintFinished(result)
     }
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      root.scheduleFingerprintRetry(PamResult.Error)
     }
   }
 
   Timer {
     id: fingerprintRetryTimer
-    interval: 250
+    interval: root.fingerprintRetryDelay
     repeat: false
     onTriggered: root.startFingerprint()
   }
@@ -600,6 +685,8 @@ Item {
         realScreens: root.realScreenCount(),
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
+        fingerprintPaused: root.fingerprintPaused,
+        fingerprintAttempts: root.fingerprintAttempts,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
