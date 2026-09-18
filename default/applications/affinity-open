@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# affinity-open — Open Affinity files (.af, .afphoto, .afdesign, ...) from the
+# desktop. Installed to ~/.local/bin/affinity-open by
+# omarchy-install-creative-affinity and referenced by affinity.desktop.
+#
+# - Converts Unix file paths to Windows Z:\ paths for Wine
+#   (the ~/.AffinityLinux-Appimage prefix maps z: -> /)
+# - Uses omarchy-launch-affinity (per-monitor DPI scaling) when Affinity is
+#   not already running
+# - Calls /usr/bin/affinity directly when Affinity IS running, because the
+#   omarchy wrapper waits for the running instance to exit before launching —
+#   which would otherwise block the file open until you quit Affinity
+
+args=()
+for arg in "$@"; do
+  if [[ -e $arg ]]; then
+    abs="$(realpath "$arg")"
+    args+=("Z:${abs//\//\\}")
+  else
+    args+=("$arg")
+  fi
+done
+
+if pgrep -f "Affinity.exe" >/dev/null 2>&1; then
+  exec /usr/bin/affinity "${args[@]}"
+elif omarchy-cmd-present omarchy-launch-affinity; then
+  exec omarchy-launch-affinity "${args[@]}"
+else
+  exec /usr/bin/affinity "${args[@]}"
+fi

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+	<mime-type type="application/af">
+		<comment>Affinity File</comment>
+		<glob pattern="*.af"/>
+	</mime-type>
+	<mime-type type="application/afphoto">
+		<comment>Affinity Photo File</comment>
+		<glob pattern="*.afphoto"/>
+	</mime-type>
+	<mime-type type="application/afdesign">
+		<comment>Affinity Designer File</comment>
+		<glob pattern="*.afdesign"/>
+	</mime-type>
+	<mime-type type="application/afpub">
+		<comment>Affinity Publisher File</comment>
+		<glob pattern="*.afpub"/>
+	</mime-type>
+	<mime-type type="application/aftemplate">
+		<comment>Affinity Template</comment>
+		<glob pattern="*.aftemplate"/>
+	</mime-type>
+	<mime-type type="application/afbook">
+		<comment>Affinity Book</comment>
+		<glob pattern="*.afbook"/>
+	</mime-type>
+	<mime-type type="application/afpackage">
+		<comment>Affinity Package</comment>
+		<glob pattern="*.afpackage"/>
+	</mime-type>
+	<mime-type type="application/afstudio">
+		<comment>Affinity Studio Preset</comment>
+		<glob pattern="*.afstudio"/>
+	</mime-type>
+	<mime-type type="application/afassets">
+		<comment>Affinity Assets</comment>
+		<glob pattern="*.afassets"/>
+	</mime-type>
+	<mime-type type="application/afbrushes">
+		<comment>Affinity Brushes</comment>
+		<glob pattern="*.afbrushes"/>
+	</mime-type>
+	<mime-type type="application/affont">
+		<comment>Affinity Font Package</comment>
+		<glob pattern="*.affont"/>
+	</mime-type>
+	<mime-type type="application/afluts">
+		<comment>Affinity LUTs</comment>
+		<glob pattern="*.afluts"/>
+	</mime-type>
+	<mime-type type="application/afmacros">
+		<comment>Affinity Macros</comment>
+		<glob pattern="*.afmacros"/>
+	</mime-type>
+	<mime-type type="application/afpalette">
+		<comment>Affinity Palette</comment>
+		<glob pattern="*.afpalette"/>
+	</mime-type>
+	<mime-type type="application/afshort">
+		<comment>Affinity Shortcuts</comment>
+		<glob pattern="*.afshort"/>
+	</mime-type>
+	<mime-type type="application/afstyles">
+		<comment>Affinity Styles</comment>
+		<glob pattern="*.afstyles"/>
+	</mime-type>
+</mime-info>

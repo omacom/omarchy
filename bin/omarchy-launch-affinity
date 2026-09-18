@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Affinity with DPI scaled to the focused monitor
+# omarchy:args=[file...]
+# omarchy:examples=omarchy launch affinity | omarchy launch affinity ~/artwork.afphoto
+
+WINEPREFIX="$HOME/.AffinityLinux-Appimage"
+AFFINITY_BIN="${OMARCHY_AFFINITY_BIN:-/usr/bin/affinity}"
+
+# Affinity is single-instance: a second launch hands the file to the running
+# process. Wine fixes DPI when a window is created, so rewriting the registry
+# now would do nothing for the live window, and would race the running
+# wineserver, which holds the registry in memory and rewrites user.reg when it
+# exits. Forward straight through instead of blocking on its exit.
+if pgrep -f "Affinity.exe" >/dev/null 2>&1; then
+  exec "$AFFINITY_BIN" "$@"
+fi
+
+if [[ -d $WINEPREFIX ]]; then
+  # A wineserver left over from a previous session still owns the registry, so
+  # wait for it to exit before editing. Bound the wait: a wedged process must
+  # not block the launch forever.
+  for _ in {1..20}; do
+    pgrep -f "mount_affini.*wineserver" >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+
+  # Wine reads the system DPI from HKCU\Control Panel\Desktop\LogPixels, and its
+  # X11 driver reports that single value for every monitor. Hyprland runs
+  # XWayland with force_zero_scaling, so the app has to draw at the monitor
+  # scale itself: DPI = scale * 96. OMARCHY_AFFINITY_DPI overrides the computed
+  # value, for a display whose scale does not suit Affinity's UI.
+  SCALE=$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(.focused == true)][0].scale // 1' 2>/dev/null)
+  DPI="${OMARCHY_AFFINITY_DPI:-$(jq -n "$SCALE * 96 | round" 2>/dev/null)}"
+
+  # Only write a real positive integer. A failed hyprctl or jq leaves DPI empty,
+  # and printf would turn that into dword:00000000, i.e. DPI 0.
+  if [[ $DPI =~ ^[0-9]+$ ]] && (( DPI > 0 )); then
+    HEX=$(printf '%08x' "$DPI")
+    for reg in "$WINEPREFIX/user.reg" "$WINEPREFIX/system.reg"; do
+      if [[ -f $reg ]]; then
+        sed -i "s/\"LogPixels\"=dword:[0-9a-f]\{8\}/\"LogPixels\"=dword:${HEX}/g" "$reg"
+      fi
+    done
+  fi
+fi
+
+exec "$AFFINITY_BIN" "$@"

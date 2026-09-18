@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Affinity Studio
+GenericName=Graphic Design
+Comment=Affinity creative suite (Wine AppImage)
+Exec=affinity-open %F
+Icon=affinity
+Terminal=false
+StartupNotify=true
+Categories=Graphics;
+Keywords=Affinity;Designer;Photo;Publisher;Design;Photo;Vector;Raster;
+MimeType=application/af;application/afphoto;application/afdesign;application/afpub;application/aftemplate;application/afbook;application/afpackage;application/afstudio;application/afassets;application/afbrushes;application/affont;application/afluts;application/afmacros;application/afpalette;application/afshort;application/afstyles;
+StartupWMClass=affinity.exe
