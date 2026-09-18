@@ -86,6 +86,7 @@ o.bind("SUPER + CTRL + S", "Share", "omarchy-menu toggle share")
 
 o.bind("SUPER + CTRL + PERIOD", "Transcode", "omarchy-transcode")
 
+o.bind("SUPER + CTRL + M", "Take note", "omarchy-notes -i")
 o.bind("SUPER + CTRL + R", "Set reminder", "omarchy-menu toggle reminder-set")
 o.bind("SUPER + CTRL + ALT + R", "Show reminders", "omarchy-reminder show")
 o.bind("SUPER + SHIFT + CTRL + R", "Clear reminders", "omarchy-reminder clear")
