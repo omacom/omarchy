@@ -68,7 +68,47 @@ pass "clamshell helper detects closed-lid external monitor state"
 grep -F 'hyprctl monitors all -j' "$monitor_external_active" >/dev/null
 grep -F 'select(.name | test("^(eDP|LVDS|DSI)-") | not)' "$monitor_external_active" >/dev/null
 grep -F 'select(.disabled == false)' "$monitor_external_active" >/dev/null
+grep -F 'select(.width > 0 and .height > 0)' "$monitor_external_active" >/dev/null
 pass "active external monitor helper sees mirrors and ignores monitors disabled on purpose"
+
+require_command jq
+
+external_active_tmp=$(mktemp -d)
+trap 'rm -rf "$external_active_tmp"' EXIT
+
+cat >"$external_active_tmp/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s' "$OMARCHY_TEST_MONITORS"
+SH
+chmod +x "$external_active_tmp/hyprctl"
+
+external_active_with() {
+  OMARCHY_TEST_MONITORS="$1" PATH="$external_active_tmp:$PATH" "$monitor_external_active"
+}
+
+docked='[{"name":"eDP-1","disabled":true,"width":1920,"height":1080},{"name":"DP-7","disabled":false,"width":3840,"height":2160}]'
+undocked_corpse='[{"name":"eDP-1","disabled":true,"width":1920,"height":1080},{"name":"DP-7","disabled":false,"width":0,"height":0}]'
+undocked_clean='[{"name":"eDP-1","disabled":false,"width":1920,"height":1080}]'
+external_off='[{"name":"eDP-1","disabled":false,"width":1920,"height":1080},{"name":"DP-7","disabled":true,"width":3840,"height":2160}]'
+mirrored='[{"name":"eDP-1","disabled":false,"width":1920,"height":1080},{"name":"DP-7","disabled":false,"width":1920,"height":1080,"mirrorOf":"eDP-1"}]'
+
+external_active_with "$docked" || fail "an external monitor reporting a mode is active"
+external_active_with "$mirrored" || fail "a mirrored external monitor is active"
+pass "active external monitor helper counts screens reporting a mode"
+
+# The output an unplugged dock leaves behind stays listed and still flagged
+# enabled, but reports no mode. Counting it kept the internal panel disabled
+# after undocking, because recovery returns early while an external looks live.
+if external_active_with "$undocked_corpse"; then
+  fail "an external monitor left behind without a mode is not active"
+fi
+if external_active_with "$undocked_clean"; then
+  fail "a laptop with no external monitor is not active"
+fi
+if external_active_with "$external_off"; then
+  fail "an external monitor disabled on purpose is not active"
+fi
+pass "active external monitor helper ignores an unplugged output still listed without a mode"
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
