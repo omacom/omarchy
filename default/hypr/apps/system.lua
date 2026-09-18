@@ -19,6 +19,19 @@ o.window({
   title = "^(Open.*Files?|Open [F|f]older.*|Save.*Files?|Save.*As|Save|All Files|.*wants to [open|save].*|[C|c]hoose.*)",
 }, { tag = "+floating-window" })
 
+-- Unlock Keyring (gcr-prompter) is a tiny password dialog. Chromium waits
+-- on it for gnome-libsecret. Without a rule it tiles onto workspace 1 and
+-- the browser looks like it never opened. Do not use the floating-window
+-- tag: that forces 875x600 and swallows the dialog.
+o.window("gcr-prompter", {
+  float = true,
+  center = true,
+  pin = true,
+  dim_around = true,
+  stay_focused = true,
+  group = "deny",
+})
+
 -- The About fastfetch layout needs more columns than the standard float provides.
 -- This size only covers the first launch: omarchy-launch-about measures the
 -- rendered content, remembers the size that hugs it, and applies that as its own
