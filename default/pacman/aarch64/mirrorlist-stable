@@ -1,0 +1,2 @@
+Server = https://ca.us.mirror.archlinuxarm.org/$arch/$repo
+Server = https://fl.us.mirror.archlinuxarm.org/$arch/$repo

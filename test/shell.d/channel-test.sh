@@ -20,9 +20,11 @@ write_stub() {
 }
 
 write_stub omarchy-refresh-pacman '#!/bin/bash
+printf "refresh-path\t%s\n" "$OMARCHY_PATH" >>"$OMARCHY_CHANNEL_TEST_LOG"
 printf "refresh" >>"$OMARCHY_CHANNEL_TEST_LOG"
 for arg in "$@"; do printf "\t%s" "$arg" >>"$OMARCHY_CHANNEL_TEST_LOG"; done
 printf "\n" >>"$OMARCHY_CHANNEL_TEST_LOG"
+exit "${OMARCHY_TEST_REFRESH_STATUS:-0}"
 '
 
 write_stub sudo '#!/bin/bash
@@ -83,6 +85,10 @@ write_stub omarchy-version-channel '#!/bin/bash
 printf "%s\n" "${OMARCHY_TEST_VERSION_CHANNEL:-unknown}"
 '
 
+write_stub omarchy-hw-apple-silicon '#!/bin/bash
+exit 1
+'
+
 write_stub pacman '#!/bin/bash
 [[ $1 == "-Q" ]] || exit 1
 shift
@@ -93,13 +99,20 @@ case "${OMARCHY_TEST_PACKAGES:-}" in
 esac
 '
 
+# Redirect only the source lookup; keep OMARCHY_PATH assertions realistic.
+sed "s|\$OMARCHY_PATH/install/helpers/pacman.sh|$ROOT/install/helpers/pacman.sh|" "$ROOT/bin/omarchy-channel-set" >"$test_tmp/channel-set"
+chmod +x "$test_tmp/channel-set"
+write_stub omarchy-hw-apple-silicon '#!/bin/bash
+[[ ${APPLE_SILICON:-0} == 1 ]]
+'
+
 run_channel() {
   : >"$log_file"
   OMARCHY_CHANNEL_TEST_LOG="$log_file" \
     OMARCHY_PATH="${OMARCHY_TEST_PATH:-/usr/share/omarchy}" \
     HOME="$test_tmp/home" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
-    "$ROOT/bin/omarchy-channel-set" "$@"
+    "$test_tmp/channel-set" "$@"
 }
 
 assert_log_line() {
@@ -157,9 +170,10 @@ assert_log_line $'git\tclone\thttps://github.com/omacom/omarchy.git\t'"$checkout
 assert_log_line $'link\t'"$checkout"$'\t--no-reboot' "dev links ~/omarchy without an early reboot prompt"
 assert_log_line $'state\tset\treboot-required' "dev defers the reboot prompt to the update pipeline"
 assert_log_line $'update\t-y\tOMARCHY_PATH='"$checkout" "dev runs the normal update pipeline from the source checkout"
-[[ $(grep -E '^(git|link|state|refresh|sudo|update)' "$log_file") == $'git\tclone\thttps://github.com/omacom/omarchy.git\t'"$checkout"$'\nlink\t'"$checkout"$'\t--no-reboot\nstate\tset\treboot-required\nrefresh\tedge\nupdate-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev\nupdate\t-y\tOMARCHY_PATH='"$checkout" ]] ||
+[[ $(grep -E $'^(git|link|state|refresh|sudo|update-pacman|update)\t' "$log_file") == $'git\tclone\thttps://github.com/omacom/omarchy.git\t'"$checkout"$'\nlink\t'"$checkout"$'\t--no-reboot\nstate\tset\treboot-required\nrefresh\tedge\nupdate-pacman\t-S\t--needed\t--noconfirm\t--ask\t4\tomarchy-dev\tomarchy-settings-dev\nupdate\t-y\tOMARCHY_PATH='"$checkout" ]] ||
   fail "dev activates the checkout before changing or updating packages" "$(cat "$log_file")"
 pass "dev activates the checkout before changing or updating packages"
+assert_log_line $'refresh-path\t'"$checkout" "dev refreshes using templates from the selected checkout"
 
 OMARCHY_TEST_PATH="$checkout" run_channel stable
 assert_log_line $'unlink\t--no-reboot' "switching from dev to stable unlinks without an early reboot prompt"
@@ -191,3 +205,19 @@ pass "current channel detects package-backed edge"
 
 [[ $(current_channel edge dev "$test_tmp/dev-checkout") == "dev" ]] || fail "current channel detects dev from OMARCHY_PATH"
 pass "current channel honors a dev link outside ~/omarchy"
+
+for channel in stable rc edge dev; do
+  if APPLE_SILICON=1 run_channel "$channel" >"$test_tmp/refused.out" 2>"$test_tmp/refused.err"; then fail 'unqualified ARM channel must be refused'; fi
+  [[ ! -s $log_file ]] || fail 'unqualified ARM switch has no side effects'
+  grep -q 'is not qualified' "$test_tmp/refused.err" || fail 'refusal explains qualification requirement'
+  if grep -q 'rerun:' "$test_tmp/refused.err"; then fail 'refusal does not suggest retrying an unchanged qualification gate'; fi
+done
+pass 'unqualified ARM channels are refused before prompts, links or transactions'
+
+status=0
+OMARCHY_TEST_REFRESH_STATUS=42 run_channel dev >"$test_tmp/refresh.out" 2>"$test_tmp/refresh.err" || status=$?
+[[ $status == 42 ]] || fail 'post-link refresh failure propagates'
+assert_log_line $'link\t'"$checkout"$'\t--no-reboot' 'refresh failure occurs after activating the dev checkout'
+grep -q 'rerun: omarchy-channel-set dev' "$test_tmp/refresh.err" || fail 'post-link failure retains recovery guidance'
+if grep -q '^update-pacman' "$log_file"; then fail 'failed refresh prevents the package transaction'; fi
+pass 'partial dev switch retains recovery guidance'

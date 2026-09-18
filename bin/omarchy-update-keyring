@@ -3,29 +3,40 @@
 # omarchy:summary=Ensure the Omarchy and Arch keyring packages are installed and populated
 # omarchy:requires-sudo=true
 
-# omarchy-update runs this under set -e as a trusted pre-step, so a failed recv
-# or a broken keyring has to stop this script here, not surface later as
-# signature errors in the middle of the main transaction.
 set -euo pipefail
 
-if omarchy-pkg-missing omarchy-keyring || ! sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 &>/dev/null; then
-  sudo pacman-key --recv-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 --keyserver keys.openpgp.org
-  sudo pacman-key --lsign-key 40DFB630FF42BCFFB047046CF0134EE680CAC571
-
-  # This is generally not a good idea, but this is a special case because we're going to be updating
-  # the full set of packages in omarchy-update-system-pkgs right after this (and it needs latest keyring)!
-  sudo pacman -Sy
-  omarchy-pkg-add omarchy-keyring
-
-  sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571
+trusted_key=40DFB630FF42BCFFB047046CF0134EE680CAC571
+keyring_packages=(omarchy-keyring archlinux-keyring)
+keyrings=(omarchy archlinux)
+if omarchy-hw-apple-silicon; then
+  keyring_packages=(omarchy-keyring archlinuxarm-keyring asahi-alarm-keyring)
+  keyrings=(omarchy archlinuxarm asahi-alarm)
 fi
 
-# Ensure we have the latest archlinux-keyring, maintainer keys might have changed
-# Always reinstall, as the keyring can be updated without a package version bump.
-echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
-sudo pacman -Sy --noconfirm archlinux-keyring >/dev/null 2> >(grep -vE '^warning: archlinux-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
+# Restore trust from installed keyring files when available. A missing package
+# or deleted payload must not prevent reinstalling it below.
+for ring in "${keyrings[@]}"; do
+  if [[ -f /usr/share/pacman/keyrings/$ring.gpg ]]; then
+    sudo pacman-key --populate "$ring"
+  fi
+done
 
-# Say "correct" only once the key verifiably is: before the failure checks
-# above, a failed recv or reinstall still ended here with exit 0.
-sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 >/dev/null
+if ! sudo pacman-key --list-keys "$trusted_key" >/dev/null 2>&1; then
+  sudo pacman-key --recv-keys "$trusted_key" --keyserver keys.openpgp.org
+fi
+fingerprint=$(sudo gpg --homedir /etc/pacman.d/gnupg --batch --with-colons --fingerprint "$trusted_key" |
+  awk -F: '$1 == "pub" { primary=1; next } primary && $1 == "fpr" { print $10; exit }')
+if [[ $fingerprint != "$trusted_key" ]]; then
+  echo "Error: Omarchy signing key does not match $trusted_key" >&2
+  exit 1
+fi
+sudo pacman-key --lsign-key "$trusted_key"
+
+# Keyring refresh precedes the full system upgrade. Reinstall even when the
+# version is unchanged, since key material can change without a version bump.
+echo "Update signing keys"
+sudo pacman -Sy --noconfirm "${keyring_packages[@]}"
+sudo pacman-key --populate "${keyrings[@]}"
+# Keep the upstream final check: never report success with a missing key.
+sudo pacman-key --list-keys "$trusted_key" >/dev/null
 echo "Keys are correct"

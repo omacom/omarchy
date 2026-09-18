@@ -41,6 +41,8 @@ link_dev_checkout() {
 
 (( $# > 0 )) || { usage; exit 1; }
 
+source "$OMARCHY_PATH/install/helpers/pacman.sh"
+
 dev_checkout=""
 channel="$1"
 leaving_dev=0
@@ -59,6 +61,7 @@ case "$channel" in
     packages=(omarchy-dev omarchy-settings-dev)
     ;;
   dev)
+    omarchy_pacman_channel_qualified edge
     confirm_dev || { echo "Cancelled."; exit 0; }
     dev_checkout="$HOME/omarchy"
     validate_dev_checkout "$dev_checkout"
@@ -71,6 +74,8 @@ case "$channel" in
     exit 1
     ;;
 esac
+
+omarchy_pacman_channel_qualified "$pacman_channel"
 
 # A failure past this point leaves the channel switch half-applied, so say how
 # to pick it back up rather than dying silently under set -e.

@@ -93,9 +93,9 @@ The three guards differ in what failure means:
   list stays a catalog of what Omarchy can install. Since a dimmed row means
   "you already have this", it earns the same ✓ as `checked` does elsewhere.
 
-Install rows should therefore carry `disabled:` with the presence check, not
-`when:`; Remove rows are the opposite, hiding via `when:` what is not there
-to remove. `menu-test.sh` enforces the Install side of this convention.
+Install rows carry `disabled:` with the presence check and `when:` with `omarchy-pkg-available` for every package their installer requests. Availability checks the configured sync repositories, including package providers. A row is hidden when a required package is unavailable, even if the main package is already installed; available, installed software remains visible and dimmed. Recipes using only the AUR may instead restrict `when:` by architecture with `uname -m`. AUR recipes can also retain a repository-availability guard when that narrower catalog is intended.
+
+Remove rows hide via `when:` what is not installed. The menu and optional-availability tests cover these conventions, while the transaction drift test checks guard targets against the installer recipes.
 
 ## Providers
 

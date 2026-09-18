@@ -1,4 +1,12 @@
 # NetworkManager enablement is centralized in enable-services.sh.
+# The Apple profile installs omarchy-settings-asahi before offline setup.
+# It owns the vendor iwd default; /etc remains administrator-owned.
+if omarchy-hw-apple-silicon; then
+  if ! omarchy-pkg-present omarchy-settings-asahi; then
+    echo "Error: Apple setup requires omarchy-settings-asahi in the installed package set." >&2
+    return 1
+  fi
+fi
 systemctl disable iwd.service 2>/dev/null || true
 
 # Fresh Omarchy uses NetworkManager. Archinstall's legacy "copy ISO network"

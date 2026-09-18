@@ -1,137 +1,96 @@
 #!/bin/bash
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
-
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-stub_bin="$test_tmp/bin"
-log_file="$test_tmp/keyring.log"
-mkdir -p "$stub_bin"
-
-# Behavior is driven by env vars so each case can pick its failure point:
-# KEYRING_TEST_PKG_MISSING     exit status of omarchy-pkg-missing (default 1: installed)
-# KEYRING_TEST_LIST_FAIL_ON    which --list-keys call fails, counted per run (default: none)
-# KEYRING_TEST_RECV_STATUS     exit status of --recv-keys (default 0)
-# KEYRING_TEST_REINSTALL_STATUS exit status of the archlinux-keyring reinstall (default 0)
-cat >"$stub_bin/sudo" <<'SH'
-#!/bin/bash
-
-printf 'sudo' >>"$KEYRING_TEST_LOG"
-for arg in "$@"; do
-  printf '\t%s' "$arg" >>"$KEYRING_TEST_LOG"
-done
-printf '\n' >>"$KEYRING_TEST_LOG"
-
-if [[ $1 == "pacman-key" && $2 == "--list-keys" ]]; then
-  calls_file="$KEYRING_TEST_DIR/list-calls"
-  calls=$(( $(cat "$calls_file" 2>/dev/null || echo 0) + 1 ))
-  echo "$calls" >"$calls_file"
-  if [[ ${KEYRING_TEST_LIST_FAIL_ON:-} == "$calls" ]]; then
-    exit 1
-  fi
-  exit 0
-fi
-
-if [[ $1 == "pacman-key" && $2 == "--recv-keys" ]]; then
-  exit "${KEYRING_TEST_RECV_STATUS:-0}"
-fi
-
-if [[ $1 == "pacman-key" && $2 == "--lsign-key" ]]; then
-  exit 0
-fi
-
-if [[ $1 == "pacman" && $* == *archlinux-keyring* ]]; then
-  exit "${KEYRING_TEST_REINSTALL_STATUS:-0}"
-fi
-
-exit 0
-SH
-chmod +x "$stub_bin/sudo"
-
-cat >"$stub_bin/omarchy-pkg-missing" <<'SH'
-#!/bin/bash
-
-exit "${KEYRING_TEST_PKG_MISSING:-1}"
-SH
-chmod +x "$stub_bin/omarchy-pkg-missing"
-
-cat >"$stub_bin/omarchy-pkg-add" <<'SH'
-#!/bin/bash
-
-printf 'pkg-add\t%s\n' "$1" >>"$KEYRING_TEST_LOG"
-exit 0
-SH
-chmod +x "$stub_bin/omarchy-pkg-add"
-
-run_keyring() {
-  KEYRING_TEST_LOG="$log_file" \
-    KEYRING_TEST_DIR="$test_tmp" \
-    PATH="$stub_bin:$PATH" \
-    "$ROOT/bin/omarchy-update-keyring" "$@"
+run_node_test <<'JS'
+const fs = require('fs'), os = require('os'), cp = require('child_process')
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'keyring-'))
+const trusted = '40DFB630FF42BCFFB047046CF0134EE680CAC571'
+try {
+  const bin = path.join(tmp, 'bin'), log = path.join(tmp, 'calls'), rings = path.join(tmp, 'rings')
+  fs.mkdirSync(bin)
+  function stub(name, body) {
+    fs.writeFileSync(path.join(bin, name), '#!/bin/bash\nset -e\n' + body + '\n', {mode: 0o755})
+  }
+  stub('sudo', 'exec "$@"')
+  stub('omarchy-hw-apple-silicon', '[[ ${APPLE:-0} == 1 ]]')
+  stub('pacman-key', `echo "key $*" >> "$CALLS"
+[[ "$*" != "\${FAIL_STEP:-}" ]] || exit 42
+case $1 in
+  --populate)
+    shift
+    for ring in "$@"; do [[ -f "$RINGS/$ring.gpg" ]] || exit 43; done ;;
+  --recv-keys) touch "$RINGS/received" ;;
+  --list-keys)
+    if [[ -f "$RINGS/refreshed" && \${FINAL_LIST_FAIL:-0} == 1 ]]; then exit 44; fi
+    [[ \${MISSING_KEY:-0} == 0 || -f "$RINGS/received" ]] ;;
+esac`)
+  stub('pacman', `echo "pacman $*" >> "$CALLS"
+[[ \${PACMAN_STATUS:-0} == 0 ]] || exit "$PACMAN_STATUS"
+touch "$RINGS/omarchy.gpg" "$RINGS/archlinux.gpg" "$RINGS/archlinuxarm.gpg" "$RINGS/asahi-alarm.gpg" "$RINGS/refreshed"`)
+  stub('gpg', `echo "pub:::::::::"
+echo "fpr:::::::::\${FINGERPRINT:-${trusted}}:"`)
+  // Redirect only the system keyring payload directory to a disposable fixture.
+  const script = path.join(tmp, 'update-keyring')
+  fs.writeFileSync(script, fs.readFileSync(path.join(root, 'bin/omarchy-update-keyring'), 'utf8')
+    .replaceAll('/usr/share/pacman/keyrings/', rings + '/'))
+  const env = {...process.env, PATH: bin + ':' + process.env.PATH, CALLS: log, RINGS: rings}
+  function run(extra = {}, payloads = ['omarchy', 'archlinux', 'archlinuxarm', 'asahi-alarm']) {
+    fs.rmSync(rings, {recursive: true, force: true})
+    fs.mkdirSync(rings)
+    for (const ring of payloads) fs.writeFileSync(path.join(rings, ring + '.gpg'), '')
+    fs.writeFileSync(log, '')
+    const result = cp.spawnSync('bash', [script], {env: {...env, ...extra}, encoding: 'utf8'})
+    return {...result, log: fs.readFileSync(log, 'utf8')}
+  }
+  for (const apple of ['0', '1']) {
+    const ring = apple === '1' ? 'archlinuxarm' : 'archlinux'
+    const activeRings = apple === '1' ? ['omarchy', ring, 'asahi-alarm'] : ['omarchy', ring]
+    const packages = activeRings.map(name => name + '-keyring').join(' ')
+    const populated = activeRings.join(' ')
+    for (const payloads of [activeRings, [ring], ['omarchy'], []]) {
+      for (const missing of ['0', '1']) {
+        const r = run({APPLE: apple, MISSING_KEY: missing}, payloads)
+        assertEqual(r.status, 0, `${ring} recovers with payloads [${payloads}] and missing key ${missing}`, r.stderr)
+        assert(r.log.includes(`pacman -Sy --noconfirm ${packages}`), 'all repository keyring packages are refreshed')
+        const beforeInstall = r.log.split('pacman -Sy')[0]
+        for (const candidate of activeRings) {
+          assertEqual(beforeInstall.includes(`key --populate ${candidate}\n`), payloads.includes(candidate), 'only available payloads are populated before reinstall')
+        }
+        assert(r.log.indexOf(`key --populate ${populated}`) > r.log.indexOf('pacman -Sy'), 'updated payloads are populated after reinstall')
+        assertEqual(r.log.includes('--recv-keys'), missing === '1', 'bootstrap fetch is limited to missing keys')
+        assert(r.stdout.includes('Keys are correct'), 'healthy keyring reports success')
+      }
+    }
+    for (const extra of [
+      {PACMAN_STATUS: '42'},
+      {FAIL_STEP: `--populate ${ring}`},
+      {FAIL_STEP: '--populate omarchy'},
+      {FAIL_STEP: `--populate ${populated}`},
+      {FAIL_STEP: `--lsign-key ${trusted}`},
+      {MISSING_KEY: '1', FAIL_STEP: `--recv-keys ${trusted} --keyserver keys.openpgp.org`}
+    ]) {
+      const r = run({APPLE: apple, ...extra})
+      assertEqual(r.status, 42, 'keyring operation failures propagate', r.stderr)
+      assert(!r.stdout.includes('Keys are correct'), 'failed update never reports success')
+      if (extra.FAIL_STEP?.startsWith('--recv-keys')) {
+        assert(!r.log.includes('--lsign-key') && !r.log.includes('pacman -Sy'), 'failed key retrieval stops signing and package installation')
+      }
+    }
+    if (apple === '1') {
+      const asahi = run({APPLE: apple, FAIL_STEP: '--populate asahi-alarm'})
+      assertEqual(asahi.status, 42, 'Asahi keyring population failures stop the update')
+      assert(!asahi.stdout.includes('Keys are correct'), 'Asahi failure cannot report success')
+    }
+    const final = run({APPLE: apple, FINAL_LIST_FAIL: '1'})
+    assertEqual(final.status, 44, 'upstream final key check failure propagates')
+    assert(!final.stdout.includes('Keys are correct'), 'final verification failure cannot report success')
+    const wrong = run({APPLE: apple, FINGERPRINT: '0000000000000000000000000000000000000000'})
+    assertEqual(wrong.status, 1, 'wrong signing fingerprint is rejected')
+    assert(!wrong.log.includes('--lsign-key') && !wrong.log.includes('pacman -Sy'), 'wrong fingerprint cannot be trusted or used to update')
+  }
+} finally {
+  fs.rmSync(tmp, {recursive: true, force: true})
 }
-
-# Everything healthy: the key and package are present, the reinstall works.
-: >"$log_file"
-rm -f "$test_tmp/list-calls"
-run_keyring >"$test_tmp/ok.out"
-
-grep -F "Keys are correct" "$test_tmp/ok.out" >/dev/null ||
-  fail "update-keyring reports success when the keyring is healthy" "$(cat "$test_tmp/ok.out")"
-pass "update-keyring reports success when the keyring is healthy"
-
-grep -Eq $'^sudo\tpacman\t-Sy\t--noconfirm\tarchlinux-keyring$' "$log_file" ||
-  fail "update-keyring still reinstalls archlinux-keyring" "$(cat "$log_file")"
-pass "update-keyring still reinstalls archlinux-keyring"
-
-# Key and package missing: the full populate path runs and verifies at the end.
-: >"$log_file"
-rm -f "$test_tmp/list-calls"
-KEYRING_TEST_PKG_MISSING=0 run_keyring >"$test_tmp/populate.out"
-
-grep -F "Keys are correct" "$test_tmp/populate.out" >/dev/null ||
-  fail "update-keyring populates a missing keyring and reports success" "$(cat "$test_tmp/populate.out")"
-for expected in 'recv-keys' 'lsign-key' $'pkg-add\tomarchy-keyring'; do
-  grep -Eq "$expected" "$log_file" ||
-    fail "update-keyring populates a missing keyring and reports success" "$(cat "$log_file")"
-done
-pass "update-keyring populates a missing keyring and reports success"
-
-# recv-keys failing must stop the script, not end in "Keys are correct".
-: >"$log_file"
-rm -f "$test_tmp/list-calls"
-if KEYRING_TEST_PKG_MISSING=0 KEYRING_TEST_RECV_STATUS=1 run_keyring >"$test_tmp/recv.out" 2>&1; then
-  fail "update-keyring fails when recv-keys fails"
-fi
-if grep -F "Keys are correct" "$test_tmp/recv.out" >/dev/null; then
-  fail "update-keyring fails when recv-keys fails" "$(cat "$test_tmp/recv.out")"
-fi
-if grep -q 'lsign-key' "$log_file"; then
-  fail "update-keyring stops at the failed recv instead of signing anyway" "$(cat "$log_file")"
-fi
-pass "update-keyring fails when recv-keys fails"
-
-# A failed archlinux-keyring reinstall must not end in success either.
-: >"$log_file"
-rm -f "$test_tmp/list-calls"
-if KEYRING_TEST_REINSTALL_STATUS=1 run_keyring >"$test_tmp/reinstall.out" 2>&1; then
-  fail "update-keyring fails when the archlinux-keyring reinstall fails"
-fi
-if grep -F "Keys are correct" "$test_tmp/reinstall.out" >/dev/null; then
-  fail "update-keyring fails when the archlinux-keyring reinstall fails" "$(cat "$test_tmp/reinstall.out")"
-fi
-pass "update-keyring fails when the archlinux-keyring reinstall fails"
-
-# The closing check is what backs the success line: the first --list-keys
-# passes (key present, populate skipped), the verifying one fails.
-: >"$log_file"
-rm -f "$test_tmp/list-calls"
-if KEYRING_TEST_LIST_FAIL_ON=2 run_keyring >"$test_tmp/verify.out" 2>&1; then
-  fail "update-keyring fails when the final key check fails"
-fi
-if grep -F "Keys are correct" "$test_tmp/verify.out" >/dev/null; then
-  fail "update-keyring fails when the final key check fails" "$(cat "$test_tmp/verify.out")"
-fi
-pass "update-keyring fails when the final key check fails"
+JS

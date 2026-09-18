@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether all explicit targets are available in the configured repositories
+# omarchy:args=<packages...>
+
+# Shared by the CLI and menu batch. Caches last only for this shell process.
+declare -A __omarchy_sync_targets=() __omarchy_target_results=()
+__omarchy_sync_loaded=false
+
+omarchy-pkg-available() {
+  local target
+  (( $# > 0 )) || return 0
+  if ! $__omarchy_sync_loaded; then
+    local -a names=()
+    mapfile -t names < <(pacman -Slq 2>/dev/null)
+    for target in "${names[@]}"; do
+      [[ -z $target ]] || __omarchy_sync_targets[$target]=1
+    done
+    __omarchy_sync_loaded=true
+  fi
+  for target in "$@"; do
+    [[ -n $target ]] || return 1
+    if [[ -n ${__omarchy_sync_targets[$target]-} ]]; then
+      continue
+    fi
+    if [[ -z ${__omarchy_target_results[$target]-} ]]; then
+      if pacman -Sp --noconfirm -- "$target" >/dev/null 2>&1; then
+        __omarchy_target_results[$target]=yes
+      else
+        __omarchy_target_results[$target]=no
+      fi
+    fi
+    [[ ${__omarchy_target_results[$target]} == "yes" ]] || return 1
+  done
+}
+
+__omarchy_pkg_available_ready=true
+
+# Sourcing defines the checker without querying pacman or dispatching through PATH.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  omarchy-pkg-available "$@"
+fi
