@@ -165,3 +165,5 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+`omarchy-menu-select ... -- --multi` adds `multiSelect: true` to that payload and turns the list into a multi-picker: Tab ticks the row under the cursor, a checkbox appears at the end of every row, the prompt line reports the tally, and Enter confirms — writing one option per line, in the order the caller passed them rather than the order they were ticked. Ticks are keyed by the value the row would return, so a row stays ticked while the search narrows the list around it and still comes back once the filter is cleared. Enter with nothing ticked returns the row under the cursor, so a caller never has to handle single and multiple picks as separate shapes; Escape still discards everything. Typing goes to the filter here as it does everywhere else in the menu, which is why the toggle is Tab and not Space.
