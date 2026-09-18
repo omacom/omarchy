@@ -1,0 +1,5 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chat</title><link rel="stylesheet" href="style.css"></head>
+<body><header><button id="overview">All desktops</button><span id="heading">Chat</span><span id="status" role="status">Connecting</span></header>
+<main id="history" aria-label="Conversation"><button id="older" hidden>Load earlier messages</button><div id="messages"></div></main>
+<button id="jump" hidden>Latest</button><form id="composer"><textarea id="draft" aria-label="Message" placeholder="Continue this thread. Ctrl+Enter to send."></textarea><button id="send" type="submit">Send</button></form><div id="send-error" role="alert"></div><script type="module" src="chat.js"></script></body></html>

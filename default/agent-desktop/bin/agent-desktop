@@ -1,0 +1,238 @@
+#!/bin/bash
+# agent-desktop — on-demand nested Hyprlands agents work in, supervised by this
+# launcher and driven through the hypr-desktop MCP (mcp/hypr-desktop). The user
+# opens Agent Desktops to watch the background sessions when needed.
+#
+#   agent-desktop tool NAME JSON      call the MCP when native tools are missing
+#   agent-desktop status               running desktops and their windows
+#   agent-desktop start|stop|restart [N|all]
+#   agent-desktop env [N]              export lines for desktop N (starts it if needed)
+#   agent-desktop run [N] -- <cmd>     run <cmd> inside desktop N, by hand
+#
+# Each desktop has its own Wayland socket, X display and virtual seat, reachable
+# under stable names (wayland-agent-N, :9N, hypr/agent-N) that this script keeps
+# pointed at whatever the nest was given. Design and gotchas:
+# See the package README.md.
+set -euo pipefail
+
+self=$(readlink -f "$0")
+uid=$(id -u)
+XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$uid}"
+export XDG_RUNTIME_DIR
+RUN="$XDG_RUNTIME_DIR/agent-desktop"
+STATE="$HOME/.local/share/agent-desktop"
+# Resolve resources through the installed launcher symlink.
+REPO_DIR=$(cd "$(dirname "$self")/.." && pwd)
+NEST_CONFIG="$REPO_DIR/config/nest.lua"
+OUTPUT=agent-main
+
+say() { printf 'agent-desktop: %s\n' "$*" >&2; }
+die() { say "$*"; exit 1; }
+
+slot_ok() { [[ "$1" =~ ^[1-9][0-9]*$ ]] && [ "${#1}" -le 8 ] || die "invalid desktop number: '$1'"; }
+unit_of() { echo "agent-desktop-$1"; }
+env_file() { echo "$RUN/$1/env"; }
+nest_file() { echo "$RUN/$1/nest"; }
+
+# The user's real session, read from the systemd user environment rather than
+# this shell: an agent shell already routed into a nest has the nest's names.
+real_env() {
+  systemctl --user show-environment | grep -E '^(WAYLAND_DISPLAY|DISPLAY|HYPRLAND_INSTANCE_SIGNATURE)=' || true
+}
+real_hyprctl() {
+  HYPRLAND_INSTANCE_SIGNATURE=$(real_env | sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p') hyprctl "$@"
+}
+nest_hyprctl() { HYPRLAND_INSTANCE_SIGNATURE="agent-$1" hyprctl "${@:2}"; }
+
+nest_ready() { [ -r "$(env_file "$1")" ] && [ -S "$XDG_RUNTIME_DIR/wayland-agent-$1" ]; }
+
+wait_ready() {
+  local n=$1
+  for _ in $(seq 1 "${2:-40}"); do
+    nest_ready "$n" && return 0
+    systemctl --user is-active -q "$(unit_of "$n")" || return 1
+    sleep 0.5
+  done
+  return 1
+}
+
+cmd_start() {
+  local n=$1; slot_ok "$n"
+  if systemctl --user is-active -q "$(unit_of "$n")"; then
+    wait_ready "$n" || die "unit is active but desktop $n never became ready; see journalctl --user -u $(unit_of "$n")"
+    return 0
+  fi
+  command -v Hyprland >/dev/null || die "Hyprland is not installed; the agent desktop needs a Hyprland session"
+  real_env | grep -q '^WAYLAND_DISPLAY=' || die "no Wayland session in the systemd user environment; log in graphically first"
+  [ -r "$NEST_CONFIG" ] || die "missing nest config $NEST_CONFIG"
+  # HYPRLAND_NO_SD_VARS is load-bearing: a Hyprland without it imports its own
+  # socket into the systemd user environment on start, and every app the user
+  # launches afterwards would open inside the nest.
+  systemd-run --user --unit="$(unit_of "$n")" --collect --quiet \
+    -p Restart=on-failure -p RestartSec=2 -p "ExecStop=\"$self\" _exit $n" \
+    -E HYPRLAND_NO_SD_VARS=1 -E "AGENT_DESKTOP_SELF=$self" -E "AGENT_DESKTOP_SLOT=$n" \
+    -- systemd-inhibit --what=idle:sleep --who="agent-desktop-$n" \
+      --why="Agent desktop $n is open" --mode=block "$self" _supervise "$n"
+  wait_ready "$n" || die "desktop $n did not come up; see journalctl --user -u $(unit_of "$n")"
+}
+
+cmd_stop() {
+  local n=$1; slot_ok "$n"
+  if systemctl --user show "$(unit_of "$n")" -p LoadState --value | grep -qx not-found; then
+    return 0
+  fi
+  systemctl --user stop "$(unit_of "$n")"
+  if systemctl --user is-active -q "$(unit_of "$n")"; then
+    die "desktop $n is still running"
+  fi
+  systemctl --user reset-failed "$(unit_of "$n")" 2>/dev/null || true
+}
+
+active_slots() {
+  systemctl --user list-units --all --plain --no-legend 'agent-desktop-*.service' |
+    sed -nE 's/^agent-desktop-([1-9][0-9]*)\.service[[:space:]].*/\1/p' | sort -n
+}
+each_slot() { local f=$1 n; for n in $(active_slots); do "$f" "$n"; done; }
+
+
+window_count() {
+  nest_hyprctl "$1" -j clients 2>/dev/null | jq 'map(select(.mapped)) | length' 2>/dev/null || echo 0
+}
+
+cmd_supervise() {
+  local n=$1
+  mkdir -p "$RUN/$n"
+  rm -f "$(env_file "$n")" "$(nest_file "$n")"
+  # start-hyprland adds the watchdog Hyprland expects; without it the nest
+  # shows a permanent "started without start-hyprland" banner in every capture.
+  if command -v start-hyprland >/dev/null; then
+    start-hyprland -- -c "$NEST_CONFIG" &
+  else
+    Hyprland -c "$NEST_CONFIG" &
+  fi
+  local spid=$!
+  trap 'exit 0' TERM INT
+  # shellcheck disable=SC2064
+  trap "cleanup $n" EXIT
+
+  for _ in $(seq 1 40); do
+    [ -r "$(nest_file "$n")" ] && break
+    kill -0 "$spid" 2>/dev/null || die "nested Hyprland exited before it was ready"
+    sleep 0.5
+  done
+  [ -r "$(nest_file "$n")" ] || die "nested Hyprland never reported its sockets"
+  # shellcheck disable=SC1090
+  . "$(nest_file "$n")"
+  ln -sfn "$NEST_HYPRLAND_INSTANCE_SIGNATURE" "$XDG_RUNTIME_DIR/hypr/agent-$n"
+  ln -sfn "$NEST_WAYLAND_DISPLAY" "$XDG_RUNTIME_DIR/wayland-agent-$n"
+  [ -n "${NEST_DISPLAY:-}" ] && ln -sfn "X${NEST_DISPLAY#:}" "/tmp/.X11-unix/X9$n"
+
+  # The headless output is created at runtime; nest.lua only holds its rules.
+  for _ in $(seq 1 20); do
+    nest_hyprctl "$n" output create headless "$OUTPUT" >/dev/null 2>&1 || true
+    nest_hyprctl "$n" -j monitors 2>/dev/null | jq -e --arg o "$OUTPUT" 'map(select(.name == $o)) | length > 0' >/dev/null && break
+    sleep 0.5
+  done
+  # Reapply workspace rules after creating the headless output.
+  nest_hyprctl "$n" reload >/dev/null
+  local config_errors
+  config_errors=$(nest_hyprctl "$n" configerrors)
+  [ -z "$config_errors" ] || die "desktop $n config errors: $config_errors"
+  nest_hyprctl "$n" repl "hl.dispatch(hl.dsp.focus({ monitor = '$OUTPUT' }))" >/dev/null
+
+  {
+    echo "AGENT_DESKTOP=$n"
+    echo "AGENT_DESKTOP_OUTPUT=$OUTPUT"
+    echo "WAYLAND_DISPLAY=wayland-agent-$n"
+    echo "DISPLAY=:9$n"
+    echo "HYPRLAND_INSTANCE_SIGNATURE=agent-$n"
+    real_env | sed 's/^/AGENT_DESKTOP_REAL_/'
+  } > "$(env_file "$n").tmp"
+  mv "$(env_file "$n").tmp" "$(env_file "$n")"
+  say "desktop $n ready: $NEST_WAYLAND_DISPLAY (wayland-agent-$n), X ${NEST_DISPLAY:-none} (:9$n), output $OUTPUT"
+
+  wait "$spid" || true
+}
+
+cleanup() {
+  local n=$1
+  rm -f "$(env_file "$n")" "$(nest_file "$n")" \
+    "$XDG_RUNTIME_DIR/wayland-agent-$n" "$XDG_RUNTIME_DIR/hypr/agent-$n" "/tmp/.X11-unix/X9$n"
+}
+
+cmd_nest_ready() {
+  local n="${AGENT_DESKTOP_SLOT:?}"
+  mkdir -p "$RUN/$n"
+  {
+    echo "NEST_WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
+    echo "NEST_HYPRLAND_INSTANCE_SIGNATURE=$HYPRLAND_INSTANCE_SIGNATURE"
+    echo "NEST_DISPLAY=${DISPLAY:-}"
+  } > "$(nest_file "$n").tmp"
+  mv "$(nest_file "$n").tmp" "$(nest_file "$n")"
+}
+
+cmd_env() {
+  local n="${1:-${AGENT_DESKTOP:-1}}"; slot_ok "$n"
+  nest_ready "$n" || cmd_start "$n" >&2
+  sed 's/^/export /' "$(env_file "$n")"
+}
+
+cmd_run() {
+  local n="${AGENT_DESKTOP:-1}"
+  if [[ "${1:-}" =~ ^[0-9]+$ ]]; then n=$1; shift; fi
+  [ "${1:-}" = "--" ] && shift
+  [ $# -gt 0 ] || die "run: nothing to run"
+  eval "$(cmd_env "$n")"
+  exec "$@"
+}
+
+status_slot() {
+  local n=$1 state=stopped where="-"
+  systemctl --user is-active -q "$(unit_of "$n")" && state=starting
+  nest_ready "$n" && state=ready
+  local windows="-"
+  [ "$state" = ready ] && windows=$(window_count "$n")
+  if [ "$state" = ready ]; then
+    where="Agent Desktops app"
+  fi
+  local inhibit=""
+  systemd-inhibit --list --no-legend 2>/dev/null | grep -qE "^agent-desktop-$n .* (sleep:idle|idle:sleep) .*block" && inhibit=", sleep and idle inhibited"
+  printf 'desktop %s: %-8s windows %-3s window on %-18s%s\n' "$n" "$state" "$windows" "$where" "$inhibit"
+  if [ "$state" = ready ] && [ "$windows" != "0" ]; then
+    nest_hyprctl "$n" -j clients 2>/dev/null | jq -r '.[] | select(.mapped) | "           [\(.class)] \(.title)"'
+  fi
+}
+cmd_status() {
+  each_slot status_slot
+  echo "leases: the hypr-desktop MCP status tool (endpoint in ~/.local/share/hypr-desktop/url)"
+}
+
+slots_arg() {
+  case "${1:-}" in
+    all) active_slots ;;
+    "") echo "${AGENT_DESKTOP:-1}" ;;
+    *) slot_ok "$1"; echo "$1" ;;
+  esac
+}
+
+case "${1:-}" in
+  tool) shift; exec node "$REPO_DIR/mcp/client.js" "$@" ;;
+  start) for n in $(slots_arg "${2:-}"); do cmd_start "$n"; done ;;
+  stop) for n in $(slots_arg "${2:-}"); do cmd_stop "$n"; done ;;
+  restart) for n in $(slots_arg "${2:-}"); do cmd_stop "$n"; cmd_start "$n"; done ;;
+  status) cmd_status ;;
+  env) cmd_env "${2:-}" ;;
+  run) shift; cmd_run "$@" ;;
+  _supervise) cmd_supervise "$2" ;;
+  _exit)
+    nest_hyprctl "$2" dispatch 'hl.dsp.exit()' >/dev/null 2>&1 || true
+    # Let the watchdog see a normal compositor exit before systemd sends TERM.
+    for _ in $(seq 1 50); do
+      [ -r "$(env_file "$2")" ] || break
+      sleep 0.1
+    done
+    ;;
+  _nest-ready) cmd_nest_ready ;;
+  -h|--help|"") sed -n '2,14p' "$self"; [ -n "${1:-}" ] || exit 1 ;;
+  *) die "unknown command: $1" ;;
+esac
