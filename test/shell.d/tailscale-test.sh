@@ -8,8 +8,11 @@ run_node_test <<'JS'
 const fs = require('fs')
 const tailscale = requireFromRoot('shell/plugins/panels/tailscale/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Panel.qml', 'utf8')
+const serviceSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Service.qml', 'utf8')
 
 assert(/function toggleTailscale\(\): string \{ tailscale\.toggleTailscale\(\); return "ok" \}/.test(panelSource), 'tailscale exposes the connection toggle over IPC')
+assert(!/\["which"/.test(serviceSource), 'tailscale does not probe the CLI with the which binary')
+assert(/\["omarchy-cmd-present", "tailscale"\]/.test(serviceSource), 'tailscale probes the CLI with omarchy-cmd-present')
 
 assertDeepEqual(
   tailscale.filterIPv4(['100.64.0.1', 'fd7a:115c:a1e0::1', '192.168.1.2']),
@@ -208,3 +211,7 @@ assertDeepEqual(
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
+
+which_hits=$(rg -n '\["which"' "$ROOT/shell" || true)
+[[ -z $which_hits ]] || fail "shell plugins do not call the which binary" "$which_hits"
+pass "shell plugins do not call the which binary"
