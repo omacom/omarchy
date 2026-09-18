@@ -48,8 +48,16 @@ Item {
   // the user file on top of the defaults, so the keybind → IPC → visible
   // path doesn't have to shell out to bash + jq on every open.
   property string defaultMenuPath: omarchyPath + "/default/omarchy/omarchy-menu.jsonc"
+  property string localeCode: {
+    var l = Quickshell.env("OMARCHY_LANGUAGE") || Quickshell.env("LANG") || ""
+    return l ? l.split(".")[0].split("_")[0].toLowerCase() : ""
+  }
+  property string localeMenuPath: localeCode && localeCode !== "en" && localeCode !== "c" && localeCode !== "posix"
+    ? (omarchyPath + "/default/omarchy/omarchy-menu." + localeCode + ".jsonc")
+    : ""
   property string userMenuPath: Quickshell.env("HOME") + "/.config/omarchy/extensions/omarchy-menu.jsonc"
   property var defaultMenuItems: []
+  property var localeMenuItems: []
   property var userMenuItems: []
   property bool opened: false
   property string mode: "menu"
@@ -244,7 +252,8 @@ Item {
   // on a per-key basis (so the user can tweak label/icon/action without
   // re-declaring the whole row).
   function rebuildItemsFromSources() {
-    var mergedMenu = MenuModel.mergeMenuSources(root.defaultMenuItems, root.userMenuItems)
+    var baseItems = root.localeMenuItems.length > 0 ? root.localeMenuItems : root.defaultMenuItems
+    var mergedMenu = MenuModel.mergeMenuSources(baseItems, root.userMenuItems)
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []
@@ -968,6 +977,16 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: { root.defaultMenuItems = root.parseMenuJsonc(text()); root.rebuildItemsFromSources() }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: localeMenuFile
+    path: root.localeMenuPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: { root.localeMenuItems = root.parseMenuJsonc(text()); root.rebuildItemsFromSources() }
+    onLoadFailed: { root.localeMenuItems = []; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
 
