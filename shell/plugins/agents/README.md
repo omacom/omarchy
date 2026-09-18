@@ -55,10 +55,11 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `grok` | None — Grok publishes no rate-limit summary to read | The local session index in `~/.grok/sessions`, with `grok usage` per session for tokens, models, and cost |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME`. Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
@@ -91,6 +92,27 @@ period. `accountId` only matters when one API key can access several
 accounts. Without a configured `fundedAmount` the tab still shows token
 usage, just no balance. With a live ledger, `fundedAmount` is optional and
 only adds the meter and the spent-of-funded line under the real figure.
+
+### Grok limits and cost
+
+The Grok tab shows tokens and history but no limit meters. A grok.com
+subscription does have allowances; nothing exposes them to a collector.
+Grok's own status-line documentation lists a rate-limit summary among the
+fields it deliberately does not send, calling it "a number it cannot source
+honestly" — so the record carries no limits rather than a meter no one can
+stand behind.
+
+`grok usage` prices each session at API list rates, but a subscription bills
+nothing per token, so that figure is notional rather than money spent. It
+travels as `notionalCostUsd` and is deliberately not published as a
+`balance`: that section draws a prepaid credit ledger, which a subscription
+is not.
+
+Local sessions are the only ones with token data — `grok sessions list`
+reports server-side sessions that `grok usage` cannot answer for. Per-session
+totals are cached in `~/.local/state/omarchy/agents/grok-usage-cache.json`
+and re-read only when a session's own timestamp moves, so a refresh costs one
+CLI call per changed session rather than per session.
 
 ## Interactions
 
@@ -128,7 +150,8 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "grok": { "enabled": true }
 }' --json
 ```
 
