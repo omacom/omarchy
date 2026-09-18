@@ -277,6 +277,12 @@ Item {
       script: "current=$(powerprofilesctl get 2>/dev/null); omarchy-powerprofiles-list 2>/dev/null | while read -r p; do [[ -z $p ]] && continue; printf '%s\\t%s\\t%s\\n' \"$p\" \"$p\" \"$current\"; done",
       icon: "\udb81\udc0b",
       actionFor: function(value) { return "omarchy-powerprofiles-set autodetect " + Util.shellQuote(value) }
+    },
+    "startup-apps": {
+      script: "omarchy-startup-apps list",
+      icon: "󰒓",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-startup-apps toggle " + Util.shellQuote(value) }
     }
   })
 
