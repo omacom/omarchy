@@ -117,7 +117,12 @@ done
 source "$OMARCHY_INSTALL/user/all.sh"
 
 omarchy-refresh-applications
-env -u BROWSER xdg-settings set default-web-browser chromium.desktop
+# Existing installations may still ship Chromium when another user is added.
+if omarchy-cmd-present brave-origin; then
+  env -u BROWSER xdg-settings set default-web-browser brave-origin.desktop
+else
+  env -u BROWSER xdg-settings set default-web-browser chromium.desktop
+fi
 xdg-mime default HEY.desktop x-scheme-handler/mailto
 
 if (( first_install )); then
