@@ -210,5 +210,28 @@ check(
   '_syncServices still drops disabled or removed services'
 )
 
+// serviceFor must resolve clones the same way IPC does. A plain _services[id]
+// lookup leaves firstPartyServiceFor("omarchy.notifications") null after
+// `omarchy plugin clone omarchy.notifications`, so bar indicators go dark.
+const serviceForMatch = shellSource.match(/function serviceFor\(pluginId\) \{[\s\S]*?\n  \}/)
+check(!!serviceForMatch, 'serviceFor is defined')
+check(
+  !!serviceForMatch && /resolveEnabledId\(pluginId\)/.test(serviceForMatch[0]),
+  'serviceFor routes through resolveEnabledId so cloned services keep driving indicators'
+)
+check(
+  !!serviceForMatch && !/return _services\[String\(pluginId\)\]/.test(serviceForMatch[0]),
+  'serviceFor does not look up the raw plugin id alone'
+)
+
+// resolveEnabledId itself: built-in id maps to the enabled clone when present.
+const registrySource = fs.readFileSync(path.join(root, 'shell/services/PluginRegistry.qml'), 'utf8')
+const resolveMatch = registrySource.match(/function resolveEnabledId\(id\) \{[\s\S]*?\n  \}/)
+check(!!resolveMatch, 'resolveEnabledId is defined')
+check(
+  !!resolveMatch && /clonedFrom/.test(resolveMatch[0]) && /isEnabled\(candidate\)/.test(resolveMatch[0]),
+  'resolveEnabledId returns the enabled clone for a built-in id'
+)
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS

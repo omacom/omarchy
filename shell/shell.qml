@@ -872,8 +872,14 @@ ShellRoot {
   // looking a service up by id re-evaluates once that service exists.
   readonly property var services: _services
 
+  // Lookups name the built-in id even after a clone has replaced it. Resolve
+  // through the registry so bar indicators (and anyone else) reach the enabled
+  // implementation, matching IPC routing.
   function serviceFor(pluginId) {
-    return _services[String(pluginId)] || null
+    var id = pluginRegistry
+      ? pluginRegistry.resolveEnabledId(pluginId)
+      : String(pluginId || "")
+    return _services[id] || null
   }
 
   function firstPartyServiceFor(pluginId) {
