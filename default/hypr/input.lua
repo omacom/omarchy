@@ -57,6 +57,13 @@ hl.config({
     follow_mouse = 1,
     sensitivity = 0,
 
+    -- Hyprland defaults this to false and matches binds via keysym→keycode
+    -- reverse lookup. XF86TouchpadToggle sits at XKB keycode 538 (evdev 530),
+    -- above the classic 255 ceiling, so that reverse path never reaches it and
+    -- the stock XF86Touchpad* binds in bindings/media.lua stay dead (issue
+    -- #10449). Resolving by symbol matches those high keycodes.
+    resolve_binds_by_sym = true,
+
     repeat_rate = 40,
     repeat_delay = 250,
     numlock_by_default = true,
