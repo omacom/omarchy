@@ -42,6 +42,39 @@ sudo_available() {
   return 1
 }
 
+verify_pinpam_policy_posture() {
+  # https://github.com/RazeLighter777/pinpam/issues/18: the package ships its
+  # policy at /etc/pinpam/policy.conf, but libpinpam.so only ever reads
+  # /etc/pinpam/policy (no extension), and its parser rejects a leading
+  # comment line or quoted values. omarchy-setup-security-pin writes a clean
+  # /etc/pinpam/policy directly rather than copying policy.conf; this only
+  # verifies the file it leaves behind, since actually enrolling a PIN needs
+  # interactive terminal input this suite must never script.
+  if ! pacman -Q pinpam-git &>/dev/null; then
+    pass "pinpam policy posture check skipped: pinpam-git is not installed"
+    return
+  fi
+
+  [[ -f /etc/pinpam/policy ]] || fail "/etc/pinpam/policy exists"
+  pass "/etc/pinpam/policy exists"
+
+  [[ ! -L /etc/pinpam/policy ]] || fail "/etc/pinpam/policy is a regular file, not a symlink"
+  pass "/etc/pinpam/policy is a regular file"
+
+  [[ $(stat -c %U /etc/pinpam/policy) == root ]] || fail "/etc/pinpam/policy is owned by root"
+  pass "/etc/pinpam/policy is owned by root"
+
+  local mode
+  mode=$(stat -c %a /etc/pinpam/policy)
+  (( 8#$mode <= 8#644 )) || fail "/etc/pinpam/policy is mode 644 or tighter" "got: $mode"
+  pass "/etc/pinpam/policy is mode 644 or tighter"
+
+  if grep -q '^#' /etc/pinpam/policy || grep -q '"' /etc/pinpam/policy; then
+    fail "/etc/pinpam/policy has no comment lines or quoted values the parser would reject"
+  fi
+  pass "/etc/pinpam/policy has no comment lines or quoted values the parser would reject"
+}
+
 verify_asdcontrol_sudoers() {
   # Omarchy used to ship a passwordless sudoers grant for asdcontrol; that
   # authorization now belongs to the package alone.
@@ -101,6 +134,7 @@ verify_sshd_hardening() {
 }
 
 verify_input_group
+verify_pinpam_policy_posture
 
 if sudo_available; then
   verify_asdcontrol_sudoers

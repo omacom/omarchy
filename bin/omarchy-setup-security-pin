@@ -1,0 +1,171 @@
+#!/bin/bash
+
+# omarchy:summary=Set up TPM-backed PIN authentication for login, sudo, polkit, and the lock screen
+# omarchy:requires-sudo=true
+
+set -e
+set -o pipefail
+
+# Known gap: GNOME Keyring's PAM auto-unlock (pam_gnome_keyring) relies on
+# capturing the real Unix password via PAM_AUTHTOK, and a PIN login never sets
+# that, so the keyring can stay locked after logging in or unlocking with a
+# PIN. pinpam ships an optional libpinpam_master_key.so for this (not built by
+# default), which is out of scope here.
+
+policy_file=/etc/pinpam/policy
+polkit_dropin_dir=/etc/systemd/system/polkit-agent-helper@.service.d
+polkit_dropin_file=$polkit_dropin_dir/pinpam.conf
+
+check_tpm() {
+  if [[ ! -e /dev/tpmrm0 && ! -e /dev/tpm0 ]]; then
+    echo -e "\e[31m\nNo TPM2 device detected. PIN authentication needs a TPM.\e[0m"
+    return 1
+  fi
+  return 0
+}
+
+pin_enrolled() {
+  local status
+
+  status=$(pinutil --machine status "$USER" 2>/dev/null) || return 1
+  [[ $status != *'"Ok":null'* ]]
+}
+
+# Known upstream packaging bugs (https://github.com/RazeLighter777/pinpam/issues/18):
+#
+# 1. The PKGBUILD installs the policy at /etc/pinpam/policy.conf, but
+#    libpinpam.so only ever reads /etc/pinpam/policy (no extension) and
+#    silently falls back to built-in defaults otherwise.
+# 2. The parser (PinPolicy::parse_config) splits the whole file on whitespace
+#    and requires every token to contain "=", with no comment handling. The
+#    "# Default pinpam policy..." header policy.conf ships, and the quotes
+#    around pinutil_path's value, both break that parse, so policy.conf can't
+#    just be copied over verbatim either -- it has to be written out clean.
+#
+# This writes the same values policy.conf ships (Arch's shipped defaults),
+# just in the comment-free, quote-free form the parser actually accepts.
+fix_policy_file() {
+  if [[ -L $policy_file || ( -e $policy_file && ! -f $policy_file ) ]]; then
+    echo -e "\e[31m\n$policy_file is not a regular file.\e[0m"
+    echo "Run omarchy-remove-security-pin first, then set PIN up again."
+    exit 1
+  fi
+
+  sudo tee "$policy_file" >/dev/null <<'EOF'
+pin_min_length=4
+pin_max_length=6
+pin_lockout_max_attempts=5
+pinutil_path=/usr/bin/pinutil
+tcti=device:/dev/tpmrm0
+EOF
+  sudo chown root:root "$policy_file"
+  sudo chmod 644 "$policy_file"
+}
+
+setup_pam_config() {
+  # Configure login. system-auth's auth section is a jump-chain, not a stack
+  # of independent "sufficient" lines like sudo/polkit-1, so this mirrors the
+  # jump-skip pattern already used there for pam_systemd_home: PIN success
+  # skips pam_unix.so (the next line) and the pam_faillock authfail line right
+  # after it, landing on pam_permit; PIN failure or no PIN falls through to
+  # the password prompt as usual. The bracket expression is unique to this
+  # one auth-section pam_unix.so line -- account/password/session each call
+  # pam_unix.so too, with a plain "required", so anchoring the insertion on it
+  # (rather than a bare pam_unix.so match) keeps those three alone. sddm's
+  # autologin path uses sddm-autologin (pam_permit.so, no auth check at all),
+  # so this has no effect there either way -- it only reaches a regular
+  # SDDM password login.
+  if ! grep -q libpinpam.so /etc/pam.d/system-auth; then
+    echo "Configuring login for PIN authentication..."
+    sudo sed -i '/\[success=1 default=bad\][[:space:]]*pam_unix\.so/i auth       [success=2 default=ignore]  libpinpam.so' /etc/pam.d/system-auth
+  fi
+
+  # Configure sudo
+  if ! grep -q libpinpam.so /etc/pam.d/sudo; then
+    echo "Configuring sudo for PIN authentication..."
+    sudo sed -i '1i auth      sufficient libpinpam.so' /etc/pam.d/sudo
+  fi
+
+  # Configure polkit
+  if [[ -f /etc/pam.d/polkit-1 ]] && ! grep -q 'libpinpam.so' /etc/pam.d/polkit-1; then
+    echo "Configuring polkit for PIN authentication..."
+    sudo sed -i '1i auth      sufficient libpinpam.so' /etc/pam.d/polkit-1
+  elif [[ ! -f /etc/pam.d/polkit-1 ]]; then
+    echo "Creating polkit configuration with PIN authentication..."
+    sudo tee /etc/pam.d/polkit-1 >/dev/null <<'EOF'
+auth      sufficient libpinpam.so
+auth      required pam_unix.so
+
+account   required pam_unix.so
+password  required pam_unix.so
+session   required pam_unix.so
+EOF
+  fi
+}
+
+# polkit-agent-helper@.service runs with PrivateDevices=yes and only /dev/null
+# allowed, which blocks pinpam from reaching both the TPM and the pty it uses
+# to converse with the caller during a polkit prompt.
+# https://github.com/RazeLighter777/pinpam/issues/4#issuecomment-3815461955
+#
+# pinpam-git's own PKGBUILD ships a similar override, but for polkit.service
+# (the daemon) rather than polkit-agent-helper@.service (the per-request PAM
+# helper that actually needs the device access), so it does not fix this.
+setup_polkit_sandbox() {
+  if [[ ! -f $polkit_dropin_file ]] || ! grep -q '/dev/tpmrm0' "$polkit_dropin_file"; then
+    echo "Allowing polkit's PIN prompt to reach the TPM..."
+    sudo install -d -m 755 -o root -g root "$polkit_dropin_dir"
+    sudo tee "$polkit_dropin_file" >/dev/null <<'EOF'
+[Service]
+PrivateDevices=no
+DeviceAllow=/dev/tpmrm0 rw
+DeviceAllow=/dev/ptmx rw
+EOF
+    sudo systemctl daemon-reload
+  fi
+}
+
+echo -e "\e[32mSetting up PIN authentication.\n\e[0m"
+
+if ! check_tpm; then
+  exit 1
+fi
+
+echo "Installing required packages..."
+omarchy-pkg-aur-add pinpam-git || exit 1
+
+fix_policy_file
+
+if pin_enrolled; then
+  echo "PIN already configured for $USER."
+else
+  echo -e "\e[32m\nLet's set up your PIN.\e[0m"
+  echo "You'll be asked to enter and confirm a new PIN right here in the terminal."
+  echo
+
+  # Never script or capture this: pinutil reads the PIN straight from the
+  # terminal, and it must stay that way so a PIN is never logged or echoed.
+  if pinutil setup "$USER"; then
+    echo -e "\e[32m\nPIN registered successfully!\e[0m"
+  else
+    echo -e "\e[31m\nPIN setup failed. Please try again.\e[0m"
+    exit 1
+  fi
+fi
+
+setup_pam_config
+setup_polkit_sandbox
+
+# Regenerates the lock screen's PAM stacks, adding PIN to the password service
+# alongside pam_unix when a PIN is enrolled for the invoking user.
+omarchy-apply-lock
+
+echo -e "\nTesting PIN authentication with sudo..."
+echo -e "Enter your PIN when prompted (or your password, which still works too).\n"
+
+if sudo echo "PIN authentication test successful"; then
+  echo -e "\e[32m\nPerfect! PIN authentication is now configured.\e[0m"
+  echo "You can use your PIN to log in (unless you're on autologin), for sudo, polkit, and unlocking the screen."
+else
+  echo -e "\e[31m\nVerification failed. You may want to check your configuration.\e[0m"
+fi

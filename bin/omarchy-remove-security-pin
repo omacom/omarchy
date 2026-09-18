@@ -1,0 +1,79 @@
+#!/bin/bash
+
+# omarchy:summary=Remove PIN authentication from login, sudo, polkit, and the lock screen
+# omarchy:requires-sudo=true
+
+set -e
+
+policy_file=/etc/pinpam/policy
+polkit_dropin_file=/etc/systemd/system/polkit-agent-helper@.service.d/pinpam.conf
+
+pin_enrolled() {
+  local status
+
+  status=$(pinutil --machine status "$USER" 2>/dev/null) || return 1
+  [[ $status != *'"Ok":null'* ]]
+}
+
+remove_enrolled_pin() {
+  if omarchy-cmd-present pinutil && pin_enrolled; then
+    echo "Deleting your enrolled PIN..."
+    # Root bypasses pinutil's own current-PIN prompt for a self-delete, so
+    # this still works when the PIN being removed has been forgotten. It's
+    # still interactive: pinutil asks for a yes/no confirmation.
+    #
+    # The PIN lives in TPM NVRAM, not in any package file, so a failure here
+    # is not cleaned up by removing pinpam-git below: the slot stays sealed
+    # in the TPM until "pinutil delete" (or "sudo pinutil delete") succeeds.
+    if ! sudo pinutil delete "$USER"; then
+      echo -e "\e[31mCould not delete the enrolled PIN from the TPM. Run 'sudo pinutil delete $USER' by hand before setting PIN up again.\e[0m"
+    fi
+  fi
+}
+
+remove_pam_config() {
+  # Remove from login
+  if grep -q libpinpam.so /etc/pam.d/system-auth; then
+    echo "Removing PIN authentication from login..."
+    sudo sed -i '/libpinpam\.so/d' /etc/pam.d/system-auth
+  fi
+
+  # Remove from sudo
+  if grep -q libpinpam.so /etc/pam.d/sudo; then
+    echo "Removing PIN authentication from sudo..."
+    sudo sed -i '/libpinpam\.so/d' /etc/pam.d/sudo
+  fi
+
+  # Remove from polkit
+  if [[ -f /etc/pam.d/polkit-1 ]] && grep -Fq 'libpinpam.so' /etc/pam.d/polkit-1; then
+    echo "Removing PIN authentication from polkit..."
+    sudo sed -i '/libpinpam\.so/d' /etc/pam.d/polkit-1
+  fi
+}
+
+remove_polkit_sandbox() {
+  if [[ -e $polkit_dropin_file || -L $polkit_dropin_file ]]; then
+    echo "Removing polkit TPM access override..."
+    sudo rm -f "$polkit_dropin_file"
+    sudo systemctl daemon-reload
+  fi
+}
+
+echo -e "\e[32mRemoving PIN authentication.\n\e[0m"
+
+remove_enrolled_pin
+remove_pam_config
+remove_polkit_sandbox
+
+echo "Removing PIN packages..."
+omarchy-pkg-drop pinpam-git
+
+if [[ -e $policy_file || -L $policy_file ]]; then
+  sudo rm -f "$policy_file"
+fi
+
+# Regenerates the lock screen's PAM stacks. With pinutil gone this drops PIN
+# from the password service, the same way it was added.
+omarchy-apply-lock
+
+echo -e "\e[32mPIN authentication has been completely removed.\e[0m"
