@@ -313,11 +313,55 @@ function termInSearchWords(term, text) {
 }
 
 function descriptionTextMatches(query, text) {
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var terms = queryTerms(query)
   for (var i = 0; i < terms.length; i++) {
     if (terms[i] && !termInSearchWords(terms[i], text)) return false
   }
   return true
+}
+
+// Return a lower-is-better score when every character in `term` appears in
+// order in `text`. This makes "stm" match both "System" and "Steam", while
+// keeping contiguous and word-start matches ahead of scattered ones.
+function fuzzyTextScore(term, text) {
+  var needle = String(term || "").toLowerCase()
+  var haystack = String(text || "").toLowerCase()
+  if (!needle) return 0
+
+  var position = -1
+  var previous = -1
+  var score = 0
+  for (var i = 0; i < needle.length; i++) {
+    position = haystack.indexOf(needle.charAt(i), position + 1)
+    if (position < 0) return -1
+
+    // Earlier matches, word starts (whitespace and . _ : / \ - delimiters),
+    // and consecutive characters rank first.
+    score += position === 0 || /[\s._:/\\-]/.test(haystack.charAt(position - 1)) ? -4 : 0
+    if (previous >= 0) score += Math.max(0, position - previous - 1) * 2
+    previous = position
+  }
+
+  // Keep -1 reserved for no match, and floor successful matches at 1:
+  // word-start bonuses can otherwise drive a verbatim substring ("a.b.c"
+  // matching itself) negative, hiding rows the exact search used to find.
+  return Math.max(1, 10 + score + Math.max(0, position - needle.length + 1))
+}
+
+function queryTerms(query) {
+  return String(query || "").toLowerCase().trim().split(/\s+/)
+}
+
+function fuzzyQueryScore(query, text) {
+  var terms = queryTerms(query)
+  var score = 0
+  for (var i = 0; i < terms.length; i++) {
+    if (!terms[i]) continue
+    var termScore = fuzzyTextScore(terms[i], text)
+    if (termScore < 0) return -1
+    score += termScore
+  }
+  return score
 }
 
 function matchesQuery(entry, query, visible) {
@@ -326,12 +370,13 @@ function matchesQuery(entry, query, visible) {
 
   var nameText = nameSearchText(entry)
   var descriptionText = String(entry.description || "").toLowerCase()
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var terms = queryTerms(query)
 
   for (var i = 0; i < terms.length; i++) {
     if (!terms[i]) continue
-    if (nameText.indexOf(terms[i]) >= 0) continue
+    if (fuzzyTextScore(terms[i], nameText) >= 0) continue
     if (termInSearchWords(terms[i], descriptionText)) continue
+    if (fuzzyTextScore(terms[i], descriptionText) >= 0) continue
     return false
   }
 
@@ -353,7 +398,16 @@ function searchScore(items, entry, query) {
   else if (label.indexOf(needle) >= 0) score = 30
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
-
+  else {
+    // Fuzzy tiers rank behind every exact tier (0-60); the 80 default never
+    // competes because matchesQuery gates the list first. Name matches cap
+    // below the description tier so a scattered multi-term name match cannot
+    // invert name-over-description ordering.
+    var nameFuzzyScore = fuzzyQueryScore(needle, nameText)
+    var descriptionFuzzyScore = fuzzyQueryScore(needle, descriptionText)
+    if (nameFuzzyScore >= 0) score = Math.min(99, 70 + nameFuzzyScore)
+    else if (descriptionFuzzyScore >= 0) score = 100 + descriptionFuzzyScore
+  }
   if (entry.kind === "menu" || entry.kind === "link") score -= 2
   // App rows sort after all menu items, so they lose the tiebreak below to an
   // equal match. Outrank those, but stay inside the tier so better ones win.
@@ -517,6 +571,8 @@ if (typeof module !== "undefined") {
     nameSearchText: nameSearchText,
     termInSearchWords: termInSearchWords,
     descriptionTextMatches: descriptionTextMatches,
+    fuzzyTextScore: fuzzyTextScore,
+    fuzzyQueryScore: fuzzyQueryScore,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
     displayRow: displayRow
