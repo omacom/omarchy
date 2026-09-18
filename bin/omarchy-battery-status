@@ -18,13 +18,29 @@ case "${1:-}" in
     ;;
 esac
 
-battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
-[[ -z $battery ]] && exit 0
+# Physical batteries. DisplayDevice is the aggregate UPower synthesises over
+# them and is what the bar icon already reads; percentage/state/time/size must
+# come from there on dual-battery machines or the panel contradicts the icon.
+mapfile -t batteries < <(upower -e 2>/dev/null | grep BAT || true)
+((${#batteries[@]} == 0)) && exit 0
 
-battery_info=$(upower -i "$battery")
+display_device=$(upower -e 2>/dev/null | grep DisplayDevice | head -n 1)
+if [[ -n $display_device ]]; then
+  aggregate_info=$(upower -i "$display_device")
+else
+  # Older or stubbed UPower with no DisplayDevice: fall back to the first BAT.
+  aggregate_info=$(upower -i "${batteries[0]}")
+fi
 
-percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
-capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
+# Per-battery details (native-path, charge thresholds, design capacity) are not
+# on DisplayDevice. Keep battery_info as an alias of the primary pack so other
+# work that still reads that name (design/health keys) does not silently no-op
+# when composed onto this change.
+primary_info=$(upower -i "${batteries[0]}")
+battery_info=$primary_info
+
+percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$aggregate_info")
+capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$aggregate_info")
 time_remaining=$(awk '/time to (empty|full)/ {
   value = $4
   unit = $5
@@ -40,20 +56,52 @@ time_remaining=$(awk '/time to (empty|full)/ {
     }
   }
   exit
-}' <<<"$battery_info")
-power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
-native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
-battery_path="$power_supply_path/$native_path"
+}' <<<"$aggregate_info")
+power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$aggregate_info")
+state=$(awk '/state/ { print $2; exit }' <<<"$aggregate_info")
 
-# UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
-# the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
-    'BEGIN { print microamps * microvolts / 1000000000000 }')
+# Resolve a pack's sysfs node. native-path is usually bare (BAT0); some drivers
+# emit a full path under /sys/devices/.../power_supply/BAT1. Always join the
+# basename onto power_supply_path so OMARCHY_POWER_SUPPLY_PATH stubs and the
+# class symlink both resolve.
+battery_sysfs_path() {
+  local native_path=$1
+  local name
+
+  [[ -n $native_path ]] || return 1
+  name=$(basename -- "$native_path")
+  [[ -n $name && $name != "/" && $name != "." ]] || return 1
+  printf '%s\n' "$power_supply_path/$name"
+}
+
+# UPower's energy-rate can lag the kernel telemetry by tens of seconds. Sum the
+# instantaneous sysfs reading across every BAT so dual-battery packs stay live
+# and match the aggregate percentage above.
+sysfs_rate_sum=0
+sysfs_rate_count=0
+for battery in "${batteries[@]}"; do
+  battery_detail=$(upower -i "$battery")
+  native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_detail")
+  battery_path=$(battery_sysfs_path "$native_path") || continue
+
+  if [[ -r $battery_path/power_now ]]; then
+    part=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
+    sysfs_rate_sum=$(awk -v a="$sysfs_rate_sum" -v b="$part" 'BEGIN { print a + b }')
+    ((sysfs_rate_count++)) || true
+  elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+    part=$(awk \
+      -v microamps="$(<"$battery_path/current_now")" \
+      -v microvolts="$(<"$battery_path/voltage_now")" \
+      'BEGIN { print microamps * microvolts / 1000000000000 }')
+    sysfs_rate_sum=$(awk -v a="$sysfs_rate_sum" -v b="$part" 'BEGIN { print a + b }')
+    ((sysfs_rate_count++)) || true
+  fi
+done
+
+# A subtotal is worse than a lagging total: a pack whose native-path does not
+# resolve drops out of the sum, and a low enough result reads as idle below.
+if ((sysfs_rate_count == ${#batteries[@]})); then
+  power_rate_raw=$sysfs_rate_sum
 fi
 
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
@@ -61,9 +109,9 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   sub(/\.0$/, "", rounded)
   print rounded
 }')
-state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+
+threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$primary_info")
+threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$primary_info")
 
 [[ -z $threshold_end ]] && threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
 [[ -z $threshold_start ]] && threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
