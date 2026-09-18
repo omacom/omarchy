@@ -111,7 +111,8 @@ function peerFromStatus(id, peer) {
     Tags: peer.Tags || [],
     ExitNodeOption: peer.ExitNodeOption === true,
     ExitNode: peer.ExitNode === true,
-    Mullvad: isMullvadPeer(peer)
+    Mullvad: isMullvadPeer(peer),
+    IsSelf: false
   }
 }
 
@@ -250,6 +251,18 @@ function parseStatus(raw) {
       return String(a.HostName).localeCompare(String(b.HostName))
     })
 
+    // Tailscale never lists the local node in the Peer map, so the panel had no
+    // row for this machine and no way to copy its own address. Hand it out in
+    // the same shape as a peer and let the machine list pin it on top.
+    var selfPeer = null
+    if (self.HostName || self.DNSName) {
+      selfPeer = peerFromStatus("self", self)
+      selfPeer.IsSelf = true
+      selfPeer.Online = true
+      selfPeer.ExitNodeOption = false
+      selfPeer.ExitNode = false
+    }
+
     return {
       ok: true,
       unavailable: false,
@@ -262,6 +275,7 @@ function parseStatus(raw) {
       selfIp: selfIps.length > 0 ? selfIps[0] : "",
       selfUserId: String(self.UserID || ""),
       fileSharing: hasFileSharing(self),
+      selfPeer: selfPeer,
       peers: peers,
       exitNodes: exitNodes
     }
