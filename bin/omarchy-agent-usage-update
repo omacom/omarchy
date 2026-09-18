@@ -10,6 +10,7 @@
 # panel picks up any record that appears here.
 
 USAGE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage"
+COLLECTOR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/agents/collectors"
 mkdir -p "$USAGE_DIR"
 
 flags=()
@@ -51,13 +52,25 @@ collect() {
   mv "$tmp" "$USAGE_DIR/$agent.json"
 }
 
-pids=()
-for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
+# Packaged collectors first, then the ones a user or plugin drops in
+# $COLLECTOR_DIR: $OMARCHY_PATH/bin is package-owned and overwritten by
+# omarchy update, so it is not somewhere a third party can ship to. A
+# packaged name wins, so a dropped-in file extends the set rather than
+# shadowing a collector Omarchy maintains.
+declare -A collectors
+for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-* \
+  "$COLLECTOR_DIR"/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
+  [[ -n ${collectors[$agent]} ]] && continue
+  collectors[$agent]=$collector
+done
+
+pids=()
+for agent in "${!collectors[@]}"; do
   wanted "$agent" || continue
-  collect "$collector" "$agent" &
+  collect "${collectors[$agent]}" "$agent" &
   pids+=($!)
 done
 
