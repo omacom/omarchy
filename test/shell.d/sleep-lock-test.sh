@@ -31,6 +31,31 @@ setup_scenario() {
 #!/bin/bash
 
 printf '%s\n' "\$*" >>"$notify_log"
+
+print_id=0
+replace_id=0
+while ((\$# > 0)); do
+  case \$1 in
+  -p | --print-id) print_id=1 ;;
+  -r | --replace-id)
+    shift
+    replace_id=\${1:-0}
+    ;;
+  esac
+  shift
+done
+
+# A stale id from an earlier notification-server generation can be replaced by
+# a fresh one, so callers must always persist the id returned by this send.
+if ((print_id)); then
+  if [[ -n \${RETURN_NOTIFICATION_ID:-} ]]; then
+    printf '%s\n' "\$RETURN_NOTIFICATION_ID"
+  elif ((replace_id > 0)); then
+    printf '%s\n' "\$replace_id"
+  else
+    printf '41\n'
+  fi
+fi
 SH
   chmod +x "$mock_bin/omarchy-notification-send"
 }
@@ -61,8 +86,8 @@ run_sleep_lock() {
 
   start_us=${EPOCHREALTIME//[!0-9]/}
   set +e
-  CALL_LOG="$call_log" STATE_DIR="$state_dir" PATH="$mock_bin:$PATH" \
-    "$sleep_lock" "${args[@]}" 2>"$journal_log"
+  CALL_LOG="$call_log" STATE_DIR="$state_dir" XDG_STATE_HOME="$state_dir" \
+    PATH="$mock_bin:$PATH" "$sleep_lock" "${args[@]}" 2>"$journal_log"
   exit_status=$?
   set -e
   elapsed_us=$((10#${EPOCHREALTIME//[!0-9]/} - 10#$start_us))
@@ -261,6 +286,124 @@ grep -qF "did not lock before suspend" "$notify_log" ||
   fail "sleep lock warns that the session was left unlocked" \
     "notifications: $(< "$notify_log")"
 pass "sleep lock warns that the session was left unlocked"
+
+# A recurring lock fault must update the same live critical card rather than
+# adding another never-expiring popup on every suspend attempt.
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+notification_id_file="$state_dir/omarchy/sleep-lock-notification-id"
+
+(( exit_status != 0 )) ||
+  fail "a repeated unsecured suspend still reports failure"
+(( ${#notifications[@]} == 2 )) ||
+  fail "each unsecured suspend sends one warning" \
+    "notifications: $(< "$notify_log")"
+[[ ${notifications[0]} == *"-r 0"* && ${notifications[0]} == *"-p"* ]] ||
+  fail "the first unsecured warning requests a reusable notification id" \
+    "notification: ${notifications[0]}"
+[[ ${notifications[1]} == *"-r 41"* && ${notifications[1]} == *"-p"* ]] ||
+  fail "a repeated unsecured warning replaces the previous notification" \
+    "notification: ${notifications[1]}"
+[[ -f $notification_id_file && $(< "$notification_id_file") == 41 ]] ||
+  fail "sleep lock persists the notification id returned by the sender"
+pass "repeated unsecured warnings replace the previous notification"
+
+# A replacement id is only valid for one notification-server generation. If a
+# restarted server assigns a fresh id, save that returned id and use it next.
+export RETURN_NOTIFICATION_ID=82
+run_sleep_lock 4000
+unset RETURN_NOTIFICATION_ID
+run_sleep_lock 4000
+mapfile -t notifications <"$notify_log"
+
+[[ ${notifications[2]} == *"-r 41"* ]] ||
+  fail "a stale notification id is still offered for replacement" \
+    "notification: ${notifications[2]}"
+[[ ${notifications[3]} == *"-r 82"* ]] ||
+  fail "sleep lock reuses the notification id reassigned by the server" \
+    "notification: ${notifications[3]}"
+[[ $(< "$notification_id_file") == 82 ]] ||
+  fail "sleep lock persists a reassigned notification id"
+pass "a reassigned notification id is persisted and reused"
+
+# Concurrent failures must serialize the whole replace-id transaction. Give each
+# new notification a distinct id and delay its reply so an unlocked read/send/
+# write sequence deterministically lets both reporters send with replace id 0.
+setup_scenario concurrent_unsecured
+cat >"$mock_bin/omarchy-shell" <<'SH'
+#!/bin/bash
+
+[[ $* == "lock lock" ]] && printf 'missing-pam\n'
+SH
+chmod +x "$mock_bin/omarchy-shell"
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+
+printf '%s\n' "$*" >>"$NOTIFY_LOG"
+
+replace_id=0
+while (($# > 0)); do
+  case $1 in
+  -r | --replace-id)
+    shift
+    replace_id=${1:-0}
+    ;;
+  esac
+  shift
+done
+
+if ((replace_id > 0)); then
+  printf '%s\n' "$replace_id"
+else
+  while ! mkdir "$STATE_DIR/id-allocation-lock" 2>/dev/null; do
+    sleep 0.01
+  done
+  next_id=41
+  [[ -r $STATE_DIR/next-id ]] && next_id=$(( $(<"$STATE_DIR/next-id") + 1 ))
+  printf '%s\n' "$next_id" >"$STATE_DIR/next-id"
+  rmdir "$STATE_DIR/id-allocation-lock"
+  sleep 0.5
+  printf '%s\n' "$next_id"
+fi
+SH
+chmod +x "$mock_bin/omarchy-notification-send"
+
+pids=()
+set +e
+for _ in 1 2; do
+  CALL_LOG="$call_log" STATE_DIR="$state_dir" NOTIFY_LOG="$notify_log" \
+    XDG_STATE_HOME="$state_dir" PATH="$mock_bin:$PATH" \
+    "$sleep_lock" 4000 2>>"$journal_log" &
+  pids+=("$!")
+done
+concurrent_statuses=()
+for pid in "${pids[@]}"; do
+  wait "$pid"
+  concurrent_statuses+=("$?")
+done
+set -e
+mapfile -t notifications <"$notify_log"
+notification_id_file="$state_dir/omarchy/sleep-lock-notification-id"
+
+[[ ${concurrent_statuses[*]} == "1 1" ]] ||
+  fail "concurrent unsecured suspend reports still fail" \
+    "statuses: ${concurrent_statuses[*]}"
+(( ${#notifications[@]} == 2 )) ||
+  fail "concurrent unsecured suspends each send one warning" \
+    "notifications: $(< "$notify_log")"
+replace_zero_count=0
+for notification in "${notifications[@]}"; do
+  [[ $notification == *"-r 0"* ]] && (( ++replace_zero_count ))
+done
+(( replace_zero_count == 1 )) ||
+  fail "concurrent unsecured warnings reuse one notification" \
+    "notifications: $(< "$notify_log")"
+[[ ${notifications[*]} == *"-r 41"* ]] ||
+  fail "the serialized warning replaces the first concurrent notification" \
+    "notifications: $(< "$notify_log")"
+[[ -f $notification_id_file && $(< "$notification_id_file") == 41 ]] ||
+  fail "concurrent warnings persist the sender's replacement id"
+pass "concurrent unsecured warnings reuse one notification"
 
 grep -qF "suspending without a secure lock" "$journal_log" ||
   fail "sleep lock records the unlocked suspend in the journal" \

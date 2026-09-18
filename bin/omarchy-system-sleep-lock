@@ -12,6 +12,10 @@ budget_cap_ms=12000
 lock_timeout_ms=1000
 status_timeout_ms=500
 poll_interval=0.1
+notification_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+notification_id_file="$notification_state_dir/sleep-lock-notification-id"
+notification_lock_file="$notification_state_dir/sleep-lock-notification.lock"
+notification_lock_timeout=0.75
 
 # logind decides how long a delay inhibitor may hold the machine, and the
 # shipped drop-in only counts once logind has reloaded it, so ask rather than
@@ -94,12 +98,37 @@ sync_clamshell() {
 # the machine slept with the session exposed. The notification is the only way
 # anyone finds out, and it lands on the screen they unlock into.
 report_unsecured() {
+  local replaces_id=0 returned_id notification_lock_fd notification_id_tmp
+
   printf 'omarchy-system-sleep-lock: suspending without a secure lock (%s)\n' \
     "$1" >&2
 
-  omarchy-notification-send -u critical -g 󰌾 \
-    "Screen did not lock before suspend" \
-    "The session was left unlocked ($1)." >/dev/null 2>&1 || true
+  if mkdir -p "$notification_state_dir" 2>/dev/null &&
+    exec {notification_lock_fd}>"$notification_lock_file" 2>/dev/null &&
+    flock --wait "$notification_lock_timeout" "$notification_lock_fd" 2>/dev/null; then
+    if [[ -r $notification_id_file ]]; then
+      replaces_id=$(<"$notification_id_file")
+      [[ $replaces_id =~ ^[0-9]+$ ]] || replaces_id=0
+    fi
+
+    if returned_id=$(omarchy-notification-send -u critical -g 󰌾 \
+      -r "$replaces_id" -p \
+      "Screen did not lock before suspend" \
+      "The session was left unlocked ($1)." 2>/dev/null); then
+      if [[ $returned_id =~ ^[0-9]+$ ]] &&
+        notification_id_tmp=$(mktemp "$notification_id_file.XXXXXX" 2>/dev/null); then
+        if ! printf '%s\n' "$returned_id" >"$notification_id_tmp" 2>/dev/null ||
+          ! mv -f "$notification_id_tmp" "$notification_id_file" 2>/dev/null; then
+          rm -f "$notification_id_tmp"
+        fi
+      fi
+    fi
+  else
+    [[ -z ${notification_lock_fd:-} ]] || exec {notification_lock_fd}>&-
+    omarchy-notification-send -u critical -g 󰌾 \
+      "Screen did not lock before suspend" \
+      "The session was left unlocked ($1)." >/dev/null 2>&1 || true
+  fi
 
   exit 1
 }
