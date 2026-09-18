@@ -115,3 +115,25 @@ fi
 ! grep -q "Password logins are off" "$test_dir/invalid.output" ||
   fail "SSH setup must not claim rejected hardening succeeded"
 pass "SSH setup fails safely when sshd rejects the config"
+
+localhost_cfg="$test_dir/success/root/etc/ssh/sshd_config.d/20-omarchy-localhost.conf"
+[[ -f $localhost_cfg ]] || fail "SSH setup should write localhost ListenAddress drop-in"
+grep -qxF "ListenAddress 127.0.0.1" "$localhost_cfg" || fail "missing ListenAddress 127.0.0.1"
+grep -qxF "ListenAddress ::1" "$localhost_cfg" || fail "missing ListenAddress ::1"
+! grep -E '^[[:space:]]*sudo ufw limit 22' "$ROOT/bin/omarchy-setup-security-sshd" ||
+  fail "sshd setup must not open ufw 22 by default"
+pass "sshd setup binds localhost and leaves ufw 22 closed"
+
+mkdir -p "$test_dir/bad-key/home" "$test_dir/bad-key/root"
+: >"$test_dir/bad-key.calls"
+if HOME="$test_dir/bad-key/home" TEST_ROOT="$test_dir/bad-key/root" CALL_LOG="$test_dir/bad-key.calls" \
+  PATH="$stub_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-setup-security-sshd" --key="not-a-key" >"$test_dir/bad-key.output" 2>&1; then
+  fail "SSH setup must reject an invalid key"
+fi
+! grep -qF "systemctl enable --now sshd.service" "$test_dir/bad-key.calls" ||
+  fail "SSH setup must not start sshd before a key is authorized"
+! grep -qF "ufw limit 22/tcp" "$test_dir/bad-key.calls" ||
+  fail "SSH setup must not open the firewall before a key is authorized"
+pass "SSH setup leaves sshd and the firewall alone when the key is rejected"
+
