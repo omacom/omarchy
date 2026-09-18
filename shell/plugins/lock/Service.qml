@@ -287,6 +287,11 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        // Hand the audio idle inhibitor off: playback that overlaps a lock
+        // forfeits stay-awake until playback stops (or pauses) and starts
+        // again. The daemon reconciles from disk state, so a fire-and-forget
+        // run is enough even if the daemon is mid-restart.
+        if (!audioInhibitSyncProc.running) audioInhibitSyncProc.running = true
       }
 
       if (!locked && root.lockRequested) {
@@ -445,6 +450,11 @@ Item {
   Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
+  }
+
+  Process {
+    id: audioInhibitSyncProc
+    command: ["omarchy-audio-inhibit", "--once"]
   }
 
   Process {
