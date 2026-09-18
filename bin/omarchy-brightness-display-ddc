@@ -160,9 +160,5 @@ fi
 (( target > 100 )) && target=100
 (( raw_target = (target * maximum + 50) / 100 ))
 
-if ! ddcutil --bus "$bus" --skip-ddc-checks --noverify setvcp 10 "$raw_target" >/dev/null 2>&1; then
-  rm -f "$cache_file"
-  exit 1
-fi
-
+ddcutil --bus "$bus" --skip-ddc-checks --verify --max-setvcp-and-verify-tries 2 setvcp 10 "$raw_target" >/dev/null 2>&1 || exit 1
 printf '%s\n' "$target"
