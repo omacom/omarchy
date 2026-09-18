@@ -103,6 +103,10 @@ Item {
     return Model.accountLabel(account)
   }
 
+  function accountDetail(account) {
+    return Model.accountDetail(account)
+  }
+
   function copyToClipboard(value, label) {
     var text = String(value || "")
     if (text === "") return

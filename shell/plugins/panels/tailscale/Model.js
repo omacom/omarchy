@@ -57,12 +57,33 @@ function osIcon(os) {
   return "󰟀"
 }
 
+// Tailscale names a profile after its login unless the user picks a
+// nickname, so every tailnet joined with one login shares a nickname. Only
+// a chosen nickname is worth showing; otherwise the tailnet tells them apart.
+function accountNickname(account) {
+  if (!account || !account.nickname) return ""
+  var nickname = String(account.nickname)
+  return nickname === String(account.account || "") ? "" : nickname
+}
+
 function accountLabel(account) {
   if (!account) return "Unknown account"
-  if (account.nickname) return String(account.nickname)
+  var nickname = accountNickname(account)
+  if (nickname !== "") return nickname
   if (account.tailnet) return String(account.tailnet)
   if (account.account) return String(account.account)
   return String(account.id || "Unknown account")
+}
+
+function accountDetail(account) {
+  if (!account) return ""
+  var label = accountLabel(account)
+  var parts = []
+  var tailnet = String(account.tailnet || "")
+  var login = String(account.account || "")
+  if (tailnet !== "" && tailnet !== label) parts.push(tailnet)
+  if (login !== "" && login !== label && login !== tailnet) parts.push(login)
+  return parts.join(" · ")
 }
 
 function loginPlan(needsLogin, authUrl) {
@@ -311,6 +332,7 @@ if (typeof module !== "undefined") {
     displayHostName: displayHostName,
     osIcon: osIcon,
     accountLabel: accountLabel,
+    accountDetail: accountDetail,
     loginPlan: loginPlan,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
