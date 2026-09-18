@@ -65,6 +65,32 @@ account    include                     system-local-login
 EOF
 }
 
+verify_fingerprint() {
+  local attempt output
+
+  # Enroll and verify run as different users; some readers (e.g. VFS5011)
+  # are not released cleanly when enroll finishes. Brief settle, then retry
+  # only claim/busy failures — not verify-no-match (wrong swipe).
+  sleep 0.5
+
+  for attempt in 1 2 3 4 5; do
+    if output=$(fprintd-verify 2>&1); then
+      printf '%s\n' "$output"
+      return 0
+    fi
+    printf '%s\n' "$output"
+
+    if [[ "$output" == *"failed to claim"* || "$output" == *"busy"* || "$output" == *"already in use"* ]]; then
+      sleep 0.5
+      continue
+    fi
+
+    return 1
+  done
+
+  return 1
+}
+
 
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
@@ -92,7 +118,7 @@ if sudo fprintd-enroll "$USER"; then
 
   # Verify
   echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
+  if verify_fingerprint; then
     # PAM comes last, once a print is enrolled and verified. Detection only
     # proves a reader is there, not that libfprint can drive it — an Elan MOC
     # sensor outside the elanmoc table gets this far and then fails to enroll.
