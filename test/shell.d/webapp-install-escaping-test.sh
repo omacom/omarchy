@@ -15,12 +15,14 @@ mkdir -p "$mock_bin"
 cat >"$mock_bin/omarchy-launch-webapp" <<'SH'
 #!/bin/bash
 printf '%s\n' "$@" >>"$OMARCHY_TEST_ARGV"
+printf '%s\n' "${OMARCHY_WEBAPP_ORIGIN-}" >"$OMARCHY_TEST_ORIGIN"
 SH
 chmod +x "$mock_bin"/*
 
 export HOME="$test_tmp/home"
 export PATH="$mock_bin:$PATH"
 export OMARCHY_TEST_ARGV="$test_tmp/argv"
+export OMARCHY_TEST_ORIGIN="$test_tmp/origin"
 
 applications="$HOME/.local/share/applications"
 
@@ -90,3 +92,12 @@ inject_file="$applications/$inject_name.desktop"
 (( $(grep -c '^Exec=' "$inject_file") == 1 )) ||
   fail "a newline in the app name cannot inject a second Exec" "$(cat "$inject_file")"
 pass "a newline in the app name cannot inject a second Exec"
+
+# Origin metadata is another Exec argument, not trusted command-line syntax.
+install_webapp 'Custom Origin' 'https://exa"m%25\$ple.com/path' someicon 'omarchy-launch-webapp --profile work %u'
+custom_file="$applications/Custom Origin.desktop"
+[[ $(launched_argument "$custom_file") == '--profile' ]] ||
+  fail "custom origin metadata preserves the handler arguments"
+[[ $(cat "$OMARCHY_TEST_ORIGIN") == 'https://exa"m%25\$ple.com' ]] ||
+  fail "custom origin metadata survives Exec quoting unchanged"
+pass "custom origin metadata survives Exec quoting unchanged"
