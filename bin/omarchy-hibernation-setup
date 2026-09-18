@@ -121,6 +121,23 @@ if ! install_root_file "$OMARCHY_PATH/default/systemd/system-sleep/keyboard-back
   exit 1
 fi
 
+# Lid-close policy: battery suspend-then-hibernate (20min delay), AC suspend
+# so lid-open always wakes, docked ignore for clamshell. Installed before the
+# resume marker so a failed install remains retryable. Takes effect on reboot
+# (logind reads config at startup; sleep.conf is read per suspend).
+# Remove the legacy manual drop-in superseded by the policy below.
+sudo rm -f /etc/systemd/logind.conf.d/99-suspend-then-hibernate.conf
+if ! install_root_file "$OMARCHY_PATH/default/systemd/logind.conf.d/99-omarchy-lid-sleep.conf" \
+  /etc/systemd/logind.conf.d/99-omarchy-lid-sleep.conf 0644; then
+  echo "Could not install the lid-close logind policy" >&2
+  exit 1
+fi
+if ! install_root_file "$OMARCHY_PATH/default/systemd/sleep.conf.d/10-omarchy-suspend-then-hibernate.conf" \
+  /etc/systemd/sleep.conf.d/10-omarchy-suspend-then-hibernate.conf 0644; then
+  echo "Could not install the suspend-then-hibernate sleep policy" >&2
+  exit 1
+fi
+
 # Add resume hook to mkinitcpio
 sudo mkdir -p /etc/mkinitcpio.conf.d
 echo "Adding resume hook to $MKINITCPIO_CONF"
