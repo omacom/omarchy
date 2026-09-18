@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Take or view a single note
+# omarchy:args=[-i|--interactive|--read] | [message]
+# omarchy:examples=omarchy notes -i | omarchy notes "Buy milk"
+
+set -euo pipefail
+
+NOTES_DIR="${HOME}/Documents/Notes"
+mkdir -p "$NOTES_DIR"
+NOTES_FILE="$NOTES_DIR/QuickNotes.md"
+
+open_interactive() {
+  omarchy-shell shell summon omarchy.notes "{}"
+}
+
+read_note() {
+  if [[ -f "$NOTES_FILE" ]]; then
+    cat "$NOTES_FILE"
+  fi
+}
+
+usage() {
+  echo "Usage: omarchy-notes [-i|--interactive|--read]"
+  echo "       omarchy-notes [message]"
+}
+
+case ${1:-} in
+-i | --interactive)
+  open_interactive
+  exit 0
+  ;;
+--read)
+  read_note
+  exit 0
+  ;;
+-h | --help)
+  usage
+  exit 0
+  ;;
+esac
+
+if (( $# == 0 )); then
+  usage
+  exit 1
+fi
+
+message="$1"
+printf "%s" "$message" > "$NOTES_FILE"
