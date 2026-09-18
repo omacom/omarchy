@@ -2,7 +2,7 @@
 # Module list derived from Chris McLeod's manual install instructions
 # https://chrismcleod.dev/blog/installing-arch-linux-with-secure-boot-on-a-microsoft-surface-laptop-studio/
 if omarchy-hw-surface; then
-  product_name="$(cat /sys/class/dmi/id/product_name 2>/dev/null)"
+  product_name="$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)"
   echo "Detected Surface Device"
 
   # Modules already exist in the rootfs for the default kernel.
