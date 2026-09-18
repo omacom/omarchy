@@ -44,5 +44,15 @@ for format in "${formats[@]}"; do
 done
 find_args+=(")" -printf '%T@\t%p\n')
 
-find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- |
-  omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
+# Newest first out of find; then frecency-ranked known files float above,
+# unknowns keeping their mtime order. Ranking never breaks the picker: without
+# the backend, or if ranking fails, the mtime list passes through untouched.
+candidates=$(find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2-)
+[[ -n $candidates ]] || exit 1
+if omarchy-cmd-present omarchy-activity; then
+  ranked=$(printf '%s\n' "$candidates" | omarchy-activity rank-files) &&
+    candidates="$ranked"
+fi
+
+printf '%s\n' "$candidates" |
+  omarchy-menu-select "$label" --activity-kind file -- --width 800 --maxheight 500 "$@"
