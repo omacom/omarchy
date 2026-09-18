@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether an NVIDIA GPU is driving a connected display.
+# omarchy:hidden=true
+
+# Session-wide NVIDIA env (LIBVA_DRIVER_NAME, __GLX_VENDOR_LIBRARY_NAME, …) must
+# only apply when NVIDIA actually owns a connected connector. On hybrid laptops
+# the dGPU is often present but idle; forcing LIBVA onto nvidia then stalls
+# browser video while the panel hangs off the iGPU (issue #10410).
+#
+# Read cached DRM connector status and the card's PCI vendor. Connector status
+# is served from the driver's cache and does not resume a runtime-suspended
+# GPU the way lspci would.
+
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+shopt -s nullglob
+
+for connector in "$drm_path"/card[0-9]*-*; do
+  [[ -r $connector/status ]] || continue
+  [[ $(< "$connector/status") == "connected" ]] || continue
+
+  # cardN-DP-1 → cardN via the connector's device symlink, then PCI vendor.
+  card=$(readlink -f "$connector/device" 2>/dev/null) || continue
+  vendor_file="$card/device/vendor"
+  [[ -r $vendor_file ]] || continue
+  [[ $(< "$vendor_file") == "0x10de" ]] && exit 0
+done
+
+exit 1
