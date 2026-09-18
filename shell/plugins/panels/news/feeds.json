@@ -1,0 +1,163 @@
+[
+  {
+    "id": "omarchy",
+    "name": "Omarchy",
+    "category": "official",
+    "url": "https://omarchy.org/news/rss.xml",
+    "article_hosts": [
+      "omarchy.org"
+    ],
+    "article_path_prefix": "/news/",
+    "description": "Official Omarchy announcements",
+    "packs": [],
+    "allow_external_articles": false
+  },
+  {
+    "id": "hacker-news",
+    "name": "Hacker News",
+    "category": "developer",
+    "url": "https://news.ycombinator.com/rss",
+    "article_hosts": [],
+    "allow_external_articles": true,
+    "article_path_prefix": "/",
+    "description": "Developer and startup news",
+    "packs": [
+      "tech"
+    ]
+  },
+  {
+    "id": "ars-technica",
+    "name": "Ars Technica",
+    "category": "technology",
+    "url": "https://feeds.arstechnica.com/arstechnica/index",
+    "article_hosts": [
+      "arstechnica.com"
+    ],
+    "article_path_prefix": "/",
+    "description": "Deep technology, science and security",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "techcrunch",
+    "name": "TechCrunch",
+    "category": "startup",
+    "url": "https://techcrunch.com/feed/",
+    "article_hosts": [
+      "techcrunch.com"
+    ],
+    "article_path_prefix": "/",
+    "description": "Startups, business and AI",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "the-verge",
+    "name": "The Verge",
+    "category": "technology",
+    "url": "https://www.theverge.com/rss/index.xml",
+    "article_hosts": [
+      "theverge.com"
+    ],
+    "article_path_prefix": "/",
+    "description": "Mainstream technology and platforms",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "wired",
+    "name": "WIRED",
+    "category": "technology",
+    "url": "https://www.wired.com/feed/rss",
+    "article_hosts": [
+      "wired.com"
+    ],
+    "article_path_prefix": "/",
+    "description": "Technology, science, security and culture",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "phoronix",
+    "name": "Phoronix",
+    "category": "linux",
+    "url": "https://www.phoronix.com/rss.php",
+    "article_hosts": [
+      "phoronix.com"
+    ],
+    "article_path_prefix": "/",
+    "description": "Linux kernel, hardware and performance",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "its-foss",
+    "name": "It's FOSS",
+    "category": "linux",
+    "url": "https://itsfoss.com/rss/",
+    "article_hosts": [
+      "itsfoss.com"
+    ],
+    "article_path_prefix": "/",
+    "description": "Accessible Linux and open-source coverage",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "openai-news",
+    "name": "OpenAI News",
+    "category": "ai",
+    "url": "https://openai.com/news/rss.xml",
+    "article_hosts": [
+      "openai.com"
+    ],
+    "article_path_prefix": "/",
+    "description": "Official OpenAI product and research news",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "hugging-face",
+    "name": "Hugging Face",
+    "category": "ai",
+    "url": "https://huggingface.co/blog/feed.xml",
+    "article_hosts": [
+      "huggingface.co"
+    ],
+    "article_path_prefix": "/blog/",
+    "description": "Open models, tooling and AI research",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  },
+  {
+    "id": "mit-ai",
+    "name": "MIT News: AI",
+    "category": "ai",
+    "url": "https://news.mit.edu/rss/topic/artificial-intelligence2",
+    "article_hosts": [
+      "news.mit.edu"
+    ],
+    "article_path_prefix": "/",
+    "description": "Academic AI research and developments",
+    "packs": [
+      "tech"
+    ],
+    "allow_external_articles": false
+  }
+]
