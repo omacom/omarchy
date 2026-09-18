@@ -33,6 +33,15 @@ pass "Claude collector keeps mutually exclusive token categories"
   fail "Claude collector identifies itself and reports missing auth" "$result"
 pass "Claude collector identifies itself and reports missing auth"
 
+mkdir -p "$TEST_HOME/.config/omarchy/defaults"
+printf '%s\n' openzoo >"$TEST_HOME/.config/omarchy/defaults/agent"
+result=$(HOME="$TEST_HOME" XDG_CACHE_HOME="$TEST_HOME/.cache" XDG_DATA_HOME="$TEST_HOME/.local/share" \
+  "$ROOT/bin/omarchy-agent-usage-claude" --force)
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Paid per call via openzoo" ]] ||
+  fail "Claude collector describes openzoo as paid per call instead of waiting for auth" "$result"
+pass "Claude collector describes openzoo as paid per call instead of waiting for auth"
+rm -f "$TEST_HOME/.config/omarchy/defaults/agent"
+
 # A machine with no transcripts and no stats-cache still gets today's counts
 # from history.jsonl alone.
 HISTORY_HOME=$(mktemp -d)

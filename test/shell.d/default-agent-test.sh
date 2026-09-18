@@ -127,6 +127,7 @@ agy_package="antigravity-cli"
 ori_package="github:OpenRouterLabs/ori-releases"
 cursor_agent_package="cursor-agent"
 muse_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
+openzoo_package="npm:openzoo"
 
 assert_lazy_stub() {
   local package=$1
@@ -307,9 +308,9 @@ rm -f "$agent_file"
 pass "agent migrations install working wrappers without overriding the preinstall opt-out"
 
 "$ROOT/bin/omarchy-mise-install" "$muse_package" muse
-touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
+touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori" "$test_home/.local/bin/openzoo"
 omarchy-remove-preinstalls >/dev/null
-for command in agy omp ori grok crush cursor-agent muse; do
+for command in agy omp ori grok crush cursor-agent muse openzoo; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
 pass "Remove Preinstalls deletes every optional agent lazy stub"
@@ -395,6 +396,7 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [openzoo]="openzoo"
 )
 
 declare -A expected_packages=(
@@ -410,6 +412,7 @@ declare -A expected_packages=(
   [copilot]="copilot"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [openzoo]="$openzoo_package"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -677,6 +680,7 @@ assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this pro
 assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
+assert_launch openzoo openzoo claude --permission-mode auto -- "Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -705,6 +709,7 @@ assert_bypass cursor-agent cursor-agent --yolo --trust
 assert_bypass hermes hermes --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
+assert_bypass openzoo openzoo claude --permission-mode auto
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"
