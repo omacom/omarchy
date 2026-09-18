@@ -7,8 +7,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 # Exercise the collapsible widget group: a `type: "group"` layout entry that
 # wraps children behind a chevron and reveals them like the tray drawer. The
 # regression this guards is that older code dropped id-less group entries during
-# layout normalization, so the grouped widgets vanished. Here the bar must keep
-# rendering with a group configured, in both collapsed and expanded states.
+# layout normalization, so the grouped widgets vanished. The bar must keep
+# rendering with a group configured, and the group must actually hide its
+# children when collapsed and reveal them when open.
 #
 # The acceptance harness syncs this checkout into ~/.local/share/omarchy but
 # leaves the live shell running the stock system path, so first repoint the
@@ -52,8 +53,17 @@ restore() {
 }
 trap restore EXIT
 
-# A layout with the tray drawer and a widget group side by side, so a captured
-# screenshot shows the group chevron behaving like the tray's.
+# The group's children are custom `command` modules echoing fixed text rather
+# than first-party widgets, because every hardware-backed widget hides itself
+# when its backing state is missing: system-update has no pending update,
+# bluetooth no adapter, network no connection, tray no apps, power no battery.
+# A clean CI image has none of them, so a group built from those measures 0px in
+# *both* states, the two captures come out byte-identical, and the test passes
+# while proving nothing. Fixed command output renders on any machine, and it is
+# what the assertions below read back off the screen.
+child_a="GROUPALPHA"
+child_b="GROUPBETA"
+
 write_group_config() {
   local collapsed="$1"
 
@@ -67,18 +77,15 @@ write_group_config() {
       "left": [ { "id": "omarchy.menu" }, { "id": "omarchy.workspaces" } ],
       "center": [ { "id": "omarchy.clock", "format": "dddd HH:mm" } ],
       "right": [
-        { "id": "omarchy.tray" },
         {
           "type": "group",
           "collapsed": $collapsed,
           "items": [
-            { "id": "omarchy.system-update" },
-            { "id": "omarchy.bluetooth" },
-            { "id": "omarchy.network" }
+            { "id": "grouptest.alpha", "type": "command", "exec": "echo $child_a" },
+            { "id": "grouptest.beta", "type": "command", "exec": "echo $child_b" }
           ]
         },
-        { "id": "omarchy.audio" },
-        { "id": "omarchy.power" }
+        { "id": "omarchy.audio" }
       ]
     }
   }
@@ -92,15 +99,21 @@ systemctl --user set-environment OMARCHY_PATH="$abs_omarchy"
 omarchy-restart-shell >/dev/null 2>&1 || true
 wait_until "shell restarts on the synced checkout with a collapsed group" 40 layer_on_screen "omarchy-bar"
 sleep 3
+# On its own this would still pass with the group dropped altogether — which is
+# the very regression being guarded — so it is the expanded case below that
+# proves the children exist at all.
+wait_until "collapsed group hides its children" 20 screen_lacks "$child_a"
 screenshot "success-bar-group-collapsed"
-pass "bar renders a collapsed widget group without dropping it"
 
 # Expanded (collapsed:false starts the drawer open) so a screenshot captures the
-# revealed widgets — the state a hover produces. Adding/removing a group is a
-# structural change, so a config reload rebuilds the section.
+# revealed widgets — the state a hover produces. Restart rather than reload: a
+# config reload is not guaranteed to rebuild the section for this change, and a
+# run that silently keeps rendering the previous state is how a bar group test
+# ends up asserting nothing.
 write_group_config false
-omarchy-shell shell reloadConfig >/dev/null 2>&1 || omarchy-restart-shell >/dev/null 2>&1 || true
+omarchy-restart-shell >/dev/null 2>&1 || true
+wait_until "bar renders with an expanded group" 40 layer_on_screen "omarchy-bar"
 sleep 3
-wait_until "bar renders with an expanded group" 20 layer_on_screen "omarchy-bar"
+wait_until "expanded group reveals its first child" 30 screen_contains "$child_a"
+wait_until "expanded group reveals its second child" 20 screen_contains "$child_b"
 screenshot "success-bar-group-expanded"
-pass "bar renders an expanded widget group with its children visible"
