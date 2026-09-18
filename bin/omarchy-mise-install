@@ -3,6 +3,8 @@
 # omarchy:summary=Install a small mise-backed wrapper for a given tool.
 # omarchy:args=<package> [command-name [bin-name]]
 
+set -e
+
 if [[ -z $1 ]]; then
   echo "Usage: omarchy-mise-install <package> [command-name [bin-name]]"
   exit 1
@@ -13,7 +15,7 @@ command=${2:-$1}
 bin=${3:-$command}
 
 # The command name becomes a file name under ~/.local/bin, so a slash in it
-# writes the wrapper somewhere else and the rm below deletes somewhere else. A
+# writes the wrapper somewhere else. A
 # leading dot hides it or walks up, and a leading dash makes a name that reads
 # as an option to whatever picks it up. Checked before anything is removed or
 # written, and kept to those shapes so package names like npm:playwright still
@@ -26,6 +28,14 @@ case "$command" in
 esac
 
 mkdir -p "$HOME/.local/bin"
+launcher="$HOME/.local/bin/$command"
+if [[ -e $launcher && ! -f $launcher && ! -L $launcher ]]; then
+  echo "omarchy-mise-install: '$launcher' is not a file or symlink" >&2
+  exit 1
+fi
+
+wrapper=$(mktemp "$HOME/.local/bin/.mise-wrapper.XXXXXX")
+trap 'rm -f -- "$wrapper"' EXIT
 
 # The heredoc below is unquoted, so whatever these hold is written into the
 # wrapper as shell source. Quote them the way omarchy-install-and-launch does, so
@@ -48,12 +58,24 @@ esac
 # hold a new version back for days after it ships. Exported rather than set on
 # the install line alone, so resolving the version to execute agrees with the
 # one just installed.
-rm -f "$HOME/.local/bin/$command"
-cat >"$HOME/.local/bin/$command" <<EOF
+cat >"$wrapper" <<EOF
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
 mise use -g --quiet $package_arg || exit 1
 exec mise x $package_arg -- $bin_arg "\$@"
 EOF
 
-chmod +x "$HOME/.local/bin/$command"
+chmod 755 "$wrapper"
+
+# Keep customized launchers, including symlinks, recoverable across migrations.
+# An unchanged regular wrapper needs no backup on repeated installs.
+if [[ -L $launcher ]] || { [[ -e $launcher ]] && ! cmp -s "$launcher" "$wrapper"; }; then
+  backup=$(mktemp "$launcher.bak.XXXXXX")
+  if ! cp -pP -- "$launcher" "$backup"; then
+    rm -f -- "$backup"
+    exit 1
+  fi
+  echo "Saved existing launcher to $backup"
+fi
+
+mv -fT -- "$wrapper" "$launcher"
