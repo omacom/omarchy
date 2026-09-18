@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=Send a paste key chord to the focused window
+# omarchy:group=cmd
+# omarchy:hidden=true
+
+# Mirror SUPER+V: terminals paste with Shift+Insert, everything else with Ctrl+V.
+# Prefer Hyprland send_key_state over wtype — browsers often ignore a
+# virtual-keyboard Shift+Insert while still accepting Ctrl+V.
+# https://github.com/hyprwm/Hyprland/discussions/14099
+
+lua_string() {
+  jq -Rnr --arg value "$1" '$value | @json'
+}
+
+active_window_is_terminal() {
+  # Dynamic tags carry a trailing "*"; strip it the same way clipboard.lua does.
+  hyprctl activewindow -j 2>/dev/null | jq -e '
+    (.tags // []) | map(sub("\\*$"; "")) | index("terminal") != null
+  ' >/dev/null 2>&1
+}
+
+send_key_state() {
+  local mods="$1" key="$2" state="$3"
+
+  hyprctl dispatch "hl.dsp.send_key_state({ mods = $(lua_string "$mods"), key = $(lua_string "$key"), state = $(lua_string "$state") })" >/dev/null 2>&1
+}
+
+mods="CTRL"
+key="V"
+
+if active_window_is_terminal; then
+  mods="SHIFT"
+  key="Insert"
+fi
+
+if send_key_state "$mods" "$key" "down"; then
+  sleep 0.05
+  send_key_state "$mods" "$key" "up" || true
+  exit 0
+fi
+
+if [[ $mods == "SHIFT" ]]; then
+  wtype -M shift -k Insert -m shift 2>/dev/null || true
+else
+  wtype -M ctrl -k v -m ctrl 2>/dev/null || true
+fi

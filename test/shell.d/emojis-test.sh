@@ -73,10 +73,33 @@ cat >"$TMPDIR/bin/sleep" <<'SH'
 exit 0
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/sleep"
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+if [[ $1 == "activewindow" && $2 == "-j" ]]; then
+  cat "${HYPRCTL_ACTIVEWINDOW:-/dev/null}"
+  exit 0
+fi
 
-WL_COPY_OUT="$TMPDIR/copy" WL_COPY_EMOJI_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
-  "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
+# Force the wtype fallback path so unit tests can assert the chord without a live compositor.
+exit 1
+SH
+
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/sleep" "$TMPDIR/bin/hyprctl"
+
+run_emoji_insert() {
+  local activewindow="$1"
+  local wtype_out="$2"
+
+  printf '%s\n' "$activewindow" >"$TMPDIR/activewindow.json"
+  rm -f "$wtype_out"
+
+  WL_COPY_OUT="$TMPDIR/copy" WL_COPY_EMOJI_OUT="$TMPDIR/emoji" WTYPE_OUT="$wtype_out" \
+    HYPRCTL_ACTIVEWINDOW="$TMPDIR/activewindow.json" \
+    PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
+}
+
+run_emoji_insert '{"tags":["terminal*"]}' "$TMPDIR/wtype-terminal"
 
 [[ $(<"$TMPDIR/emoji") == "😀" ]] || fail "emoji insert helper copies emoji transiently"
 pass "emoji insert helper copies emoji transiently"
@@ -84,5 +107,15 @@ pass "emoji insert helper copies emoji transiently"
 [[ $(<"$TMPDIR/emoji.args") == "--type text/plain --sensitive --foreground" ]] || fail "emoji insert helper serves sensitive transient clipboard in foreground"
 pass "emoji insert helper serves transient clipboard in foreground"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "emoji insert helper pastes with shift insert"
-pass "emoji insert helper pastes with shift insert"
+[[ $(<"$TMPDIR/wtype-terminal") == "-M shift -k Insert -m shift" ]] || fail "emoji insert helper pastes into terminals with shift insert"
+pass "emoji insert helper pastes into terminals with shift insert"
+
+run_emoji_insert '{"tags":["chromium-based-browser*"]}' "$TMPDIR/wtype-browser"
+
+[[ $(<"$TMPDIR/wtype-browser") == "-M ctrl -k v -m ctrl" ]] || fail "emoji insert helper pastes into browsers with ctrl+v"
+pass "emoji insert helper pastes into browsers with ctrl+v"
+
+run_emoji_insert '{"tags":[]}' "$TMPDIR/wtype-default"
+
+[[ $(<"$TMPDIR/wtype-default") == "-M ctrl -k v -m ctrl" ]] || fail "emoji insert helper defaults to ctrl+v outside terminals"
+pass "emoji insert helper defaults to ctrl+v outside terminals"

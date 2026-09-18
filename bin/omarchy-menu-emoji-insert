@@ -14,7 +14,16 @@ printf '%s' "$emoji" | wl-copy --type text/plain --sensitive --foreground &
 copy_pid=$!
 
 sleep 0.15
-wtype -M shift -k Insert -m shift 2>/dev/null || true
+
+# Prefer a same-dir helper so Quickshell execDetached works even when ~/.local/bin
+# is missing from PATH; fall back to PATH for the packaged layout.
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+if [[ -x $here/omarchy-cmd-send-paste ]]; then
+  "$here/omarchy-cmd-send-paste"
+else
+  omarchy-cmd-send-paste
+fi
+
 sleep 0.2
 
 kill "$copy_pid" 2>/dev/null || true
