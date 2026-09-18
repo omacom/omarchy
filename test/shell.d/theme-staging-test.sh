@@ -83,6 +83,7 @@ printf 'theme[main_bg]="#000000"\n' >"$hostile/btop.theme"
 printf 'png\n' >"$hostile/preview.png"
 printf 'png\n' >"$hostile/backgrounds/1-real.png"
 printf '%s\n' "$marker" >"$hostile/backgrounds/payload.sh"
+printf 'void main() {}\n' >"$hostile/screen-shader.frag"
 printf '# notes\n' >"$hostile/README.md"
 ln -s /etc/hostname "$hostile/unlock.png"
 
@@ -93,6 +94,7 @@ grep -q '#7aa2f7' "$(staged colors.toml)" || fail "the staged colors.toml is the
 assert_staged light.mode "the light mode marker is staged"
 assert_staged preview.png "the theme's preview image is staged"
 assert_staged backgrounds/1-real.png "an image in backgrounds/ is staged"
+assert_staged screen-shader.frag "a regular .frag screen shader is staged"
 
 assert_not_staged unlock.png "a symlink is not followed out of the theme"
 assert_not_staged vscode.json "vscode.json names an extension to install and is not staged"
@@ -131,6 +133,17 @@ assert_not_staged icons.theme "a symlinked icons.theme is not followed"
 
 pass "a symlinked icon set name is refused like any other symlink"
 
+oversized="$themes/oversized"
+mkdir -p "$oversized/.git"
+write_colors "$oversized/colors.toml"
+dd if=/dev/zero of="$oversized/screen-shader.frag" bs=1024 count=257 status=none
+
+set_theme oversized || fail "omarchy-theme-set applies a theme with an oversized shader"
+assert_not_staged screen-shader.frag "an installed theme's oversized shader is not staged"
+grep -q 'screen-shader.frag' "$test_tmp/stderr" || fail "omarchy-theme-set reports an oversized shader"
+
+pass "an installed theme's screen shader is size limited"
+
 # A theme predating colors.toml still gets a palette, without its alacritty.toml
 # reaching the staged theme.
 legacy="$themes/legacy"
@@ -153,11 +166,13 @@ magenta = "#ff00ff"
 cyan = "#00ffff"
 white = "#a0b0c0"
 TOML
+printf 'void main() {}\n' >"$legacy/screen-shader.glsl"
 
 set_theme legacy || fail "omarchy-theme-set applies a theme that only ships alacritty.toml"
 assert_staged colors.toml "a legacy theme's palette is recovered from its alacritty.toml"
 grep -q '#102030' "$(staged colors.toml)" || fail "the recovered palette is the theme's"
 assert_no_marker alacritty.toml "a legacy theme's alacritty.toml is not staged"
+assert_staged screen-shader.glsl "the legacy .glsl screen shader is still staged"
 
 pass "a theme older than colors.toml keeps its palette and loses its terminal config"
 
