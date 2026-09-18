@@ -115,11 +115,10 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
-      var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
-      item.display(anchorItem.QsWindow.window, point.x, point.y)
-      return
-    }
+    // Unready SNI (Menu/IconName Get still failing) has no menu handle.
+    // Platform display() is a documented no-op without UseQApplication, and
+    // setting trayMenuOpen anyway takes HyprlandFocusGrab on an empty popup.
+    if (!item || !item.menu) return
 
     // Reset before switching items: trayMenuOpener.menu binds to
     // activeTrayItem.menu, so assigning a new item invalidates the old root's
@@ -128,7 +127,7 @@ BarWidget {
     resetTrayMenu()
     activeTrayItem = item
     activeTrayAnchor = anchorItem
-    trayMenuOpen = true
+    trayMenuOpen = trayMenuOpener.children.length > 0
   }
 
   function trayIconSource(icon) {
@@ -516,6 +515,12 @@ BarWidget {
   QsMenuOpener {
     id: trayMenuOpener
     menu: root.activeTrayItem ? root.activeTrayItem.menu : null
+    onChildrenChanged: {
+      if (root.activeTrayItem && children.length > 0 && !root.trayMenuOpen)
+        root.trayMenuOpen = true
+      else if (root.trayMenuOpen && children.length === 0)
+        root.close()
+    }
   }
 
   PopupCard {
