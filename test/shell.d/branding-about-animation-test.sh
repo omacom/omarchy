@@ -100,6 +100,32 @@ done
 [[ ${SHEEN_FRAMES[-1]} == "$settled" ]] || fail "a glint settles back to the logo it was given"
 pass "a glint settles back to the logo it was given"
 
+# The settled rest is the last centre, composed before the sweep is walked, so a
+# caller can write the logo in its real colours while bash is still building frames.
+write_logo '████████████████████████' '████████        ████████' '████████████████████████'
+sheen_prepare "$logo" "$top" "$left" "$base" "$columns" || fail "prepare accepts the same logo the sweep does"
+pass "prepare accepts the same logo the sweep does"
+[[ $SHEEN_REST == "$settled" ]] || fail "the rest is the settled logo" "$(printf '%q' "$SHEEN_REST")"
+pass "the rest is the settled logo"
+(( ${#SHEEN_FRAMES[@]} == 0 )) || fail "prepare does not walk the sweep" "${#SHEEN_FRAMES[@]} frames"
+pass "prepare does not walk the sweep"
+sheen_build_frames || fail "the sweep can be walked after the rest is composed"
+pass "the sweep can be walked after the rest is composed"
+[[ ${SHEEN_FRAMES[-1]} == "$SHEEN_REST" ]] || fail "the last centre is the rest that was already composed"
+pass "the last centre is the rest that was already composed"
+
+# Per-row field colours have to be on that rest, or About would still paint green
+# first and only pick up the ramp once the sweep started.
+theme_home=$tmp_dir/theme-home
+mkdir -p "$theme_home/.local/state/omarchy/current/theme"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$theme_home/.local/state/omarchy/current/theme/colors.toml"
+HOME=$theme_home SHEEN_FIELD_BANDS=1 sheen_prepare "$logo" "$top" "$left" "$base" "$columns" ||
+  fail "a themed rest still prepares"
+[[ $SHEEN_REST == *$'\e[38;2;'* ]] || fail "a themed rest uses field-band colours" "$(printf '%q' "$SHEEN_REST")"
+[[ $SHEEN_REST != *$base* ]] || fail "a themed rest is not the config green" "$(printf '%q' "$SHEEN_REST")"
+pass "a themed rest uses field-band colours"
+unset SHEEN_FIELD_BANDS
+
 # A terminal that renders bold text in bright colours — foot's bold-text-in-bright
 # does exactly this — maps a bold regular colour to its bright counterpart, so a
 # band using one of those vanishes into a logo drawn in the matching regular
