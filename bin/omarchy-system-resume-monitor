@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Print a line each time the system resumes from suspend
+# omarchy:group=system
+# omarchy:hidden=true
+
+consume_resume_events() {
+  local line
+
+  while IFS= read -r line; do
+    [[ $line == *"boolean false"* ]] && printf 'resume\n'
+  done
+}
+
+monitor_resume_events() {
+  local monitor_fd monitor_pid
+
+  coproc RESUME_EVENTS {
+    exec dbus-monitor --system \
+      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"
+  }
+  monitor_fd=${RESUME_EVENTS[0]}
+  monitor_pid=$RESUME_EVENTS_PID
+
+  cleanup_monitor() {
+    kill "$monitor_pid" 2>/dev/null || true
+    wait "$monitor_pid" 2>/dev/null || true
+  }
+  trap cleanup_monitor EXIT
+
+  consume_resume_events <&"$monitor_fd"
+}
+
+case ${1:-} in
+  --consume)
+    consume_resume_events
+    exit 0
+    ;;
+esac
+
+monitor_resume_events

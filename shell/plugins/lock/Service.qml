@@ -41,6 +41,9 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Bumped on every system resume from suspend so LockView instances know to
+  // reclaim keyboard focus, same as a click on the lock screen already does.
+  property int resumeSignal: 0
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -181,6 +184,12 @@ Item {
     if (lockRequested) armBlankTimer()
   }
 
+  function handleSystemResume() {
+    if (!lockRequested) return
+    runWake()
+    resumeSignal += 1
+  }
+
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
@@ -317,6 +326,7 @@ Item {
         displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
         powerSaverActive: root.powerSaverActive
         passwordText: root.enteredPassword
+        resumeSignal: root.resumeSignal
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
@@ -439,6 +449,21 @@ Item {
       // A lock taken while this was in flight is this shell's own.
       root.strandedLock = exitCode === 0 && !root.locked && !root.lockRequested
       root.recoverStrandedLock()
+    }
+  }
+
+  // A real suspend/resume (lid close, systemctl suspend) leaves the lock
+  // surface showing but with no keyboard focus reclaimed -- unlike idle-blank
+  // wake, nothing here currently reacts to the machine actually coming back
+  // from sleep, only to user pointer activity (see LockView's wakeRequested).
+  // Watch logind's own resume signal and nudge focus back the same way a
+  // click on the lock screen already does.
+  Process {
+    id: resumeMonitor
+    running: true
+    command: ["bash", "-c", "omarchy-system-resume-monitor"]
+    stdout: SplitParser {
+      onRead: function(line) { root.handleSystemResume() }
     }
   }
 
