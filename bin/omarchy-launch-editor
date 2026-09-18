@@ -23,12 +23,12 @@ omarchy-cmd-present "$editor" || editor="nvim"
 case "${editor##*/}" in
 nvim | vim | nano | micro | hx | helix | fresh)
   if [[ $inline == "true" ]]; then
-    exec "$editor" "$@"
+    exec "$editor" -- "$@"
   else
-    exec omarchy-launch-tui "$editor" "$@"
+    exec omarchy-launch-tui "$editor" -- "$@"
   fi
   ;;
 *)
-  exec setsid uwsm-app -- "$editor" "$@"
+  exec setsid uwsm-app -- "$editor" -- "$@"
   ;;
 esac
