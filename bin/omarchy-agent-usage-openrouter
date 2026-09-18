@@ -1,0 +1,563 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the OpenRouter usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect OpenRouter usage into one display-ready JSON record.
+
+Tier 1 (any API key): balance and key usage come from GET /api/v1/credits
+and GET /api/v1/key; token stats come from the local opencode SQLite DB
+(providerID == "openrouter", role == "assistant"), read-only.
+
+Tier 2 (management key): when OPENROUTER_MANAGEMENT_KEY (or the management
+key in the config file) is set, the last-30-days token history comes from
+GET /api/v1/activity instead of the local DB -- account-global numbers that
+cover every machine and client, grouped by day and model. The /key response
+carries is_management_key, so a key that cannot do this fails visibly as
+403 and the collector falls back to tier 1 automatically.
+
+Refs: omacom/omarchy#8270 (pi on OpenRouter invisible in panel),
+omacom/omarchy#10330 (dedicated pi collector proposal).
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+import tempfile
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "openrouter"
+AGENT_NAME = "OpenRouter"
+AUTH_HELP = "Set OPENROUTER_API_KEY, or sign in to OpenRouter in opencode. For the 30-day history, add a management key as OPENROUTER_MANAGEMENT_KEY (openrouter.ai/settings/management-keys)."
+API_BASE = "https://openrouter.ai/api/v1"
+
+# A scan this recent is only reused to dedup concurrent collector runs;
+# every periodic refresh lands a real rescan. --limits-only promises only
+# fresh balance/limits, so it may reuse the local scan for up to 15 minutes.
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+
+class OpenRouterError(Exception):
+  pass
+
+
+def number(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def local_day(value) -> str:
+    now = datetime.now()
+    if value is None:
+        return now.strftime("%Y-%m-%d")
+    if isinstance(value, (int, float)):
+        ts = value / 1000 if value > 10_000_000_000 else value
+        return datetime.fromtimestamp(ts).astimezone().strftime("%Y-%m-%d")
+    try:
+        text = str(value)
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if dt.tzinfo is not None:
+            dt = dt.astimezone()
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        return now.strftime("%Y-%m-%d")
+
+
+def model_name(raw: Any) -> str:
+    value = str(raw or "openrouter").rstrip("/").split("/")[-1]
+    return value or "openrouter"
+
+
+def empty_bucket() -> dict[str, int]:
+    return {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+    }
+
+
+def empty_stats() -> dict[str, Any]:
+    return {
+        "todayPrompts": 0,
+        "todaySessions": 0,
+        "todayTotalTokens": 0,
+        "todayTokensByModel": {},
+        "recentDays": [],
+        "totalPrompts": 0,
+        "totalSessions": 0,
+        "activeDays": 0,
+        "activeDates": [],
+        "modelUsage": {},
+    }
+
+
+# ---------------------------------------------------------------- auth
+
+def config_path() -> Path:
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+    return config_home / "omarchy" / "agents" / "openrouter.json"
+
+
+def read_config() -> dict[str, Any]:
+    try:
+        parsed = json.loads(config_path().read_text())
+        return parsed if isinstance(parsed, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+def opencode_auth_path() -> Path:
+    data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    return data_home / "opencode" / "auth.json"
+
+
+def read_opencode_key(path: Path) -> str:
+    try:
+        parsed = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return ""
+    entry = parsed.get("openrouter") if isinstance(parsed, dict) else None
+    if not isinstance(entry, dict):
+        return ""
+    return str(entry.get("key") or "").strip()
+
+
+def api_key(config: dict[str, Any]) -> str:
+    # Explicit key or opencode login wins; the config file is the last
+    # resort for headless/refresh-timer runs without either.
+    return (
+        str(os.environ.get("OPENROUTER_API_KEY", "")).strip()
+        or read_opencode_key(opencode_auth_path())
+        or str(config.get("apiKey") or "").strip()
+    )
+
+
+def management_key(config: dict[str, Any]) -> str:
+    # A management key unlocks /activity (30-day account history). A normal
+    # inference key answers /key + /credits only and fails /activity with
+    # 403 -- never send it there speculatively, just skip tier 2.
+    return (
+        str(os.environ.get("OPENROUTER_MANAGEMENT_KEY", "")).strip()
+        or str(config.get("managementKey") or "").strip()
+    )
+
+
+# ---------------------------------------------------------------- API
+
+class OpenRouterTransportError(OpenRouterError):
+    pass
+
+
+def api_get(path: str, key: str) -> dict:
+    req = urllib.request.Request(
+        API_BASE + path, headers={"Authorization": "Bearer " + key, "Accept": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            payload = json.load(resp)
+            return payload if isinstance(payload, dict) else {}
+    except urllib.request.HTTPError as error:
+        if error.code in (401, 403):
+            # 403 from /activity with an inference key is the expected
+            # tier-1 signal ("Only management keys can perform this
+            # operation"), not a broken setup -- callers decide.
+            raise OpenRouterError(f"HTTP_{error.code}")
+        raise OpenRouterError(f"OpenRouter API returned HTTP {error.code}")
+    except urllib.request.URLError as error:
+        raise OpenRouterTransportError("Could not reach the OpenRouter API") from error
+    except (json.JSONDecodeError, ValueError) as error:
+        raise OpenRouterError("OpenRouter returned an invalid response") from error
+
+
+def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
+    """Fold /activity rows into the panel's stats dict.
+
+    One row per (date, endpoint): prompt + reasoning tokens count as input
+    (they are generated), completion as output. The billing API reports
+    tokens, never prompt or session counts, so hasPromptStats stays False
+    and the panel keeps those numbers out of today's tooltip.
+    """
+    today_date = today.strftime("%Y-%m-%d")
+    recent_dates = [(today - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+    recent = {day: 0 for day in recent_dates}
+    today_by_model: dict[str, int] = {}
+    model_usage: dict[str, dict[str, int]] = {}
+    active_dates: set[str] = set()
+
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        day = str(raw.get("date") or "")
+        model = model_name(str(raw.get("model_permaslug") or raw.get("model") or ""))
+        prompt = number(raw.get("prompt_tokens"))
+        reasoning = number(raw.get("reasoning_tokens"))
+        output = number(raw.get("completion_tokens"))
+        total = prompt + reasoning + output
+        if total <= 0:
+            continue
+        bucket = model_usage.setdefault(model, empty_bucket())
+        bucket["inputTokens"] += prompt
+        bucket["outputTokens"] += output + reasoning
+        if day:
+            active_dates.add(day)
+        if day in recent:
+            recent[day] += total
+        if day == today_date:
+            today_by_model[model] = today_by_model.get(model, 0) + total
+
+    return {
+        "todayTokensByModel": today_by_model,
+        "todayTotalTokens": sum(today_by_model.values()),
+        "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
+        "activeDays": len(active_dates),
+        "activeDates": sorted(active_dates),
+        "modelUsage": model_usage,
+    }
+
+
+def activity_stats(key: str, today: datetime) -> dict[str, Any] | None:
+    """Tier 2: 30-day account history via management key, or None.
+
+    Returns None when there is no management key (plain tier-1 run) or the
+    key is rejected -- the caller then falls back to the local DB scan.
+    """
+    if not key:
+        return None
+    try:
+        payload = api_get("/activity", key)
+    except OpenRouterError:
+        return None
+    items = payload.get("data")
+    if not isinstance(items, list):
+        return None
+    stats = empty_stats()
+    stats.update(summarize_activity(items, today))
+    return stats
+
+
+# ---------------------------------------------------------------- local stats (opencode DB)
+
+class LocalScan:
+    """Aggregated opencode usage. Module-level in the original prototype;
+    an instance keeps the scanner testable without global state."""
+
+    def __init__(self, today: datetime):
+        self.today = today.strftime("%Y-%m-%d")
+        self.recent_dates = [(today - timedelta(days=o)).strftime("%Y-%m-%d") for o in range(6, -1, -1)]
+        self.recent = {day: {"date": day, "messageCount": 0} for day in self.recent_dates}
+        self.today_tokens_by_model: dict[str, int] = {}
+        self.model_usage: dict[str, dict[str, int]] = {}
+        self.today_sessions: set[str] = set()
+        self.active_days: set[str] = set()
+        self.today_prompts = 0
+        self.today_total_tokens = 0
+        self.total_prompts = 0
+        self.total_sessions: set[str] = set()
+
+    def add_usage(self, day, session_key, model, in_tok, out_tok, cache_read, cache_write):
+        total = in_tok + out_tok + cache_read + cache_write
+        self.total_prompts += 1
+        self.total_sessions.add(session_key)
+        self.active_days.add(day)
+        bucket = self.model_usage.setdefault(model, empty_bucket())
+        bucket["inputTokens"] += in_tok
+        bucket["outputTokens"] += out_tok
+        bucket["cacheReadInputTokens"] += cache_read
+        bucket["cacheCreationInputTokens"] += cache_write
+        if day in self.recent:
+            self.recent[day]["messageCount"] += total
+        if day == self.today:
+            self.today_prompts += 1
+            self.today_sessions.add(session_key)
+            self.today_total_tokens += total
+            self.today_tokens_by_model[model] = self.today_tokens_by_model.get(model, 0) + total
+
+    def snapshot(self) -> dict:
+        return {
+            "todayPrompts": self.today_prompts,
+            "todaySessions": len(self.today_sessions),
+            "todayTotalTokens": self.today_total_tokens,
+            "todayTokensByModel": self.today_tokens_by_model,
+            "recentDays": [self.recent[d] for d in self.recent_dates],
+            "totalPrompts": self.total_prompts,
+            "totalSessions": len(self.total_sessions),
+            "activeDays": len(self.active_days),
+            "activeDates": sorted(self.active_days),
+            "modelUsage": self.model_usage,
+        }
+
+
+def opencode_db_path() -> Path:
+    return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
+
+
+def scan_opencode(scan: LocalScan, db: Path | None = None) -> bool:
+    # Returns whether the scan ran to completion: a scan cut short by a
+    # database error still contributes what it read, but must not be cached
+    # as if it were the whole story.
+    db = db or opencode_db_path()
+    if not db.is_file():
+        return True
+    try:
+        conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    except sqlite3.Error:
+        return False
+    try:
+        conn.execute("PRAGMA query_only = ON")
+        # The LIKE gates skip rows whose JSON cannot contain the two
+        # key/value pairs, avoiding the JSON parse of huge message blobs;
+        # json_extract is the authority for the rows that reach Python.
+        rows = conn.execute(
+            "SELECT session_id, data FROM message"
+            " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
+            " AND data LIKE '%\"providerID\"%:%\"openrouter\"%'"
+            " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+            " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'openrouter'"
+        )
+        for session_id, raw in rows:
+            try:
+                entry = json.loads(raw)
+                if not isinstance(entry, dict) or entry.get("role") != "assistant":
+                    continue
+                if str(entry.get("providerID") or "") != "openrouter":
+                    continue
+                tokens = entry.get("tokens") or {}
+                cache = tokens.get("cache") or {}
+                in_tok = number(tokens.get("input"))
+                # opencode keeps thinking tokens out of output; both are generated.
+                out_tok = number(tokens.get("output")) + number(tokens.get("reasoning"))
+                cache_read = number(cache.get("read"))
+                cache_write = number(cache.get("write"))
+                if not (in_tok or out_tok or cache_read or cache_write):
+                    continue
+                day = local_day((entry.get("time") or {}).get("created"))
+                model = model_name(str(entry.get("modelID") or ""))
+            except Exception:
+                continue
+            scan.add_usage(day, "opencode:" + str(session_id), model, in_tok, out_tok, cache_read, cache_write)
+    except sqlite3.Error:
+        return False
+    finally:
+        conn.close()
+    return True
+
+
+def cache_root() -> Path:
+    root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def scan_cache_paths() -> tuple[Path, Path]:
+    db = opencode_db_path()
+    digest = hashlib.sha1(str(db).encode("utf-8")).hexdigest()[:16]
+    root = cache_root()
+    return root / f"openrouter-scan-{digest}.json", root / f"openrouter-scan-{digest}.lock"
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict | None:
+    if max_age_seconds <= 0 or not path.exists():
+        return None
+    try:
+        age = datetime.now().timestamp() - path.stat().st_mtime
+        if 0 <= age <= max_age_seconds:
+            parsed = json.loads(path.read_text(encoding="utf-8"))
+            return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+    return None
+
+
+def write_json(path: Path, payload: dict) -> None:
+    handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        tmp.chmod(0o644)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def cached_local_stats(today: datetime, max_age: float) -> tuple[dict, bool]:
+    """Local stats with the cache as a pure optimization.
+
+    Any cache-layer failure degrades to a direct scan and a warning on
+    stderr. The JSON record is the contract; the cache is not.
+    """
+    scan = LocalScan(today)
+    try:
+        cache_file, _ = scan_cache_paths()
+        cached = read_fresh_json(cache_file, max_age)
+        if (
+            isinstance(cached, dict)
+            and cached.get("schemaVersion") == 1
+            and cached.get("scanDate") == scan.today
+            and isinstance(cached.get("stats"), dict)
+        ):
+            return cached["stats"], True
+        complete = scan_opencode(scan)
+        stats = scan.snapshot()
+        if complete:
+            try:
+                write_json(cache_file, {"schemaVersion": 1, "scanDate": scan.today, "stats": stats})
+            except Exception as exc:
+                print(f"omarchy-agent-usage-openrouter: could not write usage cache ({exc})", file=sys.stderr)
+        return stats, complete
+    except Exception as exc:
+        print(f"omarchy-agent-usage-openrouter: cache unavailable ({exc}); scanning directly", file=sys.stderr)
+        complete = scan_opencode(scan)
+        return scan.snapshot(), complete
+
+
+# ---------------------------------------------------------------- record
+
+def base_record(**overrides: Any) -> dict:
+    record: dict[str, Any] = {
+        "schemaVersion": 1,
+        "id": AGENT_ID,
+        "name": AGENT_NAME,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "ready": False,
+        "hasLocalStats": False,
+        # Tier-2 numbers are account-global (billing API), like Fireworks:
+        # every synced device reports the same truth, so aggregation must
+        # not sum them. Tier 1 (local DB scan) is machine-local instead.
+        "hasPromptStats": True,
+        "tierLabel": "Prepaid",
+        "usageStatusText": "",
+        "authHelpText": "",
+        "limits": [],
+    }
+    record.update(empty_stats())
+    record.update(overrides)
+    return record
+
+
+def key_limit_meter(key_info: dict) -> list[dict]:
+    # A key with a credit limit drains toward empty; map limit_reset through
+    # so the panel does not read a bare "" as "now".
+    try:
+        limit = key_info.get("limit")
+        remaining = key_info.get("limit_remaining")
+        if limit is None or remaining is None or float(limit) <= 0:
+            return []
+        lim = float(limit)
+        rem = max(0.0, float(remaining))
+        entry: dict[str, Any] = {"label": "Key limit", "percent": (lim - rem) / lim}
+        reset = str(key_info.get("limit_reset") or "").strip()
+        if reset:
+            entry["resetsAt"] = reset
+        return [entry]
+    except (TypeError, ValueError):
+        return []
+
+
+def scan(args: Any) -> dict[str, Any]:
+    config = read_config()
+    key = api_key(config)
+    if not key:
+        return base_record(usageStatusText="OpenRouter unavailable", authHelpText=AUTH_HELP)
+
+    today = datetime.now().astimezone()
+
+    # Tier 2 first: with a management key the 30-day account history covers
+    # every machine and client. Without one (or a rejected one) fall back to
+    # the local opencode DB scan below.
+    managed = activity_stats(management_key(config), today)
+    if managed is not None:
+        stats = managed
+        complete = True
+        has_prompt_stats = False
+        # Account-global numbers must merge by widest value, not by sum.
+        stats["scope"] = "account"
+    else:
+        max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+        stats, complete = cached_local_stats(today, max_age)
+        has_prompt_stats = True
+    has_data = number(stats.get("totalPrompts")) > 0 or bool(stats.get("modelUsage"))
+
+    try:
+        key_info = api_get("/key", key).get("data", {})
+        if not isinstance(key_info, dict):
+            key_info = {}
+    except OpenRouterError as error:
+        if str(error) == "HTTP_401":
+            return base_record(usageStatusText="OpenRouter unavailable",
+                               authHelpText="OpenRouter rejected the API key. " + AUTH_HELP)
+        return base_record(usageStatusText="OpenRouter unavailable", authHelpText=str(error))
+
+    # Balance: total purchased minus total used. A transport failure here
+    # must not take the token stats down -- retryAdvised asks the shell for
+    # one sooner retry instead of waiting out the full refresh interval.
+    balance = None
+    retry_advised = False
+    try:
+        credits = api_get("/credits", key).get("data", {})
+        total_credits = float(credits.get("total_credits") or 0)
+        total_usage = float(credits.get("total_usage") or 0)
+        if total_credits > 0:
+            balance = {
+                "remaining": round(max(0.0, total_credits - total_usage), 6),
+                "funded": round(total_credits, 6),
+                "spent": round(max(0.0, total_usage), 6),
+                "currency": "USD",
+                "estimated": False,
+            }
+    except OpenRouterError as error:
+        if str(error) == "Could not reach the OpenRouter API":
+            retry_advised = True
+        else:
+            print(f"omarchy-agent-usage-openrouter: credits lookup failed ({error})", file=sys.stderr)
+
+    record = base_record(
+        ready=True,
+        hasLocalStats=complete,
+        hasPromptStats=has_prompt_stats,
+        limits=key_limit_meter(key_info),
+    )
+    if retry_advised:
+        record["retryAdvised"] = True
+    record.update(stats)
+    if balance:
+        record["balance"] = balance
+    if not has_data and not balance and not record["limits"]:
+        record["ready"] = False
+        record["usageStatusText"] = "No OpenRouter usage found"
+        record["authHelpText"] = AUTH_HELP
+    return record
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Print the OpenRouter usage record as JSON")
+    # --force rescans everything and rewrites the cache; --limits-only
+    # reuses a recent local scan and only the balance/limits probe is fresh.
+    # The flags exist so every collector accepts the same invocation.
+    ap.add_argument("--force", action="store_true", help="rescan transcripts and re-probe limits, ignoring caches")
+    ap.add_argument("--limits-only", action="store_true", help="reuse any recent transcript scan; only the limits probe must be fresh")
+    args = ap.parse_args()
+    try:
+        record = scan(args)
+    except OpenRouterError as error:
+        record = base_record(usageStatusText="OpenRouter unavailable", authHelpText=str(error))
+    except Exception as error:
+        record = base_record(usageStatusText="OpenRouter unavailable", authHelpText="OpenRouter scan failed")
+        print(f"omarchy-agent-usage-openrouter: {type(error).__name__}", file=sys.stderr)
+    print(json.dumps(record, separators=(",", ":")))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
