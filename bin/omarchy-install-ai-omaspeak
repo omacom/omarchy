@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Install and configure the Omaspeak text-to-speech daemon
+# omarchy:requires-sudo=true
+
+set -e
+
+if gum confirm "Install Omaspeak, run guided setup, and enable its user service?"; then
+  omarchy-pkg-add omaspeak-bin
+
+  omaspeak setup
+  omaspeak setup check
+  omaspeak setup systemd
+
+  omarchy-notification-send "Omaspeak Ready" "The text-to-speech daemon is configured and running."
+fi

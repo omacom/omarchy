@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Remove Omaspeak and its configuration
+# omarchy:requires-sudo=true
+
+set -e
+
+if omarchy-pkg-present omaspeak-bin; then
+  echo "Uninstall Omaspeak and remove its models, cache, and configuration."
+
+  omaspeak setup systemd --uninstall || true
+  omarchy-pkg-drop omaspeak-bin
+  rm -rf ~/.cache/omaspeak ~/.config/omaspeak ~/.local/share/omaspeak ~/.local/state/omaspeak
+
+  omarchy-notification-send "Omaspeak Removed" "Omaspeak and its local data were removed."
+else
+  echo "Omaspeak was not installed."
+fi
