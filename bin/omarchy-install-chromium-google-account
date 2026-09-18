@@ -1,16 +1,56 @@
 #!/bin/bash
 
-# omarchy:summary=Allow Chromium to sign in to Google accounts by adding the required OAuth credentials
+# omarchy:summary=Allow Chromium to sign in to Google accounts by adding OAuth credentials
+# omarchy:group=install
 
-if [[ -f ~/.config/chromium-flags.conf ]]; then
-  echo "Installing Chromium Google account support..."
-  CONF=~/.config/chromium-flags.conf
+set -euo pipefail
 
-  grep -qxF -- "--oauth2-client-id=77185425430.apps.googleusercontent.com" "$CONF" ||
-    echo "--oauth2-client-id=77185425430.apps.googleusercontent.com" >>"$CONF"
+# Credentials used to be hardcoded in this script (#9118). Keep the shipped
+# defaults in default/chromium/google-oauth.env so they can be overridden or
+# rotated without editing the installer. Prefer admin/user drop-ins.
+load_oauth_env() {
+  local file
 
-  grep -qxF -- "--oauth2-client-secret=OTJgUOQcT7lO7GsGZq2G4IlT" "$CONF" ||
-    echo "--oauth2-client-secret=OTJgUOQcT7lO7GsGZq2G4IlT" >>"$CONF"
+  for file in \
+    "${OMARCHY_CHROMIUM_OAUTH_ENV:-}" \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/chromium-google-oauth.env" \
+    /etc/omarchy/chromium-google-oauth.env \
+    "${OMARCHY_PATH:-/usr/share/omarchy}/default/chromium/google-oauth.env"; do
+    [[ -n $file && -f $file ]] || continue
+    # shellcheck disable=SC1090
+    source "$file"
+    return 0
+  done
 
-  echo "Now you can login to your Google Account in Chromium."
+  return 1
+}
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/chromium-flags.conf"
+
+if [[ ! -f $CONF ]]; then
+  echo "No $CONF yet — launch Chromium once, then re-run this command." >&2
+  exit 1
 fi
+
+if ! load_oauth_env; then
+  echo "No Chromium Google OAuth config found." >&2
+  exit 1
+fi
+
+if [[ -z ${OAUTH2_CLIENT_ID:-} || -z ${OAUTH2_CLIENT_SECRET:-} ]]; then
+  echo "Chromium Google OAuth config is missing OAUTH2_CLIENT_ID or OAUTH2_CLIENT_SECRET." >&2
+  exit 1
+fi
+
+echo "Installing Chromium Google account support..."
+
+grep -qxF -- "--oauth2-client-id=$OAUTH2_CLIENT_ID" "$CONF" ||
+  echo "--oauth2-client-id=$OAUTH2_CLIENT_ID" >>"$CONF"
+
+grep -qxF -- "--oauth2-client-secret=$OAUTH2_CLIENT_SECRET" "$CONF" ||
+  echo "--oauth2-client-secret=$OAUTH2_CLIENT_SECRET" >>"$CONF"
+
+# Flags file holds a client secret; keep it owner-readable only.
+chmod 600 "$CONF" 2>/dev/null || true
+
+echo "Now you can login to your Google Account in Chromium."
