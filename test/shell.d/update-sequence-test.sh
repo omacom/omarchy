@@ -2,13 +2,11 @@
 
 set -euo pipefail
 
-source "$(dirname "$0")/base-test.sh"
-
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-stub_bin="$test_tmp/bin"
-mkdir -p "$stub_bin"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+copy_boundary_file bin/omarchy-update
+test_tmp="$boundary_tmp"
+stub_bin="$SUDO_TEST_ROOT/bin"
 
 # Every step omarchy-update runs, recorded in order with the unattended flag it
 # was handed. One of them can be told to fail.
@@ -33,6 +31,7 @@ steps=(
 )
 
 for step in "${steps[@]}"; do
+  rm -f "$stub_bin/$step"
   cat >"$stub_bin/$step" <<'STUB'
 #!/bin/bash
 printf '%s unattended=%s\n' "${0##*/}" "${OMARCHY_UPDATE_UNATTENDED:-}" >>"$STEP_LOG"
@@ -49,7 +48,7 @@ run_update() {
     FAILING_STEP="${FAILING_STEP:-}" \
     OMARCHY_UPDATE_LOGGED=1 \
     PATH="$stub_bin:$PATH" \
-    bash "$ROOT/bin/omarchy-update" "$@" >"$test_tmp/out" 2>"$test_tmp/err"
+    "$SUDO_TEST_ROOT/bin/omarchy-update" "$@" >"$test_tmp/out" 2>"$test_tmp/err"
 }
 
 steps_run() {
@@ -70,13 +69,14 @@ expected_steps() {
     omarchy-update-keyring \
     omarchy-update-system-pkgs \
     omarchy-migrate \
-    omarchy-hook \
-    omarchy-update-aur-pkgs \
-    omarchy-update-mise \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
     omarchy-update-status \
+    omarchy-update-restart \
     omarchy-update-stay-awake \
+    omarchy-update-aur-pkgs \
+    omarchy-hook \
+    omarchy-update-mise \
     omarchy-update-restart
 }
 

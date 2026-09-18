@@ -1,51 +1,128 @@
-#!/bin/bash
+#!/bin/bash -p
 
 # omarchy:summary=Prompt for required reboot or service restarts after updates
+# omarchy:args=[--services-only|--reboot-only]
 
-echo
+if [[ $- != *p* ]]; then
+  echo "Refusing an unsafe Bash startup for update restart handling." >&2
+  exit 126
+fi
+security_entrypoint=$(/usr/bin/readlink -e -- "${BASH_SOURCE[0]}") || exit 126
+source "${security_entrypoint%/*}/omarchy-security-functions" || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@" || exit 126
 
-confirm_reboot() {
-  gum confirm "$1" && { omarchy-system-reboot; exit 0; }
+mode="${1:-all}"
+if (( $# > 1 )) || [[ $mode != "all" && $mode != "--services-only" && $mode != "--reboot-only" ]]; then
+  echo "Usage: omarchy-update-restart [--services-only|--reboot-only]" >&2
+  exit 2
+fi
+
+omarchy_security_require_source_root "$0" || exit 1
+omarchy_security_revoke_sudo_timestamp || exit 1
+omarchy_security_install_sudo_cleanup_traps
+omarchy_security_enable_no_update_sudo || exit 1
+
+restart_available() {
+  local restart_command="$OMARCHY_PATH/bin/omarchy-restart-$1"
+  [[ -f $restart_command && -x $restart_command ]] || return 1
+  if [[ -L $restart_command ]]; then
+    # The package exposes source-tree commands as links to their /usr/bin files.
+    [[ $OMARCHY_PATH == "/usr/share/omarchy" &&
+      $(/usr/bin/readlink -e -- "$restart_command") == "/usr/bin/omarchy-restart-$1" ]]
+  fi
 }
 
-running_kernel=$(uname -r)
-kernel_updated=true
-
-for kernel in /usr/lib/modules/*/vmlinuz; do
-  if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
-    installed_kernel=$(basename "$(dirname "$kernel")")
-
-    if [[ $installed_kernel == $running_kernel ]]; then
-      kernel_updated=false
-      break
+echo
+confirm_reboot() {
+  if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" ]]; then
+    echo "$1 Run omarchy-system-reboot when ready."
+  elif gum confirm "$1"; then
+    if "$OMARCHY_PATH/bin/omarchy-system-reboot"; then
+      exit 0
+    else
+      exit 1
     fi
   fi
-done
+}
 
-if [[ $kernel_updated == "true" ]]; then
-  confirm_reboot "Linux kernel has been updated. Reboot?"
-elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
-  confirm_reboot "Updates require reboot. Ready?"
-fi
+if [[ $mode != "--reboot-only" ]]; then
+  shell_marker=""
+  for file in "$HOME"/.local/state/omarchy/restart-*-required; do
+    [[ -e $file || -L $file ]] || continue
+    filename="${file##*/}"
+    service="${filename#restart-}"
+    service="${service%-required}"
 
-running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
-if [[ $running_hyprland == *"(deleted)"* ]]; then
-  confirm_reboot "Hyprland has been updated. Reboot?"
-fi
+    if [[ ! -f $file || -L $file ]]; then
+      printf 'Ignoring non-regular restart marker: %q\n' "$filename" >&2
+      continue
+    fi
 
-for file in "$HOME"/.local/state/omarchy/restart-*-required; do
-  if [[ -f $file ]]; then
-    filename=$(basename "$file")
-    service=$(echo "$filename" | sed 's/restart-\(.*\)-required/\1/')
+    # Only zero-argument component restarts are marker targets. The generic
+    # restart-app command and source-only restart-gum helper are not targets.
+    case "$service" in
+      audio | bluetooth | btop | helix | herdr | hyprctl | hyprsunset | opencode | terminal | tmux | trackpad | wifi | xcompose) ;;
+      shell) shell_marker="$file"; continue ;;
+      *)
+        printf 'Ignoring unsupported restart marker: %q\n' "$filename" >&2
+        /usr/bin/rm -f -- "$file" || exit 1
+        continue
+        ;;
+    esac
+
+    restart_command="$OMARCHY_PATH/bin/omarchy-restart-$service"
+    if ! restart_available "$service"; then
+      printf 'Ignoring unavailable restart marker: %q\n' "$filename" >&2
+      /usr/bin/rm -f -- "$file" || exit 1
+      continue
+    fi
+
     echo "Restarting $service"
-    omarchy-state clear "$filename"
-    omarchy-restart-"$service"
-  fi
-done
+    if "$restart_command"; then
+      /usr/bin/rm -f -- "$file" || exit 1
+    else
+      echo "Could not restart $service; keeping its marker for the next update." >&2
+    fi
+  done
 
-# Updates routinely replace the shell's QML, and a stale process can lazy-load
-# new files into old code. A restart failure (locked session, ssh, TTY) only
-# prints its reason: the next update or login gets a fresh shell anyway.
-echo -e "\e[32m\nRestarting shell\e[0m"
-echo "All plugins have been reloaded"
-omarchy-restart-shell || true
+  # Always reload updated QML once, including when a shell marker is present.
+  # A locked session or missing desktop must not block the package update.
+  echo -e "\e[32m\nRestarting shell\e[0m"
+  echo "All plugins have been reloaded"
+  if restart_available shell && "$OMARCHY_PATH/bin/omarchy-restart-shell"; then
+    if [[ -n $shell_marker ]]; then
+      /usr/bin/rm -f -- "$shell_marker" || exit 1
+    fi
+  else
+    echo "Could not restart the shell; it will be retried at the next update or login." >&2
+  fi
+  omarchy_security_revoke_sudo_timestamp || exit 1
+fi
+
+if [[ $mode != "--services-only" ]]; then
+  running_kernel=$(uname -r)
+  kernel_updated=true
+
+  for kernel in /usr/lib/modules/*/vmlinuz; do
+    if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
+      installed_kernel=$(basename "$(dirname "$kernel")")
+
+      if [[ $installed_kernel == $running_kernel ]]; then
+        kernel_updated=false
+        break
+      fi
+    fi
+  done
+
+  if [[ $kernel_updated == "true" ]]; then
+    confirm_reboot "Linux kernel has been updated. Reboot?"
+  elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then
+    confirm_reboot "Updates require reboot. Ready?"
+  fi
+
+  running_hyprland=$(readlink /proc/$(pgrep -x Hyprland)/exe 2>/dev/null)
+  if [[ $running_hyprland == *"(deleted)"* ]]; then
+    confirm_reboot "Hyprland has been updated. Reboot?"
+  fi
+fi

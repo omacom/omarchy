@@ -172,7 +172,24 @@ else
 fi
 SH
 
-chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl"
+cat >"$restart_bin/busctl" <<'SH'
+#!/bin/bash
+if [[ -z ${OMARCHY_TEST_NOTIFICATION_CHECKS:-} ]]; then
+  echo 'b false'
+else
+  checks=0
+  [[ ! -f $OMARCHY_TEST_NOTIFICATION_CHECKS ]] || read -r checks <"$OMARCHY_TEST_NOTIFICATION_CHECKS"
+  (( checks += 1 ))
+  printf '%s\n' "$checks" >"$OMARCHY_TEST_NOTIFICATION_CHECKS"
+  if (( checks == 1 || checks >= 4 )); then
+    echo 'b true'
+  else
+    echo 'b false'
+  fi
+fi
+SH
+
+chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl" "$restart_bin/busctl"
 
 sleep 30 &
 restart_pid_one=$!
@@ -194,6 +211,7 @@ OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
 OMARCHY_TEST_IPC_LOG="$ipc_log" \
 OMARCHY_TEST_SESSION_PATH="$restart_root" \
 OMARCHY_TEST_TRANSIENT_ENV=leaked \
+OMARCHY_TEST_NOTIFICATION_CHECKS="$test_tmp/notification-checks" \
   timeout 5 "$ROOT/bin/omarchy-restart-shell"
 
 if kill -0 "$restart_pid_one" 2>/dev/null; then
@@ -213,6 +231,8 @@ grep -F "kill -p $restart_root/shell --any-display" "$restart_log" >/dev/null ||
 grep -F 'hl.dsp.exec_cmd("omarchy-launch-shell")' "$dispatch_log" >/dev/null || fail "restart launches the fresh shell through Hyprland"
 grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null || fail "restart checks readiness in the session checkout"
 pass "restart replaces duplicate shell instances from the session checkout"
+[[ $(<"$test_tmp/notification-checks") == 4 ]] || fail "restart waits for the existing notification service after core IPC is ready"
+pass "restart waits for notification readiness before one-time update hooks"
 
 : >"$restart_log"
 printf '303\n' >"$restart_state"
