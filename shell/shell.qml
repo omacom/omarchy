@@ -117,6 +117,7 @@ ShellRoot {
   onBarConfigChanged: {
     if (bar && "barConfig" in bar)
       bar.barConfig = shell.barConfigFor(shell.activeBarManifest)
+    shell.syncPluginApis()
   }
   FileView {
     id: defaultsFile
@@ -324,12 +325,16 @@ ShellRoot {
   }
 
   function publicBarConfig() {
-    return JSON.parse(JSON.stringify(shell.barConfig || {}))
+    var source = shellConfig && Util.isPlainObject(shellConfig.bar)
+      ? shellConfig.bar : builtinShellConfig.bar
+    return JSON.parse(JSON.stringify(source || {}))
   }
 
   function barConfigFor(manifest) {
+    var source = shellConfig && Util.isPlainObject(shellConfig.bar)
+      ? shellConfig.bar : builtinShellConfig.bar
     return !manifest || manifest.__isFirstParty
-      ? shell.barConfig : shell.publicBarConfig()
+      ? source : shell.publicBarConfig()
   }
 
   function publicBarWidgetSnapshot() {
@@ -1061,9 +1066,10 @@ ShellRoot {
 
   // Writes inline settings to a bar layout entry or top-level plugin entry in
   // shell.json. moduleName is the entry id; settings is the merged plugin
-  // state. Returns true if anything actually changed. Compute the proposed
-  // new shellConfig in a local clone, and only persist if anything actually
-  // changed so reactive bindings do not dirty shell.json unnecessarily.
+  // state. Returns true if anything actually changed (or false if the settings
+  // were already identical, a no-op). Compute the proposed new shellConfig in
+  // a local clone, and only persist if anything actually changed so reactive
+  // bindings do not dirty shell.json unnecessarily.
   function updateEntryInline(moduleName, settings) {
     var stripped = Util.canonicalWidgetId(moduleName)
     var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
@@ -1089,6 +1095,7 @@ ShellRoot {
       }
     }
     if (!foundInLayout) {
+      var foundInPlugins = false
       for (var j = 0; j < copy.plugins.length; j++) {
         if (copy.plugins[j] && copy.plugins[j].id === stripped) {
           var pnext = { id: stripped }
@@ -1097,7 +1104,15 @@ ShellRoot {
             copy.plugins[j] = pnext
             dirty = true
           }
+          foundInPlugins = true
+          break
         }
+      }
+      if (!foundInPlugins) {
+        var pnew = { id: stripped }
+        for (var nkey in settings) if (nkey !== "id") pnew[nkey] = settings[nkey]
+        copy.plugins.push(pnew)
+        dirty = true
       }
     }
     if (!dirty) return false
