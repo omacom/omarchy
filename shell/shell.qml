@@ -347,8 +347,7 @@ ShellRoot {
   }
 
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    return Util.hasKind(manifest, kind)
   }
 
   function pluginHasBarCapabilities(manifest) {
