@@ -72,6 +72,17 @@ qml_matches "$shell_qml" 'target\.shell *= *shell\.pluginShellFor\( *manifest *\
   fail "full-bar plugins receive a scoped shell facade"
 pass "third-party entry points receive scoped shell facades"
 
+# A manifest carried through the Instantiator model comes back with `kinds` as
+# a sequence that fails Array.isArray. The panel loader would then request a
+# different capability profile than the bar does for the same plugin, and the
+# two would revoke each other's facade, nulling a menu clone's shell.
+qml_matches "$shell_qml" 'readonly property var manifest: *shell\.pluginRegistry\.installedPlugins\[ *pluginId *\]' ||
+  fail "panel plugins scope their facade from the registry manifest"
+if qml_matches "$shell_qml" 'modelData\.manifest'; then
+  fail "panel plugins scope their facade from a model-converted manifest"
+fi
+pass "panel and bar entry points request the same facade profile"
+
 if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
   fail "replacement-bar facade exposes a generic plugin-shell factory"
 fi
