@@ -14,4 +14,10 @@ assert(/if \(buttonCode === Qt\.RightButton\) root\.launchAgent\(\)/.test(panelS
 assert(/else if \(buttonCode === Qt\.MiddleButton\) root\.selectProvider\(root\.providerIndex \+ 1\)/.test(panelSource), 'agents middle click still advances the subscription')
 assert(/else root\.toggle\(\)/.test(panelSource), 'agents left click still toggles the panel')
 assert(!/if \(buttonCode === Qt\.RightButton\) root\.refreshNow\(\)/.test(panelSource), 'agents right click no longer refreshes')
+
+const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+
+assert(/function providerRank\(id\)/.test(mainSource), 'agents provider order follows providerOrder list')
+assert(/settings\.providerOrder/.test(mainSource), 'agents rank reads providerOrder setting')
+assert(/providerRank\(a\.providerId\), rb = providerRank\(b\.providerId\)/.test(mainSource) || /providerRank\(a\.providerId\)/.test(mainSource), 'agents enabledProviders sorts by rank')
 JS
