@@ -5,6 +5,12 @@
 -- The down/up split works around Hyprland send_shortcut sometimes leaving
 -- synthetic key state stuck/repeating.
 -- https://github.com/hyprwm/Hyprland/discussions/14099
+--
+-- Keys are sent as physical keycodes ("code:N", XKB = evdev + 8), not by
+-- keysym letter. Hyprland resolves a keysym against the currently active
+-- layout only, so on a non-Latin layout (e.g. Russian) there is no key that
+-- produces "V"/"C"/"X", and send_key_state fails with "key not found".
+-- code:53 = X, code:54 = C, code:55 = V, code:118 = Insert.
 local function send_shortcut_once(mods, key)
   return function()
     hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
@@ -42,7 +48,7 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL", "Insert"))
-o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "V", "SHIFT", "Insert"))
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "code:54", "CTRL", "code:118"))
+o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "code:55", "SHIFT", "code:118"))
+o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "code:53"))
 o.bind("SUPER + CTRL + V", "Clipboard manager", "omarchy-shell shell toggle omarchy.clipboard")
