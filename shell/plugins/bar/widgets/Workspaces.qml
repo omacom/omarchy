@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Hyprland
 import qs.Commons
 import qs.Ui
@@ -30,9 +31,41 @@ BarWidget {
     return ids
   }
 
+  function workspaceIsDisplayed(workspaceId) {
+    var monitors = Hyprland.monitors.values
+    for (var i = 0; i < monitors.length; i++) {
+      var active = monitors[i].activeWorkspace
+      if (active && active.id === workspaceId) return true
+    }
+
+    return false
+  }
+
   function focusWorkspace(id) {
     if (!root.bar) return
-    root.bar.run("hyprctl dispatch " + Util.shellQuote("hl.dsp.focus({ workspace = \"" + id + "\" })"))
+
+    var workspaceId = parseInt(id, 10)
+    if (!(workspaceId > 0)) return
+
+    // A workspace already on a monitor: follow it (old behaviour). One that
+    // is only remembered on its last monitor would otherwise restore there
+    // even when the click was on a different bar.
+    var follow = "hl.dsp.focus({ workspace = \"" + workspaceId + "\" })"
+    if (root.workspaceIsDisplayed(workspaceId)) {
+      root.bar.run("hyprctl dispatch " + Util.shellQuote(follow))
+      return
+    }
+
+    var barWindow = root.QsWindow ? root.QsWindow.window : null
+    var barMonitor = barWindow && barWindow.screen ? Hyprland.monitorFor(barWindow.screen) : null
+    var monitorName = barMonitor && barMonitor.name ? String(barMonitor.name).trim() : ""
+    if (!/^[A-Za-z0-9:._-]+$/.test(monitorName)) {
+      root.bar.run("hyprctl dispatch " + Util.shellQuote(follow))
+      return
+    }
+
+    var batch = "dispatch hl.dsp.focus({ monitor = \"" + monitorName + "\" }) ; dispatch hl.dsp.focus({ workspace = \"" + workspaceId + "\", on_current_monitor = true })"
+    root.bar.run("hyprctl --batch " + Util.shellQuote(batch))
   }
 
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
