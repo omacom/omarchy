@@ -240,26 +240,25 @@ LUA
   )
 }
 
+# Hyprland reports modifiers as a bitmask, so derive the text from the bits
+# rather than enumerating combinations. Enumerating only covered SHIFT, CTRL,
+# ALT and SUPER, which left Mod2, Mod3 and Mod5 falling through to a raw number
+# (a Caps Lock remapped with `caps:hyper` binds on Mod3 and rendered as "32").
 modmask_to_text() {
-  case "$1" in
-    0)  printf '' ;;
-    1)  printf 'SHIFT' ;;
-    4)  printf 'CTRL' ;;
-    5)  printf 'SHIFT CTRL' ;;
-    8)  printf 'ALT' ;;
-    9)  printf 'SHIFT ALT' ;;
-    12) printf 'CTRL ALT' ;;
-    13) printf 'SHIFT CTRL ALT' ;;
-    64) printf 'SUPER' ;;
-    65) printf 'SUPER SHIFT' ;;
-    68) printf 'SUPER CTRL' ;;
-    69) printf 'SUPER SHIFT CTRL' ;;
-    72) printf 'SUPER ALT' ;;
-    73) printf 'SUPER SHIFT ALT' ;;
-    76) printf 'SUPER CTRL ALT' ;;
-    77) printf 'SUPER SHIFT CTRL ALT' ;;
-    *)  printf '%s' "$1" ;;
-  esac
+  local modmask="$1"
+  local -a parts=()
+  local modifier bit name
+
+  for modifier in '64:SUPER' '1:SHIFT' '4:CTRL' '8:ALT' '16:MOD2' '32:MOD3' '128:MOD5'; do
+    bit="${modifier%%:*}"
+    name="${modifier#*:}"
+
+    if (( modmask & bit )); then
+      parts+=("$name")
+    fi
+  done
+
+  printf '%s' "${parts[*]}"
 }
 
 # Fetch dynamic keybindings from Hyprland.
