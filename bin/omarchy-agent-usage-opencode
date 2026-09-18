@@ -1,0 +1,339 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the OpenCode usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect OpenCode usage into one display-ready JSON record.
+
+Everything the agents panel shows for OpenCode comes from this one command:
+the subscription's three usage windows from the OpenCode Go endpoint, and
+local token history from opencode's own message database. The panel itself
+only ever reads the JSON this prints.
+
+Both sources are optional. Without credentials the record carries local token
+history and says why the meters are missing; without a database it carries the
+meters alone.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import sqlite3
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "opencode"
+AGENT_NAME = "OpenCode"
+TIER_LABEL = "Go"
+AUTH_HELP = "Run `opencode auth login` to restore usage meters."
+USAGE_ENDPOINT = "https://opencode.ai/zen/go/v1/usage"
+AUTH_RELATIVE_PATH = "opencode/auth.json"
+DB_RELATIVE_PATH = "opencode/opencode.db"
+
+# The Go subscription and the free tier requests fall back to once a window
+# fills. Both are this subscription; a self-hosted gateway is not, so the
+# provider ids are matched exactly rather than by prefix.
+PROVIDER_IDS = ("opencode-go", "opencode")
+
+# The endpoint names its windows; the panel wants them labelled.
+WINDOWS = (
+  ("rolling", "Session (5-hour)"),
+  ("weekly", "Weekly (7-day)"),
+  ("monthly", "Monthly"),
+)
+
+
+def data_home() -> Path:
+  return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def date_string(value: dt.date) -> str:
+  return value.strftime("%Y-%m-%d")
+
+
+def recent_date_strings() -> list[str]:
+  today = dt.datetime.now().date()
+  return [date_string(today - dt.timedelta(days=offset)) for offset in range(6, -1, -1)]
+
+
+def local_date_string() -> str:
+  return date_string(dt.datetime.now().date())
+
+
+def number(value: Any) -> int:
+  try:
+    n = float(value or 0)
+    return round(n) if n == n else 0
+  except Exception:
+    return 0
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    if time.time() - path.stat().st_mtime <= max_age_seconds:
+      return json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  return None
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      json.dump(payload, handle, separators=(",", ":"))
+    tmp.replace(path)
+  except Exception:
+    tmp.unlink(missing_ok=True)
+
+
+# ------------------------------------------------------------------- limits
+
+
+def read_api_key(auth_path: Path) -> str:
+  try:
+    payload = json.loads(auth_path.read_text(encoding="utf-8"))
+  except Exception:
+    return ""
+  entry = payload.get("opencode-go") if isinstance(payload, dict) else None
+  if not isinstance(entry, dict):
+    return ""
+  return str(entry.get("key") or "")
+
+
+def fetch_limits(api_key: str, endpoint: str) -> tuple[list[dict[str, Any]], str]:
+  """Return the subscription's usage windows, plus a status line when unavailable."""
+  # The endpoint sits behind a CDN that answers urllib's default agent string
+  # with 403, so it is named explicitly. Without this the probe fails and the
+  # panel silently loses its meters.
+  headers = {
+    "Authorization": f"Bearer {api_key}",
+    "User-Agent": "omarchy-agent-usage-opencode",
+  }
+  request = urllib.request.Request(endpoint, headers=headers)
+  try:
+    with urllib.request.urlopen(request, timeout=15) as response:
+      payload = json.loads(response.read().decode("utf-8"))
+  except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+    return [], "OpenCode usage endpoint unavailable."
+
+  usage = payload.get("usage") if isinstance(payload, dict) else None
+  if not isinstance(usage, dict):
+    return [], "OpenCode usage endpoint returned no windows."
+
+  limits: list[dict[str, Any]] = []
+  for key, label in WINDOWS:
+    window = usage.get(key)
+    if not isinstance(window, dict) or window.get("percent") is None:
+      continue
+    try:
+      percent = float(window["percent"])
+    except (TypeError, ValueError):
+      continue
+    limits.append({
+      "label": label,
+      # The endpoint reports whole percents; the panel renders a 0-1 fraction.
+      "percent": percent / 100,
+      "resetsAt": str(window.get("resetsAt") or ""),
+    })
+  return limits, ""
+
+
+# -------------------------------------------------------------------- local
+
+
+def empty_stats() -> dict[str, Any]:
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+  }
+
+
+def scan_local_usage(db: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  """Walk opencode's message database for this subscription's token history."""
+  if not db.is_file():
+    return None
+
+  # Walking a long history on every panel open would break the freshness
+  # contract --limits-only promises, so a recent scan is reused verbatim.
+  cache_file = cache_root() / "opencode-scan.json"
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if cached is not None:
+    return cached.get("stats")
+
+  today = local_date_string()
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_date_strings()}
+  usage_by_model: dict[str, dict[str, int]] = {}
+  today_tokens: dict[str, int] = {}
+  sessions: set[str] = set()
+  today_sessions: set[str] = set()
+  active_days: set[str] = set()
+  prompts = 0
+  today_prompts = 0
+  today_total = 0
+
+  try:
+    # Read-only: opencode may be writing right now.
+    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return None
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    for session_id, raw in conn.execute("SELECT session_id, data FROM message"):
+      # One malformed row must not abort the scan, so every shape assumption
+      # lives inside the try.
+      try:
+        entry = json.loads(raw)
+        if not isinstance(entry, dict) or entry.get("role") != "assistant":
+          continue
+        if str(entry.get("providerID") or "") not in PROVIDER_IDS:
+          continue
+        tokens = entry.get("tokens") or {}
+        cache = tokens.get("cache") or {}
+        input_tokens = number(tokens.get("input"))
+        # opencode keeps thinking tokens out of output; both are generated.
+        output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
+        cache_read = number(cache.get("read"))
+        cache_write = number(cache.get("write"))
+        total = input_tokens + output_tokens + cache_read + cache_write
+        if total <= 0:
+          continue
+
+        created = number((entry.get("time") or {}).get("created"))
+        day = dt.datetime.fromtimestamp(created / 1000).strftime("%Y-%m-%d") if created > 0 else today
+        model = str(entry.get("modelID") or AGENT_ID).rstrip("/").split("/")[-1]
+      except Exception:
+        continue
+
+      sessions.add(str(session_id))
+      active_days.add(day)
+      prompts += 1
+
+      bucket = usage_by_model.setdefault(model, empty_bucket())
+      bucket["inputTokens"] += input_tokens
+      bucket["outputTokens"] += output_tokens
+      bucket["cacheReadInputTokens"] += cache_read
+      bucket["cacheCreationInputTokens"] += cache_write
+
+      if day in recent:
+        recent[day]["messageCount"] += total
+      if day == today:
+        today_prompts += 1
+        today_sessions.add(str(session_id))
+        today_total += total
+        today_tokens[model] = today_tokens.get(model, 0) + total
+  except sqlite3.Error:
+    return None
+  finally:
+    conn.close()
+
+  stats = {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total,
+    "todayTokensByModel": today_tokens,
+    "recentDays": [recent[day] for day in recent_date_strings()],
+    "totalPrompts": prompts,
+    "totalSessions": len(sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": usage_by_model,
+  }
+  write_json(cache_file, {"stats": stats})
+  return stats
+
+
+# ------------------------------------------------------------------- record
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  record: dict[str, Any] = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    "ready": False,
+    "hasLocalStats": False,
+    "tierLabel": TIER_LABEL,
+    "usageStatusText": "",
+    "authHelpText": "",
+    "limits": [],
+  }
+  record.update(empty_stats())
+  record.update(overrides)
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the OpenCode usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="rescan the local database even if a recent scan exists")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent local scan; only the usage probe must be fresh")
+  parser.add_argument("--cache-seconds", type=float, default=120.0)
+  parser.add_argument("--auth-path", default=os.environ.get("OPENCODE_AUTH_PATH", ""))
+  parser.add_argument("--db-path", default=os.environ.get("OPENCODE_DB_PATH", ""))
+  parser.add_argument("--usage-endpoint", default=os.environ.get("OPENCODE_USAGE_ENDPOINT", USAGE_ENDPOINT))
+  args = parser.parse_args()
+
+  auth_path = Path(args.auth_path) if args.auth_path else data_home() / AUTH_RELATIVE_PATH
+  db_path = Path(args.db_path) if args.db_path else data_home() / DB_RELATIVE_PATH
+
+  record = base_record(ready=True)
+  try:
+    api_key = read_api_key(auth_path)
+    if api_key:
+      limits, status = fetch_limits(api_key, args.usage_endpoint)
+      record["limits"] = limits
+      if status:
+        record["usageStatusText"] = status
+        record["authHelpText"] = "Token history below still reflects local sessions."
+    else:
+      record["usageStatusText"] = "Not signed in to OpenCode."
+      record["authHelpText"] = AUTH_HELP
+
+    scan_age = 0 if args.force else (900 if args.limits_only else args.cache_seconds)
+    stats = scan_local_usage(db_path, scan_age)
+    if stats is not None:
+      record.update(stats)
+      record["hasLocalStats"] = True
+  except Exception as error:
+    print(f"omarchy-agent-usage-opencode: {type(error).__name__}", file=sys.stderr)
+
+  print(json.dumps(record, separators=(",", ":")))
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())
