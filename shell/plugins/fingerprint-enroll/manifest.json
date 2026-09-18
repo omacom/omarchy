@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.fingerprint-enroll",
+  "name": "Fingerprint enrolment",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Phone-style fingerprint setup and enrolment: the print fills in stage by stage and says where to press next.",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": false,
+  "entryPoints": {
+    "overlay": "Enroll.qml"
+  }
+}
