@@ -409,6 +409,47 @@ Item {
 
   Process { id: focusAppProc; running: false }
 
+  // ---------------------------------------------------- web app launchers
+  //
+  // The launchers a Chromium notification can be traced back to (see
+  // NotificationLogic.webappFor), read off DesktopEntries, which already
+  // parses every launcher and watches the applications directories. Icons
+  // resolve through AppLibrary's index first: Qt's themed lookup never
+  // rescans, so a web app installed while the shell runs has an icon only the
+  // index knows about (see AppLibrary.iconIndex). Not every host injects an
+  // AppLibrary, so the index is optional.
+  property var webappLaunchers: []
+  readonly property var iconIndex: shell && shell.appLibrary && shell.appLibrary.iconIndex ? shell.appLibrary.iconIndex : ({})
+
+  function launcherIconSource(icon) {
+    var value = String(icon || "")
+    if (value.length === 0) return ""
+    if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
+    if (value.charAt(0) === "/") return Util.fileUrl(value)
+    var found = service.iconIndex[value]
+    return found ? Util.fileUrl(found) : Quickshell.iconPath(value, true)
+  }
+
+  function reloadWebappLaunchers() {
+    service.webappLaunchers = NotificationLogic.webappLaunchers(
+      DesktopEntries.applications.values || [], service.launcherIconSource)
+  }
+
+  onIconIndexChanged: reloadWebappLaunchers()
+
+  // Coalesces bursts of app-list changes (a package install touches many
+  // entries) into a single rebuild.
+  Timer {
+    id: webappLaunchersDebounce
+    interval: 250
+    onTriggered: service.reloadWebappLaunchers()
+  }
+
+  Connections {
+    target: DesktopEntries.applications
+    function onValuesChanged() { webappLaunchersDebounce.restart() }
+  }
+
   Process {
     id: ensureDirsProc
     command: ["mkdir", "-p", service.stateDir, service.popupStateDir, service.historyDir, service.imagesDir]
@@ -834,6 +875,7 @@ Item {
 
   Component.onCompleted: {
     ensureDirsProc.running = true
+    reloadWebappLaunchers()
     // Once mkdir has had a tick, load the existing settings file. FileView
     // surfaces an empty string when the file doesn't exist; loadSettings
     // handles that path.
@@ -1051,6 +1093,7 @@ Item {
               cornerRadius: service.cornerRadius
               fontFamily: service.shell && service.shell.bar ? service.shell.bar.fontFamily : ""
               glyph: cardSlot.glyph
+              webappLaunchers: service.webappLaunchers
 
               onCloseRequested: service.dismissPopup(cardSlot.index)
               onCardClicked: service.invokePopupDefault(cardSlot.index)
