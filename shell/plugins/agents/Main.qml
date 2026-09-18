@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "LimitResetModel.js" as LimitResetModel
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -92,47 +93,33 @@ Item {
   }
 
   function scheduleLimitResetNotifications() {
-    if (!limitResetNotificationsEnabled()) {
-      pendingLimitResets = ({})
-      return
-    }
-
-    var next = Object.assign({}, pendingLimitResets)
-    var now = Date.now()
+    var records = []
     for (var i = 0; i < agents.length; i++) {
-      var record = agents[i] ? agents[i].record : null
-      if (!record || !record.id || !providerEnabled(String(record.id))) continue
-      var limits = Array.isArray(record.limits) ? record.limits : []
-      for (var j = 0; j < limits.length; j++) {
-        var limit = limits[j] || {}
-        var resetAt = String(limit.resetsAt || "")
-        var resetMs = new Date(resetAt).getTime()
-        if (!isFinite(resetMs) || resetMs <= now) continue
-        var label = String(limit.title || limit.label || "Limit")
-        var key = String(record.id) + "\n" + label + "\n" + resetAt
-        next[key] = {
-          deadline: resetMs,
-          providerName: String(record.name || record.id),
-          label: label
-        }
-      }
+      records.push(agents[i] ? agents[i].record : null)
     }
-    pendingLimitResets = next
+    pendingLimitResets = LimitResetModel.schedule(
+      pendingLimitResets,
+      records,
+      Date.now(),
+      limitResetNotificationsEnabled(),
+      function(id) { return providerEnabled(id) }
+    )
   }
 
   function announcePassedLimitResets() {
-    if (!limitResetNotificationsEnabled()) return
-    var now = Date.now()
-    var next = Object.assign({}, pendingLimitResets)
-    for (var key in pendingLimitResets) {
-      var reset = pendingLimitResets[key]
-      if (!reset || reset.deadline > now) continue
+    var result = LimitResetModel.announce(
+      pendingLimitResets,
+      Date.now(),
+      limitResetNotificationsEnabled(),
+      function(id) { return providerEnabled(id) }
+    )
+    pendingLimitResets = result.pending
+    for (var i = 0; i < result.notifications.length; i++) {
+      var notification = result.notifications[i]
       Quickshell.execDetached(["omarchy-notification-send",
-        reset.providerName + " limit reset",
-        reset.label + " is available again."])
-      delete next[key]
+        notification.title,
+        notification.body])
     }
-    pendingLimitResets = next
   }
 
   Timer {
@@ -140,6 +127,7 @@ Item {
     running: root.limitResetNotificationsEnabled()
     repeat: true
     onTriggered: root.announcePassedLimitResets()
+    onRunningChanged: if (!running && !root.limitResetNotificationsEnabled()) root.pendingLimitResets = ({})
   }
 
   // A collector that could not reach its limits endpoint at all — typically
