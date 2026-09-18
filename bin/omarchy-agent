@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick]
+# omarchy:args=[--inline] [--pick] [--local]
 # omarchy:examples=omarchy agent | omarchy agent --inline
 
 inline=false
 pick=false
+local_only=false
 
 # Flags only. A bare prompt would shadow the subcommands under this group, so
 # prompts go through omarchy-agent-prompt, which passes one here as --prompt.
@@ -17,6 +18,12 @@ while (($#)); do
       ;;
     --pick)
       pick=true
+      shift
+      ;;
+    --local)
+      # For work that is about this machine and could not be done from another
+      # one, whatever the default agent's usual home is.
+      local_only=true
       shift
       ;;
     --prompt)
@@ -37,6 +44,12 @@ done
 
 agent=$(omarchy-default-agent)
 
+if [[ $local_only == "true" ]]; then
+  agent_host=""
+else
+  agent_host=$(omarchy-default-agent --host)
+fi
+
 # Omarchy ships without a default, so there is nothing to launch until one is
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
@@ -46,7 +59,9 @@ if [[ -z $agent ]]; then
   exit 1
 fi
 
-if omarchy-cmd-missing "$agent"; then
+# A remote agent is installed on the machine that runs it, so the local probe
+# answers for nothing: ssh reports its own failure well enough.
+if [[ -z $agent_host ]] && omarchy-cmd-missing "$agent"; then
   echo "$agent is not installed. Choose an installed agent with: omarchy default agent <name>" >&2
   exit 1
 fi
@@ -135,6 +150,63 @@ pi)
   exit 1
   ;;
 esac
+
+# The remote agent wraps the command that was just built rather than replacing
+# it, so every agent keeps its own don't-stop-to-ask flag and its prompt without
+# a second spelling of each one here.
+if [[ -n $agent_host ]]; then
+  # Checked before the window is spawned: a terminal that opens and closes again
+  # is the least informative way to say a machine is asleep.
+  if ! omarchy-agent-host-reachable "$agent_host"; then
+    if [[ $inline == "true" ]]; then
+      echo "Cannot reach $agent_host, where $agent runs." >&2
+      echo "Run it on this machine instead with: omarchy agent --local" >&2
+    else
+      omarchy-notification-send -u critical "Agent host unreachable" \
+        "Cannot reach $agent_host, where $agent runs."
+    fi
+
+    exit 1
+  fi
+
+  agent_command=${command[*]@Q}
+
+  # Built as a script rather than a one-liner because the far side has three
+  # things to do, and each line is quoted for the shell that will actually read
+  # it -- bash here, then sh inside tmux.
+  #
+  # Probed by running it, the way this repo probes any other command it does
+  # not own -- and omarchy-cmd-present is no help here, since the command being
+  # asked about is on the other machine.
+  #
+  # tmux is what makes a remote agent survive its window: a closed lid or a
+  # dropped tunnel would otherwise kill work on a machine that is still running
+  # fine. -A attaches to the session if it exists rather than starting a second
+  # agent over the top of the first, so the keybinding resumes what is already
+  # there. A machine without tmux runs the agent directly.
+  remote_command="[[ -d ~/Work ]] && cd ~/Work
+session=omarchy-agent-\${PWD##*/}
+session=\${session//[^[:alnum:]_-]/-}
+if tmux -V >/dev/null 2>&1; then
+  exec tmux new-session -A -s \"\$session\" ${agent_command@Q}
+fi
+exec $agent_command"
+
+  # -lic rather than -lc: agents are mise shims, and mise activates from the
+  # interactive half of the remote shell's startup files, which a login shell
+  # running a command skips. The TTY ssh -t forces is what makes -i safe.
+  # Quoted twice on purpose -- once so the remote shell hands bash a single
+  # command, once so a prompt carrying quotes or semicolons stays an argument.
+  # The control socket makes every launch after the first reuse one connection,
+  # which is what keeps asking "is it still running over there?" cheap enough to
+  # ask often. In the runtime directory because it is per-user and cleared on
+  # logout, unlike a socket left in ~/.ssh.
+  command=(ssh -t
+    -o ServerAliveInterval=30 -o ConnectTimeout=10
+    -o ControlMaster=auto -o ControlPersist=10m
+    -o "ControlPath=${XDG_RUNTIME_DIR:-/tmp}/omarchy-agent-ssh-%r@%h:%p"
+    "$agent_host" -- "bash -lic ${remote_command@Q}")
+fi
 
 if [[ $inline == "true" ]]; then
   exec "${command[@]}"

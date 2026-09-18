@@ -49,4 +49,6 @@ mechanism, read the skill files directly and follow them instead:
 PROMPT
 )
 
-exec omarchy-agent --prompt "$prompt"
+# The core dump, the binary and the skill are all on this machine, so the
+# diagnosis runs here even when the default agent normally runs on another one.
+exec omarchy-agent --local --prompt "$prompt"

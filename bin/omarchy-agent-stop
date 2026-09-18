@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# omarchy:summary=End the agent session running on the remote machine
+# omarchy:args=[session]
+# omarchy:examples=omarchy agent stop | omarchy agent stop omarchy-agent-work
+
+# A remote agent outlives its window on purpose: closing the terminal leaves it
+# working on a machine that is still running fine. That bargain needs a way to
+# say "I am done with it" other than closing a window, or the sessions pile up
+# on the other machine, where nobody is looking.
+
+set -euo pipefail
+
+agent_host=$(omarchy-default-agent --host)
+
+if [[ -z $agent_host ]]; then
+  echo "The default agent runs on this machine, so there is no remote session to end." >&2
+  echo "Quit the agent in its own window instead." >&2
+  exit 1
+fi
+
+# Only sessions this launcher started. A tmux session someone else opened on
+# that machine is not ours to kill, whatever it is called.
+if [[ -n ${1:-} ]]; then
+  wanted=$1
+  [[ $wanted == omarchy-agent-* ]] || wanted="omarchy-agent-$wanted"
+else
+  wanted=""
+fi
+
+remote=$(
+  cat <<'REMOTE'
+# Probed by running it: the command being asked about is on the other machine,
+# where omarchy's helpers do not exist.
+if ! tmux -V >/dev/null 2>&1; then
+  exit 0
+fi
+
+tmux list-sessions -F '#S' 2>/dev/null | grep '^omarchy-agent-' || true
+REMOTE
+)
+
+if ! sessions=$(ssh -o ConnectTimeout=10 "$agent_host" -- "bash -lc ${remote@Q}"); then
+  echo "Could not reach $agent_host to end the agent session." >&2
+  exit 1
+fi
+
+if [[ -n $wanted ]]; then
+  sessions=$(grep -Fx "$wanted" <<<"$sessions" || true)
+fi
+
+if [[ -z $sessions ]]; then
+  echo "No agent session is running on $agent_host."
+  exit 0
+fi
+
+while read -r session; do
+  [[ -n $session ]] || continue
+
+  # -n because ssh reads stdin, and stdin here is the list still being read.
+  # Without it the first session is ended and the rest are swallowed.
+  if ssh -n -o ConnectTimeout=10 "$agent_host" -- "tmux kill-session -t ${session@Q}" 2>/dev/null; then
+    echo "Ended $session on $agent_host."
+  else
+    echo "Could not end $session on $agent_host." >&2
+  fi
+done <<<"$sessions"

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse]
-# omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse] | --host [<[user@]host>]
+# omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent --host gpu-box
 
 installing=false
 if [[ ${1:-} == "--install" ]]; then
@@ -11,6 +11,33 @@ if [[ ${1:-} == "--install" ]]; then
 fi
 
 agent_file="$HOME/.config/omarchy/defaults/agent"
+host_file="$HOME/.config/omarchy/defaults/agent-host"
+
+# The machine the agent runs on, for anyone whose agent lives on a GPU box or a
+# workstation rather than on this one. Printed on its own, set with a value,
+# cleared with an empty one.
+if [[ ${1:-} == "--host" ]]; then
+  shift
+
+  if (($# == 0)); then
+    if [[ -f $host_file ]]; then
+      read -r agent_host <"$host_file"
+      printf '%s\n' "${agent_host:-}"
+    fi
+
+    exit 0
+  fi
+
+  mkdir -p "$(dirname "$host_file")"
+
+  if [[ -n $1 ]]; then
+    printf '%s\n' "$1" >"$host_file"
+  else
+    rm -f "$host_file"
+  fi
+
+  exit 0
+fi
 
 if (($# == 0)); then
   if [[ -f $agent_file ]]; then
@@ -43,10 +70,18 @@ muse | muse-code | musecode)
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse> | --host [<[user@]host>]"
   exit 1
   ;;
 esac
+
+# A remote agent is installed on the machine that runs it, so recording the
+# choice is the whole job here.
+if [[ -f $host_file ]]; then
+  mkdir -p "$(dirname "$agent_file")"
+  printf '%s\n' "$agent" >"$agent_file"
+  exec omarchy-agent
+fi
 
 agent_package=${agent_package:-$agent}
 

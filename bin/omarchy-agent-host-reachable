@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Check that the machine the default agent runs on can be reached
+# omarchy:args=<[user@]host>
+# omarchy:hidden=true
+
+# A keypress that opens a terminal and closes it again explains nothing, so a
+# remote agent is checked before its window is spawned.
+#
+# The probe is a TCP connect rather than an ssh login on purpose: a machine that
+# asks for a password or a key passphrase is perfectly reachable, and a BatchMode
+# login would call it dead. It fails open on everything it cannot answer, since
+# it exists to explain an unreachable machine rather than to become a second
+# thing that can refuse a launch.
+
+set -euo pipefail
+
+host=${1:?usage: omarchy-agent-host-reachable <[user@]host>}
+
+# ssh resolves ~/.ssh/config, so an alias carrying its own HostName and Port is
+# probed at the machine it actually names rather than at its nickname.
+if ! settings=$(ssh -G "$host" 2>/dev/null); then
+  exit 0
+fi
+
+# A jump host or a ProxyCommand means the address below is not the address ssh
+# will dial, and there is nothing here worth probing.
+if grep -qE '^(proxyjump|proxycommand) ' <<<"$settings"; then
+  exit 0
+fi
+
+hostname=$(awk '$1 == "hostname" { print $2; exit }' <<<"$settings")
+port=$(awk '$1 == "port" { print $2; exit }' <<<"$settings")
+
+if [[ -z $hostname || -z $port ]]; then
+  exit 0
+fi
+
+# Passed as arguments rather than spliced into the script, so a hostname out of
+# a config file stays a hostname.
+timeout 5 bash -c 'exec 3<>/dev/tcp/"$0"/"$1"' "$hostname" "$port" 2>/dev/null
