@@ -54,6 +54,7 @@ Item {
   property bool requestedTransparent: false
   property bool transparentOnlyWhenWorkspaceEmpty: false
   property var visibleSpecialWorkspaceNames: ({})
+  property int transparencyRevision: 0
   property bool useTransparentForeground: false
   property bool transparent: false
   property bool centerSectionHovered: false
@@ -1048,8 +1049,8 @@ Item {
     return String(special.name || "")
   }
 
-  function specialWorkspaceHasToplevels() {
-    var name = specialWorkspaceName(Hyprland.focusedMonitor)
+  function specialWorkspaceHasToplevels(monitor) {
+    var name = specialWorkspaceName(monitor)
     if (!name) return false
 
     var workspaces = Hyprland.workspaces.values
@@ -1068,17 +1069,20 @@ Item {
     visibleSpecialWorkspaceNames = names
   }
 
-  function shouldBeTransparent() {
+  function shouldBeTransparent(monitor) {
+    var revision = transparencyRevision
     if (!requestedTransparent) return false
     if (!transparentOnlyWhenWorkspaceEmpty) return true
-    if (specialWorkspaceHasToplevels()) return false
+    var targetMonitor = monitor || Hyprland.focusedMonitor
+    if (specialWorkspaceHasToplevels(targetMonitor)) return false
 
-    var workspace = Hyprland.focusedWorkspace
-    return workspace !== null && workspace.toplevels.values.length === 0
+    var workspace = targetMonitor ? targetMonitor.activeWorkspace : Hyprland.focusedWorkspace
+    return revision >= 0 && workspace !== null && workspace.toplevels.values.length === 0
   }
 
   function syncTransparency() {
-    if (!shouldBeTransparent()) {
+    transparencyRevision++
+    if (!shouldBeTransparent(Hyprland.focusedMonitor)) {
       foregroundAnimationEnabled = false
       useTransparentForeground = false
       transparent = false
@@ -1100,7 +1104,7 @@ Item {
   }
 
   function scheduleTransparentForegroundRefresh() {
-    if (!shouldBeTransparent()) {
+    if (!shouldBeTransparent(Hyprland.focusedMonitor)) {
       transparentForeground = themeForeground
       return
     }
@@ -1108,7 +1112,7 @@ Item {
   }
 
   function refreshTransparentForeground() {
-    if (!shouldBeTransparent() || transparentForegroundProc.running) return
+    if (!shouldBeTransparent(Hyprland.focusedMonitor) || transparentForegroundProc.running) return
 
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
@@ -1142,7 +1146,7 @@ Item {
 
         root.foregroundAnimationEnabled = false
         root.transparentForeground = value
-        if (root.shouldBeTransparent()) {
+        if (root.shouldBeTransparent(Hyprland.focusedMonitor)) {
           root.useTransparentForeground = true
           root.transparent = true
         }
@@ -1295,6 +1299,9 @@ Item {
   component BarPanel: PanelWindow {
     id: barWindow
 
+    readonly property var hyprlandMonitor: Hyprland.monitorFor(screen)
+    readonly property bool transparent: root.shouldBeTransparent(hyprlandMonitor)
+
     // Hiding parks the bar just past its screen edge instead of unmapping it.
     // Unmapping frees the layer surface and the whole scene graph, so every
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
@@ -1324,7 +1331,7 @@ Item {
 
     implicitWidth: root.vertical ? root.barSize : 0
     implicitHeight: root.vertical ? 0 : root.barSize
-    color: root.transparent ? "transparent" : root.background
+    color: barWindow.transparent ? "transparent" : root.background
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top

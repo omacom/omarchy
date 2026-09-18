@@ -42,7 +42,9 @@ assert(/transparentOnlyWhenWorkspaceEmpty: false/.test(barSource), 'bar defaults
 assert(/transparentOnlyWhenWorkspaceEmpty = config\.transparentOnlyWhenWorkspaceEmpty === true/.test(barSource), 'bar reads workspace-conditional transparency from configuration')
 assert(/if \(!transparentOnlyWhenWorkspaceEmpty\) return true/.test(barSource), 'bar retains normal transparency when workspace mode is disabled')
 assert(/enabled: root\.transparentOnlyWhenWorkspaceEmpty/.test(barSource), 'bar listens for workspace changes only in workspace mode')
-assert(/specialWorkspaceHasToplevels\(\)/.test(barSource), 'bar includes visible special workspaces in workspace mode')
+assert(/specialWorkspaceHasToplevels\(targetMonitor\)/.test(barSource), 'bar includes visible special workspaces in workspace mode')
+assert(/readonly property var hyprlandMonitor: Hyprland\.monitorFor\(screen\)/.test(barSource), 'each bar surface resolves its own Hyprland monitor')
+assert(/color: barWindow\.transparent \? "transparent" : root\.background/.test(barSource), 'each bar surface paints from its own transparency state')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.
