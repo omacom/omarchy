@@ -1,0 +1,48 @@
+# The parse boundary: which command output is a protocol, and which is prose.
+#
+# Some Omarchy commands print a value another program reads. Those values are
+# part of an interface, not text for a person, and they have to keep their bytes
+# no matter what language the desktop speaks. Others print a sentence for a
+# human, and a caller that string-compares one of those is relying on the
+# desktop staying English.
+#
+# The distinction is invisible in the source. `omarchy-dns` prints `Custom`, and
+# `default/omarchy/omarchy-menu.jsonc` decides which DNS radio button is checked
+# by comparing against that word. `Custom` is an ordinary English adjective:
+# handed to a translator it gets translated, and the menu then shows no DNS
+# provider as selected, with nothing failing anywhere. Declaring the boundary is
+# what makes that mistake catchable instead of a bug report about a radio button.
+#
+# `i18n-parse-boundary-test.sh` derives this list from the shipped tree and
+# fails when it disagrees, in either direction, so a new boundary crossing has
+# to be classified before it lands and a crossing that goes away stops being
+# recorded here.
+#
+# Three tab-separated fields: command, kind, and the vocabulary it emits.
+#
+#   protocol  Output is an identifier vocabulary. Never mark it for
+#             translation; the test enforces that.
+#   prose     Output is written for a person, so it should be translated — which
+#             means the caller must stop parsing it. An entry here is a bug to
+#             fix, not a boundary to keep.
+#
+# Callers under test/ are deliberately out of scope: a test comparing English
+# output is a test that needs a locale pinned, which is a different fix from
+# either of the two above. `omarchy-theme-current` printing `Unknown` is the
+# example, compared in test/acceptance.d/system-test.sh.
+
+omarchy-capture-region	protocol	geometry `<x>,<y> <w>x<h>`, or `monitor:<name>`
+omarchy-channel-current	protocol	dev, edge, rc, stable, unknown
+omarchy-default-agent	protocol	agent ids: claude, codex, opencode, pi, …
+omarchy-default-browser	protocol	browser ids: chromium, firefox, zen, …
+omarchy-default-editor	protocol	editor ids: nvim, code, helix, …
+omarchy-default-terminal	protocol	terminal ids: alacritty, foot, ghostty, kitty
+omarchy-dns	protocol	Cloudflare, Google, DHCP, Custom
+omarchy-hyprland-toggle	protocol	on, off
+omarchy-menu-select	protocol	the chosen option, verbatim as it was passed in
+omarchy-network-status	protocol	wifi, ethernet, disconnected, and tab-separated fields
+omarchy-plymouth-switcher	protocol	a plymouth theme name, or `default`
+omarchy-shell	protocol	whatever the shell IPC call returned, usually JSON
+omarchy-theme-color	protocol	hex colors, and tab-separated key/value pairs
+omarchy-version-channel	protocol	a mirror name, optionally `<mirror> / <pkgs>`
+omarchy-weather-status	prose	`<place>  ·  Temp <t>  ·  Wind <w>`, or `Weather unavailable`
