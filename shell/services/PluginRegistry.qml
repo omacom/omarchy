@@ -13,6 +13,11 @@ QtObject {
   // Set by shell.qml at startup so we can also scan bundled first-party plugins.
   property string firstPartyDir: ""
 
+  // Plugins pacman installs (the atreyu package). A fixed path rather than one
+  // under $OMARCHY_PATH, so a dev-linked shell still sees them; shell.qml sets
+  // it and tests point it elsewhere.
+  property string systemDir: "/usr/share/omarchy/plugins"
+
   // Wired by shell.qml so the registry can read the canonical shell.json
   // without owning file IO itself. shellConfigProvider returns the current
   // effective shell config; shellConfigMutator takes a function that receives
@@ -573,9 +578,12 @@ QtObject {
   //   ... raw manifest.json content ...
   //   === EOM ===
   // (repeating for every manifest found)
+  // <kind> is firstparty for the bundled tree, system for the packaged root
+  // (/usr/share/omarchy/plugins) and thirdparty for ~/.config/omarchy/plugins.
   function parseScanOutput(text) {
     var lines = String(text || "").split("\n")
     var firstParty = {}
+    var system = {}
     var thirdParty = {}
     var currentSource = null
     var currentKind = null
@@ -587,10 +595,17 @@ QtObject {
       try {
         var manifest = JSON.parse(raw)
         manifest.__sourceDir = currentSource
-        manifest.__isFirstParty = (currentKind === "firstparty")
+        manifest.__isSystem = (currentKind === "system")
+        // A bundled plugin is first-party by where it lives. A packaged one is
+        // first-party by id: root put it there, so omarchy.* is as trusted as
+        // in the checkout, and any other id is a vendor plugin that happens
+        // to arrive through pacman rather than git.
+        manifest.__isFirstParty = currentKind === "firstparty"
+          || (currentKind === "system" && String(manifest.id || "").indexOf("omarchy.") === 0)
         var validated = validateManifest(manifest, currentSource + "/manifest.json")
         if (validated) {
           if (currentKind === "firstparty") firstParty[validated.id] = validated
+          else if (currentKind === "system") system[validated.id] = validated
           else thirdParty[validated.id] = validated
         }
       } catch (e) {
@@ -619,21 +634,44 @@ QtObject {
     }
     flush()
 
-    stampHostCapabilities(firstParty, thirdParty)
-
     var merged = {}
     for (var fk in firstParty) merged[fk] = firstParty[fk]
-    // Third-party plugins never shadow first-party ids. The whole
+    // A packaged plugin the checkout also bundles is how one gets developed:
+    // under omarchy dev link the working copy wins, so this is not a warning.
+    for (var sk in system) {
+      if (merged[sk]) {
+        console.log("PluginRegistry: packaged plugin " + sk + " at " + system[sk].__sourceDir
+          + " is shadowed by the bundled copy at " + merged[sk].__sourceDir)
+        continue
+      }
+      merged[sk] = system[sk]
+    }
+    // Third-party plugins never shadow bundled or packaged ids. The whole
     // `omarchy.*` namespace is reserved for built-ins, including bar widgets
     // registered outside the manifest-based plugin registry.
     for (var tk in thirdParty) {
-      if (firstParty[tk] || String(tk).indexOf("omarchy.") === 0) {
+      if (String(tk).indexOf("omarchy.") === 0) {
         console.warn("PluginRegistry: plugin " + tk
           + " rejected: id is reserved for first-party Omarchy plugins")
         continue
       }
+      if (merged[tk]) {
+        console.warn("PluginRegistry: plugin " + tk + " at " + thirdParty[tk].__sourceDir
+          + " rejected: id is already provided by " + merged[tk].__sourceDir)
+        continue
+      }
       merged[tk] = thirdParty[tk]
     }
+
+    // Capabilities follow trust, not location: a packaged omarchy.* plugin is
+    // stamped like a bundled one, and a packaged vendor plugin like a clone.
+    var trusted = {}
+    var untrusted = {}
+    for (var mk in merged) {
+      if (merged[mk].__isFirstParty) trusted[mk] = merged[mk]
+      else untrusted[mk] = merged[mk]
+    }
+    stampHostCapabilities(trusted, untrusted)
 
     installedPlugins = merged
     registryRevision++
@@ -689,13 +727,16 @@ QtObject {
   function rescan() {
     if (scanning) return
     scanning = true
-    // $0 = first-party dir, $1 = third-party dir. Some bash versions need the explicit -- separator.
+    // $0 = first-party dir, $1 = system dir, $2 = third-party dir. Some bash
+    // versions need the explicit -- separator.
     // First-party plugins may be grouped one level deeper, e.g. panels/audio
     // or services/battery.
     // First-party bar widgets can also carry sibling manifests such as
     // widgets/Clock.manifest.json so multiple widgets can live in one source
     // directory without wrapper folders.
-    // Third-party plugins stay at the top level of ~/.config/omarchy/plugins.
+    // Packaged and third-party plugins stay at the top level of their root,
+    // one <id>/manifest.json each; the glob keeps hidden dirs (clone staging,
+    // remove backups) out.
     var script = ""
       + "emit_manifest() { local kind=\"$1\"; local manifest=\"$2\"; local sub; "
       + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"$(dirname -- \"$manifest\")\"; fi; "
@@ -707,16 +748,17 @@ QtObject {
       + "  [[ -d \"$dir\" ]] || return 0; "
       + "  while IFS= read -r manifest; do emit_manifest firstparty \"$manifest\"; done < <(find \"$dir\" -mindepth 2 -maxdepth 3 -type f \\( -name manifest.json -o -name '*.manifest.json' \\) | sort); "
       + "}; "
-      + "scan_thirdparty() { local dir=\"$1\"; "
+      + "scan_flat() { local kind=\"$1\" dir=\"$2\"; "
       + "  [[ -d \"$dir\" ]] || return 0; "
       + "  for sub in \"$dir\"/*/; do "
       + "    [[ -f \"$sub/manifest.json\" ]] || continue; "
-      + "    emit_manifest thirdparty \"$sub/manifest.json\"; "
+      + "    emit_manifest \"$kind\" \"$sub/manifest.json\"; "
       + "  done; "
       + "}; "
       + "scan_firstparty \"$0\"; "
-      + "scan_thirdparty \"$1\""
-    scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.pluginsDir]
+      + "scan_flat system \"$1\"; "
+      + "scan_flat thirdparty \"$2\""
+    scanProcess.command = ["bash", "-c", script, registry.firstPartyDir, registry.systemDir, registry.pluginsDir]
     scanProcess.running = true
   }
 

@@ -33,6 +33,20 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+# A plugin under /usr/share/omarchy/plugins was put there by a package, and
+# only pacman can take it away without pacman still believing it is there.
+refuse_packaged() {
+  local id="$1" source_dir package=""
+  source_dir=$(omarchy-plugin-catalog 2>/dev/null |
+    jq -r --arg id "$id" 'map(select(.id == $id and .system == true))[0].sourceDir // empty') || return 0
+  [[ -n $source_dir ]] || return 0
+  package=$(pacman -Qqo "$source_dir/manifest.json" 2>/dev/null | head -n1) || package=""
+  if [[ -n $package ]]; then
+    fail "plugin '$id' is installed by the $package package; remove it with: sudo pacman -Rns $package"
+  fi
+  fail "plugin '$id' is installed system-wide in $source_dir and is managed by pacman, not by this command"
+}
+
 id=""
 
 while (( $# > 0 )); do
@@ -56,9 +70,8 @@ while (( $# > 0 )); do
   esac
 done
 
-[[ -d $PLUGINS_DIR ]] || fail "no plugins installed"
-
 if [[ -z $id ]]; then
+  [[ -d $PLUGINS_DIR ]] || fail "no plugins installed"
   interactive || fail "a plugin-id is required"
   id=$(find "$PLUGINS_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) \
     ! -name '.*' -printf '%f\n' 2>/dev/null |
@@ -69,7 +82,10 @@ fi
 valid_plugin_id "$id" || fail "invalid plugin id '$id'"
 
 target="$PLUGINS_DIR/$id"
-[[ -e $target || -L $target ]] || fail "plugin '$id' is not installed"
+if [[ ! -e $target && ! -L $target ]]; then
+  refuse_packaged "$id"
+  fail "plugin '$id' is not installed"
+fi
 
 was_enabled=""
 shell_plugins=$(omarchy-shell shell listPlugins)

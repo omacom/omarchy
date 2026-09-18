@@ -1,14 +1,20 @@
 #!/bin/bash
 
-# omarchy:summary=Emit every first-party and user plugin manifest as JSON
+# omarchy:summary=Emit every first-party, packaged, and user plugin manifest as JSON
 # omarchy:group=plugin
 # omarchy:hidden=true
 
-# Walks $OMARCHY_PATH/shell/plugins and ~/.config/omarchy/plugins, reads every
-# manifest.json / *.manifest.json, and emits one JSON object per plugin with
-# computed fields (sourceDir, barWidgetPath, barPath, firstParty). This is the
-# single source of truth used by bar selection and plugin enable/clone, so
-# those commands never re-implement manifest walking.
+# Walks $OMARCHY_PATH/shell/plugins, the packaged plugin root
+# (/usr/share/omarchy/plugins, where pacman puts plugins such as atreyu), and
+# ~/.config/omarchy/plugins, reads every manifest.json / *.manifest.json, and
+# emits one JSON object per plugin with computed fields (sourceDir,
+# barWidgetPath, barPath, firstParty, system). This is the single source of
+# truth used by bar selection and plugin enable/clone, so those commands never
+# re-implement manifest walking.
+#
+# The roots are walked in the order the shell trusts them, and unique_by keeps
+# the first manifest per id: a bundled plugin shadows a packaged one, which
+# shadows a user one.
 
 set -o pipefail
 
@@ -17,6 +23,15 @@ paths=()
 while IFS= read -r manifest; do
   paths+=("$manifest")
 done < <(find "$OMARCHY_PATH/shell/plugins" -mindepth 2 -maxdepth 4 -type f \( -name manifest.json -o -name '*.manifest.json' \) | sort)
+
+system_dir="${OMARCHY_SYSTEM_PLUGINS_DIR:-/usr/share/omarchy/plugins}"
+system_dir="${system_dir%/}"
+if [[ -d $system_dir ]]; then
+  while IFS= read -r manifest; do
+    paths+=("$manifest")
+  done < <(find -L "$system_dir" -mindepth 2 -maxdepth 2 -type f -name manifest.json \
+    ! -path "$system_dir/.*/*" 2>/dev/null | sort)
+fi
 
 user_dir="$HOME/.config/omarchy/plugins"
 if [[ -d $user_dir ]]; then
@@ -31,7 +46,7 @@ if (( ${#paths[@]} == 0 )); then
   exit 0
 fi
 
-jq -n '
+jq -n --arg systemDir "$system_dir" '
   [ inputs
     | . as $manifest
     | input_filename as $manifestPath
@@ -42,6 +57,7 @@ jq -n '
         description: ($manifest.description // ""),
         kinds: ($manifest.kinds // []),
         firstParty: (($manifest.id // "") | startswith("omarchy.")),
+        system: ($manifestPath | startswith($systemDir + "/")),
         manifestPath: $manifestPath,
         sourceDir: $sourceDir,
         entryPoints: ($manifest.entryPoints // {}),

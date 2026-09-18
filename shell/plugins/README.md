@@ -9,7 +9,10 @@ First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`;
 at startup; other panels, overlays, and menus are loaded on demand.
 
 User-installed plugins live alongside these conceptually but on disk under
-`~/.config/omarchy/plugins/<plugin-id>/` rather than in this directory.
+`~/.config/omarchy/plugins/<plugin-id>/` rather than in this directory. A few
+default plugins arrive as their own package instead: pacman installs them at
+`/usr/share/omarchy/plugins/<plugin-id>/`, where an `omarchy.*` id is trusted
+like the plugins here, and a copy in this directory shadows the packaged one.
 
 | Plugin        | id                        | kinds                   | entry point                           |
 |---------------|---------------------------|-------------------------|---------------------------------------|
@@ -28,6 +31,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Power         | `omarchy.power`           | `bar-widget`            | `panels/power/Panel.qml`              |
 | Tailscale     | `omarchy.tailscale`       | `bar-widget`            | `panels/tailscale/Panel.qml`          |
 | Agents   | `omarchy.agents`     | `bar-widget`            | `agents/Panel.qml`               |
+| Atreyu        | `omarchy.atreyu`          | `bar-widget`, `overlay` | packaged: `atreyu` installs `/usr/share/omarchy/plugins/omarchy.atreyu/` |
 | Weather       | `omarchy.weather`         | `bar-widget`            | `panels/weather/BarWidget.qml`        |
 | Media         | `omarchy.media`           | `service`, `bar-widget` | `services/media/Service.qml`, `services/media/BarWidget.qml` |
 | Battery       | `omarchy.battery`         | `service`               | `services/battery/Service.qml`        |

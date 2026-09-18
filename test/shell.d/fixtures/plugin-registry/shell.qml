@@ -119,6 +119,17 @@ ShellRoot {
     scan += block("thirdparty", "/third/bad-section", manifest("third.bad-section", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "bottom" }))
     scan += block("thirdparty", "/third/schema", { schemaVersion: 2, id: "third.schema", name: "schema", version: "1.0.0", kinds: ["panel"], entryPoints: { panel: "Panel.qml" } })
     scan += block("thirdparty", "/third/bad-json", "{")
+    // Packaged plugins: pacman installs these under /usr/share/omarchy/plugins.
+    scan += block("system", "/system/omarchy.packaged-widget", manifest("omarchy.packaged-widget", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "right" }))
+    scan += block("system", "/system/omarchy.packaged-overlay", manifest("omarchy.packaged-overlay", ["overlay"], { overlay: "Overlay.qml" }))
+    var packagedAuth = manifest("omarchy.packaged-auth", ["service"], { service: "Service.qml" })
+    packagedAuth.omarchy = { capabilities: ["authentication"] }
+    scan += block("system", "/system/omarchy.packaged-auth", packagedAuth)
+    var vendorAuth = manifest("vendor.packaged", ["panel"], { panel: "Panel.qml" })
+    vendorAuth.omarchy = { capabilities: ["authentication"] }
+    scan += block("system", "/system/vendor.packaged", vendorAuth)
+    scan += block("system", "/system/omarchy.first-widget", manifest("omarchy.first-widget", ["panel"], { panel: "Panel.qml" }))
+    scan += block("thirdparty", "/third/vendor-packaged", manifest("vendor.packaged", ["bar-widget"], { barWidget: "Widget.qml" }))
 
     registry.parseScanOutput(scan)
 
@@ -134,22 +145,40 @@ ShellRoot {
       "omarchy.future-auth",
       "omarchy.grouped-panel",
       "omarchy.hybrid",
+      "omarchy.packaged-auth",
+      "omarchy.packaged-overlay",
+      "omarchy.packaged-widget",
       "third.bar",
       "third.center-widget",
       "third.panel",
       "third.right-widget",
       "third.spoofed-auth",
-      "third.widget"
-    ], "registry merges valid first-party and third-party manifests")
+      "third.widget",
+      "vendor.packaged"
+    ], "registry merges valid first-party, packaged and third-party manifests")
 
     root.assertTrue(registry.installedPlugins["omarchy.first-widget"].__isFirstParty === true, "first-party manifests are stamped")
     root.assertTrue(registry.installedPlugins["third.panel"].__isFirstParty === false, "third-party manifests are stamped")
+    root.assertTrue(registry.installedPlugins["third.panel"].__isSystem === false, "third-party manifests are not packaged")
     root.assertDeepEqual(registry.installedPlugins["omarchy.future-auth"].__hostCapabilities, ["authentication"], "trusted manifests stamp authentication capability")
     root.assertDeepEqual(registry.installedPlugins["local.future-auth"].__hostCapabilities, ["authentication"], "clones inherit trusted host capabilities")
     root.assertDeepEqual(registry.installedPlugins["third.spoofed-auth"].__hostCapabilities, [], "third-party manifests cannot self-grant host capabilities")
     root.assertEqual(registry.installedPlugins["omarchy.grouped-panel"].__sourceDir, "/first/panels/grouped", "grouped plugin source paths are preserved")
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.panel"], "panel"), "file:///third/panel/Panel.qml", "entryPointUrl resolves plugin-relative paths")
     root.assertEqual(registry.entryPointUrl(registry.installedPlugins["third.widget"], "barWidget"), "file:///third/widget/Widget.qml", "entryPointUrl resolves bar widget paths")
+
+    // A packaged omarchy.* plugin is first-party in everything but where it
+    // lives; a packaged vendor plugin is a user plugin pacman happens to own.
+    root.assertTrue(registry.installedPlugins["omarchy.packaged-widget"].__isFirstParty === true, "packaged omarchy namespace ids are first-party")
+    root.assertTrue(registry.installedPlugins["omarchy.packaged-widget"].__isSystem === true, "packaged manifests are stamped as packaged")
+    root.assertTrue(registry.installedPlugins["vendor.packaged"].__isFirstParty === false, "packaged vendor ids are not first-party")
+    root.assertTrue(registry.installedPlugins["vendor.packaged"].__isSystem === true, "packaged vendor manifests are stamped as packaged")
+    root.assertDeepEqual(registry.installedPlugins["omarchy.packaged-auth"].__hostCapabilities, ["authentication"], "packaged omarchy namespace manifests are trusted with host capabilities")
+    root.assertDeepEqual(registry.installedPlugins["vendor.packaged"].__hostCapabilities, [], "packaged vendor manifests cannot self-grant host capabilities")
+    root.assertEqual(registry.entryPointUrl(registry.installedPlugins["omarchy.packaged-widget"], "barWidget"), "file:///system/omarchy.packaged-widget/Widget.qml", "entryPointUrl resolves packaged plugin paths")
+    root.assertEqual(registry.installedPlugins["omarchy.first-widget"].__sourceDir, "/first/widgets/clock", "a bundled plugin shadows a packaged one with the same id")
+    root.assertTrue(registry.installedPlugins["omarchy.first-widget"].__isSystem === false, "a shadowed packaged plugin leaves no packaged stamp behind")
+    root.assertEqual(registry.installedPlugins["vendor.packaged"].__sourceDir, "/system/vendor.packaged", "a packaged plugin shadows a user plugin with the same id")
 
     root.assertTrue(!has("omarchy.reserved"), "third-party omarchy namespace ids are rejected")
     root.assertTrue(!has("third.unsafe"), "unsafe entry points are rejected")
@@ -161,6 +190,9 @@ ShellRoot {
     root.assertTrue(registry.isEnabled("omarchy.bar"), "built-in bar option is active by default")
     root.assertTrue(!registry.isEnabled("third.bar"), "third-party bar options start inactive")
     root.assertTrue(!registry.isEnabled("third.panel"), "third-party plugins start disabled")
+    root.assertTrue(registry.isEnabled("omarchy.packaged-overlay"), "packaged omarchy namespace plugins are implicitly enabled")
+    root.assertTrue(registry.isEnabled("omarchy.packaged-widget"), "packaged omarchy namespace widgets are loadable off the bar")
+    root.assertTrue(!registry.isEnabled("vendor.packaged"), "packaged vendor plugins start disabled")
     root.assertEqual(registry.resolveEnabledId("omarchy.first-widget"), "omarchy.first-widget", "inactive clones do not replace their source id")
 
     registry.setEnabled("third.bar", true)
@@ -451,6 +483,23 @@ ShellRoot {
     root.assertTrue(root.config.disabledPlugins === undefined, "disabling a multi-kind widget records nothing else")
     root.assertTrue(registry.isEnabled("omarchy.hybrid"), "a multi-kind built-in remains loadable without its widget")
 
+    // A packaged omarchy.* plugin switches off and on the way a bundled one
+    // does, and its widget is placed the way a migration asks for it: next to
+    // a neighbour when the bar has one, in its default section otherwise.
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+    registry.setEnabled("omarchy.packaged-overlay", false)
+    root.assertDeepEqual(root.config.disabledPlugins, ["omarchy.packaged-overlay"], "disabling a packaged omarchy namespace plugin records it")
+    root.assertTrue(!registry.isEnabled("omarchy.packaged-overlay"), "a recorded packaged plugin is disabled")
+    registry.setEnabled("omarchy.packaged-overlay", true)
+    root.assertTrue(root.config.disabledPlugins === undefined, "re-enabling a packaged plugin drops the record")
+    root.assertDeepEqual(root.config.plugins, [], "a packaged omarchy namespace plugin needs no plugins entry")
+    root.assertEqual(registry.putBarWidget("omarchy.packaged-widget", { before: "omarchy.grouped-panel" }), "", "put places a packaged widget against a neighbour the bar lacks")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.packaged-widget" }], "a packaged widget falls back to its default section")
+    registry.setEnabled("vendor.packaged", true)
+    root.assertDeepEqual(root.config.plugins, [{ id: "vendor.packaged" }], "enabling a packaged vendor plugin writes the plugins array")
+    registry.setEnabled("vendor.packaged", false)
+    root.assertDeepEqual(root.config.plugins, [], "disabling a packaged vendor plugin removes its entry")
+
     var cloneBase = registry.pluginsDir + "/dhh.clock"
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/BarWidget.qml"), "dhh.clock", "personal clone changes are watched")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.clock/BarWidget.qml"), "acme.clock", "installed plugin changes are watched")
@@ -464,6 +513,7 @@ ShellRoot {
   PluginRegistry {
     id: registry
     firstPartyDir: ""
+    systemDir: ""
     pluginsDir: Quickshell.env("HOME") + "/.config/omarchy/plugins"
     shellConfigProvider: function() { return root.config }
     shellConfigMutator: function(mutator) {

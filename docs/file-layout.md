@@ -78,6 +78,9 @@ install/**                     ──►  omarchy             /usr/share/omarchy
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/
 themes/**                      ──►  omarchy             /usr/share/omarchy/themes/
 shell/**                       ──►  omarchy             /usr/share/omarchy/shell/
+                                                        (packaged plugins from their own
+                                                        packages, e.g. atreyu, land beside it
+                                                        in /usr/share/omarchy/plugins/<id>/)
 version                        ──►  omarchy             /usr/share/omarchy/version
                                                         + /etc/skel/.local/state/omarchy/migrations/*
 

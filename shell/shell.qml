@@ -28,6 +28,9 @@ ShellRoot {
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
   readonly property string shellPath: omarchyPath + "/shell"
   readonly property string firstPartyPluginsDir: shellPath + "/plugins"
+  // Plugins that arrive as packages (atreyu) rather than in this checkout.
+  // Deliberately not under OMARCHY_PATH so a dev-linked shell sees them too.
+  readonly property string systemPluginsDir: Quickshell.env("OMARCHY_SYSTEM_PLUGINS_DIR") || "/usr/share/omarchy/plugins"
   readonly property string defaultsPath: omarchyPath + "/config/omarchy/shell.json"
   readonly property string userConfigPath: home + "/.config/omarchy/shell.json"
 
@@ -147,9 +150,11 @@ ShellRoot {
       "omarchyPath=" + shell.omarchyPath,
       "shellDir=" + Quickshell.shellDir,
       "firstPartyPluginsDir=" + shell.firstPartyPluginsDir,
+      "systemPluginsDir=" + shell.systemPluginsDir,
       "defaultsPath=" + shell.defaultsPath,
       "userConfigPath=" + shell.userConfigPath)
     pluginRegistry.firstPartyDir = shell.firstPartyPluginsDir
+    pluginRegistry.systemDir = shell.systemPluginsDir
     pluginRegistry.shellConfigProvider = function() { return shell.shellConfig }
     pluginRegistry.shellConfigMutator = function(mutate) { shell.mutateShellConfig(mutate) }
     // PluginRegistry.ensureUserDir() runs in its own Component.onCompleted and
@@ -319,6 +324,7 @@ ShellRoot {
     var copy = JSON.parse(JSON.stringify(manifest))
     delete copy.__sourceDir
     delete copy.__isFirstParty
+    delete copy.__isSystem
     delete copy.__hostCapabilities
     return copy
   }
@@ -1676,6 +1682,9 @@ ShellRoot {
           // work it out again.
           canDisable: !isBarOption,
           firstParty: !!plugins[id].__isFirstParty,
+          // Installed by pacman under /usr/share/omarchy/plugins, so it is
+          // updated by omarchy update and is not a checkout to pull or delete.
+          system: !!plugins[id].__isSystem,
           clonedFrom: clonedFrom
         })
       }

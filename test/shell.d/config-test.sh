@@ -42,10 +42,11 @@ jq -e '
   def ids: map(.id // .);
   (.bar.layout.right | ids) as $ids |
   ($ids | index("omarchy.tray")) as $tray |
+  ($ids | index("omarchy.atreyu")) as $atreyu |
   ($ids | index("omarchy.agents")) as $agents |
-  $tray != null and $agents == $tray + 1
+  $tray != null and $atreyu == $tray + 1 and $agents == $atreyu + 1
 ' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default right layout keeps agents next to the tray"
+pass "default right layout keeps atreyu and agents next to the tray"
 
 ROOT="$ROOT" python3 <<'PY'
 import json
@@ -67,11 +68,17 @@ entries = []
 for section in ("left", "center", "right"):
   entries.extend(config["bar"]["layout"][section])
 
+# Default widgets that arrive as their own package under
+# /usr/share/omarchy/plugins rather than in this checkout, so there is no
+# bundled manifest to hold them to. The bar renders an empty slot for an id
+# nothing provides, which is what an ISO or a dev box without the package sees.
+packaged = {"omarchy.atreyu"}
+
 missing = []
 bad = []
 for entry in entries:
   widget_id = entry["id"] if isinstance(entry, dict) else str(entry)
-  if not widget_id.startswith("omarchy."):
+  if not widget_id.startswith("omarchy.") or widget_id in packaged:
     continue
 
   row = manifests.get(widget_id)

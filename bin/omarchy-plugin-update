@@ -36,6 +36,20 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+# A plugin under /usr/share/omarchy/plugins is a package, and pacman already
+# carries it forward with every omarchy update.
+refuse_packaged() {
+  local id="$1" source_dir package=""
+  source_dir=$(omarchy-plugin-catalog 2>/dev/null |
+    jq -r --arg id "$id" 'map(select(.id == $id and .system == true))[0].sourceDir // empty') || return 0
+  [[ -n $source_dir ]] || return 0
+  package=$(pacman -Qqo "$source_dir/manifest.json" 2>/dev/null | head -n1) || package=""
+  if [[ -n $package ]]; then
+    fail "plugin '$id' is installed by the $package package and is updated by omarchy update"
+  fi
+  fail "plugin '$id' is installed system-wide in $source_dir and is updated by pacman, not by this command"
+}
+
 update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
@@ -102,16 +116,18 @@ while (( $# > 0 )); do
   esac
 done
 
-[[ -d $PLUGINS_DIR ]] || fail "no plugins installed"
-
 targets=()
 if [[ -n $id ]]; then
   valid_plugin_id "$id" || fail "invalid plugin id '$id'"
-  [[ -d $PLUGINS_DIR/$id ]] || fail "plugin '$id' is not installed"
+  if [[ ! -d $PLUGINS_DIR/$id ]]; then
+    refuse_packaged "$id"
+    fail "plugin '$id' is not installed"
+  fi
   [[ -d $PLUGINS_DIR/$id/.git ]] ||
     fail "plugin '$id' is not a git checkout, so there is nothing to pull from"
   targets=("$id")
 else
+  [[ -d $PLUGINS_DIR ]] || fail "no plugins installed"
   for dir in "$PLUGINS_DIR"/*/; do
     [[ -d $dir/.git ]] || continue
     targets+=("$(basename "$dir")")

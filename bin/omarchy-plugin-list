@@ -36,7 +36,7 @@ jq -r '
   .[] |
   [ .id,
     (if .enabled then "enabled" else "disabled" end),
-    (if .firstParty then "first-party" else "third-party" end),
+    (if .system then "packaged" elif .firstParty then "first-party" else "third-party" end),
     ((.kinds // []) | join(",")),
     (.name // "")
   ] | @tsv

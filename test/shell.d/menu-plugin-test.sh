@@ -87,6 +87,20 @@ pick remove "$(printf 'Clock\ttester.clock')"
   || fail "picker removes the plugin whose row was picked" "$CALLS"
 pass "picker removes the plugin whose row was picked"
 
+# A plugin pacman installed is not a checkout to delete, whatever its id says.
+cat >"$TMPDIR/plugins.json" <<'JSON'
+[
+  {"id": "omarchy.atreyu", "name": "Atreyu", "kinds": ["bar-widget", "overlay"], "enabled": true, "active": false, "canDisable": true, "firstParty": true, "system": true},
+  {"id": "vendor.packaged", "name": "Packaged", "kinds": ["panel"], "enabled": false, "active": false, "canDisable": true, "firstParty": false, "system": true},
+  {"id": "acme.weather", "name": "Weather", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false, "system": false}
+]
+JSON
+
+pick remove "$(printf 'Weather\tacme.weather')"
+[[ $ROWS == *"Weather"* && $ROWS != *"Atreyu"* && $ROWS != *"Packaged"* ]] \
+  || fail "remove picker keeps packaged plugins out" "$ROWS"
+pass "remove picker keeps packaged plugins out"
+
 cat >"$TMPDIR/plugins.json" <<'JSON'
 [
   {"id": "acme.weather", "name": "Weather", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false}

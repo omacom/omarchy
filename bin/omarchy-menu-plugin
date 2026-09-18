@@ -13,7 +13,7 @@ case "${1:-}" in
   enable) filter='(.enabled | not)' ;;
   disable) filter='.canDisable and .enabled' ;;
   clone) filter='.firstParty and (.id as $id | ($plugins | map(.clonedFrom // "") | index($id)) == null)' ;;
-  remove) filter='(.firstParty | not)' ;;
+  remove) filter='(.firstParty | not) and (.system | not)' ;;
   *)
     echo "Usage: omarchy-menu-plugin <enable|disable|clone|remove>" >&2
     exit 1
