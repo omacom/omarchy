@@ -452,21 +452,6 @@ Item {
     }
   }
 
-  // A real suspend/resume (lid close, systemctl suspend) leaves the lock
-  // surface showing but with no keyboard focus reclaimed -- unlike idle-blank
-  // wake, nothing here currently reacts to the machine actually coming back
-  // from sleep, only to user pointer activity (see LockView's wakeRequested).
-  // Watch logind's own resume signal and nudge focus back the same way a
-  // click on the lock screen already does.
-  Process {
-    id: resumeMonitor
-    running: true
-    command: ["bash", "-c", "omarchy-system-resume-monitor"]
-    stdout: SplitParser {
-      onRead: function(line) { root.handleSystemResume() }
-    }
-  }
-
   Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
@@ -640,6 +625,18 @@ Item {
 
     function hidePreview(): string {
       root.previewVisible = false
+      return "ok"
+    }
+
+    // Called by omarchy-system-resume-monitor (a systemd-managed service, not
+    // a QML Process here) each time the system resumes from suspend. A real
+    // suspend/resume leaves the lock surface showing but with no keyboard
+    // focus reclaimed -- unlike idle-blank wake, nothing here otherwise reacts
+    // to the machine actually coming back from sleep, only to user pointer
+    // activity (see LockView's wakeRequested). This nudges focus back the
+    // same way a click on the lock screen already does.
+    function resume(): string {
+      root.handleSystemResume()
       return "ok"
     }
   }

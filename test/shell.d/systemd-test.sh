@@ -31,6 +31,33 @@ grep -Fx 'systemctl --user daemon-reload' "$first_run_units" >/dev/null
 grep -F 'omarchy-sleep-lock.service' "$first_run_units" >/dev/null
 pass "first-run reloads and enables the sleep lock service"
 
+resume_service="$ROOT/default/systemd/user/omarchy-resume-focus-monitor.service"
+grep -Fx 'ExecStart=/usr/bin/omarchy-system-resume-monitor' "$resume_service" >/dev/null
+pass "resume focus monitor service uses the package-backed monitor path"
+
+grep -Fx 'After=dbus.socket wayland-session-waitenv.service' "$resume_service" >/dev/null ||
+  fail "resume focus monitor starts before UWSM imports the graphical session environment"
+grep -Fx 'PartOf=graphical-session.target' "$resume_service" >/dev/null ||
+  fail "resume focus monitor survives logout with a stale Wayland environment"
+grep -Fx 'ConditionEnvironment=OMARCHY_PATH' "$resume_service" >/dev/null ||
+  fail "resume focus monitor can start without the Omarchy shell path"
+grep -Fx 'ConditionEnvironment=WAYLAND_DISPLAY' "$resume_service" >/dev/null ||
+  fail "resume focus monitor can start without a Wayland display"
+pass "resume focus monitor service follows the initialized graphical session"
+
+# A plain QML Process child can be orphaned if the shell is torn down
+# abruptly (the bug this service exists to avoid -- see
+# bin/omarchy-system-resume-monitor); Restart=always plus systemd's own
+# cgroup-based teardown is what guarantees the dbus-monitor child never
+# outlives the unit.
+grep -Fx 'Restart=always' "$resume_service" >/dev/null ||
+  fail "resume focus monitor does not restart after a crash"
+pass "resume focus monitor restarts after a crash"
+
+grep -F 'omarchy-resume-focus-monitor.service' "$first_run_units" >/dev/null ||
+  fail "first-run does not enable the resume focus monitor service"
+pass "first-run reloads and enables the resume focus monitor service"
+
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
 grep -F '6870b232a6c0474b59187882e6d25ae771bba735098bcbedef8a2b73b97e2b6a' "$upgrade_to_quattro" >/dev/null
 grep -F 'bcd1a76cb5c63514922bc5e11af22ae480fc6d06a99863364e02bdf3c7bdceaf' "$upgrade_to_quattro" >/dev/null

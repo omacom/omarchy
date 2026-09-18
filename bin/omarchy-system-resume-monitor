@@ -1,14 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Print a line each time the system resumes from suspend
+# omarchy:summary=Monitor system resume from suspend and nudge lock screen focus
 # omarchy:group=system
 # omarchy:hidden=true
 
+# Unlike omarchy-system-sleep-monitor, this has no inhibitor to hold and no
+# single event to wait for: it runs for as long as the service does and calls
+# into the shell on every resume. Run under a systemd service (see
+# default/systemd/user/omarchy-resume-focus-monitor.service) rather than as a
+# Quickshell Process, so a restart or crash cannot orphan the dbus-monitor
+# child -- systemd kills the whole unit's cgroup, where a plain child process
+# of the shell can outlive it if the shell itself is torn down abruptly. The
+# coproc/trap below is a second, independent line of defense so the script
+# doesn't rely on that alone: it reaps its own producer even when run outside
+# systemd (as in tests, or a manual invocation).
 consume_resume_events() {
   local line
 
   while IFS= read -r line; do
-    [[ $line == *"boolean false"* ]] && printf 'resume\n'
+    [[ $line == *"boolean false"* ]] && omarchy-shell lock resume >/dev/null 2>&1
   done
 }
 
