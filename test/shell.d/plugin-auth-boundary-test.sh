@@ -57,10 +57,18 @@ vm.runInContext(
 )
 const service = { destroy() {} }
 store.put('omarchy.lock', service)
+assert(
+  store.get('omarchy.lock') === service,
+  'authentication store exposes own-service lookup'
+)
 store.destroy('omarchy.lock')
 assert(
   !store.has('omarchy.lock') && store.isTrusted('omarchy.lock'),
   'authentication classification survives service teardown'
+)
+assert(
+  store.get('omarchy.lock') === null,
+  'destroyed authentication services are not returned by get'
 )
 JS
 
@@ -70,6 +78,16 @@ qml_matches "$shell_qml" 'item\.shell *= *shell\.pluginShellFor\( *panelEntry\.m
   fail "panel plugins receive a scoped shell facade"
 qml_matches "$shell_qml" 'target\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||
   fail "full-bar plugins receive a scoped shell facade"
+qml_matches "$shell_qml" 'entrySettings: *shell\.pluginEntrySettings\( *key *\)' ||
+  fail "scoped shell facades do not receive their own entry settings"
+qml_matches "$shell_qml" 'shellApi\.entrySettings *= *shell\.pluginEntrySettings\(' ||
+  fail "scoped shell entry settings do not refresh with shell config"
+qml_matches "$plugin_shell_api" 'property +var +entrySettings' ||
+  fail "PluginShellApi does not expose entrySettings"
+qml_matches "$shell_qml" 'item\.service *= *shell\.pluginServiceFor\( *panelEntry\.pluginId, *panelEntry\.pluginId *\)' ||
+  fail "panel plugins do not resolve their own authentication service"
+qml_matches "$shell_qml" 'AuthServiceStore\.has\( *id *\) *\? *AuthServiceStore\.get\( *id *\) *: *null' ||
+  fail "own authentication services are not resolved from AuthServiceStore"
 pass "third-party entry points receive scoped shell facades"
 
 if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
