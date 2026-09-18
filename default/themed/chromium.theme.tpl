@@ -1,1 +1,1 @@
-{{ background_rgb }}
+{{ chrome_seed_rgb }}

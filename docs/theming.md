@@ -143,6 +143,8 @@ For a color key such as `accent = "#7aa2f7"`:
 | `{{ accent_strip }}` | `7aa2f7` |
 | `{{ accent_rgb }}` | `122,162,247` |
 
+`chromium.theme` is generated from the background as a clamped chrome seed rather than the raw color: Chromium derives the browser chrome color from that seed by adjusting lightness, and near-black and near-white degenerate seeds are neutralized so a tinted background keeps near-neutral chrome.
+
 ### Color mixing
 
 `mix`, `mix_strip`, and `mix_rgb` blend two hex colors by a fraction or
