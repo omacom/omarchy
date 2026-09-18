@@ -104,3 +104,60 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+# A restart that lands while logind is still working through a sleep operation
+# cannot take a delay inhibitor. The monitor must wait the operation out rather
+# than exiting 1 and burning through the unit's StartLimitBurst.
+busctl_calls="$tmpdir/busctl-calls"
+inhibit_marker="$tmpdir/inhibit-marker"
+rm -f "$busctl_calls" "$inhibit_marker" "$producer_pid_file" "$lock_log"
+
+cat >"$mock_bin/busctl" <<'SH'
+#!/bin/bash
+
+count=$(<"$BUSCTL_CALLS")
+count=$((count + 1))
+echo "$count" >"$BUSCTL_CALLS"
+
+if (( count < 3 )); then
+  echo "b true"
+else
+  echo "b false"
+fi
+SH
+
+cat >"$mock_bin/systemd-inhibit" <<'SH'
+#!/bin/bash
+
+cp "$BUSCTL_CALLS" "$INHIBIT_MARKER"
+
+while [[ $1 == --* ]]; do
+  shift
+done
+
+exec "$@"
+SH
+
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+echo "$$" >"$PRODUCER_PID_FILE"
+printf '   boolean true\n'
+exec sleep 30
+SH
+
+chmod +x "$mock_bin/busctl" "$mock_bin/systemd-inhibit" "$mock_bin/dbus-monitor"
+echo 0 >"$busctl_calls"
+
+OMARCHY_PATH="$mock_omarchy" \
+  PATH="$mock_bin:$PATH" \
+  PRODUCER_PID_FILE="$producer_pid_file" \
+  LOCK_LOG="$lock_log" \
+  BUSCTL_CALLS="$busctl_calls" \
+  INHIBIT_MARKER="$inhibit_marker" \
+  "$sleep_monitor"
+
+(( $(<"$inhibit_marker") >= 3 )) ||
+  fail "sleep monitor waits for an in-flight sleep operation before inhibiting" \
+    "inhibited after $(<"$inhibit_marker") checks"
+pass "sleep monitor waits for an in-flight sleep operation before inhibiting"
