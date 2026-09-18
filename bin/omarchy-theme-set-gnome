@@ -25,10 +25,59 @@ else
   gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark"
 fi
 
-# Change gnome icon theme color
-GNOME_ICONS_THEME=$HOME/.local/state/omarchy/current/theme/icons.theme
+icon_theme_exists() {
+  local theme="$1" base
+  local data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+  local -a data_dirs=()
+
+  [[ -n $theme && $theme != */* ]] || return 1
+
+  for base in "$HOME/.icons" "$data_home/icons"; do
+    [[ -f "$base/$theme/index.theme" ]] && return 0
+  done
+
+  IFS=: read -r -a data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for base in "${data_dirs[@]}"; do
+    [[ -n $base && -f "$base/icons/$theme/index.theme" ]] && return 0
+  done
+
+  return 1
+}
+
+resolve_icon_theme() {
+  local configured="$1" fallback
+  local -a fallbacks=(Yaru-blue Adwaita hicolor)
+
+  if icon_theme_exists "$configured"; then
+    printf '%s\n' "$configured"
+    return 0
+  fi
+
+  if [[ -n $configured ]]; then
+    echo "Configured icon theme '$configured' is not installed; using a fallback." >&2
+    # Preserve the implicit Adwaita fallback that invalid theme names used to
+    # receive, while making it explicit enough for GTK to resolve safely.
+    fallbacks=(Adwaita Yaru-blue hicolor)
+  fi
+
+  for fallback in "${fallbacks[@]}"; do
+    if icon_theme_exists "$fallback"; then
+      printf '%s\n' "$fallback"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+GNOME_ICONS_THEME="$THEME_DIR/icons.theme"
+configured_icon_theme=""
 if [[ -f $GNOME_ICONS_THEME ]]; then
-  gsettings set org.gnome.desktop.interface icon-theme "$(<$GNOME_ICONS_THEME)"
+  IFS= read -r configured_icon_theme <"$GNOME_ICONS_THEME" || true
+fi
+
+if icon_theme=$(resolve_icon_theme "$configured_icon_theme"); then
+  gsettings set org.gnome.desktop.interface icon-theme "$icon_theme"
 else
-  gsettings set org.gnome.desktop.interface icon-theme "Yaru-blue"
+  echo "No installed GNOME icon theme fallback was found; leaving the current icon theme unchanged." >&2
 fi
