@@ -28,7 +28,7 @@ _Trigger > Speed Test > Network Speed Test_ measures your actual up and down spe
 
 ## The firewall
 
-The firewall is on by default and blocks all incoming traffic, with one exception: port 53317, so [LocalSend](22-guis.md) works out of the box.
+The firewall is on by default and blocks all incoming traffic, with one exception: port 53317 from private networks (RFC1918 and link-local, plus IPv6 link-local and ULA), so [LocalSend](22-guis.md) works on the LAN.
 
 SSH is off until you turn it on with _Setup > Security > SSHD_, which starts the daemon, opens port 22 rate-limited against brute force, and authorizes a key. Docker is locked down too, so containers can't accidentally expose themselves to the world. See [security](48-security.md) for the whole story.
 
