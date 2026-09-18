@@ -3,7 +3,7 @@
 # omarchy:summary=Transcode an image into ASCII/Unicode art text
 # omarchy:group=transcode
 # omarchy:name=ascii
-# omarchy:args=<input-image.svg|png> <output-path> [--width <columns>] [--height <rows>] [--mode <braille|block>] [--threshold <percent>] [--invert]
+# omarchy:args=<input-image.svg|png> <output-path> [--width <columns>] [--height <rows>] [--mode <braille|block|color>] [--threshold <percent>] [--invert]
 # omarchy:examples=omarchy transcode ascii ~/logo.svg /tmp/logo.txt | omarchy transcode ascii ~/logo.png ~/.config/omarchy/branding/screensaver.txt --width 80
 
 set -o pipefail
@@ -17,7 +17,9 @@ Transcodes an image into ASCII/Unicode art text.
 Options:
   -w, --width <columns>       Maximum output width in terminal columns (default: 80)
   -H, --height <rows>         Maximum output height in terminal rows (default: 26)
-  -m, --mode <braille|block>  Output style (default: braille)
+  -m, --mode <braille|block|color>
+                              Output style (default: braille); color keeps the
+                              image's colours as truecolour quadrant blocks
   -t, --threshold <percent>   Pixel threshold from 0-100 (default: 50)
       --invert                Treat light pixels as the logo instead of dark pixels
       --no-trim               Preserve surrounding whitespace/background
@@ -91,8 +93,8 @@ if [[ -z $image_path || -z $output_path ]]; then
   exit 1
 fi
 
-if [[ $mode != "braille" && $mode != "block" ]]; then
-  echo "Invalid mode: $mode (expected braille or block)" >&2
+if [[ $mode != "braille" && $mode != "block" && $mode != "color" ]]; then
+  echo "Invalid mode: $mode (expected braille, block or color)" >&2
   exit 1
 fi
 
@@ -101,12 +103,102 @@ if [[ ! -f $image_path ]]; then
   exit 1
 fi
 
-if [[ $mode == "braille" ]]; then
+if [[ $mode == "braille" || $mode == "color" ]]; then
   pixel_width=$((width * 2))
   pixel_height=$((height * 4))
 else
   pixel_width=$width
   pixel_height=$((height * 2))
+fi
+
+if [[ $mode == "color" ]]; then
+  # Fit inside the same 2x4-per-cell box as braille, then halve the height so
+  # every cell gets a 2x2 colour sample. A Python pass picks, per cell, the
+  # quadrant glyph and the two colours that best split the sample.
+  # First frame only: an animated WebP would otherwise write several rasters.
+  color_args=(-limit memory 256MiB -limit map 512MiB -background black "$image_path" -auto-orient -delete 1--1
+    -alpha remove -alpha off -colorspace sRGB)
+  if [[ $trim == "true" ]]; then
+    color_args+=(-bordercolor black -border 1 -trim +repage)
+  fi
+  tmp_output=$(mktemp)
+  tmp_raster=$(mktemp)
+  trap 'rm -f "$tmp_output" "$tmp_raster"' EXIT
+  color_args+=(-filter Lanczos -resize "${pixel_width}x${pixel_height}" -resize '100%x50%!' -depth 8 "ppm:$tmp_raster")
+  if ! magick "${color_args[@]}" || ! python3 - "$tmp_raster" <<'PY' >"$tmp_output"; then
+import sys
+
+QUADRANTS = {1: "▘", 2: "▝", 3: "▀", 4: "▖", 5: "▌", 6: "▞", 7: "▛", 8: "▗", 9: "▚", 10: "▐",
+             11: "▜", 12: "▄", 13: "▙", 14: "▟", 15: "█"}
+with open(sys.argv[1], "rb") as raster:
+  data = raster.read(64 * 1024 * 1024)
+fields, pos = [], 0
+while len(fields) < 4:
+  while data[pos:pos + 1].isspace():
+    pos += 1
+  if data[pos:pos + 1] == b"#":
+    pos = data.index(b"\n", pos) + 1
+    continue
+  start = pos
+  while data[pos:pos + 1] and not data[pos:pos + 1].isspace():
+    pos += 1
+  fields.append(data[start:pos])
+if fields[0] != b"P6" or fields[3] != b"255":
+  sys.exit("unexpected raster format")
+width, height = int(fields[1]), int(fields[2])
+pixels = data[pos + 1:]
+# Playback allows 512 columns by 128 rows, so two samples per cell each way.
+if not (0 < width <= 1024 and 0 < height <= 256) or len(pixels) != width * height * 3:
+  sys.exit("unexpected raster size")
+
+
+def mean(colors):
+  return tuple(sum(c[i] for c in colors) // len(colors) for i in range(3))
+
+
+def error(colors, center):
+  return sum((c[i] - center[i]) ** 2 for c in colors for i in range(3))
+
+
+def px(x, y):
+  # Repeat the edge sample when a fitted raster has an incomplete 2x2 cell.
+  i = (min(y, height - 1) * width + min(x, width - 1)) * 3
+  return pixels[i], pixels[i + 1], pixels[i + 2]
+
+
+for cy in range((height + 1) // 2):
+  line, current = [], None
+  for cx in range((width + 1) // 2):
+    samples = [px(cx * 2, cy * 2), px(cx * 2 + 1, cy * 2), px(cx * 2, cy * 2 + 1), px(cx * 2 + 1, cy * 2 + 1)]
+    whole = mean(samples)
+    best = (error(samples, whole), 15, whole, whole)
+    if best[0]:
+      for mask in range(1, 15):
+        on = [samples[i] for i in range(4) if mask & (1 << i)]
+        off = [samples[i] for i in range(4) if not mask & (1 << i)]
+        fg, bg = mean(on), mean(off)
+        err = error(on, fg) + error(off, bg)
+        if err < best[0]:
+          best = (err, mask, fg, bg)
+    _, mask, fg, bg = best
+    if (fg, bg) != current:
+      line.append("\x1b[38;2;%d;%d;%d;48;2;%d;%d;%dm" % (fg + bg))
+      current = (fg, bg)
+    line.append(QUADRANTS[mask])
+  line.append("\x1b[0m")
+  print("".join(line))
+PY
+    echo "Unable to convert image: $image_path" >&2
+    exit 1
+  fi
+  if [[ ! -s $tmp_output ]]; then
+    echo "No image pixels found in: $image_path" >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$output_path")"
+  cp "$tmp_output" "$output_path"
+  echo "Wrote colour block art to $output_path"
+  exit 0
 fi
 
 alpha_range=$(magick -background none "$image_path" -alpha extract -format '%[fx:minima] %[fx:maxima]' info: 2>/dev/null) || {

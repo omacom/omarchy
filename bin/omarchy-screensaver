@@ -2,14 +2,54 @@
 
 # omarchy:summary=Run the Omarchy screensaver using random effects from TTE.
 
+artworks=("$HOME/.config/omarchy/branding/screensaver.txt")
+playback_directory=""
+
+cleanup_artwork() {
+  [[ -z $playback_directory ]] || rm -rf -- "$playback_directory"
+}
+trap cleanup_artwork EXIT
+trap 'exit 0' SIGINT SIGTERM SIGHUP SIGQUIT
+
+# No setting preserves the existing, live-editable single-file behavior.
+source_path=$(jq -er '.screensaver.source | select(type == "string" and length > 0)' "$HOME/.config/omarchy/shell.json" 2>/dev/null) || source_path=""
+if [[ -n $source_path ]]; then
+  if playback_directory=$(mktemp -d); then
+    if timeout 5s omarchy-screensaver-prepare "$source_path" "$playback_directory"; then
+      artworks=("$playback_directory"/*.txt)
+    fi
+  fi
+fi
+[[ -s ${artworks[0]} ]] || artworks=("$OMARCHY_PATH/logo.txt")
+artwork_index=0
+effect_pid=""
+
 screensaver_in_focus() {
-  hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
+  local window class
+  window=$(hyprctl activewindow -j 2>/dev/null) || return 0
+  class=$(jq -er '.class | select(type == "string" and length > 0)' <<<"$window" 2>/dev/null) || return 0
+  [[ $class == "org.omarchy.screensaver" ]]
 }
 
 exit_screensaver() {
+  trap "" SIGINT SIGTERM SIGHUP SIGQUIT
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
-  pkill -x ttfx 2>/dev/null
-  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  if [[ -n $effect_pid ]]; then
+    kill "$effect_pid" 2>/dev/null || true
+    for ((attempt = 0; attempt < 20; attempt++)); do
+      kill -0 "$effect_pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$effect_pid" 2>/dev/null; then kill -KILL "$effect_pid" 2>/dev/null || true; fi
+    wait "$effect_pid" 2>/dev/null || true
+  fi
+  # Close actual screensaver windows, never processes whose command lines merely
+  # contain the class name. Each window's renderer reaps its own effect child.
+  while IFS= read -r address; do
+    [[ $address =~ ^0x[[:xdigit:]]+$ ]] || continue
+    hyprctl dispatch "hl.dsp.window.close({ window = \"address:$address\" })" >/dev/null 2>&1 ||
+      hyprctl dispatch closewindow "address:$address" >/dev/null 2>&1 || true
+  done < <(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class == "org.omarchy.screensaver") | .address')
   exit 0
 }
 
@@ -19,8 +59,6 @@ trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
 printf '\033]11;rgb:00/00/00\007'  # Set background color to black
 
 hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
-
-tty=$(tty 2>/dev/null)
 
 # Terminals allocate the pty at the default 80x24 and only resize it once the
 # compositor has told the window how big it is. ttfx measures the terminal once,
@@ -36,13 +74,30 @@ wait_for_terminal_resize() {
 wait_for_terminal_resize
 
 while true; do
-  ttfx -i ~/.config/omarchy/branding/screensaver.txt \
+  # Artwork carrying colour sequences settles on its own colours after the
+  # effect (dynamic). Plain text keeps the effect's final gradient (ignore);
+  # dynamic would settle it on the terminal default instead.
+  color_handling=ignore
+  if grep -q -F $'\e[' -- "${artworks[artwork_index]}"; then
+    color_handling=dynamic
+  fi
+  ttfx -i "${artworks[artwork_index]}" \
+    --existing-color-handling "$color_handling" \
     --frame-rate 120 --canvas-width 0 --canvas-height 0 --reuse-canvas --anchor-canvas c --anchor-text c\
     --random-effect --no-eol --no-restore-cursor &
 
-  while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
+  effect_pid=$!
+
+  while kill -0 "$effect_pid" 2>/dev/null; do
     if read -n1 -t 1 || ! screensaver_in_focus; then
       exit_screensaver
     fi
   done
+  if ! wait "$effect_pid"; then
+    # A broken effect must neither busy-loop nor close the idle window.
+    read -n1 -t 1 && exit_screensaver
+  fi
+  effect_pid=""
+  screensaver_in_focus || exit_screensaver
+  artwork_index=$(( (artwork_index + 1) % ${#artworks[@]} ))
 done
