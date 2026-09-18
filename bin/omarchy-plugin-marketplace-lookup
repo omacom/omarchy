@@ -1,0 +1,111 @@
+#!/bin/bash
+
+# omarchy:summary=Look up the plugin marketplace's verified snapshot for git URLs
+# omarchy:group=plugin
+# omarchy:args=<git-url>...
+# omarchy:hidden=true
+
+# Prints one line per URL, in argument order: "<state> <verified-commit>
+# <upstream-commit>", with "-" standing in for an unknown commit. States:
+#
+#   verified     the marketplace lists a verified snapshot for this repository
+#   unverified   the repository is listed but has no verified snapshot
+#   unlisted     the repository is not a listed GitHub plugin repository
+#   unreachable  the catalog could not be fetched or parsed
+#
+# The marketplace only lists GitHub repositories, so the catalog is fetched at
+# most once, and only when some URL names GitHub. Verification means the
+# marketplace's automated checks passed for that exact commit; it is not a
+# security audit, and callers should not present it as one.
+
+set -euo pipefail
+
+CATALOG_URL="${OMARCHY_PLUGIN_CATALOG_URL:-https://plugins.omarchy.org/catalog.json}"
+
+fail() {
+  echo "omarchy-plugin-marketplace-lookup: $*" >&2
+  exit 1
+}
+
+# Reduce the git URL forms people paste to the catalog's canonical, lowercased
+# https://github.com/<owner>/<repo>. Anything that does not name GitHub fails.
+github_repo() {
+  local url="$1"
+  local path
+
+  case "$url" in
+  https://github.com/* | http://github.com/* | https://www.github.com/*)
+    path="${url#*github.com/}"
+    ;;
+  git@github.com:*)
+    path="${url#git@github.com:}"
+    ;;
+  ssh://git@github.com/*)
+    path="${url#ssh://git@github.com/}"
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+
+  path="${path%/}"
+  path="${path%.git}"
+  [[ $path =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || return 1
+  printf 'https://github.com/%s\n' "${path,,}"
+}
+
+catalog_file=""
+catalog_state="unfetched"
+
+fetch_catalog() {
+  catalog_file=$(mktemp)
+  trap 'rm -f "$catalog_file"' EXIT
+
+  if curl -fsSL --compressed --max-time 30 -o "$catalog_file" "$CATALOG_URL" 2>/dev/null &&
+    jq -e '.plugins | type == "array"' "$catalog_file" >/dev/null 2>&1; then
+    catalog_state="ok"
+  else
+    catalog_state="unreachable"
+  fi
+}
+
+# Only a single root-plugin listing is something `omarchy plugin add` can
+# install, so a repository listed only as a suite or monorepo, or listed more
+# than once, counts as listed without a usable verified snapshot.
+lookup() {
+  jq -r --arg repo "$1" '
+    def sha: if type == "string" and test("^[0-9a-f]{40}$") then . else null end;
+    [ .plugins[]
+      | select(.sourceType == "community")
+      | select((.repo // "" | ascii_downcase | rtrimstr("/") | rtrimstr(".git")) == $repo) ] as $listed
+    | [ $listed[] | select(.repositoryLayout == "root-plugin") ] as $roots
+    | if ($listed | length) == 0 then "unlisted - -"
+      elif ($roots | length) != 1 then "unverified - -"
+      else $roots[0]
+        | (.upstreamObservedCommit | sha // "-") as $upstream
+        | if .verificationSnapshotStatus == "verified" and (.verificationCommit | sha) != null
+          then "verified \(.verificationCommit) \($upstream)"
+          else "unverified - \($upstream)"
+          end
+      end
+  ' "$catalog_file"
+}
+
+(( $# > 0 )) || fail "at least one git URL is required"
+
+for url in "$@"; do
+  if ! repo=$(github_repo "$url"); then
+    echo "unlisted - -"
+    continue
+  fi
+
+  if [[ $catalog_state == "unfetched" ]]; then
+    fetch_catalog
+  fi
+
+  if [[ $catalog_state == "ok" ]]; then
+    lookup "$repo"
+  else
+    echo "unreachable - -"
+  fi
+done
