@@ -18,7 +18,7 @@ refresh_running_browser() {
   local pgrep_args="${3:--x}"
 
   if omarchy-cmd-present "$command" && pgrep $pgrep_args "$process" >/dev/null; then
-    "$command" --refresh-platform-policy --no-startup-window &>/dev/null
+    timeout 10 "$command" --refresh-platform-policy --no-startup-window &>/dev/null || true
   fi
 }
 
