@@ -12,6 +12,54 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
 
+const passwordField = panelSource.match(/TextField \{\s*id: pwField\b[\s\S]*?\n {6}\}/)
+assert(passwordField, 'network has a Wi-Fi passphrase field')
+assert(/password: !root\.passwordVisible/.test(passwordField[0]), 'network can reveal the Wi-Fi passphrase')
+assert(/id: passwordVisibilityBtn/.test(passwordField[0]), 'network puts a password visibility control inside the passphrase field')
+assert(/root\.passwordVisible \? "Hide password" : "Show password"/.test(passwordField[0]), 'network labels both password visibility states')
+assert(/root\.passwordVisible = !root\.passwordVisible/.test(passwordField[0]), 'network password visibility control toggles the masked state')
+assert(/id: passwordVisibilityBtn[\s\S]*?focusable: true/.test(passwordField[0]), 'network password visibility control is reachable with Tab')
+assert(/id: passwordVisibilityBtn[\s\S]*?Accessible\.role: Accessible\.Button/.test(passwordField[0]), 'network exposes the visibility control as an accessible button')
+assert(/id: passwordVisibilityBtn[\s\S]*?Accessible\.name: tooltipText/.test(passwordField[0]), 'network exposes the visibility action name to assistive technology')
+assert(/Accessible\.description: root\.passwordVisible \? "Password is visible" : "Password is hidden"/.test(passwordField[0]), 'network exposes whether the password is currently visible')
+assert(/Accessible\.onPressAction: passwordVisibilityBtn\.clicked\(\)/.test(passwordField[0]), 'assistive-technology activation invokes the visibility control')
+
+const actionButtonSource = fs.readFileSync(root + '/shell/Ui/PanelActionButton.qml', 'utf8')
+assert(/activeFocusOnTab: focusable/.test(actionButtonSource), 'focusable panel actions participate in Tab navigation')
+assert(/Keys\.on(Return|Enter)Pressed: if \(focusable\) root\.clicked\(\)/.test(actionButtonSource), 'focusable panel actions activate with Enter')
+assert(/Keys\.onSpacePressed: if \(focusable\) root\.clicked\(\)/.test(actionButtonSource), 'focusable panel actions activate with Space')
+
+const cancelPasswordPrompt = panelSource.match(/function cancelPasswordPrompt\(\) \{[\s\S]*?\n {2}\}/)
+assert(cancelPasswordPrompt, 'network has a passphrase prompt cleanup helper')
+assert(/passwordVisible = false/.test(cancelPasswordPrompt[0]), 'network masks the passphrase again when its prompt closes')
+
+const openPasswordPrompt = panelSource.match(/function openPasswordPrompt\(ssid\) \{[\s\S]*?\n {2}\}/)
+assert(openPasswordPrompt, 'network has a passphrase prompt opener')
+assert(/if \(passwordSsid !== ssid\)[\s\S]*passwordVisible = false/.test(openPasswordPrompt[0]), 'network starts each network passphrase prompt masked')
+const passwordSsidChanged = panelSource.match(/onPasswordSsidChanged: \{[\s\S]*?\n  \}/)
+assert(passwordSsidChanged, 'network handles prompted SSID changes')
+assert(/credentialAbsenceTimer\.stop\(\)/.test(passwordSsidChanged[0]), 'switching from absent SSID A to SSID B cancels A expiry so B gets its own full grace')
+
+const clearNetworkAction = panelSource.match(/function clearNetworkAction\(\) \{[\s\S]*?\n {2}\}/)
+assert(clearNetworkAction, 'network has an action-success cleanup helper')
+assert(/if \(actionKind === "connect"\) cancelPasswordPrompt\(\)/.test(clearNetworkAction[0]), 'network clears the submitted passphrase and reveal state after connecting')
+
+const networkRowSource = panelSource.match(/component NetworkRow:[\s\S]*?\n  component DetailValue:/)
+assert(networkRowSource, 'network has a Wi-Fi row component')
+const submitCredentials = networkRowSource[0].match(/function submitCredentials\(\) \{[\s\S]*?\n    \}/)
+assert(submitCredentials, 'network has a credential submission helper')
+assert(/passwordVisible = false[\s\S]*connectWithPassphrase/.test(submitCredentials[0]), 'network masks a revealed password before a connection attempt can fail or time out')
+
+const wifiNetworksChanged = panelSource.match(/onWifiNetworksChanged: \{[\s\S]*?\n  \}/)
+assert(wifiNetworksChanged, 'network handles scan-driven row churn')
+assert(/passwordSsid !== "" && passwordIndex < 0[\s\S]*passwordVisible = false[\s\S]*!credentialAbsenceTimer\.running[\s\S]*credentialAbsenceTimer\.start\(\)/.test(wifiNetworksChanged[0]), 'network masks an absent prompt and starts one non-extendable expiry')
+assert(wifiNetworksChanged[0].indexOf('passwordIndex < 0') < wifiNetworksChanged[0].indexOf('wifiNetworks.length === 0'), 'network starts credential expiry even when a scan returns an empty list')
+assert(!/credentialAbsenceTimer\.restart\(\)/.test(wifiNetworksChanged[0]), 'repeated scan churn cannot postpone credential expiry')
+assert(/else if \(passwordIndex >= 0\)[\s\S]*credentialAbsenceTimer\.stop\(\)/.test(wifiNetworksChanged[0]), 'network cancels expiry when the same row returns')
+const credentialAbsenceTimer = panelSource.match(/id: credentialAbsenceTimer[\s\S]*?\n  \}/)
+assert(credentialAbsenceTimer, 'network expires credentials for a row that stays absent')
+assert(/wifiIndexForSsid\(root\.passwordSsid\) < 0[\s\S]*cancelPasswordPrompt\(\)/.test(credentialAbsenceTimer[0]), 'network clears retained credentials only if the prompted row is still absent')
+
 // Opening from the bar must call open() and nothing else. open() runs
 // refresh(true), which defers the PHY scan; a second bare refresh() defaults
 // scanWifi to false, sets scannerEnabled synchronously, and stalls the open on
