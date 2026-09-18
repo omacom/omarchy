@@ -12,10 +12,10 @@ return function(kind)
     return
   end
 
-  local name = file:read("*l")
-  file:close()
-
-  if name and name ~= "" then
-    hl.device({ name = name, enabled = false })
+  for name in file:lines() do
+    if name and name ~= "" then
+      hl.device({ name = name, enabled = false })
+    end
   end
+  file:close()
 end
