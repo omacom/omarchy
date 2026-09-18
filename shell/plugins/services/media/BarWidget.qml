@@ -71,6 +71,7 @@ BarWidget {
           from: scrollClip.width
           to: -labelText.implicitWidth
           easing.type: Easing.Linear
+          onRunningChanged: if (!running) labelText.x = 0
         }
       }
     }
