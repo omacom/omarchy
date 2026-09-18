@@ -75,4 +75,11 @@ assertDeepEqual(
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')
+
+assertDeepEqual(
+  monitor.parseProfiles('{"active":"desk","profiles":[{"name":"desk","monitors":["DP-1","DP-2"]}]}'),
+  { active: 'desk', profiles: [{ name: 'desk', monitors: ['DP-1', 'DP-2'] }] },
+  'monitor parses profile state'
+)
+assertDeepEqual(monitor.parseProfiles('{'), { active: '', profiles: [] }, 'monitor handles invalid profile JSON')
 JS

@@ -42,6 +42,24 @@ Hyprland works great with multiple screens. Read more about how to lay them out 
 
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.
 
+### Switching between monitor profiles
+
+If you regularly switch between several arrangements, save each working layout as a monitor profile. Arrange and enable the displays you want, then save the result:
+
+```bash
+omarchy monitor profile save desk
+```
+
+Create as many profiles as you need, such as `desk`, `presentation`, or `external-only`. Saved profiles appear in the Display panel and can also be managed from the command line:
+
+```bash
+omarchy monitor profile list
+omarchy monitor profile apply presentation
+omarchy monitor profile remove presentation
+```
+
+Applying a profile remembers it across monitor reconnects and graphical logins. Omarchy activates and verifies every destination display before disabling an existing one, so a disconnected display cannot leave you without a usable screen. Toggling an individual display in the Display panel deactivates the selected profile; you can do the same without changing the current layout with `omarchy monitor profile deactivate`.
+
 ### Controlling brightness
 
 Monitor brightness is controlled by the dedicated function keys for brightness up/down. If you hold down shift while pressing these, you'll go to maximum or minimum brightness. The keys control the display you're focused on, so external monitors that speak DDC/CI are adjusted the same way as the laptop screen.
