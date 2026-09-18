@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Claude extension for Chromium-based browsers
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  export PATH=/usr/bin:/bin
+fi
+
+EXTENSION_ID="fcoeoabgfenejglbffodgkkbkcdhcgfn"
+EXTENSION_JSON='{ "external_update_url": "https://clients2.google.com/service/update2/crx" }'
+PACKAGED_PATH=/usr/bin/omarchy-install-chromium-claude
+
+# Brave and Brave Origin share Chromium's external extension directory.
+# Seed all supported browsers, including those installed after choosing Claude.
+EXTENSION_DIRS=(
+  /usr/share/chromium/extensions
+  /usr/share/google-chrome/extensions
+  /usr/share/microsoft-edge/extensions
+)
+
+installed=true
+for dir in "${EXTENSION_DIRS[@]}"; do
+  if [[ ! -f $dir/$EXTENSION_ID.json ]] || [[ $(cat "$dir/$EXTENSION_ID.json") != "$EXTENSION_JSON" ]]; then
+    installed=false
+  fi
+done
+
+if [[ $installed == "true" ]]; then
+  exit 0
+fi
+
+if (( EUID == 0 )); then
+  for dir in "${EXTENSION_DIRS[@]}"; do
+    printf '%s\n' "$EXTENSION_JSON" | install -D -m 0644 /dev/stdin "$dir/$EXTENSION_ID.json"
+  done
+elif [[ -t 0 ]]; then
+  exec sudo "$PACKAGED_PATH"
+else
+  exec pkexec "$PACKAGED_PATH"
+fi
