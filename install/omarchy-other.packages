@@ -36,6 +36,7 @@ pipewire-alsa
 pipewire-jack
 pipewire-pulse
 qt6-wayland
+rtkit
 snapper
 sof-firmware
 thermald
