@@ -1,6 +1,6 @@
 # Gaming
 
-Omarchy isn't just for _pRoDUcTiVItY_, it's also for having fun, and what's more fun than gaming? Omarchy ships with a whole suite of gaming options — Steam and RetroArch for native and retro play, Battle.net, Lutris, and Heroic for non-Steam stores, Moonlight for PC streaming, Xbox Cloud Gaming + NVIDIA GeForce NOW for cloud, plus the evergreen Minecraft.
+Omarchy isn't just for _pRoDUcTiVItY_, it's also for having fun, and what's more fun than gaming? Omarchy ships with a whole suite of gaming options — Steam and RetroArch for native and retro play, Battle.net, Lutris, and Heroic for non-Steam stores, Moonlight for PC streaming, Xbox Cloud Gaming + NVIDIA GeForce NOW for cloud, plus the evergreen Minecraft and SuperTux 2 when you just want to jump on some badguys.
 
 Thanks to Valve's incredible work on [the proton compatibility layer](https://en.wikipedia.org/wiki/Proton_(software)), there are now tens of thousands of playable modern games on Linux. Oh, and did you know that the [Steam Deck](https://store.steampowered.com/steamdeck/) actually runs Arch!
 
@@ -53,6 +53,12 @@ Install Minecraft by selecting _Install > Gaming > Minecraft_ from the Omarchy m
 Like Steam, note that it can take a while after logging in or starting up for the next screen to appear, and you're not going to get any feedback while you're waiting.
 
  ![gaming-minecraft](images/gaming-minecraft.webp)
+
+## SuperTux 2
+
+Install [SuperTux 2](https://www.supertux.org/) by selecting _Install > Gaming > SuperTux 2_ from the Omarchy menu (`Super + Space`). It's a classic 2D jump'n'run in the spirit of the original Super Mario games, starring Tux, and it installs straight from the Arch repos in a couple of seconds.
+
+No account, no launcher, no shader config — it starts playing immediately. Your savegames live in `~/.local/share/supertux2`, and _Remove > Gaming > SuperTux 2_ takes them with it.
 
 ## Xbox Controllers
 

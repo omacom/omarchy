@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Remove SuperTux 2 along with its savegames, addons, and settings.
+# omarchy:requires-sudo=true
+
+set -e
+
+omarchy-pkg-drop supertux
+
+# SuperTux keeps its whole write directory — profiles, savegames, addons, and
+# config — under one XDG data folder.
+rm -rf "$HOME/.local/share/supertux2"
+
+echo ""
+echo "SuperTux 2 and its savegames have been removed."
