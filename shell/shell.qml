@@ -346,9 +346,18 @@ ShellRoot {
     return snapshot
   }
 
+  // Every caller that reads installedPlugins directly hands this a real Array,
+  // but the panel Instantiator hands back a manifest that has crossed a
+  // QVariant boundary, and that copy's kinds is indexable without being an
+  // Array. Gating on Array.isArray denied those copies every capability, so a
+  // third-party menu plugin got a facade with no appLibrary and listed no apps.
   function manifestHasKind(manifest, kind) {
-    return !!manifest && Array.isArray(manifest.kinds)
-      && manifest.kinds.indexOf(kind) !== -1
+    if (!manifest) return false
+    var kinds = manifest.kinds
+    if (!kinds || typeof kinds === "string" || typeof kinds.length !== "number") return false
+    for (var i = 0; i < kinds.length; i++)
+      if (String(kinds[i]) === kind) return true
+    return false
   }
 
   function pluginHasBarCapabilities(manifest) {
