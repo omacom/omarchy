@@ -1,0 +1,369 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Antigravity usage into one display-ready JSON record.
+
+Parses local session databases from Antigravity IDE and Antigravity CLI,
+calculating token consumption by day and model, rolling session and weekly limits,
+and active sessions with high-performance caching.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import glob
+import json
+import os
+import sqlite3
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+AGENT_NAME = "Antigravity"
+TIER_LABEL = "Pro"
+
+
+def get_agent_id() -> str:
+    prog = Path(sys.argv[0]).name
+    if "antigravity" in prog:
+        return "antigravity"
+    return "agy"
+
+
+def cache_dir() -> Path:
+    return Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+
+
+def get_search_dirs() -> list[Path]:
+    dirs: list[Path] = []
+    custom = os.environ.get("ANTIGRAVITY_HOME") or os.environ.get("AGY_HOME")
+    if custom:
+        dirs.append(Path(custom))
+    dirs.extend([
+        Path.home() / ".gemini" / "antigravity",
+        Path.home() / ".gemini" / "antigravity-cli",
+    ])
+    return dirs
+
+
+def normalize_model(m: str) -> str:
+    raw = m.lower().strip()
+    if raw in ("gemini-default", "model_placeholder_m318", "default"):
+        return "gemini-3.8-flash"
+    if raw in ("gemini-pro-default", "gemini-pro"):
+        return "gemini-3.1-pro"
+    if raw in ("gemini-3.7-flash-exp-a", "gemini-3.7-flash-exp-b"):
+        return "gemini-3.7-flash"
+    if raw in ("gemini-3.6-flash-exp-a", "gemini-3-flash-a"):
+        return "gemini-3.6-flash"
+    if raw == "gemini-3-flash-medium-a":
+        return "gemini-3.6-flash-medium"
+    return raw
+
+
+def decode_varint(buf: bytes, pos: int) -> tuple[int, int]:
+    res = 0
+    shift = 0
+    while pos < len(buf):
+        b = buf[pos]
+        pos += 1
+        res |= (b & 0x7F) << shift
+        if not (b & 0x80):
+            break
+        shift += 7
+    return res, pos
+
+
+def parse_proto(buf: bytes) -> list[tuple[int, int, Any]]:
+    pos = 0
+    fields = []
+    while pos < len(buf):
+        try:
+            tag, pos = decode_varint(buf, pos)
+        except Exception:
+            break
+        wire_type = tag & 7
+        field_num = tag >> 3
+        if wire_type == 0:
+            val, pos = decode_varint(buf, pos)
+            fields.append((field_num, wire_type, val))
+        elif wire_type == 1:
+            val = buf[pos : pos + 8]
+            pos += 8
+            fields.append((field_num, wire_type, val))
+        elif wire_type == 2:
+            length, pos = decode_varint(buf, pos)
+            val = buf[pos : pos + length]
+            pos += length
+            fields.append((field_num, wire_type, val))
+        elif wire_type == 5:
+            val = buf[pos : pos + 4]
+            pos += 4
+            fields.append((field_num, wire_type, val))
+        else:
+            break
+    return fields
+
+
+def extract_events_from_db(db_path: Path) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='gen_metadata'")
+        if not c.fetchone():
+            conn.close()
+            return []
+
+        c.execute("SELECT g.idx, g.data, s.metadata FROM gen_metadata g JOIN steps s ON g.idx = s.idx")
+        rows = c.fetchall()
+        conn.close()
+
+        for _, g_data, s_meta in rows:
+            if not s_meta or not g_data:
+                continue
+
+            ts = None
+            s_fields = parse_proto(s_meta)
+            for fn, wt, val in s_fields:
+                if fn == 1 and wt == 2:
+                    sub = parse_proto(val)
+                    for sfn, swt, sval in sub:
+                        if sfn == 1 and swt == 0:
+                            ts = sval
+                            break
+                    if ts:
+                        break
+            if not ts:
+                continue
+
+            g_fields = parse_proto(g_data)
+            model = "gemini-3.8-flash"
+            in_tok = 0
+            out_tok = 0
+            for fn, wt, val in g_fields:
+                if fn == 1 and wt == 2:
+                    sub1 = parse_proto(val)
+                    for s1_fn, s1_wt, s1_val in sub1:
+                        if s1_fn == 19 and s1_wt == 2:
+                            model = s1_val.decode("utf-8", "ignore")
+                        elif s1_fn == 4 and s1_wt == 2:
+                            sub4 = parse_proto(s1_val)
+                            for s4_fn, s4_wt, s4_val in sub4:
+                                if s4_fn == 2 and s4_wt == 0:
+                                    in_tok = s4_val
+                                elif s4_fn == 3 and s4_wt == 0:
+                                    out_tok = s4_val
+
+            if in_tok > 0 or out_tok > 0:
+                events.append({
+                    "ts": ts,
+                    "model": normalize_model(model),
+                    "in": in_tok,
+                    "out": out_tok,
+                })
+    except Exception:
+        pass
+    return events
+
+
+def load_cache(cache_file: Path) -> dict[str, Any]:
+    if cache_file.exists():
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_cache(cache_file: Path, data: dict[str, Any]) -> None:
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_file = cache_file.parent / f".cache-{os.getpid()}-{int(time.time())}.tmp"
+        with open(tmp_file, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        tmp_file.replace(cache_file)
+    except Exception:
+        pass
+
+
+def collect_usage(force: bool = False, limits_only: bool = False) -> dict[str, Any]:
+    now = dt.datetime.now()
+    now_utc = dt.datetime.now(dt.timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    recent_dates = [(now - dt.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
+
+    cdir = cache_dir()
+    agent_id = get_agent_id()
+    cache_file = cdir / f"{agent_id}-cache.json"
+
+    cache = {} if force else load_cache(cache_file)
+    db_cache = cache.get("conversations", {})
+    updated_cache: dict[str, Any] = {}
+
+    all_events: list[dict[str, Any]] = []
+    all_sessions: set[str] = set()
+    today_sessions: set[str] = set()
+
+    for base in get_search_dirs():
+        convo_dir = base / "conversations"
+        if not convo_dir.is_dir():
+            continue
+        for db_path in convo_dir.glob("*.db"):
+            db_path_str = str(db_path)
+            try:
+                st = db_path.stat()
+                mtime = st.st_mtime
+                size = st.st_size
+                cid = db_path.stem
+
+                cached = db_cache.get(db_path_str)
+                if (
+                    not force
+                    and cached
+                    and cached.get("mtime") == mtime
+                    and cached.get("size") == size
+                ):
+                    updated_cache[db_path_str] = cached
+                    evs = cached.get("events", [])
+                    all_events.extend(evs)
+                    all_sessions.add(cid)
+                    for ev in evs:
+                        if dt.datetime.fromtimestamp(ev["ts"]).strftime("%Y-%m-%d") == today_str:
+                            today_sessions.add(cid)
+                    continue
+
+                evs = extract_events_from_db(db_path)
+                entry = {"mtime": mtime, "size": size, "events": evs}
+                updated_cache[db_path_str] = entry
+                all_events.extend(evs)
+                all_sessions.add(cid)
+                for ev in evs:
+                    if dt.datetime.fromtimestamp(ev["ts"]).strftime("%Y-%m-%d") == today_str:
+                        today_sessions.add(cid)
+            except Exception:
+                pass
+
+    if not limits_only or force:
+        save_cache(cache_file, {"version": 1, "conversations": updated_cache})
+
+    recent_days_map = {d: {"date": d, "messageCount": 0} for d in recent_dates}
+    model_usage: dict[str, dict[str, int]] = {}
+    today_tokens_by_model: dict[str, int] = {}
+    active_dates: set[str] = set()
+    today_prompts = 0
+    today_total_tokens = 0
+    total_prompts = len(all_events)
+
+    five_hours_ago = (now - dt.timedelta(hours=5)).timestamp()
+    seven_days_ago = (now - dt.timedelta(days=7)).timestamp()
+
+    session_tokens = 0
+    weekly_tokens = 0
+    session_event_ts: list[float] = []
+
+    for ev in all_events:
+        ts = ev["ts"]
+        ev_dt = dt.datetime.fromtimestamp(ts)
+        d_str = ev_dt.strftime("%Y-%m-%d")
+        model = ev["model"]
+        in_tok = ev["in"]
+        out_tok = ev["out"]
+        tot = in_tok + out_tok
+
+        active_dates.add(d_str)
+
+        if d_str in recent_days_map:
+            recent_days_map[d_str]["messageCount"] += tot
+
+        if d_str == today_str:
+            today_prompts += 1
+            today_total_tokens += tot
+            today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + tot
+
+        bucket = model_usage.setdefault(
+            model,
+            {
+                "inputTokens": 0,
+                "outputTokens": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+            },
+        )
+        bucket["inputTokens"] += in_tok
+        bucket["outputTokens"] += out_tok
+
+        if ts >= five_hours_ago:
+            session_tokens += tot
+            session_event_ts.append(ts)
+        if ts >= seven_days_ago:
+            weekly_tokens += tot
+
+    session_percent = min(1.0, round(session_tokens / 5_000_000.0, 2)) if session_tokens > 0 else 0.0
+    if session_event_ts:
+        session_reset_dt = dt.datetime.fromtimestamp(min(session_event_ts) + 5 * 3600, dt.timezone.utc)
+    else:
+        session_reset_dt = now_utc + dt.timedelta(hours=5)
+
+    weekly_percent = min(1.0, round(weekly_tokens / 50_000_000.0, 2)) if weekly_tokens > 0 else 0.0
+    days_until_sunday = (6 - now_utc.weekday()) % 7
+    if days_until_sunday == 0:
+        days_until_sunday = 7
+    weekly_reset_dt = (now_utc + dt.timedelta(days=days_until_sunday)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+    limits = [
+        {
+            "label": "Session (5-hour)",
+            "percent": session_percent,
+            "resetsAt": session_reset_dt.isoformat(),
+        },
+        {
+            "label": "Weekly (7-day)",
+            "percent": weekly_percent,
+            "resetsAt": weekly_reset_dt.isoformat(),
+        },
+    ]
+
+    return {
+        "schemaVersion": 1,
+        "id": agent_id,
+        "name": AGENT_NAME,
+        "updatedAt": now_utc.isoformat(),
+        "ready": True,
+        "hasLocalStats": True,
+        "hasPromptStats": True,
+        "todayPrompts": today_prompts,
+        "todaySessions": max(len(today_sessions), 1 if today_prompts > 0 else 0),
+        "todayTotalTokens": today_total_tokens,
+        "todayTokensByModel": today_tokens_by_model,
+        "recentDays": [recent_days_map[d] for d in recent_dates],
+        "totalPrompts": total_prompts,
+        "totalSessions": max(len(all_sessions), 1 if total_prompts > 0 else 0),
+        "activeDays": len(active_dates),
+        "activeDates": sorted(list(active_dates)),
+        "modelUsage": model_usage,
+        "limits": limits,
+        "tierLabel": TIER_LABEL,
+        "usageStatusText": "",
+        "authHelpText": "",
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Print Antigravity usage record as JSON")
+    parser.add_argument("--force", action="store_true", help="Force cache invalidation and rescan")
+    parser.add_argument("--limits-only", action="store_true", help="Quick limits update")
+    args = parser.parse_args()
+
+    record = collect_usage(force=args.force, limits_only=args.limits_only)
+    print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+    main()
