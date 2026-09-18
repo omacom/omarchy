@@ -4,5 +4,15 @@
 
 set -e
 
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/voxtype/config.toml"
+before=$(sha256sum "$config_file" 2>/dev/null)
+
 omarchy-launch-floating-terminal-with-presentation "voxtype configure"
-omarchy-restart-shell
+
+after=$(sha256sum "$config_file" 2>/dev/null)
+
+# Only restart the shell (which flashes the screen black for a couple of
+# seconds) if voxtype configure actually changed the on-disk config.
+if [[ $before != "$after" ]]; then
+  omarchy-restart-shell
+fi
