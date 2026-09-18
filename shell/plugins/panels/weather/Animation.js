@@ -83,7 +83,7 @@ var OPACITY = {
   // does a pale mist.
   clear:   { base: 0.06, span: 0.06 },
   cloudy:  { base: 0.05, span: 0.10 },
-  fog:     { base: 0.05, span: 0.09 },
+  fog:     { base: 0.04, span: 0.07 },
   drizzle: { base: 0.08, span: 0.08 },
   rain:    { base: 0.10, span: 0.14 },
   snow:    { base: 0.18, span: 0.22 },

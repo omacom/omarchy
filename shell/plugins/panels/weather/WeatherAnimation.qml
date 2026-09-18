@@ -297,7 +297,17 @@ Item {
       return root.veil
     }
 
-    readonly property int patches: root.condition === "clear" ? 2 : 4
+    // Fog needs more, and more overlap, than the others. With four patches
+    // confined to the lower half its cover swung between a visible bank and
+    // nothing at all over one drift cycle — measured 0.5 to 7 levels of shift
+    // — so half the time it was indistinguishable from clear weather. Six
+    // wider patches spread higher keep the floor up without raising the peak
+    // much.
+    readonly property int patches: {
+      if (root.condition === "clear") return 2
+      if (root.condition === "fog") return 6
+      return 4
+    }
 
     opacity: root.fieldOpacity
 
@@ -308,16 +318,27 @@ Item {
         required property int index
 
         tint: field.tint
-        // Fog gathers toward the bottom of the frame; the others spread out.
+        // Fog still gathers low, but no longer sits so low that half of it
+        // hangs below the screen; the others spread out.
         centreY: root.condition === "fog"
-          ? 0.52 + 0.16 * index
+          ? 0.44 + 0.10 * index
           : 0.18 + 0.24 * index
-        spanX: field.width * (0.9 + 0.35 * (index % 3))
+        // Fog's patches are far wider than the screen so that one is always
+        // over it; the others only have to cover the frame between them.
+        spanX: field.width * (root.condition === "fog"
+          ? 2.0 + 0.4 * (index % 3)
+          : 0.9 + 0.35 * (index % 3))
         spanY: field.height * (root.condition === "clear" ? 0.8 : 0.5 + 0.12 * (index % 2))
         // Each patch crosses at its own pace, so they slide past one another
         // instead of moving as one sheet. One to two and a half minutes for a
         // full crossing: movement you notice only if you look for it.
-        driftDuration: 74000 + index * 21000
+        //
+        // Fog's spread is deliberately tight. The wider the spread, the faster
+        // an even starting phase decays into a clump, and for fog that clump
+        // is a stretch of minutes with nothing over the screen at all.
+        driftDuration: root.condition === "fog"
+          ? 112000 + index * 7000
+          : 74000 + index * 21000
         // Spread around the loop, or every patch would enter from the same
         // edge at the same moment and leave the middle of the sky empty.
         phase: field.patches > 0 ? index / field.patches : 0
