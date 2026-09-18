@@ -208,12 +208,24 @@ function nearestDropTarget(candidates, point, vertical) {
   return best
 }
 
+function specialWorkspaceEvent(eventName, eventData) {
+  var values = String(eventData || "").split(",")
+  if (eventName === "activespecial" && values.length === 2) {
+    return { workspaceName: values[0], monitorName: values[1] }
+  }
+  if (eventName === "activespecialv2" && values.length === 3) {
+    return { workspaceName: values[1], monitorName: values[2] }
+  }
+  return null
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isDrawnSlot: isDrawnSlot,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
     nearestDropTarget: nearestDropTarget,
+    specialWorkspaceEvent: specialWorkspaceEvent,
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
     entryId: entryId,

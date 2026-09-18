@@ -53,6 +53,7 @@ Item {
   property string centerAnchor: ""
   property bool requestedTransparent: false
   property bool transparentOnlyWhenWorkspaceEmpty: false
+  property var visibleSpecialWorkspaceNames: ({})
   property bool useTransparentForeground: false
   property bool transparent: false
   property bool centerSectionHovered: false
@@ -1037,9 +1038,40 @@ Item {
     syncTransparency()
   }
 
+  function specialWorkspaceName(monitor) {
+    if (!monitor) return ""
+
+    var names = visibleSpecialWorkspaceNames || ({})
+    if (Object.prototype.hasOwnProperty.call(names, monitor.name)) return names[monitor.name]
+
+    var special = (monitor.lastIpcObject || {}).specialWorkspace || ({})
+    return String(special.name || "")
+  }
+
+  function specialWorkspaceHasToplevels() {
+    var name = specialWorkspaceName(Hyprland.focusedMonitor)
+    if (!name) return false
+
+    var workspaces = Hyprland.workspaces.values
+    for (var i = 0; i < workspaces.length; i++) {
+      if (workspaces[i].name === name) return workspaces[i].toplevels.values.length > 0
+    }
+    return false
+  }
+
+  function updateVisibleSpecialWorkspace(event) {
+    var update = BarModel.specialWorkspaceEvent(String(event.name || ""), String(event.data || ""))
+    if (!update || !update.monitorName) return
+
+    var names = Object.assign({}, visibleSpecialWorkspaceNames)
+    names[update.monitorName] = update.workspaceName
+    visibleSpecialWorkspaceNames = names
+  }
+
   function shouldBeTransparent() {
     if (!requestedTransparent) return false
     if (!transparentOnlyWhenWorkspaceEmpty) return true
+    if (specialWorkspaceHasToplevels()) return false
 
     var workspace = Hyprland.focusedWorkspace
     return workspace !== null && workspace.toplevels.values.length === 0
@@ -1123,6 +1155,7 @@ Item {
     target: Hyprland
     enabled: root.transparentOnlyWhenWorkspaceEmpty
     function onRawEvent(event) {
+      root.updateVisibleSpecialWorkspace(event)
       // Toplevel membership changes do not always propagate through QML bindings.
       Qt.callLater(function() { root.syncTransparency() })
     }

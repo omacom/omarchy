@@ -42,6 +42,7 @@ assert(/transparentOnlyWhenWorkspaceEmpty: false/.test(barSource), 'bar defaults
 assert(/transparentOnlyWhenWorkspaceEmpty = config\.transparentOnlyWhenWorkspaceEmpty === true/.test(barSource), 'bar reads workspace-conditional transparency from configuration')
 assert(/if \(!transparentOnlyWhenWorkspaceEmpty\) return true/.test(barSource), 'bar retains normal transparency when workspace mode is disabled')
 assert(/enabled: root\.transparentOnlyWhenWorkspaceEmpty/.test(barSource), 'bar listens for workspace changes only in workspace mode')
+assert(/specialWorkspaceHasToplevels\(\)/.test(barSource), 'bar includes visible special workspaces in workspace mode')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.
@@ -344,6 +345,22 @@ assert(
 )
 
 assertEqual(bar.moduleString({ id: 'custom', label: 42 }, 'label', 'fallback'), '42', 'bar stringifies module settings')
+assertDeepEqual(
+  bar.specialWorkspaceEvent('activespecial', 'special:scratchpad,eDP-1'),
+  { workspaceName: 'special:scratchpad', monitorName: 'eDP-1' },
+  'bar parses special-workspace activation events'
+)
+assertDeepEqual(
+  bar.specialWorkspaceEvent('activespecialv2', '-98,special:scratchpad,eDP-1'),
+  { workspaceName: 'special:scratchpad', monitorName: 'eDP-1' },
+  'bar parses versioned special-workspace activation events'
+)
+assertDeepEqual(
+  bar.specialWorkspaceEvent('activespecial', ',eDP-1'),
+  { workspaceName: '', monitorName: 'eDP-1' },
+  'bar parses special-workspace deactivation events'
+)
+assertEqual(bar.specialWorkspaceEvent('workspacev2', '1,1'), null, 'bar ignores unrelated Hyprland events')
 assertEqual(bar.entryIndex(entries, 'b'), 2, 'bar finds entry indexes')
 assertDeepEqual(bar.entriesBefore(entries, 'b').map(bar.entryId), ['a', 'omarchy.tray'], 'bar returns entries before target')
 assertDeepEqual(bar.entriesAfter(entries, 'a').map(bar.entryId), ['omarchy.tray', 'b'], 'bar returns entries after target')
