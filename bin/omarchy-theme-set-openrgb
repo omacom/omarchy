@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# omarchy:summary=Apply the current theme color to devices managed by OpenRGB
+# omarchy:hidden=true
+
+OPENRGB_THEME=$HOME/.local/state/omarchy/current/theme/keyboard.rgb
+
+if ! omarchy-cmd-present openrgb || [[ ! -f $OPENRGB_THEME ]]; then
+  exit 0
+fi
+
+color=$(cat "$OPENRGB_THEME")
+color="${color#\#}"
+
+[[ $color =~ ^[0-9A-Fa-f]{6}$ ]] || exit 0
+
+# LEDs render the raw accent dim, so mix it toward white before applying and
+# run the devices at full brightness.
+OPENRGB_BRIGHTEN_AMOUNT=0.4
+
+brighten_color() {
+  awk -v hex="$1" -v amount="$OPENRGB_BRIGHTEN_AMOUNT" '
+    function hex_value(char) {
+      return index("0123456789abcdef", tolower(char)) - 1
+    }
+    function hex_pair_to_int(hex, idx) {
+      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
+    }
+    BEGIN {
+      red = int(hex_pair_to_int(hex, 1) * (1 - amount) + 255 * amount + 0.5)
+      green = int(hex_pair_to_int(hex, 3) * (1 - amount) + 255 * amount + 0.5)
+      blue = int(hex_pair_to_int(hex, 5) * (1 - amount) + 255 * amount + 0.5)
+      printf "%02x%02x%02x\n", red, green, blue
+    }
+  '
+}
+
+color=$(brighten_color "$color")
+
+# A device-native gradient effect wins when one exists; everything else gets
+# the static theme accent. Detection runs once and every apply is bounded, so
+# a missing server or a slow scan never stalls the theme switch.
+devices=$(timeout 20 openrgb --list-devices 2>/dev/null || true)
+
+declare -A GRADIENT_MODE_FOR_DEVICE
+DEVICE_IDS=()
+
+if [[ -n $devices ]]; then
+  while IFS=$'\t' read -r id mode; do
+    if [[ -n $mode ]]; then
+      GRADIENT_MODE_FOR_DEVICE[$id]="$mode"
+    else
+      DEVICE_IDS+=("$id")
+    fi
+  done < <(awk '
+    /^[0-9]+: / {
+      id = $1
+      sub(/:$/, "", id)
+      current = id
+      print id
+    }
+    /^  Modes: / && current != "" {
+      modes = substr($0, 9)
+      gsub(/[\[\]]/, "", modes)
+      if (match(modes, /'"'"'[^'"'"']*[Gg]radient[^'"'"']*'"'"'/)) {
+        print current "\t" substr(modes, RSTART + 1, RLENGTH - 2)
+      } else {
+        count = split(modes, parts, /[ ]+/)
+        for (i = 1; i <= count; i++) {
+          if (parts[i] ~ /[Gg]radient/) {
+            print current "\t" parts[i]
+            break
+          }
+        }
+      }
+      current = ""
+    }
+  ' <<<"$devices")
+fi
+
+if (( ${#GRADIENT_MODE_FOR_DEVICE[@]} == 0 && ${#DEVICE_IDS[@]} == 0 )); then
+  timeout 20 openrgb -m static -c "$color" -b 100 >/dev/null 2>&1 || true
+else
+  for id in "${DEVICE_IDS[@]}"; do
+    if [[ -n ${GRADIENT_MODE_FOR_DEVICE[$id]:-} ]]; then
+      timeout 20 openrgb -d "$id" -m "${GRADIENT_MODE_FOR_DEVICE[$id]}" -c "$color" -b 100 >/dev/null 2>&1 || true
+    else
+      timeout 20 openrgb -d "$id" -m static -c "$color" -b 100 >/dev/null 2>&1 || true
+    fi
+  done
+fi
+
+exit 0
