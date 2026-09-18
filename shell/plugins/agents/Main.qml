@@ -117,9 +117,28 @@ Item {
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
   property string pendingUpdateKind: ""
 
+  // Bar.qml injectProps delivers `bar`, `moduleName` and `settings` a tick
+  // after it builds the widget. Panel binds this to !!root.bar so the
+  // triggeredOnStart refresh cannot run before that pass and scrape
+  // providers the user already switched off. An empty map then means "this
+  // entry carries no settings", not "they have not arrived yet".
+  property bool settingsReady: false
+
+  // A host that never injects a bar leaves settingsReady false forever, so
+  // the refresh timer would never start and nothing would be collected.
+  // One shot unblocks that host; it does not wait for a directory listing.
+  property bool readyDeadlinePassed: false
+
+  Timer {
+    interval: 6000
+    running: !root.settingsReady && !root.readyDeadlinePassed
+    repeat: false
+    onTriggered: root.readyDeadlinePassed = true
+  }
+
   Timer {
     interval: root.refreshIntervalSec * 1000
-    running: true
+    running: root.settingsReady || root.readyDeadlinePassed
     repeat: true
     triggeredOnStart: true
     onTriggered: root.runUpdate("normal")
@@ -178,10 +197,10 @@ Item {
 
   // ------------------------------------------------------------- providers
 
-  // An agent earns a place in the bar and the panel by being switched on in
+  // An agent earns a place in the dashboard by being switched on in
   // settings and having actually produced numbers — locally or on a synced
-  // device. With nothing to show, the whole module collapses out of the bar
-  // rather than sitting there dimmed.
+  // device. The bar icon uses collectedCount so an all-off map cannot hide
+  // the switches.
   property var enabledProviders: {
     var rev = dataRevision
     var syncRev = syncRevision
@@ -214,6 +233,38 @@ Item {
     return settings.providers[id].enabled !== false
   }
 
+  // Stable id list for the settings Repeater: reassign only when the set of
+  // ids changes, the same guard discovery uses for agentIds, so a collector
+  // returning cannot tear the rows down under the pointer. Name, enabled,
+  // and collected are read per row through the functions below.
+  property var providerIds: []
+  onSettingsChanged: refreshProviderIds()
+  onSyncRevisionChanged: refreshProviderIds()
+  onDataRevisionChanged: refreshProviderIds()
+  onAgentIdsChanged: refreshProviderIds()
+
+  function refreshProviderIds() {
+    var ids = []
+    var seen = ({})
+    function push(id) {
+      var key = String(id || "")
+      if (key === "" || seen[key]) return
+      seen[key] = true
+      ids.push(key)
+    }
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (record && record.id) push(record.id)
+    }
+    for (var f = 0; f < agentIds.length; f++) push(agentIds[f])
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    for (var syncedId in syncedProviders) push(syncedId)
+    var configured = settings && settings.providers ? settings.providers : {}
+    for (var configuredId in configured) push(configuredId)
+    ids.sort()
+    if (JSON.stringify(ids) !== JSON.stringify(providerIds)) providerIds = ids
+  }
+
   // All-time keeps a quiet day from hiding an agent; today's counts admit a
   // machine whose only source is history.jsonl, which knows nothing older.
   function providerHasData(p) {
@@ -221,6 +272,60 @@ Item {
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
       || !!p.balance
+  }
+
+  // Providers that have produced numbers, ignoring the enable switch. The bar
+  // icon stays on this so switching everything off cannot hide the settings
+  // that switch them back on. Empty leftover records do not count.
+  readonly property int collectedCount: {
+    var rev = dataRevision
+    var syncRev = syncRevision
+    var count = 0
+    var localIds = {}
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (!record || !record.id) continue
+      var id = String(record.id)
+      localIds[id] = true
+      if (providerHasData(displayProvider(record))) count++
+    }
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    for (var syncedId in syncedProviders) {
+      if (localIds[syncedId]) continue
+      var stats = syncedProviders[syncedId] || {}
+      if (providerHasData(displayProvider({ id: syncedId, name: stats.providerName || syncedId }))) count++
+    }
+    return count
+  }
+
+  function providerName(id) {
+    var rev = dataRevision
+    var syncRev = syncRevision
+    var key = String(id || "")
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (record && String(record.id) === key && record.name)
+        return String(record.name)
+    }
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    var stats = syncedProviders[key]
+    if (stats && stats.providerName) return String(stats.providerName)
+    return key
+  }
+
+  function providerCollected(id) {
+    var rev = dataRevision
+    var syncRev = syncRevision
+    var key = String(id || "")
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      if (record && String(record.id) === key)
+        return providerHasData(displayProvider(record))
+    }
+    var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
+    if (!syncedProviders[key]) return false
+    var stats = syncedProviders[key] || {}
+    return providerHasData(displayProvider({ id: key, name: stats.providerName || key }))
   }
 
   // A prepaid agent's credit ledger. Like rate limits, the balance is
