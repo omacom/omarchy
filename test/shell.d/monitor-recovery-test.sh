@@ -72,7 +72,7 @@ pass "active external monitor helper sees mirrors and ignores monitors disabled 
 
 grep -F 'omarchy-hyprland-monitor-internal recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
 grep -F 'omarchy-hyprland-monitor-internal-mirror recover >/dev/null 2>&1 || true' "$clamshell" >/dev/null
-grep -F 'internal-monitor-clamshell.lua' "$clamshell" >/dev/null
+grep -F 'CLAMSHELL_TOGGLE="internal-monitor-clamshell"' "$clamshell" >/dev/null
 grep -F 'disabled = true' "$clamshell" >/dev/null
 grep -F 'MANUAL_DISABLE_FLAG' "$clamshell" >/dev/null
 ! grep -F 'rm -f "$MANUAL_DISABLE_FLAG"' "$clamshell" >/dev/null

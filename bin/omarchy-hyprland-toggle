@@ -19,8 +19,7 @@ FLAG_SOURCE="$OMARCHY_PATH/default/hypr/toggles/$FLAG_NAME.lua"
 
 on() {
   if [[ -f $FLAG_SOURCE ]]; then
-    mkdir -p "$(dirname "$FLAG_FILE")"
-    cp "$FLAG_SOURCE" "$FLAG_FILE"
+    omarchy-hyprland-toggle-write "$FLAG_NAME" <"$FLAG_SOURCE"
   else
     echo "Flag not found: $FLAG_NAME" >&2
     exit 1
@@ -32,7 +31,7 @@ off() {
 }
 
 toggle() {
-  if [[ -f $FLAG_FILE ]]; then
+  if [[ -f $FLAG_FILE && -s $FLAG_FILE ]]; then
     off
     echo "off"
   else

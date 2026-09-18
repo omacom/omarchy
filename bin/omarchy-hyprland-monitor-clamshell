@@ -4,7 +4,8 @@
 # omarchy:hidden=true
 
 TOGGLES_DIR="$HOME/.local/state/omarchy/toggles/hypr"
-CLAMSHELL_FLAG="$TOGGLES_DIR/internal-monitor-clamshell.lua"
+CLAMSHELL_TOGGLE="internal-monitor-clamshell"
+CLAMSHELL_FLAG="$TOGGLES_DIR/$CLAMSHELL_TOGGLE.lua"
 MANUAL_DISABLE_FLAG="$TOGGLES_DIR/internal-monitor-disable.lua"
 SCALE_STATE="$TOGGLES_DIR/internal-monitor-scale"
 MONITOR_LUA="$HOME/.config/hypr/monitors.lua"
@@ -209,6 +210,8 @@ dpms_internal() {
 enable_internal() {
   local changed=0
 
+  # -f, not -s: this removes the flag rather than trusting it, so it has to
+  # match a husk an older version could have left behind.
   if [[ -f $CLAMSHELL_FLAG ]]; then
     rm -f "$CLAMSHELL_FLAG"
     changed=1
@@ -218,7 +221,8 @@ enable_internal() {
     hyprctl reload >/dev/null 2>&1 || true
   fi
 
-  [[ -f $MANUAL_DISABLE_FLAG ]] && omarchy-hyprland-monitor-external-active && return 0
+  [[ -f $MANUAL_DISABLE_FLAG && -s $MANUAL_DISABLE_FLAG ]] &&
+    omarchy-hyprland-monitor-external-active && return 0
   sync_internal_scale
 
   if (( changed )); then
@@ -228,7 +232,9 @@ enable_internal() {
 
 disable_internal() {
   [[ -n $INTERNAL ]] || exit 0
-  [[ -f $MANUAL_DISABLE_FLAG ]] && return 0
+  # An empty manual flag is a write that did not finish, not an override: it
+  # would veto the disable below while itself disabling nothing.
+  [[ -f $MANUAL_DISABLE_FLAG && -s $MANUAL_DISABLE_FLAG ]] && return 0
 
   mkdir -p "$TOGGLES_DIR"
   remember_internal_scale
@@ -236,8 +242,8 @@ disable_internal() {
   local config
   config=$(printf 'hl.monitor({ output = "%s", disabled = true })' "$INTERNAL")
 
-  if [[ ! -f $CLAMSHELL_FLAG ]] || [[ $(< "$CLAMSHELL_FLAG") != $config ]]; then
-    printf '%s\n' "$config" >"$CLAMSHELL_FLAG"
+  if [[ ! -s $CLAMSHELL_FLAG ]] || [[ $(< "$CLAMSHELL_FLAG") != $config ]]; then
+    printf '%s\n' "$config" | omarchy-hyprland-toggle-write $CLAMSHELL_TOGGLE || return 0
     hyprctl reload >/dev/null 2>&1 || true
   fi
 }
