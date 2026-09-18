@@ -39,18 +39,33 @@ CMD = re.compile(r'[MmZzLlHhVvCcSsQqTtAa]')
 
 def tokenize(d):
     out, i = [], 0
+    cmd, argi = None, 0
     while i < len(d):
         c = d[i]
         if CMD.match(c):
             out.append(c)
+            cmd, argi = c, 0
             i += 1
         elif c in ' ,\t\r\n':
+            i += 1
+        elif cmd in ('A', 'a') and argi % 7 in (3, 4):
+            # An arc's large-arc-flag and sweep-flag are single digits, and the
+            # grammar lets them run together with what follows: "0 01-4.29" is
+            # flags 0 and 1 then x -4.29, not the number 01 then -4.29. Reading
+            # them greedily swallows the next flag, shifting every remaining
+            # argument of the arc by one -- which surfaces much later as a
+            # command letter arriving where a coordinate was expected.
+            if d[i] not in '01':
+                raise ValueError('bad arc flag at %d: %r' % (i, d[i:i + 20]))
+            out.append(float(d[i]))
+            argi += 1
             i += 1
         else:
             m = NUM.match(d, i)
             if not m:
                 raise ValueError('bad path data at %d: %r' % (i, d[i:i + 20]))
             out.append(float(m.group()))
+            argi += 1
             i = m.end()
     return out
 
