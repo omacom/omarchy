@@ -22,6 +22,7 @@ Item {
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  property var fingerprintPamInstance: null
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -132,7 +133,7 @@ Item {
     fingerprintAuthenticating = false
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
-    if (fingerprintPam.active) fingerprintPam.abort()
+    stopFingerprintPam()
   }
 
   function beginLock() {
@@ -247,19 +248,37 @@ Item {
     runWake()
   }
 
-  function startFingerprint() {
-    if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
-    if (displaysBlank) return
-    if (fingerprintPam.active || fingerprintAuthenticating) return
-
-    fingerprintAuthenticating = true
-    if (!fingerprintPam.start()) {
+  function stopFingerprintPam() {
+    if (fingerprintPamInstance) {
+      var p = fingerprintPamInstance
+      fingerprintPamInstance = null
       fingerprintAuthenticating = false
+      p.destroy()
     }
   }
 
-  function handleFingerprintFinished(result) {
+  function startFingerprint() {
+    if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (displaysBlank) return
+    if (fingerprintPamInstance) return
+
+    var p = fingerprintPamFactory.createObject(root)
+    if (!p) return
+    fingerprintPamInstance = p
+    fingerprintAuthenticating = true
+    if (!p.start()) {
+      fingerprintAuthenticating = false
+      if (fingerprintPamInstance === p) fingerprintPamInstance = null
+      p.destroy()
+    }
+  }
+
+  function handleFingerprintFinished(result, ctx) {
     fingerprintAuthenticating = false
+    if (ctx === fingerprintPamInstance) {
+      fingerprintPamInstance = null
+      Qt.callLater(function() { if (ctx) ctx.destroy() })
+    }
 
     if (!lockRequested) return
     if (result === PamResult.Success) {
@@ -267,6 +286,15 @@ Item {
     } else if (fingerprintConfigured) {
       fingerprintRetryTimer.restart()
     }
+  }
+
+  function handleFingerprintError(error, ctx) {
+    fingerprintAuthenticating = false
+    if (ctx === fingerprintPamInstance) {
+      fingerprintPamInstance = null
+      Qt.callLater(function() { if (ctx) ctx.destroy() })
+    }
+    if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
   }
 
   WlSessionLock {
@@ -383,18 +411,19 @@ Item {
     }
   }
 
-  PamContext {
-    id: fingerprintPam
-    config: "omarchy-lock-fingerprint"
-    user: root.userName
+  Component {
+    id: fingerprintPamFactory
+    PamContext {
+      config: "omarchy-lock-fingerprint"
+      user: root.userName
 
-    onCompleted: function(result) {
-      root.handleFingerprintFinished(result)
-    }
+      onCompleted: function(result) {
+        root.handleFingerprintFinished(result, this)
+      }
 
-    onError: function(error) {
-      root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      onError: function(error) {
+        root.handleFingerprintError(error, this)
+      }
     }
   }
 
@@ -427,7 +456,7 @@ Item {
     onExited: {
       root.fingerprintConfigured = String(fingerprintCheckStdout.text || "").trim() === "yes"
       if (root.lockRequested && root.fingerprintConfigured) root.startFingerprint()
-      else if (!root.fingerprintConfigured && fingerprintPam.active) fingerprintPam.abort()
+      else if (!root.fingerprintConfigured) root.stopFingerprintPam()
     }
   }
 
@@ -561,8 +590,13 @@ Item {
 
   onAuthenticatingPasswordChanged: {
     if (!lockRequested) return
-    if (authenticatingPassword) idleBlankTimer.stop()
-    else armBlankTimer()
+    if (authenticatingPassword) {
+      idleBlankTimer.stop()
+      fingerprintRetryTimer.stop()
+      if (root.fingerprintPamInstance) root.stopFingerprintPam()
+    } else {
+      armBlankTimer()
+    }
   }
 
   FileView {
