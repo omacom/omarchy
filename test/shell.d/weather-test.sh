@@ -61,6 +61,19 @@ assertEqual(weather.shouldUseImperial('metric', 'en_US', 'United States of Ameri
 assertEqual(weather.shouldUseImperial('imperial', 'da_DK', 'Denmark'), true, 'weather imperial override wins')
 assertEqual(weather.dayName('2026-05-25'), 'Monday', 'weather derives day names')
 
+assert(weather.localeUsesMsWind('ru_RU.UTF-8'), 'weather wind reads m/s in the ru_RU locale')
+assert(weather.localeUsesMsWind('ru'), 'weather wind reads m/s in a bare ru locale')
+assert(!weather.localeUsesMsWind('en_US.UTF-8'), 'weather wind stays km/h in US English')
+assert(!weather.localeUsesMsWind('de_DE.UTF-8'), 'weather wind stays km/h in German')
+assert(!weather.localeUsesMsWind(''), 'weather wind stays km/h without a locale')
+
+assertEqual(weather.formatWind('14', '9', false, false), '14 km/h', 'weather formats metric wind in km/h')
+assertEqual(weather.formatWind('14', '9', true, false), '9 mph', 'weather formats imperial wind in mph')
+assertEqual(weather.formatWind('14', '9', false, true), '4 m/s', 'weather converts metric wind to m/s for Russian readers')
+assertEqual(weather.formatWind('18', '11', false, true), '5 m/s', 'weather rounds m/s wind to the nearest whole unit')
+assertEqual(weather.formatWind('', '', false, true), '', 'weather renders no wind without a reading')
+assertEqual(weather.formatWind('14', '9', true, true), '9 mph', 'weather imperial wind wins over the m/s locale')
+
 const openMeteo = {
   daily: {
     time: ['2026-05-25', '2026-05-26', '2026-05-27', '2026-05-28', '2026-05-29'],
@@ -145,6 +158,15 @@ assert(
   panelSource.split('root.controller.show()\n    locationFile.reload()\n    root.refresh()').length === 3,
   'weather reloads external location changes whenever either open path runs'
 )
+assert(
+  panelSource.includes('readonly property bool useMsWind: !useImperial && Model.localeUsesMsWind(Qt.locale().name)'),
+  'weather wind falls back to m/s only for metric Russian locales'
+)
+assert(
+  panelSource.includes('Model.formatWind(current.windspeedKmph, current.windspeedMiles, useImperial, useMsWind)'),
+  'weather panel renders wind through Model.formatWind'
+)
+
 assert(!weather.weatherResponseCompletesSave(true, 'wttr'), 'weather keeps the spinner through a non-authoritative pinned-location response')
 assert(weather.weatherResponseCompletesSave(true, 'open-meteo'), 'weather completes a pinned-location save with Open-Meteo data')
 assert(weather.weatherResponseCompletesSave(false, 'wttr'), 'weather completes a name-only location save with wttr data')
@@ -182,3 +204,35 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
+
+# ---- omarchy-weather-status: ru locales ask wttr for m/s wind --------------
+
+status_dir="$test_tmp/status"
+mkdir -p "$status_dir/bin"
+
+# Records the wttr URL the script requests so tests can pin the unit flag,
+# then serves a canned one-line report.
+cat >"$status_dir/bin/curl" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" > "$status_dir/last-url"
+echo '+21°C|↑13km/h'
+EOF
+
+cat >"$status_dir/bin/omarchy-weather-location" <<'STUB'
+#!/bin/bash
+echo "malibu"
+STUB
+
+chmod +x "$status_dir/bin/curl" "$status_dir/bin/omarchy-weather-location"
+
+weather_status_url() {
+  HOME="$test_tmp" PATH="$status_dir/bin:$PATH" LANG="$1" "$ROOT/bin/omarchy-weather-status" >/dev/null
+  cat "$status_dir/last-url"
+}
+
+[[ $(weather_status_url "en_US.UTF-8") == *"format=%t|%w" ]] || fail "weather status leaves wttr units alone outside ru locales"
+[[ $(weather_status_url "en_US.UTF-8") != *"&M"* ]] || fail "weather status adds no wind flag outside ru locales"
+pass "weather status leaves wttr units alone outside ru locales"
+
+[[ $(weather_status_url "ru_RU.UTF-8") == *"format=%t|%w&M"* ]] || fail "weather status asks wttr for m/s wind in the ru locale"
+pass "weather status asks wttr for m/s wind in the ru locale"

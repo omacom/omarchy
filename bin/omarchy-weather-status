@@ -10,7 +10,15 @@ if [[ -z $place ]]; then
 fi
 
 query=$(jq -rn --arg place "$place" '$place | @uri')
-weather=$(curl -fsS --max-time 4 "https://wttr.in/${query}?format=%t|%w" 2>/dev/null | tr -d '\n')
+
+# Russian forecasts read wind in m/s (Roshydromet standard). wttr's M option
+# converts its default km/h without changing the rest of the report.
+wind_flag=""
+if [[ ${LANG,,} =~ ^ru($|[_.-]) ]]; then
+  wind_flag="&M"
+fi
+
+weather=$(curl -fsS --max-time 4 "https://wttr.in/${query}?format=%t|%w${wind_flag}" 2>/dev/null | tr -d '\n')
 
 if [[ -z $weather ]]; then
   echo "Weather unavailable"
