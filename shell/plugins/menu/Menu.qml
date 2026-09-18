@@ -60,6 +60,13 @@ Item {
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
+  // A select caller that takes several picks per visit sets keepOpen: a pick
+  // leaves the list instead of closing the menu, and streams to the caller as
+  // it is made so the caller can act on it right away.
+  property bool dmenuKeepOpen: false
+  // Writes to the caller's handshake files, run one at a time and in order, so
+  // the done marker can never overtake a pick still on its way out.
+  property var dmenuWrites: []
   property bool requestActive: false
   property bool rowsLoaded: false
   property string activeMenu: "root"
@@ -126,12 +133,30 @@ Item {
     root.selectionFile = ""
     root.doneFile = ""
 
+    if (root.dmenuKeepOpen) {
+      // The picks already went out one by one; mark done behind them.
+      root.queueDmenuWrite(": > " + Util.shellQuote(activeDoneFile))
+      return
+    }
+
     if (selection === null || selection === undefined) {
       resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
     } else {
       resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
     }
     resultProc.running = true
+  }
+
+  function queueDmenuWrite(command) {
+    root.dmenuWrites = root.dmenuWrites.concat([command])
+    root.runNextDmenuWrite()
+  }
+
+  function runNextDmenuWrite() {
+    if (dmenuWriteProc.running || root.dmenuWrites.length === 0) return
+    dmenuWriteProc.command = ["bash", "-c", root.dmenuWrites[0]]
+    root.dmenuWrites = root.dmenuWrites.slice(1)
+    dmenuWriteProc.running = true
   }
 
   function runAction(action) {
@@ -765,7 +790,9 @@ Item {
       }
       if (index < 0 || index >= displayModel.count) return
       var picked = displayModel.get(index)
-      root.applyDmenuSelection(picked.detail ? picked.label + "\t" + picked.detail : picked.label)
+      var value = picked.detail ? picked.label + "\t" + picked.detail : picked.label
+      if (root.dmenuKeepOpen) root.takeDmenuPick(picked.itemId, value)
+      else root.applyDmenuSelection(value)
       return
     }
 
@@ -819,6 +846,17 @@ Item {
     root.finishRequest(value)
   }
 
+  function takeDmenuPick(itemId, value) {
+    if (root.requestActive && root.selectionFile)
+      root.queueDmenuWrite("printf '%s\\n' " + Util.shellQuote(value) + " >> " + Util.shellQuote(root.selectionFile))
+
+    // Row ids are "dmenu.<option index>", renumbered on every rebuild.
+    var picked = Number(String(itemId).slice(6))
+    root.dmenuOptions = root.dmenuOptions.filter(function(_, i) { return i !== picked })
+    if (root.dmenuOptions.length === 0) root.cancel()
+    else root.rebuildDmenuDisplay()
+  }
+
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
@@ -868,6 +906,7 @@ Item {
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
+    dmenuKeepOpen = payload.keepOpen === true
     activeMenu = "root"
     navStack = []
     filterText = ""
@@ -945,6 +984,11 @@ Item {
       if (root.applySerial === root.requestSerial)
         root.opened = false
     }
+  }
+
+  Process {
+    id: dmenuWriteProc
+    onExited: Qt.callLater(root.runNextDmenuWrite)
   }
 
   PointerMoveGate {

@@ -165,3 +165,5 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+A caller that wants several picks in one visit passes `--keep-open` (payload `keepOpen: true`): Enter drops the picked row from the list and the menu stays up. Each pick is written to `selectionFile` the moment it is made and `omarchy-menu-select` prints it straight away, so the caller acts on it while the menu is still open; `doneFile` is touched behind the last pick once the menu closes, or once the last row is picked. `omarchy-webapp-remove` uses it to remove web apps one after another in a single visit.

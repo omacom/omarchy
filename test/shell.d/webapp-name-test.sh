@@ -100,6 +100,22 @@ run_remove "Example App" >/dev/null
   fail "webapp remove deletes the launcher it installed"
 pass "webapp install and remove round-trip an ordinary name"
 
+# The picker stays open while web apps are picked and hands each pick on, one
+# per line, as it is made. Each of them has to go, not just the first.
+run_install "First App" "https://example.com" hey >/dev/null
+run_install "Second App" "https://example.org" hey >/dev/null
+cat >"$tmp_dir/bin/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+[[ " $* " == *" --keep-open "* ]] || exit 1
+printf '%s\n' "First App" "Second App"
+STUB
+chmod +x "$tmp_dir/bin/omarchy-menu-select"
+run_remove >/dev/null || fail "webapp remove asks the picker to stay open"
+rm -f "$tmp_dir/bin/omarchy-menu-select"
+[[ -f "$apps_dir/First App.desktop" || -f "$apps_dir/Second App.desktop" ]] &&
+  fail "webapp remove deletes every web app picked in one visit"
+pass "webapp remove deletes every web app picked in one visit"
+
 # Anything installed by an older version can still be nested. Removal has to
 # reach it, which a path rebuilt from the displayed name never could.
 mkdir -p "$apps_dir/http:/127.0.0.1:4000"
