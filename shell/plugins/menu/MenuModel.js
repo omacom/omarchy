@@ -312,6 +312,15 @@ function termInSearchWords(term, text) {
   return false
 }
 
+function termPrefixesWord(term, text) {
+  if (!term) return false
+  var words = String(text || "").toLowerCase().split(/\s+/)
+  for (var i = 0; i < words.length; i++) {
+    if (words[i].indexOf(term) === 0) return true
+  }
+  return false
+}
+
 function descriptionTextMatches(query, text) {
   var terms = String(query || "").toLowerCase().trim().split(/\s+/)
   for (var i = 0; i < terms.length; i++) {
@@ -350,6 +359,9 @@ function searchScore(items, entry, query) {
   // for Zen Browser) beats exact-labeled menu entries like Install > Zen.
   else if (entry.kind === "app" && label.split(/\s+/).indexOf(needle) >= 0) score = 0
   else if (label.indexOf(needle) === 0) score = 10
+  // "chro" in "Google Chrome" is a word prefix, not a label prefix, so it
+  // would otherwise score as a contains-match and lose to Setup > Chrome.
+  else if (entry.kind === "app" && termPrefixesWord(needle, label)) score = 10
   else if (label.indexOf(needle) >= 0) score = 30
   else if (nameText.indexOf(needle) >= 0) score = 40
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
