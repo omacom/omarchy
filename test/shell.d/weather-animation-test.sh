@@ -205,6 +205,27 @@ assert(
   'weather panel toggles on Space without firing on the Return that opens the location editor'
 )
 
+// A veil has to contrast with what it covers. White precipitation on a
+// near-white wallpaper measured thirty times fainter than the same rain on a
+// dark one, and the thunder flash all but vanished, so the colour follows the
+// theme rather than being fixed.
+assert(
+  layerSource.includes('readonly property bool lightDesktop'),
+  'weather animations decide whether the desktop is light'
+)
+assert(
+  /readonly property color veil:[\s\S]{0,160}lightDesktop/.test(layerSource),
+  'weather animations pick the overlay colour from that'
+)
+assert(
+  !/Qt\.rgba\(1, 1, 1, 0\.\d+ \+/.test(layerSource),
+  'weather animations no longer hard-code white precipitation'
+)
+assert(
+  /cloudy"\) return Qt\.rgba\(0, 0, 0, 1\)/.test(layerSource),
+  'weather animations keep cloud shadow dark on any desktop, because a shadow darkens'
+)
+
 // Per-drop animations measured around +26% CPU on two screens; the sliding
 // sheets are what make the layer affordable. Guard the shape of that fix.
 assert(

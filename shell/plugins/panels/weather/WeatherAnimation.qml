@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Shapes
+import qs.Commons
 import "Animation.js" as AnimationModel
 
 // One screen's worth of weather drawn over the wallpaper.
@@ -38,6 +39,21 @@ Item {
 
   // Number of depth planes precipitation is split across.
   readonly property int planes: 3
+
+  // Everything here works by laying a veil over the wallpaper, and a veil has
+  // to contrast with what it covers. White rain on a near-white wallpaper
+  // measured thirty times fainter than the same rain on a dark one, and the
+  // thunder flash all but vanished — white has nowhere left to go at that end
+  // of the scale. So the veil flips: light on a dark desktop, dark ink on a
+  // light one.
+  //
+  // The theme's background stands in for the wallpaper, because Omarchy's
+  // light themes ship light wallpapers. A light wallpaper set under a dark
+  // theme is the case this proxy does not catch.
+  readonly property bool lightDesktop: Color.background.hslLightness > 0.5
+  readonly property color veil: lightDesktop
+    ? Qt.rgba(0.07, 0.08, 0.10, 1)
+    : Qt.rgba(1, 1, 1, 1)
 
   // Conditions cross-fade. The fade also gates the animations: children run
   // while the layer is still visible, so stopping is never a visible cut.
@@ -217,7 +233,7 @@ Item {
               // Flakes are flat; streaks fade in from the head so they read
               // as falling rather than as a row of dashes.
               color: plane.flakes
-                ? Qt.rgba(1, 1, 1, 0.45 + 0.55 * plane.depth)
+                ? Qt.rgba(root.veil.r, root.veil.g, root.veil.b, 0.45 + 0.55 * plane.depth)
                 : "transparent"
               gradient: plane.flakes ? null : streak
             }
@@ -229,7 +245,7 @@ Item {
             GradientStop { position: 0.0; color: "transparent" }
             GradientStop {
               position: 1.0
-              color: Qt.rgba(1, 1, 1, 0.35 + 0.65 * plane.depth)
+              color: Qt.rgba(root.veil.r, root.veil.g, root.veil.b, 0.35 + 0.65 * plane.depth)
             }
           }
         }
@@ -272,10 +288,13 @@ Item {
     // Fog sits low and pale; overcast is a dark wash that reads as cloud
     // shadow; clear is one barely-there warm patch by day, cool by night.
     readonly property color tint: {
+      // A shadow darkens whatever it falls on, on any desktop; it is the one
+      // element that does not follow the veil. On a near-black wallpaper it
+      // is inherently faint, because there is nothing left to shade.
       if (root.condition === "cloudy") return Qt.rgba(0, 0, 0, 1)
-      if (root.condition === "clear")
+      if (root.condition === "clear" && !root.lightDesktop)
         return root.night ? Qt.rgba(0.72, 0.80, 1, 1) : Qt.rgba(1, 0.93, 0.78, 1)
-      return Qt.rgba(1, 1, 1, 1)
+      return root.veil
     }
 
     readonly property int patches: root.condition === "clear" ? 2 : 4
@@ -444,7 +463,9 @@ Item {
         height: mote.size
         radius: mote.size / 2
         antialiasing: true
-        color: root.night ? Qt.rgba(0.85, 0.9, 1, 0.7) : Qt.rgba(1, 0.97, 0.88, 0.8)
+        color: root.lightDesktop
+          ? Qt.rgba(root.veil.r, root.veil.g, root.veil.b, 0.7)
+          : (root.night ? Qt.rgba(0.85, 0.9, 1, 0.7) : Qt.rgba(1, 0.97, 0.88, 0.8))
 
         x: mote.originX + mote.t * mote.driftX
         y: mote.originY - mote.t * field.height * 0.5
@@ -486,7 +507,9 @@ Item {
       id: flash
 
       anchors.fill: parent
-      color: "white"
+      // On a light desktop this is a brief dimming rather than a brightening:
+      // the same pulse, in the only direction that has any range left.
+      color: root.veil
       opacity: 0
     }
 
