@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# omarchy:summary=Print the VMware host monitor layout vmwgfx was given, one connected output per line
+# omarchy:hidden=true
+
+# vmtoolsd pushes the host layout into vmwgfx, which exposes each monitor's
+# offset as the DRM "suggested X"/"suggested Y" connector properties and its
+# size as the connector's preferred mode. Neither reaches Hyprland's Lua API,
+# so both are read from the kernel: the properties through libdrm's modetest,
+# the mode from sysfs, where the preferred mode is the first line.
+#
+# Output: <connector> <x> <y> <width>x<height>
+
+set -o pipefail
+
+drm_class_path="${OMARCHY_DRM_CLASS_PATH:-/sys/class/drm}"
+
+# One "<connector> <x> <y>" line per connected connector that carries both
+# properties. A connector header reads "id encoder status name ..." with the
+# status being connected, disconnected or unknown; each property is followed a
+# few lines down by its "value:" line.
+host_layout() {
+  modetest -M vmwgfx -c 2>/dev/null | awk '
+    function flush() {
+      if (name != "" && status == "connected" && x != "" && y != "") {
+        print name, x, y
+      }
+      name = ""
+    }
+    $3 ~ /^(connected|disconnected|unknown)$/ {
+      flush()
+      name = $4
+      status = $3
+      x = ""
+      y = ""
+      want = ""
+      next
+    }
+    /suggested X:/ { want = "x"; next }
+    /suggested Y:/ { want = "y"; next }
+    want != "" && $1 == "value:" {
+      if (want == "x") x = $2; else y = $2
+      want = ""
+    }
+    END { flush() }
+  '
+}
+
+layout=$(host_layout) || exit 1
+
+while read -r name x y; do
+  [[ -n $name ]] || continue
+  # The name is written into a monitor rule by the Lua that reads this, and
+  # into a sysfs path here, so only a plain connector name may pass.
+  [[ $name =~ ^[A-Za-z0-9._-]+$ ]] || continue
+  [[ $x =~ ^[0-9]+$ && $y =~ ^[0-9]+$ ]] || continue
+
+  # nullglob is off, so an unmatched glob stays literal and fails the read test.
+  mode=""
+  for modes in "$drm_class_path"/card*-"$name"/modes; do
+    [[ -r $modes ]] || continue
+    read -r mode <"$modes"
+    break
+  done
+  [[ $mode =~ ^[0-9]+x[0-9]+$ ]] || continue
+
+  printf '%s %s %s %s\n' "$name" "$x" "$y" "$mode"
+done <<<"$layout"
