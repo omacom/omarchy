@@ -13,6 +13,7 @@
   //   provider    Name of a shell-defined runtime row source (e.g. "fonts").
   //   aliases     alternate `omarchy menu summon <name>` routes; also searchable.
   //   description Optional subtitle and extra search text.
+  //   keybinding  Active Hyprland binding description shown at the row's right edge.
   //   when        Shell condition; hide row when it fails.
   //   checked     Shell condition; append ✓ when it succeeds.
   //

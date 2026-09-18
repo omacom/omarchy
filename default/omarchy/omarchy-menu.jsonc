@@ -13,6 +13,7 @@
   //                  should not normally add any.
   //   iconFont       font family used for the icon glyph, when it differs from the menu font
   //   title          header text shown when the submenu is open; defaults to label
+  //   keybinding     active Hyprland binding description shown at the row's right edge
   //   when           shell condition; hide row when it fails
   //   checked        shell condition; append ✓ when it succeeds
   //   disabled       shell condition; when it succeeds the row stays listed but
@@ -21,7 +22,7 @@
   //                  installed instead of vanishing from the list.
 
   // Root Menu
-  "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps"},
+  "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"keybinding":"Apps menu","provider":"apps"},
   "learn": {"icon":"󰧑","label":"Learn"},
   "trigger": {"icon":"󱓞","label":"Trigger"},
   "style": {"icon":"","label":"Style"},
@@ -30,7 +31,7 @@
   "remove": {"icon":"󰭌","label":"Remove","aliases":["uninstall"]},
   "update": {"icon":"","label":"Update","aliases":["restart","refresh"]},
   "about": {"icon":"","label":"About","action":"omarchy-launch-about"},
-  "system": {"icon":"","label":"System","aliases":["power-menu"]},
+  "system": {"icon":"","label":"System","aliases":["power-menu"],"keybinding":"System menu"},
 
   // System
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},
@@ -48,14 +49,14 @@
   "learn.arch": {"icon":"󰣇","label":"Arch","action":"omarchy-launch-webapp 'https://wiki.archlinux.org/title/Main_page'"},
   "learn.neovim": {"icon":"","label":"Neovim","action":"omarchy-launch-webapp 'https://www.lazyvim.org/keymaps'"},
   "learn.bash": {"icon":"󱆃","label":"Bash","action":"omarchy-launch-webapp 'https://devhints.io/bash'"},
-  "learn.tmux-keybindings": {"icon":"","label":"Tmux","action":"omarchy-menu-tmux-keybindings"},
-  "learn.herdr-keybindings": {"icon":"","label":"Herdr","action":"omarchy-menu-herdr-keybindings"},
+  "learn.tmux-keybindings": {"icon":"","label":"Tmux","keybinding":"Tmux keybindings","action":"omarchy-menu-tmux-keybindings"},
+  "learn.herdr-keybindings": {"icon":"","label":"Herdr","keybinding":"Herdr keybindings","action":"omarchy-menu-herdr-keybindings"},
   "learn.community": {"icon":"󰙯","label":"Community","action":"omarchy-launch-discord-community"},
 
   // Trigger
-  "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
+  "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"keybinding":"Emojis","action":"omarchy-menu-emoji"},
   "trigger.reminder": {"icon":"󰢌","label":"Reminder","aliases":["reminder"]},
-  "trigger.capture": {"icon":"","label":"Capture","aliases":["capture","screenshot","screenrecord","screen-record","screenrecording"]},
+  "trigger.capture": {"icon":"","label":"Capture","aliases":["capture","screenshot","screenrecord","screen-record","screenrecording"],"keybinding":"Capture menu"},
   "trigger.capture.screenshot": {"icon":"","label":"Screenshot","action":"omarchy-capture-screenshot"},
   "trigger.capture.screenrecord.stop": {"icon":"","label":"Stop Screenrecording","when":"pgrep -f '^gpu-screen-recorder'","action":"omarchy-capture-screenrecording --stop-recording"},
   "trigger.capture.screenrecord": {"icon":"","label":"Screenrecord"},
@@ -68,8 +69,8 @@
   "trigger.capture.screenrecord.webcam": {"icon":"","label":"With desktop + microphone audio + webcam","when":"omarchy-hw-webcam","action":"omarchy-capture-screenrecording-with-webcam"},
   "trigger.transcode": {"icon":"󰧸","label":"Transcode","action":"omarchy-transcode"},
   "trigger.share": {"icon":"","label":"Share","aliases":["share"]},
-  "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},
-  "trigger.hardware": {"icon":"","label":"Hardware","aliases":["hardware","hw"]},
+  "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"],"keybinding":"Toggle menu"},
+  "trigger.hardware": {"icon":"","label":"Hardware","aliases":["hardware","hw"],"keybinding":"Hardware menu"},
   "trigger.tests": {"icon":"󰓅","label":"Speed Test"},
   "trigger.hardware.laptop-display": {"icon":"󰛧","label":"Laptop Display","when":"omarchy-hw-laptop","action":"omarchy-hyprland-monitor-internal toggle"},
   "trigger.hardware.mirror-display": {"icon":"󰍹","label":"Mirror Display","when":"omarchy-hw-laptop","action":"omarchy-hyprland-monitor-internal-mirror toggle"},
@@ -101,8 +102,8 @@
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
   // Style
-  "style.theme": {"icon":"󰸌","label":"Theme","aliases":["theme","themes"],"action":"theme=$(omarchy-theme-switcher); [[ -n $theme ]] && omarchy-theme-set \"$theme\""},
-  "style.background": {"icon":"","label":"Background","aliases":["background","wallpaper"],"action":"background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""},
+  "style.theme": {"icon":"󰸌","label":"Theme","aliases":["theme","themes"],"keybinding":"Theme menu","action":"theme=$(omarchy-theme-switcher); [[ -n $theme ]] && omarchy-theme-set \"$theme\""},
+  "style.background": {"icon":"","label":"Background","aliases":["background","wallpaper"],"keybinding":"Background switcher","action":"background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""},
   "style.unlock": {"icon":"󰟵","label":"Unlock","aliases":["unlock"],"action":"unlock=$(omarchy-plymouth-switcher); if [[ $unlock == default ]]; then omarchy-launch-floating-terminal-with-presentation omarchy-plymouth-reset; elif [[ -n $unlock ]]; then omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-set-by-theme $(printf %q \"$unlock\")\"; fi"},
   "style.font": {"icon":"","label":"Font","provider":"fonts"},
   "style.bar": {"icon":"󰍜","label":"Menu Bar"},
