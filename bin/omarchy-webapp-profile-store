@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Read/write the remembered browser profile for a webapp
+# omarchy:args=<get|set|clear-all> [key] [dirname]
+# omarchy:hidden=true
+
+# Selections are state, not config: they name profile directories of the
+# browser on this machine, and are dropped when the default browser changes.
+DIR="$HOME/.local/state/omarchy/webapps/profiles"
+STAMP="$HOME/.local/state/omarchy/webapps/profiles-browser"
+
+key_for() { printf '%s' "$1" | sha256sum | cut -d' ' -f1; }
+
+cmd="${1:-}"
+shift
+
+case "$cmd" in
+get) # get <key> -> dirname, or nothing when unset or remembered for another browser
+  [[ -f $STAMP && "$(cat "$STAMP")" == "$(omarchy-webapp-profiles --browser)" ]] || exit 0
+  f="$DIR/$(key_for "$1")"
+  [[ -f $f ]] && cat "$f"
+  ;;
+set) # set <key> <dirname>
+  mkdir -p "$DIR"
+  printf '%s' "$2" >"$DIR/$(key_for "$1")"
+  omarchy-webapp-profiles --browser >"$STAMP"
+  ;;
+clear-all)
+  rm -rf "$DIR" "$STAMP"
+  ;;
+*)
+  echo "Usage: omarchy-webapp-profile-store <get|set|clear-all> [key] [dirname]" >&2
+  exit 1
+  ;;
+esac
