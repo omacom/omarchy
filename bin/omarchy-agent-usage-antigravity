@@ -1,0 +1,522 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Google Antigravity CLI usage into one display-ready JSON record.
+
+Local stats come from Antigravity session history (~/.gemini/antigravity-cli/history.jsonl)
+and conversation transcripts in ~/.gemini/antigravity-cli/brain/. The agents panel
+only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "antigravity"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Sign in to Antigravity with `agy auth login` or set your API key."
+
+
+def data_dir() -> Path:
+  custom = os.environ.get("ANTIGRAVITY_DATA_DIR") or os.environ.get("GEMINI_DATA_DIR")
+  if custom:
+    return Path(os.path.expandvars(os.path.expanduser(custom))).resolve()
+  standard = Path.home() / ".gemini" / "antigravity-cli"
+  if standard.is_dir():
+    return standard
+  return (Path.home() / ".gemini").resolve()
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def date_string(value: dt.date) -> str:
+  return value.strftime("%Y-%m-%d")
+
+
+def recent_date_strings() -> list[str]:
+  today = dt.datetime.now().date()
+  return [date_string(today - dt.timedelta(days=offset)) for offset in range(6, -1, -1)]
+
+
+def local_date_string() -> str:
+  return date_string(dt.datetime.now().date())
+
+
+def local_date_from_timestamp(value: Any) -> str:
+  if value is None:
+    return local_date_string()
+
+  if isinstance(value, (int, float)):
+    try:
+      seconds = float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+      return date_string(dt.datetime.fromtimestamp(seconds).date())
+    except Exception:
+      return local_date_string()
+
+  raw = str(value).strip()
+  if not raw:
+    return local_date_string()
+
+  try:
+    parsed = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is not None:
+      parsed = parsed.astimezone()
+    return date_string(parsed.date())
+  except Exception:
+    return local_date_string()
+
+
+def number(value: Any) -> int:
+  try:
+    return int(round(float(value or 0)))
+  except Exception:
+    return 0
+
+
+def decode_varint(data: bytes, offset: int) -> tuple[int, int]:
+  res = 0
+  shift = 0
+  length = len(data)
+  while offset < length:
+    b = data[offset]
+    offset += 1
+    res |= (b & 0x7F) << shift
+    if not (b & 0x80):
+      return res, offset
+    shift += 7
+    if shift > 64:
+      break
+  return res, offset
+
+
+def extract_step_timestamp(s_meta: bytes) -> int:
+  # s_meta: field 1 is Timestamp (wire 2)
+  # Timestamp: field 1 is seconds (wire 0)
+  try:
+    offset = 0
+    length = len(s_meta)
+    while offset < length:
+      tag, offset = decode_varint(s_meta, offset)
+      wire = tag & 7
+      field = tag >> 3
+      if wire == 2:
+        l, offset = decode_varint(s_meta, offset)
+        if field == 1:
+          sub_offset = offset
+          sub_end = offset + l
+          while sub_offset < sub_end:
+            sub_tag, sub_offset = decode_varint(s_meta, sub_offset)
+            if (sub_tag & 7) == 0:
+              val, sub_offset = decode_varint(s_meta, sub_offset)
+              if (sub_tag >> 3) == 1:
+                return val
+            elif (sub_tag & 7) == 2:
+              sl, sub_offset = decode_varint(s_meta, sub_offset)
+              sub_offset += sl
+            elif (sub_tag & 7) == 1:
+              sub_offset += 8
+            elif (sub_tag & 7) == 5:
+              sub_offset += 4
+            else:
+              break
+          return 0
+        offset += l
+      elif wire == 0:
+        _, offset = decode_varint(s_meta, offset)
+      elif wire == 1:
+        offset += 8
+      elif wire == 5:
+        offset += 4
+      else:
+        break
+  except Exception:
+    pass
+  return 0
+
+
+def extract_gen_stats(g_data: bytes) -> tuple[str, int, int, int, int] | None:
+  # g_data: field 1 is ChatModelMetadata (wire 2)
+  # ChatModelMetadata: field 4 is ModelUsageStats (wire 2), field 19 is response_model (wire 2)
+  # ModelUsageStats: 2=inp, 3=out, 4=cw, 5=cr (all wire 0)
+  try:
+    offset = 0
+    length = len(g_data)
+    while offset < length:
+      tag, offset = decode_varint(g_data, offset)
+      wire = tag & 7
+      field = tag >> 3
+      if wire == 2:
+        l, offset = decode_varint(g_data, offset)
+        if field == 1:
+          chat_offset = offset
+          chat_end = offset + l
+          model = "gemini-3.8-flash"
+          inp = out = cw = cr = 0
+          while chat_offset < chat_end:
+            ctag, chat_offset = decode_varint(g_data, chat_offset)
+            cwire = ctag & 7
+            cfield = ctag >> 3
+            if cwire == 2:
+              cl, chat_offset = decode_varint(g_data, chat_offset)
+              if cfield == 19:
+                try:
+                  raw_m = g_data[chat_offset : chat_offset + cl].decode("utf-8", errors="replace")
+                  if raw_m and raw_m != "unknown":
+                    model = raw_m
+                except Exception:
+                  pass
+              elif cfield == 4:
+                u_offset = chat_offset
+                u_end = chat_offset + cl
+                while u_offset < u_end:
+                  utag, u_offset = decode_varint(g_data, u_offset)
+                  uwire = utag & 7
+                  ufield = utag >> 3
+                  if uwire == 0:
+                    uval, u_offset = decode_varint(g_data, u_offset)
+                    if ufield == 2:
+                      inp = uval
+                    elif ufield == 3:
+                      out = uval
+                    elif ufield == 4:
+                      cw = uval
+                    elif ufield == 5:
+                      cr = uval
+                  elif uwire == 2:
+                    ul, u_offset = decode_varint(g_data, u_offset)
+                    u_offset += ul
+                  elif uwire == 1:
+                    u_offset += 8
+                  elif uwire == 5:
+                    u_offset += 4
+                  else:
+                    break
+              chat_offset += cl
+            elif cwire == 0:
+              _, chat_offset = decode_varint(g_data, chat_offset)
+            elif cwire == 1:
+              chat_offset += 8
+            elif cwire == 5:
+              chat_offset += 4
+            else:
+              break
+          return model, inp, out, cw, cr
+        offset += l
+      elif wire == 0:
+        _, offset = decode_varint(g_data, offset)
+      elif wire == 1:
+        offset += 8
+      elif wire == 5:
+        offset += 4
+      else:
+        break
+  except Exception:
+    pass
+  return None
+
+
+def scan_antigravity_data(root: Path) -> dict[str, Any]:
+  today = local_date_string()
+  recent_days = recent_date_strings()
+  daily_prompts: dict[str, int] = {day: 0 for day in recent_days}
+  active_days: set[str] = set()
+  today_sessions: set[str] = set()
+  total_sessions: set[str] = set()
+  total_prompts = 0
+  today_prompts = 0
+  detected_model = "gemini-3.8-flash"
+
+  history_file = root / "history.jsonl"
+  seen_history_prompts: set[tuple[str, int]] = set()
+
+  if history_file.is_file():
+    try:
+      with history_file.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+          line = line.strip()
+          if not line:
+            continue
+          try:
+            entry = json.loads(line)
+          except Exception:
+            continue
+
+          ts = entry.get("timestamp")
+          conv_id = str(entry.get("conversationId") or entry.get("conversation_id") or "")
+          day = local_date_from_timestamp(ts)
+          display = str(entry.get("display") or "")
+          prompt_key = (display[:100], int(ts or 0))
+          if prompt_key in seen_history_prompts:
+            continue
+          seen_history_prompts.add(prompt_key)
+
+          total_prompts += 1
+          active_days.add(day)
+          if conv_id:
+            total_sessions.add(conv_id)
+          if day in daily_prompts:
+            daily_prompts[day] += 1
+
+          if day == today:
+            today_prompts += 1
+            if conv_id:
+              today_sessions.add(conv_id)
+    except Exception:
+      pass
+
+  # If history.jsonl is missing or empty, try reading conversation transcripts in brain/
+  if total_prompts == 0:
+    brain_dir = root / "brain"
+    if brain_dir.is_dir():
+      for conv_dir in brain_dir.iterdir():
+        if not conv_dir.is_dir():
+          continue
+        conv_id = conv_dir.name
+        transcript = conv_dir / ".system_generated" / "logs" / "transcript.jsonl"
+        if not transcript.is_file():
+          continue
+
+        try:
+          with transcript.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+              if '"USER_INPUT"' not in line:
+                continue
+              try:
+                entry = json.loads(line)
+              except Exception:
+                continue
+
+              if entry.get("type") != "USER_INPUT":
+                continue
+
+              created_at = entry.get("created_at")
+              day = local_date_from_timestamp(created_at)
+              total_prompts += 1
+              active_days.add(day)
+              total_sessions.add(conv_id)
+              if day in daily_prompts:
+                daily_prompts[day] += 1
+              if day == today:
+                today_prompts += 1
+                today_sessions.add(conv_id)
+        except Exception:
+          continue
+
+  # Detect active account or plan
+  tier_label = "Google AI"
+  accounts_file = root.parent / "google_accounts.json"
+  if not accounts_file.is_file():
+    accounts_file = root / "google_accounts.json"
+  if accounts_file.is_file():
+    try:
+      accounts_data = json.loads(accounts_file.read_text(encoding="utf-8"))
+      active_acc = accounts_data.get("active")
+      if isinstance(active_acc, dict) and active_acc.get("email"):
+        tier_label = f"Google AI ({active_acc['email']})"
+      elif isinstance(active_acc, str) and active_acc:
+        tier_label = f"Google AI ({active_acc})"
+    except Exception:
+      pass
+
+  # Scan conversation databases for exact token counts and models
+  daily_tokens: dict[str, int] = {day: 0 for day in recent_days}
+  today_tokens_by_model: dict[str, int] = {}
+  model_usage: dict[str, dict[str, int]] = {}
+  has_tokens = False
+
+  convs_dir = root / "conversations"
+  if convs_dir.is_dir():
+    for db_file in convs_dir.glob("*.db"):
+      if not db_file.is_file() or db_file.stat().st_size == 0:
+        continue
+      try:
+        conn = sqlite3.connect(f"file:{db_file.resolve()}?mode=ro", uri=True)
+        conn.execute("PRAGMA query_only = ON")
+        cursor = conn.cursor()
+        query = """
+          SELECT g.data, s.metadata
+          FROM gen_metadata g
+          LEFT JOIN steps s ON g.idx = s.idx
+          ORDER BY g.idx
+        """
+        rows = cursor.execute(query).fetchall()
+        for g_data, s_meta in rows:
+          if not g_data:
+            continue
+          day = None
+          if s_meta:
+            sec = extract_step_timestamp(s_meta)
+            if sec > 0:
+              try:
+                day = date_string(dt.datetime.fromtimestamp(sec).date())
+              except Exception:
+                pass
+          if not day:
+            try:
+              day = date_string(dt.datetime.fromtimestamp(db_file.stat().st_mtime).date())
+            except Exception:
+              day = today
+
+          stats = extract_gen_stats(g_data)
+          if stats is None:
+            continue
+          model_name, inp, out, cw, cr = stats
+          step_total = inp + out
+
+          has_tokens = True
+          active_days.add(day)
+          if day in daily_tokens:
+            daily_tokens[day] += step_total
+          if day == today:
+            today_tokens_by_model[model_name] = today_tokens_by_model.get(model_name, 0) + step_total
+
+          bucket = model_usage.setdefault(
+            model_name,
+            {
+              "inputTokens": 0,
+              "outputTokens": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0,
+            },
+          )
+          bucket["inputTokens"] += inp
+          bucket["outputTokens"] += out
+          bucket["cacheReadInputTokens"] += cr
+          bucket["cacheCreationInputTokens"] += cw
+        conn.close()
+      except Exception:
+        continue
+
+  if has_tokens:
+    recent_records = [{"date": day, "messageCount": daily_tokens[day]} for day in recent_days]
+    today_total_tokens = sum(today_tokens_by_model.values())
+  else:
+    recent_records = [{"date": day, "messageCount": daily_prompts[day]} for day in recent_days]
+    today_total_tokens = 0
+    if not model_usage:
+      model_usage = {
+        detected_model: {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+        }
+      }
+
+  return {
+    "totalPrompts": total_prompts,
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "totalSessions": len(total_sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": recent_records,
+    "modelUsage": model_usage,
+    "tierLabel": tier_label,
+  }
+
+
+def scan_cache_paths(root: Path) -> tuple[Path, Path]:
+  stem = hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:16]
+  cache_dir = cache_root()
+  return (
+    cache_dir / f"antigravity-{stem}.json",
+    cache_dir / f"antigravity-{stem}.lock",
+  )
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  if max_age_seconds <= 0 or not path.is_file():
+    return None
+  try:
+    age = time.time() - path.stat().st_mtime
+    if age > max_age_seconds:
+      return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else None
+  except Exception:
+    return None
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+  path.parent.mkdir(parents=True, exist_ok=True)
+  handle_fd, tmp_path = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+  tmp = Path(tmp_path)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def cached_scan(root: Path, max_age_seconds: float) -> dict[str, Any]:
+  cache_file, lock_file = scan_cache_paths(root)
+
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if cached is not None:
+    return cached
+
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = read_fresh_json(cache_file, max_age_seconds)
+    if cached is not None:
+      return cached
+    summary = scan_antigravity_data(root)
+    write_json(cache_file, summary)
+    return summary
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true", help="rescan transcripts, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent scan")
+  parser.add_argument("--cache-seconds", type=float, default=20)
+  args = parser.parse_args()
+
+  root = data_dir()
+  scan_age = 0 if args.force else (900 if args.limits_only else args.cache_seconds)
+  stats = cached_scan(root, scan_age)
+
+  ready = number(stats.get("totalPrompts")) > 0
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    "ready": ready,
+    "hasLocalStats": ready,
+    "hasPromptStats": True,
+    "tierLabel": stats.get("tierLabel", "Google AI"),
+    "usageStatusText": "",
+    "authHelpText": AUTH_HELP,
+    "limits": [],
+  }
+  record.update(stats)
+  print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
