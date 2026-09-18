@@ -63,4 +63,4 @@ if ! jq -e '.data[1] | any(.[0] == "chewing")' <<<"$group_info" >/dev/null; then
 fi
 
 echo "Traditional Chinese input is ready. Press Ctrl+Space to switch between English and Chinese."
-echo "Chewing reads Bopomofo off the standard arrangement; run 'omarchy pkg add fcitx5-configtool' to pick Hsu, ETen or another one."
+echo "Chewing reads Bopomofo off the standard arrangement. To pick Hsu, ETen or another one, run 'omarchy pkg add fcitx5-configtool' and then 'fcitx5-configtool' from a terminal."

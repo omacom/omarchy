@@ -65,7 +65,7 @@ Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part 
 
 Traditional Chinese is one step away: pick _Setup > Input Method > Chewing (Traditional Chinese)_ in the Omarchy menu (or run `omarchy setup input chewing`), and Omarchy installs the [fcitx5-chewing](https://github.com/fcitx/fcitx5-chewing) engine and adds it to your input methods. You keep typing English until Ctrl+Space toggles Bopomofo on and off. Caps Lock stays the compose key, as on every other layout.
 
-Chewing reads Bopomofo off the standard arrangement. If you learned Hsu, ETen or one of the others, run `omarchy pkg add fcitx5-configtool`, select Chewing under _Input Method_, and set its keyboard arrangement there.
+Chewing reads Bopomofo off the standard arrangement. If you learned Hsu, ETen or one of the others, run `omarchy pkg add fcitx5-configtool` and start it with `fcitx5-configtool` from a terminal, since Omarchy hides it from the application launcher. Select Chewing under _Input Method_ and set its keyboard arrangement there.
 
 Fcitx5 also watches for a tap of the left Shift key to switch back to English, which is what most people who grew up on Windows expect. That tap does not reach it under Omarchy's default `kb_options`, because `shift:both_capslock_cancel` gives the Shift keys a two-level mapping whose release reports `Caps_Lock` rather than `Shift_L`. Drop that option in `~/.config/hypr/input.lua` if you want the Shift toggle, and Ctrl+Space keeps working either way:
 
