@@ -147,7 +147,9 @@ function openMeteoForecastDays(dailyForecastReport, todayString) {
       mintempC: roundedTemp(minC),
       maxtempF: roundedTemp(celsiusToFahrenheit(maxC)),
       mintempF: roundedTemp(celsiusToFahrenheit(minC)),
-      openMeteoWeatherCode: daily.weather_code ? daily.weather_code[i] : null
+      openMeteoWeatherCode: daily.weather_code ? daily.weather_code[i] : null,
+      sunrise: timeOnly(daily.sunrise ? daily.sunrise[i] : ""),
+      sunset: timeOnly(daily.sunset ? daily.sunset[i] : "")
     })
   }
   return result
@@ -204,6 +206,73 @@ function wttrNextForecastDays(report, todayString) {
 function buildForecastDays(report, dailyForecastReport, todayString) {
   var days = openMeteoForecastDays(dailyForecastReport, todayString)
   return days.length > 0 ? days : wttrNextForecastDays(report, todayString)
+}
+
+// Sunrise/sunset arrive in two shapes: open-meteo emits ISO local
+// timestamps ("2026-09-07T18:47"), wttr emits display times ("07:11 PM").
+// Normalize both to a bare 24h clock time ("18:47") so the panel shows one
+// format regardless of source.
+function timeOnly(value) {
+  var s = String(value || "").replace(/^\s+|\s+$/g, "")
+  if (s === "") return ""
+  var i = s.indexOf("T")
+  if (i >= 0) return s.slice(i + 1, i + 6)
+
+  var m = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/)
+  if (m) {
+    var hours = parseInt(m[1], 10) % 12
+    if (m[3].toLowerCase() === "pm") hours += 12
+    return (hours < 10 ? "0" : "") + hours + ":" + m[2]
+  }
+  return s
+}
+
+// Today's sun times, preferring the fast open-meteo daily payload over
+// wttr's per-day astronomy arrays. Picks the entry whose date matches
+// todayString and falls back to the first entry when the sources disagree
+// about order or the date is unknown.
+function sunTimes(dailyForecastReport, report, todayString) {
+  var daily = dailyForecastReport && dailyForecastReport.daily ? dailyForecastReport.daily : null
+  if (daily && daily.sunrise && daily.sunrise.length && daily.sunset && daily.sunset.length) {
+    var index = 0
+    var key = String(todayString || "").slice(0, 10)
+    if (key !== "" && daily.time && daily.time.length) {
+      for (var i = 0; i < daily.time.length; i++) {
+        if (String(daily.time[i]).slice(0, 10) === key) {
+          index = i
+          break
+        }
+      }
+    }
+    var sunrise = timeOnly(daily.sunrise[index])
+    var sunset = timeOnly(daily.sunset[index])
+    if (sunrise !== "" || sunset !== "") return { sunrise: sunrise, sunset: sunset }
+  }
+
+  var days = report && report.weather ? report.weather : []
+  if (days.length && days[0].astronomy && days[0].astronomy.length) {
+    var astronomy = days[0].astronomy[0]
+    if (astronomy.sunrise !== undefined && astronomy.sunset !== undefined)
+      return { sunrise: timeOnly(astronomy.sunrise), sunset: timeOnly(astronomy.sunset) }
+  }
+  return null
+}
+
+// Sun times for a forecast day object: open-meteo days carry normalized
+// sunrise/sunset strings, wttr days carry an astronomy array.
+function sunTimesForDay(day) {
+  if (!day) return null
+  if (day.sunrise !== undefined && day.sunset !== undefined) {
+    var sunrise = timeOnly(day.sunrise)
+    var sunset = timeOnly(day.sunset)
+    if (sunrise !== "" || sunset !== "") return { sunrise: sunrise, sunset: sunset }
+  }
+  if (day.astronomy && day.astronomy.length) {
+    var astronomy = day.astronomy[0]
+    if (astronomy.sunrise !== undefined && astronomy.sunset !== undefined)
+      return { sunrise: timeOnly(astronomy.sunrise), sunset: timeOnly(astronomy.sunset) }
+  }
+  return null
 }
 
 function bareTempForDay(day, kind, useImperial) {
@@ -290,6 +359,9 @@ if (typeof module !== "undefined") {
     bareTempForDay: bareTempForDay,
     dayIcon: dayIcon,
     iconForOpenMeteoCode: iconForOpenMeteoCode,
-    iconForCode: iconForCode
+    iconForCode: iconForCode,
+    timeOnly: timeOnly,
+    sunTimes: sunTimes,
+    sunTimesForDay: sunTimesForDay
   }
 }
