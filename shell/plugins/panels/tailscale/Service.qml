@@ -95,6 +95,18 @@ Item {
     return Model.displayHostName(hostName, dnsName)
   }
 
+  function exitNodeLabel(peer) {
+    return Model.exitNodeLabel(peer)
+  }
+
+  function groupPeers(peers, selfUserId) {
+    return Model.groupPeers(peers, selfUserId)
+  }
+
+  function filterPeers(peers, query) {
+    return Model.filterPeers(peers, query)
+  }
+
   function osIcon(os) {
     return Model.osIcon(os)
   }
