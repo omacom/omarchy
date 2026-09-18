@@ -40,6 +40,14 @@ That gives you a Tailscale panel in the bar, which connects and disconnects the 
 
 Installing it also adds a web app for the Tailscale admin console.
 
+## ZeroTier
+
+[ZeroTier](https://www.zerotier.com/) is another mesh VPN, and unlike Tailscale it has no accounts to sign into on the machine: you join a network by its 16-character network ID and authorize the machine from ZeroTier Central. Install it with _Install > Service > ZeroTier_, which installs the daemon and enables it so it starts at boot.
+
+From there it's the `zerotier-cli` that does the work: `sudo zerotier-cli join <network-id>` to join, `sudo zerotier-cli listnetworks` to see what you're on and which address you got, and `sudo zerotier-cli leave <network-id>` to drop off. A freshly joined machine sits in `ACCESS_DENIED` until you check it off in ZeroTier Central.
+
+There's no bar panel for it — the daemon runs quietly in the background. Remove it with _Remove > Services > ZeroTier_, which stops the service and uninstalls the package. Your node identity in `/var/lib/zerotier-one` stays behind, so reinstalling later comes back as the same node and the machine is still authorized on the networks it had joined.
+
 ## When it stops working
 
 Before rebooting, try restarting the offending piece on its own. _Update > Hardware_ has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up most "it worked five minutes ago" situations. See [troubleshooting](45-troubleshooting.md).
