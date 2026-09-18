@@ -4,7 +4,14 @@
 # omarchy:args=<packages...>
 
 if omarchy-pkg-missing "$@"; then
-  yay -S --noconfirm --needed "$@" || exit 1
+  # yay builds unprivileged, then escalates only for the final pacman -U.
+  # With no TTY (agents, polkit-only sessions) sudo cannot prompt, so point
+  # yay at pkexec for that privileged step — same shape as the Tailscale panel.
+  if [[ ! -t 0 ]]; then
+    yay -S --noconfirm --needed --sudo pkexec "$@" || exit 1
+  else
+    yay -S --noconfirm --needed "$@" || exit 1
+  fi
 fi
 
 for pkg in "$@"; do

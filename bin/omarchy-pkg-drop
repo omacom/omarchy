@@ -4,6 +4,16 @@
 # omarchy:args=<packages...>
 # omarchy:requires-sudo=true
 
+elevate() {
+  if (( EUID == 0 )); then
+    "$@"
+  elif [[ ! -t 0 ]]; then
+    pkexec "$@"
+  else
+    sudo "$@"
+  fi
+}
+
 installed=()
 declare -A installed_exact=()
 declare -A selected=()
@@ -20,5 +30,5 @@ for pkg in "$@"; do
 done
 
 if (( ${#installed[@]} > 0 )); then
-  sudo pacman -Rns --noconfirm "${installed[@]}"
+  elevate pacman -Rns --noconfirm "${installed[@]}"
 fi

@@ -22,10 +22,16 @@ cat >"$mock_path/sudo" <<'EOF'
 printf '%s\n' "$*" >"$TEST_TMP/pkg-drop-command"
 EOF
 
-chmod +x "$mock_path/pacman" "$mock_path/sudo"
+cat >"$mock_path/pkexec" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >"$TEST_TMP/pkg-drop-command"
+EOF
 
+chmod +x "$mock_path/pacman" "$mock_path/sudo" "$mock_path/pkexec"
+
+# Non-interactive callers (agents) escalate via pkexec; force that path here.
 PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" \
-  "$ROOT/bin/omarchy-pkg-drop" exact-package virtual-package provider-package exact-package
+  bash "$ROOT/bin/omarchy-pkg-drop" exact-package virtual-package provider-package exact-package </dev/null
 
 [[ $(<"$test_tmp/pkg-drop-command") == "pacman -Rns --noconfirm exact-package provider-package" ]] ||
   fail "package removal targets exact installed names only"
