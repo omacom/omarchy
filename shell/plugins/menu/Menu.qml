@@ -232,12 +232,17 @@ Item {
     return MenuModel.normalizeAliases(value)
   }
 
+  // Default rows keyed by id, as raw objects, so the user JSONC can merge
+  // onto them before normalizing: a user override keeps every builtin field
+  // it does not mention instead of resetting them to placeholders.
+  property var defaultMenuRawById: ({})
+
   function normalizeItem(id, raw) {
     return MenuModel.normalizeItem(id, raw)
   }
 
-  function parseMenuJsonc(raw) {
-    return MenuModel.parseMenuJsonc(raw)
+  function parseMenuJsonc(raw, defaultsById) {
+    return MenuModel.parseMenuJsonc(raw, defaultsById)
   }
 
   // Merge defaults + user extension. Later entries override earlier ones
@@ -967,7 +972,11 @@ Item {
     path: root.defaultMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.defaultMenuItems = root.parseMenuJsonc(text()); root.rebuildItemsFromSources() }
+    onLoaded: {
+      root.defaultMenuItems = root.parseMenuJsonc(text())
+      root.defaultMenuRawById = MenuModel.rawItemsById(text())
+      root.rebuildItemsFromSources()
+    }
     onFileChanged: reload()
   }
 
@@ -976,7 +985,7 @@ Item {
     path: root.userMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.userMenuItems = root.parseMenuJsonc(text()); root.rebuildItemsFromSources() }
+    onLoaded: { root.userMenuItems = root.parseMenuJsonc(text(), root.defaultMenuRawById); root.rebuildItemsFromSources() }
     onLoadFailed: { root.userMenuItems = []; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
