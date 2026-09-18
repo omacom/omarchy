@@ -67,23 +67,37 @@ cleanup() {
 trap cleanup EXIT
 
 # Round-robin across the returned URLs so we spread load across Netflix OCA nodes.
+#
+# Workers outlive their parent when it is SIGKILLed (the EXIT trap never runs
+# then; Quickshell's Process destructor does exactly that when the speed test
+# overlay is dismissed mid-run), so each worker polls the parent and tears its
+# transfer down within a beat of the parent going away instead of saturating
+# the link until the fast.com URLs expire.
+parent_pid=$$
+
 traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}
   local idx=$RANDOM
-  if [[ $direction == "down" ]]; then
-    while true; do
-      url=${urls[$((idx % url_count))]}
-      curl -fsS -o /dev/null "$url" 2>/dev/null || return
-      idx=$((idx + 1))
+  local url pid
+  while kill -0 "$parent_pid" 2>/dev/null; do
+    url=${urls[$((idx % url_count))]}
+    if [[ $direction == "down" ]]; then
+      curl -fsS -o /dev/null "$url" 2>/dev/null &
+    else
+      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null &
+    fi
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+      if ! kill -0 "$parent_pid" 2>/dev/null; then
+        kill "$pid" 2>/dev/null
+        return
+      fi
+      sleep 0.2
     done
-  else
-    while true; do
-      url=${urls[$((idx % url_count))]}
-      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
-      idx=$((idx + 1))
-    done
-  fi
+    wait "$pid" 2>/dev/null || return
+    idx=$((idx + 1))
+  done
 }
 
 for (( i = 0; i < parallel; i++ )); do
