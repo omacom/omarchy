@@ -71,7 +71,15 @@ enable_hyprland_autostart() {
 
 echo "Installing Sunshine..."
 omarchy-pkg-add sunshine
-systemctl --user enable --now sunshine
+
+# The sunshine package ships its user unit under an app-* name carrying
+# sunshine.service as an Alias. The alias only resolves after the unit has
+# been enabled once, so a fresh install must enable the shipped name.
+sunshine_unit="app-dev.lizardbyte.app.Sunshine.service"
+if ! systemctl --user list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -Fxq "$sunshine_unit"; then
+  sunshine_unit="sunshine.service"
+fi
+systemctl --user enable --now "$sunshine_unit"
 
 echo "Opening Sunshine firewall ports..."
 open_ufw_ports
