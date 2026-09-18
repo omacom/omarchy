@@ -146,14 +146,85 @@ signed_out=$(collect_limits "" 0 "$cache")
   fail "Claude collector serves open cached windows without a token" "$signed_out"
 pass "Claude collector serves open cached windows without a token"
 
-# A live token that cannot reach the endpoint keeps the old contract: the open
-# window stands in, and the shell is asked to retry sooner than its interval.
+# A live token that cannot reach the endpoint keeps the open window, asks the
+# shell to retry sooner, and marks the retained percentage as last-known so
+# the panel cannot present it as a successful current measurement (#10616).
 unreachable=$(collect_limits "token" 0 "$cache")
 [[ $(jq -c '[.limits[].label]' <<<"$unreachable") == '["Weekly (7-day)"]' ]] ||
   fail "Claude collector falls back to cache when the probe cannot connect" "$unreachable"
 [[ $(jq -r '.retryAdvised' <<<"$unreachable") == "true" ]] ||
   fail "Claude collector advises a retry after a transport failure" "$unreachable"
+[[ $(jq -r '.usageStatusText' <<<"$unreachable") == "Showing last known limits" ]] ||
+  fail "Claude collector marks retained limits as last-known after a transport failure" "$unreachable"
+[[ $(jq -r '.authHelpText' <<<"$unreachable") == *"Couldn't reach Anthropic"* ]] ||
+  fail "Claude collector keeps the transport failure help text with retained limits" "$unreachable"
 pass "Claude collector falls back to cache when the probe cannot connect"
+
+# An HTTP error with usable cache is the same class of failure: keep numbers,
+# mark them stale, and surface the endpoint's help text. retryAdvised stays
+# off — only a true transport miss asks the shell to hurry the next probe.
+http_fail=$(
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" CACHED="$cache" \
+    XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, json, os, urllib.error
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+cache = collector.cache_root() / "claude-limits.json"
+cache.write_text(os.environ["CACHED"], encoding="utf-8")
+
+def boom(request, timeout=None):
+  raise urllib.error.HTTPError(
+    url="https://api.anthropic.com/api/oauth/usage",
+    code=503,
+    msg="unavailable",
+    hdrs=None,
+    fp=None,
+  )
+
+collector.urllib.request.urlopen = boom
+print(json.dumps(collector.collect_limits("token", 0, True)))
+PY
+)
+[[ $(jq -c '[.limits[].label]' <<<"$http_fail") == '["Weekly (7-day)"]' ]] ||
+  fail "Claude collector falls back to cache when the endpoint returns an error" "$http_fail"
+[[ $(jq -r '.usageStatusText' <<<"$http_fail") == "Showing last known limits" ]] ||
+  fail "Claude collector marks retained limits as last-known after an endpoint error" "$http_fail"
+[[ $(jq -r '.retryAdvised // false' <<<"$http_fail") == "false" ]] ||
+  fail "Claude collector does not hurry retries on a non-transport endpoint error" "$http_fail"
+[[ $(jq -r '.authHelpText' <<<"$http_fail") == *"status 503"* ]] ||
+  fail "Claude collector keeps the endpoint error help text with retained limits" "$http_fail"
+pass "Claude collector marks retained limits stale after an endpoint error"
+
+# A later successful probe clears the stale banner and replaces the percentage.
+recovered=$(
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" CACHED="$cache" \
+    XDG_CACHE_HOME="$CACHE_HOME" python3 - <<'PY'
+import importlib.machinery, importlib.util, io, json, os
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+cache = collector.cache_root() / "claude-limits.json"
+cache.write_text(os.environ["CACHED"], encoding="utf-8")
+collector.urllib.request.urlopen = lambda request, timeout=None: io.BytesIO(
+  b'{"five_hour":{"utilization":100.0},"seven_day":{"utilization":12.0}}'
+)
+print(json.dumps(collector.collect_limits("token", 0, True)))
+PY
+)
+[[ $(jq -r '.usageStatusText' <<<"$recovered") == "" ]] ||
+  fail "Claude collector clears the stale status after a successful probe" "$recovered"
+[[ $(jq -c '[.limits[].percent]' <<<"$recovered") == "[1.0,0.12]" ]] ||
+  fail "Claude collector replaces cached limits after a successful probe" "$recovered"
+[[ $(jq -r '.retryAdvised // false' <<<"$recovered") == "false" ]] ||
+  fail "Claude collector clears retryAdvised after a successful probe" "$recovered"
+pass "Claude collector clears stale status after a successful probe"
 
 # Reuse and --force are decided against a cache that is fresh by the clock, so
 # the probe is answered rather than refused: what matters is whether it ran.
