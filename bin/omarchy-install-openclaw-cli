@@ -4,23 +4,23 @@
 # omarchy:args=[--check|--now]
 # omarchy:requires-sudo=true
 
-# OpenClaw is not a mise tool: the openclaw pacman package is the one OpenClaw
-# installation on the machine — the CLI, the gateway, and the Install > AI web
-# app all share it, and the fast ring keeps it current. The default-agent flow
-# talks to that package through the same --check/--now contract mise-backed
-# agents get from mise itself.
+# OpenClaw is not a mise tool: the openclaw pacman package is the usual
+# Omarchy install, but a user may already have a newer CLI on PATH. Treat any
+# working openclaw (package, PATH, or gateway) as present so --check/--now
+# does not reinstall a stale package ahead of it.
 
 set -euo pipefail
 
 case "${1:---now}" in
 --check)
-  omarchy-pkg-present openclaw
+  omarchy-openclaw-present
   ;;
 --now)
-  if ! omarchy-pkg-present openclaw; then
-    echo "Installing OpenClaw..."
-    omarchy-pkg-add openclaw
+  if omarchy-openclaw-present; then
+    exit 0
   fi
+  echo "Installing OpenClaw..."
+  omarchy-pkg-add openclaw
   ;;
 *)
   echo "Usage: omarchy-install-openclaw-cli [--check|--now]" >&2

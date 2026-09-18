@@ -5,8 +5,12 @@
 
 set -e
 
-echo "Installing OpenClaw..."
-omarchy-pkg-add openclaw
+if omarchy-openclaw-present; then
+  echo "OpenClaw is already available; skipping the package install."
+else
+  echo "Installing OpenClaw..."
+  omarchy-pkg-add openclaw
+fi
 
 # The desktop app is OpenClaw's Control UI: a web app served by its own
 # gateway. The launcher entry goes through omarchy-launch-openclaw, which
