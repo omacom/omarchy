@@ -8,11 +8,15 @@ echo "Run the WPA handshake in software on Macs with Broadcom Wi-Fi"
 dmi_vendor="${OMARCHY_BRCMFMAC_DMI_VENDOR:-/sys/class/dmi/id/sys_vendor}"
 conf="${OMARCHY_BRCMFMAC_CONF:-/etc/modprobe.d/brcmfmac.conf}"
 
+source "$OMARCHY_PATH/install/helpers/pci-sysfs.sh"
+
 sys_vendor="$(cat "$dmi_vendor" 2>/dev/null || true)"
 
-if ! lspci -nn | grep "106b:180[12]" >/dev/null &&
+# Detect the PCI IDs from cached sysfs fields rather than lspci, which reads
+# config space and resumes runtime-suspended devices.
+if ! omarchy-pci-id 0x106b 0x1801 0x1802 &&
   ! { [[ $sys_vendor == Apple* ]] &&
-    lspci -nn | grep -E "14e4:(43ba|43bb|43bc|43a3|43dc|4464|4488|4425|4433)" >/dev/null; }; then
+    omarchy-pci-id 0x14e4 0x43ba 0x43bb 0x43bc 0x43a3 0x43dc 0x4464 0x4488 0x4425 0x4433; }; then
   exit 0
 fi
 

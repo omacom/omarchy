@@ -7,21 +7,22 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-mkdir -p "$test_tmp/bin" "$test_tmp/home/.config/hypr"
-cat >"$test_tmp/bin/lspci" <<'SH'
-#!/bin/bash
-printf '%s\n' "Kernel driver in use: ${TEST_VIDEO_DRIVER:-nouveau}"
-SH
-chmod +x "$test_tmp/bin/lspci"
-
 looknfeel="$test_tmp/home/.config/hypr/looknfeel.lua"
+mkdir -p "$(dirname "$looknfeel")"
 printf '%s\n' '-- User look and feel' >"$looknfeel"
 
 run_fix() {
+  local driver="${1:-nouveau}"
+  local pci_dir="$test_tmp/pci-$driver-$RANDOM"
+  # A display controller (class 0x03) with the NVIDIA vendor ID, bound to the
+  # driver under test.
+  write_pci_devices "$pci_dir" 0x10de:0x1c03:0x030200
+  bind_pci_driver "$pci_dir" "0000:00:00.0" "$driver"
+
   HOME="$test_tmp/home" \
-    PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
+    OMARCHY_PATH="$ROOT" \
+    OMARCHY_PCI_DEVICES_PATH="$pci_dir" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$test_tmp/nvidia.conf" \
-    TEST_VIDEO_DRIVER="${1:-nouveau}" \
     bash -euo pipefail -c 'source "$ROOT/install/user/hardware/fix-nouveau-cursor.sh"'
 }
 
