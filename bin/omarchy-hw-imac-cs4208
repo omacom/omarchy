@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Detect Late 2015 21.5-inch iMacs whose CS4208 speakers need Analog Surround 4.0.
+
+product_name="${OMARCHY_DMI_PRODUCT_NAME:-/sys/class/dmi/id/product_name}"
+
+grep -Eqix 'iMac16,[12]' "$product_name" 2>/dev/null
