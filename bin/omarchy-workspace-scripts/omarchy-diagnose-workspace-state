@@ -1,0 +1,48 @@
+#!/bin/bash
+# Diagnostic script: Show workspace-to-monitor ownership state.
+# Use this to debug why Ixion appears on the wrong monitor after switches.
+#
+# Prints: ws_id | monitor_name | window_count | app_names | actual_monitor_from_windows
+
+set -euo pipefail
+
+BASES_JSON="${HOME}/.local/state/omarchy/monitor-bases.json"
+
+# Build name → base map
+declare -A bases
+if [[ -f "$BASES_JSON" ]]; then
+  while IFS=' ' read -r mon_name mon_base; do
+    [[ -n "$mon_name" && -n "$mon_base" ]] && bases["$mon_name"]="$mon_base"
+  done < <(jq -r 'to_entries[] | "\(.key) \(.value)"' "$BASES_JSON")
+fi
+
+echo "=== Workspace Ownership State ==="
+echo "ws_id | owner_monitor | window_count | app_names | actual_window_monitors"
+echo "---"
+
+hyprctl workspaces -j | jq -r '.[] | "\(.id) \(.monitor.name)"' | while read -r ws_id mon_name; do
+  # Count windows on this workspace
+  win_count=$(hyprctl clients -j | jq "[.[] | select(.workspace.id == $ws_id)] | length")
+  
+  # Get app names on this workspace
+  app_names=$(hyprctl clients -j | jq -r "[.[] | select(.workspace.id == $ws_id) | .class] | join(\",\")" 2>/dev/null || echo "")
+  
+  # Get actual monitors of windows on this workspace (should match mon_name for all)
+  actual_mons=$(hyprctl clients -j | jq -r "[.[] | select(.workspace.id == $ws_id) | .monitor_name] | unique | join(\",\")" 2>/dev/null || echo "")
+  
+  # Check for inconsistency: workspace says it's on mon_name, but windows are on actual_mons
+  status=""
+  if [[ "$win_count" -gt 0 && -n "$actual_mons" && "$mon_name" != "$actual_mons" ]]; then
+    status=" [MISMATCH!]"
+  fi
+  
+  printf "%s | %s | %s | %s | %s%s\n" "$ws_id" "$mon_name" "$win_count" "$app_names" "$actual_mons" "$status"
+done
+
+echo ""
+echo "=== Monitor Layout ==="
+hyprctl monitors -j | jq -r '.[] | "\(.id) \(.name) (base: \(.), focused: \(.focused))"'
+
+echo ""
+echo "=== Active Window ==="
+hyprctl activewindow -j | jq '{class, monitor, workspace, address}'
