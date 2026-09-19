@@ -323,8 +323,13 @@ ShellRoot {
     return copy
   }
 
+  // Reads shellConfig, not the barConfig binding: syncPluginApis runs from
+  // onShellConfigChanged, before that binding re-evaluates, so the binding
+  // would hand plugins the configuration from before the change.
   function publicBarConfig() {
-    return JSON.parse(JSON.stringify(shell.barConfig || {}))
+    var config = shell.shellConfig && Util.isPlainObject(shell.shellConfig.bar)
+      ? shell.shellConfig.bar : shell.builtinShellConfig.bar
+    return JSON.parse(JSON.stringify(config || {}))
   }
 
   function barConfigFor(manifest) {
