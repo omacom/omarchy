@@ -5,6 +5,7 @@
 
 set -e
 
+SUNSHINE_UNIT="app-dev.lizardbyte.app.Sunshine.service"
 TCP_PORTS=(47984 47989 48010)
 UDP_PORTS=(5353 47998 47999 48000 48002 48010)
 PRIVATE_CIDRS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
@@ -60,18 +61,15 @@ install_admin_webapp() {
   omarchy-webapp-install "$SUNSHINE_ADMIN_APP" "$SUNSHINE_ADMIN_URL" "$SUNSHINE_ICON_SOURCE" "$SUNSHINE_ADMIN_EXEC"
 }
 
-enable_hyprland_autostart() {
-  mkdir -p "$(dirname "$HYPR_AUTOSTART_FILE")"
-  touch "$HYPR_AUTOSTART_FILE"
-
-  if ! grep -Fxq "$HYPR_AUTOSTART_ENTRY" "$HYPR_AUTOSTART_FILE"; then
-    printf '\n%s\n' "$HYPR_AUTOSTART_ENTRY" >>"$HYPR_AUTOSTART_FILE"
+disable_hyprland_autostart() {
+  if [[ -f $HYPR_AUTOSTART_FILE ]]; then
+    sed -i "\|^$HYPR_AUTOSTART_ENTRY$|d" "$HYPR_AUTOSTART_FILE"
   fi
 }
 
 echo "Installing Sunshine..."
 omarchy-pkg-add sunshine
-systemctl --user enable --now sunshine
+systemctl --user enable --now "$SUNSHINE_UNIT"
 
 echo "Opening Sunshine firewall ports..."
 open_ufw_ports
@@ -80,8 +78,8 @@ echo "Installing Sunshine admin web app..."
 install_admin_webapp
 $SUNSHINE_ADMIN_EXEC >/dev/null 2>&1 &
 
-echo "Enabling Sunshine autostart..."
-enable_hyprland_autostart
+echo "Removing any stray Hyprland autostart entry..."
+disable_hyprland_autostart
 
 echo ""
 echo "Sunshine has been installed and its Moonlight streaming ports are open for private LANs and Tailscale."
