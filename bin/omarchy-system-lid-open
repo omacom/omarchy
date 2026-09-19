@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Cancel a pending lid suspend and turn the panel on
+# omarchy:group=system
+# omarchy:hidden=true
+
+pidfile="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/omarchy-lid-suspend.pid"
+if [[ -f $pidfile ]]; then
+  old=$(<"$pidfile")
+  if [[ $old =~ ^[0-9]+$ ]] && kill -0 "$old" 2>/dev/null; then
+    kill "$old" 2>/dev/null || true
+  fi
+  rm -f "$pidfile"
+fi
+
+if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
+  exit 0
+fi
+
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+
+omarchy-system-wake >/dev/null 2>&1 || true
+
+# omarchy-brightness-display on skips when Hyprland already reports dpmsStatus,
+# which is wrong after S3 if the backlight was saved at 0 while the lid was
+# closed and Hyprland missed switch:off because user.slice was frozen.
+hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1 || true
+
+device=$(omarchy-hw-display 2>/dev/null) || exit 0
+cur=$(brightnessctl -d "$device" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4 }')
+if [[ $cur =~ ^[0-9]+$ ]] && (( cur == 0 )); then
+  brightnessctl -d "$device" set 40% >/dev/null 2>&1 || true
+fi
