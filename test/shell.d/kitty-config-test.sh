@@ -134,6 +134,29 @@ run_command omarchy-display-text-size reset
 grep -qx 'font_size 9.0' "$kitty_config" || fail "size reset restores default"
 pass "font controls add and update overrides in the minimal template"
 
+cat >"$kitty_config" <<'CONF'
+font_family Old Font
+bold_font Old Font
+italic_font auto
+bold_italic_font Old Font
+# bold_font Manual Edit
+font_size 12.0
+CONF
+run_command omarchy-font-set 'Test Font'
+grep -qx 'font_family Test Font' "$kitty_config" || fail "font command updates family with stale faces"
+grep -qx 'bold_font Test Font' "$kitty_config" || fail "font command updates stale bold face"
+grep -qx 'italic_font auto' "$kitty_config" || fail "font command leaves auto italic face alone"
+grep -qx 'bold_italic_font Test Font' "$kitty_config" || fail "font command updates stale bold-italic face"
+grep -qx '# bold_font Manual Edit' "$kitty_config" || fail "font command leaves commented faces alone"
+[[ $(grep -c '^bold_font ' "$kitty_config") == "1" ]] || fail "face update avoids duplicate overrides"
+run_command omarchy-font-set Font
+! grep -q 'Old Font' "$kitty_config" || fail "no stale face survives a font change"
+pass "font command syncs explicit Kitty faces while preserving auto and comments"
+
+cp "$ROOT/config/kitty/kitty.conf" "$kitty_config"
+run_command omarchy-font-set 'Test Font'
+! grep -qE '^(bold_font|italic_font|bold_italic_font) ' "$kitty_config" || fail "font command must not add face lines users never set"
+
 rm "$kitty_config"
 output=$(run_command omarchy-display-text-size)
 [[ $output == *"terminal font: 9 pt"* ]] || fail "size report handles absent Kitty config"
