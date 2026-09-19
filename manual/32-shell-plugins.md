@@ -14,6 +14,19 @@ omarchy plugin list
 
 That prints every discovered plugin with its id, whether it's enabled, whether it's first-party or third-party, its kinds, and its display name. Add `--json` if you're feeding it to something else.
 
+If the shell is not running, or you are investigating why a plugin was not
+loaded, audit the files directly:
+
+```
+omarchy plugin audit
+omarchy plugin audit --json
+```
+
+The audit validates every discovered manifest and entry point without starting
+`omarchy-shell`. It marks third-party plugins as `unsandboxed` because they run
+as the user inside the long-lived shell process; that label is a reminder of
+the trust boundary, not a claim that the audit provides sandboxing.
+
 Plugin ids are namespaced. The built-ins all start with `omarchy.` — `omarchy.clock`, `omarchy.network`, `omarchy.notifications` — and that namespace is reserved, so a third-party plugin can never claim it.
 
 ## Turning them on and off
