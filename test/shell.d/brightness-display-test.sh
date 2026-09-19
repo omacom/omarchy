@@ -38,6 +38,7 @@ SH
 cat >"$mock_bin/ddcutil" <<'SH'
 #!/bin/bash
 printf 'ddcutil %s\n' "$*" >>"$CALL_LOG"
+[[ ${DDC_FAIL_ALWAYS:-0} == "1" ]] && exit 1
 
 if [[ $* == *" detect --brief"* ]]; then
   cat <<EOF
@@ -100,6 +101,15 @@ fi
 (( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
   fail "unsupported external monitor detection is temporarily cached"
 pass "unsupported external monitor has no brightness backend"
+
+backlight_sets=$(grep -c 'brightnessctl -d mock_backlight set ' "$call_log" || true)
+if DDC_FAIL_ALWAYS=1 run_brightness --monitor DP-1 >/dev/null 2>&1; then
+  fail "failed DDC read does not report the laptop panel brightness"
+fi
+DDC_FAIL_ALWAYS=1 run_brightness --no-osd --monitor DP-1 35% || true
+(( $(grep -c 'brightnessctl -d mock_backlight set ' "$call_log" || true) == backlight_sets )) || \
+  fail "failed DDC write must not fall through to the laptop panel backlight"
+pass "failed DDC access on external is a no-op"
 
 rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 detect_count=$(grep -c ' detect --brief' "$call_log")
