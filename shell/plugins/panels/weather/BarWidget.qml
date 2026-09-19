@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 BarWidget {
   id: root
@@ -46,7 +47,9 @@ BarWidget {
     if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
   }
 
-  visible: panelLoader.item && panelLoader.item.label !== ""
+  // Do not hide the configured slot while the icon is empty — wttr.in TLS
+  // failures and a pending Open-Meteo fetch used to collapse the widget.
+  visible: Model.barWidgetVisible(!!panelLoader.item, panelLoader.item ? panelLoader.item.label : "")
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -68,7 +71,7 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: panelLoader.item ? panelLoader.item.label : ""
+    text: panelLoader.item ? Model.resolvedBarLabel(panelLoader.item.label) : ""
     slotSize: Style.bar.statusSlot
     // Tooltip suppressed because the panel is the detail view.
     tooltipText: ""

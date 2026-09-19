@@ -109,6 +109,40 @@ assertEqual(weather.currentIcon({ openMeteoWeatherCode: 0, isDay: 0 }, ''), weat
 assert(weather.iconForOpenMeteoCode(45, true) !== weather.iconForOpenMeteoCode(45, false), 'weather distinguishes nighttime fog from daytime fog')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, ''), weather.iconForCode(113, false), 'weather uses wttr to fill an empty initial icon')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, 'night'), 'night', 'weather refresh preserves a resolved day-night icon')
+
+assertEqual(weather.barWidgetVisible(true, ''), true, 'weather bar stays visible when the label is still empty')
+assertEqual(weather.barWidgetVisible(true, weather.iconForOpenMeteoCode(0)), true, 'weather bar stays visible after an icon arrives')
+assertEqual(weather.barWidgetVisible(false, ''), false, 'weather bar hides only when the panel is not loaded')
+assertEqual(weather.resolvedBarLabel(''), '—', 'weather bar shows a placeholder before the first successful fetch')
+assertEqual(weather.resolvedBarLabel(weather.iconForOpenMeteoCode(0)), weather.iconForOpenMeteoCode(0), 'weather bar keeps the last good icon')
+assertEqual(weather.resolvedBarLabel('', 'last'), 'last', 'weather bar prefers a last-good fallback over the placeholder')
+assertEqual(
+  weather.labelFromOpenMeteo({ current: { temperature_2m: 21.4, weather_code: 0, is_day: 1 } }, ''),
+  weather.iconForOpenMeteoCode(0),
+  'weather Open-Meteo fallback sets the bar label'
+)
+assertEqual(
+  weather.labelFromOpenMeteo({ current: { weather_code: 95, is_day: 0 } }, ''),
+  weather.iconForOpenMeteoCode(95, true),
+  'weather Open-Meteo still sets a label from weather_code without temperature'
+)
+assertEqual(
+  weather.labelFromOpenMeteo({}, 'last'),
+  'last',
+  'weather Open-Meteo keeps the last good label when the payload has no current'
+)
+assert(
+  !/visible:\s*panelLoader\.item\s*&&\s*panelLoader\.item\.label\s*!==\s*""/.test(widgetSource),
+  'weather bar no longer gates visibility on an empty label'
+)
+assert(
+  widgetSource.includes('Model.barWidgetVisible') && widgetSource.includes('Model.resolvedBarLabel'),
+  'weather bar uses last-good-or-placeholder label without hiding the slot'
+)
+assert(
+  panelSource.includes('root.label = Model.labelFromOpenMeteo(parsed, root.label)'),
+  'weather Open-Meteo path still assigns the bar label'
+)
 // The bar identifies a panel by the widget in its slot, so the nested panel
 // has to present the host widget rather than itself — otherwise the
 // open-panel dot never lights and Tab cannot leave the panel.
