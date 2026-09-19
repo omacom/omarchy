@@ -74,6 +74,15 @@ assert_detects "a reader is detected by an existing product-name match"
 write_usb_devices '27c6:1234'
 assert_detects "a reader is detected by an existing vendor match"
 
+# Microarray's MAFP readers enumerate as "MAFP General Device" — no
+# "fingerprint" in the string — so both the vendor guess and an MAFP token
+# have to catch them. Each is exercised on its own.
+write_usb_devices '3274:8012'
+assert_detects "a Microarray reader is detected by its vendor"
+
+write_usb_devices '1234:5678:MAFP General Device'
+assert_detects "a reader is detected by the MAFP product token"
+
 bind_driver() {
   local dev="$1" driver="$2"
 
