@@ -25,7 +25,8 @@ fi
 # keeps the migration pending so it can be retried.
 if queue_report=$(LC_ALL=C lpstat -v 2>&1); then
   :
-elif [[ $queue_report == "lpstat: No destinations added." ]]; then
+elif [[ $queue_report == "lpstat: No destinations added." ||
+       $queue_report == "lpstat: Scheduler is not running." ]]; then
   queue_report=""
 else
   printf '%s\n' "$queue_report" >&2
