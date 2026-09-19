@@ -25,29 +25,65 @@ if [[ -z $sink || $sink == alsa_output.* || $sink == bluez_output.* ]]; then
 fi
 
 # 1. Generic PipeWire graph resolution:
-# Check if any physical sink (ALSA/BlueZ) is currently receiving audio from upstream links.
-physical_sink="$(pw-link -l 2>/dev/null | awk '
-  /^(alsa_output|bluez_output).*:playback_/ {
-    split($1, parts, ":")
-    target = parts[1]
-    getline
-    if ($1 == "|<-") {
-      print target
-      exit
+# Real DSP sinks create multiple independent nodes (e.g., input front-door, output back-door).
+# Find all nodes sharing the same 'node.link-group' as the requested sink, then
+# traverse their outgoing links to find the connected physical hardware sink.
+related_nodes="$(pw-cli dump node 2>/dev/null | awk -v virt="$sink" '
+  /^[[:space:]]*id / {
+    if (name != "") {
+      names[id] = name
+      if (group != "") groups[id] = group
+      if (name == virt) virt_group = group
+    }
+    id = $2; sub(/,.*/, "", id)
+    name = ""; group = ""
+  }
+  /node\.name = / { name = $0; sub(/.*node\.name = "/, "", name); sub(/".*/, "", name) }
+  /node\.link-group = / { group = $0; sub(/.*node\.link-group = "/, "", group); sub(/".*/, "", group) }
+  END {
+    if (name != "") {
+      names[id] = name
+      if (group != "") groups[id] = group
+      if (name == virt) virt_group = group
+    }
+    if (virt_group != "") {
+      for (i in groups) { if (groups[i] == virt_group) print names[i] }
+    } else {
+      print virt
     }
   }
 ')"
 
-if [[ -n $physical_sink ]]; then
-  printf '%s\n' "$physical_sink"
-  exit 0
+if [[ -n $related_nodes ]]; then
+  physical_sink="$(pw-link -l 2>/dev/null | awk -v nodes="$related_nodes" '
+    BEGIN {
+      split(nodes, arr, "\n")
+      for (i in arr) { if (arr[i] != "") valid[arr[i]] = 1 }
+    }
+    /^[^[:space:]]/ {
+      node = $1; sub(/:.*/, "", node)
+      active = (node in valid) ? 1 : 0
+    }
+    /^[[:space:]]*\|->/ && active {
+      target = $2; sub(/:.*/, "", target)
+      if (target ~ /^(alsa_output|bluez_output)/) {
+        print target
+        exit
+      }
+    }
+  ')"
+
+  if [[ -n $physical_sink ]]; then
+    printf '%s\n' "$physical_sink"
+    exit 0
+  fi
 fi
 
 # 2. Fallback via PulseAudio sink-inputs (for compatibility with legacy modules/filters)
 downstream="$(pactl list sink-inputs 2>/dev/null |
   awk -v virt="$sink" '
     BEGIN {
-      # Si el sink es effect_input.<nombre>, el stream downstream será effect_output.<nombre>
+      # Map effect_input.<name> to effect_output.<name> for module-filter-chain compatibility
       alt_virt = virt
       if (index(virt, "effect_input.") == 1) {
         sub(/^effect_input\./, "effect_output.", alt_virt)
