@@ -718,6 +718,7 @@ Item {
 
   function setFilter(nextFilter) {
     panel.freezeCardTop()
+    if (filterInput.text !== nextFilter) filterInput.text = nextFilter
     root.filterText = nextFilter
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
@@ -726,12 +727,20 @@ Item {
     root.rebuildDisplay()
   }
 
+  // Clears the search line without setFilter's side effects: every caller
+  // resets the rest of the menu state itself. Assigning text programmatically
+  // does not emit textEdited, so this does not loop back through setFilter.
+  function resetFilter() {
+    filterInput.text = ""
+    root.filterText = ""
+  }
+
   function setActiveMenu(id, pushHistory, fromPointer) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
     if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
     root.activeMenu = id
-    root.filterText = ""
+    root.resetFilter()
     root.selectedIndex = 0
     root.cursorActive = true
     if (fromPointer) pointerGate.allowInitialSample()
@@ -779,7 +788,7 @@ Item {
       var label = row.label
       applySerial = requestSerial
       opened = false
-      filterText = ""
+      root.resetFilter()
       if (root.appLibrary) root.appLibrary.launch(appId, label)
     } else {
       root.applySelected(row.itemId, row.action)
@@ -800,7 +809,7 @@ Item {
     root.deleteTarget = null
     deleteConfirm.selectedIndex = 1
     root.disarmPointer()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function confirmDelete() {
@@ -815,7 +824,7 @@ Item {
   function applyDmenuSelection(value) {
     applySerial = requestSerial
     opened = false
-    filterText = ""
+    root.resetFilter()
     root.finishRequest(value)
   }
 
@@ -824,14 +833,14 @@ Item {
 
     applySerial = requestSerial
     opened = false
-    filterText = ""
+    root.resetFilter()
     root.runAction(action)
   }
 
   function cancel() {
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
-    filterText = ""
+    root.resetFilter()
   }
 
   function openExistingMenu(initialMenu) {
@@ -842,7 +851,7 @@ Item {
     doneFile = ""
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
     navStack = []
-    filterText = ""
+    root.resetFilter()
     selectedIndex = 0
     cursorActive = true
     root.disarmPointer()
@@ -855,7 +864,7 @@ Item {
     // their icons. Refresh here even when the desktop entry list did not change.
     if (root.appLibrary) root.appLibrary.refreshIcons()
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function openDmenu(payload) {
@@ -870,14 +879,14 @@ Item {
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
     activeMenu = "root"
     navStack = []
-    filterText = ""
+    root.resetFilter()
     selectedIndex = 0
     cursorActive = mode !== "input"
     root.disarmPointer()
     opened = true
     rebuildDisplay()
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
   ListModel { id: displayModel }
 
@@ -1117,12 +1126,16 @@ Item {
         id: keyCatcher
         anchors.fill: parent
         z: root.deleteConfirmOpen ? 20 : 0
-        focus: true
 
-        Keys.priority: Keys.BeforeItem
+        // Focus lives on filterInput, which forwards every key here before
+        // editing itself: the menu keeps its own bindings and only the keys
+        // this handler leaves unaccepted reach the search line.
         Keys.onPressed: function(event) {
           if (root.deleteConfirmOpen) {
-            if (deleteConfirm.handleKey(event)) event.accepted = true
+            deleteConfirm.handleKey(event)
+            // Swallow everything while the modal is up, or an unhandled key
+            // would fall through and type into the search line behind it.
+            event.accepted = true
             return
           }
 
@@ -1158,10 +1171,9 @@ Item {
             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
             else root.settleCursor()
             event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
-            root.setFilter(root.filterText + event.text)
-            event.accepted = true
           }
+          // Anything left unaccepted — printable characters, paste — is the
+          // search line's own business and is handled by filterInput.
         }
 
         ConfirmDialog {
@@ -1198,14 +1210,46 @@ Item {
           radius: root.cornerRadius
           color: "transparent"
 
-          Text {
-            textFormat: Text.PlainText
+          // The search line is a real TextInput rather than a Text fed by
+          // Keys.onPressed. Qt routes input-method events — the preedit an
+          // input method shows while composing, and the text it commits —
+          // only to an item that answers inputMethodQuery, which in QML means
+          // TextInput. Typing Chinese, Japanese or Korean through fcitx5
+          // produces no key events for the application at all, so a
+          // hand-rolled accumulator receives nothing and the menu cannot be
+          // searched in those languages.
+          TextInput {
+            id: filterInput
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
+            focus: true
+            Keys.priority: Keys.BeforeItem
+            Keys.forwardTo: [keyCatcher]
             color: root.foreground
-            opacity: root.filterText ? 1 : 0.58
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
+            // The filter is an append-only buffer, not an editable field: the
+            // menu owns Left and Right, so the caret has nowhere to go, and a
+            // search line that never showed a caret or a selection should not
+            // start now. An empty delegate is what actually holds the caret
+            // hidden, because Qt turns cursorVisible back on by itself on
+            // every focus change. Composition still renders, underlined, in
+            // place.
+            cursorDelegate: Item {}
+            onCursorPositionChanged: if (cursorPosition !== text.length) cursorPosition = text.length
+            onSelectedTextChanged: if (selectedText) deselect()
+            onTextEdited: root.setFilter(text)
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.fill: filterInput
+            verticalAlignment: Text.AlignVCenter
+            visible: !root.filterText && !filterInput.preeditText
+            text: root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…")
+            color: root.foreground
+            opacity: 0.58
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
