@@ -50,6 +50,13 @@ for dev in "$usb_devices_path"/*; do
     vendor=$(<"$dev/idVendor")
     [[ $fingerprint_vendors == *" $vendor "* ]] &&
       ! has_kernel_driver "$dev" && exit 0
+
+    # CS9711 dongles report "CS9711Fingprint", missing the "er". Match the
+    # known USB product rather than treating every Chipsailing device as a reader.
+    if [[ $vendor == "2541" && -r $dev/idProduct ]]; then
+      product_id=$(<"$dev/idProduct")
+      [[ $product_id == "0236" ]] && ! has_kernel_driver "$dev" && exit 0
+    fi
   fi
 done
 
