@@ -7,6 +7,7 @@ BackgroundMedia 1.0 BackgroundMedia.qml
 BackgroundVideo 1.0 BackgroundVideo.qml
 BorderOverlay 1.0 BorderOverlay.qml
 BorderSurface 1.0 BorderSurface.qml
+CornerRectangle 1.0 CornerRectangle.qml
 Button 1.0 Button.qml
 ButtonGroup 1.0 ButtonGroup.qml
 ConfirmDialog 1.0 ConfirmDialog.qml

@@ -4,7 +4,7 @@ import qs.Commons
 // Rectangle-compatible surface with Omarchy border specs. Uses native
 // Rectangle.border for cheap flat/uniform borders and BorderOverlay for
 // gradients or per-side widths.
-Rectangle {
+CornerRectangle {
   id: root
 
   property var borderSpec: Border.none()
@@ -22,10 +22,10 @@ Rectangle {
   readonly property real contentRightInset: borderRight + rightPadding
   readonly property real contentBottomInset: borderBottom + bottomPadding
   readonly property real contentLeftInset: borderLeft + leftPadding
-  readonly property bool usesOverlayBorder: Border.needsOverlay(borderSpec)
+  readonly property bool usesOverlayBorder: Border.needsOverlay(borderSpec) || (customCorners && !Border.isNone(borderSpec))
 
   border.color: Border.canUseNative(borderSpec) ? Border.color(borderSpec) : "transparent"
-  border.width: Border.canUseNative(borderSpec) ? Border.uniformWidth(borderSpec) : 0
+  border.width: !customCorners && Border.canUseNative(borderSpec) ? Border.uniformWidth(borderSpec) : 0
 
   Loader {
     anchors.fill: parent
@@ -34,6 +34,7 @@ Rectangle {
     sourceComponent: BorderOverlay {
       anchors.fill: parent
       radius: root.radius
+      roundingPower: root.roundingPower
       borderSpec: root.borderSpec
     }
   }
