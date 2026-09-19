@@ -83,6 +83,20 @@ if omarchy-pkg-missing libfprint-git fprintd usbutils; then
   sudo pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils
 fi
 
+# USB detection proves a sensor exists, not that the installed fprintd backend
+# can drive it. Query the manager before asking the user to touch the reader so
+# unsupported hardware fails clearly instead of surfacing NoSuchDevice from
+# fprintd-enroll after the prompt.
+if ! busctl --system call \
+  net.reactivated.Fprint \
+  /net/reactivated/Fprint/Manager \
+  net.reactivated.Fprint.Manager \
+  GetDefaultDevice >/dev/null 2>&1; then
+  echo -e "\e[31mFingerprint sensor detected, but fprintd did not expose a usable device.\e[0m"
+  echo "This reader may require a different fprintd-compatible backend."
+  exit 1
+fi
+
 # Enroll first fingerprint
 echo -e "\e[32m\nLet's setup your right index finger as the first fingerprint.\e[0m"
 echo -e "Keep moving the finger around on sensor until the process completes.\n"
