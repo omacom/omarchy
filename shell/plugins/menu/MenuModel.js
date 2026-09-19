@@ -355,9 +355,13 @@ function searchScore(items, entry, query) {
   else if (descriptionTextMatches(needle, descriptionText)) score = 60
 
   if (entry.kind === "menu" || entry.kind === "link") score -= 2
-  // App rows sort after all menu items, so they lose the tiebreak below to an
-  // equal match. Outrank those, but stay inside the tier so better ones win.
-  if (entry.kind === "app") score -= 5
+  // Installed apps always rank above menu entries in search. Typing in the
+  // menu is overwhelmingly an intent to launch, so even a menu entry that
+  // matches the query better textually (Setup > Defaults > Editor > VSCode
+  // for "vsc") must not sit above the app itself. The bias exceeds every
+  // match tier, so it holds across tiers while apps still sort by tier
+  // among themselves.
+  if (entry.kind === "app") score -= 100
 
   return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
 }
