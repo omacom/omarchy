@@ -1,0 +1,144 @@
+# Signal Garden — theme-only shell visuals; shell.json remains user-owned.
+[bar]
+background = "#0c1a25"
+background-alpha = 0.97
+text = "#e8f3df"
+active = "#35c2c5"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#35c2c5 #35aeb1 90deg"
+active-border-foreground = "#ef7778 #3fcdd1 90deg"
+
+[controls]
+normal-color = "#e8f3df"
+normal-fill-alpha = 0.04
+normal-border = "#6f8990"
+normal-border-width = 1
+normal-border-alpha = 0.62
+hover-cursor-color = "#f7ffe9"
+hover-cursor-fill-alpha = 0.10
+hover-cursor-border = "#35aeb1"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 0.90
+focus-color = "#f7ffe9"
+focus-fill-alpha = 0.13
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.14
+selected-border = "#f7ffe9"
+selected-border-width = 2
+selected-border-alpha = 0.86
+pressed-fill-alpha = 0.24
+selection-fill-alpha = 0.40
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 30
+popup-row-height = 32
+panel-gap = 10
+panel-padding = 14
+popup-padding = 12
+
+[font]
+base-size = 12
+caption = 10
+body-small = 11
+body = 12
+subtitle = 13
+heading = 15
+
+[popups]
+background = "#132b34"
+background-alpha = 0.98
+text = "#e8f3df"
+border = "#35c2c5"
+border-alpha = 0.96
+border-width = 2
+
+[tooltip]
+background = "#132b34"
+background-alpha = 0.99
+text = "#e8f3df"
+border = "#6f8990"
+border-alpha = 0.90
+
+[notifications]
+background = "#132b34"
+background-alpha = 0.98
+text = "#e8f3df"
+border = "#35c2c5"
+border-alpha = 0.96
+border-width = 2
+countdown = "#c3a52d"
+
+[launcher]
+background = "#132b34"
+background-alpha = 0.97
+text = "#e8f3df"
+border = "#35c2c5"
+border-alpha = 0.98
+border-width = 2
+scrim = "#08131b"
+scrim-alpha = 0.28
+selected-background = "#78a83f"
+selected-background-alpha = 1.0
+selected-text = "#0c1a25"
+selected-border = "#f7ffe9"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[menu]
+background = "#132b34"
+background-alpha = 0.98
+text = "#e8f3df"
+border = "#35c2c5"
+border-alpha = 0.98
+border-width = 2
+scrim = "#08131b"
+scrim-alpha = 0.28
+selected-background = "#78a83f"
+selected-background-alpha = 1.0
+selected-text = "#0c1a25"
+selected-border = "#f7ffe9"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[polkit]
+background = "#132b34"
+background-alpha = 0.99
+text = "#e8f3df"
+text-error = "#ef7778"
+border = "#35c2c5"
+border-error = "#ef7778"
+border-alpha = 1.0
+scrim = "#08131b"
+scrim-alpha = 0.36
+accent = "#35aeb1"
+
+[lock]
+background = "#132b34"
+background-alpha = 0.96
+text = "#e8f3df"
+placeholder = "#aac1b6"
+text-error = "#ef7778"
+border = "#6f8990"
+border-active = "hyprland.active-border"
+border-error = "#ef7778"
+border-alpha = 1.0
+selection = "#35c2c5"
+selection-alpha = 0.55
+
+[image-picker]
+scrim = "#08131b"
+scrim-alpha = 0.28
+text = "#e8f3df"
+selected-border = "#35c2c5"
+selected-border-alpha = 1.0
+unselected-border = "#6f8990"
+unselected-border-alpha = 0.72

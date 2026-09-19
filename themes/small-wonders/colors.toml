@@ -1,0 +1,33 @@
+# Small Wonders — olive-charcoal, cream, sage, and butterfly gold.
+# Adapted from Omarchy Miasma; lifted accents retain the woodland mood.
+mode = "dark"
+
+accent = "#D4B76A"
+selection = "#414837"
+muted = "#A5A58E"
+
+background = "#242620"
+dark_background = "#1B1E18"
+darker_background = "#141710"
+lighter_background = "#30342A"
+
+foreground = "#E2DDC8"
+dark_foreground = "#A5A58E"
+light_foreground = "#C8C7AF"
+bright_foreground = "#F3EED9"
+
+red = "#D38D79"
+yellow = "#D4B76A"
+orange = "#C49A6C"
+green = "#97AD76"
+cyan = "#91B5A0"
+blue = "#8FA9B6"
+magenta = "#B69AAC"
+brown = "#AC8860"
+
+bright_red = "#E7A38E"
+bright_yellow = "#E7CB82"
+bright_green = "#B2C88F"
+bright_cyan = "#B1CDB7"
+bright_blue = "#AEC5CF"
+bright_magenta = "#CEB3C4"

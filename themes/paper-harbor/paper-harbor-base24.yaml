@@ -1,0 +1,38 @@
+system: "base24"
+name: "Paper Harbor"
+slug: "paper-harbor"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "light"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- ivory paper / coastal workshop ---
+  base00: "#FFF6E6" # Sail Paper - default background
+  base01: "#F6EAD6" # Folded Ivory - lighter background
+  base02: "#EAD8B8" # Cork Tray - selection background
+  base03: "#696B62" # Pencil Shaving - comments / muted text
+  base04: "#4A5960" # Harbor Sketch - dark foreground
+  base05: "#24333A" # Dock Ink - default foreground
+  base06: "#24333A" # Chart Lettering - light foreground
+  base07: "#101C22" # Deep Sounding - brightest foreground
+
+  # --- lighthouse paint and harbor tools ---
+  base08: "#A43B2E" # Buoy Red - red / error
+  base09: "#99502B" # Copper Cleat - orange / warning
+  base0A: "#856000" # Ochre Rope - yellow
+  base0B: "#4D683D" # Moss Paint - green
+  base0C: "#386E79" # Sea-glass Wash - cyan
+  base0D: "#356582" # Marine Blue - blue
+  base0E: "#725B78" # Weathered Lilac - purple
+  base0F: "#805537" # Cork Edge - brown / special
+
+  # --- base24 extension ---
+  base10: "#F8ECD7" # Paper Fold - darker background
+  base11: "#F8ECD7" # Hull Recess - darkest background
+  base12: "#B94C3C" # Bright Buoy Red - bright red
+  base13: "#926800" # Bright Ochre Rope - bright orange / yellow
+  base14: "#597846" # Bright Moss Paint - bright green
+  base15: "#3A7884" # Bright Sea-glass Wash - bright cyan
+  base16: "#3F7697" # Bright Marine Blue - bright blue
+  base17: "#816788" # Bright Weathered Lilac - bright purple

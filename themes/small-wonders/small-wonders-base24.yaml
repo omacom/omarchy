@@ -1,0 +1,39 @@
+system: "base24"
+name: "Small Wonders"
+slug: "small-wonders"
+author: "OldJobobo; Miasma foundation / Omarchy"
+variant: "dark"
+
+# Exported from colors.toml; base04 is derived, all other source roles are preserved.
+# base04 separates duplicate muted/dark foreground: 50% base03 + 50% base06 (sRGB).
+
+palette:
+  # --- woodland floor / olive charcoal ---
+  base00: "#242620" # Woodland Charcoal - default background
+  base01: "#30342A" # Mossy Panel - lighter background
+  base02: "#414837" # Leaf Shelter - selection background
+  base03: "#A5A58E" # Lichen Sketch - comments / muted text
+  base04: "#B6B69E" # Sage Pencil - dark foreground
+  base05: "#E2DDC8" # Explorer Cream - default foreground
+  base06: "#C8C7AF" # Birch Paper - light foreground
+  base07: "#F3EED9" # Butterfly Glow - brightest foreground
+
+  # --- butterfly trail discoveries ---
+  base08: "#D38D79" # Clay Blossom - red / error
+  base09: "#C49A6C" # Acorn Shell - orange / warning
+  base0A: "#D4B76A" # Butterfly Gold - yellow
+  base0B: "#97AD76" # Fern Leaf - green
+  base0C: "#91B5A0" # Dew Glass - cyan
+  base0D: "#8FA9B6" # Morning Sky - blue
+  base0E: "#B69AAC" # Heather Petal - purple
+  base0F: "#AC8860" # Trail Bark - brown / special
+
+  # --- base24 extension ---
+  base10: "#1B1E18" # Root Shade - darker background
+  base11: "#141710" # Forest Hollow - darkest background
+  base12: "#E7A38E" # Bright Clay Blossom - bright red
+  base13: "#E7CB82" # Bright Butterfly Gold - bright orange / yellow
+  base14: "#B2C88F" # Bright Fern Leaf - bright green
+  base15: "#B1CDB7" # Bright Dew Glass - bright cyan
+  base16: "#AEC5CF" # Bright Morning Sky - bright blue
+  base17: "#CEB3C4" # Bright Heather Petal - bright purple

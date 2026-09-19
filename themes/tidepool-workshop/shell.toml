@@ -1,0 +1,144 @@
+# Tidepool Workshop — theme-only shell visuals; shell.json remains user-owned.
+[bar]
+background = "#e7f6ee"
+background-alpha = 0.97
+text = "#173c43"
+active = "#006c74"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#006c74 #008c95 90deg"
+active-border-foreground = "#e36a5a #00a5b0 90deg"
+
+[controls]
+normal-color = "#173c43"
+normal-fill-alpha = 0.04
+normal-border = "#607b78"
+normal-border-width = 1
+normal-border-alpha = 0.62
+hover-cursor-color = "#09272d"
+hover-cursor-fill-alpha = 0.10
+hover-cursor-border = "#008c95"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 0.90
+focus-color = "#09272d"
+focus-fill-alpha = 0.13
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.14
+selected-border = "#09272d"
+selected-border-width = 2
+selected-border-alpha = 0.86
+pressed-fill-alpha = 0.24
+selection-fill-alpha = 0.40
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 30
+popup-row-height = 32
+panel-gap = 12
+panel-padding = 14
+popup-padding = 12
+
+[font]
+base-size = 12
+caption = 10
+body-small = 11
+body = 12
+subtitle = 13
+heading = 15
+
+[popups]
+background = "#d2eee5"
+background-alpha = 0.98
+text = "#173c43"
+border = "#006c74"
+border-alpha = 0.96
+border-width = 2
+
+[tooltip]
+background = "#d2eee5"
+background-alpha = 0.99
+text = "#173c43"
+border = "#607b78"
+border-alpha = 0.90
+
+[notifications]
+background = "#d2eee5"
+background-alpha = 0.98
+text = "#173c43"
+border = "#006c74"
+border-alpha = 0.96
+border-width = 2
+countdown = "#715000"
+
+[launcher]
+background = "#b9ded7"
+background-alpha = 0.97
+text = "#173c43"
+border = "#365d60"
+border-alpha = 0.98
+border-width = 2
+scrim = "#dff1f3"
+scrim-alpha = 0.28
+selected-background = "#006c74"
+selected-background-alpha = 1.0
+selected-text = "#e7f6ee"
+selected-border = "#09272d"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[menu]
+background = "#b9ded7"
+background-alpha = 0.98
+text = "#173c43"
+border = "#365d60"
+border-alpha = 0.98
+border-width = 2
+scrim = "#dff1f3"
+scrim-alpha = 0.28
+selected-background = "#006c74"
+selected-background-alpha = 1.0
+selected-text = "#e7f6ee"
+selected-border = "#09272d"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[polkit]
+background = "#d2eee5"
+background-alpha = 0.99
+text = "#173c43"
+text-error = "#963a34"
+border = "#006c74"
+border-error = "#963a34"
+border-alpha = 1.0
+scrim = "#dff1f3"
+scrim-alpha = 0.36
+accent = "#008c95"
+
+[lock]
+background = "#d2eee5"
+background-alpha = 0.96
+text = "#173c43"
+placeholder = "#365d60"
+text-error = "#963a34"
+border = "#607b78"
+border-active = "hyprland.active-border"
+border-error = "#963a34"
+border-alpha = 1.0
+selection = "#006c74"
+selection-alpha = 0.55
+
+[image-picker]
+scrim = "#dff1f3"
+scrim-alpha = 0.28
+text = "#173c43"
+selected-border = "#006c74"
+selected-border-alpha = 1.0
+unselected-border = "#607b78"
+unselected-border-alpha = 0.72

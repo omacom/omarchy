@@ -1,0 +1,148 @@
+# Pocket Arcade — Pocket Studio / Label Deck
+# Theme-only visual treatment. shell.json remains user-owned.
+
+[bar]
+background = "#0b1024"
+background-alpha = 0.97
+text = "#eee7e4"
+active = "#db5b78"
+scale-with-font = true
+size-horizontal = 27
+size-vertical = 29
+
+[hyprland]
+active-border = "#db5b78 #57b8b7 90deg"
+active-border-foreground = "#f16f8b #79d0cc 90deg"
+
+[controls]
+normal-color = "#eee7e4"
+normal-fill-alpha = 0.03
+normal-border = "#74758f"
+normal-border-width = 1
+normal-border-alpha = 0.58
+hover-cursor-color = "#fff7f0"
+hover-cursor-fill-alpha = 0.10
+hover-cursor-border = "#57b8b7"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 0.90
+focus-color = "#fff7f0"
+focus-fill-alpha = 0.13
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+# Shared Shell controls derive selected text and fill from this same RGB role.
+# Keep the fill translucent so the bright-coral label remains legible on the navy chassis.
+selected-color = "#f16f8b"
+selected-fill-alpha = 0.18
+selected-border = "#fff7f0"
+selected-border-width = 2
+selected-border-alpha = 0.82
+pressed-fill-alpha = 0.26
+selection-fill-alpha = 0.42
+
+[spacing]
+scale = 0.92
+scale-with-font = true
+control-height = 28
+popup-row-height = 30
+panel-gap = 10
+panel-padding = 14
+popup-padding = 12
+
+[font]
+base-size = 12
+caption = 10
+body-small = 11
+body = 12
+subtitle = 13
+heading = 15
+
+[popups]
+background = "#121a34"
+background-alpha = 0.98
+text = "#eee7e4"
+border = "#db5b78"
+border-alpha = 0.96
+border-width = 2
+
+[tooltip]
+background = "#121a34"
+background-alpha = 0.99
+text = "#eee7e4"
+border = "#74758f"
+border-alpha = 0.90
+
+[notifications]
+background = "#121a34"
+background-alpha = 0.98
+text = "#eee7e4"
+border = "#db5b78"
+border-alpha = 0.96
+border-width = 2
+countdown = "#dab968"
+
+[launcher]
+background = "#121a34"
+background-alpha = 0.96
+text = "#eee7e4"
+border = "#db5b78"
+border-alpha = 0.98
+border-width = 2
+scrim = "#0b1024"
+scrim-alpha = 0.30
+selected-background = "#db5b78"
+selected-background-alpha = 1.0
+selected-text = "#0b1024"
+selected-border = "#fff7f0"
+selected-border-alpha = 0.82
+selected-border-width = 2
+
+[menu]
+background = "#121a34"
+background-alpha = 0.97
+text = "#eee7e4"
+border = "#db5b78"
+border-alpha = 0.98
+border-width = 2
+scrim = "#0b1024"
+scrim-alpha = 0.30
+selected-background = "#db5b78"
+selected-background-alpha = 1.0
+selected-text = "#0b1024"
+selected-border = "#fff7f0"
+selected-border-alpha = 0.82
+selected-border-width = 2
+
+[polkit]
+background = "#121a34"
+background-alpha = 0.99
+text = "#eee7e4"
+text-error = "#f16f8b"
+border = "#db5b78"
+border-error = "#f16f8b"
+border-alpha = 1.0
+scrim = "#0b1024"
+scrim-alpha = 0.38
+accent = "#57b8b7"
+
+[lock]
+background = "#121a34"
+background-alpha = 0.96
+text = "#eee7e4"
+placeholder = "#74758f"
+text-error = "#f16f8b"
+border = "#74758f"
+border-active = "hyprland.active-border"
+border-error = "#f16f8b"
+border-alpha = 1.0
+selection = "#db5b78"
+selection-alpha = 0.55
+
+[image-picker]
+scrim = "#0b1024"
+scrim-alpha = 0.30
+text = "#eee7e4"
+selected-border = "#db5b78"
+selected-border-alpha = 1.0
+unselected-border = "#74758f"
+unselected-border-alpha = 0.72
