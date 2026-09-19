@@ -200,6 +200,9 @@ assert(/precision: root\.showsSeconds \? SystemClock\.Seconds : SystemClock\.Min
 // must reach the label.
 assert(/showsSeconds: Model\.clockNeedsSeconds\(activeFormat\)/.test(widgetSource), 'clock decides its tick rate from the format it is showing')
 assert(/onDateChanged: root\.displayDate = date/.test(widgetSource), 'clock repaints the label on every tick')
+assert(/target: SystemSleep\s*\n\s*function onResumed\(\) \{ root\.refresh\(\) \}/.test(widgetSource), 'clock refreshes when the machine wakes')
+assert(/function refresh\(\) \{\s*\n\s*clock\.enabled = false\s*\n\s*clock\.enabled = true\s*\n/.test(widgetSource), 'clock refresh restarts its tick from the current time')
+assert(/function refresh\(\) \{[^}]*clock\.enabled = false\s*\n\s*clock\.enabled = true\s*\n/.test(panelSource), 'calendar refresh restarts its midnight rollover from the current time')
 assert(/setting\("weekStartDay", null\)/.test(panelSource) && /persistSettings\(\{ weekStartDay:/.test(panelSource), 'calendar reads and writes the week start as weekStartDay')
 assert(/updateEntryInline/.test(panelSource), 'calendar panel persists the week start to shell.json')
 assert(/function moveMonth\(delta\)/.test(panelSource), 'calendar panel steps between months')
