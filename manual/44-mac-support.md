@@ -71,4 +71,12 @@ The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued 
 
 On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support.
 
-On the 2020 27-inch iMac with Radeon Pro 5300/5500 (Navi 14), `amdgpu` kernel modesetting fails during SMU init and can blank the panel before the LUKS prompt. The installer keeps the EFI framebuffer on those machines with `plymouth.enable=0 nomodeset`. This reaches a desktop without GPU acceleration; a later `amdgpu` SMU fix can drop those flags.
+On the 2020 27-inch iMac with Radeon Pro 5300/5500 (Navi 14), `amdgpu` kernel modesetting fails during SMU init and can blank the panel before the LUKS prompt. The installer keeps the EFI framebuffer on those machines with `plymouth.enable=0 nomodeset` so the LUKS prompt and the desktop are reachable.
+
+This reaches a desktop without GPU acceleration. To turn the GPU back on for those machines, the installer also stages an opt-in command:
+
+```
+omarchy-install-imac20-amdgpu-hwaccel
+```
+
+Run that command once after install completes. It clones the patched-module companion repo, rebuilds `amdgpu.ko` against the installed `linux-t2-headers`, and adds an `imac20-hwaccel` Limine entry alongside the safe `nomodeset` entry. Reboot and pick the new entry from the Limine menu. The companion repo is at <https://github.com/McoreD/imac20-amdgpu-patch> and ships the t2linux 6001 patch (SMU init workaround) plus the build, install, pacman-hook, and Limine wiring scripts.

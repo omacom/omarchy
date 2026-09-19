@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Enable hardware acceleration on 2020 5K iMacs with Navi 14.
+
+# opt-in: the user runs this after install. The base safe-fallback is set
+# up by install/hardware/apple/fix-imac20-display.sh. This command adds the
+# patched amdgpu.ko + Limine 'imac20-hwaccel' boot entry + pacman hook.
+# See install/hardware/apple/install-imac20-amdgpu-hwaccel.sh for details.
+
+source "$OMARCHY_PATH/install/hardware/apple/install-imac20-amdgpu-hwaccel.sh"
