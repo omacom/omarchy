@@ -132,6 +132,8 @@ def scan_projects(projects_path: Path) -> dict[str, Any]:
   prompts = 0
   today_prompt_count = 0
   today_token_total = 0
+  unreadable_count = 0
+  unreadable_examples: list[str] = []
 
   files = projects_path.rglob("*.jsonl") if projects_path.is_dir() else []
   for path in files:
@@ -194,7 +196,17 @@ def scan_projects(projects_path: Path) -> dict[str, Any]:
             today_token_total += total
             today_tokens[model] = today_tokens.get(model, 0) + total
     except Exception as exc:
-      print(f"Ignoring unreadable Claude project file {path}: {exc}", file=sys.stderr)
+      unreadable_count += 1
+      if len(unreadable_examples) < 3:
+        unreadable_examples.append(f"{path}: {exc}")
+
+  if unreadable_count:
+    examples = "; ".join(unreadable_examples)
+    print(
+      f"Ignoring {unreadable_count} unreadable Claude project files"
+      f" (examples: {examples})",
+      file=sys.stderr,
+    )
 
   return {
     "todayPrompts": today_prompt_count,
