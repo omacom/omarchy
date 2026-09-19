@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect the Dell XPS 13 DX13260 on Intel Panther Lake.
+
+omarchy-hw-match "DX13260" && omarchy-hw-intel-ptl
