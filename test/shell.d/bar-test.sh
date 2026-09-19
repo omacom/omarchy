@@ -63,6 +63,19 @@ for (const edge of ['top', 'bottom', 'left', 'right']) {
   )
 }
 
+// End widgets sit on the screen edge so a pointer thrown into a corner still
+// hits them.
+const horizontalBar = barSource.slice(barSource.indexOf('id: horizontalBar'), barSource.indexOf('id: verticalBar'))
+assert(
+  !/anchors\.(left|right)Margin/.test(horizontalBar),
+  'horizontal bar end modules sit on the screen edge'
+)
+const verticalBar = barSource.slice(barSource.indexOf('id: verticalBar'), barSource.indexOf('component DragGhostPanel'))
+assert(
+  !/anchors\.(top|bottom)Margin/.test(verticalBar),
+  'vertical bar end modules sit on the screen edge'
+)
+
 // The center section declares two arrangements and shows one; the hidden one
 // must not build its modules or every center widget exists twice.
 const moduleList = barSource.slice(barSource.indexOf('component ModuleList'), barSource.indexOf('component ModuleSlot'))
