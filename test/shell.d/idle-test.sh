@@ -33,6 +33,43 @@ assertDeepEqual(
   { windows: { a: true }, count: 1 },
   'idle leaves screensaver windows unchanged without an address'
 )
+
+assertEqual(idle.screensaverLaunchCompleteAfter(0, 2, false), false, 'idle launch incomplete with no windows')
+assertEqual(idle.screensaverLaunchCompleteAfter(1, 2, false), false, 'idle launch incomplete until all monitors map')
+assertEqual(idle.screensaverLaunchCompleteAfter(2, 2, false), true, 'idle launch complete when expected windows map')
+assertEqual(idle.screensaverLaunchCompleteAfter(1, 2, true), true, 'idle launch complete via grace with partial windows')
+assertEqual(idle.screensaverLaunchCompleteAfter(0, 2, true), false, 'idle grace without windows stays incomplete')
+
+assertDeepEqual(
+  idle.dismissStateAfter({ visible: true, launchComplete: true, locking: false, settled: false, isIdle: true }),
+  { settled: true, dismiss: false },
+  'idle settles the dismiss monitor once the screensaver goes quiet'
+)
+assertDeepEqual(
+  idle.dismissStateAfter({ visible: true, launchComplete: true, locking: false, settled: true, isIdle: false }),
+  { settled: false, dismiss: true },
+  'idle dismisses the screensaver on input after it has settled'
+)
+assertDeepEqual(
+  idle.dismissStateAfter({ visible: true, launchComplete: true, locking: false, settled: false, isIdle: false }),
+  { settled: false, dismiss: false },
+  'idle ignores the activity caused by launching the screensaver'
+)
+assertDeepEqual(
+  idle.dismissStateAfter({ visible: false, launchComplete: true, locking: false, settled: true, isIdle: false }),
+  { settled: false, dismiss: false },
+  'idle never dismisses without a screensaver on screen'
+)
+assertDeepEqual(
+  idle.dismissStateAfter({ visible: true, launchComplete: false, locking: false, settled: true, isIdle: false }),
+  { settled: false, dismiss: false },
+  'idle never dismisses before launch completes'
+)
+assertDeepEqual(
+  idle.dismissStateAfter({ visible: true, launchComplete: true, locking: true, settled: true, isIdle: false }),
+  { settled: false, dismiss: false },
+  'idle never dismisses during lock handoff'
+)
 JS
 
 test_tmp=$(mktemp -d)
