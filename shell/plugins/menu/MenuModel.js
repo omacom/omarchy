@@ -61,11 +61,14 @@ function parseMenuJsonc(raw, normalize) {
     // Fill defaults only when asked. The live menu parses sources raw and
     // normalizes once after merge, so an extension that sets `action` does
     // not wipe the shipped icon/label/when with empty placeholders.
+    // Pin `id` after the copy: an `id` field inside the entry must not
+    // replace the object key, or the override lands on a stray row.
     if (normalize === false) {
-      var item = { id: id }
+      var item = {}
       for (var k in entry) {
         if (Object.prototype.hasOwnProperty.call(entry, k)) item[k] = entry[k]
       }
+      item.id = id
       out.push(item)
     } else {
       out.push(normalizeItem(id, entry))
@@ -74,6 +77,10 @@ function parseMenuJsonc(raw, normalize) {
   return out
 }
 
+// Overlay user entries onto the shipped ones per id, then normalize once.
+// Callers must pass un-normalized items (`parseMenuJsonc(raw, false)`):
+// normalizeItem fills omitted fields with empty strings, and those would
+// overwrite the shipped values this merge is meant to keep.
 function mergeMenuSources(defaultItems, userItems) {
   var nextItems = ({})
   var nextOrder = []

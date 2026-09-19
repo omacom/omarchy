@@ -83,6 +83,67 @@ assert(
   'menu parses sources raw so unspecified extension fields do not wipe shipped values'
 )
 
+// Same override against the shipped menu, where the fields that vanish are
+// the ones whose loss is silent. `kind` is inferred from `action`, so
+// clobbering it turned a translated row into a childless submenu, which
+// `isVisible` hides.
+const shippedRaw = menu.parseMenuJsonc(defaultMenuJsonc, false)
+const shippedDns = menu.normalizeItem('setup.network.dns.custom', shippedRaw.find(item => item.id === 'setup.network.dns.custom'))
+const translated = menu.mergeMenuSources(shippedRaw, menu.parseMenuJsonc('{"setup.network.dns.custom":{"label":"Benutzerdefiniert"}}', false))
+const translatedDns = translated.items['setup.network.dns.custom']
+assertEqual(translatedDns.label, 'Benutzerdefiniert', 'menu applies a translated label to a shipped row')
+assertEqual(translatedDns.checked, shippedDns.checked, 'menu keeps a shipped checked guard under a label-only override')
+assertEqual(translatedDns.action, shippedDns.action, 'menu keeps a shipped action under a label-only override')
+assertEqual(translatedDns.kind, 'action', 'menu leaves a translated action row an action')
+assert(menu.isVisible(translated.items, translated.itemOrder, {}, translatedDns), 'menu still shows a row whose label was overridden')
+assertEqual(
+  translated.itemOrder.filter(id => translated.items[id].parent === 'setup.network.dns' &&
+    menu.isVisible(translated.items, translated.itemOrder, {}, translated.items[id])).length,
+  4,
+  'menu keeps every DNS row listed when one of their labels is overridden'
+)
+
+// Aliases are a route, so losing them breaks `omarchy menu summon` rather
+// than anything on screen.
+const rerouted = menu.mergeMenuSources(shippedRaw, menu.parseMenuJsonc('{"setup.network.dns":{"label":"DNS-Einstellungen"}}', false))
+assertDeepEqual(rerouted.items['setup.network.dns'].aliases, ['dns'], 'menu keeps shipped aliases under a label-only override')
+assertEqual(menu.resolveRoute(rerouted.items, rerouted.itemOrder, 'dns'), 'setup.network.dns', 'menu still routes a summon alias whose row was overridden')
+
+const reIconed = menu.mergeMenuSources(shippedRaw, menu.parseMenuJsonc('{"apps":{"icon":"X"},"about":{"icon":"Y"}}', false))
+assertEqual(reIconed.items.apps.icon, 'X', 'menu applies the field an extension declares')
+assertEqual(reIconed.items.apps.label, 'Apps', 'menu keeps a label the extension never mentioned')
+assertEqual(reIconed.items.apps.provider, 'apps', 'menu keeps a provider the extension never mentioned')
+assertDeepEqual(reIconed.items.apps.aliases, ['app', 'applications'], 'menu keeps aliases the extension never mentioned')
+assertEqual(reIconed.items.about.action, 'omarchy-launch-about', 'menu keeps an action the extension never mentioned')
+assertEqual(reIconed.items.about.order, menu.mergeMenuSources(shippedRaw, []).items.about.order, 'menu keeps an overridden row in its original position')
+
+const kindOf = (base, ext) =>
+  menu.mergeMenuSources(menu.parseMenuJsonc(base, false), menu.parseMenuJsonc(ext, false)).items.tools.kind
+assertEqual(kindOf('{"tools":{"label":"Tools"}}', '{"tools":{"action":"run"}}'), 'action', 'menu promotes a submenu an extension gives an action')
+assertEqual(kindOf('{"tools":{"action":"run"}}', '{"tools":{"icon":"T"}}'), 'action', 'menu leaves a re-iconed action row an action')
+assertEqual(kindOf('{"tools":{"label":"Tools"}}', '{"tools":{"target":"style"}}'), 'link', 'menu turns a submenu an extension retargets into a link')
+assertEqual(kindOf('{"tools":{"label":"Tools"}}', '{"tools":{"icon":"T"}}'), 'menu', 'menu leaves a re-iconed submenu a submenu')
+assertEqual(kindOf('{"tools":{"action":"run"}}', '{"tools":{"target":"style"}}'), 'action', 'menu keeps an inherited action when an extension only adds a target')
+assertEqual(kindOf('{"tools":{"action":"run"}}', '{"tools":{"target":"style","action":""}}'), 'link', 'menu turns an action into a link when the extension clears action')
+
+const added = menu.mergeMenuSources(shippedRaw, menu.parseMenuJsonc('{"personal":{"icon":"P"}}', false))
+assertDeepEqual(
+  Object.keys(added.items.personal).sort(),
+  Object.keys(added.items.about).sort(),
+  'menu gives a brand new extension id the same fields as a shipped row'
+)
+assertEqual(added.items.personal.label, 'personal', 'menu falls back to the id for a new row with no label')
+assertEqual(added.items.personal.parent, 'root', 'menu roots a new top-level extension row')
+
+const reparented = menu.mergeMenuSources(shippedRaw, menu.parseMenuJsonc('{"about":{"parent":"style"}}', false))
+assertEqual(reparented.items.about.parent, 'style', 'menu honors a parent an extension declares')
+
+const hijacked = menu.mergeMenuSources(shippedRaw, menu.parseMenuJsonc('{"about":{"id":"hijacked","icon":"Y"}}', false))
+assertEqual(hijacked.items.about.id, 'about', 'menu pins the object key as the id even when the entry declares one')
+assertEqual(hijacked.items.about.icon, 'Y', 'menu ignores an id field inside an entry and keeps the object key')
+assertEqual(hijacked.items.about.action, 'omarchy-launch-about', 'menu still merges a shipped action onto a row whose entry declared id')
+assertEqual(Object.keys(hijacked.items).filter(id => id === 'hijacked').length, 0, 'menu does not append an orphan row for a declared id')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')
