@@ -218,7 +218,7 @@ Item {
     if (row.entryType === "image") {
       Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--paste", "--history-index", String(row.historyIndex)])
     }
   }
 

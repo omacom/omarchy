@@ -266,6 +266,12 @@ cat >"$TMPDIR/bin/wtype" <<'SH'
 printf '%s\n' "$*" >"$WTYPE_OUT"
 SH
 
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+[[ $1 == "activewindow" && $2 == "-j" ]] || exit 1
+printf '{"class":"%s","tags":%s}\n' "${HYPRCTL_CLASS:-foot}" "${HYPRCTL_TAGS:-[]}"
+SH
+
 cat >"$TMPDIR/bin/omarchy-launch-browser" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"$BROWSER_OUT"
@@ -282,7 +288,7 @@ cat >"$TMPDIR/bin/tensaku-edit" <<'SH'
 printf '%s\n' "$*" >"$TENSAKU_OUT"
 SH
 
-chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/tensaku-edit"
+chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wl-paste" "$TMPDIR/bin/wtype" "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/omarchy-launch-browser" "$TMPDIR/bin/omarchy-launch-editor" "$TMPDIR/bin/tensaku-edit"
 
 capture_output=$(XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ $capture_output == '{"type":"text","text":"terminal copy"}' ]] || fail "clipboard capture records normal text events"
@@ -465,14 +471,31 @@ pass "clipboard watcher dies with its owner via pdeathsig"
 
 jq -n --arg text "$(printf 'large block line 1\nlarge block line 2\n')" '[{type:"text", text:"ignored"}, {type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
-WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
-  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  HYPRCTL_TAGS='["default-opacity*","terminal*"]' \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --paste --history-index 1
 
 [[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard paste helper copies history entry text"
 pass "clipboard paste helper copies history entry text"
 
-[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper pastes history entries with shift insert"
-pass "clipboard paste helper pastes history entries with shift insert"
+[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper pastes into terminals with shift insert"
+pass "clipboard paste helper pastes into terminals with shift insert"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  HYPRCTL_CLASS=firefox HYPRCTL_TAGS='["default-opacity*","firefox-based-browser*"]' \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --paste --history-index 1
+
+[[ $(<"$TMPDIR/wtype") == "-M ctrl -k v -m ctrl" ]] || fail "clipboard paste helper pastes into other windows with ctrl v"
+pass "clipboard paste helper pastes into other windows with ctrl v"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  HYPRCTL_TAGS='[]' \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --paste --history-index 1
+
+[[ $(<"$TMPDIR/wtype") == "-M ctrl -k v -m ctrl" ]] || fail "clipboard paste helper pastes into untagged windows with ctrl v"
+pass "clipboard paste helper pastes into untagged windows with ctrl v"
 
 rm -f "$TMPDIR/wtype"
 WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
@@ -494,6 +517,14 @@ pass "clipboard file paste helper copy-only copies file content"
 
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
+
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  HYPRCTL_CLASS=firefox HYPRCTL_TAGS='["firefox-based-browser*"]' \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image.png"
+
+[[ $(<"$TMPDIR/wtype") == "-M ctrl -k v -m ctrl" ]] || fail "clipboard file paste helper pastes into other windows with ctrl v"
+pass "clipboard file paste helper pastes into other windows with ctrl v"
 
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
