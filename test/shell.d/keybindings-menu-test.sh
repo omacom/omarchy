@@ -220,3 +220,44 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# A config that walks a mock value with ipairs must not hang the Lua bind scan.
+# Lua 5.4+ makes ipairs consult __index; before the mock returned nil for
+# numeric keys, iterating a window-derived value spun forever and pegged a core.
+# The trigger sits at the top of hyprland.lua so it runs ahead of
+# default.hypr.omarchy, whose qconsole.lua compares a mock monitor's scale and
+# errors early, which would otherwise mask this hang.
+{
+  cat <<'LUA'
+local function walk_window_tags()
+  local window = hl.get_active_window()
+  if not window then
+    return
+  end
+
+  local tags = window.tags
+  if type(tags) == "table" then
+    for _, tag in ipairs(tags) do
+      if tag:gsub("%*$", "") == "terminal" then
+        return
+      end
+    end
+  end
+end
+walk_window_tags()
+LUA
+  cat "$home/.config/hypr/hyprland.lua"
+} >"$home/.config/hypr/hyprland.lua.tmp"
+mv "$home/.config/hypr/hyprland.lua.tmp" "$home/.config/hypr/hyprland.lua"
+
+stub_hyprctl <<BINDS
+$(exec_bind 64 "SUPER + K" "Keybindings" "omarchy-menu-keybindings")
+BINDS
+
+rendered=$(timeout 10 env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print) ||
+  fail "the Lua bind scan hangs on a config that iterates a mock value"
+grep -q 'SUPER + K  *→ Keybindings' <<<"$rendered" ||
+  fail "the menu renders after iterating a mock value" "$rendered"
+pass "the Lua bind scan survives a config that iterates a mock value"

@@ -186,7 +186,13 @@ end
 
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  -- Return nil for numeric keys so ipairs/pairs see an empty table. Lua 5.4+
+  -- makes ipairs consult __index; returning noop for every integer key would
+  -- loop forever over a config that walks a mock value (e.g. window.tags).
+  __index = function(_, key)
+    if type(key) == "number" then
+      return nil
+    end
     return noop
   end,
   __call = function()
