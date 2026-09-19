@@ -24,6 +24,17 @@ Sometimes you want `sudo` to stop asking, most often when an AI agent is doing a
 
 Be clear-eyed about this one: while it's on, anything running as your user can do anything as root without being asked. That's the whole point, and it's also the whole risk.
 
+## Customizing the kernel command line
+
+If you want to add your own kernel parameters — say, `lsm=landlock,lockdown,yama,apparmor,bpf` to turn on AppArmor — don't edit `/etc/kernel/cmdline`. Omarchy's boot tooling doesn't read it, so anything you put there is silently ignored. The cmdline that actually ends up in the signed UKI is assembled by `limine-entry-tool`/`limine-update` from `KERNEL_CMDLINE[default]` in `/etc/default/limine` plus any drop-ins under `/etc/limine-entry-tool.d/*.conf`. Add your own drop-in there instead, then rebuild and reboot:
+
+```
+printf '%s\n' 'KERNEL_CMDLINE[default]+=" your-param=here"' | sudo tee /etc/limine-entry-tool.d/zz-custom.conf
+sudo limine-update
+```
+
+Name your file with a `zz-` prefix so it's applied after Omarchy's own drop-ins (sudoers.d-style lexical ordering applies here too). After rebooting, confirm with `cat /proc/cmdline`.
+
 ## Signing Keys
 
 The public key for all ISO signatures and Omarchy repo package is `40DFB630FF42BCFFB047046CF0134EE680CAC571` ([verify at openpgp.org](https://keys.openpgp.org/search?q=pkgs%40omarchy.org)). The `omarchy/omarchy-keyring` package contains this as well and will be used to rollout any potential updates seamlessly.
