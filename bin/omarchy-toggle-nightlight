@@ -1,59 +1,449 @@
 #!/bin/bash
 
-# omarchy:summary=Toggle nightlight screen temperature
-# omarchy:args=[--status]
-# omarchy:examples=omarchy toggle nightlight
+# omarchy:summary=Toggle, configure, and refresh Omarchy's night light (hyprsunset)
+# omarchy:args=[--status|--mode MODE|--day-temp K|--night-temp K|--refresh]
+# omarchy:examples=omarchy toggle nightlight --refresh
 
-ON_TEMP=4000
-OFF_TEMP=6500
-IDENTITY_TEMP=6000
+# Bare invocation flips on/off between the configured day and night
+# temperatures, respecting the current mode (manual vs. sunrise-sunset).
+#
+#   (no args)            Flip between day and night temperature
+#   --status             Print JSON status of the live hyprsunset state
+#   --mode MODE          Get/set mode: manual | sunrise-sunset
+#   --day-temp K         Get/set day temperature (1000..6500)
+#   --night-temp K       Get/set night temperature (1000..6500)
+#   --refresh            Regenerate hyprsunset.conf + per-day timers
+#
+# State of record: ~/.local/state/omarchy/settings/nightlight.json
+#   {
+#     "mode":            "sunrise-sunset" (default) | "manual",
+#     "dayTemperature":  6500,
+#     "nightTemperature": 4000
+#   }
+#
+# Exit codes:
+#   0  success
+#   1  invalid argument
+#   2  state file could not be read or written
+#   3  hyprsunset unreachable (only on the toggle path)
+#   4  network/location lookup failed (only for --refresh)
 
-current_temp() {
-  local output
+set -euo pipefail
 
-  output=$(hyprctl hyprsunset temperature 2>/dev/null) || return
-  grep -oE '[0-9]+' <<<"$output" | head -n1
+NL_STATE_DIR="$HOME/.local/state/omarchy/settings"
+NL_STATE_FILE="$NL_STATE_DIR/nightlight.json"
+NL_CONF="$HOME/.config/hypr/hyprsunset.conf"
+NL_LOC_FILE="$NL_STATE_DIR/weather.json"
+NL_SYSTEMD_DIR="$HOME/.config/systemd/user"
+NL_TIMER_PREFIX="omarchy-nightlight"
+NL_IDENTITY_TEMP=6000
+
+NL_DEFAULT_DAY_TEMP=6500
+NL_DEFAULT_NIGHT_TEMP=4000
+NL_DEFAULT_MODE="sunrise-sunset"
+
+nl_die() { echo "omarchy-nightlight: $*" >&2; exit "${2:-1}"; }
+
+nl_get_number() {
+  local key=$1 default=$2
+  local value
+  value=$(jq -r --arg k "$1" 'if has($k) then (.[$k] | tostring) else empty end' \
+    "$NL_STATE_FILE" 2>/dev/null || true)
+  [[ $value =~ ^[0-9]+$ ]] && echo "$value" || echo "$default"
 }
 
-status_json() {
-  local temp enabled
+nl_get_mode() {
+  jq -r '.mode // empty' "$NL_STATE_FILE" 2>/dev/null \
+    || echo "$NL_DEFAULT_MODE"
+}
 
-  temp=$(current_temp)
-  if [[ -n $temp ]] && (( temp < IDENTITY_TEMP )); then
+nl_ensure_state() {
+  [[ -f $NL_STATE_FILE ]] && return 0
+  mkdir -p "$NL_STATE_DIR"
+  jq -n \
+    --arg mode "$NL_DEFAULT_MODE" \
+    --argjson day "$NL_DEFAULT_DAY_TEMP" \
+    --argjson night "$NL_DEFAULT_NIGHT_TEMP" \
+    '{mode:$mode, dayTemperature:$day, nightTemperature:$night}' \
+    >"$NL_STATE_FILE"
+}
+
+nl_atomic_set() {
+  local key=$1 value=$2 type=$3
+
+  mkdir -p "$NL_STATE_DIR"
+  local tmp
+  tmp=$(mktemp "${NL_STATE_DIR}/.nightlight.XXXXXX") || nl_die "mktemp failed" 2
+  # shellcheck disable=SC2064   # we WANT the trap to bind tmp NOW
+  trap "rm -f '$tmp'" EXIT
+
+  local existing=$NL_STATE_FILE
+  if [[ -f $existing ]] && ! jq empty "$existing" >/dev/null 2>&1; then
+    mv "$existing" "$existing.broken.$(date +%s)"
+    echo "omarchy-nightlight: state file was corrupt; renamed and starting fresh" >&2
+  fi
+
+  if [[ -f $existing ]]; then
+    if [[ $type == number ]]; then
+      jq --arg k "$key" --argjson v "$value" '.[$k] = $v' "$existing" >"$tmp" \
+        || nl_die "failed to update state file" 2
+    else
+      jq --arg k "$key" --arg v "$value" '.[$k] = $v' "$existing" >"$tmp" \
+        || nl_die "failed to update state file" 2
+    fi
+  else
+    jq -n \
+      --arg mode "$NL_DEFAULT_MODE" \
+      --argjson day "$NL_DEFAULT_DAY_TEMP" \
+      --argjson night "$NL_DEFAULT_NIGHT_TEMP" \
+      --arg k "$key" --arg v "$value" \
+      --arg t "$type" \
+      'if $t == "number"
+       then . + {($ARGS.named)} | .[$k] = ($v | tonumber)
+       else . + {($ARGS.named)}
+       end' >"$tmp" || nl_die "failed to create state file" 2
+  fi
+
+  mv "$tmp" "$NL_STATE_FILE"
+  trap - EXIT
+}
+
+nl_set_number() {
+  local key=$1 value=$2
+  [[ $value =~ ^[0-9]+$ ]] || nl_die "$key must be an integer (got: $value)" 1
+  nl_atomic_set "$key" "$value" number
+}
+
+nl_set_string() {
+  local key=$1 value=$2
+  [[ $value =~ ^[a-z][a-z-]*$ ]] || nl_die "$key must be lowercase letters/hyphens (got: $value)" 1
+  nl_atomic_set "$key" "$value" string
+}
+
+# Read the live hyprsunset temperature. Returns empty if hyprsunset is not
+# running or the IPC socket is unreachable.
+nl_live_temp() {
+  pgrep -x hyprsunset >/dev/null 2>&1 || return 1
+  local out
+  out=$(hyprctl hyprsunset temperature 2>/dev/null) || return 1
+  out=${out%$'\n'}
+  [[ $out =~ ^[0-9]+$ ]] || return 1
+  echo "$out"
+}
+
+# Convert "2026-09-18T06:54" or "2026-09-18T06:54:42" -> "06:54".
+nl_iso_to_hm() {
+  local part=${1#*T}
+  IFS=: read -ra f <<<"$part"
+  if (( ${#f[@]} == 3 )); then
+    printf '%s:%s\n' "${f[0]}" "${f[1]}"
+  else
+    printf '%s\n' "$part"
+  fi
+}
+
+nl_clear_auto_timers() {
+  shopt -s nullglob
+  local f name
+  for f in "$NL_SYSTEMD_DIR/${NL_TIMER_PREFIX}-"{sunrise,sunset}-*.{service,timer}; do
+    name=${f##*/}
+    systemctl --user disable --now "${name%.service}.timer" 2>/dev/null || true
+    rm -f "$f"
+  done
+  shopt -u nullglob
+  systemctl --user daemon-reload 2>/dev/null || true
+}
+
+nl_schedule_switches() {
+  local sunrise_iso=$1 sunset_iso=$2 day_t=$3 night_t=$4
+  mkdir -p "$NL_SYSTEMD_DIR"
+  nl_clear_auto_timers
+
+  local sunrise_cal="${sunrise_iso/T/ }"
+  local sunset_cal="${sunset_iso/T/ }"
+
+  local hash
+  hash=$(printf '%s|%s' "$sunrise_cal" "$sunset_cal" | md5sum | cut -c1-8)
+  local sr_unit="${NL_TIMER_PREFIX}-sunrise-${hash}"
+  local ss_unit="${NL_TIMER_PREFIX}-sunset-${hash}"
+
+  cat >"$NL_SYSTEMD_DIR/${sr_unit}.service" <<EOF
+[Unit]
+Description=Night light: switch to daytime
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/hyprctl hyprsunset temperature ${day_t}
+ExecStartPost=/usr/bin/omarchy-shell -q nightlight refresh
+EOF
+
+  cat >"$NL_SYSTEMD_DIR/${sr_unit}.timer" <<EOF
+[Unit]
+Description=Night light: switch to daytime at today's sunrise
+
+[Timer]
+OnCalendar=${sunrise_cal}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  cat >"$NL_SYSTEMD_DIR/${ss_unit}.service" <<EOF
+[Unit]
+Description=Night light: switch to nighttime
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/hyprctl hyprsunset temperature ${night_t}
+ExecStartPost=/usr/bin/omarchy-shell -q nightlight refresh
+EOF
+
+  cat >"$NL_SYSTEMD_DIR/${ss_unit}.timer" <<EOF
+[Unit]
+Description=Night light: switch to nighttime at today's sunset
+
+[Timer]
+OnCalendar=${sunset_cal}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now "${sr_unit}.timer" 2>/dev/null || true
+  systemctl --user enable --now "${ss_unit}.timer" 2>/dev/null || true
+}
+
+# Regenerate conf + per-day timers. Idempotent.
+nl_refresh() {
+  local mode day_t night_t
+  mode=$(nl_get_mode)
+  day_t=$(nl_get_number dayTemperature "$NL_DEFAULT_DAY_TEMP")
+  night_t=$(nl_get_number nightTemperature "$NL_DEFAULT_NIGHT_TEMP")
+
+  # Manual mode: restore Omarchy's stock static profiles and clear auto
+  # timers. The user can hand-edit hyprsunset.conf afterwards; the next
+  # --refresh or mode change will restore Omarchy's default again.
+  if [[ $mode != "sunrise-sunset" ]]; then
+    local stock="${OMARCHY_PATH:-/usr/share/omarchy}/config/hypr/hyprsunset.conf"
+    if [[ -f $stock ]]; then
+      mkdir -p "$(dirname "$NL_CONF")"
+      cp -f "$stock" "$NL_CONF"
+    fi
+    nl_clear_auto_timers
+    return 0
+  fi
+
+  # Resolve coordinates: weather.json (user-set) -> IP geolocation fallback.
+  local lat lon name
+  if [[ -f $NL_LOC_FILE ]]; then
+    lat=$(jq -r '.latitude  // empty' "$NL_LOC_FILE" 2>/dev/null || true)
+    lon=$(jq -r '.longitude // empty' "$NL_LOC_FILE" 2>/dev/null || true)
+    name=$(jq -r '.name      // empty' "$NL_LOC_FILE" 2>/dev/null || true)
+  fi
+  if [[ -z $lat || -z $lon ]]; then
+    local geo
+    geo=$(curl -fsS --max-time 6 "https://ipapi.co/json/" 2>/dev/null) || true
+    if [[ -n $geo ]]; then
+      lat=$(jq -r '.latitude  // empty' <<<"$geo" 2>/dev/null || true)
+      lon=$(jq -r '.longitude // empty' <<<"$geo" 2>/dev/null || true)
+      name=$(jq -r '.city      // empty' <<<"$geo" 2>/dev/null || true)
+    fi
+  fi
+  if [[ -z $lat || -z $lon ]]; then
+    nl_die "Could not determine location. Set one with: omarchy weather location --set <name> lat,lon" 4
+  fi
+  echo "Location: ${name:-unknown} ($lat, $lon)"
+
+  # Fetch today's sunrise/sunset.
+  local url="https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&daily=sunrise,sunset&timezone=auto&forecast_days=2"
+  local resp
+  resp=$(curl -fsS --max-time 8 "$url" 2>/dev/null) \
+    || nl_die "Open-Meteo unreachable; keeping existing config" 4
+  local sunrise_iso sunset_iso
+  sunrise_iso=$(jq -r '.daily.sunrise[0]' <<<"$resp" 2>/dev/null) || nl_die "Bad API response" 4
+  sunset_iso=$(jq -r  '.daily.sunset[0]'  <<<"$resp" 2>/dev/null) || nl_die "Bad API response" 4
+  [[ -n $sunrise_iso && -n $sunset_iso ]] || nl_die "Empty sunrise/sunset from API" 4
+
+  local sunrise_hm sunset_hm
+  sunrise_hm=$(nl_iso_to_hm "$sunrise_iso")
+  sunset_hm=$(nl_iso_to_hm "$sunset_iso")
+  echo "Sunrise: $sunrise_hm    Sunset: $sunset_hm (local)"
+
+  # Write hyprsunset.conf (used at hyprsunset cold start, e.g. login).
+  mkdir -p "$(dirname "$NL_CONF")"
+  cat >"$NL_CONF" <<EOF
+# Auto-generated by 'omarchy toggle nightlight --refresh' on $(date -Iseconds)
+# Source: ${name:-unknown} ($lat, $lon) via Open-Meteo. Mode: sunrise-sunset.
+# Switch to manual: omarchy toggle nightlight --mode manual
+# Restore Omarchy default: omarchy refresh hyprsunset
+
+profile {
+    time = $sunrise_hm
+    identity = true
+}
+
+profile {
+    time = $sunset_hm
+    temperature = $night_t
+}
+EOF
+
+  nl_schedule_switches "$sunrise_iso" "$sunset_iso" "$day_t" "$night_t"
+}
+
+nl_status_json() {
+  local mode day night live_t enabled
+  mode=$(nl_get_mode)
+  day=$(nl_get_number dayTemperature "$NL_DEFAULT_DAY_TEMP")
+  night=$(nl_get_number nightTemperature "$NL_DEFAULT_NIGHT_TEMP")
+
+  live_t=$(nl_live_temp) || live_t=""
+  if [[ -n $live_t ]] && (( live_t < NL_IDENTITY_TEMP )); then
     enabled=true
   else
     enabled=false
   fi
 
-  jq -cn --argjson enabled "$enabled" --arg temp "$temp" \
-    '{enabled:$enabled, temperature:(($temp | tonumber?) // null)}'
+  jq -nc \
+    --arg mode "$mode" \
+    --argjson day "$day" \
+    --argjson night "$night" \
+    --argjson identity "$NL_IDENTITY_TEMP" \
+    --argjson enabled "$enabled" \
+    --arg temp "${live_t:-null}" \
+    '{mode:$mode,
+      dayTemperature:$day,
+      nightTemperature:$night,
+      identityTemperature:$identity,
+      enabled:$enabled,
+      liveTemperature:(($temp | tonumber?) // null)}'
 }
 
-if [[ ${1:-} == "--status" ]]; then
-  status_json
+nl_print_help() {
+  cat <<USAGE
+Usage: omarchy toggle nightlight [OPTION]
+
+  (no args)        Toggle day/night temperature on the running hyprsunset.
+  --status         Print JSON status of live hyprsunset state.
+  --mode [MODE]    Print or set mode: manual | sunrise-sunset.
+  --day-temp [K]   Print or set day temperature (1000..6500).
+  --night-temp [K] Print or set night temperature (1000..6500).
+  --refresh        Regenerate hyprsunset.conf and per-day timers.
+  --help           Show this help.
+
+State: $NL_STATE_FILE
+USAGE
+}
+
+nl_arg_has_help() {
+  local arg
+  for arg in "$@"; do
+    [[ $arg == "--" ]] && return 1
+    [[ $arg == "--help" || $arg == "-h" ]] && return 0
+  done
+  return 1
+}
+
+if nl_arg_has_help "$@"; then
+  nl_print_help
   exit 0
 fi
 
-# Ensure hyprsunset is running
-if ! pgrep -x hyprsunset >/dev/null; then
-  setsid uwsm-app -- hyprsunset &
-fi
+ACTION="toggle"
+SHIFT=0
+case "${1:-}" in
+  --status)        ACTION="status" ;;
+  --mode)          ACTION="mode";          SHIFT=1 ;;
+  --day-temp)      ACTION="day_temp";      SHIFT=1 ;;
+  --night-temp)    ACTION="night_temp";    SHIFT=1 ;;
+  --refresh)       ACTION="refresh" ;;
+  --)              ACTION="toggle" ;;
+  "")              ;;
+  *)               nl_die "unknown argument: $1 (try --help)" 1 ;;
+esac
+if (( SHIFT > 0 )); then shift $SHIFT; fi
 
-# Query the current temperature
-CURRENT_TEMP=$(current_temp)
+case $ACTION in
+  status)
+    nl_status_json
+    ;;
+  mode)
+    if (( $# == 0 )); then
+      nl_get_mode
+    else
+      nl_ensure_state
+      case $1 in
+        manual|sunrise-sunset) ;;
+        *) nl_die "invalid mode: $1 (expected: manual | sunrise-sunset)" 1 ;;
+      esac
+      current=$(nl_get_mode)
+      if [[ $1 == "$current" ]]; then
+        echo "Mode already '$1'."
+      else
+        nl_set_string mode "$1"
+        echo "Mode: $current -> $1"
+        nl_refresh
+      fi
+    fi
+    ;;
+  day_temp)
+    if (( $# == 0 )); then
+      nl_get_number dayTemperature "$NL_DEFAULT_DAY_TEMP"
+    else
+      nl_ensure_state
+      [[ $1 =~ ^[0-9]+$ ]] || nl_die "day-temp must be an integer (got: $1)" 1
+      (( $1 >= 1000 && $1 <= 6500 )) || nl_die "day-temp out of range 1000..6500 (got: $1)" 1
+      nl_set_number dayTemperature "$1"
+      echo "Day temperature: $1 K"
+      nl_refresh
+    fi
+    ;;
+  night_temp)
+    if (( $# == 0 )); then
+      nl_get_number nightTemperature "$NL_DEFAULT_NIGHT_TEMP"
+    else
+      nl_ensure_state
+      [[ $1 =~ ^[0-9]+$ ]] || nl_die "night-temp must be an integer (got: $1)" 1
+      (( $1 >= 1000 && $1 <= 6500 )) || nl_die "night-temp out of range 1000..6500 (got: $1)" 1
+      nl_set_number nightTemperature "$1"
+      echo "Night temperature: $1 K"
+      nl_refresh
+    fi
+    ;;
+  refresh)
+    nl_ensure_state
+    nl_refresh
+    echo "Done. Verify: systemctl --user list-timers omarchy-nightlight-*"
+    ;;
+  toggle)
+    nl_ensure_state
+    day_t=$(nl_get_number dayTemperature "$NL_DEFAULT_DAY_TEMP")
+    night_t=$(nl_get_number nightTemperature "$NL_DEFAULT_NIGHT_TEMP")
 
-if [[ -z $CURRENT_TEMP || $CURRENT_TEMP == $OFF_TEMP ]]; then
-  TARGET_TEMP=$ON_TEMP
-else
-  TARGET_TEMP=$OFF_TEMP
-fi
+    # Auto-start hyprsunset if not running.
+    if ! pgrep -x hyprsunset >/dev/null; then
+      setsid uwsm-app -- hyprsunset >/dev/null 2>&1 &
+      sleep 1
+    fi
 
-# A freshly-started hyprsunset applies its default temperature at the end of
-# its boot, overriding anything set before then — so resend until it sticks
-for _ in {1..10}; do
-  hyprctl hyprsunset temperature $TARGET_TEMP >/dev/null 2>&1
-  sleep 0.2
-  [[ $(current_temp) == "$TARGET_TEMP" ]] && break
-done
+    if live_t=$(nl_live_temp) && (( live_t < NL_IDENTITY_TEMP )); then
+      target=$day_t
+    else
+      target=$night_t
+    fi
 
-omarchy-shell -q nightlight refresh
+    # Resend until it sticks (hyprsunset applies its default at end of boot,
+    # overriding anything set before then).
+    for _ in {1..10}; do
+      hyprctl hyprsunset temperature "$target" >/dev/null 2>&1 || true
+      sleep 0.2
+      [[ $(nl_live_temp) == "$target" ]] && break
+    done
+
+    # Tell the QML bar indicator to refresh.
+    omarchy-shell -q nightlight refresh >/dev/null 2>&1 || true
+    ;;
+esac

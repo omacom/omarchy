@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily refresh of Omarchy night light (sunrise/sunset schedule)
+Documentation=man:systemd.time(7)
+
+[Timer]
+# 04:00 covers day rollover even if the laptop was asleep all night.
+# Persistent=true means a missed fire (asleep) runs on next wake.
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+Unit=omarchy-nightlight-refresh.service
+
+[Install]
+WantedBy=timers.target

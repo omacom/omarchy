@@ -91,7 +91,35 @@
   "trigger.toggle.notifications": {"icon":"󰂛","label":"Notifications","action":"omarchy-toggle-notification-silencing"},
   "trigger.toggle.crash-capture": {"icon":"󱚡","label":"Crash Capture","action":"omarchy-toggle-crash-capture"},
   "trigger.toggle.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-toggle-screensaver"},
-  "trigger.toggle.nightlight": {"icon":"󰔎","label":"Nightlight","action":"omarchy-toggle-nightlight"},
+  "trigger.toggle.nightlight": {"icon":"󰔎","label":"Nightlight"},
+  "trigger.toggle.nightlight.toggle": {"icon":"󰔎","label":"Toggle","description":"Flip day/night temperature","action":"omarchy-toggle-nightlight"},
+  "trigger.toggle.nightlight.mode": {"icon":"󰔎","label":"Mode"},
+  "trigger.toggle.nightlight.mode.sunrise-sunset": {
+    "icon":"󰖨",
+    "label":"Sunrise / Sunset",
+    "description":"Auto-switch based on your location",
+    "checked":"[[ \"$(omarchy toggle nightlight --mode 2>/dev/null)\" == \"sunrise-sunset\" ]]",
+    "action":"omarchy toggle nightlight --mode sunrise-sunset"
+  },
+  "trigger.toggle.nightlight.mode.manual": {
+    "icon":"󰏬",
+    "label":"Manual",
+    "description":"Hand-edited static times in hyprsunset.conf",
+    "checked":"[[ \"$(omarchy toggle nightlight --mode 2>/dev/null)\" == \"manual\" ]]",
+    "action":"omarchy toggle nightlight --mode manual"
+  },
+  "trigger.toggle.nightlight.day-temp": {
+    "icon":"󰖨",
+    "label":"Day Temperature",
+    "description":"Daytime color temperature (Kelvin)",
+    "action":"value=$(omarchy-menu-input 'Day temperature in K (current: '$(omarchy toggle nightlight --day-temp)')' --width 420) && [[ -n $value ]] && omarchy toggle nightlight --day-temp $value"
+  },
+  "trigger.toggle.nightlight.night-temp": {
+    "icon":"󰖔",
+    "label":"Night Temperature",
+    "description":"Nighttime color temperature (Kelvin)",
+    "action":"value=$(omarchy-menu-input 'Night temperature in K (current: '$(omarchy toggle nightlight --night-temp)')' --width 420) && [[ -n $value ]] && omarchy toggle nightlight --night-temp $value"
+  },
   "trigger.toggle.top-bar": {"icon":"󰍜","label":"Menu Bar","action":"omarchy-toggle-bar"},
   "trigger.toggle.battery-percentage": {"icon":"󰁹","label":"Battery Percentage","when":"omarchy-hw-laptop","action":"omarchy-shell omarchy.power togglePercentage"},
   "trigger.toggle.workspace-layout": {"icon":"󱂬","label":"Workspace Layout","action":"omarchy-hyprland-workspace-layout-toggle"},
