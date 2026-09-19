@@ -62,7 +62,7 @@ export OMARCHY_SCREENSHOT_DIR="$HOME/Pictures/Screenshots"
 
 You can do the same for screenrecordings using `OMARCHY_SCREENRECORD_DIR`.
 
-Just remember to create the directoy you want to save to and restart Omarchy for this to take effect.
+Just remember to create the directory you want to save to and restart Omarchy for this to take effect.
 
 ### How do I get the speakers + webcam working on my Apple Studio Display?
 

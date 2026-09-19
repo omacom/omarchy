@@ -10,6 +10,11 @@ if [[ -z $1 ]]; then
 fi
 
 remove_php() {
+  mise uninstall php --all
+  mise rm -g php
+  mise tool-alias unset php
+
+  # PHP from before it moved to mise
   omarchy-pkg-drop php composer php-sqlite xdebug
 }
 
@@ -46,7 +51,9 @@ php)
   ;;
 laravel)
   echo -e "Removing Laravel...\n"
-  composer global remove laravel/installer 2>/dev/null || true
+  mise x php -- composer global remove laravel/installer 2>/dev/null || true
+
+  rm -f "$HOME/.local/bin/laravel" "$HOME/.config/composer/vendor/bin/laravel"
   ;;
 symfony)
   echo -e "Removing Symfony CLI...\n"
