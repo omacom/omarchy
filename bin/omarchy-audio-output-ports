@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Print the ports of each audio output as JSON for the shell
+# omarchy:group=audio
+
+# One sink can drive several jacks -- analog cards usually expose the rear Line
+# Out and the front Headphones as ports of a single sink. The shell lists those
+# ports as outputs of their own, so it needs to know which ones exist, which one
+# is active, and which have something plugged in.
+timeout 2 pactl -f json list sinks 2>/dev/null | jq -c '
+  map({
+    key: .name,
+    value: {
+      activePort: .active_port,
+      ports: [.ports[]? | {
+        name,
+        description,
+        type,
+        available: (.availability != "not available")
+      }]
+    }
+  }) | from_entries' 2>/dev/null || echo '{}'
