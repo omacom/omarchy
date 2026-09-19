@@ -3,11 +3,24 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
-browser=$(xdg-settings get default-web-browser)
+here=$(cd -- "$(dirname -- "$0")" && pwd)
+url=$1
+bin=$("$here/omarchy-webapp-browser")
+app_id=$("$here/omarchy-webapp-id" get "$url" || true)
 
-case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
-esac
+if [[ -n $app_id ]]; then
+  # Origin-only launches should use the installed start_url. Passing
+  # https://youtube.com/ as a shortcut override into a www.youtube.com app is
+  # out of scope and can no-op. Keep the flag for real deep links (Gmail
+  # compose, a /watch URL).
+  rest=${url#*://}
+  hostpath=${rest%%\?*}
+  hostpath=${hostpath%%#*}
+  hostpath=${hostpath%/}
+  if [[ $hostpath == */* ]]; then
+    exec setsid uwsm-app -- "$bin" --app-id="$app_id" --app-launch-url-for-shortcuts-menu-item="$url" "${@:2}"
+  fi
+  exec setsid uwsm-app -- "$bin" --app-id="$app_id" "${@:2}"
+fi
 
-exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"
+exec setsid uwsm-app -- "$bin" --app="$url" "${@:2}"
