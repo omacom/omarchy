@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# omarchy:summary=Match Battle.net's Wine DPI to the focused monitor's scale
+# omarchy:hidden=true
+
+# Omarchy leaves XWayland windows unscaled so they stay crisp, which leaves
+# every X11 app to size its own UI. Wine draws at 96 DPI unless its prefix says
+# otherwise, so on a scaled monitor Battle.net comes up tiny.
+#
+# Wine also fixes the DPI for the life of a prefix session: Battle.net's Qt
+# shell keeps the value the session started with, and Blizzard's update agent
+# holds a session open long after the client window closes. So the DPI is only
+# written while the prefix is at rest, and a session that nothing but the agent
+# holds open is stopped first. A session running the client or a game is left
+# alone and picks the new scale up on its next cold start.
+
+PREFIX="$HOME/Games/battlenet"
+
+umu() {
+  env WINEPREFIX="$PREFIX" PROTONPATH=GE-Proton GAMEID=umu-battlenet PROTON_VERB=run umu-run "$@"
+}
+
+# Hyprland stretches XWayland windows itself once force_zero_scaling is turned
+# off, so Wine has to stay at 96 DPI there. Prints nothing outside Hyprland.
+wanted_dpi() {
+  local scale
+
+  case "$(hyprctl getoption xwayland:force_zero_scaling -j 2>/dev/null | jq -r '.bool' 2>/dev/null)" in
+  true) scale=$(omarchy-hyprland-monitor-scaling 2>/dev/null) ;;
+  false) scale=1 ;;
+  esac
+
+  awk -v scale="$scale" 'BEGIN { if (scale > 0) printf "%d\n", scale * 96 + 0.5 }'
+}
+
+prefix_dpi() {
+  local hex
+
+  hex=$(sed -n '/^\[Control Panel\\\\Desktop\]/,/^$/ s/^"LogPixels"=dword:\([0-9a-f]\{8\}\)$/\1/p' "$PREFIX/user.reg" 2>/dev/null | head -n 1)
+  echo $(( 16#${hex:-60} ))
+}
+
+session_pids() {
+  grep -lszxF "STEAM_COMPAT_DATA_PATH=$PREFIX" /proc/[0-9]*/environ 2>/dev/null | cut -d / -f 3
+}
+
+# The client, its installer, or a game, as opposed to Wine's own services and
+# Blizzard's background agent.
+session_in_use() {
+  local pid cmd
+
+  for pid in $(session_pids); do
+    [[ -r /proc/$pid/cmdline ]] || continue
+    cmd=$(tr '\0' ' ' <"/proc/$pid/cmdline")
+
+    if [[ $cmd =~ ^[A-Za-z]:[\\/] && ${cmd,,} != c:[\\/]windows[\\/]* && $cmd != *[\\/]"Agent.exe "* ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+wait_for_rest() {
+  local attempt
+
+  for (( attempt = 0; attempt < 50; attempt++ )); do
+    [[ -z $(session_pids) ]] && return 0
+    sleep 0.2
+  done
+
+  return 1
+}
+
+dpi=$(wanted_dpi)
+
+if [[ -n $dpi ]] && (( dpi != $(prefix_dpi) )) && ! session_in_use; then
+  if [[ -n $(session_pids) ]]; then
+    umu wineboot -k >/dev/null
+  fi
+
+  if wait_for_rest; then
+    umu reg add 'HKCU\Control Panel\Desktop' /v LogPixels /t REG_DWORD /d "$dpi" /f >/dev/null
+    wait_for_rest
+  fi
+fi
+
+# Scaling is cosmetic, so never let it stand in the way of the launch.
+exit 0
