@@ -11,7 +11,27 @@ if ! git -C "$OMARCHY_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; the
   exit 1
 fi
 
-upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
+if ! upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null); then
+  upstream=""
+fi
+
+current=$(git -C "$OMARCHY_PATH" branch --show-current 2>/dev/null || true)
+merge=$(git -C "$OMARCHY_PATH" config --get "branch.${current}.merge" 2>/dev/null || true)
+remote=$(git -C "$OMARCHY_PATH" config --get "branch.${current}.remote" 2>/dev/null || true)
+[[ -n $remote ]] || remote=origin
+
+if [[ $upstream == */master || $merge == refs/heads/master ]]; then
+  if git -C "$OMARCHY_PATH" rev-parse --verify --quiet "refs/remotes/$remote/quattro" >/dev/null; then
+    echo -e "\e[33m\nUpstream ${upstream:-$remote/master} is gone; tracking $remote/quattro\e[0m"
+    git -C "$OMARCHY_PATH" branch --set-upstream-to="$remote/quattro"
+    upstream="$remote/quattro"
+  else
+    echo "Error: upstream ${upstream:-$remote/master} no longer exists (master was deleted)." >&2
+    echo "Check out quattro: git -C \"$OMARCHY_PATH\" fetch $remote && git -C \"$OMARCHY_PATH\" checkout quattro" >&2
+    exit 1
+  fi
+fi
+
 if [[ -z $upstream ]]; then
   echo -e "\e[33m\nSkip Omarchy dev checkout update (current branch has no upstream)\e[0m"
   exit 0

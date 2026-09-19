@@ -286,3 +286,12 @@ reboot_line=$(grep -n 'Rebooting because --reboot was passed' "$upgrade_to_quatt
 [[ -n $unsafe_line && -n $reboot_line ]] || fail "reboot gate and reboot branch exist"
 (( unsafe_line < reboot_line )) || fail "an unverified kernel cmdline blocks the reboot"
 pass "Omarchy 4 upgrade verifies the UKIs and refuses to reboot unverified"
+
+if grep -F 'heads/master.tar.gz' "$upgrade_to_quattro" >/dev/null; then
+  fail "Omarchy 4 upgrade does not fetch the deleted master branch"
+fi
+grep -F 'heads/quattro.tar.gz' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade fetches quattro hypr defaults when the backup is missing"
+grep -F 'omarchy-quattro/default/hypr' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade unpacks the quattro archive directory"
+pass "Omarchy 4 upgrade fetches quattro hypr defaults when the backup is missing"
