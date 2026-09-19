@@ -133,17 +133,24 @@ pass "Muse collector stays silent for pay-as-you-go accounts"
   fail "Muse collector does not retry a pay-as-you-go answer" "$payg"
 pass "Muse collector does not retry a pay-as-you-go answer"
 
-# Subscriber without a usage snapshot yet: keep the tier, say limits are
-# unavailable, never invent meters.
+# Active plan without usage windows (live Muse Code Power Usage shape):
+# keep the tier, show local metering only — silent, not an error.
 set_payload '{"body":{"api_key":"minted","is_subs_active":true,"subs_tier_name":"Muse Code Everyday Usage"}}'
 nosnap=$(run_collector --force)
-[[ $(jq -r '.tierLabel' <<<"$nosnap") == "Muse Code Everyday Usage" ]] ||
-  fail "Muse collector keeps the tier without a usage snapshot" "$nosnap"
-pass "Muse collector keeps the tier without a usage snapshot"
+[[ $(jq -c '[.limits,.tierLabel,.usageStatusText,.authHelpText]' <<<"$nosnap") == '[[],"Muse Code Everyday Usage","",""]' ]] ||
+  fail "Muse collector stays silent for an active plan without usage windows" "$nosnap"
+pass "Muse collector stays silent for an active plan without usage windows"
 
-[[ $(jq -r '.usageStatusText' <<<"$nosnap") == "Muse limits unavailable" ]] ||
-  fail "Muse collector reports unavailable limits without a snapshot" "$nosnap"
-pass "Muse collector reports unavailable limits without a snapshot"
+[[ $(jq 'has("retryAdvised")' <<<"$nosnap") == "false" ]] ||
+  fail "Muse collector does not retry an active plan without usage windows" "$nosnap"
+pass "Muse collector does not retry an active plan without usage windows"
+
+# Neither active nor PAYG and no windows: still a warning, never invented meters.
+set_payload '{"body":{"api_key":"minted","subs_tier_name":"Mystery"}}'
+unknown=$(run_collector --force)
+[[ $(jq -r '.usageStatusText' <<<"$unknown") == "Muse limits unavailable" ]] ||
+  fail "Muse collector reports unavailable limits for an unknown shape" "$unknown"
+pass "Muse collector reports unavailable limits for an unknown shape"
 
 # A rejected sign-in is an auth problem, not missing data: say so.
 set_payload '{"status":401}'

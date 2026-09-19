@@ -94,10 +94,7 @@ session and weekly percents with reset times — the same figures the TUI's
 `/usage` overlay shows. Minting is idempotent (the same Model API key comes
 back every call), so polling is safe; the token travels only in the
 `Authorization` header and neither it nor the returned key is persisted.
-Pay-as-you-go accounts have no subscription windows, so the tab shows
-measured local usage with no meters — never estimated, never zeroed. With
-neither a working probe nor a subscription, the tab still shows token usage,
-just no limits.
+Pay-as-you-go accounts have no subscription windows, so the tab shows measured local usage with no meters — never estimated, never zeroed. An active plan that returns no `subs_usage` (Muse Code Power Usage answers this way on every probe) behaves the same way, except the tab keeps the plan name: tier plus local tokens, no meters, no error card. With neither a working probe nor a subscription, the tab still shows token usage, just no limits.
 
 ## Interactions
 

@@ -20,10 +20,11 @@ session (5-hour) + weekly percents with reset times plus `subs_tier_name` —
 the same figures the TUI's `/usage` overlay shows. Minting is idempotent so
 polling is safe; the token travels only in the Authorization header and
 neither it nor the returned API key is persisted. Pay-as-you-go accounts
-have no subscription windows, so limits stay empty and local metering still
-shows. No estimated meters from manual caps: without an authoritative probe
-the panel shows measured usage only. The agents panel only ever reads the
-JSON this prints.
+and active plans that return no `subs_usage` (e.g. Muse Code Power Usage)
+have no subscription windows, so limits stay empty — tier plus local
+metering still show. No estimated meters from manual caps: without an
+authoritative probe the panel shows measured usage only. The agents panel
+only ever reads the JSON this prints.
 """
 
 import argparse
@@ -401,9 +402,10 @@ def scan_opencode_sessions():
 #
 # Additive subscription windows only. Local metering above always runs; this
 # section only fills `limits`/`tierLabel`/status when the authoritative key
-# probe answers. Pay-as-you-go has no subscription windows: no token or a
-# probe with no subs_usage means limits stay empty (never estimated, never
-# zeroed) and local metering still shows. The OAuth token goes nowhere but
+# probe answers. Pay-as-you-go and active plans without `subs_usage` have no
+# subscription windows: no token, a PAYG probe, or an active probe with no
+# subs_usage means limits stay empty (never estimated, never zeroed) and
+# local metering still shows. The OAuth token goes nowhere but
 # the Authorization header; only plan label + usage figures enter the record.
 
 
@@ -489,6 +491,13 @@ def probe_key(access_token: str) -> dict:
     # error.
     if isinstance(payload, dict) and payload.get("is_subs_active") is False:
       return {"ok": False, "payg": True}
+    # Active plan without windows (live shape on Muse Code Power Usage:
+    # is_subs_active=true, subs_tier_name set, no subs_usage key at all).
+    # That is the steady answer, not a snapshot about to appear: keep the
+    # tier, show local metering only, stay silent like PAYG.
+    if isinstance(payload, dict) and payload.get("is_subs_active") is True:
+      tier_hint = str(payload.get("subs_tier_name") or "")
+      return {"ok": False, "silent": True, "tierLabel": tier_hint}
     tier_hint = str(payload.get("subs_tier_name") or "") if isinstance(payload, dict) else ""
     return {"ok": False, "tierLabel": tier_hint,
             "helpText": "Muse's usage endpoint returned no usage. Local Muse stats are still shown."}
@@ -599,6 +608,13 @@ def collect_limits(force: bool) -> dict:
   if probe.get("payg"):
     # Authenticated PAYG: no subscription windows exist. Keep local metering
     # only, silent — not an error, not expired.
+    return result
+  if probe.get("silent"):
+    # Active plan with no windows: same silence as PAYG, but keep the plan
+    # name. Stale cached windows are dropped — they belong to a different
+    # plan shape, not this one.
+    if probe.get("tierLabel"):
+      result["tierLabel"] = probe["tierLabel"]
     return result
   if probe.get("expired"):
     result["usageStatusText"] = "Sign-in expired"
