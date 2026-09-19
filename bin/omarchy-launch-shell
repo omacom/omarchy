@@ -32,14 +32,37 @@ run_shell() {
   return $status
 }
 
+# The socket a live compositor answers on. A dead compositor can leave its
+# socket behind, so this only decides how long to wait, never that the
+# compositor is back.
+compositor_socket_present() {
+  local signature=${HYPRLAND_INSTANCE_SIGNATURE:-}
+
+  [[ -n $signature ]] || return 1
+  [[ -S ${XDG_RUNTIME_DIR:-/run/user/$UID}/hypr/$signature/.socket.sock ]]
+}
+
 # A compositor busy reconfiguring outputs can miss a query without being gone,
 # and that is when the shell dies.
 compositor_alive() {
-  local attempt
+  local attempt waited
 
   for attempt in 1 2 3; do
     hyprctl -j monitors >/dev/null 2>&1 && return 0
     (( attempt < 3 )) && sleep 0.5
+  done
+
+  # Resume from suspend holds the outputs down for tens of seconds, not the
+  # fraction of a second a modeset takes. The shell that dies there is the one
+  # holding the session lock, and standing down leaves the seat locked with no
+  # locker to authenticate against. Keep waiting while the socket is there.
+  compositor_socket_present || return 1
+
+  for (( waited = 0; waited < 60; waited++ )); do
+    (( terminating )) && return 1
+    sleep 0.5
+    hyprctl -j monitors >/dev/null 2>&1 && return 0
+    compositor_socket_present || return 1
   done
 
   return 1
@@ -74,7 +97,10 @@ while true; do
   (( status == 0 )) && exit 0
 
   # Relaunching into a session already tearing down burns the attempt budget.
-  compositor_alive || exit 0
+  if ! compositor_alive; then
+    logger -t omarchy-shell "Omarchy shell exited with status $status; the compositor stopped answering, so supervision ends here."
+    exit 0
+  fi
 
   if (( SECONDS - window_started > 60 )); then
     attempts=0

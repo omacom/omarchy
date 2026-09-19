@@ -78,6 +78,20 @@ SH
 
 chmod +x "$fake_bin/quickshell" "$fake_bin/systemd-cat" "$fake_bin/hyprctl" "$fake_bin/logger"
 
+# A bound AF_UNIX socket is the only file that passes -S, and it is what a live
+# compositor leaves in place while it is too busy to answer. Sandboxes that deny
+# the bind get the fixture skipped rather than a failure.
+runtime_dir="$test_tmp/run"
+signature="test-instance"
+mkdir -p "$runtime_dir/hypr/$signature"
+socket_bound=1
+if command -v python3 >/dev/null; then
+  python3 -c 'import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' \
+    "$runtime_dir/hypr/$signature/.socket.sock" 2>/dev/null || socket_bound=0
+else
+  socket_bound=0
+fi
+
 qs_log="$test_tmp/quickshell.log"
 qs_env_log="$test_tmp/quickshell-env.log"
 logger_log="$test_tmp/logger.log"
@@ -99,6 +113,8 @@ launch_shell() {
   OMARCHY_TEST_QS_TERMINATED="$qs_terminated" \
   OMARCHY_TEST_HYPRCTL_MISSES="${3:-0}" \
   OMARCHY_TEST_HYPRCTL_MISS_COUNT="$hyprctl_misses" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  HYPRLAND_INSTANCE_SIGNATURE="${4:-}" \
     timeout 30 "$ROOT/bin/omarchy-launch-shell"
 }
 
@@ -138,6 +154,23 @@ rm -f "$hyprctl_misses"
 launch_shell $'255\n0' 0 2 || fail "a shell survives a compositor that misses a query"
 [[ $(launches) == 2 ]] || fail "a missed compositor query does not end supervision" "$(<"$qs_log")"
 pass "a compositor too busy to answer is not mistaken for one that is gone"
+
+# Resume from suspend keeps the outputs down for tens of seconds, and the shell
+# holding the session lock is the one that dies there. The socket stays while the
+# compositor cannot answer, so supervision has to outlast the blackout.
+if (( socket_bound )); then
+  rm -f "$hyprctl_misses"
+  launch_shell $'255\n0' 0 12 "$signature" || fail "a shell survives a compositor that is slow to resume"
+  [[ $(launches) == 2 ]] || fail "a slow resume does not end supervision" "$(<"$qs_log")"
+  pass "a compositor slow to answer after resume is not mistaken for one that is gone"
+fi
+
+# Without a socket there is nothing to wait for, and the short budget decides.
+rm -f "$hyprctl_misses"
+launch_shell $'255\n0' 0 12 || fail "a shell outliving the compositor exits cleanly"
+[[ $(launches) == 1 ]] || fail "a compositor that left no socket ends supervision" "$(<"$qs_log")"
+grep -F 'stopped answering' "$logger_log" >/dev/null || fail "standing down is recorded in the journal"
+pass "a compositor that left no socket is not waited on"
 
 # A signal mid-backoff only reaches the trap once the sleep is over.
 : >"$qs_log"
