@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse]
-# omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|agents-panel]
+# omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent agents-panel
 
 installing=false
 if [[ ${1:-} == "--install" ]]; then
@@ -42,8 +42,30 @@ muse | muse-code | musecode)
   agent_package="http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]"
   ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
+agents-panel)
+  mkdir -p "$(dirname "$agent_file")"
+  printf '%s\n' "agents-panel" >"$agent_file"
+  # Not a CLI: nothing to install. Launch only if the panel already has a tab.
+  selected_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/selected"
+  selected=""
+  if [[ -f $selected_file ]]; then
+    IFS= read -r selected <"$selected_file" || true
+  fi
+  case "$selected" in
+  pi | omp | opencode | ori | claude | codex | grok | openclaw | agy | hermes | copilot | crush | cursor-agent | muse)
+    if [[ $installing == "true" ]]; then
+      exec omarchy-agent --inline
+    else
+      exec omarchy-agent
+    fi
+    ;;
+  *)
+    exit 0
+    ;;
+  esac
+  ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|agents-panel>"
   exit 1
   ;;
 esac

@@ -230,7 +230,7 @@ const expectedAgents = {
   crush: { icon: '󰋑', label: 'Crush' },
   muse: { icon: '󰛤', label: 'Muse Code' },
   'cursor-agent': { icon: '\ue90d', iconFont: 'omarchy', label: 'Cursor CLI' },
-
+  'agents-panel': { icon: '󱚣', label: 'Agents panel' },
 }
 assert(
   Object.entries(expectedAgents).every(([agent, expected]) => {
@@ -249,8 +249,8 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
-  'menu sorts coding agents alphabetically'
+  ['Agents panel', 'Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  'menu lists Agents panel first, then coding agents alphabetically'
 )
 const expectedDefaults = {
   browser: ['Chromium', 'Chrome', 'Brave', 'Brave Origin', 'Edge', 'Firefox', 'Zen'],
