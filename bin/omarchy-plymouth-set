@@ -3,9 +3,15 @@
 # omarchy:summary=Set the Plymouth boot theme colors and logo
 # omarchy:args=<background-hex> <text-hex> <path-to-logo.png>
 # omarchy:examples=omarchy plymouth set '#1d2021' '#ebdbb2' ~/.local/state/omarchy/current/theme/plymouth/logo.png
-# omarchy:requires-sudo=true
 
 set -euo pipefail
+
+# Self-elevates for the publish transaction. Do not advertise requires-sudo: a
+# leading `sudo omarchy plymouth set` strips OMARCHY_PATH and used to half-apply
+# the theme while still rebuilding the initramfs (#10036).
+
+# Session env usually exports this; fall back for non-login / stripped environments.
+: "${OMARCHY_PATH:=/usr/share/omarchy}"
 
 # Build the authoritative theme in a root-owned directory, then publish each
 # fixed destination atomically. The caller opens the selected logo before sudo,
@@ -314,13 +320,19 @@ run_root_transaction() {
     fi
 
     if (( ${#plymouth_assets[@]} )); then
+      # Pre-4.0 installs left this directory user-owned; migration 1789384000
+      # reclaims it. Surface that repair when the refusal is the ownership check.
+      failure_hint="if $theme_dir is user-owned from a pre-4.0 install, run: sudo chown root:root $theme_dir && sudo chmod 755 $theme_dir"
       validate_trusted_directory "$theme_dir"
       if [[ $mode == "refresh-plymouth" ]]; then
         validate_trusted_directory "$theme_dir/logos"
       fi
+      failure_hint=
     fi
     if (( ${#sddm_assets[@]} )); then
+      failure_hint="if $sddm_dir is user-owned from a pre-4.0 install, run: sudo chown root:root $sddm_dir && sudo chmod 755 $sddm_dir"
       validate_trusted_directory "$sddm_dir"
+      failure_hint=
     fi
 
     publish_asset() {
