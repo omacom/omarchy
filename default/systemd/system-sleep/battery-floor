@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Suspend battery floor: keep a bagged laptop from draining to zero when
+# hibernation is unavailable. On the way into suspend, arm the RTC to self-wake
+# after the grace period; on resume, power off if the lid is still shut on
+# battery, suspend again if still shut on AC, and do nothing otherwise.
+#
+# Opt-in via `omarchy battery-floor setup`. Inert on machines without a
+# battery. The 20min grace matches the lid-close suspend-then-hibernate delay,
+# so there is one mental model for "short close = instant wake".
+#
+# systemd runs hooks as: <hook> <pre|post> <suspend|suspend-then-hibernate|...>.
+# Hooks live in /usr/lib/systemd/system-sleep: systemd does not read
+# /etc/systemd/system-sleep.
+
+GRACE_SEC=1200
+
+# Desktops have no battery to protect; stay out of the way.
+omarchy-battery-present || exit 0
+
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+
+if [[ $1 == "pre" ]]; then
+  # Only suspend drains without a floor; hibernate already protects the
+  # battery. A stale alarm would wake the machine early, so rtcwake replaces
+  # it. Failure here must never block suspend.
+  [[ $sleep_action == suspend* ]] || exit 0
+  /usr/bin/rtcwake -m no -s "$GRACE_SEC" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+[[ $1 == "post" && $sleep_action == suspend* ]] || exit 0
+
+# Let the lid state settle: the EC reports open the moment the lid is lifted,
+# and powering off a machine someone just opened would be the worst answer.
+# Only opted-in machines pay this delay.
+/usr/bin/sleep 5
+
+# Lid open means somebody woke it; docked means the session is still in use on
+# an external display (clamshell, same rule as omarchy-system-lid-close).
+omarchy-hw-laptop-closed || exit 0
+omarchy-hw-external-monitors && exit 0
+
+if omarchy-power-present; then
+  # Charging with the lid down: back to sleep; the pre hook rearms the alarm.
+  /usr/bin/systemctl suspend >/dev/null 2>&1 || true
+  exit 0
+fi
+
+# Still shut in a bag on battery: the floor. A cold boot beats a dead machine
+# and a stopped clock.
+/usr/bin/systemctl poweroff >/dev/null 2>&1 || true
