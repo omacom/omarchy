@@ -63,7 +63,13 @@ BorderSurface {
     return Quickshell.iconPath(value, true)
   }
 
-  implicitWidth: Style.space(380)
+  // Toast width: the 380px design target assumes a desktop-class logical
+  // viewport. On small logical screens (HiDPI panels, e.g. a 720x720 panel
+  // at scale 1.6 leaves only 450 logical px) the fixed width exceeds the
+  // screen. Clamp to 80% of the actual logical screen width so toasts
+  // always fit with margins, while keeping the 380px target when there is
+  // room.
+  implicitWidth: Math.min(Style.space(380), Math.round(Screen.width * 0.8))
   // Add vertical border insets so mainColumn (inset by border on top/left/right)
   // doesn't push content under the bottom edge.
   implicitHeight: mainColumn.implicitHeight + borderTop + borderBottom
