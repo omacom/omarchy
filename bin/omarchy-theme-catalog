@@ -1,0 +1,209 @@
+#!/bin/bash
+
+# omarchy:summary=Read the published catalog of community themes
+# omarchy:group=theme
+# omarchy:args=[--refresh] [--full] [--entry <name>] [--previews [--size <px>] [name...]]
+# omarchy:hidden=true
+
+# The one place that knows where the theme marketplace publishes and how it is
+# cached; omarchy-theme-browse, -install and -info all read through it. Like
+# omarchy-plugin-catalog it prints JSON and decides nothing about what the
+# caller does with it.
+#
+# The minimal catalog is what browsing needs; the full one adds palettes,
+# validator warnings and dates. Both are cached and refreshed when older than
+# the six hours the registry rebuilds on.
+
+set -euo pipefail
+
+# Where the registry publishes.
+CATALOG_ORIGIN="https://pub-98465b4520f24f9a8f162c4f722a293f.r2.dev"
+
+# The override exists for the tests, which serve a fixture catalog over file://.
+CATALOG_URL="${OMARCHY_THEME_CATALOG_URL:-$CATALOG_ORIGIN}"
+CATALOG_URL="${CATALOG_URL%/}"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/theme-catalog"
+TTL=21600
+
+fail() {
+  echo "omarchy-theme-catalog: $*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-theme-catalog [--refresh] [--full] [--entry <name>] [--previews]
+
+  (no flags)      Print the minimal catalog: one row per theme with the fields
+                  browsing needs.
+  --full          Print the full catalog, including palettes and warnings.
+  --entry <name>  Print one full catalog entry, or nothing when the name is
+                  not listed.
+  --previews      Print "<name><TAB><path>" for each named theme's preview
+                  image, downloading the ones not yet cached. Names come from
+                  the arguments, or from stdin when none are given.
+  --size <px>     Which rendition --previews reports: 480 for a grid tile,
+                  1200 for a full preview. Defaults to 1200.
+  --refresh       Re-fetch before answering, whatever the cache's age.
+USAGE
+}
+
+stale() {
+  local file="$1"
+  local age
+
+  [[ -f $file ]] || return 0
+  age=$(($(date +%s) - $(stat -c '%Y' "$file")))
+  (( age >= TTL ))
+}
+
+# A download only replaces the cached catalog once it parses as one. A captive
+# portal's login page or a half-finished transfer then leaves the previous copy
+# in place rather than poisoning the cache.
+fetch_catalog() {
+  local name="$1"
+  local file="$CACHE_DIR/$name"
+  local tmp
+
+  mkdir -p "$CACHE_DIR"
+  tmp=$(mktemp "$CACHE_DIR/.$name.XXXXXX")
+
+  if curl --silent --location --fail --max-time 45 --output "$tmp" "$CATALOG_URL/v1/$name" &&
+    jq -e '.themes | arrays and (length > 0)' "$tmp" >/dev/null 2>&1; then
+    mv -f "$tmp" "$file"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  [[ -f $file ]] || fail "could not fetch $name from $CATALOG_URL"
+  echo "omarchy-theme-catalog: could not refresh $name; using the cached copy." >&2
+}
+
+catalog_file() {
+  local name="$1"
+
+  if (( REFRESH )) || stale "$CACHE_DIR/$name"; then
+    fetch_catalog "$name"
+  fi
+  printf '%s' "$CACHE_DIR/$name"
+}
+
+# Previews are immutable per commit, so a cached one is never re-fetched. Which
+# rendition to ask for is the caller's business: grid tiles want the small one,
+# the preview beside them the large one.
+print_previews() {
+  local catalog
+  local requested
+  local pending=()
+  local name commit url dest
+
+  catalog=$(catalog_file catalog.min.json)
+
+  if (( ${#NAMES[@]} > 0 )); then
+    requested=$(printf '%s\n' "${NAMES[@]}")
+  else
+    requested=$(cat)
+  fi
+
+  [[ -n $requested ]] || return 0
+
+  while IFS=$'\t' read -r name commit url; do
+    [[ -n $name ]] || continue
+    dest="$CACHE_DIR/previews/$name/$commit-$SIZE.webp"
+    if [[ -s $dest ]]; then
+      printf '%s\t%s\n' "$name" "$dest"
+    else
+      pending+=("$dest" "$url")
+    fi
+  done < <(jq -r --arg requested "$requested" --arg size "$SIZE" '
+    ($requested | rtrimstr("\n") | split("\n")) as $want
+    | .themes[]
+    | select(.slug as $s | $want | index($s))
+    | [.slug, .commit, ((.thumb | rtrimstr("/480.webp")) + "/" + $size + ".webp")]
+    | @tsv
+  ' "$catalog")
+
+  (( ${#pending[@]} > 0 )) || return 0
+
+  # Eight at a time: a first browse asks for every tile. Each worker reports its
+  # own file as it lands so a cold cache fills in progressively.
+  printf '%s\0' "${pending[@]}" |
+    xargs -0 -n 2 -P 8 bash -c '
+      mkdir -p "${1%/*}"
+      if curl --silent --fail --location --max-time 30 --output "$1.tmp" "$2"; then
+        mv -f "$1.tmp" "$1"
+        name=${1%/*}
+        printf "%s\t%s\n" "${name##*/}" "$1"
+      else
+        rm -f "$1.tmp"
+      fi
+    ' _
+}
+
+REFRESH=0
+MODE="min"
+ENTRY=""
+SIZE=1200
+NAMES=()
+
+while (( $# > 0 )); do
+  case "$1" in
+  --refresh)
+    REFRESH=1
+    shift
+    ;;
+  --full)
+    MODE="full"
+    shift
+    ;;
+  --entry)
+    (( $# >= 2 )) || fail "--entry requires a theme name"
+    MODE="entry"
+    ENTRY="$2"
+    shift 2
+    ;;
+  --previews)
+    MODE="previews"
+    shift
+    ;;
+  --size)
+    (( $# >= 2 )) || fail "--size requires a pixel width"
+    [[ $2 == "480" || $2 == "1200" ]] || fail "--size takes 480 or 1200"
+    SIZE="$2"
+    shift 2
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  -*)
+    usage >&2
+    exit 1
+    ;;
+  *)
+    NAMES+=("$1")
+    shift
+    ;;
+  esac
+done
+
+if [[ $MODE != "previews" ]] && (( ${#NAMES[@]} > 0 )); then
+  usage >&2
+  exit 1
+fi
+
+case "$MODE" in
+min)
+  cat "$(catalog_file catalog.min.json)"
+  ;;
+full)
+  cat "$(catalog_file catalog.json)"
+  ;;
+entry)
+  jq -c --arg slug "$ENTRY" 'first(.themes[] | select(.slug == $slug)) // empty' \
+    "$(catalog_file catalog.json)"
+  ;;
+previews)
+  print_previews
+  ;;
+esac

@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# omarchy:summary=List the files Omarchy reads out of a theme repository
+# omarchy:group=theme
+# omarchy:hidden=true
+
+# A theme the marketplace listed is a stranger's repository that the user picked
+# off a wall of previews, and a theme is only colour and art. This owns the list
+# of what Omarchy will take from one: omarchy-theme-install hands it to git's
+# sparse-checkout so nothing else is ever written to disk, and
+# omarchy-theme-update applies it again as the theme moves, so a list tightened
+# by an Omarchy upgrade reaches themes installed under the old one.
+#
+# Only listed themes are held to it. `omarchy theme install <url>` is the user
+# naming a repository themselves, and clones it whole.
+
+set -uo pipefail
+
+# omarchy-theme-set decides what it will stage out of an installed theme; this
+# decides what is on disk to stage at all, so the two lists have to agree.
+# Order matters: these are gitignore patterns, and a later one overrides an
+# earlier one.
+# test/shell.d/theme-marketplace-test.sh fails when a color file Omarchy
+# generates has no pattern here.
+#
+# Quoted because these are patterns for git, and an unquoted one is a glob bash
+# would expand against this machine's own files.
+THEME_FILES=(
+  # Palette and mode. alacritty.toml is never staged, but it is where
+  # omarchy-theme-set derives colors.toml for themes written before it existed.
+  "/colors.toml"
+  "/alacritty.toml"
+  "/light.mode"
+
+  # Colour for everything Omarchy themes beyond the palette.
+  "/btop.theme"
+  "/chromium.theme"
+  "/claude.json"
+  "/helix.toml"
+  "/hermes.yaml"
+  "/hyprland-preview-share-picker.css"
+  "/icons.theme"
+  "/keyboard.rgb"
+  "/obsidian.css"
+  "/pi.json"
+  "/shell.toml"
+  "/shell.*.toml"
+  "/t3code.json"
+  "/vscode-theme.json"
+
+  # The lock screen, and the image the theme is shown by.
+  "/unlock.png"
+  "/preview-unlock.png"
+  "/preview.png"
+  "/preview.jpg"
+  "/preview.jpeg"
+  "/preview.webp"
+  "/preview.gif"
+  "/preview.bmp"
+  "/preview.mp4"
+  "/preview.m4v"
+  "/preview.mov"
+  "/preview.webm"
+  "/preview.mkv"
+  "/preview.avi"
+
+  # Terms the theme is offered under, and whatever it says about itself.
+  "/LICENSE"
+  "/LICENSE.md"
+  "/LICENSE.txt"
+  "/README"
+  "/README.md"
+  "/README.txt"
+
+  # A gitignore pattern naming a file also matches a *directory* of that name,
+  # so without this a repo shipping `colors.toml/` as a directory would have
+  # everything inside it checked out. Excluding every directory and then naming
+  # the wallpapers back in leaves exactly one directory a theme may fill, and
+  # only with files these patterns match -- `backgrounds/anything/evil.sh` is
+  # no more reachable than `evil.sh` is.
+  "!/*/"
+
+  # Wallpapers, by the extensions omarchy-theme-set will cycle through.
+  "/backgrounds/*.jpg"
+  "/backgrounds/*.jpeg"
+  "/backgrounds/*.png"
+  "/backgrounds/*.gif"
+  "/backgrounds/*.bmp"
+  "/backgrounds/*.webp"
+  "/backgrounds/*.mp4"
+  "/backgrounds/*.m4v"
+  "/backgrounds/*.mov"
+  "/backgrounds/*.webm"
+  "/backgrounds/*.mkv"
+  "/backgrounds/*.avi"
+)
+
+printf '%s\n' "${THEME_FILES[@]}"

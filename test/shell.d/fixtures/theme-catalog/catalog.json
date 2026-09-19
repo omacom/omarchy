@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-13T00:00:00.000Z",
+  "omarchy_min": "4.0.0",
+  "themes": [
+    {
+      "slug": "alpha", "name": "Alpha", "repo": "REPO_alpha",
+      "author": {"login": "Ada", "url": "https://github.com/Ada"},
+      "description": "An alpha theme", "license": "MIT",
+      "mode": "dark", "hue": "blue",
+      "colors": {"accent": "#3355ff", "background": "#0b0b13"},
+      "generation": "native", "ignored_on_install": [],
+      "backgrounds": {"count": 2, "has_video": false, "total_bytes": 2097152},
+      "preview": {"thumb": "CDN/v1/previews/alpha/COMMIT_alpha/480.webp"},
+      "commit": "COMMIT_alpha", "stars": 7, "added_at": "2099-01-01",
+      "tags": [], "featured": true, "warnings": []
+    },
+    {
+      "slug": "beta", "name": "Beta Light", "repo": "REPO_beta",
+      "author": {"login": "Bo", "url": "https://github.com/Bo"},
+      "description": "", "license": null,
+      "mode": "light", "hue": "orange",
+      "colors": {"accent": "#cc6622", "background": "#f7f3ec"},
+      "generation": "hybrid", "ignored_on_install": ["kitty.conf"],
+      "backgrounds": {"count": 1, "has_video": false, "total_bytes": 1048576},
+      "preview": {"thumb": "CDN/v1/previews/beta/COMMIT_beta/480.webp"},
+      "commit": "COMMIT_beta", "stars": 1, "added_at": "2000-01-01",
+      "tags": [], "featured": false, "warnings": ["IGNORED_ON_INSTALL"]
+    },
+    {
+      "slug": "gamma", "name": "Gamma", "repo": "REPO_gamma",
+      "author": {"login": "Ada", "url": "https://github.com/Ada"},
+      "description": "", "license": "MIT",
+      "mode": "dark", "hue": "orange",
+      "colors": {"accent": "#dd7711", "background": "#14100c"},
+      "generation": "native", "ignored_on_install": [],
+      "backgrounds": {"count": 0, "has_video": false, "total_bytes": 0},
+      "preview": {"thumb": "CDN/v1/previews/gamma/COMMIT_gamma/480.webp"},
+      "commit": "COMMIT_gamma", "stars": 3, "added_at": "2000-01-01",
+      "tags": [], "featured": false, "warnings": []
+    },
+    {
+      "slug": "delta", "name": "Delta", "repo": "REPO_delta",
+      "author": {"login": "Ada", "url": "https://github.com/Ada"},
+      "description": "", "license": "MIT",
+      "mode": "dark", "hue": "teal",
+      "colors": {"accent": "#22aa99", "background": "#0c1414"},
+      "generation": "native", "ignored_on_install": [],
+      "backgrounds": {"count": 0, "has_video": false, "total_bytes": 0},
+      "preview": {"thumb": "CDN/v1/previews/delta/COMMIT_delta/480.webp"},
+      "commit": "COMMIT_delta", "stars": 0, "added_at": "2000-01-01",
+      "tags": [], "featured": false, "warnings": []
+    }
+  ]
+}
