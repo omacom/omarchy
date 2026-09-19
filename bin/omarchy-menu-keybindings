@@ -186,7 +186,10 @@ end
 
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  __index = function(t, key)
+    if type(key) == "number" then
+      return nil
+    end
     return noop
   end,
   __call = function()
@@ -219,6 +222,9 @@ hl = setmetatable({
   end,
   get_config = function()
     return nil
+  end,
+  get_loaded_plugins = function()
+    return {}
   end,
 }, {
   __index = function()
