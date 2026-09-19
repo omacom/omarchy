@@ -293,4 +293,64 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+assert(
+  !/height:\s*visible\s*\?\s*implicitHeight\s*:\s*0/.test(panelSource),
+  'network list does not bind Text/header height to implicitHeight'
+)
+assert(
+  /layoutBusy/.test(panelSource) && /id: layoutSettle/.test(panelSource),
+  'network tracks list-layout settle so scan churn cannot activate a connection'
+)
+assert(
+  /shouldActivateWifiConnection\(\{[\s\S]*opened: opened[\s\S]*layoutBusy: layoutBusy[\s\S]*alreadyConnected: !!network\.connected/.test(panelSource),
+  'network connect path refuses closed-panel, settling, and already-connected activates'
+)
+assert(
+  /function setBand\(band\) \{[\s\S]*shouldCommitWifiAction\(\{ opened: opened, layoutBusy: layoutBusy \}\)/.test(panelSource),
+  'network band pin refuses closed-panel and settling activates'
+)
+assert(
+  /if \(!Model\.wifiRowsEqual\(wifiNetworks, next\)\) \{/.test(panelSource),
+  'network skips list replacement when projected wifi rows are unchanged'
+)
+assert(
+  /enabled: root\.opened && !root\.busy/.test(panelSource),
+  'network row clicks are disabled while the panel is closed'
+)
+
+const home = { ssid: 'Home', connected: true, known: true, signal: 80, security: 3 }
+const cafe = { ssid: 'Cafe', connected: false, known: true, signal: 40, security: 3 }
+assert(network.wifiRowsEqual([home, cafe], [home, cafe]), 'network treats identical wifi row snapshots as equal')
+assert(network.wifiRowsEqual([home], [{ ...home }]), 'network compares wifi row snapshots by value')
+assert(!network.wifiRowsEqual([home], [{ ...home, signal: 20 }]), 'network treats a signal change as a real list update')
+assert(!network.wifiRowsEqual([home], [cafe]), 'network treats a different SSID as a real list update')
+assert(!network.wifiRowsEqual([home], [home, cafe]), 'network treats a length change as a real list update')
+assert(!network.wifiRowsEqual(null, []), 'network treats a missing row list as unequal')
+
+assertEqual(network.shouldCommitWifiAction({ opened: true, layoutBusy: false }), true, 'network commits wifi actions on an open settled panel')
+assertEqual(network.shouldCommitWifiAction({ opened: false, layoutBusy: false }), false, 'network does not commit wifi actions while the panel is closed')
+assertEqual(network.shouldCommitWifiAction({ opened: true, layoutBusy: true }), false, 'network does not commit wifi actions while the list is settling')
+assertEqual(network.shouldCommitWifiAction(null), false, 'network does not commit wifi actions without panel state')
+
+assertEqual(
+  network.shouldActivateWifiConnection({ opened: true, layoutBusy: false, alreadyConnected: false }),
+  true,
+  'network activates an open settled disconnected network'
+)
+assertEqual(
+  network.shouldActivateWifiConnection({ opened: true, layoutBusy: false, alreadyConnected: true }),
+  false,
+  'network does not activate a network that is already connected'
+)
+assertEqual(
+  network.shouldActivateWifiConnection({ opened: false, layoutBusy: false, alreadyConnected: false }),
+  false,
+  'network does not activate while the panel is closed'
+)
+assertEqual(
+  network.shouldActivateWifiConnection({ opened: true, layoutBusy: true, alreadyConnected: false }),
+  false,
+  'network does not activate while the list is settling'
+)
 JS
