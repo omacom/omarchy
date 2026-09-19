@@ -12,8 +12,8 @@ const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.q
 // `authenticating` is true from lock until unlock on every machine with a
 // reader enrolled. Gating the blank on it leaves the panel lit all night.
 assert(
-  /if \(root\.lockRequested && !root\.authenticatingPassword\) root\.runBlank\(\)/.test(serviceQml),
-  'only a password check in flight stops the blank timer from blanking'
+  /if \(root\.lockRequested && !root\.authenticatingPassword && !root\.faceAuthenticating\) root\.runBlank\(\)/.test(serviceQml),
+  'only a password check or a face scan in flight stops the blank timer from blanking'
 )
 
 assert(
