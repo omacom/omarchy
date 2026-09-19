@@ -1,3 +1,12 @@
+// An omitted or empty monitor list preserves popups on every output.
+function popupScreens(screens, plugins, pluginId) {
+  var entries = Array.isArray(plugins) ? plugins : []
+  var entry = entries.find(function(candidate) { return candidate && candidate.id === pluginId })
+  var monitors = entry && entry.monitors
+  if (!Array.isArray(monitors) || monitors.length === 0) return screens
+  return screens.filter(function(screen) { return monitors.indexOf(screen.name) !== -1 })
+}
+
 function isChromiumDerived(app, appIcon) {
   var source = (String(app || "") + "\n" + String(appIcon || "")).toLowerCase()
   return source.indexOf("chrom") >= 0 || source.indexOf("brave") >= 0 ||
@@ -448,6 +457,7 @@ function historyRows(raw, liveRows, normalUrgency, limit) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    popupScreens: popupScreens,
     isChromiumDerived: isChromiumDerived,
     sanitizeBody: sanitizeBody,
     styledBody: styledBody,
