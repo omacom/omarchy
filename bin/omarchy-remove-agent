@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# omarchy:summary=Remove an Omarchy-managed coding agent CLI while keeping its data
+# omarchy:args=[--check] <agent>
+# omarchy:examples=omarchy remove agent codex | omarchy remove agent --check hermes
+set -euo pipefail
+
+mode=remove
+if [[ ${1:-} == "--check" ]]; then mode=check; shift; fi
+if (( $# != 1 )); then
+  echo "Usage: omarchy-remove-agent [--check] <agent>" >&2
+  exit 1
+fi
+agent=$1
+case "$agent" in
+  codex) tool=codex; name='Codex CLI' ;;
+  cursor-agent) tool=cursor-agent; name='Cursor CLI' ;;
+  claude) tool=claude; name='Claude Code' ;;
+  crush) tool=crush; name=Crush ;;
+  agy) tool=antigravity-cli; name='Antigravity CLI' ;;
+  gemini) tool=gemini; name='Gemini CLI' ;;
+  copilot) tool=copilot; name='Copilot CLI' ;;
+  opencode) tool=opencode; name=OpenCode ;;
+  pi) tool=pi; name=Pi ;;
+  omp) tool=github:can1357/oh-my-pi; name='Oh My Pi' ;;
+  grok) tool=npm:@xai-official/grok; name='Grok CLI' ;;
+  ori) tool=github:OpenRouterLabs/ori-releases; name=Ori ;;
+  muse) tool='http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]'; name='Muse Code' ;;
+  hermes) tool='pipx:hermes-agent[extras=all]'; name='Hermes CLI' ;;
+  *) echo 'Unknown agent.' >&2; exit 1 ;;
+esac
+
+wrapper="$HOME/.local/bin/$agent"
+owned_wrapper() {
+  [[ -f $wrapper && ! -L $wrapper ]] || return 1
+  if [[ $agent == "hermes" ]]; then
+    ! omarchy-pkg-present hermes-desktop && omarchy-install-hermes-cli --owns
+  else
+    # Match the complete generated wrapper, including older wrappers without
+    # the release-age setting. Do not remove a user's independent installation.
+    # Quote the RHS: backend options contain brackets, which are glob syntax.
+    local expected actual
+    actual=$(cat "$wrapper")
+    expected=$(printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$tool" "$tool" "$agent")
+    [[ $actual == "$expected" ]] && return 0
+    expected=$(printf '#!/bin/bash\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$tool" "$tool" "$agent")
+    [[ $actual == "$expected" ]]
+  fi
+}
+
+# Return 0 for installed versions, 1 for none, and 2 for an unreadable inventory.
+# A selected version may be missing while other versions remain installed.
+has_installed_versions() {
+  local inventory
+  inventory=$(mise ls "$tool" --installed --json 2>/dev/null) || return 2
+  jq -e 'type == "array" and all(.[]; type == "object" and (.installed | type == "boolean"))' \
+    <<<"$inventory" >/dev/null 2>&1 || return 2
+  jq -e 'any(.[]; .installed == true)' <<<"$inventory" >/dev/null
+}
+
+installed() {
+  owned_wrapper && has_installed_versions
+}
+
+if [[ $mode == "check" ]]; then installed; exit $?; fi
+if ! installed; then
+  echo "$name is not an installed Omarchy-managed CLI." >&2
+  exit 1
+fi
+
+gum confirm --default=false "Remove all mise-managed versions of $name? Chats and settings will be kept." || exit 130
+# Recheck after the prompt in case another process replaced the launcher.
+owned_wrapper || exit 1
+if [[ $agent == "hermes" ]]; then
+  omarchy-install-hermes-cli --remove
+else
+  mise rm -g --no-prune "$tool"
+  mise uninstall --all "$tool"
+  # Keep the wrapper if uninstall did not actually remove the environment.
+  if has_installed_versions; then
+    echo "$name still has a mise installation; launcher retained." >&2
+    exit 1
+  else
+    inventory_status=$?
+    if (( inventory_status != 1 )); then
+      echo "Could not verify $name removal; launcher retained." >&2
+      exit 1
+    fi
+  fi
+  owned_wrapper || exit 1
+  rm -f -- "$wrapper"
+fi
+
+default_file="$HOME/.config/omarchy/defaults/agent"
+if [[ -f $default_file ]] && [[ $(cat "$default_file") == $agent ]]; then
+  rm -f -- "$default_file"
+fi
+printf '%s removed. Chats and settings were kept.\n' "$name"
