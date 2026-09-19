@@ -55,7 +55,7 @@ if [[ -z ${profile:-} ]] || ! profile_available "$profile"; then
   fi
 fi
 
-powerprofilesctl set "$profile" || exit
+busctl --system set-property net.hadess.PowerProfiles /net/hadess/PowerProfiles net.hadess.PowerProfiles ActiveProfile s "$profile" || exit
 
 if [[ -n $requested_profile ]]; then
   mkdir -p "$state_dir"
