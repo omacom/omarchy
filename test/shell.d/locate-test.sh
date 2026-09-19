@@ -51,6 +51,7 @@ with tempfile.TemporaryDirectory(prefix="omarchy-locate-") as scratch:
     "sudo": 'exec "$@"',
     "fzf": 'cat >/dev/null\nprintf "%s\\n" test-package',
     "yay": 'if [[ ${1:-} == "-Slqa" ]]; then printf "%s\\n" test-package; fi',
+    "omarchy-pkg-aur-helper": 'printf "yay\\n"',
     "omarchy-sudo-keepalive": ':',
     "omarchy-show-done": ':',
   }
