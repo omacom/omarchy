@@ -186,7 +186,12 @@ end
 
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  __index = function(_, key)
+    -- Collection queries must look empty to ipairs, which stops at nil.
+    if type(key) == "number" then
+      return nil
+    end
+
     return noop
   end,
   __call = function()
