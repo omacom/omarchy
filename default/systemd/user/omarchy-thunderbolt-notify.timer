@@ -1,0 +1,15 @@
+[Unit]
+Description=Backstop polling for unauthorized Thunderbolt devices
+# The path unit relies on kernfs inotify, which has had kernel-specific gaps
+# where sysfs changes never deliver events. This timer guarantees a check at
+# worst every ~30s so a waiting device is never silently skipped because the
+# watch went quiet.
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=omarchy-thunderbolt-notify.service
+
+[Install]
+WantedBy=timers.target
