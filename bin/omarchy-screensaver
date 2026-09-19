@@ -6,12 +6,29 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
+# Mapping can lag the first watchdog poll, and follow_mouse can leave focus
+# elsewhere for a beat after openwindow. Only treat "not focused" as a
+# dismissal once the screensaver has actually been the active window.
+screensaver_seen_focus=0
+
+screensaver_lost_focus() {
+  if screensaver_in_focus; then
+    screensaver_seen_focus=1
+    return 1
+  fi
+  (( screensaver_seen_focus ))
+}
+
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
 }
+
+if [[ ${BASH_SOURCE[0]} != "$0" ]]; then
+  return 0
+fi
 
 # Exit the screensaver on signals and input from keyboard and mouse
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
@@ -41,7 +58,7 @@ while true; do
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if read -n1 -t 1 || screensaver_lost_focus; then
       exit_screensaver
     fi
   done
