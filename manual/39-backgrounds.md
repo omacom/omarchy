@@ -7,3 +7,23 @@ You can do this most easily by going to _Install > Style > Background_ in the Om
 Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`, `mkv`, or `avi` file in the same folder and it appears alongside the images, playing on a loop. Only your first monitor's wallpaper plays a video's sound track, through the default audio output at the system volume, and the lock screen stays silent. Playback stops on its own whenever nothing can see it — while a fullscreen window covers that monitor, while the screensaver is up, and once a locked screen has gone dark — but a video wallpaper still costs far more power than a still one, and each monitor decodes its own copy.
 
 You can find a huge collection of cool curated backgrounds on https://github.com/dharmx/walls.
+
+## Different backgrounds on different monitors
+
+Add an optional `background` object to `~/.config/omarchy/shell.json`, alongside the existing `version`, `bar`, and other settings:
+
+```json
+"background": {
+  "monitors": {
+    "DP-1": "~/Pictures/backgrounds/main.jpg"
+  },
+  "portrait": "~/Pictures/backgrounds/vertical.jpg",
+  "landscape": "~/Pictures/backgrounds/horizontal.jpg"
+}
+```
+
+Use the monitor names shown by `hyprctl monitors`. All settings are optional. A named monitor takes precedence over the orientation default; displays without either use the current theme background. Portrait means the display is taller than it is wide after rotation; square displays use the landscape setting. Selection updates when displays connect, rotate, or change size.
+
+Use absolute paths or paths starting with `~/`; spaces and special characters are supported. If a selected override is invalid, missing, unreadable, or cannot be decoded as an image, that display uses the current theme background. An invalid named override falls back directly to the theme, rather than the orientation default.
+
+Theme changes and background cycling continue to change the normal theme background. Overrides stay fixed, while theme colors still update throughout the desktop. Each display retains the normal aspect-preserving crop and reveal effect. Saving `shell.json` updates the settings without restarting the desktop; remove a setting to return to its usual fallback. With no `background` settings, behavior is unchanged.
