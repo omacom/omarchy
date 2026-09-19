@@ -11,6 +11,35 @@ fi
 
 direction="${1:-up}"
 
+state_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/keyboard-backlight"
+
+persist_brightness() {
+  local value="$1"
+  local state_dir temp_file
+  state_dir="${state_file%/*}"
+
+  if mkdir -p "$state_dir" 2>/dev/null; then
+    temp_file="$(mktemp "$state_file.XXXXXX" 2>/dev/null)" || return 0
+    if printf '%s\n' "$value" >"$temp_file" && mv -f "$temp_file" "$state_file"; then
+      return 0
+    fi
+    rm -f "$temp_file"
+  fi
+}
+
+restore_persisted() {
+  local saved_brightness max_brightness
+
+  [[ -r $state_file ]] || return 1
+
+  saved_brightness="$(<"$state_file")"
+  max_brightness="$(brightnessctl -d "$device" max)"
+  [[ $saved_brightness =~ ^[0-9]+$ && $max_brightness =~ ^[0-9]+$ ]] || return 1
+  (( saved_brightness <= max_brightness )) || return 1
+
+  brightnessctl -d "$device" set "$saved_brightness" >/dev/null
+}
+
 # Find keyboard backlight device (look for *kbd_backlight* pattern in leds class).
 device=""
 for candidate in /sys/class/leds/*kbd_backlight*; do
@@ -26,10 +55,18 @@ if [[ -z $device ]]; then
 fi
 
 if [[ $direction == "off" ]]; then
+  current_brightness="$(brightnessctl -d "$device" get)"
+  # Seed only when nothing has been chosen yet. Lock/idle blanks must not
+  # overwrite a user-selected level with whatever firmware set after resume.
+  if [[ ! -r $state_file ]] && [[ $current_brightness =~ ^[0-9]+$ ]] && (( current_brightness > 0 )); then
+    persist_brightness "$current_brightness"
+  fi
   brightnessctl -sd "$device" set 0 >/dev/null
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  # Prefer the last user-selected level. brightnessctl's restore only knows the
+  # value saved by `off`, and some firmware resets the LED on resume or boot.
+  restore_persisted || brightnessctl -rd "$device" >/dev/null
   exit 0
 fi
 
@@ -55,4 +92,5 @@ fi
 
 # Set the new brightness.
 brightnessctl -d "$device" set "$new_brightness" >/dev/null
+persist_brightness "$new_brightness"
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
