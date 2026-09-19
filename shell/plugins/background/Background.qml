@@ -244,6 +244,17 @@ Item {
 
       property bool maskReady: false
 
+      // Themes may ship portrait twins under backgrounds/portrait/<same name>:
+      // portrait screens use the twin, landscape screens the plain file. A
+      // missing twin falls back to the linked file for that path.
+      property string orientFailedFor: ""
+      function oriented(path) {
+        const p = String(path || "")
+        if (p === orientFailedFor) return p
+        const plain = p.replace(/\/portrait\/([^/]+)$/, "/$1")
+        return panel.screen.height > panel.screen.width ? plain.replace(/\/([^/]+)$/, "/portrait/$1") : plain
+      }
+
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
@@ -262,8 +273,12 @@ Item {
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
+        path: panel.oriented(root.displayedBackground)
         reloads: root.displayedReloads
+        onFailedChanged: {
+          // The failing source is the twin; remember it so this path shows the plain file.
+          if (failed && panel.oriented(root.displayedBackground) !== root.displayedBackground) panel.orientFailedFor = root.displayedBackground
+        }
         playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
         audioEnabled: panel.firstScreen
         onReadyChanged: {
@@ -278,7 +293,7 @@ Item {
       Image {
         id: oldFrame
         anchors.fill: parent
-        source: root.imageUrl(root.oldBackground)
+        source: root.imageUrl(panel.oriented(root.oldBackground))
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         cache: false
@@ -304,7 +319,7 @@ Item {
         Image {
           id: incomingFrame
           anchors.fill: parent
-          source: root.imageUrl(root.incomingBackground)
+          source: root.imageUrl(panel.oriented(root.incomingBackground))
           fillMode: Image.PreserveAspectCrop
           asynchronous: true
           cache: false
