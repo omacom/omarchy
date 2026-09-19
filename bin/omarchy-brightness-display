@@ -24,9 +24,32 @@ while (( $# > 0 )); do
   esac
 done
 
+backlight_cap_value() {
+  local cap_file="${OMARCHY_BACKLIGHT_CAP_FILE:-/etc/omarchy/backlight-cap}"
+  if [[ -f $cap_file ]]; then
+    local cap
+    cap=$(< "$cap_file")
+    if [[ $cap =~ ^[0-9]+$ ]] && (( cap > 0 )); then
+      printf '%s\n' "$cap"
+      return 0
+    fi
+  fi
+  return 1
+}
+
 # Get the brightness of the passed display
 backlight_brightness() {
-  brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
+  local device="$1"
+  local cap
+  if cap="$(backlight_cap_value)"; then
+    local raw
+    raw="$(brightnessctl -d "$device" get 2>/dev/null)" || return 1
+    (( raw > cap )) && raw=$cap
+    printf '%s\n' "$(( (raw * 100 + cap / 2) / cap ))"
+    return 0
+  fi
+
+  brightnessctl -d "$device" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
 }
 
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
@@ -112,6 +135,16 @@ else
 
     (( target < 1 )) && target=1
     step="$target%"
+  fi
+
+  if cap="$(backlight_cap_value)"; then
+    if [[ $step =~ ^([0-9]+)%$ ]]; then
+      pct="${BASH_REMATCH[1]}"
+      (( pct > 100 )) && pct=100
+      raw=$(( (pct * cap + 50) / 100 ))
+      (( raw > cap )) && raw=$cap
+      step="$raw"
+    fi
   fi
 
   # Set brightness of the display device.
