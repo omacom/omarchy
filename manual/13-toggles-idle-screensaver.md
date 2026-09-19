@@ -76,7 +76,17 @@ The Omarchy shell owns idle behavior, and the timings are a top-level `idle` blo
 }
 ```
 
-Both numbers are seconds counted from the moment you went idle — not from each other. So with the defaults, the screensaver comes up after two and a half minutes and the lock screen takes over at five minutes, whether or not the screensaver ran. Save the file and the shell picks up the new timings right away.
+`screensaver` and `lock` are seconds counted from the moment you went idle — not from each other. So with the defaults, the screensaver comes up after two and a half minutes and the lock screen takes over at five minutes, whether or not the screensaver ran. Save the file and the shell picks up the new timings right away.
+
+Keyboard backlight timeout is off unless you add it. A positive `idle.keyboardBacklight` turns the keyboard light off after that many idle seconds and brings back the last level you chose when you type or move the pointer. Omit the key, or set it to `0`, to leave the light at that chosen level. Stay awake does not disable this timeout, and playing video does not keep the keyboard lit.
+
+```json
+{
+  "idle": {
+    "keyboardBacklight": 30
+  }
+}
+```
 
 If you dismiss the screensaver before the lock deadline, that counts as activity and the pending lock is cancelled. You don't get locked out for glancing at your machine.
 

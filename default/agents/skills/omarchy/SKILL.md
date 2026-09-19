@@ -289,6 +289,7 @@ This skill intentionally does not cover Omarchy source development. Do not use t
 - "Run a script every time I change themes" -> Install it with `omarchy hook install theme-set <script>`
 - "Change how workspace labels are rendered" -> Clone `omarchy.workspaces`, which switches the bar to `<username>.workspaces`, then edit the clone
 - "Lock after ten minutes" -> Set `idle.lock` to `600` in `~/.config/omarchy/shell.json`
+- "Turn keyboard backlight off after idle" -> Set `idle.keyboardBacklight` to seconds in `~/.config/omarchy/shell.json` (omit or `0` leaves it on)
 - "Reset shell/bar to defaults" -> `omarchy refresh shell`
 - "Record my screen" -> `omarchy screenrecord --fullscreen`, then `omarchy screenrecord --stop-recording` (see `capture.md`)
 - "Report this bug to Omarchy" -> Gather diagnostics and a capture of the problem, then file it (see `contributing.md`)
