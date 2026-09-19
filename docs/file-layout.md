@@ -139,7 +139,7 @@ logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy
                                                         /etc/skel/.config/omarchy/branding/{about,screensaver}.txt
 ```
 
-The hardware-conditional `force-igpu` and `keyboard-backlight` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`.
+The hardware-conditional `force-igpu`, `keyboard-backlight` and `t2-thunderbolt` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them (`t2-thunderbolt` lands as `omarchy-t2-thunderbolt` from the T2 Mac installer); they are not installed by `omarchy-settings`.
 
 ### Why `etc-overrides/` exists
 
