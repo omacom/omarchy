@@ -58,6 +58,31 @@ run_dev_update /usr/share/omarchy
 [[ ! -s $git_log ]] || fail "package-backed updates do not invoke git" "$(cat "$git_log")"
 pass "package-backed updates skip the dev checkout step"
 
+# An unset OMARCHY_PATH resolves through /etc/omarchy.conf, which the test has
+# to control rather than inherit from a dev-linked host, so run a copy with the
+# conf path rewritten to a test-local file.
+dev_update="$test_tmp/omarchy-update-dev"
+sed "s#/etc/omarchy.conf#$test_tmp/omarchy.conf#g" "$ROOT/bin/omarchy-update-dev" >"$dev_update"
+chmod +x "$dev_update"
+
+: >"$git_log"
+if ! TEST_GIT_LOG="$git_log" PATH="$stub_bin:$PATH" \
+  env -u OMARCHY_PATH "$dev_update" 2>"$test_tmp/unset.err"; then
+  fail "sudo's stripped environment does not abort the update" "$(cat "$test_tmp/unset.err")"
+fi
+[[ ! -s $git_log ]] || fail "an unset OMARCHY_PATH without a dev link means the package install" "$(cat "$git_log")"
+pass "an unset OMARCHY_PATH without a dev link means the package install"
+
+printf 'export OMARCHY_PATH="%s"\n' "$checkout" >"$test_tmp/omarchy.conf"
+: >"$git_log"
+if ! TEST_GIT_LOG="$git_log" PATH="$stub_bin:$PATH" \
+  env -u OMARCHY_PATH "$dev_update" 2>"$test_tmp/link.err"; then
+  fail "a dev link resolves an unset OMARCHY_PATH" "$(cat "$test_tmp/link.err")"
+fi
+grep -Fx -- "-C $checkout pull --ff-only" "$git_log" >/dev/null ||
+  fail "an unset OMARCHY_PATH pulls the checkout named by the dev link" "$(cat "$git_log")"
+pass "an unset OMARCHY_PATH pulls the checkout named by the dev link"
+
 : >"$git_log"
 run_dev_update "$checkout"
 grep -Fx -- "-C $checkout pull --ff-only" "$git_log" >/dev/null ||

@@ -56,6 +56,32 @@ grep -qF 'No Snapper configs found' <<<"$stderr" ||
   fail "snapshot create does not invent a config to snapshot"
 pass "snapshot create fails loudly when Snapper is installed but unconfigured"
 
+# The Configure Snapper hint names $OMARCHY_PATH, which sudo's env_reset drops.
+# It has to print a real path rather than a bare /install/config one, resolving
+# the dev-link checkout from a test-local copy of /etc/omarchy.conf.
+snapshot_unset="$test_tmp/omarchy-snapshot-unset"
+sed "s#/etc/omarchy.conf#$test_tmp/omarchy.conf#g" "$snapshot" >"$snapshot_unset"
+
+: >"$test_tmp/calls.log"
+set +e
+stderr=$(env -u OMARCHY_PATH TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot_unset" create 2>&1 >/dev/null)
+set -e
+
+grep -qF 'sudo bash -euo pipefail "/usr/share/omarchy/install/config/snapper.sh"' <<<"$stderr" ||
+  fail "snapshot create prints the packaged snapper path when OMARCHY_PATH is unset" "$stderr"
+
+printf 'export OMARCHY_PATH="%s"\n' "$test_tmp/checkout" >"$test_tmp/omarchy.conf"
+: >"$test_tmp/calls.log"
+set +e
+stderr=$(env -u OMARCHY_PATH TEST_LOG="$test_tmp/calls.log" PATH="$fake_bin:$PATH" \
+  bash "$snapshot_unset" create 2>&1 >/dev/null)
+set -e
+
+grep -qF "sudo bash -euo pipefail \"$test_tmp/checkout/install/config/snapper.sh\"" <<<"$stderr" ||
+  fail "snapshot create prints the dev-linked snapper path when OMARCHY_PATH is unset" "$stderr"
+pass "snapshot create names a real snapper path when OMARCHY_PATH is unset"
+
 cat >"$fake_bin/snapper" <<'STUB'
 #!/bin/bash
 printf 'snapper %s\n' "$*" >>"$TEST_LOG"
