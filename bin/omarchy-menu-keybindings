@@ -2,19 +2,33 @@
 
 # omarchy:summary=Display Hyprland keybindings defined in your configuration using an interactive search menu.
 
-# Hyprland's Lua config provider currently reports Lua binds as dispatcher
-# __lua in `hyprctl binds`. Keep a lightweight source-derived cache so the
-# menu can still show and dispatch those bindings.
-declare -A LUA_BIND_KEY_MAP
-declare -A LUA_BIND_DISPATCHER_MAP
-declare -A LUA_BIND_ARG_MAP
+set -euo pipefail
+
+print_only=false
+if [[ ${1:-} == "--print" || ${1:-} == "-p" ]]; then
+  print_only=true
+fi
+
+menu_error() {
+  local message="$1"
+  printf '%s\n' "$message" >&2
+  if [[ $print_only == "false" ]]; then
+    if [[ -n ${2:-} ]]; then
+      omarchy-notification-send -u normal -t 30000 "Keybindings menu" "$2" \
+        --exec omarchy-launch-terminal bash -c 'printf "%s\n\n" "$1"; read -r -p "Press Enter to close."' keybindings-recovery "$message" || true
+    else
+      omarchy-notification-send -u normal "Keybindings menu" "$message" || true
+    fi
+  fi
+}
 
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk '
+  awk -F '\x1f' '
     BEGIN {
+      OFS = FS
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
         separator = index(fallbacks[i], "=")
@@ -49,286 +63,72 @@ parse_keycodes() {
       mouse_symbol["274"] = "MIDDLE MOUSE BUTTON"
     }
     {
-      if (match($0, /code:([0-9]+)/, match_parts)) {
-        code = match_parts[1]
-        symbol = keycode_symbol[code]
-        if (symbol == "") symbol = "code:" code
-        sub("code:" code, symbol)
-      } else if (match($0, /mouse:([0-9]+)/, match_parts)) {
-        code = match_parts[1]
-        symbol = mouse_symbol[code]
-        if (symbol == "") symbol = "mouse:" code
-        sub("mouse:" code, symbol)
+      # Only the key field is interpreted. A description containing code:20
+      # is ordinary text, and multi-key chords may contain several keycodes.
+      rest = $2
+      keys = ""
+      while (match(rest, /(code|mouse):([0-9]+)/, match_parts)) {
+        keys = keys substr(rest, 1, RSTART - 1)
+        code = match_parts[2]
+        symbol = match_parts[1] == "code" ? keycode_symbol[code] : mouse_symbol[code]
+        if (symbol == "") symbol = match_parts[0]
+        keys = keys symbol
+        rest = substr(rest, RSTART + RLENGTH)
       }
+      $2 = keys rest
 
       print
     }
   '
 }
 
-# Supplement `hyprctl binds` for Lua-only binds that Hyprland currently
-# reports as dispatcher __lua and without their original key for code: binds.
-build_lua_bind_cache() {
-  local modmask description key dispatcher arg cache_key
-
-  omarchy-cmd-present lua || return 0
-
-  while IFS=$'\t' read -r modmask description key dispatcher arg; do
-    [[ -z $modmask || -z $description || -z $key ]] && continue
-
-    LUA_BIND_KEY_MAP["$modmask,$description"]="$key"
-    cache_key="$modmask,$description,$key"
-    LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
-    LUA_BIND_ARG_MAP["$cache_key"]="$arg"
-  done < <(
-    lua <<'LUA'
-local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
-
-local function split_keys(keys)
-  local modmask = 0
-  local key = ""
-
-  for part in string.gmatch(tostring(keys or ""), "[^+]+") do
-    local value = part:gsub("^%s+", ""):gsub("%s+$", "")
-    local modifier = modifiers[string.upper(value)]
-
-    if modifier then
-      modmask = modmask + modifier
-    else
-      key = value
-    end
-  end
-
-  return modmask, key
-end
-
-local function lua_literal(value)
-  local value_type = type(value)
-
-  if value_type == "string" then
-    return string.format("%q", value)
-  elseif value_type == "number" or value_type == "boolean" then
-    return tostring(value)
-  elseif value_type == "table" then
-    local parts = {}
-    local keys = {}
-    local array_length = #value
-
-    for index = 1, array_length do
-      parts[#parts + 1] = lua_literal(value[index])
-    end
-
-    for key in pairs(value) do
-      if not (type(key) == "number" and key >= 1 and key <= array_length and math.floor(key) == key) then
-        keys[#keys + 1] = key
-      end
-    end
-
-    table.sort(keys, function(left, right)
-      return tostring(left) < tostring(right)
-    end)
-
-    for _, key in ipairs(keys) do
-      local key_prefix
-      if type(key) == "string" and key:match("^[%a_][%w_]*$") then
-        key_prefix = key .. " = "
-      else
-        key_prefix = "[" .. lua_literal(key) .. "] = "
-      end
-
-      parts[#parts + 1] = key_prefix .. lua_literal(value[key])
-    end
-
-    return "{ " .. table.concat(parts, ", ") .. " }"
-  elseif value_type == "nil" then
-    return "nil"
-  else
-    return "nil"
-  end
-end
-
-local function call_expression(path, ...)
-  local args = {}
-
-  for index = 1, select("#", ...) do
-    args[index] = lua_literal(select(index, ...))
-  end
-
-  return path .. "(" .. table.concat(args, ", ") .. ")"
-end
-
-local function dispatcher(kind, arg, expr)
-  return {
-    __omarchy_dispatcher = true,
-    kind = kind or "",
-    arg = arg or "",
-    expr = expr or "",
-  }
-end
-
-local function dsp_proxy(path)
-  return setmetatable({ path = path }, {
-    __index = function(self, key)
-      return dsp_proxy(self.path .. "." .. tostring(key))
-    end,
-    __call = function(self, ...)
-      local first_arg = ...
-      local expr = call_expression(self.path, ...)
-
-      if self.path == "hl.dsp.exec_cmd" and type(first_arg) == "string" then
-        return dispatcher("exec", first_arg, expr)
-      end
-
-      return dispatcher("lua", expr, expr)
-    end,
-  })
-end
-
-local noop
-noop = setmetatable({}, {
-  __index = function()
-    return noop
-  end,
-  __call = function()
-    return noop
-  end,
-})
-
-hl = setmetatable({
-  dsp = dsp_proxy("hl.dsp"),
-  bind = function(keys, bind_dispatcher, opts)
-    opts = opts or {}
-
-    if opts.description and opts.description ~= "" then
-      local modmask, key = split_keys(keys)
-      local kind = ""
-      local arg = ""
-
-      if type(bind_dispatcher) == "table" and bind_dispatcher.__omarchy_dispatcher then
-        kind = bind_dispatcher.kind or ""
-        arg = bind_dispatcher.arg or bind_dispatcher.expr or ""
-      elseif type(bind_dispatcher) == "string" and bind_dispatcher ~= "" then
-        kind = "exec"
-        arg = bind_dispatcher
-      end
-
-      print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))
-    end
-
-    return noop
-  end,
-  get_config = function()
-    return nil
-  end,
-}, {
-  __index = function()
-    return noop
-  end,
-})
-
-local config = os.getenv("HOME") .. "/.config/hypr/hyprland.lua"
-local file = io.open(config, "r")
-
-if file then
-  file:close()
-  local ok, err = pcall(dofile, config)
-  if not ok and os.getenv("DEBUG") == "1" then
-    io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
-  end
-end
-LUA
-  )
-}
-
-modmask_to_text() {
-  case "$1" in
-    0)  printf '' ;;
-    1)  printf 'SHIFT' ;;
-    4)  printf 'CTRL' ;;
-    5)  printf 'SHIFT CTRL' ;;
-    8)  printf 'ALT' ;;
-    9)  printf 'SHIFT ALT' ;;
-    12) printf 'CTRL ALT' ;;
-    13) printf 'SHIFT CTRL ALT' ;;
-    64) printf 'SUPER' ;;
-    65) printf 'SUPER SHIFT' ;;
-    68) printf 'SUPER CTRL' ;;
-    69) printf 'SUPER SHIFT CTRL' ;;
-    72) printf 'SUPER ALT' ;;
-    73) printf 'SUPER SHIFT ALT' ;;
-    76) printf 'SUPER CTRL ALT' ;;
-    77) printf 'SUPER SHIFT CTRL ALT' ;;
-    *)  printf '%s' "$1" ;;
-  esac
-}
-
-# Fetch dynamic keybindings from Hyprland.
-#
-# Also do some pre-processing:
-# - Fill missing Lua code:... keys and __lua dispatch metadata from the Lua source cache
-# - Remove standard Omarchy bin path prefix
-# - Map numeric modifier key mask to a textual rendition
-# - Output comma-separated values that the parser can understand
+# One live snapshot includes the original key spelling and an invocation token.
+# Display text is data: strip line/control separators before the line-based UI.
 dynamic_bindings() {
-  local modmask key keycode description dispatcher arg modifiers cache_key
+  local snapshot
+  if ! snapshot=$(timeout 5 hyprctl repl 'return omarchy_keybindings.snapshot()') ||
+    ! jq -e '(.generation | test("^[0-9a-f-]+$")) and (.bindings | type == "array")' <<<"$snapshot" >/dev/null 2>&1; then
+    menu_error 'Could not read live keybindings. Reload Hyprland. If this persists, add the following before any bindings or module imports in ~/.config/hypr/hyprland.lua, then reload:
+dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' \
+      "Reload Hyprland. If this persists, click for bootstrap.lua setup instructions."
+    return 1
+  fi
 
-  # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
-  # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
-  # bindsRequest), and older versions broke on quotes in bind args.
-  hyprctl binds | awk '
-    function emit() {
-      if (!seen) return
-      seen = 0
-      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
-    }
-    /^bind/ { emit(); seen = 1; delete f; next }
-    seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
-    END { emit() }
-  ' |
-    while IFS=$'\x1f' read -r modmask key keycode description dispatcher arg; do
-      # Lua binds report their full display key ("SUPER + code:20"); the
-      # modifiers are already carried separately in modmask.
-      key="${key##* + }"
-
-      if [[ -z $key && $keycode != "0" ]]; then
-        key="code:$keycode"
-      fi
-
-      if [[ -z $key && -n $description ]]; then
-        key="${LUA_BIND_KEY_MAP["$modmask,$description"]}"
-      fi
-
-      if [[ $dispatcher == "__lua" && -n $description && -n $key ]]; then
-        cache_key="$modmask,$description,$key"
-        dispatcher="${LUA_BIND_DISPATCHER_MAP["$cache_key"]}"
-        arg="${LUA_BIND_ARG_MAP["$cache_key"]}"
-      fi
-
-      [[ -z $description && $dispatcher == "__lua" ]] && continue
-
-      # The Copilot key just duplicates an existing binding, so keep it hidden
-      [[ $key == "code:201" ]] && continue
-
-      case "$key" in
-        comma) key="COMMA" ;;
-        grave) key="~" ;;
-        period) key="PERIOD" ;;
-        minus) key="MINUS" ;;
-        equal) key="EQUAL" ;;
-        slash) key="SLASH" ;;
-      esac
-
-      modifiers=$(modmask_to_text "$modmask")
-      arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
-
-      printf '%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
-    done
+  jq -r '
+    def display_text: gsub("[\u0000-\u001f\u007f]"; " ");
+    .generation as $generation | .bindings[] |
+    select(.keys | test("(^|[ +])code:201($|[ +])") | not) |
+    [.keys | display_text] +
+    [(.description | display_text), "registered",
+     ($generation + ":" + (.id | tostring)),
+     ((.identity | tostring) + ":" + (.submap | @json))] | join("\u001f")
+  ' <<<"$snapshot" |
+    awk -F '\x1f' 'BEGIN { OFS = FS }
+      {
+        keys = $1
+        # Compact modifier separators without changing multi-key chords.
+        while (match(keys, /^(SHIFT|CTRL|CONTROL|ALT|SUPER|WIN|LOGO|META|CAPS|MOD[1-5]) *\+ */)) {
+          modifier = substr(keys, 1, RLENGTH)
+          sub(/ *\+ *$/, "", modifier)
+          mods = mods (mods == "" ? "" : " ") modifier
+          keys = substr(keys, RLENGTH + 1)
+        }
+        if (mods != "") keys = mods " + " keys
+        mods = ""
+        gsub(/comma/, "COMMA", keys)
+        gsub(/grave/, "~", keys)
+        gsub(/period/, "PERIOD", keys)
+        gsub(/minus/, "MINUS", keys)
+        gsub(/equal/, "EQUAL", keys)
+        gsub(/slash/, "SLASH", keys)
+        # Keep the original modifier spelling, including MOD3 and other aliases.
+        print "", keys, $2, $3, $4, $5
+      }'
 }
 
-# Hardcoded bindings, like the copy-url extension and such
 static_bindings() {
-  echo "SHIFT ALT,L,Copy URL from Web App,sendshortcut,SHIFT ALT,L,"
-  echo "SHIFT ALT,D,Download Video from Web App,sendshortcut,SHIFT ALT,D,"
+  printf 'SHIFT ALT\x1fL\x1fCopy URL from Web App\x1fsendshortcut\x1fSHIFT ALT,L,\x1fcopy-url\n'
+  printf 'SHIFT ALT\x1fD\x1fDownload Video from Web App\x1fsendshortcut\x1fSHIFT ALT,D,\x1fdownload-video\n'
 }
 
 # Actions Omarchy binds to a second chord meant as an alternative, named one at
@@ -348,13 +148,12 @@ ACTIONS
 # Parse and format keybindings
 #
 # `awk` does the heavy lifting:
-# - Set the field separator to a comma ','.
+# - Use a control separator so commas in descriptions remain ordinary text.
 # - Joins the key combination (e.g., "SUPER + Q").
-# - Joins the command that the key executes.
 # - Puts an action's alternative chord on the row with the first one.
 # - Prints display text and dispatch metadata as tab-separated fields.
 parse_binding_records() {
-  awk -F, -v alternatives="$(alternative_chord_actions)" '
+  awk -F '\x1f' -v alternatives="$(alternative_chord_actions)" '
 BEGIN {
     # The column every row pads its chords to. Nothing is allowed past it: the
     # menu renders in monospace, and a row that overruns pushes its arrow out
@@ -378,32 +177,15 @@ BEGIN {
     action = $3;
     dispatcher = $4;
 
-    # Reconstruct the dispatcher arg from the remaining fields
-    arg = "";
-    for (i = 5; i <= NF; i++) {
-        arg = arg $i (i < NF ? "," : "");
-    }
-
-    if (action == "") {
-        # Reconstruct the command from the remaining fields
-        for (i = 4; i <= NF; i++) {
-            action = action $i (i < NF ? "," : "");
-        }
-
-        # Clean up trailing commas, remove leading "exec, ", and trim
-        sub(/,$/, "", action);
-        gsub(/(^|,)[[:space:]]*exec[[:space:]]*,?/, "", action);
-        gsub(/(^|[[:space:]])uwsm(-app| app)[[:space:]]+--[[:space:]]+/, "", action);
-        gsub(/^[ \t]+|[ \t]+$/, "", action);
-        gsub(/[ \t]+/, " ", key_combo);  # Collapse multiple spaces to one
-    }
+    arg = $5;
+    identity = $6;
 
     # An alternative chord joins the row the first one opened: "SUPER + W /
     # SUPER + Q -> Close window". Both halves have to agree on what they run,
     # since a label is only what a chord is called; an unresolved dispatcher
     # says nothing at all, so it never counts as agreement.
     if (action != "") {
-        action_key = action SUBSEP dispatcher SUBSEP arg;
+        action_key = action SUBSEP dispatcher SUBSEP identity;
         together = "";
 
         if (action in shares_a_row && dispatcher != "" && action_key in leads) {
@@ -426,7 +208,13 @@ BEGIN {
 }
 END {
     for (entry = 1; entry <= entries; entry++) {
-        printf "%-*s → %s\t%s\t%s\n", column, chords[entry], actions[entry], dispatchers[entry], args[entry];
+        label = sprintf("%-*s → %s", column, chords[entry], actions[entry]);
+        # Different actions can have identical labels. Keep each selectable.
+        base_label = label;
+        suffix = 1;
+        while (label in labels) label = base_label " [" ++suffix "]";
+        labels[label] = 1;
+        printf "%s\t%s\t%s\n", label, dispatchers[entry], args[entry];
     }
 }'
 }
@@ -502,71 +290,13 @@ prioritize_entries() {
   cut -f2-
 }
 
-# Drop repeated records while keeping the order Hyprland reported them in, so
-# the chord a user declared first is the one that leads a merged entry.
-dedupe_binding_records() {
-  awk '!seen[$0]++'
-}
-
-output_binding_records_uncached() {
-  local dynamic
-
-  build_lua_bind_cache
-  dynamic=$(dynamic_bindings)
-
-  {
-    [[ -n $dynamic ]] && printf '%s\n' "$dynamic"
-    static_bindings
-  } |
-    dedupe_binding_records |
-    parse_keycodes |
-    parse_binding_records |
-    prioritize_entries
-
-  # Fail when Hyprland reported no binds so the fallout of a broken hyprctl
-  # is never cached.
-  [[ -n $dynamic ]]
-}
-
-keybindings_cache_key() {
-  {
-    printf 'v13\n'
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
-    hyprctl binds 2>/dev/null
-  } | sha256sum | awk '{ print $1 }'
-}
-
-refresh_keybindings_cache() {
-  local cache_dir="$1"
-  local cache_file="$2"
-  local cache_name="$3"
-  local tmp_file
-
-  tmp_file=$(mktemp "$cache_dir/keybindings.XXXXXX") || return 1
-
-  if output_binding_records_uncached >"$tmp_file"; then
-    mv "$tmp_file" "$cache_file"
-    find "$cache_dir" -maxdepth 1 -type f -name 'keybindings-*.records' ! -name "$cache_name" -delete 2>/dev/null || true
-  else
-    rm -f "$tmp_file"
-    return 1
-  fi
-}
-
 output_binding_records() {
-  local cache_dir cache_file cache_name
-
-  cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
-  cache_name="keybindings-$(keybindings_cache_key).records"
-  cache_file="$cache_dir/$cache_name"
-
-  if [[ -s $cache_file ]]; then
-    cat "$cache_file"
-  elif mkdir -p "$cache_dir" 2>/dev/null && refresh_keybindings_cache "$cache_dir" "$cache_file" "$cache_name"; then
-    cat "$cache_file"
-  else
-    output_binding_records_uncached
-  fi
+  local dynamic
+  dynamic=$(dynamic_bindings) || return
+  {
+    [[ -z $dynamic ]] || printf '%s\n' "$dynamic"
+    static_bindings
+  } | parse_keycodes | parse_binding_records | prioritize_entries
 }
 
 output_keybindings() {
@@ -601,12 +331,6 @@ dispatch_lua_expression() {
   return 1
 }
 
-dispatch_exec_binding() {
-  local command="$1"
-
-  dispatch_lua_expression "hl.dsp.exec_cmd($(lua_string "$command"))" || hyprctl dispatch exec "$command"
-}
-
 dispatch_sendshortcut_binding() {
   local arg="$1"
   local mods key window rest
@@ -632,38 +356,35 @@ dispatch_binding() {
   local arg="$2"
 
   case "$dispatcher" in
-    exec)
-      [[ -n $arg ]] && dispatch_exec_binding "$arg"
+    registered)
+      local generation id
+      IFS=: read -r generation id <<<"$arg"
+      [[ $generation =~ ^[0-9a-f-]+$ && $id =~ ^[0-9]+$ ]] || return 1
+      dispatch_lua_expression "function() return omarchy_keybindings.invoke(\"$generation\", $id) end"
       ;;
     sendshortcut)
       [[ -n $arg ]] && dispatch_sendshortcut_binding "$arg"
       ;;
-    lua)
-      [[ -n $arg ]] && hyprctl dispatch "$arg"
-      ;;
-    "") return 1 ;;
-    *)
-      if [[ -n $arg ]]; then
-        hyprctl dispatch "$dispatcher" "$arg"
-      else
-        hyprctl dispatch "$dispatcher"
-      fi
-      ;;
+    *) return 1 ;;
   esac
 }
 
-if [[ $1 == "--print" || $1 == "-p" ]]; then
+if [[ $print_only == "true" ]]; then
   output_keybindings
 else
-  records=$(output_binding_records)
+  records=$(output_binding_records) || exit
   selection=$(cut -f1 <<<"$records" |
     omarchy-menu-select 'Keybindings' -- --width 800 --height 500)
 
   if [[ -n $selection ]]; then
-    record=$(awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }' <<<"$records")
-    dispatcher=$(cut -f2 <<<"$record")
-    arg=$(cut -f3- <<<"$record")
+    while IFS=$'\t' read -r label dispatcher arg; do
+      [[ $label == "$selection" ]] && break
+    done <<<"$records"
+    [[ $label == "$selection" ]] || exit 1
 
-    dispatch_binding "$dispatcher" "$arg"
+    if ! dispatch_binding "$dispatcher" "$arg"; then
+      menu_error "Could not run this keybinding. It may have changed or been disabled. Reopen the menu and try again."
+      exit 1
+    fi
   fi
 fi

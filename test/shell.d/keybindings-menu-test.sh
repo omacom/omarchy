@@ -2,46 +2,47 @@
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
-require_command lua
 require_command xkbcli
 
 tmpdir=$(mktemp -d) && [[ -n $tmpdir && -d $tmpdir ]] ||
   fail "the test gets a temporary directory to stub Hyprland in"
 trap 'rm -rf "$tmpdir"' EXIT
 
-home="$tmpdir/home"
+task_home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
-mkdir -p "$home/.config" "$stub_bin"
-cp -r "$ROOT/config/hypr" "$home/.config/hypr"
+mkdir -p "$task_home/.config" "$stub_bin"
+cp -r "$ROOT/config/hypr" "$task_home/.config/hypr"
 
-# The menu reads binds from Hyprland, which is not running here, so stand in for
-# it. A Lua bind reports dispatcher __lua and no arg, and the menu recovers both
-# from the Lua source; an exec bind carries its own command. Both shapes matter:
-# what two chords dispatch is what decides whether they share a row.
+# Exercise the real menu against a live-registry protocol fixture. The menu
+# must not execute the user config or a separate Lua interpreter.
 lua_bind() {
-  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: __lua\n\targ: \n' "$1" "$2" "$3"
+  local identity="$2"
+  if [[ $3 == "Close window" && ( $2 == "SUPER + W" || $2 == "SUPER + Q" ) ]]; then identity=close; fi
+  if [[ $3 == "Toggle scratchpad" ]]; then identity=scratchpad; fi
+  jq -nc --arg keys "$2" --arg description "$3" --arg identity "$identity" \
+    '{keys:$keys,description:$description,identity:$identity,submap:""}'
 }
 
 exec_bind() {
-  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: %s\n' "$1" "$2" "$3" "$4"
+  jq -nc --arg keys "$2" --arg description "$3" --arg identity "$4" \
+    '{keys:$keys,description:$description,identity:$identity,submap:""}'
 }
 
 stub_hyprctl() {
-  {
-    echo '#!/bin/bash'
-    echo 'case "$1" in'
-    echo '  binds) cat <<'"'"'BINDS'"'"''
-    cat
-    echo 'BINDS'
-    echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
-    echo 'esac'
-  } >"$stub_bin/hyprctl"
+  jq -s '{generation:"abc-def",bindings:to_entries|map(.value + {id:(.key+1)})}' >"$tmpdir/snapshot.json"
+  cat >"$stub_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  repl) cat "$tmpdir/snapshot.json" ;;
+  dispatch) printf '%s\\n' "\$2" >"$tmpdir/dispatch" ;;
+  *) exit 1 ;;
+esac
+STUB
   chmod +x "$stub_bin/hyprctl"
 }
 
 keybindings() {
-  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$task_home" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
     bash "$ROOT/bin/omarchy-menu-keybindings" --print
 }
@@ -114,16 +115,8 @@ pass "a shared chord does not change where its entry ranks"
 
 # The same key written as a keycode arrives by the other road: Hyprland reports
 # the code and the keymap resolves it, after the rename above has run.
-stub_hyprctl <<'BINDS'
-bind
-	modmask: 64
-	submap: 
-	key: 
-	keycode: 49
-	catchall: false
-	description: Toggle scratchpad
-	dispatcher: exec
-	arg: true
+stub_hyprctl <<BINDS
+$(exec_bind 64 "SUPER + code:49" "Toggle scratchpad" "true")
 BINDS
 
 rendered=$(keybindings)
@@ -220,3 +213,78 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# Record attempts even if the menu were to ignore the interpreter's failure.
+# The real configuration-loop regression belongs to the VM acceptance test.
+cat >"$stub_bin/lua" <<STUB
+#!/bin/bash
+touch "$tmpdir/lua-called"
+exit 99
+STUB
+chmod +x "$stub_bin/lua"
+keybindings >/dev/null || fail "listing needs no external Lua interpreter"
+[[ ! -e $tmpdir/lua-called ]] || fail "listing must not start an external Lua interpreter"
+pass "listing never starts an external Lua interpreter"
+
+stub_hyprctl <<'BINDS'
+{"keys":"MOD3 + code:20","description":"Quotes \"and\", backslashes \\ and Unicode →","identity":1,"submap":""}
+{"keys":"SUPER + F12","description":"Duplicate","identity":2,"submap":""}
+{"keys":"SUPER + F12","description":"Duplicate","identity":3,"submap":""}
+{"keys":"SUPER + F11","description":"line\nbreak\ttab\u001fseparator","identity":4,"submap":""}
+BINDS
+rendered=$(keybindings)
+grep -F 'Quotes "and", backslashes \ and Unicode →' <<<"$rendered" >/dev/null || fail "punctuation remains display data"
+grep -q 'MOD3 + MINUS' <<<"$rendered" || fail "extra modifiers and keycodes survive"
+grep -q 'Duplicate \[2\]$' <<<"$rendered" || fail "identically labeled actions are independently selectable"
+grep -q 'line break tab separator$' <<<"$rendered" || fail "control characters cannot forge menu records"
+pass "punctuation, modifiers, duplicate labels and control characters are handled"
+
+cat >"$stub_bin/omarchy-menu-select" <<'STUB'
+#!/bin/bash
+grep 'Duplicate \[2\]$'
+STUB
+chmod +x "$stub_bin/omarchy-menu-select"
+cat >"$stub_bin/omarchy-notification-send" <<STUB
+#!/bin/bash
+printf '%s\n' "\$@" >>"$tmpdir/notifications"
+STUB
+chmod +x "$stub_bin/omarchy-notification-send"
+interactive_keybindings() {
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$task_home" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings"
+}
+interactive_keybindings || fail "menu selection invokes retained binding"
+grep -F 'omarchy_keybindings.invoke("abc-def", 3)' "$tmpdir/dispatch" >/dev/null || fail "selection invokes the chosen duplicate, not its neighbor"
+[[ ! -e $tmpdir/notifications ]] || fail "successful selection must not notify"
+pass "menu selection invokes the chosen duplicate by validated token"
+
+# hyprctl can return a Lua error as text with a successful process status.
+for result in 'Keybindings changed; reopen the menu' 'Keybinding was removed or disabled'; do
+  cat >"$stub_bin/hyprctl" <<STUB
+#!/bin/bash
+case "\$1" in
+  repl) cat "$tmpdir/snapshot.json" ;;
+  dispatch) echo '$result' ;;
+esac
+STUB
+  if interactive_keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "Lua invocation errors must fail the menu"; fi
+  grep -q 'Reopen the menu' "$tmpdir/notifications" || fail "rejected selection must notify the desktop"
+  grep -q 'Reopen the menu' "$tmpdir/err" || fail "rejected selection must also explain failure on stderr"
+  rm "$tmpdir/notifications"
+done
+sed -i 's/dispatch).*/dispatch) exit 4 ;;/' "$stub_bin/hyprctl"
+if interactive_keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "dispatch transport errors must fail the menu"; fi
+[[ -s $tmpdir/notifications ]] || fail "dispatch transport errors must notify"
+rm "$tmpdir/notifications"
+pass "stale, disabled and disconnected selections report visible failures"
+
+printf 'not JSON\n' >"$tmpdir/snapshot.json"
+if keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "invalid registry response must fail"; fi
+[[ ! -s $tmpdir/out ]] || fail "invalid registry response must not present a partial menu"
+grep -q 'Reload Hyprland' "$tmpdir/err" || fail "missing registry gives a useful recovery message"
+grep -Fq 'dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/bootstrap.lua")' "$tmpdir/err" || fail "missing bootstrap gives the exact recovery line"
+[[ ! -e $tmpdir/notifications ]] || fail "print mode must not send desktop notifications"
+if interactive_keybindings >"$tmpdir/out" 2>"$tmpdir/err"; then fail "interactive missing registry must fail"; fi
+grep -Fq '/default/hypr/bootstrap.lua' "$tmpdir/notifications" || fail "missing registry must show recovery instructions on the desktop"
+grep -A1 -x -- '-t' "$tmpdir/notifications" | grep -qx '30000' || fail "bootstrap notification must allow thirty seconds to open its instructions"
+pass "missing registry gives bootstrap guidance in stderr and interactive notifications"
