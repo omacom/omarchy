@@ -23,6 +23,14 @@ Panel {
 
   readonly property var adapter: Bluetooth.defaultAdapter
 
+  // BlueZ removes the adapter's D-Bus object entirely on some drivers while
+  // rfkill holds it blocked, so `adapter` goes null the moment Bluetooth is
+  // turned off — not just its `enabled` flag. Latching this on the first
+  // sighting keeps the bar icon (and its toggle) on screen through that gap,
+  // instead of the whole widget vanishing with no way to turn Bluetooth back on.
+  property bool adapterEverSeen: false
+  onAdapterChanged: if (adapter !== null) adapterEverSeen = true
+
   // True while this instance owes BlueZ a StopDiscovery: set when it starts
   // discovery (or opens onto a session already running) and cleared once
   // discovery is confirmed down after close. Ownership, not state — BlueZ's
@@ -56,7 +64,7 @@ Panel {
   readonly property var discoveredDevices: deviceGroups.discovered || []
 
   readonly property string icon: {
-    if (!adapter) return ""
+    if (!adapter) return adapterEverSeen ? "󰂲" : ""
     if (!adapter.enabled) return "󰂲"
     if (connectedDevices.length > 0) return "󰂱"
     return "󰂯"
@@ -75,7 +83,7 @@ Panel {
   ]
   readonly property bool rotatingPhrases: adapter && adapter.enabled
   readonly property string heroStatusText: {
-    if (!adapter) return "No adapter"
+    if (!adapter) return adapterEverSeen ? "Turned Off" : "No adapter"
     if (!adapter.enabled) return "Turned Off"
     return activePhrases[phraseIndex % activePhrases.length]
   }
@@ -497,7 +505,7 @@ Panel {
     if (selectedIndex < 0) selectedIndex = 0
   }
 
-  visible: adapter !== null
+  visible: adapter !== null || adapterEverSeen
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -633,8 +641,8 @@ Panel {
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
-    if (!adapter) return
-    Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
+    if (!adapter && !adapterEverSeen) return
+    Quickshell.execDetached(["omarchy-bluetooth-power", adapter && adapter.enabled ? "off" : "on"])
   }
 
   IpcHandler {
@@ -712,7 +720,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
-            visible: !!root.adapter
+            visible: !!root.adapter || root.adapterEverSeen
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
             foreground: root.bar.foreground
@@ -867,8 +875,8 @@ Panel {
         Text {
           textFormat: Text.PlainText
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
-          text: !root.adapter ? "No Bluetooth adapter"
-              : !root.adapter.enabled ? "Turn Bluetooth on to scan"
+          text: !root.adapter && !root.adapterEverSeen ? "No Bluetooth adapter"
+              : !root.adapter || !root.adapter.enabled ? "Turn Bluetooth on to scan"
               : "Scanning for devices…"
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily
