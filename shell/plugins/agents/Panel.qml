@@ -747,6 +747,8 @@ Panel {
       width: parent.width
       value: limitRow.window ? limitRow.window.percent : -1
       alarming: limitRow.alarming
+      // Only the 7-day window resets more than a few hours out.
+      weekly: root.resetMsFor(limitRow.window) > 6 * 3600000
     }
 
     Text {
@@ -768,6 +770,7 @@ Panel {
     id: meter
     property real value: -1
     property bool alarming: false
+    property bool weekly: false
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
     implicitHeight: thickness
@@ -792,6 +795,17 @@ Panel {
       }
     }
 
+    // A weekly meter is cut into seven day segments, so usage can be read
+    // against how much of the week has passed.
+    Repeater {
+      model: meter.weekly ? 6 : 0
+      Rectangle {
+        width: Math.max(1, Math.round(meter.thickness * 0.3))
+        height: meterTrack.height
+        x: Math.round(meterTrack.width * (index + 1) / 7) - width / 2
+        color: root.surface
+      }
+    }
   }
 
   // One row per day: label, bar, tokens. Today is picked out in full
