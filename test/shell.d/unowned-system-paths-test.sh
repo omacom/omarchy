@@ -179,3 +179,9 @@ if rg -n 'cp -p.*(system-sleep|supergfxd\.service\.d)' "$ROOT/bin/omarchy-hibern
 fi
 
 pass "system-sleep hooks and the hybrid GPU drop-in enforce root ownership"
+
+for drop_in in "/etc/limine-entry-tool.d/resume.conf" "/etc/limine-entry-tool.d/rtc-alarm.conf"; do
+  grep -F "$drop_in" "$ROOT/bin/omarchy-hibernation-remove" >/dev/null ||
+    fail "hibernation remove deletes the Limine drop-in it can create: $drop_in"
+done
+pass "hibernation remove is symmetric with setup's Limine drop-ins"

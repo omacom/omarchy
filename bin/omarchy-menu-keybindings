@@ -184,9 +184,18 @@ local function dsp_proxy(path)
   })
 end
 
+-- A config that iterates a mockable getter with ipairs (e.g.
+-- `ipairs(hl.get_windows() or {})`, valid inside the real compositor) must
+-- terminate rather than loop forever: ipairs indexes t[1], t[2], ... through
+-- __index until it sees nil, and a numeric key answered with `noop` again
+-- never produces one. Non-numeric keys still resolve to `noop` so a chained
+-- call like `hl.get_windows().active` remains a harmless no-op.
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  __index = function(_, key)
+    if type(key) == "number" then
+      return nil
+    end
     return noop
   end,
   __call = function()
