@@ -107,6 +107,11 @@ done
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+# The XDG vars win over HOME in the launchers, so pin them to the sandbox too
+# — a caller with XDG_DATA_HOME/XDG_CONFIG_HOME exported must not leak their
+# real phantombot state into the expectations below.
+export XDG_DATA_HOME="$test_home/.local/share"
+export XDG_CONFIG_HOME="$test_home/.config"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_TEST_NOTIFICATION_HISTORY="$notification_history"
 export OMARCHY_TEST_AGENT_OPEN_LOG="$agent_open_log"
@@ -825,3 +830,84 @@ mapfile -d '' -t launch_args <"$launch_log"
   ${launch_args[4]} == "Review this project" ]] ||
   fail "OpenClaw receives prompts through --message" "argv: ${launch_args[*]}"
 pass "OpenClaw receives prompts through --message"
+
+# Phantombot installs through its own checksum-verified installer rather than
+# mise, so it reaches the same --check/--now contract the OpenClaw package
+# gets from omarchy-install-openclaw-cli.
+cat >"$mock_bin/omarchy-agent" <<'SH'
+#!/bin/bash
+printf '%s\0' omarchy-agent "$@" >"$OMARCHY_TEST_AGENT_OPEN_LOG"
+SH
+chmod +x "$mock_bin/omarchy-agent"
+hash -r
+
+cat >"$mock_bin/omarchy-install-phantombot" <<'SH'
+#!/bin/bash
+printf '%s\0' "$@" >>"$OMARCHY_TEST_STUB_LOG"
+if [[ $1 == "--check" ]]; then
+  [[ ${OMARCHY_TEST_AGENT_INSTALLED:-false} == "true" ]]
+else
+  OMARCHY_TEST_AGENT_INSTALLED=true
+fi
+SH
+chmod +x "$mock_bin/omarchy-install-phantombot"
+
+: >"$agent_open_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent phantombot
+[[ $(omarchy-default-agent) == "phantombot" ]] || fail "choosing Phantombot records it as the default agent"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${agent_open_args[*]} == "omarchy-agent" ]] || fail "choosing Phantombot opens the agent"
+[[ ! -s $mise_history ]] || fail "Phantombot never installs through mise"
+pass "choosing Phantombot routes through its own installer and opens the agent"
+
+: >"$terminal_log"
+OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent phantombot >/dev/null
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-agent --install phantombot" ]] ||
+  fail "a missing Phantombot routes through the install terminal" "argv: ${terminal_args[*]}"
+[[ $(omarchy-default-agent) == "phantombot" ]] ||
+  fail "a missing Phantombot still records the selection"
+pass "a missing Phantombot routes through the install terminal"
+
+: >"$stub_log"
+: >"$terminal_log"
+: >"$agent_open_log"
+omarchy-default-agent --install phantombot >/dev/null
+tr '\0' '\n' <"$stub_log" | grep -Fx -- '--now' >/dev/null ||
+  fail "installing Phantombot runs its installer"
+mapfile -d '' -t agent_open_args <"$agent_open_log"
+[[ ${agent_open_args[*]} == "omarchy-agent --inline" ]] || fail "installing Phantombot opens the agent after install"
+[[ ! -s $terminal_log ]] || fail "installing Phantombot skips the floating terminal"
+pass "installing Phantombot runs its --now installer and opens the agent"
+
+# Back to the real launcher: the omarchy-agent mock above exists only for the
+# selection flow.
+rm "$mock_bin/omarchy-agent"
+hash -r
+printf '%s\n' "phantombot" >"$agent_file"
+: >"$launch_log"
+omarchy-agent
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent phantombot" ]] ||
+  fail "Phantombot launches its chat TUI" "argv: ${launch_args[*]}"
+omarchy-agent-prompt "Review this project"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent phantombot --prompt Review this project" ]] ||
+  fail "Phantombot hands prompts to its TUI" "argv: ${launch_args[*]}"
+pass "Phantombot launches bare for chat and seeds prompts through --prompt"
+
+# Contract probe against the real binary, when it happens to be installed:
+# the argv the launcher builds must match what Phantombot actually ships.
+# Bare `phantombot` is the chat TUI under a TTY and hits the usage gate when
+# unwatched, while `phantombot persona` renders persona management either
+# way. The --prompt seed flag is specified in phantomyard/phantombot#575;
+# probe it here once the shipping binary supports it.
+if command -v phantombot >/dev/null; then
+  bare_out=$(timeout 15 phantombot </dev/null 2>&1 || true)
+  [[ $bare_out == *"No command specified"* ]] ||
+    fail "bare phantombot reaches the chat-TUI gate, not a subcommand dispatch"
+  persona_out=$(timeout 15 phantombot persona </dev/null 2>&1 || true)
+  [[ $persona_out == *"Persona"* && $persona_out == *"Status"* ]] ||
+    fail "phantombot persona renders persona management, not the chat TUI"
+  pass "Phantombot entrypoint contract holds on the real binary"
+fi

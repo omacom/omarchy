@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Ensure Phantombot is installed for the default agent
+# omarchy:args=[--check|--now]
+
+# Phantombot is not a mise tool: it ships native release binaries behind its
+# own checksum-verified installer, which also registers a systemd --user
+# service. The default-agent flow talks to that installer through the same
+# --check/--now contract mise-backed agents get from mise itself. PHANTOMBOT_SKIP_TUI
+# keeps the post-install setup wizard from grabbing the floating terminal.
+
+set -euo pipefail
+
+case "${1:---now}" in
+--check)
+  omarchy-cmd-present phantombot
+  ;;
+--now)
+  if ! omarchy-cmd-present phantombot; then
+    echo "Installing Phantombot..."
+    PHANTOMBOT_SKIP_TUI=1 sh -c "$(curl -fsSL https://raw.githubusercontent.com/phantomyard/phantombot/main/install.sh)"
+  fi
+  ;;
+*)
+  echo "Usage: omarchy-install-phantombot [--check|--now]" >&2
+  exit 1
+  ;;
+esac

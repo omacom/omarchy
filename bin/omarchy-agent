@@ -115,6 +115,14 @@ muse)
   command=(muse --approval-mode never)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
+phantombot)
+  # Bare `phantombot` is the chat TUI (`phantombot persona` is persona
+  # management). --prompt seeds the first turn through the interactive TUI
+  # itself — the human-at-the-TTY path, same trust shape as pi above — so
+  # nothing detours through the judge-screened headless ask channel.
+  command=(phantombot)
+  [[ -n ${prompt:-} ]] && command+=(--prompt "$prompt")
+  ;;
 omp)
   command=(omp --auto-approve)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
