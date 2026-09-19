@@ -89,8 +89,24 @@ function styledBody(body, app, appIcon) {
   return stripImageTags(sanitizeBody(body, app, appIcon).replace(/\r\n|\r|\n/g, "<br/>"))
 }
 
+// KDE Connect escapes the title and body it relays from a phone before handing
+// them to KNotification, and they reach this server escaped a second time, so
+// a quotation mark arrives as &amp;quot; and StyledText shows &quot; on the
+// card. Undo that one layer for it. Only &amp; is rewritten: it is the sole
+// entity the double escape manufactures, and the rewrite can never produce a
+// `<`, so no tag stripImageTags did not see can come out of it.
+function isKdeConnect(app, appIcon) {
+  var source = (String(app || "") + "\n" + String(appIcon || "")).toLowerCase()
+  return source.indexOf("kdeconnect") >= 0 || source.indexOf("kde connect") >= 0
+}
+
+function undoDoubleEscape(text) {
+  return text.replace(/&amp;(?=(?:[a-z]+|#\d+|#x[0-9a-f]+);)/gi, "&")
+}
+
 function sanitizeBody(body, app, appIcon) {
   var text = stripImageTags(String(body || ""))
+  if (isKdeConnect(app, appIcon)) text = undoDoubleEscape(text)
   if (!isChromiumDerived(app, appIcon)) return text
 
   return text
@@ -450,6 +466,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     isChromiumDerived: isChromiumDerived,
     sanitizeBody: sanitizeBody,
+    isKdeConnect: isKdeConnect,
     styledBody: styledBody,
     summaryStartsWithGlyph: summaryStartsWithGlyph,
     shouldBypassDnd: shouldBypassDnd,
