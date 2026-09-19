@@ -2,104 +2,110 @@
 
 set -euo pipefail
 
-source "$(dirname "$0")/base-test.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+rm "$SUDO_TEST_ROOT/bin/omarchy-migrate"
+copy_boundary_file bin/omarchy-migrate
+copy_boundary_file bin/omarchy-pkg-add
+printf '%s\n' '#!/bin/bash' 'exit 0' >"$SUDO_TEST_ROOT/mock/omarchy-pkg-missing"
+chmod +x "$SUDO_TEST_ROOT/mock/omarchy-pkg-missing"
+export OMARCHY_MIGRATION_STATE="$boundary_tmp/state"
+mkdir -p "$SUDO_TEST_ROOT/migrations"
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+cat >"$SUDO_TEST_ROOT/migrations/100-first.sh" <<'MIGRATION'
+[[ $OMARCHY_SUDO_NO_UPDATE == "1" ]]
+[[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]]
+sudo /usr/bin/true
+# The package helper resets PATH and invokes its fixed sudo path.
+"$OMARCHY_PATH/bin/omarchy-pkg-add" fixture-package
+printf '%s\n' migration:first >>"$SUDO_TEST_LOG"
+MIGRATION
+cat >"$SUDO_TEST_ROOT/migrations/200-second.sh" <<'MIGRATION'
+printf '%s\n' migration:second >>"$SUDO_TEST_LOG"
+MIGRATION
 
-test_root="$test_tmp/omarchy"
-test_home="$test_tmp/home"
-mkdir -p "$test_root/migrations" "$test_home"
+run_migrate() {
+  "$SUDO_TEST_ROOT/bin/omarchy-migrate" "$@" >"$boundary_tmp/output" 2>&1
+}
 
-cat >"$test_root/migrations/100-first.sh" <<'SH'
-[[ $OMARCHY_PATH == "$TEST_EXPECTED_OMARCHY_PATH" ]]
-echo first >>"$TEST_CALLS"
-SH
-cat >"$test_root/migrations/200-second.sh" <<'SH'
-[[ $OMARCHY_PATH == "$TEST_EXPECTED_OMARCHY_PATH" ]]
-echo second >>"$TEST_CALLS"
-SH
+run_migrate --pending
+[[ ! -s $SUDO_TEST_LOG && ! -d $OMARCHY_MIGRATION_STATE ]] || fail "pending inspection changed credentials or migration state"
+grep -qx '100-first.sh' "$boundary_tmp/output" || fail "pending inspection omitted a migration"
+pass "pending inspection reads migration names without credential or state changes"
 
-calls="$test_tmp/calls"
+touch "$SUDO_TEST_CACHE"
+run_migrate || fail "migration queue failed" "$(<"$boundary_tmp/output")"
+assert_boundary_cold "successful migration queue"
+[[ -f $OMARCHY_MIGRATION_STATE/100-first.sh && -f $OMARCHY_MIGRATION_STATE/200-second.sh ]] || fail "successful migrations were not marked complete"
+[[ $(grep '^migration:' "$SUDO_TEST_LOG") == $'migration:first\nmigration:second' ]] || fail "migration ordering changed"
+expected_authorizations=2
+(( EUID != 0 )) || expected_authorizations=1
+[[ $(grep -c '^sudo -N ' "$SUDO_TEST_LOG") == "$expected_authorizations" ]] || fail "the direct package helper did not inherit no-update policy"
+pass "ordered migrations and the fixed-path package helper use command-scoped sudo"
 
-if ! HOME="$test_home" OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-migrate" --pending >"$test_tmp/pending.out"; then
-  fail "migration runner reports pending migrations before state exists"
+reset_boundary
+run_migrate
+if grep -q '^migration:' "$SUDO_TEST_LOG"; then fail "completed migrations ran again"; fi
+if run_migrate --pending; then fail "completed queue reported pending work"; fi
+pass "completed migrations remain idempotent"
+
+for failure in exit TERM HUP INT; do
+  reset_boundary
+  export SUDO_TEST_MIGRATION_FAILURE=$failure
+  cat >"$SUDO_TEST_ROOT/migrations/300-fail.sh" <<'MIGRATION'
+touch "$SUDO_TEST_CACHE"
+if [[ $SUDO_TEST_MIGRATION_FAILURE == "exit" ]]; then
+  exit 23
+else
+  kill -"$SUDO_TEST_MIGRATION_FAILURE" "$PPID"
 fi
-grep -q '^100-first\.sh$' "$test_tmp/pending.out" || fail "migration runner lists first pending migration filename"
-grep -q '^200-second\.sh$' "$test_tmp/pending.out" || fail "migration runner lists second pending migration filename"
-pass "migration runner detects pending migrations"
+MIGRATION
+  cat >"$SUDO_TEST_ROOT/migrations/400-later.sh" <<'MIGRATION'
+printf '%s\n' migration:later >>"$SUDO_TEST_LOG"
+MIGRATION
+  if run_migrate; then fail "$failure must fail the migration queue"; fi
+  assert_boundary_cold "migration $failure"
+  [[ ! -e $OMARCHY_MIGRATION_STATE/300-fail.sh && ! -e $OMARCHY_MIGRATION_STATE/400-later.sh ]] || fail "an interrupted queue advanced its completion markers"
+  if grep -q '^migration:later' "$SUDO_TEST_LOG"; then fail "later migration ran after $failure"; fi
+  pass "migration $failure revokes authorization and leaves the queue pending"
+done
 
-HOME="$test_home" \
-OMARCHY_PATH="$test_root" \
-TEST_EXPECTED_OMARCHY_PATH="$test_root" \
-TEST_CALLS="$calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/first-run.out"
-[[ $(sed -n '1p' "$calls") == "first" ]] || fail "migration runner runs first migration"
-[[ $(sed -n '2p' "$calls") == "second" ]] || fail "migration runner runs second migration"
-[[ -f $test_home/.local/state/omarchy/migrations/100-first.sh ]] || fail "migration runner records first migration marker"
-[[ -f $test_home/.local/state/omarchy/migrations/200-second.sh ]] || fail "migration runner records second migration marker"
-pass "migration runner runs all migrations"
+printf '%s\n' 'printf "%s\n" migration:retry >>"$SUDO_TEST_LOG"' >"$SUDO_TEST_ROOT/migrations/300-fail.sh"
+reset_boundary
+run_migrate
+[[ -f $OMARCHY_MIGRATION_STATE/300-fail.sh && -f $OMARCHY_MIGRATION_STATE/400-later.sh ]] || fail "retry did not complete the pending queue"
+pass "a corrected migration can be retried and releases later work"
 
-HOME="$test_home" \
-OMARCHY_PATH="$test_root" \
-TEST_EXPECTED_OMARCHY_PATH="$test_root" \
-TEST_CALLS="$calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/second-run.out"
-[[ $(wc -l <"$calls") -eq 2 ]] || fail "migration runner skips completed migrations"
-pass "migration runner skips completed migrations"
+reset_boundary
+export SUDO_TEST_REVOKE_FAIL=1
+if run_migrate; then fail "failed revocation must fail the queue"; fi
+if grep -q '^migration:' "$SUDO_TEST_LOG"; then fail "queue ran after failed initial revocation"; fi
+pass "failed credential revocation prevents migration execution"
 
-if HOME="$test_home" OMARCHY_PATH="$test_root" "$ROOT/bin/omarchy-migrate" --pending >"$test_tmp/not-pending.out"; then
-  fail "migration runner reports no pending migrations after state exists"
-fi
-pass "migration runner detects no pending migrations"
+reset_boundary
+printf '%s\n' 'touch "$SUDO_TEST_ROOT/startup-marker"' >"$boundary_tmp/startup"
+BASH_ENV="$boundary_tmp/startup" ENV="$boundary_tmp/startup" run_migrate
+[[ ! -e $SUDO_TEST_ROOT/startup-marker ]] || fail "inherited startup state ran in the migration queue"
+pass "migration startup and child interpreters discard inherited startup files"
 
-failure_root="$test_tmp/failure-omarchy"
-failure_home="$test_tmp/failure-home"
-mkdir -p "$failure_root/migrations" "$failure_home"
+for script in omarchy-migrate omarchy-pkg-add; do
+  reset_boundary
+  if /usr/bin/bash "$SUDO_TEST_ROOT/bin/$script" -p >"$boundary_tmp/output" 2>&1; then fail "$script accepted a decoy -p"; fi
+  [[ ! -s $SUDO_TEST_LOG ]] || fail "$script reached sudo through an unsafe interpreter"
+  pass "$script rejects an ordinary Bash launch"
+done
 
-cat >"$failure_root/migrations/500-fail.sh" <<'SH'
-echo before-fail >>"$TEST_CALLS"
-false
-echo after-fail >>"$TEST_CALLS"
-SH
-
-set +e
-HOME="$failure_home" \
-OMARCHY_PATH="$failure_root" \
-TEST_CALLS="$calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/failure.out" 2>"$test_tmp/failure.err"
-failure_status=$?
-set -e
-[[ $failure_status -ne 0 ]] || fail "migration runner exits non-zero when a migration fails"
-[[ ! -f $failure_home/.local/state/omarchy/migrations/500-fail.sh ]] || fail "migration runner does not mark failed migration complete"
-grep -q '^before-fail$' "$calls" || fail "migration runner started failing migration"
-! grep -q '^after-fail$' "$calls" || fail "migration runner stops failing migration under strict mode"
-pass "migration runner does not mark failed migrations complete"
-
-stdin_root="$test_tmp/stdin-omarchy"
-stdin_home="$test_tmp/stdin-home"
-stdin_calls="$test_tmp/stdin-calls"
-mkdir -p "$stdin_root/migrations" "$stdin_home"
-
-cat >"$stdin_root/migrations/100-reader.sh" <<'SH'
-IFS= read -r value
-printf 'reader:%s\n' "$value" >>"$TEST_CALLS"
-SH
-cat >"$stdin_root/migrations/200-after.sh" <<'SH'
-echo after-reader >>"$TEST_CALLS"
-SH
-
-printf 'migration input\n' | \
-  HOME="$stdin_home" \
-  OMARCHY_PATH="$stdin_root" \
-  TEST_CALLS="$stdin_calls" \
-  "$ROOT/bin/omarchy-migrate" >"$test_tmp/stdin.out"
-
-grep -q '^reader:migration input$' "$stdin_calls" ||
-  fail "migration runner preserves the caller's stdin for a migration" "$(cat "$stdin_calls")"
-grep -q '^after-reader$' "$stdin_calls" ||
-  fail "a migration reading stdin does not swallow later queue entries" "$(cat "$stdin_calls")"
-[[ -f $stdin_home/.local/state/omarchy/migrations/100-reader.sh &&
-  -f $stdin_home/.local/state/omarchy/migrations/200-after.sh ]] ||
-  fail "migration runner marks both stdin-isolated migrations complete"
-pass "migration queue uses a private file descriptor instead of migration stdin"
+reset_boundary
+cat >"$SUDO_TEST_ROOT/migrations/500-revocation.sh" <<'MIGRATION'
+touch "$SUDO_TEST_CACHE" "$SUDO_TEST_ROOT/revoke-fail"
+MIGRATION
+if run_migrate; then fail "failed post-migration revocation must fail the queue"; fi
+[[ ! -e $OMARCHY_MIGRATION_STATE/500-revocation.sh ]] || fail "failed revocation incorrectly marked migration complete"
+grep -q 'Could not invalidate cached sudo authorization' "$boundary_tmp/output" || fail "failed cleanup did not explain the remaining credential state"
+pass "failed post-migration revocation is explicit and prevents a completion marker"
+reset_boundary
+printf '%s\n' true >"$SUDO_TEST_ROOT/migrations/500-revocation.sh"
+run_migrate
+assert_boundary_cold "retry after revocation failure"
+[[ -f $OMARCHY_MIGRATION_STATE/500-revocation.sh ]] || fail "queue did not recover after revocation was restored"
+pass "the queue recovers once credential revocation succeeds"

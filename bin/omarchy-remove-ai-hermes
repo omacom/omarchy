@@ -120,7 +120,7 @@ fi
 # never owned, a yes takes that with it, and saying so is the prompt's job.
 # Without a terminal to ask in, keeping everything is the answer.
 data_removed=false
-if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]] && omarchy-cmd-present gum; then
+if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]]; then
   # du answers non-zero when either directory is missing, and pipefail would
   # turn that into an aborted removal; the size is worth no such thing.
   size=$(du -shc "$HOME/.hermes" "$HOME/.config/Hermes" 2>/dev/null | tail -1 | cut -f1 || true)
