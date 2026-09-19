@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Get or set the Chromium app id recorded for a web app URL
+# omarchy:args=get <url> | set <url> <app-id> | delete <url>
+
+set -euo pipefail
+
+map_file="${OMARCHY_WEBAPP_MAP:-$HOME/.local/state/omarchy/webapps.map}"
+
+normalize_url() {
+  local url=$1
+  if [[ ! $url =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]; then
+    url="https://$url"
+  fi
+  url=${url%%#*}
+  url=${url%%\?*}
+  if [[ $url == */ ]]; then
+    url=${url%/}
+  fi
+  printf '%s' "$url"
+}
+
+rewrite_without_key() {
+  local key=$1
+  local stored_url stored_id
+  [[ -f $map_file ]] || return 0
+  while IFS=$'\t' read -r stored_url stored_id; do
+    [[ $stored_url == "$key" ]] && continue
+    [[ -n $stored_url ]] || continue
+    printf '%s\t%s\n' "$stored_url" "$stored_id"
+  done <"$map_file"
+}
+
+usage() {
+  echo "Usage: omarchy-webapp-id get <url> | set <url> <app-id> | delete <url>" >&2
+  exit 1
+}
+
+cmd=${1:-}
+url=${2:-}
+id=${3:-}
+
+[[ -n $cmd ]] || usage
+
+case $cmd in
+get)
+  [[ -n $url ]] || usage
+  [[ -f $map_file ]] || exit 0
+  key=$(normalize_url "$url")
+  origin=$key
+  if [[ $key =~ ^(https?://[^/]+) ]]; then
+    origin=${BASH_REMATCH[1]}
+  fi
+  found_origin=
+  while IFS=$'\t' read -r stored_url stored_id; do
+    if [[ $stored_url == "$key" ]]; then
+      printf '%s\n' "$stored_id"
+      exit 0
+    fi
+    if [[ $stored_url == "$origin" ]]; then
+      found_origin=$stored_id
+    fi
+  done <"$map_file"
+  if [[ -n $found_origin ]]; then
+    printf '%s\n' "$found_origin"
+  fi
+  ;;
+set)
+  [[ -n $url && -n $id ]] || usage
+  key=$(normalize_url "$url")
+  mkdir -p "$(dirname "$map_file")"
+  tmp=$(mktemp)
+  rewrite_without_key "$key" >"$tmp"
+  printf '%s\t%s\n' "$key" "$id" >>"$tmp"
+  mv "$tmp" "$map_file"
+  ;;
+delete)
+  [[ -n $url ]] || usage
+  [[ -f $map_file ]] || exit 0
+  key=$(normalize_url "$url")
+  tmp=$(mktemp)
+  rewrite_without_key "$key" >"$tmp"
+  mv "$tmp" "$map_file"
+  ;;
+*)
+  usage
+  ;;
+esac

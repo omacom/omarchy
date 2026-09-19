@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Install a URL as a Chromium web app when the browser supports it
+# omarchy:args=<url>
+
+set -euo pipefail
+
+url=${1:-}
+if [[ -z $url ]]; then
+  echo "Usage: omarchy-webapp-promote <url>" >&2
+  exit 1
+fi
+
+here=$(cd -- "$(dirname -- "$0")" && pwd)
+bin=$("$here/omarchy-webapp-browser" || true)
+if [[ -z $bin || ! -x $bin ]]; then
+  exit 0
+fi
+
+# Stock extra/chromium does not have this switch; skip so install still
+# writes a --app= launcher.
+if ! grep -a -q -F 'install-and-launch-app' "$bin"; then
+  exit 0
+fi
+
+# Snapshot classes so we can recover the id from a new Hypr window when the
+# install hands off to an already-running singleton and prints nothing.
+classes_before=$(hyprctl clients -j 2>/dev/null | jq -r '.[].class // empty' || true)
+
+id_from_new_window() {
+  [[ -n $classes_before ]] || return 0
+  local class
+  while IFS= read -r class; do
+    [[ $class =~ ^chrome-[a-z0-9]{32}-Default$ ]] || continue
+    printf '%s\n' "$classes_before" | grep -Fxq "$class" && continue
+    printf '%s\n' "${class#chrome-}"
+    return 0
+  done < <(hyprctl clients -j 2>/dev/null | jq -r '.[].class // empty' || true)
+}
+
+log=$(mktemp)
+"$bin" \
+  --ozone-platform=wayland \
+  --install-and-launch-app="$url" \
+  --no-first-run --no-default-browser-check \
+  >"$log" 2>&1 &
+pid=$!
+
+id=
+for ((i = 0; i < 90; i++)); do
+  if id=$(grep -m1 -o 'web_app_id=[A-Za-z0-9]\+' "$log" | head -1); then
+    id=${id#web_app_id=}
+    break
+  fi
+  id=$(id_from_new_window)
+  id=${id%-Default}
+  [[ -n $id ]] && break
+  if ! kill -0 "$pid" 2>/dev/null; then
+    id=$(id_from_new_window)
+    id=${id%-Default}
+    break
+  fi
+  sleep 1
+done
+
+# Never kill $pid. If Chromium was already running, this process is a stub
+# that handed off to the singleton; killing it is a no-op or, if the stub
+# *is* the session chrome, it takes down other windows and keep-alive.
+wait "$pid" 2>/dev/null || true
+rm -f "$log"
+
+if [[ -z $id ]]; then
+  exit 0
+fi
+
+"$here/omarchy-webapp-id" set "$url" "$id"
+
+desktop="$HOME/.local/share/applications/chrome-${id}-Default.desktop"
+if [[ -f $desktop ]] && ! grep -q '^NoDisplay=' "$desktop"; then
+  tmp=$(mktemp)
+  awk 'BEGIN{done=0} /^Type=Application$/ && !done {print; print "NoDisplay=true"; done=1; next} {print}' "$desktop" >"$tmp"
+  mv "$tmp" "$desktop"
+fi
