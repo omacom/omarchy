@@ -48,6 +48,13 @@ screen_contains() {
   return $status
 }
 
+# Negative counterpart to screen_contains, mirroring layer_absent/window_absent.
+# Pair it with wait_until to assert something has gone (or never arrived) on
+# screen rather than merely that the surface still exists.
+screen_lacks() {
+  ! screen_contains "$1"
+}
+
 # Poll a command until it succeeds; screenshot and fail on timeout.
 wait_until() {
   local description="$1" timeout="$2"
