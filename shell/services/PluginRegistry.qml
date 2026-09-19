@@ -660,6 +660,8 @@ QtObject {
     }
   }
 
+  // Only loadable plugin sources — caches, data.json, logs, and helper
+  // binaries must not tear down the whole bar (see #12158).
   property Process localPluginWatcher: Process {
     command: [
       "inotifywait",
@@ -668,6 +670,8 @@ QtObject {
       "-q",
       "-e",
       "close_write,create,delete,move",
+      "--include",
+      "(manifest\\.json$|\\.manifest\\.json$|\\.(qml|js)$)",
       "--format",
       "%w%f",
       registry.pluginsDir
@@ -725,6 +729,20 @@ QtObject {
     initProcess.running = true
   }
 
+  // Paths that can change loadable plugin code or metadata. Runtime state
+  // written next to the plugin (caches, data.json, downloaded binaries) must
+  // not trigger a full shell reload.
+  function isWatchedPluginPath(relative) {
+    var baseName = relative
+    var slash = relative.lastIndexOf("/")
+    if (slash !== -1) baseName = relative.slice(slash + 1)
+    if (baseName === "manifest.json") return true
+    if (baseName.endsWith(".manifest.json")) return true
+    if (baseName.endsWith(".qml")) return true
+    if (baseName.endsWith(".js")) return true
+    return false
+  }
+
   function localPluginIdForPath(filePath) {
     var base = pluginsDir.replace(/\/$/, "") + "/"
     var path = String(filePath || "").trim()
@@ -734,6 +752,7 @@ QtObject {
     // Hidden entries are not plugins: clone staging dirs, remove backups.
     if (relative.indexOf(".") === 0) return ""
     if (relative.indexOf("/.git/") !== -1 || relative.endsWith("/.git")) return ""
+    if (!isWatchedPluginPath(relative)) return ""
 
     var slash = relative.indexOf("/")
     return slash === -1 ? relative : relative.slice(0, slash)

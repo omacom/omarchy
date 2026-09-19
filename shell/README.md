@@ -162,8 +162,10 @@ the interactive picker, then opens the new `<username>.*` directory in `$EDITOR`
 Existing shortcuts and shell IPC calls made to the built-in id are routed to
 the enabled clone, so cloning does not require changing its callers. Removing
 an active clone switches back to its built-in source.
-Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
-automatically; `omarchy-shell shell rescanPlugins` remains available to force a reload.
+Saving a loadable plugin source under `~/.config/omarchy/plugins/`
+(`manifest.json`, `*.qml`, `*.js`) reloads plugin code automatically. Runtime
+state files written next to a plugin do not. `omarchy-shell shell rescanPlugins`
+remains available to force a reload.
 
 First-party plugins under `shell/plugins/` are discovered the same way and load
 by default. Disabling a non-widget records it in `disabledPlugins[]`; disabling
