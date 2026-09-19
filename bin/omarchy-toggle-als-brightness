@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle T1 auto-brightness from the ambient light sensor
+# omarchy:args=[on|off|toggle]
+# omarchy:examples=omarchy toggle als brightness | omarchy toggle als brightness off
+
+# Presence of auto-brightness-off means the ALS loop is not writing, matching
+# macOS Displays > Automatically adjust brightness. Default is on.
+
+flag=auto-brightness-off
+action=${1:-toggle}
+
+case "$action" in
+  on)
+    omarchy-toggle "$flag" off
+    ;;
+  off)
+    omarchy-toggle "$flag" on
+    ;;
+  toggle|"")
+    omarchy-toggle "$flag"
+    ;;
+  *)
+    printf 'Usage: omarchy-toggle-als-brightness [on|off|toggle]\n' >&2
+    exit 1
+    ;;
+esac
+
+if omarchy-toggle-enabled "$flag"; then
+  omarchy-notification-send -g 󰃠 "Auto brightness off"
+else
+  omarchy-notification-send -g 󰃠 "Auto brightness on"
+fi
