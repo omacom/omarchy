@@ -25,8 +25,7 @@ const raw = JSON.stringify({
       added_at: longAgo, commit: 'b1', featured: false,
       colors: { accent: '#cc6622', background: '#f7f3ec', red: '#aa0000' },
       backgrounds: { count: 2, has_video: true, total_bytes: 2097152 },
-      ignored_on_install: ['kitty.conf'],
-      warnings: ['IGNORED_ON_INSTALL']
+      ignored_on_install: ['kitty.conf']
     },
     {
       slug: 'alpha', name: 'Alpha', repo: 'https://example.com/a',
@@ -35,7 +34,7 @@ const raw = JSON.stringify({
       added_at: recently, commit: 'a1', featured: true,
       colors: { accent: '#3355ff', background: '#0b0b13' },
       backgrounds: { count: 0, has_video: false, total_bytes: 0 },
-      ignored_on_install: [], warnings: []
+      ignored_on_install: []
     },
     { name: 'No slug, no entry' },
     { slug: 'a;id', name: 'Not a theme name' }
@@ -114,11 +113,6 @@ assertEqual(Catalog.movedIndex(0, 0, 1, true), 0, 'an empty grid has nowhere to 
 assertEqual(Catalog.humanBytes(0), '', 'no backgrounds means nothing to report')
 assertEqual(Catalog.humanBytes(2097152), '2.0 MB', 'megabytes keep a decimal while they are small')
 assertEqual(Catalog.humanBytes(524288), '512 KB', 'under a megabyte reads as kilobytes')
-
-assertEqual(Catalog.warningLabel('IGNORED_ON_INSTALL'), 'ships files Omarchy will not install',
-  'a validator code is spelled out')
-assertEqual(Catalog.warningLabel('SOMETHING_NEW'), 'SOMETHING_NEW',
-  'a code with no wording yet is shown as itself')
 
 // The catalog is fetched over the network; a truncated or hostile answer must
 // leave an empty list rather than throw inside the overlay.

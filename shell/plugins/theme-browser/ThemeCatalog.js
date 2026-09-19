@@ -94,8 +94,7 @@ function parseCatalog(raw) {
       backgroundCount: Number(backgrounds.count || 0),
       backgroundBytes: Number(backgrounds.total_bytes || 0),
       hasVideo: backgrounds.has_video === true,
-      ignoredOnInstall: Array.isArray(t.ignored_on_install) ? t.ignored_on_install : [],
-      warnings: Array.isArray(t.warnings) ? t.warnings : []
+      ignoredOnInstall: Array.isArray(t.ignored_on_install) ? t.ignored_on_install : []
     })
   }
 
@@ -190,35 +189,6 @@ function humanBytes(bytes) {
   return (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + " MB"
 }
 
-var WARNING_LABELS = {
-  IGNORED_ON_INSTALL: "ships files Omarchy will not install",
-  NON_THEME_PAYLOAD: "carries files that are neither colour nor art",
-  VSCODE_EXTENSION: "names a VS Code extension, which is not installed",
-  VSCODE_JSON_INVALID: "its vscode.json could not be read",
-  PALETTE_PARTIAL: "palette is missing keys, which Omarchy derives",
-  PALETTE_UNKNOWN_KEYS: "palette has keys Omarchy does not read",
-  PALETTE_LEGACY: "palette comes from an alacritty.toml, not colors.toml",
-  MODE_UNDECLARED: "no mode declared; inferred from the palette",
-  MODE_MISMATCH: "declared mode disagrees with the palette",
-  PREVIEW_ASPECT: "its preview is not the shape the switcher shows",
-  BACKGROUNDS_LARGE: "backgrounds are large to download",
-  BACKGROUND_HEAVY: "a single background is unusually large",
-  BACKGROUND_VIDEO: "includes a video background",
-  BACKGROUND_FILENAME: "a background is named in a way Omarchy may not order",
-  BACKGROUND_SKIPPED: "a background was skipped as unreadable",
-  ICONS_THEME_UNKNOWN: "names an icon theme this machine may not have",
-  KEYBOARD_RGB_INVALID: "its keyboard.rgb could not be read",
-  UNLOCK_PAIR: "ships only one half of the unlock images",
-  NO_LICENSE_FILE: "no LICENSE file",
-  REPO_NO_LICENSE: "no licence declared on the repository",
-  REPO_NO_TOPIC: "the repository carries no omarchy-theme topic",
-  NO_README: "no README"
-}
-
-function warningLabel(code) {
-  return WARNING_LABELS[code] || String(code)
-}
-
 if (typeof module !== "undefined") {
   module.exports = {
     NEW_WINDOW_DAYS: NEW_WINDOW_DAYS,
@@ -235,7 +205,6 @@ if (typeof module !== "undefined") {
     passes: passes,
     filterThemes: filterThemes,
     movedIndex: movedIndex,
-    humanBytes: humanBytes,
-    warningLabel: warningLabel
+    humanBytes: humanBytes
   }
 }

@@ -149,8 +149,8 @@ Item {
       statusTimer.stop()
     }
 
-    // The full catalog: it carries the description, licence, warnings and
-    // dates the detail pane shows, and it is read from a local cache.
+    // The full catalog: it carries the description, licence and dates the
+    // detail pane shows, and it is read from a local cache.
     catalogProc.command = [root.omarchyPath + "/bin/omarchy-theme-catalog", "--full"]
     if (force === true) catalogProc.command = catalogProc.command.concat(["--refresh"])
     catalogProc.running = true
@@ -741,26 +741,32 @@ Item {
                 }
               }
 
-              Text {
-                textFormat: Text.PlainText
+              Row {
                 width: parent.width
-                text: root.current ? root.current.title : ""
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.heading
-                elide: Text.ElideRight
-              }
+                spacing: Style.spacing.sm
 
-              Text {
-                textFormat: Text.PlainText
-                width: parent.width
-                visible: text !== ""
-                text: root.current && root.current.artist ? "by " + root.current.artist : ""
-                color: root.foreground
-                opacity: 0.6
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                elide: Text.ElideRight
+                Text {
+                  id: detailTitle
+                  textFormat: Text.PlainText
+                  width: Math.min(implicitWidth, parent.width - detailArtist.width - parent.spacing)
+                  text: root.current ? root.current.title : ""
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.heading
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  id: detailArtist
+                  textFormat: Text.PlainText
+                  anchors.baseline: detailTitle.baseline
+                  visible: text !== ""
+                  text: root.current && root.current.artist ? "By " + root.current.artist : ""
+                  color: root.foreground
+                  opacity: 0.6
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                }
               }
 
               Text {
@@ -811,38 +817,6 @@ Item {
                     divided: index > 0
                   }
                 }
-              }
-
-              DetailTable {
-                visible: root.current !== null && root.current.warnings.length > 0
-
-                DetailRow {
-                  label: "Notes"
-                  divided: false
-                }
-
-                Repeater {
-                  model: root.current ? root.current.warnings : []
-
-                  DetailRow {
-                    required property string modelData
-
-                    value: ThemeCatalog.warningLabel(modelData)
-                  }
-                }
-              }
-
-              Text {
-                textFormat: Text.PlainText
-                width: parent.width
-                wrapMode: Text.WordWrap
-                text: root.current && root.isInstalled(root.current.name)
-                  ? "Installed · Enter re-installs it at the newest checked version"
-                  : "Enter installs and applies it"
-                color: root.selectedText
-                opacity: 0.9
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
               }
             }
           }
