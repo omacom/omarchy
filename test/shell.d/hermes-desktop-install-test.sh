@@ -80,15 +80,25 @@ if [[ $force == true ]] || ! git -C "$runtime" merge-base --is-ancestor "$commit
 fi
 mkdir -p "$runtime/venv/bin"
 git -C "$runtime" rev-parse HEAD >"$runtime/venv/dependency-commit"
-printf '#!/bin/bash\nexit 0\n' >"$runtime/venv/bin/hermes"
+cat >"$runtime/venv/bin/hermes" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == chat && ${2:-} == --help ]]; then
+  echo "[-q QUERY, --query QUERY] [--tui]"
+  exit 0
+fi
+echo "hermes-agent 0.0.0-test"
+SH
 chmod +x "$runtime/venv/bin/hermes"
 printf '#!/bin/bash\nexec /usr/bin/python3 "$@"\n' >"$runtime/venv/bin/python"
 chmod +x "$runtime/venv/bin/python"
-[[ ${OMARCHY_TEST_NO_MARKER:-0} == 1 ]] || touch "$runtime/.hermes-bootstrap-complete"
+# Deliberately no .hermes-bootstrap-complete: the packaged hermes-desktop
+# install.sh --skip-setup that Omarchy ships does not write it. Upstream
+# install.sh may stamp after a full install; this mock matches the package.
 mkdir -p "$HOME/.local/bin"
 for command in hermes hermes-agent hermes-acp; do
   rm -f "$HOME/.local/bin/$command"
-  printf 'native runtime shim\n' >"$HOME/.local/bin/$command"
+  printf '#!/bin/bash\n# native runtime shim for %s\nexec "%s/venv/bin/hermes" "$@"\n' "$command" "$runtime" >"$HOME/.local/bin/$command"
+  chmod +x "$HOME/.local/bin/$command"
 done
 MOCK
 
@@ -96,6 +106,10 @@ cat >"$test_tmp/bin/omarchy-pkg-add" <<'MOCK'
 #!/bin/bash
 printf 'package %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
 [[ ${OMARCHY_TEST_PACKAGE_FAIL:-0} != 1 ]]
+MOCK
+cat >"$test_tmp/bin/omarchy-pkg-present" <<'MOCK'
+#!/bin/bash
+[[ $1 == hermes-desktop ]]
 MOCK
 cat >"$test_tmp/bin/git" <<'MOCK'
 #!/bin/bash
@@ -182,11 +196,26 @@ new_home() {
   : >"$test_tmp/events"
 }
 run_installer() {
-  HOME="$test_home" HERMES_HOME="${OMARCHY_TEST_HOME:-$hermes_home}" PATH="$test_tmp/bin:$PATH" \
+  HOME="$test_home" HERMES_HOME="${OMARCHY_TEST_HOME:-$hermes_home}" PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
     bash "$test_tmp/installer" >"$test_tmp/output" 2>&1
 }
 assert_stopped() {
   if grep -Eq '^(launch|theme-|build-stamp)' "$test_tmp/events"; then fail "$1"; fi
+}
+assert_bootstrap_marker() {
+  local marker=$runtime/.hermes-bootstrap-complete
+  [[ -f $marker ]] || fail "$1: bootstrap marker is missing"
+  jq -e --arg commit "$release_commit" '
+    .schemaVersion == 1
+    and .pinnedCommit == $commit
+    and .pinnedBranch == "main"
+    and (.completedAt | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"))
+  ' "$marker" >/dev/null || fail "$1: bootstrap marker schema" "$(cat "$marker")"
+}
+assert_hermes_cli_ready() {
+  HOME="$test_home" PATH="$test_home/.local/bin:$test_tmp/bin:$PATH" \
+    bash "$ROOT/bin/omarchy-install-hermes-cli" --check \
+    || fail "$1: omarchy-install-hermes-cli --check" "$(cat "$runtime/.hermes-bootstrap-complete")"
 }
 
 new_home fresh
@@ -203,7 +232,8 @@ grep -qx launch "$test_tmp/events" || fail "native app is copied before launch"
 [[ $(git -C "$runtime" symbolic-ref --short HEAD) == main && $(git -C "$runtime" rev-parse main) == "$release_commit" ]] || fail "main starts at the release rather than the clone tip"
 [[ $(cat "$runtime/venv/dependency-commit") == "$release_commit" ]] || fail "dependencies are installed for the release"
 [[ $(git -C "$runtime" rev-parse --is-shallow-repository) == false ]] || fail "first update has connected history"
-# Reproduce the updater's checkout/count/pull sequence while origin stays put.
+assert_bootstrap_marker "fresh setup"
+assert_hermes_cli_ready "fresh setup"
 git clone -q "$runtime" "$test_tmp/first-update"
 git -C "$test_tmp/first-update" remote set-url origin "file://$test_tmp/seed"
 git -C "$test_tmp/first-update" fetch -q origin main
@@ -249,17 +279,35 @@ grep -q 'hermes desktop --build-only' "$test_tmp/output" || fail "modified deskt
 assert_stopped "modified desktop sources prevent stamping, launch and theme setup"
 pass "a matching commit with modified desktop sources is preserved without seeding or stamping"
 
-for failure in package install marker; do
+for failure in package install; do
   new_home "$failure-failure"
   case "$failure" in
     package) OMARCHY_TEST_PACKAGE_FAIL=1 run_installer && fail "package failure stops setup" ;;
     install) OMARCHY_TEST_INSTALL_FAIL=1 run_installer && fail "installer failure stops setup" ;;
-    marker) OMARCHY_TEST_NO_MARKER=1 run_installer && fail "missing marker stops setup" ;;
   esac
   [[ ! -e $native ]] || fail "failed setup does not seed the app"
+  [[ ! -e $runtime/.hermes-bootstrap-complete ]] || fail "failed setup does not stamp a bootstrap marker"
   assert_stopped "failed setup prevents launch and theme setup"
 done
-pass "package, upstream installer and readiness failures stop before launch"
+pass "package and upstream installer failures stop before launch"
+
+new_home headless-marker
+run_installer || fail "headless skip-setup install succeeds without an upstream marker" "$(cat "$test_tmp/output")"
+assert_bootstrap_marker "headless skip-setup"
+assert_hermes_cli_ready "headless skip-setup"
+pass "headless skip-setup install writes the desktop bootstrap marker"
+
+new_home marker-backfill
+HOME="$test_home" HERMES_HOME="$hermes_home" bash "$test_tmp/share/install.sh" \
+  --skip-setup --branch main --commit "$release_commit" --force-commit --dir "$runtime" --hermes-home "$hermes_home"
+[[ ! -e $runtime/.hermes-bootstrap-complete ]] || fail "fixture runtime has no bootstrap marker"
+: >"$test_tmp/events"
+run_installer || fail "usable markerless runtime is accepted" "$(cat "$test_tmp/output")"
+! grep -qx bootstrap "$test_tmp/events" || fail "usable runtime is not handed back to install.sh just to stamp the marker"
+assert_bootstrap_marker "marker backfill"
+assert_hermes_cli_ready "marker backfill"
+grep -qx launch "$test_tmp/events" || fail "marker backfill still copies and launches the app"
+pass "a usable runtime missing only the marker is stamped without reinstalling"
 
 for failure in copy race; do
   new_home "$failure-failure"

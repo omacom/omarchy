@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# omarchy:summary=Stamp the Hermes Desktop bootstrap marker on a usable runtime
+# omarchy:hidden=true
+# omarchy:group=install
+
+# The packaged hermes-desktop path Omarchy ships
+# (/usr/share/hermes-desktop/install.sh --skip-setup) does not write
+# .hermes-bootstrap-complete. Upstream install.sh may stamp it at the end of a
+# full install; Windows install.ps1 does (Write-BootstrapMarker). Write that
+# same schema so omarchy-install-hermes-cli --check and theme activation see a
+# finished desktop runtime. desktopVersion is omitted on purpose: only the
+# Electron app knows it, and the validator does not require the field.
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+HERMES_HOME=$(realpath -ms -- "${HERMES_HOME:-$HOME/.hermes}")
+home_parent=$(dirname -- "$HERMES_HOME")
+if [[ ${home_parent##*/} == [Pp][Rr][Oo][Ff][Ii][Ll][Ee][Ss] ]]; then
+  HERMES_HOME=$(dirname -- "$home_parent")
+fi
+
+runtime=$HERMES_HOME/hermes-agent
+marker=$runtime/.hermes-bootstrap-complete
+
+[[ -f $marker ]] && exit 0
+
+if [[ ! -f $runtime/venv/bin/hermes || ! -x $runtime/venv/bin/hermes || ! -f $runtime/venv/bin/python || ! -x $runtime/venv/bin/python ]] ||
+  ! timeout 15 "$runtime/venv/bin/hermes" --version >/dev/null 2>&1; then
+  exit 0
+fi
+
+pinned_commit=${HERMES_BOOTSTRAP_PINNED_COMMIT:-}
+if [[ -z $pinned_commit ]]; then
+  pinned_commit=$(git -C "$runtime" rev-parse HEAD 2>/dev/null || true)
+fi
+if [[ -z $pinned_commit ]]; then
+  pinned_commit=$(jq -er 'select(.branch == "main") | .commit | select(test("^[0-9a-f]{40}$"))' /opt/hermes-desktop/resources/install-stamp.json 2>/dev/null || true)
+fi
+if [[ ! $pinned_commit =~ ^[0-9a-f]{7,}$ ]]; then
+  echo "Cannot stamp Hermes bootstrap marker: no pinned commit at $runtime" >&2
+  exit 1
+fi
+
+pinned_branch=${HERMES_BOOTSTRAP_PINNED_BRANCH:-main}
+completed_at=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+tmp=$(mktemp -p "$runtime" .hermes-bootstrap-complete.XXXXXX)
+if ! jq -n --indent 2 \
+  --arg pinnedCommit "$pinned_commit" \
+  --arg pinnedBranch "$pinned_branch" \
+  --arg completedAt "$completed_at" \
+  '{schemaVersion: 1, pinnedCommit: $pinnedCommit, pinnedBranch: $pinnedBranch, completedAt: $completedAt}' >"$tmp"; then
+  rm -f -- "$tmp"
+  echo "Cannot stamp Hermes bootstrap marker: failed to write $marker" >&2
+  exit 1
+fi
+mv -f -- "$tmp" "$marker"

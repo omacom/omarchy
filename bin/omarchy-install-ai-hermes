@@ -35,9 +35,16 @@ export HERMES_HOME
 runtime="$HERMES_HOME/hermes-agent"
 native_app="$runtime/apps/desktop/release/linux-unpacked"
 
-runtime_ready() {
-  [[ -f $runtime/.hermes-bootstrap-complete && -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes && -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] &&
+# The venv commands the desktop and the readiness probe actually run. The
+# bootstrap marker is separate: the packaged hermes-desktop install path
+# Omarchy ships may leave it missing even when these binaries are usable.
+runtime_commands_ready() {
+  [[ -f $runtime/venv/bin/hermes && -x $runtime/venv/bin/hermes && -f $runtime/venv/bin/python && -x $runtime/venv/bin/python ]] &&
     timeout 15 "$runtime/venv/bin/hermes" --version >/dev/null 2>&1
+}
+
+runtime_ready() {
+  [[ -f $runtime/.hermes-bootstrap-complete ]] && runtime_commands_ready
 }
 
 check_main() {
@@ -48,6 +55,11 @@ check_main() {
     return 1
   fi
 }
+
+# Stamp a usable runtime that is only missing the marker the packaged
+# hermes-desktop path may omit. Do not hand a dirty tree back to install.sh
+# just to create that file.
+HERMES_BOOTSTRAP_PINNED_COMMIT=$release_commit omarchy-stamp-hermes-bootstrap
 
 if ! runtime_ready; then
   # The upstream installer can reset an existing checkout. Do not pin a newer
@@ -81,6 +93,7 @@ if ! runtime_ready; then
 
   echo "Setting up the Hermes runtime..."
   bash /usr/share/hermes-desktop/install.sh --skip-setup --branch main --commit "$release_commit" --force-commit --dir "$runtime" --hermes-home "$HERMES_HOME"
+  HERMES_BOOTSTRAP_PINNED_COMMIT=$release_commit omarchy-stamp-hermes-bootstrap
   if ! runtime_ready; then
     echo "Hermes runtime setup did not complete. Re-run this command after resolving the installer error." >&2
     exit 1
