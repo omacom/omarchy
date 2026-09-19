@@ -463,6 +463,9 @@ Panel {
   }, connectivityChecksEnabled)
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
+  // Start on the well-known fallback; replace with NM's connectivity uri once
+  // the merged config is available so sign-in matches the probe NM used.
+  property string captivePortalUrl: Model.captivePortalUrl
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
   readonly property string connectionKey: kind === "wifi" && wifiDevice && connectedWifiNetwork
     ? kind + ":" + wifiDevice.name + ":" + connectedWifiNetwork.name
@@ -490,10 +493,20 @@ Panel {
 
   function openCaptivePortal() {
     if (!hasCaptivePortal) return
-    // Explicit user action only. argv (not a shell string), and a fixed HTTP
-    // URL: let the browser handle the redirect without trusting portal input.
-    Quickshell.execDetached(["omarchy-launch-browser", Model.captivePortalUrl])
+    // Explicit user action only. argv (not a shell string), and a known HTTP
+    // probe URL: let the browser handle the redirect without trusting portal input.
+    Quickshell.execDetached(["omarchy-launch-browser", root.captivePortalUrl])
     close()
+  }
+
+  Process {
+    id: nmConnectivityConfig
+    command: ["NetworkManager", "--print-config"]
+    running: true
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.captivePortalUrl = Model.resolveCaptivePortalUrl(text)
+    }
   }
 
   // Keep checking while login is needed, even with the panel closed in favour
