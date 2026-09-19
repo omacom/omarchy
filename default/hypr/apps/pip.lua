@@ -11,8 +11,11 @@ o.window({ tag = "pip" }, {
   move = { "(monitor_w-window_w-40)", "(monitor_h*0.04)" },
 })
 
--- Google Meet PiP uses the meeting title instead of "Picture-in-Picture".
-o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, {
+-- Google Meet PiP uses the meeting title instead of "Picture-in-Picture", and
+-- separates it with an en dash. The browser's own window uses an ASCII hyphen
+-- ("Meet - <meeting> - Google Chrome"), so matching the dash is what keeps this
+-- rule off the main window.
+o.window({ tag = "chromium-based-browser", title = "^Meet [–—] .+" }, {
   tag = "-default-opacity",
   float = true,
   pin = true,
