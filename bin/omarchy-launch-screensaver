@@ -2,6 +2,10 @@
 
 # omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
 
+# Keep concurrent idle/manual launches from saving each other's screensaver.
+exec 9>"$XDG_RUNTIME_DIR/omarchy-screensaver-$HYPRLAND_INSTANCE_SIGNATURE.lock"
+flock -n 9 || exit 0
+
 # Exit early if screensaver is already running
 pgrep -f '[o]rg.omarchy.screensaver' && exit 0
 
@@ -34,9 +38,17 @@ hypr_exec() {
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 
+# The screensaver's fullscreen rule displaces the previous fullscreen window
+# before openwindow is emitted. Save both compositor and client state now.
+clients=$(hyprctl clients -j) || exit 1
+fullscreen_windows=$(jq -c '[.[] | select(.mapped and (.fullscreen != 0 or .fullscreenClient != 0))
+  | {address, pid, stableId, fullscreen, fullscreenClient, fullscreenHandler}]' <<<"$clients") || exit 1
+
 # Open Hyprland's event stream before spawning anything, so a terminal that maps
 # quickly can't emit its openwindow event before we are listening for it.
-exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
+exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET" 9>&-)
+events_pid=$!
+trap 'kill "$events_pid" 2>/dev/null; wait "$events_pid" 2>/dev/null' EXIT
 
 # hypr_exec is async and a new window maps on whatever monitor is focused at that
 # moment. Block until this monitor's screensaver actually opens before moving
@@ -71,3 +83,41 @@ for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
 done
 
 hypr_focus_monitor "$focused"
+
+if [[ $fullscreen_windows != "[]" ]]; then
+  # All monitors must be clear before restoring: another screensaver closing
+  # can otherwise displace the restored window again. Reconcile on close events
+  # and timeouts, so an already-closed window cannot leave us waiting forever.
+  unanswered=0
+  while true; do
+    if ! clients=$(hyprctl clients -j); then
+      (( ++unanswered >= 3 )) && exit 1
+      sleep 1
+      continue
+    fi
+    unanswered=0
+    # Keep the class out of jq's argv: the screensaver exits with pkill -f.
+    # A failed query is not evidence that every screensaver has closed.
+    screensaver_running=$(SCREENSAVER_CLASS=org.omarchy.screensaver \
+      jq 'any(.[]; .mapped and .class == env.SCREENSAVER_CLASS)' <<<"$clients") || exit 1
+    if [[ $screensaver_running == "false" ]]; then
+      break
+    fi
+    while IFS= read -r -t 1 -u "$events" event; do
+      [[ $event == closewindow\>\>* ]] && break
+    done
+    # A disconnected event stream returns immediately instead of timing out.
+    kill -0 "$events_pid" 2>/dev/null || exit 1
+  done
+
+  # Address alone can be reused after a window closes. Restore only surviving,
+  # changed windows, without focusing them or changing the current workspace.
+  while IFS= read -r command; do
+    hyprctl dispatch "$command" >/dev/null
+  done < <(jq -r --argjson saved "$fullscreen_windows" '
+    $saved[] as $before | .[]
+    | select(.mapped and .address == $before.address and .pid == $before.pid and .stableId == $before.stableId)
+    | select(.fullscreen != $before.fullscreen or .fullscreenClient != $before.fullscreenClient)
+    | "hl.dsp.window.fullscreen_state({ window = \"address:\(.address)\", action = \"set\", internal = \($before.fullscreen), client = \($before.fullscreenClient), layout_aware = \($before.fullscreenHandler != "default") })"
+  ' <<<"$clients")
+fi
