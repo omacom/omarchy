@@ -7,7 +7,35 @@ default_browser=$(env -u BROWSER xdg-settings get default-web-browser)
 if [[ -z $default_browser ]]; then
   default_browser=$(xdg-mime query default x-scheme-handler/https)
 fi
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
+
+desktop_exec_argv() {
+  local desktop=$1
+  local file line
+  desktop_exec_argv=()
+  for file in "$HOME/.local/share/applications/$desktop" \
+              "$HOME/.nix-profile/share/applications/$desktop" \
+              "/usr/share/applications/$desktop"; do
+    [[ -f $file ]] || continue
+    line=$(sed -n 's/^Exec=//p' "$file" | head -1)
+    [[ -n $line ]] && break
+  done
+  [[ -n $line ]] || return 1
+  line=${line//%[fFuUdDnNickvm]/}
+  read -r -a desktop_exec_argv <<<"$line"
+  (( ${#desktop_exec_argv[@]} > 0 ))
+}
+
+desktop_exec_argv "$default_browser" || exit 1
+
+browser_exec=""
+for token in "${desktop_exec_argv[@]}"; do
+  if [[ $token == env || $token == */env || $token == *=* || $token == run || $token == flatpak || $token == */flatpak ]]; then
+    continue
+  fi
+  browser_exec=$token
+  break
+done
+[[ -n $browser_exec ]] || browser_exec=${desktop_exec_argv[0]}
 
 if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
   private_flag="--private-window"
@@ -19,7 +47,7 @@ fi
 
 systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
   --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+  uwsm-app -- "${desktop_exec_argv[@]}" "${@/--private/$private_flag}"
 
 url=""
 for argument in "$@"; do
