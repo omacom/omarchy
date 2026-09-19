@@ -18,4 +18,7 @@ systemctl --user enable --now \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
-  omarchy-crash-watch.service
+  omarchy-crash-watch.service \
+  omarchy-thunderbolt-notify.service \
+  omarchy-thunderbolt-notify.path \
+  omarchy-thunderbolt-notify.timer
