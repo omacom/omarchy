@@ -21,6 +21,8 @@ Item {
   property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
+  // Bumped by the service on every system resume from suspend.
+  property int resumeSignal: 0
 
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
@@ -65,6 +67,12 @@ Item {
 
   onPasswordTextChanged: syncPasswordText()
   onInputEnabledChanged: {
+    if (inputEnabled) Qt.callLater(forcePasswordFocus)
+  }
+  // Resume from suspend doesn't toggle inputEnabled (the lock was already
+  // active before the machine slept), so it needs its own trigger to reclaim
+  // focus the same way a click on the lock screen already does.
+  onResumeSignalChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
   Component.onCompleted: {

@@ -41,6 +41,9 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Bumped on every system resume from suspend so LockView instances know to
+  // reclaim keyboard focus, same as a click on the lock screen already does.
+  property int resumeSignal: 0
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -181,6 +184,12 @@ Item {
     if (lockRequested) armBlankTimer()
   }
 
+  function handleSystemResume() {
+    if (!lockRequested) return
+    runWake()
+    resumeSignal += 1
+  }
+
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
@@ -317,6 +326,7 @@ Item {
         displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
         powerSaverActive: root.powerSaverActive
         passwordText: root.enteredPassword
+        resumeSignal: root.resumeSignal
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
@@ -615,6 +625,18 @@ Item {
 
     function hidePreview(): string {
       root.previewVisible = false
+      return "ok"
+    }
+
+    // Called by omarchy-system-resume-monitor (a systemd-managed service, not
+    // a QML Process here) each time the system resumes from suspend. A real
+    // suspend/resume leaves the lock surface showing but with no keyboard
+    // focus reclaimed -- unlike idle-blank wake, nothing here otherwise reacts
+    // to the machine actually coming back from sleep, only to user pointer
+    // activity (see LockView's wakeRequested). This nudges focus back the
+    // same way a click on the lock screen already does.
+    function resume(): string {
+      root.handleSystemResume()
       return "ok"
     }
   }
