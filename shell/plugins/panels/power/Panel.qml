@@ -19,6 +19,10 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  property string cursorSection: "profile"
+  property bool capSupported: false
+  property bool capEnabled: false
+  property int capIndex: 0
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -40,6 +44,30 @@ Panel {
 
   function selectProfileByDelta(delta) {
     profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
+  }
+
+  function moveCursor(dx, dy) {
+    if (dx !== 0) {
+      if (root.cursorSection === "cap") root.capIndex = Model.selectCapIndex(root.capIndex, dx)
+      else root.selectProfileByDelta(dx)
+      return
+    }
+    if (dy === 0) return
+    var next = Model.selectCursorSection(root.cursorSection, dy, root.capSupported)
+    if (next !== root.cursorSection) {
+      root.cursorSection = next
+      return
+    }
+    if (root.cursorSection === "cap") root.capIndex = Model.selectCapIndex(root.capIndex, dy)
+    else root.selectProfileByDelta(dy)
+  }
+
+  function activateSelection() {
+    if (root.cursorSection === "cap") {
+      root.setChargeCap(root.capIndex === 1)
+      return
+    }
+    root.activateSelectedProfile()
   }
 
   function activateSelectedProfile() {
@@ -73,6 +101,8 @@ Panel {
     var device = UPower.displayDevice
     return Model.chargeThresholdActive(device, root.discharging, upowerStates())
   }
+  readonly property bool chargeLimitConfigured: Model.chargeLimitConfigured(root.batteryInfo)
+  readonly property bool showChargeLimit: chargeThresholdActive || chargeLimitConfigured
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
 
@@ -138,6 +168,7 @@ Panel {
     if (!batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+    if (!capProc.running) capProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -167,6 +198,19 @@ Panel {
     if (!profile || actionProc.running) return
     actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
     actionProc.running = true
+  }
+
+  function setChargeCap(enabled) {
+    if (actionProc.running) return
+    actionProc.command = ["omarchy-toggle-battery-limit", enabled ? "on" : "off"]
+    actionProc.running = true
+  }
+
+  function updateCapStatus(raw) {
+    var parsed = Model.parseCapStatus(raw)
+    capSupported = parsed.supported
+    capEnabled = parsed.enabled
+    if (!cursorActive) capIndex = parsed.enabled ? 1 : 0
   }
 
   function togglePercentage() {
@@ -221,6 +265,12 @@ Panel {
     id: systemProc
     command: ["omarchy-system-stats"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateKeyValue(text, "system") }
+  }
+
+  Process {
+    id: capProc
+    command: ["omarchy-toggle-battery-limit", "--status"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateCapStatus(text) }
   }
 
   Process {
@@ -304,10 +354,9 @@ Panel {
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
+        root.moveCursor(dx, dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: if (root.cursorActive) root.activateSelection()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -441,8 +490,8 @@ Panel {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
             InfoPair {
-              label: root.chargeThresholdActive ? "Charge limit" : (root.discharging ? "Time left" : "Time to full")
-              value: root.chargeThresholdActive ? (root.batteryInfo.threshold || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+              label: root.showChargeLimit ? "Charge limit" : (root.discharging ? "Time left" : "Time to full")
+              value: root.showChargeLimit ? (root.batteryInfo.threshold || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
             }
             InfoPair {
               label: root.chargeThresholdActive ? "Battery state" : (root.discharging ? "Discharging" : "Charging")
@@ -491,12 +540,64 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.cursorSection === "profile" && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.cursorSection = "profile"
                     root.profileIndex = index
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        Column {
+          visible: root.capSupported
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSeparator {
+            foreground: root.bar.foreground
+          }
+
+          PanelSectionHeader {
+            text: "BATTERY CAP"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Row {
+            id: capRow
+            width: parent.width
+            spacing: Style.space(6)
+
+            readonly property var choices: ["off", "on"]
+            readonly property real cellWidth: (width - spacing) / 2
+
+            Repeater {
+              model: capRow.choices
+              Button {
+                required property var modelData
+                required property int index
+                width: capRow.cellWidth
+                text: modelData === "on" ? "On" : "Off"
+                fontSize: Style.font.bodySmall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                horizontalPadding: Style.spacing.controlPaddingX
+                verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                bordered: true
+                active: root.capEnabled === (modelData === "on")
+                hasCursor: root.cursorActive && root.cursorSection === "cap" && root.capIndex === index
+                onClicked: root.setChargeCap(modelData === "on")
+                onHovered: function(h) {
+                  if (h) {
+                    root.cursorActive = true
+                    root.cursorSection = "cap"
+                    root.capIndex = index
                   }
                 }
               }
