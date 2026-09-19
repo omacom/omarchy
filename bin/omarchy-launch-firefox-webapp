@@ -1,0 +1,255 @@
+#!/bin/bash
+
+# omarchy:summary=Launch a URL as a web app in a Firefox-based browser
+# omarchy:args=[--browser <flavor>] <url> [extra-firefox-args...]
+# omarchy:examples=omarchy launch firefox webapp https://youtube.com/ | omarchy launch firefox webapp --browser zen https://youtube.com/
+
+# Chromium --app equivalent for Firefox-based browsers (Mint Web App Manager parity):
+# an isolated per-URL profile plus --class/--name for window identity and
+# --no-remote so the URL cannot leak into an already-running main browser.
+# Env:
+#   FIREFOX_FLAVOR   — default flavor (default: xdg default if Firefox-based, else firefox)
+#   FIREFOX_BIN      — explicit binary override (default: per-flavor binary)
+#   FIREFOX_SSB_BASE — profile base dir override (default: $HOME/.mozilla/<flavor>-ssb)
+#   DRY_RUN=1        — print the launch command instead of exec (for tests)
+
+ff_supported_flavors() {
+  printf '%s\n' "firefox zen librewolf waterfox floorp"
+}
+
+# Resolve a flavor to "binary|desktop|subdir|wm-prefix". Fails on unknown flavors.
+ff_resolve_browser() {
+  local flavor=${1,,}
+  case $flavor in
+    firefox) printf '%s' "firefox|firefox.desktop|firefox-ssb|FFWebApp" ;;
+    zen) printf '%s' "zen-browser|zen.desktop|zen-ssb|ZenWebApp" ;;
+    librewolf) printf '%s' "librewolf|librewolf.desktop|librewolf-ssb|LWWebApp" ;;
+    waterfox) printf '%s' "waterfox|waterfox.desktop|waterfox-ssb|WFWebApp" ;;
+    floorp) printf '%s' "floorp|floorp.desktop|floorp-ssb|FloorpWebApp" ;;
+    *)
+      printf 'Error: unsupported Firefox flavor: %s (try: firefox zen librewolf waterfox floorp)\n' "$1" >&2
+      return 1
+      ;;
+  esac
+}
+
+ff_browser_field() {
+  local resolved
+  if resolved=$(ff_resolve_browser "$1"); then
+    printf '%s' "$resolved" | cut -d'|' -f"$2"
+  else
+    return 1
+  fi
+}
+
+ff_browser_binary() {
+  ff_browser_field "$1" 1
+}
+
+ff_browser_subdir() {
+  ff_browser_field "$1" 3
+}
+
+ff_browser_prefix() {
+  ff_browser_field "$1" 4
+}
+
+# Default flavor: $FIREFOX_FLAVOR when valid, else the xdg default when it is
+# Firefox-based, else firefox.
+ff_default_flavor() {
+  local override=${FIREFOX_FLAVOR:-}
+  if [[ -n $override ]]; then
+    local lower=${override,,}
+    if ff_resolve_browser "$lower" >/dev/null 2>&1; then
+      printf '%s' "$lower"
+      return 0
+    fi
+  fi
+  local desktop=""
+  if omarchy-cmd-present xdg-settings; then
+    desktop=$(env -u BROWSER xdg-settings get default-web-browser 2>/dev/null || true)
+  fi
+  desktop=${desktop,,}
+  desktop=${desktop%.desktop}
+  case $desktop in
+    firefox | zen | librewolf | waterfox | floorp)
+      printf '%s' "$desktop"
+      return 0
+      ;;
+  esac
+  printf '%s' "firefox"
+}
+
+# Prepend https:// when no scheme is present (mirrors omarchy-webapp-install).
+ff_normalize_url() {
+  local url=$1
+  if [[ ! $url =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]; then
+    url="https://$url"
+  fi
+  printf '%s' "$url"
+}
+
+# Reject whitespace and non-http(s). Fails when the URL is not acceptable.
+ff_require_http_url() {
+  local url=$1
+  if [[ $url =~ [[:space:]] ]]; then
+    printf 'Error: web app URL must not contain whitespace.\n' >&2
+    return 1
+  fi
+  if [[ ! ${url,,} =~ ^https?:// ]]; then
+    printf 'Error: web app URL must be http or https.\n' >&2
+    return 1
+  fi
+  return 0
+}
+
+# Deterministic 8-char id from the URL (stable WM_CLASS and profile name).
+ff_app_id() {
+  local url=$1 out=""
+  if omarchy-cmd-present md5sum; then
+    out=$(printf '%s' "$url" | md5sum | cut -c1-8)
+  elif omarchy-cmd-present md5; then
+    out=$(printf '%s' "$url" | md5 | cut -c1-8)
+  else
+    out=$(python3 -c 'import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:8])' "$url")
+  fi
+  printf '%s' "$out"
+}
+
+ff_wm_class() {
+  local prefix
+  if (( $# >= 2 )); then
+    if prefix=$(ff_browser_prefix "$2"); then
+      printf '%s-%s' "$prefix" "$1"
+    else
+      return 1
+    fi
+  else
+    printf 'FFWebApp-%s' "$1"
+  fi
+}
+
+ff_profile_dir() {
+  local id=$1 flavor=${2:-firefox} subdir base
+  if [[ -n ${FIREFOX_SSB_BASE:-} ]]; then
+    base="$FIREFOX_SSB_BASE"
+  elif subdir=$(ff_browser_subdir "$flavor"); then
+    base="$HOME/.mozilla/$subdir"
+  else
+    return 1
+  fi
+  printf '%s/%s' "$base" "$id"
+}
+
+# Create the profile skeleton (idempotent: never clobber an existing userChrome.css).
+ff_ensure_profile() {
+  local profile=$1
+  mkdir -p "$profile/chrome"
+  if [[ ! -f $profile/chrome/userChrome.css ]]; then
+    cat >"$profile/chrome/userChrome.css" <<'CSS'
+/* Firefox SSB: hide navigation and tabs for an app-like window */
+#nav-bar, #TabsToolbar, #PersonalToolbar { display: none !important; }
+#navigator-toolbox { border-bottom: none !important; }
+CSS
+  fi
+  if [[ ! -f $profile/user.js ]]; then
+    cat <<'JS' >"$profile/user.js"
+// Firefox SSB defaults
+user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.sessionstore.resume_from_crash", false);
+JS
+  fi
+}
+
+usage() {
+  echo "Usage: omarchy launch firefox webapp [--browser <flavor>] <url> [extra-firefox-args...]" >&2
+  echo "Flavors: $(ff_supported_flavors | tr '\n' ' ')" >&2
+}
+
+main() {
+  local flavor=""
+  while (( $# > 0 )); do
+    case $1 in
+      -h | --help)
+        usage
+        return 1
+        ;;
+      -b | --browser)
+        if (( $# < 2 )); then
+          usage
+          return 1
+        fi
+        flavor=${2,,}
+        shift 2
+        ;;
+      --browser=*)
+        flavor=${1#*=}
+        flavor=${flavor,,}
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        usage
+        return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  if [[ -z $flavor ]]; then
+    flavor=$(ff_default_flavor)
+  fi
+  local resolved
+  if ! resolved=$(ff_resolve_browser "$flavor"); then
+    return 1
+  fi
+  local default_bin
+  default_bin=$(printf '%s' "$resolved" | cut -d'|' -f1)
+
+  if (( $# == 0 )); then
+    usage
+    return 1
+  fi
+
+  local raw_url=$1
+  shift
+  local url
+  url=$(ff_normalize_url "$raw_url")
+  if ! ff_require_http_url "$url"; then
+    return 1
+  fi
+
+  local app_id wm_class profile firefox_bin
+  app_id=$(ff_app_id "$url")
+  wm_class=$(ff_wm_class "$app_id" "$flavor") || return 1
+  profile=$(ff_profile_dir "$app_id" "$flavor") || return 1
+  firefox_bin="${FIREFOX_BIN:-$default_bin}"
+
+  ff_ensure_profile "$profile"
+
+  # Prefer uwsm-app (Hyprland/UWSM scope) like omarchy-launch-webapp.
+  local launch
+  if omarchy-cmd-present uwsm-app; then
+    launch=(setsid uwsm-app -- "$firefox_bin" "--class=$wm_class" "--name=$wm_class" "--profile=$profile" "--no-remote" "--new-window" "$url" "$@")
+  else
+    launch=(setsid "$firefox_bin" "--class=$wm_class" "--name=$wm_class" "--profile=$profile" "--no-remote" "--new-window" "$url" "$@")
+  fi
+
+  if [[ ${DRY_RUN:-0} == "1" ]]; then
+    printf 'FLAVOR=%s\nBINARY=%s\nWM_CLASS=%s\nPROFILE=%s\nURL=%s\n' "$flavor" "$firefox_bin" "$wm_class" "$profile" "$url"
+    printf 'CMD:'
+    printf ' %q' "${launch[@]}"
+    printf '\n'
+    return 0
+  fi
+
+  exec "${launch[@]}"
+}
+
+main "$@"
