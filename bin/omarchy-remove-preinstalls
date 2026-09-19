@@ -5,6 +5,15 @@
 if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI wrappers, and desktop applications?"; then
   echo -e "Removing preinstalled Omarchy applications...\n"
 
+  preinstall_packages_file="$OMARCHY_PATH/install/omarchy-preinstalls.packages"
+  [[ -f $preinstall_packages_file ]] || {
+    echo "Preinstall package list not found: $preinstall_packages_file" >&2
+    exit 1
+  }
+  mapfile -t preinstall_packages < <(
+    sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$preinstall_packages_file"
+  )
+
   omarchy-webapp-remove-all
   omarchy-tui-remove-all
 
@@ -38,18 +47,5 @@ if gum confirm "Are you sure you want to remove all preinstalled web apps, TUI w
     rm -f ~/.local/bin/hermes
   fi
 
-  omarchy-pkg-drop \
-    aether \
-    cliamp \
-    libreoffice-fresh \
-    xournalpp \
-    pinta \
-    obsidian \
-    obs-studio \
-    kdenlive \
-    moonlight-qt \
-    lazydocker \
-    omacut \
-    omacalc \
-    omawrite
+  omarchy-pkg-drop "${preinstall_packages[@]}"
 fi

@@ -1,0 +1,19 @@
+# Optional applications and tools shipped in the base image.
+#
+# Keep this list in sync with the packages users can restore after choosing
+# Remove > Preinstalls. One package per line; blank lines and comments are
+# ignored by the install/remove commands.
+
+aether
+cliamp
+libreoffice-fresh
+xournalpp
+pinta
+obsidian
+obs-studio
+kdenlive
+moonlight-qt
+lazydocker
+omacut
+omacalc
+omawrite
