@@ -1,0 +1,26 @@
+#!/bin/bash
+set -euo pipefail
+systemctl is-active --quiet mbp2019-amdgpu-demand.service
+dpm=/sys/bus/pci/devices/0000:03:00.0/power_dpm_force_performance_level
+[[ $(< "$dpm") == "low" ]]
+timeout --signal=INT --kill-after=3s 25s env -u LIBVA_DRIVER_NAME \
+  DRI_PRIME=pci-0000_03_00_0! vkcube --wsi wayland \
+  --width 1600 --height 1000 --present_mode 0 &
+renderer=$!
+trap 'kill -TERM "$renderer" 2>/dev/null || true' EXIT
+saw_high=0
+for ((tick=0; tick<25; tick++)); do
+  [[ $(< "$dpm") == "high" ]] && saw_high=1
+  if (( tick % 5 == 0 )); then cat /run/mbp2019-amdgpu-demand/status.json; fi
+  sleep 1
+done
+result=0
+wait "$renderer" || result=$?
+trap - EXIT
+[[ $result == 0 || $result == 124 || $result == 130 ]]
+(( saw_high )) || { echo 'No boost observed; inspect the service log.' >&2; exit 1; }
+for ((tick=0; tick<15; tick++)); do sleep 1; done
+systemctl is-active --quiet mbp2019-amdgpu-demand.service
+[[ $(< "$dpm") == "low" ]]
+cat /run/mbp2019-amdgpu-demand/status.json
+echo 'Installed service: automatic boost and return to low verified.'
