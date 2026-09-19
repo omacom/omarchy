@@ -78,6 +78,43 @@ Tajik|tj_alt-UTF8
 Turkish|trq
 Ukrainian|ua'
 
+# Console keymaps systemd's kbd-model-map has no conversion row for. For these,
+# systemd-firstboot --keymap and localectl set-keymap persist KEYMAP alone, and
+# the XKB variables the user session (default/hypr/input.lua) and the SDDM
+# greeter (default/sddm/hyprland.lua) read — XKBLAYOUT and XKBVARIANT — would
+# never land in /etc/vconsole.conf, leaving both on Hyprland's built-in "us"
+# default with a password the layout it was typed under can no longer produce.
+# keymap|xkb-layout|xkb-variant (the variant field may be empty). The layouts
+# systemd does convert need no entry here; omarchy_keyboard_xkb only answers
+# for the gaps.
+#
+# The variants matter: a blank variant selects XKB's default, which is not
+# always what the console keymap types. bg-cp1251 is the phonetic Bulgarian
+# map (XKB's default is BDS) and cz is QWERTY (XKB's default is QWERTZ), so
+# blank variants would silently move the very keys a setup-typed password
+# depends on. azerty is the French AZERTY console keymap (offered as
+# Azerbaijani for historical reasons), so it maps to the XKB layout that
+# reproduces the bytes typed at install time, not to the country the label
+# names.
+OMARCHY_KEYBOARD_XKB_GAPS=$'azerty|fr|\nbg-cp1251|bg|phonetic\ncolemak|us|colemak\ncz|cz|qwerty\nde_CH-latin1|ch|\nkyrgyz|kg|\nno-latin1|no|\npl|pl|\nua|ua|'
+
+# The XKB layout and variant a console keymap must be paired with when systemd
+# itself cannot derive them. Prints "layout variant" (variant possibly empty),
+# or nothing when the keymap is not one of the gaps.
+omarchy_keyboard_xkb() {
+  local row
+  while IFS= read -r row; do
+    [[ -n $row ]] || continue
+    [[ ${row%%|*} == "$1" ]] || continue
+    row=${row#*|}
+    printf '%s %s\n' "${row%%|*}" "${row#*|}"
+    return 0
+  done < <(printf '%s\n' "$OMARCHY_KEYBOARD_XKB_GAPS")
+  # A miss must not read as a failure: callers run under `set -e`, where the
+  # loop's terminating `read` status would otherwise abort the assignment.
+  return 0
+}
+
 OMARCHY_USERNAME_PATTERN='^[a-z_][a-z0-9_-]*[$]?$'
 OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-coredump|systemd-network|systemd-oom|systemd-journal-remote|systemd-resolve|systemd-timesync|tss|uuidd|alpm|git|avahi|cups|cups-browsed|lp|_talkd|polkitd|rtkit|qemu|brltty|gluster|rpc|libvirt-qemu|pcscd|nvidia-persistenced|sddm)$'
 OMARCHY_HOSTNAME_PATTERN='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
