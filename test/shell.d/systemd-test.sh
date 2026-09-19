@@ -29,6 +29,8 @@ pass "sleep lock service follows the initialized graphical session"
 first_run_units="$ROOT/install/user/first-run/enable-user-units.sh"
 grep -Fx 'systemctl --user daemon-reload' "$first_run_units" >/dev/null
 grep -F 'omarchy-sleep-lock.service' "$first_run_units" >/dev/null
+grep -F 'omarchy-keyring-repair.service' "$first_run_units" >/dev/null ||
+  fail "first-run does not enable the keyring repair service"
 pass "first-run reloads and enables the sleep lock service"
 
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
