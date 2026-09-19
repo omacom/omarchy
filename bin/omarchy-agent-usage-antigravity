@@ -1,0 +1,518 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Google Antigravity usage into one display-ready JSON record.
+
+Local token and prompt stats come from ~/.gemini/antigravity-cli transcripts
+and history.jsonl; rate limits and quotas come from probing agy /usage.
+The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "antigravity"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Run `agy` in a terminal to authenticate with Google."
+LIMITS_CACHE_SECONDS = 120
+
+
+def runtime_env() -> dict[str, str]:
+  home = os.environ.get("HOME", str(Path.home()))
+  path_parts = [
+    os.environ.get("PATH", ""),
+    f"{home}/.local/bin",
+    f"{home}/.local/share/mise/shims",
+  ]
+  env = os.environ.copy()
+  env["PATH"] = os.pathsep.join(part for part in path_parts if part)
+  return env
+
+
+ENV = runtime_env()
+
+
+def cache_dir() -> Path:
+  cache_home = os.environ.get("XDG_CACHE_HOME")
+  if cache_home:
+    path = Path(cache_home)
+  else:
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    path = home / ".cache"
+  root = path / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def date_string(value: dt.date) -> str:
+  return value.strftime("%Y-%m-%d")
+
+
+def recent_date_strings() -> list[str]:
+  today = dt.date.today()
+  return [date_string(today - dt.timedelta(days=offset)) for offset in range(6, -1, -1)]
+
+
+def estimate_tokens(text: str) -> int:
+  if not text:
+    return 0
+  words = len(text.split())
+  chars = len(text)
+  return max(1, max(words, chars // 4))
+
+
+def normalize_model_id(model_name: str) -> str:
+  m = str(model_name or "").lower()
+  if "gemini" in m:
+    match = re.search(r"gemini\s*([0-9.]+)(?:\s*(\w+))?", m)
+    if match:
+      ver = match.group(1)
+      flavor = match.group(2) or "flash"
+      return f"gemini-{ver}-{flavor}"
+    return "gemini-3.8-flash"
+  if "claude" in m:
+    if "opus" in m:
+      return "claude-opus-4.6"
+    if "sonnet" in m:
+      return "claude-sonnet-4.6"
+    return "claude"
+  if "gpt" in m:
+    return "gpt-oss-120b"
+  clean = re.sub(r"[^a-z0-9.]+", "-", m).strip("-")
+  return clean or "gemini-3.8-flash"
+
+
+def scan_local_stats(history_path: Path | None = None) -> dict[str, Any]:
+  if history_path is None:
+    home = Path(os.environ.get("HOME", str(Path.home())))
+    base_dir = home / ".gemini" / "antigravity-cli"
+    history_path = base_dir / "history.jsonl"
+  else:
+    base_dir = history_path.parent
+
+  brain_dir = base_dir / "brain"
+  settings_path = base_dir / "settings.json"
+
+  default_model = "Gemini 3.8 Flash"
+  if settings_path.is_file():
+    try:
+      settings = json.loads(settings_path.read_text(encoding="utf-8"))
+      m = settings.get("model")
+      if m:
+        default_model = str(m)
+    except Exception:
+      pass
+
+  default_model_id = normalize_model_id(default_model)
+
+  dates = recent_date_strings()
+  today_str = dates[-1]
+  today_sessions: set[str] = set()
+  all_sessions: set[str] = set()
+  active_dates: set[str] = set()
+  today_prompts = 0
+  total_prompts = 0
+
+  tokens_by_day: dict[str, int] = {d: 0 for d in dates}
+  usage_by_model: dict[str, dict[str, int]] = {}
+  today_tokens_by_model: dict[str, int] = {}
+  scanned_conv_ids: set[str] = set()
+
+  # 1. Parse prompt counts and sessions from history.jsonl
+  prompts_by_conv: dict[str, list[dict[str, Any]]] = {}
+  if history_path.is_file():
+    try:
+      with open(history_path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+          line = line.strip()
+          if not line:
+            continue
+          try:
+            item = json.loads(line)
+          except Exception:
+            continue
+
+          ts = item.get("timestamp")
+          if not ts or not isinstance(ts, (int, float)):
+            continue
+
+          if ts > 10_000_000_000:
+            ts = ts / 1000.0
+
+          entry_date = dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+          active_dates.add(entry_date)
+          total_prompts += 1
+
+          conv_id = item.get("conversationId") or ""
+          if conv_id:
+            all_sessions.add(conv_id)
+            prompts_by_conv.setdefault(conv_id, []).append(item)
+
+          if entry_date == today_str:
+            today_prompts += 1
+            if conv_id:
+              today_sessions.add(conv_id)
+    except Exception:
+      pass
+
+  # 2. Scan transcripts in brain/ for realistic token volume and model breakdown
+  if brain_dir.is_dir():
+    for conv_path in brain_dir.iterdir():
+      if not conv_path.is_dir():
+        continue
+      conv_id = conv_path.name
+      transcript_file = conv_path / ".system_generated" / "logs" / "transcript.jsonl"
+      if not transcript_file.is_file():
+        continue
+      scanned_conv_ids.add(conv_id)
+
+      current_model_id = default_model_id
+      try:
+        with open(transcript_file, "r", encoding="utf-8", errors="replace") as f:
+          for line in f:
+            if not line.strip():
+              continue
+            try:
+              step = json.loads(line)
+            except Exception:
+              continue
+
+            created_at = step.get("created_at") or ""
+            day = created_at[:10] if len(created_at) >= 10 else today_str
+
+            content = step.get("content") or ""
+            thinking = step.get("thinking") or ""
+            source = step.get("source") or ""
+
+            if "Model Selection" in content:
+              m_match = re.search(r"Model Selection.*?\bto\s+([A-Za-z0-9. ()]+)", content)
+              if m_match:
+                current_model_id = normalize_model_id(m_match.group(1))
+
+            in_tok = 0
+            out_tok = 0
+            if source == "MODEL":
+              out_tok += estimate_tokens(content) + estimate_tokens(thinking)
+              for tc in step.get("tool_calls", []):
+                out_tok += estimate_tokens(json.dumps(tc.get("args", {})))
+            else:
+              in_tok += estimate_tokens(content)
+
+            total_step_tok = in_tok + out_tok
+            if total_step_tok <= 0:
+              continue
+
+            bucket = usage_by_model.setdefault(current_model_id, {
+              "inputTokens": 0,
+              "outputTokens": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0,
+            })
+            bucket["inputTokens"] += in_tok
+            bucket["outputTokens"] += out_tok
+
+            tokens_by_day[day] = tokens_by_day.get(day, 0) + total_step_tok
+            active_dates.add(day)
+
+            if day == today_str:
+              today_tokens_by_model[current_model_id] = (
+                today_tokens_by_model.get(current_model_id, 0) + total_step_tok
+              )
+      except Exception:
+        pass
+
+  # 3. Fallback token estimation for sessions without transcripts
+  for conv_id, items in prompts_by_conv.items():
+    if conv_id in scanned_conv_ids:
+      continue
+    for item in items:
+      ts = item.get("timestamp") or 0
+      if ts > 10_000_000_000:
+        ts = ts / 1000.0
+      day = dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+      disp = item.get("display") or ""
+      in_tok = estimate_tokens(disp) + 50
+      out_tok = 150
+      tot = in_tok + out_tok
+
+      bucket = usage_by_model.setdefault(default_model_id, {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+      })
+      bucket["inputTokens"] += in_tok
+      bucket["outputTokens"] += out_tok
+
+      tokens_by_day[day] = tokens_by_day.get(day, 0) + tot
+      if day == today_str:
+        today_tokens_by_model[default_model_id] = (
+          today_tokens_by_model.get(default_model_id, 0) + tot
+        )
+
+  recent_days = [{"date": d, "messageCount": tokens_by_day.get(d, 0)} for d in dates]
+  today_total_tokens = sum(today_tokens_by_model.values())
+
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": recent_days,
+    "totalPrompts": total_prompts,
+    "totalSessions": len(all_sessions),
+    "activeDays": len(active_dates),
+    "activeDates": sorted(list(active_dates)),
+    "modelUsage": usage_by_model,
+    "tierLabel": default_model,
+  }
+
+
+def parse_quota_json(data: dict[str, Any], active_model: str = "") -> list[dict[str, Any]]:
+  limits: list[dict[str, Any]] = []
+  groups = (
+    data.get("command", {}).get("data", {}).get("groups")
+    or data.get("groups")
+    or []
+  )
+  for group in groups:
+    group_name = group.get("name") or ""
+    prefix = "Gemini" if "gemini" in group_name.lower() else "Claude/GPT"
+    for bucket in group.get("buckets", []):
+      b_name = bucket.get("name") or ""
+      window = bucket.get("window") or ""
+      rem_fraction = bucket.get("remaining_fraction")
+      if rem_fraction is None:
+        continue
+
+      try:
+        rem_fraction = float(rem_fraction)
+      except Exception:
+        continue
+
+      percent_used = max(0.0, min(1.0, round(1.0 - rem_fraction, 2)))
+      is_weekly = "week" in window.lower() or "weekly" in b_name.lower()
+      suffix = "Weekly" if is_weekly else "Session"
+      label = f"{group_name} {suffix}"
+      title = f"{prefix} {suffix}"
+
+      entry: dict[str, Any] = {
+        "label": label,
+        "title": title,
+        "percent": percent_used,
+      }
+      resets = bucket.get("reset_time") or bucket.get("resetsAt")
+      if resets:
+        entry["resetsAt"] = str(resets).strip()
+      limits.append(entry)
+
+  if active_model:
+    is_gemini_active = "gemini" in active_model.lower()
+    limits.sort(key=lambda x: 0 if ("gemini" in x["label"].lower()) == is_gemini_active else 1)
+
+  return limits
+
+
+def parse_quota_text(output: str, active_model: str = "") -> list[dict[str, Any]]:
+  limits: list[dict[str, Any]] = []
+  pattern = re.compile(
+    r"([A-Za-z0-9 ]+?)\s+(Weekly Limit Remaining|Five Hour Limit Remaining)\s+(\d+)%(?:\s+([0-9T:Z-]+))?",
+    re.IGNORECASE,
+  )
+
+  for line in output.splitlines():
+    match = pattern.search(line.strip())
+    if not match:
+      continue
+
+    model_group = match.group(1).strip()
+    limit_type = match.group(2).strip()
+    remaining = int(match.group(3))
+    resets_raw = match.group(4)
+
+    is_weekly = "weekly" in limit_type.lower()
+    suffix = "Weekly" if is_weekly else "Session"
+    label = f"{model_group} {suffix}"
+    prefix = "Gemini" if "gemini" in model_group.lower() else "Claude/GPT"
+    title = f"{prefix} {suffix}"
+    percent_used = max(0.0, min(1.0, round((100 - remaining) / 100.0, 2)))
+
+    entry: dict[str, Any] = {
+      "label": label,
+      "title": title,
+      "percent": percent_used,
+    }
+    if resets_raw:
+      entry["resetsAt"] = resets_raw.strip()
+
+    limits.append(entry)
+
+  if active_model:
+    is_gemini_active = "gemini" in active_model.lower()
+    limits.sort(key=lambda x: 0 if ("gemini" in x["label"].lower()) == is_gemini_active else 1)
+
+  return limits
+
+
+def parse_quota_output(output: str | dict[str, Any], active_model: str = "") -> list[dict[str, Any]]:
+  if isinstance(output, str):
+    output_trimmed = output.strip()
+    if output_trimmed.startswith("{"):
+      try:
+        data = json.loads(output_trimmed)
+        return parse_quota_json(data, active_model=active_model)
+      except Exception:
+        pass
+    return parse_quota_text(output, active_model=active_model)
+  elif isinstance(output, dict):
+    return parse_quota_json(output, active_model=active_model)
+  return []
+
+
+def fetch_limits(force: bool = False, active_model: str = "") -> tuple[list[dict[str, Any]], str, bool]:
+  cache_file = cache_dir() / "antigravity-limits.json"
+  now_ts = time.time()
+
+  if not force and cache_file.is_file():
+    try:
+      cached_data = json.loads(cache_file.read_text(encoding="utf-8"))
+      cached_ts = cached_data.get("timestamp", 0)
+      if (now_ts - cached_ts) < LIMITS_CACHE_SECONDS:
+        return (
+          cached_data.get("limits", []),
+          cached_data.get("tierLabel", ""),
+          True,
+        )
+    except Exception:
+      pass
+
+  env = runtime_env()
+  agy_bin = shutil.which("agy", path=env.get("PATH"))
+  if not agy_bin:
+    return ([], "", False)
+
+  tier_label = active_model or "Gemini 3.8 Flash"
+
+  # 1. Try structured JSON output
+  try:
+    proc = subprocess.run(
+      [agy_bin, "--disable-slash-commands=false", "--output-format", "json", "-p", "/usage"],
+      env=env,
+      capture_output=True,
+      text=True,
+      timeout=15,
+    )
+    if proc.returncode == 0 and proc.stdout:
+      limits = parse_quota_output(proc.stdout, active_model=active_model)
+      if limits:
+        try:
+          cache_file.write_text(
+            json.dumps({"timestamp": now_ts, "limits": limits, "tierLabel": tier_label}),
+            encoding="utf-8",
+          )
+        except Exception:
+          pass
+        return (limits, tier_label, True)
+  except Exception:
+    pass
+
+  # 2. Fallback to text output
+  try:
+    proc = subprocess.run(
+      [agy_bin, "--disable-slash-commands=false", "-p", "/usage"],
+      env=env,
+      capture_output=True,
+      text=True,
+      timeout=15,
+    )
+    if proc.returncode == 0 and proc.stdout:
+      limits = parse_quota_output(proc.stdout, active_model=active_model)
+      try:
+        cache_file.write_text(
+          json.dumps({"timestamp": now_ts, "limits": limits, "tierLabel": tier_label}),
+          encoding="utf-8",
+        )
+      except Exception:
+        pass
+      return (limits, tier_label, True)
+  except Exception:
+    pass
+
+  if cache_file.is_file():
+    try:
+      cached_data = json.loads(cache_file.read_text(encoding="utf-8"))
+      return (
+        cached_data.get("limits", []),
+        cached_data.get("tierLabel", tier_label),
+        True,
+      )
+    except Exception:
+      pass
+
+  return ([], tier_label, False)
+
+
+def main() -> None:
+  parser = argparse.ArgumentParser(description="Print Antigravity usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="Bypass cached rate limits")
+  parser.add_argument("--limits-only", action="store_true", help="Reuse cached stats when possible")
+  args = parser.parse_args()
+
+  stats = scan_local_stats()
+  active_model = stats.get("tierLabel", "")
+  limits, tier_label, online = fetch_limits(force=args.force or args.limits_only, active_model=active_model)
+
+  env = runtime_env()
+  agy_present = bool(shutil.which("agy", path=env.get("PATH")))
+  ready = online or (agy_present and stats["totalPrompts"] > 0)
+
+  status_text = ""
+  auth_help = ""
+  if not agy_present:
+    status_text = "Command agy not found"
+    auth_help = AUTH_HELP
+  elif not ready:
+    status_text = "Waiting for auth"
+    auth_help = AUTH_HELP
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    "ready": ready,
+    "hasLocalStats": True,
+    "hasPromptStats": True,
+    "todayPrompts": stats["todayPrompts"],
+    "todaySessions": stats["todaySessions"],
+    "todayTotalTokens": stats["todayTotalTokens"],
+    "todayTokensByModel": stats["todayTokensByModel"],
+    "recentDays": stats["recentDays"],
+    "totalPrompts": stats["totalPrompts"],
+    "totalSessions": stats["totalSessions"],
+    "activeDays": stats["activeDays"],
+    "activeDates": stats["activeDates"],
+    "modelUsage": stats["modelUsage"],
+    "limits": limits,
+    "tierLabel": tier_label or active_model or "Gemini 3.8 Flash",
+    "usageStatusText": status_text,
+    "authHelpText": auth_help,
+  }
+
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em">
+  <title>Antigravity</title>
+  <defs>
+    <linearGradient id="geminiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4E87F8"/>
+      <stop offset="50%" stop-color="#706EF5"/>
+      <stop offset="100%" stop-color="#9B72CB"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#geminiGrad)" d="M12 0C12 6.627 6.627 12 0 12C6.627 12 12 17.373 12 24C12 17.373 17.373 12 24 12C17.373 12 12 6.627 12 0Z"/>
+</svg>
