@@ -2,9 +2,11 @@
 ufw default deny incoming
 ufw default allow outgoing
 
-# Allow ports for LocalSend.
-ufw allow 53317/udp
-ufw allow 53317/tcp
+# Allow ports for LocalSend from local/private networks (RFC1918 and IPv6 ULA/link-local).
+for net in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 fc00::/7 fe80::/10; do
+  ufw allow in proto udp from "$net" to any port 53317 comment 'localsend'
+  ufw allow in proto tcp from "$net" to any port 53317 comment 'localsend'
+done
 
 # Allow Docker containers to use DNS on host.
 ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns'
