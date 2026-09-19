@@ -83,9 +83,17 @@ OMARCHY_RESERVED_USERNAMES='^(root|bin|daemon|mail|ftp|http|nobody|dbus|systemd-
 OMARCHY_HOSTNAME_PATTERN='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
 OMARCHY_HOSTNAME_DEFAULT='omarchy'
 
-# Installer targets are empty, so any account is fair game; first-boot setup
-# overrides this because its machine already has users.
+# Installer targets are empty, so a live ISO's passwd database must not block
+# the name the installed system will use. First-boot setup overrides this with
+# a real getent passwd check because that machine already has users.
 omarchy_username_taken() { return 1; }
+
+# useradd -m -U (Arch default) refuses to create a login whose name matches an
+# existing group. The reserved-name regex catches some of those (root, lp), but
+# not ordinary base groups like audio/docker/wheel — reject those here so the
+# installer does not abort later inside useradd. Live and target share the same
+# Arch base groups, so getent group on the ISO is a fair preview of the target.
+omarchy_username_conflicts_group() { getent group "$1" >/dev/null 2>&1; }
 
 # `x=$(gum ...) && status=0 || status=$?` rather than a bare assignment followed
 # by `status=$?`: one caller runs under `set -e`, where a cancelled prompt is a
@@ -112,6 +120,8 @@ omarchy_prompt_username() {
         notice "Username is reserved for system" 1
       elif omarchy_username_taken "$username"; then
         notice "That username already exists on this machine" 1
+      elif omarchy_username_conflicts_group "$username"; then
+        notice "Username conflicts with a system group" 1
       else
         return 0
       fi
