@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Welcome guide for moving from macOS, including iCloud and email
+# omarchy:args=[--no-browser] [--port port] [--state-dir path]
+
+exec python "$OMARCHY_PATH/default/welcome/app.py" "$@"
