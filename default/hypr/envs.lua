@@ -24,6 +24,11 @@ hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 -- Use XCompose file.
 hl.env("XCOMPOSEFILE", paths.home .. "/.XCompose")
 
+-- Cua Driver only takes its native Wayland backend when told to, and on a
+-- Wayland-only desktop that is the backend to have, so every session says so
+-- whether or not the driver is installed yet.
+hl.env("CUA_DRIVER_RS_ENABLE_WAYLAND", "1")
+
 -- hyprctl setenv doesn't reach keybind dispatcher env; use hl.env.
 hl.env("OMARCHY_PATH", paths.omarchy_path)
 
