@@ -89,6 +89,39 @@ function modeLabel(device, onBattery, states) {
   return "Charging"
 }
 
+// Battery health arrives as a display string ("72%"), hence parseInt.
+//
+// 80% is the load-bearing threshold: the line most vendors treat as a pack
+// still being serviceable, and where capacity warranties usually stop. It
+// separates "nothing to think about" from "start budgeting".
+//
+// 70% separates planning a replacement from needing one. A round third of the
+// pack is gone by then, and it sits in the band where lithium-ion fade tends
+// to accelerate rather than continue linearly. 90% is wording alone; nothing
+// rides on it.
+function healthLevel(health) {
+  var n = parseInt(health, 10)
+  return isFinite(n) && n > 0 ? n : 0
+}
+
+function healthVerdict(health) {
+  var n = healthLevel(health)
+  if (n === 0) return ""
+  if (n >= 90) return "Great"
+  if (n >= 80) return "Normal"
+  if (n >= 70) return "Worn"
+  return "Bad"
+}
+
+function healthHint(health) {
+  var n = healthLevel(health)
+  if (n === 0) return ""
+  if (n >= 90) return "Practically new"
+  if (n >= 80) return "Normal wear for its age"
+  if (n >= 70) return "Worth planning a replacement"
+  return "Time to replace it"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
@@ -99,6 +132,9 @@ if (typeof module !== "undefined") {
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
-    modeLabel: modeLabel
+    modeLabel: modeLabel,
+    healthLevel: healthLevel,
+    healthVerdict: healthVerdict,
+    healthHint: healthHint
   }
 }
