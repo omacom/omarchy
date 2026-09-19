@@ -7,11 +7,32 @@ set -e
 
 if [[ ${OMARCHY_UPDATE_FORCE:-0} == "1" ]]; then
   exit 0
-elif read -r available_bytes < <(df --output=avail --block-size=1 / 2>/dev/null | tail -n 1) &&
-  [[ $available_bytes =~ ^[0-9]+$ ]] &&
-  (( available_bytes < 10 * 1024 * 1024 * 1024 )); then
-  echo "You need at least 10 GiB free to safely update Omarchy."
-  exit 1
-else
-  exit 0
 fi
+
+# $1 mountpoint, $2 required bytes, $3 human size, $4 optional " on <path>" suffix
+check_free() {
+  local avail where=${4:-}
+
+  # df fails on a missing path; skip rather than block the update.
+  read -r avail < <(df --output=avail --block-size=1 "$1" 2>/dev/null | tail -n 1) || return 0
+  [[ $avail =~ ^[0-9]+$ ]] || return 0
+
+  if (( avail < $2 )); then
+    echo "You need at least $3 free${where} to safely update Omarchy."
+    exit 1
+  fi
+}
+
+esp_path="/boot"
+limine_default=${OMARCHY_TEST_LIMINE_DEFAULT:-/etc/default/limine}
+if [[ -r $limine_default ]]; then
+  # Same key limine-entry-tool reads; strip optional quotes around the value.
+  esp_path=$(grep -E '^ESP_PATH=' "$limine_default" | tail -1 | cut -d= -f2- | tr -d "'\"")
+  [[ -n $esp_path ]] || esp_path="/boot"
+fi
+
+check_free / $((10 * 1024 * 1024 * 1024)) "10 GiB"
+# The UKI lands on the ESP in a post-transaction hook that has no space check
+# of its own. 300 MiB is roughly one UKI plus margin; limine-snapper-sync may
+# already sit near LIMIT_USAGE_PERCENT before that write.
+check_free "$esp_path" $((300 * 1024 * 1024)) "300 MiB" " on $esp_path"
