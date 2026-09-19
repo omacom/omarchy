@@ -18,11 +18,16 @@ o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" 
 o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
 
+-- Standard evdev keycodes for numpad 1-9, then 0. Bind physical keys regardless of Num Lock.
+local numpad_keycodes = { 87, 88, 89, 83, 84, 85, 79, 80, 81, 90 }
+
 for workspace = 1, 10 do
-  local key = "code:" .. tostring(workspace + 9)
-  o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, hl.dsp.focus({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
+  for _, keycode in ipairs({ workspace + 9, numpad_keycodes[workspace] }) do
+    local key = "code:" .. tostring(keycode)
+    o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, hl.dsp.focus({ workspace = tostring(workspace) }))
+    o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace) }))
+    o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
+  end
 end
 
 o.bind("SUPER + S", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))

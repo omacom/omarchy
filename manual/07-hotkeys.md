@@ -58,6 +58,8 @@ You can see all the main keyboard bindings with `Super + K` (Tmux bindings with 
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
 
+Workspace number shortcuts support both the top number row and the numpad, with `0` selecting workspace 10. Numpad shortcuts work with Num Lock on or off.
+
 ## System controls
 
 | Hotkey                  | Function              |
