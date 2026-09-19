@@ -22,6 +22,12 @@ Item {
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  readonly property int fingerprintRetryBaseMs: 250
+  readonly property int fingerprintErrorBackoffCapMs: 30000
+  // A completed-but-no-match retries fast (below); a hard device error does
+  // not, since some readers (e.g. Goodix GXFP5130) trip a thermal cutoff when
+  // polled every 250ms through repeated errors instead of a real touch.
+  property int fingerprintErrorBackoffMs: 2000
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -261,6 +267,10 @@ Item {
     if (result === PamResult.Success) {
       finishUnlock()
     } else if (fingerprintConfigured) {
+      // A genuine no-match is not a device fault, so retry at the fast base
+      // interval and drop any backoff accrued from earlier hard errors.
+      fingerprintErrorBackoffMs = 2000
+      fingerprintRetryTimer.interval = fingerprintRetryBaseMs
       fingerprintRetryTimer.restart()
     }
   }
@@ -390,13 +400,17 @@ Item {
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      if (root.lockRequested && root.fingerprintConfigured) {
+        fingerprintRetryTimer.interval = root.fingerprintErrorBackoffMs
+        fingerprintRetryTimer.restart()
+        root.fingerprintErrorBackoffMs = Math.min(root.fingerprintErrorBackoffMs * 2, root.fingerprintErrorBackoffCapMs)
+      }
     }
   }
 
   Timer {
     id: fingerprintRetryTimer
-    interval: 250
+    interval: root.fingerprintRetryBaseMs
     repeat: false
     onTriggered: root.startFingerprint()
   }
