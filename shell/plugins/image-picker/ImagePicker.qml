@@ -44,9 +44,122 @@ Item {
   property int sliceHeight: 432
   property int sliceSpacing: -30
   property int skewOffset: 28
-  property int bottomChromeHeight: showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)
+  readonly property string configDir: Quickshell.env("HOME") + "/.config/omarchy"
+  readonly property string alignmentsPath: configDir + "/background-alignments.json"
+  property var alignments: ({})
+  readonly property var alignmentSteps: [
+    { val: "left", ratio: 0.0, label: "Left", sub: "0%", icon: "⇤" },
+    { val: "25%", ratio: 0.25, label: "25%", sub: "Mid-L", icon: "↼" },
+    { val: "center", ratio: 0.5, label: "Center", sub: "50%", icon: "↔" },
+    { val: "75%", ratio: 0.75, label: "75%", sub: "Mid-R", icon: "⇁" },
+    { val: "right", ratio: 1.0, label: "Right", sub: "100%", icon: "⇥" }
+  ]
+  property int currentStepIndex: 2
+  readonly property real currentPositionRatio: (currentStepIndex >= 0 && currentStepIndex < alignmentSteps.length) ? alignmentSteps[currentStepIndex].ratio : 0.5
+  readonly property string currentAlignmentValue: (currentStepIndex >= 0 && currentStepIndex < alignmentSteps.length) ? alignmentSteps[currentStepIndex].val : "center"
 
-  onOpenedChanged: if (!opened) layoutSettled = false
+  property bool alignable: true
+  readonly property bool showAlignment: alignable && !showLabels && !filterable && imagesLoaded && imageArray.length > 0
+  property int alignmentMenuHeight: 85
+  property int bottomChromeHeight: (showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)) + (showAlignment ? alignmentMenuHeight : 0)
+
+  FileView {
+    id: alignmentsFile
+    path: root.alignmentsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadAlignments()
+    onLoadFailed: function(error) { root.alignments = ({}) }
+    onFileChanged: reload()
+  }
+
+  function parsePositionRatio(val) {
+    if (val === undefined || val === null || val === "") return 0.5
+    var s = String(val).toLowerCase().trim()
+    if (s === "left") return 0.0
+    if (s === "center") return 0.5
+    if (s === "right") return 1.0
+    var num = parseFloat(s)
+    if (isNaN(num)) return 0.5
+    if (s.indexOf("%") !== -1 || num > 1.0) num = num / 100.0
+    return Math.max(0.0, Math.min(1.0, num))
+  }
+
+  function closestStepIndex(ratio) {
+    var closest = 2
+    var minDiff = 999
+    for (var i = 0; i < alignmentSteps.length; i++) {
+      var diff = Math.abs(alignmentSteps[i].ratio - ratio)
+      if (diff < minDiff) {
+        minDiff = diff
+        closest = i
+      }
+    }
+    return closest
+  }
+
+  function positionRatioFor(filePath, fileName) {
+    var val = (alignments && (alignments[filePath] !== undefined ? alignments[filePath] : alignments[fileName]))
+    return parsePositionRatio(val)
+  }
+
+  function loadAlignments() {
+    var raw = alignmentsFile.text() || ""
+    if (!raw.trim()) {
+      alignments = ({})
+      return
+    }
+    try {
+      var parsed = JSON.parse(raw)
+      alignments = (parsed && typeof parsed === "object") ? parsed : ({})
+    } catch (e) {
+      alignments = ({})
+    }
+    updateCurrentAlignment()
+  }
+
+  function updateCurrentAlignment() {
+    var path = currentPath()
+    if (!path) {
+      currentStepIndex = 2
+      return
+    }
+    var filename = path.split("/").pop()
+    var val = (alignments && (alignments[path] !== undefined ? alignments[path] : alignments[filename]))
+    var ratio = parsePositionRatio(val)
+    currentStepIndex = closestStepIndex(ratio)
+  }
+
+  function setStepIndex(idx) {
+    if (idx < 0 || idx >= alignmentSteps.length) return
+    currentStepIndex = idx
+    var path = currentPath()
+    if (path) {
+      var filename = path.split("/").pop()
+      var val = alignmentSteps[idx].val
+      var next = Object.assign({}, alignments)
+      next[filename] = val
+      next[path] = val
+      alignments = next
+    }
+  }
+
+  function cycleStep(direction) {
+    var count = alignmentSteps.length
+    var nextIdx = (currentStepIndex + direction + count) % count
+    setStepIndex(nextIdx)
+  }
+
+  onSelectedIndexChanged: updateCurrentAlignment()
+
+  onOpenedChanged: {
+    if (!opened) {
+      layoutSettled = false
+    } else {
+      alignmentsFile.reload()
+      updateCurrentAlignment()
+    }
+  }
 
   function scriptPath(name) {
     return omarchyPath + "/shell/plugins/image-picker/" + name
@@ -163,7 +276,17 @@ Item {
     selectionFile = ""
     doneFile = ""
 
-    applyProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(path) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
+    var saveAlignCmd = ""
+    if (root.showAlignment) {
+      var filename = path.split("/").pop()
+      var align = root.currentAlignmentValue || "center"
+      var cfg = root.alignmentsPath
+      saveAlignCmd = "mkdir -p " + Util.shellQuote(root.configDir) + "; " +
+        "[[ -f " + Util.shellQuote(cfg) + " ]] || echo '{}' > " + Util.shellQuote(cfg) + "; " +
+        "tmp=$(mktemp) && jq --arg f " + Util.shellQuote(filename) + " --arg p " + Util.shellQuote(path) + " --arg a " + Util.shellQuote(align) + " '.[$f] = $a | .[$p] = $a' " + Util.shellQuote(cfg) + " > \"$tmp\" && mv \"$tmp\" " + Util.shellQuote(cfg) + "; "
+    }
+
+    applyProc.command = ["bash", "-c", saveAlignCmd + "printf '%s\\n' " + Util.shellQuote(path) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
     applyProc.running = true
   }
 
@@ -316,6 +439,8 @@ Item {
     var doneF = String(args.doneFile || "")
     var labels = args.showLabels === true || args.showLabels === "true"
     var filter = args.filterable === true || args.filterable === "true"
+    var align = (args.alignable !== undefined) ? (args.alignable === true || args.alignable === "true") : true
+    alignable = align
     openSelector(dirs, rows, sel, selFile, doneF, labels, filter)
   }
 
@@ -426,6 +551,12 @@ Item {
             } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
               root.selectAdjacent(1)
               event.accepted = true
+            } else if (root.showAlignment && event.key === Qt.Key_Up) {
+              root.cycleStep(-1)
+              event.accepted = true
+            } else if (root.showAlignment && event.key === Qt.Key_Down) {
+              root.cycleStep(1)
+              event.accepted = true
             } else if (root.filterable && event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
               root.updateFilter(root.filterText + event.text)
               event.accepted = true
@@ -500,8 +631,9 @@ Item {
                 }
 
                 Image {
-                  id: image
+                  id: thumbnailImage
                   anchors.fill: parent
+                  visible: !item.selected
                   // Load only the initial/visited nearby images, but keep the
                   // source once activated so Qt does not tear textures down as
                   // selection moves through the carousel.
@@ -510,6 +642,24 @@ Item {
                   asynchronous: false
                   cache: true
                   smooth: true
+                }
+
+                Image {
+                  id: fullImage
+                  visible: item.selected
+                  source: (item.selected && item.filePath) ? Util.fileUrl(item.filePath) : ""
+                  asynchronous: false
+                  cache: true
+                  smooth: true
+
+                  readonly property real scaleFactor: (implicitWidth > 0 && implicitHeight > 0)
+                    ? Math.max(parent.width / implicitWidth, parent.height / implicitHeight) : 1.0
+                  width: Math.ceil(implicitWidth * scaleFactor)
+                  height: Math.ceil(implicitHeight * scaleFactor)
+
+                  readonly property real alignRatio: root.showAlignment ? root.currentPositionRatio : 0.5
+                  x: Math.round(-alignRatio * Math.max(0, width - parent.width))
+                  y: Math.round(-0.5 * Math.max(0, height - parent.height))
                 }
 
                 Rectangle {
@@ -562,6 +712,7 @@ Item {
         }
 
         Text {
+          id: filterLabel
           textFormat: Text.PlainText
           visible: root.filterable && root.filterText
           anchors.top: selectedLabel.bottom
@@ -576,6 +727,122 @@ Item {
           font.pixelSize: Style.font.title
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
+        }
+
+        Item {
+          id: alignmentBar
+          visible: root.showAlignment
+          anchors.top: (root.showLabels && selectedLabel.text) ? (root.filterable && root.filterText ? filterLabel.bottom : selectedLabel.bottom) : carousel.bottom
+          anchors.topMargin: Style.space(12)
+          anchors.horizontalCenter: carousel.horizontalCenter
+          width: 590
+          height: 70
+          z: 200
+
+          readonly property real barSkew: 12
+
+          Shape {
+            anchors.fill: parent
+            antialiasing: true
+            preferredRendererType: Shape.CurveRenderer
+
+            ShapePath {
+              fillColor: Qt.rgba(root.dimColor.r, root.dimColor.g, root.dimColor.b, 0.88)
+              strokeColor: Util.alpha(root.unselectedBorder, 0.35)
+              strokeWidth: 1
+              startX: alignmentBar.barSkew; startY: 0
+              PathLine { x: alignmentBar.width; y: 0 }
+              PathLine { x: alignmentBar.width - alignmentBar.barSkew; y: alignmentBar.height }
+              PathLine { x: 0; y: alignmentBar.height }
+              PathLine { x: alignmentBar.barSkew; y: 0 }
+            }
+          }
+
+          Column {
+            anchors.centerIn: parent
+            spacing: 5
+
+            Row {
+              anchors.horizontalCenter: parent.horizontalCenter
+              spacing: 6
+
+              Repeater {
+                model: root.alignmentSteps
+
+                delegate: Item {
+                  id: btnItem
+                  required property int index
+                  required property var modelData
+                  readonly property bool active: root.currentStepIndex === index
+
+                  width: 104
+                  height: 34
+                  readonly property real btnSkew: 7
+
+                  Shape {
+                    anchors.fill: parent
+                    antialiasing: true
+                    preferredRendererType: Shape.GeometryRenderer
+
+                    ShapePath {
+                      fillColor: btnItem.active ? root.selectedBorder : Util.alpha(root.dimColor, 0.72)
+                      strokeColor: btnItem.active ? root.selectedBorder : Util.alpha(root.unselectedBorder, 0.5)
+                      strokeWidth: btnItem.active ? 2 : 1
+                      startX: btnItem.btnSkew; startY: 0
+                      PathLine { x: btnItem.width; y: 0 }
+                      PathLine { x: btnItem.width - btnItem.btnSkew; y: btnItem.height }
+                      PathLine { x: 0; y: btnItem.height }
+                      PathLine { x: btnItem.btnSkew; y: 0 }
+                    }
+                  }
+
+                  Row {
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    Text {
+                      text: modelData.icon
+                      color: btnItem.active ? root.dimColor : root.foreground
+                      font.pixelSize: 12
+                      font.weight: Font.Bold
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                      text: modelData.label
+                      color: btnItem.active ? root.dimColor : root.foreground
+                      font.pixelSize: 11
+                      font.weight: btnItem.active ? Font.Bold : Font.Normal
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    Text {
+                      text: "(" + modelData.sub + ")"
+                      color: btnItem.active ? root.dimColor : root.foreground
+                      opacity: btnItem.active ? 0.9 : 0.65
+                      font.pixelSize: 9
+                      anchors.verticalCenter: parent.verticalCenter
+                    }
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.setStepIndex(index)
+                  }
+                }
+              }
+            }
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: "Use ↑ / ↓ to step position • Enter to apply"
+              color: root.foreground
+              opacity: 0.75
+              font.pixelSize: 11
+              font.weight: Font.Medium
+            }
+          }
         }
     }
   }

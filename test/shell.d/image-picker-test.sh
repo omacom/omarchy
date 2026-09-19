@@ -51,4 +51,13 @@ assert(
   /source: item\.sourceActivated && item\.thumbnailPath \? Util\.fileUrl\(item\.thumbnailPath\) : ""[\s\S]*asynchronous: false/.test(imagePickerQml),
   'image picker loads activated thumbnails synchronously to avoid carousel flicker'
 )
+assert(
+  imagePickerQml.includes('alignmentSteps') &&
+    imagePickerQml.includes('cycleStep(-1)') &&
+    imagePickerQml.includes('cycleStep(1)') &&
+    imagePickerQml.includes('background-alignments.json') &&
+    imagePickerQml.includes('id: alignmentBar') &&
+    /showAlignment: alignable && !showLabels && !filterable/.test(imagePickerQml),
+  'image picker provides stepped background alignment bar with persistence and keyboard cycling'
+)
 JS

@@ -28,6 +28,48 @@ Item {
   property string pendingShellRaw: ""
   property real revealProgress: 1
 
+  readonly property string alignmentsPath: home + "/.config/omarchy/background-alignments.json"
+  property var alignments: ({})
+
+  FileView {
+    id: alignmentsFile
+    path: root.alignmentsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadAlignments()
+    onLoadFailed: function(error) { root.alignments = ({}) }
+    onFileChanged: reload()
+  }
+
+  function loadAlignments() {
+    var raw = alignmentsFile.text() || ""
+    if (!raw.trim()) {
+      alignments = ({})
+      return
+    }
+    try {
+      var parsed = JSON.parse(raw)
+      alignments = (parsed && typeof parsed === "object") ? parsed : ({})
+    } catch (e) {
+      alignments = ({})
+    }
+  }
+
+  function positionFor(path, map) {
+    if (!path) return 0.5
+    var filename = String(path).split("/").pop()
+    var val = (map && (map[path] !== undefined ? map[path] : map[filename]))
+    if (val === undefined || val === null || val === "") return 0.5
+    var s = String(val).toLowerCase().trim()
+    if (s === "left") return 0.0
+    if (s === "center") return 0.5
+    if (s === "right") return 1.0
+    var num = parseFloat(s)
+    if (isNaN(num)) return 0.5
+    if (s.indexOf("%") !== -1 || num > 1.0) num = num / 100.0
+    return Math.max(0.0, Math.min(1.0, num))
+  }
+
   // Injected by the first-party service loader; used to reach the lock and idle
   // services so playback can stop whenever nothing can see the wallpaper.
   property var shell: null
@@ -204,7 +246,10 @@ Item {
     }
   }
 
-  Component.onCompleted: refreshBackground()
+  Component.onCompleted: {
+    loadAlignments()
+    refreshBackground()
+  }
 
   Variants {
     model: Quickshell.screens
@@ -264,6 +309,7 @@ Item {
         anchors.fill: parent
         path: root.displayedBackground
         reloads: root.displayedReloads
+        alignRatio: root.positionFor(root.displayedBackground, root.alignments)
         playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
         audioEnabled: panel.firstScreen
         onReadyChanged: {
@@ -275,17 +321,30 @@ Item {
         }
       }
 
-      Image {
-        id: oldFrame
+      Item {
+        id: oldFrameContainer
         anchors.fill: parent
-        source: root.imageUrl(root.oldBackground)
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: false
-        smooth: true
-        mipmap: true
+        clip: true
         visible: root.oldBackground !== "" && root.revealProgress < 1
-        onStatusChanged: panel.maybeStartReveal()
+
+        Image {
+          id: oldFrame
+          source: root.imageUrl(root.oldBackground)
+          asynchronous: true
+          cache: false
+          smooth: true
+
+          readonly property real scaleFactor: (implicitWidth > 0 && implicitHeight > 0)
+            ? Math.max(parent.width / implicitWidth, parent.height / implicitHeight) : 1.0
+          width: Math.ceil(implicitWidth * scaleFactor)
+          height: Math.ceil(implicitHeight * scaleFactor)
+
+          readonly property real alignRatio: root.positionFor(root.oldBackground, root.alignments)
+          x: Math.round(-alignRatio * Math.max(0, width - parent.width))
+          y: Math.round(-0.5 * Math.max(0, height - parent.height))
+
+          onStatusChanged: panel.maybeStartReveal()
+        }
       }
 
       Item {
@@ -301,16 +360,28 @@ Item {
           maskSpreadAtMin: 0.02
         }
 
-        Image {
-          id: incomingFrame
+        Item {
           anchors.fill: parent
-          source: root.imageUrl(root.incomingBackground)
-          fillMode: Image.PreserveAspectCrop
-          asynchronous: true
-          cache: false
-          smooth: true
-          mipmap: true
-          onStatusChanged: panel.maybeStartReveal()
+          clip: true
+
+          Image {
+            id: incomingFrame
+            source: root.imageUrl(root.incomingBackground)
+            asynchronous: true
+            cache: false
+            smooth: true
+
+            readonly property real scaleFactor: (implicitWidth > 0 && implicitHeight > 0)
+              ? Math.max(parent.width / implicitWidth, parent.height / implicitHeight) : 1.0
+            width: Math.ceil(implicitWidth * scaleFactor)
+            height: Math.ceil(implicitHeight * scaleFactor)
+
+            readonly property real alignRatio: root.positionFor(root.incomingBackground, root.alignments)
+            x: Math.round(-alignRatio * Math.max(0, width - parent.width))
+            y: Math.round(-0.5 * Math.max(0, height - parent.height))
+
+            onStatusChanged: panel.maybeStartReveal()
+          }
         }
       }
 
