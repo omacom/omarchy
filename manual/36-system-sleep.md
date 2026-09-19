@@ -2,6 +2,8 @@
 
 Omarchy enables suspend and hibernation by default, but if you're having issues with either on your machine, you can toggle them off.
 
+On AMD laptops using SoundWire, Omarchy also reopens only the internal audio device after resume. This avoids restarting PipeWire or disturbing USB, Bluetooth, and dock audio devices while recovering internal speakers and microphones from broken driver state.
+
 ### Power profiles
 
 On a laptop, Omarchy remembers your power profile separately for plugged in and running on battery, and switches between the two as you plug and unplug. Out of the box that means performance on AC and balanced on battery.

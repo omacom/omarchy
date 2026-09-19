@@ -31,6 +31,13 @@ grep -Fx 'systemctl --user daemon-reload' "$first_run_units" >/dev/null
 grep -F 'omarchy-sleep-lock.service' "$first_run_units" >/dev/null
 pass "first-run reloads and enables the sleep lock service"
 
+soundwire_service="$ROOT/default/systemd/user/omarchy-amd-soundwire-resume.service"
+grep -Fx 'ExecStart=/usr/bin/omarchy-hw-recover-amd-soundwire' "$soundwire_service" >/dev/null
+grep -Fx 'ConditionPathExists=/proc/asound/amdsoundwire' "$soundwire_service" >/dev/null
+grep -F 'omarchy-amd-soundwire-resume.service' "$first_run_units" >/dev/null
+grep -rlF 'enable --now omarchy-amd-soundwire-resume.service' "$ROOT/migrations" >/dev/null
+pass "AMD SoundWire recovery only runs on affected hardware"
+
 upgrade_to_quattro="$ROOT/bin/omarchy-upgrade-to-quattro"
 grep -F '6870b232a6c0474b59187882e6d25ae771bba735098bcbedef8a2b73b97e2b6a' "$upgrade_to_quattro" >/dev/null
 grep -F 'bcd1a76cb5c63514922bc5e11af22ae480fc6d06a99863364e02bdf3c7bdceaf' "$upgrade_to_quattro" >/dev/null

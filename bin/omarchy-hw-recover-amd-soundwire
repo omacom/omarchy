@@ -1,0 +1,163 @@
+#!/bin/bash
+
+# omarchy:summary=Recover AMD SoundWire audio after resume
+# omarchy:group=hw
+# omarchy:hidden=true
+
+set -uo pipefail
+
+settle_seconds=${OMARCHY_AUDIO_RECOVERY_SETTLE_SECONDS:-2}
+device_attempts=${OMARCHY_AUDIO_RECOVERY_DEVICE_ATTEMPTS:-10}
+device_retry_seconds=${OMARCHY_AUDIO_RECOVERY_DEVICE_RETRY_SECONDS:-0.5}
+reset_seconds=${OMARCHY_AUDIO_RECOVERY_RESET_SECONDS:-1}
+recovery_attempts=${OMARCHY_AUDIO_RECOVERY_ATTEMPTS:-2}
+verify_attempts=${OMARCHY_AUDIO_RECOVERY_VERIFY_ATTEMPTS:-10}
+verify_retry_seconds=${OMARCHY_AUDIO_RECOVERY_VERIFY_RETRY_SECONDS:-0.25}
+lock_file=${OMARCHY_AUDIO_RECOVERY_LOCK_FILE:-${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-amd-soundwire-resume.lock}
+
+log_recovery() {
+  logger --tag omarchy-amd-soundwire-resume -- "$1"
+}
+
+soundwire_device() {
+  pw-dump 2>/dev/null | jq -cer '
+    first(.[] | select(
+      .type == "PipeWire:Interface:Device" and
+      .info.props["alsa.card_name"] == "amd-soundwire" and
+      .info.props["alsa.driver_name"] == "snd_acp_sdw_legacy_mach"
+    )) |
+    {
+      id,
+      profile: .info.params.Profile[0].index
+    }
+  ' 2>/dev/null
+}
+
+wait_for_soundwire_device() {
+  local attempt device
+
+  for ((attempt = 1; attempt <= device_attempts; attempt++)); do
+    device=$(soundwire_device) && {
+      printf '%s\n' "$device"
+      return 0
+    }
+    sleep "$device_retry_seconds"
+  done
+
+  return 1
+}
+
+soundwire_nodes_ready() {
+  local device_id="$1"
+
+  pw-dump 2>/dev/null | jq -e --argjson device_id "$device_id" '
+    [
+      .[] | select(
+        .type == "PipeWire:Interface:Node" and
+        .info.props["device.id"] == $device_id and
+        (.info.props["media.class"] == "Audio/Sink" or
+         .info.props["media.class"] == "Audio/Source")
+      )
+    ] |
+    any(.info.props["media.class"] == "Audio/Sink") and
+    any(.info.props["media.class"] == "Audio/Source")
+  ' >/dev/null 2>&1
+}
+
+wait_for_soundwire_nodes() {
+  local device_id="$1"
+  local attempt
+
+  for ((attempt = 1; attempt <= verify_attempts; attempt++)); do
+    soundwire_nodes_ready "$device_id" && return 0
+    sleep "$verify_retry_seconds"
+  done
+
+  return 1
+}
+
+set_profile() {
+  local device_id="$1"
+  local profile_index="$2"
+
+  pw-cli set-param "$device_id" Profile \
+    "{ index: $profile_index, save: false }" >/dev/null 2>&1
+}
+
+recover_soundwire() {
+  local device device_id profile_index attempt
+
+  sleep "$settle_seconds"
+
+  if ! device=$(wait_for_soundwire_device); then
+    log_recovery "AMD SoundWire device did not appear after resume; left audio services untouched"
+    return 0
+  fi
+
+  device_id=$(jq -r '.id' <<<"$device")
+  profile_index=$(jq -r '.profile' <<<"$device")
+
+  if [[ $profile_index == "null" || $profile_index == "0" ]]; then
+    log_recovery "AMD SoundWire device is already off; left its profile unchanged"
+    return 0
+  fi
+
+  for ((attempt = 1; attempt <= recovery_attempts; attempt++)); do
+    device=$(wait_for_soundwire_device) || continue
+    device_id=$(jq -r '.id' <<<"$device")
+
+    if ! set_profile "$device_id" 0; then
+      continue
+    fi
+
+    sleep "$reset_seconds"
+
+    if set_profile "$device_id" "$profile_index" && wait_for_soundwire_nodes "$device_id"; then
+      log_recovery "Recovered AMD SoundWire audio without restarting PipeWire"
+      return 0
+    fi
+  done
+
+  # Never intentionally leave the device Off, even if verification failed.
+  device=$(wait_for_soundwire_device) || device=""
+  if [[ -n $device ]]; then
+    device_id=$(jq -r '.id' <<<"$device")
+    set_profile "$device_id" "$profile_index" || true
+  fi
+
+  log_recovery "Could not recover AMD SoundWire audio; left PipeWire and other audio devices untouched"
+  return 1
+}
+
+consume_resume_events() {
+  local line
+
+  while IFS= read -r line; do
+    if [[ $line == *"org.freedesktop.login1.Manager.PrepareForSleep (false,)"* ]]; then
+      flock --nonblock "$lock_file" "$0" --recover || true
+    fi
+  done
+}
+
+monitor_resume_events() {
+  gdbus monitor --system \
+    --dest org.freedesktop.login1 \
+    --object-path /org/freedesktop/login1 |
+    consume_resume_events
+}
+
+case ${1:-} in
+  --recover)
+    recover_soundwire
+    ;;
+  --consume)
+    consume_resume_events
+    ;;
+  "")
+    monitor_resume_events
+    ;;
+  *)
+    echo "Usage: omarchy-hw-recover-amd-soundwire [--recover|--consume]" >&2
+    exit 2
+    ;;
+esac

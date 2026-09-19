@@ -1,0 +1,15 @@
+[Unit]
+Description=Recover AMD SoundWire audio after resume
+After=dbus.socket pipewire.service wireplumber.service
+Requires=dbus.socket
+PartOf=graphical-session.target
+ConditionPathExists=/proc/asound/amdsoundwire
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-hw-recover-amd-soundwire
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
