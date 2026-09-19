@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# omarchy:summary=Rebind the BCM4377 Bluetooth function until the adapter is usable
+# omarchy:group=hw
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# The BCM4377 on T2 Macs often fails its first initialisation (HCI command
+# timeouts, or probe error -110). Unbinding and rebinding hci_bcm4377, sometimes
+# more than once, brings it up. BlueZ can report Powered: yes while the class
+# stays 0x00000000 and scans find nothing — that happens at boot, not only
+# after suspend.
+
+set -euo pipefail
+
+MAX_TRIES=${MAX_TRIES:-5}
+DRV=/sys/bus/pci/drivers/hci_bcm4377
+
+DEV=""
+for d in /sys/bus/pci/devices/*; do
+  [[ -r $d/vendor && -r $d/device ]] || continue
+  if [[ $(<"$d/vendor") == "0x14e4" && $(<"$d/device") == "0x5fa0" ]]; then
+    DEV=$(basename "$d")
+    break
+  fi
+done
+
+if [[ -z $DEV ]]; then
+  echo "omarchy-t2-bcm4377-rebind: no BCM4377 Bluetooth function found, nothing to do"
+  exit 0
+fi
+
+modprobe hci_bcm4377 2>/dev/null || true
+
+# Returns 0 only if BlueZ says powered *and* the adapter class is set.
+# A hung BCM4377 still reports Powered: yes with Class: 0x00000000 (0).
+alive() {
+  [[ -e /sys/class/bluetooth/hci0 ]] || return 1
+  timeout 5 bluetoothctl power on >/dev/null 2>&1 || true
+  local show
+  show=$(timeout 5 bluetoothctl show 2>/dev/null) || return 1
+  echo "$show" | grep -q 'Powered: yes' || return 1
+  echo "$show" | grep -q 'Class: 0x00000000' && return 1
+  return 0
+}
+
+if alive; then
+  echo "omarchy-t2-bcm4377-rebind: $DEV already powered, nothing to do"
+  exit 0
+fi
+
+for i in $(seq 1 "$MAX_TRIES"); do
+  echo "omarchy-t2-bcm4377-rebind: attempt $i/$MAX_TRIES on $DEV"
+  if [[ -L /sys/bus/pci/devices/$DEV/driver ]]; then
+    echo "$DEV" >"$DRV/unbind" 2>/dev/null || true
+    sleep 2
+  fi
+  echo "$DEV" >"$DRV/bind" 2>/dev/null || true
+  sleep 3
+  systemctl restart bluetooth.service
+  sleep 3
+  if alive; then
+    echo "omarchy-t2-bcm4377-rebind: Bluetooth powered on after attempt $i"
+    exit 0
+  fi
+done
+
+echo "omarchy-t2-bcm4377-rebind: gave up after $MAX_TRIES attempts" >&2
+exit 1

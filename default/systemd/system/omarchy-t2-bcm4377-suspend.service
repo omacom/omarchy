@@ -1,0 +1,16 @@
+[Unit]
+Description=Unload BCM4377 Wi-Fi and Bluetooth around suspend
+Documentation=https://github.com/omacom/omarchy/issues/11264
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=15
+TimeoutStopSec=15
+ExecStart=/usr/bin/omarchy-t2-bcm4377-suspend pre
+ExecStop=/usr/bin/omarchy-t2-bcm4377-suspend post
+
+[Install]
+WantedBy=sleep.target
