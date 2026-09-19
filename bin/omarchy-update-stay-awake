@@ -99,16 +99,20 @@ start() {
       fi
     fi
 
+    # handle-lid-switch is a low-level lock: logind ignores high-level sleep
+    # locks for the lid switch (LidSwitchIgnoreInhibited defaults to yes),
+    # so without it closing the lid suspends mid-update. Scoped to updates
+    # only; normal lid behavior resumes on stop.
     if [[ -n ${OMARCHY_UPDATE_LOCK_FD:-} ]]; then
       "${inhibit_runner[@]}" systemd-inhibit \
-        --what=sleep:idle \
+        --what=sleep:idle:handle-lid-switch \
         --who=omarchy-update \
         --why="Omarchy update in progress" \
         --mode=block \
         sleep infinity >/dev/null 2>&1 {OMARCHY_UPDATE_LOCK_FD}>&- &
     else
       "${inhibit_runner[@]}" systemd-inhibit \
-        --what=sleep:idle \
+        --what=sleep:idle:handle-lid-switch \
         --who=omarchy-update \
         --why="Omarchy update in progress" \
         --mode=block \

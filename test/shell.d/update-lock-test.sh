@@ -212,3 +212,26 @@ kill -0 "$unrelated_pid" 2>/dev/null ||
 kill "$unrelated_pid"
 wait "$unrelated_pid" 2>/dev/null || true
 pass "stale inhibitor state does not terminate a reused PID"
+
+# logind ignores high-level sleep locks for the lid switch
+# (LidSwitchIgnoreInhibited defaults to yes), so without the low-level
+# handle-lid-switch lock closing the lid suspends mid-update.
+inhibit_args_log="$test_tmp/inhibit-args.log"
+write_stub pkexec 'exec "$@"'
+write_stub omarchy-toggle-idle 'exit 0'
+write_stub systemd-inhibit 'printf "%s\n" "$*" >>"$INHIBIT_ARGS_LOG"; exec sleep 30'
+
+: >"$inhibit_args_log"
+INHIBIT_ARGS_LOG="$inhibit_args_log" run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" start
+for _ in {1..100}; do
+  [[ -s $inhibit_args_log ]] && break
+  sleep 0.05
+done
+[[ -s $inhibit_args_log ]] || fail "update starts its lid-blocking inhibitor"
+grep -q -- '--what=sleep:idle:handle-lid-switch' "$inhibit_args_log" ||
+  fail "update inhibitor blocks the lid switch" "$(cat "$inhibit_args_log")"
+pass "update inhibitor blocks the lid switch during updates"
+
+INHIBIT_ARGS_LOG="$inhibit_args_log" run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop
+[[ ! -f $runtime_dir/omarchy-update-stay-awake/inhibit-pid ]] ||
+  fail "update inhibitor cleans up after the lid-switch assertion"
