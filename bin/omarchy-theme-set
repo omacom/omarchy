@@ -139,7 +139,7 @@ set_theme_background() {
 
   if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
     if ! choose_theme_background; then
-      omarchy-notification-send "No background was found for theme" -t 2000
+      omarchy-notification-send "$(omarchy-i18n "No background was found for theme")" -t 2000
       shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
       return
     fi

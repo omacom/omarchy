@@ -8,6 +8,8 @@ Item {
   property string title: ""
   property string meta: ""
   property string detail: ""
+  property bool translateTitle: true
+  property bool translateDetail: true
   property color foreground: Color.foreground
   property string fontFamily: Style.font.family
   property real iconSize: Style.font.display
@@ -50,7 +52,7 @@ Item {
       Text {
         textFormat: Text.PlainText
         visible: root.title !== ""
-        text: root.title
+        text: root.title !== "" ? (root.translateTitle ? I18n.tr(root.title) : root.title) : ""
         width: Math.min(implicitWidth, Math.max(0, parent.width - (detailPill.visible ? detailPill.implicitWidth + Style.space(8) : 0)))
         color: root.foreground
         font.family: root.fontFamily
@@ -78,7 +80,7 @@ Item {
           id: detailText
           textFormat: Text.PlainText
           anchors.centerIn: parent
-          text: root.detail
+          text: root.detail !== "" ? (root.translateDetail ? I18n.tr(root.detail) : root.detail) : ""
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.body

@@ -1,0 +1,474 @@
+[
+  {
+    "file": "bin/omarchy-tailscale-send",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "${error:-$default_error}",
+    "type": "THIRD_PARTY",
+    "reason": "Tailscale daemon error message or dynamic network error output"
+  },
+  {
+    "file": "bin/omarchy-tailscale-send",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$what",
+    "type": "DYNAMIC",
+    "reason": "Dynamic list of file paths or machine name"
+  },
+  {
+    "file": "bin/omarchy-tailscale-send",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_title formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-default-browser",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_msg",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_msg formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-default-editor",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_msg",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_msg formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-default-terminal",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_msg",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_msg formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-windows-vm",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_title & notif_desc formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-voxtype-install",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_title & notif_desc formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-plugin-clone",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_title & notif_desc formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-games-retro-install",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "/usr/lib/libretro",
+    "type": "DYNAMIC",
+    "reason": "Filesystem library path subtext"
+  },
+  {
+    "file": "bin/omarchy-games-retro-install",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_title & notif_desc formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-transcode",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$trans_done",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "trans_done and trans_saved formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-transcode",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$trans_msg",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "trans_msg formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-hyprland-window-width",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "title & desc formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-crash-watch",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_headline",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_headline & notif_desc formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-system-sleep-lock",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_title & notif_desc formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-reminder",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$confirmation_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "confirmation_title formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-chromium-ytdlp-host",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_title, notif_complete, notif_failed formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-chromium-ytdlp-host",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_complete",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_complete formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-chromium-ytdlp-host",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_failed",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_failed formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-audio-output-switch",
+    "surface": "osd",
+    "role": "message",
+    "pattern": "$next_sink_description",
+    "type": "DYNAMIC",
+    "reason": "Hardware audio sink device name"
+  },
+  {
+    "file": "bin/omarchy-menu-file",
+    "surface": "selector",
+    "role": "prompt",
+    "pattern": "$label",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "Caller provides label, localized via omarchy-i18n before display"
+  },
+  {
+    "file": "bin/omarchy-capture-screenrecording-with-webcam",
+    "surface": "selector",
+    "role": "prompt",
+    "pattern": "$menu_prompt",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "menu_prompt formatted via omarchy-i18n Select Webcam"
+  },
+  {
+    "file": "bin/omarchy-menu-plugin",
+    "surface": "selector",
+    "role": "prompt",
+    "pattern": "$menu_prompt",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "menu_prompt formatted via omarchy-i18n ${1^} plugin"
+  },
+  {
+    "file": "bin/omarchy-games-retro-install",
+    "surface": "selector",
+    "role": "prompt",
+    "pattern": "$core_prompt",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "core_prompt formatted via omarchy-i18n RetroArch core"
+  },
+  {
+    "file": "bin/omarchy-tailscale-send",
+    "surface": "selector",
+    "role": "title",
+    "pattern": "$chooser_title",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "chooser_title formatted via omarchy-i18n Send to %1"
+  },
+  {
+    "file": "bin/omarchy-migrate-notify",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$headline",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "headline and message formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-battery-low",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$headline",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "headline and description formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-display-text-size",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$notif_msg",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_msg formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-notification-time",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$msg",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "msg formatted via catalog time template"
+  },
+  {
+    "file": "bin/omarchy-notification-battery",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$msg",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "msg formatted conditionally from omarchy-battery-status --shell fields"
+  },
+  {
+    "file": "bin/omarchy-tailscale-receive",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "${args[@]}",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "args contain title & body formatted via omarchy-i18n"
+  },
+  {
+    "file": "bin/omarchy-battery-low",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$description",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "description is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-crash-watch",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notif_desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-games-retro-install",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notif_desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-hyprland-window-width",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-migrate-notify",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$message",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "message is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-plugin-clone",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notif_desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-system-sleep-lock",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notif_desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-tailscale-send",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notif_desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-transcode",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$trans_saved",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "trans_saved is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-voxtype-install",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notif_desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-windows-vm",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notif_desc",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "notif_desc is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-reminder",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$confirmation",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "confirmation is assigned from omarchy-i18n before this notification"
+  },
+  {
+    "file": "bin/omarchy-chromium-ytdlp-host",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$url",
+    "type": "DYNAMIC",
+    "reason": "Downloaded media URL"
+  },
+  {
+    "file": "bin/omarchy-chromium-ytdlp-host",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$title",
+    "type": "DYNAMIC",
+    "reason": "Third-party media title"
+  },
+  {
+    "file": "bin/omarchy-launch-config-editor",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$path",
+    "type": "DYNAMIC",
+    "reason": "User selected config file path"
+  },
+  {
+    "file": "bin/omarchy-theme-remove",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$THEME_NAME",
+    "type": "DYNAMIC",
+    "reason": "Installed theme name"
+  },
+  {
+    "file": "bin/omarchy-tui-remove",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$APP_NAME",
+    "type": "DYNAMIC",
+    "reason": "Application name"
+  },
+  {
+    "file": "bin/omarchy-webapp-remove",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$APP_NAME",
+    "type": "DYNAMIC",
+    "reason": "Application name"
+  },
+  {
+    "file": "bin/omarchy-reminder",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$1",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "bash -c argv 1 is reminder_label, translated with Reminder"
+  },
+  {
+    "file": "bin/omarchy-reminder",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$2",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "bash -c argv 2 is user text or the translated Your %1 minutes are up template"
+  },
+  {
+    "file": "bin/omarchy-reminder",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "${body%$'\\n'}",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "show_reminders builds each row with notification.reminder templates; durations and user text stay literal"
+  },
+  {
+    "file": "bin/omarchy-tailscale-receive",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "${args[@]}",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "args[1] is body from Saved to %1; args[0] is separately audited as title"
+  },
+  {
+    "file": "bin/omarchy-menu-plugin",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$(omarchy-i18n \"No plugin to ${1}\")",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "Actions clone/remove/enable/disable have catalog keys; verified by regression assertion"
+  },
+  {
+    "file": "bin/omarchy-menu-share",
+    "surface": "selector",
+    "role": "title",
+    "pattern": "${select_args[@]}",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "Both array branches translate Share folder or Share files before --title"
+  },
+  {
+    "file": "bin/omarchy-display-text-size",
+    "surface": "notification",
+    "role": "options",
+    "pattern": "${replace[@]}",
+    "type": "OPTIONS",
+    "reason": "Array is empty or (-r \"$prev_id\"); contains no graphical text"
+  },
+  {
+    "file": "migrations/1787494718.sh",
+    "surface": "notification",
+    "role": "body",
+    "pattern": "$notification_body",
+    "type": "LOCALIZED_VIA_VAR",
+    "reason": "report_unrepairable receives notification.fido2.symlink/not_regular; omarchy-i18n formats authfile and preserves terminal output"
+  },
+  {
+    "file": "default/hypr/helpers.lua",
+    "surface": "notification",
+    "role": "title",
+    "pattern": "$message",
+    "type": "DYNAMIC",
+    "reason": "o.notify accepts user configuration text; shell_quote(message) preserves it verbatim"
+  }
+]

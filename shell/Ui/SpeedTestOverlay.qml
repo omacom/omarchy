@@ -22,7 +22,7 @@ PanelWindow {
   property string unit: "Mbps"
   property string title: ""
   property string layerNamespace: "omarchy-speed-test"
-  property string runAgainTooltip: "Measure again"
+  property string runAgainTooltip: I18n.tr("Measure again")
   property real leftValue: 0
   property real rightValue: 0
   property bool leftLive: false
@@ -164,7 +164,7 @@ PanelWindow {
         // Centered on the dial pair. Fades rather than unmounts while a run
         // is in flight, so the cluster never shifts.
         Button {
-          text: "Run Again"
+          text: I18n.tr("Run Again")
           tooltipText: root.runAgainTooltip
           bordered: true
           enabled: !root.running

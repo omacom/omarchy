@@ -13,5 +13,8 @@ fi
 
 level=$1
 
-omarchy-notification-send -g 󱐋 -u critical "Time to recharge!" "Battery is down to ${level}%" -i battery-caution -t 30000
+headline=$(omarchy-i18n "Time to recharge!")
+description=$(omarchy-i18n "Battery is down to %1%" "Battery is down to %1%" "$level")
+
+omarchy-notification-send -g 󱐋 -u critical "$headline" "$description" -i battery-caution -t 30000
 omarchy-hook battery-low "$level"
