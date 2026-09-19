@@ -1,0 +1,280 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Antigravity usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Antigravity (agy) usage into one display-ready JSON record.
+
+Limits come from `agy -p /usage --output-format json`, the same payload the
+CLI's /usage panel uses. Local prompt and session counts come from
+~/.gemini/antigravity-cli (history.jsonl and conversation_summaries.db).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "antigravity"
+AGENT_NAME = "Antigravity"
+AUTH_HELP = "Run `agy` and sign in, then retry."
+
+WINDOW_TITLES = {
+  ("gemini", "weekly"): "Gemini Weekly",
+  ("gemini", "5h"): "Gemini Session",
+  ("claude", "weekly"): "Claude / GPT Weekly",
+  ("claude", "5h"): "Claude / GPT Session",
+}
+
+
+def data_dir() -> Path:
+  return Path(os.environ.get("ANTIGRAVITY_DATA_DIR") or "~/.gemini/antigravity-cli").expanduser()
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def recent_dates(today: date) -> list[str]:
+  return [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+
+
+def local_date_from_ms(value: Any) -> str:
+  try:
+    return datetime.fromtimestamp(float(value) / 1000.0).astimezone().date().isoformat()
+  except (TypeError, ValueError, OSError, OverflowError):
+    return datetime.now().astimezone().date().isoformat()
+
+
+def empty_stats() -> dict[str, Any]:
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [],
+    "history": [],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+    "hasPromptStats": True,
+  }
+
+
+def group_key(name: str) -> str:
+  text = str(name or "").lower()
+  if "claude" in text or "gpt" in text or "3p" in text:
+    return "claude"
+  return "gemini"
+
+
+def limits_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+  groups = ((payload.get("command") or {}).get("data") or {}).get("groups")
+  limits: list[dict[str, Any]] = []
+  for group in groups or []:
+    if not isinstance(group, dict):
+      continue
+    gname = str(group.get("name") or "")
+    gkey = group_key(gname)
+    for bucket in group.get("buckets") or []:
+      if not isinstance(bucket, dict):
+        continue
+      remaining = bucket.get("remaining_fraction")
+      if remaining is None:
+        continue
+      try:
+        percent = max(0.0, min(1.0, 1.0 - float(remaining)))
+      except (TypeError, ValueError):
+        continue
+      window = str(bucket.get("window") or "")
+      title = WINDOW_TITLES.get((gkey, window), str(bucket.get("name") or window or "Limit"))
+      label = f"{gname} — {title}" if gname else title
+      limits.append({
+        "label": label,
+        "title": title,
+        "percent": round(percent, 4),
+        "resetsAt": str(bucket.get("reset_time") or ""),
+      })
+  return limits
+
+
+def load_limits_cache() -> dict[str, Any] | None:
+  path = cache_root() / "antigravity-limits.json"
+  try:
+    cached = json.loads(path.read_text())
+  except (OSError, json.JSONDecodeError):
+    return None
+  age = datetime.now(timezone.utc).timestamp() - float(cached.get("savedAt") or 0)
+  if age < 0 or age > 900:
+    return None
+  return cached
+
+
+def save_limits_cache(limits: list[dict[str, Any]]) -> None:
+  path = cache_root() / "antigravity-limits.json"
+  path.write_text(json.dumps({
+    "savedAt": datetime.now(timezone.utc).timestamp(),
+    "limits": limits,
+  }))
+
+
+def collect_limits(agy_bin: str | None, force: bool) -> dict[str, Any]:
+  if not force:
+    cached = load_limits_cache()
+    if cached and cached.get("limits"):
+      return {"limits": cached["limits"], "usageStatusText": "", "authHelpText": ""}
+
+  if not agy_bin:
+    return {
+      "limits": [],
+      "usageStatusText": "agy not found",
+      "authHelpText": "Install the Antigravity CLI, then sign in.",
+      "retryAdvised": False,
+    }
+
+  try:
+    proc = subprocess.run(
+      [agy_bin, "-p", "/usage", "--output-format", "json"],
+      capture_output=True, text=True, timeout=45,
+    )
+  except (OSError, subprocess.TimeoutExpired) as error:
+    return {
+      "limits": [],
+      "usageStatusText": "Antigravity limits unavailable",
+      "authHelpText": str(error),
+      "retryAdvised": True,
+    }
+
+  if proc.returncode != 0:
+    return {
+      "limits": [],
+      "usageStatusText": "Antigravity limits unavailable",
+      "authHelpText": AUTH_HELP,
+      "retryAdvised": True,
+    }
+
+  try:
+    payload = json.loads(proc.stdout)
+  except json.JSONDecodeError:
+    return {
+      "limits": [],
+      "usageStatusText": "Antigravity limits unavailable",
+      "authHelpText": "agy returned an unreadable /usage response",
+      "retryAdvised": True,
+    }
+
+  limits = limits_from_payload(payload if isinstance(payload, dict) else {})
+  if not limits:
+    return {
+      "limits": [],
+      "usageStatusText": "Antigravity limits unavailable",
+      "authHelpText": "agy returned no quota buckets.",
+      "retryAdvised": False,
+    }
+  save_limits_cache(limits)
+  return {"limits": limits, "usageStatusText": "", "authHelpText": ""}
+
+
+def scan_history(path: Path, today: date) -> dict[str, Any]:
+  daily: dict[str, int] = {}
+  if path.is_file():
+    with path.open(encoding="utf-8", errors="replace") as handle:
+      for line in handle:
+        line = line.strip()
+        if not line:
+          continue
+        try:
+          entry = json.loads(line)
+        except json.JSONDecodeError:
+          continue
+        day = local_date_from_ms(entry.get("timestamp"))
+        daily[day] = daily.get(day, 0) + 1
+  return daily
+
+
+def scan_sessions(db_path: Path) -> dict[str, Any]:
+  daily: dict[str, int] = {}
+  total = 0
+  if not db_path.is_file():
+    return {"total": 0, "daily": daily}
+  try:
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+    try:
+      for (stamp,) in conn.execute("SELECT last_modified_time FROM conversation_summaries"):
+        total += 1
+        day = local_date_from_ms(stamp)
+        daily[day] = daily.get(day, 0) + 1
+    finally:
+      conn.close()
+  except sqlite3.Error:
+    pass
+  return {"total": total, "daily": daily}
+
+
+def local_stats(base_dir: Path) -> dict[str, Any]:
+  today = datetime.now().astimezone().date()
+  today_s = today.isoformat()
+  prompts = scan_history(base_dir / "history.jsonl", today)
+  sessions = scan_sessions(base_dir / "conversation_summaries.db")
+  active = sorted(set(prompts) | set(sessions["daily"]))
+  week = recent_dates(today)
+  history = [{"date": day, "messageCount": 0, "tokensByModel": {}, "prompts": prompts.get(day, 0),
+        "sessions": sessions["daily"].get(day, 0)} for day in active]
+  stats = empty_stats()
+  stats.update({
+    "todayPrompts": prompts.get(today_s, 0),
+    "todaySessions": sessions["daily"].get(today_s, 0),
+    "recentDays": [{"date": day, "messageCount": 0} for day in week],
+    "history": history,
+    "totalPrompts": sum(prompts.values()),
+    "totalSessions": sessions["total"],
+    "activeDays": len(active),
+    "activeDates": active,
+    "hasLocalStats": True,
+  })
+  return stats
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Antigravity usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  stats = local_stats(data_dir())
+  limits = collect_limits(shutil.which("agy"), args.force or not args.limits_only)
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": stats["totalPrompts"] > 0 or stats["totalSessions"] > 0 or len(limits["limits"]) > 0,
+    "hasLocalStats": True,
+    "hasPromptStats": True,
+    "tierLabel": "Google",
+    "usageStatusText": limits.get("usageStatusText") or "",
+    "authHelpText": limits.get("authHelpText") or "",
+    "limits": limits["limits"],
+    "scope": "account",
+  }
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  record.update(stats)
+  json.dump(record, sys.stdout, separators=(",", ":"), sort_keys=True)
+  sys.stdout.write("\n")
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

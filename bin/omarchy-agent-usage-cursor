@@ -1,0 +1,556 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Cursor usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Print the Cursor Ultra/Pro usage record as JSON.
+
+
+Sources (read-only):
+  - ~/.config/cursor/auth.json accessToken
+  - POST api2.cursor.sh/.../GetCurrentPeriodUsage  (limits / %)
+  - POST api2.cursor.sh/.../GetPlanInfo           (tier label)
+  - POST api2.cursor.sh/.../GetAggregatedUsageEvents (cycle + per-day tokens by model)
+  - conversation-search.db cloud agent sessions (optional local count)
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sqlite3
+import sys
+import urllib.error
+import urllib.request
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "cursor"
+AGENT_NAME = "Cursor"
+API = "https://api2.cursor.sh"
+AUTH_HELP = "Run `agent login` (writes ~/.config/cursor/auth.json)."
+
+
+def auth_token() -> str | None:
+  path = Path.home() / ".config/cursor/auth.json"
+  if not path.exists():
+    return None
+  try:
+    data = json.loads(path.read_text())
+  except Exception:
+    return None
+  token = data.get("accessToken")
+  return token if isinstance(token, str) and token else None
+
+
+def api_json(method: str, path: str, token: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+  url = API + path
+  data = None
+  headers = {
+    "Authorization": f"Bearer {token}",
+    "User-Agent": "omarchy-agent-usage-cursor/1.0",
+    "Accept": "application/json",
+  }
+  if method == "POST":
+    data = json.dumps(body or {}).encode()
+    headers["Content-Type"] = "application/json"
+    headers["Connect-Protocol-Version"] = "1"
+  req = urllib.request.Request(url, data=data, headers=headers, method=method)
+  with urllib.request.urlopen(req, timeout=25) as resp:
+    raw = resp.read()
+    if not raw:
+      return {}
+    return json.loads(raw)
+
+
+def ms_to_iso(value: Any) -> str | None:
+  if value is None or value == "":
+    return None
+  try:
+    ms = int(str(value))
+  except Exception:
+    return None
+  if ms > 10_000_000_000:  # ms
+    dt = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+  else:
+    dt = datetime.fromtimestamp(ms, tz=timezone.utc)
+  return dt.isoformat()
+
+
+def as_float(value: Any, default: float = 0.0) -> float:
+  try:
+    return float(value)
+  except Exception:
+    return default
+
+
+def as_int(value: Any, default: int = 0) -> int:
+  try:
+    return int(float(value))
+  except Exception:
+    return default
+
+
+def percent_fraction(value: Any) -> float | None:
+  """Normalize API percents (0-100 or 0-1) to 0-1 for the panel."""
+  n = as_float(value, -1)
+  if n < 0:
+    return None
+  if n > 1.0001:
+    n = n / 100.0
+  if n > 1:
+    n = 1.0
+  return n
+
+
+USED_PERCENT = re.compile(r"used\s+(\d+(?:\.\d+)?)\s*%", re.I)
+
+
+def percent_from_message(message: Any) -> float | None:
+  """The Plan & Usage page prints these sentences; the % in the text is the meter."""
+  match = USED_PERCENT.search(str(message or ""))
+  if not match:
+    return None
+  return min(1.0, max(0.0, float(match.group(1)) / 100.0))
+
+
+def limits_from_period(period: dict[str, Any], resets: str | None) -> list[dict[str, Any]]:
+  """Two meters, same labels and percents as Cursor Settings.
+
+  autoPercentUsed / includedSpend/limit are a different scale and do not
+  match Plan & Usage (1% / 0% on Ultra vs 60% / 4.5% from those fields).
+  """
+  limits: list[dict[str, Any]] = []
+  for label, key in (
+    ("Cursor Models", "autoModelSelectedDisplayMessage"),
+    ("Other Models", "namedModelSelectedDisplayMessage"),
+  ):
+    frac = percent_from_message(period.get(key))
+    if frac is None:
+      continue
+    limits.append({"label": label, "title": label, "percent": frac, "resetsAt": resets})
+  if limits:
+    return limits
+  fallback = percent_from_message(period.get("displayMessage"))
+  if fallback is not None:
+    return [{"label": "Included", "title": "Included", "percent": fallback, "resetsAt": resets}]
+  return []
+
+
+def balance_from_period(period: dict[str, Any], plan_info: dict[str, Any]) -> dict[str, Any] | None:
+  """Only a real prepaid / on-demand pot. Ultra's includedAmountCents is a
+  subscription allowance, not credits the user loaded onto an account."""
+  spend = period.get("spendLimitUsage") or {}
+  if "remaining" not in spend or "limit" not in spend:
+    return None
+  remaining = as_float(spend.get("remaining"), -1)
+  funded = as_float(spend.get("limit"), -1)
+  if remaining < 0 or funded <= 0:
+    return None
+  spent = as_float(spend.get("spent"))
+  if spent <= 0:
+    spent = max(0.0, funded - remaining)
+  cents = funded >= 100
+  scale = 100.0 if cents else 1.0
+  return {
+    "remaining": remaining / scale,
+    "funded": funded / scale,
+    "spent": spent / scale,
+    "currency": "USD",
+    "estimated": False,
+  }
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def collect_cloud_sessions() -> tuple[int, int, int, list[str]]:
+  """Return totalSessions, todaySessions, todayPrompts-ish, activeDates from conversation-search.db."""
+  db = Path.home() / ".config/Cursor/User/globalStorage/conversation-search.db"
+  if not db.exists():
+    return 0, 0, 0, []
+  try:
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    cur = con.cursor()
+    rows = cur.execute("SELECT updated_at FROM conversations WHERE is_archived = 0").fetchall()
+    con.close()
+  except Exception:
+    return 0, 0, 0, []
+  if not rows:
+    return 0, 0, 0, []
+  today = date.today()
+  by_day: dict[str, int] = defaultdict(int)
+  today_n = 0
+  for (ts,) in rows:
+    try:
+      # updated_at looks like ms epoch (sometimes slightly skewed)
+      ms = int(ts)
+      d = datetime.fromtimestamp(ms / 1000, tz=timezone.utc).astimezone().date()
+    except Exception:
+      continue
+    by_day[d.isoformat()] += 1
+    if d == today:
+      today_n += 1
+  active = sorted(by_day.keys())
+  return len(rows), today_n, today_n, active
+
+
+def build_recent_days(token_by_day: dict[str, int]) -> list[dict[str, Any]]:
+  today = date.today()
+  out = []
+  for i in range(6, -1, -1):
+    d = today - timedelta(days=i)
+    iso = d.isoformat()
+    out.append({"date": iso, "messageCount": int(token_by_day.get(iso, 0))})
+  return out
+
+
+def day_bounds_ms(day: date, tzinfo=None) -> tuple[int, int]:
+  """Inclusive local-day window as unix milliseconds, matching the dashboard."""
+  tz = tzinfo or datetime.now().astimezone().tzinfo
+  start = datetime(day.year, day.month, day.day, tzinfo=tz)
+  end = start + timedelta(days=1)
+  return int(start.timestamp() * 1000), int(end.timestamp() * 1000) - 1
+
+
+def parse_aggregations(agg: dict[str, Any]) -> tuple[dict[str, dict[str, int]], dict[str, int], int]:
+  model_usage: dict[str, dict[str, int]] = {}
+  totals: dict[str, int] = {}
+  total_tokens = 0
+  for row in agg.get("aggregations") or []:
+    if not isinstance(row, dict):
+      continue
+    name = str(row.get("modelIntent") or "unknown")
+    bucket = model_usage.setdefault(name, empty_bucket())
+    inp = as_int(row.get("inputTokens"))
+    out = as_int(row.get("outputTokens"))
+    cache_r = as_int(row.get("cacheReadTokens"))
+    cache_w = as_int(row.get("cacheWriteTokens"))
+    bucket["inputTokens"] += inp
+    bucket["outputTokens"] += out
+    bucket["cacheReadInputTokens"] += cache_r
+    bucket["cacheCreationInputTokens"] += cache_w
+    n = inp + out + cache_r + cache_w
+    if n <= 0:
+      continue
+    totals[name] = totals.get(name, 0) + n
+    total_tokens += n
+  return model_usage, totals, total_tokens
+
+
+def fetch_aggregated(token: str, start_ms: int | None = None, end_ms: int | None = None) -> dict[str, Any]:
+  body: dict[str, Any] = {}
+  if start_ms is not None:
+    body["startDate"] = str(start_ms)
+  if end_ms is not None:
+    body["endDate"] = str(end_ms)
+  return api_json("POST", "/aiserver.v1.DashboardService/GetAggregatedUsageEvents", token, body)
+
+
+# A --limits-only run reuses the last full collection's tokens rather than
+# re-reading a week of aggregations. Today's row is the one that moves while
+# you work, so it is re-read once the reused copy is older than this.
+LIMITS_ONLY_TODAY_MAX_AGE_SECONDS = 300
+
+
+def usage_map_total(model_usage: dict[str, Any]) -> int:
+  """Every token in a modelUsage map, across all four buckets."""
+  total = 0
+  for bucket in model_usage.values():
+    if not isinstance(bucket, dict):
+      continue
+    total += (as_int(bucket.get("inputTokens")) + as_int(bucket.get("outputTokens"))
+              + as_int(bucket.get("cacheReadInputTokens"))
+              + as_int(bucket.get("cacheCreationInputTokens")))
+  return total
+
+
+def merge_day(history: list[dict[str, Any]], iso: str, total: int,
+              models: dict[str, int]) -> list[dict[str, Any]]:
+  rows = [row for row in history if str(row.get("date") or "") != iso]
+  if total > 0:
+    rows.append({"date": iso, "messageCount": total, "tokensByModel": models})
+  rows.sort(key=lambda row: str(row.get("date") or ""))
+  return rows
+
+
+def fetch_day_tokens(token: str, day: date, cycle_total: int = 0) -> tuple[dict[str, int], int]:
+  """Tokens for one local day. An empty date filter means "billing cycle", so a
+  day that comes back as the whole cycle is a filter the server ignored."""
+  start_ms, end_ms = day_bounds_ms(day)
+  try:
+    _, simple, total = parse_aggregations(fetch_aggregated(token, start_ms, end_ms))
+  except Exception as e:
+    print(f"lol.agents cursor: day aggregation failed: {type(e).__name__}", file=sys.stderr)
+    return {}, 0
+  if cycle_total > 0 and total >= cycle_total * 0.95:
+    return {}, 0
+  return simple, total
+
+
+def record_datetime(prev: dict[str, Any]) -> datetime | None:
+  try:
+    stamp = datetime.fromisoformat(str(prev.get("updatedAt") or ""))
+  except Exception:
+    return None
+  return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+
+
+def record_local_date(prev: dict[str, Any]) -> str:
+  """The local calendar day a record was written on. updatedAt is UTC, and
+  comparing its first ten characters to a local date is wrong by a whole day
+  for anyone west of Greenwich in the evening."""
+  stamp = record_datetime(prev)
+  return stamp.astimezone().date().isoformat() if stamp else ""
+
+
+def record_age_seconds(prev: dict[str, Any]) -> float:
+  stamp = record_datetime(prev)
+  if not stamp:
+    return float("inf")
+  return max(0.0, (datetime.now(timezone.utc) - stamp).total_seconds())
+
+
+def carried_stats(prev: dict[str, Any], today: date) -> tuple[
+    dict[str, dict[str, int]], dict[str, int], int, list[dict[str, Any]], dict[str, int]]:
+  """Token stats from the last full collection, reshaped around today.
+
+  The panel calls a limits refresh every time it opens; writing this
+  collector's empty defaults back over the record is what left Cursor with no
+  daily tokens and no models between full runs."""
+  model_usage = prev.get("modelUsage")
+  if not isinstance(model_usage, dict):
+    model_usage = {}
+  history = [row for row in (prev.get("history") or [])
+             if isinstance(row, dict) and row.get("date")]
+  history.sort(key=lambda row: str(row.get("date") or ""))
+  token_by_day: dict[str, int] = {}
+  for row in (prev.get("recentDays") or []):
+    if isinstance(row, dict) and row.get("date"):
+      token_by_day[str(row["date"])] = as_int(row.get("messageCount"))
+  for row in history:
+    token_by_day.setdefault(str(row["date"]), as_int(row.get("messageCount")))
+
+  iso = today.isoformat()
+  if record_local_date(prev) == iso:
+    today_models = prev.get("todayTokensByModel")
+    if not isinstance(today_models, dict):
+      today_models = {}
+    return model_usage, today_models, as_int(prev.get("todayTotalTokens")), history, token_by_day
+
+  # Yesterday's "today" is not today's: the day counters restart at local
+  # midnight, and a stale row would read as work already done.
+  token_by_day.pop(iso, None)
+  history = [row for row in history if str(row.get("date") or "") != iso]
+  return model_usage, {}, 0, history, token_by_day
+
+
+def previous_usage_record() -> dict[str, Any]:
+  path = Path.home() / ".local/state/omarchy/agents/usage/cursor.json"
+  try:
+    data = json.loads(path.read_text())
+  except Exception:
+    return {}
+  return data if isinstance(data, dict) else {}
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Cursor usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+  limits_only = args.limits_only or os.environ.get("OMARCHY_CURSOR_LIMITS_ONLY") == "1"
+
+  token = auth_token()
+  if not token:
+    record = {
+      "schemaVersion": 1,
+      "id": AGENT_ID,
+      "name": AGENT_NAME,
+      "updatedAt": datetime.now(timezone.utc).isoformat(),
+      "ready": False,
+      "hasLocalStats": False,
+      "hasPromptStats": False,
+      "tierLabel": "",
+      "usageStatusText": "Not logged in",
+      "authHelpText": AUTH_HELP,
+      "limits": [],
+      "scope": "account",
+      "todayPrompts": 0,
+      "todaySessions": 0,
+      "todayTotalTokens": 0,
+      "todayTokensByModel": {},
+      "recentDays": [],
+      "history": [],
+      "totalPrompts": 0,
+      "totalSessions": 0,
+      "activeDays": 0,
+      "activeDates": [],
+      "modelUsage": {},
+    }
+    json.dump(record, sys.stdout, separators=(",", ":"), sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+  limits: list[dict[str, Any]] = []
+  tier = "Cursor"
+  usage_status = ""
+  auth_help = ""
+  ready = True
+
+  try:
+    period = api_json("POST", "/aiserver.v1.DashboardService/GetCurrentPeriodUsage", token, {})
+  except urllib.error.HTTPError as e:
+    ready = False
+    auth_help = AUTH_HELP if e.code in (401, 403) else f"usage API HTTP {e.code}"
+    period = {}
+  except Exception as e:
+    ready = False
+    auth_help = f"usage API failed: {type(e).__name__}"
+    period = {}
+
+  try:
+    plan = api_json("POST", "/aiserver.v1.DashboardService/GetPlanInfo", token, {})
+    plan_info = plan.get("planInfo") or {}
+    if plan_info.get("planName"):
+      tier = str(plan_info["planName"])
+  except Exception:
+    plan_info = {}
+    try:
+      stripe = api_json("GET", "/auth/full_stripe_profile", token)
+      tier = str(stripe.get("individualMembershipType") or stripe.get("membershipType") or tier).title()
+    except Exception:
+      pass
+
+  resets = ms_to_iso(period.get("billingCycleEnd") or plan_info.get("billingCycleEnd"))
+  limits = limits_from_period(period, resets)
+  if plan_info.get("price") and tier:
+    tier = f"{tier} · {plan_info['price']}"
+
+  usage_status = ""
+
+  model_usage: dict[str, dict[str, int]] = {}
+  today_tokens_by_model: dict[str, int] = {}
+  today_total = 0
+  history: list[dict[str, Any]] = []
+  token_by_day: dict[str, int] = {}
+  prev = previous_usage_record()
+  today = date.today()
+  if limits_only:
+    # Limits are the only thing this mode must re-read; the tokens come from
+    # the last full collection so the panel keeps its day and model rows.
+    model_usage, today_tokens_by_model, today_total, history, token_by_day = carried_stats(prev, today)
+    if record_age_seconds(prev) > LIMITS_ONLY_TODAY_MAX_AGE_SECONDS:
+      fresh_models, fresh_total = fetch_day_tokens(token, today, usage_map_total(model_usage))
+      if fresh_total > 0:
+        today_tokens_by_model = fresh_models
+        today_total = fresh_total
+        token_by_day[today.isoformat()] = fresh_total
+        history = merge_day(history, today.isoformat(), fresh_total, fresh_models)
+  else:
+    try:
+      model_usage, _, _ = parse_aggregations(fetch_aggregated(token))
+    except Exception as e:
+      print(f"lol.agents cursor: cycle aggregation failed: {type(e).__name__}", file=sys.stderr)
+      model_usage = {}
+    prev_history = prev.get("history") if isinstance(prev.get("history"), list) else []
+    yesterday = (today - timedelta(days=1)).isoformat()
+    have_recent_history = any(str(row.get("date") or "") == yesterday for row in prev_history)
+    if args.force or not have_recent_history:
+      days_to_fetch = [today - timedelta(days=i) for i in range(6, -1, -1)]
+    else:
+      days_to_fetch = [today]
+      for row in prev_history:
+        day = str(row.get("date") or "")
+        if not day or day >= today.isoformat():
+          continue
+        history.append(row)
+        token_by_day[day] = as_int(row.get("messageCount"))
+    for day in days_to_fetch:
+      start_ms, end_ms = day_bounds_ms(day)
+      try:
+        _, simple, total = parse_aggregations(fetch_aggregated(token, start_ms, end_ms))
+      except Exception as e:
+        print(f"lol.agents cursor: day aggregation failed: {type(e).__name__}", file=sys.stderr)
+        simple, total = {}, 0
+      iso = day.isoformat()
+      token_by_day[iso] = total
+      if total > 0:
+        history.append({"date": iso, "messageCount": total, "tokensByModel": simple})
+      if day == today:
+        today_tokens_by_model = simple
+        today_total = total
+    history.sort(key=lambda row: str(row.get("date") or ""))
+
+    cycle_total = usage_map_total(model_usage)
+    # Empty startDate/endDate is the billing cycle. If every dated window
+    # comes back as that cycle, the filter was ignored — do not label it today.
+    fetched_totals = [token_by_day.get(day.isoformat(), 0) for day in days_to_fetch]
+    if cycle_total > 0 and fetched_totals and all(t >= cycle_total * 0.95 for t in fetched_totals):
+      today_tokens_by_model = {}
+      today_total = 0
+      history = []
+      token_by_day = {}
+
+    if not model_usage and isinstance(prev.get("modelUsage"), dict) and prev["modelUsage"]:
+      model_usage = prev["modelUsage"]
+    if today_total <= 0 and as_int(prev.get("todayTotalTokens")) > 0 and record_local_date(prev) == today.isoformat():
+      today_tokens_by_model = prev.get("todayTokensByModel") or {}
+      today_total = as_int(prev.get("todayTotalTokens"))
+      if not history:
+        history = prev_history
+        token_by_day = {
+          str(row.get("date")): as_int(row.get("messageCount"))
+          for row in (prev.get("recentDays") or []) if row.get("date")
+        }
+
+  total_sessions, today_sessions, today_prompts, active_dates = collect_cloud_sessions()
+  # Prefer having at least one session marker when logged in so the chip stays visible.
+  if total_sessions <= 0 and ready:
+    total_sessions = 1
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": ready and bool(limits or model_usage),
+    "hasLocalStats": bool(model_usage) or total_sessions > 0,
+    "hasPromptStats": False,
+    "tierLabel": tier,
+    "usageStatusText": usage_status,
+    "authHelpText": auth_help,
+    "limits": limits,
+    "scope": "account",
+    "todayPrompts": today_prompts,
+    "todaySessions": today_sessions,
+    "todayTotalTokens": today_total,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": build_recent_days(token_by_day),
+    "history": history,
+    "totalPrompts": total_sessions,
+    "totalSessions": total_sessions,
+    "activeDays": len(active_dates),
+    "activeDates": active_dates,
+    "modelUsage": model_usage,
+  }
+
+  balance = balance_from_period(period, plan_info)
+  if balance:
+    record["balance"] = balance
+
+  json.dump(record, sys.stdout, separators=(",", ":"), sort_keys=True)
+  sys.stdout.write("\n")
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
