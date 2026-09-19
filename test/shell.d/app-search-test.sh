@@ -123,6 +123,27 @@ assert(
 )
 
 assert(
+  /function iconIndexScanCommand\(\) \{[\s\S]*?gsettings get org\.gnome\.desktop\.interface icon-theme[\s\S]*?\n  \}/.test(appLibraryQml),
+  'app library icon index reads the live icon theme instead of assuming one'
+)
+
+assert(
+  /function iconIndexScanCommand\(\) \{[\s\S]*?\^Inherits=[\s\S]*?\n  \}/.test(appLibraryQml),
+  'app library icon index follows the theme Inherits chain'
+)
+
+assert(
+  /function iconIndexScanCommand\(\) \{[\s\S]*?find -L[\s\S]*?\n  \}/.test(appLibraryQml),
+  'app library icon index follows symlinked theme dirs such as Papirus-Dark contexts'
+)
+
+assert(
+  /function iconIndexScanCommand\(\) \{[\s\S]*?ordered=[\s\S]*?for t in \$ordered[\s\S]*?pixmaps[\s\S]*?\n  \}/.test(appLibraryQml) &&
+    appLibraryQml.indexOf('for t in $ordered') < appLibraryQml.lastIndexOf('/usr/share/pixmaps'),
+  'app library icon index emits the active theme before unthemed fallbacks'
+)
+
+assert(
   appLibraryQml.includes('command: ["bash", "-c", root.hiddenEntryScanCommand()]') &&
     appLibraryQml.includes('command: ["bash", "-c", root.iconIndexScanCommand()]') &&
     !appLibraryQml.includes('"-lc"'),
@@ -153,5 +174,14 @@ assert(openMatch, 'menu openExistingMenu function exists')
 assert(
   openMatch[1].includes('root.appLibrary.refreshIcons()'),
   'menu refreshes the shared icon index when opened'
+)
+
+assert(
+  /id: appIconImage[\s\S]*?Math\.round\(\(Style\.space\(36\) - width\) \/ 2\)/.test(menuQml),
+  'menu snaps app icon horizontal offset to whole pixels'
+)
+assert(
+  /id: appIconImage[\s\S]*?Math\.round\(contentColumn\.y \+ labelText\.y/.test(menuQml),
+  'menu snaps app icon vertical offset to whole pixels'
 )
 JS
