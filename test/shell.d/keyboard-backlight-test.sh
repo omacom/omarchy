@@ -184,11 +184,14 @@ pass "off blanks without overwriting a user-selected keyboard brightness"
 
 rm -f "$state_path"
 printf '2\n' >"$current_file"
+printf '1\n' >"$saved_file"
 run_keyboard off
-[[ $(<"$state_path") == 2 ]] || fail "off seeds persist when no user-selected level exists" "actual: $(<"$state_path")"
-pass "off seeds persist when no user-selected level exists"
+[[ ! -e $state_path ]] || fail "off seeds persist from a temporary blank"
+[[ $(<"$saved_file") == 2 ]] || fail "off saves a live level for brightnessctl restore" "actual: $(<"$saved_file")"
+pass "off does not seed persist from a temporary blank"
 
 printf '0\n' >"$current_file"
 run_keyboard off
-[[ $(<"$state_path") == 2 ]] || fail "a second off does not persist the blanked level" "actual: $(<"$state_path")"
-pass "a second off does not persist the blanked level"
+[[ ! -e $state_path ]] || fail "a second off creates persist from a blanked LED"
+[[ $(<"$saved_file") == 2 ]] || fail "a second off poisons brightnessctl save with 0" "actual: $(<"$saved_file")"
+pass "a second off does not save the blanked level"

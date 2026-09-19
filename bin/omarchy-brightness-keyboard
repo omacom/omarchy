@@ -56,12 +56,13 @@ fi
 
 if [[ $direction == "off" ]]; then
   current_brightness="$(brightnessctl -d "$device" get)"
-  # Seed only when nothing has been chosen yet. Lock/idle blanks must not
-  # overwrite a user-selected level with whatever firmware set after resume.
-  if [[ ! -r $state_file ]] && [[ $current_brightness =~ ^[0-9]+$ ]] && (( current_brightness > 0 )); then
-    persist_brightness "$current_brightness"
+  # Only persist on up/down/cycle. `off` is a temporary blank (lock/idle).
+  # brightnessctl -s of an already-zero LED would poison restore fallback.
+  if [[ $current_brightness =~ ^[0-9]+$ ]] && (( current_brightness > 0 )); then
+    brightnessctl -sd "$device" set 0 >/dev/null
+  else
+    brightnessctl -d "$device" set 0 >/dev/null
   fi
-  brightnessctl -sd "$device" set 0 >/dev/null
   exit 0
 elif [[ $direction == "restore" ]]; then
   # Prefer the last user-selected level. brightnessctl's restore only knows the
