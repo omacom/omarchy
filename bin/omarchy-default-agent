@@ -88,6 +88,10 @@ fi
 
 if [[ $agent == "claude" ]]; then
   omarchy-install-chromium-claude 2>/dev/null || true
+  # Otherwise the generated theme file syncs on every theme switch, but
+  # Claude Code itself never gets pointed at it -- it keeps its own default
+  # ("auto") until something sets `theme` to `custom:omarchy` explicitly.
+  omarchy-theme-set-claude --activate 2>/dev/null || true
 fi
 
 mkdir -p "$(dirname "$agent_file")"
