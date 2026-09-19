@@ -112,6 +112,8 @@ pass "pkexec target is only the canonical packaged regular file, never a PATH sy
 reset_case
 external_shared="$TMPDIR/external-shared"
 mkdir -m 0755 -p "$HOME/.windows" "$external_shared" "$HOME/.config/windows"
+# dockur leaves an initially empty share setgid, which a numeric chmod keeps.
+chmod 2777 "$external_shared"
 ln -s "$external_shared" "$HOME/Windows"
 touch "$HOME/.windows/existing-disk" "$external_shared/existing-shared-file"
 LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
