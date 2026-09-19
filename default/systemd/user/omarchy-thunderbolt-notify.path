@@ -1,0 +1,16 @@
+[Unit]
+Description=Watch the Thunderbolt bus for device changes
+# kernfs exposes sysfs directories to inotify, so PathChanged on the devices
+# directory fires the instant a Thunderbolt device connects -- the check runs
+# while the user is still wondering why the dock is dead, not at the next poll.
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionPathExists=!%h/.local/state/omarchy/toggles/thunderbolt-auth-off
+
+[Path]
+PathChanged=/sys/bus/thunderbolt/devices
+Unit=omarchy-thunderbolt-notify.service
+
+[Install]
+WantedBy=graphical-session.target
