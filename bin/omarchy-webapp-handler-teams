@@ -1,0 +1,46 @@
+#!/bin/bash
+# omarchy:summary=Open Teams meetings from browser protocol links
+# omarchy:args=[url]
+url="$1"; path=""
+# The pattern variable is unquoted on the right of =~ so its | branches stay regex.
+# Patterns live in variables so a # in the short-shape class cannot start a comment.
+hosts='teams\.microsoft\.com|teams\.cloud\.microsoft|teams\.live\.com|gov\.teams\.microsoft\.us|dod\.teams\.microsoft\.us|teams\.microsoftonline\.cn'
+hosted_classic="^msteams:/*($hosts)/l/meetup-join/(19(:|%3[aA])[^[:space:]]+)$"
+hosted_short="^msteams:/*($hosts)/meet/([^/?#[:space:]]+)(\?[^#[:space:]]*)?(#[^[:space:]]*)?(/[^[:space:]]*)?$"
+bare_classic="^msteams:/*l/meetup-join/(19(:|%3[aA])[^[:space:]]+)$"
+bare_short="^msteams:/*meet/([^/?#[:space:]]+)(\?[^#[:space:]]*)?(#[^[:space:]]*)?(/[^[:space:]]*)?$"
+if [[ $url =~ $hosted_classic ]]; then  # any leading slashes: msteams:teams. .. msteams:///teams.
+  host="${BASH_REMATCH[1]}"; path="l/meetup-join/${BASH_REMATCH[2]}"
+elif [[ $url =~ $hosted_short ]]; then
+  host="${BASH_REMATCH[1]}"; path="meet/${BASH_REMATCH[2]}${BASH_REMATCH[3]}${BASH_REMATCH[4]}"
+elif [[ $url =~ $bare_classic ]]; then  # any leading slashes, host-less: msteams:l/.. msteams:///l/..
+  host="teams.microsoft.com"; path="l/meetup-join/${BASH_REMATCH[1]}"
+elif [[ $url =~ $bare_short ]]; then
+  host="teams.microsoft.com"; path="meet/${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+fi
+# --gtk-version=3 mirrors the flag in teams-for-linux's own packaged .desktop Exec.
+if omarchy-cmd-present teams-for-linux; then
+  if [[ $url == msteams:* ]]; then exec setsid uwsm-app -- teams-for-linux --gtk-version=3 "$url"
+  else exec setsid uwsm-app -- teams-for-linux --gtk-version=3; fi
+fi
+if [[ -n $path ]]; then
+  # Origin-independent loop backstop: refuse a second web-app window for the same meeting
+  # within ~20s. The content-script latch is per origin; a cross-origin launcher hop that
+  # drops the marker (teams.microsoft.com -> teams.cloud.microsoft) would otherwise re-enter.
+  # Normalize the id the way the content script normalizes its key, so the same meeting in
+  # different encodings (launcher-decoded %3a/%40 vs raw :/@) maps to one id.
+  id="${path%%\?*}"; id="${id%%#*}"; id="${id//%3a/:}"; id="${id//%3A/:}"; id="${id//%40/@}"
+  state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  stamp="$state/teams-join-last"; now=$(printf '%(%s)T' -1)
+  if [[ -f $stamp ]]; then read -r last_id last_t < "$stamp" || true
+    [[ $last_id == "$id" ]] && (( now >= last_t && now - last_t < 20 )) && exit 0  # now>=last_t: a future stamp (clock stepped back) must not swallow
+  fi
+  mkdir -p "$state"; printf '%s %s\n' "$id" "$now" > "$stamp.$$" && mv -f "$stamp.$$" "$stamp"  # atomic; rare simultaneous same-meeting click can still open two
+  web_url="https://$host/$path"; fragment=""
+  [[ $web_url == *#* ]] && fragment="#${web_url#*#}" && web_url="${web_url%%#*}"
+  [[ $web_url == *\?* ]] && web_url+="&omarchyWebapp=1" || web_url+="?omarchyWebapp=1"
+  web_url+="$fragment"
+else
+  web_url="https://teams.microsoft.com/"
+fi
+exec omarchy-launch-webapp "$web_url"
