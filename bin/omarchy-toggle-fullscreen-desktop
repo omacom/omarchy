@@ -5,6 +5,7 @@
 # omarchy:examples=omarchy toggle fullscreen desktop | omarchy toggle fullscreen desktop off | omarchy toggle fullscreen desktop on
 
 ACTION="${1:-toggle}"
+BAR_ACTION="$ACTION"
 
 case $ACTION in
   toggle|"")
@@ -23,5 +24,14 @@ case $ACTION in
     ;;
 esac
 
-omarchy-toggle-bar "$ACTION"
+case $ACTION in
+on)
+  BAR_ACTION=off
+  ;;
+off)
+  BAR_ACTION=on
+  ;;
+esac
+
+omarchy-toggle-bar "$BAR_ACTION"
 omarchy-hyprland-toggle window-no-gaps "$ACTION"
