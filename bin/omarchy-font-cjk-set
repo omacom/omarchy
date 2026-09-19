@@ -13,8 +13,13 @@ Variants:
   kr    Korean (Noto Sans CJK KR)
   sc    Simplified Chinese (Noto Sans CJK SC)
   tc    Traditional Chinese (Noto Sans CJK TC)
-  hk    Hong Kong Chinese (Noto Sans CJK HK)
-  auto  Detect from LANG environment variable (prompts if LANG is en_*)
+  hk    Hong Kong Chinese (Noto Sans CJK HK, explicit choice only)
+  auto  Detect from LANG (prompts when LANG gives no CJK mapping)
+
+Notes:
+  auto maps zh_HK to tc by design, so hk is reachable only by naming it
+  explicitly. A stock install only generates C.UTF-8 and en_US.UTF-8, so
+  auto always prompts there until additional locales exist.
 EOF
 }
 
@@ -50,7 +55,7 @@ resolve_auto() {
     zh)
       case "$territory" in
         CN|SG) echo "sc" ;;
-        TW|HK) echo "tc" ;;  # zh_HK defaults to TC per design decision
+        TW|HK|MO) echo "tc" ;;  # zh_HK defaults to TC per design decision
         *)     echo "sc" ;;
       esac
       ;;
@@ -121,15 +126,22 @@ if ! fc-list | grep -Fqi -- "$sans_family"; then
   exit 1
 fi
 
-# --- Write the CJK section into fonts.conf ---
+# --- Write this variant's file into conf.d ---
 #
-# fonts.conf is the only per-user fontconfig file this system loads, so the
-# CJK rules live here in a marker-delimited section. The monospace section
-# managed by `omarchy font set` is preserved.
+# ~/.config/fontconfig/conf.d/ is loaded by fontconfig (via the
+# distro-shipped 50-user.conf), so this command owns
+# 50-omarchy-cjk.conf outright. The user's fonts.conf is left alone by
+# construction, and `omarchy font set` needs no changes: conf.d loads
+# before fonts.conf, so its prepend_first monospace rule keeps winning
+# the head of the chain.
 
-section_file=$(mktemp)
-cat >"$section_file" <<XML
-  <!-- omarchy:begin-cjk -->
+cjk_conf="$HOME/.config/fontconfig/conf.d/50-omarchy-cjk.conf"
+mkdir -p "$(dirname "$cjk_conf")"
+
+cat >"$cjk_conf" <<XML
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
   <!-- omarchy-cjk-variant: $variant -->
   <match target="pattern">
     <test name="family" qual="any">
@@ -157,30 +169,30 @@ cat >"$section_file" <<XML
   </match>
   <!-- Backup for Chromium/Electron: they resolve glyphs one character at a
        time without lang on the pattern, so the rules above never fire.
-       The lang-targeted rule covers that path. -->
+       The lang-targeted rule covers that path. Appended rather than
+       prepended so a monospace query never gets a proportional CJK face
+       at the head of its chain; charset matching still outranks family
+       matching, so the bare-charset path keeps working. -->
   <match target="pattern">
     <test name="lang" compare="contains">
       <string>$lang_tag</string>
     </test>
-    <edit name="family" mode="prepend" binding="strong">
+    <edit name="family" mode="append" binding="strong">
       <string>$sans_family</string>
     </edit>
   </match>
-  <!-- omarchy:end-cjk -->
+</fontconfig>
 XML
-
-omarchy-fontconfig-replace-section cjk "$section_file"
-rm -f -- "$section_file"
 
 echo "CJK variant set to: $variant ($sans_family)"
 
 omarchy-restart-shell 2>/dev/null || true
 
-if pgrep -x foot; then
+if pgrep -x foot >/dev/null; then
   omarchy-notification-send -g "You must restart Foot to see CJK font change" 2>/dev/null || true
 fi
 
-if pgrep -x ghostty; then
+if pgrep -x ghostty >/dev/null; then
   omarchy-notification-send -g "You must restart Ghostty to see CJK font change" 2>/dev/null || true
 fi
 
