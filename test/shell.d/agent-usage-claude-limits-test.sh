@@ -212,6 +212,146 @@ pass "Claude collector re-probes on --force despite a fresh cache"
   fail "Claude collector caches a successful probe" "$forced"
 pass "Claude collector caches a successful probe"
 
+# The monetary credit allowance rides in the same payload and is read as one
+# more window: a percentage of the cap, the amounts behind it, and a reset on
+# the first of the coming month.
+credits=$(read_limits '{
+  "five_hour": { "utilization": 0.0 },
+  "spend": {
+    "enabled": true,
+    "used": { "amount_minor": 45820, "currency": "EUR", "exponent": 2 },
+    "limit": { "amount_minor": 50000, "currency": "EUR", "exponent": 2 }
+  }
+}')
+
+[[ $(jq -c '.limits[-1] | del(.resetsAt)' <<<"$credits") == '{"label":"Usage credits","title":"Usage credits","percent":0.9164,"spend":{"used":458.2,"limit":500.0,"currency":"EUR"}}' ]] ||
+  fail "Claude collector reads the usage-credit allowance as a limit window" "$credits"
+pass "Claude collector reads the usage-credit allowance as a limit window"
+
+[[ $(jq -r '.limits[-1].resetsAt' <<<"$credits") == *-01T00:00:00* ]] ||
+  fail "Claude collector resets the credit window on the first of the coming month" "$credits"
+pass "Claude collector resets the credit window on the first of the coming month"
+
+# Spending past the cap is possible; a meter past full is not.
+over=$(read_limits '{
+  "five_hour": { "utilization": 0.0 },
+  "spend": {
+    "enabled": true,
+    "used": { "amount_minor": 60000, "currency": "EUR", "exponent": 2 },
+    "limit": { "amount_minor": 50000, "currency": "EUR", "exponent": 2 }
+  }
+}')
+
+[[ $(jq -c '.limits[-1].percent' <<<"$over") == "1.0" ]] ||
+  fail "Claude collector holds the credit window at full when spending passes the cap" "$over"
+pass "Claude collector holds the credit window at full when spending passes the cap"
+
+# Accounts without credits: a plan that never had them says nothing at all,
+# one with them switched off says so, and a prepaid ledger names credits
+# rather than a cap. None of them earn a window, and none of them may cost
+# the account the rate limit windows it does have.
+for payload in \
+  '{"five_hour":{"utilization":0.0}}' \
+  '{"five_hour":{"utilization":0.0},"spend":null}' \
+  '{"five_hour":{"utilization":0.0},"spend":{"enabled":false,"used":{"amount_minor":0,"currency":"USD","exponent":2},"limit":{"amount_minor":50000,"currency":"USD","exponent":2}}}' \
+  '{"five_hour":{"utilization":0.0},"spend":{"enabled":true,"used":{"amount_minor":100,"currency":"USD","exponent":2},"limit":null}}' \
+  '{"five_hour":{"utilization":0.0},"spend":{"enabled":true,"used":{"amount_minor":100,"currency":"USD","exponent":2},"limit":{"amount_minor":0,"currency":"USD","exponent":2}}}' \
+  '{"five_hour":{"utilization":0.0},"spend":{"enabled":true,"used":{"amount_minor":100,"currency":"USD","exponent":2},"limit":{"amount_minor":50000,"currency":"EUR","exponent":2}}}' \
+  '{"five_hour":{"utilization":0.0},"spend":{"enabled":true,"used":{"amount_minor":100,"currency":"USD"},"limit":{"amount_minor":50000,"currency":"USD","exponent":2}}}' \
+  '{"five_hour":{"utilization":0.0},"spend":{"enabled":true,"used":{"amount_minor":"100","currency":"USD","exponent":2},"limit":{"amount_minor":50000,"currency":"USD","exponent":2}}}' \
+  '{"five_hour":{"utilization":0.0},"spend":{"enabled":true,"used":{"amount_minor":NaN,"currency":"USD","exponent":2},"limit":{"amount_minor":50000,"currency":"USD","exponent":2}}}'; do
+  without=$(read_limits "$payload")
+  [[ $(jq -c '[.limits[].label]' <<<"$without") == '["Session (5-hour)"]' ]] ||
+    fail "Claude collector adds no credit window to an account without credits" "$payload -> $without"
+done
+pass "Claude collector adds no credit window to an account without credits"
+
+# A refund can carry the spend below zero. That is an empty meter, not a
+# missing window: the panel drops any window whose percent reads negative.
+refund=$(read_limits '{
+  "five_hour": { "utilization": 0.0 },
+  "spend": {
+    "enabled": true,
+    "used": { "amount_minor": -500, "currency": "EUR", "exponent": 2 },
+    "limit": { "amount_minor": 50000, "currency": "EUR", "exponent": 2 }
+  }
+}')
+
+[[ $(jq -c '.limits[-1] | [.label, .percent]' <<<"$refund") == '["Usage credits",0.0]' ]] ||
+  fail "Claude collector empties the credit meter on a refund rather than dropping it" "$refund"
+pass "Claude collector empties the credit meter on a refund rather than dropping it"
+
+# A zero-decimal currency states exponent 0 and must not be read as cents.
+yen=$(read_limits '{
+  "five_hour": { "utilization": 0.0 },
+  "spend": {
+    "enabled": true,
+    "used": { "amount_minor": 25000, "currency": "JPY", "exponent": 0 },
+    "limit": { "amount_minor": 50000, "currency": "JPY", "exponent": 0 }
+  }
+}')
+
+[[ $(jq -c '.limits[-1].spend' <<<"$yen") == '{"used":25000.0,"limit":50000.0,"currency":"JPY"}' ]] ||
+  fail "Claude collector reads money in the exponent the payload states" "$yen"
+pass "Claude collector reads money in the exponent the payload states"
+
+# The money is only true at the moment it was read, and its window stands for a
+# month. A cache replayed for weeks would report spending the account has long
+# since passed, so the credit window waits for a probe that reaches the endpoint
+# while the rate limit windows still come back.
+credit_cache=$(jq -nc --arg open "$open_at" '{
+  fetchedAtMs: 1,
+  limits: [
+    { label: "Weekly (7-day)", percent: 0.11, resetsAt: $open },
+    { label: "Usage credits", title: "Usage credits", percent: 0.92, resetsAt: $open,
+      spend: { used: 458.2, limit: 500.0, currency: "EUR" } }
+  ]
+}')
+
+cached_credits=$(collect_limits "token" 1000 "$credit_cache")
+[[ $(jq -c '[.limits[].label]' <<<"$cached_credits") == '["Weekly (7-day)"]' ]] ||
+  fail "Claude collector does not replay a cached credit figure" "$cached_credits"
+pass "Claude collector does not replay a cached credit figure"
+
+# next_month_start is a pure function of the month it is given, so its branches
+# are driven directly rather than through whatever month the suite runs in.
+month_start() {
+  COLLECTOR="$ROOT/bin/omarchy-agent-usage-claude" WHEN="$1" TZ="${2:-UTC}" python3 - <<'PY'
+import datetime as dt, importlib.machinery, importlib.util, os
+
+loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+collector = importlib.util.module_from_spec(spec)
+loader.exec_module(collector)
+
+print(collector.next_month_start(dt.datetime.fromisoformat(os.environ["WHEN"])))
+PY
+}
+
+# Mid-month, the last day of a month, and December, which is the only month
+# that has to carry the year with it. A December that rolled over to month 13
+# would raise out of the collector and cost the record every other number in
+# it, not just this window.
+while read -r when expected; do
+  [[ $(month_start "$when") == "$expected"* ]] ||
+    fail "Claude collector resets credits on the first of the coming month ($when)" "$(month_start "$when")"
+done <<'CASES'
+2026-09-17T10:30:00 2026-10-01T00:00:00
+2026-09-01T00:00:00 2026-10-01T00:00:00
+2026-01-31T12:00:00 2026-02-01T00:00:00
+2026-12-31T23:59:00 2027-01-01T00:00:00
+2026-12-01T00:00:00 2027-01-01T00:00:00
+CASES
+pass "Claude collector resets credits on the first of the coming month"
+
+# The reset can land on the far side of a daylight-saving change. Carrying
+# today's offset onto it puts the countdown an hour out and closes the cached
+# window an hour early.
+[[ $(month_start "2026-10-15T12:00:00" "Europe/Stockholm") == "2026-11-01T00:00:00+01:00" ]] ||
+  fail "Claude collector dates the credit reset in the offset of the day it lands on" \
+    "$(month_start "2026-10-15T12:00:00" "Europe/Stockholm")"
+pass "Claude collector dates the credit reset in the offset of the day it lands on"
+
 # The panel reads a window out of a label, and that guess cannot survive a
 # model name — "Opus 5 (1M context)" parses as a one-minute window. A collector
 # that states the title outright is taken at its word.
@@ -229,15 +369,111 @@ assertDeepEqual(
     { label: 'Opus 5 (1M context) Weekly', title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetsAt: '' }
   ] }),
   [
-    { title: 'Session', percent: 0.78, resetAt: '' },
-    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '' }
+    { title: 'Session', percent: 0.78, resetAt: '', spend: null },
+    { title: 'Opus 5 (1M context) Weekly', percent: 0.42, resetAt: '', spend: null }
   ],
   'agents panel titles a limit off the collector when it states one'
 )
 
 assertDeepEqual(
   limitWindows({ limits: [{ label: 'Weekly (7-day)', percent: 0.12, resetsAt: '' }] }),
-  [{ title: 'Weekly', percent: 0.12, resetAt: '' }],
+  [{ title: 'Weekly', percent: 0.12, resetAt: '', spend: null }],
   'agents panel still reads a window out of a label that carries no title'
 )
+JS
+
+# The panel formats the amounts; the collector only carries them. A window
+# with no allowance behind it renders no money line at all.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const start = source.indexOf('function currencyPrefix')
+const end = source.indexOf('// ---------------------------------------------------------------- content')
+assert(start > 0 && end > start, 'agents panel exposes its money helpers')
+eval(source.slice(start, end))
+
+assertEqual(
+  spendDetailText({ used: 458.2, limit: 500, currency: 'EUR' }),
+  '€458.20 / €500.00 spent',
+  'agents panel writes the credit allowance as money spent of a cap'
+)
+
+assertEqual(spendDetailText(null), '', 'agents panel writes no money line for a rate limit window')
+JS
+
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const start = source.indexOf('function windowIsLong')
+const end = source.indexOf('// The window that decides')
+assert(start > 0 && end > start, 'agents panel exposes its limit-window helpers')
+eval(source.slice(start, end))
+
+assertDeepEqual(
+  limitWindows({ limits: [{
+    label: 'Usage credits', title: 'Usage credits', percent: 0.92, resetsAt: '',
+    spend: { used: 458.2, limit: 500, currency: 'EUR' }
+  }] }),
+  [{ title: 'Usage credits', percent: 0.92, resetAt: '', spend: { used: 458.2, limit: 500, currency: 'EUR' } }],
+  'agents panel carries a credit allowance through to its window'
+)
+
+// Nothing usable behind the amounts is the same as no allowance: a window
+// that cannot say what it cost says nothing rather than "$0.00 / $0.00".
+for (const spend of [null, {}, { used: 10 }, { used: 10, limit: 0 }, { used: -1, limit: 500 }]) {
+  assertEqual(
+    limitWindows({ limits: [{ label: 'Usage credits', percent: 0.92, resetsAt: '', spend }] })[0].spend,
+    null,
+    'agents panel drops an allowance it cannot read: ' + JSON.stringify(spend)
+  )
+}
+JS
+
+# The bar icon's alarm answers "what stops the next prompt". Credits do not:
+# running them down returns the account to its rate limit windows, and the
+# credit window would otherwise hold the alarm lit until the month rolled over.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const start = source.indexOf('function windowIsLong')
+const end = source.indexOf('// ---------------------------------------------------------------- content')
+assert(start > 0 && end > start, 'agents panel exposes its window and money helpers')
+eval(source.slice(start, end))
+
+const credits = {
+  label: 'Usage credits', title: 'Usage credits', percent: 0.92, resetsAt: '',
+  spend: { used: 458.2, limit: 500, currency: 'EUR' }
+}
+
+assertEqual(
+  bindingWindow({ limits: [{ label: 'Weekly (7-day)', percent: 0.11, resetsAt: '' }, credits] }).title,
+  'Weekly',
+  'agents panel binds the bar to a rate limit window, not the fuller credit window'
+)
+
+assertEqual(
+  bindingWindow({ limits: [credits] }),
+  null,
+  'agents panel binds the bar to nothing when only credits are known'
+)
+
+assertEqual(
+  limitDetailText({ spend: { used: 458.2, limit: 500, currency: 'EUR' } }, 7500000),
+  '€458.20 / €500.00 spent · Resets in 2h 5m',
+  'agents panel writes the money and the countdown on one line'
+)
+
+assertEqual(
+  limitDetailText({ spend: { used: 458.2, limit: 500, currency: 'EUR' } }, -1),
+  '€458.20 / €500.00 spent',
+  'agents panel writes money alone when no reset time is known'
+)
+
+assertEqual(
+  limitDetailText({ spend: null }, 7500000),
+  'Resets in 2h 5m',
+  'agents panel leaves a rate limit row reading the way it always did'
+)
+
+assertEqual(limitDetailText(null, -1), '', 'agents panel writes nothing under a window with neither')
 JS

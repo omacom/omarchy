@@ -19,6 +19,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
@@ -708,6 +709,62 @@ def scoped_limits(payload: dict[str, Any], percent_scale: bool) -> list[dict[str
   return out
 
 
+# One money figure out of the payload, in minor units with its own exponent.
+# An exponent that is missing or unreadable is not assumed: guessing two
+# decimal places renders a zero-decimal currency a hundredfold short, and a
+# window that cannot state an amount is worth less than no window.
+def money_amount(raw: Any) -> tuple[float, str] | None:
+  if not isinstance(raw, dict):
+    return None
+  minor = raw.get("amount_minor")
+  if isinstance(minor, bool) or not isinstance(minor, (int, float)) or not math.isfinite(minor):
+    return None
+  exponent = raw.get("exponent")
+  if isinstance(exponent, bool) or not isinstance(exponent, int) or exponent < 0:
+    return None
+  return minor / (10 ** exponent), str(raw.get("currency") or "")
+
+
+# Credits refill with the billing month, and `spend` carries no reset stamp of
+# its own. The next first of the month, in local time, is that date. `now`
+# names the month; the date itself is built without an offset and localized
+# for the day it lands on, since the first of next month can sit on the far
+# side of a daylight-saving change from today.
+def next_month_start(now: dt.datetime) -> str:
+  year = now.year + (1 if now.month == 12 else 0)
+  month = 1 if now.month == 12 else now.month + 1
+  return dt.datetime(year, month, 1).astimezone().isoformat()
+
+
+# The account's monetary credit allowance rides in the same payload as the
+# rate limit windows, under `spend`. It fills up the way a window does, so it
+# is read as one more window rather than a shape of its own. An account that
+# never had credits, or has them switched off, carries nothing here and gets
+# no window.
+def spend_limit(payload: dict[str, Any], now: dt.datetime) -> dict[str, Any] | None:
+  spend = payload.get("spend")
+  if not isinstance(spend, dict) or spend.get("enabled") is not True:
+    return None
+  used = money_amount(spend.get("used"))
+  cap = money_amount(spend.get("limit"))
+  if used is None or cap is None or not cap[0] > 0:
+    return None
+  # Two amounts in two currencies cannot be written as one line, and picking
+  # one of them would label the other's money wrongly.
+  if used[1] != "" and cap[1] != "" and used[1] != cap[1]:
+    return None
+  return {
+    "label": "Usage credits",
+    "title": "Usage credits",
+    # The endpoint reports a rounded percentage of its own; the amounts give
+    # the meter the same figure without the rounding. A refund can carry the
+    # spend below zero, which is an empty meter rather than a missing window.
+    "percent": min(1.0, max(0.0, used[0] / cap[0])),
+    "resetsAt": next_month_start(now),
+    "spend": {"used": used[0], "limit": cap[0], "currency": used[1] or cap[1] or "USD"},
+  }
+
+
 def probe_limits(access_token: str) -> dict[str, Any]:
   request = urllib.request.Request(
     USAGE_ENDPOINT,
@@ -759,6 +816,9 @@ def probe_limits(access_token: str) -> dict[str, Any]:
     if percent >= 0:
       limits.append({"label": "Weekly (7-day)", "percent": percent, "resetsAt": normalize_reset_at(weekly.get("resets_at"))})
   limits.extend(scoped_limits(payload, percent_scale))
+  credits = spend_limit(payload, dt.datetime.now().astimezone())
+  if credits is not None:
+    limits.append(credits)
 
   if not limits:
     return {"ok": False, "helpText": "Anthropic's usage endpoint returned no limits. Local Claude Code stats are still shown."}
@@ -788,7 +848,15 @@ def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
   if not isinstance(entries, list):
     return []
   now = dt.datetime.now(dt.timezone.utc)
-  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+  # A window carrying money is dropped rather than replayed. The rate limit
+  # windows reset within hours or days, so a cached percentage is at worst a
+  # few hours old; the credit window stands for a whole month, long enough for
+  # a cached figure to misreport the account by weeks of spending. It waits
+  # for a probe that reaches the endpoint.
+  return [
+    entry for entry in entries
+    if isinstance(entry, dict) and "spend" not in entry and limit_window_open(entry, now)
+  ]
 
 
 def collect_limits(access_token: str, expires_at_ms: int, force: bool) -> dict[str, Any]:
