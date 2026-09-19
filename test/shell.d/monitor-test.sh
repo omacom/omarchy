@@ -5,8 +5,17 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const monitor = requireFromRoot('shell/plugins/panels/monitor/Model.js')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/monitor/Panel.qml', 'utf8')
 
+assertDeepEqual(monitor.brightnessTargets('eDP-1', ''), ['eDP-1'], 'monitor brightness targets the focused display')
+assertDeepEqual(monitor.brightnessTargets('eDP-1', 'HDMI-A-1'), ['eDP-1', 'HDMI-A-1'], 'monitor brightness also targets a mirrored display')
+assertDeepEqual(monitor.brightnessTargets('eDP-1', 'eDP-1'), ['eDP-1'], 'monitor brightness does not duplicate the focused display')
+assert(
+  /Model\.brightnessTargets\(root\.focusedMonitor, root\.mirrorEnabled \? root\.mirrorMonitor : ""\)/.test(panelSource),
+  'monitor applies brightness to the mirrored output as well as the focused one'
+)
 assertEqual(monitor.clampBrightness(0), 1, 'monitor clamps minimum brightness')
 assertEqual(monitor.clampBrightness(101), 100, 'monitor clamps maximum brightness')
 assertEqual(monitor.clampBrightness(42.4), 42, 'monitor rounds brightness')
