@@ -31,14 +31,45 @@ marketplace_make_repo() {
   local name="$1"
   local dir="$MARKETPLACE_TMP/repos/omarchy-$name-theme"
 
-  mkdir -p "$dir"
+  mkdir -p "$dir/backgrounds" "$dir/docs"
   printf 'accent = "#3355ff"\nbackground = "#0b0b13"\n' >"$dir/colors.toml"
   printf 'preview\n' >"$dir/preview.png"
+  printf 'shell\n' >"$dir/shell.lock.toml"
+  printf 'wallpaper\n' >"$dir/backgrounds/one.jpg"
+
+  # What a theme repo carries that Omarchy never reads: notes beside the
+  # wallpapers, a gallery, and a file that runs code.
+  printf 'notes\n' >"$dir/backgrounds/notes.txt"
+  printf 'gallery\n' >"$dir/docs/screenshot.png"
+  printf 'vim.cmd\n' >"$dir/neovim.lua"
+
   git -C "$dir" init --quiet -b master
   git -C "$dir" -c user.email=t@e -c user.name=t add -A
   git -C "$dir" -c user.email=t@e -c user.name=t commit --quiet -m first
   printf 'accent = "#4466ff"\nbackground = "#0b0b13"\n' >"$dir/colors.toml"
   git -C "$dir" -c user.email=t@e -c user.name=t commit --quiet -am second
+
+  printf '%s' "$dir"
+}
+
+# A repo built to get files past the allowlist: a directory and a symlink each
+# wearing the name of a file Omarchy does read, something below backgrounds, and
+# a plain installer sitting in the open.
+marketplace_make_hostile_repo() {
+  local dir="$MARKETPLACE_TMP/repos/omarchy-hostile-theme"
+
+  mkdir -p "$dir/colors.toml" "$dir/README.md" "$dir/backgrounds/nested"
+  printf 'payload\n' >"$dir/colors.toml/evil.sh"
+  printf 'vim.cmd\n' >"$dir/colors.toml/run.lua"
+  printf 'payload\n' >"$dir/README.md/evil.sh"
+  printf 'payload\n' >"$dir/backgrounds/nested/evil.sh"
+  printf 'payload\n' >"$dir/install.sh"
+  printf 'wallpaper\n' >"$dir/backgrounds/real.jpg"
+  ln -s /etc/passwd "$dir/preview.png"
+
+  git -C "$dir" init --quiet -b master
+  git -C "$dir" -c user.email=t@e -c user.name=t add -A
+  git -C "$dir" -c user.email=t@e -c user.name=t commit --quiet -m hostile
 
   printf '%s' "$dir"
 }

@@ -42,19 +42,51 @@ theme_name_from_url() {
   printf '%s' "$name"
 }
 
-clone_theme() {
-  local url="$1"
-  local path="$2"
+# A theme directory that is a symlink is someone's own working copy, the same
+# distinction omarchy-theme-set and omarchy-theme-extras draw. Replacing a clone
+# is what installing means; unlinking a working copy is not.
+clear_theme_path() {
+  local path="$1"
 
-  # A symlink here is someone's own working copy, the same distinction
-  # omarchy-theme-set and omarchy-theme-extras draw. Replacing a clone is what
-  # installing means; unlinking a working copy is not.
   if [[ -L $path ]]; then
     echo "Error: $path is a symlink to your own theme. Remove it first if you want to install over it."
     return 1
   fi
 
   [[ -d $path ]] && rm -rf "$path"
+  return 0
+}
+
+# Only the files omarchy-theme-files names are checked out and its
+# scripts, editor configs and CI never reach the disk. --filter=blob:none means
+# they are not downloaded either.
+clone_listed_theme() {
+  local url="$1"
+  local path="$2"
+
+  clear_theme_path "$path" || return 1
+
+  if ! git clone --no-checkout --filter=blob:none -- "$url" "$path"; then
+    echo "Error: Failed to clone theme repo."
+    return 1
+  fi
+
+  if ! omarchy-theme-files | git -C "$path" sparse-checkout set --no-cone --stdin ||
+    ! git -C "$path" checkout --quiet; then
+    rm -rf "$path"
+    echo "Error: Failed to check out the theme's files."
+    return 1
+  fi
+}
+
+# A URL is the user naming a repository themselves -- often their own, or one
+# they are working on. so it clones whole, the way it always has.
+# omarchy-theme-set still decides what may be staged out of it.
+clone_theme() {
+  local url="$1"
+  local path="$2"
+
+  clear_theme_path "$path" || return 1
 
   if ! git clone -- "$url" "$path"; then
     echo "Error: Failed to clone theme repo."
@@ -107,7 +139,7 @@ install_from_catalog() {
   entry=$(omarchy-theme-catalog --entry "$name") || return 1
 
   if [[ -z $entry ]]; then
-    echo "Error: '$name' is not a listed theme. Browse them with: omarchy theme browse"
+    echo "Error: '$name' is not a theme in the marketplace. Browse them with: omarchy theme browse"
     return 1
   fi
 
@@ -130,7 +162,7 @@ install_from_catalog() {
   fi
 
   path="$THEMES_DIR/$derived"
-  clone_theme "$repo" "$path" || return 1
+  clone_listed_theme "$repo" "$path" || return 1
 
   if ! pin_theme "$path" "$commit"; then
     rm -rf "$path"

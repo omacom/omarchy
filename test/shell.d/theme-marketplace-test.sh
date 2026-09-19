@@ -35,6 +35,57 @@ assert_equal "the marker does not dirty the clone" \
 assert_equal "the marker is not something theme staging would copy" \
   "$(compgen -G "$MARKETPLACE_THEMES/alpha/*" | grep -c 'marketplace' || true)" "0"
 
+# --- only the files Omarchy reads are cloned --------------------------------
+
+# A theme repo may carry a gallery, notes beside its wallpapers, or a file that
+# runs code. None of it has to be downloaded to apply the theme's colours.
+assert_equal "the files Omarchy reads are checked out" \
+  "$(cd "$MARKETPLACE_THEMES/alpha" && printf '%s ' colors.toml preview.png shell.lock.toml backgrounds/one.jpg | xargs -n1 test -f && echo present)" "present"
+
+for unread in docs/screenshot.png backgrounds/notes.txt neovim.lua; do
+  [[ ! -e $MARKETPLACE_THEMES/alpha/$unread ]] ||
+    fail "a theme repo's $unread is not checked out"
+done
+pass "what Omarchy never reads is left in the repo"
+
+# The patterns are the clone's, so they survive into updates rather than being
+# a one-off filter applied at install time.
+assert_equal "the checkout stays restricted afterwards" \
+  "$(git -C "$MARKETPLACE_THEMES/alpha" config core.sparseCheckout)" "true"
+
+# A colour file Omarchy generates may also be shipped by a theme, so every one
+# of them needs a pattern; a new template upstream otherwise stops arriving
+# without anything failing. Derived from the templates and from theme-set's own
+# deny list so the three cannot drift apart.
+patterns=$(omarchy-theme-files | sed 's|^/||')
+denied=$(sed -n 's/^INSTALLED_THEME_DENIED=(\(.*\))$/\1/p' "$ROOT/bin/omarchy-theme-set")
+
+uncovered=()
+for tpl in "$ROOT"/default/themed/*.tpl; do
+  generated=$(basename "$tpl" .tpl)
+
+  # A theme may ship neither Lua nor anything on the deny list, so neither
+  # needs a pattern.
+  [[ $generated == *.lua ]] && continue
+  [[ " $denied " == *" $generated "* ]] && continue
+
+  covered=0
+  while IFS= read -r pattern; do
+    # shellcheck disable=SC2053
+    if [[ $generated == $pattern ]]; then
+      covered=1
+      break
+    fi
+  done <<<"$patterns"
+
+  (( covered )) || uncovered+=("$generated")
+done
+
+(( ${#uncovered[@]} == 0 )) ||
+  fail "every colour file Omarchy generates can be shipped by a theme" \
+    "no pattern in THEME_FILES matches: ${uncovered[*]}"
+pass "every colour file Omarchy generates can be shipped by a theme"
+
 # --- a listed name that is not the derived directory name -------------------
 
 # The catalog lists this one as "delta"; its repo is omarchy-dlt-theme, and the
@@ -138,6 +189,108 @@ marketplace_forget_catalog
 
 # A theme the user cloned themselves is still pulled, not pinned.
 assert_contains "an unpinned theme still pulls" "$(omarchy-theme-update 2>&1)" "Updating: gamma"
+
+# --- a listed repo built to get past the allowlist --------------------------
+
+# The allowlist is for themes the marketplace listed: a stranger's repository
+# the user picked off a wall of previews. Sparse-checkout patterns are gitignore
+# patterns, so one naming a file also matches a directory of that name, and a
+# symlink wearing an allowed name is checked out like any other entry.
+hostile=$(marketplace_make_hostile_repo)
+
+list_hostile() {
+  local commit
+  local name
+
+  commit=$(git -C "$hostile" rev-parse HEAD)
+  for name in catalog.json catalog.min.json; do
+    jq --arg repo "file://$hostile" --arg commit "$commit" \
+      '.themes |= map(select(.slug != "hostile"))
+      | .themes += [{slug: "hostile", name: "Hostile", repo: $repo, commit: $commit,
+        mode: "dark", hue: "gray", author: "nobody", featured: false,
+        thumb: "unused/480.webp", colors: {}, warnings: [], ignored_on_install: []}]' \
+      "$MARKETPLACE_CDN/v1/$name" >"$MARKETPLACE_TMP/listed" &&
+      mv "$MARKETPLACE_TMP/listed" "$MARKETPLACE_CDN/v1/$name"
+  done
+  marketplace_forget_catalog
+}
+
+list_hostile
+omarchy-theme-install hostile >/dev/null 2>&1
+
+for smuggled in colors.toml/evil.sh colors.toml/run.lua README.md/evil.sh \
+  backgrounds/nested/evil.sh install.sh; do
+  [[ ! -e $MARKETPLACE_THEMES/hostile/$smuggled ]] ||
+    fail "a listed repo cannot smuggle $smuggled past the allowlist"
+done
+pass "nothing a listed repo smuggles is written to disk"
+
+# .marketplace is Omarchy's own marker, not something the repo shipped.
+assert_equal "what the theme legitimately ships is kept" \
+  "$(find "$MARKETPLACE_THEMES/hostile" -path '*/.git' -prune -o \
+    -type f ! -name .marketplace -print |
+    sed "s|$MARKETPLACE_THEMES/hostile/||" | sort | tr '\n' ' ')" "backgrounds/real.jpg "
+
+# Nothing was deleted out of the working tree to achieve that -- git was told
+# not to write it. A clone left dirty could never be updated again.
+assert_equal "the clone is left clean enough to update" \
+  "$(git -C "$MARKETPLACE_THEMES/hostile" status --porcelain)" ""
+
+# A symlink cannot be excluded by a gitignore pattern, so one wearing an allowed
+# name is checked out. It stops at omarchy-theme-set, which stages no symlink
+# from a repo -- see theme-staging-test.sh.
+[[ -L $MARKETPLACE_THEMES/hostile/preview.png ]] ||
+  fail "the symlink case is still the one theme staging has to catch"
+pass "the symlink case is left to theme staging, which refuses it"
+
+# A later commit can carry what the first did not, so the allowlist has to hold
+# as a listed theme moves rather than only at install time.
+printf 'payload\n' >"$hostile/postinstall.sh"
+printf 'payload\n' >"$hostile/colors.toml/later.lua"
+git -C "$hostile" -c user.email=t@e -c user.name=t add -A
+git -C "$hostile" -c user.email=t@e -c user.name=t commit --quiet -m "smuggle later"
+list_hostile
+
+output=$(omarchy-theme-update 2>&1)
+assert_contains "a theme with smuggled files can still be updated" "$output" "Updating: hostile"
+assert_equal "and it moved to the new commit" \
+  "$(git -C "$MARKETPLACE_THEMES/hostile" rev-parse HEAD)" \
+  "$(git -C "$hostile" rev-parse HEAD)"
+
+for smuggled in postinstall.sh colors.toml/later.lua; do
+  [[ ! -e $MARKETPLACE_THEMES/hostile/$smuggled ]] ||
+    fail "an update cannot bring in $smuggled"
+done
+pass "what a later commit adds is held to the same list"
+
+# The same repo installed from a URL is the user naming it themselves, and
+# clones whole. omarchy-theme-set is what decides what may be staged out of it.
+omarchy-theme-install "file://$hostile" >/dev/null 2>&1
+[[ -f $MARKETPLACE_THEMES/hostile/install.sh ]] ||
+  fail "a URL install clones the repository whole"
+assert_equal "a URL install is not put under the allowlist" \
+  "$(git -C "$MARKETPLACE_THEMES/hostile" config core.sparseCheckout)" ""
+
+rm -rf "$MARKETPLACE_THEMES/hostile"
+marketplace_write_catalog
+marketplace_forget_catalog
+
+# A theme the user cloned into the themes directory by hand is theirs, and an
+# update must not start deleting out of it. sparse-checkout is what tells a
+# clone omarchy-theme-install made from one the user made.
+mkdir -p "$MARKETPLACE_THEMES/mine"
+git -C "$MARKETPLACE_THEMES/mine" init --quiet -b master
+printf 'accent = "#111111"\n' >"$MARKETPLACE_THEMES/mine/colors.toml"
+printf 'notes\n' >"$MARKETPLACE_THEMES/mine/my-notes.txt"
+git -C "$MARKETPLACE_THEMES/mine" -c user.email=t@e -c user.name=t add -A
+git -C "$MARKETPLACE_THEMES/mine" -c user.email=t@e -c user.name=t commit --quiet -m mine
+
+omarchy-theme-update >/dev/null 2>&1
+[[ -f $MARKETPLACE_THEMES/mine/my-notes.txt ]] ||
+  fail "a theme the user cloned themselves is left alone by the allowlist"
+[[ $(git -C "$MARKETPLACE_THEMES/mine" config core.sparseCheckout) != "true" ]] ||
+  fail "a theme the user cloned themselves is not put under the allowlist"
+pass "a theme the user cloned themselves is left alone by the allowlist"
 
 # --- browsing ---------------------------------------------------------------
 

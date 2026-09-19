@@ -43,6 +43,7 @@ update_pinned() {
     return 1
   fi
 
+  resparse "$theme"
   git -C "$theme" checkout --quiet --detach "$latest" || return 1
 
   jq --arg commit "$latest" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -63,6 +64,22 @@ update_checkout() {
   if [[ $(git -C "$theme" rev-parse HEAD 2>/dev/null) != "$before" ]]; then
     THEME_MOVED=1
   fi
+}
+
+# The commit a marketplace theme moves to can carry files the one it was on did not,
+# and git applies the clone's own sparse-checkout patterns as it goes, so what
+# was refused at install stays refused. Applying the list again here is for the
+# other direction: an Omarchy upgrade that tightens it should reach themes
+# installed under the looser one.
+#
+# Only the clones omarchy-theme-install made for a marketplace theme are touched.
+# A theme cloned from a URL, or one the user put in the themes directory
+# themselves, is whole and stays whole.
+resparse() {
+  local theme="$1"
+
+  [[ $(git -C "$theme" config core.sparseCheckout) == "true" ]] || return 0
+  omarchy-theme-files | git -C "$theme" sparse-checkout set --no-cone --stdin
 }
 
 mapfile -t themes < <(omarchy-theme-extras)
