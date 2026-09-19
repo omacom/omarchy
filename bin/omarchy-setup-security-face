@@ -1,0 +1,217 @@
+#!/bin/bash
+
+# omarchy:summary=Set up Howdy face recognition authentication for lock screen
+# omarchy:requires-sudo=true
+
+set -e
+
+HOWDY_DIR="/lib/security/howdy"
+PAM_FILE="/etc/pam.d/omarchy-lock-howdy"
+CAMERA_DEVICE=""
+
+configure_ir_emitter() {
+  # If an IR emitter tool is present or installable, ensure it is configured
+  if omarchy-cmd-present linux-enable-ir-emitter; then
+    echo "Configuring hardware IR emitter..."
+    sudo linux-enable-ir-emitter configure || true
+    if systemctl list-unit-files | grep -q linux-enable-ir-emitter; then
+      sudo systemctl enable --now linux-enable-ir-emitter.service || true
+    fi
+  fi
+}
+
+resolve_howdy_config() {
+  # The config home moved between Howdy builds: master (r592+) uses
+  # /etc/howdy, the older packaged layout used /lib/security/howdy, and the
+  # beta was seen writing to /usr/local/etc/howdy. Probe all three and return
+  # whichever config this build actually created — the CLI and its PAM module
+  # always agree with each other.
+  local config
+  for config in /etc/howdy/config.ini "$HOWDY_DIR/config.ini" /usr/local/etc/howdy/config.ini; do
+    if [[ -f $config ]]; then
+      echo "$config"
+      return 0
+    fi
+  done
+  return 1
+}
+
+configure_howdy_settings() {
+  local config_file
+  config_file=$(resolve_howdy_config)
+  if [[ -z $config_file ]]; then
+    echo "Howdy config not found; skipping tuning."
+    return 0
+  fi
+
+  echo "Optimizing Howdy settings for lock screen responsiveness..."
+  # Clean up notices and synthetic inputs that glitch GUI lock screens, keep
+  # the dark-frame threshold IR-friendly, and never store face snapshots.
+  sudo sed -i -E \
+    -e 's/^[# ]*detection_notice\s*=.*/detection_notice = false/' \
+    -e 's/^[# ]*timeout_notice\s*=.*/timeout_notice = false/' \
+    -e 's/^[# ]*no_confirmation\s*=.*/no_confirmation = true/' \
+    -e 's/^[# ]*suppress_unknown\s*=.*/suppress_unknown = true/' \
+    -e 's/^[# ]*dark_threshold\s*=.*/dark_threshold = 90/' \
+    -e 's/^[# ]*max_height\s*=.*/max_height = 320/' \
+    -e 's/^[# ]*timeout\s*=.*/timeout = 3/' \
+    -e 's/^[# ]*capture_failed\s*=.*/capture_failed = false/' \
+    -e 's/^[# ]*capture_successful\s*=.*/capture_successful = false/' \
+    "$config_file"
+
+  # Find stable IR camera path if not already configured
+  local ir_device
+  ir_device=$(find_ir_device) || ir_device=""
+  if [[ -n $ir_device ]]; then
+    CAMERA_DEVICE="$ir_device"
+    echo "Found IR camera device: $ir_device"
+    sudo sed -i -E "s|^[# ]*device_path\s*=.*|device_path = $ir_device|" "$config_file"
+  fi
+}
+
+find_ir_device() {
+  # /dev/v4l/by-path is the stable naming (ArchWiki), and the same path the
+  # IR emitter tool expects.
+  if [[ -d /dev/v4l/by-path ]]; then
+    local dev dev_name
+    for dev in /dev/v4l/by-path/*; do
+      [[ -e $dev ]] || continue
+      dev_name=$(v4l2-ctl --device="$dev" --all 2>/dev/null | grep -i 'card' || true)
+      if [[ ${dev_name,,} == *ir* || ${dev_name,,} == *infra* ]]; then
+        echo "$dev"
+        return 0
+      fi
+    done
+  fi
+  return 1
+}
+
+# Copy config and enrolled models to the path the PAM module reads, in case
+# this build's CLI wrote them to /usr/local/etc/howdy instead.
+normalize_howdy_paths() {
+  [[ -d /usr/local/etc/howdy ]] || return 0
+  sudo mkdir -p "$HOWDY_DIR"
+  if [[ -f /usr/local/etc/howdy/config.ini && ! -f $HOWDY_DIR/config.ini ]]; then
+    sudo cp -a /usr/local/etc/howdy/config.ini "$HOWDY_DIR/config.ini"
+  fi
+  if [[ -d /usr/local/etc/howdy/models && ! -d $HOWDY_DIR/models ]]; then
+    sudo cp -a /usr/local/etc/howdy/models "$HOWDY_DIR/models"
+  fi
+}
+
+verify_camera_capture() {
+  # Detection only proves a camera exists, not that it can deliver frames —
+  # the same reason fingerprint enrollment verifies before touching PAM.
+  # Grab one frame from the device Howdy will read, falling back to any
+  # capture node when no IR device was identified.
+  local dev
+  if [[ -n $CAMERA_DEVICE ]]; then
+    v4l2-ctl --device="$CAMERA_DEVICE" --stream-mmap --stream-count=1 --stream-to=/dev/null >/dev/null 2>&1 && return 0
+  fi
+  for dev in /dev/video*; do
+    [[ -e $dev ]] || continue
+    v4l2-ctl --device="$dev" --stream-mmap --stream-count=1 --stream-to=/dev/null >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+verify_enrollment() {
+  # Enrollment must leave a model behind; an empty models directory means the
+  # enrollment silently failed and PAM would have nothing to match. The
+  # models home tracks whichever config location this build uses, so probe
+  # the resolved location first and then every known one.
+  local config dir
+  config=$(resolve_howdy_config) || config=""
+  if [[ -n $config ]]; then
+    dir="$(dirname "$config")/models"
+    if [[ -d $dir ]] && [[ -n $(ls -A "$dir" 2>/dev/null) ]]; then
+      return 0
+    fi
+  fi
+  for dir in /etc/howdy/models "$HOWDY_DIR/models" /usr/local/etc/howdy/models; do
+    if [[ -d $dir ]] && [[ -n $(ls -A "$dir" 2>/dev/null) ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+setup_lock_howdy_pam() {
+  # Only ever write a PAM file that points at a module that exists.
+  if [[ ! -f /lib/security/pam_howdy.so ]]; then
+    echo -e "\e[31m/lib/security/pam_howdy.so is missing; refusing to enable face PAM.\e[0m"
+    exit 1
+  fi
+  echo "Configuring lock screen for face authentication..."
+  sudo tee "$PAM_FILE" >/dev/null <<'EOF'
+#%PAM-1.0
+auth       sufficient  /lib/security/pam_howdy.so
+account    include     system-local-login
+EOF
+}
+
+echo -e "\e[32mSetting up face recognition for lock screen authentication.\n\e[0m"
+
+# Bail before installing anything if there's no camera detected
+if ! omarchy-hw-face; then
+  echo -e "\e[31mNo camera or IR face sensor detected.\e[0m"
+  exit 1
+fi
+
+# Install Howdy from the AUR — ArchWiki notes the plain howdy package is
+# outdated; howdy-git ships the compiled /lib/security/pam_howdy.so module.
+# Building its python-dlib/OpenCV dependency chain can take several minutes.
+echo "Installing Howdy face authentication (AUR build, this can take a while)..."
+if ! omarchy-pkg-add howdy-git v4l-utils; then
+  echo -e "\e[31mHowdy installation failed. Nothing was changed on your system.\e[0m"
+  exit 1
+fi
+
+configure_ir_emitter
+configure_howdy_settings
+
+# Verify the camera delivers frames before asking for a face.
+echo "Verifying the camera can capture frames..."
+if ! verify_camera_capture; then
+  echo -e "\e[31mCamera check failed: no device produced video frames.\e[0m"
+  echo -e "\e[31mHowdy needs a working camera. Nothing was changed on your system.\e[0m"
+  exit 1
+fi
+
+# Enroll the baseline model, unless this build already has one (the setup is
+# idempotent — e.g. re-running to repair the PAM configuration).
+if verify_enrollment; then
+  echo -e "\e[32mExisting face model found; skipping enrollment.\e[0m"
+else
+  echo -e "\e[32m\nStep 1: Baseline Face Model\e[0m"
+  echo -e "Look straight at the camera with normal lighting.\n"
+
+  if sudo howdy add; then
+    if ! verify_enrollment; then
+      echo -e "\e[31mEnrollment completed but no face model was stored. Please try again.\e[0m"
+      exit 1
+    fi
+    echo -e "\e[32m\nBaseline model enrolled successfully!\e[0m"
+  else
+    echo -e "\e[31m\nFace enrollment failed. Please try again.\e[0m"
+    exit 1
+  fi
+fi
+
+normalize_howdy_paths
+setup_lock_howdy_pam
+
+# Offer optional multi-angle / lighting enrollment
+echo -e "\n\e[34mTip: Enrolling a second angle (e.g. low-light or slouched posture) ensures instant unlock in all conditions.\e[0m"
+read -r -p "Would you like to enroll an additional face angle now? (y/N) " -n 1 || true
+echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  echo -e "\e[32m\nStep 2: Secondary Face Model\e[0m"
+  echo -e "Look at the camera from a slight angle, with glasses, or in dimmer light.\n"
+  sudo howdy add || true
+  normalize_howdy_paths
+fi
+
+echo -e "\e[32m\nPerfect! Face authentication is now completely configured.\e[0m"
+echo "You can unlock your lock screen (Super + L) instantly by looking at the camera."
