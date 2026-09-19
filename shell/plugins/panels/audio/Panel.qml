@@ -90,8 +90,13 @@ Panel {
     return list
   }
 
-  readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
-  readonly property var audioSources: rawAudioSources.length > 0 ? rawAudioSources : cachedAudioSources
+  // The cache is what survives a teardown, so it is also what goes stale: when
+  // PipeWire drops every node at once, rawAudioSinks empties and the fallback
+  // hands the Repeaters PwNodes that are already being destroyed. Nothing keeps
+  // them alive either -- the PwObjectTracker below tracks candidateSinks, not
+  // the cache -- so building a delegate over one segfaults the shell.
+  readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : Model.livingNodes(cachedAudioSinks, nodes)
+  readonly property var audioSources: rawAudioSources.length > 0 ? rawAudioSources : Model.livingNodes(cachedAudioSources, nodes)
 
   readonly property var audioStreams: {
     var list = []

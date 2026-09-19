@@ -22,6 +22,18 @@ function listSnapshot(list) {
   return list && list.slice ? list.slice() : []
 }
 
+// A cached node list outlives the PwNodes in it. When PipeWire drops every node
+// at once -- wireplumber restarting or dying -- the panel's fallback would hand
+// the Repeaters objects that are already being destroyed. Compare identity
+// against the live list; never read a property off an entry to decide.
+function livingNodes(list, present) {
+  var out = []
+  if (!list || !present) return out
+  for (var i = 0; i < list.length; i++)
+    if (present.indexOf(list[i]) >= 0) out.push(list[i])
+  return out
+}
+
 function outputVolumeName(volume, muted) {
   if (muted) return "Muted"
   var p = Math.round(volume * 100)
@@ -238,6 +250,7 @@ if (typeof module !== "undefined") {
     isPlaybackStream: isPlaybackStream,
     isAudioSource: isAudioSource,
     listSnapshot: listSnapshot,
+    livingNodes: livingNodes,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,
