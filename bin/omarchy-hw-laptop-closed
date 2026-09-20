@@ -3,9 +3,20 @@
 # omarchy:summary=Returns true when the laptop lid is closed
 # omarchy:hidden=true
 
-for state in /proc/acpi/button/lid/*/state; do
+acpi_lid_path="${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}"
+
+for state in "$acpi_lid_path"/*/state; do
   [[ -r $state ]] || continue
-  [[ $(< "$state") == *"closed"* ]] && exit 0
+  [[ $(< $state) == *"closed"* ]] && exit 0
+  acpi_answered=1
 done
 
-exit 1
+# ACPI stays authoritative where it exists, so x86 answers without a bus call.
+# Apple Silicon has no /proc/acpi: the lid is an SW_LID device behind the SMC
+# and /dev/input is root:input, so a session helper goes through UPower.
+if [[ -v acpi_answered ]]; then
+  exit 1
+fi
+
+[[ $(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower \
+  org.freedesktop.UPower LidIsClosed 2>/dev/null) == "b true" ]]
