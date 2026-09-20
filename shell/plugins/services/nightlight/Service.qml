@@ -10,8 +10,10 @@ Item {
 
   // Keep in sync with bin/omarchy-toggle-nightlight, which sets the same
   // temperatures for callers outside the shell (keybindings, menu, ssh).
-  readonly property int nightTemperature: 4000
-  readonly property int dayTemperature: 6500
+  // Overridden by settingsProbe below when omarchy-toggle-nightlight
+  // is installed and exposes custom day/night temperatures.
+  property int nightTemperature: 4000
+  property int dayTemperature: 6500
 
   property bool stateLoaded: false
   property var temperature: null
@@ -22,6 +24,7 @@ Item {
 
   function refresh() {
     if (!statusProbe.running) statusProbe.running = true
+    if (!settingsProbe.running) settingsProbe.running = true
   }
 
   function setNightlight(value) {
@@ -50,6 +53,26 @@ Item {
       "pgrep -x hyprsunset >/dev/null || { setsid uwsm-app -- hyprsunset >/dev/null 2>&1 & sleep 1; }; " +
       "hyprctl hyprsunset temperature " + Number(temp)]
     applyProcess.running = true
+  }
+
+  // Reads custom day/night temperatures from the nightlight state file when
+  // present. Non-fatal: omarchy-toggle-nightlight may not be installed, or the
+  // state file may be missing.
+  Process {
+    id: settingsProbe
+    command: ["omarchy", "toggle", "nightlight", "--status"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        try {
+          var s = JSON.parse(text)
+          if (s && typeof s.dayTemperature === "number") root.dayTemperature = s.dayTemperature
+          if (s && typeof s.nightTemperature === "number") root.nightTemperature = s.nightTemperature
+        } catch (e) {
+          // Status output was unparseable; keep defaults.
+        }
+      }
+    }
   }
 
   Process {

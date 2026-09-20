@@ -1,0 +1,10 @@
+[Unit]
+Description=Regenerate Omarchy night light for the current day
+Documentation=man:systemd.time(7)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy toggle nightlight --refresh
+# Network calls (Open-Meteo + ipapi fallback) take up to ~14s combined.
+TimeoutStartSec=30s
+Nice=10
