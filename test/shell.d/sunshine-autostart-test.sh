@@ -13,9 +13,23 @@ grep -Fq 'o.launch_on_start("sunshine")' "$ROOT/bin/omarchy-remove-service-sunsh
   fail "Sunshine removal still strips a leftover Hyprland autostart line"
 pass "Sunshine removal still strips a leftover Hyprland autostart line"
 
-grep -Fq 'systemctl --user enable --now sunshine' "$ROOT/bin/omarchy-install-service-sunshine" ||
-  fail "Sunshine still autostarts through the user unit"
-pass "Sunshine still autostarts through the user unit"
+grep -Fq 'app-dev.lizardbyte.app.Sunshine.service' "$ROOT/bin/omarchy-install-service-sunshine" ||
+  fail "Sunshine installer enables the canonical user unit"
+pass "Sunshine installer enables the canonical user unit"
+
+if grep -Eq 'systemctl --user enable --now sunshine([[:space:]]|$)' "$ROOT/bin/omarchy-install-service-sunshine"; then
+  fail "Sunshine installer does not enable the sunshine alias"
+fi
+pass "Sunshine installer does not enable the sunshine alias"
+
+grep -Fq 'app-dev.lizardbyte.app.Sunshine.service' "$ROOT/bin/omarchy-remove-service-sunshine" ||
+  fail "Sunshine removal disables the canonical user unit"
+pass "Sunshine removal disables the canonical user unit"
+
+if grep -Eq 'systemctl --user disable --now sunshine([[:space:]]|$)' "$ROOT/bin/omarchy-remove-service-sunshine"; then
+  fail "Sunshine removal does not disable the sunshine alias"
+fi
+pass "Sunshine removal does not disable the sunshine alias"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT

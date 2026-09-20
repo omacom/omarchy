@@ -13,6 +13,7 @@ SUNSHINE_ADMIN_APP="Sunshine Admin"
 SUNSHINE_ADMIN_URL="https://localhost:47990"
 SUNSHINE_ADMIN_EXEC="omarchy-launch-webapp $SUNSHINE_ADMIN_URL --ignore-certificate-errors"
 SUNSHINE_ICON_SOURCE="/usr/share/sunshine/web/images/logo-sunshine-45.png"
+SUNSHINE_UNIT="app-dev.lizardbyte.app.Sunshine.service"
 
 open_ufw_port_for_private_lans() {
   local proto="$1"
@@ -60,7 +61,7 @@ install_admin_webapp() {
 
 echo "Installing Sunshine..."
 omarchy-pkg-add sunshine
-systemctl --user enable --now sunshine
+systemctl --user enable --now "$SUNSHINE_UNIT"
 
 echo "Opening Sunshine firewall ports..."
 open_ufw_ports
