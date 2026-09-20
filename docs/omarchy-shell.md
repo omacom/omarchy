@@ -164,7 +164,7 @@ Rules:
 5. Third-party enabled ⇔ present; for full bar options that means `bar.id`.
    First-party non-bar plugins are enabled unless listed in `disabledPlugins[]`.
 6. `barWidget.allowMultiple: true` in the manifest permits multiple instances.
-7. `idle.screensaver` and `idle.lock` are seconds since user idle began.
+7. `idle.screensaver`, `idle.lock`, and optional `idle.suspend` are seconds since user activity stopped. Automatic suspend is disabled when `idle.suspend` is omitted, Stay Awake is on, or the suspend-off toggle is set. Bar and layout changes may hot-reload, but changes to any idle timing require `omarchy restart shell` afterward.
 8. `version: 1` is required.
 
 `config/omarchy/shell.json` describes the fresh-install state. When no
