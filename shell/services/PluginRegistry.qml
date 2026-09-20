@@ -520,12 +520,19 @@ QtObject {
 
       var isFirstParty = manifest && manifest.__isFirstParty
       var location = findEntryLocation(config, key)
+      // A widget's place in the bar is its on/off switch, so enabling one has
+      // to key off the layout alone. A plugins[] record for the same id (a
+      // panel-and-widget plugin enabled before it grew its widget, or a
+      // legacy id) is config presence without a widget on the bar: reading it
+      // as "already placed" is how enable used to report success and leave
+      // the bar empty.
+      var onBar = findBarLocation(config, key, "").found
 
       if (value) {
         removeDisabled(config, key)
         var entry = { id: key }
         var insertedWithPlacement = false
-        if (!location.found && isBarWidget) {
+        if (!onBar && isBarWidget) {
           var sourceLocation = clonedFrom ? findEntryLocation(config, clonedFrom) : { found: false }
           if (sourceLocation.kind === "bar") {
             var sourceEntry = config.bar.layout[sourceLocation.section][sourceLocation.index]

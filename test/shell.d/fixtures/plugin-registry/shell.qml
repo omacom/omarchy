@@ -451,6 +451,27 @@ ShellRoot {
     root.assertTrue(root.config.disabledPlugins === undefined, "disabling a multi-kind widget records nothing else")
     root.assertTrue(registry.isEnabled("omarchy.hybrid"), "a multi-kind built-in remains loadable without its widget")
 
+    // A plugins[] record is not a place on the bar. A plugin that is both a
+    // panel and a widget keeps its plugins[] entry when the widget comes off
+    // the bar, and enabling it again has to put the widget back rather than
+    // read that entry as "already placed".
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "third.widget" }]
+    }
+    root.assertTrue(registry.setEnabled("third.widget", true), "enabling a widget with a lingering plugins entry reports success")
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "a lingering plugins entry does not block the widget's return to the bar")
+    root.assertTrue(registry.inBar("third.widget"), "the returned widget is on the bar")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "omarchy.first-widget" }]
+    }
+    registry.setEnabled("omarchy.first-widget", true, { section: "right" })
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "omarchy.first-widget" }], "a legacy plugins entry does not block a built-in widget's placement")
+
     var cloneBase = registry.pluginsDir + "/dhh.clock"
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/BarWidget.qml"), "dhh.clock", "personal clone changes are watched")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.clock/BarWidget.qml"), "acme.clock", "installed plugin changes are watched")
