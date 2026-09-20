@@ -248,9 +248,12 @@ Item {
     return applyStayAwake(!value, true, "ipc")
   }
 
+  // Stay subscribed while stay-awake is on. IdleMonitor.enabled starts false
+  // (idleEnabled is false until the state file is read) and a monitor that
+  // begins disabled does not re-subscribe to ext-idle-notify-v1 when later
+  // enabled, so turning stay-awake off would never re-arm idle.
   IdleMonitor {
     id: idleMonitor
-    enabled: root.idleEnabled
     timeout: root.firstIdleTimeoutSeconds
     respectInhibitors: true
     onIsIdleChanged: root.handleIdleChanged()

@@ -52,3 +52,13 @@ if rg -q 'omarchy-shell' "$ROOT/bin/omarchy-toggle-idle"; then
 fi
 
 pass "Stay Awake toggle persists state without reentrant shell IPC"
+
+idle_service="$ROOT/shell/plugins/services/idle/Service.qml"
+if ! rg -q 'IdleMonitor' "$idle_service"; then
+  fail "idle service constructs an IdleMonitor"
+fi
+if rg -U -q 'IdleMonitor\s*\{[^}]*enabled:\s*root\.idleEnabled' "$idle_service"; then
+  fail "IdleMonitor stays subscribed while stay-awake is on"
+fi
+
+pass "IdleMonitor is not unbound from the compositor by stay-awake"
