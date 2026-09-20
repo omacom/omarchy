@@ -63,7 +63,7 @@ A theme predating `colors.toml` is not left without a palette: its `alacritty.to
 
 The restriction lives in `omarchy-theme-set` rather than in `omarchy-theme-install` on purpose. Filtering at staging also covers themes installed before the rule existed and files a theme gains later through `omarchy theme update`.
 
-What this does not cover: a theme distributed as an archive rather than a git repo, extracted into `~/.config/omarchy/themes/` by hand, is indistinguishable from one the user wrote and stages in full. `omarchy theme install` only takes git URLs, so the supported path is always filtered, but the check is a statement about where a theme came from and not a sandbox.
+What this does not cover: a theme distributed as an archive rather than a git repo, extracted into `~/.config/omarchy/themes/` by hand, is indistinguishable from one the user wrote and stages in full. `omarchy theme install` only ever ends up cloning a git URL — a bare `owner/repo` is just shorthand that expands to one (`omarchy-git-shorthand-expand`) before cloning — so the supported path is always filtered, but the check is a statement about where a theme came from and not a sandbox.
 
 ## `colors.toml`
 

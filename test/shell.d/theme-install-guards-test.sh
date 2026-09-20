@@ -45,6 +45,18 @@ install_theme() {
     bash "$ROOT/bin/omarchy-theme-install" "$1" >"$test_tmp/out" 2>&1 || return $?
 }
 
+# Like install_theme, but forwards every argument as its own word -- needed
+# for a platform flag plus a repo, which install_theme's single "$1" cannot
+# carry (its $2 is already the PATH override used above).
+install_theme_args() {
+  : >"$git_calls"
+  : >"$theme_calls"
+
+  HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_GIT_CALLS="$git_calls" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+    bash "$ROOT/bin/omarchy-theme-install" "$@" >"$test_tmp/out" 2>&1 || return $?
+}
+
 mkdir -p "$test_tmp/home/.config/omarchy/themes"
 
 # A URL git would read as an option or as a remote helper to run.
@@ -189,6 +201,31 @@ grep -Fq "/themes/cool" "$git_calls" || fail "omarchy-theme-install derives the 
 grep -Fxq "cool" "$theme_calls" || fail "omarchy-theme-install applies the theme it installed" "$(cat "$theme_calls")"
 
 pass "an ordinary theme URL still clones and applies"
+
+# A bare `owner/repo` expands to its GitHub URL (omarchy-git-shorthand-expand)
+# before this same path runs, so it clones and derives a name exactly as the
+# equivalent full URL would.
+install_theme "example/omarchy-cool-theme" || fail "omarchy-theme-install clones an owner/repo shorthand"
+grep -Fq "https://github.com/example/omarchy-cool-theme.git" "$git_calls" ||
+  fail "omarchy-theme-install expands owner/repo shorthand before cloning" "$(cat "$git_calls")"
+grep -Fq "/themes/cool" "$git_calls" ||
+  fail "omarchy-theme-install derives the theme name from expanded shorthand" "$(cat "$git_calls")"
+
+pass "an owner/repo shorthand clones and applies the same as its full URL"
+
+# --github/--gitlab/--bitbucket pick the shorthand's host, same as plugin add.
+install_theme_args --gitlab "example/omarchy-cool-theme" || fail "omarchy-theme-install clones an owner/repo shorthand with --gitlab"
+grep -Fq "https://gitlab.com/example/omarchy-cool-theme.git" "$git_calls" ||
+  fail "omarchy-theme-install expands owner/repo shorthand against --gitlab's host" "$(cat "$git_calls")"
+
+pass "an owner/repo shorthand expands against the platform named by --gitlab/--bitbucket"
+
+if install_theme_args --gitlab --bitbucket "example/omarchy-cool-theme"; then
+  fail "omarchy-theme-install accepts conflicting platform flags"
+fi
+[[ ! -s $git_calls ]] || fail "omarchy-theme-install refuses conflicting platform flags before running git" "$(cat "$git_calls")"
+
+pass "omarchy-theme-install refuses conflicting platform flags"
 
 # omarchy-theme-remove joins its argument into the path it deletes.
 remove_theme() {
