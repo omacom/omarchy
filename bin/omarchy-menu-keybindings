@@ -28,7 +28,22 @@ parse_keycodes() {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
         if (line ~ /xkb_symbols/)  { section = "syms";  continue }
         if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
-        if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+
+        # A key whose type xkbcli spells out puts its symbols on a line of
+        # their own, so remember the key the block opened on and read them off
+        # when they arrive. Only the compact one-line form was matched before,
+        # which left every key carrying an explicit type unresolved.
+        if (section == "syms") {
+          if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[m[1]] = m[2]
+            open_key = ""
+          } else if (match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{/, m)) {
+            open_key = m[1]
+          } else if (open_key != "" && match(line, /symbols\[[^\]]*\]\s*=\s*\[\s*([^, \]]+)/, m)) {
+            sym_by_name[open_key] = m[1]
+            open_key = ""
+          }
+        }
       }
       close(keymap_cmd)
 
@@ -530,7 +545,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
+    printf 'v14\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
