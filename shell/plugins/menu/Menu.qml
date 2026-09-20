@@ -38,6 +38,7 @@ Item {
   function refresh() {
     defaultMenuFile.reload()
     userMenuFile.reload()
+    menuTranslationFile.reload()
     return "ok"
   }
 
@@ -51,6 +52,12 @@ Item {
   property string userMenuPath: Quickshell.env("HOME") + "/.config/omarchy/extensions/omarchy-menu.jsonc"
   property var defaultMenuItems: []
   property var userMenuItems: []
+  property var menuTranslations: ({})
+  readonly property var localeCandidates: MenuModel.localeCandidates(Quickshell.env("LC_ALL") || Quickshell.env("LC_MESSAGES") || Quickshell.env("LANG"))
+  property int translationIndex: 0
+  readonly property string translationPath: translationIndex < localeCandidates.length
+    ? omarchyPath + "/default/locale/" + localeCandidates[translationIndex] + "/LC_MESSAGES/menu.json"
+    : ""
   property bool opened: false
   property string mode: "menu"
   readonly property bool dmenuActive: mode === "select" || mode === "input"
@@ -244,7 +251,8 @@ Item {
   // on a per-key basis (so the user can tweak label/icon/action without
   // re-declaring the whole row).
   function rebuildItemsFromSources() {
-    var mergedMenu = MenuModel.mergeMenuSources(root.defaultMenuItems, root.userMenuItems)
+    var defaults = MenuModel.translateMenuItems(root.defaultMenuItems, root.menuTranslations)
+    var mergedMenu = MenuModel.mergeMenuSources(defaults, root.userMenuItems)
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []
@@ -978,6 +986,30 @@ Item {
     printErrors: false
     onLoaded: { root.userMenuItems = root.parseMenuJsonc(text()); root.rebuildItemsFromSources() }
     onLoadFailed: { root.userMenuItems = []; root.rebuildItemsFromSources() }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: menuTranslationFile
+    path: root.translationPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      try {
+        root.menuTranslations = JSON.parse(text())
+      } catch (e) {
+        root.menuTranslations = ({})
+      }
+      root.rebuildItemsFromSources()
+    }
+    onLoadFailed: {
+      if (root.translationIndex + 1 < root.localeCandidates.length) {
+        root.translationIndex += 1
+      } else {
+        root.menuTranslations = ({})
+        root.rebuildItemsFromSources()
+      }
+    }
     onFileChanged: reload()
   }
 

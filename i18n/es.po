@@ -1,0 +1,35 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Omarchy\n"
+"PO-Revision-Date: 2026-09-20 00:00+0200\n"
+"Last-Translator: Omarchy contributors\n"
+"Language-Team: Spanish\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#, sh-printf-format
+msgid "Unsupported UTF-8 locale: %s"
+msgstr "Configuración regional UTF-8 no compatible: %s"
+
+#, sh-printf-format
+msgid "Locale is missing from %s: %s"
+msgstr "La configuración regional no está en %s: %s"
+
+#, sh-printf-format
+msgid "Failed to generate locale: %s"
+msgstr "No se pudo generar la configuración regional: %s"
+
+msgid "Usage: omarchy menu language"
+msgstr "Uso: omarchy menu language"
+
+msgid "Set system language and region"
+msgstr "Seleccionar idioma y región del sistema"
+
+#, sh-printf-format
+msgid "System language set to %s. Log out and back in to apply it."
+msgstr "Idioma del sistema establecido en %s. Cierra sesión y vuelve a iniciarla para aplicarlo."
+
+msgid "Language & Region"
+msgstr "Idioma y región"

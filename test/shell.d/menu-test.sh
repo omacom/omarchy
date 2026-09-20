@@ -58,6 +58,15 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+assertDeepEqual(menu.localeCandidates('es_ES.UTF-8'), ['es_ES', 'es'], 'menu tries the regional catalog then its language fallback')
+assertDeepEqual(menu.localeCandidates('es_ES.UTF-8@latin'), ['es_ES', 'es'], 'menu strips charset and modifier from a catalog path')
+assertDeepEqual(menu.localeCandidates('es_ES@latin.UTF-8'), ['es_ES@latin', 'es_ES', 'es'], 'menu falls back from a locale modifier to the region')
+assertDeepEqual(menu.localeCandidates('../escape'), [], 'menu rejects a locale that could leave the catalog directory')
+const translatedDefaults = menu.translateMenuItems(parsed, { style: 'Estilo', 'style.theme': 'Temas' })
+assertEqual(translatedDefaults.find(item => item.id === 'style.theme').label, 'Temas', 'menu applies a catalog label to shipped entries')
+assertEqual(parsed.find(item => item.id === 'style.theme').label, 'Themes', 'menu does not mutate its source entries while translating')
+assertEqual(menu.mergeMenuSources(translatedDefaults, user).items['style.theme'].label, 'Theme picker', 'menu keeps a user label override over the catalog')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')
