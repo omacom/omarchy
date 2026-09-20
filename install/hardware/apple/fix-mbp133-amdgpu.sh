@@ -40,10 +40,12 @@ if (( gpu_found == 1 )); then
     echo
     echo '[Service]'
     echo 'Type=simple'
-    echo "ExecStartPre=$helper_target"
+    echo "ExecStartPre=/usr/bin/timeout --kill-after=2s 10s $helper_target"
     echo "ExecStart=$monitor_target"
-    echo 'Restart=on-failure'
-    echo 'RestartSec=1s'
+    # A failed startup apply must not retry against an unhealthy GPU either.
+    echo 'Restart=no'
+    echo 'TimeoutStartSec=15s'
+    echo 'TimeoutStopSec=5s'
     echo
     echo '[Install]'
     echo 'WantedBy=multi-user.target'
