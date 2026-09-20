@@ -17,8 +17,25 @@ assert(/IpcHandler[\s\S]*?function toggleBluetooth\(\) \{ root\.toggleBluetooth\
 assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so it can extend the target methods')
 
 // Writing adapter.enabled sets BlueZ Powered, which does not survive a reboot.
-assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
+assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", turningOff \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
+
+// The block takes the adapter off D-Bus wherever it cuts power to the controller
+// rather than just parking it, so BlueZ reports a radio that is merely off
+// exactly as it reports a machine with no Bluetooth at all. A widget keyed on
+// the adapter left the bar the moment Bluetooth was switched off, carrying its
+// own on switch with it and leaving no way back that wasn't a terminal.
+assert(/\n  visible: radioPresent\n/.test(panelSource), 'bluetooth keeps the bar widget on screen while the radio is blocked')
+assert(/readonly property bool radioPresent: adapter !== null \|\| radioBlocked/.test(panelSource), 'bluetooth counts a blocked radio as hardware that is present')
+assert(/readonly property bool radioEnabled: adapter !== null && adapter\.enabled/.test(panelSource), 'bluetooth still reads on/off from the adapter whenever there is one')
+assert(/visible: root\.radioPresent[\s\S]{0,120}checked: root\.radioEnabled/.test(panelSource), 'bluetooth leaves the power switch on screen and usable while the radio is off')
+
+// rfkill is the only thing that can tell the two apart, and it is asked exactly
+// when BlueZ has nothing to say: a present adapter already carries the state.
+assert(/command: \["omarchy-bluetooth-power", "is-blocked"\]/.test(panelSource), 'bluetooth asks rfkill what an absent adapter means')
+assert(/onAdapterChanged: \{[\s\S]{0,200}blockedQuery\.running = true/.test(panelSource), 'bluetooth re-reads the block when the adapter disappears')
+assert(/Component\.onCompleted: if \(adapter === null\) blockedQuery\.running = true/.test(panelSource), 'bluetooth reads the block at startup for a radio already off')
+assert(/onAdapterChanged: \{\s*\n\s*if \(adapter !== null\) radioBlocked = false/.test(panelSource), 'bluetooth drops the blocked flag as soon as an adapter is back')
 
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
@@ -172,6 +189,12 @@ cat >"$mock_bin/rfkill" <<'SH'
 #!/bin/bash
 
 printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+# The is-blocked read: one SOFT column per bluetooth switch, and no output at all
+# on a machine that has none.
+if [[ $1 == "--noheadings" ]]; then
+  [[ -n ${MOCK_SOFT_STATE:-} ]] && printf '%s\n' "$MOCK_SOFT_STATE"
+  exit 0
+fi
 # Lifting the block is normally all it takes: AutoEnable is left at its default,
 # so bluetoothd powers the adapter up on its own. RFKILL_INERT stands in for the
 # adapter that was powered down without a block, where it does not.
@@ -280,3 +303,25 @@ pass "bluetooth counts a secondary controller as on"
 grep -q 'AutoEnable=false' "$ROOT/install/hardware/bluetooth.sh" &&
   fail "bluetooth install leaves AutoEnable at its default"
 pass "bluetooth install leaves AutoEnable at its default"
+
+# What the bar widget asks when BlueZ hands it no adapter: a soft block means
+# Bluetooth is off and the widget stays put, no bluetooth switch at all means the
+# machine has no radio and the widget is right to go.
+blocked_state() {
+  MOCK_SOFT_STATE="$1" PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" \
+    "$ROOT/bin/omarchy-bluetooth-power" is-blocked
+}
+
+blocked_state $'unblocked\nblocked' ||
+  fail "bluetooth reports a soft-blocked radio as blocked"
+pass "bluetooth reports a soft-blocked radio as blocked"
+
+blocked_state $'unblocked\nunblocked' &&
+  fail "bluetooth reports an unblocked radio as not blocked"
+pass "bluetooth reports an unblocked radio as not blocked"
+
+# "unblocked" contains "blocked", so a loose match here would pin the widget to
+# the bar on every machine that has no Bluetooth at all.
+blocked_state "" &&
+  fail "bluetooth reports a machine with no rfkill switch as not blocked"
+pass "bluetooth reports a machine with no rfkill switch as not blocked"
