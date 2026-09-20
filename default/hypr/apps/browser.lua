@@ -10,3 +10,9 @@ o.window("(^.+-youtube\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { tag = "-d
 
 -- Hide screen sharing notification windows.
 o.window({ title = ".*is sharing.*" }, { workspace = "special silent" })
+
+-- Inhibit idle/screensaver when browser or video web app is fullscreen (video calls, streaming, presentations).
+o.window({ tag = "firefox-based-browser" }, { idle_inhibit = "fullscreen" })
+o.window({ tag = "chromium-based-browser" }, { idle_inhibit = "fullscreen" })
+o.window("(^.+-youtube\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { idle_inhibit = "fullscreen" })
+
