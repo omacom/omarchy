@@ -205,6 +205,29 @@ function displayRows(history, query, limit) {
   return rows
 }
 
+// Rows are intentionally capped for rendering, but contextual actions act on
+// clipboard entries rather than previews. Rebuild the action payload from the
+// original history record so an extension can never save a truncated value.
+function entryForAction(history, historyIndex) {
+  var index = Number(historyIndex)
+  var values = Array.isArray(history) ? history : []
+  if (isNaN(index) || index < 0 || index >= values.length) return null
+
+  var entry = normalizeEntry(values[index])
+  if (!entry) return null
+
+  var paths = filePaths(entry)
+  var isFile = paths.length > 0
+  var isImage = entry.type === "image"
+  return {
+    type: isFile ? "file" : entry.type,
+    text: isImage ? "" : fullText(entry),
+    path: isImage ? String(entry.path || "") : (isFile && paths.length === 1 ? paths[0] : ""),
+    mime: isImage ? String(entry.mime || "image/png") : "text/plain",
+    historyIndex: index
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizeEntry: normalizeEntry,
@@ -220,6 +243,7 @@ if (typeof module !== "undefined") {
     filePaths: filePaths,
     fileEntryText: fileEntryText,
     fullText: fullText,
-    displayRows: displayRows
+    displayRows: displayRows,
+    entryForAction: entryForAction
   }
 }
