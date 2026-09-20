@@ -2,7 +2,7 @@
 
 # omarchy:summary=Turn Bluetooth on or off, remembered across reboots
 # omarchy:group=bluetooth
-# omarchy:args=<on|off|toggle|is-on>
+# omarchy:args=<on|off|toggle|is-on|is-blocked>
 
 # BlueZ never persists an adapter's Powered property, so turning Bluetooth off
 # through bluetoothctl lasts only until the next boot. The rfkill soft block does
@@ -33,6 +33,17 @@ powered() {
   done
 
   return 1
+}
+
+# Whether any Bluetooth radio is soft-blocked, which is a question BlueZ cannot
+# answer. Where the block cuts power to the controller — a platform kill switch
+# rather than the controller's own — hci0 stops existing and bluetoothd drops the
+# adapter off D-Bus, so "turned off" and "no Bluetooth hardware" both reach a
+# BlueZ client as an absent adapter. The rfkill switch is still listed while
+# blocked, and that is what separates them. Soft blocks only: a hard block is a
+# physical switch that power_on below has no way to lift.
+blocked() {
+  rfkill --noheadings --output SOFT list bluetooth 2>/dev/null | grep -qw "blocked"
 }
 
 # One deadline around the whole wait rather than a fixed number of probes: every
@@ -82,8 +93,11 @@ case "${1:-}" in
   is-on)
     powered
     ;;
+  is-blocked)
+    blocked
+    ;;
   *)
-    echo "Usage: omarchy-bluetooth-power <on|off|toggle|is-on>" >&2
+    echo "Usage: omarchy-bluetooth-power <on|off|toggle|is-on|is-blocked>" >&2
     exit 1
     ;;
 esac
