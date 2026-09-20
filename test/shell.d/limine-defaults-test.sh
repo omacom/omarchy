@@ -10,6 +10,6 @@ grep -Fq 'KERNEL_CMDLINE[default]+=" initramfs_async=0"' "$packaged_defaults" ||
   fail "the packaged Limine defaults still unpack the initramfs synchronously"
 pass "packaged Limine defaults keep Plymouth alive at the LUKS prompt"
 
-grep -Fxq 'BOOT_ORDER="linux-omarchy-*, *, *fallback, Snapshots"' "$packaged_defaults" ||
-  fail "packaged Limine defaults prefer Omarchy kernels and retain recovery entries"
-pass "packaged Limine defaults prefer Omarchy kernels and retain recovery entries"
+grep -Fxq 'BOOT_ORDER="linux-t2, linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"' "$packaged_defaults" ||
+  fail "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
+pass "packaged Limine defaults protect T2 Macs and prefer the exact Omarchy kernel elsewhere"
