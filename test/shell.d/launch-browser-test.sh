@@ -16,10 +16,15 @@ cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 Exec=chromium %U
 EOF
 
+cat >"$test_home/.local/share/applications/firefox.desktop" <<'EOF'
+[Desktop Entry]
+Exec=firefox %U
+EOF
+
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 [[ -z ${BROWSER:-} ]] || printf '%s\n' "$BROWSER" >"$OMARCHY_TEST_XDG_SETTINGS_BROWSER"
-[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo chromium.desktop
+[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || printf '%s\n' "${OMARCHY_TEST_DEFAULT_DESKTOP:-chromium.desktop}"
 SH
 cat >"$mock_bin/xdg-mime" <<'SH'
 #!/bin/bash
@@ -29,6 +34,12 @@ fi
 SH
 cat >"$mock_bin/chromium" <<'SH'
 #!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_PROBE"
+exit 0
+SH
+cat >"$mock_bin/firefox" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_PROBE"
 exit 0
 SH
 cat >"$mock_bin/systemd-run" <<'SH'
@@ -79,3 +90,30 @@ grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
 
 pass "browser launcher follows opened links to the browser workspace"
+
+# Deciding the private-mode flag must never run the browser itself: Chrome
+# answers --help by exec'ing man, so on an image without man-db the probe kills
+# the browser with SIGTRAP before the launch it was asked for even starts.
+probe_log="$test_tmp/probe"
+rm -f "$focus_log"
+
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  OMARCHY_TEST_BROWSER_PROBE="$probe_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" --private
+
+[[ ! -e $probe_log ]] || fail "browser launcher runs the browser to pick a private-mode flag" "$(cat "$probe_log")"
+grep -F -- '--incognito' "$launch_log" >/dev/null ||
+  fail "browser launcher passes the Chromium private flag"
+
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_DEFAULT_DESKTOP=firefox.desktop \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  OMARCHY_TEST_BROWSER_PROBE="$probe_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" --private
+
+[[ ! -e $probe_log ]] || fail "browser launcher runs Firefox to pick a private-mode flag" "$(cat "$probe_log")"
+grep -F -- '--private-window' "$launch_log" >/dev/null ||
+  fail "browser launcher passes the Firefox private flag"
+
+pass "browser launcher picks the private-mode flag without running the browser"

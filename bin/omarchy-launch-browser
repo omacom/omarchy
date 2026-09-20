@@ -9,7 +9,11 @@ if [[ -z $default_browser ]]; then
 fi
 browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
-if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+# Match the browser family by name rather than probing --help: Chrome answers
+# --help by exec'ing man, so on an image without man-db the probe kills the
+# browser with SIGTRAP before the launch it was asked for even starts. The
+# Firefox-based family is the same one default/hypr/apps/browser.lua tags.
+if [[ $browser_exec =~ [fF]irefox|zen|librewolf ]]; then
   private_flag="--private-window"
 elif [[ $browser_exec =~ edge ]]; then
   private_flag="--inprivate"
