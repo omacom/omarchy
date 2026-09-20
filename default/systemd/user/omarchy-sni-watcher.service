@@ -1,0 +1,14 @@
+[Unit]
+Description=Omarchy Status Notifier Watcher
+Before=omarchy-shell.service
+PartOf=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.kde.StatusNotifierWatcher
+ExecStart=/usr/bin/omarchy-sni-watcher
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

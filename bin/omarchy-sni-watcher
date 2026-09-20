@@ -1,0 +1,195 @@
+#!/usr/bin/python3
+import sys
+import gi
+gi.require_version('Gio', '2.0')
+gi.require_version('GLib', '2.0')
+from gi.repository import Gio, GLib
+import logging
+import warnings
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+class SNIWatcher:
+    def __init__(self):
+        # Maps item_id -> bus_name
+        self.items = {}
+        # Maps host_id -> bus_name
+        self.hosts = {}
+        # Maps bus_name -> watch_id
+        self.watchers = {}
+        
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        
+        introspection_xml = """
+        <node>
+          <interface name="org.kde.StatusNotifierWatcher">
+            <method name="RegisterStatusNotifierItem">
+              <arg type="s" name="service" direction="in"/>
+            </method>
+            <method name="RegisterStatusNotifierHost">
+              <arg type="s" name="service" direction="in"/>
+            </method>
+            <property name="RegisteredStatusNotifierItems" type="as" access="read"/>
+            <property name="IsStatusNotifierHostRegistered" type="b" access="read"/>
+            <property name="ProtocolVersion" type="i" access="read"/>
+            <signal name="StatusNotifierItemRegistered">
+              <arg type="s" name="service"/>
+            </signal>
+            <signal name="StatusNotifierItemUnregistered">
+              <arg type="s" name="service"/>
+            </signal>
+            <signal name="StatusNotifierHostRegistered"/>
+            <signal name="StatusNotifierHostUnregistered"/>
+          </interface>
+        </node>
+        """
+        
+        self.node_info = Gio.DBusNodeInfo.new_for_xml(introspection_xml)
+        self.interface_info = self.node_info.interfaces[0]
+        
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.registration_id = self.bus.register_object(
+                "/StatusNotifierWatcher",
+                self.interface_info,
+                self.handle_method_call,
+                self.handle_get_property,
+                self.handle_set_property
+            )
+        
+        Gio.bus_own_name_on_connection(
+            self.bus,
+            "org.kde.StatusNotifierWatcher",
+            Gio.BusNameOwnerFlags.REPLACE,
+            self.on_name_acquired,
+            self.on_name_lost
+        )
+
+    def on_name_acquired(self, connection, name):
+        logging.info(f"Acquired DBus name {name}")
+
+    def on_name_lost(self, connection, name):
+        logging.error(f"Lost DBus name {name} - another watcher claimed it?")
+        sys.exit(1)
+
+    def on_vanished(self, connection, bus_name):
+        logging.info(f"Bus vanished: {bus_name}")
+        
+        items_to_remove = [item_id for item_id, bname in self.items.items() if bname == bus_name]
+        for item_id in items_to_remove:
+            del self.items[item_id]
+            connection.emit_signal(
+                None,
+                "/StatusNotifierWatcher",
+                "org.kde.StatusNotifierWatcher",
+                "StatusNotifierItemUnregistered",
+                GLib.Variant("(s)", (item_id,))
+            )
+            
+        hosts_to_remove = [host_id for host_id, bname in self.hosts.items() if bname == bus_name]
+        for host_id in hosts_to_remove:
+            del self.hosts[host_id]
+            connection.emit_signal(
+                None,
+                "/StatusNotifierWatcher",
+                "org.kde.StatusNotifierWatcher",
+                "StatusNotifierHostUnregistered",
+                None
+            )
+            
+        if bus_name in self.watchers:
+            watch_id = self.watchers.pop(bus_name)
+            Gio.bus_unwatch_name(watch_id)
+
+    def handle_method_call(self, connection, sender, object_path, interface_name, method_name, parameters, invocation):
+        if method_name == "RegisterStatusNotifierItem":
+            service = parameters.unpack()[0]
+            
+            if service.startswith("/"):
+                bus_name = sender
+                item_id = sender + service
+            else:
+                bus_name = service
+                item_id = service
+                
+            if item_id in self.items:
+                invocation.return_value(None)
+                return
+                
+            logging.info(f"Registering SNI item: {item_id} (from {sender}, watched via {bus_name})")
+            self.items[item_id] = bus_name
+            
+            if bus_name not in self.watchers:
+                self.watchers[bus_name] = Gio.bus_watch_name_on_connection(
+                    self.bus,
+                    bus_name,
+                    Gio.BusNameWatcherFlags.NONE,
+                    None,
+                    self.on_vanished
+                )
+            
+            connection.emit_signal(
+                None,
+                "/StatusNotifierWatcher",
+                "org.kde.StatusNotifierWatcher",
+                "StatusNotifierItemRegistered",
+                GLib.Variant("(s)", (item_id,))
+            )
+            invocation.return_value(None)
+            
+        elif method_name == "RegisterStatusNotifierHost":
+            service = parameters.unpack()[0]
+            
+            if service.startswith("/"):
+                bus_name = sender
+                host_id = sender + service
+            else:
+                bus_name = service
+                host_id = service
+                
+            if host_id in self.hosts:
+                invocation.return_value(None)
+                return
+                
+            logging.info(f"Registering SNI host: {host_id} (from {sender}, watched via {bus_name})")
+            self.hosts[host_id] = bus_name
+            
+            if bus_name not in self.watchers:
+                self.watchers[bus_name] = Gio.bus_watch_name_on_connection(
+                    self.bus,
+                    bus_name,
+                    Gio.BusNameWatcherFlags.NONE,
+                    None,
+                    self.on_vanished
+                )
+            
+            connection.emit_signal(
+                None,
+                "/StatusNotifierWatcher",
+                "org.kde.StatusNotifierWatcher",
+                "StatusNotifierHostRegistered",
+                None
+            )
+            invocation.return_value(None)
+        else:
+            invocation.return_error_literal(Gio.DBusError, Gio.DBusError.UNKNOWN_METHOD, "Unknown method")
+
+    def handle_get_property(self, connection, sender, object_path, interface_name, property_name):
+        if property_name == "RegisteredStatusNotifierItems":
+            return GLib.Variant("as", list(self.items.keys()))
+        elif property_name == "IsStatusNotifierHostRegistered":
+            return GLib.Variant("b", len(self.hosts) > 0)
+        elif property_name == "ProtocolVersion":
+            return GLib.Variant("i", 0)
+        return None
+
+    def handle_set_property(self, connection, sender, object_path, interface_name, property_name, value):
+        return False
+
+if __name__ == '__main__':
+    watcher = SNIWatcher()
+    loop = GLib.MainLoop()
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        pass
