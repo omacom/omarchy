@@ -43,6 +43,8 @@ Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open
 
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
 
+An optional top-level `postEnable` string is printed after `omarchy plugin enable` (and after `omarchy plugin add --enable`). It is display-only: control bytes are stripped, and the text is never executed.
+
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
 ## Installing a third-party plugin
