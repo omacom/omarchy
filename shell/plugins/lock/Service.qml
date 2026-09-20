@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
+import "LockModel.js" as LockModel
 
 Item {
   id: root
@@ -15,6 +16,8 @@ Item {
   readonly property string stateHome: home + "/.local/state"
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
+  readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle ? shell.shellConfig.idle : ({})
+  readonly property bool blankDisplayEnabled: LockModel.blankDisplayEnabled(idleConfig)
 
   property bool lockRequested: false
   property bool pendingSessionLock: false
@@ -46,6 +49,13 @@ Item {
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
+
+  onBlankDisplayEnabledChanged: {
+    if (!blankDisplayEnabled) {
+      idleBlankTimer.stop()
+      if (displaysBlank) runWake()
+    } else if (lockRequested && !authenticatingPassword) armBlankTimer()
+  }
 
   function realScreenCount() {
     var screens = Quickshell.screens || []
@@ -170,6 +180,11 @@ Item {
   }
 
   function armBlankTimer() {
+    if (!blankDisplayEnabled) {
+      idleBlankTimer.stop()
+      return
+    }
+
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
   }
@@ -493,7 +508,7 @@ Item {
       // Only a password check in flight should hold the display up. The
       // fingerprint PAM stays armed for the whole lock, so gating on
       // `authenticating` here would keep the panel lit until unlock.
-      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
+      if (LockModel.shouldBlankDisplay(root.blankDisplayEnabled, root.lockRequested, root.authenticatingPassword)) root.runBlank()
     }
   }
 
