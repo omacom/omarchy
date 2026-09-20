@@ -34,6 +34,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
 const barSource = fs.readFileSync(root + '/shell/plugins/bar/Bar.qml', 'utf8')
+const traySource = fs.readFileSync(root + '/shell/plugins/bar/widgets/Tray.qml', 'utf8')
 const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
 
 assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleTransparency\(\)/.test(shellSource), 'shell exposes the bar transparency toggle over IPC')
@@ -286,6 +287,18 @@ assert(
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
 assertEqual(bar.normalizePosition('sideways'), 'top', 'bar defaults invalid positions')
+assert(
+  /readonly property int trayMenuMaxHeight: \{[\s\S]*?typeof value === "number" && isFinite\(value\) && value > 0 && Math\.floor\(value\) === value \? value : 420/.test(traySource),
+  'tray menu height falls back for missing and invalid values'
+)
+assert(
+  /var value = bar && bar\.barConfig \? bar\.barConfig\.trayMenuMaxHeight : undefined/.test(traySource),
+  'tray menu height reads the bar shell configuration'
+)
+assert(
+  /fittedContentHeight\(menuHeaderHeight \+ trayMenuColumn\.implicitHeight, Style\.space\(root\.trayMenuMaxHeight\)\)/.test(traySource),
+  'tray popup uses the configured height cap'
+)
 assertDeepEqual(bar.entrySettings({ id: 'omarchy.clock', format: 'HH:mm' }), { format: 'HH:mm' }, 'bar extracts entry settings')
 assertEqual(bar.entryId({ id: 'omarchy.clock' }), 'omarchy.clock', 'bar extracts object entry ids')
 assertEqual(bar.entryId('omarchy.clock'), 'omarchy.clock', 'bar extracts string entry ids')
