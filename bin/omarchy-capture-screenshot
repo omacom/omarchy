@@ -41,7 +41,19 @@ PROCESSING="${2:-slurp}"
 # hardware cursors until after grim runs and restore the setting on exit.
 NO_HW_CURSORS=$(hyprctl getoption cursor:no_hardware_cursors -j | jq '.int')
 
+# Do not override a software-cursor workaround on transformed outputs. The
+# hardware cursor/frozen-overlay path can put the visible pointer or image
+# somewhere other than slurp's logical selection. Capture the live desktop
+# instead, keeping the configured cursor mode for both picking and capture.
+REGION_ARGS=()
+PRESERVE_CURSOR=false
+if [[ $NO_HW_CURSORS != "0" ]] && hyprctl monitors -j | jq -e 'any(.[]; .transform != 0)' >/dev/null; then
+  PRESERVE_CURSOR=true
+  REGION_ARGS+=(--no-freeze)
+fi
+
 set_no_hw_cursors() {
+  [[ $PRESERVE_CURSOR == true ]] && return 0
   hyprctl eval "hl.config({ cursor = { no_hardware_cursors = $1 } })" &>/dev/null ||
     hyprctl keyword cursor:no_hardware_cursors "$1" &>/dev/null
 }
@@ -53,7 +65,7 @@ cleanup() {
 trap cleanup EXIT
 
 set_no_hw_cursors 0
-{ read -r FREEZE_PID; read -r SELECTION; } < <(omarchy-capture-region "$MODE" --keep-freeze)
+{ read -r FREEZE_PID; read -r SELECTION; } < <(omarchy-capture-region "$MODE" --keep-freeze "${REGION_ARGS[@]}")
 
 [[ -z $SELECTION ]] && exit 0
 
