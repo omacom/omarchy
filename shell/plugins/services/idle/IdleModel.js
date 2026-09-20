@@ -4,6 +4,24 @@ function secondsFromConfig(value, fallback) {
   return Math.floor(n)
 }
 
+// An IdleMonitor goes permanently deaf if `timeout` is reassigned while it is
+// live, so the monitor is destroyed and rebuilt instead of retuned. This
+// decides what the monitor should look like and whether it has to be replaced.
+function monitorPlan(idleEnabled, timeoutSeconds, activeTimeout, monitorActive) {
+  var desired = 0
+  if (idleEnabled) {
+    var n = Number(timeoutSeconds)
+    desired = isFinite(n) && n > 0 ? Math.floor(n) : 0
+  }
+
+  var active = desired > 0
+  return {
+    timeout: desired,
+    active: active,
+    rebuild: desired !== activeTimeout || !!monitorActive !== active
+  }
+}
+
 function eventParts(event, count) {
   try {
     if (event && event.parse) return event.parse(count)
@@ -46,6 +64,7 @@ function screensaverWindowsAfter(windows, address, visible) {
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
+    monitorPlan: monitorPlan,
     eventParts: eventParts,
     screensaverWindowsAfter: screensaverWindowsAfter
   }

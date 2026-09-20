@@ -25,7 +25,9 @@ Item {
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  readonly property bool monitorIsIdle: idleMonitorLoader.item ? idleMonitorLoader.item.isIdle : false
 
+  property int activeTimeoutSeconds: 0
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
@@ -170,11 +172,22 @@ Item {
     cancelIdleCycle("activity")
   }
 
+  function syncIdleMonitor() {
+    var plan = IdleModel.monitorPlan(root.idleEnabled, root.firstIdleTimeoutSeconds,
+                                     root.activeTimeoutSeconds, idleMonitorLoader.active)
+    if (!plan.rebuild) return
+
+    idleMonitorLoader.active = false
+    root.activeTimeoutSeconds = plan.timeout
+    idleMonitorLoader.active = plan.active
+    logEvent("idle-monitor-rebuild", plan.active ? "timeout=" + plan.timeout : "disabled")
+  }
+
   function handleIdleChanged() {
-    logEvent("idle-monitor", idleMonitor.isIdle ? "idle" : "active")
+    logEvent("idle-monitor", root.monitorIsIdle ? "idle" : "active")
     if (!root.idleEnabled) return
 
-    if (idleMonitor.isIdle) startIdleCycle()
+    if (root.monitorIsIdle) startIdleCycle()
     else handleActiveSignal()
   }
 
@@ -184,9 +197,11 @@ Item {
       stayAwake: root.stayAwake,
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
-      idle: idleMonitor.isIdle,
+      idle: root.monitorIsIdle,
       inIdleCycle: root.idledThisCycle,
       screensaverStarted: root.screensaverStartedThisCycle,
+      monitorTimeout: root.activeTimeoutSeconds,
+      monitorAlive: !!idleMonitorLoader.item,
       screensaver: root.screensaverTimeoutSeconds,
       lock: root.lockTimeoutSeconds,
       screensaverDelay: root.screensaverDelaySeconds,
@@ -248,13 +263,32 @@ Item {
     return applyStayAwake(!value, true, "ipc")
   }
 
-  IdleMonitor {
-    id: idleMonitor
-    enabled: root.idleEnabled
-    timeout: root.firstIdleTimeoutSeconds
-    respectInhibitors: true
-    onIsIdleChanged: root.handleIdleChanged()
+  // An IdleMonitor stops delivering notifications for good once `timeout` is
+  // reassigned on a live instance, and toggling `enabled` does not revive it.
+  // `shellConfig` starts at the built-in defaults and is replaced when
+  // ~/.config/omarchy/shell.json loads, so the timeout does change under us.
+  // Destroy and rebuild the monitor instead of retuning one in place; the
+  // component only ever reads `activeTimeoutSeconds`, which is updated while
+  // no monitor exists.
+  Component {
+    id: idleMonitorComponent
+
+    IdleMonitor {
+      enabled: true
+      timeout: root.activeTimeoutSeconds
+      respectInhibitors: true
+      onIsIdleChanged: root.handleIdleChanged()
+    }
   }
+
+  Loader {
+    id: idleMonitorLoader
+    active: false
+    sourceComponent: idleMonitorComponent
+  }
+
+  onIdleEnabledChanged: root.syncIdleMonitor()
+  onFirstIdleTimeoutSecondsChanged: root.syncIdleMonitor()
 
   Timer {
     id: screensaverTimer
@@ -275,7 +309,7 @@ Item {
     interval: 3000
     repeat: false
     onTriggered: {
-      if (root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle && root.screensaverWindowCount === 0 && !idleMonitor.isIdle) {
+      if (root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle && root.screensaverWindowCount === 0 && !root.monitorIsIdle) {
         root.cancelIdleCycle("screensaver-not-running")
       }
     }
@@ -332,6 +366,7 @@ Item {
 
   Component.onCompleted: {
     logEvent("service-ready")
+    syncIdleMonitor()
     refreshStayAwakeState()
   }
 
