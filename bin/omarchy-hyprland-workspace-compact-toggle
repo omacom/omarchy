@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle keeping occupied workspaces numbered consecutively.
+
+case $(omarchy-hyprland-toggle workspace-compact) in
+  on) omarchy-notification-send -g "Enable consecutive workspace numbering" ;;
+  off) omarchy-notification-send -g "Disable consecutive workspace numbering" ;;
+esac
