@@ -15,6 +15,7 @@ Item {
   property bool reloading: false
   readonly property var current: video ? videoLoader.item : imageLoader.item
   readonly property bool ready: current ? current.ready : false
+  readonly property bool failed: current ? current.failed === true : false
   readonly property bool video: Util.isVideoPath(path)
   // Cache-bust images selected in a running lock session. FFmpeg treats the
   // query as part of a local filename, so videos must keep their plain URL.
@@ -76,6 +77,7 @@ Item {
 
     Image {
       readonly property bool ready: status === Image.Ready
+      readonly property bool failed: status === Image.Error
       source: root.imageUrl
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
