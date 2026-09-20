@@ -9,11 +9,51 @@ declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
 
+# Compile the keymap Hyprland is actually using. Called with no arguments,
+# `xkbcli compile-keymap` compiles the default US keymap, which names every
+# code: binding after a key a non-US layout does not have: code:20 reads MINUS
+# everywhere, while a German keyboard prints ß there and a Spanish one '.
+active_keymap_command() {
+  local layouts variants index layout variant command
+
+  layouts=$(hyprctl getoption input:kb_layout 2>/dev/null | awk '/^str:/ { sub(/^str:[[:space:]]*/, ""); print; exit }')
+  variants=$(hyprctl getoption input:kb_variant 2>/dev/null | awk '/^str:/ { sub(/^str:[[:space:]]*/, ""); print; exit }')
+
+  # kb_layout may name several layouts; the keyboard says which one is live.
+  # Switching layouts rewrites the `active keymap:` line the cache keys on, so
+  # the menu re-renders against the layout the user just switched to.
+  index=$(hyprctl devices 2>/dev/null | awk '
+    /active layout index:/ { current = $NF; if (first == "") first = current }
+    /main: yes/ { print current; found = 1; exit }
+    END { if (!found) print first }
+  ')
+  [[ $index =~ ^[0-9]+$ ]] || index=0
+
+  layout=$(cut -d, -f$((index + 1)) <<<"$layouts")
+  variant=$(cut -d, -f$((index + 1)) <<<"$variants")
+  [[ -z $layout ]] && layout=$(cut -d, -f1 <<<"$layouts")
+
+  command="xkbcli compile-keymap"
+
+  # awk runs this through a shell, so only pass on what an RMLVO name is made
+  # of. Anything else leaves the command bare and the default keymap compiled.
+  if [[ $layout =~ ^[A-Za-z0-9_-]+$ ]]; then
+    command+=" --layout $layout"
+
+    if [[ $variant =~ ^[A-Za-z0-9_-]+$ ]]; then
+      command+=" --variant $variant"
+    fi
+  fi
+
+  # </dev/null keeps xkbcli from consuming the binding records on stdin
+  printf '%s </dev/null\n' "$command"
+}
+
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
 # remains readable if xkbcli cannot resolve a symbol.
 parse_keycodes() {
-  awk '
+  awk -v keymap_cmd="$(active_keymap_command)" '
     BEGIN {
       split("10=1 11=2 12=3 13=4 14=5 15=6 16=7 17=8 18=9 19=0 20=MINUS 21=EQUAL 59=COMMA 60=PERIOD 61=SLASH", fallbacks, " ")
       for (i in fallbacks) {
@@ -21,8 +61,6 @@ parse_keycodes() {
         keycode_symbol[substr(fallbacks[i], 1, separator - 1)] = substr(fallbacks[i], separator + 1)
       }
 
-      # </dev/null keeps xkbcli from consuming the binding records on stdin
-      keymap_cmd = "xkbcli compile-keymap </dev/null"
       section = ""
       while ((keymap_cmd | getline line) > 0) {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
@@ -545,7 +583,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v14\n'
+    printf 'v15\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
