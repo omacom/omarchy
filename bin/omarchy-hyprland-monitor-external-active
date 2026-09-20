@@ -3,4 +3,42 @@
 # omarchy:summary=Returns true when Hyprland has an active external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+# A name cannot tell a real display from one of Hyprland's virtual outputs:
+# FallbackStateKeeper creates one called FALLBACK whenever the set of ENABLED
+# monitors empties, and `hyprctl output create headless` makes HEADLESS-n. Both
+# report disabled=false and match none of the internal-panel prefixes, so a name
+# test counts them and the laptop panel never recovers. Ask the kernel instead:
+# a real display has a DRM connector, a virtual output has none. Excluding the
+# two names would work today, but 0.55 spelled FALLBACK "HEADLESS-n", and the
+# next rename would put the bug back silently.
+
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+# Anything but `disconnected` counts: a connector with no working detect (VGA,
+# DVI-I) reports `unknown` for a display that is genuinely attached. Virtual
+# outputs have no status file at all, so the loop body never runs for them. The
+# name needs no vetting: it is only ever used inside a quoted glob, where its
+# characters are literal and cannot expand.
+backed_by_connector() {
+  local name="$1" status
+
+  for status in "$drm_path"/card*-"$name"/status; do
+    [[ -e $status ]] || continue
+    [[ $(<"$status") == disconnected ]] || return 0
+  done
+
+  return 1
+}
+
+# `monitors all` rather than plain `monitors`, which omits mirrored externals. A
+# hyprctl that fails or answers with nothing exits 1, as the previous jq did.
+while read -r name; do
+  [[ -n $name ]] || continue
+  backed_by_connector "$name" && exit 0
+done < <(hyprctl monitors all -j 2>/dev/null | jq -r '
+  .[]
+  | select(.disabled == false)
+  | select(.name | test("^(eDP|LVDS|DSI)-") | not)
+  | .name' 2>/dev/null)
+
+exit 1
