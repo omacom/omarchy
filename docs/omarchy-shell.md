@@ -20,7 +20,14 @@ wait).
   "author": "You",
   "description": "A clock that does cool things",
   "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "Widget.qml" }
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "dependencies": {
+    "pacman": ["jq"],
+    "aur": ["some-aur-package"],
+    "optdepends": {
+      "pacman": ["brightnessctl: needed for the brightness slider"]
+    }
+  }
 }
 ```
 
@@ -42,6 +49,28 @@ Panels, overlays, and menus are loaded when summoned. Plugins can set the top-le
 Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
 
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
+
+A plugin may declare the Arch packages it needs with a `dependencies` block,
+formatted like a PKGBUILD: required packages are plain name arrays split by
+source (`pacman` for repo packages, `aur` for AUR packages), and optional ones
+use the PKGBUILD `optdepends` strings of `"name: reason"`. When `omarchy plugin
+add` finds declared packages missing from the system, it lists them with their
+reasons and asks whether to install them — required ones through
+`omarchy-pkg-add` / `omarchy-pkg-aur-add`, optional ones only if you accept.
+With `--yes`, required packages are installed automatically and optional ones
+are skipped. A missing package never blocks the install itself: the plugin
+lands and can be enabled once its dependencies are in place.
+
+```json
+"dependencies": {
+  "pacman": ["jq"],
+  "aur": ["some-aur-package"],
+  "optdepends": {
+    "pacman": ["brightnessctl: needed for the brightness slider"],
+    "aur": ["google-chrome: needed for the browser widget"]
+  }
+}
+```
 
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
 
