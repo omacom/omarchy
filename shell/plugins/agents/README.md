@@ -54,6 +54,7 @@ light surfaces — and the bar glyph stands in when there is none.
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
+| `cursor` | Cursor's dashboard RPCs: included, auto-model, named-model, and on-demand meters | the same dashboard RPCs, one call per day for the last week |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
@@ -62,7 +63,24 @@ falls back to local stats only. A non-default Claude directory is honored via
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
-signed in there.
+signed in there. Cursor reads `CURSOR_API_KEY` first, then the token
+`cursor-agent login` stores in `~/.config/cursor/auth.json`, and honors
+`CURSOR_API_ENDPOINT`.
+
+### Cursor
+
+Cursor's session files on disk carry no token counts, so this is the one
+collector with nothing to fall back on: without a credential the tab says
+"Cursor unavailable" rather than showing a week of zeros. Tokens by day and by
+model cover the last seven days, one aggregation call per day.
+
+The meters are Cursor's own percentages — included total, auto-bucket models,
+and named models — so they always agree with the Cursor dashboard. Spend is
+never divided into an allowance here: bonus usage the model providers hand out
+is spend with no allowance behind it, so dollars over the plan limit read far
+past 100% while Cursor's own meters do not. The on-demand row is the exception
+and is a real ratio: dollars spent against the on-demand limit the account
+sets.
 
 ### Fireworks balance
 
