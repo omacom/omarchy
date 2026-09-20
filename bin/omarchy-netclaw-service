@@ -1,0 +1,11 @@
+#!/bin/bash
+# omarchy:summary=Control NetClaw's shared OpenClaw user gateway
+# omarchy:args=<start|stop|restart|logs>
+# omarchy:examples=omarchy netclaw service restart | omarchy netclaw service logs
+
+set -euo pipefail
+case "${1:-}" in
+  start|stop|restart) exec openclaw gateway "$1" ;;
+  logs) exec journalctl --user -u openclaw-gateway.service -n 100 -f ;;
+  *) echo "Usage: omarchy netclaw service <start|stop|restart|logs>" >&2; exit 1 ;;
+esac

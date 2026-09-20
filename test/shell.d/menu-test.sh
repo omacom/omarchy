@@ -10,6 +10,21 @@ const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
 
+
+const netclawMenu = menu.mergeMenuSources(menu.parseMenuJsonc(defaultMenuJsonc), [])
+const netclawApps = menu.mergeAppRows(netclawMenu.items, netclawMenu.itemOrder, [
+  { id: 'apps.NetClaw', parent: 'apps', kind: 'app', appId: 'NetClaw', label: 'NetClaw' },
+  { id: 'apps.other', parent: 'apps', kind: 'app', appId: 'other', label: 'Other' }
+])
+assertEqual(menu.resolveRoute(netclawApps.items, netclawApps.itemOrder, 'apps.netclaw'), 'apps.NetClaw', 'static desktop submenus route case insensitively')
+assertEqual(netclawApps.items['apps.NetClaw'].kind, 'menu', 'NetClaw keeps its submenu when the app provider refreshes')
+assertEqual(netclawApps.itemOrder.filter(id => id === 'apps.NetClaw').length, 1, 'NetClaw appears once under Apps')
+assertEqual(netclawApps.items['apps.NetClaw'].appIcon, 'netclaw', 'NetClaw submenu keeps its app icon')
+assertEqual(netclawApps.items['apps.other'].kind, 'app', 'ordinary applications remain launchable')
+for (const action of ['chat', 'dashboard', 'setup', 'credentials', 'upgrade', 'status', 'logs', 'start', 'restart', 'stop']) {
+  assertEqual(netclawApps.items['apps.NetClaw.' + action].kind, 'action', 'NetClaw submenu includes ' + action)
+}
+
 const parsed = menu.parseMenuJsonc(`
 {
   // comment
@@ -35,6 +50,7 @@ assertDeepEqual(
     kind: 'action',
     icon: '',
     iconFont: '',
+    appIcon: '',
     label: 'Themes',
     title: '',
     target: '',
@@ -249,7 +265,7 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'NetClaw', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {

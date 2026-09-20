@@ -1,0 +1,70 @@
+[
+  {
+    "session": "cml-pcall-20260910",
+    "seq": 21,
+    "timestamp": 1789054871974,
+    "command": "show ip interface brief",
+    "concurrency": "pcall (process per device)",
+    "summary": {
+      "total": 4,
+      "success": 4,
+      "failed": 0
+    },
+    "devices": [
+      {
+        "device": "R1",
+        "status": "completed",
+        "parsed": true
+      },
+      {
+        "device": "R2",
+        "status": "completed",
+        "parsed": true
+      },
+      {
+        "device": "SW1",
+        "status": "completed",
+        "parsed": true
+      },
+      {
+        "device": "SW2",
+        "status": "completed",
+        "parsed": true
+      }
+    ]
+  },
+  {
+    "session": "cml-pcall-20260910",
+    "seq": 32,
+    "timestamp": 1789054903113,
+    "command": "show version",
+    "concurrency": "pcall (process per device)",
+    "summary": {
+      "total": 4,
+      "success": 4,
+      "failed": 0
+    },
+    "devices": [
+      {
+        "device": "R1",
+        "status": "completed",
+        "parsed": true
+      },
+      {
+        "device": "R2",
+        "status": "completed",
+        "parsed": true
+      },
+      {
+        "device": "SW1",
+        "status": "completed",
+        "parsed": true
+      },
+      {
+        "device": "SW2",
+        "status": "completed",
+        "parsed": true
+      }
+    ]
+  }
+]

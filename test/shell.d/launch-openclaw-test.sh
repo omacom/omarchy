@@ -187,3 +187,8 @@ chmod +x "$tmp_dir/bin/openclaw"
 ! grep -q '^omarchy-launch-webapp:' "$TEST_LOG" ||
   fail "--tui seeds the session through --message" "webapp opened instead"
 pass "--tui seeds the session through --message"
+
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw" --tui --session netclaw --message "List configured devices"
+grep -q '^openclaw:tui --session netclaw --message List configured devices$' "$TEST_LOG" || fail 'explicit session and message reach the TUI'
+pass 'terminal launch preserves an explicit session alongside its prompt'

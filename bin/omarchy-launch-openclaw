@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Open the OpenClaw Control UI (or its terminal UI with --tui), onboarding or starting the gateway first when needed.
-# omarchy:args=[--tui [--message <text>]]
+# omarchy:args=[--tui [--session <key>] [--message <text>]]
 
 set -euo pipefail
 
@@ -10,10 +10,15 @@ message=()
 if [[ ${1:-} == "--tui" ]]; then
   tui=true
   shift
-  if [[ ${1:-} == "--message" ]]; then
-    message=(--message "${2:?--message needs a value}")
-    shift 2
-  fi
+  while (( $# )); do
+    case "$1" in
+      --message|--session)
+        message+=("$1" "${2:?$1 needs a value}")
+        shift 2
+        ;;
+      *) echo "Unknown terminal option: $1" >&2; exit 1 ;;
+    esac
+  done
 fi
 
 # Onboarding is OpenClaw's own interactive wizard, run through
