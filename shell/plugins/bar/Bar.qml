@@ -106,6 +106,9 @@ Item {
   property bool barMoveActive: false
   property bool barMoveTakePointer: false
   property bool barMovePointerArmed: false
+  // After grab cancel on an empty desktop, Wayland often reports buttons=0
+  // immediately. Ignore that false release until a real overlay hold/release.
+  property bool barMoveHandoffPending: false
   property string barMoveCandidate: ""
   property var barMoveWindow: null
   property var barMoveScreen: null
@@ -507,7 +510,17 @@ Item {
     barMoveCandidate = position
     barMoveTakePointer = false
     barMovePointerArmed = false
+    barMoveHandoffPending = false
     barMoveActive = true
+
+    // Defer overlay handoff so press-and-hold is not racing a synchronous
+    // grab-steal Released on the strip MouseArea. Empty desktops need the
+    // overlay before the pointer hits wallpaper; windowed desktops keep the
+    // strip gesture until then.
+    Qt.callLater(function() {
+      if (root.barMoveActive && !root.barMoveTakePointer)
+        root.takeBarMovePointer()
+    })
   }
 
   function updateBarMove(screenPoint) {
@@ -519,13 +532,29 @@ Item {
     if (!barMoveActive) return
     var handoff = BarModel.barMovePointerAfterHandoff()
     barMoveTakePointer = handoff.takePointer === true
-    // Arm at handoff: the overlay never saw the original press, so a release
-    // with no further motion would otherwise never finish.
+    // Arm for a real overlay release, but mark handoff pending so a synthetic
+    // buttons=0 right after grab cancel does not finish/clear.
     barMovePointerArmed = handoff.armed === true
+    barMoveHandoffPending = true
+    barMoveHandoffAbortTimer.interval = 3000
     barMoveHandoffAbortTimer.restart()
   }
 
   function applyBarMovePointerButtons(buttons) {
+    var pressed = (Number(buttons) || 0) & 1
+
+    if (barMoveHandoffPending) {
+      if (pressed) {
+        // Overlay saw a real hold — normal armed release path from here.
+        // Keep release-to-commit: do not auto-dock on edge hover.
+        barMoveHandoffPending = false
+        barMovePointerArmed = true
+        barMoveHandoffAbortTimer.stop()
+      }
+      // Ignore synthetic buttons=0 while pending.
+      return
+    }
+
     var action = BarModel.barMoveReleaseAction(barMovePointerArmed, buttons)
     if (action === "hold") {
       barMovePointerArmed = true
@@ -552,9 +581,11 @@ Item {
     barMoveActive = false
     barMoveTakePointer = false
     barMovePointerArmed = false
+    barMoveHandoffPending = false
     barMoveCandidate = ""
     barMoveWindow = null
     barMoveScreen = null
+    barMoveHandoffAbortTimer.interval = 400
     barMoveHandoffAbortTimer.stop()
   }
 
@@ -1535,7 +1566,7 @@ Item {
     WlrLayershell.namespace: "omarchy-bar-move-ghost"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: root.barMoveTakePointer && moveGhostWindow.visible
-      ? WlrKeyboardFocus.OnDemand
+      ? WlrKeyboardFocus.Exclusive
       : WlrKeyboardFocus.None
 
     anchors {
@@ -1545,14 +1576,16 @@ Item {
       right: true
     }
 
-    // Stay pass-through while the bar still holds the grab, so a windowed
-    // desktop keeps the original strip-local gesture. On an empty desktop the
-    // pointer leaves the bar onto the wallpaper, Hyprland drops that grab, and
-    // the overlay must then take the pointer or the move dies with zero clients.
+    // Stay pass-through while the bar still holds the grab (null item).
+    // Quickshell masks by `item` geometry — bare width/height do not receive
+    // input, which left empty-desktop handoff dead after grab cancel.
+    Item {
+      id: moveGhostCapture
+      anchors.fill: parent
+    }
     Region {
       id: moveGhostInput
-      width: root.barMoveTakePointer && moveGhostWindow.visible ? moveGhostWindow.width : 0
-      height: root.barMoveTakePointer && moveGhostWindow.visible ? moveGhostWindow.height : 0
+      item: root.barMoveTakePointer && moveGhostWindow.visible ? moveGhostCapture : null
     }
     mask: moveGhostInput
 
@@ -1609,6 +1642,14 @@ Item {
       }
       onReleased: function(mouse) {
         if (mouse.button !== Qt.LeftButton) return
+        // Release-to-commit: even if Wayland never delivered the original
+        // press to this overlay, a left release here ends the move.
+        if (root.barMoveHandoffPending) {
+          root.barMoveHandoffPending = false
+          root.barMovePointerArmed = false
+          root.finishBarMove()
+          return
+        }
         root.applyBarMovePointerButtons(0)
       }
     }
@@ -1815,8 +1856,12 @@ Item {
       if (!dragging) return
       dragging = false
       suppressClick = true
-      root.finishBarMove()
       mouse.accepted = true
+      // Grab-steal while handing off to the overlay can surface as Released.
+      // Finishing here clears the move before the user can aim at another edge.
+      if (root.barMoveTakePointer || root.barMoveHandoffPending)
+        return
+      root.finishBarMove()
     }
 
     onCanceled: {

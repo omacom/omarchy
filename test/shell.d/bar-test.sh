@@ -55,6 +55,23 @@ if ! perl -0ne 'exit(/function takeBarMovePointer\b[\s\S]*?barMovePointerAfterHa
 fi
 pass "bar move handoff arms the pointer so a still release can finish"
 
+if ! grep -q 'property bool barMoveHandoffPending' shell/plugins/bar/Bar.qml; then
+  fail "bar move must track handoff-pending so synthetic buttons=0 do not finish"
+fi
+pass "bar move tracks handoff-pending across grab cancel"
+
+if ! perl -0ne 'exit(/onReleased: function\(mouse\) \{[\s\S]*?barMoveTakePointer[\s\S]*?barMoveHandoffPending[\s\S]*?return[\s\S]*?finishBarMove/s ? 0 : 1)' \
+  shell/plugins/bar/Bar.qml; then
+  fail "bar move strip Released must not finish while the overlay owns the gesture"
+fi
+pass "bar move strip Released defers to the overlay after handoff"
+
+if ! grep -q 'id: moveGhostCapture' shell/plugins/bar/Bar.qml \
+  || ! perl -0ne 'exit(/Region \{[\s\S]*?item:\s*root\.barMoveTakePointer/s ? 0 : 1)' shell/plugins/bar/Bar.qml; then
+  fail "bar move overlay mask must use an item-backed Region for input"
+fi
+pass "bar move overlay mask uses an item-backed Region"
+
 if ! perl -0ne 'exit(/function abortBarMove\b[\s\S]*?barMoveAbortReason[\s\S]*?clearBarMove\(\)/s ? 0 : 1)' \
   "$ROOT/shell/plugins/bar/Bar.qml"; then
   fail "bar move must abort a handed-off gesture that never sees a release"
@@ -355,8 +372,14 @@ assert(
 )
 assert(
   /barMoveTakePointer/.test(barSource) &&
-    /width: root\.barMoveTakePointer && moveGhostWindow\.visible \? moveGhostWindow\.width : 0/.test(barSource),
-  'bar move overlay captures the pointer only after the strip loses the grab'
+    /item:\s*root\.barMoveTakePointer && moveGhostWindow\.visible \? moveGhostCapture : null/.test(barSource) &&
+    /id: moveGhostCapture/.test(barSource),
+  'bar move overlay captures the pointer via an item-backed Region when handed off'
+)
+assert(
+  /barMoveHandoffPending/.test(barSource) &&
+    /Grab-steal while handing/.test(barSource),
+  'bar move guards strip Released after overlay handoff'
 )
 assertDeepEqual(
   bar.barMovePointerAfterHandoff(),
