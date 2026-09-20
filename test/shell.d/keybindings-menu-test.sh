@@ -201,11 +201,19 @@ $(keycode_bind 64 21 "Shrink window left")
 BINDS
 
 rendered=$(keybindings)
-grep -q 'SUPER + SSHARP  *→ Expand window left' <<<"$rendered" ||
-  fail "a keycode reads as the key the active layout puts there" "$rendered"
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" ||
+  fail "a keycode reads as the key the active layout prints there" "$rendered"
 ! grep -qE 'MINUS|EQUAL' <<<"$rendered" ||
   fail "no entry still names the key a US layout would have" "$rendered"
-pass "a keycode reads as the key the active layout puts there"
+pass "a keycode reads as the key the active layout prints there"
+
+# ß and ´ are what the keys say. SSHARP and DEAD_ACUTE are what xkb calls them,
+# and no keyboard prints either.
+grep -q 'SUPER + ´  *→ Shrink window left' <<<"$rendered" ||
+  fail "a keysym with no printable name reads as the character instead" "$rendered"
+! grep -qE 'SSHARP|DEAD_ACUTE' <<<"$rendered" ||
+  fail "no entry falls back to the xkb name of a key" "$rendered"
+pass "a keysym with no printable name reads as the character instead"
 
 # kb_layout can list several layouts. The one the keyboard reports as active is
 # the one the menu has to name keys after, not simply the first in the list.
@@ -217,7 +225,7 @@ $(keycode_bind 64 20 "Expand window left")
 BINDS
 
 rendered=$(keybindings)
-grep -q 'SUPER + SSHARP  *→ Expand window left' <<<"$rendered" ||
+grep -q 'SUPER + ß  *→ Expand window left' <<<"$rendered" ||
   fail "the active layout wins over the first one listed" "$rendered"
 pass "the active layout wins over the first one listed"
 

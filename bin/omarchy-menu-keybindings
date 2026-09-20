@@ -61,6 +61,23 @@ parse_keycodes() {
         keycode_symbol[substr(fallbacks[i], 1, separator - 1)] = substr(fallbacks[i], separator + 1)
       }
 
+      # Keysym names no keyboard prints on its keys. Uppercasing these puts
+      # SSHARP and DEAD_ACUTE in the menu for keys labelled ß and ´, so name
+      # them by the character instead. Keys a US layout already reaches, like
+      # minus and equal, keep the words the menu has always shown for them.
+      split("ssharp=ß adiaeresis=ä odiaeresis=ö udiaeresis=ü aring=å ae=æ oslash=ø " \
+            "eacute=é egrave=è agrave=à ugrave=ù iacute=í oacute=ó uacute=ú " \
+            "ccedilla=ç ntilde=ñ ccaron=č scaron=š zcaron=ž " \
+            "dead_acute=´ dead_grave=` dead_circumflex=^ dead_diaeresis=¨ " \
+            "dead_tilde=~ dead_caron=ˇ dead_breve=˘ dead_cedilla=¸ dead_abovering=° " \
+            "exclamdown=¡ questiondown=¿ masculine=º ordfeminine=ª degree=° " \
+            "section=§ currency=¤ mu=µ plus=+ numbersign=# apostrophe=\047 " \
+            "asterisk=* bar=| less=< greater=> at=@", named_symbols, " ")
+      for (i in named_symbols) {
+        separator = index(named_symbols[i], "=")
+        symbol_character[substr(named_symbols[i], 1, separator - 1)] = substr(named_symbols[i], separator + 1)
+      }
+
       section = ""
       while ((keymap_cmd | getline line) > 0) {
         if (line ~ /xkb_keycodes/) { section = "codes"; continue }
@@ -88,7 +105,13 @@ parse_keycodes() {
       for (name in code_by_name) {
         code = code_by_name[name]
         symbol = sym_by_name[name]
-        if (code != "" && symbol != "" && symbol != "NoSymbol") keycode_symbol[code] = toupper(symbol)
+        if (code == "" || symbol == "" || symbol == "NoSymbol") continue
+
+        if (symbol in symbol_character) {
+          keycode_symbol[code] = symbol_character[symbol]
+        } else {
+          keycode_symbol[code] = toupper(symbol)
+        }
       }
 
       # Read off the keysym rather than the keycode, so the key left of 1 reads
@@ -583,7 +606,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v15\n'
+    printf 'v16\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
