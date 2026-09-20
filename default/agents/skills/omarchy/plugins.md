@@ -13,7 +13,7 @@ $OMARCHY_PATH/config/omarchy/shell.json  # Canonical defaults
 ```
 
 The shell hot-reloads `shell.json` on save — no restart needed for layout
-changes. `idle.screensaver` and `idle.lock` are seconds since user idle began.
+changes. `idle.screensaver` and `idle.lock` are seconds since user idle began. Optional `idle.keyboardBacklight` uses that same clock; omit it or set `0` to disable.
 
 **Commands:** `omarchy restart shell`, `omarchy refresh shell`
 
@@ -49,4 +49,7 @@ automatically. If a change somehow fails to apply, force a reload with
 
 Set `idle.screensaver` and `idle.lock` in `~/.config/omarchy/shell.json`,
 in seconds since user idle began. Example: "lock after ten minutes" means
-setting `idle.lock` to `600`.
+setting `idle.lock` to `600`. Optional `idle.keyboardBacklight` turns the
+keyboard LED off after that many idle seconds and restores the last chosen
+level on activity. Omit the key or set `0` to leave it alone. Stay awake does
+not disable this timeout.

@@ -20,6 +20,10 @@ Item {
     ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
+  readonly property int keyboardBacklightTimeoutSeconds: IdleModel.keyboardBacklightTimeoutSeconds(idleConfig)
+  readonly property bool keyboardBacklightTimeoutEnabled: keyboardBacklightTimeoutSeconds > 0
+  property bool keyboardBacklightTimeoutArmed: false
+  property var keyboardCommandPending: null
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
@@ -61,6 +65,18 @@ Item {
     process.command = ["bash", "-lc", command]
     process.running = true
     return true
+  }
+
+  function enqueueKeyboardCommand(label, command) {
+    root.keyboardCommandPending = { label: label, command: command }
+    pumpKeyboardCommand()
+  }
+
+  function pumpKeyboardCommand() {
+    if (keyboardCommandProcess.running || !root.keyboardCommandPending) return
+    var next = root.keyboardCommandPending
+    root.keyboardCommandPending = null
+    runProcess(keyboardCommandProcess, next.label, next.command)
   }
 
   function launchScreensaver() {
@@ -178,6 +194,28 @@ Item {
     else handleActiveSignal()
   }
 
+  function handleKeyboardBacklightIdleChanged() {
+    if (!root.keyboardBacklightTimeoutEnabled) return
+
+    logEvent("keyboard-backlight", keyboardBacklightMonitor.isIdle ? "idle" : "active")
+    if (keyboardBacklightMonitor.isIdle) {
+      enqueueKeyboardCommand("keyboard-off", "omarchy-brightness-keyboard --no-osd off")
+      return
+    }
+
+    // Launching the screensaver can look like compositor activity. Keep the
+    // keyboard dark until that cycle ends; omarchy-system-wake restores on dismiss.
+    if (root.idledThisCycle) return
+
+    enqueueKeyboardCommand("keyboard-restore", "omarchy-brightness-keyboard --no-osd restore")
+  }
+
+  onKeyboardBacklightTimeoutEnabledChanged: {
+    if (root.keyboardBacklightTimeoutArmed && !root.keyboardBacklightTimeoutEnabled)
+      enqueueKeyboardCommand("keyboard-restore", "omarchy-brightness-keyboard --no-osd restore")
+    root.keyboardBacklightTimeoutArmed = root.keyboardBacklightTimeoutEnabled
+  }
+
   function statusJson() {
     return JSON.stringify({
       enabled: root.idleEnabled,
@@ -189,6 +227,8 @@ Item {
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
       lock: root.lockTimeoutSeconds,
+      keyboardBacklight: root.keyboardBacklightTimeoutSeconds,
+      keyboardBacklightIdle: keyboardBacklightMonitor.isIdle,
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
@@ -200,7 +240,8 @@ Item {
       processes: {
         screensaver: screensaverProcess.running,
         lock: lockProcess.running,
-        wake: wakeProcess.running
+        wake: wakeProcess.running,
+        keyboardCommand: keyboardCommandProcess.running
       },
       lastEvent: root.lastEvent,
       lastEventAt: root.lastEventAt
@@ -256,6 +297,14 @@ Item {
     onIsIdleChanged: root.handleIdleChanged()
   }
 
+  IdleMonitor {
+    id: keyboardBacklightMonitor
+    enabled: root.keyboardBacklightTimeoutEnabled
+    timeout: root.keyboardBacklightTimeoutSeconds
+    respectInhibitors: false
+    onIsIdleChanged: root.handleKeyboardBacklightIdleChanged()
+  }
+
   Timer {
     id: screensaverTimer
     interval: root.screensaverDelaySeconds * 1000
@@ -298,6 +347,13 @@ Item {
     id: wakeProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "wake exitCode=" + exitCode + " status=" + exitStatus) }
   }
+  Process {
+    id: keyboardCommandProcess
+    onExited: function(exitCode, exitStatus) {
+      root.logEvent("process-exit", "keyboard-command exitCode=" + exitCode + " status=" + exitStatus)
+      root.pumpKeyboardCommand()
+    }
+  }
 
   Process {
     id: stayAwakeStateProbe
@@ -332,6 +388,7 @@ Item {
 
   Component.onCompleted: {
     logEvent("service-ready")
+    root.keyboardBacklightTimeoutArmed = root.keyboardBacklightTimeoutEnabled
     refreshStayAwakeState()
   }
 

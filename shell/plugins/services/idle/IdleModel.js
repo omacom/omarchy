@@ -4,6 +4,10 @@ function secondsFromConfig(value, fallback) {
   return Math.floor(n)
 }
 
+function keyboardBacklightTimeoutSeconds(idle) {
+  return secondsFromConfig(idle && idle.keyboardBacklight, 0)
+}
+
 function eventParts(event, count) {
   try {
     if (event && event.parse) return event.parse(count)
@@ -46,6 +50,7 @@ function screensaverWindowsAfter(windows, address, visible) {
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
+    keyboardBacklightTimeoutSeconds: keyboardBacklightTimeoutSeconds,
     eventParts: eventParts,
     screensaverWindowsAfter: screensaverWindowsAfter
   }
