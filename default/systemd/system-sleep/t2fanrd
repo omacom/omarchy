@@ -1,0 +1,8 @@
+#!/bin/bash
+# t2fanrd holds applesmc fan FDs open across suspend; after resume the sysfs
+# nodes are recreated and the running daemon never reasserts manual control,
+# leaving the SMC in failsafe full speed (fan1_manual=0, ~3600 RPM at 40C).
+# Restart it on resume so fans return to the configured curve in /etc/t2fand.conf.
+# See https://github.com/omacom/omarchy/issues/12393
+[[ $1 == "post" ]] || exit 0
+/usr/bin/systemctl try-restart t2fanrd.service
