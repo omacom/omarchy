@@ -3,9 +3,11 @@
 `omarchy-shell` is a single long-running [Quickshell](https://quickshell.org/)
 instance that hosts the Omarchy desktop. Hyprland autostart launches one shell
 per graphical session; everything else — the bar, background switcher, panels,
-and overlays — runs **inside** the shell as a plugin.
+and overlays — runs **inside** the shell as a plugin. The session locker is
+independent: `lock.qml` loads `lock/Service.qml` in its own process, so a shell
+restart leaves the password prompt and authentication state alive.
 
-Hosting everything inside one shell means:
+Hosting desktop plugins inside one shell means:
 
 - shared services and singletons live once, not once per process
 - summoning a panel is an IPC call into a process that is already running,
@@ -17,7 +19,9 @@ The runtime layout:
 
 ```
 shell/
-  shell.qml              entry point (ShellRoot)
+  shell.qml              desktop entry point (ShellRoot)
+  lock.qml               independent locker entry point (ShellRoot)
+  lock/                  lock service and password prompt
   services/
     PluginRegistry.qml   discovers, validates plugins, looks up enabled state in shell.json
     BarWidgetRegistry.qml unified registry for bar widgets (1p + 3p)
@@ -87,9 +91,8 @@ back to the built-in `omarchy.bar`, so users always have a safe path home.
 Panels, overlays, and menus are loaded when summoned. Plugins that need
 to outlive a single summon can set `keepLoaded: true` (e.g. the image
 picker keeps its overlay window mounted between summons). The same flag
-keeps a service mounted across plugin hot-reload, so tearing down a
-changed bar widget cannot destroy `omarchy.lock` while Hyprland still
-holds the session lock. The kept instance is not replaced, so code
+keeps a service mounted across plugin hot-reload. The independent locker
+is outside the plugin lifecycle entirely. A kept instance is not replaced, so code
 changes to a `keepLoaded` service itself only take effect on a shell
 restart. First-party services are loaded at startup.
 
