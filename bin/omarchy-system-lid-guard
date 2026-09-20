@@ -1,0 +1,179 @@
+#!/bin/bash
+
+# omarchy:summary=Block lid-close suspend while agents are working
+# omarchy:group=system
+# omarchy:hidden=true
+
+# The guard owns the lid-suspend inhibitor and reconciles it from two inputs:
+# a manual one-shot skip flag (see omarchy-toggle-lid-suspend) and live agent
+# activity from herdr. A handle-lid-switch block inhibitor only suppresses
+# logind's suspend action; the Hyprland lid-switch binds still fire, so
+# omarchy-system-lid-close keeps locking and reconciling displays.
+#
+# Fail-open everywhere: herdr missing or unreadable means no working agents,
+# so lid close suspends exactly as it would without this service.
+#
+# The automatic agent guard only engages on AC power; the manual skip works
+# anywhere.
+
+set -euo pipefail
+
+FLAG="$HOME/.local/state/omarchy/toggles/lid-suspend-skip-once"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/omarchy-$UID}/omarchy-lid-guard"
+PIDFILE="$RUNTIME_DIR/inhibit.pid"
+PREV_LID="$RUNTIME_DIR/prev-lid"
+INTERVAL=5
+SKIP_TTL=1800
+
+process_start_time() {
+  local process_pid="$1"
+  local process_stat=""
+  local stat_fields=()
+
+  [[ -r /proc/$process_pid/stat ]] || return 1
+  process_stat=$(</proc/"$process_pid"/stat)
+  process_stat="${process_stat##*) }"
+  read -r -a stat_fields <<<"$process_stat"
+  (( ${#stat_fields[@]} > 19 )) || return 1
+  printf '%s\n' "${stat_fields[19]}"
+}
+
+lid_state() {
+  local state_file=""
+  local lid_glob="${OMARCHY_LID_STATE_GLOB:-/proc/acpi/button/lid/*/state}"
+
+  # Unquoted so the glob expands; override with OMARCHY_LID_STATE_GLOB to
+  # point at a canned state file in tests.
+  for state_file in $lid_glob; do
+    [[ -f $state_file ]] || return 1
+    awk '{print $2}' "$state_file"
+    return 0
+  done
+  return 1
+}
+
+flag_set() {
+  [[ -f $FLAG ]] || return 1
+  if (( $(date +%s) - $(stat -c %Y "$FLAG") > SKIP_TTL )); then
+    rm -f "$FLAG"
+    return 1
+  fi
+}
+
+# Print space-separated names of working agents, or fail when there are none.
+# herdr is optional: missing or unreadable means fail-open, suspend as usual.
+working_agent_names() {
+  local agents_json=""
+  local names=""
+
+  omarchy-cmd-missing herdr && return 1
+  agents_json=$(timeout 10 herdr agent list 2>/dev/null) || return 1
+  names=$(echo "$agents_json" | jq -r '[.result.agents[]? | select(.agent_status == "working") | .agent] | join(" ")' 2>/dev/null) || return 1
+  [[ -n $names ]] || return 1
+  printf '%s\n' "$names"
+}
+
+recorded_inhibitor() {
+  [[ -s $PIDFILE ]] || return 1
+  cat "$PIDFILE"
+}
+
+inhibitor_alive() {
+  local recorded_pid=""
+  local recorded_start=""
+  local current_start=""
+
+  recorded_pid=$(head -n 1 "$PIDFILE" 2>/dev/null | cut -d' ' -f1) || return 1
+  recorded_start=$(head -n 1 "$PIDFILE" 2>/dev/null | cut -d' ' -f2) || return 1
+  [[ -n $recorded_pid && -n $recorded_start ]] || return 1
+  current_start=$(process_start_time "$recorded_pid") || return 1
+  [[ $current_start == "$recorded_start" ]]
+}
+
+recorded_reason() {
+  sed -n 2p "$PIDFILE" 2>/dev/null
+}
+
+start_inhibitor() {
+  local reason="$1"
+  local inhibit_pid=""
+
+  mkdir -p "$RUNTIME_DIR"
+  systemd-inhibit --what=handle-lid-switch --who="omarchy-lid-guard" \
+    --why="$reason" --mode=block sleep infinity &
+  inhibit_pid=$!
+  printf '%s %s\n%s\n' "$inhibit_pid" "$(process_start_time "$inhibit_pid")" "$reason" >"$PIDFILE"
+}
+
+stop_inhibitor() {
+  local recorded_pid=""
+
+  if inhibitor_alive; then
+    recorded_pid=$(head -n 1 "$PIDFILE" | cut -d' ' -f1)
+    kill "$recorded_pid" 2>/dev/null || true
+  fi
+  rm -f "$PIDFILE"
+}
+
+reconcile() {
+  local previous=""
+  local current=""
+  local names=""
+  local reason=""
+
+  mkdir -p "$RUNTIME_DIR"
+  previous=$(cat "$PREV_LID" 2>/dev/null || lid_state || echo unknown)
+  current=$(lid_state || echo unknown)
+  printf '%s\n' "$current" >"$PREV_LID"
+
+  # The skip covers one close: once the lid re-opens, it is consumed.
+  if [[ -f $FLAG && $previous == "closed" && $current == "open" ]]; then
+    rm -f "$FLAG"
+  fi
+
+  if flag_set; then
+    reason="manual skip of next lid suspend"
+  elif names=$(working_agent_names) && omarchy-power-present >/dev/null 2>&1; then
+    reason="agents working on AC: $names"
+  fi
+
+  if [[ -n $reason ]]; then
+    # A blocked lid close never reaches logind's suspend path, so lock here
+    # the way omarchy-system-lid-close would have around a real suspend.
+    if [[ $previous == "open" && $current == "closed" ]]; then
+      omarchy-system-lock >/dev/null 2>&1 || true
+    fi
+    if inhibitor_alive; then
+      if [[ $(recorded_reason) != "$reason" ]]; then
+        stop_inhibitor
+        start_inhibitor "$reason"
+      fi
+    else
+      start_inhibitor "$reason"
+    fi
+  else
+    stop_inhibitor
+  fi
+}
+
+cmd_daemon() {
+  trap reconcile USR1
+  trap stop_inhibitor TERM INT EXIT
+  while true; do
+    reconcile
+    sleep "$INTERVAL" || true
+  done
+}
+
+case "${1:-daemon}" in
+  daemon)
+    cmd_daemon
+    ;;
+  reconcile)
+    reconcile
+    ;;
+  *)
+    echo "Usage: omarchy-system-lid-guard [daemon|reconcile]" >&2
+    exit 1
+    ;;
+esac
