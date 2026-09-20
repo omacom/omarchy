@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore keyboard backlight
+# Login-only. Resume restore happens from omarchy-system-wake after unlock so
+# the lock screen can keep the keyboard dark. A logind PrepareForSleep monitor
+# would turn the backlight on while still locked.
+After=graphical-session.target
+ConditionPathExistsGlob=/sys/class/leds/*kbd_backlight*
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-brightness-keyboard restore
+
+[Install]
+WantedBy=graphical-session.target
