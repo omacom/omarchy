@@ -97,9 +97,12 @@ report_unsecured() {
   printf 'omarchy-system-sleep-lock: suspending without a secure lock (%s)\n' \
     "$1" >&2
 
+  local notif_title notif_desc
+  notif_title=$(omarchy-i18n "Screen did not lock before suspend")
+  notif_desc=$(omarchy-i18n "The session was left unlocked (%1)." "The session was left unlocked ($1)." "$1")
   omarchy-notification-send -u critical -g 󰌾 \
-    "Screen did not lock before suspend" \
-    "The session was left unlocked ($1)." >/dev/null 2>&1 || true
+    "$notif_title" \
+    "$notif_desc" >/dev/null 2>&1 || true
 
   exit 1
 }

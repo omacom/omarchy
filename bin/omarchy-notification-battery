@@ -2,4 +2,35 @@
 
 # omarchy:summary=Show the current battery status notification
 
-omarchy-notification-send -g 󰁹 -u low "$(omarchy-battery-status)"
+status_output=$(omarchy-battery-status)
+[[ -z $status_output ]] && exit 0
+
+declare -A fields=()
+while IFS=$'\t' read -r k v; do
+  [[ -n $k ]] && fields["$k"]="$v"
+done < <(omarchy-battery-status --shell)
+
+pct="${fields[percentage]:-}"
+state="${fields[state]:-}"
+rate="${fields[rate]:-}"
+size="${fields[size]:-}"
+time="${fields[time]:-}"
+threshold="${fields[threshold]:-}"
+
+if [[ $state == "holding" ]]; then
+  msg=$(omarchy-i18n "notification.battery.holding" "$status_output" "$pct" "$threshold" "$rate" "$size")
+elif [[ $state == "charging" ]]; then
+  if [[ -n $time ]]; then
+    msg=$(omarchy-i18n "notification.battery.charging_with_time" "$status_output" "$pct" "$time" "$rate" "$size")
+  else
+    msg=$(omarchy-i18n "notification.battery.charging" "$status_output" "$pct" "$rate" "$size")
+  fi
+else
+  if [[ -n $time ]]; then
+    msg=$(omarchy-i18n "notification.battery.discharging_with_time" "$status_output" "$pct" "$time" "$rate" "$size")
+  else
+    msg=$(omarchy-i18n "notification.battery.discharging" "$status_output" "$pct" "$rate" "$size")
+  fi
+fi
+
+omarchy-notification-send -g 󰁹 -u low "$msg"

@@ -36,7 +36,7 @@ path_for_web_app() {
 if (( $# == 0 )); then
   if ((${#WEB_APPS[@]})); then
     mapfile -t SORTED_WEB_APPS < <(printf '%s\n' "${WEB_APPS[@]}" | sort)
-    APP_NAME=$(omarchy-menu-select "Select web app to remove" "${SORTED_WEB_APPS[@]}" -- --width 520 --maxheight 520)
+    APP_NAME=$(omarchy-menu-select "$(omarchy-i18n "Select web app to remove")" "${SORTED_WEB_APPS[@]}" -- --width 520 --maxheight 520)
   else
     echo "No web apps to remove."
     exit 1
@@ -56,6 +56,6 @@ rm -f "${desktop_file:-$DESKTOP_DIR/$APP_NAME.desktop}"
 rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
 
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
-  omarchy-notification-send -g  "Web app removed" "$APP_NAME"
+  omarchy-notification-send -g  "$(omarchy-i18n "Web app removed")" "$APP_NAME"
 fi
 update-desktop-database "$DESKTOP_DIR" &>/dev/null

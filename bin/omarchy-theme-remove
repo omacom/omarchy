@@ -9,7 +9,7 @@ if [[ -z $1 ]]; then
 
   if (( ${#extra_themes[@]} > 0 )); then
     mapfile -t extra_themes < <(printf '%s\n' "${extra_themes[@]}" | sort)
-    THEME_NAME=$(omarchy-menu-select "Remove extra theme" "${extra_themes[@]}" -- --width 520 --maxheight 520)
+    THEME_NAME=$(omarchy-menu-select "$(omarchy-i18n "Remove extra theme")" "${extra_themes[@]}" -- --width 520 --maxheight 520)
   else
     echo "No extra themes installed."
     exit 1
@@ -35,5 +35,5 @@ fi
 
 # Now remove the theme directory for THEME_NAME
 rm -rf "$THEME_PATH"
-omarchy-notification-send "Theme removed" "$THEME_NAME" || true
+omarchy-notification-send "$(omarchy-i18n "Theme removed")" "$THEME_NAME" || true
 echo "Removed $THEME_NAME"

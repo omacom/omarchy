@@ -24,16 +24,16 @@ Panel {
   property string mullvadQuery: ""
   property int phraseIndex: 0
   readonly property var activePhrases: [
-    "Encrypting connections",
-    "Sending secrets",
-    "Guarding wires",
-    "Braiding packets",
-    "Polishing tunnels",
-    "Hiding routes",
-    "Sealing ports",
-    "Sorting tailnets",
-    "Shuffling keys",
-    "Watching machines"
+    I18n.tr("Encrypting connections"),
+    I18n.tr("Sending secrets"),
+    I18n.tr("Guarding wires"),
+    I18n.tr("Braiding packets"),
+    I18n.tr("Polishing tunnels"),
+    I18n.tr("Hiding routes"),
+    I18n.tr("Sealing ports"),
+    I18n.tr("Sorting tailnets"),
+    I18n.tr("Shuffling keys"),
+    I18n.tr("Watching machines")
   ]
   readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
 
@@ -52,7 +52,7 @@ Panel {
   // "header" stays navigable, but an absent CLI leaves nothing to highlight.
   readonly property bool headerHasCursor: cursorActive && focusSection === "header" && tailscale.installed
   readonly property color iconColor: tailscale.active ? foreground : dim
-  readonly property string toggleHint: tailscale.active ? "Turn Tailscale off" : (tailscale.needsLogin ? "Authorize this device" : "Turn Tailscale on")
+  readonly property string toggleHint: tailscale.active ? I18n.tr("Turn Tailscale off") : (tailscale.needsLogin ? I18n.tr("Authorize this device") : I18n.tr("Turn Tailscale on"))
   readonly property color barIconColor: tailscale.active ? barForeground : Qt.darker(barForeground, 1.55)
   readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Color.accent) : "transparent"
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Color.accent) : "transparent"
@@ -76,7 +76,7 @@ Panel {
     var nodes = []
     for (var i = 0; i < tailscale.tailnetExitNodes.length; i++) nodes.push(tailscale.tailnetExitNodes[i])
     for (var j = 0; j < recentMullvadExitNodes.length; j++) nodes.push(recentMullvadExitNodes[j])
-    if (tailscale.mullvadRegions.length > 0) nodes.push({ id: "mullvad:add", AddMullvad: true, DisplayName: "Choose Mullvad region" })
+    if (tailscale.mullvadRegions.length > 0) nodes.push({ id: "mullvad:add", AddMullvad: true, DisplayName: I18n.tr("Choose Mullvad region") })
     return nodes
   }
 
@@ -458,6 +458,7 @@ Panel {
               id: hero
               width: parent.width
               title: tailscale.installed ? (tailscale.selfName || "Tailscale") : "Tailscale"
+              translateTitle: false
               meta: tailscale.active ? root.heroPhraseText : "Tailscale is disconnected"
               foreground: root.foreground
               fontFamily: root.fontFamily
@@ -520,7 +521,8 @@ Panel {
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               anchors.margins: Style.space(12)
-              text: "Tailscale CLI is not installed or not on PATH."
+              textFormat: Text.PlainText
+              text: I18n.tr("Tailscale CLI is not installed or not on PATH.")
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
@@ -539,7 +541,7 @@ Panel {
             spacing: Style.space(10)
 
             PanelSectionHeader {
-              text: "CONNECTIONS"
+              text: I18n.tr("CONNECTIONS")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -572,7 +574,7 @@ Panel {
             spacing: Style.space(10)
 
             PanelSectionHeader {
-              text: "EXIT NODES"
+              text: I18n.tr("EXIT NODES")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -602,7 +604,7 @@ Panel {
                   id: mullvadSearch
                   width: parent.width
                   foreground: root.foreground
-                  placeholderText: "Search regions"
+                  placeholderText: I18n.tr("Search regions")
                   text: root.mullvadQuery
                   onTextChanged: {
                     root.mullvadQuery = text
@@ -638,7 +640,8 @@ Panel {
                 Text {
                   visible: root.filteredMullvadRegions.length === 0
                   width: parent.width
-                  text: "No Mullvad regions found."
+                  textFormat: Text.PlainText
+                  text: I18n.tr("No Mullvad regions found.")
                   color: root.dim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -676,7 +679,7 @@ Panel {
             spacing: Style.space(10)
 
             PanelSectionHeader {
-              text: "MACHINES"
+              text: I18n.tr("MACHINES")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -684,7 +687,8 @@ Panel {
             Text {
               visible: tailscale.installed && tailscale.active && tailscale.peers.length === 0
               width: parent.width
-              text: "No machines found on this tailnet."
+              textFormat: Text.PlainText
+              text: I18n.tr("No machines found on this tailnet.")
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.body
@@ -777,7 +781,8 @@ Panel {
 
         Text {
           Layout.fillWidth: true
-          text: "Authorize Tailscale operator"
+          textFormat: Text.PlainText
+          text: I18n.tr("Authorize Tailscale operator")
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -786,7 +791,8 @@ Panel {
 
         Text {
           Layout.fillWidth: true
-          text: "Allow this user to operate this Tailscale profile"
+          textFormat: Text.PlainText
+          text: I18n.tr("Allow this user to operate this Tailscale profile")
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
@@ -978,7 +984,7 @@ Panel {
         id: sendButton
         visible: tailscale.canSendFiles(peerRow.peer)
         iconText: "󰒊"
-        tooltipText: "Send files"
+        tooltipText: I18n.tr("Send files")
         foreground: root.foreground
         fontFamily: root.fontFamily
         Layout.alignment: Qt.AlignVCenter
@@ -1119,7 +1125,7 @@ Panel {
     readonly property bool activeExitNode: peer && peer.ExitNode === true
     readonly property bool settingExitNode: peer && tailscale.settingExitNodeId === String(peer.id || "")
     readonly property string peerName: peer ? String(peer.DisplayName || peer.HostName || "Unknown") : "Unknown"
-    readonly property string actionTooltip: addMullvad ? "" : (activeExitNode ? "Disconnect" : "Connect")
+    readonly property string actionTooltip: addMullvad ? "" : (activeExitNode ? I18n.tr("Disconnect") : I18n.tr("Connect"))
 
     hasCursor: root.cursorActive && root.focusSection === "exitNodes" && root.exitNodeIndex === rowIndex
     current: activeExitNode || settingExitNode || (addMullvad && root.mullvadPickerOpen)
@@ -1162,7 +1168,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: exitNodeRow.peerName
+        text: exitNodeRow.addMullvad ? I18n.tr(exitNodeRow.peerName) : exitNodeRow.peerName
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -1199,7 +1205,7 @@ Panel {
     readonly property bool activeExitNode: peer && peer.ExitNode === true
     readonly property bool settingExitNode: peer && tailscale.settingExitNodeId === String(peer.id || "")
     readonly property bool selectedRegion: root.mullvadPickerOpen && root.mullvadRegionIndex === rowIndex
-    readonly property string actionTooltip: activeExitNode ? "Disconnect" : "Connect"
+    readonly property string actionTooltip: activeExitNode ? I18n.tr("Disconnect") : I18n.tr("Connect")
 
     foreground: root.foreground
     fill: root.hoverFill

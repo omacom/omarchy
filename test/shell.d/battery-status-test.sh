@@ -49,3 +49,9 @@ if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/
 fi
 
 pass "battery status owns capacity and remaining calculations"
+
+for locale in zh_CN en zh_TW; do
+  cli_output=$(OMARCHY_UI_LANGUAGE="$locale" OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+  [[ $cli_output == "Battery 51%  ·  2h 30m left  ·   10.8W / 56Wh" ]] || fail "battery CLI remains English for $locale" "$cli_output"
+done
+pass "battery CLI remains English regardless of UI locale"

@@ -18,7 +18,7 @@ copy_url() {
 
   [[ -n $url ]] || return 1
   printf '%s' "$url" | wl-copy --type text/plain
-  omarchy-notification-send -g 󰅍 "URL copied to clipboard"
+  omarchy-notification-send -g 󰅍 "$(omarchy-i18n "URL copied to clipboard")"
 }
 
 reply_copied() {

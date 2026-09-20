@@ -167,9 +167,10 @@ set_terminal_size() {
       [[ -f $id_file ]] && read -r prev_id <"$id_file" 2>/dev/null
       local replace=()
       [[ $prev_id =~ ^[0-9]+$ ]] && replace=(-r "$prev_id")
-      local new_id
+      local new_id notif_msg
+      notif_msg=$(omarchy-i18n "Restart Foot to apply the new terminal font size")
       new_id="$(omarchy-notification-send \
-        "Restart Foot to apply the new terminal font size" \
+        "$notif_msg" \
         "${replace[@]}" -p 2>/dev/null)" || true
       [[ $new_id =~ ^[0-9]+$ ]] && printf '%s\n' "$new_id" >"$id_file"
     fi
