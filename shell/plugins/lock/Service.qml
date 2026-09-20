@@ -16,6 +16,15 @@ Item {
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
 
+  // Lock screen appearance settings
+  readonly property var lockConfig: shell && shell.shellConfig && shell.shellConfig.lock
+    ? shell.shellConfig.lock : ({})
+  readonly property bool lockBlurEnabled: lockConfig.blurEnabled !== undefined ? lockConfig.blurEnabled : true
+  readonly property real lockBlurAmount: lockConfig.blurAmount !== undefined ? lockConfig.blurAmount : 1.0
+  readonly property int lockBlurMax: lockConfig.blurMax !== undefined ? lockConfig.blurMax : 128
+  readonly property real lockBlurMultiplier: lockConfig.blurMultiplier !== undefined ? lockConfig.blurMultiplier : 1.25
+  readonly property real lockContrast: lockConfig.contrast !== undefined ? lockConfig.contrast : -0.08
+
   property bool lockRequested: false
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
@@ -317,6 +326,11 @@ Item {
         displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
         powerSaverActive: root.powerSaverActive
         passwordText: root.enteredPassword
+        blurEnabled: root.lockBlurEnabled
+        blurAmount: root.lockBlurAmount
+        blurMax: root.lockBlurMax
+        blurMultiplier: root.lockBlurMultiplier
+        contrast: root.lockContrast
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
@@ -348,6 +362,11 @@ Item {
       loadBackground: root.previewVisible
       powerSaverActive: root.powerSaverActive
       passwordText: ""
+      blurEnabled: root.lockBlurEnabled
+      blurAmount: root.lockBlurAmount
+      blurMax: root.lockBlurMax
+      blurMultiplier: root.lockBlurMultiplier
+      contrast: root.lockContrast
     }
 
     MouseArea {
