@@ -36,8 +36,15 @@ check(not (root / "install/config/locate.sh").exists() and not (root / "migratio
       "the retired locate configuration helper and migration are absent")
 for directory in ("bin", "install", "migrations"):
   for path in (root / directory).rglob("*"):
-    if path.is_file():
+    # Bytecode caches and other non-UTF-8 files carry no scripts; reading them
+    # is pointless, and a stray __pycache__ from a module-loading test would
+    # break the scan entirely.
+    if not path.is_file() or "__pycache__" in path.parts:
+      continue
+    try:
       content = path.read_text()
+    except UnicodeDecodeError:
+      continue
       if "OMARCHY_UPDATEDB_CONF_PATH" in content or "config/locate.sh" in content:
         raise SystemExit("not ok - retired locate configuration path remains in " + str(path))
 check(True, "runtime and installation no longer reference the configuration rewrite")
