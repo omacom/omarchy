@@ -54,6 +54,7 @@ light surfaces — and the bar glyph stands in when there is none.
 |---|---|---|
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
+| `opencode` | OpenCode Go's usage endpoint (5-hour rolling + weekly + monthly dollar windows) | opencode's local message store (`session_message`, with the legacy `message` table as fallback), grouped by day and model |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
@@ -63,6 +64,12 @@ falls back to local stats only. A non-default Claude directory is honored via
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
+
+The opencode collector honors `XDG_DATA_HOME` for the data directory, reads
+its Go key from the same `auth.json`, and probes Go's `/v1/usage` only when
+that key exists; a machine running OpenCode with plain API-key providers gets
+local stats with no limits section, and the hero reads `API` instead of
+`Go`.
 
 ### Fireworks balance
 
