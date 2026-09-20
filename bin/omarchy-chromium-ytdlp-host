@@ -7,15 +7,15 @@ set -euo pipefail
 
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 
-# The browser launches us without Omarchy's environment, so locate the repo from
-# our own path when OMARCHY_PATH isn't already set. Export it — omarchy-shell (used
-# by omarchy-osd) needs it to find the running shell, and silently no-ops without it.
-export OMARCHY_PATH="${OMARCHY_PATH:-$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd)}"
-
 # Make sure the Omarchy bin and yt-dlp are reachable when launched by the browser.
 export PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:$PATH"
 
 DOWNLOAD_DIR="${OMARCHY_YTDLP_DIR:-$HOME/Videos}"
+JOBS_DIR="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-video-downloads"
+JOB_ID=""
+JOB_TITLE=""
+JOB_STATUS="Preparing…"
+JOB_PROGRESS=0
 
 parse_url() {
   jq -r '.url // empty' 2>/dev/null <<<"$1" || true
@@ -70,14 +70,77 @@ title_from_file() {
   fi
 }
 
-# Drive the Quickshell OSD — a single overlay that updates in place (like the
-# volume/brightness bar), so download progress never stacks like notifications.
-osd_progress() {
-  omarchy-osd -i 󰇚 -p "$1" -d 8000 >/dev/null 2>&1 || true
+# A worker owns a separate session/process group, including yt-dlp and ffmpeg.
+# Pair its PID with the kernel start time so stale UI actions cannot kill a
+# later process that happens to reuse that PID.
+worker_matches() {
+  local id=$1 pid stat
+  local -a fields
+  [[ $id =~ ^[1-9][0-9]*-[0-9]+$ ]] || return 1
+  pid=${id%%-*}
+  [[ -r /proc/$pid/stat ]] || return 1
+  IFS= read -r stat <"/proc/$pid/stat" || return 1
+  read -r -a fields <<<"${stat##*) }"
+  [[ ${fields[0]} != "Z" && ${fields[2]} == "$pid" && ${fields[19]} == "${id#*-}" ]]
 }
 
-osd_close() {
-  omarchy-shell -q osd close >/dev/null 2>&1 || true
+list_downloads() {
+  local file id
+  {
+    for file in "$JOBS_DIR/"*.json; do
+      [[ -f $file ]] || continue
+      id=${file##*/}
+      id=${id%.json}
+      if worker_matches "$id"; then
+        # An exiting worker can remove its file after the liveness check.
+        cat -- "$file" 2>/dev/null || true
+      else
+        rm -f -- "$file"
+      fi
+    done
+  } | jq -s 'sort_by(.started, .id)'
+}
+
+cancel_download() {
+  local id=$1
+  [[ $id =~ ^[1-9][0-9]*-[0-9]+$ && -f $JOBS_DIR/$id.json ]] || return 1
+  worker_matches "$id" || return 1
+  kill -TERM -- "-${id%%-*}"
+}
+
+publish_download() {
+  [[ -n $JOB_ID ]] || return 0
+  jq -cn --arg id "$JOB_ID" --arg url "$JOB_URL" --arg title "$JOB_TITLE" \
+    --arg status "$JOB_STATUS" --argjson progress "$JOB_PROGRESS" --argjson started "$JOB_STARTED" \
+    '{id: $id, url: $url, title: $title, status: $status, progress: $progress, started: $started}' \
+    >"$JOBS_DIR/$JOB_ID.tmp"
+  mv -f -- "$JOBS_DIR/$JOB_ID.tmp" "$JOBS_DIR/$JOB_ID.json"
+}
+
+finish_download() {
+  [[ -n $JOB_ID ]] || return 0
+  rm -f -- "$JOBS_DIR/$JOB_ID.json" "$JOBS_DIR/$JOB_ID.tmp"
+  JOB_ID=""
+}
+
+start_download() {
+  local stat
+  local -a fields
+  umask 077
+  mkdir -p "$JOBS_DIR"
+  IFS= read -r stat <"/proc/$$/stat"
+  read -r -a fields <<<"${stat##*) }"
+  JOB_ID="$$-${fields[19]}"
+  worker_matches "$JOB_ID" || return 1
+  JOB_URL=$1
+  JOB_TITLE=${2:-$1}
+  JOB_STARTED=${EPOCHREALTIME/,/.} # JSON numbers always use a decimal point.
+  trap finish_download EXIT
+  # Killing the entire group interrupts even the initial probe and merging;
+  # cancellation exits before either success or failure notifications.
+  trap 'exit 130' TERM INT HUP
+  publish_download
+  omarchy-shell -q shell summon omarchy.downloads '{}' >/dev/null 2>&1 || true
 }
 
 download_url() {
@@ -85,17 +148,19 @@ download_url() {
 
   mkdir -p "$DOWNLOAD_DIR"
 
-  # Don't show anything until yt-dlp confirms there's actually a video to grab.
+  # The preparing row is already cancellable while the video is being probed.
   if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
     omarchy-notification-send -u critical -g 󰅖 "No video found for download" "$url"
     exit 0
   fi
 
-  osd_progress 0
+  JOB_STATUS="Downloading"
+  publish_download
 
-  # Stream the download: OMARCHY_PROG carries the percent (drives the OSD), and
-  # OMARCHY_FILE and OMARCHY_TITLE (printed only after a successful move) carry the
-  # path and the title. The title is JSON-encoded so metadata cannot forge a record,
+  # Stream the download: OMARCHY_PROG carries the percent, and
+  # OMARCHY_FILE (printed only after a successful move) carries the path.
+  # OMARCHY_TITLE names the row before transfer and the completion notification.
+  # The title is JSON-encoded so metadata cannot forge a record,
   # and the file is named after it: yt-dlp strips control characters from a filename
   # with or without --restrict-filenames, so a record is still only ever one line.
   local line pct intpct last="" er nowms lastms=0 title="" filepath="" resolved
@@ -112,7 +177,10 @@ download_url() {
       ((nowms - lastms >= 250)) || continue
       last=$intpct
       lastms=$nowms
-      osd_progress "$intpct"
+      JOB_PROGRESS=$((10#$intpct))
+      (( JOB_PROGRESS > 100 )) && JOB_PROGRESS=100
+      JOB_STATUS="Downloading"
+      publish_download
       ;;
     OMARCHY_FILE*)
       resolved=$(resolve_download_file "${line#OMARCHY_FILE$'\t'}") || continue
@@ -120,17 +188,27 @@ download_url() {
       ;;
     OMARCHY_TITLE*)
       title=$(decode_title "${line#OMARCHY_TITLE$'\t'}") || title=""
+      if [[ -n $title ]]; then
+        JOB_TITLE=$title
+        publish_download
+      fi
+      ;;
+    OMARCHY_STATUS*)
+      JOB_STATUS="Processing…"
+      publish_download
       ;;
     esac
   done < <(PYTHONUNBUFFERED=1 yt-dlp --no-playlist --no-simulate \
     --quiet --no-warnings --no-exec --no-exec-before-download --progress --newline \
     --progress-template $'download:OMARCHY_PROG\t%(progress._percent_str)s' \
     --paths "$DOWNLOAD_DIR" -o '%(title)s.%(ext)s' \
+    --print $'before_dl:OMARCHY_TITLE\t%(title)j' \
+    --print $'post_process:OMARCHY_STATUS\tprocessing' \
     --print $'after_move:OMARCHY_FILE\t%(filepath)s' \
     --print $'after_move:OMARCHY_TITLE\t%(title)j' \
     -- "$url" 2>&1)
 
-  osd_close
+  finish_download
 
   # after_move only prints on a successful download+move, so a captured path == success.
   if [[ -n $filepath ]]; then
@@ -167,12 +245,19 @@ download_url() {
 }
 
 main() {
-  local length payload url
+  local length payload url title
 
   # Detached worker: this is what actually runs yt-dlp and fires notifications.
-  if [[ ${1:-} == "--download" ]]; then
+  case ${1:-} in
+  --list) list_downloads; return ;;
+  --cancel) cancel_download "${2:-}"; return ;;
+  --download)
+    valid_url "${2:-}" || return 1
+    start_download "$2" "${3:-$2}"
     download_url "$2"
-  fi
+    return
+    ;;
+  esac
 
   # Native messaging frame: 4-byte little-endian length prefix, then UTF-8 JSON.
   length=$(head -c4 | od -An -v -tu4 --endian=little | tr -d ' ')
@@ -188,7 +273,8 @@ main() {
   valid_url "$url" || exit 0
 
   # Detach the download so this host exits promptly and frees the browser's port.
-  setsid -f "$SCRIPT_PATH" --download "$url" </dev/null >/dev/null 2>&1
+  title=$(decode_title "$(jq -c '.title // empty' <<<"$payload")") || title="$url"
+  setsid -f "$SCRIPT_PATH" --download "$url" "$title" </dev/null >/dev/null 2>&1
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
