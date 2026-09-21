@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Toggle the layout on the current active workspace between dwindle and scrolling
+# omarchy:summary=Cycle the layout on the current active workspace between dwindle, scrolling, and master
 
 ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
 [[ $ACTIVE_WORKSPACE =~ ^-?[0-9]+$ ]] || exit 1
@@ -10,6 +10,7 @@ LAYOUT_FILE="$LAYOUTS_DIR/$ACTIVE_WORKSPACE.lua"
 
 case "$CURRENT_LAYOUT" in
   dwindle) NEW_LAYOUT=scrolling ;;
+  scrolling) NEW_LAYOUT=master ;;
   *) NEW_LAYOUT=dwindle ;;
 esac
 
