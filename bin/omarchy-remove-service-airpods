@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the optional AirPods service and release its connection guard
+
+set -euo pipefail
+
+plugin_dir="$HOME/.config/omarchy/plugins/artinlenz.airpods"
+if [[ ! -x $plugin_dir/uninstall.sh ]]; then
+  echo "AirPods uninstall script is missing or not executable. Restore it in $plugin_dir before removing the service." >&2
+  echo "To release a device guard manually: ~/.local/bin/airpodsd release" >&2
+  exit 1
+fi
+
+gum confirm "Remove AirPods integration and restore the device's previous Bluetooth blocking setting?" || exit 0
+"$plugin_dir/uninstall.sh"
+omarchy-plugin-remove artinlenz.airpods --yes
