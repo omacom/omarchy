@@ -292,7 +292,6 @@ Panel {
   // at the root; items never read containsMouse for visuals. See
   // CursorSurface for the shared chrome shared by rows and pills.
   readonly property color popupForeground: Color.popups.text
-  readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color hoverFill: Style.hoverFillFor(popupForeground, Color.accent)
   readonly property color selectedFill: Style.selectedFillFor(popupForeground, Color.accent)
 
@@ -1166,7 +1165,7 @@ Panel {
           id: heroIcon
           textFormat: Text.PlainText
           text: root.icon
-          color: root.restricted ? root.urgent : root.popupForeground
+          color: root.restricted ? root.bar.urgent : root.popupForeground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.display
           opacity: root.networkManagerAvailable ? 1.0 : 0.5
@@ -1283,7 +1282,7 @@ Panel {
               return ""
             }
             visible: text !== ""
-            color: root.restricted ? root.urgent : Qt.darker(root.popupForeground, 1.4)
+            color: root.restricted ? root.bar.urgent : Qt.darker(root.popupForeground, 1.4)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             font.bold: true
@@ -1304,8 +1303,8 @@ Panel {
           width: parent.width
           text: "Open Captive Portal"
           iconText: "󰏌"
-          foreground: root.urgent
-          accent: root.urgent
+          foreground: root.bar.urgent
+          accent: root.bar.urgent
           fontFamily: root.bar.fontFamily
           verticalPadding: Style.space(10)
           bordered: true
@@ -1350,12 +1349,12 @@ Panel {
           InfoLabel { text: "Ping" }
           DetailValue {
             text: root.formatPingLatency(root.internetPingLatency)
-            color: root.internetPingPacketLoss > 0 ? root.urgent : root.popupForeground
+            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.popupForeground
           }
           InfoLabel { text: "Packet Loss" }
           DetailValue {
             text: root.formatPacketLoss(root.internetPingPacketLoss)
-            color: root.internetPingPacketLoss > 0 ? root.urgent : root.popupForeground
+            color: root.internetPingPacketLoss > 0 ? root.bar.urgent : root.popupForeground
           }
 
           InfoLabel { text: "Receiving" }
@@ -1776,9 +1775,9 @@ Panel {
     }
 
     readonly property color statusColor: {
-      if (isFailed) return root.urgent
+      if (isFailed) return root.bar.urgent
       if (isBusy) return root.popupForeground
-      if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return root.urgent
+      if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return root.bar.urgent
       if (isConnected) return root.popupForeground
       return Qt.darker(root.popupForeground, 1.5)
     }
@@ -1861,7 +1860,7 @@ Panel {
           anchors.verticalCenter: parent.verticalCenter
           horizontalAlignment: Text.AlignHCenter
           text: row.forgetVisible ? "󰅙" : "󰌾"
-          color: row.forgetVisible ? root.urgent : Qt.darker(root.popupForeground, 1.4)
+          color: row.forgetVisible ? root.bar.urgent : Qt.darker(root.popupForeground, 1.4)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.subtitle
         }
@@ -1869,8 +1868,8 @@ Panel {
         BorderSurface {
           anchors.fill: parent
           visible: row.forgetFocused
-          color: Style.hoverFillFor(root.urgent, root.urgent)
-          borderSpec: Border.controlSpec("hover-cursor", root.urgent, root.urgent)
+          color: Style.hoverFillFor(root.bar.urgent, root.bar.urgent)
+          borderSpec: Border.controlSpec("hover-cursor", root.bar.urgent, root.bar.urgent)
           radius: Style.cornerRadius
           z: -1
         }
@@ -2024,7 +2023,7 @@ Panel {
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
           text: row.isFailed ? "Wrong password" : "Connecting..."
-          color: row.isFailed ? root.urgent : root.popupForeground
+          color: row.isFailed ? root.bar.urgent : root.popupForeground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
         }
