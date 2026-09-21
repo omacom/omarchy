@@ -5,7 +5,22 @@
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"
-    yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs
+
+    yay_args=(-Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs)
+    if (( EUID == 0 )); then
+      if [[ -n ${SUDO_USER:-} ]]; then
+        # makepkg refuses to build as root. Run yay as the user who started
+        # the update; yay's own sudo call handles the pacman install step.
+        sudo -u "$SUDO_USER" -H \
+          env -u XDG_CACHE_HOME -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_RUNTIME_DIR \
+          yay "${yay_args[@]}"
+      else
+        echo -e "\e[33m\nAUR update skipped: no owner user to run yay as\e[0m"
+        echo
+      fi
+    else
+      yay "${yay_args[@]}"
+    fi
     echo
   else
     echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
