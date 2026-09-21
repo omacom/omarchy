@@ -49,3 +49,18 @@ if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/
 fi
 
 pass "battery status owns capacity and remaining calculations"
+
+# power_now can exist and pass a readability check while the actual read
+# fails with ENODEV (seen on some laptops). A present-but-unreadable node
+# must not clobber UPower's own energy-rate with 0W.
+enodev_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir" "$enodev_dir"' EXIT
+
+mkdir -p "$enodev_dir/power/BAT0"
+: >"$enodev_dir/power/BAT0/power_now"
+
+enodev_output=$(OMARCHY_POWER_SUPPLY_PATH="$enodev_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+
+grep -Fx $'rate\t7.3W' <<<"$enodev_output" >/dev/null || fail "battery status falls back to upower rate when sysfs power_now is unreadable"
+
+pass "battery status falls back to upower rate when sysfs power_now is unreadable"

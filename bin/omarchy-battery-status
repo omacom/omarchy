@@ -47,12 +47,15 @@ battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+# The sysfs node can exist (pass -r) yet fail to read with ENODEV, so only
+# override power_rate_raw once the read actually succeeds and is numeric.
+if microwatts=$(cat "$battery_path/power_now" 2>/dev/null) && [[ $microwatts =~ ^[0-9]+$ ]]; then
+  power_rate_raw=$(awk -v microwatts="$microwatts" 'BEGIN { print microwatts / 1000000 }')
+elif microamps=$(cat "$battery_path/current_now" 2>/dev/null) && [[ $microamps =~ ^[0-9]+$ ]] \
+  && microvolts=$(cat "$battery_path/voltage_now" 2>/dev/null) && [[ $microvolts =~ ^[0-9]+$ ]]; then
   power_rate_raw=$(awk \
-    -v microamps="$(<"$battery_path/current_now")" \
-    -v microvolts="$(<"$battery_path/voltage_now")" \
+    -v microamps="$microamps" \
+    -v microvolts="$microvolts" \
     'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 
