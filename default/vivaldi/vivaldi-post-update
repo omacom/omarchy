@@ -1,0 +1,38 @@
+#!/bin/bash
+
+set -eu
+
+VIVALDI_UI=/opt/vivaldi/resources/vivaldi
+
+[[ -d $VIVALDI_UI ]] || exit 0
+[[ -f $VIVALDI_UI/window.html ]] || exit 0
+
+# Resolve the profile owner before touching anything, so a missing account
+# aborts before the UI patch instead of after it.
+ACTUAL_USER="${SUDO_USER:-$USER}"
+ACTUAL_GROUP=$(id -gn "$ACTUAL_USER")
+
+cd "$VIVALDI_UI"
+
+JS="style/omarchy.js"
+CHANNEL="style/omarchy.json"
+
+sudo mkdir -p style
+sudo cp "$OMARCHY_PATH/default/vivaldi/omarchy-theme-loader.js" "$JS"
+sudo sed -i \
+  -e "/script.*omarchy/d" -e "s|</body>|  <script src=\"$JS\"></script>\n&|" \
+  -e "/omarchy-theme/d"   -e "s|</head>|  <style id=\"omarchy-theme\"></style>\n&|" window.html
+
+# Replace the pre-JSON CSV channel left by older installs.
+sudo rm -f style/omarchy.csv
+
+# The loader polls style/omarchy.json from Vivaldi's UI context, so the channel
+# stays readable there. A plain file in the resources directory keeps that
+# working; a symlink out of the directory is not followed by the UI resource
+# fetch, which silently kills live theme sync. Own the file by the profile
+# user so the refresh rewrites it without root, and keep it non-writable for
+# everyone else: the UI turns its content into browser chrome.
+sudo rm -f "$CHANNEL"
+sudo install -o "$ACTUAL_USER" -g "$ACTUAL_GROUP" -m 0644 /dev/null "$CHANNEL"
+
+omarchy-theme-set-browser
