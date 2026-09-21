@@ -17,8 +17,8 @@ _Catppuccin_
  ![lumon](../themes/lumon/preview.png)
 _Lumon_
 
- ![magra-security](../themes/magra-security/preview.png)
-_Magra Security_
+ ![cyber](../themes/cyber/preview.png)
+_Cyber_
 
  ![ethereal](../themes/ethereal/preview.png)
 _Ethereal_
@@ -99,8 +99,8 @@ _Kanagawa_
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
 
- ![magra-security](../themes/magra-security/preview-unlock.png)
-_Magra Security_
+ ![cyber](../themes/cyber/preview-unlock.png)
+_Cyber_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_

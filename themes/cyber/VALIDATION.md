@@ -1,12 +1,16 @@
-# Validation — v1.0.0
+# Validation — v1.1.0
 
 Checked on 21 September 2026. Installed baseline: Omarchy 4.0.4-1, Hyprland 0.56.2. Upstream comparison: `omacom/omarchy`, branch `quattro`, commit `8f324c90b82790d31ab33565441e07cbdb8d2308`.
+
+## Version 1.1.0
+
+Renamed the theme to Cyber and added four new unbranded wallpapers. All three original MAGRA wallpapers remain. The palette and shell settings are unchanged. Updated installer tests, theme-specific checks and visual inspection were repeated for this release. Full-suite results below refer to the earlier run against the same unchanged upstream base.
 
 ## Passed
 
 - TOML parsing, required palette values and distributable asset checks.
 - Foreground, accent, muted and six signal colours each have at least 4.5:1 contrast against the palette background. Foreground: 14.35:1; accent: 11.30:1; muted: 5.68:1. This is a palette check, not a claim that every application surface is accessibility-audited.
-- All three wallpapers are 3840 × 2400; both previews are 1920 × 1080. The wallpapers are upscaled AI-assisted artwork, as documented in ARTWORK.md.
+- All seven wallpapers are 3840 × 2400; both previews are 1920 × 1080. The wallpapers are upscaled AI-assisted artwork, as documented in ARTWORK.md. The three original wallpapers are byte-identical to v1.0.0; the current MAGRA Focus image remains first/default.
 - Both the installed and upstream Omarchy template engines generated 20 application configuration files without unresolved colour placeholders, in isolated output directories.
 - Upstream `./test/cli` after aligning the palette with the built-in theme convention (no cursor token).
 - Upstream theme staging, user-theme setup and theme-install guard tests.
