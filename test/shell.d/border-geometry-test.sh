@@ -23,6 +23,12 @@ assertDeepEqual(
 )
 
 assertEqual(
+  geometry.canonicalColor('rgba(010203ee)', 1),
+  '#010203ee',
+  'border geometry converts Hyprland RGBA color to QML hex'
+)
+
+assertEqual(
   geometry.canonicalColor('0xee33ccff', 1),
   '#33ccffee',
   'border geometry converts legacy ARGB color to QML RGBA hex'
