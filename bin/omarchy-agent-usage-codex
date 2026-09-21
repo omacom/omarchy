@@ -303,6 +303,10 @@ def scan_native_codex_sessions():
     try:
       with path.open(errors="replace") as handle:
         for raw in handle:
+          # Cheap pre-filter before JSON parsing keeps files with unrelated
+          # lines inexpensive.
+          if '"token_count"' not in raw and '"turn_context"' not in raw:
+            continue
           try:
             entry = json.loads(raw)
           except Exception:
