@@ -38,7 +38,8 @@ jq -n '{
   radius: -1,
   dimBlurred: true,
   blur: 8,
-  contrast: -1
+  contrast: -1,
+  alpha: 0.4
 }' >"$CHANNEL"
 
 prefs="$PREFS_DIR/Preferences"
@@ -82,7 +83,8 @@ jq -e --arg id "$theme_id" \
 
 jq -e --arg id "$theme_id" \
   '.vivaldi.themes.user[] | select(.id == $id)
-   | .radius == -1 and .blur == 8 and .contrast == -1 and .dimBlurred == true' \
+   | .radius == -1 and .blur == 8 and .contrast == -1
+     and .dimBlurred == true and .alpha == 0.4' \
   "$prefs" >/dev/null ||
   fail "native theme applies the Hyprland appearance"
 
@@ -90,6 +92,14 @@ grep -q 'Omarchy Catppuccin' "$prefs" || fail "native theme names the theme afte
 
 run_theme_set
 [[ $(count_omarchy_themes) == "1" ]] || fail "native theme reuses the existing Omarchy theme"
+
+# A channel written before it carried transparency keeps Vivaldi's own default.
+jq 'del(.alpha)' "$CHANNEL" >"$CHANNEL.next" && mv "$CHANNEL.next" "$CHANNEL"
+run_theme_set
+jq -e --arg id "$theme_id" \
+  '.vivaldi.themes.user[] | select(.id == $id) | .alpha == 0.92' \
+  "$prefs" >/dev/null ||
+  fail "native theme falls back to Vivaldi's default transparency"
 
 # A theme set while Vivaldi runs would be discarded on exit, so it must not be
 # written then.
