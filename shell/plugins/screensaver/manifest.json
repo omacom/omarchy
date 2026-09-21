@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.screensaver",
+  "name": "Omarchy",
+  "version": "1.0.0",
+  "description": "The built-in animated ASCII screensaver.",
+  "kinds": ["screensaver"],
+  "entryPoints": {
+    "screensaver": "launch"
+  }
+}

@@ -88,6 +88,12 @@ This is about locking and the screensaver, not power. Suspend and hibernation ha
 
 Omarchy's screensaver is ASCII art running through random text effects, one instance per monitor. Any key or mouse movement exits it.
 
+Installable screensaver plugins appear in the selector. Choose one from a
+terminal with `omarchy screensaver select`, or select a known id and preview it
+with `omarchy screensaver select <id> --test`. The default is
+`omarchy.screensaver`; the chosen id is stored as `idle.screensaverId` in
+`~/.config/omarchy/shell.json`.
+
 You can start it on demand from _System > Screensaver_ (`Super + Esc`), which forces it up even if you've turned the idle screensaver off. There's no hotkey bound to it by default.
 
 `omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. It needs a terminal it knows how to configure — Alacritty, Foot, Ghostty, or Kitty — and will tell you so if your default terminal is something else.

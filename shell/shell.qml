@@ -38,6 +38,7 @@ ShellRoot {
     version: 1,
     idle: {
       screensaver: 150,
+      screensaverId: "omarchy.screensaver",
       lock: 300
     },
     bar: {
@@ -1688,6 +1689,35 @@ ShellRoot {
         return String(left.id).localeCompare(String(right.id))
       })
       return JSON.stringify(out)
+    }
+
+    function listScreensavers(): string {
+      var out = []
+      var plugins = shell.pluginRegistry.installedPlugins
+      var configured = shell.shellConfig && shell.shellConfig.idle
+        ? String(shell.shellConfig.idle.screensaverId || "omarchy.screensaver") : "omarchy.screensaver"
+      for (var id in plugins) {
+        var manifest = plugins[id]
+        if (!Array.isArray(manifest.kinds) || manifest.kinds.indexOf("screensaver") === -1) continue
+        if (!shell.pluginRegistry.screensaverLauncher(id)) continue
+        out.push({ id: id, name: manifest.name || id, selected: id === configured })
+      }
+      out.sort(function(left, right) { return String(left.name).localeCompare(String(right.name)) })
+      return JSON.stringify(out)
+    }
+
+    function setScreensaver(id: string): string {
+      var key = String(id || "")
+      if (!shell.pluginRegistry.screensaverLauncher(key)) return "unknown"
+      shell.mutateShellConfig(function(config) {
+        if (!Util.isPlainObject(config.idle)) config.idle = {}
+        config.idle.screensaverId = key
+      })
+      return "ok"
+    }
+
+    function screensaverLauncher(id: string): string {
+      return shell.pluginRegistry.screensaverLauncher(String(id || ""))
     }
 
     // Returns the effective shell.json content as JSON. Useful for debugging

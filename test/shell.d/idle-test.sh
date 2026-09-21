@@ -11,6 +11,11 @@ assertEqual(idle.secondsFromConfig('42.9', 10), 42, 'idle floors configured seco
 assertEqual(idle.secondsFromConfig('-1', 10), 10, 'idle rejects negative seconds')
 assertEqual(idle.secondsFromConfig('nope', 10), 10, 'idle rejects invalid seconds')
 
+const fs = require('fs')
+const serviceSource = fs.readFileSync(root + '/shell/plugins/services/idle/Service.qml', 'utf8')
+assert(serviceSource.includes('screensaverId'), 'idle reads the selected screensaver id')
+assert(serviceSource.includes('screensaverLauncher'), 'idle resolves screensavers through the plugin registry')
+
 assertDeepEqual(idle.eventParts({ data: 'a,b,c' }, 2), ['a', 'b', 'c'], 'idle parses raw event data')
 assertDeepEqual(
   idle.eventParts({ parse: function(count) { return ['parsed', count] } }, 4),

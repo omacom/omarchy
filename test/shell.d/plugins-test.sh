@@ -14,7 +14,8 @@ const kindEntryPoints = {
   'menu': 'menu',
   'overlay': 'overlay',
   'panel': 'panel',
-  'service': 'service'
+  'service': 'service',
+  'screensaver': 'screensaver'
 }
 
 function isPlainObject(value) {

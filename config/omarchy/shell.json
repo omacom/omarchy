@@ -2,6 +2,7 @@
   "version": 1,
   "idle": {
     "screensaver": 150,
+    "screensaverId": "omarchy.screensaver",
     "lock": 300
   },
   "bar": {

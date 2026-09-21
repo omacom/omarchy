@@ -25,6 +25,7 @@ Item {
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  readonly property string screensaverId: String(idleConfig.screensaverId || "omarchy.screensaver")
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
@@ -64,9 +65,24 @@ Item {
   }
 
   function launchScreensaver() {
+    var launcher = shell && shell.pluginRegistry
+      ? shell.pluginRegistry.screensaverLauncher(root.screensaverId) : ""
+    if (!launcher) {
+      logEvent("screensaver-fallback", "unknown id=" + root.screensaverId)
+      launcher = shell && shell.pluginRegistry
+        ? shell.pluginRegistry.screensaverLauncher("omarchy.screensaver") : "omarchy-launch-screensaver"
+    }
     root.screensaverStartedThisCycle = true
     screensaverLaunchGraceTimer.restart()
-    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || omarchy-launch-screensaver")
+    if (screensaverProcess.running) {
+      logEvent("process-skip", "screensaver already running")
+      return
+    }
+    logEvent("process-start", "screensaver id=" + root.screensaverId + " launcher=" + launcher)
+    screensaverProcess.command = ["bash", "-lc",
+      "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \\"true\\" ]] || exec \\"$1\\"",
+      "screensaver", launcher]
+    screensaverProcess.running = true
   }
 
   function lockSystem(reason) {

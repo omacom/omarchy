@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Choose the screensaver used while idle
+# omarchy:group=screensaver
+# omarchy:args=[id] [--test]
+# omarchy:examples=omarchy screensaver select | omarchy screensaver select com.tom.ascii-aquarium --test
+
+set -euo pipefail
+
+test_after=false
+requested=""
+
+while (( $# > 0 )); do
+  case "$1" in
+  --test) test_after=true ;;
+  -h|--help)
+    echo "Usage: omarchy screensaver select [id] [--test]"
+    exit 0
+    ;;
+  -*) echo "omarchy-screensaver-select: unknown option: $1" >&2; exit 1 ;;
+  *) [[ -z $requested ]] || { echo "omarchy-screensaver-select: unexpected argument: $1" >&2; exit 1; }; requested="$1" ;;
+  esac
+  shift
+done
+
+savers=$(omarchy-shell shell listScreensavers)
+if [[ -z $requested ]]; then
+  [[ -t 0 && -t 1 ]] || { echo "omarchy-screensaver-select: a screensaver id is required outside a terminal" >&2; exit 1; }
+  requested=$(jq -r '.[] | [.name, .id] | @tsv' <<<"$savers" | gum choose --header="Choose screensaver" | cut -f2)
+fi
+
+jq -e --arg id "$requested" 'any(.[]; .id == $id)' <<<"$savers" >/dev/null \
+  || { echo "omarchy-screensaver-select: unknown screensaver: $requested" >&2; exit 1; }
+
+omarchy-shell shell setScreensaver "$requested" | grep -qx ok
+echo "Selected screensaver: $requested"
+
+if [[ $test_after == true ]]; then
+  launcher=$(omarchy-shell shell screensaverLauncher "$requested")
+  [[ -n $launcher ]] && "$launcher" force
+fi

@@ -132,6 +132,31 @@ QtObject {
     return Util.fileUrl(resolved)
   }
 
+  // Screensavers are executable entry points, not QML components. Keep the
+  // path resolution alongside entryPointUrl so the same manifest validation
+  // and source-directory boundary apply to both kinds of plugin.
+  function entryPointPath(manifest, kind) {
+    if (!Util.isPlainObject(manifest)) return ""
+    var ep = manifest.entryPoints ? manifest.entryPoints[kind] : null
+    if (!ep) return ""
+    var dir = manifest.__sourceDir || ""
+    if (!dir) return ""
+    var resolved = dir.replace(/\/$/, "") + "/" + String(ep)
+    var expectedPrefix = dir.replace(/\/$/, "") + "/"
+    if (resolved.indexOf(expectedPrefix) !== 0) {
+      console.warn("PluginRegistry: entry point escapes sourceDir: " + resolved)
+      return ""
+    }
+    return resolved
+  }
+
+  function screensaverLauncher(id) {
+    var manifest = installedPlugins[String(id || "")]
+    if (!manifest || !Array.isArray(manifest.kinds)
+        || manifest.kinds.indexOf("screensaver") === -1) return ""
+    return entryPointPath(manifest, "screensaver")
+  }
+
   // Enabled = the plugin id is referenced somewhere in shell.json. That can
   // be either the active bar option in `bar.id`, a layout entry inside
   // `bar.layout.*` (bar widgets), or a top-level entry in `plugins[]` (panels,
