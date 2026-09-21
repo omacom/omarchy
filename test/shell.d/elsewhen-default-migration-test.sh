@@ -28,11 +28,14 @@ exit 1
 SH
 chmod +x "$test_dir/bin/"*
 
+mkdir -p "$test_dir/packaged/shell/plugins/omacom.elsewhen"
+sed "s|/usr/share/omarchy|$test_dir/packaged|g" "$ROOT/migrations/1789581661.sh" >"$test_dir/migration.sh"
+
 plugin="$test_dir/home/.config/omarchy/plugins/omacom.elsewhen"
 run_migration() {
   : >"$CALL_LOG"
-  HOME="$test_dir/home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
-    bash -euo pipefail "$ROOT/migrations/1789581661.sh" >"$test_dir/output" 2>&1
+  HOME="$test_dir/home" OMARCHY_PATH="${1:-$test_dir/packaged}" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
+    bash -euo pipefail "$test_dir/migration.sh" >"$test_dir/output" 2>&1
 }
 
 if PACKAGE_STATUS=1 run_migration; then
@@ -40,12 +43,12 @@ if PACKAGE_STATUS=1 run_migration; then
 fi
 [[ ! -e $plugin && ! -L $plugin && $(cat "$CALL_LOG") == "package elsewhen" ]] ||
   fail "package failure leaves the plugin and shell untouched"
-pass "package failure stops before linking or changing the shell"
+pass "package failure stops before changing the shell"
 
 run_migration
-[[ $(readlink "$plugin") == /usr/share/omarchy/plugins/omacom.elsewhen ]] || fail "package link is installed"
-[[ $(readlink "$ROOT/config/omarchy/plugins/omacom.elsewhen") == "$(readlink "$plugin")" ]] || fail "fresh installs use the same package link"
-pass "migration and fresh installs link to the package"
+[[ ! -e $plugin && ! -L $plugin ]] || fail "migration does not create a user plugin link"
+[[ ! -e $ROOT/config/omarchy/plugins/omacom.elsewhen && ! -L $ROOT/config/omarchy/plugins/omacom.elsewhen ]] || fail "fresh installs do not ship a user plugin link"
+pass "migration and fresh installs rely on the packaged plugin directory"
 
 expected=$'package elsewhen\nshell rescanPlugins\nshell putBarWidget omacom.elsewhen {"before":"omarchy.clock"}'
 [[ $(cat "$CALL_LOG") == "$expected" ]] || fail "install, scan and placement run in order" "$(cat "$CALL_LOG")"
@@ -53,25 +56,33 @@ pass "real bar helper enables and places before the clock without restarting dur
 
 run_migration
 [[ $(cat "$CALL_LOG") == "$expected" ]] || fail "migration can be rerun"
-pass "migration can be rerun with its package link present"
+[[ ! -e $plugin && ! -L $plugin ]] || fail "rerunning the migration does not create a user plugin link"
+pass "migration can be rerun without a user plugin link"
 
+run_migration "$ROOT"
+[[ $(readlink "$plugin") == "$test_dir/packaged/shell/plugins/omacom.elsewhen" ]] || fail "dev checkout links the packaged plugin"
+pass "dev checkout discovers Elsewhen through a user plugin link"
+run_migration "$ROOT"
+[[ $(readlink "$plugin") == "$test_dir/packaged/shell/plugins/omacom.elsewhen" ]] || fail "dev link survives a rerun"
+pass "dev link is idempotent"
 rm "$plugin"
-mkdir "$plugin"
+
+mkdir -p "$plugin"
 printf 'local work\n' >"$plugin/notes"
-run_migration
+run_migration "$ROOT"
 [[ ! -L $plugin && $(cat "$plugin/notes") == "local work" ]] || fail "existing checkout is preserved"
 pass "existing checkout and local files are preserved"
 
 rm "$plugin/notes"
 rmdir "$plugin"
 ln -s "$test_dir/custom-plugin" "$plugin"
-run_migration
+run_migration "$ROOT"
 [[ $(readlink "$plugin") == "$test_dir/custom-plugin" ]] || fail "existing symlink is preserved"
 pass "existing symlink is preserved, including a missing target"
 
 for failure in 'SCAN_STATUS=1' 'TEST_PUT_RESULT=unknown'; do
   if env "$failure" HOME="$test_dir/home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
-    bash -euo pipefail "$ROOT/migrations/1789581661.sh" >"$test_dir/output" 2>&1; then
+    bash -euo pipefail "$test_dir/migration.sh" >"$test_dir/output" 2>&1; then
     fail "$failure must leave the migration pending"
   fi
   pass "$failure leaves the migration pending"
