@@ -2,12 +2,35 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+update_log="${OMARCHY_UPDATE_LOG:-/tmp/omarchy-update.log}"
 
-# Check for initramfs generation failure
-if grep -q "Updating linux initcpios" "$update_log"; then
-  if ! grep -q "Initcpio image generation successful" "$update_log"; then
-    echo -e '\e[31mError: Initramfs generation may have failed. Review logs before restart.\e[0m'
-    echo
+# Pacman prints "Updating linux initcpios..." as soon as the hook starts, even
+# when mkinitcpio then no-ops because the triggered hook is not in the preset.
+# A banner alone is not a failed image. mkinitcpio also prints "Building image
+# from preset" before it skips a preset that has no kernel or output. Warn only
+# for an explicit mkinitcpio error, or a generation that started and did not
+# succeed.
+initramfs_failed() {
+  local attempts skips successes
+
+  [[ -f $update_log ]] || return 1
+
+  if grep -q -e "Initcpio image generation FAILED" \
+    -e "Early uncompressed CPIO image generation FAILED" \
+    -e "Unified kernel image generation FAILED" \
+    -e "errors were encountered during the build. The image may not be complete." \
+    "$update_log"; then
+    return 0
   fi
+
+  attempts=$(grep -c "Building image from preset" "$update_log" || true)
+  skips=$(grep -c "Skipping image" "$update_log" || true)
+  successes=$(grep -c -e "Initcpio image generation successful" \
+    -e "Unified kernel image generation successful" "$update_log" || true)
+  (( attempts - skips > successes ))
+}
+
+if initramfs_failed; then
+  echo -e '\e[31mError: Initramfs generation may have failed. Review logs before restart.\e[0m'
+  echo
 fi
