@@ -1,6 +1,6 @@
 # Themes
 
-Omarchy comes with twenty-two beautiful themes. You can select between them via _Style > Theme_ in the Omarchy Menu (`Super + Space`) or hop directly to the theme selector using `Super + Ctrl + Shift + Space`.
+Omarchy comes with twenty-three beautiful themes. You can select between them via _Style > Theme_ in the Omarchy Menu (`Super + Space`) or hop directly to the theme selector using `Super + Ctrl + Shift + Space`.
 
 Each theme styles the desktop, terminal, neovim, activity screen (btop), Chromium, and the entire Omarchy shell: top bar, menu, notifications, OSD, and the lock screen. (For Obsidian, you must manually select the Omarchy theme via _Appearance > Themes_ inside the app).
 
@@ -16,6 +16,9 @@ _Catppuccin_
 
  ![lumon](../themes/lumon/preview.png)
 _Lumon_
+
+ ![magra-security](../themes/magra-security/preview.png)
+_Magra Security_
 
  ![ethereal](../themes/ethereal/preview.png)
 _Ethereal_
@@ -95,6 +98,9 @@ _Kanagawa_
 
  ![lumon](../themes/lumon/preview-unlock.png)
 _Lumon_
+
+ ![magra-security](../themes/magra-security/preview-unlock.png)
+_Magra Security_
 
  ![matte-black](../themes/matte-black/preview-unlock.png)
 _Matte Black_
