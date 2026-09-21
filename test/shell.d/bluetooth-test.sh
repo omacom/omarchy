@@ -8,6 +8,23 @@ grep -q '^ConditionPathIsDirectory=/sys/class/bluetooth$' "$ROOT/default/systemd
   fail "bt-agent is skipped on machines without Bluetooth hardware"
 pass "bt-agent is skipped on machines without Bluetooth hardware"
 
+files_unit="$ROOT/default/systemd/user/omarchy-bluetooth-files.service"
+grep -Fx 'ExecStart=/usr/bin/bt-obex --server %h/Downloads --auto-accept' "$files_unit" >/dev/null || \
+  fail "bluetooth file receiving pushes into the download directory"
+pass "bluetooth file receiving pushes into the download directory"
+
+grep -Fx 'ConditionPathIsDirectory=/sys/class/bluetooth' "$files_unit" >/dev/null || \
+  fail "bluetooth file receiving is skipped on machines without Bluetooth hardware"
+pass "bluetooth file receiving is skipped on machines without Bluetooth hardware"
+
+grep -Fx 'ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service' "$files_unit" >/dev/null || \
+  fail "bluetooth file receiving is skipped when bluetooth.service is inactive"
+pass "bluetooth file receiving is skipped when bluetooth.service is inactive"
+
+grep -qx 'bluez-obex' "$ROOT/install/omarchy-base.packages" || \
+  fail "bluez-obex ships with the base package set"
+pass "bluez-obex ships with the base package set"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bluetooth = requireFromRoot('shell/plugins/panels/bluetooth/Model.js')
@@ -15,6 +32,15 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/Pane
 
 assert(/IpcHandler[\s\S]*?function toggleBluetooth\(\) \{ root\.toggleBluetooth\(\) \}/.test(panelSource), 'bluetooth exposes the radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so it can extend the target methods')
+
+// Receiving is the user unit's job, not the panel's: the switch asks the helper
+// for a direction and reads the result back off its exit code, so the row can
+// never disagree with systemd about whether files are being accepted.
+assert(/function toggleFileReceive\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-files", fileReceiveActive \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles file receiving through the unit helper')
+assert(/id: fileStateProc[\s\S]*?command: \["omarchy-bluetooth-files", "is-on"\][\s\S]*?onExited: function\(exitCode\) \{\s*root\.fileReceiveActive = exitCode === 0/.test(panelSource), 'bluetooth reads the receiver state from the helper exit code')
+assert(/function toggleFiles\(\) \{ root\.toggleFileReceive\(\) \}/.test(panelSource), 'bluetooth exposes the file receiver over IPC')
+assert(/return \["files"\]\.concat\(Model\.visibleSections/.test(panelSource), 'bluetooth keeps the file receiver above the device sections')
+assert(/if \(section === "files"\) return true/.test(panelSource), 'bluetooth reaches the file receiver with the keyboard cursor')
 
 // Writing adapter.enabled sets BlueZ Powered, which does not survive a reboot.
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
@@ -280,3 +306,70 @@ pass "bluetooth counts a secondary controller as on"
 grep -q 'AutoEnable=false' "$ROOT/install/hardware/bluetooth.sh" &&
   fail "bluetooth install leaves AutoEnable at its default"
 pass "bluetooth install leaves AutoEnable at its default"
+
+# The switch reads the unit back instead of trusting the click, so the helper
+# only has to move the unit and report it: `on` and `off` enable or disable it
+# (the enable is what brings the receiver up at the next login), `toggle` picks
+# the direction from the unit's own state, and `is-on` is the exit code the
+# switch paints.
+files_tmp=$(mktemp -d)
+trap 'rm -rf "$device_tmp" "$files_tmp"' EXIT
+
+mkdir -p "$files_tmp/bin"
+
+cat >"$files_tmp/bin/systemctl" <<'SH'
+#!/bin/bash
+
+printf 'systemctl %s\n' "$*" >>"$SYSTEMCTL_LOG"
+
+# The unit's enabled state is the only thing the helper asks about, and the
+# file stands in for it so `toggle` can be driven both ways.
+[[ $* == *is-enabled* ]] && exit "$(cat "$SYSTEMCTL_STATE" 2>/dev/null || printf 1)"
+
+exit "${SYSTEMCTL_EXIT:-0}"
+SH
+chmod +x "$files_tmp/bin/systemctl"
+
+export SYSTEMCTL_LOG="$files_tmp/log"
+
+files_run() {
+  : >"$SYSTEMCTL_LOG"
+  PATH="$files_tmp/bin:$PATH" SYSTEMCTL_STATE="$files_tmp/enabled" "$ROOT/bin/omarchy-bluetooth-files" "$@"
+}
+
+if files_run bogus >/dev/null 2>&1; then
+  fail "bluetooth files rejects an unknown direction"
+fi
+pass "bluetooth files rejects an unknown direction"
+
+printf 1 >"$files_tmp/enabled"
+files_run on >/dev/null
+grep -qx 'systemctl --user enable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files turns receiving on through the unit" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files turns receiving on through the unit"
+
+files_run off >/dev/null
+grep -qx 'systemctl --user disable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files turns receiving off through the unit" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files turns receiving off through the unit"
+
+files_run toggle >/dev/null
+grep -qx 'systemctl --user enable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files toggles a disabled receiver on" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files toggles a disabled receiver on"
+
+printf 0 >"$files_tmp/enabled"
+files_run toggle >/dev/null
+grep -qx 'systemctl --user disable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files toggles an enabled receiver off" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files toggles an enabled receiver off"
+
+files_run is-on >/dev/null
+grep -qx 'systemctl --user is-active --quiet omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files reads the receiver state from the unit" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files reads the receiver state from the unit"
+
+if SYSTEMCTL_EXIT=3 files_run is-on >/dev/null 2>&1; then
+  fail "bluetooth files reports a stopped receiver as off"
+fi
+pass "bluetooth files reports a stopped receiver as off"

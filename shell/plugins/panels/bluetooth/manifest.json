@@ -4,7 +4,7 @@
   "name": "Bluetooth",
   "version": "1.0.0",
   "author": "Omarchy",
-  "description": "Bluetooth device list with connect/disconnect",
+  "description": "Bluetooth devices, radio toggle, and file receiving",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Bluetooth",
-    "description": "Bluetooth device list with connect/disconnect",
+    "description": "Bluetooth devices, radio toggle, and file receiving",
     "category": "Network",
     "allowMultiple": false
   }
