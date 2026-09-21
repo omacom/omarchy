@@ -9,6 +9,10 @@
 # it (a theme without that pointer is inert). Vivaldi rewrites preferences
 # from memory on exit, so this skips while it runs; omarchy-launch-browser
 # runs the refresh again before starting Vivaldi.
+#
+# Only the palette, the Hyprland-derived look, and the accent switches are
+# Omarchy's. Everything the user adjusts in Vivaldi's theme editor (coloring
+# mode, saturation limit, transparency checkboxes, background) is left alone.
 
 set -eu
 
@@ -16,7 +20,6 @@ if pgrep -x vivaldi >/dev/null 2>&1 || pgrep -x vivaldi-bin >/dev/null 2>&1; the
   exit 0
 fi
 
-theme_name=$(omarchy-theme-current 2>/dev/null || true)
 background=$(omarchy-theme-color background || true)
 foreground=$(omarchy-theme-color foreground || true)
 accent=$(omarchy-theme-color accent || true)
@@ -27,33 +30,32 @@ if [[ -z $background || -z $foreground || -z $accent || -z $lighter_background ]
 fi
 
 # The Hyprland-derived appearance travels in the live channel, so read it from
-# there when it exists and fall back to Vivaldi's own defaults otherwise. The
-# alpha default is Vivaldi's own, for channels written before Hyprland window
-# opacity was mirrored.
+# there when it exists and fall back to Vivaldi's own defaults otherwise. An
+# absent alpha means Hyprland has no window opacity configured, so the theme
+# keeps whatever transparency the user chose.
 channel=${VIVALDI_OMARCHY_JSON:-/opt/vivaldi/resources/vivaldi/style/omarchy.json}
 radius=8
 dim_blurred=false
 blur=0
 contrast=0
-alpha=0.92
+alpha=
 if [[ -r $channel ]]; then
   IFS=$'\t' read -r radius dim_blurred blur contrast alpha \
     <<<"$(jq -r '[.radius // 8, .dimBlurred // false, .blur // 0,
-                 .contrast // 0, .alpha // 0.92] | @tsv' \
+                 .contrast // 0, .alpha // ""] | @tsv' \
       "$channel" 2>/dev/null)"
   [[ $radius =~ ^-?[0-9]+$ ]] || radius=8
   [[ $dim_blurred == true ]] || dim_blurred=false
   [[ $blur =~ ^[0-9]+$ ]] || blur=0
   [[ $contrast =~ ^-?[0-9]+$ ]] || contrast=0
-  [[ $alpha =~ ^[0-9]+(\.[0-9]+)?$ ]] || alpha=0.92
+  [[ $alpha =~ ^[0-9]+(\.[0-9]+)?$ ]] || alpha=
 fi
 
 failed=0
 for preferences in "$HOME"/.config/vivaldi/*/Preferences; do
   [[ -f $preferences ]] || continue
 
-  THEME_NAME="$theme_name" \
-    BACKGROUND="$background" FOREGROUND="$foreground" \
+  BACKGROUND="$background" FOREGROUND="$foreground" \
     ACCENT="$accent" LIGHTER_BACKGROUND="$lighter_background" \
     CHANNEL_RADIUS="$radius" CHANNEL_DIM_BLURRED="$dim_blurred" \
     CHANNEL_BLUR="$blur" CHANNEL_CONTRAST="$contrast" \
@@ -75,34 +77,46 @@ except (OSError, ValueError):
     sys.exit(1)
 
 environment = os.environ
-theme = {
+
+# The shape Vivaldi's own theme export writes, applied only when the Omarchy
+# theme is created so nothing Omarchy does not own is reset later.
+defaults = {
     "accentOnWindow": True,
     "accentSaturationLimit": 1,
-    "alpha": max(0.0, min(1.0, float(environment["CHANNEL_ALPHA"]))),
+    "alpha": 0.92,
     "backgroundImage": "",
     "backgroundPosition": "stretch",
     "backgroundSource": "",
-    "blur": max(0, min(10, int(environment["CHANNEL_BLUR"]))),
-    "colorAccentBg": environment["LIGHTER_BACKGROUND"],
-    "colorBg": environment["BACKGROUND"],
-    "colorFg": environment["FOREGROUND"],
-    "colorHighlightBg": environment["ACCENT"],
     "colorPosition": "frame",
-    "colorWindowBg": environment["BACKGROUND"],
-    "contrast": max(-10, min(20, int(environment["CHANNEL_CONTRAST"]))),
-    "dimBlurred": environment["CHANNEL_DIM_BLURRED"] == "true",
     "engineVersion": 1,
-    "preferSystemAccent": False,
-    "radius": max(-1, min(14, int(environment["CHANNEL_RADIUS"]))),
     "simpleScrollbar": True,
     "transparencyTabBar": False,
     "transparencyTabs": True,
     "url": "",
     "version": 1,
-    # Vivaldi's stock light theme sets this, which tints the chrome from the
-    # page and would override the theme colors on every navigation.
-    "accentFromPage": False,
 }
+
+# Fields Omarchy owns: the palette, the Hyprland-derived look, and the accent
+# switches that would otherwise let a page or the system replace the synced
+# accent. An alpha only lands when Hyprland carries one.
+managed = {
+    "accentFromPage": False,
+    "blur": max(0, min(10, int(environment["CHANNEL_BLUR"]))),
+    "colorAccentBg": environment["LIGHTER_BACKGROUND"],
+    "colorBg": environment["BACKGROUND"],
+    "colorFg": environment["FOREGROUND"],
+    "colorHighlightBg": environment["ACCENT"],
+    "colorWindowBg": environment["BACKGROUND"],
+    "contrast": max(-10, min(20, int(environment["CHANNEL_CONTRAST"]))),
+    "dimBlurred": environment["CHANNEL_DIM_BLURRED"] == "true",
+    "name": prefix,
+    "preferSystemAccent": False,
+    "radius": max(-1, min(14, int(environment["CHANNEL_RADIUS"]))),
+}
+
+alpha = environment.get("CHANNEL_ALPHA", "").strip()
+if alpha:
+    managed["alpha"] = max(0.0, min(1.0, float(alpha)))
 
 vivaldi = data.setdefault("vivaldi", {})
 vivaldi.setdefault("appearance", {})["force_dark_mode_theme"] = False
@@ -114,8 +128,8 @@ if not isinstance(user, list):
     user = []
     themes["user"] = user
 
-# Keep the theme the name finds so its id survives color updates, and point
-# the schedule at it so Vivaldi activates it.
+# Keep the theme the name finds so its id survives updates, and point the
+# schedule at it so Vivaldi activates it.
 current = next(
     (
         candidate
@@ -129,10 +143,9 @@ current = next(
 if current is None:
     current = {"id": str(uuid.uuid4())}
     user.append(current)
+    current.update(defaults)
 
-current.update(theme)
-name = environment.get("THEME_NAME", "").strip()
-current["name"] = f"{prefix} {name}".strip()
+current.update(managed)
 
 schedule = (
     vivaldi.setdefault("theme", {})
