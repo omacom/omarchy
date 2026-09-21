@@ -5,7 +5,20 @@
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"
-    yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs
+    # AUR source builds (e.g. libsignal-client) can saturate the CPU for
+    # minutes at default priority. Run them at lowered scheduling and I/O
+    # priority — costless when the machine is idle — and cap build
+    # parallelism at half the cores. Override with OMARCHY_AUR_BUILD_JOBS.
+    build_jobs="${OMARCHY_AUR_BUILD_JOBS:-}"
+    if [[ -z "${build_jobs}" ]]; then
+      build_jobs=$(( $(nproc) / 2 ))
+      (( build_jobs < 1 )) && build_jobs=1
+    fi
+    nice -n 15 ionice -c 2 -n 7 \
+      env CARGO_BUILD_JOBS="${build_jobs}" \
+          MAKEFLAGS="-j${build_jobs}" \
+          CMAKE_BUILD_PARALLEL_LEVEL="${build_jobs}" \
+      yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs
     echo
   else
     echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
