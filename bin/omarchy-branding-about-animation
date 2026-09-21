@@ -20,6 +20,27 @@ ESC=$'\e'
 # band would have used, leaving a glint nobody can see. No regular colour
 # brightens into bright white, so this one shows either way.
 SHEEN_BAND="${ESC}[1m${ESC}[97m"
+
+# The logo fastfetch drew may already be bold. The glint turns bold on as well,
+# and a truecolour SGR does not turn it off, so each row has to set the weight
+# itself or every row after the first stays bold.
+sheen_base_is_bold() {
+  local rest=$SHEEN_BASE params p bold=0
+  local -a nums
+
+  while [[ $rest =~ $'\e['([0-9;]*)m ]]; do
+    params=${BASH_REMATCH[1]}
+    rest=${rest#"${ESC}[${params}m"}
+    IFS=';' read -r -a nums <<<"${params:-0}"
+    for p in "${nums[@]}"; do
+      case $p in
+      0 | 22) bold=0 ;;
+      1) bold=1 ;;
+      esac
+    done
+  done
+  (( bold ))
+}
 SHEEN_SLANT=2
 SHEEN_HALF=2
 SHEEN_FRAME_SECONDS=0.025
@@ -110,7 +131,11 @@ sheen_prepare() {
     for (( row = 0; row < SHEEN_ROWS; row++ )); do
       if (( ${#palette[@]} >= 5 )); then
         band=$(field_band_index_n "$row" "$SHEEN_ROWS")
-        SHEEN_ROW_SGR[row]=$(hex_to_sgr_fg "${palette[band]}")
+        SHEEN_ROW_SGR[row]=${ESC}[0m
+        if sheen_base_is_bold; then
+          SHEEN_ROW_SGR[row]+=${ESC}[1m
+        fi
+        SHEEN_ROW_SGR[row]+=$(hex_to_sgr_fg "${palette[band]}")
       else
         SHEEN_ROW_SGR[row]=$SHEEN_BASE
       fi
@@ -128,8 +153,8 @@ sheen_prepare() {
 
 # A tick that recomputed a logo's worth of colour spans in bash would not hold
 # the frame rate, and the sweep is the same every time, so the centres are walked
-# once and left in SHEEN_FRAMES. The rest is already composed; this is the part
-# that used to keep About green.
+# once and left in SHEEN_FRAMES. The rest is already composed. This only walks
+# the sweep.
 sheen_build_frames() {
   (( ${SHEEN_ROWS:-0} > 0 )) || return 1
   [[ -n ${SHEEN_LAST:-} ]] || return 1

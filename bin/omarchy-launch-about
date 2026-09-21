@@ -247,8 +247,7 @@ logo_landmark() {
 
 # The About screen's own reasons the logo might not be where these frames would
 # draw it. Whether the logo itself can be animated is the sheen's own question.
-# Stops at the settled rest: the sweep is walked after that rest has been written,
-# so the logo is not green for as long as bash takes to compose every centre.
+# Stops at the settled rest. The sweep is walked after that rest is on screen.
 build_sheen() {
   # Whatever the last build left is not this window's, and the loop below plays
   # whatever is here — so a build that fails has to leave nothing to play.
@@ -357,9 +356,8 @@ if [[ ${1:-} == "--render" ]]; then
     # An empty rest plays nothing extra, so a logo that cannot be animated is
     # still just fastfetch, and there is one loop rather than two.
     build_sheen
-    # Write the settled colours before walking the sweep. A 26-row About logo is
-    # a hundred centres of bash, and that used to be how long the config's green
-    # sat on screen.
+    # Write the settled colours before walking the sweep. Composing every centre
+    # takes long enough that the fastfetch colours would stay up for the walk.
     printf '%s' "$SHEEN_REST"
     sheen_build_frames
     while play_sheen && rest_sheen; do :; done

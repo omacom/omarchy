@@ -123,6 +123,10 @@ HOME=$theme_home SHEEN_FIELD_BANDS=1 sheen_prepare "$logo" "$top" "$left" "$base
   fail "a themed rest still prepares"
 [[ $SHEEN_REST == *$'\e[38;2;'* ]] || fail "a themed rest uses field-band colours" "$(printf '%q' "$SHEEN_REST")"
 [[ $SHEEN_REST != *$base* ]] || fail "a themed rest is not the config green" "$(printf '%q' "$SHEEN_REST")"
+[[ $SHEEN_REST == *$'\e[0m\e[1m\e[38;2;'* ]] ||
+  fail "a themed rest sets bold only after a reset" "$(printf '%q' "$SHEEN_REST")"
+[[ $SHEEN_REST != *$SHEEN_BAND$'\e[38;2;'* ]] ||
+  fail "the glint's bold does not run into the next row colour" "$(printf '%q' "$SHEEN_REST")"
 pass "a themed rest uses field-band colours"
 unset SHEEN_FIELD_BANDS
 
