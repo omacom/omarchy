@@ -14,6 +14,7 @@ The plugin runs unsandboxed as your user; only install it if you trust its publi
 This installs Rust build tools and compiles the background service.
 One-time setup connects your selected, already-paired AirPods and stores private keys locally.
 After setup, the service uses device-specific blocking to gate connections on in-ear status.
+Removing one worn bud pauses active MPRIS players; reinsertion resumes only playback it paused.
 This does not change global Bluetooth/audio settings or manage other paired devices.
 Hardware support must be checked with a case-open / in-ear / removal test.
 NOTICE
