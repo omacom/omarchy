@@ -52,9 +52,9 @@
       backgroundImage: '',
       backgroundPosition: 'stretch',
       backgroundSource: '',
-      colorPosition: 'frame',
+      colorPosition: 'tabbar',
       simpleScrollbar: true,
-      transparencyTabBar: false,
+      transparencyTabBar: true,
       transparencyTabs: true
     };
 
