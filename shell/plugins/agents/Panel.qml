@@ -535,7 +535,7 @@ Panel {
           Text {
             visible: root.localSelected && (root.localCommand === "" || localControls.status === Loader.Error)
             width: parent.width
-            text: root.localCommand === "" ? "Install or update the optional Local AI backend (sero.local-ai 5.3.6+ in version 5)." : "Local AI could not load."
+            text: root.localCommand === "" ? "Install or update the optional Local AI backend (sero.local-ai 5.3.7+ in version 5)." : "Local AI could not load."
             textFormat: Text.PlainText
             color: root.urgent
             font.family: root.fontFamily

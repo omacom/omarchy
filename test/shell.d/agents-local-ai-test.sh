@@ -4,9 +4,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs'), vm = require('vm'), ui = {}
 vm.runInNewContext(fs.readFileSync(root + '/shell/plugins/agents/LocalAi.js', 'utf8').replace(/^\.pragma library\s*/, ''), ui)
-const backend = {version:'5.3.6', __sourceDir:'/home/user/a path/'}
+const backend = {version:'5.3.7', __sourceDir:'/home/user/a path/'}
 assertEqual(ui.backendCommand(backend), '/home/user/a path/bin/omarchy-local-ai', 'backend paths preserve spaces')
-for (const version of ['5.3.5', '4.9.9', '6.0.0', 'invalid'])
+for (const version of ['5.3.6', '4.9.9', '6.0.0', 'invalid'])
   assertEqual(ui.backendCommand({...backend, version}), '', 'unsupported backend ' + version + ' is not launched')
 assertEqual(ui.backendCommand(null), '', 'missing backend is not launched')
 assert(ui.backendCommand({...backend, version:'5.10.0'}), 'minor versions compare numerically')
@@ -33,4 +33,11 @@ assertEqual(ui.meter('Usage', null, 100, '%').fraction, null, 'missing sensors a
 assertEqual(ui.meter('Usage', 150, 100, '%').fraction, 1, 'visual meters clamp over-range readings')
 const empty = ui.build({...context, view:'home', snap:{state:'idle', operation:{}, models:[], cards:[], recipes:[]}})
 assert(empty.rows.every(r => r.type !== 'usage'), 'empty history does not draw empty usage charts')
+const single = {...recipe, cards:1}, oneBusy = {...snap, recipes:[{...recipe, cards:1}], models:[{...model, recipeId:'new', keys:['intel:0'], cards:1}]}
+const another = ui.build({...context, snap:oneBusy, count:1})
+assert(another.rows.some(r => r.label === 'Load another instance'), 'running recipe remains available on a free GPU')
+assertEqual(ui.loadPlan(oneBusy, single, group).gpu, 'intel:1', 'second instance selects the free GPU')
+assertEqual(ui.loadPlan(oneBusy, single, group).replaces.length, 0, 'second instance preserves the original')
+const full = {...oneBusy, models:[...oneBusy.models, {...model, recipeId:'new-instance-2', baseRecipeId:'new', keys:['intel:1']}]}
+assert(!ui.build({...context, snap:full, count:1}).rows.some(r => r.action === 'pick:new'), 'full GPUs do not offer another instance')
 JS

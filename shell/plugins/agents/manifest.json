@@ -31,7 +31,7 @@
       "syncDeviceId": ""
     },
     "schema": [
-      { "key": "localAi", "type": "boolean", "label": "Local AI", "defaultValue": false, "description": "Show local model controls using the optional sero.local-ai 5.3.6+ backend (version 5)." },
+      { "key": "localAi", "type": "boolean", "label": "Local AI", "defaultValue": false, "description": "Show local model controls using the optional sero.local-ai 5.3.7+ backend (version 5)." },
       { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh interval (seconds)", "min": 30, "max": 3600, "step": 30, "defaultValue": 900 },
       { "key": "syncMode", "type": "enum", "label": "Synced aggregation", "options": ["Off", "On"], "defaultValue": "Off", "description": "When On, write this machine's local usage snapshot and merge snapshots from other machines." },
       { "key": "syncDir", "type": "path", "label": "Sync folder", "defaultValue": "", "description": "A folder synced by Syncthing, Dropbox, rsync, etc." },

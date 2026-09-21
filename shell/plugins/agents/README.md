@@ -151,9 +151,9 @@ every transcript still on disk.
 
 ## Optional Local AI
 
-The native Local AI view is adapted from [omarchy-local-ai](https://github.com/0xSero/omarchy-local-ai/tree/v5.3.6/ui) under its [MIT license](LocalAi.LICENSE).
+The native Local AI view is adapted from [omarchy-local-ai](https://github.com/0xSero/omarchy-local-ai/tree/v5.3.7/ui) under its [MIT license](LocalAi.LICENSE).
 
-Local AI adds model controls to this same panel. Install the optional [Local AI backend](https://github.com/0xSero/omarchy-local-ai) (tested with 5.3.6; requires compatible version 5), then enable the native view:
+Local AI adds model controls to this same panel. Install the optional [Local AI backend](https://github.com/0xSero/omarchy-local-ai) (tested with 5.3.7; requires compatible version 5), then enable the native view:
 
 ```bash
 omarchy plugin add https://github.com/0xSero/omarchy-local-ai.git

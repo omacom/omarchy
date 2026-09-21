@@ -53,10 +53,11 @@ function loadPlan(snap, recipe, group) {
     pool.sort(function(a,b) { return (a === chosen ? 0 : 1) - (b === chosen ? 0 : 1) })
     keys = keys.concat(pool.slice(0, claims[hw]))
   })
-  return { gpu: chosen, keys: keys, replaces: models(snap).filter(function(m) { return m.recipeId === recipe.id || m.keys.some(function(k) { return keys.indexOf(k) >= 0 }) }) }
+  return { gpu: chosen, keys: keys, replaces: models(snap).filter(function(m) { return m.keys.some(function(k) { return keys.indexOf(k) >= 0 }) }) }
 }
+function instances(snap, id) { return models(snap).filter(function(m) { return (m.baseRecipeId || m.recipeId) === id }) }
 function fits(snap, c, n) { return (snap.recipes || []).filter(function(r) { return r.hardwareId === c.hardwareId && r.cards === n }) }
-function where(snap, m) { var c = cardOfKeys(snap, m.keys); return (m.cards > 1 ? m.cards + "× " : "") + (c ? c.name : "card") }
+function where(snap, m) { var c = cardOfKeys(snap, m.keys); return (m.cards > 1 ? m.cards + "× " : "") + (c ? c.name : "card") + (c && c.count > 1 ? " · #" + m.keys.map(function(k) { return k.split(":")[1] }).join(", #") : "") }
 function workKeys(snap) { // the cards a running op touches: the model it stops, or the claim of the recipe it starts
   var id = snap.operation.recipeId || "", m = modelById(snap, id)
   if (m) return m.keys
@@ -273,7 +274,7 @@ function buildView(c) {
       }
       o.rows.push(row(g.count + "× " + g.name, free.length + " available", "", { cells: cells(c, g, false) }))
       if (g.keys.length > 1) { var tabs = []; for (var k = 1; k <= g.keys.length; k++) tabs.push({ text: k + "×", on: k === n, action: "count:" + k }); o.rows.push(row("GPUs to use", "", "", { tabs: tabs })) }
-      var list = fits(snap, g, n).filter(function(r) { return !modelById(snap, r.id) })
+      var list = fits(snap, g, n).filter(function(r) { return !instances(snap, r.id).length || !loadPlan(snap, r, g).replaces.length })
       o.rows.push(sec("load a model · " + n + (n > 1 ? " GPUs" : " GPU") + " · " + list.length))
       if (!list.length) o.rows.push(row("models", "no unloaded models for " + n + " GPU" + (n > 1 ? "s" : "")))
       var dup = {}; list.forEach(function(r) { dup[r.name] = (dup[r.name] || 0) + 1 })   // two recipes of one model: say which
@@ -287,7 +288,7 @@ function buildView(c) {
         o.rows.push(capabilities(r.caps))
         var plan = loadPlan(snap, r, g)
         if (plan.replaces.length) o.rows.push(row("Will replace", plan.replaces.map(function(m) { return m.name + " · " + where(snap, m) }).join(", "), "", { type: "text", child: true }))
-        o.rows.push(row(plan.replaces.length ? (r.onDisk ? "Swap model" : "Download & swap") : r.onDisk ? "Load model" : r.partialBytes > 0 ? "Resume download & load" : "Download & load", r.sizeGb > 0 ? gb(r.sizeGb) : "", "run:" + r.id + ":" + n, { kind: "primary", child: true, compact: true }))
+        o.rows.push(row(plan.replaces.length ? (r.onDisk ? "Swap model" : "Download & swap") : r.onDisk ? (instances(snap, r.id).length ? "Load another instance" : "Load model") : r.partialBytes > 0 ? "Resume download & load" : "Download & load", r.sizeGb > 0 ? gb(r.sizeGb) : "", "run:" + r.id + ":" + n, { kind: "primary", child: true, compact: true }))
       })
       return o
     }
@@ -315,6 +316,6 @@ function buildView(c) {
 function backendCommand(manifest) {
   if (!manifest || !manifest.__sourceDir) return ""
   var v = String(manifest.version || "").match(/^(\d+)\.(\d+)\.(\d+)$/)
-  if (!v || Number(v[1]) !== 5 || Number(v[2]) < 3 || (Number(v[2]) === 3 && Number(v[3]) < 6)) return ""
+  if (!v || Number(v[1]) !== 5 || Number(v[2]) < 3 || (Number(v[2]) === 3 && Number(v[3]) < 7)) return ""
   return manifest.__sourceDir.replace(/\/$/, "") + "/bin/omarchy-local-ai"
 }

@@ -100,7 +100,7 @@ ShellRoot {
       item.settings = { localAi: true }
       item.selectedProviderId = "local-ai"
       root.assertTrue(item.localSelected && item.localCommand === "", "missing backend keeps the setup view available")
-      fakeBar.pluginRegistry.installedPlugins = { "sero.local-ai": { version: "5.3.6", __sourceDir: "/fixture/backend" } }
+      fakeBar.pluginRegistry.installedPlugins = { "sero.local-ai": { version: "5.3.7", __sourceDir: "/fixture/backend" } }
       root.assertEqual(item.localCommand, "/fixture/backend/bin/omarchy-local-ai", "native Agents discovers the installed backend")
       Qt.callLater(function() {
         root.assertTrue(item.activateLocal("home") !== "loading", "native Local AI content instantiates inside Agents")
