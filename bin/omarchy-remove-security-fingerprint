@@ -32,6 +32,7 @@ echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 
 remove_pam_config
 remove_lock_fingerprint_pam
+sudo rm -f /etc/polkit-1/rules.d/49-omarchy-fingerprint-enroll.rules
 
 echo "Removing fingerprint packages..."
 omarchy-pkg-drop fprintd libfprint libfprint-git
