@@ -2087,7 +2087,9 @@ if [[ ! -e $HOME/.local/state/omarchy/current/background && -d $HOME/.local/stat
 fi
 
 mkdir -p "$HOME/.config/wireplumber/wireplumber.conf.d"
-if [[ -f $root/default/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf ]]; then
+if [[ -f $root/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf ]]; then
+  cp "$root/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" "$HOME/.config/wireplumber/wireplumber.conf.d/"
+elif [[ -f $root/default/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf ]]; then
   cp "$root/default/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" "$HOME/.config/wireplumber/wireplumber.conf.d/"
 fi
 
