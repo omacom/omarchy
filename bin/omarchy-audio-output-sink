@@ -18,36 +18,41 @@ set -uo pipefail
 
 sink="${1:-$(pactl get-default-sink 2>/dev/null)}"
 
-# If it is already a physical hardware sink, return immediately.
-if [[ -z $sink || $sink == alsa_output.* || $sink == bluez_output.* ]]; then
+# If it is already a physical hardware or network sink, return immediately.
+# Expanded to cover AirPlay (raop), PipeWire tunnels, and ROC streaming.
+if [[ -z $sink || $sink =~ ^(alsa_output|bluez_output|raop_output|tunnel_output|roc_output)\. ]]; then
   printf '%s\n' "$sink"
   exit 0
 fi
 
 # 1. Generic PipeWire graph resolution:
 # Real DSP sinks create multiple independent nodes (e.g., input front-door, output back-door).
-# Find all nodes sharing the same 'node.link-group' as the requested sink, then
-# traverse their outgoing links to find the connected physical hardware sink.
-related_nodes="$(pw-cli dump node 2>/dev/null | awk -v virt="$sink" '
-  /^[[:space:]]*id / {
-    if (name != "") {
-      names[id] = name
-      if (group != "") groups[id] = group
-      if (name == virt) virt_group = group
-    }
-    id = $2; sub(/,.*/, "", id)
-    name = ""; group = ""
+# Find all nodes sharing the same 'node.link-group' as the requested sink using pw-dump.
+# The awk regexes are strictly anchored to ^[ \t]* to avoid matching nested/similar keys like "client.id".
+related_nodes="$(pw-dump 2>/dev/null | awk -v virt="$sink" '
+  /^[ \t]*"id":[ \t]*[0-9]+/ {
+    id = $0; sub(/.*"id":[ \t]*/, "", id); sub(/,.*/, "", id)
   }
-  /node\.name = / { name = $0; sub(/.*node\.name = "/, "", name); sub(/".*/, "", name) }
-  /node\.link-group = / { group = $0; sub(/.*node\.link-group = "/, "", group); sub(/".*/, "", group) }
+  /^[ \t]*"node\.name":[ \t]*"/ {
+    name = $0; sub(/.*"node\.name":[ \t]*"/, "", name); sub(/".*/, "", name)
+    names[id] = name
+  }
+  /^[ \t]*"node\.link-group":[ \t]*"/ {
+    group = $0; sub(/.*"node\.link-group":[ \t]*"/, "", group); sub(/".*/, "", group)
+    groups[id] = group
+  }
   END {
-    if (name != "") {
-      names[id] = name
-      if (group != "") groups[id] = group
-      if (name == virt) virt_group = group
+    virt_group = ""
+    for (i in names) {
+      if (names[i] == virt) {
+        virt_group = groups[i]
+        break
+      }
     }
     if (virt_group != "") {
-      for (i in groups) { if (groups[i] == virt_group) print names[i] }
+      for (i in names) {
+        if (groups[i] == virt_group) print names[i]
+      }
     } else {
       print virt
     }
@@ -58,7 +63,11 @@ if [[ -n $related_nodes ]]; then
   physical_sink="$(pw-link -l 2>/dev/null | awk -v nodes="$related_nodes" '
     BEGIN {
       split(nodes, arr, "\n")
-      for (i in arr) { if (arr[i] != "") valid[arr[i]] = 1 }
+      for (i in arr) {
+        # Limpiar posibles retornos de carro residuales del output JSON
+        sub(/\r$/, "", arr[i])
+        if (arr[i] != "") valid[arr[i]] = 1
+      }
     }
     /^[^[:space:]]/ {
       node = $1; sub(/:.*/, "", node)
@@ -66,7 +75,7 @@ if [[ -n $related_nodes ]]; then
     }
     /^[[:space:]]*\|->/ && active {
       target = $2; sub(/:.*/, "", target)
-      if (target ~ /^(alsa_output|bluez_output)/) {
+      if (target ~ /^(alsa_output|bluez_output|raop_output|tunnel_output|roc_output)/) {
         print target
         exit
       }
@@ -91,7 +100,7 @@ downstream="$(pactl list sink-inputs 2>/dev/null |
     }
     /^Sink Input #/ {target = ""}
     /^[[:space:]]*Sink:/ {target = $2}
-    /node\.name = / {
+    /^[ \t]*node\.name = / {
       name = $0
       sub(/.*node\.name = "/, "", name)
       sub(/"$/, "", name)
@@ -110,10 +119,40 @@ if [[ -n $downstream ]]; then
   fi
 fi
 
-# 3. If EasyEffects is idle (no active streams in pw-link), check its configured target device
+# 3. EasyEffects specific resolution (Hardware routing takes precedence over database)
 if [[ $sink == "easyeffects_sink" ]]; then
-  target="$(grep '^outputDevice=' "${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc" 2>/dev/null | cut -d= -f2-)"
-  if [[ -n $target && ($target == alsa_output.* || $target == bluez_output.*) ]]; then
+
+  # a) Live routing check: Look for active links from EasyEffects output nodes directly.
+  # This prevents returning a stale configuration if dynamic routing is active.
+  target="$(pw-link -l 2>/dev/null | awk '
+    /^[^[:space:]]/ {
+      node = $1; sub(/:.*/, "", node)
+      # Match standard EasyEffects output nodes
+      active = (node == "ee_soe_output_level" || node ~ /easyeffects.*output/) ? 1 : 0
+    }
+    /^[[:space:]]*\|->/ && active {
+      t = $2; sub(/:.*/, "", t)
+      if (t ~ /^(alsa_output|bluez_output|raop_output|tunnel_output|roc_output)/) { print t; exit }
+    }
+  ')"
+
+  if [[ -n $target ]]; then
+    printf '%s\n' "$target"
+    exit 0
+  fi
+
+  # b) Fallback to configuration only if EasyEffects is idle
+  ee_native="${XDG_CONFIG_HOME:-$HOME/.config}/easyeffects/db/easyeffectsrc"
+  ee_flatpak="${HOME}/.var/app/com.github.wwmm.easyeffects/config/easyeffects/db/easyeffectsrc"
+
+  # tr limpia comillas dobles en caso de que EasyEffects cambie su formato de guardado
+  if [[ -f "$ee_native" ]]; then
+    target="$(grep '^outputDevice=' "$ee_native" 2>/dev/null | cut -d= -f2- | tr -d '\"')"
+  elif [[ -f "$ee_flatpak" ]]; then
+    target="$(grep '^outputDevice=' "$ee_flatpak" 2>/dev/null | cut -d= -f2- | tr -d '\"')"
+  fi
+
+  if [[ -n $target && $target =~ ^(alsa_output|bluez_output|raop_output|tunnel_output|roc_output)\. ]]; then
     printf '%s\n' "$target"
     exit 0
   fi
