@@ -151,18 +151,16 @@ const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/
 
 assert(
   backgroundQml.includes('bootIntroRequestVersion !== root.backgroundVersion')
-    && backgroundQml.includes('if (sessionObscured) cancelBootIntro()')
-    && backgroundQml.includes('if (fullscreenActive) cancelBootIntro()')
-    && backgroundQml.includes('readonly property bool fullscreenActive: fullscreenScreens > 0')
-    && backgroundQml.includes('onFullscreenHereChanged: syncFullscreenState()'),
-  'a stale or obscured boot intro cannot appear later in the session'
+    && backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]')
+    && backgroundQml.includes('root.checkBootIntro()'),
+  'a stale boot intro cannot appear later in the session'
 )
 assert(
-  backgroundQml.includes('function cancelBootIntro(): void')
-    && backgroundQml.includes('bootIntroFinishedScreens >= Quickshell.screens.length')
-    && backgroundQml.includes('root.bootIntroFinishedScreens = Math.max(0, root.bootIntroFinishedScreens - 1)')
-    && backgroundQml.includes('onFinished: panel.handleBootIntroFinished()'),
-  'the shell exposes cancellation and waits for every monitor to finish'
+  backgroundQml.includes('command: ["owe", "intro", root.bootIntroPath]')
+    && backgroundQml.includes('onExited: root.finishBootIntro()')
+    && backgroundQml.includes('command: ["owe", "raw", "{\\"cmd\\":\\"intro-stop\\"}"]')
+    && backgroundQml.includes('visible: root.bootIntroResolving'),
+  'OWE plays the intro, the shell reveals its still on exit, and cancellation stops the daemon side'
 )
 JS
 
