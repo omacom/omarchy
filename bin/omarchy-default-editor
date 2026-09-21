@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set the default editor used by omarchy-launch-editor
-# omarchy:args=[code|cursor|zed|sublime_text|helix|vim|emacs|nvim]
+# omarchy:args=[code|cursor|zed|sublime|sublime_text|helix|vim|emacs|nvim]
 # omarchy:examples=omarchy default editor | omarchy default editor code | omarchy default editor helix
 
 installing=false
@@ -17,6 +17,7 @@ if (($# == 0)); then
     read -r editor <"$editor_file"
   fi
 
+  [[ $editor == "sublime_text" ]] && editor="subl"
   [[ -n $editor ]] && echo "$editor" || echo "nvim"
   exit 0
 fi
@@ -24,14 +25,14 @@ fi
 case "$1" in
 code) selection="code"; editor="code"; name="VSCode"; glyph= ;;
 cursor) selection="cursor"; editor="cursor"; name="Cursor"; glyph= ;;
-zed | zeditor) selection="zed"; editor="zeditor"; name="Zed"; glyph= ;;
-sublime_text) selection="sublime_text"; editor="sublime_text"; name="Sublime Text"; glyph= ;;
+zed | zeditor) selection="$1"; editor="zeditor"; name="Zed"; glyph= ;;
+sublime | sublime_text | subl) selection="$1"; editor="subl"; name="Sublime Text"; glyph= ;;
 helix) selection="helix"; editor="helix"; name="Helix"; glyph= ;;
 vim) selection="vim"; editor="vim"; name="Vim"; glyph= ;;
 emacs) selection="emacs"; editor="emacs"; name="Emacs"; glyph= ;;
 nvim) selection="nvim"; editor="nvim"; name="Neovim"; glyph= ;;
 *)
-  echo "Usage: omarchy-default-editor <code|cursor|zed|sublime_text|helix|vim|emacs|nvim>"
+  echo "Usage: omarchy-default-editor <code|cursor|zed|sublime|sublime_text|helix|vim|emacs|nvim>"
   exit 1
   ;;
 esac
@@ -43,8 +44,8 @@ if omarchy-cmd-missing "$editor"; then
     case "$selection" in
     code) omarchy-install-editor-vscode ;;
     cursor) omarchy-pkg-add cursor-bin ;;
-    zed) omarchy-install-editor-zed ;;
-    sublime_text) omarchy-pkg-add sublime-text-4 ;;
+    zed | zeditor) omarchy-install-editor-zed ;;
+    sublime | sublime_text | subl) omarchy-pkg-add sublime-text-4 ;;
     helix) omarchy-install-editor-helix ;;
     vim) omarchy-pkg-add vim ;;
     emacs) omarchy-install-editor-emacs ;;

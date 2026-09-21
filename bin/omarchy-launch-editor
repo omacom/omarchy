@@ -18,6 +18,10 @@ else
   editor="nvim"
 fi
 
+if [[ $editor == "sublime_text" ]]; then
+  editor="subl"
+fi
+
 omarchy-cmd-present "$editor" || editor="nvim"
 
 case "${editor##*/}" in
