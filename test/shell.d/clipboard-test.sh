@@ -249,6 +249,7 @@ mkdir -p "$TMPDIR/bin" "$TMPDIR/home/.local/state/omarchy"
 
 cat >"$TMPDIR/bin/wl-copy" <<'SH'
 #!/bin/bash
+printf '%s\n' "$*" >"${WL_COPY_ARGS:-/dev/null}"
 cat >"$WL_COPY_OUT"
 SH
 
@@ -465,17 +466,19 @@ pass "clipboard watcher dies with its owner via pdeathsig"
 
 jq -n --arg text "$(printf 'large block line 1\nlarge block line 2\n')" '[{type:"text", text:"ignored"}, {type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
-WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS="$TMPDIR/copy-args" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1
 
 [[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard paste helper copies history entry text"
 pass "clipboard paste helper copies history entry text"
+[[ $(<"$TMPDIR/copy-args") == *"--type text/plain;charset=utf-8"* ]] || fail "clipboard paste helper specifies text/plain UTF-8 MIME type"
+pass "clipboard paste helper specifies text/plain UTF-8 MIME type"
 
 [[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper pastes history entries with shift insert"
 pass "clipboard paste helper pastes history entries with shift insert"
 
 rm -f "$TMPDIR/wtype"
-WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS="$TMPDIR/copy-args" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only --history-index 1
 
 [[ $(<"$TMPDIR/copied") == "$(printf 'large block line 1\nlarge block line 2')" ]] || fail "clipboard paste helper copy-only copies history entry text"
@@ -483,6 +486,12 @@ pass "clipboard paste helper copy-only copies history entry text"
 
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard paste helper copy-only skips typing"
 pass "clipboard paste helper copy-only skips typing"
+
+WL_COPY_OUT="$TMPDIR/copied" WL_COPY_ARGS="$TMPDIR/copy-args" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --copy-only "direct text"
+[[ $(<"$TMPDIR/copied") == "direct text" ]] || fail "clipboard paste helper copies direct text"
+[[ $(<"$TMPDIR/copy-args") == *"--type text/plain;charset=utf-8"* ]] || fail "clipboard paste helper specifies text/plain UTF-8 MIME type for direct text"
+pass "clipboard paste helper specifies text/plain UTF-8 MIME type for direct text"
 
 printf 'image-data' >"$TMPDIR/image.png"
 rm -f "$TMPDIR/wtype"
