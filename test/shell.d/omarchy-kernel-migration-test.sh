@@ -4,12 +4,25 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# The real package helpers run inside the sudo boundary fixture, which maps
+# their absolute sudo and pacman to the stand-ins here, so no transaction
+# reaches the host.
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+for command in omarchy-pkg-add omarchy-pkg-missing omarchy-pkg-present; do
+  copy_boundary_file "bin/$command"
+done
+ln -s ../bin/omarchy-pkg-missing "$SUDO_TEST_ROOT/mock/omarchy-pkg-missing"
+
 migration="$ROOT/migrations/1789325478.sh"
-scratch=$(mktemp -d)
-trap 'rm -rf "$scratch"' EXIT
+scratch="$boundary_tmp"
 mkdir -p "$scratch/bin" "$scratch/drop-ins"
 
+# Only the helpers come from the fixture; its other stand-ins stay off PATH.
+for command in omarchy-pkg-add omarchy-pkg-missing omarchy-pkg-present; do
+  ln -s "$SUDO_TEST_ROOT/bin/$command" "$scratch/bin/$command"
+done
 export PATH="$scratch/bin:$ROOT/bin:$PATH"
+export OMARCHY_SUDO_NO_UPDATE=1
 export CALL_LOG="$scratch/calls"
 export INSTALLED_PACKAGES="$scratch/packages"
 export OMARCHY_KERNEL_LIMINE_CONF="$scratch/limine"
@@ -22,7 +35,11 @@ boot_order='BOOT_ORDER="linux-omarchy, linux-omarchy-*, *, *fallback, Snapshots"
 cat > "$scratch/bin/pacman" <<'SH'
 #!/bin/bash
 case "$1" in
-  -Q) grep -Fxq "$2" "$INSTALLED_PACKAGES" ;;
+  -Q)
+    shift
+    [[ ${1:-} != "--" ]] || shift
+    grep -Fxq -- "$1" "$INSTALLED_PACKAGES"
+    ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
     [[ ${INSTALL_FAIL:-0} == "0" ]] || exit 1
@@ -77,6 +94,9 @@ cat > "$scratch/bin/omarchy-notification-dismiss" <<'SH'
 exit 0
 SH
 chmod +x "$scratch/bin/"*
+rm "$SUDO_TEST_ROOT/mock/pacman" "$SUDO_TEST_ROOT/bin/pacman"
+ln -s "$scratch/bin/pacman" "$SUDO_TEST_ROOT/mock/pacman"
+ln -s "$scratch/bin/pacman" "$SUDO_TEST_ROOT/bin/pacman"
 
 reset_fixture() {
   : > "$CALL_LOG"
@@ -135,14 +155,22 @@ pass "ARM systems cannot receive an x86_64 kernel"
 
 reset_fixture
 printf '%s\n' linux-omarchy-ptl-novrr-mm > "$INSTALLED_PACKAGES"
-mkdir -p "$scratch/state" "$scratch/user-markers" "$scratch/omarchy/migrations"
+mkdir -p "$scratch/state" "$scratch/user-markers" "$SUDO_TEST_ROOT/migrations"
 export OMARCHY_PTL_REBUILD_MARKER="$scratch/state/1789095456"
 export OMARCHY_MIGRATION_STATE="$scratch/user-markers"
 touch "$OMARCHY_PTL_REBUILD_MARKER" "$OMARCHY_MIGRATION_STATE/1789095456.sh"
-cp "$migration" "$scratch/omarchy/migrations/"
-pending=$(OMARCHY_PATH="$scratch/omarchy" "$ROOT/bin/omarchy-migrate" --pending)
+cp "$migration" "$SUDO_TEST_ROOT/migrations/"
+# omarchy-migrate requires OMARCHY_PATH to be its own tree and resets PATH to
+# that tree's bin and the system, so it runs from the fixture root with the
+# stand-ins there and migration sudo going through the fixture's wrapper.
+rm "$SUDO_TEST_ROOT/bin/omarchy-migrate" "$SUDO_TEST_ROOT/bin/omarchy-notification-dismiss"
+copy_boundary_file bin/omarchy-migrate
+for command in uname limine-mkinitcpio limine-entry-tool omarchy-state omarchy-notification-dismiss; do
+  ln -s "$scratch/bin/$command" "$SUDO_TEST_ROOT/bin/$command"
+done
+pending=$(OMARCHY_PATH="$SUDO_TEST_ROOT" "$SUDO_TEST_ROOT/bin/omarchy-migrate" --pending)
 [[ $pending == "1789325478.sh" ]] || fail "the renamed migration is pending after completing the old migration"
-OMARCHY_PATH="$scratch/omarchy" "$ROOT/bin/omarchy-migrate" > "$scratch/output" 2>&1
+OMARCHY_PATH="$SUDO_TEST_ROOT" "$SUDO_TEST_ROOT/bin/omarchy-migrate" > "$scratch/output" 2>&1 || fail "the renamed migration runs" "$(<"$scratch/output")"
 grep -Fxq "$kernel" "$INSTALLED_PACKAGES" || fail "the old completion markers cannot skip the generic kernel"
 [[ -f $OMARCHY_KERNEL_REBUILD_MARKER && -f $OMARCHY_MIGRATION_STATE/1789325478.sh ]] || fail "new machine and user completion markers are recorded"
 assert_preferred "$OMARCHY_KERNEL_LIMINE_CONF"
@@ -154,7 +182,7 @@ for name in dell-xps-panther-lake zz-dell-xps-panther-lake; do
 done
 cp "$OMARCHY_KERNEL_LIMINE_CONF" "$OMARCHY_KERNEL_LIMINE_DROP_INS/omarchy-defaults.conf"
 run_migration
-grep -Fxq "pacman -S --noconfirm --needed $kernel $kernel-headers" "$CALL_LOG" || fail "both new packages are installed"
+grep -Fxq "pacman -S --noconfirm --needed -- $kernel $kernel-headers" "$CALL_LOG" || fail "both new packages are installed"
 grep -Fxq linux-ptl "$INSTALLED_PACKAGES" || fail "the old kernel is kept for recovery"
 grep -Fxq linux-ptl-headers "$INSTALLED_PACKAGES" || fail "the old kernel headers are kept"
 assert_preferred "$OMARCHY_KERNEL_LIMINE_CONF"

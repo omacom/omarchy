@@ -3,32 +3,47 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-tmp_dir=$(mktemp -d)
-trap 'rm -rf "$tmp_dir"' EXIT
+# The real package helpers run over a stubbed pacman inside the sudo boundary
+# fixture, so no transaction reaches the host.
+source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
+for command in omarchy-pkg-add omarchy-pkg-missing omarchy-pkg-present; do
+  copy_boundary_file "bin/$command"
+done
+ln -s ../bin/omarchy-pkg-missing "$SUDO_TEST_ROOT/mock/omarchy-pkg-missing"
+
+tmp_dir="$boundary_tmp"
 mkdir -p "$tmp_dir/bin"
 export INSTALLED_PACKAGES="$tmp_dir/installed" CALL_LOG="$tmp_dir/calls"
-export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
+# Only the helpers come from the fixture; its other stand-ins stay off PATH.
+for command in omarchy-pkg-add omarchy-pkg-missing omarchy-pkg-present; do
+  ln -s "$SUDO_TEST_ROOT/bin/$command" "$tmp_dir/bin/$command"
+done
+export PATH="$tmp_dir/bin:$PATH"
+export OMARCHY_SUDO_NO_UPDATE=1
 
-# Keep the real package helpers, but contain every pacman transaction here.
 cat > "$tmp_dir/bin/pacman" <<'SH'
 #!/bin/bash
 case "$1" in
-  -Q) grep -Fxq -- "$2" "$INSTALLED_PACKAGES" ;;
+  -Q)
+    shift
+    [[ ${1:-} != "--" ]] || shift
+    grep -Fxq -- "$1" "$INSTALLED_PACKAGES"
+    ;;
   -S)
     [[ ${FAIL_INSTALL:-0} == 0 ]] || exit 1
-    shift 3 # -S --noconfirm --needed
-    printf '%s\n' "$@" >> "$INSTALLED_PACKAGES"
-    printf '%s\n' "$@" >> "$CALL_LOG"
+    for arg in "${@:2}"; do
+      [[ $arg == -* ]] && continue
+      printf '%s\n' "$arg" >> "$INSTALLED_PACKAGES"
+      printf '%s\n' "$arg" >> "$CALL_LOG"
+    done
     ;;
   *) exit 1 ;;
 esac
 SH
-cat > "$tmp_dir/bin/sudo" <<'SH'
-#!/bin/bash
-[[ $1 == "pacman" ]] || exit 1
-"$@"
-SH
 chmod +x "$tmp_dir/bin/"*
+rm "$SUDO_TEST_ROOT/mock/pacman" "$SUDO_TEST_ROOT/bin/pacman"
+ln -s "$tmp_dir/bin/pacman" "$SUDO_TEST_ROOT/mock/pacman"
+ln -s "$tmp_dir/bin/pacman" "$SUDO_TEST_ROOT/bin/pacman"
 
 migration="$ROOT/migrations/1789444024.sh"
 for kernels in linux-omarchy linux-t2 'linux-omarchy linux-t2'; do

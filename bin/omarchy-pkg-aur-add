@@ -3,8 +3,27 @@
 # omarchy:summary=Add the named packages to the system from the AUR if they're missing. Returns false if it couldn't be done.
 # omarchy:args=<packages...>
 
+# Under the no-update boundary, as in migrations, yay must use the wrapper
+# rather than the sudo binary, flags or loop from the user's own yay config,
+# which user-level code can rewrite, and must hand it the real pacman and
+# pacman.conf rather than ones that config names: the wrapper authorizes the
+# command it is given.
+sudo_options=()
+case "${OMARCHY_SUDO_NO_UPDATE:-0}" in
+  0 | "") ;;
+  1)
+    sudo_wrapper="$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"
+    [[ -f $sudo_wrapper && -x $sudo_wrapper ]] || exit 1
+    sudo_options=(--sudo "$sudo_wrapper" --sudoflags "" --sudoloop=false --pacman /usr/bin/pacman --config /etc/pacman.conf)
+    ;;
+  *)
+    echo "Invalid OMARCHY_SUDO_NO_UPDATE value." >&2
+    exit 2
+    ;;
+esac
+
 if omarchy-pkg-missing "$@"; then
-  yay -S --noconfirm --needed "$@" || exit 1
+  yay "${sudo_options[@]}" -S --noconfirm --needed "$@" || exit 1
 fi
 
 for pkg in "$@"; do

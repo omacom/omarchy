@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # This hook is called by `omarchy refresh pacman` AFTER the channel template
-# is copied to /etc/pacman.conf and BEFORE `pacman -Syyuu` runs. Use it to
-# layer customizations onto the freshly-written pacman.conf so they're
-# respected by the upgrade — common cases are adding a custom repository
-# (e.g. CachyOS, Chaotic-AUR, an internal company repo) or extra IgnorePkg
-# lines.
+# is copied and BEFORE the package transaction runs, so your changes shape
+# that transaction. Use it to layer customizations onto the freshly-written
+# pacman.conf — common cases are adding a custom repository (e.g. CachyOS,
+# Chaotic-AUR, an internal company repo) or extra IgnorePkg lines.
 #
-# The hook runs as the invoking user with a warm sudo cache.
+# The hook runs as the invoking user after Omarchy invalidates its sudo cache.
+# A sudo command here therefore requires its own explicit authorization.
 #
 # To put it into use, remove .sample from this file name.
 
-# Example: add an Include line above [core] for a custom repo.
+# Example: add an Include line above [core].
 # Maintain the repo entries in /etc/pacman.d/custom-repos.conf yourself.
 
 CONF=/etc/pacman.conf
