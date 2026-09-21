@@ -1,5 +1,14 @@
 echo "Install Elsewhen, the world clock plugin"
 
+# elsewhen Depends: omarchy. On WSL/dev checkouts there is no omarchy pacman
+# package (/usr/share/omarchy is a symlink into the checkout). Installing
+# elsewhen then resolves the whole desktop package set and conflicts with that
+# symlink (https://github.com/omacom/omarchy/issues/12531).
+if ! pacman -Q omarchy &>/dev/null; then
+  echo "Skipping Elsewhen on unpackaged Omarchy (e.g. WSL checkout)"
+  exit 0
+fi
+
 omarchy-pkg-add elsewhen
 
 # Dev checkouts do not contain plugins installed by system packages.
