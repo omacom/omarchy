@@ -22,12 +22,6 @@ assertDeepEqual(
   'border geometry parses CSS two-value widths'
 )
 
-const gradient = geometry.parseGradientSpec('rgba(010203ee) rgba(040506ee) 45deg', '#336699', 1)
-assertEqual(gradient.colors[0], '#010203ee', 'border geometry parses first rgba gradient stop')
-assertEqual(gradient.colors[1], '#040506ee', 'border geometry parses second rgba gradient stop')
-assertEqual(gradient.angle, 45, 'border geometry parses gradient angle')
-assert(gradient.enabled, 'border geometry marks multi-stop gradients enabled')
-
 assertEqual(
   geometry.canonicalColor('0xee33ccff', 1),
   '#33ccffee',

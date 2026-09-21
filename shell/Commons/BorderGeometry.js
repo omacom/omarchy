@@ -109,29 +109,6 @@ function withSideOverrides(widths, top, right, bottom, left) {
   return out
 }
 
-function parseGradientSpec(value, fallbackColor, alpha) {
-  var s = String(value || "").replace(/^\s+|\s+$/g, "")
-  var colors = []
-  var angle = 0
-  var parts = s.length > 0 ? s.split(/\s+/) : []
-
-  for (var i = 0; i < parts.length; i++) {
-    var part = parts[i]
-    var angleMatch = part.match(/^(-?\d+(?:\.\d+)?)deg$/)
-    if (angleMatch) angle = Number(angleMatch[1])
-    else colors.push(canonicalColor(part, alpha))
-  }
-
-  if (colors.length === 0 && fallbackColor !== undefined && fallbackColor !== null)
-    colors.push(canonicalColor(fallbackColor, alpha))
-
-  return {
-    colors: colors,
-    angle: isFinite(angle) ? angle : 0,
-    enabled: colors.length > 1,
-  }
-}
-
 function isUniform(widths) {
   if (!widths) return true
   return widths.top === widths.right && widths.top === widths.bottom && widths.top === widths.left
