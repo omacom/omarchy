@@ -12,7 +12,6 @@ ConfirmDialog 1.0 ConfirmDialog.qml
 CursorSurface 1.0 CursorSurface.qml
 Dropdown 1.0 Dropdown.qml
 KeyboardPanel 1.0 KeyboardPanel.qml
-MultiSelect 1.0 MultiSelect.qml
 NumberField 1.0 NumberField.qml
 OpticalGlyph 1.0 OpticalGlyph.qml
 Panel 1.0 Panel.qml
