@@ -1,7 +1,7 @@
 # Agents
 
 One bar icon and one panel for every AI coding subscription on the machine.
-The panel is strictly a display: it watches the usage records that
+The subscription views watch the usage records that
 `omarchy-agent-usage-update` writes to `~/.local/state/omarchy/agents/usage/`
 and draws whatever appears there. `Panel.qml` owns the bar button and the
 popup; `Main.qml` discovers and watches the records (and handles the optional
@@ -148,3 +148,20 @@ One caveat on "all-time": the Codex collector only reads native session files
 touched in the last 30 days, and Fireworks requests the last 30 days from its
 billing API, so their totals and day counts cover that window. Claude's cover
 every transcript still on disk.
+
+## Optional Local AI
+
+The native Local AI view is adapted from [omarchy-local-ai](https://github.com/0xSero/omarchy-local-ai/tree/v5.3.6/ui) under its [MIT license](LocalAi.LICENSE).
+
+Local AI adds model controls to this same panel. Install the optional [Local AI backend](https://github.com/0xSero/omarchy-local-ai) (tested with 5.3.6; requires compatible version 5), then enable the native view:
+
+```bash
+omarchy plugin add https://github.com/0xSero/omarchy-local-ai.git
+omarchy bar set omarchy.agents localAi true --json
+```
+
+The backend does not need a separate bar button. Do not run its custom Agents integration installer: this view is native. It discovers the controller from Omarchy's installed-plugin registry and uses its snapshot/command interface; no third-party QML is imported. With Local AI off, it makes no controller calls. A missing or incompatible backend shows an install/update message.
+
+Choose a GPU group, then a model. Occupied GPUs offer Swap and name the models being replaced; the backend downloads first, preserves unrelated deployments, and restores the previous model if replacement fails. Agent launch and project selection work from the overview and model details. Historical totals stay separate from deployment controls; missing temperature, utilization, VRAM or runtime statistics remain unavailable. These operations, telemetry adapters and agent configuration remain the backend's responsibility, outside Omarchy's source.
+
+The existing Agents viewport owns scrolling. Breadcrumbs jump directly between views; Home/End and Page Up/Down scroll Local AI. Tab/Shift+Tab change providers, Escape returns or closes, and Ctrl+O edits the project folder. Copy opens a viewport-sized overlay until copied or closed. `omarchy-shell omarchy.agents local` opens the tab when enabled. Disable it with `omarchy bar set omarchy.agents localAi false --json`.

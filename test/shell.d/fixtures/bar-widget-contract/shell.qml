@@ -96,6 +96,17 @@ ShellRoot {
     }
     if (entry.id === "omarchy.agents") {
       root.assertTrue(typeof item.iconCandidatesForProvider === "function", entry.id + " resolves provider marks by convention")
+      root.assertTrue(!item.localEnabled, "Local AI starts disabled")
+      item.settings = { localAi: true }
+      item.selectedProviderId = "local-ai"
+      root.assertTrue(item.localSelected && item.localCommand === "", "missing backend keeps the setup view available")
+      fakeBar.pluginRegistry.installedPlugins = { "sero.local-ai": { version: "5.3.6", __sourceDir: "/fixture/backend" } }
+      root.assertEqual(item.localCommand, "/fixture/backend/bin/omarchy-local-ai", "native Agents discovers the installed backend")
+      Qt.callLater(function() {
+        root.assertTrue(item.activateLocal("home") !== "loading", "native Local AI content instantiates inside Agents")
+        item.settings = {}
+        root.assertTrue(!item.localSelected, "disabling Local AI restores the subscription view")
+      })
       var darkIcons = item.iconCandidatesForProvider({ providerId: "codex" }, Qt.color("#1a1b26")).join(" ")
       var lightIcons = item.iconCandidatesForProvider({ providerId: "codex" }, Qt.color("#ffffff")).join(" ")
       root.assertTrue(darkIcons.indexOf("codex.svg") >= 0 && darkIcons.indexOf("codex-light.svg") < 0, entry.id + " uses the dark-theme Codex icon on dark surfaces")
@@ -133,6 +144,7 @@ ShellRoot {
     property color foreground: "white"
     property color background: "black"
     property color urgent: "red"
+    property var pluginRegistry: QtObject { property var installedPlugins: ({}) }
     property var shell: mockShell
     function run(command) {}
     function showTooltip(target, text) {}

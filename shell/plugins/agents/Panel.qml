@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "LocalAi.js" as Local
 
 Panel {
   id: root
@@ -18,7 +19,14 @@ Panel {
   readonly property color track: Style.selectedFillFor(foreground, Color.accent)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  readonly property var providers: usage.enabledProviders
+  readonly property bool localEnabled: setting("localAi", false) === true
+  readonly property var localBackend: bar && bar.pluginRegistry ? bar.pluginRegistry.installedPlugins["sero.local-ai"] : null
+  readonly property string localCommand: Local.backendCommand(localBackend)
+  readonly property var providers: usage.enabledProviders.filter(function(p) { return !root.localEnabled || p.providerId !== "local-ai" }).concat(localEnabled ? [{ providerId: "local-ai", providerName: "Local AI", ready: true, recentDays: [] }] : [])
+  readonly property bool localSelected: provider && provider.providerId === "local-ai"
+  function currentPanel() { return root.bar && typeof root.bar.findPanelWidget === "function" ? (root.bar.findPanelWidget("omarchy.agents") || root) : root }
+  function showLocal() { if (localEnabled) { selectedProviderId = "local-ai"; root.open() } }
+  function activateLocal(action) { if (!localControls.item) return "loading"; localControls.item.activate(action); return localControls.item.tone + ":" + localControls.item.view }
   // The selection follows the provider, not the slot it happens to sit in: a
   // provider whose first scan lands while the panel is open would otherwise
   // shift the list underneath you and swap out what you were reading.
@@ -301,13 +309,13 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  onProviderIndexChanged: if (panelFlick) panelFlick.contentY = 0
+  onProviderIndexChanged: { if (panelFlick) panelFlick.contentY = 0; if (opened) Qt.callLater(function() { if (root.localSelected && localControls.item) localControls.item.focusContent(); else keyCatcher.forceActiveFocus() }) }
   onOpenedChanged: if (opened) {
     cursorActive = false
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
     usage.refreshLimits()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { if (root.localSelected && localControls.item) localControls.item.focusContent(); else keyCatcher.forceActiveFocus() })
   }
 
   Main {
@@ -332,6 +340,8 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function refresh(): string { root.refreshNow(); return "ok" }
+    function local(): void { root.currentPanel().showLocal() }
+    function localAction(action: string): string { return root.currentPanel().activateLocal(action) }
     function next(): string { root.selectProvider(root.providerIndex + 1); return "ok" }
   }
 
@@ -354,7 +364,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: keyCatcher
+    focusTarget: root.localSelected && localControls.item ? localControls.item.contentFocus : keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(380))
     // Taller than the control panels on purpose: this one is a dashboard, and
     // the whole point is reading limits and history without scrolling.
@@ -383,6 +393,8 @@ Panel {
         anchors.fill: parent
         contentWidth: width
         contentHeight: column.implicitHeight
+        onContentHeightChanged: contentY = root.clamp(contentY, 0, Math.max(0, contentHeight - height))
+        onHeightChanged: contentY = root.clamp(contentY, 0, Math.max(0, contentHeight - height))
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
@@ -400,14 +412,14 @@ Panel {
             visible: !!root.provider
             width: parent.width
             title: root.provider ? root.provider.providerName : ""
-            meta: root.heroMeta(root.provider)
+            meta: root.localSelected ? (localControls.item ? localControls.item.ui.eyebrow : root.localCommand ? "Loading models" : "Setup required") : root.heroMeta(root.provider)
             foreground: root.foreground
             fontFamily: root.fontFamily
 
             iconComponent: Component {
               Item {
                 id: heroMark
-                property var candidates: root.iconCandidatesForProvider(root.provider, root.surface)
+                property var candidates: root.localSelected ? [] : root.iconCandidatesForProvider(root.provider, root.surface)
                 // Provider objects are rebuilt on every refresh, which churns the
                 // array's identity without changing its content. Restart the fallback
                 // walk only when the URLs change: re-pointing source at a URL whose
@@ -423,7 +435,7 @@ Panel {
                 Image {
                   id: heroMarkImage
                   anchors.fill: parent
-                  source: heroMark.candidateIndex < heroMark.candidates.length ? heroMark.candidates[heroMark.candidateIndex] : ""
+                  source: root.localSelected ? "" : heroMark.candidateIndex < heroMark.candidates.length ? heroMark.candidates[heroMark.candidateIndex] : ""
                   sourceSize.width: Style.font.display * 2
                   sourceSize.height: Style.font.display * 2
                   fillMode: Image.PreserveAspectFit
@@ -437,7 +449,7 @@ Panel {
                   textFormat: Text.PlainText
                   anchors.centerIn: parent
                   visible: heroMarkImage.status !== Image.Ready
-                  text: button.text
+                  text: root.localSelected ? "▣" : button.text
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.display
@@ -494,6 +506,46 @@ Panel {
             }
           }
 
+          Loader {
+            id: localControls
+            width: parent.width
+            visible: root.localSelected
+            height: visible && item ? item.implicitHeight : 0
+            onLoaded: {
+              item.dismissRequested.connect(root.close)
+              item.revealRequested.connect(function(y, rowHeight) {
+                var top = localControls.mapToItem(column, 0, y).y
+                if (top < panelFlick.contentY) panelFlick.contentY = Math.max(0, top)
+                else if (top + rowHeight > panelFlick.contentY + panelFlick.height)
+                  panelFlick.contentY = Math.min(Math.max(0, panelFlick.contentHeight - panelFlick.height), top + rowHeight - panelFlick.height)
+              })
+              item.switchRequested.connect(function(direction) { root.selectProvider(root.providerIndex + direction) })
+            }
+            active: root.localEnabled && root.localCommand !== ""
+            sourceComponent: Component {
+              LocalAi {
+                bar: root.bar
+                cli: root.localCommand
+                overlayHost: panelFlick.parent
+                active: root.localSelected && root.opened
+              }
+            }
+          }
+
+          Text {
+            visible: root.localSelected && (root.localCommand === "" || localControls.status === Loader.Error)
+            width: parent.width
+            text: root.localCommand === "" ? "Install or update the optional Local AI backend (sero.local-ai 5.3.6+ in version 5)." : "Local AI could not load."
+            textFormat: Text.PlainText
+            color: root.urgent
+            font.family: root.fontFamily
+            wrapMode: Text.WordWrap
+          }
+
+          Column {
+            visible: !root.localSelected
+            width: parent.width
+            spacing: Style.space(12)
           // ---------- Status ----------
           BorderSurface {
             visible: !!root.provider && String(root.provider.usageStatusText || "") !== ""
@@ -694,6 +746,7 @@ Panel {
             font.pixelSize: Style.font.caption
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
+          }
           }
         }
       }
