@@ -95,6 +95,15 @@
     // the derived lengths must never go negative or CSS drops them.
     const radiusPx = radius > -1 ? radius + 'px' : 0;
     const safeRadius = Math.max(0, radius);
+    // Vivaldi keeps --radiusWindow at a constant 6px for the auto-hide frame
+    // and its toolbars, independent of the theme's corner rounding, so a
+    // disabled theme would still show a rounded window frame. Zero it, and
+    // the frame rule that adds a constant 6px on top of it, along with the
+    // rest of the rounding.
+    const windowFrame = radius > -1 ? '' : `
+      #browser.auto-hide:not(.unified-ui) {
+        border-radius: 0 !important;
+      }`;
     style.textContent = `
       #browser {
         --colorBg: ${bg} !important;
@@ -113,8 +122,8 @@
         --radiusHalf: ${Math.round(safeRadius / 2)}px !important;
         --radiusCap: ${Math.min(safeRadius, 8)}px !important;
         --radiusRound: ${radius > -1 ? '100px' : 0} !important;
-        --radiusWindow: 6px !important;
-      }`;
+        --radiusWindow: ${radius > -1 ? '6px' : 0} !important;
+      }${windowFrame}`;
   };
 
   const refresh = async () => {
