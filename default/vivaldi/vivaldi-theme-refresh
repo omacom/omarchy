@@ -21,9 +21,12 @@ radius=-1
 dim_blurred=false
 blur=0
 contrast=0
+# Vivaldi stores its theme transparency as alpha (1.0 is opaque), so keep
+# Vivaldi's own default until Hyprland is asked for something else.
+alpha=0.92
 
 read_appearance() {
-  local rounding dim blur_size blur_contrast
+  local rounding dim blur_size blur_contrast opacity opacity_option opacity_set
   rounding=$(hyprctl -j getoption decoration:rounding 2>/dev/null | jq -r '.int // empty' || true)
   if [[ $rounding =~ ^[0-9]+$ ]]; then
     if (( rounding == 0 )); then
@@ -54,6 +57,21 @@ read_appearance() {
       printf "%.0f", v
     }')
   fi
+
+  # Hyprland's window opacity is its closest thing to Vivaldi's transparency, so
+  # mirror it as the theme alpha. Only an opacity the user set counts:
+  # Hyprland's default of 1.0 says nothing about how transparent the theme
+  # should look.
+  opacity_option=$(hyprctl -j getoption decoration:active_opacity 2>/dev/null || true)
+  opacity=$(jq -r '.float // empty' <<<"$opacity_option" || true)
+  opacity_set=$(jq -r '.set // empty' <<<"$opacity_option" || true)
+  if [[ $opacity_set == "true" && $opacity =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    alpha=$(awk -v a="$opacity" 'BEGIN {
+      if (a < 0) a = 0
+      if (a > 1) a = 1
+      printf "%.2f", a
+    }')
+  fi
 }
 
 read_appearance
@@ -68,13 +86,15 @@ if [[ -w $JSON ]]; then
     --arg bg "$bg" --arg fg "$fg" --arg accent "$accent" --arg lighter_bg "$lighter_bg" \
     --argjson radius "$radius" --argjson dimBlurred "$dim_blurred" \
     --argjson blur "$blur" --argjson contrast "$contrast" \
+    --argjson alpha "$alpha" \
     '{
       schemaVersion: 1,
       colors: { bg: $bg, fg: $fg, accent: $accent, lighterBg: $lighter_bg },
       radius: $radius,
       dimBlurred: $dimBlurred,
       blur: $blur,
-      contrast: $contrast
+      contrast: $contrast,
+      alpha: $alpha
     }' > "$JSON"
 fi
 
