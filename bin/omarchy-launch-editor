@@ -31,6 +31,11 @@ nvim | vim | nano | micro | hx | helix | fresh)
     exec omarchy-launch-tui "$editor" -- "$@"
   fi
   ;;
+emacs)
+  # A new frame on the Emacs daemon that omarchy-install-emacs enables, so it
+  # opens instantly and shares buffers; a standalone Emacs if no daemon runs
+  exec setsid uwsm-app -- emacsclient --alternate-editor=emacs --create-frame "$@"
+  ;;
 *)
   exec setsid uwsm-app -- "$editor" -- "$@"
   ;;
