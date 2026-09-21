@@ -297,7 +297,6 @@ Item {
   property bool syncRunning: false
   property bool syncRequestedWhileRunning: false
   property string syncStatusText: ""
-  property double aggregateUpdatedAtMs: aggregateData && aggregateData.updatedAtMs ? Number(aggregateData.updatedAtMs) : 0
 
   onSyncEnabledChanged: syncSettingsChanged()
   onSyncDirChanged: syncSettingsChanged()

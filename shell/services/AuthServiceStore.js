@@ -38,8 +38,3 @@ function destroy(id) {
   if (service && typeof service.destroy === "function") service.destroy()
   delete services[key]
 }
-
-function destroyAll() {
-  var keys = ids()
-  for (var i = 0; i < keys.length; i++) destroy(keys[i])
-}

@@ -56,10 +56,6 @@ Item {
     passwordInput.forceActiveFocus()
   }
 
-  function clearPassword() {
-    passwordTextEdited("")
-  }
-
   function syncPasswordText() {
     if (passwordInput.text === passwordText) return
     syncingPasswordText = true

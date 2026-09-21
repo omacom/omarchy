@@ -254,17 +254,6 @@ Panel {
     selectedIndex = -1
   }
 
-  function moveSection(delta) {
-    var sections = visibleSections
-    if (sections.length === 0) return
-    var current = sections.indexOf(focusSection)
-    if (current < 0) current = delta > 0 ? -1 : 0
-    var next = (current + delta + sections.length) % sections.length
-    focusSection = sections[next]
-    selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
-    cursorActive = true
-  }
-
   // Adjust the slider associated with the focused section. Output and
   // input sliders are real volume controls; on stream rows h/l adjusts
   // that stream's volume (so keyboard parity with the inline slider).
@@ -409,11 +398,6 @@ Panel {
     if (v >= 0.34) return ""
     if (v > 0) return ""
     return ""
-  }
-
-  function inputIcon() {
-    if (!source || !source.audio) return "󰍭"
-    return inputMuted ? "󰍭" : "󰍬"
   }
 
   // Playful mood-name for a given output volume. Mirrors the brightness
