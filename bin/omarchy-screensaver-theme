@@ -58,8 +58,11 @@ screensaver_theme_from_colors() {
   background=$(toml_hex "$file" darker_background || toml_hex "$file" dark_background || toml_hex "$file" background) || return 1
   lit=$(toml_hex "$file" accent) || return 1
 
-  dim=$(mix_hex "$lit" "$background" 25)
-  mid=$(mix_hex "$lit" "$background" 50)
+  # 25% then 50% toward the background. On a dark theme the word keeps
+  # darkening through mid into dim. On a light theme that background is
+  # the paper, so the lower bands fade back toward it.
+  mid=$(mix_hex "$lit" "$background" 25)
+  dim=$(mix_hex "$lit" "$background" 50)
 
   if [[ $mode == "light" ]]; then
     toward=$background
