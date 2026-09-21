@@ -21,9 +21,10 @@ radius=-1
 dim_blurred=false
 blur=0
 contrast=0
-# Vivaldi stores its theme transparency as alpha (1.0 is opaque), so keep
-# Vivaldi's own default until Hyprland is asked for something else.
-alpha=0.92
+# Vivaldi stores its theme transparency as alpha (1.0 is opaque). Left empty
+# when Hyprland has no window opacity configured, so the theme keeps the
+# transparency the user chose in Vivaldi.
+alpha=
 
 read_appearance() {
   local rounding dim blur_enabled blur_size blur_contrast opacity opacity_option opacity_set
@@ -93,7 +94,7 @@ if [[ -w $JSON ]]; then
     --arg bg "$bg" --arg fg "$fg" --arg accent "$accent" --arg lighter_bg "$lighter_bg" \
     --argjson radius "$radius" --argjson dimBlurred "$dim_blurred" \
     --argjson blur "$blur" --argjson contrast "$contrast" \
-    --argjson alpha "$alpha" \
+    --argjson alpha "${alpha:-null}" \
     '{
       schemaVersion: 1,
       colors: { bg: $bg, fg: $fg, accent: $accent, lighterBg: $lighter_bg },

@@ -15,11 +15,6 @@ cat >"$FAKE_BIN/pgrep" <<'EOF'
 exit 1
 EOF
 
-cat >"$FAKE_BIN/omarchy-theme-current" <<'EOF'
-#!/bin/bash
-echo "Catppuccin"
-EOF
-
 cat >"$FAKE_BIN/omarchy-theme-color" <<'EOF'
 #!/bin/bash
 case $1 in
@@ -32,22 +27,41 @@ EOF
 
 chmod +x "$FAKE_BIN"/*
 
-jq -n '{
-  schemaVersion: 1,
-  colors: {bg: "#1e1e2e", fg: "#cdd6f4", accent: "#89b4fa", lighterBg: "#313244"},
-  radius: -1,
-  dimBlurred: true,
-  blur: 8,
-  contrast: -1,
-  alpha: 0.4
-}' >"$CHANNEL"
+# The channel carries an alpha only when Hyprland has a window opacity set.
+write_channel() {
+  jq -n --argjson alpha "${1:-null}" '{
+    schemaVersion: 1,
+    colors: {bg: "#1e1e2e", fg: "#cdd6f4", accent: "#89b4fa", lighterBg: "#313244"},
+    radius: -1,
+    dimBlurred: true,
+    blur: 8,
+    contrast: -1,
+    alpha: $alpha
+  }' >"$CHANNEL"
+}
 
 prefs="$PREFS_DIR/Preferences"
 jq -n '{
   vivaldi: {
     themes: {
       current: "Vivaldi5",
-      user: [{id: "v5", name: "Vivaldi5", colorBg: "#ffffff"}]
+      user: [
+        {id: "v5", name: "Vivaldi5", colorBg: "#ffffff"},
+        {
+          id: "omarchy-theme",
+          name: "Omarchy",
+          colorBg: "#000000",
+          colorPosition: "tabbar",
+          accentSaturationLimit: 0.6,
+          accentOnWindow: false,
+          transparencyTabBar: true,
+          transparencyTabs: false,
+          simpleScrollbar: false,
+          backgroundImage: "/custom.png",
+          backgroundPosition: "center",
+          alpha: 0.75
+        }
+      ]
     }
   }
 }' >"$prefs"
@@ -58,48 +72,44 @@ run_theme_set() {
     bash "$ROOT/bin/omarchy-theme-set-vivaldi"
 }
 
-count_omarchy_themes() {
-  jq '[.vivaldi.themes.user[]
-       | select((.name // "") | startswith("Omarchy"))] | length' "$prefs"
-}
-
+write_channel
 run_theme_set
 
 [[ $(stat -c '%a' "$prefs") == "600" ]] || fail "native theme keeps the profile file mode"
 
-theme_id=$(jq -r '.vivaldi.theme.schedule.o_s.light' "$prefs")
-[[ -n $theme_id && $theme_id != "null" ]] || fail "native theme activates the Omarchy theme"
-
-jq -e --arg id "$theme_id" \
-  '.vivaldi.theme.schedule.o_s == {light: $id, dark: $id}' "$prefs" >/dev/null ||
+jq -e '.vivaldi.theme.schedule.o_s == {light: "omarchy-theme", dark: "omarchy-theme"}' \
+  "$prefs" >/dev/null ||
   fail "native theme points both schedule slots at the Omarchy theme"
 
-jq -e --arg id "$theme_id" \
-  '.vivaldi.themes.user[] | select(.id == $id)
-   | .colorBg == "#1e1e2e" and .colorFg == "#cdd6f4"
-     and .colorAccentBg == "#313244" and .colorHighlightBg == "#89b4fa"' \
+jq -e '[.vivaldi.themes.user[] | select((.name // "") | startswith("Omarchy"))] | length == 1' \
   "$prefs" >/dev/null ||
-  fail "native theme applies the current colors"
+  fail "native theme reuses the existing Omarchy theme"
 
-jq -e --arg id "$theme_id" \
-  '.vivaldi.themes.user[] | select(.id == $id)
-   | .radius == -1 and .blur == 8 and .contrast == -1
-     and .dimBlurred == true and .alpha == 0.4' \
+jq -e '.vivaldi.themes.user[] | select(.id == "omarchy-theme")
+  | .name == "Omarchy" and .colorBg == "#1e1e2e" and .colorFg == "#cdd6f4"
+    and .colorAccentBg == "#313244" and .colorHighlightBg == "#89b4fa"
+    and .radius == -1 and .blur == 8 and .contrast == -1
+    and .dimBlurred == true and .accentFromPage == false
+    and .preferSystemAccent == false' "$prefs" >/dev/null ||
+  fail "native theme applies the managed fields"
+
+jq -e '.vivaldi.themes.user[] | select(.id == "omarchy-theme")
+  | .colorPosition == "tabbar" and .accentSaturationLimit == 0.6
+    and .accentOnWindow == false and .transparencyTabBar == true
+    and .transparencyTabs == false and .simpleScrollbar == false
+    and .backgroundImage == "/custom.png" and .backgroundPosition == "center"' \
   "$prefs" >/dev/null ||
-  fail "native theme applies the Hyprland appearance"
+  fail "native theme preserves the user's Vivaldi theme settings"
 
-grep -q 'Omarchy Catppuccin' "$prefs" || fail "native theme names the theme after the current one"
+jq -e '.vivaldi.themes.user[] | select(.id == "omarchy-theme") | .alpha == 0.75' \
+  "$prefs" >/dev/null ||
+  fail "native theme keeps the user's transparency when Hyprland sets none"
 
+write_channel 0.4
 run_theme_set
-[[ $(count_omarchy_themes) == "1" ]] || fail "native theme reuses the existing Omarchy theme"
-
-# A channel written before it carried transparency keeps Vivaldi's own default.
-jq 'del(.alpha)' "$CHANNEL" >"$CHANNEL.next" && mv "$CHANNEL.next" "$CHANNEL"
-run_theme_set
-jq -e --arg id "$theme_id" \
-  '.vivaldi.themes.user[] | select(.id == $id) | .alpha == 0.92' \
+jq -e '.vivaldi.themes.user[] | select(.id == "omarchy-theme") | .alpha == 0.4' \
   "$prefs" >/dev/null ||
-  fail "native theme falls back to Vivaldi's default transparency"
+  fail "native theme mirrors a Hyprland window opacity"
 
 # A theme set while Vivaldi runs would be discarded on exit, so it must not be
 # written then.

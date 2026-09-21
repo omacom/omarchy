@@ -24,8 +24,9 @@
       return false;
     }
 
-    // Apply the full Omarchy theme (colors plus Hyprland-derived appearance)
-    // from the channel so updates land in the running browser.
+    // Apply the fields Omarchy owns from the channel so updates land in the
+    // running browser. Everything else the user set in Vivaldi's theme editor
+    // is left alone.
     const appearance = {
       accentFromPage: false,
       colorBg: bg,
@@ -33,23 +34,25 @@
       colorAccentBg: lighterBg,
       colorHighlightBg: accent,
       colorWindowBg: bg,
+      name: OMARCHY_THEME,
+      preferSystemAccent: false,
       radius: radius,
       dimBlurred: dimBlurred,
       blur: blur,
-      contrast: contrast,
-      alpha: alpha
+      contrast: contrast
     };
+    if (alpha !== null) appearance.alpha = alpha;
     const baseTheme = {
       engineVersion: 1,
       version: 1,
       url: '',
       accentOnWindow: true,
       accentSaturationLimit: 1,
+      alpha: 0.92,
       backgroundImage: '',
       backgroundPosition: 'stretch',
       backgroundSource: '',
       colorPosition: 'frame',
-      preferSystemAccent: false,
       simpleScrollbar: true,
       transparencyTabBar: false,
       transparencyTabs: true
@@ -133,10 +136,12 @@
       const dimBlurred = data.dimBlurred === true;
       const blur = Math.max(0, Math.min(10, Math.round(Number(data.blur) || 0)));
       const contrast = Math.max(-10, Math.min(20, Math.round(Number(data.contrast) || 0)));
-      // Vivaldi's theme alpha is its transparency setting (1 - alpha). It comes
-      // from Hyprland's window opacity; channels written before it carried that
-      // field keep Vivaldi's own default.
-      const alpha = Math.max(0, Math.min(1, Number(data.alpha) || 0.92));
+      // Vivaldi's theme alpha is its transparency setting. It comes from
+      // Hyprland's window opacity; with none configured, leave it untouched so
+      // the theme keeps the transparency chosen in Vivaldi.
+      const hasAlpha = data.alpha !== null && data.alpha !== undefined && data.alpha !== '';
+      const rawAlpha = hasAlpha ? Number(data.alpha) : NaN;
+      const alpha = isFinite(rawAlpha) ? Math.max(0, Math.min(1, rawAlpha)) : null;
       if (text !== cssSynced) {
         applyThemeCss(bg, fg, accent, lighterBg, radius);
         cssSynced = text;
