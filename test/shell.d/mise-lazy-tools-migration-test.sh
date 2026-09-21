@@ -100,3 +100,38 @@ bash -euo pipefail "$ROOT/migrations/1788262200.sh" >/dev/null
 [[ -L $test_home/.local/bin/cursor-agent ]] || fail "migration preserves a user-owned Cursor symlink"
 [[ $("$test_home/.local/bin/muse") == user-muse ]] || fail "migration preserves a user-owned Muse command"
 pass "migration preserves user-owned Cursor and Muse files"
+
+# Matching install/exec lines do not prove ownership of the rest of a file.
+for customization in environment comment before after changed-bin trailing-blank; do
+  write_wrapper codex codex
+  wrapper="$test_home/.local/bin/codex"
+  case $customization in
+  environment) sed -i '2i export CODEX_HOME="$HOME/custom-codex"' "$wrapper" ;;
+  comment) sed -i '2i # My customized launcher' "$wrapper" ;;
+  before) sed -i '2i echo preparing' "$wrapper" ;;
+  after) printf 'echo finished\n' >>"$wrapper" ;;
+  changed-bin) sed -i 's/-- "codex"/-- "my-codex"/' "$wrapper" ;;
+  trailing-blank) printf '\n' >>"$wrapper" ;;
+  esac
+  cp "$wrapper" "$test_tmp/expected-wrapper"
+  bash -euo pipefail "$ROOT/migrations/1788262200.sh" >/dev/null
+  cmp -s "$wrapper" "$test_tmp/expected-wrapper" || fail "migration preserves $customization customization byte-for-byte"
+done
+pass "migration preserves customized wrappers with matching mise lines"
+
+# Exercise the actual historical templates, including wrappers without --quiet.
+for form in cooldown-export bail-on-failure mise-exec bare-exec; do
+  case $form in
+  cooldown-export)
+    printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g "codex" || exit 1\nexec mise x "codex" -- "codex" "$@"\n' ;;
+  bail-on-failure)
+    printf '#!/bin/bash\nmise use -g "codex" || exit 1\nexec mise x "codex" -- "codex" "$@"\n' ;;
+  mise-exec)
+    printf '#!/bin/bash\nmise use -g "codex"\nexec mise exec "codex" -- "codex" "$@"\n' ;;
+  bare-exec)
+    printf '#!/bin/bash\nmise use -g "codex"\nexec "codex" "$@"\n' ;;
+  esac >"$test_home/.local/bin/codex"
+  bash -euo pipefail "$ROOT/migrations/1788262200.sh" >/dev/null
+  [[ ! -e $test_home/.local/bin/codex ]] || fail "migration removes the unmodified $form wrapper"
+done
+pass "migration removes all shipped legacy wrapper templates"

@@ -1,14 +1,36 @@
 echo "Switch default mise tools to native lazy shims"
 
+legacy_wrapper_template() {
+  local form=$1 package=$2 bin=$3
+
+  case $form in
+  quiet)
+    printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$package" "$package" "$bin" ;;
+  cooldown-export)
+    printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$package" "$package" "$bin" ;;
+  bail-on-failure)
+    printf '#!/bin/bash\nmise use -g "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$package" "$package" "$bin" ;;
+  mise-exec)
+    printf '#!/bin/bash\nmise use -g "%s"\nexec mise exec "%s" -- "%s" "$@"\n' "$package" "$package" "$bin" ;;
+  bare-exec)
+    printf '#!/bin/bash\nmise use -g "%s"\nexec "%s" "$@"\n' "$package" "$bin" ;;
+  esac
+}
+
 legacy_wrapper() {
-  local command=$1 package=$2 wrapper="$HOME/.local/bin/$1"
+  local command=$1 package=$2 wrapper="$HOME/.local/bin/$1" form
 
   [[ -f $wrapper && ! -L $wrapper && -r $wrapper ]] || return 1
   (($(stat -c%s "$wrapper") <= 1024)) || return 1
-  local escaped_package
-  escaped_package=$(printf '%s' "$package" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
-  grep -Eqx "mise use -g( --quiet)? \"$escaped_package\"( \\|\\| exit 1)?" "$wrapper" || return 1
-  grep -Eqx "exec (mise (x|exec) \"$escaped_package\" -- )?\"[^\"]+\" \"\\\$@\"" "$wrapper"
+
+  # Match complete shipped templates, including the binary name and final
+  # newline. Matching only the mise lines would discard user customizations.
+  for form in quiet cooldown-export bail-on-failure mise-exec bare-exec; do
+    if cmp -s "$wrapper" <(legacy_wrapper_template "$form" "$package" "$command"); then
+      return 0
+    fi
+  done
+  return 1
 }
 
 remove_legacy_wrapper() {
