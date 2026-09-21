@@ -104,6 +104,15 @@
       #browser.auto-hide:not(.unified-ui) {
         border-radius: 0 !important;
       }`;
+    // Unified mode paints the web content's frame with an inverse-rounded
+    // mask whose slice width follows --radius; at zero the slice collapses
+    // and that decorative layer ends up covering the page. With rounding
+    // disabled there are no corners to mask, so drop the layer too.
+    const unifiedFrame = radius > -1 ? '' : `
+      #browser.unified-ui #webpage-stack:not(:has(.tiled.visible, .internal.visible)):after,
+      #browser.unified-ui #webpage-stack .webpageview.tiled.visible:not(.internal):after {
+        content: none !important;
+      }`;
     style.textContent = `
       #browser {
         --colorBg: ${bg} !important;
@@ -123,7 +132,7 @@
         --radiusCap: ${Math.min(safeRadius, 8)}px !important;
         --radiusRound: ${radius > -1 ? '100px' : 0} !important;
         --radiusWindow: ${radius > -1 ? '6px' : 0} !important;
-      }${windowFrame}`;
+      }${windowFrame}${unifiedFrame}`;
   };
 
   const refresh = async () => {
