@@ -111,6 +111,17 @@ jq -e '.vivaldi.themes.user[] | select(.id == "omarchy-theme") | .alpha == 0.4' 
   "$prefs" >/dev/null ||
   fail "native theme mirrors a Hyprland window opacity"
 
+# A brand new theme gets the export defaults, including a coloring mode
+# Vivaldi actually recognizes.
+jq '.vivaldi.themes.user |= map(select(.id != "omarchy-theme"))' "$prefs" >"$prefs.next" &&
+  mv "$prefs.next" "$prefs"
+write_channel
+run_theme_set
+jq -e '.vivaldi.themes.user[] | select(.name == "Omarchy")
+  | .colorPosition == "tabbar" and .transparencyTabBar == true
+    and .alpha == 0.92 and .colorBg == "#1e1e2e" and .radius == -1' "$prefs" >/dev/null ||
+  fail "native theme creates a new theme with valid defaults"
+
 # A theme set while Vivaldi runs would be discarded on exit, so it must not be
 # written then.
 cat >"$FAKE_BIN/pgrep" <<'EOF'
