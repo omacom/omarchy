@@ -27,20 +27,25 @@ if [[ -z $background || -z $foreground || -z $accent || -z $lighter_background ]
 fi
 
 # The Hyprland-derived appearance travels in the live channel, so read it from
-# there when it exists and fall back to Vivaldi's own defaults otherwise.
+# there when it exists and fall back to Vivaldi's own defaults otherwise. The
+# alpha default is Vivaldi's own, for channels written before Hyprland window
+# opacity was mirrored.
 channel=${VIVALDI_OMARCHY_JSON:-/opt/vivaldi/resources/vivaldi/style/omarchy.json}
 radius=8
 dim_blurred=false
 blur=0
 contrast=0
+alpha=0.92
 if [[ -r $channel ]]; then
-  IFS=$'\t' read -r radius dim_blurred blur contrast \
-    <<<"$(jq -r '[.radius // 8, .dimBlurred // false, .blur // 0, .contrast // 0] | @tsv' \
+  IFS=$'\t' read -r radius dim_blurred blur contrast alpha \
+    <<<"$(jq -r '[.radius // 8, .dimBlurred // false, .blur // 0,
+                 .contrast // 0, .alpha // 0.92] | @tsv' \
       "$channel" 2>/dev/null)"
   [[ $radius =~ ^-?[0-9]+$ ]] || radius=8
   [[ $dim_blurred == true ]] || dim_blurred=false
   [[ $blur =~ ^[0-9]+$ ]] || blur=0
   [[ $contrast =~ ^-?[0-9]+$ ]] || contrast=0
+  [[ $alpha =~ ^[0-9]+(\.[0-9]+)?$ ]] || alpha=0.92
 fi
 
 failed=0
@@ -52,6 +57,7 @@ for preferences in "$HOME"/.config/vivaldi/*/Preferences; do
     ACCENT="$accent" LIGHTER_BACKGROUND="$lighter_background" \
     CHANNEL_RADIUS="$radius" CHANNEL_DIM_BLURRED="$dim_blurred" \
     CHANNEL_BLUR="$blur" CHANNEL_CONTRAST="$contrast" \
+    CHANNEL_ALPHA="$alpha" \
     python3 - "$preferences" <<'PYTHON' || failed=1
 import io
 import json
@@ -72,7 +78,7 @@ environment = os.environ
 theme = {
     "accentOnWindow": True,
     "accentSaturationLimit": 1,
-    "alpha": 0.92,
+    "alpha": max(0.0, min(1.0, float(environment["CHANNEL_ALPHA"]))),
     "backgroundImage": "",
     "backgroundPosition": "stretch",
     "backgroundSource": "",

@@ -38,7 +38,7 @@ They don't get the Chromium extensions above, and they're not themed by Omarchy,
 
 [Vivaldi](https://vivaldi.com/) comes from the Arch repositories, so it installs like Chromium and Firefox rather than through the AUR. Besides the extensions above and the 1Password allowance, Omarchy themes it — but not the way it themes the other Chromium browsers.
 
-Vivaldi ignores the Chromium theme policy the rest of them are colored with, so Omarchy writes a Vivaldi theme of its own into the profile instead. Theme switches update Vivaldi live while it's open; switch with Vivaldi closed and the new colors show up the next time you open it. Along with the Omarchy colors, Omarchy mirrors your Hyprland corner rounding, blur, contrast, and inactive-window dimming into the Vivaldi theme.
+Vivaldi ignores the Chromium theme policy the rest of them are colored with, so Omarchy writes a Vivaldi theme of its own into the profile instead. Theme switches update Vivaldi live while it's open; switch with Vivaldi closed and the new colors show up the next time you open it. Along with the Omarchy colors, Omarchy mirrors your Hyprland corner rounding, blur, contrast, inactive-window dimming, and any window opacity you set — which lands as the theme's transparency — into the Vivaldi theme.
 
 A Vivaldi update replaces the files the live theme sync hooks into; the next `omarchy update` re-applies it automatically.
 

@@ -15,7 +15,7 @@
   };
 
   const syncNativeTheme = async (
-    bg, fg, accent, lighterBg, radius, dimBlurred, blur, contrast
+    bg, fg, accent, lighterBg, radius, dimBlurred, blur, contrast, alpha
   ) => {
     const prefs = window.vivaldi && window.vivaldi.prefs;
     if (!prefs || typeof prefs.get !== 'function' || typeof prefs.set !== 'function') {
@@ -36,7 +36,8 @@
       radius: radius,
       dimBlurred: dimBlurred,
       blur: blur,
-      contrast: contrast
+      contrast: contrast,
+      alpha: alpha
     };
     const baseTheme = {
       engineVersion: 1,
@@ -44,7 +45,6 @@
       url: '',
       accentOnWindow: true,
       accentSaturationLimit: 1,
-      alpha: 0.92,
       backgroundImage: '',
       backgroundPosition: 'stretch',
       backgroundSource: '',
@@ -133,12 +133,16 @@
       const dimBlurred = data.dimBlurred === true;
       const blur = Math.max(0, Math.min(10, Math.round(Number(data.blur) || 0)));
       const contrast = Math.max(-10, Math.min(20, Math.round(Number(data.contrast) || 0)));
+      // Vivaldi's theme alpha is its transparency setting (1 - alpha). It comes
+      // from Hyprland's window opacity; channels written before it carried that
+      // field keep Vivaldi's own default.
+      const alpha = Math.max(0, Math.min(1, Number(data.alpha) || 0.92));
       if (text !== cssSynced) {
         applyThemeCss(bg, fg, accent, lighterBg, radius);
         cssSynced = text;
       }
       if (text !== prefsSynced) {
-        syncNativeTheme(bg, fg, accent, lighterBg, radius, dimBlurred, blur, contrast)
+        syncNativeTheme(bg, fg, accent, lighterBg, radius, dimBlurred, blur, contrast, alpha)
           .then(function (ok) { if (ok) prefsSynced = text; })
           .catch(function () {});
       }
