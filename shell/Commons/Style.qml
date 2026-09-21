@@ -159,18 +159,44 @@ QtObject {
   function selectionFillFor(foreground, accent, urgent) { return Util.alpha(selectionStateColor(foreground, accent, urgent), selectionFillAlpha) }
 
   function normalBorderFor(foreground, accent, urgent) { return Util.alpha(normalStateColor(foreground, accent, urgent), normalBorderAlpha) }
+  function hoverBorderFor(foreground, accent, urgent) { return Util.alpha(hoverStateColor(foreground, accent, urgent), hoverBorderAlpha) }
+  function selectedBorderFor(foreground, accent, urgent) { return Util.alpha(selectedStateColor(foreground, accent, urgent), selectedBorderAlpha) }
+  function focusBorderFor(foreground, accent, urgent) { return Util.alpha(focusStateColor(foreground, accent, urgent), focusBorderAlpha) }
 
-  // Fill color for the focus > hover > normal priority chain used by form
-  // controls. Borders use Border.controlSpec.
+  // Composite helpers for the focus > hover > normal priority chain used by
+  // every form control surface (TextField, NumberField, Dropdown, Toggle,
+  // etc.). Saves callers from re-writing the three-line ternary ladder for
+  // fill / border / border-width on every Rectangle background.
   function controlFill(focused, hot, foreground, accent) {
     if (focused) return focusFillFor(foreground, accent)
     if (hot) return hoverFillFor(foreground, accent)
     return normalFillFor(foreground, accent)
   }
 
+  function controlBorder(focused, hot, foreground, accent) {
+    if (focused) return focusBorderFor(foreground, accent)
+    if (hot) return hoverBorderFor(foreground, accent)
+    return normalBorderFor(foreground, accent)
+  }
+
+  function controlBorderWidth(focused, hot) {
+    if (focused) return focusBorderWidth
+    if (hot) return hoverBorderWidth
+    return normalBorderWidth
+  }
+
   // Convenience colors resolved against the foundational palette.
+  readonly property color normalFill: normalFillFor(Color.foreground, Color.accent, Color.urgent)
   readonly property color hoverFill: hoverFillFor(Color.foreground, Color.accent, Color.urgent)
   readonly property color selectedFill: selectedFillFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color pressedFill: pressedFillFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color focusFillColor: focusFillFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color normalBorderColor: normalBorderFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color hoverBorderColor: hoverBorderFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color selectedBorderColor: selectedBorderFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color focusBorderColor: focusBorderFor(Color.foreground, Color.accent, Color.urgent)
+  readonly property color selectedAccentFill: Util.alpha(Color.accent, selectedFillAlpha)
+  readonly property color selectionFill: selectionFillFor(Color.foreground, Color.accent, Color.urgent)
 
   // ---------------------------------------------------------- spacing
   //
