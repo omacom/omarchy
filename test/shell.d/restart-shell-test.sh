@@ -165,6 +165,8 @@ cat >"$restart_bin/systemctl" <<'SH'
 
 if [[ ${1:-} == "--user" && ${2:-} == "show-environment" ]]; then
   printf 'OMARCHY_PATH=%s\n' "$OMARCHY_TEST_SESSION_PATH"
+elif [[ ${1:-} == "--user" && ${2:-} == "--machine" && ${4:-} == "show-environment" ]]; then
+  printf 'OMARCHY_PATH=%s\n' "$OMARCHY_TEST_SESSION_PATH"
 elif [[ ${1:-} == "--user" && ${2:-} == "try-restart" ]]; then
   exit 0
 else
@@ -265,3 +267,36 @@ restart_pid_one=""
 grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "dead-lock recovery re-acquires the session lock"
 grep -F "ipc -n -p $restart_root/shell call -- lock status" "$ipc_log" >/dev/null || fail "dead-lock recovery waits for the lock to become secure"
 pass "restart recovers a locked session whose lock client died"
+
+# A root update under sudo loses the caller's environment and root's own user
+# manager carries no OMARCHY_PATH, so restart must fall back to the manager of
+# the user who started the update (SUDO_USER) instead of failing the resume.
+sleep 30 &
+restart_pid_one=$!
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+rm -f "$restart_state.locked"
+: >"$restart_log"
+: >"$ipc_log"
+: >"$dispatch_log"
+
+PATH="$restart_bin:$PATH" \
+SUDO_USER=fake \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  env -u OMARCHY_PATH timeout 5 "$ROOT/bin/omarchy-restart-shell" ||
+  fail "restart under sudo resolves the shell from the caller's user manager"
+
+if kill -0 "$restart_pid_one" 2>/dev/null; then
+  fail "restart under sudo stops the stale shell instance"
+fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart under sudo leaves one fresh shell instance"
+grep -F "ipc -n -p $restart_root/shell call -- shell ping" "$ipc_log" >/dev/null ||
+  fail "restart under sudo checks readiness in the resolved checkout" "$(cat "$ipc_log")"
+pass "restart under sudo works when OMARCHY_PATH is only in the caller's user manager"
