@@ -31,7 +31,8 @@ cat >"$mock_bin/brightnessctl" <<'SH'
 #!/bin/bash
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
 if [[ $* == *" -m"* ]]; then
-  printf 'mock_backlight,backlight,40,40%%\n'
+  printf 'mock_backlight,backlight,%s,%s%%,%s\n' \
+    "${MOCK_CURRENT:-40}" "${MOCK_PERCENT:-40}" "${MOCK_MAX:-100}"
 fi
 SH
 
@@ -85,6 +86,26 @@ brightness=$(run_brightness --monitor eDP-1)
 grep -F 'brightnessctl -d mock_backlight -m' "$call_log" >/dev/null || \
   fail "internal monitor queries brightnessctl"
 pass "internal monitor uses the kernel backlight"
+
+MOCK_MAX=15 MOCK_CURRENT=1 run_brightness --no-osd --monitor eDP-1 1%
+grep -F 'brightnessctl -d mock_backlight set 1' "$call_log" >/dev/null || \
+  fail "low absolute brightness is clamped to the first hardware step"
+pass "low absolute brightness is clamped to the first hardware step"
+
+MOCK_MAX=15 MOCK_CURRENT=1 run_brightness --no-osd --monitor eDP-1 5%-
+grep -F 'brightnessctl -d mock_backlight set 1' "$call_log" >/dev/null || \
+  fail "low brightness decrements stay above hardware zero"
+pass "low brightness decrements stay above hardware zero"
+
+MOCK_MAX=15 MOCK_CURRENT=0 run_brightness --no-osd --monitor eDP-1 +1%
+grep -F 'brightnessctl -d mock_backlight set 1' "$call_log" >/dev/null || \
+  fail "brightness up recovers from hardware zero"
+pass "brightness up recovers from hardware zero"
+
+MOCK_MAX=15 MOCK_CURRENT=1 run_brightness --no-osd --monitor eDP-1 0%
+grep -F 'brightnessctl -d mock_backlight set 1' "$call_log" >/dev/null || \
+  fail "zero-percent brightness is clamped to the first hardware step"
+pass "zero-percent brightness is clamped to the first hardware step"
 
 brightness=$(FOCUSED_MONITOR=DP-1 run_brightness)
 [[ $brightness == "50" ]] || fail "brightness follows the focused external monitor" "actual: $brightness"
