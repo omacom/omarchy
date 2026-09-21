@@ -175,3 +175,65 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# --- --branch ---------------------------------------------------------------
+#
+# A real local repository with two branches, so the checkout is proved by what
+# lands on disk rather than by the arguments git was handed.
+
+branch_home="$TMPDIR/branch-home"
+mkdir -p "$branch_home/.config/omarchy/plugins"
+
+branch_remote="$TMPDIR/branch-remote"
+write_plugin "$branch_remote" "acme.branched" "Default branch"
+git -C "$branch_remote" init -q
+git -C "$branch_remote" add .
+git -C "$branch_remote" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
+git -C "$branch_remote" checkout -q -b dev
+write_plugin "$branch_remote" "acme.branched" "Dev branch"
+git -C "$branch_remote" add .
+git -C "$branch_remote" -c user.name=Test -c user.email=test@example.com commit -qm "Dev"
+git -C "$branch_remote" checkout -q -
+
+add_branch() {
+  HOME="$branch_home" OMARCHY_PATH="$ROOT" PATH="$stub_dir:$ROOT/bin:$PATH" \
+    omarchy-plugin-add "$@" 2>&1
+}
+
+installed="$branch_home/.config/omarchy/plugins/acme.branched"
+
+output=$(add_branch "$branch_remote" --branch dev --yes) ||
+  fail "plugin add clones a named branch" "$output"
+[[ $(jq -r .name "$installed/manifest.json") == "Dev branch" ]] ||
+  fail "plugin add checked out the default branch instead of dev" "$output"
+[[ $(git -C "$installed" rev-parse --abbrev-ref HEAD) == "dev" ]] ||
+  fail "plugin add left the checkout off the requested branch" "$output"
+pass "plugin add --branch checks out the named branch"
+
+rm -rf "$installed"
+output=$(add_branch "$branch_remote" --yes) ||
+  fail "plugin add still clones without --branch" "$output"
+[[ $(jq -r .name "$installed/manifest.json") == "Default branch" ]] ||
+  fail "plugin add without --branch stopped following the default branch" "$output"
+pass "plugin add without --branch still follows the default branch"
+
+rm -rf "$installed"
+output=$(add_branch "$branch_remote" --branch nope --yes) &&
+  fail "plugin add accepts a branch the remote does not have" "$output"
+grep -qF "at branch 'nope'" <<<"$output" ||
+  fail "plugin add names the branch it could not clone" "$output"
+[[ ! -e $installed ]] ||
+  fail "plugin add left a target behind after a failed branch clone"
+pass "plugin add reports a branch the remote does not have"
+
+output=$(add_branch "$branch_remote" --branch --yes) &&
+  fail "plugin add accepts an option-shaped branch name" "$output"
+grep -qF "names a git option, not a branch" <<<"$output" ||
+  fail "plugin add names the option-shaped branch rejection" "$output"
+pass "plugin add rejects an option-shaped branch name"
+
+output=$(add_branch "$branch_remote" --branch) &&
+  fail "plugin add accepts --branch with no value" "$output"
+grep -qF -- "--branch needs a branch name" <<<"$output" ||
+  fail "plugin add explains a missing --branch value" "$output"
+pass "plugin add requires a value for --branch"
