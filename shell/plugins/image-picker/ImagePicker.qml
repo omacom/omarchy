@@ -470,10 +470,11 @@ Item {
                 id: maskShape
                 anchors.fill: parent
                 visible: false
-                layer.enabled: true
+                layer.enabled: item.nearby
 
                 Shape {
                   anchors.fill: parent
+                  visible: item.nearby
                   antialiasing: true
                   preferredRendererType: Shape.CurveRenderer
                   ShapePath {
@@ -490,7 +491,7 @@ Item {
 
               Item {
                 anchors.fill: parent
-                layer.enabled: true
+                layer.enabled: item.nearby
                 layer.smooth: true
                 layer.effect: MultiEffect {
                   maskEnabled: true
@@ -520,6 +521,7 @@ Item {
 
               Shape {
                 anchors.fill: parent
+                visible: item.nearby
                 antialiasing: true
                 preferredRendererType: Shape.CurveRenderer
                 ShapePath {
