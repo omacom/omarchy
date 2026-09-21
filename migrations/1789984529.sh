@@ -13,8 +13,17 @@ else
   fi
 fi
 
+enroll_config=false
 for conf in "${configs[@]}"; do
-  if [[ -f $conf ]] && grep -qE '^[[:space:]]*default_entry:[[:space:]]*2([[:space:]]*|$)' "$conf"; then
-    sudo sed -i -E 's/^([[:space:]]*default_entry:[[:space:]]*)2([[:space:]]*|$)/\11\2/' "$conf"
+  if [[ -f $conf ]] && grep -qE '^[[:space:]]*default_entry:[[:space:]]*2[[:space:]]*$' "$conf"; then
+    sudo sed -i -E 's/^([[:space:]]*default_entry:[[:space:]]*)2([[:space:]]*)$/\11\2/' "$conf"
+  fi
+  # Also enroll an already-updated config so a failed enrollment is retried.
+  if [[ -f $conf ]] && grep -qE '^[[:space:]]*default_entry:[[:space:]]*1[[:space:]]*$' "$conf"; then
+    enroll_config=true
   fi
 done
+
+if [[ $enroll_config == "true" ]]; then
+  sudo limine-enroll-config
+fi
