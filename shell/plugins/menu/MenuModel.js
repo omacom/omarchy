@@ -30,6 +30,7 @@ function normalizeItem(id, raw) {
     title: value.title || "",
     target: value.target || "",
     description: value.description || "",
+    keybinding: value.keybinding || "",
     action: value.action || "",
     provider: value.provider || "",
     aliases: aliases,
@@ -84,7 +85,7 @@ function mergeMenuSources(defaultItems, userItems) {
   }
 
   if (!nextItems.root) {
-    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
+    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", keybinding: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
     nextOrder.unshift("root")
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
@@ -362,7 +363,33 @@ function searchScore(items, entry, query) {
   return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
 }
 
-function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
+function keybindingKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+}
+
+function keybindingHints(raw) {
+  var parsed
+  try { parsed = JSON.parse(String(raw || "[]")) } catch (e) { return ({}) }
+  if (!Array.isArray(parsed)) return ({})
+
+  var hints = ({})
+  for (var i = 0; i < parsed.length; i++) {
+    var record = parsed[i] || {}
+    var key = String(record.key || "").trim()
+    var description = keybindingKey(record.description)
+    if (!key || !description) continue
+    hints[description] = hints[description] ? hints[description] + "  ·  " + key : key
+  }
+  return hints
+}
+
+function keybindingHint(entry, hints) {
+  if (!entry) return ""
+  var description = entry.keybinding || entry.label
+  return (hints || ({}))[keybindingKey(description)] || ""
+}
+
+function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section, hints) {
   var target = entry.kind === "link" ? entry.target : entry.id
   return {
     itemId: entry.id,
@@ -378,6 +405,7 @@ function displayRow(items, itemOrder, checkedResults, disabledResults, entry, de
     path: pathFor(items, entry.id),
     childCount: (entry.kind === "menu" || entry.kind === "link") ? childCount(items, itemOrder, target) : 0,
     action: entry.action || "",
+    shortcut: keybindingHint(entry, hints),
     provider: entry.provider || "",
     score: score || 0,
     section: section || ""
@@ -519,6 +547,9 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
+    keybindingKey: keybindingKey,
+    keybindingHints: keybindingHints,
+    keybindingHint: keybindingHint,
     displayRow: displayRow
   }
 }

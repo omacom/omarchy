@@ -573,6 +573,25 @@ output_keybindings() {
   output_binding_records | cut -f1
 }
 
+output_keybindings_json() {
+  output_binding_records |
+    awk -F '\t' '
+      {
+        arrow = index($1, "→")
+        if (!arrow) next
+        key = substr($1, 1, arrow - 1)
+        description = substr($1, arrow + length("→"))
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", description)
+        if (key != "" && description != "") print key "\t" description
+      }
+    ' |
+    jq -Rsc '
+      split("\n")
+      | map(select(length > 0) | split("\t") | { key: .[0], description: .[1] })
+    '
+}
+
 trim() {
   local value="$1"
 
@@ -652,8 +671,10 @@ dispatch_binding() {
   esac
 }
 
-if [[ $1 == "--print" || $1 == "-p" ]]; then
+if [[ ${1:-} == "--print" || ${1:-} == "-p" ]]; then
   output_keybindings
+elif [[ ${1:-} == "--json" ]]; then
+  output_keybindings_json
 else
   records=$(output_binding_records)
   selection=$(cut -f1 <<<"$records" |
