@@ -84,6 +84,12 @@ assert(
 )
 assert(!/disconnect\(\s*(root\.)?networkForSsid\(/.test(panelSource), 'network never passes an unguarded networkForSsid() lookup to disconnect()')
 
+assert(/password: !root\.passwordRevealed/.test(panelSource), 'network masks the passphrase unless revealed')
+const cancelPrompt = panelSource.match(/function cancelPasswordPrompt\(\) \{[\s\S]*?\n {2}\}/)
+assert(cancelPrompt && /passwordRevealed = false/.test(cancelPrompt[0]), 'network masks the passphrase again when the prompt is cancelled')
+const openPrompt = panelSource.match(/function openPasswordPrompt\(ssid\) \{[\s\S]*?\n {2}\}/)
+assert(openPrompt && /passwordRevealed = false/.test(openPrompt[0]), 'network masks the passphrase again for a different network')
+
 assertDeepEqual(
   network.parseNetworkStatus('wifi\tCafe WiFi\t78\t5200\n'),
   { kind: 'wifi', label: 'Cafe WiFi', signalStrength: 78, frequency: '5200' },
