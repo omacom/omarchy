@@ -1,6 +1,6 @@
 # Keyboard, Mouse, Trackpad
 
-Hyprland lets you configure all your inputs in great detail. You can change the keyboard repeat to be supersonically fast or make the trackpad use natural scrolling. You change all of it in `~/.config/hypr/input.lua`, which you can also reach via _Setup > Input_ in the Omarchy menu (`Super + Space`). Anything you set there replaces Omarchy's defaults.
+Hyprland lets you configure all your inputs in great detail. You can change the keyboard repeat to be supersonically fast or make the trackpad use natural scrolling. You change all of it in `~/.config/hypr/input.lua`, which you can also reach via _Setup > Input > Edit configuration_ in the Omarchy menu (`Super + Space`). Anything you set there replaces Omarchy's defaults.
 
 Here's an example:
 
@@ -36,6 +36,10 @@ o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
 You can [see all the input options](https://wiki.hypr.land/Configuring/Basics/Variables/#input) on the Hyprland wiki for inputs.
+
+To make Caps Lock toggle capital letters, choose _Setup > Input > Caps Lock behaviour > Normal Caps Lock_. This leaves Right Alt / AltGr alone. Compose sequences will no longer start with Caps Lock; any Compose key you configured elsewhere remains available. Choose _Compose key_ to use Caps Lock for those sequences again.
+
+The menu preference survives reloads and restarts without editing your input file. It replaces Caps Lock-related keyboard options, including the both-Shift Caps Lock shortcut, while preserving other options such as layout switching. Choose _Use configuration_ to remove the preference and return to your input file and Omarchy's defaults. Per-device keyboard overrides still take precedence.
 
 By default, Omarchy uses CapsLock as the compose key for [quick emojis](07-hotkeys.md#quick-emojis) and [other completions](07-hotkeys.md#quick-completions). If you'd rather use CapsLock as Caps Lock, move the compose key elsewhere by changing `compose:caps` in `kb_options`. For example, this moves the compose key to Right Alt:
 

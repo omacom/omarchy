@@ -198,9 +198,13 @@ assertEqual(
   'menu hides Extra Themes until a theme cloned from git is there to update'
 )
 assert(
-  defaultById['setup.input'].action.includes('input.lua'),
-  'menu keeps Input as a direct config action'
+  !defaultById['setup.input'].action && defaultById['setup.input.edit'].action.includes('input.lua'),
+  'Input exposes a submenu while keeping the config editor accessible'
 )
+for (const mode of ['normal', 'compose', 'reset']) {
+  assertEqual(defaultById['setup.input.caps-lock.' + mode].action,
+    'omarchy-setup-caps-lock ' + mode, 'Caps Lock menu dispatches ' + mode)
+}
 assert(
   defaultById['setup.direct-boot'].action.includes('omarchy-setup-direct-boot'),
   'menu places Direct Boot directly under Setup'

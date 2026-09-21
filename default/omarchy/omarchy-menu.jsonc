@@ -125,7 +125,12 @@
   // Setup
   "setup.monitors": {"icon":"󰍹","label":"Monitors","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/monitors.lua\""},
   "setup.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
-  "setup.input": {"icon":"","label":"Input","when":"[[ -f ~/.config/hypr/input.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/input.lua\""},
+  "setup.input": {"icon":"","label":"Input","when":"[[ -f ~/.config/hypr/input.lua ]]"},
+  "setup.input.caps-lock": {"icon":"","label":"Caps Lock behaviour"},
+  "setup.input.caps-lock.normal": {"icon":"","label":"Normal Caps Lock","description":"Toggle capital letters; leaves Right Alt / AltGr unchanged","action":"omarchy-setup-caps-lock normal","checked":"grep -qx normal \"${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/caps-lock\" 2>/dev/null"},
+  "setup.input.caps-lock.compose": {"icon":"","label":"Compose key","description":"Use Caps Lock for emoji and special-character sequences","action":"omarchy-setup-caps-lock compose","checked":"grep -qx compose \"${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/caps-lock\" 2>/dev/null"},
+  "setup.input.caps-lock.reset": {"icon":"","label":"Use configuration","description":"Remove the menu override and use your input configuration","action":"omarchy-setup-caps-lock reset","checked":"[[ ! -f \"${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/caps-lock\" ]]"},
+  "setup.input.edit": {"icon":"","label":"Edit configuration","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/input.lua\""},
   "setup.network": {"icon":"󰛳","label":"Network","aliases":["network"]},
   "setup.network.dns": {"icon":"󰇖","label":"DNS","aliases":["dns"]},
   "setup.network.dns.dhcp": {"icon":"󰩟","label":"DHCP","checked":"[[ \"$(omarchy-dns)\" == \"DHCP\" ]]","action":"omarchy-dns DHCP"},
