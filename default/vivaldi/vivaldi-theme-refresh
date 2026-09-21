@@ -1,0 +1,86 @@
+#!/bin/bash
+set -eu
+
+omarchy-cmd-present vivaldi-stable || exit 0
+
+JSON=${VIVALDI_OMARCHY_JSON:-/opt/vivaldi/resources/vivaldi/style/omarchy.json}
+
+bg=$(omarchy-theme-color background)
+fg=$(omarchy-theme-color foreground)
+accent=$(omarchy-theme-color accent)
+lighter_bg=$(omarchy-theme-color lighter_background)
+[[ -n $bg && -n $fg && -n $accent && -n $lighter_bg ]] || exit 0
+
+# Capture the effective Hyprland look-and-feel. Hyprland is the source of truth
+# (merge of every sourced config plus runtime keyword changes), so read it
+# directly rather than parsing ~/.config/hypr/*.lua.
+# Vivaldi's corner rounding is disabled at -1 ("Disabled"); a radius of 0 would
+# still round controls (--radiusRounded stays 2px), so Hyprland's "no rounding"
+# (rounding 0, the Omarchy default) maps to -1 rather than 0.
+radius=-1
+dim_blurred=false
+blur=0
+contrast=0
+
+read_appearance() {
+  local rounding dim blur_size blur_contrast
+  rounding=$(hyprctl -j getoption decoration:rounding 2>/dev/null | jq -r '.int // empty' || true)
+  if [[ $rounding =~ ^[0-9]+$ ]]; then
+    if (( rounding == 0 )); then
+      radius=-1
+    else
+      # Vivaldi caps corner rounding at 14.
+      radius=$(( rounding > 14 ? 14 : rounding ))
+    fi
+  fi
+  dim=$(hyprctl -j getoption decoration:dim_inactive 2>/dev/null | jq -r '.bool // empty' || true)
+  if [[ $dim == "true" ]]; then
+    dim_blurred=true
+  fi
+  blur_size=$(hyprctl -j getoption decoration:blur:size 2>/dev/null | jq -r '.int // empty' || true)
+  if [[ $blur_size =~ ^[0-9]+$ ]]; then
+    # Vivaldi's blur intensity runs 0..10.
+    blur=$(( blur_size > 10 ? 10 : blur_size ))
+  fi
+  blur_contrast=$(hyprctl -j getoption decoration:blur:contrast 2>/dev/null |
+    jq -r '.float // empty' || true)
+  if [[ $blur_contrast =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+    # Hyprland contrast is centered on 1.0; Vivaldi's is centered on 0 with a
+    # -10..20 range.
+    contrast=$(awk -v c="$blur_contrast" 'BEGIN {
+      v = (c - 1) * 10
+      if (v < -10) v = -10
+      if (v > 20) v = 20
+      printf "%.0f", v
+    }')
+  fi
+}
+
+read_appearance
+
+# Live path: the loader injected into Vivaldi's UI polls this channel every
+# couple of seconds. The resources directory is root-owned, so the file is
+# created there by vivaldi-post-update but owned by the user; rewrite it in
+# place, because a non-root refresh cannot create a temp file or rename into
+# that directory. The loader tolerates a transient partial read and retries.
+if [[ -w $JSON ]]; then
+  jq -n \
+    --arg bg "$bg" --arg fg "$fg" --arg accent "$accent" --arg lighter_bg "$lighter_bg" \
+    --argjson radius "$radius" --argjson dimBlurred "$dim_blurred" \
+    --argjson blur "$blur" --argjson contrast "$contrast" \
+    '{
+      schemaVersion: 1,
+      colors: { bg: $bg, fg: $fg, accent: $accent, lighterBg: $lighter_bg },
+      radius: $radius,
+      dimBlurred: $dimBlurred,
+      blur: $blur,
+      contrast: $contrast
+    }' > "$JSON"
+fi
+
+# Reliable path: persist the same colors and appearance into Vivaldi's own
+# theme preferences, so the theme survives even when the live loader is
+# missing or Vivaldi was upgraded in a way that dropped it. The command skips
+# itself while Vivaldi runs, and reads the channel written above for the
+# Hyprland-derived appearance.
+omarchy-theme-set-vivaldi

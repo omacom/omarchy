@@ -24,6 +24,11 @@ if [[ -z $browser_exec ]]; then
   exit 1
 fi
 
+# this wont be needed when a style hook (theme and look) exists
+if [[ $browser_exec == *vivaldi* ]]; then
+  "$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh" || true
+fi
+
 # Only a private launch needs the browser's flag, and probing a Firefox-family
 # browser's --help starts the whole binary, so ordinary launches skip it and
 # leave their arguments as they are.
