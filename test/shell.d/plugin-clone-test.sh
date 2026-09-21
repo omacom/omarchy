@@ -191,3 +191,12 @@ fi
 [[ ! -e $TMPDIR/home/.config/omarchy/plugins/tester.osd ]] ||
   fail "failed clone discovery leaves a partial clone behind"
 pass "clone removes a partial clone when switching fails"
+
+HOME="$TMPDIR/home" USER=omarchy OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" OMARCHY_TEST_ROOT="$ROOT" \
+  omarchy-plugin-clone omarchy.clock >/dev/null
+[[ -d $TMPDIR/home/.config/omarchy/plugins/local.clock ]] ||
+  fail "clone under omarchy username does not use local prefix"
+grep -qx 'omarchy-plugin-enable local.clock' "$CALLS" ||
+  fail "clone under omarchy username does not enable local.clock"
+pass "clone under omarchy username uses local prefix to avoid namespace collision"
