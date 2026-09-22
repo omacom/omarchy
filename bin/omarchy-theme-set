@@ -50,24 +50,27 @@ copy_theme_files() (
 )
 
 STAGED_NAME_PATH=""
+THEME_SWAP_PATH=""
 THEME_SWAP_MODE=""
 
 cleanup_theme_staging() {
   local status=$?
   local restored=true
 
-  # Until the name is published, next-theme holds the previous working theme.
-  # Keep it recoverable if a filesystem failure prevents rolling back as well.
+  # Until the name is published, the unique swap directory holds the previous
+  # theme. Keep it outside reusable staging if rollback fails, so a later retry
+  # cannot delete the only remaining working copy.
   if [[ $THEME_SWAP_MODE == "exchange" ]]; then
-    mv --exchange --no-copy -T -- "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH" || restored=false
+    mv --exchange --no-copy -T -- "$THEME_SWAP_PATH" "$CURRENT_THEME_PATH" || restored=false
   elif [[ $THEME_SWAP_MODE == "install" ]]; then
-    mv --no-copy -T -- "$CURRENT_THEME_PATH" "$NEXT_THEME_PATH" || restored=false
+    mv --no-copy -T -- "$CURRENT_THEME_PATH" "$THEME_SWAP_PATH" || restored=false
   fi
 
   if [[ $restored == "true" ]]; then
     rm -rf -- "$NEXT_THEME_PATH"
+    [[ -z $THEME_SWAP_PATH ]] || rm -rf -- "$THEME_SWAP_PATH"
   else
-    echo "omarchy-theme-set: could not restore the previous theme; retained theme files at $NEXT_THEME_PATH and $CURRENT_THEME_PATH" >&2
+    echo "omarchy-theme-set: could not restore the previous theme; retained theme files at $THEME_SWAP_PATH and $CURRENT_THEME_PATH" >&2
   fi
   [[ -z $STAGED_NAME_PATH ]] || rm -f -- "$STAGED_NAME_PATH"
   return "$status"
@@ -77,13 +80,16 @@ publish_staged_theme() {
   STAGED_NAME_PATH=$(mktemp "${CURRENT_THEME_PATH%/*}/.theme.name.XXXXXX") || return 1
   printf '%s\n' "$THEME_NAME" >"$STAGED_NAME_PATH" || return 1
 
+  THEME_SWAP_PATH=$(mktemp -d "${CURRENT_THEME_PATH%/*}/.theme-swap.XXXXXX") || return 1
+  mv --no-copy -T -- "$NEXT_THEME_PATH" "$THEME_SWAP_PATH" || return 1
+
   if [[ -e $CURRENT_THEME_PATH || -L $CURRENT_THEME_PATH ]]; then
     # Both directories are siblings. Exchange them in one rename so a failed
     # replacement never leaves the current path missing or partly copied.
-    mv --exchange --no-copy -T -- "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH" || return 1
+    mv --exchange --no-copy -T -- "$THEME_SWAP_PATH" "$CURRENT_THEME_PATH" || return 1
     THEME_SWAP_MODE="exchange"
   else
-    mv --no-copy -T -- "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH" || return 1
+    mv --no-copy -T -- "$THEME_SWAP_PATH" "$CURRENT_THEME_PATH" || return 1
     THEME_SWAP_MODE="install"
   fi
 
