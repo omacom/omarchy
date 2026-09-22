@@ -151,9 +151,18 @@ every transcript still on disk.
 
 ## Optional Local AI
 
-The native Local AI view is adapted from [omarchy-local-ai](https://github.com/0xSero/omarchy-local-ai/tree/v5.3.7/ui) under its [MIT license](LocalAi.LICENSE).
+The native Local AI view is adapted from [omarchy-local-ai](https://github.com/0xSero/omarchy-local-ai/tree/v5.4.0/ui) under its [MIT license](LocalAi.LICENSE).
 
-Local AI adds model controls to this same panel. Install the optional [Local AI backend](https://github.com/0xSero/omarchy-local-ai) (tested with 5.3.7; requires compatible version 5), then enable the native view:
+Its row data (`LocalAi.js`), row component (`LocalAiRow.qml`) and token bars (`LocalAiTotal.qml`) are **generated** from that repository's own `ui/`, which is the single place the card is edited:
+
+```bash
+make native OMARCHY=<path to this checkout>          # write the three files
+make native-check OMARCHY=<path to this checkout>     # fail when they have drifted
+```
+
+`LocalAi.qml` (this view inside the Agents panel) and `manifest.json` are native and hand-written here, because this panel owns the header, provider tabs, theme and viewport.
+
+Local AI adds model controls to this same panel. Install the optional [Local AI backend](https://github.com/0xSero/omarchy-local-ai) (tested with 5.4.0; requires compatible version 5), then enable the native view:
 
 ```bash
 omarchy plugin add https://github.com/0xSero/omarchy-local-ai.git
@@ -162,6 +171,6 @@ omarchy bar set omarchy.agents localAi true --json
 
 The backend does not need a separate bar button. Do not run its custom Agents integration installer: this view is native. It discovers the controller from Omarchy's installed-plugin registry and uses its snapshot/command interface; no third-party QML is imported. With Local AI off, it makes no controller calls. A missing or incompatible backend shows an install/update message.
 
-Choose a GPU group, then a model. Occupied GPUs offer Swap and name the models being replaced; the backend downloads first, preserves unrelated deployments, and restores the previous model if replacement fails. Agent launch and project selection work from the overview and model details. Historical totals stay separate from deployment controls; missing temperature, utilization, VRAM or runtime statistics remain unavailable. These operations, telemetry adapters and agent configuration remain the backend's responsibility, outside Omarchy's source.
+Choose a GPU group, then a model. The GPU group's page is its models: the page title and breadcrumb already name the card, so no row repeats it. Each model is one row, and that row is the action — **Download & run**, **Load**, **Resume & load** or **Swap** — naming its size, with its context and capabilities beside it. A model whose load would replace a running one names the models being replaced in the row; the backend downloads first, preserves unrelated deployments, and restores the previous model if replacement fails. Agent launch and project selection work from the overview and model details. Historical totals stay separate from deployment controls; missing temperature, utilization, VRAM or runtime statistics remain unavailable. These operations, telemetry adapters and agent configuration remain the backend's responsibility, outside Omarchy's source.
 
 The existing Agents viewport owns scrolling. Breadcrumbs jump directly between views; Home/End and Page Up/Down scroll Local AI. Tab/Shift+Tab change providers, Escape returns or closes, and Ctrl+O edits the project folder. Copy opens a viewport-sized overlay until copied or closed. `omarchy-shell omarchy.agents local` opens the tab when enabled. Disable it with `omarchy bar set omarchy.agents localAi false --json`.

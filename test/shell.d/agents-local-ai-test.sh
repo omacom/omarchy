@@ -4,9 +4,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs'), vm = require('vm'), ui = {}
 vm.runInNewContext(fs.readFileSync(root + '/shell/plugins/agents/LocalAi.js', 'utf8').replace(/^\.pragma library\s*/, ''), ui)
-const backend = {version:'5.3.7', __sourceDir:'/home/user/a path/'}
+const backend = {version:'5.4.0', __sourceDir:'/home/user/a path/'}
 assertEqual(ui.backendCommand(backend), '/home/user/a path/bin/omarchy-local-ai', 'backend paths preserve spaces')
-for (const version of ['5.3.6', '4.9.9', '6.0.0', 'invalid'])
+for (const version of ['5.3.7', '4.9.9', '6.0.0', 'invalid'])
   assertEqual(ui.backendCommand({...backend, version}), '', 'unsupported backend ' + version + ' is not launched')
 assertEqual(ui.backendCommand(null), '', 'missing backend is not launched')
 assert(ui.backendCommand({...backend, version:'5.10.0'}), 'minor versions compare numerically')
@@ -15,12 +15,12 @@ const recipe = {id:'new', name:'New', hardwareId:'b70', cards:2, onDisk:true, ca
 const model = {recipeId:'old', name:'Old', state:'ready', keys:group.keys, cards:2, launchable:['pi','opencode','crush'], port:12434}
 const other = {...model, recipeId:'other', name:'Other', cards:1, keys:['nvidia:0']}
 const snap = {state:'ready', operation:{}, cards:[group], models:[model,other], recipes:[recipe], gpus:[], agents:{default:'pi', directory:'/home/user/Project'}, share:{available:true}}
-const context = {snap, view:'card', hw:'b70', count:2, pick:'new', localError:''}
+const context = {snap, view:'card', hw:'b70', count:2, localError:''}
 const catalog = ui.build(context)
-assert(catalog.rows.some(r => r.label === 'Swap model' && r.action === 'run:new:2'), 'occupied GPUs offer a swap')
+assert(catalog.rows.some(r => r.value === 'Swap' && r.action === 'run:new:2'), 'an occupied GPU offers the swap as the model row action')
 assertDeepEqual(ui.loadPlan(snap, recipe, group).replaces.map(m => m.recipeId), ['old'], 'swap preserves models on unrelated GPUs')
-assert(catalog.rows.some(r => r.label === 'Will replace' && r.value.includes('Old')), 'swap names the affected model')
-assert(ui.build({...context, snap:{...snap, models:[]}}).rows.some(r => r.label === 'Load model'), 'free GPUs offer a load')
+assert(catalog.rows.some(r => (r.detail || '').includes('replaces Old')), 'the swap row names the model it replaces')
+assert(ui.build({...context, snap:{...snap, models:[]}}).rows.some(r => r.value === 'Load' && r.action === 'run:new:2'), 'a free GPU offers the load as the model row action')
 const busy = ui.build({...context, browseWhileWorking:true, snap:{...snap, state:'starting'}})
 assert(busy.rows.every(r => !r.action.startsWith('run:') || r.disabled), 'deployment actions are disabled while busy')
 const home = ui.build({...context, view:'home'})
@@ -35,9 +35,9 @@ const empty = ui.build({...context, view:'home', snap:{state:'idle', operation:{
 assert(empty.rows.every(r => r.type !== 'usage'), 'empty history does not draw empty usage charts')
 const single = {...recipe, cards:1}, oneBusy = {...snap, recipes:[{...recipe, cards:1}], models:[{...model, recipeId:'new', keys:['intel:0'], cards:1}]}
 const another = ui.build({...context, snap:oneBusy, count:1})
-assert(another.rows.some(r => r.label === 'Load another instance'), 'running recipe remains available on a free GPU')
+assert(another.rows.some(r => r.value === 'Load another' && r.action === 'run:new:1'), 'a running recipe stays available on a free GPU')
 assertEqual(ui.loadPlan(oneBusy, single, group).gpu, 'intel:1', 'second instance selects the free GPU')
 assertEqual(ui.loadPlan(oneBusy, single, group).replaces.length, 0, 'second instance preserves the original')
 const full = {...oneBusy, models:[...oneBusy.models, {...model, recipeId:'new-instance-2', baseRecipeId:'new', keys:['intel:1']}]}
-assert(!ui.build({...context, snap:full, count:1}).rows.some(r => r.action === 'pick:new'), 'full GPUs do not offer another instance')
+assert(!ui.build({...context, snap:full, count:1}).rows.some(r => r.action.startsWith('run:new')), 'a group with no free card offers no launch for that recipe')
 JS

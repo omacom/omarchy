@@ -55,7 +55,6 @@ Item {
   readonly property string view: path[path.length - 1]
   property string hw: ""                // the card type open
   property int count: 1                 // how many of it
-  property string pick: ""              // the recipe picked
   property string slotSel: ""           // the running model open
   property bool launcherOpen: false
   property string launchPick: ""
@@ -70,7 +69,7 @@ Item {
   property var queue: []                // verbs to run after the current one exits
   property int elapsed: 0
   property int cursor: 0
-  readonly property var ui: Ui.build({ snap: snap, view: view, browseWhileWorking: browseWhileWorking, hw: hw, count: count, pick: pick, slotSel: slotSel, launcherOpen: launcherOpen, launchPick: launchPick, launchModelOpen: launchModelOpen, agentPick: agentPick, agentOpen: agentOpen, copied: copied, pending: pending, lastVerb: lastVerb, elapsed: elapsed, localError: localError })
+  readonly property var ui: Ui.build({ snap: snap, view: view, browseWhileWorking: browseWhileWorking, hw: hw, count: count, slotSel: slotSel, launcherOpen: launcherOpen, launchPick: launchPick, launchModelOpen: launchModelOpen, agentPick: agentPick, agentOpen: agentOpen, copied: copied, pending: pending, lastVerb: lastVerb, elapsed: elapsed, localError: localError })
   readonly property string tone: ui.tone
   readonly property bool working: Ui.isWorking({snap: snap, pending: pending, lastVerb: lastVerb})
   onWorkingChanged: { if (!working) browseWhileWorking = false; else if (!browseWhileWorking && lastVerb !== "share") Qt.callLater(home) }
@@ -111,9 +110,8 @@ Item {
     if (v === "choose-folder") root.editFolder()
     else if (v === "home") home()
     else if (v === "back") back()
-    else if (v === "gpu" || v === "card") { hw = s[1]; count = 1; pick = ""; home(); go("card") }
-    else if (v === "count") { count = parseInt(s[1], 10) || 1; pick = "" }
-    else if (v === "pick") { pick = pick === s[1] ? "" : s[1]; Qt.callLater(function() { var i = ui.rows.findIndex(function(r) { return r.child && (r.disabled || r.action.indexOf("run:") === 0) }); if (i >= 0) body.reveal(i) }) }
+    else if (v === "gpu" || v === "card") { hw = s[1]; count = 1; home(); go("card") }
+    else if (v === "count") { count = parseInt(s[1], 10) || 1 }
     else if (v === "model") { slotSel = s[1]; var model = Ui.modelById(snap, slotSel), group = model ? Ui.cardOfKeys(snap, model.keys) : null; home(); if (group) { hw = group.hardwareId; go("card") } go("model") }
     else if (v === "run") { var recipe = Ui.recipeById(snap, s[1]), g = recipe ? Ui.cardByHw(snap, recipe.hardwareId) : null; if (!g) return; var plan = Ui.loadPlan(snap, recipe, g); home(); act(["run", s[1], plan.gpu]) }
     else if (v === "run-again") { home(); act(["load"]) }
@@ -231,7 +229,7 @@ Item {
       else if (k === Qt.Key_Down || event.text === "j") root.moveCursor(1)
       else if (k === Qt.Key_Up || event.text === "k") root.moveCursor(-1)
       else if (k === Qt.Key_Return || k === Qt.Key_Enter) { if (r) root.activate(r.action) }
-      else if ((k === Qt.Key_Left || k === Qt.Key_Right) && root.view === "card") { var g = Ui.cardByHw(root.snap, root.hw), n = g ? g.keys.length : 1; root.count = Math.max(1, Math.min(n, root.count + (k === Qt.Key_Right ? 1 : -1))); root.pick = "" }
+      else if ((k === Qt.Key_Left || k === Qt.Key_Right) && root.view === "card") { var g = Ui.cardByHw(root.snap, root.hw), n = g ? g.keys.length : 1; root.count = Math.max(1, Math.min(n, root.count + (k === Qt.Key_Right ? 1 : -1))) }
       else if (k === Qt.Key_Backspace && root.view !== "home") root.back()
       else return
       event.accepted = true

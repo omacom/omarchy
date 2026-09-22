@@ -3,7 +3,7 @@
 // the header, the path, the rows and the footer; LocalAi.qml only draws what comes back and
 // turns row actions into controller verbs. Nothing here touches Qt.
 //
-// c: { snap, view:"home"|"card"|"model", hw, count, pick, slotSel, agentPick, agentOpen, copied,
+// c: { snap, view:"home"|"card"|"model", hw, count, slotSel, agentPick, agentOpen, copied,
 //      pending, lastVerb, elapsed, localError }
 // row: { type:"row"|"sec"|"stat"|"bar"|"status", label, value, action, kind:""|"primary"|"danger"|"dd",
 //        selected, disabled, urgent, cells:[{text,mark}], chips:[{text,off}], tabs:[{text,on,action}], stat:[{k,v,u}] }
@@ -19,6 +19,14 @@ function capabilities(caps) {
   return row("can", "", "", { chips: ["chat", "vision", "video", "tools", "reasoning"].map(function(x) {
     return { text: x + (caps[x] == null ? " ?" : ""), off: caps[x] !== true }
   }) })
+}
+
+// A model's capabilities on one line: what it passed, and "?" for what the recipe does
+// not say. A capability it reports false is left out rather than struck through.
+function capabilityWords(caps) {
+  caps = caps || {}
+  return ["chat", "vision", "video", "tools", "reasoning"].filter(function(x) { return caps[x] !== false })
+    .map(function(x) { return " · " + x + (caps[x] == null ? "?" : "") }).join("")
 }
 
 // the eyebrow word for what the controller is doing, and which load step that is
@@ -260,35 +268,37 @@ function buildView(c) {
       return o
     }
   }
-  // ---- card: one card type, how many, which recipe
+  // ---- card: one card type, how many, which recipe. The title and the breadcrumb
+  // already name the card, so no row repeats it; the per-card state moves into the
+  // subtitle. One row per model, and that row is the action.
   if (view === "card") {
     var g = cardByHw(snap, c.hw)
     {
       var free = freeKeys(snap, g), n = Math.max(1, Math.min(c.count || 1, g.keys.length))
-      o.tone = "idle"; o.eyebrow = "models"; o.title = g.name; o.sub = free.length + " of " + g.keys.length + " free · " + g.vramGb + " GB each"
+      // The row's cells sit under their own card, so they need no index; a subtitle has no
+      // such position, so each one names the card it belongs to.
+      var marks = cells(c, g, false).map(function(x, i) { return "#" + g.keys[i].split(":")[1] + " " + x.text }).join(" · ")
+      o.tone = "idle"; o.eyebrow = "models"; o.title = g.name; o.sub = free.length + " of " + g.keys.length + " free · " + g.vramGb + " GB each" + (marks ? " · " + marks : "")
       o.path.push({ n: g.name.toLowerCase(), v: "card", action: "card:" + g.hardwareId }); if (n > 1) o.path.push({ n: n + " cards", v: "card", action: "count:" + n })
       var running = groupModels(snap, g)
       if (running.length) {
         o.rows.push(sec("running models"))
         running.forEach(function(m) { o.rows.push(row(m.name, "Open ›", "model:" + m.recipeId, { detail: (m.state === "ready" ? "Ready" : m.state) + " · " + where(snap, m), compact: true })) })
       }
-      o.rows.push(row(g.count + "× " + g.name, free.length + " available", "", { cells: cells(c, g, false) }))
       if (g.keys.length > 1) { var tabs = []; for (var k = 1; k <= g.keys.length; k++) tabs.push({ text: k + "×", on: k === n, action: "count:" + k }); o.rows.push(row("GPUs to use", "", "", { tabs: tabs })) }
       var list = fits(snap, g, n).filter(function(r) { return !instances(snap, r.id).length || !loadPlan(snap, r, g).replaces.length })
       o.rows.push(sec("load a model · " + n + (n > 1 ? " GPUs" : " GPU") + " · " + list.length))
       if (!list.length) o.rows.push(row("models", "no unloaded models for " + n + " GPU" + (n > 1 ? "s" : "")))
       var dup = {}; list.forEach(function(r) { dup[r.name] = (dup[r.name] || 0) + 1 })   // two recipes of one model: say which
       list.forEach(function(r) {
-        var selected = c.pick === r.id
+        var plan = loadPlan(snap, r, g), swap = plan.replaces.length > 0
+        var verb = swap ? (r.onDisk ? "Swap" : "Download & swap")
+          : r.onDisk ? (instances(snap, r.id).length ? "Load another" : "Load")
+          : r.partialBytes > 0 ? "Resume & load" : "Download & run"
+        var detail = (r.ctxTokens > 0 ? kb(r.ctxTokens) + " ctx" : "context unknown") + capabilityWords(r.caps)
+          + (swap ? " · replaces " + plan.replaces.map(function(m) { return m.name }).join(", ") : "")
         o.rows.push(row(dup[r.name] > 1 && r.precision ? r.name + " · " + r.precision : r.name,
-          r.onDisk ? gb(r.sizeGb) + " · on disk" : r.partialBytes > 0 ? gb(r.partialBytes / 1073741824) + " of " + gb(r.sizeGb) + " · resume" : gb(r.sizeGb) + " · download",
-          "pick:" + r.id, { selected: selected, expanded: selected }))
-        if (!selected) return
-        o.rows.push(row("context", r.ctxTokens > 0 ? kb(r.ctxTokens) + " per request" : "unknown", "", { child: true, compact: true }))
-        o.rows.push(capabilities(r.caps))
-        var plan = loadPlan(snap, r, g)
-        if (plan.replaces.length) o.rows.push(row("Will replace", plan.replaces.map(function(m) { return m.name + " · " + where(snap, m) }).join(", "), "", { type: "text", child: true }))
-        o.rows.push(row(plan.replaces.length ? (r.onDisk ? "Swap model" : "Download & swap") : r.onDisk ? (instances(snap, r.id).length ? "Load another instance" : "Load model") : r.partialBytes > 0 ? "Resume download & load" : "Download & load", r.sizeGb > 0 ? gb(r.sizeGb) : "", "run:" + r.id + ":" + n, { kind: "primary", child: true, compact: true }))
+          verb + (r.sizeGb > 0 ? " · " + gb(r.sizeGb) : ""), "run:" + r.id + ":" + n, { detail: detail }))
       })
       return o
     }
@@ -313,9 +323,11 @@ function buildView(c) {
 }
 
 // The native view uses the installed controller; it never imports third-party QML.
+// The view is generated from the controller's own ui/, so it requires the release that
+// defines the row contract it renders: 5.4.0 and later.
 function backendCommand(manifest) {
   if (!manifest || !manifest.__sourceDir) return ""
   var v = String(manifest.version || "").match(/^(\d+)\.(\d+)\.(\d+)$/)
-  if (!v || Number(v[1]) !== 5 || Number(v[2]) < 3 || (Number(v[2]) === 3 && Number(v[3]) < 7)) return ""
+  if (!v || Number(v[1]) !== 5 || Number(v[2]) < 4) return ""
   return manifest.__sourceDir.replace(/\/$/, "") + "/bin/omarchy-local-ai"
 }
