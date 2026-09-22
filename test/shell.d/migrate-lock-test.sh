@@ -159,6 +159,23 @@ with Fixture() as fixture:
   check(fixture.calls() == ["first:100", "retry:100", "retry:200"], "retry completes the failed migration and the queue")
   print("ok - failed migration releases its lock and remains retryable")
 
+for termination_signal in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+  with Fixture() as fixture:
+    first = fixture.start("first")
+    fixture.started()
+    first.send_signal(termination_signal)
+    second = fixture.start("second")
+    wait_for(lambda: "Waiting for another Omarchy migration run" in fixture.output("second")
+             or "second:100" in fixture.calls(), "second runner attempts the interrupted queue")
+    check(fixture.calls() == ["first:100"], "runner-only termination cannot overlap an active migration")
+    check(first.poll() is None, "interrupted runner holds its lock until the active migration exits")
+    fixture.release()
+    check(first.wait(timeout=5) == 128 + termination_signal, "runner preserves the termination status")
+    check(second.wait(timeout=5) == 0, "waiting runner proceeds after the interrupted migration exits")
+    check(fixture.calls() == ["first:100", "second:100", "second:200"],
+          "interrupted migration remains retryable without concurrent execution")
+    print(f"ok - runner-only {termination_signal.name} retains the lock until its migration exits")
+
 with Fixture() as fixture:
   first = fixture.start("first")
   fixture.started()

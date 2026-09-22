@@ -93,6 +93,13 @@ if ! flock -n "$migration_lock_fd"; then
   flock "$migration_lock_fd"
 fi
 
+# Bash defers these traps until its foreground migration exits. If only the
+# runner is terminated, keep the lock while that migration is still active.
+# Leave its marker pending so the interrupted queue can be retried safely.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 wait_for_pacman_transaction
 
 while IFS=$'\t' read -r name file marker <&3; do

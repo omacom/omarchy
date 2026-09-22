@@ -57,7 +57,7 @@ privileged work should invoke the appropriate helper or privilege prompt.
 Migrations must be idempotent; if one user already applied a machine-wide repair,
 the migration should no-op for other users.
 
-Execution takes a lock in the migration state directory (`OMARCHY_MIGRATION_STATE` when overridden). A concurrent runner waits, then checks the completion markers again before running anything. This lock is separate from the update lock, so an update can invoke migrations while holding its own lock. Migration children do not inherit the descriptor; background services cannot keep the queue locked after the runner exits. `--pending` only reads markers and does not wait for the lock.
+Execution takes a lock in the migration state directory (`OMARCHY_MIGRATION_STATE` when overridden). A concurrent runner waits, then checks the completion markers again before running anything. This lock is separate from the update lock, so an update can invoke migrations while holding its own lock. Migration children do not inherit the descriptor; background services cannot keep the queue locked after the runner exits. `--pending` only reads markers and does not wait for the lock. HUP, INT, or TERM sent only to the runner waits for its active foreground migration to exit before releasing the lock; that migration stays pending for the next run.
 
 For watchers and diagnostics, `omarchy-migrate --pending` prints pending
 migration names and exits `0` when any are pending. When no migrations are
