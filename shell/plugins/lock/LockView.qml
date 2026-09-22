@@ -7,6 +7,7 @@ Item {
   id: root
 
   property string backgroundPath: ""
+  property string videoPosterPath: ""
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
   property bool authenticatingPassword: false
@@ -14,6 +15,11 @@ Item {
   property int failedAttempts: 0
   property bool inputEnabled: true
   property bool loadBackground: true
+  // A locked session blanks the displays after a few seconds. Nothing is
+  // visible from then until the user wakes it, so a video must not keep
+  // decoding through what is usually the longest part of a lock.
+  property bool displaysBlank: false
+  property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
 
@@ -38,19 +44,13 @@ Item {
     ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
 
+  readonly property bool video: Util.isVideoPath(root.backgroundPath)
+  readonly property bool feedActive: root.video && root.loadBackground && !root.displaysBlank && !root.powerSaverActive
+
   signal submitPassword(string password)
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
-
-  // Cache-busts the lock background by appending `?v=`. Adding a query
-  // string keeps Image's loader happy while forcing it to reload when the
-  // user picks a new background mid-session.
-  function fileUrl(path) {
-    if (!path) return ""
-    var encoded = String(path).split("/").map(encodeURIComponent).join("/")
-    return "file://" + encoded + "?v=" + backgroundVersion
-  }
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
@@ -90,26 +90,42 @@ Item {
     anchors.fill: parent
     color: Color.background
 
-    Image {
+    BackgroundMedia {
       id: wallpaper
+      objectName: "lockWallpaper"
       anchors.fill: parent
-      source: root.loadBackground ? root.fileUrl(root.backgroundPath) : ""
-      fillMode: Image.PreserveAspectCrop
-      asynchronous: true
-      cache: false
-      sourceSize.width: width
-      sourceSize.height: height
+      path: root.loadBackground ? (root.video ? root.videoPosterPath : root.backgroundPath) : ""
+      version: root.backgroundVersion
     }
 
     MultiEffect {
       anchors.fill: wallpaper
       source: wallpaper
       autoPaddingEnabled: false
-      blurEnabled: root.loadBackground && wallpaper.status === Image.Ready
+      blurEnabled: root.loadBackground && wallpaper.ready
       blur: 1.0
       blurMax: 128
       blurMultiplier: 1.25
       contrast: -0.08
+    }
+
+    // The cached poster stays behind the feed when policy pauses playback,
+    // the module is unavailable, or a new connection has not received a frame.
+    Loader {
+      id: feedLoader
+      objectName: "lockFeedLoader"
+      anchors.fill: parent
+      active: root.feedActive
+      source: "LockFeedSurface.qml"
+      visible: status === Loader.Ready
+    }
+
+    // The feed item cannot be sampled by MultiEffect on every renderer.
+    // Keep video wallpapers visible and darken them slightly for legibility.
+    Rectangle {
+      anchors.fill: feedLoader
+      visible: root.video
+      color: "#22000000"
     }
 
     MouseArea {
