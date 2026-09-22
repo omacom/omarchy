@@ -439,6 +439,16 @@ assertEqual(
   'menu only shows Mirror Display on laptops'
 )
 assertEqual(
+  defaultById['trigger.hardware.lid-stay-awake'].when,
+  'omarchy-hw-lid',
+  'menu only shows Lid Stay Awake on machines with a lid switch'
+)
+assertEqual(
+  defaultById['trigger.hardware.lid-stay-awake'].action,
+  'omarchy-toggle-lid',
+  'menu toggles lid stay awake through the CLI, never reentrant shell IPC'
+)
+assertEqual(
   defaultById['trigger.capture.screenrecord.webcam'].when,
   'omarchy-hw-webcam',
   'menu only shows webcam screen recording when a webcam is available'
