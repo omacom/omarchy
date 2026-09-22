@@ -59,6 +59,24 @@ cat >"$user_config" <<'EOF'
 # 1=Super+semicolon
 Choose Modifier=Alt
 EOF
+before=$(sha256sum "$user_config")
+mkdir -p "$test_dir/failing-bin"
+cat >"$test_dir/failing-bin/cat" <<'STUB'
+#!/bin/bash
+
+printf '%s\n' '[TriggerKey]'
+exit 1
+STUB
+chmod +x "$test_dir/failing-bin/cat"
+: >"$SYSTEMCTL_CALLS"
+if HOME="$home" OMARCHY_PATH="$ROOT" PATH="$test_dir/failing-bin:$test_dir/bin:$ROOT/bin:$PATH" \
+  bash -euo pipefail "$migration" >/dev/null; then
+  fail "the migration reports an interrupted config write"
+fi
+[[ $before == $(sha256sum "$user_config") ]] || fail "an interrupted config write leaves the original unchanged"
+[[ ! -s $SYSTEMCTL_CALLS ]] || fail "an interrupted config write does not reload fcitx5"
+pass "the migration updates an existing config atomically"
+
 run_migration
 expected_existing=$'# Trigger Key\n# [TriggerKey]\n# 0=Super+grave\n# 1=Super+semicolon\nChoose Modifier=Alt\n\n[TriggerKey]\n0=Super+semicolon'
 [[ $(cat "$user_config") == "$expected_existing" ]] ||
@@ -84,6 +102,24 @@ run_migration
 [[ $before == $(sha256sum "$user_config") ]] || fail "the migration preserves a custom trigger list"
 [[ ! -s $SYSTEMCTL_CALLS ]] || fail "preserving a custom trigger list does not reload fcitx5"
 pass "the migration preserves a custom trigger list"
+
+reset_home
+linked_config="$test_dir/linked-quickphrase.conf"
+cat >"$linked_config" <<'EOF'
+# Trigger Key
+# [TriggerKey]
+# 0=Super+grave
+# 1=Super+semicolon
+Choose Modifier=Alt
+EOF
+ln -s "$linked_config" "$user_config"
+run_migration
+[[ -L $user_config ]] || fail "the migration preserves a symlinked user config"
+[[ $(cat "$linked_config") == "$expected_existing" ]] ||
+  fail "the migration updates the target of a symlinked user config" "$(cat "$linked_config")"
+[[ $(cat "$SYSTEMCTL_CALLS") == "--user try-restart omarchy-fcitx5.service" ]] ||
+  fail "repairing a symlinked trigger config reloads fcitx5" "$(cat "$SYSTEMCTL_CALLS")"
+pass "the migration atomically repairs a symlinked user config"
 
 reset_home
 printf 'TriggerKey=\n' >"$user_config"

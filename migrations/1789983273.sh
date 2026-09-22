@@ -12,8 +12,18 @@ if [[ ! -f $user_config ]]; then
   omarchy-refresh-config "$conf"
   config_changed=true
 elif ! grep -Eq '^[[:space:]]*(TriggerKey=|\[TriggerKey\][[:space:]]*$)' "$user_config"; then
-  [[ ! -s $user_config ]] || printf '\n' >>"$user_config"
-  cat "$OMARCHY_PATH/config/$conf" >>"$user_config"
+  config_target="$user_config"
+  if [[ -L $config_target ]]; then
+    config_target=$(realpath "$config_target")
+  fi
+
+  staged_config=$(mktemp "$config_target.omarchy.XXXXXX")
+  trap 'rm -f "$staged_config"' EXIT
+  cp -p "$config_target" "$staged_config"
+  [[ ! -s $staged_config ]] || printf '\n' >>"$staged_config"
+  cat "$OMARCHY_PATH/config/$conf" >>"$staged_config"
+  mv "$staged_config" "$config_target"
+  trap - EXIT
   config_changed=true
 fi
 
