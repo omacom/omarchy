@@ -128,6 +128,14 @@ Panel {
   // Shared hero/bar icon state, updated with each successful weather response.
   property string label: ""
 
+  // Last exit code of each curl fetch. Captured from `onExited` because
+  // Quickshell's Process exposes the code only through that signal; the
+  // stream handlers reject bodies produced by a failed/truncated transfer.
+  property int forecastProcExit: 0
+  property int dailyForecastProcExit: 0
+  property int geocodeProcExit: 0
+  property int locationProcExit: 0
+
   // wttr's current conditions when available; open-meteo's (bundled with the
   // much faster daily forecast fetch) fill the hero while wttr is in flight.
   readonly property bool hasConfiguredCoordinates: !isNaN(parseFloat(String(configuredLocationState.latitude))) && !isNaN(parseFloat(String(configuredLocationState.longitude)))
@@ -183,7 +191,7 @@ Panel {
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
-    dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
+    dailyForecastProc.command = ["curl", "-fsS", "--connect-timeout", "3", "--max-time", "5", "--max-filesize", "524288", url]
     dailyForecastProc.running = true
   }
 
@@ -274,7 +282,7 @@ Panel {
 
   function startGeocode() {
     geocodeActiveQuery = geocodePendingQuery
-    geocodeProc.command = ["curl", "-fsS", "--max-time", "5",
+    geocodeProc.command = ["curl", "-fsS", "--connect-timeout", "3", "--max-time", "5", "--max-filesize", "131072",
       "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(geocodeActiveQuery) + "&count=5&language=en&format=json"]
     geocodeProc.running = true
   }
@@ -332,10 +340,15 @@ Panel {
 
   Process {
     id: forecastProc
-    command: ["curl", "-fsS", "--max-time", "10", "https://wttr.in/" + root.locationQuery + "?format=j1"]
+    command: ["curl", "-fsS", "--connect-timeout", "4", "--max-time", "10", "--max-filesize", "1048576", "https://wttr.in/" + root.locationQuery + "?format=j1"]
+    onExited: function(exitCode) { root.forecastProcExit = exitCode }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (root.forecastProcExit !== 0) {
+          root.scheduleForecastRetry()
+          return
+        }
         var raw = String(text || "").trim()
         if (!raw) {
           root.scheduleForecastRetry()
@@ -392,9 +405,14 @@ Panel {
 
   Process {
     id: dailyForecastProc
+    onExited: function(exitCode) { root.dailyForecastProcExit = exitCode }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (root.dailyForecastProcExit !== 0) {
+          root.scheduleDailyForecastRetry()
+          return
+        }
         var raw = String(text || "").trim()
         if (!raw) {
           root.scheduleDailyForecastRetry()
@@ -418,9 +436,11 @@ Panel {
 
   Process {
     id: geocodeProc
+    onExited: function(exitCode) { root.geocodeProcExit = exitCode }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (root.geocodeProcExit !== 0) return
         root.locationSuggestions = root.editingLocation ? Model.parseGeocodingResults(text) : []
         root.suggestionIndex = 0
         if (root.geocodePendingQuery !== root.geocodeActiveQuery) Qt.callLater(root.startGeocode)
@@ -455,10 +475,12 @@ Panel {
 
   Process {
     id: locationProc
-    command: ["curl", "-fsS", "--max-time", "4", "https://wttr.in/?format=%l"]
+    command: ["curl", "-fsS", "--connect-timeout", "3", "--max-time", "4", "--max-filesize", "8192", "https://wttr.in/?format=%l"]
+    onExited: function(exitCode) { root.locationProcExit = exitCode }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (root.locationProcExit !== 0) return
         var raw = String(text || "").trim()
         if (!raw) return
         root.wttrLocation = raw.split(",")[0]
