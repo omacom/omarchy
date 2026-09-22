@@ -19,9 +19,10 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
 | Touchscreen | — | `omarchy toggle touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
+| Stay awake with the lid closed | — | `omarchy toggle lid` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 
-The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
+The touchpad, touchscreen, hybrid GPU, and lid switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
 
 The Toggle menu also carries a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, workspace layout (`Super + L`), window gaps (`Super + Shift + Backspace`), and the 1-window square aspect (`Super + Ctrl + Backspace`).
 
@@ -82,7 +83,7 @@ If you dismiss the screensaver before the lock deadline, that counts as activity
 
 To stop locking on idle entirely, `Super + Ctrl + I` — or `omarchy toggle idle` — flips stay awake on, and the coffee cup indicator appears in the bar. That's the one to hit before a long presentation or a build you want to watch. Hit it again to go back to normal. `omarchy toggle idle status` prints the current state as JSON if you need it from a script.
 
-This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md).
+This is about locking and the screensaver, not power. Suspend and hibernation have their own setup in [system sleep](36-system-sleep.md), and so does what happens when you close the lid.
 
 ### The screensaver
 
