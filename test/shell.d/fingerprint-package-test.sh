@@ -82,6 +82,12 @@ fi
 grep -qx enroll "$CALL_LOG" || fail "a rerun with everything installed reaches enrollment"
 pass "a rerun with everything installed goes straight to enrollment"
 
+INSTALLED=$'fprintd-clients-git\nusbutils' run_setup
+grep -qx 'pacman -S --needed --noconfirm --ask 4 libfprint-git usbutils' "$CALL_LOG" ||
+  fail "an alternate fprintd client stack is not replaced by stock fprintd"
+grep -qx enroll "$CALL_LOG" || fail "the alternate client stack reaches enrollment"
+pass "an alternate fprintd client stack is preserved"
+
 INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
   fail "a failed package transaction prevents enrollment"
