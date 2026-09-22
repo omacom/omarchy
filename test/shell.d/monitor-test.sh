@@ -76,16 +76,17 @@ assertDeepEqual(
 
 assertDeepEqual(
   monitor.parseDisplays(JSON.stringify([
-    { name: 'eDP-2', enabled: true, focused: true, width: 2880, height: 1800 },
-    { name: 'eDP-1', enabled: true, focused: false, width: 0, height: 0 }
+    { name: 'DP-1', enabled: true, focused: false, width: 0, height: 0 },
+    { name: 'eDP-1', enabled: true, focused: true, width: 2880, height: 1800 }
   ])),
   {
     displays: [
-      { name: 'eDP-2', enabled: true, focused: true, width: 2880, height: 1800 }
+      { name: 'DP-1', enabled: true, focused: false, width: 0, height: 0 },
+      { name: 'eDP-1', enabled: true, focused: true, width: 2880, height: 1800 }
     ],
-    enabledDisplayCount: 1
+    enabledDisplayCount: 2
   },
-  'monitor omits an enabled output with no mode'
+  'monitor keeps an enabled output that has not reported a mode yet'
 )
 
 assertDeepEqual(monitor.parseDisplays('{'), { displays: [], enabledDisplayCount: 0 }, 'monitor handles invalid display JSON')

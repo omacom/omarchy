@@ -91,15 +91,6 @@ function brightnessName(percent) {
   return "Night owl"
 }
 
-function isListableDisplay(display) {
-  if (!display || !display.name) return false
-  var width = Number(display.width)
-  var height = Number(display.height)
-  var hasMode = isFinite(width) && isFinite(height) && width > 0 && height > 0
-  if (hasMode) return true
-  return !display.enabled
-}
-
 function parseDisplays(raw) {
   var displays = []
   try {
@@ -109,16 +100,13 @@ function parseDisplays(raw) {
   }
   if (!Array.isArray(displays)) displays = []
 
-  var listable = []
   var count = 0
   for (var i = 0; i < displays.length; i++) {
-    if (!isListableDisplay(displays[i])) continue
-    listable.push(displays[i])
-    if (displays[i].enabled) count++
+    if (displays[i] && displays[i].enabled) count++
   }
 
   return {
-    displays: listable,
+    displays: displays,
     enabledDisplayCount: count
   }
 }
