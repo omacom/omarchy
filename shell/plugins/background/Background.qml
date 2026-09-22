@@ -22,6 +22,8 @@ Item {
   property int backgroundVersion: 0
   property bool bootIntroChecked: false
   property int bootIntroAttempts: 0
+  readonly property int bootIntroMaxAttempts: 60
+  readonly property int bootIntroRetryInterval: 1000
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -150,7 +152,7 @@ Item {
     id: bootIntroProc
     command: ["omarchy-theme-bg-boot-intro"]
     onExited: function(exitCode) {
-      if (exitCode === 2 && root.bootIntroAttempts < 3) {
+      if (exitCode === 2 && root.bootIntroAttempts < root.bootIntroMaxAttempts) {
         root.bootIntroChecked = false
         bootIntroRetry.restart()
       }
@@ -159,7 +161,7 @@ Item {
 
   Timer {
     id: bootIntroRetry
-    interval: 500
+    interval: root.bootIntroRetryInterval
     repeat: false
     onTriggered: root.checkBootIntro()
   }

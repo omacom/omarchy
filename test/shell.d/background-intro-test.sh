@@ -171,9 +171,11 @@ const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/
 assert(
   backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]')
     && backgroundQml.includes('root.checkBootIntro()')
-    && backgroundQml.includes('exitCode === 2 && root.bootIntroAttempts < 3')
+    && backgroundQml.includes('readonly property int bootIntroMaxAttempts: 60')
+    && backgroundQml.includes('readonly property int bootIntroRetryInterval: 1000')
+    && backgroundQml.includes('exitCode === 2 && root.bootIntroAttempts < root.bootIntroMaxAttempts')
     && backgroundQml.includes('bootIntroRetry.restart()'),
-  'the shell makes bounded retries when OWE is not ready during startup'
+  'the shell retries throughout the normal login window when OWE is not ready during startup'
 )
 assert(
   !backgroundQml.includes('bootIntroPath')
