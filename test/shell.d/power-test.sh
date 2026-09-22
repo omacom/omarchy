@@ -48,4 +48,18 @@ assert(/Math\.round\(root\.batteryFraction \* 100\) \+ "% " \+ root\.batteryIcon
 assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
 assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
 assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
+
+assertEqual(power.lidModes().length, 2, 'power offers two lid close modes')
+assertEqual(power.lidModes()[power.lidModeIndex(true)].key, 'stay-awake', 'power maps stay awake to its lid mode')
+assertEqual(power.lidModes()[power.lidModeIndex(false)].key, 'suspend', 'power maps suspend to its lid mode')
+assert(power.lidModeStaysAwake(power.lidModeIndex(true)) && !power.lidModeStaysAwake(power.lidModeIndex(false)), 'power lid mode index round-trips')
+assert(power.lidModes().every(mode => mode.icon.length > 0 && mode.label.length > 0), 'power lid modes carry an icon and a label')
+
+assert(/firstPartyServiceFor\("omarchy\.idle"\)/.test(panelSource), 'power reads lid close state from the idle service')
+assert(/PanelSectionHeader \{\s*\n\s*text: "LID CLOSE"/.test(panelSource), 'power labels the lid close section')
+assert(
+  (panelSource.match(/visible: root\.lidPresent/g) || []).length >= 2,
+  'power hides the lid close section and its separator on hardware without a lid'
+)
+assert(/idleService\.setLidStayAwake\(/.test(panelSource), 'power hands lid close changes to the idle service')
 JS

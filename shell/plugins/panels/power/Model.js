@@ -78,6 +78,23 @@ function batteryIcon(device, onBattery, states) {
   return defaultIcons[index]
 }
 
+// The lid close picker is laid out like the profile pills: two choices,
+// index 1 keeps the laptop awake when the lid closes.
+function lidModes() {
+  return [
+    { key: "suspend", label: "Suspend", icon: "󰒲" },
+    { key: "stay-awake", label: "Stay Awake", icon: "󰅶" }
+  ]
+}
+
+function lidModeIndex(stayAwake) {
+  return stayAwake ? 1 : 0
+}
+
+function lidModeStaysAwake(index) {
+  return index === 1
+}
+
 function modeLabel(device, onBattery, states) {
   var d = device || {}
   if (!d.isPresent) return ""
@@ -99,6 +116,9 @@ if (typeof module !== "undefined") {
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
-    modeLabel: modeLabel
+    modeLabel: modeLabel,
+    lidModes: lidModes,
+    lidModeIndex: lidModeIndex,
+    lidModeStaysAwake: lidModeStaysAwake
   }
 }
