@@ -3,6 +3,11 @@
 # omarchy:summary=Generate themed config files from Omarchy templates
 # omarchy:hidden=true
 
+# Required reads and writes must fail the renderer, including those inside
+# command substitutions. Optional palette helpers return success explicitly.
+set -e -o pipefail
+shopt -s inherit_errexit
+
 TEMPLATES_DIR="$OMARCHY_PATH/default/themed"
 USER_TEMPLATES_DIR="$HOME/.config/omarchy/themed"
 NEXT_THEME_DIR="$HOME/.local/state/omarchy/current/next-theme"
@@ -189,7 +194,9 @@ shell_gradient_value() {
     printf "%s" "${GRADIENT_COLORS[$index]}"
   done
 
-  [[ -n $GRADIENT_ANGLE ]] && printf " %sdeg" "$GRADIENT_ANGLE"
+  if [[ -n $GRADIENT_ANGLE ]]; then
+    printf " %sdeg" "$GRADIENT_ANGLE"
+  fi
 }
 
 add_template_value() {
@@ -217,7 +224,7 @@ add_mix_value() {
   start="${THEME_COLORS[$start_key]:-}"
   end="${THEME_COLORS[$end_key]:-}"
 
-  [[ $start =~ ^#[0-9A-Fa-f]{6}$ && $end =~ ^#[0-9A-Fa-f]{6}$ ]] || return
+  [[ $start =~ ^#[0-9A-Fa-f]{6}$ && $end =~ ^#[0-9A-Fa-f]{6}$ ]] || return 0
 
   value=$(mix_color "$start" "$end" "$amount")
 
@@ -310,16 +317,16 @@ apply_shell_section_override() {
   local override="$1"
   local section tmp body
 
-  [[ -f $NEXT_THEME_DIR/shell.toml ]] || return
-  [[ -f $override ]] || return
+  [[ -f $NEXT_THEME_DIR/shell.toml ]] || return 0
+  [[ -f $override ]] || return 0
 
   section=$(basename "$override")
   section="${section#shell.}"
   section="${section%.toml}"
-  [[ $section =~ ^[A-Za-z0-9_-]+$ ]] || return
+  [[ $section =~ ^[A-Za-z0-9_-]+$ ]] || return 0
 
-  tmp=$(mktemp)
-  body=$(mktemp)
+  tmp="$scratch/shell.toml"
+  body="$scratch/section"
 
   strip_shell_section_header "$section" "$override" >"$body"
 
@@ -367,18 +374,25 @@ apply_shell_section_overrides() {
   done
 }
 
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+trap 'exit 1' HUP INT TERM
+
 # Only generate dynamic templates for themes with a colors.toml definition
 if [[ -f $COLORS_FILE ]]; then
-  sed_script=$(mktemp)
+  sed_script="$scratch/substitutions"
+  : >"$sed_script"
 
   shopt -s nullglob
   template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
 
   # Parsing and alias/fallback resolution (legacy colorN names, derived
   # shades, mode/theme_type) is shared with every other colors.toml consumer.
+  resolved_colors=$(omarchy-theme-color --file "$COLORS_FILE" --all)
   while IFS=$'\t' read -r key value; do
+    [[ -n $key ]] || continue
     THEME_COLORS[$key]="$value"
-  done < <(omarchy-theme-color --file "$COLORS_FILE" --all)
+  done <<<"$resolved_colors"
 
   for key in "${!THEME_COLORS[@]}"; do
     add_template_value "$key" "${THEME_COLORS[$key]}"

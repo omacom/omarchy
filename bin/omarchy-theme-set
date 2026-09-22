@@ -4,7 +4,7 @@
 # omarchy:args=<theme-name>
 # omarchy:examples=omarchy theme list | omarchy theme set "Tokyo Night"
 
-if [[ -z $1 ]]; then
+if [[ -z ${1:-} ]]; then
   echo "Usage: omarchy-theme-set <theme-name>"
   exit 1
 fi
@@ -29,6 +29,68 @@ OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
 # theme file that is neither denied here nor recorded there as colour-only.
 INSTALLED_THEME_DENIED=(alacritty.toml foot.ini ghostty.conf kitty.conf vscode.json)
 IGNORED_THEME_FILES=()
+
+fail() {
+  echo "omarchy-theme-set: $*" >&2
+  exit 1
+}
+
+# A missing overlay is optional; a failed copy of an existing one is not.
+# Keep the same non-hidden file selection as before, including user symlinks.
+copy_theme_files() (
+  local source="$1"
+  local -a files
+
+  [[ -d $source ]] || return 0
+  shopt -s nullglob
+  files=("$source/"*)
+  if (( ${#files[@]} > 0 )); then
+    cp -r -- "${files[@]}" "$NEXT_THEME_PATH/"
+  fi
+)
+
+STAGED_NAME_PATH=""
+THEME_SWAP_MODE=""
+
+cleanup_theme_staging() {
+  local status=$?
+  local restored=true
+
+  # Until the name is published, next-theme holds the previous working theme.
+  # Keep it recoverable if a filesystem failure prevents rolling back as well.
+  if [[ $THEME_SWAP_MODE == "exchange" ]]; then
+    mv --exchange --no-copy -T -- "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH" || restored=false
+  elif [[ $THEME_SWAP_MODE == "install" ]]; then
+    mv --no-copy -T -- "$CURRENT_THEME_PATH" "$NEXT_THEME_PATH" || restored=false
+  fi
+
+  if [[ $restored == "true" ]]; then
+    rm -rf -- "$NEXT_THEME_PATH"
+  else
+    echo "omarchy-theme-set: could not restore the previous theme; retained theme files at $NEXT_THEME_PATH and $CURRENT_THEME_PATH" >&2
+  fi
+  [[ -z $STAGED_NAME_PATH ]] || rm -f -- "$STAGED_NAME_PATH"
+  return "$status"
+}
+
+publish_staged_theme() {
+  STAGED_NAME_PATH=$(mktemp "${CURRENT_THEME_PATH%/*}/.theme.name.XXXXXX") || return 1
+  printf '%s\n' "$THEME_NAME" >"$STAGED_NAME_PATH" || return 1
+
+  if [[ -e $CURRENT_THEME_PATH || -L $CURRENT_THEME_PATH ]]; then
+    # Both directories are siblings. Exchange them in one rename so a failed
+    # replacement never leaves the current path missing or partly copied.
+    mv --exchange --no-copy -T -- "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH" || return 1
+    THEME_SWAP_MODE="exchange"
+  else
+    mv --no-copy -T -- "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH" || return 1
+    THEME_SWAP_MODE="install"
+  fi
+
+  mv -T -- "$STAGED_NAME_PATH" "${CURRENT_THEME_PATH%/*}/theme.name" || return 1
+  STAGED_NAME_PATH=""
+  THEME_SWAP_MODE=""
+}
 
 run_parallel() {
   local pid
@@ -191,22 +253,26 @@ stage_installed_colors_from_alacritty() {
   local scratch
 
   if [[ -f $NEXT_THEME_PATH/colors.toml ]]; then
-    return
+    return 0
   fi
 
   if [[ ! -f $source/alacritty.toml || -L $source/alacritty.toml ]]; then
-    return
+    return 0
   fi
 
-  scratch=$(mktemp -d)
-  cp "$source/alacritty.toml" "$scratch/alacritty.toml"
-  omarchy-theme-colors-from-alacritty "$scratch"
-
-  if [[ -f $scratch/colors.toml ]]; then
-    cp "$scratch/colors.toml" "$NEXT_THEME_PATH/colors.toml"
+  scratch=$(mktemp -d) || return 1
+  local status=0
+  if cp "$source/alacritty.toml" "$scratch/alacritty.toml" &&
+    omarchy-theme-colors-from-alacritty "$scratch"; then
+    if [[ -f $scratch/colors.toml ]]; then
+      cp "$scratch/colors.toml" "$NEXT_THEME_PATH/colors.toml" || status=1
+    fi
+  else
+    status=1
   fi
 
   rm -rf "$scratch"
+  return "$status"
 }
 
 # Copies a directory without ever following a symlink: in an installed theme one
@@ -217,16 +283,16 @@ stage_installed_dir() {
   local dest="$2"
   local entry name
 
-  mkdir -p "$dest"
+  mkdir -p "$dest" || return 1
 
   for entry in "$source"/*; do
     [[ -e $entry && ! -L $entry ]] || continue
     name=${entry##*/}
 
     if [[ -d $entry ]]; then
-      stage_installed_dir "$entry" "$dest/$name"
+      stage_installed_dir "$entry" "$dest/$name" || return 1
     else
-      cp "$entry" "$dest/$name"
+      cp "$entry" "$dest/$name" || return 1
     fi
   done
 }
@@ -258,9 +324,9 @@ stage_installed_theme() {
         *) IGNORED_THEME_FILES+=("$name") ;;
       esac
     elif [[ -d $entry ]]; then
-      stage_installed_dir "$entry" "$NEXT_THEME_PATH/$name"
+      stage_installed_dir "$entry" "$NEXT_THEME_PATH/$name" || return 1
     else
-      cp "$entry" "$NEXT_THEME_PATH/$name"
+      cp "$entry" "$NEXT_THEME_PATH/$name" || return 1
     fi
   done
 
@@ -293,30 +359,33 @@ fi
 # Serialize theme changes. Theme switching rebuilds a shared next-theme staging
 # directory and updates current theme/background symlinks; concurrent calls can
 # otherwise race and make one selection appear to be ignored.
-exec 9>"$THEME_SET_LOCK"
-flock 9
+exec 9>"$THEME_SET_LOCK" || fail "could not open the theme lock"
+flock 9 || fail "could not lock theme activation"
 
-# Setup clean next theme directory (for atomic theme config swapping)
-rm -rf "$NEXT_THEME_PATH"
-mkdir -p "$NEXT_THEME_PATH"
+trap cleanup_theme_staging EXIT
+trap 'exit 1' HUP INT TERM
 
-# Copy official theme first, then overlay the user's theme on top
-cp -r "$OMARCHY_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
+# Stage everything before changing any active files or notifying the shell.
+rm -rf "$NEXT_THEME_PATH" || fail "could not clear theme staging"
+mkdir -p "$NEXT_THEME_PATH" || fail "could not create theme staging"
+
+# Copy official theme first, then overlay the user's theme on top.
+copy_theme_files "$OMARCHY_THEMES_PATH/$THEME_NAME" || fail "could not stage the built-in theme"
 
 if theme_came_from_a_repo "$USER_THEMES_PATH/$THEME_NAME"; then
-  stage_installed_theme "$USER_THEMES_PATH/$THEME_NAME"
+  stage_installed_theme "$USER_THEMES_PATH/$THEME_NAME" || fail "could not stage the installed theme"
   report_ignored_theme_files
 else
-  cp -r "$USER_THEMES_PATH/$THEME_NAME/"* "$NEXT_THEME_PATH/" 2>/dev/null
+  copy_theme_files "$USER_THEMES_PATH/$THEME_NAME" || fail "could not stage the user theme"
 fi
 
 # Generate colors.toml from alacritty.toml if theme is missing colors.toml
 if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]; then
-  omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
+  omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH" || fail "could not generate the theme palette"
 fi
 
 # Generate dynamic configs
-omarchy-theme-set-templates
+omarchy-theme-set-templates || fail "could not render the theme"
 
 CHOSEN_THEME_BACKGROUND=""
 OLD_BACKGROUND_SNAPSHOT=""
@@ -333,12 +402,12 @@ if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
   fi
 fi
 
-# Swap next theme in as current
-rm -rf "$CURRENT_THEME_PATH"
-mv "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH"
-
-# Store theme name for reference
-echo "$THEME_NAME" >"$HOME/.local/state/omarchy/current/theme.name"
+# Finish this short commit or its rollback before accepting cancellation.
+# Otherwise a signal between rename and bookkeeping could discard the old theme.
+trap '' HUP INT TERM
+publish_staged_theme || fail "could not publish the theme"
+cleanup_theme_staging
+trap - EXIT HUP INT TERM
 
 # Make the running shell pick up the new palette immediately while the rest of
 # the theme hooks run.
