@@ -62,11 +62,12 @@ install_generated_extension() {
   local theme_type ui_theme
 
   theme_type=$(jq -r '.type // "dark"' "$GENERATED_THEME")
-  if [[ $theme_type == "light" ]]; then
-    ui_theme="vs"
-  else
-    ui_theme="vs-dark"
-  fi
+  case $theme_type in
+    light) ui_theme="vs" ;;
+    hc | hc-black) ui_theme="hc-black" ;;
+    hc-light) ui_theme="hc-light" ;;
+    *) ui_theme="vs-dark" ;;
+  esac
 
   mkdir -p "$ext_dir/themes"
   ln -sfn "$GENERATED_THEME" "$ext_dir/themes/omarchy-color-theme.json"
