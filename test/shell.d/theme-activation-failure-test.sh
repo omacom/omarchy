@@ -52,8 +52,16 @@ cat >"$stub_bin/mv" <<'STUB'
 if [[ ${TEST_FAILURE:-} == "cancel-publish" && ${*: -1} == "$TEST_STATE/theme" ]]; then
   kill -TERM "$PPID"
 fi
+if [[ ${TEST_FAILURE:-} == "rollback" ]]; then
+  if [[ ${*: -1} == "$TEST_STATE/theme.name" ]]; then
+    exit 42
+  elif [[ ${*: -1} == "$TEST_STATE/theme" ]]; then
+    [[ ! -e $TEST_STATE/exchanged ]] || exit 42
+    touch "$TEST_STATE/exchanged"
+  fi
+fi
 case ${TEST_FAILURE:-}:${*: -1} in
-  replacement:"$TEST_STATE/theme" | name:"$TEST_STATE/theme.name" | override-write:"$TEST_STATE/next-theme/shell.toml")
+  staging-move:"$TEST_STATE/".theme-swap.* | replacement:"$TEST_STATE/theme" | name:"$TEST_STATE/theme.name" | override-write:"$TEST_STATE/next-theme/shell.toml")
     exit 42
     ;;
 esac
@@ -114,6 +122,7 @@ assert_previous() {
   [[ ! -s $scratch/ipc ]] || fail "failed activation does not notify the shell"
   [[ -z $(find "$scratch/temporary" -mindepth 1 -print -quit) ]] || fail "renderer scratch files are cleaned up"
   [[ -z $(find "$state" -name '.theme.name.*' -print -quit) ]] || fail "staged name is cleaned up"
+  [[ -z $(find "$state" -name '.theme-swap.*' -print -quit) ]] || fail "swap directory is cleaned up"
 }
 
 expect_failure() {
@@ -125,10 +134,25 @@ expect_failure() {
   pass "$description preserves the working theme, name, and background"
 }
 
-for failure in lock renderer cancel-render builtin-copy palette template replacement name; do
+for failure in lock renderer cancel-render builtin-copy palette template staging-move replacement name; do
   reset_fixture
   expect_failure "$failure" "$failure failure"
 done
+
+reset_fixture
+if run_theme rollback; then fail "failed rollback reports failure"; fi
+recovery_path=$(find "$state" -mindepth 2 -maxdepth 2 -name working.conf -printf '%h\n')
+[[ -d $recovery_path && $recovery_path != "$state/theme" ]] || fail "failed rollback retains the previous working files"
+diff -r "$scratch/expected/theme" "$recovery_path" || fail "retained recovery files match the previous theme"
+grep -F "$recovery_path" "$scratch/output" >/dev/null || fail "failed rollback reports its recovery location"
+cmp "$scratch/expected/theme.name" "$state/theme.name" || fail "failed rollback retains the previous theme name"
+if run_theme renderer; then fail "retry reports a renderer failure"; fi
+diff -r "$scratch/expected/theme" "$recovery_path" || fail "a failed retry preserves the recovery copy"
+pass "a failed retry preserves the working theme retained after rollback failure"
+run_theme || fail "a later activation can succeed after rollback failure" "$(cat "$scratch/output")"
+diff -r "$scratch/expected/theme" "$recovery_path" || fail "a successful retry preserves the recovery copy"
+[[ $(cat "$state/theme.name") == "new" && -f $state/theme/example.conf ]] || fail "successful retry publishes the new theme"
+pass "a successful retry preserves the recovery copy for manual recovery"
 
 reset_fixture
 mkdir -p "$test_home/.config/omarchy/themes/new"
@@ -161,6 +185,7 @@ run_theme || fail "a built-in theme works without a user overlay" "$(cat "$scrat
 grep -Fx 'accent=#7aa2f7' "$state/theme/example.conf" >/dev/null || fail "successful activation publishes rendered templates"
 [[ ! -e $state/theme/working.conf && ! -e $state/next-theme ]] || fail "successful activation replaces and cleans the previous theme"
 run_theme || fail "an already applied theme can be refreshed" "$(cat "$scratch/output")"
+[[ -z $(find "$state" -name '.theme-swap.*' -print -quit) ]] || fail "successful activation removes the swap directory"
 pass "successful activation renders, replaces, and can be repeated without a user overlay"
 
 reset_fixture
@@ -174,6 +199,7 @@ reset_fixture
 rm -rf "$state/theme" "$state/theme.name" "$state/background"
 if run_theme name; then fail "first activation reports failed name publication"; fi
 [[ ! -e $state/theme && ! -e $state/theme.name && ! -e $state/next-theme ]] || fail "failed first activation leaves no partial current state"
+[[ -z $(find "$state" -name '.theme-swap.*' -print -quit) ]] || fail "failed first activation removes the swap directory"
 run_theme || fail "first activation can retry successfully" "$(cat "$scratch/output")"
 [[ -f $state/theme/example.conf && $(cat "$state/theme.name") == "new" ]] || fail "first activation publishes both files and name"
 pass "first activation rolls back failed name publication and can retry"

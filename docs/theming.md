@@ -27,7 +27,7 @@ A theme installed from a git repo is held to a much shorter list; see [What an i
    theme.
 5. Atomically exchange the completed staging directory with `~/.local/state/omarchy/current/theme`, publish `~/.local/state/omarchy/current/theme.name`, and notify the running shell.
 
-Copy, palette conversion, and template rendering failures abort activation before changing the current theme, name, or background. If publishing the theme name fails after the directory exchange, activation restores the previous theme and returns an error. A first activation uses a rename instead of an exchange and removes the new directory if name publication fails. These checks handle command failures; the directory and name are separate filesystem operations, not a crash-safe transaction.
+Copy, palette conversion, and template rendering failures abort activation before changing the current theme, name, or background. If publishing the theme name fails after the directory exchange, activation restores the previous theme and returns an error. A first activation uses a rename instead of an exchange and removes the new directory if name publication fails. If rollback itself fails, the previous theme remains in a unique `.theme-swap.*` directory alongside the current theme; the error reports that recovery path, and later activation attempts leave it intact. These checks handle command failures; the directory and name are separate filesystem operations, not a crash-safe transaction.
 
 Template rendering only happens when the staged theme has `colors.toml`.
 Existing files are never overwritten by a template, so a hand-written
