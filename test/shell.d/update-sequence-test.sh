@@ -8,7 +8,7 @@ test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
 stub_bin="$test_tmp/bin"
-mkdir -p "$stub_bin"
+mkdir -p "$stub_bin" "$test_tmp/home"
 
 # Every step omarchy-update runs, recorded in order with the unattended flag it
 # was handed. One of them can be told to fail.
@@ -45,7 +45,7 @@ done
 # itself under; the stubbed lock reports itself already held.
 run_update() {
   : >"$test_tmp/steps"
-  STEP_LOG="$test_tmp/steps" \
+  HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" STEP_LOG="$test_tmp/steps" \
     FAILING_STEP="${FAILING_STEP:-}" \
     OMARCHY_UPDATE_LOGGED=1 \
     PATH="$stub_bin:$PATH" \
@@ -106,3 +106,41 @@ for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-
   fi
 done
 pass "a blocked package upgrade stops the update before it migrates"
+
+# Run the real AUR helper so a swallowed yay failure cannot pass as a completed
+# update. All package and session operations remain stubbed.
+cat >"$stub_bin/omarchy-update-aur-pkgs" <<'SH'
+#!/bin/bash
+printf '%s unattended=%s\n' "${0##*/}" "${OMARCHY_UPDATE_UNATTENDED:-}" >>"$STEP_LOG"
+exec "$ROOT/bin/omarchy-update-aur-pkgs"
+SH
+for command in pacman omarchy-pkg-aur-accessible; do
+  printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
+  chmod +x "$stub_bin/$command"
+done
+cat >"$stub_bin/yay" <<'SH'
+#!/bin/bash
+exit "${AUR_TEST_YAY_STATUS:-0}"
+SH
+chmod +x "$stub_bin/yay"
+
+if AUR_TEST_YAY_STATUS=42 run_update -y; then
+  fail "a failed AUR transaction must stop the update"
+else
+  actual=$?
+fi
+(( actual == 42 )) || fail "the updater preserves the AUR failure status" "got $actual"
+for step in omarchy-update-mise omarchy-update-orphan-pkgs omarchy-update-analyze-logs omarchy-update-status omarchy-update-restart; do
+  if grep -q "^$step " "$test_tmp/steps"; then
+    fail "a failed AUR transaction still runs $step"
+  fi
+done
+[[ $(grep -c '^omarchy-update-stay-awake ' "$test_tmp/steps") == "2" ]] ||
+  fail "a failed AUR transaction releases the update inhibitor"
+grep -q 'Something went wrong during the update' "$test_tmp/out" || fail "the updater reports the AUR failure"
+pass "a failed AUR transaction stops the update, reports failure, and releases its inhibitor"
+
+run_update -y || fail "a successful AUR transaction lets the update finish"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "a successful AUR transaction keeps the full update sequence" "$(cat "$test_tmp/order")"
+pass "a successful AUR transaction lets the update finish"
