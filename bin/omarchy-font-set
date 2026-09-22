@@ -50,12 +50,35 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
   sed -i "s/^font=.*/font=$font_name:size=9/g" ~/.config/foot/foot.ini
 fi
 
+is_pure_omarchy_fontconfig() {
+  local file="$1"
+  [[ -f $file ]] || return 1
+  local stripped
+  stripped=$(sed -E \
+    -e 's/<!--.*-->//g' \
+    -e '/<\?xml[^>]*\?>/d' \
+    -e '/<!DOCTYPE[^>]*>/d' \
+    -e '/<\/?fontconfig>/d' \
+    -e '/^[[:space:]]*$/d' \
+    "$file")
+
+  local expected_clean="<match target=\"pattern\"><test name=\"family\" qual=\"any\"><string>monospace</string></test><edit name=\"family\" mode=\"prepend_first\" binding=\"strong\"></edit></match>"
+  expected_clean=$(printf "%s" "$expected_clean" | tr -d '[:space:]')
+  local edit_stripped
+  edit_stripped=$(printf "%s\n" "$stripped" | sed -E '/<string>.*<\/string>/ { /<string>monospace<\/string>/!d; }' | tr -d '[:space:]')
+
+  [[ $edit_stripped == "$expected_clean" ]]
+}
+
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
-# and anything resolving "monospace" all read from here. This file is loaded
-# after the package-owned default, and prepend_first puts the chosen family at
-# the head of the list so it wins over the family that default prefers.
-fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
-mkdir -p "$(dirname "$fontconfig_file")"
+# and anything resolving "monospace" all read from here. This drop-in file is loaded
+# after the package-owned default in /etc/fonts/conf.d/50-omarchy.conf, and prepend_first
+# puts the chosen family at the head of the list so it wins over the family that default prefers.
+fontconfig_dir="$HOME/.config/fontconfig/conf.d"
+fontconfig_file="$fontconfig_dir/50-omarchy-monospace.conf"
+legacy_fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
+
+mkdir -p "$fontconfig_dir"
 cat >"$fontconfig_file" <<XML
 <?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
@@ -70,6 +93,12 @@ cat >"$fontconfig_file" <<XML
   </match>
 </fontconfig>
 XML
+
+# If the legacy ~/.config/fontconfig/fonts.conf exists and only contains the old Omarchy
+# monospace override, remove it so it does not shadow the new drop-in.
+if [[ -f $legacy_fontconfig_file ]] && is_pure_omarchy_fontconfig "$legacy_fontconfig_file"; then
+  rm -f "$legacy_fontconfig_file"
+fi
 
 omarchy-restart-shell
 
