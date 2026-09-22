@@ -3,6 +3,11 @@
 # omarchy:summary=Generate themed config files from Omarchy templates
 # omarchy:hidden=true
 
+# Required reads and writes must fail the renderer, including those inside
+# command substitutions. Optional palette helpers return success explicitly.
+set -e -o pipefail
+shopt -s inherit_errexit
+
 TEMPLATES_DIR="$OMARCHY_PATH/default/themed"
 USER_TEMPLATES_DIR="$HOME/.config/omarchy/themed"
 NEXT_THEME_DIR="$HOME/.local/state/omarchy/current/next-theme"
@@ -184,8 +189,8 @@ add_mix_value() {
   start="${THEME_COLORS[$start_key]:-}"
   end="${THEME_COLORS[$end_key]:-}"
 
-  [[ $start =~ ^#[0-9A-Fa-f]{6}$ && $end =~ ^#[0-9A-Fa-f]{6}$ ]] || return
-  [[ $fn == "mix" || $fn == "mix_strip" || $fn == "mix_rgb" ]] || return
+  [[ $start =~ ^#[0-9A-Fa-f]{6}$ && $end =~ ^#[0-9A-Fa-f]{6}$ ]] || return 0
+  [[ $fn == "mix" || $fn == "mix_strip" || $fn == "mix_rgb" ]] || return 0
 
   printf 'mix\037%s\037%s\037%s\037%s\037%s\n' "$token" "$fn" "$start" "$end" "$amount" >>"$mix_table"
 }
@@ -222,7 +227,7 @@ add_function_values() {
   local token
   local -A seen=()
 
-  (( ${#template_files[@]} > 0 )) || return
+  (( ${#template_files[@]} > 0 )) || return 0
 
   while IFS= read -r token; do
     [[ -n ${seen[$token]:-} ]] && continue
@@ -256,16 +261,16 @@ apply_shell_section_override() {
   local override="$1"
   local section tmp body
 
-  [[ -f $NEXT_THEME_DIR/shell.toml ]] || return
-  [[ -f $override ]] || return
+  [[ -f $NEXT_THEME_DIR/shell.toml ]] || return 0
+  [[ -f $override ]] || return 0
 
   section=$(basename "$override")
   section="${section#shell.}"
   section="${section%.toml}"
-  [[ $section =~ ^[A-Za-z0-9_-]+$ ]] || return
+  [[ $section =~ ^[A-Za-z0-9_-]+$ ]] || return 0
 
-  tmp=$(mktemp)
-  body=$(mktemp)
+  tmp="$scratch/shell.toml"
+  body="$scratch/section"
 
   strip_shell_section_header "$section" "$override" >"$body"
 
@@ -331,7 +336,7 @@ render_templates() {
     fi
   done
 
-  (( ${#pairs[@]} > 0 )) || return
+  (( ${#pairs[@]} > 0 )) || return 0
 
   awk -v value_table="$value_table" -v mix_table="$mix_table" '
     function hex_value(char) {
@@ -425,10 +430,16 @@ render_templates() {
   ' "${pairs[@]}"
 }
 
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+trap 'exit 1' HUP INT TERM
+
 # Only generate dynamic templates for themes with a colors.toml definition
 if [[ -f $COLORS_FILE ]]; then
-  value_table=$(mktemp)
-  mix_table=$(mktemp)
+  value_table="$scratch/values"
+  mix_table="$scratch/mixes"
+  : >"$value_table"
+  : >"$mix_table"
   declare -A rendered=()
 
   shopt -s nullglob
@@ -436,9 +447,11 @@ if [[ -f $COLORS_FILE ]]; then
 
   # Parsing and alias/fallback resolution (legacy colorN names, derived
   # shades, mode/theme_type) is shared with every other colors.toml consumer.
+  resolved_colors=$(omarchy-theme-color --file "$COLORS_FILE" --all)
   while IFS=$'\t' read -r key value; do
+    [[ -n $key ]] || continue
     THEME_COLORS[$key]="$value"
-  done < <(omarchy-theme-color --file "$COLORS_FILE" --all)
+  done <<<"$resolved_colors"
 
   for key in "${!THEME_COLORS[@]}"; do
     add_template_value "$key" "${THEME_COLORS[$key]}"
