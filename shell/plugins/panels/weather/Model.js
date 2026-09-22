@@ -135,9 +135,9 @@ function openMeteoForecastDays(dailyForecastReport, todayString) {
   var daily = dailyForecastReport && dailyForecastReport.daily ? dailyForecastReport.daily : null
   if (!daily || !daily.time) return []
 
-var result = []
-    var count = Math.min(daily.time.length, 8)
-    for (var i = 0; i < count && result.length < 3; ++i) {
+  var result = []
+  var count = Math.min(daily.time.length, 8)
+  for (var i = 0; i < count && result.length < 3; ++i) {
     var date = daily.time[i]
     if (!isFutureForecastDate(date, todayString)) continue
 
@@ -196,9 +196,9 @@ function weatherResponseCompletesSave(hasConfiguredCoordinates, source) {
 
 function wttrNextForecastDays(report, todayString) {
   var days = report && report.weather ? report.weather : []
-var result = []
-    var count = Math.min(days.length, 8)
-    for (var i = 0; i < count && result.length < 3; ++i) {
+  var result = []
+  var count = Math.min(days.length, 8)
+  for (var i = 0; i < count && result.length < 3; ++i) {
     if (isFutureForecastDate(days[i].date, todayString)) result.push(days[i])
   }
   return result
