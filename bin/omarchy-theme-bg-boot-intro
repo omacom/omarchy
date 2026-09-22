@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Resolve the current background's one-shot boot intro
+# omarchy:summary=Start the current background's one-shot boot intro
 # omarchy:hidden=true
 
 set -euo pipefail
@@ -110,11 +110,36 @@ if [[ -f $marker && $(<"$marker") == "$boot_id" ]]; then
   exit 0
 fi
 
-marker_staged=$(mktemp "$state_home/omarchy/.background-intro.boot-id.XXXXXX")
-trap 'rm -f "$marker_staged"' EXIT
-printf '%s\n' "$boot_id" >"$marker_staged"
-mv -f "$marker_staged" "$marker"
-trap - EXIT
+consume_boot() {
+  local marker_staged
 
-[[ ! -f $toggle ]] || exit 0
-resolve_intro || true
+  marker_staged=$(mktemp "$state_home/omarchy/.background-intro.boot-id.XXXXXX")
+  trap 'rm -f "$marker_staged"' RETURN
+  printf '%s\n' "$boot_id" >"$marker_staged"
+  mv -f "$marker_staged" "$marker"
+  trap - RETURN
+}
+
+if [[ -f $toggle ]]; then
+  consume_boot
+  exit 0
+fi
+
+intro=$(resolve_intro || true)
+if [[ -z $intro ]]; then
+  consume_boot
+  exit 0
+fi
+
+# OWE retries its daemon connection during session startup and returns only
+# after the daemon accepts this intro. Do not consume the boot on a failed
+# handoff, so a bounded shell retry can try again.
+if owe intro-prepare "$intro"; then
+  consume_boot
+  if ! owe intro-commit; then
+    owe intro-stop >/dev/null 2>&1 || true
+    exit 1
+  fi
+else
+  exit 2
+fi
