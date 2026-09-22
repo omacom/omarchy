@@ -2,7 +2,13 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+# omarchy-update exports the path it actually wrote. The fallback keeps this
+# usable when the command is run on its own, and matches what omarchy-update
+# would have chosen.
+update_log="${OMARCHY_UPDATE_LOG:-${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.log}"
+
+# Nothing to analyse if the update never got as far as writing a transcript.
+[[ -f $update_log ]] || exit 0
 
 # Check for initramfs generation failure
 if grep -q "Updating linux initcpios" "$update_log"; then

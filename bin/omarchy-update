@@ -8,9 +8,28 @@
 
 set -e
 
+# Every step below calls sudo for itself where it needs to. Running the whole
+# update as root writes the transcript as root, and because the path is fixed,
+# the next unprivileged run cannot open it -- the update then fails with an
+# error naming script(1) rather than Omarchy. omarchy-dev-link already refuses
+# root the same way, so `omarchy channel set` could not be run under sudo either.
+if (( EUID == 0 )); then
+  echo "Error: run omarchy-update as your user, not under sudo." >&2
+  exit 1
+fi
+
+# The transcript goes in the per-user runtime directory, which is 0700 and owned
+# by the user, rather than a fixed path in world-writable /tmp where any other
+# local user could pre-create it and lock this one out of updating. The path is
+# exported so omarchy-update-analyze-logs reads the same file instead of
+# hardcoding it a second time.
+OMARCHY_UPDATE_LOG="${OMARCHY_UPDATE_LOG:-${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.log}"
+export OMARCHY_UPDATE_LOG
+
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_LOG="$OMARCHY_UPDATE_LOG" \
+    script -qefc "$script_command" "$OMARCHY_UPDATE_LOG"
 fi
 
 if ! omarchy-update-lock held; then
