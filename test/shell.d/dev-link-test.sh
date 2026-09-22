@@ -80,9 +80,18 @@ pass "dev link points OMARCHY_PATH at the checkout"
 
 # sudo reads secure_path, not the caller's PATH, so the checkout has to come
 # first there too or `sudo omarchy-*` runs the packaged copy.
-[[ $(<"$sudoers_file") == "Defaults secure_path=\"$checkout/bin:/usr/local/sbin:/usr/local/bin:/usr/bin\"" ]] ||
+link_user=$(id -un)
+[[ $(<"$sudoers_file") == "Defaults:$link_user secure_path=\"$checkout/bin:/usr/local/sbin:/usr/local/bin:/usr/bin\"" ]] ||
   fail "dev link prepends the checkout to sudo's secure_path" "$(<"$sudoers_file")"
 pass "dev link prepends the checkout to sudo's secure_path"
+
+# Scoped to the linking user. A bare `Defaults` would put one developer's home
+# directory ahead of /usr/bin for every sudoer on the machine, including root's
+# own `sudo -i` and admins who never ran `omarchy dev link`.
+if grep -Eq '^Defaults[[:space:]]' "$sudoers_file"; then
+  fail "dev link scopes the secure_path override to the linking user" "$(<"$sudoers_file")"
+fi
+pass "dev link scopes the secure_path override to the linking user"
 
 grep -Eq $'^sudo\tinstall\t-Dm440\t-o\troot\t-g\troot\t[^\t]+\t/etc/sudoers\\.d/omarchy-dev-path$' "$log_file" ||
   fail "dev link installs the drop-in root-owned and read-only" "$(cat "$log_file")"
@@ -92,9 +101,15 @@ visudo -cf "$sudoers_file" >/dev/null ||
   fail "dev link writes a sudoers drop-in sudo can parse" "$(<"$sudoers_file")"
 pass "dev link writes a sudoers drop-in sudo can parse"
 
-grep -F "sudo now resolves omarchy-* from $checkout/bin" "$test_tmp/link.out" >/dev/null ||
+grep -F "For $link_user, sudo now resolves commands from $checkout/bin first." "$test_tmp/link.out" >/dev/null ||
   fail "dev link reports the sudo change" "$(cat "$test_tmp/link.out")"
 pass "dev link reports the sudo change"
+
+# The rule is a search path, not a list of omarchy-* commands. Saying so is what
+# makes accepting it an informed choice.
+grep -F "not just omarchy-*" "$test_tmp/link.out" >/dev/null ||
+  fail "dev link says the override covers every command name" "$(cat "$test_tmp/link.out")"
+pass "dev link says the override covers every command name"
 
 if grep -Eq '^(gum|reboot)' "$log_file"; then
   fail "dev link --no-reboot skips the reboot prompt" "$(cat "$log_file")"

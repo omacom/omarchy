@@ -193,13 +193,22 @@ names against `secure_path` from `/etc/sudoers`. So `omarchy-dev-link` also
 writes `/etc/sudoers.d/omarchy-dev-path`:
 
 ```
-Defaults secure_path="<checkout>/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"
+Defaults:<user> secure_path="<checkout>/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"
 ```
 
 Without it, `sudo omarchy-*` fails for a command the package has not shipped
 yet and silently runs the packaged copy of one it has. The drop-in is validated
 with `visudo -c` before install and removed by `omarchy-dev-unlink`; unlike
 `/etc/omarchy.conf`, it takes effect without a reboot.
+
+`secure_path` is a search path, not a list of Omarchy commands: while the link
+is up, sudo resolves **every** bare command name out of the checkout's `bin/`
+first — `systemctl`, `pacman`, anything the checkout happens to place there.
+The checkout is therefore as privileged as `/usr/bin` for as long as it is
+linked, which is why the drop-in is written as `Defaults:<user>` for the
+account that ran `omarchy dev link` (taken from `id -un`) rather than a plain
+`Defaults` that would apply the same search path to every sudoer on the
+machine.
 
 ## Runtime finalization (`omarchy-provision-user`)
 
