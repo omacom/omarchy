@@ -30,7 +30,7 @@ assert(
   'shared media helper identifies video paths without truncating valid local names'
 )
 assert(
-  videoQml.includes('loops: root.loop ? MediaPlayer.Infinite : 1') &&
+  videoQml.includes('loops: MediaPlayer.Infinite') &&
     videoQml.includes('autoPlay: root.playbackEnabled') &&
     videoQml.includes('fillMode: VideoOutput.PreserveAspectCrop') &&
     /imageUrl: path && !Util\.isVideoPath\(path\) \? Util\.fileUrl\(path\) \+ \(version \? "\?v=" \+ version : ""\) : ""/.test(mediaQml) &&
@@ -48,46 +48,33 @@ assert(
     videoQml.includes('interval: 1000') &&
     videoQml.includes('interval: 50') &&
     videoQml.includes('frameReceived') &&
-    videoQml.includes('signal firstFramePrimed()') &&
     videoQml.includes('output.clearOutput()') &&
     !videoQml.includes('KeepLastFrame') &&
-    /restartFromPrimedFrame[\s\S]*?player\.position = 0[\s\S]*?player\.play\(\)[\s\S]*?player\.pause\(\)/.test(videoQml) &&
+    /onPlaybackEnabledChanged:[\s\S]*?if \(playbackEnabled\) player\.play\(\)[\s\S]*?else player\.pause\(\)/.test(videoQml) &&
     videoQml.includes('primingGeneration') &&
     videoQml.includes('player.play()') &&
     videoQml.includes('player.pause()'),
   'paused video sources are primed to display their first frame'
 )
 assert(
-  mediaQml.includes('signal firstFramePrimed()') &&
-    mediaQml.includes('function onFirstFramePrimed()') &&
-    backgroundQml.includes('property bool bootIntroResolving: false') &&
+  backgroundQml.includes('property bool bootIntroResolving: false') &&
     backgroundQml.includes('bootIntroResolveTimer.restart()') &&
-    backgroundQml.includes('visible: root.bootIntroResolving || (root.bootIntroActive && !panel.bootIntroPlaybackStarted)') &&
-    backgroundQml.includes('color: Color.background') &&
-    backgroundQml.includes('id: bootIntroMedia') &&
-    backgroundQml.includes('onFirstFramePrimed: panel.maybeStartBootIntro()') &&
-    backgroundQml.includes('playbackEnabled: root.bootIntroActive && panel.bootIntroPlaybackStarted') &&
-    backgroundQml.includes('if (root.bootIntroActive && !panel.bootIntroPlaybackStarted) root.cancelBootIntro()'),
-  'boot intros cover the still until a primed first frame can start from zero'
-)
-assert(
-  videoQml.includes('mediaStatus === MediaPlayer.EndOfMedia') &&
-    mediaQml.includes('property bool loop: true') &&
     backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]') &&
-    backgroundQml.includes('path: root.bootIntroActive ? root.bootIntroPath : ""') &&
-    backgroundQml.includes('audioEnabled: false') &&
-    backgroundQml.includes('loop: false') &&
-    backgroundQml.includes('fadeOutDuration: 750') &&
-    backgroundQml.includes('opacity: 1 - fadeOutProgress') &&
-    backgroundQml.includes('onFinished: panel.handleBootIntroFinished()') &&
-    bootIntro.includes('background-intro.boot-id'),
-  'a matching theme intro plays once per boot and reveals the loaded still at end of media'
+    backgroundQml.includes('root.checkBootIntro()') &&
+    backgroundQml.includes('visible: root.bootIntroResolving') &&
+    backgroundQml.includes('color: Color.background'),
+  'boot intros hold the theme color until the resolver answers'
 )
 assert(
-  videoQml.includes('readonly property real fadeOutProgress:') &&
-    mediaQml.includes('property int fadeOutDuration: 0') &&
-    mediaQml.includes('property: "fadeOutDuration"'),
-  'one-shot media can fade into the exact still instead of reframing abruptly at its final frame'
+  backgroundQml.includes('command: ["owe", "intro", root.bootIntroPath]') &&
+    backgroundQml.includes('onExited: root.finishBootIntro()') &&
+    backgroundQml.includes('command: ["owe", "raw", "{\\"cmd\\":\\"intro-stop\\"}"]') &&
+    backgroundQml.includes('function startBootIntro()') &&
+    backgroundQml.includes('function cancelBootIntro()') &&
+    !backgroundQml.includes('bootIntroMedia') &&
+    !backgroundQml.includes('MediaPlayer') &&
+    bootIntro.includes('background-intro.boot-id'),
+  'OWE plays the matching intro once per boot and the shell reveals its still on exit'
 )
 assert(
   !/^\s*import QtMultimedia/m.test(mediaQml) &&
