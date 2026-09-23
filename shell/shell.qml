@@ -149,6 +149,7 @@ ShellRoot {
       "firstPartyPluginsDir=" + shell.firstPartyPluginsDir,
       "defaultsPath=" + shell.defaultsPath,
       "userConfigPath=" + shell.userConfigPath)
+    pluginRegistry.omarchyPath = shell.omarchyPath
     pluginRegistry.firstPartyDir = shell.firstPartyPluginsDir
     pluginRegistry.shellConfigProvider = function() { return shell.shellConfig }
     pluginRegistry.shellConfigMutator = function(mutate) { shell.mutateShellConfig(mutate) }
