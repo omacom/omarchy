@@ -485,6 +485,15 @@ QtObject {
     onLoadFailed: root.resolveFontFamily()
   }
 
+  property FileView omarchyFontconfigFile: FileView {
+    path: Quickshell.env("HOME") + "/.config/fontconfig/conf.d/50-omarchy-monospace.conf"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.resolveFontFamily()
+    onLoaded: root.resolveFontFamily()
+    onLoadFailed: root.resolveFontFamily()
+  }
+
   // Re-poll Hyprland a beat after either input file changes. Hyprland's
   // auto-reload runs asynchronously when its sourced .lua files change,
   // so racing it with an immediate hyprctl gives the old value. 200ms is
