@@ -8,7 +8,7 @@ if (( EUID != 0 )); then
   if unshare --user --map-root-user true 2>/dev/null; then
     exec unshare --user --map-root-user bash "$0"
   fi
-  pass "no unprivileged user namespace; skipping factory account cleanup"
+  skip "no unprivileged user namespace; skipping factory account cleanup"
   exit 0
 fi
 
