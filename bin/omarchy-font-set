@@ -56,18 +56,13 @@ is_pure_omarchy_fontconfig() {
   local stripped
   stripped=$(sed -E \
     -e 's/<!--.*-->//g' \
-    -e '/<\?xml[^>]*\?>/d' \
-    -e '/<!DOCTYPE[^>]*>/d' \
-    -e '/<\/?fontconfig>/d' \
-    -e '/^[[:space:]]*$/d' \
-    "$file")
+    -e 's/<\?xml[^>]*\?>//g' \
+    -e 's/<!DOCTYPE[^>]*>//g' \
+    -e 's/<\/?fontconfig[^>]*>//g' \
+    "$file" | tr -d '[:space:]')
 
-  local expected_clean="<match target=\"pattern\"><test name=\"family\" qual=\"any\"><string>monospace</string></test><edit name=\"family\" mode=\"prepend_first\" binding=\"strong\"></edit></match>"
-  expected_clean=$(printf "%s" "$expected_clean" | tr -d '[:space:]')
-  local edit_stripped
-  edit_stripped=$(printf "%s\n" "$stripped" | sed -E '/<string>.*<\/string>/ { /<string>monospace<\/string>/!d; }' | tr -d '[:space:]')
-
-  [[ $edit_stripped == "$expected_clean" ]]
+  local pattern='^<matchtarget="pattern"><testname="family"qual="any"><string>monospace</string></test><editname="family"mode="prepend_first"binding="strong"><string>[^<]+</string></edit></match>$'
+  [[ $stripped =~ $pattern ]]
 }
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
