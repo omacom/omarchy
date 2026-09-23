@@ -318,6 +318,10 @@ Item {
             font.pixelSize: Style.font.iconLarge
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
             passwordCharacter: "\u2022"
+            // echoMode only masks committed text; an active input method
+            // (fcitx5, ibus, ...) still draws its own preedit/candidate
+            // popup with the literal characters unless masked here too.
+            inputMethodHints: root.responseVisible ? Qt.ImhNone : (Qt.ImhSensitiveData | Qt.ImhHiddenText | Qt.ImhNoPredictiveText)
             color: root.errorFlash ? Color.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
             readOnly: root.submitted || root.errorFlash

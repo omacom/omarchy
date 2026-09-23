@@ -163,6 +163,10 @@ Item {
         echoMode: TextInput.Password
         passwordCharacter: "\u25CF"
         passwordMaskDelay: 0
+        // TextInput.Password only masks committed text; an active input
+        // method (e.g. fcitx5, ibus) still draws its own preedit/candidate
+        // popup with the literal characters unless these hints tell it not to.
+        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText | Qt.ImhNoPredictiveText
         color: Color.lock.text
         selectionColor: Color.lock.selection
         selectedTextColor: Color.lock.text

@@ -37,6 +37,10 @@ TextField {
   readonly property var _borderSpec: Border.controlSpec(_focused ? "focus" : (_hot ? "hover-cursor" : "normal"), root.foreground, root.accent)
 
   echoMode: password ? TextInput.Password : TextInput.Normal
+  // echoMode only masks committed text; an active input method (fcitx5,
+  // ibus, ...) still draws its own preedit/candidate popup with the literal
+  // characters for a password field unless these hints suppress it.
+  inputMethodHints: password ? (Qt.ImhSensitiveData | Qt.ImhHiddenText | Qt.ImhNoPredictiveText) : Qt.ImhNone
   font.family: Style.font.family
   font.pixelSize: Style.font.body
   color: foreground
