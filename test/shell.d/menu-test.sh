@@ -452,6 +452,14 @@ assert(
   /function select\(delta\)[\s\S]*root\.disarmPointer\(\)[\s\S]*selectedIndex =/.test(menuQml),
   'menu keyboard navigation disarms pointer selection'
 )
+// The shell IPC delivers every argument as a JS string, so `select("1")`
+// lands raw: `selectedIndex + "1"` concatenates instead of adding, and the
+// highs and lows of a 4-row menu collapse onto one row. Coerce before the
+// arithmetic instead of leaving the row choice to string-to-number casts.
+assert(
+  /function select\(delta\)[\s\S]*\n    delta = Number\(delta\) \|\| 0\s*\n\s*root\.disarmPointer\(\)[\s\S]*selectedIndex \+ delta/.test(menuQml),
+  'menu coerces an IPC string delta to a number before stepping the cursor'
+)
 // A dimmed row is not a target: the cursor steps over it, the pointer refuses
 // to land on it, and neither Enter nor a click can reach it.
 assert(
