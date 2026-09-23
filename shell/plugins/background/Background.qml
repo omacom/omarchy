@@ -27,7 +27,6 @@ Item {
   property bool finishingTransition: false
   property int backgroundVersion: 0
   property int bootIntroRequestVersion: -1
-  property int bootIntroFinishedScreens: 0
   property int fullscreenScreens: 0
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
@@ -90,23 +89,28 @@ Item {
     bootIntroResolveTimer.stop()
     bootIntroResolving = false
     bootIntroRequestVersion = -1
-    bootIntroFinishedScreens = 0
     bootIntroActive = false
     bootIntroPath = ""
   }
 
-  function cancelBootIntro() {
-    finishBootIntro()
+  function startBootIntro() {
+    if (!bootIntroPath) {
+      finishBootIntro()
+      return
+    }
+    oweIntroProc.running = true
   }
 
-  function markBootIntroFinished() {
-    if (!bootIntroActive) return
-    bootIntroFinishedScreens += 1
-    if (bootIntroFinishedScreens >= Quickshell.screens.length) finishBootIntro()
+  function cancelBootIntro() {
+    if (oweIntroProc.running) {
+      oweIntroProc.running = false
+      introStopProc.running = true
+    }
+    finishBootIntro()
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
-    finishBootIntro()
+    cancelBootIntro()
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
@@ -219,13 +223,27 @@ Item {
           root.finishBootIntro()
           return
         }
-        root.bootIntroFinishedScreens = 0
         root.bootIntroPath = path
         root.bootIntroActive = true
         bootIntroResolveTimer.stop()
         root.bootIntroResolving = false
+        root.startBootIntro()
       }
     }
+  }
+
+  // OWE owns the intro's decode and the reveal. For a still background the
+  // daemon starts the renderer for the intro and hands the layer back after it.
+  Process {
+    id: oweIntroProc
+    command: ["owe", "intro", root.bootIntroPath]
+    onExited: root.finishBootIntro()
+  }
+
+  // Killing the CLI does not stop the daemon-side intro. Tell the daemon too.
+  Process {
+    id: introStopProc
+    command: ["owe", "raw", "{\"cmd\":\"intro-stop\"}"]
   }
 
   IpcHandler {
@@ -253,13 +271,6 @@ Item {
 
     function cancelBootIntro(): void {
       root.cancelBootIntro()
-    }
-  }
-
-  Connections {
-    target: Quickshell
-    function onScreensChanged() {
-      if (root.bootIntroActive && root.bootIntroFinishedScreens >= Quickshell.screens.length) root.finishBootIntro()
     }
   }
 
@@ -333,13 +344,10 @@ Item {
         && String(Quickshell.screens[0].name || "") === String(modelData.name || "")
 
       property bool maskReady: false
-      property bool bootIntroFinished: false
-      property bool bootIntroPlaybackStarted: false
       property bool fullscreenReported: false
 
       Component.onDestruction: {
         if (fullscreenReported) root.fullscreenScreens = Math.max(0, root.fullscreenScreens - 1)
-        if (bootIntroFinished && root.bootIntroActive) root.bootIntroFinishedScreens = Math.max(0, root.bootIntroFinishedScreens - 1)
       }
 
       Component.onCompleted: syncFullscreenState()
@@ -349,19 +357,6 @@ Item {
         if (fullscreenReported === fullscreenHere) return
         fullscreenReported = fullscreenHere
         root.fullscreenScreens = Math.max(0, root.fullscreenScreens + (fullscreenHere ? 1 : -1))
-      }
-
-      function handleBootIntroFinished() {
-        if (bootIntroFinished || !root.bootIntroActive) return
-        bootIntroPrimeTimer.stop()
-        bootIntroFinished = true
-        root.markBootIntroFinished()
-      }
-
-      function maybeStartBootIntro() {
-        if (!root.bootIntroActive || bootIntroPlaybackStarted) return
-        bootIntroPrimeTimer.stop()
-        bootIntroPlaybackStarted = true
       }
 
       function maybeStartReveal() {
@@ -395,36 +390,12 @@ Item {
         }
       }
 
-      // The base still is ready first, but showing it before Qt Multimedia has
-      // decoded the intro's first frame makes startup flash the final image.
-      // Hold the theme color over it through resolution and paused priming.
+      // Hold the theme color until the resolver has an answer, so startup does
+      // not flash the still before OWE takes the layer over.
       Rectangle {
         anchors.fill: parent
         color: Color.background
-        visible: root.bootIntroResolving || (root.bootIntroActive && !panel.bootIntroPlaybackStarted)
-      }
-
-      // The still background remains decoded underneath this one-shot layer,
-      // so a matching final frame can disappear without a reload or flash.
-      BackgroundMedia {
-        id: bootIntroMedia
-        anchors.fill: parent
-        path: root.bootIntroActive ? root.bootIntroPath : ""
-        playbackEnabled: root.bootIntroActive && panel.bootIntroPlaybackStarted && !root.sessionObscured && !panel.fullscreenHere
-        audioEnabled: false
-        loop: false
-        fadeOutDuration: 750
-        opacity: 1 - fadeOutProgress
-        visible: root.bootIntroActive && panel.bootIntroPlaybackStarted && opacity > 0
-        onFirstFramePrimed: panel.maybeStartBootIntro()
-        onFinished: panel.handleBootIntroFinished()
-      }
-
-      Timer {
-        id: bootIntroPrimeTimer
-        interval: 3000
-        repeat: false
-        onTriggered: if (root.bootIntroActive && !panel.bootIntroPlaybackStarted) root.cancelBootIntro()
+        visible: root.bootIntroResolving
       }
 
       Image {
@@ -499,16 +470,6 @@ Item {
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
           panel.maybeStartReveal()
-        }
-        function onBootIntroActiveChanged() {
-          if (root.bootIntroActive) {
-            panel.bootIntroFinished = false
-            panel.bootIntroPlaybackStarted = false
-            bootIntroPrimeTimer.restart()
-          } else {
-            bootIntroPrimeTimer.stop()
-            panel.bootIntroPlaybackStarted = false
-          }
         }
       }
 
