@@ -21,7 +21,10 @@ exec_line=$(grep -m1 '^Exec=' "$desktop_file" 2>/dev/null || true)
 if [[ $exec_line =~ $generated ]]; then
   url=${BASH_REMATCH[1]}
   tmp=$(mktemp)
-  sed "s|^Exec=.*|Exec=omarchy-launch-webapp $url|" "$desktop_file" >"$tmp"
+  # Only the entry's own Exec line. A .desktop file may also carry
+  # [Desktop Action] sections with their own Exec lines, and those are not what
+  # was inspected above; rewriting them too would repoint unrelated actions.
+  sed "0,/^Exec=/s|^Exec=.*|Exec=omarchy-launch-webapp $url|" "$desktop_file" >"$tmp"
   mv -f "$tmp" "$desktop_file"
   chmod +x "$desktop_file"
   echo "Removed --ignore-certificate-errors from the Sunshine Admin shortcut."
