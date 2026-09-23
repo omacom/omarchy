@@ -19,8 +19,8 @@ if [[ $terminal == "ghostty" || $terminal == "kitty" ]] &&
   mods="CTRL"
   key="V"
 else
-  mods="SHIFT"
-  key="Insert"
+  mods="CTRL SHIFT"
+  key="V"
 fi
 
 hyprctl eval "

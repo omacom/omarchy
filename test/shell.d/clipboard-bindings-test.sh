@@ -113,14 +113,14 @@ pass "terminal image paste recognizes an upgraded Ghostty process"
 rm -f "$tmpdir/hyprctl"
 TERMINAL_EXE=kitty WL_PASTE_TYPES='text/plain\n' HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-terminal" 1234 5678 0xabc123
-grep -Fq 'local mods, key = "SHIFT", "Insert"' "$tmpdir/hyprctl" || fail "terminal text paste sends Shift+Insert"
-pass "terminal text paste sends Shift+Insert"
+grep -Fq 'local mods, key = "CTRL SHIFT", "V"' "$tmpdir/hyprctl" || fail "terminal text paste sends Ctrl+Shift+V"
+pass "terminal text paste sends Ctrl+Shift+V"
 
 rm -f "$tmpdir/hyprctl"
 TERMINAL_EXE=foot WL_PASTE_TYPES='image/png\n' HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-terminal" 1234 5678 0xabc123
-grep -Fq 'local mods, key = "SHIFT", "Insert"' "$tmpdir/hyprctl" || fail "Foot image paste keeps Shift+Insert"
-pass "Foot image paste keeps Shift+Insert"
+grep -Fq 'local mods, key = "CTRL SHIFT", "V"' "$tmpdir/hyprctl" || fail "Foot image paste keeps the text paste chord"
+pass "Foot image paste keeps the text paste chord"
 
 rm -f "$tmpdir/hyprctl"
 TERMINAL_EXE=ghostty WL_PASTE_TYPES='text/plain\nimage/png\n' HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
