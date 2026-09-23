@@ -191,8 +191,17 @@ cat >"$mock_bin/rfkill" <<'SH'
 printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 # The is-blocked read: one SOFT column per bluetooth switch, and no output at all
 # on a machine that has none.
+# util-linux translates the cell values, so a German session prints "gesperrt"
+# where the C locale prints "blocked": the mock does the same unless the caller
+# pinned the locale.
 if [[ $1 == "--noheadings" ]]; then
-  [[ -n ${MOCK_SOFT_STATE:-} ]] && printf '%s\n' "$MOCK_SOFT_STATE"
+  if [[ -n ${MOCK_SOFT_STATE:-} ]]; then
+    if [[ ${LC_ALL:-} == "C" ]]; then
+      printf '%s\n' "$MOCK_SOFT_STATE"
+    else
+      printf '%s\n' "$MOCK_SOFT_STATE" | sed 's/^unblocked$/nicht gesperrt/; s/^blocked$/gesperrt/'
+    fi
+  fi
   exit 0
 fi
 # Lifting the block is normally all it takes: AutoEnable is left at its default,
@@ -325,3 +334,10 @@ pass "bluetooth reports an unblocked radio as not blocked"
 blocked_state "" &&
   fail "bluetooth reports a machine with no rfkill switch as not blocked"
 pass "bluetooth reports a machine with no rfkill switch as not blocked"
+
+# The mock rfkill translates the column unless the query pins the locale, the
+# way util-linux does on a localized system. A helper that read the English
+# word from a translated column would hide the widget again on those machines.
+LC_ALL= blocked_state $'unblocked\nblocked' ||
+  fail "bluetooth reads the rfkill block in a localized session"
+pass "bluetooth reads the rfkill block in a localized session"
