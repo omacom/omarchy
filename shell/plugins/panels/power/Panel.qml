@@ -65,9 +65,11 @@ Panel {
     var device = UPower.displayDevice
     return device && device.isPresent && device.state === UPowerDeviceState.FullyCharged && !root.chargeThresholdActive
   }
+  // True while a plug change settles; see Model.drawingFromBattery.
+  property bool plugSettling: false
   readonly property bool discharging: {
     var device = UPower.displayDevice
-    return !!(device && device.isPresent && UPower.onBattery)
+    return Model.drawingFromBattery(device, UPower.onBattery, upowerStates(), root.plugSettling)
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
@@ -84,7 +86,7 @@ Panel {
 
   readonly property bool charging: {
     var d = UPower.displayDevice
-    return d && d.isPresent && !UPower.onBattery && !root.batteryFlowIdle
+    return !!(d && d.isPresent && !root.discharging && !root.batteryFlowIdle)
   }
 
   readonly property color batteryFillColor: {
@@ -229,6 +231,20 @@ Panel {
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
+
+  Timer {
+    id: plugSettleTimer
+    interval: 30000
+    onTriggered: root.plugSettling = false
+  }
+
+  Connections {
+    target: UPower
+    function onOnBatteryChanged() {
+      root.plugSettling = true
+      plugSettleTimer.restart()
+    }
+  }
 
   // Rotate the status phrase while the panel is open and we're in a
   // rotating state (charging or on battery). The text swap is wrapped in a

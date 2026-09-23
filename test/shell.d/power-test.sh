@@ -30,6 +30,12 @@ assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: s
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states), 'On battery', 'power labels battery mode')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'Charging', 'power treats external power as newer than stale discharging state')
+assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states, false), 'power draws from battery when unplugged')
+assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Charging }, true, states, true), 'power trusts unplugging before battery state refreshes')
+assert(!power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states, true), 'power trusts plugging in before battery state refreshes')
+assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states, false), 'power reports draining when a settled battery still discharges on external power')
+assert(!power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Charging }, false, states, false), 'power does not report draining while charging on external power')
+assert(!power.drawingFromBattery({ isPresent: false }, true, states, false), 'power reports no draw without a battery')
 assert(power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging }, false, states).length > 0, 'power maps battery icons')
 assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, false, states),
@@ -42,6 +48,8 @@ assertEqual(
   'power shows battery icon when unplugged before battery state refreshes'
 )
 
+assert(/discharging: \{[\s\S]*?Model\.drawingFromBattery\(device, UPower\.onBattery, upowerStates\(\), root\.plugSettling\)/.test(panelSource), 'power derives charge direction from the settled battery state')
+assert(/function onOnBatteryChanged\(\) \{[\s\S]*?root\.plugSettling = true[\s\S]*?plugSettleTimer\.restart\(\)/.test(panelSource), 'power opens a settle window on every plug change')
 assert(/if \(b === Qt\.RightButton\) root\.togglePercentage\(\)/.test(panelSource), 'power right click toggles the bar percentage')
 assert(/Object\.assign\([^\n]+showPercentage: !root\.showPercentage[^\n]+\)[\s\S]*updateEntryInline/.test(panelSource), 'power persists the bar percentage setting')
 assert(/Math\.round\(root\.batteryFraction \* 100\) \+ "% " \+ root\.batteryIcon\(\)/.test(panelSource), 'power places the percentage before the battery icon')
