@@ -44,5 +44,12 @@ for format in "${formats[@]}"; do
 done
 find_args+=(")" -printf '%T@\t%p\n')
 
-find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- |
-  omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
+# -L descends into starting points that are symlinks (e.g. ~/Videos ->
+# /mnt/storage/Videos), and head caps the payload so a large library cannot
+# exceed the argument size limit. Pipefail would turn head's SIGPIPE into a
+# failure, and callers branch on the menu's own exit status.
+set +o pipefail
+find -L "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- | head -n 500 |
+  omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@" || status=$?
+set -o pipefail
+exit "${status:-0}"
