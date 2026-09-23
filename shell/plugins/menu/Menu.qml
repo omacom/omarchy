@@ -726,17 +726,32 @@ Item {
     root.rebuildDisplay()
   }
 
-  function setActiveMenu(id, pushHistory, fromPointer) {
+  function setActiveMenu(id, pushHistory, fromPointer, restoreSelection) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
-    if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
+    if (pushHistory && id !== root.activeMenu) {
+      var selectedRow = root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
+      root.navStack = root.navStack.concat([{
+        menu: root.activeMenu,
+        index: root.selectedIndex,
+        itemId: selectedRow ? selectedRow.itemId : ""
+      }])
+    }
     root.activeMenu = id
     root.filterText = ""
-    root.selectedIndex = 0
+    root.selectedIndex = restoreSelection ? restoreSelection.index : 0
     root.cursorActive = true
     if (fromPointer) pointerGate.allowInitialSample()
     else root.disarmPointer()
     root.rebuildDisplay()
+    if (restoreSelection && restoreSelection.itemId) {
+      for (var i = 0; i < displayModel.count; i++) {
+        if (displayModel.get(i).itemId === restoreSelection.itemId && root.rowSelectable(i)) {
+          root.selectedIndex = i
+          break
+        }
+      }
+    }
     root.invalidateVolatileProvider(id)
     root.loadProviderForMenu(id)
   }
@@ -747,7 +762,7 @@ Item {
     if (root.navStack.length > 0) {
       var previous = root.navStack[root.navStack.length - 1]
       root.navStack = root.navStack.slice(0, root.navStack.length - 1)
-      root.setActiveMenu(previous, false)
+      root.setActiveMenu(previous.menu, false, false, previous)
       return true
     }
 
