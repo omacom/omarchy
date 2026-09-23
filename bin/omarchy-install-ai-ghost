@@ -31,4 +31,11 @@ omarchy-shell shell rescanPlugins
 omarchy plugin enable ferdousbhai.ghost
 
 echo ""
-echo "Ghost has been installed. Press Super + Ctrl + G to summon it."
+echo "Ghost is installed, and in your app launcher."
+# The package edits no configuration of yours, so the summon key is still
+# yours to bind: /usr/share/doc/ghost/shell-contrib/hyprland/ has ghost.lua
+# for an Omarchy 4 Lua config and ghost.conf for a .conf one.
+echo "To summon it with Super + Ctrl + G, copy the sample your Hyprland config"
+echo "uses from /usr/share/doc/ghost/shell-contrib/hyprland/."
+echo ""
+echo "Then make a ghost and sign in:  ghost new <name> && ghost login <provider>"
