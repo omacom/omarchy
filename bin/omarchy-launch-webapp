@@ -19,10 +19,18 @@ esac
 # two leading dashes and splits an optional "=value", so --no-sandbox=1 and
 # -ignore-certificate-errors carry the same meaning as the canonical forms and
 # have to be refused with them.
+# Chromium trims surrounding ASCII whitespace before it parses a switch, so
+# " --ignore-certificate-errors" as a single argument still reaches it as that
+# switch. Trim the same set here before deciding whether an argument is a switch
+# and which one it names. Only the comparison uses the trimmed form; the
+# argument is forwarded to the browser exactly as it was given.
 for arg in "${@:2}"; do
-  [[ $arg == -* ]] || continue
+  trimmed=${arg#"${arg%%[![:space:]]*}"}
+  trimmed=${trimmed%"${trimmed##*[![:space:]]}"}
 
-  switch=${arg#-}
+  [[ $trimmed == -* ]] || continue
+
+  switch=${trimmed#-}
   switch=${switch#-}
   switch=${switch%%=*}
 
