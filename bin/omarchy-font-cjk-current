@@ -12,8 +12,10 @@ if [[ ! -f "$cjk_file" ]]; then
   exit 0
 fi
 
-# The variant marker is written by cjk-set as "<!-- omarchy-cjk-variant: <name> -->".
-current=$(sed -n 's/.*omarchy-cjk-variant: \([a-z]*\).*/\1/p' "$cjk_file" | tail -n1)
+# The variant is read from the sans rule family (e.g. "Noto Sans CJK TC"),
+# which is what fontconfig itself reads, so the answer cannot drift from
+# the effective rules even if the marker comment is edited by hand.
+current=$(sed -n 's/.*Noto Sans CJK \([A-Z]*\).*/\1/p' "$cjk_file" | tr '[:upper:]' '[:lower:]' | tail -n1)
 
 if [[ -z "$current" ]]; then
   echo "unset"

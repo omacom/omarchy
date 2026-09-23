@@ -24,6 +24,7 @@ EOF
 }
 
 variant="${1:-}"
+variant="${variant,,}"
 
 case "$variant" in
   -h|--help)
