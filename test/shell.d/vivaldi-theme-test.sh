@@ -43,6 +43,7 @@ write_channel() {
 prefs="$PREFS_DIR/Preferences"
 jq -n '{
   vivaldi: {
+    appearance: {force_dark_mode_theme: true},
     themes: {
       current: "Vivaldi5",
       user: [
@@ -63,7 +64,8 @@ jq -n '{
         }
       ]
     }
-  }
+  },
+  webkit: {webprefs: {force_dark_mode_enabled: true}}
 }' >"$prefs"
 chmod 600 "$prefs"
 
@@ -104,6 +106,18 @@ jq -e '.vivaldi.themes.user[] | select(.id == "omarchy-theme")
 jq -e '.vivaldi.themes.user[] | select(.id == "omarchy-theme") | .alpha == 0.75' \
   "$prefs" >/dev/null ||
   fail "native theme keeps the user's transparency when Hyprland sets none"
+
+jq -e '.vivaldi.appearance.force_dark_mode_theme == true
+  and .webkit.webprefs.force_dark_mode_enabled == true' "$prefs" >/dev/null ||
+  fail "native theme preserves existing force-dark preferences"
+
+jq 'del(.vivaldi.appearance.force_dark_mode_theme,
+  .webkit.webprefs.force_dark_mode_enabled)' "$prefs" >"$prefs.next" &&
+  mv "$prefs.next" "$prefs"
+run_theme_set
+jq -e '(.vivaldi.appearance | has("force_dark_mode_theme") | not)
+  and (.webkit.webprefs | has("force_dark_mode_enabled") | not)' "$prefs" >/dev/null ||
+  fail "native theme leaves absent force-dark preferences absent"
 
 write_channel 0.4
 run_theme_set
