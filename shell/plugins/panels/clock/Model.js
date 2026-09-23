@@ -234,7 +234,13 @@ function lifeProgressPercent(age, expectancy) {
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
   var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
-  var cursor = new Date(year, month, 1 - leading)
+  // Noon, not midnight: a cursor sitting on the invalid local hour of a
+  // spring-forward DST transition (e.g. Chile's clocks skip 00:00-00:59 on
+  // the changeover day) makes Qt's JS engine fail to advance the date for
+  // that step, silently dropping a day from the rest of the grid. Midday
+  // never falls inside a real-world DST gap, so anchoring there sidesteps
+  // the bug regardless of which day of the month the transition lands on.
+  var cursor = new Date(year, month, 1 - leading, 12)
   var today = String(todayKey || "")
   var weeks = []
 
