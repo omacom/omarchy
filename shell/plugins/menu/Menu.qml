@@ -705,6 +705,7 @@ Item {
 
   function select(delta) {
     if (displayModel.count === 0) return
+    delta = Number(delta) || 0
 
     root.disarmPointer()
     var from = cursorActive ? selectedIndex + delta : (delta < 0 ? displayModel.count - 1 : 0)
