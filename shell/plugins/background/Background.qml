@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -17,48 +16,19 @@ Item {
 
   property string currentBackground: ""
   property string displayedBackground: ""
-  property int displayedReloads: 0
-  property string bootIntroPath: ""
-  property bool bootIntroActive: false
-  property bool bootIntroChecked: false
-  property bool bootIntroResolving: false
   property string incomingBackground: ""
   property string oldBackground: ""
   property bool finishingTransition: false
   property int backgroundVersion: 0
-  property int bootIntroRequestVersion: -1
-  property int fullscreenScreens: 0
+  property bool bootIntroChecked: false
+  property int bootIntroAttempts: 0
+  readonly property int bootIntroMaxAttempts: 60
+  readonly property int bootIntroRetryInterval: 1000
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
   property string pendingShellRaw: ""
   property real revealProgress: 1
-
-  // Injected by the first-party service loader; used to reach the lock and idle
-  // services so playback can stop whenever nothing can see the wallpaper.
-  property var shell: null
-
-  // Stop a video wallpaper's decoding whenever it is covered. Qt's FFmpeg
-  // engine drives its own clock, so an unseen player keeps decoding until it
-  // is told not to — a locked laptop would otherwise decode until it died.
-  readonly property var lockService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.lock") : null
-  readonly property var idleService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.idle") : null
-  readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
-  readonly property bool lockActive: lockService ? lockService.locked : false
-  readonly property bool screensaverActive: idleService ? idleService.screensaverWindowCount > 0 : false
-  readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
-  // A lock or a screensaver covers every output, so it is decided once here.
-  // Fullscreen is decided per output below, because it only covers its own.
-  readonly property bool sessionObscured: lockActive || screensaverActive
-  readonly property bool fullscreenActive: fullscreenScreens > 0
-
-  onSessionObscuredChanged: {
-    if (sessionObscured) cancelBootIntro()
-  }
-
-  onFullscreenActiveChanged: {
-    if (fullscreenActive) cancelBootIntro()
-  }
 
   function isVideo(path) {
     return Util.isVideoPath(path)
@@ -79,38 +49,11 @@ Item {
   function checkBootIntro() {
     if (bootIntroChecked || bootIntroProc.running) return
     bootIntroChecked = true
-    bootIntroResolving = true
-    bootIntroRequestVersion = backgroundVersion
-    bootIntroResolveTimer.restart()
+    bootIntroAttempts += 1
     bootIntroProc.running = true
   }
 
-  function finishBootIntro() {
-    bootIntroResolveTimer.stop()
-    bootIntroResolving = false
-    bootIntroRequestVersion = -1
-    bootIntroActive = false
-    bootIntroPath = ""
-  }
-
-  function startBootIntro() {
-    if (!bootIntroPath) {
-      finishBootIntro()
-      return
-    }
-    oweIntroProc.running = true
-  }
-
-  function cancelBootIntro() {
-    if (oweIntroProc.running) {
-      oweIntroProc.running = false
-      introStopProc.running = true
-    }
-    finishBootIntro()
-  }
-
   function transitionBackground(fromPath, path, finalPath, instant, force) {
-    cancelBootIntro()
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
@@ -127,9 +70,6 @@ Item {
     if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground)) {
       oldBackground = ""
       incomingBackground = ""
-      // A theme switch can replace the file behind an unchanged path, which
-      // an unchanged property would never pick up.
-      if (displayedBackground === finalPath) displayedReloads += 1
       displayedBackground = finalPath
       revealProgress = 1
       return
@@ -211,39 +151,19 @@ Item {
   Process {
     id: bootIntroProc
     command: ["omarchy-theme-bg-boot-intro"]
-    stdout: StdioCollector {
-      onStreamFinished: {
-        const path = String(text || "").trim()
-        if (root.bootIntroRequestVersion !== root.backgroundVersion || root.sessionObscured || root.fullscreenActive) {
-          root.finishBootIntro()
-          return
-        }
-        root.bootIntroRequestVersion = -1
-        if (!path) {
-          root.finishBootIntro()
-          return
-        }
-        root.bootIntroPath = path
-        root.bootIntroActive = true
-        bootIntroResolveTimer.stop()
-        root.bootIntroResolving = false
-        root.startBootIntro()
+    onExited: function(exitCode) {
+      if (exitCode === 2 && root.bootIntroAttempts < root.bootIntroMaxAttempts) {
+        root.bootIntroChecked = false
+        bootIntroRetry.restart()
       }
     }
   }
 
-  // OWE owns the intro's decode and the reveal. For a still background the
-  // daemon starts the renderer for the intro and hands the layer back after it.
-  Process {
-    id: oweIntroProc
-    command: ["owe", "intro", root.bootIntroPath]
-    onExited: root.finishBootIntro()
-  }
-
-  // Killing the CLI does not stop the daemon-side intro. Tell the daemon too.
-  Process {
-    id: introStopProc
-    command: ["owe", "raw", "{\"cmd\":\"intro-stop\"}"]
+  Timer {
+    id: bootIntroRetry
+    interval: root.bootIntroRetryInterval
+    repeat: false
+    onTriggered: root.checkBootIntro()
   }
 
   IpcHandler {
@@ -268,17 +188,6 @@ Item {
     function themeTransition(fromPath: string, path: string, finalPath: string, colorsB64: string, shellB64: string): void {
       root.transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64)
     }
-
-    function cancelBootIntro(): void {
-      root.cancelBootIntro()
-    }
-  }
-
-  Timer {
-    id: bootIntroResolveTimer
-    interval: 3000
-    repeat: false
-    onTriggered: if (root.bootIntroResolving) root.cancelBootIntro()
   }
 
   Timer {
@@ -326,38 +235,10 @@ Item {
       // Keep render updates enabled. The background layer has been observed to
       // lose its committed buffer while parked with updatesEnabled=false,
       // leaving a black desktop until omarchy-shell is restarted. A still
-      // wallpaper costs nothing to keep enabled, and a video one is throttled
-      // by pausing playback rather than by parking the layer.
+      // wallpaper costs nothing to keep enabled. OWE manages video layers.
       updatesEnabled: true
 
-      // Pausing every wallpaper for one fullscreen window would freeze the one
-      // still on show next to it, which costs a viewer more than it saves. The
-      // workspace on show here knows whether a fullscreen window covers it,
-      // wherever focus happens to be.
-      readonly property var hyprlandMonitor: Hyprland.monitorFor(modelData)
-      readonly property var visibleWorkspace: hyprlandMonitor ? hyprlandMonitor.activeWorkspace : null
-      readonly property bool fullscreenHere: visibleWorkspace ? visibleWorkspace.hasFullscreen : false
-
-      // A sound track plays from one output only, or every monitor would
-      // layer its own copy of it.
-      readonly property bool firstScreen: Quickshell.screens.length > 0
-        && String(Quickshell.screens[0].name || "") === String(modelData.name || "")
-
       property bool maskReady: false
-      property bool fullscreenReported: false
-
-      Component.onDestruction: {
-        if (fullscreenReported) root.fullscreenScreens = Math.max(0, root.fullscreenScreens - 1)
-      }
-
-      Component.onCompleted: syncFullscreenState()
-      onFullscreenHereChanged: syncFullscreenState()
-
-      function syncFullscreenState() {
-        if (fullscreenReported === fullscreenHere) return
-        fullscreenReported = fullscreenHere
-        root.fullscreenScreens = Math.max(0, root.fullscreenScreens + (fullscreenHere ? 1 : -1))
-      }
 
       function maybeStartReveal() {
         if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
@@ -374,13 +255,12 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
+      // OWE owns video backgrounds. This layer draws stills, and stays empty
+      // behind a video so OWE's own layer shows through.
       BackgroundMedia {
         id: base
         anchors.fill: parent
         path: root.displayedBackground
-        reloads: root.displayedReloads
-        playbackEnabled: !root.sessionObscured && !root.powerSaverActive && !panel.fullscreenHere
-        audioEnabled: panel.firstScreen
         onReadyChanged: {
           if (ready && root.finishingTransition) {
             root.incomingBackground = ""
@@ -388,14 +268,6 @@ Item {
             root.finishingTransition = false
           }
         }
-      }
-
-      // Hold the theme color until the resolver has an answer, so startup does
-      // not flash the still before OWE takes the layer over.
-      Rectangle {
-        anchors.fill: parent
-        color: Color.background
-        visible: root.bootIntroResolving
       }
 
       Image {

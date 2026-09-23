@@ -44,39 +44,58 @@ rm "$user_intro_dir/road.disabled" "$user_intro_dir/road.webm"
 
 toggle="$intro_home/.local/state/omarchy/toggles/background-intros-off"
 marker="$intro_home/.local/state/omarchy/background-intro.boot-id"
+command_bin="$test_tmp/bin"
+command_log="$test_tmp/command-log"
+mkdir -p "$command_bin"
+cat >"$command_bin/owe" <<'SH'
+#!/bin/bash
+printf 'owe: %s\n' "$*" >>"$COMMAND_LOG"
+if [[ ${OWE_FAIL:-0} == 1 && ${1:-} == "intro-prepare" ]]; then
+  exit 2
+fi
+SH
+chmod +x "$command_bin/owe"
+
 mkdir -p "$(dirname "$toggle")"
 touch "$toggle"
-resolved=$(HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" OMARCHY_BOOT_ID=disabled-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=disabled-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
 [[ -z $resolved && $(<"$marker") == "disabled-boot" ]] || fail "the global toggle consumes the current boot without playing"
 rm "$toggle"
-resolved=$(HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" OMARCHY_BOOT_ID=disabled-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
+resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=disabled-boot "$ROOT/bin/omarchy-theme-bg-boot-intro")
 [[ -z $resolved ]] || fail "enabling midway through a boot does not start a delayed intro" "$resolved"
 
 rm "$marker"
+if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=1 OMARCHY_BOOT_ID=retry-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
+  fail "a rejected OWE handoff reports a retryable failure"
+else
+  status=$?
+  (( status == 2 )) || fail "a rejected OWE handoff uses the retry exit code" "$status"
+fi
+[[ ! -e $marker ]] || fail "a rejected OWE handoff does not consume the boot"
+PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=retry-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"
+[[ $(<"$marker") == "retry-boot" ]] || fail "an accepted OWE handoff consumes the boot"
+
+rm "$marker"
+: >"$command_log"
 for index in {1..32}; do
-  HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" OMARCHY_BOOT_ID=concurrent-boot "$ROOT/bin/omarchy-theme-bg-boot-intro" >"$test_tmp/output.$index" &
+  PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=concurrent-boot "$ROOT/bin/omarchy-theme-bg-boot-intro" >"$test_tmp/output.$index" &
   intro_pids[$index]=$!
 done
 for intro_pid in "${intro_pids[@]}"; do
   wait "$intro_pid"
 done
-intro_count=$(awk 'NF { count += 1 } END { print count + 0 }' "$test_tmp"/output.*)
-(( intro_count == 1 )) || fail "concurrent resolvers emit exactly one intro" "$intro_count"
+intro_count=$(grep -c '^owe: intro-prepare ' "$command_log")
+(( intro_count == 1 )) || fail "concurrent launchers start exactly one intro" "$intro_count"
+commit_count=$(grep -c '^owe: intro-commit$' "$command_log")
+(( commit_count == 1 )) || fail "the accepted intro is revealed after its boot marker is committed" "$commit_count"
 
-pass "boot intros require an exact still and resolve once under concurrency"
+pass "boot intros require an exact still and consume the boot only after OWE accepts them"
 
-command_bin="$test_tmp/bin"
-command_log="$test_tmp/command-log"
-mkdir -p "$command_bin"
 ln -s "$ROOT/bin/omarchy-theme-bg-boot-intro" "$command_bin/omarchy-theme-bg-boot-intro"
 
 cat >"$command_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf 'notification: %s\n' "$*" >>"$COMMAND_LOG"
-SH
-cat >"$command_bin/omarchy-shell" <<'SH'
-#!/bin/bash
-printf 'shell: %s\n' "$*" >>"$COMMAND_LOG"
 SH
 cat >"$command_bin/omarchy-theme-bg-current" <<'SH'
 #!/bin/bash
@@ -124,7 +143,7 @@ if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime"
 fi
 PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-intro" enable
 PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-intro" status || fail "enabled boot intros report an enabled status"
-grep -q '^shell: -q background cancelBootIntro$' "$command_log" || fail "removing or disabling an intro stops active playback"
+grep -q '^owe: intro-stop$' "$command_log" || fail "removing or disabling an intro stops OWE playback directly"
 
 pass "users can set, remove, restore, enable, and disable boot intros"
 
@@ -150,17 +169,19 @@ const fs = require('fs')
 const backgroundQml = fs.readFileSync(path.join(root, 'shell/plugins/background/Background.qml'), 'utf8')
 
 assert(
-  backgroundQml.includes('bootIntroRequestVersion !== root.backgroundVersion')
-    && backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]')
-    && backgroundQml.includes('root.checkBootIntro()'),
-  'a stale boot intro cannot appear later in the session'
+  backgroundQml.includes('command: ["omarchy-theme-bg-boot-intro"]')
+    && backgroundQml.includes('root.checkBootIntro()')
+    && backgroundQml.includes('readonly property int bootIntroMaxAttempts: 60')
+    && backgroundQml.includes('readonly property int bootIntroRetryInterval: 1000')
+    && backgroundQml.includes('exitCode === 2 && root.bootIntroAttempts < root.bootIntroMaxAttempts')
+    && backgroundQml.includes('bootIntroRetry.restart()'),
+  'the shell retries throughout the normal login window when OWE is not ready during startup'
 )
 assert(
-  backgroundQml.includes('command: ["owe", "intro", root.bootIntroPath]')
-    && backgroundQml.includes('onExited: root.finishBootIntro()')
-    && backgroundQml.includes('command: ["owe", "raw", "{\\"cmd\\":\\"intro-stop\\"}"]')
-    && backgroundQml.includes('visible: root.bootIntroResolving'),
-  'OWE plays the intro, the shell reveals its still on exit, and cancellation stops the daemon side'
+  !backgroundQml.includes('bootIntroPath')
+    && !backgroundQml.includes('cancelBootIntro')
+    && !backgroundQml.includes('bootIntroResolving'),
+  'OWE owns intro playback and both visual handoffs'
 )
 JS
 
