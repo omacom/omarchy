@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# omarchy:summary=Watch for Asahi speaker-amp lock after speakersafetyd crashes
+# omarchy:hidden=true
+
+# When speakersafetyd dies, macaudio clamps Left/Right Speaker Playback Volume
+# to a 0–1 range and Speaker Volume Unlock reads 0. PipeWire volume stays at
+# 100%, so nothing in the UI looks muted. Toast once until the amps unlock.
+# Never touch mixer controls — unlocking without the daemon can damage the
+# speakers.
+
+set -euo pipefail
+
+# nf-md-volume-off, escaped so this file reads without a Nerd Font.
+readonly SPEAKER_LOCK_GLYPH=$'\U000f0581'
+
+alsa_cards() {
+  local card
+  for card in /proc/asound/card*; do
+    [[ -f $card/id ]] && cat "$card/id"
+  done
+}
+
+speaker_card() {
+  local id
+  for id in $(alsa_cards); do
+    amixer -c "$id" cget name='Speaker Volume Unlock' &>/dev/null && {
+      echo "$id"
+      return 0
+    }
+  done
+  return 1
+}
+
+speaker_volume_locked() {
+  local card info
+  card=$(speaker_card) || return 1
+  info=$(amixer -c "$card" cget name='Speaker Volume Unlock' 2>/dev/null) || return 1
+  grep -q ': values=0' <<<"$info"
+}
+
+announce_lock() {
+  omarchy-notification-wait || return 0
+  omarchy-notification-send \
+    --urgency critical \
+    --glyph "$SPEAKER_LOCK_GLYPH" \
+    "Speakers muted by hardware protection" \
+    "Speaker safety crashed (often a 96 kHz capture) and locked the amps. It should recover on its own."
+}
+
+watch_loop() {
+  local notified=0 locked_streak=0
+
+  while true; do
+    if speaker_volume_locked; then
+      locked_streak=$((locked_streak + 1))
+    else
+      locked_streak=0
+      notified=0
+    fi
+
+    # Two consecutive hits (~20s) so a 5s auto-restart does not spam.
+    if ((locked_streak >= 2 && notified == 0)); then
+      announce_lock
+      notified=1
+    fi
+
+    sleep 10
+  done
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  watch_loop
+fi
