@@ -119,8 +119,20 @@ pass "terminal text paste sends Ctrl+Shift+V"
 rm -f "$tmpdir/hyprctl"
 TERMINAL_EXE=foot WL_PASTE_TYPES='image/png\n' HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-terminal" 1234 5678 0xabc123
-grep -Fq 'local mods, key = "CTRL SHIFT", "V"' "$tmpdir/hyprctl" || fail "Foot image paste keeps the text paste chord"
-pass "Foot image paste keeps the text paste chord"
+grep -Fq 'local mods, key = "CTRL", "V"' "$tmpdir/hyprctl" || fail "Foot image paste sends Ctrl+V"
+pass "Foot image paste sends Ctrl+V"
+
+rm -f "$tmpdir/hyprctl"
+TERMINAL_EXE=foot WL_PASTE_TYPES='text/plain\n' HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-terminal" 1234 5678 0xabc123
+grep -Fq 'local mods, key = "CTRL SHIFT", "V"' "$tmpdir/hyprctl" || fail "Foot text paste sends Ctrl+Shift+V"
+pass "Foot text paste sends Ctrl+Shift+V"
+
+rm -f "$tmpdir/hyprctl"
+TERMINAL_EXE=alacritty WL_PASTE_TYPES='image/png\n' HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-terminal" 1234 5678 0xabc123
+grep -Fq 'local mods, key = "CTRL SHIFT", "V"' "$tmpdir/hyprctl" || fail "unlisted terminals keep the text paste chord for images"
+pass "unlisted terminals keep the text paste chord for images"
 
 rm -f "$tmpdir/hyprctl"
 TERMINAL_EXE=ghostty WL_PASTE_TYPES='text/plain\nimage/png\n' HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
@@ -135,3 +147,22 @@ pass "terminal paste presses and releases the synthetic shortcut"
 grep -Fq 'window.pid == 1234 and window.stable_id == 5678' "$tmpdir/hyprctl" || fail "terminal paste revalidates the original window"
 grep -Fq 'hl.get_window("address:0xabc123")' "$tmpdir/hyprctl" || fail "terminal paste targets the original window"
 pass "terminal paste targets the original window"
+
+rm -f "$tmpdir/hyprctl"
+cat >"$tmpdir/bin/wl-paste" <<'SH'
+#!/bin/bash
+sleep 5
+SH
+TERMINAL_EXE=foot HYPRCTL_OUT="$tmpdir/hyprctl" PATH="$tmpdir/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-terminal" 1234 5678 0xabc123
+grep -Fq 'local mods, key = "CTRL SHIFT", "V"' "$tmpdir/hyprctl" || fail "a hung clipboard query falls back to the text paste chord"
+pass "a hung clipboard query falls back to the text paste chord"
+
+rm -f "$tmpdir/hyprctl"
+for args in "abc 5678 0xabc123" "1234 abc 0xabc123" "1234 5678 abc123" "1234 5678 '0xabc; rm -rf ~'"; do
+  if eval "HYPRCTL_OUT=\"\$tmpdir/hyprctl\" PATH=\"\$tmpdir/bin:\$PATH\" \"\$ROOT/bin/omarchy-clipboard-paste-terminal\" $args"; then
+    fail "terminal paste rejects invalid window arguments: $args"
+  fi
+  [[ ! -e $tmpdir/hyprctl ]] || fail "terminal paste sends nothing for invalid window arguments: $args"
+done
+pass "terminal paste rejects invalid window arguments"

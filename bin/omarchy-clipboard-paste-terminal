@@ -14,7 +14,7 @@ executable=$(readlink "/proc/$pid/exe" 2>/dev/null) || exit 1
 terminal=${executable##*/}
 terminal=${terminal%" (deleted)"}
 
-if [[ $terminal == "ghostty" || $terminal == "kitty" ]] &&
+if [[ $terminal == "ghostty" || $terminal == "kitty" || $terminal == "foot" ]] &&
   timeout 1 wl-paste --list-types 2>/dev/null | grep -q '^image/'; then
   mods="CTRL"
   key="V"
