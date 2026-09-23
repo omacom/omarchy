@@ -145,6 +145,22 @@ assert(
   'the notification card does not rewrite newlines itself, which would leave tag syntax unchecked'
 )
 
+// Summary and body follow the [notifications] font-family token instead of a
+// hard-coded family, and the token keeps Liberation Sans as its default.
+assert(
+  !/font\.family: "Liberation Sans"/.test(cardQml),
+  'the notification card does not hard-code its text font family'
+)
+assert(
+  (cardQml.match(/font\.family: Color\.notifications\.fontFamily/g) || []).length === 2,
+  'the notification summary and body use the themeable notification font family'
+)
+const colorQml = fs.readFileSync(path.join(root, 'shell/Commons/Color.qml'), 'utf8')
+assert(
+  /property string fontFamily: root\.pick\("notifications\.font-family", "Liberation Sans"\)/.test(colorQml),
+  'the notification font family defaults to Liberation Sans'
+)
+
 assertEqual(
   notifications.sanitizeBody('trailing <img src="http://host/z.png"', 'Slack', ''),
   'trailing ',

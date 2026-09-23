@@ -199,6 +199,15 @@ The running shell reads `shell.toml` into two QML singletons:
 - `Color` for palette and surface roles like `Color.menu.border`.
 - `Style` for controls, spacing, font scale, corner radius, and bar sizing.
 
+### Notification font
+
+Notification summary and body text use Liberation Sans by default. Set `font-family` in `[notifications]` to change it, either in a theme or machine-wide in `~/.config/omarchy/shell.toml`, which survives theme switches. `monospace` follows the family picked with `omarchy font set`:
+
+```toml
+[notifications]
+font-family = "monospace"
+```
+
 ### Borders
 
 Shell border tokens accept either a solid color or a gradient in the same key:
