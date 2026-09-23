@@ -16,10 +16,17 @@
 # cryptsetup as a comma-separated option list, so the options belong there:
 #
 #   allow-discards      let TRIM reach the drive
+#   no-read-workqueue   bypass dm-crypt's per-CPU read workqueue
+#   no-write-workqueue  bypass dm-crypt's per-CPU write workqueue
 #
-# The name is the hook's own spelling. It matches each option against a
+# Those names are the hook's own spellings. It matches each option against a
 # whitelist and warns about, but ignores, everything else, so the parameter has
 # to say allow-discards rather than whatever cryptsetup takes on a command line.
+# The workqueue options are what cryptsetup calls --perf-no_read_workqueue and
+# --perf-no_write_workqueue. dm-crypt's queues exist to serialise reads for
+# same-CPU crypto; on a modern NVMe that costs throughput and await latency for
+# no gain, so they are bypassed alongside the discards they were once there to
+# make safe.
 #
 # A machine that unlocks through rd.luks.* has no cryptdevice= parameter to
 # extend and is left alone.
@@ -27,7 +34,7 @@
 source "$(dirname -- "${BASH_SOURCE[0]}")/as-root.sh"
 
 # Written in this order on the parameters that lack them.
-OMARCHY_LUKS_TRIM_OPTIONS=(allow-discards)
+OMARCHY_LUKS_TRIM_OPTIONS=(allow-discards no-read-workqueue no-write-workqueue)
 
 # True when <file> exists and carries a cryptdevice= parameter.
 omarchy_luks_has_cryptdevice() {

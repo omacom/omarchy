@@ -13,7 +13,7 @@ export PATH="$scratch/bin:$PATH"
 export CALL_LOG="$scratch/calls"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_LUKS_TRIM_LIMINE_CONF="$scratch/limine"
-trim_options="allow-discards"
+trim_options="allow-discards,no-read-workqueue,no-write-workqueue"
 
 cat > "$scratch/bin/sudo" <<'SH'
 #!/bin/bash

@@ -5,7 +5,8 @@ echo "Let TRIM reach the SSD through dm-crypt on the LUKS root volume"
 # (discard_granularity 0, fstrim: "the discard operation is not supported") and
 # the SSD keeps treating freed blocks as live data. btrfs enables discard=async
 # on its own since 6.2, but only for devices that advertise discard support, so
-# the passthrough is the whole fix.
+# the passthrough is the whole fix. The workqueue bypasses go with it: dm-crypt's
+# per-CPU queues cost throughput and await latency on a modern NVMe for no gain.
 #
 # Fresh installs get the options from install/config/luks-trim.sh; this repairs
 # machines installed before it. Completion is machine-wide because the repair
@@ -63,7 +64,8 @@ fi
 mapping=$(omarchy_luks_mapping_name "$limine_conf") || mapping=""
 trim_live=0
 if [[ -n $mapping && -t 0 && -t 1 ]]; then
-  if as_root cryptsetup refresh --allow-discards --persistent "$mapping"; then
+  if as_root cryptsetup refresh --allow-discards --perf-no_read_workqueue \
+    --perf-no_write_workqueue --persistent "$mapping"; then
     trim_live=1
   else
     echo "The running mapping was left as it is; the options apply at the next boot." >&2
