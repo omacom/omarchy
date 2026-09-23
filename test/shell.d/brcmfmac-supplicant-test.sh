@@ -82,20 +82,24 @@ run_leaf() {
     bash -eE -o pipefail -c 'source "$1"' bash "$script" </dev/null
 }
 
-# The quirk shipped for T2 Macs first, and the move to its own leaf must not
-# drop them.
-run_leaf "Apple Inc." 4488 1 >/dev/null
-grep -q 'feature_disable=0x82000' "$conf" 2>/dev/null ||
-  fail "a T2 Mac still gets the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
-pass "a T2 Mac still gets the quirk"
+# A T2 Mac carries BCM4364 with modern firmware and must NOT get the quirk.
+run_leaf "Apple Inc." 4464 1 >/dev/null
+[[ ! -f $conf ]] || fail "a T2 Mac does not get the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
+pass "a T2 Mac does not get the quirk"
 
-# Every Broadcom part brcmfmac drives, on a Mac with no T2 to detect: BCM43602
-# and its single-band variants, BCM4350, BCM4355, BCM4364, BCM4378, BCM4387.
-for wifi_id in 43ba 43bb 43bc 43a3 43dc 4464 4425 4433; do
+# Modern BCM4364 (non-T2) and Apple Silicon (BCM4378/4387) also must not get the quirk.
+for wifi_id in 4464 4425 4433; do
   run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
-  [[ -f $conf ]] || fail "a Mac without a T2 gets the quirk" "14e4:$wifi_id"
+  [[ ! -f $conf ]] || fail "modern brcmfmac part gets no quirk" "14e4:$wifi_id"
 done
-pass "every brcmfmac part on a Mac without a T2 gets the quirk"
+pass "modern BCM4364 and Apple Silicon get no quirk"
+
+# Legacy pre-T2 parts: BCM43602 and its single-band variants, BCM4350, BCM43555, BCM4355.
+for wifi_id in 43ba 43bb 43bc 43a3 43dc 4488; do
+  run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
+  [[ -f $conf ]] || fail "legacy Mac without a T2 gets the quirk" "14e4:$wifi_id"
+done
+pass "legacy brcmfmac parts on pre-T2 Macs get the quirk"
 
 # Older Macs report the vendor differently.
 run_leaf "Apple Computer, Inc." 43ba 0 >/dev/null
@@ -130,19 +134,27 @@ run_migration() {
     bash -euo pipefail "$migration" >/dev/null
 }
 
-# A T2 install from before the quirk shipped has no config at all, so this is
-# the case that proves the T2 gate itself still fires -- and it is the piped
-# grep, run under pipefail, that #6608 was about.
+# A T2 install or modern BCM4364 Mac is skipped by the legacy migration.
 rm -rf "$test_tmp/etc"
-run_migration "Apple Inc." 4488 1
+run_migration "Apple Inc." 4464 1
+[[ ! -e $conf ]] || fail "the legacy migration skips T2 Macs" "$(cat "$conf")"
+[[ ! -s $calls ]] || fail "the legacy migration escalates nothing on T2 Macs" "$(cat "$calls")"
+pass "the legacy migration skips T2 Macs"
+
+run_migration "Apple Inc." 4464 0
+[[ ! -e $conf ]] || fail "the legacy migration skips BCM4364 Macs" "$(cat "$conf")"
+pass "the legacy migration skips BCM4364 Macs"
+
+# Legacy pre-T2 Macs that predate the quirk get fixed.
+rm -rf "$test_tmp/etc"
+run_migration "Apple Inc." 43ba 0
 grep -q '^options brcmfmac feature_disable=0x82000$' "$conf" 2>/dev/null ||
-  fail "the migration fixes a T2 install that never got the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
-# The option only reaches the driver when brcmfmac next loads.
+  fail "the migration fixes an install on a legacy pre-T2 Mac" "$(ls -R "$test_tmp/etc" 2>&1)"
 grep -Fq $'omarchy-state\tset\treboot-required' "$calls" ||
   fail "the migration asks for the reboot that applies it" "$(cat "$calls")"
-pass "the migration fixes a T2 install that never got the quirk"
+pass "the migration fixes an install on a legacy pre-T2 Mac"
 
-run_migration "Apple Inc." 4488 1
+run_migration "Apple Inc." 43ba 0
 (( $(grep -c '^options brcmfmac feature_disable=0x82000$' "$conf") == 1 )) ||
   fail "the migration is idempotent" "$(cat "$conf")"
 [[ ! -s $calls ]] || fail "a repaired install is left untouched" "$(cat "$calls")"
