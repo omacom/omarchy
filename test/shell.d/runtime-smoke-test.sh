@@ -20,7 +20,7 @@ trap cleanup EXIT
 require_compositor "shell runtime smoke test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping shell runtime smoke test"
+  skip "quickshell not installed; skipping shell runtime smoke test"
   exit 0
 fi
 
