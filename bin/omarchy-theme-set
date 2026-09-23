@@ -388,6 +388,8 @@ if [[ $THEME_HEADLESS != "1" ]]; then
   # Warm selector caches after the theme is applied. The shell hot-reloads theme
   # colors/backgrounds, so keep the running instance alive and preload the picker
   # rows/selection to avoid first-open carousel settling after a theme change.
-  omarchy-theme-switcher --preload >/dev/null 2>&1
+  # Background both; the picker benefits when they finish, not when the user
+  # waits for the theme switch to return.
+  omarchy-theme-switcher --preload >/dev/null 2>&1 &
   omarchy-theme-bg-cache >/dev/null 2>&1 &
 fi
