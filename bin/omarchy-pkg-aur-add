@@ -5,12 +5,12 @@
 
 if omarchy-pkg-missing "$@"; then
   aur_helper=$(omarchy-pkg-aur-helper) || exit 1
-  "$aur_helper" -S --noconfirm --needed "$@" || exit 1
+  "$aur_helper" -S --noconfirm --needed -- "$@" || exit 1
 fi
 
 for pkg in "$@"; do
   # Secondary check to handle states where pacman doesn't actually register an error
-  if ! pacman -Q "$pkg" &>/dev/null; then
+  if ! pacman -Q -- "$pkg" &>/dev/null; then
     echo -e "\033[31mError: Package '$pkg' did not install\033[0m" >&2
     exit 1
   fi

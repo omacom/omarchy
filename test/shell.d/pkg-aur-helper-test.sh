@@ -36,7 +36,11 @@ if [[ ${1:-} == "-Qem" ]]; then
   exit 0
 fi
 if [[ ${1:-} == "-Q" ]]; then
-  [[ ${2:-} == "present-pkg" ]] && exit 0
+  shift
+  if [[ ${1:-} == "--" ]]; then
+    shift
+  fi
+  [[ ${1:-} == "present-pkg" ]] && exit 0
   exit 1
 fi
 exit 1
@@ -83,7 +87,7 @@ pass "default aur-helper rejects unknown helpers"
 
 # AUR installs route through the configured helper, not a hard-coded yay.
 run_env "$ROOT/bin/omarchy-pkg-aur-add" foreign-pkg >/dev/null 2>&1 || true
-grep -Fxq $'paru\t-S --noconfirm --needed foreign-pkg' "$log_file" || fail "aur add installs through paru when configured" "$(cat "$log_file")"
+grep -Fxq $'paru\t-S --noconfirm --needed -- foreign-pkg' "$log_file" || fail "aur add installs through paru when configured" "$(cat "$log_file")"
 pass "aur add installs through paru when configured"
 
 # Nothing missing means the helper is never invoked.
