@@ -18,7 +18,16 @@ case "${1:-}" in
     ;;
 esac
 
-battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
+# Not every system battery is named BAT*: Snapdragon laptops expose
+# battery_qcom_battmgr_bat. Take the first UPower battery that is a power
+# supply, skipping peripherals (mice, controllers report "power supply: no").
+battery=""
+for dev in $(upower -e 2>/dev/null | grep '/battery_'); do
+  if ! upower -i "$dev" | grep -qE '^\s*power supply:\s*no'; then
+    battery=$dev
+    break
+  fi
+done
 [[ -z $battery ]] && exit 0
 
 battery_info=$(upower -i "$battery")
@@ -107,7 +116,7 @@ if [[ $shell_output == "true" ]]; then
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
-  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  cycles=$(cat "$battery_path/cycle_count" "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 

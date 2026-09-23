@@ -2,7 +2,10 @@
 
 # omarchy:summary=Returns true if a battery is present on the system.
 
-for bat in /sys/class/power_supply/BAT*; do
+# Match on type rather than the BAT* name (Snapdragon: qcom-battmgr-bat),
+# skipping peripheral batteries, which report scope "Device".
+for bat in /sys/class/power_supply/*; do
+  [[ $(cat "$bat/scope" 2>/dev/null) == Device ]] && continue
   [[ -r $bat/present ]] &&
   [[ $(cat $bat/present) == "1" ]] &&
   [[ $(cat $bat/type) == "Battery" ]] &&
