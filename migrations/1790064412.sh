@@ -11,9 +11,27 @@ echo "Scope the dev-link sudoers drop-in to the linking user"
 # their own secure_path there keeps it, and is told instead.
 sudoers_file=/etc/sudoers.d/omarchy-dev-path
 
-sudo test -f "$sudoers_file" || exit 0
+# `sudo test -f` returns non-zero both when the file is absent and when sudo
+# could not be asked at all. Exiting 0 on the second case would have the runner
+# record this migration as applied and never retry it, leaving the global rule
+# in place for good. A control probe tells the two apart: if sudo can run
+# anything, the drop-in genuinely is not there and there is nothing to do.
+if ! sudo test -f "$sudoers_file"; then
+  if sudo test -d /; then
+    exit 0
+  fi
+  echo "Could not inspect $sudoers_file. Leaving this migration pending so it retries." >&2
+  exit 1
+fi
 
-active=$(sudo grep -vE '^[[:space:]]*(#|$)' "$sudoers_file" 2>/dev/null || true)
+# grep exits 1 for "no lines matched" and greater than 1 for a real error. Only
+# the second means the inspection failed, and must not be read as an empty file.
+active=$(sudo grep -vE '^[[:space:]]*(#|$)' "$sudoers_file") && grep_status=0 || grep_status=$?
+if (( grep_status > 1 )); then
+  echo "Could not read $sudoers_file. Leaving this migration pending so it retries." >&2
+  exit 1
+fi
+
 generated='^Defaults[[:space:]]+secure_path="([^"]*)/bin:/usr/local/sbin:/usr/local/bin:/usr/bin"$'
 
 if (( $(printf '%s\n' "$active" | grep -c .) != 1 )) || [[ ! $active =~ $generated ]]; then
