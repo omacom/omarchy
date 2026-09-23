@@ -119,8 +119,6 @@ if alpha:
     managed["alpha"] = max(0.0, min(1.0, float(alpha)))
 
 vivaldi = data.setdefault("vivaldi", {})
-vivaldi.setdefault("appearance", {})["force_dark_mode_theme"] = False
-data.setdefault("webkit", {}).setdefault("webprefs", {})["force_dark_mode_enabled"] = False
 
 themes = vivaldi.setdefault("themes", {})
 user = themes.get("user")
