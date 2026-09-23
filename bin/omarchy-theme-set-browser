@@ -91,5 +91,5 @@ for pid in "${refresh_pids[@]}"; do
   wait "$pid"
 done
 
-"$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh"
+"$OMARCHY_PATH/default/vivaldi/vivaldi-theme-refresh" || failed=1
 exit "$failed"
