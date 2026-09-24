@@ -26,6 +26,7 @@ docker-compose
 dosfstools
 dotnet-runtime
 dua-cli
+elsewhen
 evince
 exfatprogs
 expac
@@ -95,6 +96,10 @@ omacalc
 omacut
 omawrite
 omarchy-nvim
+omasnap
+# OWE owns desktop video backgrounds and feeds the lock screen its frames.
+owe
+owe-lockfeed
 pacman-contrib
 pamixer
 pinta
@@ -108,12 +113,9 @@ ttfx
 qemu-user-static-binfmt
 qrencode
 qt6-imageformats
-qt6-multimedia
-qt6-multimedia-ffmpeg
 quickshell
 ripgrep
 ruby
-tensaku
 sddm
 slurp
 socat
