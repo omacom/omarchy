@@ -108,7 +108,7 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : (root.activeMenu === "setup.default.agent" ? Style.space(340) : Style.space(300))), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -156,9 +156,10 @@ Item {
     var available = panel.height - top - Style.gapsOut - root.contentMargin * 2 - root.headerHeight - root.contentSpacing
     // The starting menu sets the ceiling along with the offset: drilling into
     // a longer submenu scrolls behind the fold instead of growing the card.
-    if (panel.maxRowsHeight >= 0) available = Math.min(available, panel.maxRowsHeight)
+    if (panel.maxRowsHeight >= 0 && root.activeMenu !== "setup.default.agent") available = Math.min(available, panel.maxRowsHeight)
     // A card that swallows the whole screen reads as a page, not a menu.
-    return Math.min(available, Math.round(panel.height * 0.7))
+    var maxRatio = root.activeMenu === "setup.default.agent" ? 0.88 : 0.7
+    return Math.min(available, Math.round(panel.height * maxRatio))
   }
 
   // When every row fits, the list gets its full height. When they don't,
@@ -669,6 +670,20 @@ Item {
           return 0
         })
       }
+
+      if (active === "setup.default.agent") {
+        rows.sort(function(a, b) {
+          var aLabel = String(a.label || "").toLowerCase()
+          var bLabel = String(b.label || "").toLowerCase()
+          if (aLabel < bLabel) return -1
+          if (aLabel > bLabel) return 1
+          var aId = String(a.itemId || "")
+          var bId = String(b.itemId || "")
+          if (aId < bId) return -1
+          if (aId > bId) return 1
+          return 0
+        })
+      }
     }
 
     for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
@@ -1081,7 +1096,7 @@ Item {
     property int cardTop: -1
     property int maxRowsHeight: -1
     readonly property int centeredTop: Math.max(Style.gapsOut, Math.round((height - root.cardHeight) / 2))
-    readonly property int effectiveCardTop: cardTop >= 0 ? cardTop : centeredTop
+    readonly property int effectiveCardTop: cardTop >= 0 ? Math.max(Style.gapsOut, Math.min(cardTop, height - Style.gapsOut - root.cardHeight)) : centeredTop
     function freezeCardTop() {
       if (visible && cardTop < 0) {
         cardTop = effectiveCardTop
