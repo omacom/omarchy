@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.keyboard-backlight",
+  "name": "Keyboard Backlight",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Turns the keyboard backlight on in the dark and off in bright light using the ambient light sensor.",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

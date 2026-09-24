@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle turning the keyboard backlight on in the dark and off in bright light
+
+omarchy-toggle keyboard-backlight-auto-off
+
+if omarchy-toggle-enabled keyboard-backlight-auto-off; then
+  omarchy-notification-send -g 󰌌 "Automatic keyboard backlight disabled"
+else
+  omarchy-notification-send -g 󰌌 "Automatic keyboard backlight enabled"
+fi
+
+omarchy-shell -q omarchy.keyboard-backlight sync

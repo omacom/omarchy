@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when an ambient light sensor is present.
+
+for device in /sys/bus/iio/devices/iio:device*; do
+  for attribute in in_illuminance_raw in_illuminance_input in_illuminance0_input; do
+    [[ -e $device/$attribute ]] && exit 0
+  done
+done
+
+exit 1
