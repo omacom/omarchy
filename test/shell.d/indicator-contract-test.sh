@@ -21,7 +21,7 @@ trap cleanup EXIT
 require_compositor "QML contract test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping QML contract test"
+  skip "quickshell not installed; skipping QML contract test"
   exit 0
 fi
 
