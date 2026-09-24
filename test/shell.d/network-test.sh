@@ -249,6 +249,50 @@ assert(
   /forgetVisible: canForget && \(!requiresCredentials \|\| forgetFocused \|\| rightMouse\.containsMouse\)/.test(panelSource),
   'network shows the forget action directly for known passwordless networks'
 )
+assert(
+  /height: Style\.space\(22\)/.test(rightAction[0]),
+  'network gives the right-edge action a fixed square so the hover background has a real box'
+)
+assert(
+  /anchors\.centerIn: parent/.test(lockIndicator[0]),
+  'network centers the lock/forget glyph in its hover box'
+)
+assert(
+  /visible: row\.requiresCredentials \|\| row\.canForget \|\| row\.isCancellable/.test(rightAction[0]),
+  'network keeps the right-edge slot mounted for the connecting row so Cancel has a target'
+)
+assert(
+  /readonly property bool isCancellable: root\.actionKind === "connect"/.test(panelSource),
+  'network tracks which row owns the in-flight connect for cancellation'
+)
+assert(
+  /function cancelNetworkAction\(\) \{/.test(panelSource),
+  'network has a cancel path for in-flight connects'
+)
+assert(
+  /if \(actionKind !== "connect"\) return/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network cancel only aborts connects'
+)
+assert(
+  /if \(enterpriseConnect\.running\) enterpriseConnect\.running = false/.test(panelSource),
+  'network cancel stops the enterprise helper before clearing state'
+)
+assert(
+  /row\.isCancellable \? "Cancel" : "Forget network"/.test(panelSource),
+  'network labels the abort control Cancel instead of reusing Forget'
+)
+assert(
+  /visible: row\.isCancellable && row\.isPasswordOpen/.test(panelSource),
+  'network offers Cancel inside the passphrase prompt while connecting'
+)
+assert(
+  /if \(row\.isCancellable\) \{\s*root\.cancelNetworkAction\(\)/.test(panelSource),
+  'network row clicks abort the in-flight connect instead of no-opping behind busy'
+)
+assert(
+  /if \(actionKind === "connect" && actionSsid !== "" && actionSsid === \(net\.ssid \|\| ""\)\) \{ cancelNetworkAction\(\); return \}/.test(panelSource),
+  'network keyboard activation cancels the connecting row instead of being gated on busy'
+)
 
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }
 assertEqual(network.networkFailureReason(reasons.NoSecrets, true, reasons), 'Passphrase required', 'network maps missing credential failures')
