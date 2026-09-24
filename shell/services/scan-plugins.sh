@@ -47,5 +47,5 @@ scan_thirdparty() {
   done
 }
 
-scan_firstparty "$1"
-scan_thirdparty "$2"
+scan_firstparty "${1:-}"
+scan_thirdparty "${2:-}"
