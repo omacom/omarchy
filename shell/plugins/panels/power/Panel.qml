@@ -176,12 +176,12 @@ Panel {
   property bool chargeLimitSupported: false
   property bool chargeLimitCursor: false
   property int chargeLimitIndex: 0
-  readonly property var chargeLimitOptions: [80, 90, 100]
+  property var chargeLimitOptions: []
   readonly property var chargeLimit: Model.parseChargeLimit(chargeLimitRaw)
   readonly property bool chargeLimitReady: chargeLimit !== null || chargeLimitRaw === "mixed"
 
   function setChargeLimit(value) {
-    if (thresholdProc.running || !chargeLimitReady) return
+    if (thresholdProc.running || !chargeLimitReady || chargeLimitOptions.indexOf(value) < 0) return
     chargeLimitMessage = "Applying charge limit…"
     chargeLimitFailed = false
     thresholdProc.command = ["omarchy-battery-limit-set", String(value)]
@@ -191,11 +191,7 @@ Panel {
   function finishChargeLimit(code, error) {
     chargeLimitFailed = code !== 0
     if (code === 0) chargeLimitMessage = "Saved for every startup."
-    else if (error.indexOf("could not restore") >= 0)
-      chargeLimitMessage = "Could not restore the previous limits. Check the battery settings."
-    else if (error.indexOf("Previous battery thresholds restored") >= 0)
-      chargeLimitMessage = "Could not apply this limit. Previous limits restored."
-    else chargeLimitMessage = "Could not change the limit. Please try again."
+    else chargeLimitMessage = Model.chargeLimitError(error)
     refresh()
   }
 
@@ -285,6 +281,18 @@ Panel {
       root.chargeLimitSupported = exitCode === 0
       if (!root.chargeLimitSupported) root.chargeLimitCursor = false
       if (root.chargeLimitSupported && !thresholdReadProc.running) thresholdReadProc.running = true
+      root.chargeLimitOptions = []
+      if (root.chargeLimitSupported && !thresholdOptionsProc.running) thresholdOptionsProc.running = true
+    }
+  }
+
+  Process {
+    id: thresholdOptionsProc
+    command: ["omarchy-battery-limit-get", "--options"]
+    stdout: StdioCollector { id: thresholdOptionsOutput; waitForEnd: true }
+    onExited: function(code) {
+      root.chargeLimitOptions = code === 0 ? Model.parseChargeLimitOptions(thresholdOptionsOutput.text) : []
+      root.chargeLimitIndex = Math.max(0, root.chargeLimitOptions.indexOf(root.chargeLimit))
     }
   }
 
@@ -594,7 +602,8 @@ Panel {
             width: parent.width
             spacing: Style.space(6)
 
-            readonly property real cellWidth: (width - spacing * (root.chargeLimitOptions.length - 1)) / root.chargeLimitOptions.length
+            readonly property real cellWidth: root.chargeLimitOptions.length > 0
+              ? (width - spacing * (root.chargeLimitOptions.length - 1)) / root.chargeLimitOptions.length : 0
             enabled: root.chargeLimitReady && !thresholdProc.running
             opacity: enabled ? 1 : 0.5
             readonly property var icons: ({ 80: "󰹦", 90: "󰌪", 100: "󰁹" })
@@ -631,7 +640,9 @@ Panel {
           Text {
             width: parent.width
             textFormat: Text.PlainText
-            text: root.chargeLimitMessage || (root.chargeLimitReady
+            text: root.chargeLimitMessage || (root.chargeLimitOptions.length === 0
+              ? "Could not read the available charging presets."
+              : root.chargeLimitReady
               ? "80% helps preserve battery health. Choose 100% when you need a full charge."
               : "Could not read the current charging limit.")
             color: root.chargeLimitFailed ? Color.accent : root.bar.foreground

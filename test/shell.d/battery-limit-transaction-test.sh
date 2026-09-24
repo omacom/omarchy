@@ -20,6 +20,7 @@ LOCK_FILE="$FIXTURE/lock"
 write_threshold() {
   local path=$1 value=$2
   printf '%s %s\n' "${path#"$FIXTURE/sys/"}" "$value" >> "$FIXTURE/writes"
+  if [[ $FAULT == "lg" && $path == */BAT1/* && $value != "80" && $value != "100" ]]; then return 1; fi
   if [[ $FAULT == "readonly" && $path == */BAT1/* ]]; then return 1; fi
   if [[ $FAULT == "reject" && $path == */BAT1/* && $value == "80" ]]; then return 1; fi
   if [[ $FAULT == "partial" && $path == */BAT1/* && $value == "80" ]]; then
@@ -192,3 +193,22 @@ assert_value "$fixture/config/battery-limit" 90 "last completed transaction matc
 expected=$'BAT0/charge_control_end_threshold 80\nBAT1/charge_control_end_threshold 80\nBAT0/charge_control_end_threshold 90\nBAT1/charge_control_end_threshold 90'
 assert_value "$fixture/writes" "$expected" "concurrent writes do not interleave"
 pass "concurrent applies serialize hardware and persistence together"
+
+# LG-style discrete thresholds: both supported presets succeed, while 90 on
+# the second battery restores the first and does not persist the rejected value.
+for preset in 80 100 90; do
+  reset_fixture
+  FAULT=lg PRESET=$preset
+  run_apply
+  if (( preset == 90 )); then
+    (( status != 0 )) || fail "LG must reject 90"
+    assert_restored
+    grep -q 'battery did not accept charge limit 90' "$fixture/output" || fail "LG rejection identifies the preset"
+    pass "LG rejection restores all batteries and preserves saved state"
+  else
+    (( status == 0 )) || fail "LG accepts $preset"
+    assert_value "$fixture/sys/BAT1/charge_control_end_threshold" "$preset" "LG preset applied"
+    assert_value "$fixture/config/battery-limit" "$preset" "LG preset persisted"
+    pass "LG accepts and saves $preset"
+  fi
+done

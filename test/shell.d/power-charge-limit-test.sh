@@ -30,6 +30,22 @@ assert(/root\.chargeLimitSupported = exitCode === 0/.test(panelSource), 'charge 
 assert(/onOpenedChanged:[\s\S]*?chargeLimitCheckProc\.running = true/.test(panelSource), 'charge limit probes support once per panel open')
 assert(/function refresh\(\) \{[\s\S]*?if \(chargeLimitSupported && !thresholdReadProc\.running\) thresholdReadProc\.running = true/.test(panelSource), 'charge limit refresh is gated on support')
 assertEqual(panelSource.match(/visible: root\.chargeLimitSupported/g).length, 2, 'charge limit hides the separator and section when unsupported')
-assert(/chargeLimitOptions: \[80, 90, 100\]/.test(panelSource), 'charge limit offers 80, 90, and 100 percent')
+assert(/command: \["omarchy-battery-limit-get", "--options"\]/.test(panelSource), 'charge presets come from hardware discovery')
 assert(/root\.chargeLimitRaw === "mixed"/.test(panelSource), 'charge limit distinguishes mixed and unreadable hardware')
+JS
+
+run_node_test <<'JS'
+const power = requireFromRoot('shell/plugins/panels/power/Model.js')
+assertDeepEqual(power.parseChargeLimitOptions('80 100\n'), [80, 100], 'LG hides 90')
+assertDeepEqual(power.parseChargeLimitOptions('80 90 100'), [80, 90, 100], 'usual presets remain available')
+assertDeepEqual(power.parseChargeLimitOptions('100 80 80'), [80, 100], 'presets are sorted and unique')
+for (const raw of ['', '80 junk', '80 85 100', 'NaN', '080 100']) {
+  assertDeepEqual(power.parseChargeLimitOptions(raw), [], 'invalid options fail closed: ' + raw)
+}
+assertEqual(power.selectProfileIndex(0, 1, [80, 100]), 1, 'right selects 100 on LG')
+assertEqual(power.selectProfileIndex(1, 1, [80, 100]), 1, 'right stays within LG options')
+assertEqual(power.selectProfileIndex(1, -1, [80, 100]), 0, 'left selects 80 on LG')
+assert(power.chargeLimitError('Error: battery did not accept charge limit 90. Previous battery thresholds restored').includes('battery rejected'), 'driver rejection explains preset restrictions')
+assert(power.chargeLimitError('battery did not accept charge limit 90; could not restore previous thresholds').includes('Could not restore'), 'rollback failure takes priority over rejection')
+assert(power.chargeLimitError('Previous battery thresholds restored').includes('Could not apply'), 'other transaction failures retain their message')
 JS

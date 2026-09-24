@@ -43,6 +43,23 @@ function parseChargeLimit(raw) {
   return /^(0|[1-9][0-9]?|100)$/.test(text) ? Number(text) : null
 }
 
+function parseChargeLimitOptions(raw) {
+  var text = String(raw || "").trim()
+  if (!/^(80|90|100)(\s+(80|90|100))*$/.test(text)) return []
+  var values = text.split(/\s+/).map(Number)
+  return [80, 90, 100].filter(function(value) { return values.indexOf(value) >= 0 })
+}
+
+function chargeLimitError(error) {
+  if (error.indexOf("could not restore") >= 0)
+    return "Could not restore the previous limits. Check the battery settings."
+  if (error.indexOf("battery did not accept") >= 0)
+    return "The battery rejected this preset. Some hardware supports only certain limits. Previous limits restored."
+  if (error.indexOf("Previous battery thresholds restored") >= 0)
+    return "Could not apply this limit. Previous limits restored."
+  return "Could not change the limit. Please try again."
+}
+
 function profileIcon(name) {
   if (name === "power-saver") return "󰌪"
   if (name === "balanced") return "󰊚"
@@ -101,6 +118,8 @@ if (typeof module !== "undefined") {
     parseKeyValue: parseKeyValue,
     parseProfiles: parseProfiles,
     parseChargeLimit: parseChargeLimit,
+    parseChargeLimitOptions: parseChargeLimitOptions,
+    chargeLimitError: chargeLimitError,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
