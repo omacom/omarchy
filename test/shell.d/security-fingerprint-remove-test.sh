@@ -25,7 +25,7 @@ printf 'id %s\n' "$*" >>"$TEST_LOG"
 case "$1" in
   -un) printf '%s\n' "$TEST_DIRECT_USER" ;;
   -nu)
-    [[ $# == 2 && $2 == "$TEST_SUDO_UID" ]] || exit 90
+    [[ $# == 2 && $2 == "+$TEST_SUDO_UID" ]] || exit 90
     printf '%s\n' "$TEST_SUDO_USER"
     ;;
   *) exit 90 ;;
@@ -140,8 +140,24 @@ if unshare -Ur true >/dev/null 2>&1; then
   mkdir -p "$test_tmp/fprint/alice"
   run_root || fail "root through sudo resolves numeric SUDO_UID" "$(cat "$output"; cat "$log")"
   [[ ! -e $test_tmp/fprint/alice ]] || fail "root through sudo deletes the caller's files"
-  grep -Fxq 'id -nu 1000' "$log" || fail "root through sudo uses numeric UID lookup"
+  grep -Fxq 'id -nu +1000' "$log" || fail "root through sudo uses numeric UID lookup"
   pass "root through sudo ignores spoofed SUDO_USER"
+
+  # Exercise real coreutils lookup with a numeric username shadowing UID 1000.
+  if unshare -Ur -m true >/dev/null 2>&1; then
+    printf 'alice:x:1000:1000::/:/bin/bash\n1000:x:2000:2000::/:/bin/bash\n' >"$test_tmp/passwd"
+    awk '/^remove_pam_config\(\)/ { exit } { print }' "$remove" >"$test_tmp/identity.sh"
+    resolved=$(unshare -Ur -m bash -c '
+      mount --make-rprivate /
+      mount --bind "$1" /etc/passwd
+      SUDO_UID=1000 source "$2"
+      printf "%s\n" "$fingerprint_user"
+    ' bash "$test_tmp/passwd" "$test_tmp/identity.sh")
+    [[ $resolved == alice ]] || fail "numeric UID lookup ignores a numeric username" "$resolved"
+    pass "real id resolves the UID despite a colliding numeric username"
+  else
+    skip "mount namespaces unavailable; real numeric username collision"
+  fi
 
   for SUDO_UID in bogus '../1000'; do
     run_root && fail "non-numeric SUDO_UID must fail"
