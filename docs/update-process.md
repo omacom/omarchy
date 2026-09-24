@@ -82,13 +82,18 @@ Omarchy update command, the hook exits non-zero with `AbortOnFail`, which stops
 the transaction before packages are changed.
 
 `omarchy-update-system-pkgs`, `omarchy-refresh-pacman`, `omarchy-reinstall-pkgs`,
-`omarchy-channel-set`, and the v4 upgrader run pacman through:
+and `omarchy-channel-set` run pacman through the hidden `omarchy-update-pacman`
+helper (the v4 upgrader sets `OMARCHY_UPDATE_PACMAN=1` directly):
 
 ```bash
-env OMARCHY_UPDATE_PACMAN=1 pacman ...
+sudo env OMARCHY_UPDATE_PACMAN=1 systemd-run --scope --quiet --collect pacman ...
 ```
 
-so the guard allows Omarchy-owned update flows. A user can intentionally bypass
+so the guard allows Omarchy-owned update flows. The `systemd-run --scope`
+wrapper registers the transaction as a PID 1 scope: upgrading systemd reexecs
+the system and user managers mid-transaction, and a pacman left inside a
+user-session scope can be SIGKILLed by that reexec. On unbooted systems (such
+as the installer chroot) the helper runs pacman directly. A user can intentionally bypass
 the guard with:
 
 ```bash
@@ -272,12 +277,13 @@ scripts.
 | `omarchy-update-confirm` | Gum confirmation copy for `omarchy update`. | **Question.** Could be inlined into `omarchy-update`; separate file only helps keep copy isolated. |
 | `omarchy-update-dev` | Fast-forwards the active dev-linked checkout from its configured upstream; no-ops for package-backed installs. | **Keep.** Runs before package updates so a checkout conflict stops the update before system mutation. |
 | `omarchy-update-keyring` | Ensures Omarchy keyring and Arch keyring are current before the main transaction. | **Keep, but review.** It uses targeted `pacman -Sy` for keyring bootstrapping; acceptable for this special case but should remain tightly scoped. |
-| `omarchy-update-system-pkgs` | Runs `sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --noconfirm` with `--overwrite '/usr/share/omarchy/*'`, capturing stderr to a report file; on failure it execs `omarchy-update-system-pkgs-when-conflicted`. | **Keep for now.** Small leaf command, clear/testable. |
+| `omarchy-update-system-pkgs` | Runs `omarchy-update-pacman -Syu --noconfirm` with `--overwrite '/usr/share/omarchy/*'`, capturing stderr to a report file; on failure it execs `omarchy-update-system-pkgs-when-conflicted`. | **Keep for now.** Small leaf command, clear/testable. |
 | `omarchy-update-system-pkgs-when-conflicted` | Hidden conflict handler: quarantines unowned conflicting files under `/var/lib/omarchy/replaced`, retries the upgrade once, restores files the upgrade didn't claim, and hands package-vs-package conflicts to an interactive pacman run (never under `-y`). | **Keep internal/hidden.** Keeps conflict recovery out of the happy path. |
 | `omarchy-update-pkg-prune` | Trims the pacman cache to two versions per package (`paccache -rk2`) before the snapshot, keeping the offline downgrade path while capping snapshot growth. | **Keep internal/hidden.** |
 | `omarchy-update-requires-free-space` | Aborts the update below a 10 GiB free-space threshold on `/`; silently skipped when free space cannot be determined; `OMARCHY_UPDATE_FORCE=1` bypasses. | **Keep internal/hidden.** |
 | `omarchy-migrate` | Public migration command. Waits for pacman, then runs all pending migrations for the current user. Supports `--pending`. | **Keep.** This replaces the discarded `omarchy-update-user-finalize` name and no longer needs `--force`. |
 | `omarchy-update-pacman-guard` | ALPM pre-transaction guard that aborts direct `pacman -Syu` style upgrades unless Omarchy set `OMARCHY_UPDATE_PACMAN=1` or the user explicitly set `OMARCHY_ALLOW_DIRECT_PACMAN=1`. | **Keep internal/hidden.** This is what nudges users back to `omarchy update`. |
+| `omarchy-update-pacman` | Hidden helper that runs a guard-approved pacman transaction as a PID 1 scope (`systemd-run --scope`) so a mid-transaction systemd reexec cannot kill it; runs pacman directly when not booted under systemd. | **Keep internal/hidden.** Single place that owns how Omarchy invokes pacman for system mutation. |
 | `omarchy-migrate-notify` | Internal login-time notification helper. Uses `omarchy-migrate --pending` and shows a notification only when this user has pending migrations. | **Keep internal/hidden.** Clear name now that the public command is `omarchy-migrate`. |
 | `omarchy-update-user-notify` | Hidden compatibility wrapper for `omarchy-migrate-notify`. | **Temporary.** Keep only for old callers. |
 | `omarchy-update-available` | Update checker for shell widget and post-update refresh. | **Keep.** Could eventually be renamed `omarchy-update-check`, but current name matches widget semantics. |
