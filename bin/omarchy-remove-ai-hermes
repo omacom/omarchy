@@ -1,20 +1,50 @@
 #!/bin/bash
 
-# omarchy:summary=Remove the Hermes desktop app along with the Hermes runtime it installed.
+# omarchy:summary=Remove Hermes: the desktop app if installed, and the runtime Omarchy set up.
 # omarchy:requires-sudo=true
 
 # -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
 set -euo pipefail
 
+state_dir="$HOME/.local/state/omarchy"
+
+# The runtime the installer set up, by path. Upstream's own installer writes
+# the same bootstrap marker into the same place, so the record is the only
+# thing that says the checkout is Omarchy's to remove; without it, whatever is
+# under ~/.hermes was installed some other way and is not ours to delete
+# unasked. The path also carries a custom HERMES_HOME the installer honoured.
+# A record is only followed to something that is a Hermes runtime, one that
+# finished installing or at least built its venv: a stale one naming a
+# directory that has since become something else deletes nothing. The home it
+# names is still the home the data question asks about, runtime or no runtime.
+runtime=""
+hermes_home="$HOME/.hermes"
+if [[ -f $state_dir/hermes-runtime ]]; then
+  read -r runtime <"$state_dir/hermes-runtime" || true
+  runtime=$(realpath -ms -- "${runtime:-/}")
+  if [[ $runtime != /*/hermes-agent ]]; then
+    runtime=""
+  else
+    hermes_home=${runtime%/hermes-agent}
+    if [[ ! -f $runtime/.hermes-bootstrap-complete && ! -f $runtime/venv/bin/hermes ]]; then
+      if [[ -e $runtime ]]; then
+        echo "The Hermes runtime record at $state_dir/hermes-runtime names $runtime, which is not a Hermes runtime; leaving it alone." >&2
+      fi
+      runtime=""
+    fi
+  fi
+fi
+
 ensure_hermes_stopped() {
-  python3 - "$HOME" <<'PY'
+  python3 - "$HOME" "$hermes_home" <<'PY'
 import os
 from pathlib import Path
 import sys
 
-home = Path(sys.argv[1])
-roots = [str((home / relative).resolve()) for relative in ('.hermes', '.config/Hermes')]
-roots.append('/opt/hermes-desktop')
+home, hermes_home = Path(sys.argv[1]), Path(sys.argv[2])
+roots = {str((home / relative).resolve()) for relative in ('.hermes', '.config/Hermes')}
+roots.add(str(hermes_home.resolve()))
+roots.add('/opt/hermes-desktop')
 
 def belongs_to_hermes(target):
     target = target.removesuffix(' (deleted)')
@@ -52,60 +82,47 @@ PY
 
 # Removing an open SQLite WAL leaves a live writer on a deleted generation.
 ensure_hermes_stopped
-omarchy-pkg-drop hermes-desktop
+# The app and the installer behind it: the terminal, the default agent and the
+# app all ran the one runtime, so removing Hermes removes all of it.
+omarchy-pkg-drop hermes-desktop hermes-agent
 
 # The installer leaves a unit waiting to hand the app the Omarchy theme.
 systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
 
-# The mise CLI is the app's predecessor, not the app itself: Hermes Desktop takes
-# it over on install and runs its own runtime instead, so a copy still here is one
-# the app never superseded -- an interrupted install, or the terminal CLI from
-# before the app existed. Remove Hermes clears that too, scoped by the installer
-# to what Omarchy owns so a hermes the user set up themselves is left alone.
-# Tolerated here rather than fatal, so the ~/.hermes handling below still runs;
-# the failure is answered for at the end instead of being swallowed.
-cli_removed=true
-ensure_hermes_stopped
-omarchy-install-hermes-cli --remove || cli_removed=false
-
-# The app writes this when the runtime it provisions under ~/.hermes has landed,
-# and it is the only thing that tells that runtime apart from one the user
-# installed themselves -- the paths are the same either way. Without it the app
-# never got that far: a machine where it was installed but never launched still
-# has whatever was there before, and none of it is ours to delete unasked.
-if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
+if [[ -n $runtime && -e $runtime ]]; then
   # The checkout and venv, its own uv, its own node. None of it is any use once
-  # the app is gone, so it goes without asking; what the user made with the app
+  # Hermes is gone, so it goes without asking; what the user made with Hermes
   # is a different question, answered below.
   rm -rf \
-    "$HOME/.hermes/hermes-agent" \
-    "$HOME/.hermes/bootstrap-cache" \
-    "$HOME/.hermes/bin" \
-    "$HOME/.hermes/node"
+    "$runtime" \
+    "$hermes_home/bootstrap-cache" \
+    "$hermes_home/bin" \
+    "$hermes_home/node"
 
-  # Only the wrappers pointing into ~/.hermes, matched as a plain string: the
-  # path carries a dot, so an unanchored pattern would also claim a wrapper
-  # pointing at a sibling like ~/xhermes.
+  # Only the wrappers pointing into the runtime's home, matched as a plain
+  # string with its trailing slash: the path carries a dot, so a bare prefix
+  # would also claim a wrapper pointing at a sibling like ~/.hermes-old.
   for command in hermes hermes-agent hermes-acp; do
     wrapper="$HOME/.local/bin/$command"
 
-    if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$HOME/.hermes" "$wrapper"; then
+    if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$hermes_home/" "$wrapper"; then
       rm -f "$wrapper"
     fi
   done
 
   # When Hermes brought its own Node it symlinked these next to its own commands,
-  # and they point at what we just deleted. Only the links into ~/.hermes: a
+  # and they point at what we just deleted. Only the links into that home: a
   # system Node, or someone else's, lives somewhere else entirely.
   for command in node npm npx; do
     link="$HOME/.local/bin/$command"
 
-    if [[ -L $link && $(readlink "$link") == "$HOME/.hermes"/* ]]; then
+    if [[ -L $link && $(readlink "$link") == "$hermes_home"/* ]]; then
       rm -f "$link"
     fi
   done
-
 fi
+
+rm -f "$state_dir/hermes-runtime" "$state_dir/hermes-runtime-migration"
 
 # What survives to here is the user's: the chats, memories and skills in
 # ~/.hermes, the connections and their encrypted tokens in ~/.config/Hermes.
@@ -113,35 +130,29 @@ fi
 # after a reinstall is the better surprise -- but a removal meant to be
 # complete should not leave credentials behind either, so the choice is put in
 # front of the user with the size, default no. Asked whenever the directories
-# exist, marker or no marker: on a machine where the marker never appeared the
-# data came from the terminal CLI or an install the app never finished, and it
-# is still what removal is asked to clean up. Naming the paths keeps the
-# question honest there too -- ~/.hermes may still carry a runtime the app
-# never owned, a yes takes that with it, and saying so is the prompt's job.
-# Without a terminal to ask in, keeping everything is the answer.
+# exist, record or no record: without one the data came from the terminal CLI
+# or an install Omarchy never made, and it is still what removal is asked to
+# clean up. Naming the paths keeps the question honest there too -- the home
+# may still carry a runtime Omarchy never installed, a yes takes that with it,
+# and saying so is the prompt's job. Without a terminal to ask in, keeping
+# everything is the answer.
 data_removed=false
-if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]] && omarchy-cmd-present gum; then
+if [[ -d $hermes_home || -d $HOME/.config/Hermes ]] && [[ -t 0 ]] && omarchy-cmd-present gum; then
   # du answers non-zero when either directory is missing, and pipefail would
   # turn that into an aborted removal; the size is worth no such thing.
-  size=$(du -shc "$HOME/.hermes" "$HOME/.config/Hermes" 2>/dev/null | tail -1 | cut -f1 || true)
-  if gum confirm --default=false "Also delete ~/.hermes and ~/.config/Hermes ($size: chats, memories, skills, connections and tokens)?"; then
+  size=$(du -shc "$hermes_home" "$HOME/.config/Hermes" 2>/dev/null | tail -1 | cut -f1 || true)
+  if gum confirm --default=false "Also delete $hermes_home and ~/.config/Hermes ($size: chats, memories, skills, connections and tokens)?"; then
     ensure_hermes_stopped
-    rm -rf "$HOME/.hermes" "$HOME/.config/Hermes"
+    rm -rf "$hermes_home" "$HOME/.config/Hermes"
     data_removed=true
   fi
 fi
 
 echo ""
-echo "Hermes Desktop has been removed."
+echo "Hermes has been removed."
 if [[ $data_removed == true ]]; then
-  echo "Its chats, memories, and settings in ~/.hermes and ~/.config/Hermes are gone too."
-elif [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]]; then
-  echo "Your chats, memories, and skills are still in ~/.hermes,"
+  echo "Its chats, memories, and settings in $hermes_home and ~/.config/Hermes are gone too."
+elif [[ -d $hermes_home || -d $HOME/.config/Hermes ]]; then
+  echo "Your chats, memories, and skills are still in $hermes_home,"
   echo "and your connections and settings in ~/.config/Hermes."
-fi
-
-# The messages above still hold -- the app and its runtime are gone -- but a CLI
-# teardown that failed already said so on stderr, and that stands.
-if [[ $cli_removed == "false" ]]; then
-  exit 1
 fi

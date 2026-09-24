@@ -24,15 +24,6 @@ cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 printf '%s\0' "$@" >>"$OMARCHY_TEST_DROP_LOG"
 SH
 
-# The CLI teardown is the installer's own, exercised in hermes-cli-test.sh; here
-# it is mocked to a logger so this test stays about what Remove Hermes does with
-# ~/.hermes, and to keep real mise out of a run with HOME pointed at a fixture.
-cat >"$mock_bin/omarchy-install-hermes-cli" <<'SH'
-#!/bin/bash
-printf '%s\0' "$@" >>"$OMARCHY_TEST_INSTALLER_LOG"
-exit "${OMARCHY_TEST_INSTALLER_STATUS:-0}"
-SH
-
 # The remover asks through gum whether the user's data should go too. The stub
 # answers "no" unless a test says otherwise, and logs every call: a real gum
 # would hang a test run, and one that answered "yes" on its own would be the
@@ -72,17 +63,20 @@ seed_install() {
   ln -sf /usr/bin/npx "$test_home/.local/bin/npx"
   printf 'node\n' >"$test_home/.hermes/node/bin/node"
   touch "$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
+  # The installer's record of the runtime it set up, which is what makes the
+  # runtime Omarchy's to remove.
+  mkdir -p "$test_home/.local/state/omarchy"
+  printf '%s\n' "$test_home/.hermes/hermes-agent" >"$test_home/.local/state/omarchy/hermes-runtime"
+  touch "$test_home/.local/state/omarchy/hermes-runtime-migration"
 }
 
 # </dev/null pins stdin off a terminal, so these runs exercise the
 # non-interactive path no matter where the suite itself is running.
 remove() {
-  : >"$test_tmp/installer-log"
+  : >"$test_tmp/drop-log"
   : >"$test_tmp/gum-log"
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
-    OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
-    OMARCHY_TEST_INSTALLER_STATUS="${OMARCHY_TEST_INSTALLER_STATUS:-0}" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     HOME="$test_home" PATH="$mock_bin:$PATH" \
@@ -92,11 +86,10 @@ remove() {
 # script(1) puts the remover on a pty, which is the only way -t 0 answers true
 # without a person at a real one; the stubbed gum then supplies the answer.
 remove_tty() {
-  : >"$test_tmp/installer-log"
+  : >"$test_tmp/drop-log"
   : >"$test_tmp/gum-log"
   : >"$test_tmp/systemctl-log"
   OMARCHY_TEST_DROP_LOG="$test_tmp/drop-log" \
-    OMARCHY_TEST_INSTALLER_LOG="$test_tmp/installer-log" \
     OMARCHY_TEST_SYSTEMCTL_LOG="$test_tmp/systemctl-log" \
     OMARCHY_TEST_GUM_LOG="$test_tmp/gum-log" \
     OMARCHY_TEST_GUM_STATUS="${OMARCHY_TEST_GUM_STATUS:-1}" \
@@ -112,7 +105,15 @@ remove || fail "remove succeeds"
 [[ ! -d $test_home/.hermes/hermes-agent ]] || fail "the runtime checkout is removed"
 [[ ! -d $test_home/.hermes/bin ]] || fail "the uv the app installed is removed"
 [[ ! -d $test_home/.hermes/node ]] || fail "the node the app installed is removed"
+[[ ! -e $test_home/.local/state/omarchy/hermes-runtime && ! -e $test_home/.local/state/omarchy/hermes-runtime-migration ]] ||
+  fail "removal clears the installer's record and any pending replacement"
 pass "removal takes the whole runtime the app installed"
+
+# The terminal, the default agent and the app all ran the one runtime, so the
+# app and the installer package behind it go in the same transaction.
+[[ $(tr '\0' ' ' <"$test_tmp/drop-log") == "hermes-desktop hermes-agent " ]] ||
+  fail "removal drops the app and the installer package together" "$(tr '\0' ' ' <"$test_tmp/drop-log")"
+pass "removal drops the app and the installer package together"
 
 grep -Fxq 'systemctl --user stop omarchy-hermes-theme.service' "$test_tmp/systemctl-log" ||
   fail "the unit the installer left waiting to hand over the theme is stopped" "$(cat "$test_tmp/systemctl-log")"
@@ -142,12 +143,6 @@ pass "removal keeps the user's data unasked when there is no terminal"
 [[ ! -e $test_home/.local/bin/hermes ]] || fail "the app's own hermes command is removed"
 pass "removal takes the command the app installed"
 
-# Removal also asks the installer to tear down a mise CLI the app superseded, so
-# a copy left from before the app took over does not linger once Hermes is gone.
-tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||
-  fail "removal asks the installer to tear down its own CLI"
-pass "removal tears down the mise CLI through the installer"
-
 # A hermes command the app did not write survives even when the app did install
 # a runtime of its own.
 seed_install
@@ -158,20 +153,16 @@ remove || fail "remove succeeds with a foreign hermes present"
   fail "a hermes command the app did not write survives removal"
 pass "removal leaves a hermes it does not own"
 
-# Installed but never launched. The app provisions its runtime on first launch
-# and marks it complete when it lands, so without that marker everything under
-# ~/.hermes predates the app -- an official install, or one built by hand -- and
-# the paths are identical either way. Dropping the package is the whole job.
+# A runtime Omarchy never recorded. Upstream's own installer writes the same
+# marker into the same place, so a marker alone says nothing about whose it
+# is; without the record everything under ~/.hermes predates Omarchy -- an
+# official install, or one built by hand. Dropping the packages is the whole job.
 seed_install
-rm -f "$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
+rm -f "$test_home/.local/state/omarchy/hermes-runtime"
 printf 'my local edit\n' >"$test_home/.hermes/hermes-agent/PATCH"
 printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
   >"$test_home/.local/bin/hermes"
 remove || fail "remove succeeds when the app never finished installing Hermes"
-# The stranded pre-desktop CLI is exactly the interrupted-install case, so the
-# teardown must be asked for here too, not only when the app's runtime landed.
-tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||
-  fail "removal tears down the CLI even when the app never finished installing"
 [[ -d $test_home/.hermes/hermes-agent ]] ||
   fail "a Hermes runtime the app never installed survives removal"
 [[ -f $test_home/.hermes/hermes-agent/PATCH ]] ||
@@ -182,7 +173,63 @@ tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||
   fail "the command a runtime the app never installed put on PATH survives removal"
 [[ -L $test_home/.local/bin/node ]] ||
   fail "node links belonging to a runtime the app never installed survive removal"
-pass "removal leaves a Hermes the app never installed"
+pass "removal leaves a Hermes Omarchy never installed, marker or no marker"
+
+# ~/.hermes carries a dot, so a bare prefix would also claim a wrapper pointing
+# at a sibling that begins the same way.
+seed_install
+mkdir -p "$test_home/.hermes-old/bin"
+sibling_body="#!/bin/bash
+exec $test_home/.hermes-old/bin/hermes \"\$@\""
+printf '%s\n' "$sibling_body" >"$test_home/.local/bin/hermes"
+remove || fail "remove succeeds with a wrapper pointing at a same-prefix sibling"
+[[ -f $test_home/.local/bin/hermes && $(cat "$test_home/.local/bin/hermes") == "$sibling_body" ]] ||
+  fail "a wrapper pointing at ~/.hermes-old is not mistaken for one pointing into ~/.hermes"
+pass "removal matches the runtime home with its trailing slash"
+
+# The record carries the home the installer honoured, so a runtime set up under
+# a custom HERMES_HOME is the one removed, and ~/.hermes is left alone.
+seed_install
+custom="$test_home/custom home"
+mkdir -p "$custom/hermes-agent" "$custom/bin"
+touch "$custom/hermes-agent/.hermes-bootstrap-complete"
+printf '%s\n' "$custom/hermes-agent" >"$test_home/.local/state/omarchy/hermes-runtime"
+printf '%s\n' "#!/bin/bash" "exec \"$custom/hermes-agent/venv/bin/hermes\" \"\$@\"" >"$test_home/.local/bin/hermes"
+remove || fail "remove succeeds with a custom home recorded"
+[[ ! -d $custom/hermes-agent && ! -d $custom/bin ]] || fail "the recorded custom home's runtime is removed"
+[[ -d $test_home/.hermes/hermes-agent ]] || fail "~/.hermes is left alone when the record names another home"
+[[ ! -e $test_home/.local/bin/hermes ]] || fail "the wrapper into the custom home is removed"
+pass "removal follows the recorded runtime path"
+
+# A record that does not name a runtime is not acted on, whether it is
+# malformed or stale: a directory that has since become something else, even
+# one with the right name, is not deleted on the record's say-so.
+seed_install
+printf 'not a path\n' >"$test_home/.local/state/omarchy/hermes-runtime"
+remove || fail "remove succeeds with a malformed record"
+[[ -d $test_home/.hermes/hermes-agent ]] || fail "a malformed record removes nothing"
+seed_install
+mkdir -p "$test_home/work/hermes-agent" "$test_home/work/bin"
+printf 'my project\n' >"$test_home/work/hermes-agent/README"
+printf '#!/bin/bash\n' >"$test_home/work/hermes-agent/hermes"
+printf '%s\n' "$test_home/work/hermes-agent" >"$test_home/.local/state/omarchy/hermes-runtime"
+remove || fail "remove succeeds with a stale record"
+[[ -f $test_home/work/hermes-agent/README && -d $test_home/work/bin ]] || fail "a stale record does not delete what now lives at its path"
+[[ -d $test_home/.hermes/hermes-agent ]] || fail "a stale record does not fall back to ~/.hermes"
+pass "removal ignores a record that names no runtime"
+
+# A custom home whose runtime is gone or damaged is still the home the data
+# question is about; nothing is deleted on the record's say-so, and ~/.hermes
+# is not offered in its place.
+seed_install
+custom="$test_home/custom home"
+mkdir -p "$custom/hermes-agent" "$custom/sessions"
+printf 'chat\n' >"$custom/sessions/one.json"
+printf '%s\n' "$custom/hermes-agent" >"$test_home/.local/state/omarchy/hermes-runtime"
+remove_tty || fail "remove succeeds with a damaged custom-home runtime"
+tr '\0' '\n' <"$test_tmp/gum-log" | grep -qF "$custom" || fail "the data question names the custom home"
+[[ -f $custom/sessions/one.json && -d $custom/hermes-agent && -d $test_home/.hermes/hermes-agent ]] || fail "a damaged custom-home runtime deletes nothing"
+pass "removal asks about the recorded home even when its runtime is damaged"
 
 # ~/.hermes carries a dot, so a pattern rather than a plain string would also
 # claim a wrapper pointing at a sibling directory that merely looks like it.
@@ -213,38 +260,27 @@ OMARCHY_TEST_GUM_STATUS=0 remove_tty || fail "remove succeeds when the data goes
   fail "a yes deletes ~/.hermes and ~/.config/Hermes"
 pass "removal deletes the user's data only on an explicit yes"
 
-# Without the bootstrap marker the runtime is not the app's to take unasked,
-# but the data question is still the user's to answer: declining keeps the
-# whole tree -- runtime included -- untouched.
+# Without the record the runtime is not Omarchy's to take unasked, but the
+# data question is still the user's to answer: declining keeps the whole tree
+# -- runtime included -- untouched.
 seed_install
-rm -f "$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
-remove_tty || fail "remove succeeds when the app never installed Hermes"
+rm -f "$test_home/.local/state/omarchy/hermes-runtime"
+remove_tty || fail "remove succeeds when Omarchy never installed Hermes"
 tr '\0' '\n' <"$test_tmp/gum-log" | grep -qx 'confirm' ||
-  fail "removal still asks about the data without the bootstrap marker"
+  fail "removal still asks about the data without the record"
 [[ -d $test_home/.hermes/hermes-agent && -d $test_home/.config/Hermes ]] ||
-  fail "declining keeps a Hermes the app never installed"
-pass "removal asks without the marker and declining keeps everything"
+  fail "declining keeps a Hermes Omarchy never installed"
+pass "removal asks without the record and declining keeps everything"
 
 # The prompt names ~/.hermes itself, so a yes takes the whole tree there too,
 # unowned runtime and all -- that is what was asked and answered.
 seed_install
-rm -f "$test_home/.hermes/hermes-agent/.hermes-bootstrap-complete"
+rm -f "$test_home/.local/state/omarchy/hermes-runtime"
 OMARCHY_TEST_GUM_STATUS=0 remove_tty ||
-  fail "remove succeeds when the data goes too without the marker"
+  fail "remove succeeds when the data goes too without the record"
 [[ ! -e $test_home/.hermes && ! -e $test_home/.config/Hermes ]] ||
-  fail "a yes takes ~/.hermes whole when the marker never appeared"
-pass "removal honors a yes on the named paths without the marker"
-
-# A CLI teardown that fails must not stop the runtime handling, and must not be
-# papered over either: the data work still happens, and the failure reaches the
-# caller's exit code.
-seed_install
-printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes \"\$@\"" \
-  >"$test_home/.local/bin/hermes"
-OMARCHY_TEST_INSTALLER_STATUS=1 remove && fail "a failed CLI teardown surfaces in the exit code"
-[[ ! -d $test_home/.hermes/hermes-agent ]] ||
-  fail "a failed CLI teardown does not stop the runtime removal"
-pass "a failed CLI teardown is reported after the runtime is handled"
+  fail "a yes takes ~/.hermes whole when the record never existed"
+pass "removal honors a yes on the named paths without the record"
 
 # Real SQLite writers exercise the kernel's live/deleted file descriptors.
 # Package, service and confirmation commands remain confined to the mocks.
@@ -273,10 +309,13 @@ def setup(name):
     runtime = home / '.hermes/hermes-agent'
     runtime.mkdir(parents=True)
     (runtime / '.hermes-bootstrap-complete').touch()
+    state = home / '.local/state/omarchy'
+    state.mkdir(parents=True)
+    (state / 'hermes-runtime').write_text(str(runtime) + '\n')
     (home / '.config/Hermes').mkdir(parents=True)
     env = {**os.environ, 'HOME': str(home), 'PATH': f"{scratch / 'bin'}:/usr/bin:/bin",
            'OMARCHY_TEST_GUM_STATUS': '0'}
-    for key in ('DROP', 'INSTALLER', 'SYSTEMCTL', 'GUM'):
+    for key in ('DROP', 'SYSTEMCTL', 'GUM'):
         log = home / (key + '.log')
         log.touch()
         env['OMARCHY_TEST_' + key + '_LOG'] = str(log)
@@ -309,7 +348,7 @@ def blocked(result, home, runtime, child):
     assert 'Close Hermes' in result.stderr, result.stderr
     assert (runtime / '.hermes-bootstrap-complete').exists()
     assert all((home / (name + '.log')).stat().st_size == 0
-               for name in ('DROP', 'INSTALLER', 'SYSTEMCTL', 'GUM'))
+               for name in ('DROP', 'SYSTEMCTL', 'GUM'))
     assert child.poll() is None, 'remover must not kill sessions'
 
 for deleted in (False, True):

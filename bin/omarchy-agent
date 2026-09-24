@@ -104,10 +104,13 @@ cursor-agent)
   [[ -n ${prompt:-} ]] && command+=(agent -- "$prompt")
   ;;
 hermes)
+  # The command omarchy-install-hermes-cli vets, rather than whichever hermes
+  # PATH resolves first: user paths come after system ones, so a Hermes
+  # installed as root would otherwise be launched without ever being probed.
   if [[ -n ${prompt:-} ]]; then
-    command=(env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=$prompt")
+    command=(env -u HERMES_SESSION_SOURCE "$HOME/.local/bin/hermes" chat --yolo --tui "--query=$prompt")
   else
-    command=(hermes --yolo)
+    command=("$HOME/.local/bin/hermes" --yolo)
   fi
   ;;
 muse)

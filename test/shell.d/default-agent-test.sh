@@ -674,7 +674,8 @@ assert_launch muse muse --approval-mode never -- "Review this project"
 assert_launch crush crush run "Review this project"
 assert_launch grok grok --permission-mode bypassPermissions -- "Review this project"
 assert_launch cursor-agent cursor-agent --yolo --trust agent -- "Review this project"
-assert_launch hermes env -u HERMES_SESSION_SOURCE hermes chat --yolo --tui "--query=Review this project"
+# The command the installer vets, not whichever hermes PATH resolves first.
+assert_launch hermes env -u HERMES_SESSION_SOURCE "$HOME/.local/bin/hermes" chat --yolo --tui "--query=Review this project"
 assert_launch agy agy --dangerously-skip-permissions --prompt-interactive "Review this project"
 assert_launch copilot copilot --allow-all --interactive "Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
@@ -689,7 +690,7 @@ literal_hermes_prompt=$' --help !Crash /quit {$(touch must-not-run)}\ntrailing\\
 printf '%s\n' "hermes" >"$agent_file"
 omarchy-agent-prompt "$literal_hermes_prompt"
 assert_launched hermes "binds its literal initial prompt" env -u HERMES_SESSION_SOURCE \
-  hermes chat --yolo --tui "--query=$literal_hermes_prompt"
+  "$HOME/.local/bin/hermes" chat --yolo --tui "--query=$literal_hermes_prompt"
 pass "Hermes receives prompted launches as one literal query argument"
 
 assert_bypass pi pi
@@ -702,7 +703,7 @@ assert_bypass muse muse --approval-mode never
 assert_bypass crush crush --yolo
 assert_bypass grok grok --permission-mode bypassPermissions
 assert_bypass cursor-agent cursor-agent --yolo --trust
-assert_bypass hermes hermes --yolo
+assert_bypass hermes "$HOME/.local/bin/hermes" --yolo
 assert_bypass agy agy --dangerously-skip-permissions
 assert_bypass copilot copilot --allow-all
 pass "agent launcher skips permission prompts for every supported agent"

@@ -300,7 +300,7 @@
   "remove.security.fido2": {"icon":"","label":"Fido2","when":"omarchy-pkg-present pam-u2f","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-security-fido2"},
   "remove.security.sshd": {"icon":"󰣀","label":"SSHD","when":"systemctl is-enabled --quiet sshd","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-security-sshd"},
   "remove.security.sudoless-docker": {"icon":"󰡨","label":"Sudoless Docker","when":"! omarchy-sudo-docker --configured","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-security-sudoless-docker"},
-  "remove.ai.hermes": {"icon":"","iconFont":"omarchy","label":"Hermes Desktop","when":"omarchy-pkg-present hermes-desktop","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-hermes"},
+  "remove.ai.hermes": {"icon":"","iconFont":"omarchy","label":"Hermes","when":"omarchy-pkg-present hermes-agent || omarchy-pkg-present hermes-desktop","action":"omarchy-launch-floating-terminal-with-presentation omarchy-remove-ai-hermes"},
   "remove.browser.chrome": {"icon":"","label":"Chrome","when":"omarchy-pkg-present google-chrome","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-browser chrome'"},
   "remove.browser.edge": {"icon":"󰇩","label":"Edge","when":"omarchy-pkg-present microsoft-edge-stable-bin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-browser edge'"},
   "remove.browser.brave": {"icon":"","label":"Brave","when":"omarchy-pkg-present brave-bin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-remove-browser brave'"},

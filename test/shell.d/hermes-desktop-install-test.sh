@@ -12,10 +12,13 @@ export OMARCHY_TEST_ROOT="$test_tmp"
 mkdir -p "$test_tmp/bin" "$test_tmp/package/resources" "$test_tmp/share" "$test_tmp/seed"
 
 # Real Git exercises patch checks and preservation; all package, desktop and
-# service commands are mocks. No command reaches the live user installation.
+# service commands are mocks, and the runtime is set up by the real
+# omarchy-install-hermes-cli pointed at a mock hermes-agent package. No command
+# reaches the live user installation.
 git -C "$test_tmp/seed" init -q -b main
 printf 'venv/\n.hermes-bootstrap-complete\napps/desktop/release/\n__pycache__/\n' >"$test_tmp/seed/.gitignore"
 printf 'before\n' >"$test_tmp/seed/runtime.txt"
+printf '#!/bin/bash\n' >"$test_tmp/seed/hermes"
 mkdir -p "$test_tmp/seed/apps/desktop/src"
 printf 'desktop source\n' >"$test_tmp/seed/apps/desktop/src/main.js"
 mkdir -p "$test_tmp/seed/hermes_cli"
@@ -44,6 +47,7 @@ git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid com
 origin_commit=$(git -C "$test_tmp/seed" rev-parse HEAD)
 export OMARCHY_TEST_RELEASE_COMMIT="$release_commit"
 printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/package/resources/install-stamp.json"
+printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/share/release.json"
 printf 'packaged app\n' >"$test_tmp/package/resources/app.asar"
 printf '#!/bin/bash\nexit 0\n' >"$test_tmp/package/Hermes"
 touch "$test_tmp/package/chrome-sandbox"
@@ -80,7 +84,14 @@ if [[ $force == true ]] || ! git -C "$runtime" merge-base --is-ancestor "$commit
 fi
 mkdir -p "$runtime/venv/bin"
 git -C "$runtime" rev-parse HEAD >"$runtime/venv/dependency-commit"
-printf '#!/bin/bash\nexit 0\n' >"$runtime/venv/bin/hermes"
+cat >"$runtime/venv/bin/hermes" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "chat" && ${2:-} == "--help" ]]; then
+  echo "[-q QUERY, --query QUERY] [--tui]"
+else
+  echo "hermes-agent 0.0.0-test"
+fi
+SH
 chmod +x "$runtime/venv/bin/hermes"
 printf '#!/bin/bash\nexec /usr/bin/python3 "$@"\n' >"$runtime/venv/bin/python"
 chmod +x "$runtime/venv/bin/python"
@@ -88,24 +99,26 @@ chmod +x "$runtime/venv/bin/python"
 mkdir -p "$HOME/.local/bin"
 for command in hermes hermes-agent hermes-acp; do
   rm -f "$HOME/.local/bin/$command"
-  printf 'native runtime shim\n' >"$HOME/.local/bin/$command"
+  printf '#!/bin/bash\nexec "%s/venv/bin/hermes" "$@"\n' "$runtime" >"$HOME/.local/bin/$command"
+  chmod +x "$HOME/.local/bin/$command"
 done
 MOCK
 
 cat >"$test_tmp/bin/omarchy-pkg-add" <<'MOCK'
 #!/bin/bash
 printf 'package %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
-[[ ${OMARCHY_TEST_PACKAGE_FAIL:-0} != 1 ]]
+[[ ${OMARCHY_TEST_PACKAGE_FAIL:-0} != 1 && ${OMARCHY_TEST_PACKAGE_FAIL:-0} != "$1" ]]
+MOCK
+# The CLI installer asks mise whether the retired pipx Hermes is still there;
+# nothing here ever is, and the real mise must stay out of a fixture HOME.
+cat >"$test_tmp/bin/mise" <<'MOCK'
+#!/bin/bash
+[[ $1 != "where" ]]
 MOCK
 cat >"$test_tmp/bin/git" <<'MOCK'
 #!/bin/bash
 if [[ ${OMARCHY_TEST_FETCH_FAIL:-0} == 1 && " $* " == *" --unshallow "* ]]; then exit 8; fi
 exec /usr/bin/git "$@"
-MOCK
-cat >"$test_tmp/bin/omarchy-install-hermes-cli" <<'MOCK'
-#!/bin/bash
-printf 'handoff\n' >>"$OMARCHY_TEST_ROOT/events"
-exit 1
 MOCK
 cat >"$test_tmp/bin/setsid" <<'MOCK'
 #!/bin/bash
@@ -158,20 +171,24 @@ exit 1
 MOCK
 chmod +x "$test_tmp/bin/"*
 
-# Substitute only system package paths in a scratch copy of the actual script.
-python3 - "$ROOT/bin/omarchy-install-ai-hermes" "$test_tmp" <<'PY'
+# Substitute only system package paths in scratch copies of the actual scripts.
+# The CLI installer goes on PATH under its own name, where the desktop
+# installer finds it.
+python3 - "$ROOT/bin" "$test_tmp" <<'PYEOF'
 from pathlib import Path
 import sys
-source, scratch = Path(sys.argv[1]), Path(sys.argv[2])
-script = source.read_text()
+bin_dir, scratch = Path(sys.argv[1]), Path(sys.argv[2])
+script = (bin_dir / 'omarchy-install-ai-hermes').read_text()
 for original, replacement in {
     '/opt/hermes-desktop': str(scratch / 'package'),
-    '/usr/share/hermes-desktop': str(scratch / 'share'),
     '/usr/bin/hermes-desktop': str(scratch / 'bin/hermes-desktop'),
 }.items():
     script = script.replace(original, replacement)
 (scratch / 'installer').write_text(script)
-PY
+cli = (bin_dir / 'omarchy-install-hermes-cli').read_text().replace('/usr/share/hermes-agent', str(scratch / 'share'))
+(scratch / 'bin/omarchy-install-hermes-cli').write_text(cli)
+(scratch / 'bin/omarchy-install-hermes-cli').chmod(0o755)
+PYEOF
 
 new_home() {
   test_home="$test_tmp/$1"
@@ -193,7 +210,7 @@ new_home fresh
 run_installer || fail "fresh setup succeeds" "$(cat "$test_tmp/output")"
 expected=$(printf '%s\n' --skip-setup --branch main --commit "$release_commit" --force-commit --dir "$runtime" --hermes-home "$hermes_home")
 [[ $(cat "$test_tmp/install-args") == "$expected" ]] || fail "upstream installer receives the pinned main arguments"
-[[ $(head -3 "$test_tmp/events") == $'package hermes-desktop\nhandoff\nbootstrap' ]] || fail "package and CLI handoff precede runtime bootstrap"
+[[ $(head -3 "$test_tmp/events") == $'package hermes-agent\nbootstrap\npackage hermes-desktop' ]] || fail "the runtime lands before the app package"
 grep -qx launch "$test_tmp/events" || fail "native app is copied before launch"
 [[ $(sed -n '4p' "$test_tmp/events") == build-stamp ]] || fail "upstream build stamp follows the app copy and precedes launch"
 [[ $(cat "$hermes_home/desktop-build-stamp.json") == 'upstream build stamp' ]] || fail "the upstream helper records the completed packaged build"
@@ -249,16 +266,24 @@ grep -q 'hermes desktop --build-only' "$test_tmp/output" || fail "modified deskt
 assert_stopped "modified desktop sources prevent stamping, launch and theme setup"
 pass "a matching commit with modified desktop sources is preserved without seeding or stamping"
 
-for failure in package install marker; do
+for failure in agent-package desktop-package install marker; do
   new_home "$failure-failure"
   case "$failure" in
-    package) OMARCHY_TEST_PACKAGE_FAIL=1 run_installer && fail "package failure stops setup" ;;
+    agent-package) OMARCHY_TEST_PACKAGE_FAIL=hermes-agent run_installer && fail "runtime package failure stops setup" ;;
+    desktop-package) OMARCHY_TEST_PACKAGE_FAIL=hermes-desktop run_installer && fail "app package failure stops setup" ;;
     install) OMARCHY_TEST_INSTALL_FAIL=1 run_installer && fail "installer failure stops setup" ;;
     marker) OMARCHY_TEST_NO_MARKER=1 run_installer && fail "missing marker stops setup" ;;
   esac
   [[ ! -e $native ]] || fail "failed setup does not seed the app"
   assert_stopped "failed setup prevents launch and theme setup"
 done
+# With no hermes-agent to install, nothing else is installed either: the
+# window between the two packages publishing strands nobody.
+new_home agent-unpublished
+OMARCHY_TEST_PACKAGE_FAIL=hermes-agent run_installer && fail "an unpublished runtime package stops setup"
+! grep -qx 'package hermes-desktop' "$test_tmp/events" || fail "the app package is not installed without its runtime"
+! grep -qx bootstrap "$test_tmp/events" || fail "no runtime is set up without its package"
+grep -q 'omarchy update' "$test_tmp/output" || fail "an unpublished runtime package has actionable guidance"
 pass "package, upstream installer and readiness failures stop before launch"
 
 for failure in copy race; do
@@ -333,7 +358,7 @@ printf 'symlink target\n' >"$test_home/target"
 ln -s "$test_home/target" "$test_home/.local/bin/hermes-agent"
 ln -s "$test_home/missing" "$test_home/.local/bin/hermes-acp"
 run_installer || fail "existing commands are preserved before upstream replaces them" "$(cat "$test_tmp/output")"
-backups=("$test_home/.local/bin/".hermes-before-desktop.*)
+backups=("$test_home/.local/bin/".hermes-before-install.*)
 [[ ${#backups[@]} == 1 && -d ${backups[0]} ]] || fail "one backup directory preserves existing command names"
 [[ $(cat "${backups[0]}/hermes") == 'foreign wrapper' ]] || fail "foreign wrapper bytes are saved"
 [[ $(readlink "${backups[0]}/hermes-agent") == "$test_home/target" && $(readlink "${backups[0]}/hermes-acp") == "$test_home/missing" ]] || fail "working and broken symlinks are saved as links"
@@ -341,14 +366,37 @@ backups=("$test_home/.local/bin/".hermes-before-desktop.*)
 grep -qF "${backups[0]}" "$test_tmp/output" || fail "backup location is reported"
 pass "pre-existing command files and symlinks are backed up before replacement"
 
+# A hermes the user installed elsewhere answers on PATH, but the app needs the
+# runtime itself: the installer asks for it outright, and the command found
+# there is saved before upstream's takes the name.
+new_home foreign-command
+mkdir -p "$test_home/.local/bin"
+cat >"$test_home/.local/bin/hermes" <<'FOREIGN'
+#!/bin/bash
+if [[ ${1:-} == "chat" && ${2:-} == "--help" ]]; then
+  echo "[-q QUERY, --query QUERY] [--tui]"
+else
+  echo "hermes-agent 0.0.0-foreign"
+fi
+FOREIGN
+chmod +x "$test_home/.local/bin/hermes"
+run_installer || fail "a working foreign hermes does not stop the app's runtime" "$(cat "$test_tmp/output")"
+grep -qx bootstrap "$test_tmp/events" || fail "the runtime is set up beside a working foreign hermes"
+backups=("$test_home/.local/bin/".hermes-before-install.*)
+[[ ${#backups[@]} == 1 && $(head -c 11 "${backups[0]}/hermes") == '#!/bin/bash' ]] || fail "the foreign hermes is saved before replacement"
+grep -qF "$runtime" "$test_home/.local/bin/hermes" || fail "the hermes command now points into the runtime"
+grep -qx launch "$test_tmp/events" || fail "the app launches once the runtime is its own"
+pass "a working foreign hermes is replaced for the app, and kept in the backup"
+
 new_home old-package
 mv "$test_tmp/package/resources/install-stamp.json" "$test_tmp/saved-install-stamp.json"
-run_installer && fail "an old installed package cannot bootstrap"
+run_installer && fail "an old installed package cannot seed the app"
 grep -q 'omarchy update' "$test_tmp/output" || fail "old package has actionable upgrade guidance"
-! grep -qx handoff "$test_tmp/events" || fail "old package is rejected before CLI handoff"
-! grep -qx bootstrap "$test_tmp/events" || fail "old package never reaches upstream installer"
+[[ -f $runtime/.hermes-bootstrap-complete ]] || fail "the runtime still lands under an old app package"
+[[ ! -e $native ]] || fail "old package seeds no app"
+assert_stopped "old package prevents launch and theme setup"
 mv "$test_tmp/saved-install-stamp.json" "$test_tmp/package/resources/install-stamp.json"
-pass "old package fails with upgrade guidance before changing the runtime or CLI"
+pass "old package fails with upgrade guidance and leaves a working runtime"
 
 new_home custom-profile
 hermes_home="$test_home/custom home"
@@ -366,7 +414,10 @@ git -C "$test_tmp/seed" add hermes_cli/main.py
 git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid commit -qm split-desktop
 release_commit=$(git -C "$test_tmp/seed" rev-parse HEAD)
 export OMARCHY_TEST_RELEASE_COMMIT="$release_commit"
+# Both packages move to the new release together; hermes-desktop depends on
+# hermes-agent at its own version.
 printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/package/resources/install-stamp.json"
+printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/share/release.json"
 new_home split-desktop
 run_installer || fail "setup supports the relocated desktop helper" "$(cat "$test_tmp/output")"
 [[ $(cat "$hermes_home/desktop-build-stamp.json") == 'upstream build stamp' ]] || fail "relocated helper writes the build stamp"
