@@ -12,10 +12,9 @@ cat >"$test_tmp/bin/pacman-conf" <<'STUB'
 [[ $1 == "DBPath" ]] || exit 99
 printf '%s\n' "$TEST_DATABASE"
 STUB
-cat >"$test_tmp/bin/sudo" <<'STUB'
+cat >"$test_tmp/bin/omarchy-update-pacman" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$TEST_LOG"
-[[ $* == *'pacman -Syu '* ]]
 STUB
 cat >"$test_tmp/bin/omarchy-update-system-pkgs-when-conflicted" <<'STUB'
 #!/bin/bash
@@ -53,6 +52,6 @@ for interactive in 0 1; do
   : >"$TEST_LOG"
   OMARCHY_UPDATE_CONFLICT=1 OMARCHY_UPDATE_INTERACTIVE="$interactive" \
     bash "$ROOT/bin/omarchy-update-system-pkgs" >"$test_tmp/output" 2>&1
-  grep -q 'pacman -Syu' "$TEST_LOG" || fail "valid records still upgrade"
+  grep -q -- '^-Syu ' "$TEST_LOG" || fail "valid records still upgrade"
 done
 pass "valid records allow upgrades, including packages that own no files"
