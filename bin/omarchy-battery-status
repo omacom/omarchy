@@ -47,13 +47,27 @@ battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
+sysfs_rate=""
 if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
+  sysfs_rate=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
 elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
+  sysfs_rate=$(awk \
     -v microamps="$(<"$battery_path/current_now")" \
     -v microvolts="$(<"$battery_path/voltage_now")" \
     'BEGIN { print microamps * microvolts / 1000000000000 }')
+fi
+
+if [[ -n $sysfs_rate ]]; then
+  # Some firmware reports current as an unsigned 16-bit field, turning a ~0.5 A
+  # draw into a ~-1100 W reading. Keep UPower's rate when the sysfs value is
+  # implausible: beyond any laptop's draw, or several times what UPower sees.
+  if awk -v sysfs="$sysfs_rate" -v upower="${power_rate_raw:-0}" 'BEGIN {
+    s = sysfs < 0 ? -sysfs : sysfs
+    u = upower < 0 ? -upower : upower
+    exit !(s <= 200 && (u <= 0 || s <= u * 4 || s <= 50))
+  }'; then
+    power_rate_raw=$sysfs_rate
+  fi
 fi
 
 power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {

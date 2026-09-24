@@ -44,6 +44,17 @@ grep -Fx $'rate\t10.8W' <<<"$shell_output" >/dev/null || fail "battery status re
 grep -Fx $'size\t56Wh' <<<"$shell_output" >/dev/null || fail "battery status reports full capacity"
 grep -Fx $'time\t2h 30m' <<<"$shell_output" >/dev/null || fail "battery status reports remaining time"
 
+# Firmware that reports current as an unsigned 16-bit field turns a ~0.5 A
+# draw into a ~-1100 W sysfs reading; the panel must keep UPower's rate then.
+printf -- '-65041000\n' >"$tmp_dir/power/BAT0/current_now"
+printf '17343000\n' >"$tmp_dir/power/BAT0/voltage_now"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+
+grep -Fx $'rate\t7.3W' <<<"$shell_output" >/dev/null ||
+  fail "battery status falls back to UPower when the sysfs rate is implausible" "$shell_output"
+pass "battery status falls back to UPower when the sysfs rate is implausible"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi
