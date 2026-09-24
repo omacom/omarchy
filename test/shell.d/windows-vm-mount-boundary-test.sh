@@ -8,7 +8,7 @@ if ((EUID != 0)); then
   if unshare --user --map-auto --map-root-user --mount true 2>/dev/null; then
     exec unshare --user --map-auto --map-root-user --mount --propagation private bash "$0"
   fi
-  pass "automatic subordinate-id namespace unavailable; skipping root Windows VM boundary probe"
+  skip "automatic subordinate-id namespace unavailable; skipping root Windows VM boundary probe"
   exit 0
 fi
 
