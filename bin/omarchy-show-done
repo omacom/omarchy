@@ -5,6 +5,14 @@
 
 code="${1:-0}"
 
+# (( )) evaluates its operands as arithmetic, so a hostile $1 like
+# 'a[$(touch /tmp/pwned)]' would run command substitution. Every in-tree
+# caller passes a numeric exit status; coerce anything else to 0 before the
+# arithmetic test below.
+if [[ ! $code =~ ^[0-9]+$ ]]; then
+  code=0
+fi
+
 # The device node is there whether or not a terminal is behind it, so opening
 # it is the only test that means anything.
 : 2>/dev/null <>/dev/tty || exit 0
