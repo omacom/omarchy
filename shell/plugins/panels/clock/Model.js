@@ -234,7 +234,10 @@ function lifeProgressPercent(age, expectancy) {
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
   var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
-  var cursor = new Date(year, month, 1 - leading)
+  // Build the cursor at local noon rather than midnight: a forward DST jump can
+  // make midnight not exist, and Qt's V4 engine rolls the stored time back a
+  // day instead of forward an hour, duplicating the day in the grid.
+  var cursor = new Date(year, month, 1 - leading, 12)
   var today = String(todayKey || "")
   var weeks = []
 
