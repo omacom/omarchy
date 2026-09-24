@@ -161,8 +161,11 @@ Item {
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
         echoMode: TextInput.Password
-        passwordCharacter: "\u25CF"
+        passwordCharacter: "●"
         passwordMaskDelay: 0
+        // The dots mask committed text only; an active IME would still show
+        // its preedit buffer in plaintext without these.
+        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhHiddenText | Qt.ImhNoPredictiveText
         color: Color.lock.text
         selectionColor: Color.lock.selection
         selectedTextColor: Color.lock.text

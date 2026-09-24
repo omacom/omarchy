@@ -317,6 +317,9 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
+            // Masked text is not enough: an active IME draws its preedit
+            // buffer in plaintext regardless of echo mode.
+            inputMethodHints: root.responseVisible ? Qt.ImhNone : (Qt.ImhSensitiveData | Qt.ImhHiddenText | Qt.ImhNoPredictiveText)
             passwordCharacter: "\u2022"
             color: root.errorFlash ? Color.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash

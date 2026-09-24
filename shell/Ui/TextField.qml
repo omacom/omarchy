@@ -37,6 +37,10 @@ TextField {
   readonly property var _borderSpec: Border.controlSpec(_focused ? "focus" : (_hot ? "hover-cursor" : "normal"), root.foreground, root.accent)
 
   echoMode: password ? TextInput.Password : TextInput.Normal
+  // Masked text is not enough: an active IME draws its preedit buffer in
+  // plaintext regardless of echo mode, so password mode also opts out of
+  // composition, prediction, and learned text.
+  inputMethodHints: password ? (Qt.ImhSensitiveData | Qt.ImhHiddenText | Qt.ImhNoPredictiveText) : Qt.ImhNone
   font.family: Style.font.family
   font.pixelSize: Style.font.body
   color: foreground
