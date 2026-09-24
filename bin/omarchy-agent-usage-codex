@@ -91,6 +91,46 @@ def find_command(name):
   return shutil.which(name, path=ENV.get("PATH"))
 
 
+def is_lazy_launcher(path):
+  # omarchy-mise-install writes a regular file whose first step is `mise use
+  # -g`, and mise's shims exec `mise x`; running either installs the tool it
+  # wraps. A symlink at the launcher path is the user's own binary.
+  if not path or os.path.islink(path):
+    return False
+  shims = os.path.join(str(Path.home()), ".local", "share", "mise", "shims")
+  if os.path.dirname(os.path.abspath(path)) == shims:
+    return True
+  try:
+    with open(path, "rb") as handle:
+      head = handle.read(4096)
+    return b"mise use" in head or b"mise x " in head
+  except OSError:
+    return False
+
+
+def find_codex_binary():
+  for directory in ENV.get("PATH", "").split(os.pathsep):
+    candidate = os.path.join(directory, "codex")
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK) and not is_lazy_launcher(candidate):
+      return candidate
+  # `mise which` only prints a binary that is already installed, so it is the
+  # safe way to resolve a codex managed by mise without running the launcher.
+  mise = find_command("mise")
+  if mise and not is_lazy_launcher(mise):
+    try:
+      out = subprocess.run(
+        [mise, "which", "codex"], capture_output=True, text=True, env=ENV, timeout=10
+      )
+      if out.returncode == 0:
+        for line in reversed(out.stdout.strip().splitlines()):
+          resolved = line.strip()
+          if resolved and os.path.isfile(resolved) and not is_lazy_launcher(resolved):
+            return resolved
+    except Exception:
+      pass
+  return None
+
+
 now = datetime.now()
 today = now.strftime("%Y-%m-%d")
 recent_dates = [(now - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
@@ -520,7 +560,7 @@ def limit_window(window):
 
 def fetch_codex_rpc():
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
-  codex = find_command("codex")
+  codex = find_codex_binary()
   if not codex:
     result["usageStatusText"] = "Codex unavailable"
     result["authHelpText"] = "codex not found in PATH"
