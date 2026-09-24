@@ -15,6 +15,8 @@ omarchy-mise-install github:can1357/oh-my-pi omp
 omarchy-mise-install npm:@xai-official/grok grok
 # Cursor's own installer links the same path, so a re-provision keeps it.
 omarchy-cmd-missing cursor-agent && omarchy-mise-install cursor-agent
+# Same for a kilo the user manages themselves, such as kilo-bin from the AUR.
+omarchy-cmd-missing kilo && omarchy-mise-install npm:@kilocode/cli kilo
 omarchy-mise-install npm:@kitlangton/ghui ghui
 omarchy-mise-install aqua:modem-dev/hunk hunk
 omarchy-mise-install github:basecamp/hey-cli hey
