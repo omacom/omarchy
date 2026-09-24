@@ -200,7 +200,7 @@ run_with_lock_env "$ROOT/bin/omarchy-update-stay-awake" stop
 pass "stale update ownership preserves a newer Stay Awake choice"
 
 # A stale PID is safe even if it has been reused by another process.
-sleep 30 &
+sleep 30 >/dev/null &
 unrelated_pid=$!
 unrelated_start_time=$(awk '{ print $22 }' "/proc/$unrelated_pid/stat")
 mkdir -p "$stay_awake_helper_state"
