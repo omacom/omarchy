@@ -12,37 +12,10 @@ if [[ -z $1 ]]; then
 fi
 
 install_php() {
-  omarchy-pkg-add php composer php-sqlite xdebug
+  mise tool-alias set php github:nunomaduro/static-php-builds
+  mise use --global php@latest
 
-  # Install Path for Composer
-  if [[ :$PATH: != *:$HOME/.config/composer/vendor/bin:* ]]; then
-    echo 'export PATH="$HOME/.config/composer/vendor/bin:$PATH"' >>"$HOME/.bashrc"
-    source "$HOME/.bashrc"
-    echo "Added Composer global bin directory to PATH."
-  else
-    echo "Composer global bin directory already in PATH."
-  fi
-
-  # Enable some extensions
-  local php_ini_path="/etc/php/php.ini"
-  local extensions_to_enable=(
-    "bcmath"
-    "intl"
-    "iconv"
-    "openssl"
-    "pdo_sqlite"
-    "pdo_mysql"
-  )
-
-  # Enable Xdebug
-  sudo sed -i \
-    -e 's/^;zend_extension=xdebug.so/zend_extension=xdebug.so/' \
-    -e 's/^;xdebug.mode=debug/xdebug.mode=debug/' \
-    /etc/php/conf.d/xdebug.ini
-
-  for ext in "${extensions_to_enable[@]}"; do
-    sudo sed -i "s/^;extension=${ext}/extension=${ext}/" "$php_ini_path"
-  done
+  mise x php -- composer global config bin-dir "$HOME/.local/bin"
 }
 
 install_node() {
@@ -84,7 +57,7 @@ laravel)
   echo -e "Installing PHP and Laravel...\n"
   install_php
   install_node
-  composer global require laravel/installer
+  mise x php -- composer global require laravel/installer
   echo -e "\nYou can now run: laravel new myproject"
   ;;
 symfony)

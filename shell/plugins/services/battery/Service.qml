@@ -59,6 +59,16 @@ Item {
     if (!powerProfileReadProcess.running) powerProfileReadProcess.running = true
   }
 
+  function parseActiveProfile(text) {
+    // busctl --json=short prints {"type":"s","data":"balanced"}; an empty or
+    // malformed reply (daemon not running) reads as no active profile.
+    try {
+      return String(JSON.parse(text).data || "").trim()
+    } catch (e) {
+      return ""
+    }
+  }
+
   Process { id: warningProcess }
 
   Process {
@@ -71,17 +81,23 @@ Item {
 
   Process {
     id: powerProfileReadProcess
-    command: ["powerprofilesctl", "get"]
+    // Read the property straight from the daemon rather than via
+    // `powerprofilesctl get`. That is a PyGObject script, and spawning a Python
+    // interpreter for it every two seconds trips a CPython 3.14 shutdown race
+    // (python/cpython#124619): the GLib D-Bus worker thread re-enters the
+    // interpreter after finalization and the process dies with SIGSEGV,
+    // leaving a core dump and a crash notification behind roughly daily.
+    command: ["busctl", "--json=short", "get-property", "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles", "ActiveProfile"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.activePowerProfile = String(text || "").trim()
+      onStreamFinished: root.activePowerProfile = root.parseActiveProfile(text)
     }
   }
 
   Timer {
-    // powerprofilesctl has no portable monitor subcommand; keep profile changes
-    // visible to consumers such as the wallpaper service without requiring the
-    // power panel to be open.
+    // There is no portable way to subscribe to profile changes from QML; keep
+    // them visible to consumers such as the wallpaper service without requiring
+    // the power panel to be open.
     interval: 2000
     running: true
     repeat: true
