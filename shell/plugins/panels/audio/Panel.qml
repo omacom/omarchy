@@ -426,7 +426,10 @@ Panel {
   function setOutputVolume(v) {
     if (!volumeSink || !volumeSink.audio) return outputVolume
     var volume = Math.max(0, Math.min(1, v))
-    volumeSink.audio.volume = volume
+    // Quickshell 0.3.1 drops device-routed volume writes for Bluetooth sinks
+    // when the card route publishes no volumeStep; pactl is authoritative for
+    // every sink type.
+    Quickshell.execDetached(["pactl", "set-sink-volume", String(volumeSink.name), Math.round(volume * 100) + "%"])
     return volume
   }
 

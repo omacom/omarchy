@@ -5,6 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
+const fs = require('fs')
 const audio = requireFromRoot('shell/plugins/panels/audio/Model.js')
 
 assert(audio.isPlaybackStream({ isStream: true, isSink: true }), 'audio detects sink-backed playback streams')
@@ -46,4 +47,14 @@ assertEqual(audio.matchingMprisStreamLabel('Chromium', players), 'Chromium', 'au
 assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spotify', 'audio uses unmatched MPRIS player for generic streams')
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
+
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/audio/Panel.qml', 'utf8')
+assert(
+  /pactl.*set-sink-volume/.test(panelSource),
+  'audio panel writes output volume through pactl, not the node-bound setter that drops Bluetooth writes'
+)
+assert(
+  !/volumeSink\.audio\.volume\s*=/.test(panelSource),
+  'audio panel no longer relies on volumeSink.audio.volume'
+)
 JS
