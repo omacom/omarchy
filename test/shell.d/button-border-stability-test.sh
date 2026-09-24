@@ -20,7 +20,7 @@ JS
 require_compositor "Button hover geometry runtime test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping Button hover geometry runtime test"
+  skip "quickshell not installed; skipping Button hover geometry runtime test"
   exit 0
 fi
 
