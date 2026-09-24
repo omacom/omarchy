@@ -14,6 +14,10 @@ pass() {
   printf 'ok - %s\n' "$1"
 }
 
+skip() {
+  printf 'ok - %s # SKIP\n' "$1"
+}
+
 fail() {
   local description="$1"
   local detail="${2:-}"
@@ -72,7 +76,7 @@ require_compositor() {
     return 0
   fi
 
-  pass "no Wayland compositor; skipping $description"
+  skip "no Wayland compositor; skipping $description"
   exit 0
 }
 
