@@ -216,6 +216,7 @@ assertEqual(
   'menu lists Reset Computer last under Setup'
 )
 const expectedAgents = {
+  axon: { icon: '»', label: 'Axon' },
   agy: { icon: '󰫢', label: 'Antigravity' },
   pi: { icon: '\ue901', iconFont: 'omarchy', label: 'Pi' },
   omp: { icon: '\ue903', iconFont: 'omarchy', label: 'omp' },
@@ -249,7 +250,7 @@ assertDeepEqual(
   defaultItems
     .filter(item => item.parent === 'setup.default.agent')
     .map(item => item.label),
-  ['Antigravity', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
+  ['Antigravity', 'Axon', 'Claude', 'Codex', 'Copilot', 'Crush', 'Cursor CLI', 'Grok', 'Hermes', 'Muse Code', 'omp', 'OpenClaw', 'OpenCode', 'Ori', 'Pi'],
   'menu sorts coding agents alphabetically'
 )
 const expectedDefaults = {
