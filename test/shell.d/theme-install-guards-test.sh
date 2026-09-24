@@ -173,7 +173,7 @@ if locale -a 2>/dev/null | grep -qix 'en_US.utf-\?8'; then
 
   pass "the accepted set does not move with the desktop's locale"
 else
-  pass "no en_US.UTF-8 locale; skipping the locale-pinning check"
+  skip "no en_US.UTF-8 locale; skipping the locale-pinning check"
 fi
 
 # basename reads a leading dash as an option once the scp-style prefix is gone.
