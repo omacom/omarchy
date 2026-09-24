@@ -47,6 +47,7 @@ export OMARCHY_TEST_PKG_LOG="$pkg_log"
 # one Omarchy actually ships, or Remove Preinstalls takes out an app the user
 # chose from the menu and Install Preinstalls puts back one we retired.
 mapfile -t shipped < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/install/omarchy-base.packages")
+mapfile -t manifest < <(sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/install/omarchy-preinstalls.packages")
 
 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
 mapfile -t restored <"$pkg_log"
@@ -59,6 +60,11 @@ mapfile -t dropped <"$pkg_log"
     "restored: ${restored[*]}
 dropped:  ${dropped[*]}"
 pass "Install and Remove Preinstalls cover the same packages"
+
+[[ ${restored[*]} == "${manifest[*]}" ]] ||
+  fail "Install and Remove Preinstalls consume the manifest" \
+    "restored: ${restored[*]}\nmanifest: ${manifest[*]}"
+pass "Install and Remove Preinstalls consume the manifest"
 
 for package in "${restored[@]}"; do
   printf '%s\n' "${shipped[@]}" | grep -qxF "$package" ||
