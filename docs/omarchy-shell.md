@@ -20,7 +20,17 @@ wait).
   "author": "You",
   "description": "A clock that does cool things",
   "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "Widget.qml" }
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "barWidget": {
+    "displayName": "Cool clock",
+    "category": "Time",
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "defaults": { "format": "HH:mm" },
+    "schema": [
+      { "key": "format", "type": "string", "label": "Format" }
+    ]
+  }
 }
 ```
 
@@ -37,7 +47,7 @@ wait).
 
 Only one full bar option is active at a time. The built-in `omarchy.bar` is
 used when `bar.id` is omitted or when a selected third-party bar cannot load.
-Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). First-party services are loaded at startup.
+Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). The kept service instance is not replaced, so changes to its code take effect on a shell restart. First-party services are loaded at startup.
 
 Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
 
@@ -87,6 +97,10 @@ section; enabling a full bar replaces the one in use. `omarchy bar` drives the
 bar from the CLI — `use | reset | defaults | position | transparent | put |
 move | set`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
+
+## Elsewhen
+
+Elsewhen (`omacom.elsewhen`) ships in the `elsewhen` package at `/usr/share/omarchy/shell/plugins/omacom.elsewhen`, where the shell discovers it automatically. New installs place it immediately before the clock; the migration uses `omarchy bar put omacom.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. Existing plugin directories and symlinks are left intact. The normal update flow restarts the shell after migrations; the migration does not interrupt plugin loading with an immediate restart. With no shell to ask, as in an update from a TTY, the migration installs the package and skips the placement rather than failing the update; `omarchy bar put omacom.elsewhen --before omarchy.clock` places the widget later.
 
 ## IPC
 
