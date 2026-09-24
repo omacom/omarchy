@@ -284,6 +284,53 @@ const endpoints = geometry.gradientEndpoints(100, 50, 0)
 assertEqual(Math.round(endpoints.x1), 0, 'border geometry 0deg starts at left edge')
 assertEqual(Math.round(endpoints.x2), 100, 'border geometry 0deg ends at right edge')
 
+// Triangular corners (Hyprland rounding_power <= 1) swap arcs for 45° cuts.
+assertEqual(
+  geometry.surfacePath(100, 50, 10, true),
+  'M 10 0 H 90 L 100 10 V 40 L 90 50 H 10 L 0 40 V 10 L 10 0 Z',
+  'chamfered surface outline cuts each corner with a straight line'
+)
+assertEqual(
+  geometry.surfacePath(100, 50, 10, false),
+  geometry.roundedRectPath(0, 0, 100, 50, {
+    tlrx: 10, tlry: 10, trrx: 10, trry: 10,
+    brrx: 10, brry: 10, blrx: 10, blry: 10,
+  }),
+  'rounded surface outline matches the rounded rect path'
+)
+
+for (let mask = 1; mask < 16; mask++) {
+  const widths = {
+    top: mask & 1 ? 3 : 0,
+    right: mask & 2 ? 3 : 0,
+    bottom: mask & 4 ? 3 : 0,
+    left: mask & 8 ? 3 : 0,
+  }
+  const label = `chamfered mask ${mask.toString(2).padStart(4, '0')}`
+  const paths = geometry.borderPaths(100, 50, 10, widths, true)
+  assertValidPaths(paths, label)
+  assert(!/\bA\b/.test(paths.join(' ')), `${label} emits no arcs`)
+  assertEqual(geometry.ringPath(100, 50, 10, widths), pathsFor(widths).join(' '), `${label} leaves the rounded default unchanged`)
+}
+
+// A uniform chamfered ring keeps its stroke width along the diagonal: the
+// inner cut line x + y = c sits exactly `width` from the outer line x + y = 10.
+for (const width of [1, 2, 6]) {
+  const ring = geometry.ringPath(100, 50, 10, { top: width, right: width, bottom: width, left: width }, true)
+  const inner = ring.split(' M ')[1].split(' ').map(Number)
+  const innerCut = inner[0] + inner[1]
+  assert(Math.abs((innerCut - 10) / Math.SQRT2 - width) < 1e-9, `chamfered ${width}px ring keeps an even diagonal stroke`)
+}
+
+const surfaceQml = fs.readFileSync(path.join(root, 'shell/Ui/BorderSurface.qml'), 'utf8')
+assert(surfaceQml.includes('Style.cornerChamfer'), 'border surface follows the Hyprland corner shape')
+assert(/chamferSize:\s*Math\.min\(radius,\s*Math\.min\(width,\s*height\)\s*\*\s*0\.3\)/.test(surfaceQml), 'border surface caps the cut on short surfaces')
+assert(/topLeftRadius:\s*chamfered \? 0 : radius/.test(surfaceQml), 'border surface squares its native fill under the chamfer mask')
+
+const styleQml = fs.readFileSync(path.join(root, 'shell/Commons/Style.qml'), 'utf8')
+assert(styleQml.includes('decoration:rounding_power'), 'style mirrors Hyprland rounding_power')
+assert(/cornerChamfer:\s*cornerPower <= 1\.0/.test(styleQml), 'style treats rounding_power <= 1 as triangular corners')
+
 const overlayQml = fs.readFileSync(path.join(root, 'shell/Ui/BorderOverlay.qml'), 'utf8')
 assert(overlayQml.includes('ShapePath.WindingFill'), 'border overlay uses winding fill for side-run and compound paths')
 assert(!overlayQml.includes('ShapePath.OddEvenFill'), 'border overlay no longer uses touching odd-even geometry')

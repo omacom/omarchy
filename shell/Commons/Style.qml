@@ -8,7 +8,10 @@ import Quickshell.Io
 // rounding, gap to screen edges, state affordances, spacing, typography
 // scale, and bar dimensions.
 //
-// `cornerRadius` mirrors Hyprland's `decoration:rounding`. `gapsOut` is
+// `cornerRadius` mirrors Hyprland's `decoration:rounding`, and
+// `cornerChamfer` is true when `decoration:rounding_power` is 1.0 or less —
+// Hyprland's triangular corner — so surfaces cut 45° corners to match
+// windows instead of rounding them. `gapsOut` is
 // half of Hyprland's `general:gaps_out` — Hyprland's value works well as
 // a window-to-window gap but feels too cavernous when used as the
 // distance from a panel/notification to the screen edge, so the shell
@@ -29,6 +32,8 @@ QtObject {
   id: root
 
   property int cornerRadius: 0
+  property real cornerPower: 2.0
+  readonly property bool cornerChamfer: cornerPower <= 1.0
   property int gapsOut: 5
 
   // ---------------------------------------------------------- state tokens
@@ -349,6 +354,7 @@ QtObject {
 
   function refresh() {
     hyprctlProc.running = true
+    roundingPowerProc.running = true
     gapsOutProc.running = true
   }
 
@@ -361,6 +367,16 @@ QtObject {
       var json = JSON.parse(raw || "{}")
       var n = Number(json.int)
       if (isFinite(n) && n >= 0) cornerRadius = n
+    } catch (e) {
+      // hyprctl missing / Hyprland not running — leave the previous value.
+    }
+  }
+
+  function applyRoundingPowerJson(raw) {
+    try {
+      var json = JSON.parse(raw || "{}")
+      var n = Number(json.float)
+      if (isFinite(n) && n > 0) cornerPower = n
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
@@ -445,6 +461,15 @@ QtObject {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.applyRoundingJson(text)
+    }
+  }
+
+  property Process roundingPowerProc: Process {
+    id: roundingPowerProc
+    command: ["hyprctl", "-j", "getoption", "decoration:rounding_power"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.applyRoundingPowerJson(text)
     }
   }
 
