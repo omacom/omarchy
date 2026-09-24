@@ -72,7 +72,6 @@ Panel {
   // Parsed wttr.in j1 response. Kept on failure so stale data stays visible.
   property var report: null
   property var dailyForecastReport: null
-  property string wttrLocation: ""
 
   // Configured location, read from the weather.json state file (owned by
   // omarchy-weather-location). The query is the wttr.in path segment
@@ -142,7 +141,10 @@ Panel {
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
 
-  readonly property string reportLocation:  configuredLocation || wttrLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
+  // Label the location that supplied the weather, not a separate IP-detected
+  // guess: wttr.in can return a different nearest_area for format=%l than for
+  // format=j1, which used to pair one city's name with another's conditions.
+  readonly property string reportLocation:  configuredLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
   readonly property string reportTempNum:   current ? String(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
   readonly property string reportFeels:     current ? formatTemp(useImperial ? current.FeelsLikeF : current.FeelsLikeC) : ""
@@ -156,7 +158,6 @@ Panel {
     forecastRetries = 0
     dailyForecastRetries = 0
     if (!forecastProc.running) forecastProc.running = true
-    if (root.locationQuery === "" && !locationProc.running) locationProc.running = true
     // With stored coordinates this fetches open-meteo right away — no need
     // to wait for the slow wttr response. Without them it's a no-op until
     // wttr reports the detected area.
@@ -230,7 +231,6 @@ Panel {
 
   function clearLocation() {
     persistLocation("", null, null)
-    wttrLocation = ""
     cancelEditingLocation()
   }
 
@@ -449,19 +449,6 @@ Panel {
         forecastProc.running = false
         dailyForecastProc.running = false
         Qt.callLater(root.refresh)
-      }
-    }
-  }
-
-  Process {
-    id: locationProc
-    command: ["curl", "-fsS", "--max-time", "4", "https://wttr.in/?format=%l"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var raw = String(text || "").trim()
-        if (!raw) return
-        root.wttrLocation = raw.split(",")[0]
       }
     }
   }

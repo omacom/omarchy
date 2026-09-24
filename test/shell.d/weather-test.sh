@@ -153,6 +153,13 @@ assertEqual(
   weather.iconForCode(389, false),
   'weather picks hourly forecast icon nearest noon'
 )
+
+// The location label must come from the same response as the weather data;
+// wttr.in can return a different nearest_area for format=%l than for
+// format=j1, which paired one city's name with another's conditions.
+assert(!/id: locationProc/.test(panelSource), 'weather panel does not run a separate location lookup')
+assert(!/property string wttrLocation/.test(panelSource) && !/root\.wttrLocation/.test(panelSource), 'weather panel does not prefer a separate IP-detected label')
+assert(/reportLocation.*areaInfo.*areaName/.test(panelSource), 'weather labels the location that supplied the weather')
 JS
 
 test_tmp=$(mktemp -d)
