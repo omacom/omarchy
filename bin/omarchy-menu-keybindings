@@ -228,6 +228,12 @@ hl = setmetatable({
   get_config = function()
     return nil
   end,
+  get_workspace = function()
+    return nil
+  end,
+  get_active_monitor = function()
+    return nil
+  end,
 }, {
   __index = function(_, key)
     if type(key) == "number" then
