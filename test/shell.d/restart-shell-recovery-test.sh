@@ -24,6 +24,16 @@ if ! grep -q "kill -TERM" "$SCRIPT" || ! grep -q "kill -KILL" "$SCRIPT"; then
 fi
 pass "restart escalates from SIGTERM to SIGKILL"
 
+if ! grep -q "process_dead" "$SCRIPT"; then
+  fail "restart waits for process death before cleaning runtime dirs"
+fi
+pass "restart waits for process death before cleaning runtime dirs"
+
+if ! grep -q "shell_process_matches_config" "$SCRIPT"; then
+  fail "restart matches the config-path argument exactly, not a substring"
+fi
+pass "restart matches the config-path argument exactly, not a substring"
+
 if ! grep -qE "runtime_dir=.*quickshell" "$SCRIPT"; then
   fail "restart defines the quickshell runtime directory cleanup"
 fi
@@ -43,8 +53,12 @@ assert(
   'IPC kill loop is preserved'
 )
 assert(
-  /mapfile -t qs_pids/.test(source) && /pgrep -x quickshell/.test(source),
-  'fallback collects quickshell pids from /proc'
+  /shell_process_matches_config\(\)/.test(source) && /mapfile -t qs_pids/.test(source),
+  'fallback collects quickshell pids matching the exact config path'
+)
+assert(
+  /process_dead\(\)/.test(source) && /state.*Z/.test(source),
+  'fallback waits for zombie/dead state before cleaning runtime dirs'
 )
 assert(
   /kill -TERM "\$pid"/.test(source) && /kill -KILL "\$pid"/.test(source),

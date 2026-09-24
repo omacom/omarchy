@@ -68,13 +68,40 @@ relock_session() {
 # recovery path still works.
 while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
 
-# Collect any quickshell processes still running this config. The IPC kill above
-# normally removes them all; this path only matters when the shell is wedged.
+# Collect any quickshell processes still running this exact config directory.
+# The IPC kill above normally removes them all; this path only matters when the
+# shell is wedged. Match on the -p/--path argument rather than a substring of
+# the full command line so a neighboring config path cannot be caught.
+shell_process_matches_config() {
+  local pid=$1
+  [[ -r /proc/$pid/cmdline ]] || return 1
+  local args=()
+  mapfile -d '' -t args < "/proc/$pid/cmdline"
+  local i
+  for (( i = 0; i < ${#args[@]} - 1; i++ )); do
+    case ${args[i]} in
+      -p|--path|-c|--config)
+        [[ ${args[i+1]%/} == "${CONFIG_DIR%/}" ]] && return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+# kill -0 is true for zombies; a zombie has already died but still owns its
+# runtime dir. Check /proc/<pid>/stat for state Z so cleanup can proceed once
+# the process is actually gone, not merely signalled.
+process_dead() {
+  local pid=$1
+  [[ -d /proc/$pid ]] || return 0
+  local state
+  state=$(awk '{print $3}' "/proc/$pid/stat" 2>/dev/null)
+  [[ -z $state || $state == "Z" ]]
+}
+
 mapfile -t qs_pids < <(
   for pid in $(pgrep -x quickshell 2>/dev/null); do
-    [[ -r /proc/$pid/cmdline ]] || continue
-    cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline")
-    [[ $cmdline == *"$CONFIG_DIR"* ]] && echo "$pid"
+    shell_process_matches_config "$pid" && echo "$pid"
   done
 )
 
@@ -87,10 +114,19 @@ if (( ${#qs_pids[@]} > 0 )); then
   sleep 0.5
 
   for pid in "${qs_pids[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
+    if ! process_dead "$pid"; then
       echo "Shell still alive after SIGTERM, sending SIGKILL to $pid" >&2
       kill -KILL "$pid" 2>/dev/null || true
     fi
+  done
+
+  # Wait for the killed processes to actually exit (or become zombies) before
+  # reclaiming their runtime directories below.
+  for pid in "${qs_pids[@]}"; do
+    for (( i = 0; i < 20; i++ )); do
+      process_dead "$pid" && break
+      sleep 0.05
+    done
   done
 fi
 
@@ -103,7 +139,7 @@ if [[ -d $runtime_dir/by-pid ]]; then
     [[ -e $d ]] || continue
     pid=${d##*/}
     [[ $pid =~ ^[0-9]+$ ]] || continue
-    if ! kill -0 "$pid" 2>/dev/null; then
+    if process_dead "$pid"; then
       instance_dir=$(command -v realpath >/dev/null 2>&1 && realpath "$d" 2>/dev/null || readlink -f "$d" 2>/dev/null || true)
       [[ -n $instance_dir && $instance_dir != "$d" ]] && rm -rf "$instance_dir"
       rm -f "$d"
