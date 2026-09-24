@@ -17,6 +17,9 @@ if omarchy-cmd-present ufw; then
   sudo ufw --force delete limit 22/tcp >/dev/null
   sudo ufw --force delete allow 22/tcp >/dev/null
   sudo ufw --force delete allow ssh >/dev/null
+  sudo ufw --force delete limit ssh >/dev/null
+  sudo ufw --force delete allow to any app SSH >/dev/null
+  sudo ufw --force delete limit to any app SSH >/dev/null
   sudo ufw reload >/dev/null
   echo "Standard SSH firewall rules removed. Review custom firewall rules separately."
 fi
