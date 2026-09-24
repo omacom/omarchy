@@ -85,6 +85,25 @@ are centered as one group; `centerBegin` and `centerEnd` hang off its two
 edges. Put a widget beside the clock in `centerBegin` or `centerEnd`, not in
 `center`, or the clock moves off center.
 
+## Floating Bar
+
+`"floating": true` in the `bar` block of `~/.config/omarchy/shell.json` lifts
+the bar off the screen edge and rounds it like the windows. It is opt-in:
+unset, the bar is flush. It applies on save.
+
+- With no theme margin the bar floats inside the gap between the screen edge
+  and the windows: half of Hyprland's `gaps_out` from the screen edge, so the
+  gap is the same on both sides of the bar, and the full `gaps_out` at its
+  ends, so they line up with the windows. Windows do not move when floating
+  is toggled (with `gaps_out` up to 50 for the stock bar); the gap follows
+  Hyprland's `gaps_out`, so change that rather than adding a bar setting.
+- Theme keys in the `[bar]` section of `~/.config/omarchy/shell.toml` (or a
+  theme's `shell.toml`): `margin` (`N`, `"Y X"`, `"T X B"`, `"T R B L"`) and
+  `radius`. A `margin` on an edge the bar touches floats it on its own;
+  `"floating": false` keeps it flush anyway.
+- Combine with `omarchy bar background glassy` or `none` to make the bar
+  background see-through or drop it.
+
 ## Customizing Built-In Plugins and Widgets
 
 To customize a built-in bar widget, never edit `$OMARCHY_PATH/shell/plugins/`.

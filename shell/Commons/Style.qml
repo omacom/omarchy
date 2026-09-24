@@ -33,6 +33,9 @@ QtObject {
 
   property int cornerRadius: 0
   property int gapsOut: 5
+  // Hyprland's general:gaps_out per side, unhalved: a floating bar's default
+  // margin, so the bar lines up with the windows.
+  property var gapsOutEdges: ({ top: 10, right: 10, bottom: 10, left: 10 })
 
   // ---------------------------------------------------------- state tokens
   //
@@ -421,6 +424,7 @@ QtObject {
       var parts = css.match(/-?\d+(?:\.\d+)?/g) || []
       var n = parts.length > 0 ? Number(parts[0]) : Number(json.int)
       if (isFinite(n) && n >= 0) gapsOut = Math.max(0, Math.round(n / 2))
+      if (isFinite(n) && n >= 0) gapsOutEdges = Geometry.parseWidthSpec(css || String(n), 0)
     } catch (e) {
       // hyprctl missing / Hyprland not running — leave the previous value.
     }
