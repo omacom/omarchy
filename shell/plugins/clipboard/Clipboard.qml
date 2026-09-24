@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -10,6 +11,11 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // Address of the window that was focused when the manager opened, so a
+  // mouse-picked entry pastes back into it rather than whatever follow_mouse
+  // focuses once the overlay closes.
+  property string targetWindow: ""
+  property string lastToplevelAddress: ""
   property bool opened: false
   property string filterText: ""
   property int selectedIndex: 0
@@ -39,7 +45,17 @@ Item {
   property int rowHeight: Math.max(Style.space(50), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
   property int historyLimit: 500
 
+  Connections {
+    target: Hyprland
+    function onActiveToplevelChanged() {
+      var t = Hyprland.activeToplevel
+      if (t && t.address) root.lastToplevelAddress = t.address
+    }
+  }
+
   function open(payloadJson) {
+    var active = Hyprland.activeToplevel
+    root.targetWindow = (active && active.address) ? active.address : root.lastToplevelAddress
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
@@ -216,9 +232,14 @@ Item {
     if (!row) return
     root.opened = false
     if (row.entryType === "image") {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
+      var fileArgs = [root.omarchyPath + "/bin/omarchy-clipboard-paste-file"]
+      if (root.targetWindow) fileArgs.push("--window", root.targetWindow)
+      fileArgs.push(row.mime, row.path)
+      Quickshell.execDetached(fileArgs)
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      var textArgs = [root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)]
+      if (root.targetWindow) textArgs.push("--window", root.targetWindow)
+      Quickshell.execDetached(textArgs)
     }
   }
 

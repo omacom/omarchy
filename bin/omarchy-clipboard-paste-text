@@ -2,13 +2,14 @@
 
 # omarchy:summary=Copy text to the clipboard and type or paste it
 # omarchy:group=clipboard
-# omarchy:args=[--shift-insert] [--copy-only] [--history-index <index>|<text>]
+# omarchy:args=[--shift-insert] [--copy-only] [--window <address>] [--history-index <index>|<text>]
 # omarchy:examples=omarchy clipboard paste text "hello" | omarchy clipboard paste text --shift-insert "hello"
 # omarchy:hidden=true
 
 use_shift_insert=false
 copy_only=false
 history_index=""
+window=""
 text=""
 
 while (( $# > 0 )); do
@@ -23,6 +24,10 @@ while (( $# > 0 )); do
       ;;
     --history-index)
       history_index="${2:-}"
+      shift 2
+      ;;
+    --window)
+      window="${2:-}"
       shift 2
       ;;
     *)
@@ -54,7 +59,30 @@ if [[ $copy_only == "true" ]]; then
   exit
 fi
 
-sleep 0.15
+# The picker is a fullscreen layer holding exclusive keyboard focus, so a
+# focus request while it is still up does nothing. Once it closes,
+# follow_mouse hands focus to whichever window sits under the (centred)
+# cursor — so a mouse-picked entry would paste into the wrong window. Wait
+# for the layer to go, then re-focus the recorded origin window and confirm
+# it stuck before typing.
+focus_origin_window() {
+  if [[ -z $window ]]; then
+    sleep 0.15
+    return
+  fi
+
+  [[ $window == 0x* ]] || window="0x$window"
+
+  sleep 0.15
+  for _ in {1..15}; do
+    [[ $(hyprctl activewindow -j 2>/dev/null | jq -r '.address // ""') == "$window" ]] && return
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$window\" })" >/dev/null 2>&1 ||
+      hyprctl dispatch focuswindow "address:$window" >/dev/null 2>&1
+    sleep 0.04
+  done
+}
+
+focus_origin_window
 
 if [[ $use_shift_insert == "true" ]]; then
   wtype -M shift -k Insert -m shift 2>/dev/null || true
