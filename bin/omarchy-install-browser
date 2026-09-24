@@ -10,6 +10,7 @@ source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
 
 setup_chromium_policy_directory() {
   browser_policy_setup_dir "$1"
+  browser_policy_install_privacy "$1"
 }
 
 announce_browser_installed() {
