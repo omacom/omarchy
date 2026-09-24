@@ -42,8 +42,9 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "code:46", "CTRL", "Insert"))
-o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "code:47", "SHIFT", "Insert"))
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "code:45"))
+-- send_key_state takes XKB keycodes, which are eight above evdev codes.
+o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "code:38"))
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "code:54", "CTRL SHIFT", "code:54"))
+o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "code:55", "CTRL SHIFT", "code:55"))
+o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "code:53"))
 o.bind("SUPER + CTRL + V", "Clipboard manager", "omarchy-shell shell toggle omarchy.clipboard")

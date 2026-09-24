@@ -119,12 +119,37 @@ if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; th
 fi
 pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 
-grep -F 'universal_clipboard_shortcut("CTRL", "code:46", "CTRL", "Insert")' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
-  fail "universal copy sends the physical C key across keyboard layouts"
-grep -F 'universal_clipboard_shortcut("CTRL", "code:47", "SHIFT", "Insert")' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
-  fail "universal paste sends the physical V key across keyboard layouts"
-grep -F 'send_shortcut_once("CTRL", "code:45")' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
-  fail "universal cut sends the physical X key across keyboard layouts"
+OMARCHY_PATH="$ROOT" lua <<'LUA' || fail "clipboard shortcuts send physical keys with the right modifiers"
+local callbacks = {}
+local events = {}
+local active_window
+
+hl = {
+  get_active_window = function() return active_window end,
+  dsp = { send_key_state = function(event) return event end },
+  dispatch = function(event) events[#events + 1] = event end,
+  timer = function(callback) callback() end,
+}
+o = { bind = function(_, description, callback) callbacks[description] = callback end }
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/clipboard.lua")
+
+local function expect(description, window, mods, key)
+  active_window = window
+  events = {}
+  callbacks[description]()
+  assert(#events == 2)
+  assert(events[1].mods == mods and events[1].key == key and events[1].state == "down")
+  assert(events[2].mods == mods and events[2].key == key and events[2].state == "up")
+end
+
+expect("Select all", nil, "CTRL", "code:38")
+expect("Universal copy", nil, "CTRL", "code:54")
+expect("Universal copy", { tags = { "terminal*" } }, "CTRL SHIFT", "code:54")
+expect("Universal paste", nil, "CTRL", "code:55")
+expect("Universal paste", { tags = { "terminal" } }, "CTRL SHIFT", "code:55")
+expect("Universal cut", nil, "CTRL", "code:53")
+LUA
 pass "universal clipboard shortcuts use layout-independent keycodes"
 
 removed_home="$tmpdir/removed-home"
