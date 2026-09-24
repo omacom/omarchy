@@ -72,6 +72,23 @@ cat >"$fontconfig_file" <<XML
 </fontconfig>
 XML
 
+# conf.d loads before fonts.conf, so a file written by earlier versions of
+# this command would still win over the drop-in. Remove it only when it is
+# byte-identical to the template we used to generate — a file the user has
+# touched stays put.
+legacy_fontconfig="$HOME/.config/fontconfig/fonts.conf"
+if [[ -f $legacy_fontconfig ]]; then
+  normalise() {
+    sed -E '/<edit name="family" mode="prepend_first" binding="strong">/{
+      n
+      s|<string>[^<]*</string>|<string>@FONT@</string>|
+    }' "$1"
+  }
+  if normalise "$legacy_fontconfig" | cmp -s - <(normalise "$fontconfig_file"); then
+    rm -f "$legacy_fontconfig"
+  fi
+fi
+
 omarchy-restart-shell
 
 if pgrep -x ghostty; then

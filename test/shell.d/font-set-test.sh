@@ -92,3 +92,27 @@ pass "omarchy font set writes a conf.d drop-in"
 grep -q 'CaskaydiaMono Nerd Font' "$dropin" ||
   fail "the drop-in names the chosen font"
 pass "the drop-in names the chosen font"
+
+# A fonts.conf that matches what earlier versions generated gets removed so it
+# cannot override the drop-in (conf.d loads before fonts.conf).
+cat >"$home/.config/fontconfig/fonts.conf" <<'XML'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="pattern">
+    <test name="family" qual="any">
+      <string>monospace</string>
+    </test>
+    <edit name="family" mode="prepend_first" binding="strong">
+      <string>JetBrainsMono Nerd Font</string>
+    </edit>
+  </match>
+</fontconfig>
+XML
+
+HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-font-set" "CaskaydiaMono Nerd Font" >/dev/null
+
+[[ ! -f $home/.config/fontconfig/fonts.conf ]] ||
+  fail "omarchy font set removes a stale generated fonts.conf"
+pass "omarchy font set removes a stale generated fonts.conf"
