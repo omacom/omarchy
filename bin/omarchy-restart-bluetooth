@@ -1,7 +1,55 @@
 #!/bin/bash
 
 # omarchy:summary=Unblock and restart the bluetooth service.
+# omarchy:requires-sudo=true
+
+# bluetoothd claims its D-Bus name a moment after the service comes back, and a
+# controller that has to upload firmware takes longer still, so poll for the
+# controller instead of sleeping a flat interval.
+wait_for_controller() {
+  local deadline="$1"
+  local waited=0
+
+  while (( waited < deadline )); do
+    controller_present && return 0
+    sleep 1
+    (( waited++ ))
+  done
+
+  return 1
+}
+
+controller_present() {
+  timeout 5s bluetoothctl list 2>/dev/null | grep -q '^Controller '
+}
 
 echo -e "Unblocking bluetooth...\n"
 rfkill unblock bluetooth
 rfkill list bluetooth
+
+echo -e "\nRestarting bluetooth service...\n"
+sudo systemctl restart bluetooth.service
+
+# An adapter whose firmware handshake timed out leaves an hci device that BlueZ
+# will not adopt, and restarting the daemon cannot clear that. Reloading the USB
+# driver re-runs the upload, which is the only in-session way back.
+if ! wait_for_controller 5 && lsmod | grep -q '^btusb'; then
+  echo -e "\nNo controller yet. Reloading btusb...\n"
+
+  # Separate calls rather than a && chain: an unload that fails because the
+  # module is busy must not skip the load that puts it back.
+  sudo modprobe -r btusb
+  sudo modprobe btusb
+
+  wait_for_controller 15
+fi
+
+echo -e "\nBluetooth status:\n"
+
+if controller_present; then
+  bluetoothctl list
+else
+  echo "No Bluetooth controller is available."
+  echo "Check 'journalctl -b -u bluetooth' for firmware errors, and confirm the adapter still appears in 'lsusb'."
+  exit 1
+fi
