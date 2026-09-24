@@ -22,6 +22,7 @@ Item {
   property bool powerSaverActive: false
   property string passwordText: ""
   property bool syncingPasswordText: false
+  property bool passwordVisible: false
 
   readonly property string placeholderText: "Enter Password"
   readonly property int fieldWidth: 381
@@ -31,8 +32,11 @@ Item {
   readonly property int passwordDotFontSize: Math.round(Style.font.heading * 1.33)
   readonly property int passwordDotLetterSpacing: Math.round(Style.font.heading * 0.19)
   // Space to keep clear on each side of the field for the fingerprint icon
-  // (icon width plus a gap) so the centered dots never run under it.
+  // and the password-visibility toggle (icon widths plus gaps) so the
+  // centered dots never run under them.
   readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  readonly property real visibilityToggleReserve: Math.round(visibilityToggle.implicitWidth + 12)
+  readonly property real rightIconsReserve: fingerprintReserve + visibilityToggleReserve
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
@@ -67,7 +71,10 @@ Item {
     syncingPasswordText = false
   }
 
-  onPasswordTextChanged: syncPasswordText()
+  onPasswordTextChanged: {
+    syncPasswordText()
+    if (passwordText.length === 0) passwordVisible = false
+  }
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
@@ -149,26 +156,27 @@ Item {
         id: passwordInput
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
-        // Reserve the fingerprint icon's width on both sides so the centered
-        // dots stay symmetric and never slide under the icon as they grow.
-        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
+        // Reserve both icons' width on each side so the centered dots
+        // stay symmetric and never slide under the icons as they grow.
+        anchors.rightMargin: inputField.borderRight + 18 + root.rightIconsReserve
         anchors.bottomMargin: inputField.borderBottom
-        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve
+        anchors.leftMargin: inputField.borderLeft + 18 + root.rightIconsReserve
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
         clip: true
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
-        echoMode: TextInput.Password
+        echoMode: root.passwordVisible ? TextInput.Normal : TextInput.Password
+        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
         passwordCharacter: "\u25CF"
         passwordMaskDelay: 0
         color: Color.lock.text
         selectionColor: Color.lock.selection
         selectedTextColor: Color.lock.text
         font.family: Style.font.family
-        font.pixelSize: text.length > 0 ? Math.max(1, Math.floor(root.passwordDotFontSize * root.passwordDotScale)) : root.fieldFontSize
-        font.letterSpacing: text.length > 0 ? root.passwordDotLetterSpacing * root.passwordDotScale : 0
+        font.pixelSize: text.length === 0 ? root.fieldFontSize : (root.passwordVisible ? root.fieldFontSize : Math.max(1, Math.floor(root.passwordDotFontSize * root.passwordDotScale)))
+        font.letterSpacing: text.length > 0 && !root.passwordVisible ? root.passwordDotLetterSpacing * root.passwordDotScale : 0
         cursorVisible: activeFocus && root.showPasswordCursor && text.length > 0
         cursorDelegate: Rectangle {
           width: 2
@@ -220,7 +228,7 @@ Item {
         id: fingerprintIcon
         objectName: "fingerprintIndicator"
         anchors.right: parent.right
-        anchors.rightMargin: inputField.borderRight + 18
+        anchors.rightMargin: inputField.borderRight + 18 + root.visibilityToggleReserve
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: "󰈷"
@@ -229,6 +237,36 @@ Item {
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
+      }
+
+      // Toggles masking on the password field. Pinned to the field's right
+      // edge, outside the fingerprint icon, so both can coexist.
+      Text {
+        id: visibilityToggle
+        objectName: "passwordVisibilityToggle"
+        textFormat: Text.PlainText
+        anchors.right: parent.right
+        anchors.rightMargin: inputField.borderRight + 18
+        anchors.verticalCenter: parent.verticalCenter
+        text: root.passwordVisible ? "󰈉" : "󰈈"
+        color: toggleArea.containsMouse ? Color.lock.text : Color.lock.placeholder
+        font.family: Style.font.family
+        font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+
+        MouseArea {
+          id: toggleArea
+          anchors.fill: parent
+          anchors.margins: -6
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            root.wakeRequested()
+            root.passwordVisible = !root.passwordVisible
+            root.forcePasswordFocus()
+          }
+        }
       }
     }
   }
