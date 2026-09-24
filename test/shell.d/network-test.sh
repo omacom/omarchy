@@ -262,7 +262,7 @@ assert(
   'network keeps the right-edge slot mounted for the connecting row so Cancel has a target'
 )
 assert(
-  /readonly property bool isCancellable: root\.actionKind === "connect"/.test(panelSource),
+  /readonly property bool isCancellable: root\.isConnectTarget\(net \? net\.ssid : ""\)/.test(panelSource),
   'network tracks which row owns the in-flight connect for cancellation'
 )
 assert(
@@ -290,8 +290,40 @@ assert(
   'network row clicks abort the in-flight connect instead of no-opping behind busy'
 )
 assert(
-  /if \(actionKind === "connect" && actionSsid !== "" && actionSsid === \(net\.ssid \|\| ""\)\) \{ cancelNetworkAction\(\); return \}/.test(panelSource),
+  /if \(isConnectTarget\(net\.ssid\)\) \{ cancelNetworkAction\(\); return \}/.test(panelSource),
   'network keyboard activation cancels the connecting row instead of being gated on busy'
+)
+assert(
+  /function isConnectTarget\(ssid\) \{\s*return actionKind === "connect" && actionSsid !== "" && actionSsid === \(ssid \|\| ""\)/.test(panelSource),
+  'network shares one connect-target helper so hidden-SSID gating stays identical'
+)
+assert(
+  (panelSource.match(/isConnectTarget\(/g) || []).length >= 5,
+  'network routes every connect-lane check through the shared helper'
+)
+assert(
+  /function resetActionState\(\) \{/.test(panelSource),
+  'network shares one lane-reset tail instead of repeating it'
+)
+assert(
+  /function clearForgetAction\(\) \{/.test(panelSource) && /id: forgetTimeout/.test(panelSource),
+  'network tracks forgetting on its own lane with its own timeout'
+)
+assert(
+  /enabled: \(row\.canForget && !row\.isBusy\) \|\| row\.isCancellable/.test(panelSource),
+  'network keeps Forget available on other rows while one SSID connects'
+)
+assert(
+  (panelSource.match(/if \(row\.isCancellable\) root\.cancelNetworkAction\(\)\s*else root\.cancelPasswordPrompt\(\)/g) || []).length >= 2,
+  'network Esc aborts the in-flight connect before closing the passphrase prompt'
+)
+assert(
+  /cancelledSsid = actionSsid/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network remembers the aborted SSID so late outcomes stay silent'
+)
+assert(
+  /cancelledSsid = ""/.test(panelSource.match(/function runNetworkAction\(kind, network, callback\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network drops the aborted marker once a new action starts'
 )
 
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }

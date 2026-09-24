@@ -84,14 +84,21 @@ Panel {
   property string pendingBand: ""
 
   // Per-row in-flight state. `actionSsid` flips on for the row whose action
-  // is currently running so it can render "Connecting…" / "Disconnecting…" /
-  // "Forgetting…". `passwordSsid` is the row currently expanded into
+  // is currently running so it can render "Connecting…" / "Disconnecting…".
+  // Forgetting runs on its own lane (`forgetActive` + `forgetSsid`) so a
+  // saved row can be forgotten while another SSID is connecting.
+  // `cancelledSsid` remembers a user-aborted connect so a late NM outcome
+  // for it is adopted or swallowed silently instead of reprompting.
+  // `passwordSsid` is the row currently expanded into
   // password-entry mode; we keep it open across refresh cycles so a slow scan
   // doesn't collapse the input the user is typing into. Rows must gate
-  // comparisons on the matching `*Kind`/`*Reason` being non-empty so a
+  // comparisons on the matching `*Kind`/`*Reason`/`forgetActive` being set so a
   // hidden-SSID row (ssid == "") doesn't collide with the "" defaults.
   property string actionSsid: ""
-  property string actionKind: ""  // "connect" | "disconnect" | "forget"
+  property string actionKind: ""  // "connect" | "disconnect"
+  property bool forgetActive: false
+  property string forgetSsid: ""
+  property string cancelledSsid: ""
   property string failureSsid: ""
   property string failureReason: ""
   property string passwordSsid: ""
@@ -108,9 +115,10 @@ Panel {
     WifiClientFailed: ConnectionFailReason.WifiClientFailed
   })
 
-  // True while any wifi action is mid-flight. Rows
+  // True while a connect/disconnect is mid-flight. Rows
   // disable themselves on this so clicks on the other rows don't silently
-  // no-op against runNetworkAction's serialized guard.
+  // no-op against runNetworkAction's serialized guard. Forgetting has its
+  // own lane and stays available on other rows while this is set.
   readonly property bool busy: actionKind !== ""
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
@@ -380,7 +388,7 @@ Panel {
       selectedIndex = 0
     }
 
-    if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length || (!canForgetNetwork(wifiNetworks[selectedIndex]) && !(actionKind === "connect" && actionSsid !== "" && actionSsid === (wifiNetworks[selectedIndex].ssid || "")))) {
+    if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length || (!canForgetNetwork(wifiNetworks[selectedIndex]) && !isConnectTarget(wifiNetworks[selectedIndex].ssid))) {
       wifiActionFocused = false
     }
   }
@@ -411,8 +419,7 @@ Panel {
   function selectWifiActionByDelta(delta) {
     if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length) return
     var target = wifiNetworks[selectedIndex]
-    var cancellable = actionKind === "connect" && actionSsid !== "" && actionSsid === (target.ssid || "")
-    if (!canForgetNetwork(target) && !cancellable) {
+    if (!canForgetNetwork(target) && !isConnectTarget(target.ssid)) {
       wifiActionFocused = false
       return
     }
@@ -424,14 +431,15 @@ Panel {
   // connected → disconnect, credentials-required/unknown → prompt,
   // passwordless/known → connect. A row with an in-flight connect cancels
   // it instead of being gated on `busy`, so keyboard users always have an
-  // abort path without waiting for the action timeout.
+  // abort path without waiting for the action timeout. Forgetting is on
+  // its own lane, so it stays reachable on other rows while one connects.
   function activateSelected() {
     if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length) return
     var net = wifiNetworks[selectedIndex]
     if (!net) return
-    if (actionKind === "connect" && actionSsid !== "" && actionSsid === (net.ssid || "")) { cancelNetworkAction(); return }
-    if (busy) return
+    if (isConnectTarget(net.ssid)) { cancelNetworkAction(); return }
     if (wifiActionFocused && canForgetNetwork(net)) { forget(net); return }
+    if (busy) return
     // Only act on a row that still resolves. disconnect() falls back to
     // connectedWifiNetwork when handed null, so a row left stale by scan churn
     // would otherwise tear down whatever is connected now instead.
@@ -768,11 +776,18 @@ Panel {
     return -1
   }
 
+  // Whether ssid owns the in-flight connect. Single helper for every
+  // connect-lane check so the hidden-SSID ("") gating stays identical.
+  function isConnectTarget(ssid) {
+    return actionKind === "connect" && actionSsid !== "" && actionSsid === (ssid || "")
+  }
+
   function runNetworkAction(kind, network, callback) {
     if (actionKind !== "" || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
     actionKind = kind
+    cancelledSsid = ""
     failureSsid = ""
     failureReason = ""
     callback(network)
@@ -782,23 +797,30 @@ Panel {
     actionTimeout.restart()
   }
 
-  function clearNetworkAction() {
+  // Shared tail for leaving the connect/disconnect lane. Callers decide
+  // about the passphrase prompt themselves: success closes it, cancel
+  // keeps it open for a retry.
+  function resetActionState() {
     actionTimeout.stop()
-    if (actionKind === "connect") passwordSsid = ""
     failureSsid = ""
     failureReason = ""
     actionSsid = ""
     actionKind = ""
+  }
+
+  function clearNetworkAction() {
+    var wasConnect = actionKind === "connect"
+    resetActionState()
+    if (wasConnect) passwordSsid = ""
     refresh()
   }
 
   function failNetworkAction(network, reason) {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
-    actionTimeout.stop()
-    failureSsid = actionSsid
+    var ssid = actionSsid
+    resetActionState()
+    failureSsid = ssid
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
-    actionSsid = ""
-    actionKind = ""
     refresh()
   }
 
@@ -811,10 +833,16 @@ Panel {
   }
 
   function checkActionCompletion(network) {
-    if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
-    if (actionKind === "connect" && network.connected) clearNetworkAction()
-    else if (actionKind === "disconnect" && !network.connected && !network.stateChanging) clearNetworkAction()
-    else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
+    if (!network) return
+    var ssid = network.name || ""
+    // A user-aborted attempt that still completed behind our back is
+    // adopted silently: no failure, no passphrase reprompt.
+    if (cancelledSsid !== "" && cancelledSsid === ssid && network.connected) cancelledSsid = ""
+    if (actionKind !== "" && actionSsid === ssid) {
+      if (actionKind === "connect" && network.connected) clearNetworkAction()
+      else if (actionKind === "disconnect" && !network.connected && !network.stateChanging) clearNetworkAction()
+    }
+    if (forgetActive && forgetSsid === ssid && !network.known && !network.stateChanging) clearForgetAction()
   }
 
   function connectDirectly(ssid) {
@@ -858,27 +886,52 @@ Panel {
     if (network) disconnect(network)
   }
 
-  function forget(net) {
-    runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
+  // Forgetting runs on its own lane so a saved row stays forgettable
+  // while another SSID is connecting. One forget at a time; a
+  // connect/disconnect already driving the same row wins.
+  function clearForgetAction() {
+    forgetTimeout.stop()
+    forgetActive = false
+    forgetSsid = ""
+    refresh()
   }
 
-  // Abort an in-flight connect. NetworkManager keeps activating until the
-  // device is told to stop, so a wrong network / wrong saved password would
-  // otherwise leave the panel stuck on "Connecting…" until the 30s action
-  // timeout. Best-effort: kill the enterprise helper first so it cannot
-  // complete after the state is cleared, then ask NM to drop the activation.
-  // The prompt (if open) stays open with its fields restored so the user can
-  // correct and retry; a direct connect simply returns to idle.
+  function forget(net) {
+    var network = net ? networkForSsid(net.ssid) : null
+    if (!network || !network.known || network.connected) return
+    var ssid = network.name || ""
+    if (actionKind !== "" && actionSsid === ssid) return
+    // Re-issuing Forget on a row already in this lane is harmless and lets
+    // the control stay enabled while NM works.
+    if (forgetActive) {
+      if (forgetSsid === ssid) network.forget()
+      return
+    }
+    forgetActive = true
+    forgetSsid = ssid
+    failureSsid = ""
+    failureReason = ""
+    network.forget()
+    // Safety net, same shape as actionTimeout: forgetting is a local
+    // profile delete, so this only fires if NM never confirms it.
+    forgetTimeout.restart()
+  }
+
+  // Abort an in-flight connect. `network.disconnect()` reaches NM's
+  // Device.Disconnect, which deactivates the activation the panel asked for
+  // even though the profile never reported Connected; the enterprise helper
+  // is killed first so it cannot complete after the state is cleared. The
+  // prompt (if open) stays open with its fields restored so the user can
+  // correct and retry; a direct connect simply returns to idle. The aborted
+  // SSID is remembered so a late NM outcome for it is adopted or swallowed
+  // silently instead of reprompting for a passphrase.
   function cancelNetworkAction() {
     if (actionKind !== "connect") return
     var network = actionSsid !== "" ? networkForSsid(actionSsid) : null
     if (enterpriseConnect.running) enterpriseConnect.running = false
     if (network) network.disconnect()
-    actionTimeout.stop()
-    failureSsid = ""
-    failureReason = ""
-    actionSsid = ""
-    actionKind = ""
+    if (actionSsid !== "") cancelledSsid = actionSsid
+    resetActionState()
     refresh()
   }
 
@@ -1024,12 +1077,28 @@ Panel {
       if (!root.actionKind) return
       var reason
       if (root.actionKind === "connect") reason = "Timed out connecting"
-      else if (root.actionKind === "disconnect") reason = "Timed out disconnecting"
-      else reason = "Timed out forgetting"
+      else reason = "Timed out disconnecting"
       root.failureSsid = root.actionSsid
       root.failureReason = reason
       root.actionSsid = ""
       root.actionKind = ""
+      root.refresh()
+    }
+  }
+
+  // Forget lane's safety net. Forgetting is a local profile delete, so a
+  // short leash is enough; kept separate because a forget may run while a
+  // connect owns actionTimeout.
+  Timer {
+    id: forgetTimeout
+    interval: 15000
+    repeat: false
+    onTriggered: {
+      if (!root.forgetActive) return
+      root.failureSsid = root.forgetSsid
+      root.failureReason = "Timed out forgetting"
+      root.forgetActive = false
+      root.forgetSsid = ""
       root.refresh()
     }
   }
@@ -1751,8 +1820,11 @@ Panel {
     // True while this row owns the in-flight connect. The row (and its
     // right-edge control) stays interactive so the attempt can be aborted
     // instead of blocking the panel until the action timeout.
-    readonly property bool isCancellable: root.actionKind === "connect" && root.actionSsid !== "" && root.actionSsid === (net ? net.ssid : "")
+    readonly property bool isCancellable: root.isConnectTarget(net ? net.ssid : "")
     readonly property bool cancelFocused: isSelected && root.wifiActionFocused && isCancellable
+    // True while this row owns the in-flight forget, which runs on its own
+    // lane and can overlap a connect on another row.
+    readonly property bool isForgetBusy: root.forgetActive && root.forgetSsid === (net ? net.ssid : "")
 
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
     current: isConnected
@@ -1766,7 +1838,7 @@ Panel {
     readonly property bool isPasswordOpen: root.passwordSsid !== "" && root.passwordSsid === (net ? net.ssid : "")
 
     function submitCredentials() {
-      if (!net || root.busy || root.passwordText.length === 0) return
+      if (!net || root.busy || row.isForgetBusy || root.passwordText.length === 0) return
       if (!isEnterprise) return root.connectWithPassphrase(net.ssid, root.passwordText)
       if (root.identityText.length > 0) root.connectEnterprise(net.ssid, root.identityText, root.passwordText)
     }
@@ -1774,6 +1846,11 @@ Panel {
     Connections {
       target: row.net ? root.networkForSsid(row.net.ssid) : null
       function onConnectionFailed(reason) {
+        // A late failure for a user-aborted attempt carries no action to
+        // fail: swallow the marker so it never reprompts, then fall through
+        // to failNetworkAction, which no-ops without a tracked action.
+        var ssid = row.net ? (row.net.ssid || "") : ""
+        if (root.cancelledSsid !== "" && root.cancelledSsid === ssid) root.cancelledSsid = ""
         // Background auto-connect retries fire this too; only reprompt for
         // the connect started from this panel. Checked before
         // failNetworkAction, which clears the action state.
@@ -1797,7 +1874,7 @@ Panel {
       if (isPasswordOpen) return ""
       if (isBusy && root.actionKind === "connect") return "Connecting…"
       if (isBusy && root.actionKind === "disconnect") return "Disconnecting…"
-      if (isBusy && root.actionKind === "forget") return "Forgetting…"
+      if (row.isForgetBusy) return "Forgetting…"
       if (isFailed) return root.failureReason || "Failed"
       if (isConnected && root.kind === "wifi" && root.hasCaptivePortal) return "Sign-in required"
       if (isConnected) return "Connected"
@@ -1823,7 +1900,7 @@ Panel {
       hoverEnabled: true
       acceptedButtons: Qt.LeftButton
       cursorShape: Qt.PointingHandCursor
-      enabled: !root.busy || row.isCancellable
+      enabled: (!root.busy && !row.isForgetBusy) || row.isCancellable
 
       // Move the cursor here when the mouse enters; mouse leaving doesn't
       // clear it (so the cursor stays where the mouse last was and
@@ -1839,9 +1916,16 @@ Panel {
         root.selectedIndex = row.index
         root.wifiActionFocused = false
         // Clicking the connecting row aborts the attempt instead of doing
-        // nothing behind the serialized-action guard.
+        // nothing behind the serialized-action guard. Clicking a row that
+        // is being forgotten forgets it again, mirroring the right-edge
+        // target: the profile is still known and this lane is a no-op if
+        // NM has already finished.
         if (row.isCancellable) {
           root.cancelNetworkAction()
+          return
+        }
+        if (row.isForgetBusy) {
+          if (row.canForget && !root.forgetActive) root.forget(row.net)
           return
         }
         if (row.isConnected) {
@@ -1919,7 +2003,11 @@ Panel {
           anchors.fill: parent
           hoverEnabled: true
           acceptedButtons: Qt.LeftButton
-          enabled: (row.canForget && !root.busy) || row.isCancellable
+          // Forgetting has its own lane: never the row the connect/disconnect
+          // lane is driving (that slot is Cancel instead), and re-issuing on
+          // the row already being forgotten stays valid. Any other row stays
+          // forgettable while one SSID connects.
+          enabled: (row.canForget && !row.isBusy) || row.isCancellable
           cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
           onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true }
           onClicked: {
@@ -2017,7 +2105,12 @@ Panel {
 
         onAccepted: pwField.forceActiveFocus()
         onTextChanged: if (row.isPasswordOpen && text !== root.identityText) root.identityText = text
-        Keys.onEscapePressed: root.cancelPasswordPrompt()
+        // Esc aborts the in-flight connect first (the prompt stays open
+        // for a retry); a second Esc closes the prompt.
+        Keys.onEscapePressed: {
+          if (row.isCancellable) root.cancelNetworkAction()
+          else root.cancelPasswordPrompt()
+        }
 
         onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible) Qt.callLater(forceActiveFocus)
@@ -2043,7 +2136,12 @@ Panel {
 
         onAccepted: row.submitCredentials()
         onTextChanged: if (row.isPasswordOpen && text !== root.passwordText) root.passwordText = text
-        Keys.onEscapePressed: root.cancelPasswordPrompt()
+        // Esc aborts the in-flight connect first (the prompt stays open
+        // for a retry); a second Esc closes the prompt.
+        Keys.onEscapePressed: {
+          if (row.isCancellable) root.cancelNetworkAction()
+          else root.cancelPasswordPrompt()
+        }
 
         onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
@@ -2090,14 +2188,14 @@ Panel {
       }
 
       // 22×22 right-anchored to line up with lockIndicator above. Esc closes
-      // the prompt (handled by pwField.Keys.onEscapePressed)
-      // so there's no separate cancel button.
+      // the prompt when idle (handled above); while connecting Esc aborts
+      // the attempt instead, same as the Cancel button beside the status.
       PanelActionButton {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
+        enabled: row.net && !row.isForgetBusy && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
         tooltipText: "Connect"
         foreground: root.bar.foreground
