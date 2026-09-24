@@ -82,7 +82,7 @@ SH
 chmod +x "$stub_bin/sudo"
 
 if ((EUID == 0)); then
-  pass "running as root; skipping the elevation checks, which would rewrite this machine's browser policy"
+  skip "running as root; skipping the elevation checks, which would rewrite this machine's browser policy"
 else
   elevation_for() {
     : >"$test_tmp/elevation"
