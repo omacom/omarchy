@@ -166,15 +166,15 @@ Panel {
   function refreshDailyForecast(sourceReport) {
     if (dailyForecastProc.running) return
 
-    var lat = parseFloat(String(root.configuredLocationState.latitude))
-    var lon = parseFloat(String(root.configuredLocationState.longitude))
-    if (isNaN(lat) || isNaN(lon)) {
+    var lat = Model.roundCoordinate(root.configuredLocationState.latitude)
+    var lon = Model.roundCoordinate(root.configuredLocationState.longitude)
+    if (lat === null || lon === null) {
       var area = sourceReport && sourceReport.nearest_area && sourceReport.nearest_area[0] ? sourceReport.nearest_area[0] : root.areaInfo
       if (!area) return
-      lat = parseFloat(String(area.latitude || ""))
-      lon = parseFloat(String(area.longitude || ""))
+      lat = Model.roundCoordinate(area.latitude || "")
+      lon = Model.roundCoordinate(area.longitude || "")
     }
-    if (isNaN(lat) || isNaN(lon)) return
+    if (lat === null || lon === null) return
 
     var url = "https://api.open-meteo.com/v1/forecast"
       + "?latitude=" + encodeURIComponent(String(lat))

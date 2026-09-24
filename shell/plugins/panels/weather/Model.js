@@ -20,13 +20,23 @@ function parseLocationFile(raw) {
   }
 }
 
-// wttr.in path segment for a configured location: exact coordinates when
-// both are present, the URL-encoded name as a fallback (hand-edited
-// weather.loc files may only carry a name), empty for IP auto-detect.
+// A forecast does not need metre precision, and coordinates are sent to
+// wttr.in and Open-Meteo inside the request rather than inferred from the IP
+// address, so a precise point defeats a VPN. Two decimals (~1 km) is plenty.
+function roundCoordinate(value) {
+  var parsed = parseFloat(String(value))
+  if (isNaN(parsed)) return null
+  return Math.round(parsed * 100) / 100
+}
+
+// wttr.in path segment for a configured location: coordinates rounded to
+// ~1 km when both are present, the URL-encoded name as a fallback
+// (hand-edited weather.loc files may only carry a name), empty for IP
+// auto-detect.
 function wttrLocationQuery(location, latitude, longitude) {
-  var lat = parseFloat(String(latitude))
-  var lon = parseFloat(String(longitude))
-  if (!isNaN(lat) && !isNaN(lon)) return lat + "," + lon
+  var lat = roundCoordinate(latitude)
+  var lon = roundCoordinate(longitude)
+  if (lat !== null && lon !== null) return lat + "," + lon
 
   var name = String(location || "").replace(/^\s+|\s+$/g, "")
   return name === "" ? "" : encodeURIComponent(name)
@@ -64,7 +74,11 @@ function locationCommit(text, suggestions, selectedIndex) {
   var choices = suggestions || []
   var index = Math.max(0, Math.min(parseInt(selectedIndex, 10) || 0, choices.length - 1))
   var suggestion = choices[index]
-  if (suggestion) return suggestion
+  if (suggestion) {
+    suggestion.latitude = roundCoordinate(suggestion.latitude)
+    suggestion.longitude = roundCoordinate(suggestion.longitude)
+    return suggestion
+  }
 
   return { name: name, latitude: null, longitude: null }
 }
@@ -269,6 +283,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
     wttrLocationQuery: wttrLocationQuery,
+    roundCoordinate: roundCoordinate,
     parseGeocodingResults: parseGeocodingResults,
     locationCommit: locationCommit,
     isFutureForecastDate: isFutureForecastDate,
