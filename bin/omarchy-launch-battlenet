@@ -8,6 +8,8 @@ set -e
 
 PREFIX="$HOME/Games/battlenet"
 LAUNCHER="$PREFIX/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/launchers/battlenet.conf"
+LAUNCH_ARGS=""
 
 with_mangohud=0
 for arg in "$@"; do
@@ -21,6 +23,12 @@ Options:
   --with-mangohud   Enable the MangoHud FPS overlay for games launched from
                     Battle.net. Toggle perf logging in-game with Shift_L+F2;
                     CSV logs land in ~/mangohud/.
+
+Configuration:
+  ~/.config/omarchy/launchers/battlenet.conf may set extra arguments for the
+  Battle.net client:
+
+    LAUNCH_ARGS="--force-device-scale-factor=1.5"
 EOF
       exit 0
       ;;
@@ -45,4 +53,9 @@ env_args=(
 )
 (( with_mangohud )) && env_args+=(MANGOHUD=1)
 
-env "${env_args[@]}" umu-run "$LAUNCHER"
+[[ -f $CONFIG ]] && source "$CONFIG"
+
+launch_args=()
+[[ -n $LAUNCH_ARGS ]] && eval "launch_args=($LAUNCH_ARGS)"
+
+env "${env_args[@]}" umu-run "$LAUNCHER" "${launch_args[@]}"
