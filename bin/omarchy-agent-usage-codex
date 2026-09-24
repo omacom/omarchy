@@ -526,6 +526,15 @@ def fetch_codex_rpc():
     result["authHelpText"] = "codex not found in PATH"
     return result
 
+  # No credentials means account/read can only fail — and starting the
+  # app-server is not free: it syncs the plugin list, a git fetch per
+  # refresh that also leaves ~/.codex/.tmp/git-* folders behind.
+  codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
+  if not (codex_home / "auth.json").is_file() and not os.environ.get("CODEX_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
+    result["usageStatusText"] = "Codex limits unavailable"
+    result["authHelpText"] = AUTH_HELP
+    return result
+
   try:
     proc = subprocess.Popen(
       [codex, "-s", "read-only", "-a", "on-request", "app-server"],
