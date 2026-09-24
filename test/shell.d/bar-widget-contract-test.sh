@@ -21,7 +21,7 @@ trap cleanup EXIT
 require_compositor "bar widget contract test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
-  pass "quickshell not installed; skipping bar widget contract test"
+  skip "quickshell not installed; skipping bar widget contract test"
   exit 0
 fi
 
