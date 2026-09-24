@@ -32,6 +32,25 @@ nvim | vim | nano | micro | hx | helix | fresh)
   fi
   ;;
 *)
-  exec setsid uwsm-app -- "$editor" -- "$@"
+  # GUI editors hand the file to a running instance and exit immediately unless
+  # given a wait flag. --inline is the contract that the caller blocks until the
+  # file is closed, so map the common ones and keep the launcher waiting.
+  wait_flag=()
+  setsid_flag=()
+  if [[ $inline == "true" ]]; then
+    setsid_flag=(-w)
+    case "${editor##*/}" in
+      code | code-insiders | codium | cursor | windsurf | zed | zeditor)
+        wait_flag=(--wait)
+        ;;
+      subl | sublime_text)
+        wait_flag=(-w)
+        ;;
+      gnome-text-editor | gedit)
+        wait_flag=(--wait)
+        ;;
+    esac
+  fi
+  exec setsid "${setsid_flag[@]}" uwsm-app -- "$editor" "${wait_flag[@]}" -- "$@"
   ;;
 esac
