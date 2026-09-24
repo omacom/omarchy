@@ -2,4 +2,6 @@
 
 # omarchy:summary=Detect an Intel SOF-capable audio DSP
 
-lspci | grep -qiE '(Multimedia audio controller|Audio device).*Intel'
+source "$OMARCHY_PATH/install/helpers/pci-sysfs.sh"
+
+omarchy-pci-class-vendor 0x04 0x8086
