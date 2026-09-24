@@ -57,6 +57,18 @@ pick "$home/Pictures:$home/Videos" "jpg png mp4"
   fail "a second symlinked starting point is descended" "$ROWS"
 pass "symlinked picture and video directories are searched"
 
+# -H follows the starting point but not a symlink nested inside it, so media
+# reachable only through a second hop is not swept into the menu.
+mkdir -p "$TMPDIR/elsewhere"
+: >"$TMPDIR/elsewhere/nested.jpg"
+ln -s "$TMPDIR/elsewhere" "$TMPDIR/storage/pictures/nested"
+
+pick "$home/Pictures" "jpg"
+
+[[ $ROWS == *"photo.jpg"* ]] || fail "starting-point symlink is still searched" "$ROWS"
+[[ $ROWS != *"nested.jpg"* ]] || fail "a nested symlink is not followed" "$ROWS"
+pass "only starting-point symlinks are followed"
+
 # Hidden directories and dotfiles still stay out of the menu.
 : >"$TMPDIR/storage/pictures/.hidden.jpg"
 mkdir -p "$TMPDIR/storage/pictures/.private"
