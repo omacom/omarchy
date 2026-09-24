@@ -18,6 +18,37 @@ The majority of these environments are managed by [Mise](https://mise.jdx.dev/).
 
 To install, say, Ruby, you'd run `mise use -g ruby`, which will both install Ruby and set it as the global default. Or, if your project has a .ruby-version file, you can just run `mise i` in the root of that project.
 
+## Preinstalled CLI tools
+
+Omarchy makes tools such as `gh`, `uv`, and most [coding agents](17-ai.md) available through [mise's lazy installation](https://mise.jdx.dev/dev-tools/shims.html#lazy-tools). The first time you run one, mise installs it. Later runs reuse the installed version; they do not check for an update on every launch.
+
+You can also inspect the defaults or install them ahead of time:
+
+```bash
+mise ls --current              # List the tools configured for this directory
+mise install gh               # Install one tool now
+mise install --include-lazy    # Install all configured tools, including lazy tools
+```
+
+Run `omarchy update` to update installed tools with the rest of Omarchy. The `mup` alias updates mise-managed tools only. To add another tool to your own configuration, use `mise use -g <tool>`.
+
+Python setup also installs `uv` through mise. Removing the Python development environment leaves `uv` available as an independent tool.
+
+### Using your own installation
+
+To use a separately installed tool, disable mise's copy in `~/.config/mise/config.toml`. For example, if you installed Cursor CLI yourself:
+
+```toml
+[settings]
+disable_tools = ["cursor-agent"]
+```
+
+If you already have a `[settings]` table, add the entry there; extend an existing `disable_tools` list rather than replacing it. Make sure your installation is on `PATH`. Use the mise tool name, which can differ from its command: `oh-my-pi` provides `omp`, for example. The default-agent launcher also prefers a user-installed Cursor or Muse in `~/.local/bin`.
+
+### Removing and restoring defaults
+
+_Remove Preinstalls_ removes the default lazy-tool configuration, and _Restore Preinstalls_ restores it. This configuration is shared by all users, so removing or restoring it affects the defaults for everyone on the machine. To disable only selected tools for yourself, use `disable_tools` instead.
+
 ## Docker
 
 [Docker](https://www.docker.com/) hardly needs any introduction. It allows you to run isolated containers, and Omarchy installs everything needed to run it well, including Docker itself and [Docker Compose](https://docs.docker.com/compose/).
@@ -30,8 +61,6 @@ You can setup the common databases for local development in Docker using _Instal
 
 ## GitHub CLI
 
-[The GitHub CLI](https://cli.github.com/) let's you authenticate with your GitHub account and clone private repositories using it. It's wired up as one of the lazy-loading mise stubs, so the first time you run `gh`, it installs itself. To authenticate, run `gh auth login`. Then you can checkout private repositories using `gh repo clone org/repo`.
+[GitHub CLI](https://cli.github.com/) is available as `gh` for working with repositories, issues, and pull requests from the terminal. Run `gh auth login` to install it on first use and authenticate, then `gh repo clone org/repo` to clone a repository. Run `gh --help` to explore its commands.
 
-You can also perform a bunch of other GitHub operations using this command. Just run `gh` to see everything that's possible.
-
-There's a lazy-installing stub for `ghui` for managing your pull requests in a TUI too. And [lazygit](https://github.com/jesseduffield/lazygit) is preinstalled, if you'd like to drive git itself from a TUI as well.
+For a terminal interface to pull requests, run `ghui`; mise installs it on first use too. [Lazygit](https://github.com/jesseduffield/lazygit) is preinstalled for working with Git itself.
