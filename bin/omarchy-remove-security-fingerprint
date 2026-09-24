@@ -11,7 +11,7 @@ if (( EUID == 0 )) && [[ -v SUDO_UID ]]; then
     echo "Cannot identify the invoking fingerprint user" >&2
     exit 1
   fi
-  fingerprint_user=$(/usr/bin/id -nu "$SUDO_UID") || exit 1
+  fingerprint_user=$(/usr/bin/id -nu "+$SUDO_UID") || exit 1
 else
   fingerprint_user=$(/usr/bin/id -un) || exit 1
 fi
