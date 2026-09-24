@@ -11,7 +11,7 @@ if [[ ${OMARCHY_WINDOWS_TEST_NAMESPACE:-0} != 1 ]]; then
     exec env OMARCHY_WINDOWS_TEST_NAMESPACE=1 \
       unshare --user --map-current-user --keep-caps --mount --propagation private bash "$0"
   fi
-  pass "unprivileged mount namespaces unavailable; skipping Windows VM mount runtime tests"
+  skip "unprivileged mount namespaces unavailable; skipping Windows VM mount runtime tests"
   exit 0
 fi
 
@@ -241,7 +241,7 @@ race_swaps="$TMPDIR/concurrent-race-swaps"
       sleep 0.005
     fi
   done
-) &
+) >/dev/null &
 racer_pid=$!
 concurrent_dc_calls=0
 dc() {
