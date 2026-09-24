@@ -12,7 +12,8 @@ stub_bin="$tmpdir/bin"
 mkdir -p "$home" "$stub_bin"
 
 # Stands in for the real mise so a generated wrapper can be run and asked what
-# arguments it passed on.
+# arguments it passed on. `which` returns a fixed absolute path so the wrapper
+# can exec it without resolving through PATH.
 cat >"$stub_bin/mise" <<'SH'
 #!/bin/bash
 
@@ -21,6 +22,10 @@ for arg in "$@"; do
   printf '\t%s' "$arg" >>"$OMARCHY_MISE_TEST_LOG"
 done
 printf '\n' >>"$OMARCHY_MISE_TEST_LOG"
+
+if [[ $1 == which ]]; then
+  printf '/tmp/mise-test-bin\n'
+fi
 SH
 chmod +x "$stub_bin/mise"
 
@@ -39,6 +44,10 @@ log="$tmpdir/normal.log"
 OMARCHY_MISE_TEST_LOG="$log" PATH="$stub_bin:$PATH" "$home/.local/bin/playwright" >/dev/null
 grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$log" ||
   fail "the wrapper asks mise for the package it was given" "$(cat "$log")"
+grep -Fqx $'mise\twhich\t--tool\tnpm:playwright\tplaywright' "$log" ||
+  fail "the wrapper resolves the binary to an absolute path" "$(cat "$log")"
+grep -Fqx $'mise\tx\tnpm:playwright\t--\t/tmp/mise-test-bin' "$log" ||
+  fail "the wrapper execs the absolute path so it cannot resolve to itself" "$(cat "$log")"
 
 pass "a normal install writes a wrapper that names its package"
 
