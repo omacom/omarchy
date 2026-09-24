@@ -20,11 +20,9 @@ libva-nvidia-driver
 limine
 limine-mkinitcpio-hook
 limine-snapper-sync
-linux
 linux-firmware
-linux-headers
-linux-ptl
-linux-ptl-headers
+linux-omarchy
+linux-omarchy-headers
 macbook12-spi-driver-dkms
 nvidia-580xx-dkms
 nvidia-dkms
