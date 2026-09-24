@@ -12,22 +12,46 @@ if [[ -f $CHROMIUM_THEME ]]; then
   THEME_HEX_COLOR=$(browser_policy_theme_hex "$(<$CHROMIUM_THEME)")
 fi
 
-# Skip the privileged policy write and browser refreshes entirely when every
-# existing managed color.json already carries the requested color.
-all_unchanged=true
-for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
-  [[ -d $dir && ! -L $dir ]] || continue
-  if [[ ! -f $dir/color.json ]]; then
-    all_unchanged=false
-    break
+# Tests override this with a temporary directory list; production uses the
+# fixed trust-root set from browser-policy.sh.
+POLICY_DIRS=("${BROWSER_POLICY_MANAGED_DIRS[@]}")
+if [[ -n ${OMARCHY_BROWSER_POLICY_DIRS:-} ]]; then
+  POLICY_DIRS=()
+  while IFS= read -r dir; do
+    POLICY_DIRS+=("$dir")
+  done <<< "$OMARCHY_BROWSER_POLICY_DIRS"
+fi
+
+# A managed color.json is already correct only when it is a regular, root-owned
+# file with mode 0644 containing exactly the canonical JSON for the requested
+# color. On Linux `stat -c` gives us that verification; on hosts where it is
+# unavailable (tests running on macOS, for example) the content match is enough.
+file_is_canonical() {
+  local file=$1
+  [[ -f $file && ! -L $file ]] || return 1
+  [[ $(cat "$file" 2>/dev/null) == "$expected_json" ]] || return 1
+  if stat -c '%U:%G %a' "$file" >/dev/null 2>&1; then
+    [[ $(stat -c '%U:%G %a' "$file") == "root:root 644" ]]
+  else
+    true
   fi
-  current=$(jq -r '.BrowserThemeColor' "$dir/color.json" 2>/dev/null || true)
-  if [[ $current != "$THEME_HEX_COLOR" ]]; then
+}
+
+# Skip the privileged policy write and browser refreshes entirely when every
+# existing managed color.json is already canonical.
+expected_json='{"BrowserThemeColor": "'$THEME_HEX_COLOR'", "BrowserColorScheme": "device"}'
+saw_any=false
+all_unchanged=true
+for dir in "${POLICY_DIRS[@]}"; do
+  [[ -d $dir && ! -L $dir ]] || continue
+  saw_any=true
+
+  if ! file_is_canonical "$dir/color.json"; then
     all_unchanged=false
     break
   fi
 done
-$all_unchanged && exit 0
+$saw_any && $all_unchanged && exit 0
 
 refresh_running_browser() {
   local process="$1"

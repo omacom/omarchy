@@ -133,6 +133,13 @@ fi
 setter_bin="$test_tmp/setter-bin"
 mkdir -p "$setter_bin"
 
+# The setter now skips its privileged policy write when every managed
+# color.json already matches. Give it a fixed out-of-range fixture so every
+# theme below takes the writer path.
+policy_tmp="$test_tmp/policies"
+mkdir -p "$policy_tmp/a"
+printf '{"BrowserThemeColor": "#ff0000", "BrowserColorScheme": "device"}\n' > "$policy_tmp/a/color.json"
+
 cat >"$setter_bin/omarchy-theme-set-browser-policy" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"$COLOR_LOG"
@@ -158,6 +165,7 @@ color_for_theme() {
   fi
 
   HOME="$setter_home" COLOR_LOG="$test_tmp/color" PATH="$setter_bin:$stub_bin:$PATH" \
+    OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp/a" \
     OMARCHY_PATH="$ROOT" bash "$setter" </dev/null >/dev/null 2>&1 || true
   cat "$test_tmp/color"
 }
