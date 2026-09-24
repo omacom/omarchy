@@ -33,7 +33,13 @@ echo -e "\e[32mRemoving fingerprint scanner from authentication.\n\e[0m"
 remove_pam_config
 remove_lock_fingerprint_pam
 
+# Validity/Synaptics readers run a python-validity daemon and an open-fprintd
+# bus owner; stop both on the way out (the units may not exist on machines
+# that only ever had the libfprint stack).
+echo "Stopping fingerprint daemons..."
+sudo systemctl disable --now open-fprintd.service python3-validity.service python3-validity-suspend-hotfix.service 2>/dev/null || true
+
 echo "Removing fingerprint packages..."
-omarchy-pkg-drop fprintd libfprint libfprint-git
+omarchy-pkg-drop fprintd libfprint libfprint-git fprintd-clients fprintd-clients-git open-fprintd python-validity
 
 echo -e "\e[32mFingerprint authentication has been completely removed.\e[0m"
