@@ -210,5 +210,22 @@ check(
   '_syncServices still drops disabled or removed services'
 )
 
+// A truncated or torn user shell.json must not fall back to stock config:
+// the next mutation would persist the defaults over the user's file,
+// disabling every third-party plugin at once. Keep the last good parse and
+// only reset on a genuinely missing file.
+check(
+  /property var lastUserConfig/.test(shellSource),
+  'shell keeps the last valid user shell.json parse'
+)
+check(
+  /if \(user\) \{[\s\S]*?lastUserConfig = user[\s\S]*?else if \(userConfigMissing\)[\s\S]*?lastUserConfig = null[\s\S]*?else if \(lastUserConfig\)/.test(shellSource),
+  'shell keeps the last user config when shell.json is empty or invalid'
+)
+check(
+  /id: userConfigFile[\s\S]*?onLoaded: \{[\s\S]*?userConfigMissing = false[\s\S]*?onLoadFailed: function\(error\) \{\s*shell\.userConfigMissing = true/.test(shellSource),
+  'shell distinguishes a missing shell.json from a truncated one'
+)
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
