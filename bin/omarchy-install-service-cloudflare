@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Sign in to the Cloudflare CLI and add a web app for the Cloudflare Dashboard.
+
+set -e
+
+if omarchy-cmd-missing cf; then
+  echo -e "\nInstalling the Cloudflare CLI..."
+  omarchy-mise-install npm:cf cf
+fi
+
+echo -e "\nSigning in to Cloudflare..."
+cf auth login
+
+omarchy-webapp-install "Cloudflare" "https://dash.cloudflare.com" https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/cloudflare.png
+
+echo ""
+echo "Cloudflare has been set up."
