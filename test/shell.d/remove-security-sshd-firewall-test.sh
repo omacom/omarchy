@@ -28,6 +28,9 @@ case "$*" in
   "--force delete limit 22/tcp") failure=delete-limit; rule='limit 22/tcp' ;;
   "--force delete allow 22/tcp") failure=delete-port; rule='allow 22/tcp' ;;
   "--force delete allow ssh") failure=delete-service; rule='allow ssh' ;;
+  "--force delete limit ssh") failure=delete-service-limit; rule='limit ssh' ;;
+  "--force delete allow to any app SSH") failure=delete-app-allow; rule='allow app SSH' ;;
+  "--force delete limit to any app SSH") failure=delete-app-limit; rule='limit app SSH' ;;
   reload) failure=reload ;;
   *) exit 97 ;;
 esac
@@ -62,7 +65,7 @@ prepare_case() {
   mkdir -p "$home/.ssh"
   printf 'ssh-ed25519 fake-key test@example\n' >"$home/.ssh/authorized_keys"
   : >"$calls"
-  printf '%s\n' 'limit 22/tcp' 'allow 22/tcp' 'allow ssh' 'allow 443/tcp' >"$state"
+  printf '%s\n' 'limit 22/tcp' 'allow 22/tcp' 'allow ssh' 'limit ssh' 'allow app SSH' 'limit app SSH' 'allow 443/tcp' >"$state"
 }
 
 run_remove() {
@@ -92,7 +95,7 @@ run_remove
 [[ $(<"$state") == 'allow 443/tcp' ]] || fail "repeated removal preserves unrelated rules"
 pass "removal deletes all standard SSH rules, preserves HTTPS, and is idempotent"
 
-for failure in delete-limit delete-port delete-service reload; do
+for failure in delete-limit delete-port delete-service delete-service-limit delete-app-allow delete-app-limit reload; do
   prepare_case "$failure"
   run_remove "$failure"
   (( status != 0 )) || fail "$failure failure makes removal fail" "$output"
