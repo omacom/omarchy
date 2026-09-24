@@ -4,7 +4,9 @@
 
 set -euo pipefail
 
-[[ $OMARCHY_PATH != "/usr/share/omarchy" ]] || exit 0
+# Under a stripped environment (sudo, cron, timers) OMARCHY_PATH can be unset.
+# Default to the packaged install rather than aborting on the unbound variable.
+[[ ${OMARCHY_PATH:-/usr/share/omarchy} != "/usr/share/omarchy" ]] || exit 0
 
 if ! git -C "$OMARCHY_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "Error: OMARCHY_PATH is not a git checkout: $OMARCHY_PATH" >&2

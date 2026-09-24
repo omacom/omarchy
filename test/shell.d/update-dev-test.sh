@@ -79,6 +79,13 @@ grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" 
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
 
+# A stripped environment must not abort on an unbound OMARCHY_PATH.
+: >"$git_log"
+env -i PATH="$stub_bin:$PATH" TEST_GIT_LOG="$git_log" \
+  bash "$ROOT/bin/omarchy-update-dev" >/dev/null
+[[ ! -s $git_log ]] || fail "unset OMARCHY_PATH defaults to the packaged path" "$(cat "$git_log")"
+pass "unset OMARCHY_PATH defaults to the packaged path"
+
 grep -qE '^ *omarchy-update-dev$' "$ROOT/bin/omarchy-update" ||
   fail "top-level update includes the dev checkout step"
 pass "top-level update includes the dev checkout step"
