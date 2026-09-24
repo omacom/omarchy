@@ -50,6 +50,8 @@ Example `shell.json` (bar subtree only shown):
 
 `center` is a box in the middle of the bar whose modules are centered as one group on the exact horizontal/vertical center. `centerBegin` and `centerEnd` hang off the box's two edges and move out as it grows; with the box empty they meet in the middle of the bar.
 
+`floating: true` moves the bar into the gap between the screen edge and the windows: half of Hyprland's `gaps_out` from the screen edge and the full `gaps_out` at its ends, so it lines up with the windows, which do not move (with `gaps_out` up to 50 for the stock 26 px bar). Its corners follow the windows'. Unset, a theme's `[bar] margin` decides; `false` keeps it flush. Theme keys are in [`docs/omarchy-shell.md`](../../../docs/omarchy-shell.md#floating-bar).
+
 ## Module catalogue
 
 ### First-party interactive widgets
@@ -174,6 +176,7 @@ Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (o
 - `bar.position` — `"top" | "bottom" | "left" | "right"`
 - `bar.vertical` — boolean shortcut
 - `bar.barSize` — 26 horizontal / 28 vertical
+- `bar.barMargins` — `{ top, right, bottom, left }` gap between a floating bar and the screen edges; only the edge it is anchored to and the two it spans apply; all 0 for a flush bar
 - `bar.run(command)` — fire-and-forget bash exec (quote arguments with `Util.shellQuote` from `qs.Commons`)
 - `bar.showTooltip(target, text)` / `bar.hideTooltip(target)` — shared tooltip popup
 - `bar.requestPopout(owner)` / `bar.releasePopout(owner)` — one-popup-at-a-time coordinator

@@ -21,10 +21,14 @@ size-vertical    = 28
 #   icon-size   = 12   # the icon itself, at most icon-canvas
 #   icon-font   = 13   # glyph size of a font icon on an icon button
 #   status-slot = 21   # length of a status indicator slot along the bar
-# Gap between the bar and the edge. Takes one CSS-style scalar/list:
-# N, "Y X", "T X B", or "T R B L".
-margin           = 0
-radius           = 0
+# Floating bar: gap between the bar and the screen edges it touches, as one
+# CSS-style scalar/list (N, "Y X", "T X B", "T R B L"), and corner rounding.
+# A margin on an edge the bar touches floats it unless shell.json sets
+# bar.floating to false. Unset, a floating bar floats inside Hyprland's gaps_out and
+# takes its rounding.
+# radius applies only while the bar floats, capped at half its thickness.
+#   margin = 10
+#   radius = 12
 
 [hyprland]
 # Shared Hyprland-derived border tokens. Surface sections reference these so

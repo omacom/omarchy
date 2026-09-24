@@ -416,13 +416,18 @@ function popupExpired(entry, duration, now) {
 // thickness on that screen (a notch floor can make a top bar thicker than its
 // configured size on one screen), plus the gap. A bar without per-screen
 // sizes counts its configured size; a hidden or missing one, the default size.
+// A floating bar sits its edge margin (barMargins) off the screen edge, so
+// that is cleared too.
 function barClearance(bar, screenName, defaultBarSize, gapsOut) {
   var size = Number(defaultBarSize)
+  var margin = 0
   if (bar && !bar.barHidden) {
     size = Number(typeof bar.barSizeFor === "function" ? bar.barSizeFor(screenName) : bar.barSize)
     size = isFinite(size) ? Math.max(0, size) : 0
+    margin = bar.barMargins ? Number(bar.barMargins[String(bar.position || "top")]) : 0
+    if (!isFinite(margin) || margin < 0) margin = 0
   }
-  return size + Number(gapsOut)
+  return size + margin + Number(gapsOut)
 }
 
 function popupPlacement(barPosition, barClearance, gapsOut) {
