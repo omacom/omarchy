@@ -11,8 +11,8 @@ home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
 mkdir -p "$home" "$stub_bin"
 
-# Stands in for the real mise so a generated wrapper can be run and asked what
-# arguments it passed on.
+# Stands in for the real mise so install and the generated wrapper can be run
+# and asked what arguments they passed on.
 cat >"$stub_bin/mise" <<'SH'
 #!/bin/bash
 
@@ -25,37 +25,51 @@ SH
 chmod +x "$stub_bin/mise"
 
 install_wrapper() {
-  HOME="$home" "$ROOT/bin/omarchy-mise-install" "$@"
+  HOME="$home" PATH="$stub_bin:$PATH" OMARCHY_MISE_TEST_LOG="$1" \
+    "$ROOT/bin/omarchy-mise-install" "${@:2}"
 }
 
 # The ordinary case still works, and every call site in install/user/mise.sh
-# passes names of this shape.
-install_wrapper npm:playwright playwright >/dev/null
+# passes names of this shape. Install pins once; the wrapper only execs.
+install_log="$tmpdir/install-normal.log"
+: >"$install_log"
+install_wrapper "$install_log" npm:playwright playwright >/dev/null
 [[ -x $home/.local/bin/playwright ]] ||
   fail "a normal install writes an executable wrapper"
+grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$install_log" ||
+  fail "install pins the package once" "$(cat "$install_log")"
 
-log="$tmpdir/normal.log"
-: >"$log"
-OMARCHY_MISE_TEST_LOG="$log" PATH="$stub_bin:$PATH" "$home/.local/bin/playwright" >/dev/null
-grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$log" ||
-  fail "the wrapper asks mise for the package it was given" "$(cat "$log")"
+run_log="$tmpdir/run-normal.log"
+: >"$run_log"
+OMARCHY_MISE_TEST_LOG="$run_log" PATH="$stub_bin:$PATH" "$home/.local/bin/playwright" >/dev/null
+grep -Fqx $'mise\tx\tnpm:playwright\t--\tplaywright' "$run_log" ||
+  fail "the wrapper only execs the package" "$(cat "$run_log")"
+if grep -q $'\tuse\t' "$run_log"; then
+  fail "the wrapper must not call mise use" "$(cat "$run_log")"
+fi
 
-pass "a normal install writes a wrapper that names its package"
+pass "a normal install writes an exec-only wrapper that names its package"
 
 # A package name is data. Quoted with %q it reaches mise as one argument
 # instead of being read as shell source when the wrapper runs.
-install_wrapper 'npm:pkg$(touch '"$tmpdir"'/PWNED)end' hostile >/dev/null
+install_log="$tmpdir/install-hostile.log"
+: >"$install_log"
+install_wrapper "$install_log" 'npm:pkg$(touch '"$tmpdir"'/PWNED)end' hostile >/dev/null
 
-log="$tmpdir/hostile.log"
-: >"$log"
-OMARCHY_MISE_TEST_LOG="$log" PATH="$stub_bin:$PATH" "$home/.local/bin/hostile" >/dev/null
+run_log="$tmpdir/run-hostile.log"
+: >"$run_log"
+OMARCHY_MISE_TEST_LOG="$run_log" PATH="$stub_bin:$PATH" "$home/.local/bin/hostile" >/dev/null
 
 [[ -e $tmpdir/PWNED ]] &&
   fail "a package name with shell characters does not run when the wrapper does" \
     "wrapper: $(cat "$home/.local/bin/hostile")"
 
-grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:pkg$(touch '"$tmpdir"'/PWNED)end' "$log" ||
-  fail "the package reaches mise whole" "$(cat "$log")"
+grep -Fq $'mise\tx\tnpm:pkg$(touch ' "$run_log" ||
+  fail "the package reaches mise whole" "$(cat "$run_log")"
+grep -Fq $'\t--\thostile' "$run_log" ||
+  fail "the bin reaches mise whole" "$(cat "$run_log")"
+grep -Fq 'PWNED' "$run_log" ||
+  fail "the hostile package name is preserved in the mise argv" "$(cat "$run_log")"
 
 pass "a package name with shell characters reaches mise as one argument"
 
@@ -75,7 +89,7 @@ for (( i = 0; i < ${#refused[@]}; i += 2 )); do
   label=${refused[i]}
   name=${refused[i + 1]}
 
-  if install_wrapper somepkg "$name" >/dev/null 2>"$tmpdir/err"; then
+  if install_wrapper "$tmpdir/refused.log" somepkg "$name" >/dev/null 2>"$tmpdir/err"; then
     fail "a command name with $label is refused"
   fi
   grep -Fq 'is not usable as a command name' "$tmpdir/err" ||
@@ -88,7 +102,7 @@ pass "command names that are not plain file names are refused"
 # escaped path on its way to failing.
 victim="$tmpdir/victim"
 printf 'keep me\n' >"$victim"
-if install_wrapper somepkg "../../../..$victim" >/dev/null 2>&1; then
+if install_wrapper "$tmpdir/escape.log" somepkg "../../../..$victim" >/dev/null 2>&1; then
   fail "an escaping command name is refused"
 fi
 [[ -f $victim ]] ||
