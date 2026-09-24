@@ -93,6 +93,24 @@ pass "declining Remove Preinstalls changes nothing"
 [[ -f $marker ]] || fail "Remove Preinstalls records the opt-out"
 pass "Remove Preinstalls records the opt-out"
 
+# Every unconditional mise stub the user setup writes is a preinstall, so a tool
+# added to install/user/mise.sh without a matching removal survives the opt-out.
+# The conditional stubs (cursor-agent, muse, hermes) have their own ownership checks.
+mkdir -p "$test_home/.local/bin"
+stubs=()
+while read -r _ package command _; do
+  command=${command:-$package}
+  stubs+=("$command")
+  printf '#!/bin/bash\n' >"$test_home/.local/bin/$command"
+done < <(grep '^omarchy-mise-install ' "$ROOT/install/user/mise.sh")
+
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+for command in "${stubs[@]}"; do
+  [[ ! -e $test_home/.local/bin/$command ]] ||
+    fail "Remove Preinstalls deletes every mise stub from the user setup" "$command is left behind"
+done
+pass "Remove Preinstalls deletes every mise stub from the user setup"
+
 # Hermes' wrapper is only a preinstall when omarchy-install-hermes-cli wrote it.
 # The desktop app's command and an official install live at the same path and
 # are the user's, whether or not any package says so.
