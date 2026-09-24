@@ -723,4 +723,11 @@ assert(
   !/pendingModel|pastModel/.test(serviceQml),
   'notifications service keeps no in-memory history models'
 )
+
+// expireTimeout 0 means "never expire"; a sender that asked for a finite
+// timeout gets it even for critical alerts.
+assert(
+  /case NotificationUrgency\.Critical:\s*\n\s*return requested > 0 \? Math\.min\(maxPopupDuration, requested\) : 0/.test(serviceQml),
+  'notifications service honors a sender-requested timeout for critical alerts'
+)
 JS
