@@ -4,4 +4,8 @@
 
 echo -e "Unblocking bluetooth...\n"
 rfkill unblock bluetooth
+
+echo -e "Restarting bluetooth service...\n"
+sudo systemctl restart bluetooth.service
+
 rfkill list bluetooth
