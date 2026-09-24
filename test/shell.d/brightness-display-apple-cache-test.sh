@@ -123,7 +123,7 @@ if [[ -n $real_hiddev ]]; then
     fail "wrapper did not trust a valid cached hiddev node: $real_hiddev"
   pass "wrapper trusts a cached hiddev character device without re-detecting"
 else
-  pass "no /dev/hiddev* character device present; skipping the valid-cache case"
+  skip "no /dev/hiddev* character device present; skipping the valid-cache case"
 fi
 
 # --- With no XDG_RUNTIME_DIR, the predictable /tmp cache is not consulted ------
@@ -148,5 +148,5 @@ if mkfifo "$tmp_cache" 2>/dev/null; then
       "it blocked reading the FIFO decoy at $tmp_cache"
   pass "wrapper ignores the /tmp cache path when XDG_RUNTIME_DIR is unset"
 else
-  pass "$tmp_cache already present or not safely creatable; skipping the /tmp-fallback case"
+  skip "$tmp_cache already present or not safely creatable; skipping the /tmp-fallback case"
 fi

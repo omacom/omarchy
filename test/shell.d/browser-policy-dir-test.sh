@@ -46,7 +46,7 @@ mode=$(stat -c '%a' "$write_dir/color.json")
 pass "theme colour writes a 0644 color.json"
 
 if (( EUID == 0 )); then
-  pass "running as root; skipping the mktemp-failure check"
+  skip "running as root; skipping the mktemp-failure check"
 else
   chmod u+w "$write_dir"
   export TMPDIR=$test_tmp/missing-tmp
