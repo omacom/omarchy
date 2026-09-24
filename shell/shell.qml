@@ -188,6 +188,17 @@ ShellRoot {
   }
   readonly property string activeBarSourceUrl: activeBarId === defaultBarId ? "" : shell.pluginRegistry.entryPointUrl(activeBarManifest, "bar")
   property var bar: null
+  property BarReservation barReservation: BarReservation {
+    bar: shell.bar
+    supported: shell.activeBarId === shell.defaultBarId
+    contentReady: {
+      if (shell.pluginRegistry.scanning || shell.pluginReloading
+        || !shell.pluginRegistry.installedPlugins[shell.defaultBarId]) return false
+      var components = shell.pluginWidgetComponents
+      for (var key in components) if (!components[key].component) return false
+      return true
+    }
+  }
 
   onSelectedBarIdChanged: if (failedBarId !== "") failedBarId = ""
 

@@ -27,6 +27,16 @@ mkdir -p "$fake_bin" "$shell_root/shell"
 cat >"$fake_bin/quickshell" <<'SH'
 #!/bin/bash
 
+if [[ ${1:-} == "-d" ]]; then
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_RESERVATION_LOG"
+  printf '%s\n' "$OMARCHY_BAR_SOCKET" >"$OMARCHY_TEST_RESERVATION_LOG.socket"
+  exit "${OMARCHY_TEST_RESERVATION_STATUS:-0}"
+fi
+if [[ ${1:-} == "ipc" ]]; then
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_RESERVATION_LOG"
+  exit 0
+fi
+
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 printf 'watcher=%s popup=%s\n' \
   "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
@@ -202,3 +212,24 @@ launch_pid=""
 [[ -f $qs_terminated ]] || fail "the running shell is signalled when the supervisor is"
 [[ $(launches) == 1 ]] || fail "the signalled shell is not relaunched" "$(<"$qs_log")"
 pass "stopping the supervisor stops the shell it is watching"
+
+# An independent host is started before the main shell, with a short socket
+# identity scoped to the current display. A failed helper cannot block startup.
+mkdir -p "$shell_root/shell/bar-reservation" "$test_tmp/runtime"
+touch "$shell_root/shell/bar-reservation/shell.qml"
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
+export WAYLAND_DISPLAY="wayland-test-a"
+export OMARCHY_TEST_RESERVATION_LOG="$test_tmp/reservation.log"
+launch_shell '0' || fail "launch succeeds with the reservation host"
+[[ $(launches) == 1 ]] || fail "the reservation host is distinct from the plugin host"
+grep -F -- "-d -n -p $shell_root/shell/bar-reservation" "$OMARCHY_TEST_RESERVATION_LOG" >/dev/null || fail "reservation launch is daemonized and duplicate-safe"
+first_socket=$(<"$OMARCHY_TEST_RESERVATION_LOG.socket")
+[[ $first_socket == "$XDG_RUNTIME_DIR/omarchy-bar-"*.sock ]] || fail "reservation socket stays inside the runtime directory"
+WAYLAND_DISPLAY="wayland-test-b" launch_shell '0' || fail "another display launches"
+[[ $(<"$OMARCHY_TEST_RESERVATION_LOG.socket") != "$first_socket" ]] || fail "display identities have different sockets"
+pass "reservation startup is separate and scoped to the display"
+
+OMARCHY_TEST_RESERVATION_STATUS=1 launch_shell '0' || fail "reservation failure does not fail shell launch"
+[[ $(launches) == 1 ]] || fail "the main shell still launches after reservation failure"
+grep -F "Bar reservation host unavailable" "$logger_log" >/dev/null || fail "reservation startup failure is recorded"
+pass "reservation failure falls back to the main bar"

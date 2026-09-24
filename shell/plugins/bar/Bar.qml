@@ -39,6 +39,7 @@ Item {
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
   property bool barHidden: false
+  property bool hiddenStateKnown: false
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
   property string omarchyConfigDir: home + "/.config/omarchy"
@@ -1169,7 +1170,7 @@ Item {
     id: barHiddenProbe
     running: true
     command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
-    stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes" } }
+    stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes"; root.hiddenStateKnown = true } }
   }
   FileView {
     path: root.home + "/.local/state/omarchy/toggles"
@@ -1239,8 +1240,9 @@ Item {
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
-    visible: !remapGuard.remapping
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
+    visible: !remapGuard.remapping && !(root.shell && root.shell.barReservation && root.shell.barReservation.waiting)
+    exclusionMode: root.barHidden || (root.shell && root.shell.barReservation && root.shell.barReservation.managed)
+      ? ExclusionMode.Ignore : ExclusionMode.Auto
 
     ScreenMoveRemap {
       id: remapGuard
