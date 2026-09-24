@@ -51,10 +51,11 @@ if [[ -f ~/.config/foot/foot.ini ]]; then
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,
-# and anything resolving "monospace" all read from here. This file is loaded
-# after the package-owned default, and prepend_first puts the chosen family at
-# the head of the list so it wins over the family that default prefers.
-fontconfig_file="$HOME/.config/fontconfig/fonts.conf"
+# and anything resolving "monospace" all read from here. Write a drop-in under
+# conf.d so the user's own ~/.config/fontconfig/fonts.conf is never truncated.
+# prepend_first puts the chosen family at the head of the list so it wins over
+# the family that the package default prefers.
+fontconfig_file="$HOME/.config/fontconfig/conf.d/50-omarchy-monospace.conf"
 mkdir -p "$(dirname "$fontconfig_file")"
 cat >"$fontconfig_file" <<XML
 <?xml version="1.0"?>
