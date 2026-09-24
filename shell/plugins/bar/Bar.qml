@@ -238,6 +238,8 @@ Item {
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
+    // A copy per widget, so a widget cannot change the bar's own margins.
+    api.barMargins = Qt.binding(function() { return Object.assign({}, root.barMargins) })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
@@ -718,8 +720,19 @@ Item {
   // and rounds its corners by barRadius. Every side is 0 by default, which
   // anchors the bar flush against its edge with square corners. The keys are
   // the position names, so barMargins[position] is the anchored edge's gap.
-  readonly property var barMargins: Style.bar.margins
-  readonly property int barRadius: Style.bar.radius
+  //
+  // bar.floating in shell.json switches the gap on or off; unset, the theme's
+  // margin decides. Without a theme margin a floating bar keeps Hyprland's
+  // gaps_out, and an unset radius follows Hyprland's rounding.
+  property var floatingSetting: undefined
+  readonly property bool floating: BarModel.barFloating(floatingSetting, Style.bar.margins, position)
+  readonly property var barMargins: floating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, position) : BarModel.NO_MARGINS
+  readonly property bool floatInGap: BarModel.floatsInGap(floating, Style.bar.margins, position)
+  readonly property int barRadius: BarModel.barRadius(
+    floating,
+    Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined,
+    Style.cornerRadius,
+    barSize)
 
   // Display cutouts (a camera notch) the platform's own package describes in
   // the fixed platform root, which no environment variable moves. Most machines
@@ -800,6 +813,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    floatingSetting = typeof config.floating === "boolean" ? config.floating : undefined
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -1364,15 +1378,9 @@ Item {
   function moduleRemoveDistance(screenPoint) {
     var screen = barDragScreen
     if (!screen) return 0
-    var thickness = thicknessFor(screen)
-    var x = screenPoint.x
-    var y = screenPoint.y
-    if (vertical) {
-      if (position === "right") x -= Math.max(0, screen.width - thickness)
-      return BarModel.dragDistanceOutside({ x: x, y: y }, thickness, screen.height)
-    }
-    if (position === "bottom") y -= Math.max(0, screen.height - thickness)
-    return BarModel.dragDistanceOutside({ x: x, y: y }, screen.width, thickness)
+    // A floating strip sits inside its margins (BarModel.stripRect).
+    var strip = BarModel.stripRect(position, barMargins, thicknessFor(screen), screen.width, screen.height)
+    return BarModel.dragDistanceOutside({ x: screenPoint.x - strip.x, y: screenPoint.y - strip.y }, strip.width, strip.height)
   }
 
   // Arming closes the dragged widget's room, and disarming opens it again
@@ -1737,8 +1745,8 @@ Item {
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    // A detached bar reserves its margin off the edge as well.
-    exclusiveZone: thickness + root.barMargins[root.position]
+    // A floating bar reserves its theme margin as well (reservedMargin).
+    exclusiveZone: thickness + BarModel.reservedMargin(root.floatInGap, root.barMargins, root.position)
 
     // While this window's widget or bar-move drag is live, the whole surface
     // takes input (mask below), so the pointer never leaves the bar surface
@@ -2273,11 +2281,17 @@ Item {
         required property string modelData
         readonly property bool edgeVertical: modelData === "left" || modelData === "right"
         readonly property int edgeSize: edgeVertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
+        // Where the bar would sit on that edge, floating margins included. A
+        // theme margin can float the bar on one edge and not another, so the
+        // floating state is the target edge's.
+        readonly property bool edgeFloating: BarModel.barFloating(root.floatingSetting, Style.bar.margins, modelData)
+        readonly property var edgeMargins: edgeFloating ? BarModel.barMargins(true, Style.bar.margins, Style.gapsOutEdges, modelData) : BarModel.NO_MARGINS
 
-        x: modelData === "right" ? parent.width - edgeSize : 0
-        y: modelData === "bottom" ? parent.height - edgeSize : 0
-        width: edgeVertical ? edgeSize : parent.width
-        height: edgeVertical ? parent.height : edgeSize
+        x: modelData === "right" ? parent.width - edgeSize - edgeMargins.right : edgeMargins.left
+        y: modelData === "bottom" ? parent.height - edgeSize - edgeMargins.bottom : edgeMargins.top
+        width: edgeVertical ? edgeSize : parent.width - edgeMargins.left - edgeMargins.right
+        height: edgeVertical ? parent.height - edgeMargins.top - edgeMargins.bottom : edgeSize
+        radius: BarModel.barRadius(edgeFloating, Style.barOverrides["radius"] !== undefined ? Style.bar.radius : undefined, Style.cornerRadius, edgeSize)
         color: root.transparent ? "transparent" : root.background
         borderSpec: Border.flat(root.barForeground, 1)
         visible: opacity > 0
