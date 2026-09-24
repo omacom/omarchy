@@ -572,7 +572,7 @@ WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hypr
   HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 0 --window 0xdeadbeef
 
-grep -qF 'hl.dsp.focus({ window = "address:0xdeadbeef" })' "$TMPDIR/hyprctl" ||
+grep -qF 'dispatch focuswindow address:0xdeadbeef' "$TMPDIR/hyprctl" ||
   fail "clipboard text paste refocuses the origin window" "$(cat "$TMPDIR/hyprctl")"
 pass "clipboard text paste refocuses the origin window"
 
@@ -596,7 +596,7 @@ WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hypr
   HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 0 --window 0xdeadbeef
 
-if grep -q "hl.dsp.focus\|focuswindow" "$TMPDIR/hyprctl"; then
+if grep -q "focuswindow" "$TMPDIR/hyprctl"; then
   fail "clipboard text paste stops refocusing once the origin window is active" "$(cat "$TMPDIR/hyprctl")"
 fi
 pass "clipboard text paste stops refocusing once the origin window is active"
@@ -608,7 +608,7 @@ WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hypr
   PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-paste-file" --window 0xdeadbeef image/png "$TMPDIR/image.png"
 
-grep -qF 'hl.dsp.focus({ window = "address:0xdeadbeef" })' "$TMPDIR/hyprctl" ||
+grep -qF 'dispatch focuswindow address:0xdeadbeef' "$TMPDIR/hyprctl" ||
   fail "clipboard file paste refocuses the origin window" "$(cat "$TMPDIR/hyprctl")"
 pass "clipboard file paste refocuses the origin window"
 
