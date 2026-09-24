@@ -163,7 +163,9 @@ Item {
     root.launchActiveToplevel = ToplevelManager.activeToplevel
     root.launchOsdMessage = "Launching " + String(name || "application") + "…"
     launchDelay.restart()
-    launchTimeout.restart()
+    // A retriggered launch must not push the safety-net back out; the toast
+    // should still resolve inside the original 15s window.
+    if (!launchTimeout.running) launchTimeout.start()
   }
 
   function closeLaunchFeedback(serial) {
