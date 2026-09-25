@@ -69,6 +69,19 @@ grep -q 'PROTECT: "Y"' "$COMPOSE" || fail "web console is not password protected
 grep -q -- '- /:/' "$COMPOSE" && fail "compose contains host-root bind"
 pass "writer emits fixed anchors bound to exact private source inodes"
 
+# The guest leaves the shared folder setgid (2777) after its first boot. A
+# plain chmod 0700 keeps the setgid bit on directories, so hardening must still
+# land on exactly 700 or every later launch fails the private-mode check.
+reset_case
+install -d -m 2777 -- "$HOME/Windows"
+prepare_user_mount_sources
+[[ $(stat -Lc '%a' "$HOME/Windows") == 700 ]] || fail "user preflight left setgid on shared source"
+chmod 2777 -- "$HOME/Windows"
+write 4G 2 64G alice s3cret Europe/Copenhagen || fail "setgid shared source blocked the writer"
+resolve_caller
+[[ $(stat -Lc '%a' "$EXPECTED_SHARED") == 700 ]] || fail "root preflight left setgid on shared source"
+pass "setgid shared source is hardened to exactly 700"
+
 # Input cannot widen a mount or compose field.
 rm -f "$COMPOSE"
 write 4G 2 64G 'x -v /:/h' p UTC 2>/dev/null && fail "malicious username accepted"
