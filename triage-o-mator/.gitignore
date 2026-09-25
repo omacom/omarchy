@@ -12,6 +12,8 @@
 /prompts/maintainer-brief.md
 /prompts/organize-groups.md
 /prompts/polish-report.md
+/prompts/prepare-analysis.md
+/prompts/review-appeal.md
 /prompts/review-pr.md
 # </triage-o-mator:symlinks>
 
@@ -32,3 +34,9 @@
 
 # The checkout's version of a config file you have edited, written by bin/install-to to diff yours against.
 /config/*.dist
+
+# <triage-o-mator:cache>
+# Ignored evidence cache and machine-local transaction state.
+/data/*/*/cache/
+/data/*/*/local/
+# </triage-o-mator:cache>
