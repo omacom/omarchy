@@ -50,8 +50,16 @@ case "$*" in
     fi
     ;;
   'shell setPluginEnabled acme.cleanup false')
+    if [[ -e $HOME/reject-disable ]]; then
+      printf 'unknown\n'
+      exit 0
+    fi
+    if [[ -e $HOME/disable-disconnected ]]; then
+      exit 23
+    fi
     touch "$HOME/disabled"
     rm -f "$HOME/enabled"
+    printf 'ok\n'
     ;;
   'shell rescanPlugins') touch "$HOME/rescanned" ;;
   *) exit 99 ;;
@@ -318,8 +326,35 @@ for mutation in missing nonexecutable directory symlink-file symlink-parent inte
 done
 pass "runtime rechecks missing, nonexecutable, non-file, and symlink hooks after validation"
 
+# Disabling has an application-level acknowledgment as well as an exit status.
+# Neither a rejected request nor a disconnected shell may remove the checkout.
+for removal_kind in git symlink plain; do
+  for disable_failure in reject-disable disable-disconnected; do
+    new_plugin "disable-$removal_kind-$disable_failure"
+    jq 'del(.hooks)' "$target/manifest.json" >"$HOME/manifest"
+    mv "$HOME/manifest" "$target/manifest.json"
+    case "$removal_kind" in
+    git) git -C "$target" init -q ;;
+    symlink)
+      mv "$target" "$HOME/source"
+      ln -s "$HOME/source" "$target"
+      ;;
+    esac
+    touch "$HOME/$disable_failure"
+    output=$(remove_plugin --yes) && fail "failed disable must abort $removal_kind removal"
+    assert_retained
+    [[ -e $HOME/enabled ]] || fail "rejected disable retains enabled state"
+    [[ ! -e $HOME/attempts ]] || fail "no-hook removal never runs cleanup"
+    [[ $removal_kind != "symlink" || -L $target ]] || fail "failed disable retains installed symlink"
+    rm "$HOME/$disable_failure"
+    output=$(remove_plugin --yes) || fail "removal retries after disable is repaired" "$output"
+    assert_removed
+  done
+done
+pass "IPC rejection and transport failure retain git, symlink, and plain checkouts for retry"
+
 if ! command -v systemd-run >/dev/null || ! systemctl --user show-environment >/dev/null 2>&1; then
-  pass "no systemd user manager; skipping supervised hook execution"
+  skip "no systemd user manager; skipping supervised hook execution"
   exit 0
 fi
 
@@ -335,6 +370,20 @@ assert_removed
 jq -e --arg cwd "$expected_checkout" '.cwd == $cwd and .enabled == true' "$HOME/receipt.json" >/dev/null \
   || fail "hook runs in checkout before disable"
 pass "enabled git plugin cleans external registration before disable and checkout deletion"
+
+new_plugin cleanup-then-disable-rejected
+git -C "$target" init -q
+touch "$HOME/reject-disable"
+output=$(remove_plugin --yes --run-pre-remove) && fail "disable rejection after cleanup must abort removal"
+assert_retained
+[[ -f $HOME/receipt.json && ! -e $HOME/external-registry/plugin.json && -e $HOME/enabled ]] \
+  || fail "disable rejection preserves checkout without rolling back completed cleanup"
+rm "$HOME/reject-disable"
+output=$(remove_plugin --yes --run-pre-remove) || fail "completed cleanup can be safely retried after disable rejection" "$output"
+assert_removed
+(( $(wc -l <"$HOME/attempts") == 2 )) && [[ -e $HOME/disabled ]] \
+  || fail "retry repeats idempotent cleanup and requires successful disable"
+pass "disable rejection after completed cleanup retains checkout and supports retry"
 
 # Root install symlinks are supported, even though internal symlinks are not.
 new_plugin disabled-symlink

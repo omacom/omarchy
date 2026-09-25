@@ -125,6 +125,8 @@ The executable runs directly, respecting its shebang, with the physical checkout
 
 An invalid declaration, changed snapshot, failure to start, nonzero exit, or timeout aborts removal before the CLI disables the plugin or removes the checkout. Inspect any partial cleanup effects, correct the cause, and retry. Cleanup must be safely retryable: failure does not roll back completed effects. An entirely absent manifest remains removable for recovery of old or broken installations; a present but malformed manifest blocks removal.
 
+After cleanup, an enabled plugin must acknowledge disabling with `ok` before the CLI removes its checkout. A rejected disable request or lost shell connection retains the checkout; completed cleanup effects are not rolled back. Restore shell connectivity or correct the rejected request, then retry removal. The cleanup hook runs again on retry.
+
 Hooks run as **unsandboxed plugin code**, even if the plugin was never enabled. Review the current executable before authorizing it. Path and snapshot checks detect intervening changes, but are not atomic protection against hostile concurrent edits. Process supervision is not a sandbox: hooks must not move cleanup into other services or otherwise escape the supervised cgroup. Hooks must clean up only state they own, wait for their cleanup work to finish, and return zero only when cleanup is complete. If a hook cannot be trusted or repaired, retain the checkout and recover manually; moving it can break external registrations that still point into it.
 
 ## Elsewhen

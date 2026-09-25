@@ -124,7 +124,9 @@ fi
 "$pre_remove" "$target" --expect "$snapshot" || fail "pre-remove check or cleanup failed; removal aborted before disabling or removing '$id'. Inspect cleanup effects, fix the cause, and retry."
 
 if [[ $was_enabled == "true" ]]; then
-  omarchy-shell shell setPluginEnabled "$id" false >/dev/null
+  if ! disabled=$(omarchy-shell shell setPluginEnabled "$id" false) || [[ $disabled != "ok" ]]; then
+    fail "could not disable '$id'; checkout retained. Cleanup may already have completed; inspect its effects, restore shell connectivity, and retry removal"
+  fi
 fi
 
 if [[ -L $target ]]; then
