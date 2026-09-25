@@ -22,7 +22,6 @@ if [[ -r $dmi/sys_vendor && -r $dmi/product_name ]] &&
 # and the panel powers down, and the filesystem stays alive.
 [Login]
 HandleLidSwitch=lock
-HandleLidSwitchDocked=lock
 HandleSuspendKey=lock
 HandleSuspendKeyLongPress=lock
 EOF

@@ -20,7 +20,6 @@ sudo tee "$dropin" >/dev/null <<'CONF'
 # and the panel powers down, and the filesystem stays alive.
 [Login]
 HandleLidSwitch=lock
-HandleLidSwitchDocked=lock
 HandleSuspendKey=lock
 HandleSuspendKeyLongPress=lock
 CONF
