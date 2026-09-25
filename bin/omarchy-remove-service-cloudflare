@@ -17,6 +17,8 @@ if ! "$HOME/.local/bin/cf" auth logout; then
   exit 1
 fi
 
+omarchy-plugin-disable omarchy.cloudflare
+
 # Remove only our exact dashboard launcher, not an unrelated Cloudflare.desktop
 # or a nested same-named web app selected by the generic web-app remover.
 if omarchy-installed-service-cloudflare; then

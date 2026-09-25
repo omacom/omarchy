@@ -24,5 +24,7 @@ echo -e "\nSigning in to Cloudflare..."
 
 omarchy-webapp-install "Cloudflare" "https://dash.cloudflare.com" https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/cloudflare.png
 
+omarchy-plugin-enable omarchy.cloudflare
+
 echo ""
 echo "Cloudflare has been set up."
