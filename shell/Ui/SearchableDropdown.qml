@@ -131,7 +131,7 @@ Item {
       Accessible.name: root.accessibleName
       Accessible.description: root.currentLabel() || root.triggerLabel
       Accessible.focusable: true
-      Accessible.onPressAction: root.toggle()
+      Accessible.onPressAction: if (root.enabled) root.toggle()
 
       HoverHandler {
         id: triggerHover
