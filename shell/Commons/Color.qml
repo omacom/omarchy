@@ -49,15 +49,9 @@ QtObject {
   }
 
   function flatColor(value, fallback) {
-    var seen = Object.create(null)
     var token = firstColorToken(value)
     var role = String(token || "").replace(/^\s+|\s+$/g, "").toLowerCase()
-    while (root.shellValues[role] && root.shellValues[role] !== token) {
-      if (seen[role]) return fallback
-      seen[role] = true
-      token = firstColorToken(root.shellValues[role])
-      role = String(token || "").replace(/^\s+|\s+$/g, "").toLowerCase()
-    }
+    if (root.shellValues[role] && root.shellValues[role] !== token) return flatColor(root.shellValues[role], fallback)
     if (role === "foreground" || role === "text") return root.foreground
     if (role === "accent") return root.accent
     if (role === "urgent") return root.urgent
