@@ -7,28 +7,143 @@ default_browser=$(env -u BROWSER xdg-settings get default-web-browser)
 if [[ -z $default_browser ]]; then
   default_browser=$(xdg-mime query default x-scheme-handler/https)
 fi
-browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$default_browser 2>/dev/null | head -1)
 
-if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+# Parse a .desktop Exec= line into tokens, honouring the desktop-entry quoting
+# rules, so a wrapped launcher (env VAR=val app, flatpak run App, python
+# script.py) keeps its full command line instead of collapsing to its first
+# token -- env with no arguments prints the environment and exits silently.
+desktop_exec_tokens() {
+  local line="$1"
+  local token="" ch=""
+  local quoted=false
+  local i
+
+  exec_tokens=()
+
+  for (( i = 0; i < ${#line}; i++ )); do
+    ch="${line:i:1}"
+
+    if [[ $quoted == true ]]; then
+      if [[ $ch == '"' ]]; then
+        quoted=false
+      elif [[ $ch == '\' ]]; then
+        if (( i + 1 < ${#line} )); then
+          token+="${line:i+1:1}"
+          (( i++ ))
+        else
+          token+="$ch"
+        fi
+      else
+        token+="$ch"
+      fi
+      continue
+    fi
+
+    case "$ch" in
+      '"')
+        quoted=true
+        ;;
+      '\')
+        if (( i + 1 < ${#line} )); then
+          token+="${line:i+1:1}"
+          (( i++ ))
+        else
+          token+="$ch"
+        fi
+        ;;
+      ' ' | $'\t')
+        if [[ -n $token ]]; then
+          exec_tokens+=("$token")
+          token=""
+        fi
+        ;;
+      *)
+        token+="$ch"
+        ;;
+    esac
+  done
+
+  [[ -n $token ]] && exec_tokens+=("$token")
+}
+
+browser_file=""
+for candidate in "$HOME/.local/share/applications" "$HOME/.nix-profile/share/applications" /usr/share/applications; do
+  if [[ -f $candidate/$default_browser ]]; then
+    browser_file="$candidate/$default_browser"
+    break
+  fi
+done
+
+if [[ -z $browser_file ]]; then
+  echo "omarchy-launch-browser: no desktop entry for $default_browser" >&2
+  exit 1
+fi
+
+exec_line=$(sed -n 's/^Exec=//p' "$browser_file" | head -1)
+desktop_exec_tokens "$exec_line"
+
+# Split the arguments: the first non-"--private" one is the URL, a later
+# --private becomes the browser's private-window flag, everything else passes
+# through untouched.
+url=""
+url_pending=true
+passthrough_args=()
+
+for argument in "$@"; do
+  if [[ $argument == "--private" ]]; then
+    passthrough_args+=("--private")
+  elif [[ $url_pending == true ]]; then
+    url=$argument
+    url_pending=false
+  else
+    passthrough_args+=("$argument")
+  fi
+done
+
+# Substitute field codes: %u/%U/%f/%F take a URL, %i/%c/%k expand to details
+# we do not replicate. Without a matching code, the URL goes on the end.
+final_tokens=()
+url_placed=false
+
+for token in "${exec_tokens[@]}"; do
+  case "$token" in
+    %u | %U | %f | %F)
+      if [[ -n $url && $url_placed == false ]]; then
+        final_tokens+=("$url")
+        url_placed=true
+      fi
+      ;;
+    %i | %c | %k) ;;
+    *) final_tokens+=("$token") ;;
+  esac
+done
+
+if [[ -n $url && $url_placed == false ]]; then
+  final_tokens+=("$url")
+fi
+
+# Detect the private-window flag from the real browser binary.
+if "${final_tokens[0]}" --help 2>/dev/null | grep -q MOZ_LOG; then
   private_flag="--private-window"
-elif [[ $browser_exec =~ edge ]]; then
+elif [[ " ${final_tokens[*]} " == *edge* ]]; then
   private_flag="--inprivate"
 else
   private_flag="--incognito"
 fi
 
-systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-  --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
-
-url=""
-for argument in "$@"; do
-  if [[ $argument != "--private" ]]; then
-    url=$argument
-    break
+final_args=()
+for argument in "${passthrough_args[@]}"; do
+  if [[ $argument == "--private" ]]; then
+    final_args+=("$private_flag")
+  else
+    final_args+=("$argument")
   fi
 done
 
+systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+  --property=StandardOutput=null --property=StandardError=null \
+  uwsm-app -- "${final_tokens[@]}" "${final_args[@]}"
+
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
+  omarchy-hyprland-focus-app "^$(basename "${final_tokens[0]}" -stable).*$" || true
 fi
