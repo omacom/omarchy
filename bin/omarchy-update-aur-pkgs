@@ -7,18 +7,71 @@ if pacman -Qem >/dev/null; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"
     # AUR source builds (e.g. libsignal-client) can saturate the CPU for
     # minutes at default priority. Run them at lowered scheduling and I/O
-    # priority — costless when the machine is idle — and cap build
-    # parallelism at half the cores. Override with OMARCHY_AUR_BUILD_JOBS.
+    # priority — costless when the machine is idle — and give cooperating
+    # build tools a default job count of half the cores. The count travels
+    # through the usual variables (MAKEFLAGS, CARGO_BUILD_JOBS,
+    # CMAKE_BUILD_PARALLEL_LEVEL) as a default for tools that honor them;
+    # it caps nothing by itself. Override with OMARCHY_AUR_BUILD_JOBS.
     build_jobs="${OMARCHY_AUR_BUILD_JOBS:-}"
     if [[ -z "${build_jobs}" ]]; then
       build_jobs=$(( $(nproc) / 2 ))
       (( build_jobs < 1 )) && build_jobs=1
     fi
+
+    # makepkg sources its configuration after the environment, and a
+    # MAKEFLAGS set there silently replaces the one passed here, so the
+    # environment alone cannot enforce the cap. Hand makepkg a merged config
+    # that mirrors the configuration it would load itself — system file, its
+    # drop-ins, then the user file — and asserts the selected job count last,
+    # keeping any unrelated flags the configuration set.
+    retained_make_flags=()
+    makepkg_config=""
+    if [[ -r /etc/makepkg.conf ]]; then
+      effective_makeflags="$(bash --noprofile --norc -c '
+        source /etc/makepkg.conf 2>/dev/null || true
+        for conf in /etc/makepkg.conf.d/*.conf; do
+          [[ -r $conf ]] && source "$conf" 2>/dev/null || true
+        done
+        user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/pacman/makepkg.conf"
+        if [[ -r $user_conf ]]; then
+          source "$user_conf"
+        elif [[ -r $HOME/.makepkg.conf ]]; then
+          source "$HOME/.makepkg.conf"
+        fi
+        printf "%s" "${MAKEFLAGS-}"
+      ')"
+      set -f
+      for flag in ${effective_makeflags}; do
+        [[ $flag =~ ^-j[0-9]*$ ]] && continue
+        retained_make_flags+=("$flag")
+      done
+      set +f
+      make_flags="-j${build_jobs}"
+      (( ${#retained_make_flags[@]} > 0 )) && make_flags+=" ${retained_make_flags[*]}"
+
+      makepkg_config="$(mktemp)"
+      trap 'rm -f "$makepkg_config"' EXIT
+      {
+        cat /etc/makepkg.conf
+        for conf in /etc/makepkg.conf.d/*.conf; do
+          [[ -f $conf ]] && cat "$conf"
+        done
+        user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/pacman/makepkg.conf"
+        if [[ -r "$user_conf" ]]; then
+          cat "$user_conf"
+        elif [[ -r "$HOME/.makepkg.conf" ]]; then
+          cat "$HOME/.makepkg.conf"
+        fi
+        printf 'MAKEFLAGS=%s\n' "${make_flags@Q}"
+      } >"$makepkg_config"
+    fi
+
     nice -n 15 ionice -c 2 -n 7 \
       env CARGO_BUILD_JOBS="${build_jobs}" \
           MAKEFLAGS="-j${build_jobs}" \
           CMAKE_BUILD_PARALLEL_LEVEL="${build_jobs}" \
-      yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs
+      yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs \
+          ${makepkg_config:+--makepkgconf "$makepkg_config"}
     echo
   else
     echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
