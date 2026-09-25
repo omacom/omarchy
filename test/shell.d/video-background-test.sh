@@ -358,13 +358,13 @@ chmod +x "$test_tmp/bin/owe"
 
 HOME="$intro_home" PATH="$test_tmp/bin:$PATH" INTRO_CALLS="$intro_calls" OMARCHY_BOOT_ID=video-test-boot \
   "$ROOT/bin/omarchy-theme-bg-boot-intro"
-expected_intro_calls=$(printf 'intro-prepare %s\nintro-commit' "$intro_state/theme/intros/0-winding-road.mp4")
+expected_intro_calls=$(printf 'intro %s' "$intro_state/theme/intros/0-winding-road.mp4")
 [[ $(<"$intro_calls") == "$expected_intro_calls" ]] || \
   fail "boot intro starts the exact selected background pairing" "$(<"$intro_calls")"
 
 HOME="$intro_home" PATH="$test_tmp/bin:$PATH" INTRO_CALLS="$intro_calls" OMARCHY_BOOT_ID=video-test-boot \
   "$ROOT/bin/omarchy-theme-bg-boot-intro"
-[[ $(wc -l <"$intro_calls") == 2 ]] || fail "boot intro runs once for a boot id" "$(<"$intro_calls")"
+[[ $(wc -l <"$intro_calls") == 1 ]] || fail "boot intro runs once for a boot id" "$(<"$intro_calls")"
 
 pass "boot intro starts the selected still pairing once per boot"
 

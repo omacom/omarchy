@@ -131,15 +131,17 @@ if [[ -z $intro ]]; then
   exit 0
 fi
 
-# OWE retries its daemon connection during session startup and returns only
-# after the daemon accepts this intro. Do not consume the boot on a failed
-# handoff, so a bounded shell retry can try again.
-if owe intro-prepare "$intro"; then
-  consume_boot
-  if ! owe intro-commit; then
-    owe intro-stop >/dev/null 2>&1 || true
-    exit 1
+# Consume the boot before playback so a shell restart mid-intro cannot replay
+# it. `owe intro` blocks until the intro ends and fails both when OWE rejects it
+# and when something interrupts it. OWE leaves intro_result empty until it has
+# accepted an intro, so only a never-started intro releases the boot for the
+# shell's bounded retry.
+consume_boot
+if ! owe intro "$intro"; then
+  intro_result=$(owe status 2>/dev/null | jq -r '.intro_result // empty' 2>/dev/null || true)
+  if [[ -z $intro_result ]]; then
+    rm -f "$marker"
+    exit 2
   fi
-else
-  exit 2
+  exit 1
 fi

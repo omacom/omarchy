@@ -6,7 +6,7 @@ You can do this most easily by going to _Install > Style > Background_ in the Om
 
 Backgrounds can be videos as well as stills. Drop an `mp4`, `m4v`, `mov`, `webm`, `mkv`, or `avi` file in the same folder and it appears alongside the images. Videos are played by the OWE wallpaper engine. It decodes the video once for all monitors and plays its sound through the default audio output, and it stops playback whenever nothing can see it. The lock screen draws the same decode, muted, through OWE. A video wallpaper still costs far more power than a still one.
 
-A still background can have a short boot intro that plays once per system boot and ends on the already-loaded image. OWE blends the wallpaper into the intro and blends the final frame back into the wallpaper. Use _Style > Boot Intro > Set Intro_ to choose a video for the current background. Omarchy stores it separately from regular backgrounds, so it stays out of the background picker and never loops.
+A still background can have a short boot intro that plays once per system boot and ends on the already-loaded image. Use _Style > Boot Intro > Set Intro_ to choose a video for the current background. Omarchy stores it separately from regular backgrounds, so it stays out of the background picker and never loops.
 
 Boot intros are bound to the exact contents of a background rather than only its filename. Replacing an image with a different one under the same name therefore cannot play a mismatched intro. _Remove Intro_ removes your intro and suppresses any default supplied by the theme; _Restore Default_ allows the theme's intro again. Use the _Enabled_ switch to turn all boot intros on or off.
 

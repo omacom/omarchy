@@ -117,7 +117,6 @@ remove_intro() {
   mv -f "$staged_disabled" "$intro_dir/$background_stem.disabled"
   trap - EXIT
 
-  owe intro-stop >/dev/null 2>&1 || true
   notify "Removed from $(omarchy-theme-bg-current)"
 }
 
@@ -137,7 +136,6 @@ enable_intros() {
 disable_intros() {
   mkdir -p "$(dirname "$toggle")"
   touch "$toggle"
-  owe intro-stop >/dev/null 2>&1 || true
   notify "Disabled"
 }
 

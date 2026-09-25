@@ -50,9 +50,18 @@ mkdir -p "$command_bin"
 cat >"$command_bin/owe" <<'SH'
 #!/bin/bash
 printf 'owe: %s\n' "$*" >>"$COMMAND_LOG"
-if [[ ${OWE_FAIL:-0} == 1 && ${1:-} == "intro-prepare" ]]; then
-  exit 2
-fi
+case ${1:-} in
+  intro)
+    [[ ${OWE_FAIL:-} == "" ]] || exit 1
+    ;;
+  status)
+    if [[ ${OWE_FAIL:-} == "interrupted" ]]; then
+      printf '{"status":"ok","intro":false,"intro_result":"error"}\n'
+    else
+      printf '{"status":"ok","intro":false,"intro_result":""}\n'
+    fi
+    ;;
+esac
 SH
 chmod +x "$command_bin/owe"
 
@@ -65,7 +74,7 @@ resolved=$(PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_
 [[ -z $resolved ]] || fail "enabling midway through a boot does not start a delayed intro" "$resolved"
 
 rm "$marker"
-if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=1 OMARCHY_BOOT_ID=retry-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
+if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=rejected OMARCHY_BOOT_ID=retry-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
   fail "a rejected OWE handoff reports a retryable failure"
 else
   status=$?
@@ -76,6 +85,15 @@ PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" CO
 [[ $(<"$marker") == "retry-boot" ]] || fail "an accepted OWE handoff consumes the boot"
 
 rm "$marker"
+if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OWE_FAIL=interrupted OMARCHY_BOOT_ID=interrupted-boot "$ROOT/bin/omarchy-theme-bg-boot-intro"; then
+  fail "an interrupted intro reports a failure"
+else
+  status=$?
+  (( status == 1 )) || fail "an interrupted intro does not request a retry" "$status"
+fi
+[[ $(<"$marker") == "interrupted-boot" ]] || fail "an intro interrupted after OWE accepted it still consumes the boot"
+
+rm "$marker"
 : >"$command_log"
 for index in {1..32}; do
   PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" OMARCHY_BOOT_ID=concurrent-boot "$ROOT/bin/omarchy-theme-bg-boot-intro" >"$test_tmp/output.$index" &
@@ -84,12 +102,10 @@ done
 for intro_pid in "${intro_pids[@]}"; do
   wait "$intro_pid"
 done
-intro_count=$(grep -c '^owe: intro-prepare ' "$command_log")
+intro_count=$(grep -c '^owe: intro ' "$command_log")
 (( intro_count == 1 )) || fail "concurrent launchers start exactly one intro" "$intro_count"
-commit_count=$(grep -c '^owe: intro-commit$' "$command_log")
-(( commit_count == 1 )) || fail "the accepted intro is revealed after its boot marker is committed" "$commit_count"
 
-pass "boot intros require an exact still and consume the boot only after OWE accepts them"
+pass "boot intros require an exact still and release the boot only when OWE never started them"
 
 ln -s "$ROOT/bin/omarchy-theme-bg-boot-intro" "$command_bin/omarchy-theme-bg-boot-intro"
 
@@ -143,7 +159,6 @@ if PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime"
 fi
 PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-intro" enable
 PATH="$command_bin:$PATH" HOME="$intro_home" XDG_RUNTIME_DIR="$intro_runtime" COMMAND_LOG="$command_log" "$ROOT/bin/omarchy-theme-bg-intro" status || fail "enabled boot intros report an enabled status"
-grep -q '^owe: intro-stop$' "$command_log" || fail "removing or disabling an intro stops OWE playback directly"
 
 pass "users can set, remove, restore, enable, and disable boot intros"
 
