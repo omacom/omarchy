@@ -30,7 +30,7 @@ It gets a panel in the bar, a web app for the admin console, and Taildrop for se
 
 ## Cloudflare
 
-[Cloudflare](https://www.cloudflare.com/) runs a huge part of the internet, and its developer platform hosts sites, apps, and storage at the edge. Omarchy ships with `cf`, the Cloudflare CLI, for managing all of it from the terminal. Select _Install > Service > Cloudflare_ from the Omarchy menu to sign it in to your account, which also adds a web app for the Cloudflare dashboard.
+[Cloudflare](https://www.cloudflare.com/) runs a huge part of the internet, and its developer platform hosts sites, apps, and storage at the edge. Omarchy ships with `cf`, the Cloudflare CLI, for managing all of it from the terminal. Select _Install > Service > Cloudflare_ from the Omarchy menu to sign it in to your account, which also adds a web app for the Cloudflare dashboard and a panel in the bar for your Workers and domains — see [the top bar](05-the-top-bar.md).
 
 ## ONCE
 
