@@ -3,45 +3,71 @@
 # omarchy:summary=Unblock and restart the bluetooth service.
 # omarchy:requires-sudo=true
 
-# bluetoothd claims its D-Bus name a moment after the service comes back, and a
-# controller that has to upload firmware takes longer still, so poll for the
-# controller instead of sleeping a flat interval.
-wait_for_controller() {
-  local deadline="$1"
-  local waited=0
+# bluetoothctl waits indefinitely for bluetoothd, so every probe needs its own
+# guard. Keep it short: once the daemon is up the answer is immediate, and the
+# guard only has to cover a daemon that went away between the checks.
+controller_present() {
+  timeout 2s bluetoothctl list 2>/dev/null | grep -q '^Controller '
+}
 
-  while (( waited < deadline )); do
+# Budget elapsed seconds rather than polls. A poll that spends its whole guard
+# is exactly the case worth bounding, and counting iterations would stretch a
+# five second window into half a minute.
+wait_for_controller() {
+  local deadline=$(( SECONDS + $1 ))
+
+  while (( SECONDS < deadline )); do
     controller_present && return 0
     sleep 1
-    (( waited++ ))
   done
 
   return 1
 }
 
-controller_present() {
-  timeout 5s bluetoothctl list 2>/dev/null | grep -q '^Controller '
-}
+# Seconds to wait for a controller after the restart, and again after a btusb
+# reload, which has a firmware upload to get through. Overridable so the shell
+# tests can drive the escalation without spending the real budget.
+restart_wait="${OMARCHY_BLUETOOTH_RESTART_WAIT:-5}"
+reload_wait="${OMARCHY_BLUETOOTH_RELOAD_WAIT:-15}"
 
 echo -e "Unblocking bluetooth...\n"
 rfkill unblock bluetooth
 rfkill list bluetooth
 
+# Unconditional: a daemon that lost sync with D-Bus adapter state still lists
+# its controller, so there is no reliable way to tell that case from a healthy
+# one first. The restart is what the summary has always promised.
 echo -e "\nRestarting bluetooth service...\n"
-sudo systemctl restart bluetooth.service
 
-# An adapter whose firmware handshake timed out leaves an hci device that BlueZ
-# will not adopt, and restarting the daemon cannot clear that. Reloading the USB
-# driver re-runs the upload, which is the only in-session way back.
-if ! wait_for_controller 5 && lsmod | grep -q '^btusb'; then
+if ! sudo systemctl restart bluetooth.service; then
+  echo "Could not restart bluetooth.service. Bluetooth is unblocked; nothing else was changed." >&2
+  exit 1
+fi
+
+# The unit carries ConditionPathIsDirectory=/sys/class/bluetooth, so a machine
+# with no Bluetooth stack passes the restart above without ever starting
+# bluetoothd. Waiting for a controller would then burn the whole budget on a
+# daemon that was never meant to run, and reloading btusb cannot help either.
+if ! systemctl is-active --quiet bluetooth.service; then
+  echo "bluetooth.service is not running. Check 'systemctl status bluetooth.service'." >&2
+  exit 1
+fi
+
+# An adapter whose firmware handshake timed out stays in HCI_SETUP and is hidden
+# from bluetoothd, and restarting the daemon cannot clear that. Reloading the USB
+# driver re-runs the upload, which is the only way back without a reboot.
+if ! wait_for_controller "$restart_wait" && lsmod | grep -q '^btusb'; then
   echo -e "\nNo controller yet. Reloading btusb...\n"
 
-  # Separate calls rather than a && chain: an unload that fails because the
-  # module is busy must not skip the load that puts it back.
-  sudo modprobe -r btusb
-  sudo modprobe btusb
+  # A failed unload leaves btusb loaded, so there is nothing to put back. Say so
+  # instead of reloading a driver that never came out.
+  if sudo modprobe -r btusb; then
+    sudo modprobe btusb || echo "Could not load btusb back after unloading it." >&2
+  else
+    echo "Could not unload btusb; the driver is still in use." >&2
+  fi
 
-  wait_for_controller 15
+  wait_for_controller "$reload_wait"
 fi
 
 echo -e "\nBluetooth status:\n"
@@ -50,6 +76,6 @@ if controller_present; then
   bluetoothctl list
 else
   echo "No Bluetooth controller is available."
-  echo "Check 'journalctl -b -u bluetooth' for firmware errors, and confirm the adapter still appears in 'lsusb'."
+  echo "Check 'journalctl -b -k' for adapter firmware errors; bluetoothd's own log is 'journalctl -b -u bluetooth'."
   exit 1
 fi
