@@ -45,6 +45,17 @@ Saving a file anywhere under `~/.config/omarchy/plugins/` reloads plugin code
 automatically. If a change somehow fails to apply, force a reload with
 `omarchy-shell shell rescanPlugins`.
 
+## Installing a New Plugin
+
+For a plugin that isn't built-in and isn't published in git, write its
+folder with `manifest.json` into `~/.config/omarchy/plugins/<id>/`,
+validate it with `omarchy plugin validate <folder>`, rescan with
+`omarchy-shell shell rescanPlugins`, then enable it with
+`omarchy plugin enable <id> [placement]`.
+
+For a plugin published in git, use `omarchy plugin add <git-url> --enable`
+instead; it clones, validates, and enables it in one step.
+
 ## Idle and Lock
 
 Set `idle.screensaver` and `idle.lock` in `~/.config/omarchy/shell.json`,
