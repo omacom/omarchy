@@ -12,7 +12,7 @@ gum style --border normal --padding "1 2" \
 
 echo
 
-if ! gum confirm "Continue with update?"; then
+if ! omarchy-confirm "Continue with update?"; then
   echo "Update cancelled"
   exit 1
 fi
