@@ -10,15 +10,19 @@ confirm_reboot() {
 
 running_kernel=$(uname -r)
 kernel_updated=true
+modules_root="${OMARCHY_MODULES_ROOT:-/usr/lib/modules}"
 
-for kernel in /usr/lib/modules/*/vmlinuz; do
-  if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
-    installed_kernel=$(basename "$(dirname "$kernel")")
+# Kernel packages do not share one image filename across architectures:
+# linux-aarch64 ships /boot/Image rather than /usr/lib/modules/<release>/vmlinuz.
+# The package-owned modules directory is the architecture-neutral identity.
+for modules_dir in "$modules_root"/*/; do
+  [[ -d $modules_dir ]] || continue
+  pacman -Qo "$modules_dir" &>/dev/null || continue
+  installed_kernel=$(basename "$modules_dir")
 
-    if [[ $installed_kernel == $running_kernel ]]; then
-      kernel_updated=false
-      break
-    fi
+  if [[ $installed_kernel == "$running_kernel" ]]; then
+    kernel_updated=false
+    break
   fi
 done
 
