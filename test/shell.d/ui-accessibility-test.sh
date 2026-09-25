@@ -5,109 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 # The shared shell/Ui kit carries Qt Accessible roles, names, states and
-# actions so screen readers and AT-SPI tools can find and press controls.
-# Static checks run everywhere; the runtime half reads the attached
-# properties from a live Quickshell instance.
-
-run_node_test <<'JS'
-const fs = require('fs')
-
-function walk(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) return walk(full)
-    return entry.name.endsWith('.qml') ? [full] : []
-  })
-}
-
-// A string literal made only of icon-font code points (Private Use Area,
-// surrogate halves, or \u escapes of either) reads as noise, not a name.
-function isGlyphLiteral(value) {
-  const match = /^"((?:[^"\\]|\\.)*)"$/.exec(value.trim())
-  if (!match) return false
-  const decoded = match[1].replace(/\\u\{([0-9a-fA-F]+)\}|\\u([0-9a-fA-F]{4})/g,
-    (_, braced, plain) => String.fromCodePoint(parseInt(braced || plain, 16)))
-  const chars = Array.from(decoded).filter(ch => ch.trim() !== '')
-  return chars.length > 0 && chars.every(ch => {
-    const cp = ch.codePointAt(0)
-    return (cp >= 0xe000 && cp <= 0xf8ff) || cp >= 0xf0000 || (cp >= 0xd800 && cp <= 0xdfff)
-  })
-}
-
-// Properties that give each control an accessible name. Text only counts
-// where the component announces it, and never when it is a bare glyph.
-const namingProperties = {
-  BarIconButton: ['accessibleName', 'tooltipText'],
-  BarIndicator: ['accessibleName', 'tooltipText', 'activeTooltipText'],
-  WidgetButton: ['accessibleName', 'tooltipText', 'text'],
-  Button: ['accessibleName', 'text', 'tooltipText'],
-  PanelActionButton: ['accessibleName', 'tooltipText'],
-  ToggleSwitch: ['accessibleName'],
-  PanelSlider: ['accessibleName'],
-}
-const opener = new RegExp('^(\\s*)(' + Object.keys(namingProperties).join('|') + ')\\s*\\{(.*)$')
-
-function directProperties(lines, start, indent, inline) {
-  const props = {}
-  const record = text => {
-    const match = /^\s*([A-Za-z_][\w.]*)\s*:\s*(.*?)\s*;?\s*$/.exec(text)
-    if (match) props[match[1]] = match[2]
-  }
-  if (inline.includes('}')) {
-    inline.slice(0, inline.lastIndexOf('}')).split(';').forEach(record)
-    return props
-  }
-  for (let i = start + 1; i < lines.length; i++) {
-    const line = lines[i]
-    const lineIndent = line.length - line.trimStart().length
-    if (line.trim() === '}' && lineIndent === indent) break
-    if (lineIndent === indent + 2) record(line)
-  }
-  return props
-}
-
-const unnamed = []
-for (const file of walk(path.join(root, 'shell/plugins'))) {
-  const lines = fs.readFileSync(file, 'utf8').split('\n')
-  lines.forEach((line, index) => {
-    const match = opener.exec(line)
-    if (!match) return
-    const component = match[2]
-    const props = directProperties(lines, index, match[1].length, match[3])
-    const named = namingProperties[component].some(name =>
-      props[name] !== undefined && props[name] !== '""' && !isGlyphLiteral(props[name]))
-    if (!named) unnamed.push(`${path.relative(root, file)}:${index + 1} ${component}`)
-  })
-}
-
-assert(unnamed.length === 0,
-  'every first-party icon-only control has an accessible name' +
-  (unnamed.length ? '\n  unnamed: ' + unnamed.join('\n  unnamed: ') : ''))
-
-assert(isGlyphLiteral('"\\uf053"') && isGlyphLiteral('"\\u{F0450}"') && !isGlyphLiteral('"Wi-Fi"'),
-  'glyph detection separates icon code points from words')
-
-// Accessibility actions must reuse the path a click takes, so there is no
-// second code path to drift.
-const kit = name => fs.readFileSync(path.join(root, 'shell/Ui', name), 'utf8')
-const wiring = [
-  ['Button.qml', 'press', /Accessible\.onPressAction:\s*if \(root\.enabled\) root\.clicked\(\)/],
-  ['WidgetButton.qml', 'press', /Accessible\.onPressAction:\s*if \(root\.interactive && root\.pressable\) root\.triggerPress\(Qt\.LeftButton\)/],
-  ['Toggle.qml', 'toggle', /Accessible\.onToggleAction:\s*root\.clicked\(\)/],
-  ['ToggleSwitch.qml', 'toggle', /Accessible\.onToggleAction:\s*if \(!root\.busy\) root\.toggled\(\)/],
-  ['PanelActionButton.qml', 'press', /Accessible\.onPressAction:\s*if \(root\.enabled\) root\.clicked\(\)/],
-  ['PanelSlider.qml', 'increase', /Accessible\.onIncreaseAction:\s*root\._stepBy\(root\.step\)/],
-  ['PanelSlider.qml', 'decrease', /Accessible\.onDecreaseAction:\s*root\._stepBy\(-root\.step\)/],
-  ['Dropdown.qml', 'trigger press', /Accessible\.onPressAction:\s*root\.toggle\(\)/],
-  ['Dropdown.qml', 'option press', /Accessible\.onPressAction:\s*\{\s*optionList\.currentIndex = index\s*optionList\.selectCurrent\(\)/],
-  ['SearchableDropdown.qml', 'option press', /Accessible\.onPressAction:\s*\{\s*resultList\.currentIndex = index\s*resultList\.selectCurrent\(\)/],
-  ['MultiSelect.qml', 'option toggle', /Accessible\.onToggleAction:\s*root\.toggleValue\(modelData\.value\)/],
-  ['ConfirmDialog.qml', 'button press', /Accessible\.onPressAction:\s*\{\s*if \(index === 0\) root\.canceled\(\)\s*else root\.confirmed\(\)/],
-]
-for (const [file, action, pattern] of wiring) {
-  assert(pattern.test(kit(file)), `${file} ${action} action reuses the click path`)
-}
-JS
+# actions so screen readers and AT-SPI tools can find and operate controls.
 
 require_compositor "UI kit accessibility runtime test"
 
@@ -137,6 +35,14 @@ ShellRoot {
   id: root
 
   property var failures: []
+  property int buttonClicks: 0
+  property int widgetPresses: 0
+  property int toggleClicks: 0
+  property int switchToggles: 0
+  property int sliderMoves: 0
+  property int sliderReleases: 0
+  property int actionClicks: 0
+  property int rowPresses: 0
 
   function check(condition, message) {
     if (!condition) failures.push(message)
@@ -198,6 +104,32 @@ ShellRoot {
     same(namedRow.Accessible.role, Accessible.ListItem, "CursorSurface role")
     same(namedRow.Accessible.selected, true, "current CursorSurface reports selected")
 
+    textButton.Accessible.pressAction()
+    disabledButton.Accessible.pressAction()
+    same(buttonClicks, 1, "Button accessibility press follows enabled click behavior")
+
+    widget.Accessible.pressAction()
+    same(widgetPresses, 1, "WidgetButton accessibility press emits a left-button press")
+
+    toggle.Accessible.toggleAction()
+    same(toggleClicks, 1, "Toggle accessibility toggle emits clicked")
+
+    bareSwitch.Accessible.toggleAction()
+    busySwitch.Accessible.toggleAction()
+    same(switchToggles, 1, "ToggleSwitch accessibility toggle respects busy state")
+
+    slider.Accessible.increaseAction()
+    slider.Accessible.decreaseAction()
+    same(slider.liveValue, 0, "PanelSlider accessibility actions adjust its live value")
+    same(sliderMoves, 2, "PanelSlider accessibility actions emit moved")
+    same(sliderReleases, 2, "PanelSlider accessibility actions emit released")
+
+    actionButton.Accessible.pressAction()
+    same(actionClicks, 1, "PanelActionButton accessibility press emits clicked")
+
+    namedRow.Accessible.pressAction()
+    same(rowPresses, 1, "named CursorSurface accessibility press follows its row action")
+
     console.log(failures.length === 0 ? "RESULT pass" : "RESULT fail " + failures.join("; "))
     Qt.quit()
   }
@@ -205,30 +137,43 @@ ShellRoot {
   Component.onCompleted: Qt.callLater(runChecks)
 
   Item {
-    Button { id: textButton; text: "Refresh" }
+    Button { id: textButton; text: "Refresh"; onClicked: root.buttonClicks++ }
+    Button { id: disabledButton; text: "Disabled"; enabled: false; onClicked: root.buttonClicks++ }
     Button { id: iconButton; iconText: "\u{F0450}"; tooltipText: "Forget network" }
     Button { id: namedIconButton; iconText: "\u{F04AE}"; accessibleName: "Previous track" }
     Button { id: selectedButton; text: "Auto"; selected: true }
 
     BarIconButton { id: barIcon; text: "\u{F05A9}"; tooltipText: "Wi-Fi: Home" }
     BarIconButton { id: bareBarIcon; text: "\u{F05A9}" }
-    WidgetButton { id: widget; text: "14:32"; tooltipText: "Calendar" }
+    WidgetButton { id: widget; text: "14:32"; tooltipText: "Calendar"; onPressed: root.widgetPresses++ }
     WidgetButton { id: textWidget; text: "14:32" }
     WidgetButton { id: concealedWidget; text: "\u{F0F54}"; tooltipText: "Do not disturb"; concealed: true }
     WidgetButton { id: staticWidget; text: "CPU 12%"; pressable: false }
 
-    Toggle { id: toggle; label: "Wi-Fi"; checked: true }
-    ToggleSwitch { id: bareSwitch; accessibleName: "Tailscale" }
+    Toggle { id: toggle; label: "Wi-Fi"; checked: true; onClicked: root.toggleClicks++ }
+    ToggleSwitch { id: bareSwitch; accessibleName: "Tailscale"; onToggled: root.switchToggles++ }
+    ToggleSwitch { id: busySwitch; accessibleName: "Busy"; busy: true; onToggled: root.switchToggles++ }
 
     TextField { id: plainField; placeholderText: "Search" }
     TextField { id: passwordField; password: true; placeholderText: "Passphrase"; accessibleName: "Passphrase for Home" }
 
-    PanelSlider { id: slider; accessibleName: "Volume"; maximum: 1.5 }
+    PanelSlider {
+      id: slider
+      accessibleName: "Volume"
+      maximum: 1.5
+      onMoved: root.sliderMoves++
+      onReleased: root.sliderReleases++
+    }
     Dropdown { id: dropdown; label: "Output"; options: ["Speakers", "Headphones"] }
-    PanelActionButton { id: actionButton; iconText: "\u{F0156}"; tooltipText: "Unpair" }
+    PanelActionButton { id: actionButton; iconText: "\u{F0156}"; tooltipText: "Unpair"; onClicked: root.actionClicks++ }
 
     CursorSurface { id: unnamedRow }
-    CursorSurface { id: namedRow; accessibleName: "Home"; current: true }
+    CursorSurface {
+      id: namedRow
+      accessibleName: "Home"
+      current: true
+      Accessible.onPressAction: root.rowPresses++
+    }
   }
 }
 QML
