@@ -20,7 +20,17 @@ wait).
   "author": "You",
   "description": "A clock that does cool things",
   "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "Widget.qml" }
+  "entryPoints": { "barWidget": "Widget.qml" },
+  "barWidget": {
+    "displayName": "Cool clock",
+    "category": "Time",
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "defaults": { "format": "HH:mm" },
+    "schema": [
+      { "key": "format", "type": "string", "label": "Format" }
+    ]
+  }
 }
 ```
 
@@ -37,14 +47,14 @@ wait).
 
 Only one full bar option is active at a time. The built-in `omarchy.bar` is
 used when `bar.id` is omitted or when a selected third-party bar cannot load.
-Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). First-party services are loaded at startup.
+Panels, overlays, and menus are loaded when summoned. Plugins can set the top-level manifest key `keepLoaded: true` to survive between summons, and to keep a service mounted across plugin hot-reload (so `omarchy.lock` is not destroyed while Hyprland still holds the session lock). The kept service instance is not replaced, so changes to its code take effect on a shell restart. First-party services are loaded at startup.
 
 Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open(payloadJson)` and `close()` for summon/hide; on load the host injects `omarchyPath`, `shell`, `manifest`, and the registries (`pluginRegistry` / `barWidgetRegistry`) as properties. Built-in plugins receive the trusted host objects. Third-party plugins receive capability-scoped facades instead: ordinary plugins may look up and control only their own service and lifecycle, built-in clones retain narrow source-specific configuration and UI compatibility, menu plugins receive an application-library facade, and plugins can read detached scalar bar state. A full-bar plugin additionally receives detached bar configuration and widget-catalog snapshots, narrow proxies for the non-authentication services used by built-in bar widgets, and lifecycle control over configured non-authentication UI plugins. Authentication capabilities are stamped from trusted first-party manifests, authentication services are kept out of the host's public service map and QML object tree, and third-party registry/configuration snapshots can be changed only locally without mutating host state. The facades are API boundaries, not same-process QML sandboxes: a visual widget shares the host bar's scene and can walk its parent hierarchy to ordinary host objects. Sensitive state must not rely on the facade alone for isolation.
 
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
 
 Shell-loading schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
-The CLI also validates optional [pre-removal cleanup metadata](../shell/README.md#pre-removal-cleanup).
+The CLI also validates optional [pre-removal cleanup metadata](#pre-removal-cleanup).
 
 ## Installing a third-party plugin
 
@@ -81,8 +91,6 @@ widgets that omit it default to `center`.
 
 Plugins run as **unsandboxed code** inside `omarchy-shell`. Adding warns you before cloning, plugins land disabled so you can review the code before `omarchy plugin enable`, and updates show a diff before touching anything. Commands confirm in a terminal even when given arguments; without one they refuse rather than guess. Add `--yes` to skip ordinary confirmation prompts; removal hooks need separate execution authorization (see below). The scoped interfaces remove direct access to authentication services and avoid handing generic cross-plugin service factories to replacement bars, but visual plugins can still traverse ordinary objects in their shared QML scene. Plugin code also has the same user-level file and process access as the shell.
 
-Plugins may declare `hooks.preRemove` to clean up owned state outside their checkout. Removal asks separately for permission to run the current executable, then runs it before disabling the plugin or deleting, unlinking, or backing up the checkout. Scripts must explicitly pass `--yes --run-pre-remove`; `--yes` alone does not authorize plugin code, including for never-enabled plugins. Changes to the resolved checkout identity, manifest contents, or hook identity or contents abort removal. Cleanup runs in a transient systemd user service with a 60-second deadline and 5-second stop grace period. Failure or timeout retains the checkout for recovery. See the [pre-removal contract](../shell/README.md#pre-removal-cleanup) for execution limits and retry responsibilities.
-
 You can still install by hand: drop a plugin into
 `~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then
 `omarchy plugin enable <id>`. A bar widget starts in its declared default
@@ -90,6 +98,38 @@ section; enabling a full bar replaces the one in use. `omarchy bar` drives the
 bar from the CLI — `use | reset | defaults | position | transparent | put |
 move | set`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
+
+### Pre-removal cleanup
+
+A plugin that owns registrations or other state outside its checkout can declare one optional executable in `manifest.json`:
+
+```json
+{
+  "hooks": {
+    "preRemove": "bin/cleanup"
+  }
+}
+```
+
+The path must name an executable regular file within the checkout. Absolute paths, `..`, control characters, and symlinks in the hook path are rejected. The installed plugin directory itself may be a symlink to a development checkout. `omarchy plugin validate <folder>` checks the declaration and file without executing plugin code. Removal records the checkout identity, manifest contents, and hook identity and contents before prompting, then checks them again before execution. A change aborts removal, including an added or removed hook.
+
+After confirmation, `omarchy plugin remove` runs the hook **before disabling the plugin or deleting, unlinking, or moving its checkout**. It also runs for disabled plugins, including plugins that have never been enabled. The terminal asks separately for permission to execute cleanup code. `--yes` skips the ordinary removal confirmation, but does not authorize code execution. After reviewing the current hook, scripts can authorize both steps explicitly:
+
+```bash
+omarchy plugin remove <plugin-id> --yes --run-pre-remove
+```
+
+Declining either confirmation leaves the checkout in place without running cleanup. With no declaration, removal behaves as before and needs no execution authorization or systemd user manager.
+
+The executable runs directly, respecting its shebang, with the physical checkout as its working directory, no arguments, the caller's environment and privileges, and standard input connected to `/dev/null`. Omarchy does not invoke `sudo`. Cleanup must be noninteractive. A transient systemd user service supervises the hook and its inherited cgroup, waiting for remaining processes even if the hook leader exits. After 60 seconds, it sends TERM to the group, followed by KILL after a 5-second stop grace period. Running a hook requires a reachable systemd user manager; validation does not.
+
+An invalid declaration, changed snapshot, failure to start, nonzero exit, or timeout aborts removal before the CLI disables the plugin or removes the checkout. Inspect any partial cleanup effects, correct the cause, and retry. Cleanup must be safely retryable: failure does not roll back completed effects. An entirely absent manifest remains removable for recovery of old or broken installations; a present but malformed manifest blocks removal.
+
+Hooks run as **unsandboxed plugin code**, even if the plugin was never enabled. Review the current executable before authorizing it. Path and snapshot checks detect intervening changes, but are not atomic protection against hostile concurrent edits. Process supervision is not a sandbox: hooks must not move cleanup into other services or otherwise escape the supervised cgroup. Hooks must clean up only state they own, wait for their cleanup work to finish, and return zero only when cleanup is complete. If a hook cannot be trusted or repaired, retain the checkout and recover manually; moving it can break external registrations that still point into it.
+
+## Elsewhen
+
+Elsewhen (`omacom.elsewhen`) ships in the `elsewhen` package at `/usr/share/omarchy/shell/plugins/omacom.elsewhen`, where the shell discovers it automatically. New installs place it immediately before the clock; the migration uses `omarchy bar put omacom.elsewhen --before omarchy.clock`, which preserves an existing placement and uses Elsewhen's normal right-side placement if the clock is absent. Existing plugin directories and symlinks are left intact. The normal update flow restarts the shell after migrations; the migration does not interrupt plugin loading with an immediate restart. With no shell to ask, as in an update from a TTY, the migration installs the package and skips the placement rather than failing the update; `omarchy bar put omacom.elsewhen --before omarchy.clock` places the widget later.
 
 ## IPC
 
