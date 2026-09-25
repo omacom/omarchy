@@ -6,73 +6,173 @@
 # -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
 set -euo pipefail
 
-ensure_hermes_stopped() {
-  python3 - "$HOME" <<'PY'
-import os
-from pathlib import Path
-import sys
+unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
-home = Path(sys.argv[1])
+# Only systemd's own word counts as "stopped": a non-zero exit from is-active
+# also covers an unreachable user manager, which says nothing about whether
+# the process is alive.
+unit_stopped() {
+  local state
+  state=$(systemctl --user is-active "$1" 2>/dev/null) || true
+  [[ $state == "inactive" || $state == "failed" ]]
+}
+
+# Hermes is closed here rather than asked to be: the agent in its terminal,
+# the desktop app and its helpers, a gateway run by hand -- every process
+# whose program, by its executable or by what it was started as, lives in the
+# runtime about to be deleted or in the package; for an interpreter that is
+# the script it runs, or Hermes's own package named with -m, so a gateway
+# started by hand as `python .../hermes` or `python -m hermes_cli.main` is
+# found too. Judged by the program alone, never by a later argument: an
+# editor opened on a file in the runtime is the user's. `check` refuses first if anything else has Hermes's files open, by
+# its executable, its working directory or a descriptor, that editor or a
+# shell sitting in ~/.hermes, so a refusal touches nothing; that
+# one is the user's to close, because removing an open SQLite WAL leaves a
+# live writer on a deleted generation. `stop` then ends Hermes's own and
+# refuses again over whatever is left.
+hermes_holders() {
+  python3 - "$1" "$HOME" <<'PY'
+import os
+import re
+import signal
+import sys
+import time
+from pathlib import Path
+
+mode, home = sys.argv[1], Path(sys.argv[2])
 roots = [str((home / relative).resolve()) for relative in ('.hermes', '.config/Hermes')]
 roots.append('/opt/hermes-desktop')
+runtime = [str((home / relative).resolve()) for relative in ('.hermes/hermes-agent', '.hermes/node', '.hermes/bin')]
+runtime.append('/opt/hermes-desktop')
 
-def belongs_to_hermes(target):
+def under(target, directories):
     target = target.removesuffix(' (deleted)')
-    return any(target == root or target.startswith(root + '/') for root in roots)
+    return any(target == directory or target.startswith(directory + '/') for directory in directories)
 
-holders = []
-for process in Path('/proc').iterdir():
-    if not process.name.isdigit() or int(process.name) == os.getpid():
-        continue
-    try:
-        if process.stat().st_uid != os.getuid():
+def processes():
+    found = []
+    for process in Path('/proc').iterdir():
+        if not process.name.isdigit() or int(process.name) == os.getpid():
             continue
-        targets = [os.fsdecode(arg) for arg in (process / 'cmdline').read_bytes().split(b'\0')]
-        entries = [process / 'exe', process / 'cwd']
         try:
-            entries.extend((process / 'fd').iterdir())
-        except PermissionError:
-            pass
-        for entry in entries:
+            if process.stat().st_uid != os.getuid():
+                continue
+            argv = [os.fsdecode(arg) for arg in (process / 'cmdline').read_bytes().split(b'\0')]
+            program = []
             try:
-                targets.append(os.readlink(entry))
+                program.append(os.readlink(process / 'exe'))
             except OSError:
                 pass
-        if any(belongs_to_hermes(target) for target in targets):
-            holders.append(process.name)
-    except (FileNotFoundError, ProcessLookupError, PermissionError):
-        continue
+            touched = list(program)
+            try:
+                touched.append(os.readlink(process / 'cwd'))
+            except OSError:
+                pass
+            try:
+                for entry in (process / 'fd').iterdir():
+                    try:
+                        touched.append(os.readlink(entry))
+                    except OSError:
+                        pass
+            except PermissionError:
+                pass
+            started_as = argv[:1]
+            interpreter = bool(started_as) and re.fullmatch(r'(python[0-9.]*|node|bash|sh)', os.path.basename(started_as[0]))
+            if interpreter:
+                started_as = argv[:2]
+            # Hermes's own package, run as a module from an activated venv.
+            ours = any(under(target, runtime) for target in started_as + program) or \
+                (bool(interpreter) and argv[1:3] and argv[1] == '-m' and argv[2].startswith('hermes_cli'))
+            if ours or any(under(target, roots) for target in touched):
+                try:
+                    name = (process / 'comm').read_text().strip()
+                except OSError:
+                    name = '?'
+                found.append((int(process.name), ours, name))
+        except (FileNotFoundError, ProcessLookupError, PermissionError):
+            continue
+    return found
 
-if holders:
-    print('Close Hermes and processes using its files before removing it (PIDs: '
-          + ', '.join(holders) + '). Then try again.', file=sys.stderr)
+def named(entries):
+    return ', '.join(f'{pid} {name}' for pid, ours, name in entries)
+
+def refuse(entries):
+    print('Something other than Hermes still has its files open (PIDs: ' + named(entries)
+          + '). Close it, then run the removal again.', file=sys.stderr)
     sys.exit(1)
+
+strangers = [entry for entry in processes() if not entry[1]]
+if strangers:
+    refuse(strangers)
+if mode == 'check':
+    sys.exit(0)
+
+mine = [entry for entry in processes() if entry[1]]
+if mine:
+    print('Stopping Hermes (PIDs: ' + named(mine) + ')...')
+    for signum, patience in ((signal.SIGTERM, 10), (signal.SIGKILL, 3)):
+        for pid, ours, name in mine:
+            try:
+                os.kill(pid, signum)
+            except ProcessLookupError:
+                pass
+        deadline = time.monotonic() + patience
+        while mine and time.monotonic() < deadline:
+            time.sleep(0.2)
+            mine = [entry for entry in processes() if entry[1]]
+        if not mine:
+            break
+    if mine:
+        print('Hermes did not stop (PIDs: ' + named(mine) + '). Close it, then run the removal again.', file=sys.stderr)
+        sys.exit(1)
+left = processes()
+if left:
+    refuse(left)
 PY
 }
 
-# Removing an open SQLite WAL leaves a live writer on a deleted generation.
-ensure_hermes_stopped
-omarchy-pkg-drop hermes-desktop
+hermes_holders check
 
-# The installer leaves a unit waiting to hand the app the Omarchy theme.
+# The gateway unit that upstream's `hermes gateway install` writes starts the
+# runtime about to be deleted, so it goes with it, and it is stopped before
+# the processes are, or systemd would start the gateway again the moment it
+# was killed. Judged by what the unit starts, as the processes are: a unit
+# whose ExecStart runs this runtime is its own whatever home it serves, and
+# one that runs a Hermes kept elsewhere is somebody else's arrangement even
+# when its home sits under ~/.hermes. A unit that will not stop aborts the
+# removal: dropping the package would strand a live gateway on deleted code
+# with no way to restart it cleanly.
+for unit_file in "$unit_dir"/hermes-gateway*.service; do
+  [[ -f $unit_file ]] || continue
+  grep '^ExecStart=' "$unit_file" | grep -qF "$HOME/.hermes/hermes-agent/" || continue
+  unit=${unit_file##*/}
+  if systemctl --user disable --now "$unit" 2>/dev/null || unit_stopped "$unit"; then
+    # .bak is what `gateway install --force` leaves behind when it rewrites a
+    # unit, so it goes with the unit.
+    rm -f "$unit_file" "$unit_file.bak" "$unit_dir/default.target.wants/$unit"
+    systemctl --user daemon-reload 2>/dev/null || true
+    # A unit that had been failing stays listed as "not-found failed" after
+    # its file is gone until its failed state is reset.
+    systemctl --user reset-failed "$unit" 2>/dev/null || true
+  else
+    echo "Could not stop $unit; Hermes was not removed." >&2
+    exit 1
+  fi
+done
+
+# The installer leaves a unit waiting to hand the app the Omarchy theme; it
+# runs Hermes itself to do so, so it is stopped before the sweep reaches it.
 systemctl --user stop omarchy-hermes-theme.service 2>/dev/null || true
 
-# The mise CLI is the app's predecessor, not the app itself: Hermes Desktop takes
-# it over on install and runs its own runtime instead, so a copy still here is one
-# the app never superseded -- an interrupted install, or the terminal CLI from
-# before the app existed. Remove Hermes clears that too, scoped by the installer
-# to what Omarchy owns so a hermes the user set up themselves is left alone.
-# Tolerated here rather than fatal, so the ~/.hermes handling below still runs;
-# the failure is answered for at the end instead of being swallowed.
-cli_removed=true
-ensure_hermes_stopped
-omarchy-install-hermes-cli --remove || cli_removed=false
+hermes_holders stop
+omarchy-pkg-drop hermes-desktop
 
-# The app writes this when the runtime it provisions under ~/.hermes has landed,
-# and it is the only thing that tells that runtime apart from one the user
-# installed themselves -- the paths are the same either way. Without it the app
-# never got that far: a machine where it was installed but never launched still
-# has whatever was there before, and none of it is ours to delete unasked.
+# Upstream's installer writes this when the runtime under ~/.hermes has landed,
+# whether Omarchy ran it for the app or the app's own first launch did, and it
+# is the only thing that tells that runtime apart from one the user installed
+# themselves -- the paths are the same either way. Without it the install never
+# got that far: a machine where the package landed but nothing set Hermes up
+# still has whatever was there before, and none of it is ours to delete unasked.
 if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
   # The checkout and venv, its own uv, its own node. None of it is any use once
   # the app is gone, so it goes without asking; what the user made with the app
@@ -120,12 +220,12 @@ fi
 # never owned, a yes takes that with it, and saying so is the prompt's job.
 # Without a terminal to ask in, keeping everything is the answer.
 data_removed=false
-if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]] && omarchy-cmd-present gum; then
+if [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]] && [[ -t 0 ]]; then
   # du answers non-zero when either directory is missing, and pipefail would
   # turn that into an aborted removal; the size is worth no such thing.
   size=$(du -shc "$HOME/.hermes" "$HOME/.config/Hermes" 2>/dev/null | tail -1 | cut -f1 || true)
   if gum confirm --default=false "Also delete ~/.hermes and ~/.config/Hermes ($size: chats, memories, skills, connections and tokens)?"; then
-    ensure_hermes_stopped
+    hermes_holders stop
     rm -rf "$HOME/.hermes" "$HOME/.config/Hermes"
     data_removed=true
   fi
@@ -138,10 +238,4 @@ if [[ $data_removed == true ]]; then
 elif [[ -d $HOME/.hermes || -d $HOME/.config/Hermes ]]; then
   echo "Your chats, memories, and skills are still in ~/.hermes,"
   echo "and your connections and settings in ~/.config/Hermes."
-fi
-
-# The messages above still hold -- the app and its runtime are gone -- but a CLI
-# teardown that failed already said so on stderr, and that stands.
-if [[ $cli_removed == "false" ]]; then
-  exit 1
 fi

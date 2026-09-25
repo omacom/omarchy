@@ -14,7 +14,7 @@ omarchy capture screenshot scroll             # Capture and stitch a scrolling r
 omarchy screenshot --editor=overlay           # Opt into annotation before output
 ```
 
-The first argument picks the Omasnap mode (`smart|region|windows|fullscreen|scroll`). By default, a capture copies to the clipboard and shows a preview for 10 seconds. Use the preview's Edit action to annotate, or pass `--editor=overlay` or `--editor=window` to edit before output. A second argument of `copy` or `save` skips the preview and sends the screenshot straight to that destination. Saved screenshots land in `~/Pictures/Screenshots` by default (override with `OMASNAP_SCREENSHOT_DIR`; the legacy `OMARCHY_SCREENSHOT_DIR` is also honored by the Omarchy command).
+The first argument picks the Omasnap mode (`smart|region|windows|fullscreen|scroll`). By default, a capture saves to disk, copies to the clipboard, and shows a preview for 10 seconds. Use the preview's Edit action to annotate, or pass `--editor=overlay` or `--editor=window` to edit before output. A second argument of `copy` or `save` skips the preview and sends the screenshot straight to that destination. Saved screenshots land in `~/Pictures/Screenshots` by default (override with `OMASNAP_SCREENSHOT_DIR`; the legacy `OMARCHY_SCREENSHOT_DIR` is also honored by the Omarchy command). Set `[output] autosave = false` in `~/.config/omasnap/omasnap.conf` to disable automatic saving.
 
 ## Screen Recording
 
