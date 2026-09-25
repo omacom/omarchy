@@ -383,7 +383,8 @@ function parsePopupFiles(raw, normalUrgency) {
 
 // A persisted popup whose lifetime already ran out would have expired on
 // screen had the shell kept running, so it is not restored. duration 0 means
-// the popup never expires (critical urgency) and always survives restarts.
+// never expires — critical alerts sent without a timeout — and always
+// survives restarts.
 // A restore-reset deadline outranks the original timestamp: without it, a
 // second restart would judge a re-shown toast by a clock that no longer
 // governs its display and drop it while it is still on screen.

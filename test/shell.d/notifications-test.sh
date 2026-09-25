@@ -508,7 +508,7 @@ assertDeepEqual(
   'notifications restore nothing from an empty popup dir'
 )
 
-assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups never expire on restore')
+assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups without a timeout never expire on restore')
 assert(!notifications.popupExpired({ timestamp: 1000 }, 8000, 5000), 'popups within their lifetime are restored')
 assert(notifications.popupExpired({ timestamp: 1000 }, 8000, 9000), 'popups past their lifetime are not restored')
 assert(
@@ -725,9 +725,9 @@ assert(
 )
 
 // expireTimeout 0 means "never expire"; a sender that asked for a finite
-// timeout gets it even for critical alerts.
+// timeout gets it even for critical alerts, floored at the normal duration.
 assert(
-  /case NotificationUrgency\.Critical:\s*\n\s*return requested > 0 \? Math\.min\(maxPopupDuration, requested\) : 0/.test(serviceQml),
-  'notifications service honors a sender-requested timeout for critical alerts'
+  /case NotificationUrgency\.Critical:\s*\n\s*return requested > 0 \? Math\.min\(maxPopupDuration, Math\.max\(normalPopupDuration, requested\)\) : 0/.test(serviceQml),
+  'notifications service honors a sender-requested timeout for critical alerts, floored at normal'
 )
 JS
