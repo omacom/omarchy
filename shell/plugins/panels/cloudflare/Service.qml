@@ -106,7 +106,7 @@ Item {
     refreshing = true
     whoamiProcess.command = ["cf", "auth", "whoami"]
     whoamiProcess.running = true
-    if (!pollWatchdog.running) pollWatchdog.start()
+    pollWatchdog.restart()
   }
 
   // Zones and Workers load side by side once whoami has said who we are and
@@ -128,7 +128,7 @@ Item {
       workersProcess.command = ["cf", "workers", "list"]
       workersProcess.running = true
     }
-    if (!pollWatchdog.running) pollWatchdog.start()
+    pollWatchdog.restart()
   }
 
   function applyWhoami(raw) {
@@ -366,7 +366,9 @@ Item {
 
   Timer {
     // Every call reaches the Cloudflare API, so a flaky network can leave one
-    // hanging; reap it so the next refresh is not skipped forever.
+    // hanging; reap it so the next refresh is not skipped forever. Every call
+    // restarts it, so it only stops a call that has hung, never a fresh one
+    // from a later refresh.
     id: pollWatchdog
     interval: 20000
     repeat: false
