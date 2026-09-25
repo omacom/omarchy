@@ -273,7 +273,7 @@ Item {
             cellHeight: root.cellHeight
             boundsBehavior: Flickable.StopAtBounds
 
-            delegate: Rectangle {
+            delegate: BorderSurface {
               required property int index
               required property string emoji
 
@@ -281,7 +281,9 @@ Item {
 
               width: root.cellWidth
               height: root.cellHeight
-              radius: root.cornerRadius
+              // Only the selected cell is visible, so only it takes a corner
+              // (a chamfered corner costs a layer per cell).
+              radius: hasCursor ? root.cornerRadius : 0
               color: hasCursor ? root.selectedBackground : "transparent"
 
               Text {

@@ -357,6 +357,18 @@ assert(/chamferSize:\s*Math\.min\(radius \* Style\.cornerPower \/ 2,/.test(surfa
 assert(/Math\.min\(width,\s*height\)\s*\*\s*0\.3\)/.test(surfaceQml), 'border surface caps the cut on short surfaces')
 assert(/topLeftRadius:\s*chamfered \? 0 : radius/.test(surfaceQml), 'border surface squares its native fill under the chamfer mask')
 
+// Selection and hover highlights follow the corner shape too. List cells
+// only take a radius while highlighted, so one row pays for the mask layer.
+const readShell = file => fs.readFileSync(path.join(root, 'shell', file), 'utf8')
+const clipboardQml = readShell('plugins/clipboard/Clipboard.qml')
+const emojisQml = readShell('plugins/emojis/Emojis.qml')
+const trayQml = readShell('plugins/bar/widgets/Tray.qml')
+assert(/delegate: BorderSurface \{[\s\S]*?radius: hasCursor \? root\.cornerRadius : 0/.test(clipboardQml), 'clipboard selected row follows the corner shape')
+assert(/delegate: BorderSurface \{[\s\S]*?radius: hasCursor \? root\.cornerRadius : 0/.test(emojisQml), 'emoji selected cell follows the corner shape')
+assert(/BorderSurface \{\s*anchors\.fill: parent\s*radius: backMouse\.containsMouse \?/.test(trayQml), 'tray back row hover follows the corner shape')
+assert(/BorderSurface \{\s*visible: !menuRow\.modelData\.isSeparator\s*anchors\.fill: parent\s*radius: rowMouse\.containsMouse \?/.test(trayQml), 'tray menu row hover follows the corner shape')
+assert(/BorderSurface \{\s*width: Math\.min\(justificationText/.test(readShell('plugins/polkit/PolkitAgent.qml')), 'polkit justification pill follows the corner shape')
+
 const styleQml = fs.readFileSync(path.join(root, 'shell/Commons/Style.qml'), 'utf8')
 assert(styleQml.includes('decoration:rounding_power'), 'style mirrors Hyprland rounding_power')
 assert(/cornerChamfer:\s*cornerPower <= 1\.0/.test(styleQml), 'style treats rounding_power <= 1 as triangular corners')

@@ -364,7 +364,7 @@ Item {
       }
     }
 
-    Rectangle {
+    BorderSurface {
       width: Math.min(justificationText.implicitWidth + Style.space(24), panel.width - Style.gapsOut * 2)
       height: Style.space(28)
       anchors.horizontalCenter: card.horizontalCenter
