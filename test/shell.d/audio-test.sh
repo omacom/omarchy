@@ -48,13 +48,39 @@ assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spo
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
 
+assertDeepEqual(
+  audio.outputVolumeCommand('alsa_output.speakers', 0.456),
+  ['pactl', 'set-sink-volume', 'alsa_output.speakers', '46%'],
+  'audio builds a pactl sink-volume argv with a rounded percent'
+)
+assertDeepEqual(audio.outputVolumeCommand('sink', -0.2)[3], '0%', 'audio clamps negative output volume to zero')
+assertDeepEqual(audio.outputVolumeCommand('sink', 1.4)[3], '100%', 'audio clamps output volume to the panel maximum')
+
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/audio/Panel.qml', 'utf8')
 assert(
-  /pactl.*set-sink-volume/.test(panelSource),
+  /Model\.outputVolumeCommand\(/.test(panelSource),
   'audio panel writes output volume through pactl, not the node-bound setter that drops Bluetooth writes'
+)
+assert(
+  /Process\s*\{[^}]*id:\s*outputVolumeWriter/s.test(panelSource),
+  'audio panel coalesces volume writes through a single writer process'
+)
+assert(
+  /pendingOutputVolume\s*!==\s*root\.sentOutputVolume/.test(panelSource) ||
+  /pendingOutputVolume\s*!==\s*sentOutputVolume/.test(panelSource),
+  'audio volume writer replays the last queued percentage on exit'
+)
+assert(
+  /pendingOutputVolume\s*>=\s*0\s*\?\s*root\.pendingOutputVolume\s*\/\s*100\s*:\s*root\.outputVolume/.test(panelSource) &&
+  /pendingOutputVolume\s*>=\s*0\s*\?\s*pendingOutputVolume\s*\/\s*100\s*:\s*outputVolume/.test(panelSource),
+  'audio relative volume steps accumulate on the queued value, not the stale sink reading'
 )
 assert(
   !/volumeSink\.audio\.volume\s*=/.test(panelSource),
   'audio panel no longer relies on volumeSink.audio.volume'
+)
+assert(
+  !/Quickshell\.execDetached\(\["pactl",\s*"set-sink-volume"/.test(panelSource),
+  'audio panel no longer spawns a pactl per volume event'
 )
 JS
