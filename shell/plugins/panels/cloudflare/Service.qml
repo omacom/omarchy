@@ -24,8 +24,12 @@ Item {
   property string actionStatus: ""
   property string lastError: ""
 
-  // Worker detail view. Loaded on demand when a Worker is opened and cached
-  // briefly, so stepping back to the list and in again does not refetch.
+  // Worker detail view. `detailWorker` is the Worker on screen; the detail
+  // properties below hold whichever Worker was loaded last (`_detailName`),
+  // which is usually the same one: the panel prefetches the Worker under the
+  // cursor, so opening it finds its data loaded or on the way. Loads are
+  // cached briefly, so stepping back to the list and in again does not
+  // refetch.
   property var detailWorker: null
   property var detailMetrics: ({})
   property string metricsError: ""
@@ -34,11 +38,16 @@ Item {
   property string detailDeployedOn: ""
   property string detailSource: ""
   property string versionsError: ""
-  readonly property bool metricsLoading: usageProcess.running || errorsProcess.running
-  readonly property bool versionsLoading: versionsProcess.running || deploymentsProcess.running
+  property bool deploymentsLoaded: false
+  // A load starts its calls a tick later; count that tick as loading so the
+  // view never flashes its empty state in between.
+  property bool _detailStarting: false
+  readonly property bool metricsLoading: _detailStarting || usageProcess.running || errorsProcess.running
+  readonly property bool versionsLoading: _detailStarting || versionsProcess.running || deploymentsProcess.running
   readonly property int detailCacheMs: 60000
   property var _detailCache: ({})
   property string _detailName: ""
+  property real _detailLoadedAt: 0
   property int _detailGeneration: 0
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 300, 30, 3600)
@@ -144,8 +153,7 @@ Item {
       selectedAccountId = ""
       zones = []
       workers = []
-      detailWorker = null
-      _detailCache = ({})
+      forgetWorkerDetail()
       return
     }
     if (selectedAccount === null) selectedAccountId = accounts.length > 0 ? accounts[0].id : ""
@@ -160,31 +168,73 @@ Item {
     selectedAccountId = ""
     zones = []
     workers = []
-    detailWorker = null
-    _detailCache = ({})
+    forgetWorkerDetail()
     statusText = message
   }
 
   function openWorkerDetail(worker) {
     if (!worker) return
     detailWorker = worker
+    ensureWorkerDetail(worker)
+  }
+
+  // Loads a Worker in the background while its row has the cursor, so the
+  // view is ready by the time it is opened. The view's own Worker wins: no
+  // prefetching while one is open.
+  function prefetchWorker(worker) {
+    if (!worker || detailWorker) return
+    ensureWorkerDetail(worker)
+  }
+
+  // Leaves a load that is still running or fresh alone, reuses a fresh
+  // cached one, and otherwise starts over.
+  function ensureWorkerDetail(worker) {
+    var loading = metricsLoading || versionsLoading
+    if (_detailName === worker.name && (loading || Date.now() - _detailLoadedAt < detailCacheMs)) return
     var cached = _detailCache[worker.name]
     if (cached && Date.now() - cached.at < detailCacheMs) {
+      stopWorkerDetail()
+      _detailStarting = false
+      _detailName = worker.name
       applyDetailCache(cached)
       return
     }
+    beginWorkerDetail(worker)
+  }
+
+  function beginWorkerDetail(worker) {
+    _detailName = worker.name
+    _detailLoadedAt = 0
     detailMetrics = ({})
     detailVersions = []
     detailLive = ({})
     detailDeployedOn = worker.deployedOn || ""
     detailSource = ""
+    deploymentsLoaded = false
     metricsError = ""
     versionsError = ""
-    loadWorkerDetail()
+    loadWorkerDetail(worker)
   }
 
   function closeWorkerDetail() {
     detailWorker = null
+  }
+
+  // Bumping the generation makes any call still out for the previous Worker
+  // drop its result instead of writing into the next one.
+  function stopWorkerDetail() {
+    _detailGeneration += 1
+    var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
+    for (var i = 0; i < processes.length; i++) if (processes[i].running) processes[i].running = false
+  }
+
+  // Another account, or none: nothing loaded so far applies any more.
+  function forgetWorkerDetail() {
+    stopWorkerDetail()
+    _detailStarting = false
+    detailWorker = null
+    _detailCache = ({})
+    _detailName = ""
   }
 
   function refreshWorkerDetail() {
@@ -192,7 +242,7 @@ Item {
     var cache = _detailCache
     delete cache[detailWorker.name]
     _detailCache = cache
-    loadWorkerDetail()
+    beginWorkerDetail(detailWorker)
   }
 
   function applyDetailCache(cached) {
@@ -201,15 +251,18 @@ Item {
     detailLive = cached.live
     detailDeployedOn = cached.deployedOn
     detailSource = cached.source
+    deploymentsLoaded = true
+    _detailLoadedAt = cached.at
     metricsError = cached.metricsError
     versionsError = cached.versionsError
   }
 
   function rememberDetail() {
-    if (!detailWorker || detailWorker.name !== _detailName) return
+    if (_detailName === "") return
+    _detailLoadedAt = Date.now()
     var cache = _detailCache
     cache[_detailName] = {
-      at: Date.now(),
+      at: _detailLoadedAt,
       metrics: detailMetrics,
       versions: detailVersions,
       live: detailLive,
@@ -221,23 +274,22 @@ Item {
     _detailCache = cache
   }
 
-  // Stops whatever is still loading for a previously opened Worker, then
-  // starts this one's calls side by side on the next tick, once the stopped
-  // processes have let go.
-  function loadWorkerDetail() {
-    var worker = detailWorker
+  // Stops whatever is still loading for a previous Worker, then starts this
+  // one's calls side by side on the next tick, once the stopped processes
+  // have let go.
+  function loadWorkerDetail(worker) {
     if (!worker) return
     // Each load gets a generation; a process only reports back if it was
     // started by the current one, so a stopped call for an earlier Worker
     // cannot write into this Worker's view.
-    _detailGeneration += 1
+    stopWorkerDetail()
     var generation = _detailGeneration
-    _detailName = worker.name
     var processes = [usageProcess, errorsProcess, versionsProcess, deploymentsProcess]
-    for (var i = 0; i < processes.length; i++) if (processes[i].running) processes[i].running = false
+    _detailStarting = true
 
     Qt.callLater(function() {
       if (generation !== root._detailGeneration) return
+      root._detailStarting = false
       for (var j = 0; j < processes.length; j++) processes[j].generation = generation
       var env = root.cliEnvironment(root.selectedAccountId)
       root._versionsOutput = ""
@@ -293,8 +345,7 @@ Item {
   function selectAccount(id) {
     var accountId = String(id || "")
     if (accountId === "" || accountId === selectedAccountId) return
-    detailWorker = null
-    _detailCache = ({})
+    forgetWorkerDetail()
     selectedAccountId = accountId
     zones = []
     workers = []
@@ -477,10 +528,8 @@ Item {
     stdout: StdioCollector { id: usageStdout; waitForEnd: true; onStreamFinished: root._usageOutput = text }
     onExited: function(exitCode) {
       if (generation !== root._detailGeneration) return
-      if (root.detailWorker) {
-        if (exitCode === 0) root.applyMetrics(String(usageStdout.text || root._usageOutput || ""))
-        else if (root.metricsError === "") root.metricsError = "Could not load metrics"
-      }
+      if (exitCode === 0) root.applyMetrics(String(usageStdout.text || root._usageOutput || ""))
+      else if (root.metricsError === "") root.metricsError = "Could not load metrics"
       root.detailProcessDone()
     }
   }
@@ -493,9 +542,7 @@ Item {
     stdout: StdioCollector { id: errorsStdout; waitForEnd: true; onStreamFinished: root._errorsOutput = text }
     onExited: function(exitCode) {
       if (generation !== root._detailGeneration) return
-      if (root.detailWorker && exitCode === 0) {
-        root.applyMetrics(String(errorsStdout.text || root._errorsOutput || ""))
-      }
+      if (exitCode === 0) root.applyMetrics(String(errorsStdout.text || root._errorsOutput || ""))
       root.detailProcessDone()
     }
   }
@@ -509,14 +556,12 @@ Item {
     stderr: StdioCollector { id: versionsStderr; waitForEnd: true; onStreamFinished: root._versionsError = text }
     onExited: function(exitCode) {
       if (generation !== root._detailGeneration) return
-      if (root.detailWorker) {
-        var parsed = exitCode === 0 ? Model.parseVersions(String(versionsStdout.text || root._versionsOutput || ""), 10) : null
-        if (parsed && parsed.ok) {
-          root.detailVersions = parsed.versions
-          root.versionsError = ""
-        } else {
-          root.versionsError = root.elideStatus(String(versionsStderr.text || root._versionsError || "") || "Could not list versions")
-        }
+      var parsed = exitCode === 0 ? Model.parseVersions(String(versionsStdout.text || root._versionsOutput || ""), 10) : null
+      if (parsed && parsed.ok) {
+        root.detailVersions = parsed.versions
+        root.versionsError = ""
+      } else {
+        root.versionsError = root.elideStatus(String(versionsStderr.text || root._versionsError || "") || "Could not list versions")
       }
       root.detailProcessDone()
     }
@@ -530,7 +575,7 @@ Item {
     stdout: StdioCollector { id: deploymentsStdout; waitForEnd: true; onStreamFinished: root._deploymentsOutput = text }
     onExited: function(exitCode) {
       if (generation !== root._detailGeneration) return
-      if (root.detailWorker && exitCode === 0) {
+      if (exitCode === 0) {
         var parsed = Model.parseDeployments(String(deploymentsStdout.text || root._deploymentsOutput || ""))
         if (parsed.ok) {
           root.detailLive = parsed.live
@@ -538,6 +583,7 @@ Item {
           root.detailSource = parsed.source
         }
       }
+      root.deploymentsLoaded = true
       root.detailProcessDone()
     }
   }

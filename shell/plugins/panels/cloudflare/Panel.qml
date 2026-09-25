@@ -33,7 +33,10 @@ Panel {
   readonly property bool healthy: signedIn && cloudflare.tokenValid
   readonly property bool inWorker: signedIn && cloudflare.detailWorker !== null
   readonly property int rowCount: !signedIn ? 0 : (inWorker ? cloudflare.detailVersions.length : cloudflare.zones.length + cloudflare.workers.length)
+  // Shown in one go once the deployment is in, rather than growing a source
+  // a moment after the date.
   readonly property string workerMeta: {
+    if (!cloudflare.deploymentsLoaded) return "Loading…"
     var rollout = Model.rolloutText(cloudflare.detailLive)
     if (rollout !== "") return rollout
     var when = Model.relativeTime(cloudflare.detailDeployedOn)
@@ -50,6 +53,9 @@ Panel {
     return cap - panel.verticalContentInset
   }
   readonly property real versionsViewportHeight: Math.max(Style.space(120), maxColumnHeight - versionsSection.y - versionsSection.rowsTop)
+  // While versions load, their place is held at the height the list will
+  // most likely fill, so the card does not jump when they arrive.
+  readonly property real versionsLoadingHeight: Math.max(Style.space(120), maxColumnHeight - versionsSection.y - versionsSection.statusTop)
   readonly property color iconColor: healthy ? foreground : dim
   // Signed out or with a rejected token, the mark carries Tailscale's
   // needs-login badge. A missing CLI only dims it.
@@ -93,6 +99,13 @@ Panel {
     return rowIndex < cloudflare.workers.length ? cloudflare.workers[rowIndex] : null
   }
 
+  // The Worker under the cursor starts loading once the cursor settles on
+  // it, so its view is usually ready by the time it is opened.
+  function schedulePrefetch() {
+    if (opened && cursorActive && !inWorker && selectedWorker()) prefetchTimer.restart()
+    else prefetchTimer.stop()
+  }
+
   function selectedZone() {
     var index = rowIndex - cloudflare.workers.length
     return index >= 0 && index < cloudflare.zones.length ? cloudflare.zones[index] : null
@@ -119,6 +132,7 @@ Panel {
     if (panelFlick) panelFlick.contentY = 0
     if (versionFlick) versionFlick.contentY = 0
     cloudflare.openWorkerDetail(worker)
+    prefetchTimer.stop()
   }
 
   // Back to the list, with the cursor on the Worker we came from.
@@ -211,12 +225,23 @@ Panel {
     cloudflare.refresh()
     Qt.callLater(function() { keyCatcher.forceActiveFocus() })
   }
-  onRowIndexChanged: scrollCursorIntoView()
+  onRowIndexChanged: {
+    scrollCursorIntoView()
+    schedulePrefetch()
+  }
+  onCursorActiveChanged: schedulePrefetch()
   onRowCountChanged: clampCursor()
 
   Service {
     id: cloudflare
     settings: root.settings
+  }
+
+  Timer {
+    id: prefetchTimer
+    interval: 450
+    repeat: false
+    onTriggered: if (root.opened && !root.inWorker) cloudflare.prefetchWorker(root.selectedWorker())
   }
 
   PointerMoveGate {
@@ -413,6 +438,7 @@ Panel {
             count: cloudflare.workers.length
             error: cloudflare.workersError
             loading: cloudflare.loadingResources
+            loadingText: "Loading Workers…"
             emptyText: "No Workers in this account."
 
             Column {
@@ -451,6 +477,7 @@ Panel {
             count: cloudflare.zones.length
             error: cloudflare.zonesError
             loading: cloudflare.loadingResources
+            loadingText: "Loading domains…"
             emptyText: "No domains in this account."
 
             Column {
@@ -547,6 +574,8 @@ Panel {
             count: cloudflare.detailVersions.length
             error: cloudflare.versionsError
             loading: cloudflare.versionsLoading
+            loadingText: "Loading versions…"
+            loadingHeight: root.versionsLoadingHeight
             emptyText: "No versions found."
 
             Flickable {
@@ -645,15 +674,19 @@ Panel {
     }
   }
 
-  // A section header over its rows, with the empty and error states every
-  // list needs. Rows go in as children.
+  // A section header over its rows, with the loading, empty, and error states
+  // every list needs. Rows go in as children.
   component ResourceSection: Column {
     id: section
     property string title: ""
     property int count: 0
     property string error: ""
     property bool loading: false
+    property string loadingText: ""
+    property real loadingHeight: 0
     property string emptyText: ""
+    readonly property bool waiting: loading && count === 0 && error === ""
+    readonly property real statusTop: statusLine.y
     readonly property real rowsTop: rowHolder.y
     default property alias rows: rowHolder.data
 
@@ -667,10 +700,12 @@ Panel {
     }
 
     Text {
+      id: statusLine
       textFormat: Text.PlainText
-      visible: section.error !== "" || (section.count === 0 && !section.loading)
+      visible: section.error !== "" || section.count === 0
       width: parent.width
-      text: section.error !== "" ? section.error : section.emptyText
+      height: section.waiting ? Math.max(implicitHeight, section.loadingHeight) : implicitHeight
+      text: section.error !== "" ? section.error : (section.loading ? section.loadingText : section.emptyText)
       color: section.error !== "" ? root.urgent : root.dim
       font.family: root.fontFamily
       font.pixelSize: section.error !== "" ? Style.font.bodySmall : Style.font.body
