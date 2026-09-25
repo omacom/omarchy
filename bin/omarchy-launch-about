@@ -284,11 +284,61 @@ content_changed() {
   [[ $(stty size) != "$grid" || $(stat -c %Y "$LOGO_FILE" 2>/dev/null) != "$logo_stamp" ]]
 }
 
-# A tick either times out, which is the delay, or a key arrives and About closes.
-# Anything else on stdin is a terminal that went away, which closes it too.
+# The modules About shows, for a bug report rather than a screen. Where it gets
+# pasted knows nothing of box drawing, Nerd Font glyphs or colour, so drop the
+# frame, keep only the words in each key, and let fastfetch name the modules whose
+# key was nothing but a glyph. A command module has no name of its own to fall
+# back on, so name those after what they run.
+plain_config() {
+  jq '
+    .logo = { type: "none" }
+    | .modules |= map(
+      select(type == "object" and .type != "custom")
+      | del(.keyColor)
+      | .key = (.key // "" | gsub("[^ -~]"; "") | gsub("^ +| +$"; ""))
+      | if .type == "command" and .key == "" then
+          if (.text | test("omarchy-version-branch")) then .key = "Branch"
+          elif (.text | test("omarchy-version-channel")) then .key = "Channel"
+          elif (.text | test("omarchy-theme-current")) then .key = "Theme" | .text = "omarchy-theme-current"
+          else . end
+        else . end
+      | if .key == "" then del(.key) else . end
+    )
+  ' "$OMARCHY_FASTFETCH_DIR/config.jsonc"
+}
+
+# Fenced so it keeps its lines when pasted into a GitHub issue.
+copy_report() {
+  local config report
+
+  config=$(mktemp --suffix=.jsonc)
+  plain_config >"$config" && report=$(fastfetch --config "$config" --pipe true 2>/dev/null)
+  rm -f "$config"
+
+  if [[ -n ${report:-} ]]; then
+    printf '```\n%s\n```' "$report" | wl-copy --type text/plain
+    omarchy-notification-send -g 󰅍 "System details copied to clipboard" "Paste them into your bug report."
+  else
+    omarchy-notification-send -g 󰅍 -u critical "Could not copy system details"
+  fi
+}
+
+# A tick either times out, which is the delay, or a key arrives. c copies the
+# details and leaves About open, so the sheen carries on while they are gathered;
+# any other key closes it. Anything else on stdin is a terminal that went away,
+# which closes it too.
 tick() {
-  read -t "$1" -n 1 -s && exit
-  (( $? > 128 )) || exit
+  local key
+
+  if read -t "$1" -n 1 -s key; then
+    if [[ $key == "c" ]]; then
+      copy_report >/dev/null 2>&1 &
+    else
+      exit
+    fi
+  else
+    (( $? > 128 )) || exit
+  fi
 }
 
 play_sheen() {
