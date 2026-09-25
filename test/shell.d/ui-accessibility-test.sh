@@ -71,35 +71,48 @@ def tokens(source):
 
 
 def direct_properties(all_tokens, opening):
-  properties = {}
+  entries = []
   depth = 1
   index = opening + 1
+  closing = len(all_tokens)
   while index < len(all_tokens) and depth:
     kind, value, line = all_tokens[index]
     if kind == "{":
       depth += 1
     elif kind == "}":
       depth -= 1
+      if depth == 0:
+        closing = index
+        break
     elif depth == 1 and kind == "IDENT" and index + 1 < len(all_tokens) and all_tokens[index + 1][0] == ":":
-      value_token = all_tokens[index + 2] if index + 2 < len(all_tokens) else None
-      properties[value] = value_token
+      entries.append((index, value))
     index += 1
+
+  properties = {}
+  for entry_index, (position, name) in enumerate(entries):
+    end = entries[entry_index + 1][0] if entry_index + 1 < len(entries) else closing
+    expression = all_tokens[position + 2:end]
+    while expression and expression[-1][0] == ";":
+      expression.pop()
+    properties[name] = expression
   return properties
 
 
-def nonempty(properties, names):
-  for name in names:
-    value = properties.get(name)
-    if value and not (value[0] == "STRING" and value[1] == ""):
-      return True
-  return False
-
-
-def glyph_string(value):
-  if not value or value[0] != "STRING":
+def glyph_string(expression):
+  if len(expression) != 1 or expression[0][0] != "STRING":
     return False
-  chars = [char for char in value[1] if not char.isspace()]
+  chars = [char for char in expression[0][1] if not char.isspace()]
   return bool(chars) and all(0xE000 <= ord(char) <= 0xF8FF or ord(char) >= 0xF0000 for char in chars)
+
+
+def expression_nonempty(expression):
+  if not expression or any(token[0] == "STRING" and token[1] == "" for token in expression):
+    return False
+  return not glyph_string(expression)
+
+
+def nonempty(properties, names):
+  return any(expression_nonempty(properties.get(name, [])) for name in names)
 
 
 required_names = {
