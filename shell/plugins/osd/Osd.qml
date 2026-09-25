@@ -113,7 +113,14 @@ Item {
   // One settled state of one output. Selecting a different output lands a
   // different level without anyone having touched a volume control, so that
   // level is adopted as the new baseline instead of being announced.
-  readonly property string volumeState: volumeSink
+  //
+  // Gated on volumeSink.audio, not just volumeSink: before PipeWire has
+  // delivered that node's audio params, volumePercent/volumeMuted read as
+  // their 0/false defaults. Without this gate, that placeholder reading
+  // would latch in as the baseline, and the real value arriving moments
+  // later would look like a live change and wrongly raise the OSD -- this
+  // is what made startup and plugin rescans announce an unchanged volume.
+  readonly property string volumeState: volumeSink && volumeSink.audio
     ? String(volumeSink.name) + "|" + volumePercent + "|" + volumeMuted
     : ""
   property string lastVolumeState: ""
@@ -131,8 +138,12 @@ Item {
     // Nothing to compare against until the sink has bound once.
     if (volumeState === "" || previous === "") return
     if (volumeState.split("|")[0] !== previous.split("|")[0]) return
+    // progressText carries the real percentage (matching the CLI path in
+    // bin/omarchy-audio-output-volume): the bar's own value still clamps to
+    // maxValue, but the label shouldn't -- a boosted sink over 100% should
+    // read "125%", not silently repeat the bar's clamped "100%".
     show(volumeMuted || volumePercent === 0 ? "volume-muted" : "volume-high",
-         "", String(volumePercent), "100", "", "1200")
+         "", String(volumePercent), "100", volumePercent + "%", "1200")
   }
 
   // PipeWire only publishes volume updates for nodes that are being tracked.
