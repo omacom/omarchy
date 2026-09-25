@@ -40,6 +40,8 @@ When you're extending, closing the lid on the laptop will automatically turn off
 
 Hyprland works great with multiple screens. Read more about how to lay them out in [the Hyprland monitor documentation](https://wiki.hypr.land/Configuring/Basics/Monitors/). You can [bind specific workspaces to specific monitors](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/) as well. In Omarchy, these rules go in `~/.config/hypr/monitors.lua` as `hl.monitor` entries — the file ships with commented examples for pinning a specific monitor to a resolution, position, and rotation.
 
+The rule that ships in that file has an empty `output`. Hyprland uses it for every monitor that does not have its own entry, and `mode = "preferred"` is what keeps each screen at its native resolution. Setting a fixed mode there — a common way to pin the laptop panel — forces that same mode onto every external display. Add a separate `hl.monitor` entry for the output you want to pin. Its name is in `hyprctl monitors all`. Leave the empty-output rule at `preferred`.
+
 You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd like a TUI to help you with the positioning of multiple screens.
 
 ### Controlling brightness
