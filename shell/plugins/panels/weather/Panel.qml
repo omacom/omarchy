@@ -238,12 +238,14 @@ Panel {
     if (!suggestion) return
     savingLocation = true
     savingLocationQueryStarted = false
+    var lat = Model.roundCoordinate(suggestion.latitude)
+    var lon = Model.roundCoordinate(suggestion.longitude)
     configuredLocationState = {
       name: suggestion.name,
-      latitude: suggestion.latitude,
-      longitude: suggestion.longitude
+      latitude: lat,
+      longitude: lon
     }
-    persistLocation(suggestion.name, suggestion.latitude, suggestion.longitude)
+    persistLocation(suggestion.name, lat, lon)
   }
 
   function finishSavingLocation() {

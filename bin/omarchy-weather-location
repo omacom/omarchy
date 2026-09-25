@@ -4,8 +4,9 @@
 #
 # State lives in ~/.local/state/omarchy/settings/weather.json as
 # {"name": ..., "latitude": ..., "longitude": ...}. A missing file means the
-# location is auto-detected from the IP address. Coordinates make the weather
-# panel exact; a hand-written {"name": "Malibu"} alone works too.
+# location is auto-detected from the IP address. Coordinates pin the panel to
+# a spot; they are rounded to about 1 km before storing and sending. A
+# hand-written {"name": "Malibu"} alone works too.
 #
 #   (no args)           the current location: the stored name, or the
 #                       IP-detected city when nothing is set
@@ -32,7 +33,7 @@ case "${1:-}" in
     # A forecast does not need metre precision: round stored coordinates to
     # ~1 km, matching what the panel sends wttr.in and Open-Meteo.
     location=$(jq -n --arg name "$2" --argjson latitude "${3%,*}" --argjson longitude "${3#*,}" \
-      '{$name, latitude: ($latitude * 100 | round / 100), longitude: ($longitude * 100 | round / 100)}')
+      '{$name, latitude: (($latitude * 100 + 0.5 | floor) / 100), longitude: (($longitude * 100 + 0.5 | floor) / 100)}')
   else
     location=$(jq -n --arg name "$2" '{$name}')
   fi
