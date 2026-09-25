@@ -107,6 +107,13 @@ report_unsecured() {
 # Request the lock before touching monitor state, so a stuck Hyprland IPC call
 # cannot consume the window before Quickshell has begun securing the session.
 request_lock
+
+# Reset keyboard layout to default (first layout), so the lock screen always
+# receives Latin password input. Mirrors omarchy-system-lock: XKB layout
+# survives suspend, otherwise a non-Latin layout persists into the lock screen
+# and the password is rejected.
+hyprctl switchxkblayout all 0 > /dev/null 2>&1
+
 sync_clamshell
 
 # The trailing sleep can overshoot the deadline by one interval, which is well
