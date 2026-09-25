@@ -113,9 +113,26 @@ cat >"$restart_bin/quickshell" <<'SH'
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
 
 case " $* " in
+  *' list '*)
+    # Live test instances as `quickshell list -j` reports them; 303 stands for
+    # the fresh shell and is not a real process. Zombies count as gone.
+    pids=()
+    while read -r pid; do
+      [[ $pid =~ ^[0-9]+$ && $pid != 303 ]] || continue
+      state=$(ps -o stat= -p "$pid" 2>/dev/null)
+      [[ -n $state && $state != Z* ]] && pids+=("{\"pid\": $pid}")
+    done <"$OMARCHY_TEST_QS_STATE"
+    if (( ${#pids[@]} > 0 )); then
+      (IFS=,; printf '[%s]\n' "${pids[*]}")
+    else
+      printf 'No running instances\n'
+    fi
+    ;;
   *' kill -p '*)
     pid=$(head -n 1 "$OMARCHY_TEST_QS_STATE")
     [[ $pid =~ ^[0-9]+$ ]] || exit 1
+    # A shell too busy to exit before the caller's timeout gives up on it.
+    [[ ${OMARCHY_TEST_QS_STUBBORN:-0} == 1 ]] && exit 124
     kill "$pid" 2>/dev/null
     while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
     awk 'NR > 1' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
@@ -265,3 +282,32 @@ restart_pid_one=""
 grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null || fail "dead-lock recovery re-acquires the session lock"
 grep -F "ipc -n -p $restart_root/shell call -- lock status" "$ipc_log" >/dev/null || fail "dead-lock recovery waits for the lock to become secure"
 pass "restart recovers a locked session whose lock client died"
+
+# A shell too busy to exit before the kill timeout used to end the kill loop
+# while still alive: the replacement exited as a duplicate and restart could
+# report success with no shell left. Restart must wait it out, force it, and
+# only then launch exactly one fresh shell. Disowned, so bash neither leaves
+# it a zombie nor reports it being killed.
+sleep 30 &
+stubborn_pid=$!
+disown "$stubborn_pid"
+printf '%s\n' "$stubborn_pid" >"$restart_state"
+: >"$restart_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STUBBORN=1 \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 20 "$ROOT/bin/omarchy-restart-shell" || fail "restart replaces a shell that outlasts the kill timeout"
+
+state=$(ps -o stat= -p "$stubborn_pid" 2>/dev/null || true)
+[[ -z $state || $state == Z* ]] || { kill -KILL "$stubborn_pid" 2>/dev/null; fail "restart forces a shell that will not exit"; }
+[[ $(<"$restart_state") == 303 ]] || fail "restart launches the fresh shell only after the old one is gone"
+[[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "restart launches one fresh shell after forcing the old one"
+pass "restart waits out and then forces a shell slow to exit before launching its replacement"

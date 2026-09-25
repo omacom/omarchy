@@ -65,6 +65,30 @@ relock_session() {
 # fully exited, so the no-duplicate launch below can't race a dying shell.
 while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
 
+# A busy shell can take longer to exit than the timeout allows. The loop then
+# ends with it still alive, the replacement below exits at once as a
+# duplicate, and the readiness check can even be answered by the dying shell:
+# restart reports success and leaves no shell at all. So wait until no
+# instance is listed, and force any that outlast a grace period.
+shell_instance_pids() {
+  quickshell list -p "$CONFIG_DIR" --any-display -j 2>/dev/null | jq -r '.[]?.pid' 2>/dev/null
+}
+
+grace_deadline=$((SECONDS + 5))
+give_up_deadline=$((SECONDS + 10))
+while true; do
+  mapfile -t lingering < <(shell_instance_pids)
+  (( ${#lingering[@]} == 0 )) && break
+
+  if (( SECONDS >= give_up_deadline )); then
+    echo "Omarchy shell (pid ${lingering[*]}) would not exit; not launching a duplicate." >&2
+    exit 1
+  fi
+
+  (( SECONDS >= grace_deadline )) && kill -KILL "${lingering[@]}" 2>/dev/null
+  sleep 0.1
+done
+
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
