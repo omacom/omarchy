@@ -206,6 +206,15 @@ grep -Fxq 'DNS=192.0.2.80 2001:db8::80' "$drop_in" || fail "plain custom DNS wri
 [[ -f $nm_conf ]] || fail "plain custom DNS configures NetworkManager"
 grep -Fxq 'servers=192.0.2.80,2001:db8::80' "$nm_conf" || fail "plain custom DNS keeps NetworkManager servers plain" "$(<"$nm_conf")"
 
+run_dns "[192.0.2.60]:5353 [2001:db8::60]:5353"
+assert_success "applies custom DNS ports"
+grep -Fxq 'servers=dns+udp://192.0.2.60:5353,dns+udp://[2001:db8::60]:5353' "$nm_conf" ||
+  fail "NetworkManager receives URI-form custom DNS ports" "$(<"$nm_conf")"
+grep -Fxq 'DNS=192.0.2.60:5353 [2001:db8::60]:5353' "$drop_in" ||
+  fail "systemd-resolved receives address-port custom DNS" "$(<"$drop_in")"
+! grep -Fq '[192.0.2.60]:5353' "$nm_conf" "$drop_in" ||
+  fail "custom DNS never emits an invalid bracketed IPv4 port" "$(<"$nm_conf")"$'\n'"$(<"$drop_in")"
+
 run_dns "192.0.2.90#sni.example"
 assert_success "applies explicit SNI custom DoT"
 grep -Fxq 'DNSOverTLS=yes' "$drop_in" || fail "SNI custom DoT requires authenticated DNSOverTLS=yes" "$(<"$drop_in")"

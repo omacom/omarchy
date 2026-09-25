@@ -49,6 +49,16 @@ parse_input() {
   fi
 }
 
+parse_stream() {
+  local input="$1"
+
+  if PARSE_OUTPUT=$(printf '%s' "$input" | PATH="$stub_bin:$PATH" OMARCHY_DNS_PARSE_ONLY=1 bash "$dns" Custom 2>&1); then
+    PARSE_STATUS=0
+  else
+    PARSE_STATUS=$?
+  fi
+}
+
 assert_accept() {
   local input="$1" expected="$2"
 
@@ -63,6 +73,13 @@ assert_reject() {
   parse_input "$input"
   (( PARSE_STATUS != 0 )) || fail "rejects custom input: $input" "$PARSE_OUTPUT"
   [[ -z $input ]] || [[ $PARSE_OUTPUT != *"$input"* ]] || fail "does not echo rejected custom input" "$PARSE_OUTPUT"
+}
+
+assert_reject_stream() {
+  local input="$1"
+
+  parse_stream "$input"
+  (( PARSE_STATUS != 0 )) || fail "rejects custom input stream" "$PARSE_OUTPUT"
 }
 
 assert_accept "dns.example" $'transport=dot\nservers=192.0.2.10#dns.example 192.0.2.11#dns.example 2001:db8::10#dns.example 2001:db8::11#dns.example'
@@ -113,6 +130,8 @@ assert_reject "tcp://dns.example"
 assert_reject "192.0.2.1 dns.example"
 assert_reject "tls://dns.example 192.0.2.1"
 assert_reject "missing.example"
+assert_reject_stream $'192.0.2.50\n192.0.2.51'
+assert_reject_stream "$(printf '1%0.s' {1..4097})"
 
 long_token=$(printf '%*s' 600 '' | tr ' ' a)
 assert_reject "$long_token"

@@ -24,11 +24,13 @@ if [[ -n $DNS_CONFIG_ROOT ]]; then
   NM_DNS_CONF="$DNS_CONFIG_ROOT/etc/NetworkManager/conf.d/20-omarchy-dns.conf"
   RESOLVED_CONF="$DNS_CONFIG_ROOT/etc/systemd/resolved.conf"
   RESOLVED_DROP_IN="$DNS_CONFIG_ROOT/etc/systemd/resolved.conf.d/90-omarchy-dns.conf"
+  LEGACY_RESOLVED_DROP_IN="$DNS_CONFIG_ROOT/etc/systemd/resolved.conf.d/90-dot.conf"
   DNS_LOCK_FILE="$DNS_CONFIG_ROOT/var/lock/omarchy-dns.lock"
 else
   NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
   RESOLVED_CONF=/etc/systemd/resolved.conf
   RESOLVED_DROP_IN=/etc/systemd/resolved.conf.d/90-omarchy-dns.conf
+  LEGACY_RESOLVED_DROP_IN=/etc/systemd/resolved.conf.d/90-dot.conf
   DNS_LOCK_FILE=/run/lock/omarchy-dns.lock
 fi
 MAX_DNS_INPUT_LENGTH=4096
@@ -36,10 +38,16 @@ MAX_DNS_TOKENS=32
 MAX_DNS_TOKEN_LENGTH=512
 MAX_HOSTNAME_LENGTH=253
 MANAGED_MARKER='# Managed by omarchy-dns.'
+LEGACY_MANAGED_MARKERS=(
+  '# Managed by omarchy-dns. Custom DNS-over-TLS endpoint; remove with omarchy dns DHCP.'
+  '# Managed by omarchy-dns. Custom DNS-over-TLS endpoint; remove with `omarchy dns DHCP`.'
+)
 SNAPSHOT_DIR=
 SNAPSHOT_PATHS=()
 SNAPSHOT_PRESENT=()
 SNAPSHOT_PROFILE_IDS=()
+SNAPSHOT_PROFILE_TYPES=()
+PROFILE_SNAPSHOT_PROPERTIES=(ipv4.ignore-auto-dns ipv4.dns ipv6.ignore-auto-dns ipv6.dns)
 DNS_LOCK_FD=
 
 provider_from_arg() {
@@ -122,9 +130,16 @@ resolved_dns() {
 }
 
 resolved_dropin_dns() {
-  [[ -f $RESOLVED_DROP_IN ]] || return 0
+  local path value
 
-  awk -F= '
+  if [[ -f $RESOLVED_DROP_IN ]]; then
+    path=$RESOLVED_DROP_IN
+  else
+    path=$LEGACY_RESOLVED_DROP_IN
+  fi
+  [[ -f $path ]] || return 0
+
+  value=$(awk -F= '
     /^[[:space:]]*#/ { next }
     /^[[:space:]]*\[Resolve\]/ { in_resolve = 1; next }
     /^[[:space:]]*\[/ { in_resolve = 0 }
@@ -134,12 +149,22 @@ resolved_dropin_dns() {
       if (value != "") result=value
     }
     END { if (result != "") print result }
-  ' "$RESOLVED_DROP_IN"
+  ' "$path") || return 1
+  [[ -z $value ]] || printf '%s\n' "$value"
 }
 
 resolved_dropin_managed() {
-  [[ -f $RESOLVED_DROP_IN && ! -L $RESOLVED_DROP_IN ]] || return 1
-  grep -Fqx "$MANAGED_MARKER" "$RESOLVED_DROP_IN"
+  local path marker
+
+  if [[ -f $RESOLVED_DROP_IN && ! -L $RESOLVED_DROP_IN ]] && grep -Fqx "$MANAGED_MARKER" "$RESOLVED_DROP_IN"; then
+    return 0
+  fi
+  if [[ -f $LEGACY_RESOLVED_DROP_IN && ! -L $LEGACY_RESOLVED_DROP_IN ]]; then
+    for marker in "${LEGACY_MANAGED_MARKERS[@]}"; do
+      grep -Fqx "$marker" "$LEGACY_RESOLVED_DROP_IN" && return 0
+    done
+  fi
+  return 1
 }
 
 current_dns_provider() {
@@ -448,6 +473,62 @@ normalize_servers() {
   printf '\n'
 }
 
+networkmanager_server() {
+  local server="$1" ip port
+
+  if [[ $server =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+    ip=${BASH_REMATCH[1]}
+    port=${BASH_REMATCH[2]}
+    if [[ $ip == *:* ]]; then
+      printf 'dns+udp://[%s]:%s' "$ip" "$port"
+    else
+      printf 'dns+udp://%s:%s' "$ip" "$port"
+    fi
+  else
+    printf '%s' "$server"
+  fi
+}
+
+networkmanager_servers() {
+  local input="$1" server formatted normalized=""
+  local -a servers=()
+
+  read -r -a servers <<<"${input//,/ }"
+  for server in "${servers[@]}"; do
+    formatted=$(networkmanager_server "$server")
+    normalized+="${normalized:+,}$formatted"
+  done
+  printf '%s\n' "$normalized"
+}
+
+resolved_server() {
+  local server="$1" ip port
+
+  if [[ $server =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+    ip=${BASH_REMATCH[1]}
+    port=${BASH_REMATCH[2]}
+    if [[ $ip == *:* ]]; then
+      printf '[%s]:%s' "$ip" "$port"
+    else
+      printf '%s:%s' "$ip" "$port"
+    fi
+  else
+    printf '%s' "$server"
+  fi
+}
+
+resolved_servers_for_drop_in() {
+  local input="$1" server formatted normalized=""
+  local -a servers=()
+
+  read -r -a servers <<<"${input//,/ }"
+  for server in "${servers[@]}"; do
+    formatted=$(resolved_server "$server")
+    normalized+="${normalized:+ }$formatted"
+  done
+  printf '%s\n' "$normalized"
+}
+
 split_dns_servers() {
   local servers="$1"
   local server clean
@@ -494,6 +575,27 @@ ensure_managed_target() {
   return 1
 }
 
+legacy_managed_file() {
+  local path="$1" marker
+
+  [[ -f $path && ! -L $path ]] || return 1
+  for marker in "${LEGACY_MANAGED_MARKERS[@]}"; do
+    grep -Fqx "$marker" "$path" && return 0
+  done
+  return 1
+}
+
+ensure_legacy_managed_target() {
+  local path="$1"
+
+  [[ -e $path || -L $path ]] || return 0
+  if [[ -O $path ]] && legacy_managed_file "$path"; then
+    return 0
+  fi
+  printf 'Error: refusing to overwrite unmanaged DNS configuration: %s\n' "$path" >&2
+  return 1
+}
+
 write_owned_file() {
   local path="$1" content="$2" directory temporary
 
@@ -529,6 +631,14 @@ remove_owned_file() {
   rm -f -- "$path"
 }
 
+remove_legacy_resolved_drop_in() {
+  local path="$LEGACY_RESOLVED_DROP_IN"
+
+  [[ -e $path || -L $path ]] || return 0
+  ensure_legacy_managed_target "$path" || return 1
+  rm -f -- "$path"
+}
+
 networkmanager_dns_content() {
   local servers="$1"
 
@@ -550,57 +660,61 @@ networkmanager_dns_connection() {
   esac
 }
 
-set_connection_dns() {
-  local uuid type
-  local ipv4_dns="${1:-}"
-  local ipv6_dns="${2:-}"
+modify_snapshotted_profiles() {
+  local action="$1" ipv4_dns="${2:-}" ipv6_dns="${3:-}"
+  local index uuid type
 
-  while IFS=: read -r uuid type; do
-    [[ -n $uuid ]] || continue
+  for ((index = 0; index < ${#SNAPSHOT_PROFILE_IDS[@]}; index++)); do
+    uuid=${SNAPSHOT_PROFILE_IDS[index]}
+    type=${SNAPSHOT_PROFILE_TYPES[index]:-}
+    [[ -n $uuid && -n $type ]] || continue
     networkmanager_dns_connection "$type" || continue
 
-    nmcli connection modify "$uuid" \
-      ipv4.ignore-auto-dns yes \
-      ipv4.dns "$ipv4_dns" \
-      ipv6.ignore-auto-dns yes \
-      ipv6.dns "$ipv6_dns" \
-      >/dev/null
-  done < <(nmcli -t -f UUID,TYPE connection show)
+    case "$action" in
+      set)
+        nmcli connection modify "$uuid" \
+          ipv4.ignore-auto-dns yes \
+          ipv4.dns "$ipv4_dns" \
+          ipv6.ignore-auto-dns yes \
+          ipv6.dns "$ipv6_dns" \
+          >/dev/null
+        ;;
+      clear)
+        nmcli connection modify "$uuid" \
+          ipv4.ignore-auto-dns no \
+          ipv4.dns "" \
+          ipv6.ignore-auto-dns no \
+          ipv6.dns "" \
+          >/dev/null
+        ;;
+      dot)
+        nmcli connection modify "$uuid" \
+          ipv4.ignore-auto-dns yes \
+          ipv4.dns "" \
+          ipv6.ignore-auto-dns yes \
+          ipv6.dns "" \
+          >/dev/null
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  done
+}
+
+set_connection_dns() {
+  modify_snapshotted_profiles set "${1:-}" "${2:-}"
 }
 
 clear_connection_dns() {
-  local uuid type
-
-  while IFS=: read -r uuid type; do
-    [[ -n $uuid ]] || continue
-    networkmanager_dns_connection "$type" || continue
-
-    nmcli connection modify "$uuid" \
-      ipv4.ignore-auto-dns no \
-      ipv4.dns "" \
-      ipv6.ignore-auto-dns no \
-      ipv6.dns "" \
-      >/dev/null
-  done < <(nmcli -t -f UUID,TYPE connection show)
+  modify_snapshotted_profiles clear
 }
 
 # DoT mode needs no per-link DNS at all so the global drop-in (which carries the
 # SNI hostname) serves each link; per-link plain IPs would drop the SNI and make
 # certificate validation fail for most custom endpoints.
 clear_connection_dns_dot() {
-  local uuid type
-
-  while IFS=: read -r uuid type; do
-    [[ -n $uuid ]] || continue
-    networkmanager_dns_connection "$type" || continue
-
-    nmcli connection modify "$uuid" \
-      ipv4.ignore-auto-dns yes \
-      ipv4.dns "" \
-      ipv6.ignore-auto-dns yes \
-      ipv6.dns "" \
-      >/dev/null
-  done < <(nmcli -t -f UUID,TYPE connection show)
+  modify_snapshotted_profiles dot
 }
 
 resolved_dropin_content() {
@@ -615,42 +729,54 @@ resolved_dropin_content() {
 }
 
 write_resolved_drop_in() {
-  write_owned_file "$RESOLVED_DROP_IN" "$(resolved_dropin_content "$1" "$2" "${3-}")"
+  write_owned_file "$RESOLVED_DROP_IN" "$(resolved_dropin_content "$1" "$2" "${3-}")" || return 1
+  remove_legacy_resolved_drop_in
 }
 
 reapply_active_dns_connections() {
-  local device type state
+  local devices device type state failed=0
 
+  if ! devices=$(nmcli -t -f DEVICE,TYPE,STATE device status); then
+    return 1
+  fi
   while IFS=: read -r device type state; do
     [[ -n $device && $state == connected ]] || continue
     case "$type" in
       wifi|ethernet)
-        nmcli device reapply "$device" >/dev/null 2>&1 || true
+        if ! nmcli device reapply "$device" >/dev/null 2>&1; then
+          failed=1
+        fi
         ;;
     esac
-  done < <(nmcli -t -f DEVICE,TYPE,STATE device status)
+  done <<<"$devices"
+  return "$failed"
 }
 
 reload_dns_stack() {
+  local networkmanager_active=0
+
   if systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
-    # Load the updated NetworkManager config first, then reapply the active
-    # profiles. A single conf,dns-full reload here pushes the old active DNS
-    # settings, making the shell toggle appear one selection behind.
-    nmcli general reload conf >/dev/null 2>&1 || systemctl reload NetworkManager.service 2>/dev/null || true
-    reapply_active_dns_connections
+    networkmanager_active=1
   fi
 
-  systemctl reload systemd-resolved.service 2>/dev/null || systemctl restart systemd-resolved.service
+  if ((networkmanager_active == 1)); then
+    if ! nmcli general reload conf >/dev/null 2>&1; then
+      systemctl reload NetworkManager.service 2>/dev/null || return 1
+    fi
+    reapply_active_dns_connections || return 1
+  fi
 
-  if systemctl is-active --quiet NetworkManager.service 2>/dev/null; then
-    # A resolved reload/restart can leave per-link DNS stale or empty; ask
-    # NetworkManager to publish DNS after resolved has reread its config.
-    nmcli general reload dns-full >/dev/null 2>&1 || true
+  if ! systemctl reload systemd-resolved.service 2>/dev/null; then
+    systemctl restart systemd-resolved.service || return 1
+  fi
+
+  if ((networkmanager_active == 1)); then
+    nmcli general reload dns-full >/dev/null 2>&1 || return 1
   fi
 }
 
 acquire_dns_lock() {
-  local created=0 directory
+  local created=0 directory old_umask
 
   directory=$(dirname "$DNS_LOCK_FILE")
   if [[ ! -d $directory ]]; then
@@ -663,14 +789,18 @@ acquire_dns_lock() {
     fi
     exec {DNS_LOCK_FD}<>"$DNS_LOCK_FILE" || return 1
   else
+    old_umask=$(umask)
+    umask 077
     set -o noclobber
     if ! exec {DNS_LOCK_FD}>"$DNS_LOCK_FILE"; then
       set +o noclobber
+      umask "$old_umask"
       DNS_LOCK_FD=
       printf '%s\n' "Error: another DNS configuration transaction created the lock." >&2
       return 1
     fi
     set +o noclobber
+    umask "$old_umask"
     created=1
   fi
   if ! flock -n "$DNS_LOCK_FD"; then
@@ -704,16 +834,39 @@ snapshot_file_state() {
 
   SNAPSHOT_PATHS=()
   SNAPSHOT_PRESENT=()
-  for path in "$NM_DNS_CONF" "$RESOLVED_DROP_IN" "$RESOLVED_CONF"; do
+  for path in "$NM_DNS_CONF" "$RESOLVED_DROP_IN" "$LEGACY_RESOLVED_DROP_IN" "$RESOLVED_CONF"; do
     index=${#SNAPSHOT_PATHS[@]}
     SNAPSHOT_PATHS+=("$path")
     if [[ -e $path || -L $path ]]; then
       backup="$SNAPSHOT_DIR/file-$index"
-      cp -a -- "$path" "$backup" || return 1
+      if ! cp -a -- "$path" "$backup"; then
+        return 1
+      fi
       SNAPSHOT_PRESENT+=(1)
     else
       SNAPSHOT_PRESENT+=(0)
     fi
+  done
+}
+
+validate_profile_snapshot() {
+  local profile="$1" property value extra
+  local -A seen=()
+  local count=0
+
+  [[ -f $profile ]] || return 1
+  if ! while IFS=$'\t' read -r property value extra; do
+    [[ -n $property && -z ${extra:-} ]] || return 1
+    [[ $property == ipv4.ignore-auto-dns || $property == ipv4.dns || $property == ipv6.ignore-auto-dns || $property == ipv6.dns ]] || return 1
+    [[ -z ${seen[$property]+yes} ]] || return 1
+    seen["$property"]=1
+    count=$((count + 1))
+  done <"$profile"; then
+    return 1
+  fi
+  ((count == ${#PROFILE_SNAPSHOT_PROPERTIES[@]})) || return 1
+  for property in "${PROFILE_SNAPSHOT_PROPERTIES[@]}"; do
+    [[ -n ${seen[$property]+yes} ]] || return 1
   done
 }
 
@@ -722,68 +875,134 @@ snapshot_profile_state() {
   local -A seen=()
 
   SNAPSHOT_PROFILE_IDS=()
-  nmcli -t -f UUID,TYPE connection show >"$SNAPSHOT_DIR/profiles.list" || return 1
-  : >"$SNAPSHOT_DIR/profile-ids"
+  SNAPSHOT_PROFILE_TYPES=()
+  if ! nmcli -t -f UUID,TYPE connection show >"$SNAPSHOT_DIR/profiles.list"; then
+    return 1
+  fi
   while IFS=: read -r uuid type; do
-    [[ -n $uuid ]] || continue
-    [[ -z ${seen["$uuid"]+yes} ]] || continue
-    seen["$uuid"]=1
+    if [[ -z $uuid && -z $type ]]; then
+      continue
+    fi
+    [[ -n $uuid && -n $type && $uuid != *:* && $type != *:* && $uuid != *$'\t'* && $type != *$'\t'* ]] || return 1
+    if [[ -n ${seen["$uuid"]+yes} ]]; then
+      [[ ${seen["$uuid"]} == "$type" ]] || return 1
+      continue
+    fi
+    seen["$uuid"]=$type
     networkmanager_dns_connection "$type" || continue
     index=${#SNAPSHOT_PROFILE_IDS[@]}
     profile="$SNAPSHOT_DIR/profile-$index"
-    : >"$profile"
-    for property in ipv4.ignore-auto-dns ipv4.dns ipv6.ignore-auto-dns ipv6.dns; do
+    if ! : >"$profile"; then
+      return 1
+    fi
+    for property in "${PROFILE_SNAPSHOT_PROPERTIES[@]}"; do
       if ! value=$(nmcli -g "$property" connection show "$uuid" 2>/dev/null); then
         return 1
       fi
-      printf '%s\t%s\n' "$property" "$value" >>"$profile"
+      [[ $value != *$'\n'* && $value != *$'\r'* && $value != *$'\t'* ]] || return 1
+      if ! printf '%s\t%s\n' "$property" "$value" >>"$profile"; then
+        return 1
+      fi
     done
-    printf '%s\n' "$uuid" >>"$SNAPSHOT_DIR/profile-ids"
+    if ! validate_profile_snapshot "$profile"; then
+      return 1
+    fi
+    SNAPSHOT_PROFILE_IDS+=("$uuid")
+    SNAPSHOT_PROFILE_TYPES+=("$type")
   done <"$SNAPSHOT_DIR/profiles.list"
-  mapfile -t SNAPSHOT_PROFILE_IDS <"$SNAPSHOT_DIR/profile-ids"
+  ((${#SNAPSHOT_PROFILE_IDS[@]} == ${#SNAPSHOT_PROFILE_TYPES[@]})) || return 1
 }
 
 begin_dns_transaction() {
-  local snapshot_base
+  local snapshot_base snapshot_status=0
 
   ensure_managed_target "$NM_DNS_CONF" || return 1
   ensure_managed_target "$RESOLVED_DROP_IN" || return 1
+  ensure_legacy_managed_target "$LEGACY_RESOLVED_DROP_IN" || return 1
   snapshot_base=$(dirname "$DNS_LOCK_FILE")
   SNAPSHOT_DIR=$(mktemp -d "$snapshot_base/.omarchy-dns-snapshot.XXXXXX") || return 1
-  if ! snapshot_file_state || ! snapshot_profile_state; then
-    rm -rf -- "$SNAPSHOT_DIR"
+  snapshot_file_state || snapshot_status=$?
+  if ((snapshot_status == 0)); then
+    snapshot_profile_state || snapshot_status=$?
+  fi
+  if ((snapshot_status != 0)); then
+    rm -rf -- "$SNAPSHOT_DIR" || true
     SNAPSHOT_DIR=
     return 1
   fi
 }
 
 restore_file_state() {
-  local index path backup present failed=0
+  local index path backup present directory stage failed=0
+  local -a stages=() targets=() removals=()
 
   for ((index = ${#SNAPSHOT_PATHS[@]} - 1; index >= 0; index--)); do
     path=${SNAPSHOT_PATHS[index]}
     present=${SNAPSHOT_PRESENT[index]}
     backup="$SNAPSHOT_DIR/file-$index"
     if ((present == 1)); then
-      cp -a -- "$backup" "$path" || failed=1
+      [[ -e $backup || -L $backup ]] || {
+        failed=1
+        continue
+      }
+      directory=$(dirname "$path")
+      if ! stage=$(mktemp "$directory/.omarchy-dns-restore.XXXXXX"); then
+        failed=1
+        continue
+      fi
+      if ! cp -a -- "$backup" "$stage"; then
+        rm -f -- "$stage" || true
+        failed=1
+        continue
+      fi
+      stages+=("$stage")
+      targets+=("$path")
     elif [[ -e $path || -L $path ]]; then
       if managed_file "$path"; then
-        rm -f -- "$path" || failed=1
+        removals+=("$path")
       else
         failed=1
       fi
     fi
   done
+
+  if ((failed == 1)); then
+    for stage in "${stages[@]}"; do
+      rm -f -- "$stage" || true
+    done
+    return 1
+  fi
+
+  for ((index = 0; index < ${#stages[@]}; index++)); do
+    if ! mv -f -- "${stages[index]}" "${targets[index]}"; then
+      failed=1
+      break
+    fi
+  done
+  if ((failed == 1)); then
+    for ((index = 0; index < ${#stages[@]}; index++)); do
+      [[ -e ${stages[index]} || -L ${stages[index]} ]] && rm -f -- "${stages[index]}" || true
+    done
+    return 1
+  fi
+
+  for path in "${removals[@]}"; do
+    rm -f -- "$path" || failed=1
+  done
   return "$failed"
 }
 
 restore_profile_state() {
-  local index uuid property value profile failed=0
+  local index uuid property value extra profile failed=0
 
   for ((index = 0; index < ${#SNAPSHOT_PROFILE_IDS[@]}; index++)); do
     uuid=${SNAPSHOT_PROFILE_IDS[index]}
     profile="$SNAPSHOT_DIR/profile-$index"
-    while IFS=$'\t' read -r property value; do
+    if ! validate_profile_snapshot "$profile"; then
+      failed=1
+      continue
+    fi
+    while IFS=$'\t' read -r property value extra; do
       nmcli connection modify "$uuid" "$property" "$value" >/dev/null || failed=1
     done <"$profile"
   done
@@ -795,6 +1014,7 @@ rollback_dns_transaction() {
 
   restore_file_state || failed=1
   restore_profile_state || failed=1
+  reload_dns_stack || failed=1
   return "$failed"
 }
 
@@ -806,7 +1026,7 @@ finish_dns_transaction() {
 }
 
 run_dns_transaction() {
-  local status
+  local status rollback_status=0
 
   acquire_dns_lock || return 1
   if ! begin_dns_transaction; then
@@ -822,10 +1042,13 @@ run_dns_transaction() {
     release_dns_lock
     return 0
   else
-    if ! rollback_dns_transaction; then
+    rollback_dns_transaction || rollback_status=$?
+    if ((rollback_status == 0)); then
+      finish_dns_transaction
+    else
       printf '%s\n' "Error: DNS configuration rollback did not complete." >&2
+      printf 'DNS recovery snapshot retained at %s\n' "$SNAPSHOT_DIR" >&2
     fi
-    finish_dns_transaction
     release_dns_lock
     return "$status"
   fi
@@ -861,13 +1084,41 @@ apply_custom_dot() {
 
 apply_custom_plain() {
   local servers="$1"
+  local nm_servers resolved_plain_servers
 
   dns_servers=$(normalize_servers "$servers")
+  nm_servers=$(networkmanager_servers "$dns_servers")
+  resolved_plain_servers=$(resolved_servers_for_drop_in "$dns_servers")
   split_dns_servers "$dns_servers"
-  write_networkmanager_dns "$dns_servers"
+  write_networkmanager_dns "$nm_servers"
   set_connection_dns "$ipv4_dns" "$ipv6_dns"
-  write_resolved_drop_in "${dns_servers//,/ }" no "9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net"
+  write_resolved_drop_in "$resolved_plain_servers" no "9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net"
   reload_dns_stack
+}
+
+read_dns_input() {
+  local input="" character status
+
+  while true; do
+    if IFS= read -r -n 1 character; then
+      if [[ -z $character ]]; then
+        input+=$'\n'
+      else
+        input+=$character
+      fi
+    else
+      status=$?
+      ((status == 1)) || return 1
+      break
+    fi
+    ((${#input} <= MAX_DNS_INPUT_LENGTH + 1)) || return 1
+  done
+
+  while [[ $input == *[[:space:]] ]]; do
+    input=${input%?}
+  done
+  ((${#input} <= MAX_DNS_INPUT_LENGTH)) || return 1
+  printf '%s' "$input"
 }
 
 usage() {
@@ -904,8 +1155,9 @@ if [[ $provider == Custom ]]; then
   if ((parse_only == 0)); then
     echo "Enter DNS servers (space-separated): plain IPs, bracketed IP:port, tls://host, IP#host, or a bare hostname for DoT:"
   fi
-  if ! IFS= read -r dns_servers; then
-    dns_servers=""
+  if ! dns_servers=$(read_dns_input); then
+    custom_input_error
+    exit 1
   fi
 
   if ! parse_entries "$dns_servers"; then
