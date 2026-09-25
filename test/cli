@@ -573,13 +573,17 @@ EOF
 chmod +x "$FAKE_BIN/omarchy-toggle-enabled"
 
 mkdir -p "$PI_TMPDIR/.vscode/extensions"
-echo '{"local.omarchy-theme-1.0.0":true}' >"$PI_TMPDIR/.vscode/extensions/.obsolete"
+# The generated extension derives its version from the theme content, so the
+# obsolete marker only matches when it carries that same version.
+VSCODE_EXTENSION_VERSION="1.0.$(cksum "$PI_TMPDIR/.local/state/omarchy/current/theme/vscode-theme.json" | cut -d' ' -f1)"
+echo "{\"local.omarchy-theme-$VSCODE_EXTENSION_VERSION\":true}" >"$PI_TMPDIR/.vscode/extensions/.obsolete"
 PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-vscode"
 jq -e '.contributes.themes[0].uiTheme == "vs"' "$PI_TMPDIR/.vscode/extensions/omarchy-theme/package.json" >/dev/null || fail "vscode generated light theme uses VS Code light uiTheme"
 pass "vscode generated light theme uses VS Code light uiTheme"
-[[ -L $PI_TMPDIR/.vscode/extensions/omarchy-theme/themes/omarchy-color-theme.json ]] || fail "vscode generated theme references current theme file"
-[[ $(readlink "$PI_TMPDIR/.vscode/extensions/omarchy-theme/themes/omarchy-color-theme.json") == "$PI_TMPDIR/.local/state/omarchy/current/theme/vscode-theme.json" ]] || fail "vscode generated theme references current theme file"
-pass "vscode generated theme references current theme file"
+VSCODE_EXTENSION_THEME="$PI_TMPDIR/.vscode/extensions/omarchy-theme/themes/omarchy-color-theme.json"
+[[ -f $VSCODE_EXTENSION_THEME && ! -L $VSCODE_EXTENSION_THEME ]] || fail "vscode generated theme copies the current theme file"
+cmp -s "$VSCODE_EXTENSION_THEME" "$PI_TMPDIR/.local/state/omarchy/current/theme/vscode-theme.json" || fail "vscode generated theme copies the current theme file"
+pass "vscode generated theme copies the current theme file"
 [[ ! -f $PI_TMPDIR/.vscode/extensions/.obsolete ]] || fail "vscode generated theme clears obsolete extension marker"
 pass "vscode generated theme clears obsolete extension marker"
 jq -e '.[] | select(.identifier.id == "local.omarchy-theme" and .relativeLocation == "omarchy-theme")' "$PI_TMPDIR/.vscode/extensions/extensions.json" >/dev/null || fail "vscode generated theme registers local extension"
