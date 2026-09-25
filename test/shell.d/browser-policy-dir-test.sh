@@ -351,3 +351,15 @@ grep -F 'browser_policy_firefox_policy_file_ok' "${migrations[0]}" >/dev/null ||
 grep -F '/opt/zen-browser/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
   fail "the shared helper names the Zen distribution directory"
 pass "a migration locks existing policy directories"
+
+# The privacy policy has to be wired everywhere the colour policy is, not just
+# defined in the helper.
+grep -F 'browser_policy_install_privacy /etc/chromium/policies/managed' "$ROOT/install/config/browser-policy.sh" >/dev/null ||
+  fail "fresh installs ship the Chromium privacy policy"
+grep -F 'browser_policy_install_privacy "$1"' "$ROOT/bin/omarchy-install-browser" >/dev/null ||
+  fail "browser installs ship the privacy policy for managed directories"
+grep -F 'browser_policy_install_privacy "$dir"' "$ROOT/migrations/1790226946.sh" >/dev/null ||
+  fail "the privacy migration installs into existing managed directories"
+grep -F '{color,privacy}.json' "$ROOT/bin/omarchy-remove-browser" >/dev/null ||
+  fail "browser removal cleans up privacy.json too"
+pass "privacy policy is wired into install, browser management and removal"
