@@ -483,6 +483,10 @@ assert(
   'menu primes checked markers from the summon payload'
 )
 assert(
+  /if \(payload\.disabled && typeof payload\.disabled === "object"\) \{[\s\S]*?root\.disabledResults\[dis\] = !!payload\.disabled\[dis\]/.test(menuQml),
+  'menu primes disabled rows from the summon payload'
+)
+assert(
   /root\.openRoute\(payload\.initialMenu \|\| payload\.menu \|\| "root", payload\.initialIndex, payload\.initialId\)/.test(menuQml),
   'menu threads initial highlight state from the summon payload'
 )

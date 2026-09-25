@@ -35,6 +35,18 @@ Item {
       }
     }
 
+    // The same first-paint deal for `disabled:` rows: a summoner whose
+    // condition changed since the last guard batch can name the rows it
+    // expects to be disabled. The batch re-derives the truth on the way in
+    // and reconfirms (it does not read these), so a primed row settles the
+    // dim/inert state only until that lands -- never a permanent override.
+    if (payload.disabled && typeof payload.disabled === "object") {
+      for (var dis in payload.disabled) {
+        if (Object.prototype.hasOwnProperty.call(payload.disabled, dis))
+          root.disabledResults[dis] = !!payload.disabled[dis]
+      }
+    }
+
     // Default each session to the theme's disabled alpha before honoring a
     // per-session override; a summoner that wants its disabled rows dimmed
     // differently from the theme can name one in the payload.
