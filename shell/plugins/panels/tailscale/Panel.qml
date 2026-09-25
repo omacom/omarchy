@@ -379,6 +379,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Tailscale"
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -402,6 +403,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Tailscale"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -479,6 +481,7 @@ Panel {
               trailingControl: Component {
                 ToggleSwitch {
                   id: powerSwitch
+                  accessibleName: "Tailscale"
                   visible: tailscale.installed
                   checked: tailscale.active
                   busy: tailscale.busy
@@ -987,6 +990,7 @@ Panel {
 
       PanelActionButton {
         id: copyButton
+        accessibleName: "Copy"
         iconText: "󰆏"
         foreground: root.foreground
         fontFamily: root.fontFamily

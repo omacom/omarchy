@@ -237,6 +237,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Clock"
     anchorItem: root.anchorItem
     owner: root.barIdentity
     bar: root.bar

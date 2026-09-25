@@ -650,6 +650,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Bluetooth"
     anchors.fill: parent
     bar: root.bar
     text: root.icon
@@ -661,6 +662,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Bluetooth"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -712,6 +714,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
+            accessibleName: "Bluetooth"
             visible: !!root.adapter
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
