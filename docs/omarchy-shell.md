@@ -410,7 +410,7 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 
 ## Accessibility
 
-The shared `qs.Ui` kit publishes Qt `Accessible` roles, names, states and actions, so screen readers such as Orca and AT-SPI tools can find and operate shell controls without the mouse. Accessibility actions call the same signal a click does (`clicked()`, `toggled()`, `triggerPress()`, `moved()` / `released()`), so there is no second code path. This needs a Quickshell build newer than 0.3.1: earlier releases publish no accessibility tree for any window (fixed upstream in quickshell-mirror/quickshell@916a0dd).
+The shared `qs.Ui` kit publishes Qt `Accessible` roles, names, states and actions, so screen readers such as Orca and AT-SPI tools can find and operate shell controls without the mouse. On an enabled control, an accessibility action calls the same signal a click, toggle or slider step does (`clicked()`, `toggled()`, `triggerPress()`, `moved()` / `released()`), so there is no second code path; disabled controls ignore accessibility actions just as they ignore the pointer. A `PanelSlider` value set directly through the accessibility Value interface is committed the same way, through `moved()` and `released()`. This needs a Quickshell build that includes quickshell-mirror/quickshell@916a0dd: releases up to and including 0.3.1 publish no accessibility tree for any window.
 
 | Component | Role | Name, in fallback order |
 |-----------|------|-------------------------|
@@ -421,7 +421,7 @@ The shared `qs.Ui` kit publishes Qt `Accessible` roles, names, states and action
 | `Toggle` | check box | `label`, with `description` as the description |
 | `ToggleSwitch` | check box | `accessibleName`; hidden when `interactive: false`, as inside `Toggle` |
 | `TextField` | text / password text | `accessibleName`, `placeholderText` |
-| `PanelSlider` | slider | `accessibleName` |
+| `PanelSlider` | slider, carried by its `accessibleItem` | `accessibleName` |
 | `Dropdown`, `SearchableDropdown`, `MultiSelect` | combo box, with list items or check boxes in the popup | `accessibleName`, `label` |
 | `CursorSurface` | list item | `accessibleName`; unnamed rows stay out of the tree |
 | `ConfirmDialog` | dialog with buttons | `message`, `cancelText`, `confirmText` |
