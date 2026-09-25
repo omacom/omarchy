@@ -899,6 +899,7 @@ Panel {
     }
     property int copyIndex: 0
 
+    accessibleName: peer ? peerName : ""
     hasCursor: root.cursorActive && root.focusSection === "peers" && root.peerIndex === rowIndex
     foreground: root.foreground
 

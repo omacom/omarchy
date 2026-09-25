@@ -38,6 +38,7 @@ Item {
 
   Accessible.role: pressable ? Accessible.Button : Accessible.StaticText
   Accessible.name: accessibleName
+  Accessible.description: tooltipText !== accessibleName ? tooltipText : ""
   Accessible.ignored: concealed || !hasVisualContent
   Accessible.onPressAction: if (root.interactive && root.pressable) root.triggerPress(Qt.LeftButton)
 

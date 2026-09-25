@@ -869,6 +869,11 @@ Panel {
 
     accessibleName: display ? display.name : ""
     Accessible.onPressAction: monitorRow.activate()
+    // Press turns the display on or off, so that is the state to announce;
+    // `current` only tracks which monitor has focus.
+    Accessible.checkable: true
+    Accessible.checked: !!display && display.enabled
+    Accessible.selected: false
     hasCursor: root.cursorActive && root.focusSection === "monitors" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(monitorRow)
     current: isFocused
