@@ -44,6 +44,8 @@ for format in "${formats[@]}"; do
 done
 find_args+=(")" -printf '%T@\t%p\n')
 
-# -H: follow symlink roots on the command line only (not interior links; avoids loop exit 1 under pipefail)
-find -H "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- |
+# -H: follow command-line symlink roots only. Interior symlinked dirs are not
+# descended (they stay -type l), so nested loops cannot make find exit 1 under
+# pipefail the way -L would. Do not "simplify" back to -L.
+find -H "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- | awk '!seen[$0]++' |
   omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"

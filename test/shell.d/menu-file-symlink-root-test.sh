@@ -87,3 +87,27 @@ out=$(
 [[ $out == "$tmp/home/Videos/clip.webm" || $out == *clip.webm* ]] \
   || fail "omarchy-menu-file still returns the pick when an interior loop exists" "out=$out"
 pass "omarchy-menu-file stays healthy with an interior symlink loop under a followed root"
+
+# Broken symlink path argument → Path not found, exit 1
+ln -s "$tmp/missing-target" "$tmp/home/Broken"
+set +e
+err=$(omarchy-menu-file "Select" "$tmp/home/Broken" "webm" 2>&1 >/dev/null)
+ec=$?
+set -e
+[[ $ec -eq 1 ]] || fail "broken symlink root exits 1" "exit=$ec"
+[[ $err == *"Path not found"* ]] || fail "broken symlink root prints Path not found" "err=$err"
+pass "broken symlink path argument rejects with Path not found"
+
+# Overlapping roots (symlink → sibling real dir) → deduped rows
+mkdir -p "$tmp/shared"
+printf 's' >"$tmp/shared/one.webm"
+ln -sfn "$tmp/shared" "$tmp/home/LinkA"
+: >"$OMARCHY_TEST_ROWS"
+unset OMARCHY_TEST_PICK || true
+out=$(
+  omarchy-menu-file "Select video" "$tmp/home/LinkA:$tmp/shared" "webm" 2>/dev/null
+) || fail "overlapping roots exit 0"
+rows=$(cat "$OMARCHY_TEST_ROWS")
+count=$(printf '%s\n' "$rows" | grep -c 'one.webm' || true)
+[[ $count -eq 1 ]] || fail "overlapping roots dedupe rows" "count=$count rows=$rows"
+pass "overlapping roots (symlink to sibling) produce one row"
