@@ -598,7 +598,20 @@ ShellRoot {
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
       _serviceLookup: function(requestedId) {
-        return allowOwnService ? shell.pluginServiceFor(key, requestedId) : null
+        if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
+          return shell.pluginServiceFor(key, requestedId)
+        // A bar-capable plugin hosts its bar's entries and already drives
+        // their panels — summon, hide, toggle, inline settings — so reaching
+        // the service of an entry configured in the bar it hosts crosses no
+        // new boundary. This is also how a replacement bar hands a widget its
+        // own service: the widget asks through the bar-level shell the bar
+        // passes down as `bar.shell`, and the trusted bar satisfies the same
+        // request through pluginShellForId() instead. Still no generic
+        // factory: only ids with a configured bar entry resolve.
+        if (hasCurrentBarCapabilities()
+            && shell.barEntryConfigured(shell.pluginRegistry.resolveEnabledId(requestedId)))
+          return shell.serviceFor(shell.pluginRegistry.resolveEnabledId(requestedId))
+        return null
       },
       _firstPartyServiceLookup: function(requestedId) {
         if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
