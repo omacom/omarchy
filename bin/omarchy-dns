@@ -20,6 +20,10 @@ fi
 
 NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
 RESOLVED_DROP_IN=/etc/systemd/resolved.conf.d/90-dot.conf
+MAX_DNS_INPUT_LENGTH=4096
+MAX_DNS_TOKENS=32
+MAX_DNS_TOKEN_LENGTH=512
+MAX_HOSTNAME_LENGTH=253
 
 provider_from_arg() {
   case "${1:-}" in
@@ -140,91 +144,300 @@ current_dns_provider() {
 }
 
 is_ipv4() {
-  [[ $1 =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]
-}
+  local octet
+  local -a octets=()
 
-is_ipv6() {
-  [[ $1 == *:* ]]
-}
-
-resolve_host() {
-  { getent ahostsv4 "$1" 2>/dev/null | awk '{print $1}'; getent ahostsv6 "$1" 2>/dev/null | awk '{print $1}'; } | sort -u || true
-}
-
-# Parses a space/comma-separated server list into dot_mode, resolved_servers,
-# and plain_servers. A hostname in any entry enables DoT mode: systemd-resolved
-# sends it as the TLS SNI, so custom endpoints (AdGuard DNS, NextDNS, a
-# self-hosted AdGuard Home...) get their per-device identifier.
-parse_entries() {
-  local input="$1"
-  local token host ip ips
-  dot_mode=0
-  resolved_servers=""
-  plain_servers=""
-
-  for token in ${input//,/ }; do
-    case "$token" in
-      https://* | dns+https://*)
-        echo "Error: DoH ($token) cannot be used via systemd-resolved; use the AdGuard CLI or dnsproxy." >&2
-        return 1
-        ;;
-      quic://* | dns+quic://* | dns+doq://*)
-        echo "Error: DoQUIC ($token) cannot be used via systemd-resolved; use the AdGuard CLI or dnsproxy." >&2
-        return 1
-        ;;
-      tls://* | dns+tls://*)
-        token="${token#*//}"
-        ;;
-      udp://* | dns+udp://*)
-        token="${token#*//}"
-        ;;
-    esac
-
-    if [[ $token == *"#"* ]]; then
-      ip="${token%%#*}"
-      host="${token#*#}"
-      if ! is_ipv4 "$ip" && ! is_ipv6 "$ip"; then
-        echo "Error: '$token' -- expected IP#hostname, got non-IP '$ip'." >&2
-        return 1
-      fi
-      if [[ -z $host ]]; then
-        echo "Error: '$token' has an empty hostname after '#'." >&2
-        return 1
-      fi
-      dot_mode=1
-      resolved_servers+=" ${ip}#${host}"
-    elif is_ipv4 "$token" || is_ipv6 "$token"; then
-      plain_servers+=" $token"
-    else
-      ips=$(resolve_host "$token")
-      if [[ -z $ips ]]; then
-        echo "Error: could not resolve '$token'." >&2
-        return 1
-      fi
-      dot_mode=1
-      while read -r ip; do
-        [[ -n $ip ]] && resolved_servers+=" ${ip}#${token}"
-      done <<<"$ips"
-    fi
+  [[ $1 =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || return 1
+  IFS=. read -r -a octets <<<"$1"
+  for octet in "${octets[@]}"; do
+    [[ ${#octet} -le 3 ]] || return 1
+    [[ ${#octet} -gt 1 && ${octet:0:1} != 0 ]] || [[ ${#octet} -eq 1 ]] || return 1
+    ((10#$octet <= 255)) || return 1
   done
 }
 
+ipv6_side_count() {
+  local side="$1" part count=0
+  local -a parts=()
+
+  [[ -n $side ]] || {
+    printf '0'
+    return 0
+  }
+  [[ $side != :* && $side != *: ]] || return 1
+  IFS=: read -r -a parts <<<"$side"
+  for part in "${parts[@]}"; do
+    if [[ $part == *.* ]]; then
+      is_ipv4 "$part" || return 1
+      count=$((count + 2))
+    else
+      [[ $part =~ ^[0-9A-Fa-f]{1,4}$ ]] || return 1
+      count=$((count + 1))
+    fi
+  done
+  printf '%s' "$count"
+}
+
+is_ipv6() {
+  local address="$1" remainder left right left_count right_count total
+
+  [[ $address == *:* && $address != "::" ]] || return 1
+  if [[ $address == *"::"* ]]; then
+    remainder=${address#*::}
+    [[ $remainder != *"::"* ]] || return 1
+    left=${address%%::*}
+    right=$remainder
+  else
+    left=$address
+    right=""
+  fi
+
+  left_count=$(ipv6_side_count "$left") || return 1
+  right_count=$(ipv6_side_count "$right") || return 1
+  total=$((left_count + right_count))
+  if [[ $address == *"::"* ]]; then
+    ((total < 8)) || return 1
+  else
+    ((total == 8)) || return 1
+  fi
+}
+
+valid_port() {
+  [[ $1 =~ ^[0-9]{1,5}$ ]] || return 1
+  ((10#$1 >= 1 && 10#$1 <= 65535))
+}
+
+valid_hostname() {
+  local hostname="$1" label
+  local -a labels=()
+
+  [[ -n $hostname && ${#hostname} -le $MAX_HOSTNAME_LENGTH ]] || return 1
+  [[ $hostname != .* && $hostname != *. && $hostname != *..* ]] || return 1
+  IFS=. read -r -a labels <<<"$hostname"
+  for label in "${labels[@]}"; do
+    [[ $label =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || return 1
+  done
+}
+
+has_glob() {
+  case "$1" in
+    *'*'* | *'?'*) return 0 ;;
+  esac
+  return 1
+}
+
+resolve_host() {
+  local family address key
+  local -a addresses=()
+  local -A seen=()
+
+  for family in ahostsv4 ahostsv6; do
+    while read -r address _; do
+      [[ -n $address ]] || continue
+      if [[ $family == ahostsv4 ]]; then
+        is_ipv4 "$address" || continue
+        key="v4:$address"
+      else
+        is_ipv6 "$address" || continue
+        key="v6:$address"
+      fi
+      [[ -n ${seen["$key"]+yes} ]] && continue
+      seen["$key"]=1
+      addresses+=("$address")
+    done < <(getent "$family" "$1" 2>/dev/null || true)
+  done
+
+  ((${#addresses[@]} > 0)) || return 0
+  printf '%s\n' "${addresses[@]}" | sort -u
+}
+
+custom_input_error() {
+  printf '%s\n' "Error: invalid custom DNS input." >&2
+}
+
+append_resolved_server() {
+  local server="$1"
+
+  [[ " ${resolved_servers} " == *" $server "* ]] && return 0
+  resolved_servers+="${resolved_servers:+ }$server"
+}
+
+append_plain_server() {
+  local server="$1"
+
+  plain_servers+="${plain_servers:+ }$server"
+}
+
+parse_entries() {
+  local input="$1" normalized token scheme endpoint host ip ips port server
+  local saw_dot=0 saw_plain=0
+  local -a tokens=()
+
+  dot_mode=0
+  resolved_servers=""
+  plain_servers=""
+  (( ${#input} <= MAX_DNS_INPUT_LENGTH )) || {
+    custom_input_error
+    return 1
+  }
+  [[ $input != *$'\n'* ]] || {
+    custom_input_error
+    return 1
+  }
+
+  normalized=${input//,/ }
+  read -r -a tokens <<<"$normalized"
+  ((${#tokens[@]} > 0)) || {
+    custom_input_error
+    return 1
+  }
+  ((${#tokens[@]} <= MAX_DNS_TOKENS)) || {
+    custom_input_error
+    return 1
+  }
+  [[ $normalized == *[[:alnum:]]* || $normalized == *":"* ]] || {
+    custom_input_error
+    return 1
+  }
+
+  for token in "${tokens[@]}"; do
+    ((${#token} <= MAX_DNS_TOKEN_LENGTH)) || {
+      custom_input_error
+      return 1
+    }
+    has_glob "$token" && {
+      custom_input_error
+      return 1
+    }
+
+    if [[ $token == *"["* || $token == *"]"* ]]; then
+      if [[ $token =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+        ip=${BASH_REMATCH[1]}
+        port=${BASH_REMATCH[2]}
+        if ! valid_port "$port" || { ! is_ipv4 "$ip" && ! is_ipv6 "$ip"; }; then
+          custom_input_error
+          return 1
+        fi
+        server="[$ip]:$port"
+        append_plain_server "$server"
+        saw_plain=1
+      else
+        custom_input_error
+        return 1
+      fi
+      continue
+    fi
+
+    if [[ $token == *"://"* ]]; then
+      scheme=${token%%://*}
+      endpoint=${token#*://}
+      if [[ $scheme != tls && $scheme != dns+tls ]] ||
+        [[ -z $endpoint || $endpoint == *"/"* || $endpoint == *"?"* || $endpoint == *"@"* ||
+          $endpoint == *"#"* || $endpoint == *":"* || $endpoint == *"["* || $endpoint == *"]"* ]]; then
+        custom_input_error
+        return 1
+      fi
+      if ! valid_hostname "$endpoint"; then
+        custom_input_error
+        return 1
+      fi
+      ips=$(resolve_host "$endpoint")
+      if [[ -z $ips ]]; then
+        custom_input_error
+        return 1
+      fi
+      saw_dot=1
+      while IFS= read -r ip; do
+        [[ -n $ip ]] || continue
+        append_resolved_server "$ip#$endpoint"
+      done <<<"$ips"
+      continue
+    fi
+
+    if [[ $token == *"#"* ]]; then
+      if [[ $token == *"#"*"#"* || $token == \#* || $token == *\# ]]; then
+        custom_input_error
+        return 1
+      fi
+      ip=${token%%#*}
+      host=${token#*#}
+      if ! { is_ipv4 "$ip" || is_ipv6 "$ip"; } || ! valid_hostname "$host"; then
+        custom_input_error
+        return 1
+      fi
+      append_resolved_server "$ip#$host"
+      saw_dot=1
+      continue
+    fi
+
+    if is_ipv4 "$token" || is_ipv6 "$token"; then
+      append_plain_server "$token"
+      saw_plain=1
+      continue
+    fi
+
+    if [[ $token == *":"* || $token == *"@"* || $token == *"/"* || $token == *"?"* || $token == *'\'* ]]; then
+      custom_input_error
+      return 1
+    fi
+    if ! valid_hostname "$token"; then
+      custom_input_error
+      return 1
+    fi
+    ips=$(resolve_host "$token")
+    if [[ -z $ips ]]; then
+      custom_input_error
+      return 1
+    fi
+    saw_dot=1
+    while IFS= read -r ip; do
+      [[ -n $ip ]] || continue
+      append_resolved_server "$ip#$token"
+    done <<<"$ips"
+  done
+
+  if ((saw_dot == 1 && saw_plain == 1)); then
+    custom_input_error
+    return 1
+  fi
+  if [[ -z $resolved_servers && -z $plain_servers ]]; then
+    custom_input_error
+    return 1
+  fi
+  dot_mode=$saw_dot
+}
+
 normalize_servers() {
-  printf '%s\n' "$*" | tr ',\t\n' ' ' | xargs | tr ' ' ','
+  local input="$1" server
+  local -a servers=()
+
+  read -r -a servers <<<"${input//,/ }"
+  ((${#servers[@]} > 0)) || return 0
+  printf '%s' "${servers[0]}"
+  for server in "${servers[@]:1}"; do
+    printf ',%s' "$server"
+  done
+  printf '\n'
 }
 
 split_dns_servers() {
   local servers="$1"
   local server clean
+  local -a server_tokens=()
+
   ipv4_dns=""
   ipv6_dns=""
-
-  for server in ${servers//,/ }; do
+  read -r -a server_tokens <<<"${servers//,/ }"
+  for server in "${server_tokens[@]}"; do
     clean=${server#dns+tls://}
     clean=${clean#dns+udp://}
     clean=${clean%%#*}
-    clean=${clean#[}
-    clean=${clean%]}
+    if [[ $clean =~ ^\[([^]]+)\]:[0-9]+$ ]]; then
+      clean=${BASH_REMATCH[1]}
+    else
+      clean=${clean#[}
+      clean=${clean%]}
+    fi
 
     [[ -n $clean ]] || continue
     if [[ $clean == *:* ]]; then
@@ -387,7 +600,16 @@ if ! provider=$(provider_from_arg "$1"); then
   exit 1
 fi
 
-require_root "$provider"
+parse_only=0
+if [[ ${OMARCHY_DNS_PARSE_ONLY:-0} == 1 ]]; then
+  if [[ $provider != Custom ]]; then
+    usage
+    exit 1
+  fi
+  parse_only=1
+else
+  require_root "$provider"
+fi
 
 case "$provider" in
 Cloudflare)
@@ -425,34 +647,35 @@ EOF
   ;;
 
 Custom)
-  echo "Enter DNS servers (space-separated): plain IPs, tls://host, IP#host, or a bare hostname for DoT:"
-  if ! read -r dns_servers; then
-    dns_servers=""
+  if ((parse_only == 0)); then
+    echo "Enter DNS servers (space-separated): plain IPs, bracketed IP:port, tls://host, IP#host, or a bare hostname for DoT:"
   fi
-
-  if [[ -z ${dns_servers//[[:space:]]/} ]]; then
-    echo "Error: No DNS servers provided." >&2
-    exit 1
+  if ! IFS= read -r dns_servers; then
+    dns_servers=""
   fi
 
   if ! parse_entries "$dns_servers"; then
     exit 1
   fi
 
+  if ((parse_only == 1)); then
+    if ((dot_mode == 1)); then
+      printf 'transport=dot\nservers=%s\n' "$resolved_servers"
+    else
+      printf 'transport=plain\nservers=%s\n' "$plain_servers"
+    fi
+    exit 0
+  fi
+
   if (( dot_mode == 1 )); then
-    set -- $resolved_servers $plain_servers
-    dns_servers="$*"
-    [[ -n $dns_servers ]] || {
-      echo "Error: No usable DNS servers." >&2
-      exit 1
-    }
+    dns_servers="$resolved_servers"
     write_dot_drop_in "$dns_servers"
     disable_base_dns
     clear_networkmanager_dns
     clear_connection_dns_dot
   else
     rm -f "$RESOLVED_DROP_IN"
-    dns_servers=$(normalize_servers "$dns_servers")
+    dns_servers=$(normalize_servers "$plain_servers")
     split_dns_servers "$dns_servers"
     write_networkmanager_dns "$dns_servers"
     set_connection_dns "$ipv4_dns" "$ipv6_dns"
