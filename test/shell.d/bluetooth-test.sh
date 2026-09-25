@@ -287,7 +287,7 @@ cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 
 printf 'systemctl %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
-exit 0
+exit "${SYSTEMCTL_STATUS:-0}"
 SH
 
 cat >"$mock_bin/sudo" <<'SH'
@@ -309,3 +309,18 @@ pass "bluetooth restart lifts the rfkill block"
 grep -qx "sudo systemctl restart bluetooth.service" "$restart_log" ||
   fail "bluetooth restart restarts bluetooth.service" "$(cat "$restart_log")"
 pass "bluetooth restart restarts bluetooth.service"
+
+# A failed restart still prints the rfkill readout, but the script must exit
+# with the restart status so callers can tell it did not come back.
+: >"$restart_log"
+restart_status=0
+PATH="$mock_bin:$PATH" BLUETOOTHCTL_LOG="$restart_log" SYSTEMCTL_STATUS=1 \
+  "$ROOT/bin/omarchy-restart-bluetooth" >/dev/null || restart_status=$?
+
+(( restart_status != 0 )) ||
+  fail "bluetooth restart propagates a systemctl failure"
+pass "bluetooth restart propagates a systemctl failure"
+
+grep -qx "rfkill list bluetooth" "$restart_log" ||
+  fail "bluetooth restart still prints the rfkill readout after a failure" "$(cat "$restart_log")"
+pass "bluetooth restart still prints the rfkill readout after a failure"
