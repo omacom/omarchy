@@ -280,14 +280,14 @@ assert(
 )
 
 // `in` reports read-only properties too: CustomCommandModule declares its own
-// readonly moduleName/settings, so injectProps must not write blindly — a
-// TypeError mid-incubation took the shell down in #13011.
+// readonly moduleName/settings, so injectProps must skip those writes — a
+// TypeError mid-incubation preceded a crash reported in #13011.
 const inject = barSource.slice(barSource.indexOf('function injectProps'), barSource.indexOf('function injectProps') + 1200)
 assert(
-  /try\s*\{[^}]*target\.bar\s*=/.test(inject) &&
-  /try\s*\{[^}]*target\.moduleName\s*=/.test(inject) &&
-  /try\s*\{[^}]*target\.settings\s*=/.test(inject),
-  'bar guards each injected property against read-only declarations'
+  /"bar" in target/.test(inject) &&
+  /!commandCustom && "moduleName" in target/.test(inject) &&
+  /!commandCustom && "settings" in target/.test(inject),
+  'bar skips injected properties that command modules declare read-only'
 )
 assert(
   /width: root\.vertical \? Style\.space\(2\) : slot\.panelIndicatorExtent/.test(indicator) &&
