@@ -188,6 +188,10 @@ ShellRoot {
   property int multiChanges: 0
   property int dialogCancels: 0
   property int dialogConfirms: 0
+  property real boundVolume: 0.4
+  property int boundSliderReleases: 0
+  property int disabledSliderMoves: 0
+  property int disabledToggleEvents: 0
 
   function check(condition, message) {
     if (!condition) failures.push(message)
@@ -335,11 +339,11 @@ ShellRoot {
     same(plainField.Accessible.name, "Search", "TextField is named by its placeholder")
     same(passwordField.Accessible.description, "Passphrase for Home", "password TextField carries its name in the description")
 
-    same(slider.Accessible.role, Accessible.Slider, "PanelSlider role")
-    same(slider.Accessible.name, "Volume", "PanelSlider takes accessibleName")
-    same(slider.minimumValue, 0, "PanelSlider exposes its minimum to the Value interface")
-    same(slider.maximumValue, 1.5, "PanelSlider exposes its maximum to the Value interface")
-    same(slider.stepSize, 0.05, "PanelSlider exposes its step to the Value interface")
+    same(slider.accessibleItem.Accessible.role, Accessible.Slider, "PanelSlider role")
+    same(slider.accessibleItem.Accessible.name, "Volume", "PanelSlider takes accessibleName")
+    same(slider.accessibleItem.minimumValue, 0, "PanelSlider exposes its minimum to the Value interface")
+    same(slider.accessibleItem.maximumValue, 1.5, "PanelSlider exposes its maximum to the Value interface")
+    same(slider.accessibleItem.stepSize, 0.05, "PanelSlider exposes its step to the Value interface")
 
     same(dropdown.accessibleName, "Output", "Dropdown is named by its label")
     same(actionButton.Accessible.name, "Unpair", "PanelActionButton is named by its tooltip")
@@ -363,11 +367,41 @@ ShellRoot {
     busySwitch.Accessible.toggleAction()
     same(switchToggles, 1, "ToggleSwitch accessibility toggle respects busy state")
 
-    slider.Accessible.increaseAction()
-    slider.Accessible.decreaseAction()
+    slider.accessibleItem.Accessible.increaseAction()
+    slider.accessibleItem.Accessible.decreaseAction()
     same(slider.liveValue, 0, "PanelSlider accessibility actions adjust its live value")
     same(sliderMoves, 2, "PanelSlider accessibility actions emit moved")
     same(sliderReleases, 2, "PanelSlider accessibility actions emit released")
+
+    // A value written through the Value interface commits like a drag, and
+    // the caller's binding keeps driving the slider afterwards.
+    boundSlider.accessibleItem.value = 0.8
+    same(boundVolume, 0.8, "PanelSlider value write commits through moved/released")
+    same(boundSliderReleases, 1, "PanelSlider value write emits released once")
+    root.boundVolume = 0.2
+    same(boundSlider.liveValue, 0.2, "PanelSlider keeps its caller binding after a value write")
+    same(boundSlider.accessibleItem.value, 0.2, "PanelSlider mirrors the caller value to assistive technology")
+    same(boundSliderReleases, 1, "PanelSlider mirroring a caller value does not commit it again")
+
+    // Disabled controls ignore accessibility actions, as they ignore the pointer.
+    disabledSlider.accessibleItem.Accessible.increaseAction()
+    disabledSlider.accessibleItem.value = 0.9
+    same(disabledSliderMoves, 0, "disabled PanelSlider ignores accessibility actions")
+    same(disabledSlider.liveValue, 0.5, "disabled PanelSlider keeps its value")
+    disabledToggle.Accessible.toggleAction()
+    disabledToggle.Accessible.pressAction()
+    disabledSwitch.Accessible.toggleAction()
+    same(disabledToggleEvents, 0, "disabled Toggle and ToggleSwitch ignore accessibility actions")
+    var disabledTrigger = accessibleChild(testWindow.contentItem, "Unavailable", Accessible.ComboBox)
+    check(disabledTrigger !== null, "disabled Dropdown trigger is exposed as a combo box")
+    if (disabledTrigger) disabledTrigger.Accessible.pressAction()
+    same(disabledDropdown.popupOpen, false, "disabled Dropdown ignores its accessibility press")
+
+    // A row whose press turns something on or off reports that as checked,
+    // not the cursor's focus as selected (the Display panel's monitor rows).
+    same(toggleRow.Accessible.checkable, true, "on/off row is checkable")
+    same(toggleRow.Accessible.checked, true, "on/off row reports its state as checked")
+    same(toggleRow.Accessible.selected, false, "on/off row keeps focus out of selected")
 
     actionButton.Accessible.pressAction()
     same(actionClicks, 1, "PanelActionButton accessibility press emits clicked")
@@ -426,6 +460,30 @@ ShellRoot {
       maximum: 1.5
       onMoved: root.sliderMoves++
       onReleased: root.sliderReleases++
+    }
+    PanelSlider {
+      id: boundSlider
+      accessibleName: "Bound volume"
+      value: root.boundVolume
+      onReleased: function(v) { root.boundVolume = v; root.boundSliderReleases++ }
+    }
+    PanelSlider { id: disabledSlider; accessibleName: "Unavailable"; enabled: false; value: 0.5; onMoved: root.disabledSliderMoves++ }
+    Toggle { id: disabledToggle; label: "Unavailable"; enabled: false; onClicked: root.disabledToggleEvents++ }
+    ToggleSwitch { id: disabledSwitch; accessibleName: "Unavailable"; enabled: false; onToggled: root.disabledToggleEvents++ }
+    Dropdown {
+      id: disabledDropdown
+      y: 40
+      label: "Unavailable"
+      enabled: false
+      options: ["One", "Two"]
+    }
+    CursorSurface {
+      id: toggleRow
+      accessibleName: "DP-2"
+      current: true
+      Accessible.checkable: true
+      Accessible.checked: true
+      Accessible.selected: false
     }
     Dropdown {
       id: dropdown
