@@ -48,10 +48,15 @@ QtObject {
     return value
   }
 
-  function flatColor(value, fallback) {
+  function flatColor(value, fallback, seen) {
     var token = firstColorToken(value)
     var role = String(token || "").replace(/^\s+|\s+$/g, "").toLowerCase()
-    if (root.shellValues[role] && root.shellValues[role] !== token) return flatColor(root.shellValues[role], fallback)
+    var visited = seen || ({})
+    if (root.shellValues[role] && root.shellValues[role] !== token) {
+      if (visited[role]) return fallback
+      visited[role] = true
+      return flatColor(root.shellValues[role], fallback, visited)
+    }
     if (role === "foreground" || role === "text") return root.foreground
     if (role === "accent") return root.accent
     if (role === "urgent") return root.urgent
@@ -60,7 +65,7 @@ QtObject {
     if (role === "transparent") return Qt.rgba(0, 0, 0, 0)
 
     var color = Geometry.canonicalColor(token, 1)
-    if (typeof color === "string" && color === token && token.charAt(0) !== "#") return fallback
+    if (typeof color === "string" && color === token) return fallback
     return color
   }
 
@@ -70,6 +75,39 @@ QtObject {
     return Util.alpha(flatColor(pick(colorKey, colorFallback), colorFallback), pickAlpha(alphaKey, alphaFallback))
   }
 
+  // Match border gradient syntax, leaving typed color consumers on the first
+  // stop. Resolve whole-value references before splitting the stop list.
+  function fillSpec(colorKey, alphaKey, colorFallback, alphaFallback) {
+    var raw = String(pick(colorKey, colorFallback)).trim()
+    var seen = {}
+    while (raw.match(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/)) {
+      if (seen[raw] || shellValues[raw] === undefined) {
+        raw = String(colorFallback)
+        break
+      }
+      seen[raw] = true
+      raw = String(shellValues[raw]).trim()
+    }
+    var alpha = pickAlpha(alphaKey, alphaFallback)
+    var parts = raw.split(/\s+/)
+    var colors = []
+    var angle = 0
+    for (var i = 0; i < parts.length; i++) {
+      if (!parts[i]) continue
+      var match = parts[i].match(/^(-?\d+(?:\.\d+)?)deg$/)
+      if (match) angle = Number(match[1])
+      else if (colors.length < 10) {
+        var color = Qt.color(flatColor(parts[i], colorFallback))
+        colors.push(Qt.rgba(color.r, color.g, color.b, color.a * alpha))
+      }
+    }
+    if (colors.length === 0) {
+      var fallback = Qt.color(colorFallback)
+      colors.push(Qt.rgba(fallback.r, fallback.g, fallback.b, fallback.a * alpha))
+    }
+    return { color: colors[0], gradient: { colors: colors, angle: angle, enabled: colors.length > 1 } }
+  }
+
   readonly property QtObject bar: QtObject {
     property color background: root.composed("bar.background", "bar.background-alpha", root.background, 1.0)
     property color text: root.pick("bar.text", root.foreground)
@@ -77,6 +115,7 @@ QtObject {
   }
   readonly property QtObject popups: QtObject {
     property color background: root.composed("popups.background", "popups.background-alpha", root.background, 1.0)
+    property var backgroundSpec: root.fillSpec("popups.background", "popups.background-alpha", root.background, 1.0)
     property color text: root.pick("popups.text", root.foreground)
     property color border: root.composed("popups.border", "popups.border-alpha", root.accent, 1.0)
   }

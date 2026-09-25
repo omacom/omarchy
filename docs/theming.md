@@ -199,6 +199,20 @@ The running shell reads `shell.toml` into two QML singletons:
 - `Color` for palette and surface roles like `Color.menu.border`.
 - `Style` for controls, spacing, font scale, corner radius, and bar sizing.
 
+### Popup background gradients
+
+Popup cards and keyboard panels accept a gradient in `[popups] background`. This covers bar panels such as audio, network, and calendar, plus tray and media popup cards. Menus, notifications, the bar itself, and inline dropdown backgrounds are not gradient consumers; color-only consumers retain the first stop.
+
+```toml
+[popups]
+background = "#232936 #141820 90deg"
+background-alpha = 0.96
+```
+
+Use 2–10 evenly spaced color stops followed by an optional angle; `0deg` runs left to right and `90deg` runs top to bottom. Colors use the same syntax and palette roles as shell borders. A dotted reference can refer to another shell token containing a gradient. Cyclic or missing references fall back to the default background. `background-alpha` multiplies each gradient stop's intrinsic alpha once. Existing solid backgrounds retain their current alpha behavior and native rectangle rendering.
+
+Gradients are opt-in and respect popup rounding and borders. A machine-level `~/.config/omarchy/shell.toml` override takes precedence over the active theme and reloads live. Remove it to return to the theme's fill.
+
 ### Borders
 
 Shell border tokens accept either a solid color or a gradient in the same key:

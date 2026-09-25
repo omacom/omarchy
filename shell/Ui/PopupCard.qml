@@ -150,7 +150,8 @@ PopupWindow {
   BorderSurface {
     id: card
     anchors.fill: parent
-    color: Color.popups.background
+    fillSpec: Color.popups.backgroundSpec
+    fillColor: Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius
