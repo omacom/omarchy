@@ -48,7 +48,7 @@ fi
 fast_token="YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm"
 fast_api_url="https://api.fast.com/netflix/speedtest/v2?https=true&token=$fast_token&urlCount=$url_count"
 
-fast_urls=$(curl -fsS "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty')
+fast_urls=$(curl -fsS --connect-timeout 3 --max-time 5 "$fast_api_url" 2>/dev/null | jq -r '.targets[]?.url // empty') || true
 
 if [[ -z $fast_urls ]]; then
   # api.fast.com is unreachable where Netflix withdrew its OCA nodes. Fall
@@ -56,10 +56,10 @@ if [[ -z $fast_urls ]]; then
   # traffic the workers already generate.
   if [[ $direction == "down" ]]; then
     fallback_url="https://speed.cloudflare.com/__down?bytes=25000000"
-    fallback_probe=(curl -fsS -o /dev/null --max-time 5 "https://speed.cloudflare.com/__down?bytes=1000")
+    fallback_probe=(curl -fsS -o /dev/null --max-time 3 "https://speed.cloudflare.com/__down?bytes=1000")
   else
     fallback_url="https://speed.cloudflare.com/__up"
-    fallback_probe=(curl -fsS -o /dev/null --max-time 5 -X POST --data-binary probe "https://speed.cloudflare.com/__up")
+    fallback_probe=(curl -fsS -o /dev/null --max-time 3 -X POST --data-binary probe "https://speed.cloudflare.com/__up")
   fi
 
   if "${fallback_probe[@]}" 2>/dev/null; then
@@ -86,7 +86,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Round-robin across the returned URLs so we spread load across Netflix OCA nodes.
+# Round-robin across the returned URLs so we spread load across Netflix OCA
+# nodes; with the single Cloudflare fallback URL it just reuses that one.
 traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}

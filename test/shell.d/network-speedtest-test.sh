@@ -21,20 +21,27 @@ cat >"$TMPDIR/bin/curl" <<'SH'
 
 printf 'curl %s\n' "$*" >>"$CURL_LOG"
 
+out=/dev/stdout
+prev=""
+for arg in "$@"; do
+  [[ $prev == "-o" ]] && out=$arg
+  prev=$arg
+done
+
 for arg in "$@"; do
   case "$arg" in
     *api.fast.com*)
       exit 22
       ;;
     *__down\?bytes=1000*)
-      printf 'x'
+      printf 'x' >"$out"
       exit 0
       ;;
     *__down*)
       hits=$(wc -l <"$CURL_HITS" 2>/dev/null || echo 0)
       (( hits < 8 )) || exit 22
       printf 'hit\n' >>"$CURL_HITS"
-      dd if=/dev/zero bs=1k count=64 2>/dev/null
+      dd if=/dev/zero bs=1k count=64 2>/dev/null >"$out"
       exit 0
       ;;
     *__up*)
@@ -83,13 +90,15 @@ grep -q "__down?bytes=25000000" "$TMPDIR/curl.log" ||
   fail "speedtest downloads from the Cloudflare fallback" "$(cat "$TMPDIR/curl.log")"
 [[ -n $down_out ]] ||
   fail "speedtest still prints a rate with the fallback"
+grep -Eq '^[0-9]+(\.[0-9]+)?$' <<<"$down_out" ||
+  fail "speedtest prints a numeric rate" "$down_out"
 pass "speedtest falls back to Cloudflare when api.fast.com is unavailable"
 
 # The upload direction falls back to the Cloudflare __up endpoint.
 speedtest up >/dev/null
 grep -q -- "--data-binary probe" "$TMPDIR/curl.log" ||
   fail "speedtest probes the Cloudflare upload endpoint" "$(cat "$TMPDIR/curl.log")"
-grep -qE "POST .*__up|__up" "$TMPDIR/curl.log" ||
+grep -q -- "--data-binary @- https://speed.cloudflare.com/__up" "$TMPDIR/curl.log" ||
   fail "speedtest uploads to the Cloudflare fallback" "$(cat "$TMPDIR/curl.log")"
 pass "speedtest falls back to Cloudflare for uploads"
 
@@ -99,10 +108,17 @@ cat >"$TMPDIR/bin/curl" <<'SH'
 
 printf 'curl %s\n' "$*" >>"$CURL_LOG"
 
+out=/dev/stdout
+prev=""
+for arg in "$@"; do
+  [[ $prev == "-o" ]] && out=$arg
+  prev=$arg
+done
+
 for arg in "$@"; do
   case "$arg" in
     *api.fast.com*)
-      printf '{"targets":[{"url":"https://oca.example.com/one"},{"url":"https://oca.example.com/two"}]}'
+      printf '{"targets":[{"url":"https://oca.example.com/one"},{"url":"https://oca.example.com/two"}]}' >"$out"
       exit 0
       ;;
     *speed.cloudflare.com*)
@@ -112,7 +128,7 @@ for arg in "$@"; do
       hits=$(wc -l <"$CURL_HITS" 2>/dev/null || echo 0)
       (( hits < 8 )) || exit 22
       printf 'hit\n' >>"$CURL_HITS"
-      dd if=/dev/zero bs=1k count=64 2>/dev/null
+      dd if=/dev/zero bs=1k count=64 2>/dev/null >"$out"
       exit 0
       ;;
   esac
@@ -141,3 +157,48 @@ fi
 grep -q "Failed to fetch speed test endpoints" "$TMPDIR/err" ||
   fail "speedtest keeps the readable error when everything fails" "$(cat "$TMPDIR/err")"
 pass "speedtest keeps the readable error when every endpoint fails"
+
+# A 2xx response that is not JSON (a captive portal or edge error page) must
+# not kill the run under set -e: it is a lookup failure like any other, so
+# the Cloudflare fallback still applies.
+cat >"$TMPDIR/bin/curl" <<'SH'
+#!/bin/bash
+
+printf 'curl %s\n' "$*" >>"$CURL_LOG"
+
+out=/dev/stdout
+prev=""
+for arg in "$@"; do
+  [[ $prev == "-o" ]] && out=$arg
+  prev=$arg
+done
+
+for arg in "$@"; do
+  case "$arg" in
+    *api.fast.com*)
+      printf 'Bad Gateway' >"$out"
+      exit 0
+      ;;
+    *__down\?bytes=1000*)
+      printf 'x' >"$out"
+      exit 0
+      ;;
+    *__down*)
+      hits=$(wc -l <"$CURL_HITS" 2>/dev/null || echo 0)
+      (( hits < 8 )) || exit 22
+      printf 'hit\n' >>"$CURL_HITS"
+      dd if=/dev/zero bs=1k count=64 2>/dev/null >"$out"
+      exit 0
+      ;;
+  esac
+done
+exit 0
+SH
+chmod +x "$TMPDIR/bin/curl"
+
+speedtest down >/dev/null
+grep -q "__down?bytes=1000" "$TMPDIR/curl.log" ||
+  fail "speedtest probes the Cloudflare fallback when api.fast.com answers with non-JSON" "$(cat "$TMPDIR/curl.log")"
+grep -q "__down?bytes=25000000" "$TMPDIR/curl.log" ||
+  fail "speedtest downloads from the Cloudflare fallback after a non-JSON lookup" "$(cat "$TMPDIR/curl.log")"
+pass "speedtest falls back to Cloudflare when api.fast.com answers non-JSON"
