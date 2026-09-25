@@ -1310,6 +1310,7 @@ Panel {
   // here is the wifi-specific UI inside.
   KeyboardPanel {
     id: panel
+    accessibleName: "Network"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -1490,6 +1491,7 @@ Panel {
 
           ToggleSwitch {
             id: powerSwitch
+            accessibleName: "Wi-Fi"
             visible: root.canToggleWifi
             checked: Networking.wifiEnabled
             hasCursor: root.toggleHeaderHasCursor
@@ -1696,6 +1698,7 @@ Panel {
             // plain verticalCenter would sit the switch visibly high.
             ToggleSwitch {
               id: bandAutoSwitch
+              accessibleName: "Automatic band"
               trackHeight: Math.round(bandAutoLabel.font.pixelSize * 1.2)
               cursorPad: Style.space(3)
               anchors.verticalCenter: bandAutoLabel.verticalCenter

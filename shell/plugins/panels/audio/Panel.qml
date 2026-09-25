@@ -715,6 +715,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Audio"
     anchors.fill: parent
     bar: root.bar
     text: root.outputIcon()
@@ -735,6 +736,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Audio"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -814,6 +816,7 @@ Panel {
             // audible, so muting everything reads as switching audio off.
             ToggleSwitch {
               id: powerSwitch
+              accessibleName: "Audio"
               checked: root.anyAudible
               hasCursor: root.headerHasCursor
               foreground: root.bar.foreground
@@ -915,6 +918,7 @@ Panel {
 
               PanelSlider {
                 id: outputSlider
+                accessibleName: "Output volume"
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -1014,6 +1018,7 @@ Panel {
 
                 PanelSlider {
                   id: inputSlider
+                  accessibleName: "Input volume"
                   bar: root.bar
                   width: parent.width
                   minimum: 0
@@ -1312,6 +1317,7 @@ Panel {
       }
 
       PanelSlider {
+        accessibleName: root.streamLabel(streamRow.node) + " volume"
         bar: root.bar
         width: parent.width
         minimum: 0

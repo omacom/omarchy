@@ -177,6 +177,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Dropbox"
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -200,6 +201,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Dropbox"
     anchorItem: button
     owner: root
     bar: root.bar
@@ -276,6 +278,7 @@ Panel {
               trailingControl: Component {
                 ToggleSwitch {
                   id: powerSwitch
+                  accessibleName: "Dropbox"
                   visible: dropbox.installed
                   checked: dropbox.active
                   busy: dropbox.busy
@@ -505,6 +508,7 @@ Panel {
       }
 
       PanelActionButton {
+        accessibleName: "Log in to Dropbox"
         iconText: "󰌋"
         foreground: root.foreground
         fontFamily: root.fontFamily
