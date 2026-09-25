@@ -50,15 +50,15 @@ esac
 
 agent_package=${agent_package:-$agent}
 
-# Hermes reaches mise through its own installer rather than straight from
-# here: it needs its interpreter pinned, and a bare `mise use` has nowhere to
-# say so. See omarchy-install-hermes-cli. OpenClaw comes from its pacman
-# package the same way; see omarchy-install-openclaw-cli.
+# Hermes and OpenClaw are not mise tools: Hermes is the desktop app's
+# self-updating runtime and OpenClaw comes from its pacman package. Each has
+# its own installer with the same --check/--now contract mise-backed agents
+# get from mise; see omarchy-install-hermes-cli and omarchy-install-openclaw-cli.
 if [[ -n ${agent_installer:-} ]]; then
-  # Not omarchy-cmd-present: the stub is on PATH from first boot and says
-  # nothing about whether Hermes is installed behind it. Treating a cold stub
-  # as installed skips the floating terminal and runs the minute-long install
-  # inside the menu action instead.
+  # Not omarchy-cmd-present: a command on PATH says nothing about whether the
+  # install behind it finished or runs the sessions omarchy-agent starts.
+  # Treating it as installed would skip the floating terminal and run a
+  # minutes-long install inside the menu action instead.
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
 else
@@ -78,7 +78,9 @@ if [[ $installing == "false" ]] && ! agent_present; then
 fi
 
 if ! agent_install; then
-  if [[ $installing == "true" ]]; then
+  if [[ $installing == "true" && -n ${agent_installer:-} ]]; then
+    echo "Could not install $name" >&2
+  elif [[ $installing == "true" ]]; then
     echo "Could not install $name with mise" >&2
   else
     echo "Could not set $name as the default coding agent" >&2
