@@ -3,6 +3,7 @@
 # omarchy:summary=Sign out of the Cloudflare CLI and remove the Cloudflare Dashboard web app.
 
 cf auth logout 2>/dev/null || true
+omarchy-plugin-disable omarchy.cloudflare
 omarchy-webapp-remove "Cloudflare" 2>/dev/null || true
 
 echo ""
