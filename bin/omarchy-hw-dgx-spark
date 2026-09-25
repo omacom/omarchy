@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer is an NVIDIA DGX Spark.
+
+[[ $(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) == "NVIDIA" ]] &&
+  [[ $(cat /sys/class/dmi/id/product_name 2>/dev/null) == "NVIDIA_DGX_Spark" ]]
