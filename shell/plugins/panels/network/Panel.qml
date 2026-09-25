@@ -199,6 +199,8 @@ Panel {
   // prefill the editable fields once per open; after that the poll must leave
   // them alone so it doesn't fight the user's typing and revert the values.
   property bool hotspotLoaded: false
+  property bool hotspotRefreshPending: false
+  property int hotspotStatusGeneration: 0
   readonly property string hotspotCommand: "omarchy-hotspot"
   readonly property bool hotspotAvailable: hotspot.ap_capable === "1"
   readonly property bool hotspotActive: hotspot.active === "1"
@@ -374,6 +376,7 @@ Panel {
       refreshHotspot()
       hotspotFocusIndex = 0
       hotspotLoaded = false
+      resetHotspotErrors()
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -914,12 +917,31 @@ Panel {
 
   // --- Hotspot (AP mode) actions ---
 
+  function resetHotspotErrors() {
+    hotspotError = ""
+    hotspotStatusError = ""
+  }
+
   function refreshHotspot() {
-    // Not gated on hotspotAvailable: on a cold open the state is still empty,
-    // so we must poll once to learn whether AP mode is even possible.
-    if (hotspotProc.running) return
+    if (hotspotProc.running) {
+      hotspotRefreshPending = true
+      return
+    }
+    hotspotRefreshPending = false
+    hotspotStatusGeneration++
     hotspotProc.command = [hotspotCommand, "status"]
+    hotspotProc.runGeneration = hotspotStatusGeneration
     hotspotProc.running = true
+  }
+
+  function completeHotspotStatus(run, raw, exitCode, errorOutput) {
+    if (run !== hotspotStatusGeneration) return
+    if (hotspotRefreshPending) {
+      hotspotRefreshPending = false
+      refreshHotspot()
+      return
+    }
+    updateHotspot(raw, exitCode, errorOutput)
   }
 
   function updateHotspot(raw, exitCode, errorOutput) {
@@ -932,34 +954,22 @@ Panel {
       return
     }
     hotspotStatusError = ""
-    var next = Model.parseHotspotStatus(output)
-    // AP capability is a hardware property; it cannot vanish mid-session. A
-    // transient `iw phy` failure inside the status poll must not make the
-    // hotspot section flicker away once it has been detected.
+    var parsed = Model.parseHotspotStatus(output)
+    var next = {}
+    var key
+    for (key in hotspot) next[key] = hotspot[key]
+    for (key in parsed) next[key] = parsed[key]
     if (next.ap_capable !== "1" && hotspot.ap_capable === "1") next.ap_capable = "1"
     var wasActive = hotspot.active === "1"
     hotspot = next
-    // Leave hotspotError alone: the 2s status poll (and the refresh after a
-    // failed action) would otherwise wipe the command's reason before it can
-    // be read. Callers clear it when the user starts a new action.
-    // Refresh the card's AP bands every poll (hardware state, cheap); the
-    // chosen band itself is only prefilled once per open so the poll never
-    // fights a band the user picked mid-session.
     var bands = Model.hotspotBands(next)
     if (bands.length > 0 && hotspotBands.join(",") !== bands.join(",")) hotspotBands = bands
-    // Prefill the editable fields from the saved profile only once per open.
-    // Every later poll refreshes just the operational state so the user's
-    // in-progress edits are never reverted.
     if (!hotspotLoaded) {
       hotspotLoaded = true
       if (next.ssid) hotspotSsid = next.ssid
       if (next.password) hotspotPassword = next.password
       hotspotBand = Model.hotspotDefaultBand(next)
     }
-    // Starting the AP makes the station list surface the AP's own SSID before
-    // the poll sees the radio flip. Re-sync on the active-state edge so the
-    // wifi section drops the moment the status catches up, not on the next
-    // scan. The reverse edge restores the list without waiting for a scan.
     if ((next.active === "1") !== wasActive) syncWifiNetworks()
   }
 
@@ -1161,11 +1171,15 @@ Panel {
 
   Process {
     id: hotspotProc
+    property int runGeneration: 0
     stdout: StdioCollector { id: hotspotStatusOut; waitForEnd: true }
     stderr: StdioCollector { id: hotspotStatusErr; waitForEnd: true }
     onExited: function(exitCode) {
+      const run = hotspotProc.runGeneration
+      const raw = hotspotStatusOut.text
+      const errorOutput = hotspotStatusErr.text
       Qt.callLater(function() {
-        root.updateHotspot(hotspotStatusOut.text, exitCode, hotspotStatusErr.text)
+        root.completeHotspotStatus(run, raw, exitCode, errorOutput)
       })
     }
   }
@@ -2155,8 +2169,13 @@ Panel {
         }
 
         Text {
+          id: hotspotMessageText
           textFormat: Text.PlainText
           visible: root.hotspotMessage !== ""
+          width: parent.width
+          wrapMode: Text.Wrap
+          elide: Text.ElideRight
+          maximumLineCount: 4
           text: root.hotspotMessage
           color: root.bar.urgent
           font.family: root.bar.fontFamily

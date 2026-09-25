@@ -19,6 +19,15 @@ set -euo pipefail
 PROFILE="omarchy-hotspot"
 DEFAULT_SHARED_ADDRESS="10.42.0.1/24"
 UFW_OWNER="omarchy-hotspot"
+if (( EUID == 0 )); then
+  HOTSPOT_STATE_DIR="/var/lib/omarchy/hotspot"
+else
+  HOTSPOT_STATE_DIR="${OMARCHY_HOTSPOT_STATE_DIR:-/var/lib/omarchy/hotspot}"
+fi
+FIREWALL_STATE_FILE="$HOTSPOT_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$HOTSPOT_STATE_DIR/forwarding.state"
+UFW_RULES_FILE="${OMARCHY_HOTSPOT_UFW_RULES:-/etc/ufw/user.rules}"
+FIREWALL_TAGS=(dhcp dns-udp dns-tcp forward)
 
 fail() {
   echo "hotspot: $*" >&2
@@ -40,6 +49,10 @@ require_root() {
   else
     exec pkexec "$(self_path)" "$@"
   fi
+}
+
+require_privileged() {
+  (( EUID == 0 )) || fail "firewall rules need root"
 }
 
 nm_get() {
@@ -79,6 +92,12 @@ nm_channel_for() {
 phy_for_iface() {
   local iface=$1
   iw dev "$iface" info 2>/dev/null | awk '$1 == "wiphy" { print "phy" $2; exit }'
+}
+
+require_phy_iface() {
+  local iface=$1 phy
+  phy=$(phy_for_iface "$iface") || fail "could not determine Wi-Fi PHY for $iface"
+  [[ -n $phy ]] || fail "could not determine Wi-Fi PHY for $iface"
 }
 
 ap_capable() {
@@ -124,9 +143,22 @@ band_supported() {
   esac
 }
 
-first_wifi_device() {
+wifi_devices() {
   LC_ALL=C nmcli -t -f DEVICE,TYPE device status 2>/dev/null |
-    awk -F: '$2 == "wifi" && $1 !~ /^p2p-dev-/ { print $1; exit }'
+    awk -F: '$2 == "wifi" && $1 !~ /^p2p-dev-/ && $1 != "" { print $1 }'
+}
+
+wifi_device_present() {
+  local wanted=$1 device
+  [[ -n $wanted ]] || return 1
+  while IFS= read -r device; do
+    [[ $device == "$wanted" ]] && return 0
+  done < <(wifi_devices)
+  return 1
+}
+
+first_wifi_device() {
+  wifi_devices | awk 'NR == 1 { print; exit }'
 }
 
 profile_configured() {
@@ -137,20 +169,25 @@ profile_active() {
   [[ -n $(LC_ALL=C nmcli -t -f NAME connection show --active 2>/dev/null | grep -x "$PROFILE") ]]
 }
 
-# The active profile device, else its saved interface, else the first Wi-Fi device.
 ap_iface() {
   local dev
   dev=$(nm_get GENERAL.DEVICE connection show "$PROFILE" 2>/dev/null | head -n 1)
-  if [[ -n $dev && $dev != "--" ]]; then
-    echo "$dev"
+  if [[ $dev != "--" ]] && wifi_device_present "$dev" && ap_capable "$dev"; then
+    printf '%s\n' "$dev"
     return
   fi
   dev=$(nm_get connection.interface-name connection show "$PROFILE" 2>/dev/null | head -n 1)
-  if [[ -n $dev && $dev != "--" ]]; then
-    echo "$dev"
-  else
-    first_wifi_device
+  if [[ $dev != "--" ]] && wifi_device_present "$dev" && ap_capable "$dev"; then
+    printf '%s\n' "$dev"
+    return
   fi
+  while IFS= read -r dev; do
+    if ap_capable "$dev"; then
+      printf '%s\n' "$dev"
+      return
+    fi
+  done < <(wifi_devices)
+  first_wifi_device
 }
 
 profile_ssid() {
@@ -251,14 +288,30 @@ status() {
   printf 'upstream\t%s\n' "$upstream"
 }
 
+nft_firewall_active() {
+  LC_ALL=C nft list ruleset 2>/dev/null | LC_ALL=C awk '
+    function packet_family(f) { return f == "ip" || f == "ip6" || f == "inet" }
+    function firewall_table(n) { return n == "filter" || n == "firewalld" }
+    function base_chain(c) { return c == "input" || c == "forward" || c == "output" }
+    $1 == "table" { family = $2; name = $3; chain = ""; next }
+    $1 == "chain" { chain = $2 }
+    {
+      if (chain == "" || !packet_family(family) || !firewall_table(name) || !base_chain(chain)) next
+      for (i = 1; i < NF; i++) {
+        if ($i == "hook" && base_chain($(i + 1))) active = 1
+      }
+    }
+    END { exit active ? 0 : 1 }
+  '
+}
+
 firewall_backend() {
   if omarchy-cmd-present ufw && systemctl is-active ufw >/dev/null 2>&1; then
     echo ufw
   elif omarchy-cmd-present firewalld && systemctl is-active firewalld >/dev/null 2>&1; then
     echo firewalld
   elif omarchy-cmd-present nft &&
-    { systemctl is-active nftables >/dev/null 2>&1 ||
-      nft list ruleset 2>/dev/null | grep -q '^table'; }; then
+    { systemctl is-active nftables >/dev/null 2>&1 || nft_firewall_active; }; then
     echo nftables
   else
     echo none
@@ -277,6 +330,7 @@ shared_subnet() {
   local -a octets
   address=$(profile_shared_address)
   [[ -n $address ]] || address=$DEFAULT_SHARED_ADDRESS
+  address=${address%%,*}
   address=${address%% *}
   [[ $address =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$ ]] ||
     fail "invalid shared IPv4 address '$address' in hotspot profile"
@@ -302,13 +356,134 @@ shared_subnet() {
     $(((network >> 8) & 255)) $((network & 255)) "$prefix"
 }
 
-firewall_expected_rules() {
+firewall_scope_valid() {
+  local iface=$1 subnet=$2 network prefix octet
+  local -a octets
+  [[ $iface =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,14}$ ]] || return 1
+  [[ $subnet =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$ ]] || return 1
+  network=${subnet%%/*}
+  prefix=${subnet##*/}
+  IFS=. read -r -a octets <<<"$network"
+  (( ${#octets[@]} == 4 )) || return 1
+  for octet in "${octets[@]}"; do
+    [[ -n $octet && $octet != *[!0-9]* ]] || return 1
+    (( 10#$octet <= 255 )) || return 1
+  done
+}
+
+firewall_tag_valid() {
+  case "$1" in
+    dhcp | dns-udp | dns-tcp | forward) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+hotspot_state_prepare() {
+  [[ ! -L $HOTSPOT_STATE_DIR ]] || fail "invalid hotspot state directory"
+  install -d -m 0755 "$HOTSPOT_STATE_DIR" || fail "could not create hotspot state directory"
+  chmod 0755 "$HOTSPOT_STATE_DIR" || fail "could not secure hotspot state directory"
+}
+
+hotspot_state_file_usable() {
+  local file=$1 message=$2
+  [[ -e $file || -L $file ]] || return 0
+  [[ -f $file && ! -L $file && -r $file ]] || fail "$message"
+  if (( EUID == 0 )) && [[ ! -O $file ]]; then
+    fail "$message"
+  fi
+}
+
+firewall_state_records() {
+  local iface="" subnet="" tag="" extra=""
+  [[ -e $FIREWALL_STATE_FILE || -L $FIREWALL_STATE_FILE ]] || return 0
+  hotspot_state_file_usable "$FIREWALL_STATE_FILE" "invalid hotspot firewall state file"
+  while IFS=$'\t' read -r iface subnet tag extra || [[ -n ${iface}${subnet}${tag}${extra} ]]; do
+    [[ -z $extra && -n $tag ]] || fail "invalid hotspot firewall state record"
+    firewall_scope_valid "$iface" "$subnet" && firewall_tag_valid "$tag" ||
+      fail "invalid hotspot firewall state record"
+    printf '%s\t%s\t%s\n' "$iface" "$subnet" "$tag"
+  done <"$FIREWALL_STATE_FILE"
+}
+
+firewall_state_text_has() {
+  local state=$1 wanted_iface=$2 wanted_subnet=$3 wanted_tag=$4 iface subnet tag
+  while IFS=$'\t' read -r iface subnet tag; do
+    if [[ $iface == "$wanted_iface" && $subnet == "$wanted_subnet" && $tag == "$wanted_tag" ]]; then
+      return 0
+    fi
+  done <<<"$state"
+  return 1
+}
+
+firewall_state_rewrite() {
+  local action=$1 iface=$2 subnet=$3
+  shift 3
+  local current tmp tag next current_iface current_subnet current_tag
+  firewall_scope_valid "$iface" "$subnet" || return 1
+  hotspot_state_prepare
+  current=$(firewall_state_records) || return 1
+  tmp=$(mktemp "$HOTSPOT_STATE_DIR/.firewall.state.XXXXXX") || return 1
+  if [[ -n $current ]]; then
+    printf '%s\n' "$current" >"$tmp" || { rm -f "$tmp"; return 1; }
+  fi
+  for tag in "$@"; do
+    firewall_tag_valid "$tag" || { rm -f "$tmp"; return 1; }
+    if [[ $action == "add" ]]; then
+      if ! firewall_state_text_has "$current" "$iface" "$subnet" "$tag"; then
+        printf '%s\t%s\t%s\n' "$iface" "$subnet" "$tag" >>"$tmp" || { rm -f "$tmp"; return 1; }
+        if [[ -z $current ]]; then
+          current="$iface"$'\t'"$subnet"$'\t'"$tag"
+        else
+          current+=$'\n'"$iface"$'\t'"$subnet"$'\t'"$tag"
+        fi
+      fi
+    elif firewall_state_text_has "$current" "$iface" "$subnet" "$tag"; then
+      next=""
+      while IFS=$'\t' read -r current_iface current_subnet current_tag; do
+        if [[ $current_iface != "$iface" || $current_subnet != "$subnet" || $current_tag != "$tag" ]]; then
+          next+="${current_iface}"$'\t'"${current_subnet}"$'\t'"${current_tag}"$'\n'
+        fi
+      done <<<"$current"
+      : >"$tmp" || { rm -f "$tmp"; return 1; }
+      [[ -z $next ]] || printf '%s' "$next" >"$tmp" || { rm -f "$tmp"; return 1; }
+      current=${next%$'\n'}
+    fi
+  done
+  if ! chmod 0644 "$tmp" || ! mv -f "$tmp" "$FIREWALL_STATE_FILE"; then
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+firewall_state_add_tags() {
   local iface=$1 subnet=$2
-  printf '%s\n' \
-    "ufw allow in on $iface to any port 67 proto udp comment '$UFW_OWNER:dhcp'" \
-    "ufw allow in on $iface from $subnet to any port 53 proto udp comment '$UFW_OWNER:dns'" \
-    "ufw allow in on $iface from $subnet to any port 53 proto tcp comment '$UFW_OWNER:dns'" \
-    "ufw route allow in on $iface from $subnet comment '$UFW_OWNER:forward'"
+  shift 2
+  firewall_state_rewrite add "$iface" "$subnet" "$@"
+}
+
+firewall_state_remove_tags() {
+  local iface=$1 subnet=$2
+  shift 2
+  firewall_state_rewrite remove "$iface" "$subnet" "$@"
+}
+
+firewall_tag_comment() {
+  case "$1" in
+    dhcp | forward) printf '%s:%s\n' "$UFW_OWNER" "$1" ;;
+    dns-udp | dns-tcp) printf '%s:dns\n' "$UFW_OWNER" ;;
+    *) return 1 ;;
+  esac
+}
+
+firewall_expected_rule() {
+  local iface=$1 subnet=$2 tag=$3 comment
+  comment=$(firewall_tag_comment "$tag") || return 1
+  case "$tag" in
+    dhcp) printf "ufw allow in on %s to any port 67 proto udp comment '%s'\n" "$iface" "$comment" ;;
+    dns-udp) printf "ufw allow in on %s from %s to any port 53 proto udp comment '%s'\n" "$iface" "$subnet" "$comment" ;;
+    dns-tcp) printf "ufw allow in on %s from %s to any port 53 proto tcp comment '%s'\n" "$iface" "$subnet" "$comment" ;;
+    forward) printf "ufw route allow in on %s from %s comment '%s'\n" "$iface" "$subnet" "$comment" ;;
+  esac
 }
 
 firewall_rule_present() {
@@ -319,91 +494,332 @@ firewall_rule_present() {
   return 1
 }
 
+firewall_tag_present() {
+  local rules=$1 iface=$2 subnet=$3 tag=$4 expected
+  expected=$(firewall_expected_rule "$iface" "$subnet" "$tag") || return 1
+  firewall_rule_present "$rules" "$expected"
+}
+
+firewall_rules_file() {
+  [[ -f $UFW_RULES_FILE && ! -L $UFW_RULES_FILE && -r $UFW_RULES_FILE ]] || return 1
+  cat -- "$UFW_RULES_FILE"
+}
+
+firewall_rules_file_tag_present() {
+  local rules=$1 iface=$2 tag=$3 comment protocol="" port=""
+  comment=$(firewall_tag_comment "$tag") || return 1
+  case "$tag" in
+    dhcp) protocol=udp port=67 ;;
+    dns-udp) protocol=udp port=53 ;;
+    dns-tcp) protocol=tcp port=53 ;;
+    forward) ;;
+  esac
+  LC_ALL=C awk -v iface="$iface" -v comment="$comment" -v protocol="$protocol" -v port="$port" '
+    index($0, comment) == 0 { next }
+    {
+      scoped = 0
+      matched_protocol = (protocol == "")
+      matched_port = (port == "")
+      for (i = 1; i < NF; i++) {
+        if ($i == "-i" && $(i + 1) == iface) scoped = 1
+        if ($i == "-p" && $(i + 1) == protocol) matched_protocol = 1
+        if ($i == "--dport" && $(i + 1) == port) matched_port = 1
+      }
+      if (scoped && matched_protocol && matched_port) found = 1
+    }
+    END { exit found ? 0 : 1 }
+  ' <<<"$rules"
+}
+
 firewall_rules_present() {
-  local iface=$1 subnet=$2 rules expected
+  local iface=$1 subnet=$2 state tag rules
+  firewall_scope_valid "$iface" "$subnet" || return 1
+  state=$(firewall_state_records) || return 1
+  for tag in "${FIREWALL_TAGS[@]}"; do
+    firewall_state_text_has "$state" "$iface" "$subnet" "$tag" || return 1
+  done
+  rules=$(firewall_rules_file) || return 0
+  for tag in "${FIREWALL_TAGS[@]}"; do
+    firewall_rules_file_tag_present "$rules" "$iface" "$tag" || return 1
+  done
+}
+
+firewall_add_tag() {
+  local iface=$1 subnet=$2 tag=$3
+  case "$tag" in
+    dhcp)
+      ufw allow in on "$iface" proto udp to any port 67 comment "$UFW_OWNER:dhcp" >/dev/null
+      ;;
+    dns-udp)
+      ufw allow in on "$iface" from "$subnet" proto udp to any port 53 comment "$UFW_OWNER:dns" >/dev/null
+      ;;
+    dns-tcp)
+      ufw allow in on "$iface" from "$subnet" proto tcp to any port 53 comment "$UFW_OWNER:dns" >/dev/null
+      ;;
+    forward)
+      ufw route allow in on "$iface" from "$subnet" comment "$UFW_OWNER:forward" >/dev/null
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+firewall_delete_tag() {
+  local iface=$1 subnet=$2 tag=$3
+  case "$tag" in
+    dhcp)
+      ufw delete allow in on "$iface" proto udp to any port 67 comment "$UFW_OWNER:dhcp" >/dev/null
+      ;;
+    dns-udp)
+      ufw delete allow in on "$iface" from "$subnet" proto udp to any port 53 comment "$UFW_OWNER:dns" >/dev/null
+      ;;
+    dns-tcp)
+      ufw delete allow in on "$iface" from "$subnet" proto tcp to any port 53 comment "$UFW_OWNER:dns" >/dev/null
+      ;;
+    forward)
+      ufw delete route allow in on "$iface" from "$subnet" comment "$UFW_OWNER:forward" >/dev/null
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+firewall_remove_installed_tags() {
+  local iface=$1 subnet=$2
+  shift 2
+  local rules tag
+  require_privileged
+  firewall_scope_valid "$iface" "$subnet" || return 1
   rules=$(ufw show added 2>/dev/null) || return 1
-  while IFS= read -r expected; do
-    firewall_rule_present "$rules" "$expected" || return 1
-  done < <(firewall_expected_rules "$iface" "$subnet")
+  for tag in "$@"; do
+    firewall_tag_valid "$tag" || return 1
+    if firewall_tag_present "$rules" "$iface" "$subnet" "$tag"; then
+      firewall_delete_tag "$iface" "$subnet" "$tag" || return 1
+    fi
+    firewall_state_remove_tags "$iface" "$subnet" "$tag" || return 1
+  done
 }
 
 firewall_apply() {
-  local iface=$1 subnet=$2 rules
-  [[ -n $iface ]] || fail "no Wi-Fi interface to scope firewall rules to"
-  [[ -n $subnet ]] || fail "no shared IPv4 subnet for firewall rules"
+  local iface=$1 subnet=$2 rules tag
+  local -a installed=() owned=()
+  require_privileged
+  firewall_scope_valid "$iface" "$subnet" || fail "invalid firewall scope"
   rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
+  firewall_state_records >/dev/null || fail "could not read hotspot firewall state"
 
-  if ! firewall_rule_present "$rules" "ufw allow in on $iface to any port 67 proto udp comment '$UFW_OWNER:dhcp'"; then
-    ufw allow in on "$iface" proto udp to any port 67 comment "$UFW_OWNER:dhcp" >/dev/null ||
-      fail "could not allow hotspot DHCP on $iface"
+  for tag in "${FIREWALL_TAGS[@]}"; do
+    if firewall_tag_present "$rules" "$iface" "$subnet" "$tag"; then
+      owned+=("$tag")
+      continue
+    fi
+    if ! firewall_add_tag "$iface" "$subnet" "$tag"; then
+      if ((${#installed[@]} > 0)) && ! firewall_remove_installed_tags "$iface" "$subnet" "${installed[@]}"; then
+        fail "could not install hotspot firewall rule $tag and rollback failed"
+      fi
+      fail "could not install hotspot firewall rule $tag"
+    fi
+    installed+=("$tag")
+    owned+=("$tag")
+  done
+
+  if ! firewall_state_add_tags "$iface" "$subnet" "${owned[@]}"; then
+    if ((${#installed[@]} > 0)) && ! firewall_remove_installed_tags "$iface" "$subnet" "${installed[@]}"; then
+      fail "could not record hotspot firewall ownership and rollback failed"
+    fi
+    fail "could not record hotspot firewall ownership"
   fi
-  if ! firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto udp comment '$UFW_OWNER:dns'"; then
-    ufw allow in on "$iface" from "$subnet" proto udp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
-      fail "could not allow hotspot DNS over UDP on $iface"
+
+  ((${#installed[@]} == 0)) || printf '%s\n' "${installed[@]}"
+}
+
+firewall_rollback() {
+  local iface=$1 subnet=$2
+  shift 2
+  require_privileged
+  firewall_scope_valid "$iface" "$subnet" || fail "invalid firewall rollback scope"
+  (($# > 0 && $# <= ${#FIREWALL_TAGS[@]})) || fail "invalid firewall rollback rules"
+  local tag
+  for tag in "$@"; do
+    firewall_tag_valid "$tag" || fail "invalid firewall rollback rule"
+  done
+  firewall_remove_installed_tags "$iface" "$subnet" "$@" ||
+    fail "could not roll back hotspot firewall rules"
+}
+
+firewall_remove_record() {
+  local rules=$1 iface=$2 subnet=$3 tag=$4
+  if firewall_tag_present "$rules" "$iface" "$subnet" "$tag"; then
+    firewall_delete_tag "$iface" "$subnet" "$tag" || return 1
   fi
-  if ! firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto tcp comment '$UFW_OWNER:dns'"; then
-    ufw allow in on "$iface" from "$subnet" proto tcp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
-      fail "could not allow hotspot DNS over TCP on $iface"
-  fi
-  if ! firewall_rule_present "$rules" "ufw route allow in on $iface from $subnet comment '$UFW_OWNER:forward'"; then
-    ufw route allow in on "$iface" from "$subnet" comment "$UFW_OWNER:forward" >/dev/null ||
-      fail "could not allow hotspot forwarding on $iface"
-  fi
+  firewall_state_remove_tags "$iface" "$subnet" "$tag"
 }
 
 firewall_remove() {
-  local iface=$1 subnet=$2 rules
-  [[ -n $iface ]] || fail "no Wi-Fi interface to scope firewall rules to"
-  [[ -n $subnet ]] || fail "no shared IPv4 subnet for firewall rules"
+  local rules="" iface subnet tag record
+  local -a records=()
+  require_privileged
+  firewall_state_records >/dev/null || fail "could not read hotspot firewall state"
+  mapfile -t records < <(firewall_state_records)
+  if ((${#records[@]} == 0)); then
+    iface=$(ap_iface)
+    [[ -n $iface ]] || return 0
+    subnet=$(shared_subnet)
+    rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
+    for tag in "${FIREWALL_TAGS[@]}"; do
+      firewall_remove_record "$rules" "$iface" "$subnet" "$tag" ||
+        fail "could not remove hotspot firewall rule $tag"
+    done
+    return
+  fi
   rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
-
-  if firewall_rule_present "$rules" "ufw allow in on $iface to any port 67 proto udp comment '$UFW_OWNER:dhcp'"; then
-    ufw delete allow in on "$iface" proto udp to any port 67 comment "$UFW_OWNER:dhcp" >/dev/null ||
-      fail "could not remove hotspot DHCP rule from $iface"
-  fi
-  if firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto udp comment '$UFW_OWNER:dns'"; then
-    ufw delete allow in on "$iface" from "$subnet" proto udp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
-      fail "could not remove hotspot UDP DNS rule from $iface"
-  fi
-  if firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto tcp comment '$UFW_OWNER:dns'"; then
-    ufw delete allow in on "$iface" from "$subnet" proto tcp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
-      fail "could not remove hotspot TCP DNS rule from $iface"
-  fi
-  if firewall_rule_present "$rules" "ufw route allow in on $iface from $subnet comment '$UFW_OWNER:forward'"; then
-    ufw delete route allow in on "$iface" from "$subnet" comment "$UFW_OWNER:forward" >/dev/null ||
-      fail "could not remove hotspot forwarding rule from $iface"
-  fi
+  for record in "${records[@]}"; do
+    IFS=$'\t' read -r iface subnet tag <<<"$record"
+    firewall_remove_record "$rules" "$iface" "$subnet" "$tag" ||
+      fail "could not remove hotspot firewall rule $tag"
+  done
 }
 
-firewall_unsupported() {
+firewall_warn_unsupported() {
   local backend=$1 iface=$2
-  fail "$backend is active but unsupported; disable it or configure DHCP (UDP/67), DNS (TCP/UDP/53), and forwarding for $iface before retrying"
+  echo "hotspot: $backend is active but unsupported; configure DHCP (UDP/67), DNS (TCP/UDP/53), and forwarding for $iface manually" >&2
 }
 
-ipv4_forwarding_enabled() {
-  [[ $(sysctl -n net.ipv4.ip_forward 2>/dev/null) == "1" ]]
+privileged_function() {
+  case "$1" in
+    firewall-apply) printf 'firewall_apply\n' ;;
+    firewall-rollback) printf 'firewall_rollback\n' ;;
+    forwarding-enable) printf 'forwarding_enable\n' ;;
+    forwarding-restore) printf 'forwarding_restore\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+privileged_run() {
+  local action=$1 function
+  shift
+  function=$(privileged_function "$action") || return 2
+  if (( EUID == 0 )); then
+    "$function" "$@"
+  elif [[ -t 0 ]]; then
+    sudo "$(self_path)" "$action" "$@"
+  else
+    pkexec "$(self_path)" "$action" "$@"
+  fi
 }
 
 firewall_ensure() {
-  local backend iface subnet
+  local backend iface subnet output tag duplicate
+  FIREWALL_ADDED_TAGS=()
+  HOTSPOT_FIREWALL_IFACE=""
+  HOTSPOT_FIREWALL_SUBNET=""
   backend=$(firewall_backend)
   iface=$(ap_iface)
   [[ -n $iface ]] || fail "no Wi-Fi interface to scope firewall setup"
   case $backend in
     ufw)
       subnet=$(shared_subnet)
-      if ! firewall_rules_present "$iface" "$subnet"; then
-        if (( EUID == 0 )); then
-          firewall_apply "$iface" "$subnet"
-        elif [[ -t 0 ]]; then
-          sudo "$(self_path)" firewall-apply "$iface" "$subnet" || fail "could not apply hotspot firewall rules"
-        else
-          pkexec "$(self_path)" firewall-apply "$iface" "$subnet" || fail "could not apply hotspot firewall rules"
-        fi
-      fi
+      HOTSPOT_FIREWALL_IFACE=$iface
+      HOTSPOT_FIREWALL_SUBNET=$subnet
+      firewall_rules_present "$iface" "$subnet" && return
+      output=$(privileged_run firewall-apply "$iface" "$subnet") || fail "could not apply hotspot firewall rules"
+      while IFS= read -r tag; do
+        [[ -n $tag ]] || continue
+        firewall_tag_valid "$tag" || fail "invalid firewall helper response"
+        duplicate=0
+        local existing
+        for existing in "${FIREWALL_ADDED_TAGS[@]}"; do
+          [[ $existing != "$tag" ]] || duplicate=1
+        done
+        (( duplicate == 0 )) || fail "duplicate firewall helper response"
+        FIREWALL_ADDED_TAGS+=("$tag")
+      done <<<"$output"
       ;;
-    firewalld | nftables) firewall_unsupported "$backend" "$iface" ;;
+    firewalld | nftables)
+      fail "$backend is active but unsupported; configure DHCP (UDP/67), DNS (TCP/UDP/53), and forwarding for $iface before retrying"
+      ;;
+    none) ;;
+    *) fail "unrecognized firewall backend '$backend'" ;;
   esac
+}
+
+firewall_rollback_if_needed() {
+  ((${#FIREWALL_ADDED_TAGS[@]} > 0)) || return 0
+  privileged_run firewall-rollback "$HOTSPOT_FIREWALL_IFACE" "$HOTSPOT_FIREWALL_SUBNET" \
+    "${FIREWALL_ADDED_TAGS[@]}"
+}
+
+ipv4_forwarding_enabled() {
+  [[ $(sysctl -n net.ipv4.ip_forward 2>/dev/null) == "1" ]]
+}
+
+forwarding_state_owned() {
+  [[ -e $FORWARDING_STATE_FILE || -L $FORWARDING_STATE_FILE ]] || return 1
+  hotspot_state_file_usable "$FORWARDING_STATE_FILE" "invalid hotspot forwarding state file"
+  [[ $(<"$FORWARDING_STATE_FILE") == "enabled" ]] || fail "invalid hotspot forwarding state"
+}
+
+forwarding_state_write() {
+  local tmp
+  hotspot_state_prepare
+  tmp=$(mktemp "$HOTSPOT_STATE_DIR/.forwarding.state.XXXXXX") || return 1
+  if ! printf '%s\n' enabled >"$tmp" || ! chmod 0644 "$tmp" || ! mv -f "$tmp" "$FORWARDING_STATE_FILE"; then
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+forwarding_state_clear() {
+  rm -f "$FORWARDING_STATE_FILE"
+}
+
+forwarding_enable() {
+  local current
+  require_privileged
+  current=$(sysctl -n net.ipv4.ip_forward 2>/dev/null) || fail "could not read IPv4 forwarding state"
+  [[ $current == "0" || $current == "1" ]] || fail "invalid IPv4 forwarding state '$current'"
+  if [[ $current == "1" ]]; then
+    return
+  fi
+  sysctl -q -w net.ipv4.ip_forward=1 >/dev/null || fail "could not enable IPv4 forwarding"
+  ipv4_forwarding_enabled || fail "IPv4 forwarding did not become enabled"
+  if ! forwarding_state_write; then
+    sysctl -q -w net.ipv4.ip_forward=0 >/dev/null 2>&1 || true
+    fail "could not record hotspot forwarding ownership"
+  fi
+}
+
+forwarding_restore() {
+  local current
+  require_privileged
+  forwarding_state_owned || return 0
+  current=$(sysctl -n net.ipv4.ip_forward 2>/dev/null) || fail "could not read IPv4 forwarding state"
+  [[ $current == "0" || $current == "1" ]] || fail "invalid IPv4 forwarding state '$current'"
+  if [[ $current == "1" ]]; then
+    sysctl -q -w net.ipv4.ip_forward=0 >/dev/null || fail "could not restore IPv4 forwarding"
+    ipv4_forwarding_enabled && fail "IPv4 forwarding did not become disabled"
+  fi
+  forwarding_state_clear || fail "could not clear hotspot forwarding ownership"
+}
+
+forwarding_ensure() {
+  ipv4_forwarding_enabled && return 0
+  privileged_run forwarding-enable || return 1
+  ipv4_forwarding_enabled
+}
+
+forwarding_restore_if_owned() {
+  [[ -e $FORWARDING_STATE_FILE || -L $FORWARDING_STATE_FILE ]] || return 0
+  privileged_run forwarding-restore
+}
+
+rollback_start() {
+  local message=$1 deactivate=$2 status=0
+  if (( deactivate )) && profile_active; then
+    nmcli connection down "$PROFILE" >/dev/null 2>&1 || status=1
+  fi
+  firewall_rollback_if_needed || status=1
+  forwarding_restore_if_owned || status=1
+  (( status == 0 )) || fail "$message; rollback also failed"
+  fail "$message"
 }
 
 # A freshly-generated hotspot passphrase: unambiguously typable (no O/0, I/l,
@@ -425,20 +841,24 @@ start() {
 
   apply "$ssid" "$band"
   firewall_ensure
-
+  if ! forwarding_ensure; then
+    rollback_start "could not enable IPv4 forwarding for hotspot" 0
+  fi
   if ! nmcli connection up "$PROFILE" >/dev/null 2>&1; then
-    fail "could not start hotspot (does this adapter allow AP mode on band '$band'?)"
+    rollback_start "could not start hotspot (does this adapter allow AP mode on band '$band'?)" 1
   fi
   if ! ipv4_forwarding_enabled; then
-    nmcli connection down "$PROFILE" >/dev/null 2>&1 || true
-    fail "IPv4 forwarding is not enabled after hotspot activation; check NetworkManager shared-mode configuration and 'sysctl net.ipv4.ip_forward'"
+    rollback_start "IPv4 forwarding is not enabled after hotspot activation" 1
   fi
 }
 
 stop() {
+  local -a failed=()
   if profile_active; then
-    nmcli connection down "$PROFILE" >/dev/null 2>&1 || true
+    nmcli connection down "$PROFILE" >/dev/null 2>&1 || failed+=("AP deactivation")
   fi
+  forwarding_restore_if_owned || failed+=("IPv4 forwarding restore")
+  ((${#failed[@]} == 0)) || fail "could not stop hotspot: ${failed[*]}"
 }
 
 # Flip the current state. When nothing has been configured yet, hand over to
@@ -499,6 +919,7 @@ apply() {
 
   device=$(ap_iface)
   [[ -n $device ]] || fail "no Wi-Fi device found"
+  require_phy_iface "$device"
   ap_capable "$device" || fail "no Wi-Fi adapter supports AP mode"
   band_supported "$device" "$band" || fail "band '$band' is not available on this adapter"
 
@@ -542,17 +963,12 @@ apply() {
 teardown() {
   require_root teardown
   stop
-  local backend iface subnet
+  local backend iface
   backend=$(firewall_backend)
   iface=$(ap_iface)
   case $backend in
-    ufw)
-      subnet=$(shared_subnet)
-      firewall_remove "$iface" "$subnet"
-      ;;
-    firewalld | nftables)
-      firewall_unsupported "$backend" "$iface"
-      ;;
+    ufw) firewall_remove ;;
+    firewalld | nftables) firewall_warn_unsupported "$backend" "$iface" ;;
     none) echo "hotspot: no active firewall found; nothing to remove" >&2 ;;
   esac
 }
@@ -564,13 +980,14 @@ setup() {
   local backend iface subnet
   backend=$(firewall_backend)
   iface=$(ap_iface)
+  [[ -n $iface ]] || fail "no Wi-Fi interface to scope firewall setup"
   case $backend in
     ufw)
       subnet=$(shared_subnet)
-      firewall_apply "$iface" "$subnet"
+      firewall_apply "$iface" "$subnet" >/dev/null
       echo "hotspot: firewall rules installed for $iface"
       ;;
-    firewalld | nftables) firewall_unsupported "$backend" "$iface" ;;
+    firewalld | nftables) firewall_warn_unsupported "$backend" "$iface" ;;
     none)
       echo "hotspot: no active firewall found; nothing to configure"
       ;;
@@ -583,7 +1000,7 @@ setup() {
 }
 
 diagnose() {
-  local iface
+  local iface phy
   iface=$(ap_iface)
   echo "== hotspot diagnose =="
   echo "kernel: $(uname -r)"
@@ -602,12 +1019,19 @@ diagnose() {
   else
     echo "ipv4 forwarding: no"
   fi
-  if [[ -n $iface ]] && ap_capable "$iface"; then
-    echo "ap capable: yes"
+  if [[ -z $iface ]]; then
+    echo "ap capable: no (no Wi-Fi interface found)"
+  elif phy=$(phy_for_iface "$iface") && [[ -n $phy ]]; then
+    if ap_capable "$iface"; then
+      echo "ap capable: yes"
+    else
+      echo "ap capable: no"
+    fi
+    echo "ap bands: $(ap_bands "$iface")"
   else
-    echo "ap capable: no"
+    echo "ap capable: unknown (could not determine Wi-Fi PHY for $iface)"
+    echo "ap bands: unknown"
   fi
-  echo "ap bands: $(ap_bands "$iface")"
   echo "wifi devices: $(first_wifi_device)"
   if profile_configured; then
     echo "profile: configured / $(profile_active && echo active || echo inactive)"
@@ -622,7 +1046,9 @@ diagnose() {
   fi
   echo "upstream: $(upstream_type)"
   echo "valid interface combinations:"
-  iw phy 2>/dev/null | awk '/valid interface combinations/ { in_block = 1 } in_block && /^[[:space:]]*\*/ { print } in_block && !/^[[:space:]]*\*/ && !/valid interface combinations/ { exit }'
+  iw phy 2>/dev/null |
+    awk '/valid interface combinations/ { in_block = 1 } in_block && /^[[:space:]]*\*/ { print } in_block && !/^[[:space:]]*\*/ && !/valid interface combinations/ { exit }' ||
+    echo "unknown (iw could not read the PHYs)"
 }
 
 usage() {
@@ -640,8 +1066,41 @@ case "${1:-}" in
   teardown) teardown ;;
   firewall-apply)
     shift
+    if (($# != 2)) || ! firewall_scope_valid "$@"; then
+      fail "invalid internal firewall-apply arguments"
+    fi
     require_root firewall-apply "$@"
     firewall_apply "$@"
+    ;;
+  firewall-rollback)
+    shift
+    if (($# < 3 || $# > 6)) || ! firewall_scope_valid "$1" "$2"; then
+      fail "invalid internal firewall-rollback arguments"
+    fi
+    firewall_iface=$1
+    firewall_subnet=$2
+    shift 2
+    for tag in "$@"; do
+      if ! firewall_tag_valid "$tag"; then
+        fail "invalid internal firewall-rollback arguments"
+      fi
+    done
+    require_root firewall-rollback "$firewall_iface" "$firewall_subnet" "$@"
+    firewall_rollback "$firewall_iface" "$firewall_subnet" "$@"
+    ;;
+  forwarding-enable)
+    if (($# != 1)); then
+      fail "invalid internal forwarding-enable arguments"
+    fi
+    require_root forwarding-enable
+    forwarding_enable
+    ;;
+  forwarding-restore)
+    if (($# != 1)); then
+      fail "invalid internal forwarding-restore arguments"
+    fi
+    require_root forwarding-restore
+    forwarding_restore
     ;;
   diagnose) diagnose ;;
   generate-password) generate_password ;;

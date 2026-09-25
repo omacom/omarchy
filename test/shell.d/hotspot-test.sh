@@ -156,9 +156,11 @@ case "$*" in
   '-e no -g NAME connection show')
     [[ -e $PROFILE_STATE ]] && printf '%s\n' 'omarchy-hotspot'
     ;;
-  '-e no -g GENERAL.DEVICE connection show omarchy-hotspot') ;;
+  '-e no -g GENERAL.DEVICE connection show omarchy-hotspot')
+    [[ -n ${GENERAL_DEVICE:-} ]] && printf '%s\n' "$GENERAL_DEVICE"
+    ;;
   '-e no -g connection.interface-name connection show omarchy-hotspot')
-    [[ -e $PROFILE_STATE ]] && printf '%s\n' 'wlan0'
+    [[ -e $PROFILE_STATE ]] && printf '%s\n' "${SAVED_INTERFACE:-wlan0}"
     ;;
   '-e no -g 802-11-wireless.ssid connection show omarchy-hotspot')
     [[ -e $PROFILE_STATE ]] && printf '%s\n' 'Shared Hotspot'
@@ -180,7 +182,9 @@ chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli"
 
 NMCLI_LOG="$TEST_TMP/nmcli.log"
 PROFILE_STATE="$TEST_TMP/profile"
-export NMCLI_LOG PROFILE_STATE
+SAVED_INTERFACE=wlan0
+GENERAL_DEVICE=
+export NMCLI_LOG PROFILE_STATE SAVED_INTERFACE GENERAL_DEVICE
 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/radio-status.out" 2>"$TEST_TMP/radio-status.err"
 
 declare -A radio_status=()
@@ -221,3 +225,51 @@ done <"$NMCLI_LOG"
 nmcli_log=$(<"$NMCLI_LOG")
 [[ $nmcli_log != *"ifname p2p-dev-wlan9"* && $nmcli_log != *"connection.interface-name p2p-dev-wlan9"* ]] || fail "Wi-Fi selection never falls back to a P2P device"
 pass "NM profile create and reuse follow the selected Wi-Fi interface"
+
+SAVED_INTERFACE=wlan9 GENERAL_DEVICE= PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/healed-status.out" 2>"$TEST_TMP/healed-status.err"
+declare -A healed_status=()
+while IFS=$'\t' read -r key value; do
+  [[ -n $key ]] || continue
+  healed_status[$key]=$value
+done <"$TEST_TMP/healed-status.out"
+[[ ${healed_status[iface]} == "wlan0" ]] || fail "stale profile interface heals to a present AP-capable Wi-Fi device" "${healed_status[iface]}"
+[[ ${healed_status[ap_capable]} == "1" ]] || fail "healed interface retains AP capability" "${healed_status[ap_capable]}"
+pass "stale profile interface heals to a present AP-capable Wi-Fi device"
+
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+chmod +x "$STUB_BIN/iw"
+
+set +e
+SAVED_INTERFACE=wlan0 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/missing-phy-status.out" 2>"$TEST_TMP/missing-phy-status.err"
+missing_phy_status=$?
+set -e
+(( missing_phy_status == 0 )) || fail "missing PHY information still exits successfully" "exit: $missing_phy_status
+stderr: $(<"$TEST_TMP/missing-phy-status.err")"
+[[ -z $(<"$TEST_TMP/missing-phy-status.err") ]] || fail "missing PHY status keeps stderr empty" "$(<"$TEST_TMP/missing-phy-status.err")"
+
+declare -A missing_phy=()
+missing_phy_index=0
+while IFS=$'\t' read -r key value; do
+  [[ -n $key ]] || continue
+  (( missing_phy_index < ${#expected[@]} )) || fail "missing PHY status preserves protocol order" "unexpected key after index $missing_phy_index: $key"
+  [[ $key == "${expected[$missing_phy_index]}" ]] || fail "missing PHY status preserves protocol order" "expected ${expected[$missing_phy_index]}, got $key"
+  missing_phy[$key]=$value
+  (( missing_phy_index += 1 ))
+done <"$TEST_TMP/missing-phy-status.out"
+(( missing_phy_index == ${#expected[@]} )) || fail "missing PHY status emits the complete protocol" "emitted $missing_phy_index of ${#expected[@]} keys"
+[[ ${missing_phy[iface]} == "wlan0" ]] || fail "missing PHY status still names the interface" "${missing_phy[iface]}"
+[[ ${missing_phy[ap_capable]} == "0" ]] || fail "missing PHY status never claims AP capability" "${missing_phy[ap_capable]}"
+[[ ${missing_phy[ap_bands]} == "" ]] || fail "missing PHY status claims no bands" "${missing_phy[ap_bands]}"
+[[ ${missing_phy[active]} == "0" ]] || fail "missing PHY status never claims an active AP" "${missing_phy[active]}"
+[[ ${missing_phy[configured]} == "1" ]] || fail "missing PHY status still reports the configured profile" "${missing_phy[configured]}"
+[[ ${missing_phy[clients]} == "[]" ]] || fail "missing PHY status reports an empty client list" "${missing_phy[clients]}"
+[[ ${missing_phy[client_count]} == "0" ]] || fail "missing PHY status reports no clients" "${missing_phy[client_count]}"
+[[ ${missing_phy[upstream]} == "none" ]] || fail "missing PHY status reports upstream none" "${missing_phy[upstream]}"
+
+SAVED_INTERFACE=wlan0 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" diagnose >"$TEST_TMP/missing-phy-diagnose.out" 2>"$TEST_TMP/missing-phy-diagnose.err"
+[[ $(<"$TEST_TMP/missing-phy-diagnose.out") == *"ap capable: unknown (could not determine Wi-Fi PHY for wlan0)"* ]] || fail "diagnose distinguishes missing PHY data from an incapable adapter" "$(<"$TEST_TMP/missing-phy-diagnose.out")"
+pass "missing PHY information degrades status instead of failing it"
+pass "missing PHY information stays diagnosable"
