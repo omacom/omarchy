@@ -15,6 +15,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import select
 import shutil
 import sqlite3
@@ -526,11 +527,20 @@ def fetch_codex_rpc():
     result["authHelpText"] = "codex not found in PATH"
     return result
 
-  # No credentials means account/read can only fail — and starting the
-  # app-server is not free: it syncs the plugin list, a git fetch per
-  # refresh that also leaves ~/.codex/.tmp/git-* folders behind.
+  # No auth.json under the file store and no CODEX_ACCESS_TOKEN means
+  # account/read can only fail — and starting the app-server is not free: it
+  # syncs the plugin list, a git fetch per refresh that also leaves
+  # ~/.codex/.tmp/git-* folders behind. Keyring/auto stores keep credentials
+  # outside auth.json, so those fall through to the probe.
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
-  if not (codex_home / "auth.json").is_file() and not os.environ.get("CODEX_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
+  credentials_store = "file"
+  config_toml = codex_home / "config.toml"
+  if config_toml.is_file():
+    match = re.search(r'^\s*cli_auth_credentials_store\s*=\s*"([^"]+)"', config_toml.read_text(), re.MULTILINE)
+    if match:
+      credentials_store = match.group(1)
+  has_credentials = bool(os.environ.get("CODEX_ACCESS_TOKEN")) or credentials_store != "file" or (codex_home / "auth.json").is_file()
+  if not has_credentials:
     result["usageStatusText"] = "Codex limits unavailable"
     result["authHelpText"] = AUTH_HELP
     return result

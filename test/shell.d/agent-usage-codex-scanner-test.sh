@@ -622,10 +622,49 @@ mkdir -p "$NOAUTH_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$NOAUTH_HOME/bin/codex"
 
 result=$(HOME="$NOAUTH_HOME" CODEX_HOME="$NOAUTH_HOME/.codex" CODEX_ARGS_FILE="$NOAUTH_HOME/codex-args" XDG_DATA_HOME="$NOAUTH_HOME/.local/share" \
-  PATH="$NOAUTH_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+  PATH="$NOAUTH_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
 
 [[ ! -e $NOAUTH_HOME/codex-args ]] ||
   fail "Codex collector does not spawn app-server without credentials" "$result"
 [[ $(jq -r '.usageStatusText' <<<"$result") == "Codex limits unavailable" ]] ||
   fail "Codex collector reports limits unavailable without credentials" "$result"
 pass "Codex collector does not spawn app-server without credentials"
+
+# A non-file credentials store keeps credentials outside auth.json, so the
+# probe must still run.
+KEYRING_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$NOAUTH_HOME" "$KEYRING_HOME" "$TOKEN_HOME" "$APIKEY_HOME"' EXIT
+mkdir -p "$KEYRING_HOME/bin" "$KEYRING_HOME/.codex"
+cp "$TEST_HOME/bin/codex" "$KEYRING_HOME/bin/codex"
+printf 'cli_auth_credentials_store = "keyring"\n' >"$KEYRING_HOME/.codex/config.toml"
+
+result=$(HOME="$KEYRING_HOME" CODEX_HOME="$KEYRING_HOME/.codex" CODEX_ARGS_FILE="$KEYRING_HOME/codex-args" XDG_DATA_HOME="$KEYRING_HOME/.local/share" \
+  PATH="$KEYRING_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+
+[[ -e $KEYRING_HOME/codex-args ]] ||
+  fail "Codex collector probes the app-server when the keyring store is configured" "$result"
+pass "Codex collector probes the app-server when the keyring store is configured"
+
+# A CODEX_ACCESS_TOKEN is credentials even without auth.json.
+TOKEN_HOME=$(mktemp -d)
+mkdir -p "$TOKEN_HOME/bin" "$TOKEN_HOME/.codex"
+cp "$TEST_HOME/bin/codex" "$TOKEN_HOME/bin/codex"
+
+result=$(HOME="$TOKEN_HOME" CODEX_HOME="$TOKEN_HOME/.codex" CODEX_ARGS_FILE="$TOKEN_HOME/codex-args" XDG_DATA_HOME="$TOKEN_HOME/.local/share" \
+  PATH="$TOKEN_HOME/bin:$PATH" env -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_ACCESS_TOKEN=x "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+
+[[ -e $TOKEN_HOME/codex-args ]] ||
+  fail "Codex collector probes the app-server when CODEX_ACCESS_TOKEN is set" "$result"
+pass "Codex collector probes the app-server when CODEX_ACCESS_TOKEN is set"
+
+# An API key alone does not log the app-server in.
+APIKEY_HOME=$(mktemp -d)
+mkdir -p "$APIKEY_HOME/bin" "$APIKEY_HOME/.codex"
+cp "$TEST_HOME/bin/codex" "$APIKEY_HOME/bin/codex"
+
+result=$(HOME="$APIKEY_HOME" CODEX_HOME="$APIKEY_HOME/.codex" CODEX_ARGS_FILE="$APIKEY_HOME/codex-args" XDG_DATA_HOME="$APIKEY_HOME/.local/share" \
+  PATH="$APIKEY_HOME/bin:$PATH" env -u CODEX_API_KEY -u CODEX_ACCESS_TOKEN OPENAI_API_KEY=x "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+
+[[ ! -e $APIKEY_HOME/codex-args ]] ||
+  fail "Codex collector does not spawn app-server for an API key alone" "$result"
+pass "Codex collector does not spawn app-server for an API key alone"
