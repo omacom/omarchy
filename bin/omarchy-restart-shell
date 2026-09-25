@@ -8,6 +8,14 @@
 session_omarchy_path=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^OMARCHY_PATH=//p' | tail -n 1)
 : "${session_omarchy_path:=$OMARCHY_PATH}"
 
+# Under sudo the environment is reset and root's own user manager carries no
+# OMARCHY_PATH, so prefer the manager of the user who started the update, and
+# fall back to the packaged path for anything that still comes up empty.
+if [[ -z $session_omarchy_path && -n ${SUDO_USER:-} ]]; then
+  session_omarchy_path=$(systemctl --user --machine "$SUDO_USER@.host" show-environment 2>/dev/null | sed -n 's/^OMARCHY_PATH=//p' | tail -n 1)
+fi
+: "${session_omarchy_path:=/usr/share/omarchy}"
+
 CONFIG_DIR="$session_omarchy_path/shell"
 [[ -f $CONFIG_DIR/shell.qml ]] || { echo "Omarchy shell config not found: $CONFIG_DIR" >&2; exit 1; }
 

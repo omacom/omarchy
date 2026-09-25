@@ -79,6 +79,18 @@ grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" 
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
 
+: >"$git_log"
+# A root update under sudo loses the environment, so an unset OMARCHY_PATH must
+# read as package-backed rather than abort the update with an unbound variable.
+if ! env -u OMARCHY_PATH \
+  TEST_GIT_LOG="$git_log" \
+  PATH="$stub_bin:$PATH" \
+  "$ROOT/bin/omarchy-update-dev"; then
+  fail "an unset OMARCHY_PATH is tolerated by the dev checkout step"
+fi
+[[ ! -s $git_log ]] || fail "an unset OMARCHY_PATH treats the checkout as package-backed" "$(cat "$git_log")"
+pass "an unset OMARCHY_PATH skips the dev checkout step"
+
 grep -qE '^ *omarchy-update-dev$' "$ROOT/bin/omarchy-update" ||
   fail "top-level update includes the dev checkout step"
 pass "top-level update includes the dev checkout step"
