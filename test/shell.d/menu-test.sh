@@ -67,6 +67,8 @@ assertEqual(menu.childCount(merged.items, merged.itemOrder, 'style'), 1, 'menu c
 assertEqual(menu.labelFor({ id: 'style.theme', label: 'Theme', checked: 'cmd' }, { 'style.theme': true }), 'Theme ✓', 'menu appends checked marker')
 assertEqual(menu.labelFor({ id: 'install.browser.zen', label: 'Zen', disabled: 'cmd' }, {}, { 'install.browser.zen': true }), 'Zen ✓', 'menu marks a disabled row as something you already have')
 assertEqual(menu.labelFor({ id: 'install.browser.zen', label: 'Zen', disabled: 'cmd' }, {}, { 'install.browser.zen': false }), 'Zen', 'menu leaves an uninstalled row unmarked')
+assertEqual(menu.labelFor({ id: 'modes.mirror', label: 'Mirror', checked: 'cmd', disabled: 'cmd' }, {}, { 'modes.mirror': true }), 'Mirror', 'menu does not mark a disabled row that owns its own checked marker')
+assertEqual(menu.labelFor({ id: 'modes.mirror', label: 'Mirror', checked: 'cmd', disabled: 'cmd' }, { 'modes.mirror': true }, { 'modes.mirror': true }), 'Mirror ✓', 'menu marks a disabled row only when its own checked condition holds')
 
 const visibilityItems = {
   hardware: menu.normalizeItem('hardware', { label: 'Hardware' }),
