@@ -1998,11 +1998,7 @@ Panel {
               root.hotspotFocusIndex = 2
             }
 
-            PanelToolTip {
-              visible: hotspotQrButton.containsMouse
-              text: "Show QR code"
-              fontFamily: root.bar.fontFamily
-            }
+            tooltipText: "Show QR code"
           }
 
           Button {
@@ -2029,11 +2025,7 @@ Panel {
               root.hotspotFocusIndex = 1
             }
 
-            PanelToolTip {
-              visible: hotspotCogButton.containsMouse
-              text: root.hotspotSetupOpen ? "Hide hotspot settings" : "Hotspot settings"
-              fontFamily: root.bar.fontFamily
-            }
+            tooltipText: root.hotspotSetupOpen ? "Hide hotspot settings" : "Hotspot settings"
           }
 
           ToggleSwitch {
