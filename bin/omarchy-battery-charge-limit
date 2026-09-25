@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# omarchy:summary=Get or set the battery charge limit (healthy limit vs full charge).
+# omarchy:args=[80|100|full|toggle|status] [--shell]
+# omarchy:examples=omarchy battery charge-limit status|omarchy battery charge-limit 80|omarchy battery charge-limit full|omarchy battery charge-limit toggle
+
+set -euo pipefail
+
+shell_output=false
+cmd="status"
+for arg in "$@"; do
+  case "$arg" in
+    --shell) shell_output=true ;;
+    80|limit|limited|on|enable) cmd="limit" ;;
+    100|full|off|disable) cmd="full" ;;
+    toggle) cmd="toggle" ;;
+    status) cmd="status" ;;
+    -h|--help)
+      cat <<USAGE
+Usage: $(basename "$0") [80|100|full|toggle|status] [--shell]
+
+  80, limit     Enable the UPower charge threshold (usually 75-80%).
+  100, full     Disable the threshold for a full 100% charge.
+  toggle        Flip between limited and full.
+  status        Show current state (default).
+
+  --shell       Machine-readable output for the shell panel:
+                enabled\ttrue|false
+                start\t<75|...>
+                end\t<80|...>
+                supported\ttrue|false
+
+The default is limited. The setting is persisted by UPower across reboots.
+USAGE
+      exit 0
+      ;;
+    *) echo "Usage: $(basename "$0") [80|100|full|toggle|status] [--shell]" >&2; exit 2 ;;
+  esac
+done
+
+battery_paths() {
+  upower -e 2>/dev/null | grep -E 'battery_BAT' || true
+}
+
+bus_get() {
+  busctl get-property org.freedesktop.UPower "$1" org.freedesktop.UPower.Device "$2" 2>/dev/null | awk '{print $2}' || true
+}
+
+supported_batteries() {
+  local p
+  while IFS= read -r p; do
+    [[ -n $p ]] || continue
+    [[ $(bus_get "$p" ChargeThresholdSupported) == "true" ]] || continue
+    printf '%s\n' "$p"
+  done < <(battery_paths)
+}
+
+current_enabled() {
+  local p found=0
+  while IFS= read -r p; do
+    [[ -n $p ]] || continue
+    found=1
+    if [[ $(bus_get "$p" ChargeThresholdEnabled) != "true" ]]; then
+      printf 'false\n'
+      return 0
+    fi
+  done < <(supported_batteries)
+  if (( found == 0 )); then
+    printf 'unknown\n'
+    return 0
+  fi
+  printf 'true\n'
+}
+
+set_all() {
+  local enable="$1" p rc=0
+  while IFS= read -r p; do
+    [[ -n $p ]] || continue
+    if ! busctl call org.freedesktop.UPower "$p" org.freedesktop.UPower.Device EnableChargeThreshold b "$enable" >/dev/null 2>&1; then
+      rc=1
+    fi
+  done < <(supported_batteries)
+  return $rc
+}
+
+case "$cmd" in
+  limit) set_all true ;;
+  full) set_all false ;;
+  toggle)
+    if [[ $(current_enabled) == "true" ]]; then
+      set_all false
+    else
+      set_all true
+    fi
+    ;;
+  status) ;;
+esac
+
+enabled=$(current_enabled)
+if [[ $enabled == "unknown" ]]; then
+  if [[ $shell_output == "false" ]]; then
+    echo "No threshold-capable battery found." >&2
+  fi
+  exit 1
+fi
+
+if [[ $shell_output == "true" ]]; then
+  first=$(supported_batteries | head -n 1)
+  start=$(bus_get "$first" ChargeStartThreshold)
+  end=$(bus_get "$first" ChargeEndThreshold)
+  printf 'enabled\t%s\n' "$enabled"
+  [[ -n $start ]] && printf 'start\t%s\n' "$start"
+  [[ -n $end ]] && printf 'end\t%s\n' "$end"
+  printf 'supported\ttrue\n'
+  exit 0
+fi
+
+if [[ $cmd != "status" ]]; then
+  sleep 0.5
+  enabled=$(current_enabled)
+fi
+
+if [[ $enabled == "true" ]]; then
+  first=$(supported_batteries | head -n 1)
+  end=$(bus_get "$first" ChargeEndThreshold)
+  echo "Charge limit: ${end:-80}% (healthy). Run '$(basename "$0") full' for 100%."
+else
+  echo "Charge limit: 100% (full charge). Run '$(basename "$0") 80' to restore the healthy limit."
+fi
