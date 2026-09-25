@@ -183,5 +183,119 @@ JSON
   stop_shell
 }
 
+run_write_case() {
+  local case_name="settings-mutation"
+  local case_dir="$test_tmp/$case_name"
+  local stage="$case_dir/omarchy"
+  local test_home="$case_dir/home"
+  local runtime_dir="$case_dir/runtime"
+  local log="$case_dir/quickshell.log"
+  local user_config="$test_home/.config/omarchy/shell.json"
+  local edit_output=""
+  local expected_config="$case_dir/expected.json"
+
+  mkdir -p "$stage/shell/plugins/bar" "$stage/config/omarchy" \
+    "$test_home/.config/omarchy" "$test_home/.local/state/omarchy/current" \
+    "$runtime_dir"
+  chmod 700 "$runtime_dir"
+
+  cp "$ROOT/shell/shell.qml" "$stage/shell/shell.qml"
+  cp -a "$ROOT/shell/services" "$stage/shell/services"
+  cp -a "$ROOT/shell/Commons" "$stage/shell/Commons"
+  cp "$ROOT/config/omarchy/shell.json" "$stage/config/omarchy/shell.json"
+  cp "$SHELL_TEST_DIR/fixtures/shell-config-startup/Bar.qml" \
+    "$stage/shell/plugins/bar/Bar.qml"
+  ln -s "$ROOT/bin" "$stage/bin"
+  ln -s "$ROOT/default" "$stage/default"
+  ln -s "$ROOT/themes/tokyo-night" "$test_home/.local/state/omarchy/current/theme"
+
+  # Keep the user file distinguishable from the shipped defaults. The center
+  # clock is present in both, so setBarWidget is a real mutation in either
+  # configuration while the left layout and plugin entry expose lost fields.
+  cat >"$user_config" <<'JSON'
+{
+  "version": 1,
+  "bar": {
+    "position": "bottom",
+    "layout": {
+      "left": [{"id": "custom.left", "label": "preserve-me"}],
+      "center": [{"id": "omarchy.clock", "format": "user-format"}],
+      "right": []
+    }
+  },
+  "plugins": [{"id": "custom.plugin", "settings": {"keep": "yes"}}]
+}
+JSON
+  jq '.bar.layout.center[0].format = "startup-format"' "$user_config" >"$expected_config"
+
+  local -a run_env=(
+    env -u WAYLAND_DISPLAY -u DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE -u DBUS_SESSION_BUS_ADDRESS
+    "OMARCHY_PATH=$stage" "HOME=$test_home"
+    "XDG_CONFIG_HOME=$test_home/.config" "XDG_CACHE_HOME=$test_home/.cache"
+    "XDG_STATE_HOME=$test_home/.local/state" "XDG_RUNTIME_DIR=$runtime_dir"
+    "QML2_IMPORT_PATH=$stage/shell" "QML_IMPORT_PATH=$stage/shell" "PATH=$stage/bin:$PATH"
+    QT_QPA_PLATFORM=offscreen QSG_RHI_BACKEND=software
+  )
+  "${run_env[@]}" "LD_PRELOAD=$slow_config_so" \
+    "OMARCHY_TEST_SLOW_CONFIG=$user_config" \
+    "OMARCHY_TEST_SLOW_CONFIG_DELAY_MS=3000" \
+    setsid timeout --kill-after=2s 20s quickshell -p "$stage/shell" --no-color >"$log" 2>&1 &
+  QS_PID=$!
+
+  for _ in {1..150}; do
+    if ! kill -0 "$QS_PID" 2>/dev/null; then
+      sed -n '1,260p' "$log" >&2
+      fail "$case_name shell exits before its delayed user read starts"
+    fi
+    grep -qF 'TEST: delayed configuration read' "$log" && break
+    sleep 0.1
+  done
+  grep -qF 'TEST: delayed configuration read' "$log" || {
+    sed -n '1,260p' "$log" >&2
+    fail "$case_name delays the intended user configuration read"
+  }
+
+  # Send a real settings edit as soon as IPC will accept one, without waiting
+  # for the config or registry. Blocking the initial read makes a patched host
+  # defer IPC readiness; an unpatched host persists its defaults here.
+  for _ in {1..100}; do
+    if ! kill -0 "$QS_PID" 2>/dev/null; then
+      sed -n '1,260p' "$log" >&2
+      fail "$case_name shell exits before its real settings mutation succeeds"
+    fi
+    if edit_output=$("${run_env[@]}" timeout 1s quickshell ipc -p "$stage/shell" \
+      call shell setBarWidget omarchy.clock format '"startup-format"' '{}' 2>/dev/null); then
+      [[ $edit_output == "ok" ]] && break
+    fi
+    sleep 0.1
+  done
+  [[ $edit_output == "ok" ]] || {
+    sed -n '1,260p' "$log" >&2
+    fail "$case_name actual setBarWidget IPC mutation succeeds" "result=$edit_output"
+  }
+
+  local persisted=false
+  for _ in {1..100}; do
+    if jq -e '
+      any(.bar.layout.center[]; .id == "omarchy.clock" and .format == "startup-format")
+    ' "$user_config" >/dev/null 2>&1; then
+      persisted=true
+      break
+    fi
+    sleep 0.1
+  done
+  if [[ $persisted != "true" ]] || ! jq -e --slurpfile expected "$expected_config" ' . == $expected[0] ' "$user_config" >/dev/null; then
+    printf 'Persisted shell.json (%s):\n' "$case_name" >&2
+    jq . "$user_config" >&2 || sed -n '1,260p' "$user_config" >&2
+    sed -n '1,260p' "$log" >&2
+    fail "$case_name settings mutation preserves custom user fields and requested edit" \
+      "result=$edit_output"
+  fi
+
+  pass "real setBarWidget IPC preserves custom shell configuration during startup"
+  stop_shell
+}
+
 run_case user-config user
 run_case default-config defaults
+run_write_case

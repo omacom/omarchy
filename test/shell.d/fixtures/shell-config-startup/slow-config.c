@@ -13,8 +13,19 @@ static void delay_config(const char *path) {
   if (!target || !path || strcmp(target, path) != 0) return;
 
   const char note[] = "TEST: delayed configuration read\n";
-  write(STDERR_FILENO, note, sizeof(note) - 1);
-  struct timespec remaining = { .tv_sec = 1, .tv_nsec = 0 };
+  ssize_t written = write(STDERR_FILENO, note, sizeof(note) - 1);
+  (void)written;
+  long delay_ms = 1000;
+  const char *delay_text = getenv("OMARCHY_TEST_SLOW_CONFIG_DELAY_MS");
+  if (delay_text && *delay_text) {
+    char *end = NULL;
+    long parsed = strtol(delay_text, &end, 10);
+    if (end && *end == '\0' && parsed >= 0) delay_ms = parsed;
+  }
+  struct timespec remaining = {
+    .tv_sec = delay_ms / 1000,
+    .tv_nsec = (delay_ms % 1000) * 1000000L
+  };
   while (nanosleep(&remaining, &remaining) != 0) {}
 }
 
