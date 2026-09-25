@@ -292,7 +292,7 @@ Item {
       Accessible.name: root.accessibleName
       Accessible.description: root.selectionLabel() || root.triggerLabel || root.noSelectionText
       Accessible.focusable: true
-      Accessible.onPressAction: root.toggle()
+      Accessible.onPressAction: if (root.enabled) root.toggle()
 
       HoverHandler {
         id: triggerHover
