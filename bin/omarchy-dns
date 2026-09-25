@@ -322,7 +322,7 @@ write_dot_drop_in() {
   # omarchy:heredoc-expands paths=none -- $servers is a space-separated list of
   # IP#hostname DNS entries written as data, not a path or command.
   cat >"$RESOLVED_DROP_IN" <<EOF
-# Managed by omarchy-dns. Custom DNS-over-TLS endpoint; remove with `omarchy dns DHCP`.
+# Managed by omarchy-dns. Custom DNS-over-TLS endpoint; remove with omarchy dns DHCP.
 [Resolve]
 DNS=$servers
 DNSOverTLS=opportunistic

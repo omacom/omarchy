@@ -596,7 +596,7 @@ scan_file() {
   local -a lines=()
   local index lineno line command scan rest raw operator match prefix guard slot delim candidate candidate_delim body_start
   local body_text unescaped destination destination_command body_line masked_line token name
-  local declared_paths annotation look shown_paths shown_plain count next slots terminated
+  local declared_paths annotation look shown_paths shown_plain count next slots terminated has_command_substitution
   local hd_re='(<<-?)[[:space:]]*("[A-Za-z_][A-Za-z0-9_]*"|'"'"'[A-Za-z_][A-Za-z0-9_]*'"'"'|[A-Za-z_][A-Za-z0-9_]*)'
 
   mapfile -t lines <"$file"
@@ -690,6 +690,7 @@ scan_file() {
 
       # A quoted delimiter cannot expand anything.
       ((quoted[slot] == 1)) || continue
+      has_command_substitution=0
 
       printf -v body_text '%s\n' "${body[@]:-}"
       unescaped=$(strip_escapes "$body_text")
@@ -715,6 +716,7 @@ scan_file() {
             name=${names[next]:-}
             next=$((next + 1))
             [[ -n $name ]] || continue
+            [[ $name == "$COMMAND_SUBSTITUTION" ]] && has_command_substitution=1
 
             if classify_expansion "$token" "$name"; then
               in_list "$name" "${path_expansions[@]:-}" || path_expansions+=("$name")
@@ -749,6 +751,11 @@ scan_file() {
           IFS=,
           printf '%s' "${plain_expansions[*]}"
         )
+      fi
+
+      if ((has_command_substitution == 1)); then
+        FINDINGS+=("$display:$lineno: unquoted heredoc <<$delim contains an unescaped command substitution and its output reaches $destination")
+        continue
       fi
 
       if [[ -z $annotation ]]; then
@@ -892,6 +899,9 @@ fixture_flags annotated-paths-none-still-fails.sh \
 fixture_flags annotated-special-parameter-before-home.sh \
   "a shell special parameter cannot hide a later baked \$HOME path" \
   "declares paths=none but the path-shaped expansions are HOME"
+fixture_flags annotated-command-substitution-still-fails.sh \
+  "an annotation cannot silence a command substitution" \
+  "command substitution"
 
 # A path can hide one or more hops away from the heredoc. In each of these the
 # token in the body has no slash and the value never resolves to a literal path,
