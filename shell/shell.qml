@@ -131,6 +131,7 @@ ShellRoot {
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
+    lastUserConfig = payload
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
@@ -163,7 +164,7 @@ ShellRoot {
       shell.applyShellConfig()
     }
     onLoadFailed: function(error) {
-      shell.userConfigMissing = true
+      shell.userConfigMissing = error === FileViewError.FileNotFound
       shell.applyShellConfig()
     }
     onFileChanged: reload()
