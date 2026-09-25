@@ -27,8 +27,29 @@ Item {
 
   onValueChanged: if (!dragging) liveValue = value
 
+  // Sliders carry no label of their own; callers name them ("Volume").
+  property string accessibleName: ""
+  // Names the Value interface reads.
+  readonly property real minimumValue: minimum
+  readonly property real maximumValue: maximum
+  readonly property real stepSize: step
+
+  // One wheel notch or one accessibility increase/decrease.
+  function _stepBy(delta) {
+    var next = Math.max(minimum, Math.min(maximum, liveValue + delta))
+    if (integer) next = Math.round(next)
+    liveValue = next
+    moved(next)
+    released(next)
+  }
+
   signal moved(real value)
   signal released(real value)
+
+  Accessible.role: Accessible.Slider
+  Accessible.name: accessibleName
+  Accessible.onIncreaseAction: root._stepBy(root.step)
+  Accessible.onDecreaseAction: root._stepBy(-root.step)
 
   // Right-click is a secondary action on the whole track — audio uses it to
   // mute the channel the slider belongs to. Dragging stays left-button only.
@@ -137,13 +158,6 @@ Item {
       root.released(root.liveValue)
       root.liveValue = root.value
     }
-    onWheel: function(wheel) {
-      var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
-      var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
-      if (root.integer) next = Math.round(next)
-      root.liveValue = next
-      root.moved(next)
-      root.released(next)
-    }
+    onWheel: function(wheel) { root._stepBy(wheel.angleDelta.y > 0 ? root.step : -root.step) }
   }
 }

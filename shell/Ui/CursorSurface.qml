@@ -24,6 +24,17 @@ BorderSurface {
   property color fill: Style.hoverFillFor(foreground, accent)
   property color currentFill: Style.selectedFillFor(foreground, accent)
 
+  // Rows opt in to the accessibility tree by naming themselves; the row's
+  // owner wires Accessible.onPressAction next to its own click handler.
+  // Unnamed rows stay out of the tree rather than show up blank.
+  property string accessibleName: ""
+
+  Accessible.role: Accessible.ListItem
+  Accessible.name: accessibleName
+  Accessible.selectable: true
+  Accessible.selected: current
+  Accessible.ignored: accessibleName === ""
+
   radius: Style.cornerRadius
 
   color: hasCursor ? fill : (current ? currentFill : "transparent")

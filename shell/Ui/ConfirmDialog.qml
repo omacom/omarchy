@@ -58,6 +58,9 @@ Item {
       padding: Style.space(18)
       radius: root.cornerRadius
 
+      Accessible.role: Accessible.Dialog
+      Accessible.name: root.message
+
       MouseArea { anchors.fill: parent; onClicked: {} }
 
       Item {
@@ -94,6 +97,15 @@ Item {
 
               readonly property bool selected: root.selectedIndex === index
               readonly property bool destructive: index === 1
+
+              Accessible.role: Accessible.Button
+              Accessible.name: modelData
+              Accessible.selectable: true
+              Accessible.selected: selected
+              Accessible.onPressAction: {
+                if (index === 0) root.canceled()
+                else root.confirmed()
+              }
 
               width: Style.space(88)
               height: Style.space(34)
