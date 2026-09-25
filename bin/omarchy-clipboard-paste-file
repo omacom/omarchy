@@ -17,7 +17,8 @@ while (( $# > 0 )); do
       ;;
     --window)
       window="${2:-}"
-      shift 2
+      shift
+      (( $# > 0 )) && shift
       ;;
     *)
       break
@@ -29,7 +30,7 @@ mime=${1:-}
 path=${2:-}
 
 if [[ -z $mime || -z $path ]]; then
-  echo "Usage: omarchy-clipboard-paste-file [--copy-only] <mime-type> <path>" >&2
+  echo "Usage: omarchy-clipboard-paste-file [--copy-only] [--window <address>] <mime-type> <path>" >&2
   exit 1
 fi
 
@@ -58,7 +59,8 @@ focus_origin_window() {
   sleep 0.15
   for _ in {1..15}; do
     [[ $(hyprctl activewindow -j 2>/dev/null | jq -r '.address // ""') == "$window" ]] && return
-    hyprctl dispatch focuswindow "address:$window" >/dev/null 2>&1
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$window\" })" >/dev/null 2>&1 ||
+      hyprctl dispatch focuswindow "address:$window" >/dev/null 2>&1
     sleep 0.04
   done
 }

@@ -15,7 +15,6 @@ Item {
   // mouse-picked entry pastes back into it rather than whatever follow_mouse
   // focuses once the overlay closes.
   property string targetWindow: ""
-  property string lastToplevelAddress: ""
   property bool opened: false
   property string filterText: ""
   property int selectedIndex: 0
@@ -45,17 +44,13 @@ Item {
   property int rowHeight: Math.max(Style.space(50), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
   property int historyLimit: 500
 
-  Connections {
-    target: Hyprland
-    function onActiveToplevelChanged() {
-      var t = Hyprland.activeToplevel
-      if (t && t.address) root.lastToplevelAddress = t.address
-    }
-  }
-
   function open(payloadJson) {
+    // Only record an origin on the focused workspace: after a switch to an
+    // empty workspace activeToplevel still points at the previous window, and
+    // refocusing it would jump workspaces and paste where the user isn't.
     var active = Hyprland.activeToplevel
-    root.targetWindow = (active && active.address) ? active.address : root.lastToplevelAddress
+    var onFocusedWorkspace = active && active.workspace && active.workspace.focused
+    root.targetWindow = (onFocusedWorkspace && active.address) ? active.address : ""
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
