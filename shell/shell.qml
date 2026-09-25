@@ -691,6 +691,15 @@ ShellRoot {
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: target,
       barConfig: shell.publicBarConfig(),
+      // The widget this facade is handed to may reach its own service, the
+      // same capability the trusted bar grants through pluginShellForId().
+      // The lookup is still scoped to the entry's own plugin id (or its
+      // enabled clone): any other requested id fails the owns-check inside
+      // pluginServiceFor() and returns null, so the bar hosting the entry
+      // gains no reach beyond the entries it is configured to host.
+      _serviceLookup: function(requestedId) {
+        return shell.pluginServiceFor(target, requestedId)
+      },
       _summon: function(requestedId, payloadJson) {
         if (!owns(requestedId)
             && !shell.pluginCloneMaySummon(currentManifest(), requestedId)) return false
