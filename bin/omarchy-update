@@ -8,9 +8,49 @@
 
 set -e
 
+# script(1) creates its typescript at the caller's umask, normally 0644, and
+# mkdir -p leaves an existing directory at whatever mode it already had. The
+# directory mode is what keeps the transcript private. A symlink at the log
+# path would be followed by script into whatever it points at.
+prepare_update_log() {
+  local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  local update_log="$dir/update.log"
+
+  if [[ -L $dir ]]; then
+    echo "Error: $dir is a symlink" >&2
+    return 1
+  fi
+  mkdir -p -- "$dir" || return 1
+  chmod 700 "$dir" || return 1
+  if [[ -L $update_log ]]; then
+    rm -f -- "$update_log" || return 1
+  fi
+  if [[ -d $update_log ]]; then
+    echo "Error: $update_log is a directory" >&2
+    return 1
+  fi
+  if [[ -e $update_log && ! -f $update_log ]]; then
+    echo "Error: $update_log is not a regular file" >&2
+    return 1
+  fi
+  # script truncates the file when it opens it. Set the mode first so a 0644
+  # transcript from an older run is private before this run writes it.
+  if [[ -f $update_log ]]; then
+    chmod 600 "$update_log" || return 1
+  else
+    install -T -m 600 /dev/null "$update_log" || return 1
+  fi
+  printf '%s\n' "$update_log"
+}
+
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
+  # Read back by omarchy-update-analyze-logs, so the name stays stable. The
+  # state directory keeps the transcript after logout. At a fixed name in /tmp
+  # another local account could read it, and with fs.protected_regular a second
+  # user running the update got "Permission denied" on the file the first user left.
+  update_log=$(prepare_update_log) || exit 1
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
+  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "$update_log"
 fi
 
 if ! omarchy-update-lock held; then

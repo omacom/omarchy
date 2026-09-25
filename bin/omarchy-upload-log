@@ -5,8 +5,15 @@
 # omarchy:hidden=true
 
 LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+# The bundle collects the boot journal and the install logs before it is sent.
+# At fixed names in /tmp both files were world readable under the default umask
+# and were never removed. A name another account created first is worse:
+# fs.protected_regular makes the redirect fail, and curl still uploads that
+# file and prints the URL as this user's log. mktemp makes them 0600 under a
+# name nobody can guess, and the trap clears them on the way out.
+TEMP_LOG=$(mktemp) || exit 1
+SYSTEM_INFO=$(mktemp) || exit 1
+trap 'rm -f "$TEMP_LOG" "$SYSTEM_INFO"' EXIT
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then
