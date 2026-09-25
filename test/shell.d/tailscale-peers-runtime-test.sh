@@ -17,7 +17,7 @@ const fs = require('fs')
 const [root, stage] = process.argv.slice(2)
 const source = root + '/shell/plugins/panels/tailscale/'
 let panel = fs.readFileSync(source + 'Panel.qml', 'utf8')
-panel = panel.replace('  id: root', '  id: root\n  property alias testService: tailscale')
+panel = panel.replace('  id: root', '  id: root\n  property alias testService: tailscale\n  property alias testOfflineSwitch: offlineSwitch\n  property alias testKeys: keyCatcher')
 fs.writeFileSync(stage + '/tailscale/Panel.qml', panel)
 // Disable automatic polling in the disposable fixture. Tests feed status into
 // the real parser; no daemon, account, routing or file-transfer command runs.

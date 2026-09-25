@@ -23,7 +23,18 @@ ShellRoot {
   Item {
     Tailscale.Panel {
       id: panel
+      settings: ({ refreshIntervalSec: 60, recentMullvadRegions: ["Canada\nToronto"] })
       bar: QtObject {
+        property var shell: QtObject {
+          property int writes: 0
+          function updateEntryInline(id, entry) {
+            test.check(id === panel.moduleName && entry.id === id, "setting writes target the active widget")
+            test.check(entry.refreshIntervalSec === 60, "toggle preserves refresh interval")
+            test.check(entry.recentMullvadRegions[0] === "Canada\nToronto", "toggle preserves recent regions")
+            writes++
+            panel.settings = entry
+          }
+        }
         property color foreground: Color.foreground
         property color barForeground: Color.foreground
         property color urgent: Color.urgent
@@ -56,11 +67,13 @@ ShellRoot {
     check(service.selfName === "self", "registered self name")
     check(service.peers.length === 1 && service.peers[0].DisplayName === "phone", "online-only default")
     check(service.canSendFiles(service.peers[0]), "online Taildrop remains available")
-    panel.settings = { showOfflinePeers: true }
+    check(!panel.testOfflineSwitch.checked, "visible switch starts off")
+    panel.testOfflineSwitch.toggled()
     Qt.callLater(offlineChecks)
   }
   function offlineChecks() {
     var service = panel.testService
+    check(panel.testOfflineSwitch.checked && panel.bar.shell.writes === 1, "switch follows persisted state")
     check(service.peers.length === 2, "setting reveals cached offline peer immediately")
     var peer = service.peers[1]
     check(peer.DisplayName === "laptop" && !peer.Online, "offline registered name and state")
@@ -75,11 +88,12 @@ ShellRoot {
     panel.peerIndex = 0
     panel.moveCursor(0, 1)
     check(panel.peerIndex === 1, "keyboard reaches offline peer")
-    panel.settings = { showOfflinePeers: false }
+    panel.testKeys.textKey("O")
     Qt.callLater(hiddenChecks)
   }
   function hiddenChecks() {
     var service = panel.testService
+    check(!panel.testOfflineSwitch.checked && panel.bar.shell.writes === 2, "keyboard shortcut persists the same setting")
     check(service.peers.length === 1 && panel.peerIndex === 0, "hiding offline row clamps keyboard cursor")
     panel.settings = { showOfflinePeers: true }
     service.parseStatus(JSON.stringify({ BackendState: "Running", Peer: {

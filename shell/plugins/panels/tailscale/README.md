@@ -17,7 +17,7 @@ Native Omarchy bar widget for Tailscale.
 
 Names follow the editable machine name in the Tailscale admin console (the first label of `DNSName`). The OS hostname is used only when a DNS name is unavailable. This applies to this device, peer rows, tailnet exit nodes, and copied machine names; Mullvad region labels are unchanged.
 
-Enable the `showOfflinePeers` widget setting to include offline machines:
+Turn on **Show offline peers** beside the **Machines** heading, or press `o` while the panel is open. The toggle saves the `showOfflinePeers` widget setting. You can also set it from the command line:
 
 ```bash
 omarchy bar set omarchy.tailscale showOfflinePeers true --json
@@ -38,6 +38,7 @@ Inside the panel:
 - `d`: copy selected peer DNS name
 - `s`: send files to selected peer
 - `t`: toggle Tailscale
+- `o`: show or hide offline peers
 - `r`: refresh status
 - `esc`: close
 

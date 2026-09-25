@@ -159,6 +159,14 @@ Panel {
     root.bar.shell.updateEntryInline(root.moduleName, entry)
   }
 
+  function toggleOfflinePeers() {
+    if (!root.bar || !root.bar.shell || typeof root.bar.shell.updateEntryInline !== "function") return
+    var entry = { id: root.moduleName }
+    for (var key in settings) if (key !== "id") entry[key] = settings[key]
+    entry.showOfflinePeers = !tailscale.showOfflinePeers
+    root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
   function chooseExitNode(peer) {
     if (!peer) return
     if (peer.AddMullvad === true) {
@@ -423,6 +431,7 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
         if (t === "t" || t === "T") tailscale.toggleTailscale()
+        else if (t === "o" || t === "O") root.toggleOfflinePeers()
         else if (t === "c" || t === "C") tailscale.copyPeerIp(root.selectedPeer())
         else if (t === "n" || t === "N") tailscale.copyPeerName(root.selectedPeer())
         else if (t === "d" || t === "D") tailscale.copyPeerDnsName(root.selectedPeer())
@@ -675,10 +684,41 @@ Panel {
             width: parent.width
             spacing: Style.space(10)
 
-            PanelSectionHeader {
-              text: "MACHINES"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
+            RowLayout {
+              width: parent.width
+              spacing: Style.space(8)
+
+              PanelSectionHeader {
+                text: "MACHINES"
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                Layout.fillWidth: true
+              }
+
+              Text {
+                text: "Show offline peers"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+
+              ToggleSwitch {
+                id: offlineSwitch
+                checked: tailscale.showOfflinePeers
+                foreground: root.foreground
+                trackHeight: Style.space(16)
+                Accessible.role: Accessible.CheckBox
+                Accessible.name: "Show offline peers"
+                Accessible.checked: checked
+                Accessible.onPressAction: root.toggleOfflinePeers()
+                onToggled: root.toggleOfflinePeers()
+
+                PanelToolTip {
+                  visible: offlineSwitch.containsMouse
+                  text: "Show offline peers (o)"
+                  fontFamily: root.fontFamily
+                }
+              }
             }
 
             Text {
