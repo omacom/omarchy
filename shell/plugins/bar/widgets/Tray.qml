@@ -288,6 +288,7 @@ BarWidget {
 
         BarIconButton {
           id: expandIcon
+          accessibleName: "Tray"
           bar: root.bar
           width: implicitWidth
           height: implicitHeight
@@ -378,6 +379,7 @@ BarWidget {
 
         BarIconButton {
           id: expandIcon
+          accessibleName: "Tray"
           bar: root.bar
           width: implicitWidth
           height: implicitHeight
