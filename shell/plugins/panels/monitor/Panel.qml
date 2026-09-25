@@ -867,6 +867,8 @@ Panel {
     readonly property bool isFocused: display && display.focused
     readonly property bool canToggle: display && (!display.enabled || root.enabledDisplayCount > 1)
 
+    accessibleName: display ? display.name : ""
+    Accessible.onPressAction: monitorRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "monitors" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(monitorRow)
     current: isFocused
@@ -875,6 +877,10 @@ Panel {
     currentFill: Style.selectedFillFor(root.bar.foreground, Color.accent)
     implicitHeight: monitorInner.implicitHeight + Style.spacing.xl
     opacity: canToggle ? 1.0 : 0.45
+
+    function activate() {
+      if (canToggle) root.toggleDisplay(display.name, display.enabled)
+    }
 
     Row {
       id: monitorInner
@@ -927,7 +933,7 @@ Panel {
         root.focusSection = "monitors"
         root.selectedIndex = monitorRow.rowIndex
       }
-      onClicked: if (monitorRow.canToggle) root.toggleDisplay(monitorRow.display.name, monitorRow.display.enabled)
+      onClicked: monitorRow.activate()
     }
   }
 }

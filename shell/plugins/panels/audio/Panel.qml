@@ -1021,6 +1021,8 @@ Panel {
     required property int rowIndex
 
     readonly property bool isActive: root.sink && node && root.sink.id === node.id
+    accessibleName: node ? root.nodeLabel(node) : ""
+    Accessible.onPressAction: sinkRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sinkRow)
     current: isActive
@@ -1028,6 +1030,10 @@ Panel {
     fill: root.hoverFill
     currentFill: root.selectedFill
     implicitHeight: sinkInner.implicitHeight + Style.spacing.xl
+
+    function activate() {
+      if (node) root.setDefaultSink(node)
+    }
 
     Row {
       id: sinkInner
@@ -1071,7 +1077,7 @@ Panel {
         root.focusSection = "output"
         root.selectedIndex = sinkRow.rowIndex
       }
-      onClicked: root.setDefaultSink(sinkRow.node)
+      onClicked: sinkRow.activate()
     }
   }
 
@@ -1082,6 +1088,8 @@ Panel {
     required property int rowIndex
 
     readonly property bool isActive: root.source && node && root.source.id === node.id
+    accessibleName: node ? root.nodeLabel(node) : ""
+    Accessible.onPressAction: sourceRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "input" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sourceRow)
     current: isActive
@@ -1089,6 +1097,10 @@ Panel {
     fill: root.hoverFill
     currentFill: root.selectedFill
     implicitHeight: sourceInner.implicitHeight + Style.spacing.xl
+
+    function activate() {
+      if (node) root.setDefaultSource(node)
+    }
 
     Row {
       id: sourceInner
@@ -1132,7 +1144,7 @@ Panel {
         root.focusSection = "input"
         root.selectedIndex = sourceRow.rowIndex
       }
-      onClicked: root.setDefaultSource(sourceRow.node)
+      onClicked: sourceRow.activate()
     }
   }
 

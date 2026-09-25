@@ -1726,6 +1726,8 @@ Panel {
     readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
+    accessibleName: net ? (net.ssid || "Hidden") : ""
+    Accessible.onPressAction: row.activate()
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
     current: isConnected
     foreground: root.bar.foreground
@@ -1736,6 +1738,21 @@ Panel {
     readonly property bool isBusy: root.actionKind !== "" && root.actionSsid === (net ? net.ssid : "")
     readonly property bool isFailed: root.failureReason !== "" && root.failureSsid === (net ? net.ssid : "")
     readonly property bool isPasswordOpen: root.passwordSsid !== "" && root.passwordSsid === (net ? net.ssid : "")
+
+    function activate() {
+      if (!net || root.busy) return
+      root.cursorActive = true
+      root.focusSection = "wifi"
+      root.selectedIndex = row.index
+      root.wifiActionFocused = false
+      if (isConnected) {
+        root.disconnectRow(net.ssid)
+      } else if (requiresCredentials && !isKnown) {
+        root.openPasswordPrompt(net.ssid)
+      } else {
+        root.connectDirectly(net.ssid)
+      }
+    }
 
     function submitCredentials() {
       if (!net || root.busy || root.passwordText.length === 0) return
@@ -1802,24 +1819,7 @@ Panel {
       // subsequent j/k pick up from this row).
       onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
 
-      onClicked: {
-        if (!row.net) return
-        // Resync cursor in case keyboard nav moved it away while the mouse
-        // stayed parked on this row — the click target is unambiguously here.
-        root.cursorActive = true
-        root.focusSection = "wifi"
-        root.selectedIndex = row.index
-        root.wifiActionFocused = false
-        if (row.isConnected) {
-          root.disconnectRow(row.net.ssid)
-          return
-        }
-        if (row.requiresCredentials && !row.isKnown) {
-          root.openPasswordPrompt(row.net.ssid)
-          return
-        }
-        root.connectDirectly(row.net.ssid)
-      }
+      onClicked: row.activate()
     }
 
     Item {
