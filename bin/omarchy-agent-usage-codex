@@ -91,15 +91,32 @@ def find_command(name):
   return shutil.which(name, path=ENV.get("PATH"))
 
 
+def mise_shims_dir():
+  data_home = ENV.get("MISE_DATA_DIR") or os.path.join(
+    ENV.get("XDG_DATA_HOME") or os.path.join(str(Path.home()), ".local", "share"), "mise")
+  return os.path.join(data_home, "shims")
+
+
 def is_lazy_launcher(path):
   # omarchy-mise-install writes a regular file whose first step is `mise use
   # -g`, and mise's shims exec `mise x`; running either installs the tool it
-  # wraps. A symlink at the launcher path is the user's own binary.
-  if not path or os.path.islink(path):
+  # wraps. A shim is a symlink to the mise binary itself, so the symlink
+  # check comes after the shim checks: a symlink elsewhere is the user's own
+  # binary.
+  if not path:
     return False
-  shims = os.path.join(str(Path.home()), ".local", "share", "mise", "shims")
+  shims = mise_shims_dir()
   if os.path.dirname(os.path.abspath(path)) == shims:
     return True
+  if os.path.islink(path):
+    mise = find_command("mise")
+    if mise:
+      try:
+        if os.path.realpath(path) == os.path.realpath(mise):
+          return True
+      except OSError:
+        pass
+    return False
   try:
     with open(path, "rb") as handle:
       head = handle.read(4096)
@@ -118,8 +135,11 @@ def find_codex_binary():
   mise = find_command("mise")
   if mise and not is_lazy_launcher(mise):
     try:
+      # `mise which` can resolve a configured `latest` over the network; the
+      # usage probe stays offline.
+      env = dict(ENV, MISE_OFFLINE="1")
       out = subprocess.run(
-        [mise, "which", "codex"], capture_output=True, text=True, env=ENV, timeout=10
+        [mise, "which", "codex"], capture_output=True, text=True, env=env, timeout=10
       )
       if out.returncode == 0:
         for line in reversed(out.stdout.strip().splitlines()):

@@ -605,10 +605,17 @@ result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACH
 pass "Codex collector does not cache an interrupted opencode scan"
 
 # The lazy launcher at ~/.local/bin/codex runs `mise use -g` when executed, so
-# a read-only usage probe on a machine without Codex must never spawn it. The
-# sanitized PATH keeps a real codex or mise on the host out of the probe.
-SAFE_PATH="$(dirname "$(command -v jq)"):/usr/bin:/bin"
+# a read-only usage probe on a machine without Codex must never spawn it. A
+# private tools dir keeps a real codex or mise on the host out of the probe:
+# PATH holds only the interpreter and file tools the collector may exec.
 LAUNCH_HOME=$(mktemp -d)
+SAFE_PATH="$LAUNCH_HOME/tools"
+mkdir -p "$SAFE_PATH"
+for tool in python3 rg; do
+  if command -v "$tool" >/dev/null; then
+    ln -s "$(command -v "$tool")" "$SAFE_PATH/$tool"
+  fi
+done
 trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$LAUNCH_HOME"' EXIT
 mkdir -p "$LAUNCH_HOME/bin" "$LAUNCH_HOME/.local/bin"
 cat >"$LAUNCH_HOME/.local/bin/codex" <<'LAUNCHER'
@@ -672,4 +679,27 @@ result=$(HOME="$LINK_HOME" CODEX_HOME="$LINK_HOME/.codex" CODEX_ARGS_FILE="$LINK
 [[ -f $LINK_HOME/codex-args && ! -s $LINK_HOME/mise-calls ]] ||
   fail "Codex collector probes a symlinked codex without invoking mise" "$result"
 pass "Codex collector probes a user-owned symlink at the launcher path"
+
+# A mise shim is a symlink to the mise binary itself, so it resolves to mise,
+# not to an installed codex — running it would exec `mise x` and install the
+# tool. It must be treated as lazy despite being a symlink.
+SHIM_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$LAUNCH_HOME" "$LINK_HOME" "$SHIM_HOME"' EXIT
+mkdir -p "$SHIM_HOME/bin" "$SHIM_HOME/.local/share/mise/shims"
+cat >"$SHIM_HOME/bin/mise" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >>"$SHIM_HOME/mise-calls"
+exit 1
+STUB
+chmod +x "$SHIM_HOME/bin/mise"
+ln -s "$SHIM_HOME/bin/mise" "$SHIM_HOME/.local/share/mise/shims/codex"
+
+result=$(HOME="$SHIM_HOME" CODEX_HOME="$SHIM_HOME/.codex" MISE_CALLS_FILE="$SHIM_HOME/mise-calls" XDG_DATA_HOME="$SHIM_HOME/.local/share" \
+  PATH="$SHIM_HOME/bin:$SAFE_PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Codex unavailable" ]] ||
+  fail "Codex collector reports Codex unavailable when only a mise shim exists" "$result"
+[[ ! -s $SHIM_HOME/mise-calls || $(cat "$SHIM_HOME/mise-calls") == "which codex" ]] ||
+  fail "Codex collector must not execute a mise shim" "$(cat "$SHIM_HOME/mise-calls" 2>/dev/null)"
+pass "Codex collector treats a shim symlink to mise as lazy"
 
