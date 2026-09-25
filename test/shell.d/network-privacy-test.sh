@@ -28,11 +28,11 @@ trap 'rm -rf "$tmp_dir"' EXIT
 mkdir -p "$tmp_dir/bin"
 cat >"$tmp_dir/bin/nmcli" <<'STUB'
 #!/bin/bash
-if [[ $1 == "-t" && $2 == "-f" && $3 == "NAME,UUID,TYPE" ]]; then
+if [[ $1 == "-t" && $2 == "-f" && $3 == "UUID,TYPE" ]]; then
   cat <<'LIST'
-Home Wi-Fi:uuid-wifi:802-11-wireless
-Office LAN:uuid-lan:802-3-ethernet
-VPN:uuid-vpn:wireguard
+uuid-wifi:802-11-wireless
+uuid-lan:802-3-ethernet
+uuid-vpn:wireguard
 LIST
   exit 0
 fi
