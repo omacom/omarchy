@@ -55,8 +55,8 @@ Item {
   Accessible.checkable: true
   Accessible.checked: checked
   Accessible.ignored: !interactive
-  Accessible.onToggleAction: if (!root.busy) root.toggled()
-  Accessible.onPressAction: if (!root.busy) root.toggled()
+  Accessible.onToggleAction: if (root.enabled && !root.busy) root.toggled()
+  Accessible.onPressAction: if (root.enabled && !root.busy) root.toggled()
 
   readonly property alias containsMouse: mouse.containsMouse
   readonly property bool hot: hasCursor || mouse.containsMouse

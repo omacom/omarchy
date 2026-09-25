@@ -43,8 +43,8 @@ BorderSurface {
   Accessible.checkable: true
   Accessible.checked: checked
   Accessible.focusable: true
-  Accessible.onToggleAction: root.clicked()
-  Accessible.onPressAction: root.clicked()
+  Accessible.onToggleAction: if (root.enabled) root.clicked()
+  Accessible.onPressAction: if (root.enabled) root.clicked()
 
   activeFocusOnTab: true
   Keys.onReturnPressed: root.clicked()
