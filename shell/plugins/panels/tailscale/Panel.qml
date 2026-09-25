@@ -1185,6 +1185,7 @@ Panel {
       return String(peer.TailscaleIPv6[0] || "")
     }
     readonly property string peerDns: peer ? String(peer.DNSName || "") : ""
+    accessibleName: peer ? peerName : ""
     hasCursor: root.cursorActive && root.focusSection === "peers" && root.peerIndex === rowIndex
     foreground: root.foreground
 
