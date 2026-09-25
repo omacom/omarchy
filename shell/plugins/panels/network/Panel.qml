@@ -2005,13 +2005,13 @@ Panel {
       root.focusSection = "wifi"
       root.selectedIndex = row.index
       root.wifiActionFocused = false
-      if (isPasswordOpen) return
-      if (isConnected) {
-        root.disconnectRow(net.ssid)
-      } else if (requiresCredentials && !isKnown) {
-        root.openPasswordPrompt(net.ssid)
+      if (row.isPasswordOpen) return
+      if (row.isConnected) {
+        root.disconnectRow(row.net.ssid)
+      } else if (row.requiresCredentials && !row.isKnown) {
+        root.openPasswordPrompt(row.net.ssid)
       } else {
-        root.connectDirectly(net.ssid)
+        root.connectDirectly(row.net.ssid)
       }
     }
 
