@@ -85,8 +85,19 @@ pass "the cleanup removes the current Omarchy quirk on BCM4364 Mac"
 # Cleanup on an Apple Silicon Mac removes quirk
 printf '%s\n' "$current_block" >"$conf"
 run_cleanup "4433" 0
-[[ ! -e $conf ]] || fail "the cleanup removes the quirk on Apple Silicon"
+[[ ! -e $conf ]] || fail "the cleanup removes the quirk on Apple Silicon" "$(cat "$conf")"
 pass "the cleanup removes the quirk on Apple Silicon"
+
+# T2 Macs are excluded as a group, so the cleanup must also reach the T2-only
+# parts that never carried BCM4364. 43dc is BCM4355 and 4488 is BCM4377; the
+# kernel commits that added them list T2 boards only, so the T2 ID is what
+# carries them here.
+for wifi_id in 43dc 4488; do
+  printf '%s\n' "$current_block" >"$conf"
+  run_cleanup "$wifi_id" 1
+  [[ ! -e $conf ]] || fail "the cleanup removes the quirk on a T2 Mac with 14e4:$wifi_id" "$(cat "$conf")"
+done
+pass "the cleanup reaches the T2-only Broadcom parts"
 
 # Cleanup preserves unrelated brcmfmac options
 printf 'options brcmfmac roamoff=1\n\n%s\n' "$current_block" >"$conf"
@@ -96,6 +107,41 @@ grep -qx 'options brcmfmac roamoff=1' "$conf" ||
 ! grep -q 'feature_disable=0x82000' "$conf" ||
   fail "the cleanup removes only its owned block" "$(cat "$conf")"
 pass "the cleanup preserves unrelated brcmfmac options"
+
+# A user line after the Omarchy block is the common shape on a T2 Mac, where
+# the installer appended the block at install time and any customization came
+# later. Matching only whole-file or trailing blocks silently skipped these, so
+# the quirk survived while the migration reported itself done.
+printf '%s\n\noptions brcmfmac roamoff=1\n' "$current_block" >"$conf"
+run_cleanup "4464" 1
+! grep -q 'feature_disable=0x82000' "$conf" ||
+  fail "the cleanup removes the Omarchy block ahead of a user line" "$(cat "$conf")"
+grep -qx 'options brcmfmac roamoff=1' "$conf" ||
+  fail "the cleanup keeps the user line after the block" "$(cat "$conf")"
+grep -Fq $'omarchy-state\tset\treboot-required' "$calls" ||
+  fail "the mid-file removal requests the reboot" "$(cat "$calls")"
+pass "the cleanup removes an Omarchy block that has a user line after it"
+
+# The same shape with the legacy block, including a user line on both sides.
+printf 'options brcmfmac roamoff=1\n\n%s\n\n# tail note\n' "$legacy_block" >"$conf"
+run_cleanup "4464" 1
+! grep -q 'feature_disable=0x82000' "$conf" ||
+  fail "the cleanup removes the legacy block between user lines" "$(cat "$conf")"
+grep -qx 'options brcmfmac roamoff=1' "$conf" ||
+  fail "the cleanup keeps the line before the legacy block" "$(cat "$conf")"
+grep -qx '# tail note' "$conf" ||
+  fail "the cleanup keeps the line after the legacy block" "$(cat "$conf")"
+pass "the cleanup removes a legacy block surrounded by user lines"
+
+# A reworded comment is not the owned block, so it is left alone and the reboot
+# marker is not set.
+printf '# My own note about the handshake\noptions brcmfmac feature_disable=0x82000\n' >"$conf"
+run_cleanup "4464" 1
+grep -qx 'options brcmfmac feature_disable=0x82000' "$conf" ||
+  fail "the cleanup leaves a reworded block alone" "$(cat "$conf")"
+! grep -Eq $'^(sudo\t(rm|tee)|omarchy-state\t)' "$calls" ||
+  fail "a reworded block triggers no privileged write" "$(cat "$calls")"
+pass "the cleanup leaves a reworded block alone"
 
 # Cleanup handles symlinked config
 rm -rf "$test_tmp/etc"

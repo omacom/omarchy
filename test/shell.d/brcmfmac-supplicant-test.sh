@@ -87,6 +87,15 @@ run_leaf "Apple Inc." 4464 1 >/dev/null
 [[ ! -f $conf ]] || fail "a T2 Mac does not get the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
 pass "a T2 Mac does not get the quirk"
 
+# Not every T2 Mac carries BCM4364. BCM4355 (43dc) and BCM4377 (4488) are
+# documented by Linux only on T2 boards, and neither is in the legacy list, so
+# the T2 check is the only thing keeping the quirk off them.
+for wifi_id in 43dc 4488; do
+  run_leaf "Apple Inc." "$wifi_id" 1 >/dev/null
+  [[ ! -f $conf ]] || fail "a T2 Mac with 14e4:$wifi_id does not get the quirk" "$(ls -R "$test_tmp/etc" 2>&1)"
+done
+pass "T2 Macs on BCM4355 and BCM4377 do not get the quirk"
+
 # Modern BCM4364 (non-T2) and Apple Silicon (BCM4378/4387) also must not get the quirk.
 for wifi_id in 4464 4425 4433; do
   run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
@@ -94,8 +103,8 @@ for wifi_id in 4464 4425 4433; do
 done
 pass "modern BCM4364 and Apple Silicon get no quirk"
 
-# Legacy pre-T2 parts: BCM43602 and its single-band variants, BCM4350, BCM43555, BCM4355.
-for wifi_id in 43ba 43bb 43bc 43a3 43dc 4488; do
+# Legacy pre-T2 parts: BCM43602 and its single-band variants, BCM4350.
+for wifi_id in 43ba 43bb 43bc 43a3; do
   run_leaf "Apple Inc." "$wifi_id" 0 >/dev/null
   [[ -f $conf ]] || fail "legacy Mac without a T2 gets the quirk" "14e4:$wifi_id"
 done
@@ -144,6 +153,14 @@ pass "the legacy migration skips T2 Macs"
 run_migration "Apple Inc." 4464 0
 [[ ! -e $conf ]] || fail "the legacy migration skips BCM4364 Macs" "$(cat "$conf")"
 pass "the legacy migration skips BCM4364 Macs"
+
+# BCM4355 (43dc) and BCM4377 (4488) are not in the legacy list, so the T2
+# check is the only thing stopping the migration from adding the quirk back.
+for wifi_id in 43dc 4488; do
+  run_migration "Apple Inc." "$wifi_id" 1
+  [[ ! -e $conf ]] || fail "the legacy migration skips a T2 Mac with 14e4:$wifi_id" "$(cat "$conf")"
+done
+pass "the legacy migration skips T2 Macs on BCM4355 and BCM4377"
 
 # Legacy pre-T2 Macs that predate the quirk get fixed.
 rm -rf "$test_tmp/etc"
