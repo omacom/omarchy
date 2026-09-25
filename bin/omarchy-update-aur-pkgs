@@ -24,11 +24,46 @@ if pacman -Qem >/dev/null; then
       build_jobs=$(( $(nproc) / 2 ))
       (( build_jobs < 1 )) && build_jobs=1
     fi
+
+    # makepkg sources its configuration after the environment, and a
+    # MAKEFLAGS assigned there silently replaces the one passed here, so the
+    # environment alone cannot enforce the cap. Hand makepkg a config that
+    # sources the real configuration files from their own paths — the
+    # $MAKEPKG_CONF file (or /etc/makepkg.conf), its drop-ins, then the user
+    # file — and appends the selected job count last, where GNU Make reads
+    # the final job option as the effective one, regardless of whether the
+    # configured count was spelled -jN, -j N, --jobs=N or --jobs N. Files
+    # that fail to source still abort makepkg as they would without this
+    # config, and a `makepkgconf` saved in yay's own configuration takes
+    # precedence over this override, so those builds keep yay's settings.
+    makepkg_config=""
+    if [[ -r ${MAKEPKG_CONF:-/etc/makepkg.conf} ]]; then
+      makepkg_config="$(mktemp)"
+      trap 'rm -f "$makepkg_config"' EXIT
+      conf="${MAKEPKG_CONF:-/etc/makepkg.conf}"
+      {
+        printf 'source %q || return\n' "$conf"
+        for dropin in "$conf.d"/*.conf; do
+          [[ -r "$dropin" ]] && printf 'source %q || return\n' "$dropin"
+        done
+        if [[ $conf == /etc/makepkg.conf ]]; then
+          user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/pacman/makepkg.conf"
+          if [[ -r "$user_conf" ]]; then
+            printf 'source %q || return\n' "$user_conf"
+          elif [[ -r "$HOME/.makepkg.conf" ]]; then
+            printf 'source %q || return\n' "$HOME/.makepkg.conf"
+          fi
+        fi
+        printf 'MAKEFLAGS="${MAKEFLAGS:+${MAKEFLAGS} }-j%s"\n' "${build_jobs}"
+      } >"$makepkg_config"
+    fi
+
     nice -n 15 ionice -c 2 -n 7 \
       env CARGO_BUILD_JOBS="${build_jobs}" \
           MAKEFLAGS="-j${build_jobs}" \
           CMAKE_BUILD_PARALLEL_LEVEL="${build_jobs}" \
-      yay "${sudo_options[@]}" -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
+      yay "${sudo_options[@]}" -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs \
+          ${makepkg_config:+--makepkgconf "$makepkg_config"} || exit 1
     echo
   else
     echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
