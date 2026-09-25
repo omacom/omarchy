@@ -6,6 +6,7 @@ import qs.Ui
 BarIndicator {
   id: root
 
+  accessibleName: "Reminders"
   property int reminderCount: 0
   property string tooltip: ""
 
