@@ -1236,6 +1236,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: "Agents"
     anchors.fill: parent
     bar: root.bar
     text: "󱚣"
@@ -1249,6 +1250,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Agents"
     anchorItem: button
     owner: root
     bar: root.bar

@@ -299,6 +299,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: root.batteryPresent ? "Battery " + Math.round(root.batteryFraction * 100) + "%" : "Power"
     anchors.fill: parent
     bar: root.bar
     text: root.batteryIcon()
@@ -314,6 +315,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: "Power"
     anchorItem: button
     owner: root
     bar: root.bar
