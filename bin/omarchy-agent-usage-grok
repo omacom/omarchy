@@ -1,0 +1,367 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok CLI usage into one display-ready JSON record.
+
+Local stats come from the usage.json files Grok writes under
+$GROK_HOME/sessions (default ~/.grok/sessions). Grok does not expose a
+rate-limit endpoint the way Claude Code and Codex do, so the record
+carries token history without a limits list. The agents panel only ever
+reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import sys
+import tempfile
+import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Iterator
+
+AGENT_ID = "grok"
+AGENT_NAME = "Grok"
+AUTH_HELP = "Run `grok` and sign in to start recording usage."
+
+# A scan this recent is only reused to dedup concurrent collector runs (the
+# update command backgrounds one per agent while the panel refreshes on its
+# own); every periodic widget refresh lands a real rescan, however low
+# refreshIntervalSec is set. --limits-only promises only fresh limits, so it
+# may reuse a scan for up to 15 minutes. Grok has no limits probe, but the
+# flag is the same one the panel sends.
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+
+def grok_home() -> Path:
+  raw = os.environ.get("GROK_HOME") or str(Path.home() / ".grok")
+  return Path(os.path.expandvars(os.path.expanduser(raw))).resolve()
+
+
+def number(value: Any) -> int:
+  try:
+    n = float(value or 0)
+    return round(n) if n == n else 0
+  except (TypeError, ValueError):
+    return 0
+
+
+def local_date_string() -> str:
+  return datetime.now().strftime("%Y-%m-%d")
+
+
+def recent_date_strings() -> list[str]:
+  today = datetime.now().date()
+  return [(today - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+
+
+def local_day(value: Any) -> str:
+  if value is None:
+    return local_date_string()
+  if isinstance(value, (int, float)):
+    try:
+      seconds = float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+      return datetime.fromtimestamp(seconds).strftime("%Y-%m-%d")
+    except (OSError, OverflowError, ValueError):
+      return local_date_string()
+
+  raw = str(value).strip()
+  if not raw:
+    return local_date_string()
+  try:
+    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is not None:
+      parsed = parsed.astimezone()
+    return parsed.strftime("%Y-%m-%d")
+  except ValueError:
+    return local_date_string()
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def empty_stats() -> dict[str, Any]:
+  today = local_date_string()
+  recent_dates = recent_date_strings()
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [{"date": day, "messageCount": 0} for day in recent_dates],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+    "_today": today,
+    "_recent_dates": recent_dates,
+  }
+
+
+def split_tokens(usage: dict[str, Any]) -> tuple[int, int, int, int]:
+  # Grok reports inputTokens including cached reads (the cache hit is still
+  # input) and cachedReadTokens as that subset. Subtract so the four panel
+  # buckets stay mutually exclusive, matching the Claude and Codex collectors.
+  cache_read = number(usage.get("cachedReadTokens", usage.get("cacheReadInputTokens")))
+  cache_write = number(usage.get("cacheCreationTokens", usage.get("cacheCreationInputTokens")))
+  input_raw = number(usage.get("inputTokens"))
+  output_tokens = number(usage.get("outputTokens"))
+  input_tokens = max(0, input_raw - cache_read) if cache_read <= input_raw else input_raw
+  return input_tokens, output_tokens, cache_read, cache_write
+
+
+def model_name(raw: Any) -> str:
+  name = str(raw or "grok").strip()
+  return name if name else "grok"
+
+
+def iter_events(payload: dict[str, Any], path: Path) -> Iterator[tuple[str, str, dict[str, Any]]]:
+  session_id = str(payload.get("sessionId") or path.parent.name)
+  turns = payload.get("turns")
+  if isinstance(turns, list) and turns:
+    for turn in turns:
+      if not isinstance(turn, dict):
+        continue
+      day = local_day(turn.get("endedAt") or payload.get("updatedAt") or path.stat().st_mtime)
+      yield session_id, day, turn
+    return
+
+  session = payload.get("session")
+  if isinstance(session, dict):
+    day = local_day(payload.get("updatedAt") or path.stat().st_mtime)
+    yield session_id, day, session
+
+
+def iter_model_buckets(event: dict[str, Any]) -> Iterator[tuple[str, tuple[int, int, int, int]]]:
+  models = event.get("modelUsage")
+  if isinstance(models, dict) and models:
+    emitted = False
+    for name, bucket in models.items():
+      if not isinstance(bucket, dict):
+        continue
+      tokens = split_tokens(bucket)
+      if not any(tokens):
+        continue
+      yield model_name(name), tokens
+      emitted = True
+    if emitted:
+      return
+  tokens = split_tokens(event)
+  if any(tokens):
+    yield model_name(event.get("primaryModelId")), tokens
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def scan_cache_paths(home: Path) -> tuple[Path, Path]:
+  digest = hashlib.sha1(str(home).encode("utf-8")).hexdigest()[:16]
+  root = cache_root()
+  return root / f"grok-scan-{digest}.json", root / f"grok-scan-{digest}.lock"
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+  # A temp name unique to this writer, not derived from the target: several
+  # collectors can run at once (the update command backgrounds one per agent,
+  # the panel refreshes on its own), and a shared temp path means the second
+  # replace finds the first one's file already moved away.
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      payload = json.loads(path.read_text(encoding="utf-8"))
+      return payload if isinstance(payload, dict) else None
+  except Exception:
+    return None
+  return None
+
+
+def read_cached_stats(cache_file: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != 1:
+    return None
+  if cached.get("scanDate") != local_date_string():
+    return None
+  stats = cached.get("stats")
+  if not isinstance(stats, dict):
+    return None
+  required = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
+  if not all(key in stats for key in required):
+    return None
+  return stats
+
+
+def write_cached_stats(cache_file: Path, stats: dict[str, Any]) -> None:
+  try:
+    write_json(cache_file, {"schemaVersion": 1, "scanDate": local_date_string(), "stats": stats})
+  except Exception as exc:
+    print(f"omarchy-agent-usage-grok: could not write usage cache ({exc})", file=sys.stderr)
+
+
+def public_stats(stats: dict[str, Any]) -> dict[str, Any]:
+  return {key: value for key, value in stats.items() if not str(key).startswith("_")}
+
+
+def scan_sessions(home: Path) -> dict[str, Any]:
+  stats = empty_stats()
+  today = stats["_today"]
+  recent_dates: list[str] = stats["_recent_dates"]
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+  sessions: set[str] = set()
+  active_days: set[str] = set()
+  today_sessions: set[str] = set()
+  today_tokens: dict[str, int] = {}
+  usage_by_model: dict[str, dict[str, int]] = {}
+  prompts = 0
+  today_prompt_count = 0
+  today_token_total = 0
+
+  sessions_root = home / "sessions"
+  files = sessions_root.rglob("usage.json") if sessions_root.is_dir() else []
+  for path in files:
+    if not path.is_file():
+      continue
+    try:
+      payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+      print(f"Ignoring unreadable Grok usage file {path}: {exc}", file=sys.stderr)
+      continue
+    if not isinstance(payload, dict):
+      continue
+
+    try:
+      for session_id, day, event in iter_events(payload, path):
+        buckets = list(iter_model_buckets(event))
+        if not buckets:
+          continue
+        session_key = str(session_id)
+        prompts += 1
+        sessions.add(session_key)
+        active_days.add(day)
+        if day == today:
+          today_prompt_count += 1
+          today_sessions.add(session_key)
+
+        for model, (input_tokens, output_tokens, cache_read, cache_write) in buckets:
+          total = input_tokens + output_tokens + cache_read + cache_write
+          if total <= 0:
+            continue
+          bucket = usage_by_model.setdefault(model, empty_bucket())
+          bucket["inputTokens"] += input_tokens
+          bucket["outputTokens"] += output_tokens
+          bucket["cacheReadInputTokens"] += cache_read
+          bucket["cacheCreationInputTokens"] += cache_write
+          if day in recent:
+            recent[day]["messageCount"] += total
+          if day == today:
+            today_token_total += total
+            today_tokens[model] = today_tokens.get(model, 0) + total
+    except OSError as exc:
+      print(f"Ignoring unreadable Grok usage file {path}: {exc}", file=sys.stderr)
+
+  stats.update({
+    "todayPrompts": today_prompt_count,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_token_total,
+    "todayTokensByModel": today_tokens,
+    "recentDays": [recent[day] for day in recent_dates],
+    "totalPrompts": prompts,
+    "totalSessions": len(sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": usage_by_model,
+  })
+  return public_stats(stats)
+
+
+def cached_scan(home: Path, max_age_seconds: float) -> dict[str, Any]:
+  try:
+    return _cached_scan(home, max_age_seconds)
+  except Exception as exc:
+    print(f"omarchy-agent-usage-grok: cache unavailable ({exc}); scanning directly", file=sys.stderr)
+    return scan_sessions(home)
+
+
+def _cached_scan(home: Path, max_age_seconds: float) -> dict[str, Any]:
+  cache_file, lock_file = scan_cache_paths(home)
+  cached = read_cached_stats(cache_file, max_age_seconds)
+  if cached is not None:
+    return cached
+
+  lock_file.parent.mkdir(parents=True, exist_ok=True)
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = read_cached_stats(cache_file, max_age_seconds)
+    if cached is not None:
+      return cached
+    stats = scan_sessions(home)
+    write_cached_stats(cache_file, stats)
+    return stats
+
+
+def signed_in(home: Path) -> bool:
+  return (home / "auth.json").is_file()
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true", help="rescan sessions, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent session scan")
+  args = parser.parse_args()
+
+  home = grok_home()
+  max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  stats = cached_scan(home, max_age)
+  prompts = number(stats.get("totalPrompts"))
+  sessions = number(stats.get("totalSessions"))
+  has_usage = prompts > 0 or sessions > 0
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": has_usage,
+    "hasLocalStats": True,
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": "" if has_usage or signed_in(home) else AUTH_HELP,
+    "limits": [],
+  }
+  record.update(stats)
+  print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
