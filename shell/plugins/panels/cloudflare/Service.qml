@@ -280,8 +280,10 @@ Item {
     detailMetrics = metrics
   }
 
+  // Called from each call's exit handler, where the loading bindings have
+  // not caught up with the process that just stopped; ask the processes.
   function detailProcessDone() {
-    if (!metricsLoading && !versionsLoading) rememberDetail()
+    if (!usageProcess.running && !errorsProcess.running && !versionsProcess.running && !deploymentsProcess.running) rememberDetail()
   }
 
   function copyVersion(version) {
