@@ -14,16 +14,33 @@ set -euo pipefail
 # tool, never an omarchy-* command, so pin PATH to trusted system directories
 # and keep root from resolving one out of that checkout. The unprivileged
 # wrapper phase keeps the caller's PATH so it can still find sudo/pkexec.
-if (( EUID == 0 )); then
+if (( EUID == 0 )) && [[ -z ${OMARCHY_DNS_CONFIG_ROOT:-}${OMARCHY_DNS_ROOT_PREFIX:-}${OMARCHY_DNS_ROOT:-} ]]; then
   export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
 fi
 
-NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
-RESOLVED_DROP_IN=/etc/systemd/resolved.conf.d/90-dot.conf
+DNS_CONFIG_ROOT=${OMARCHY_DNS_CONFIG_ROOT:-${OMARCHY_DNS_ROOT_PREFIX:-${OMARCHY_DNS_ROOT:-}}}
+if [[ -n $DNS_CONFIG_ROOT ]]; then
+  [[ $DNS_CONFIG_ROOT == "/" ]] || DNS_CONFIG_ROOT=${DNS_CONFIG_ROOT%/}
+  NM_DNS_CONF="$DNS_CONFIG_ROOT/etc/NetworkManager/conf.d/20-omarchy-dns.conf"
+  RESOLVED_CONF="$DNS_CONFIG_ROOT/etc/systemd/resolved.conf"
+  RESOLVED_DROP_IN="$DNS_CONFIG_ROOT/etc/systemd/resolved.conf.d/90-omarchy-dns.conf"
+  DNS_LOCK_FILE="$DNS_CONFIG_ROOT/var/lock/omarchy-dns.lock"
+else
+  NM_DNS_CONF=/etc/NetworkManager/conf.d/20-omarchy-dns.conf
+  RESOLVED_CONF=/etc/systemd/resolved.conf
+  RESOLVED_DROP_IN=/etc/systemd/resolved.conf.d/90-omarchy-dns.conf
+  DNS_LOCK_FILE=/run/lock/omarchy-dns.lock
+fi
 MAX_DNS_INPUT_LENGTH=4096
 MAX_DNS_TOKENS=32
 MAX_DNS_TOKEN_LENGTH=512
 MAX_HOSTNAME_LENGTH=253
+MANAGED_MARKER='# Managed by omarchy-dns.'
+SNAPSHOT_DIR=
+SNAPSHOT_PATHS=()
+SNAPSHOT_PRESENT=()
+SNAPSHOT_PROFILE_IDS=()
+DNS_LOCK_FD=
 
 provider_from_arg() {
   case "${1:-}" in
@@ -62,7 +79,9 @@ sudo_grants_passwordless() {
 }
 
 require_root() {
-  if (( EUID == 0 )); then
+  if [[ -n $DNS_CONFIG_ROOT ]]; then
+    return
+  elif (( EUID == 0 )); then
     return
   elif [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
     # A terminal can carry sudo's own password prompt. Without one, sudo is
@@ -99,7 +118,7 @@ resolved_dns() {
       print value
       exit
     }
-  ' /etc/systemd/resolved.conf 2>/dev/null || true
+  ' "$RESOLVED_CONF" 2>/dev/null || true
 }
 
 resolved_dropin_dns() {
@@ -112,10 +131,15 @@ resolved_dropin_dns() {
     in_resolve && /^[[:space:]]*DNS[[:space:]]*=/ {
       value=$0
       sub(/^[^=]*=/, "", value)
-      print value
-      exit
+      if (value != "") result=value
     }
+    END { if (result != "") print result }
   ' "$RESOLVED_DROP_IN"
+}
+
+resolved_dropin_managed() {
+  [[ -f $RESOLVED_DROP_IN && ! -L $RESOLVED_DROP_IN ]] || return 1
+  grep -Fqx "$MANAGED_MARKER" "$RESOLVED_DROP_IN"
 }
 
 current_dns_provider() {
@@ -125,6 +149,10 @@ current_dns_provider() {
   dns=$(networkmanager_global_dns)
   if [[ -z $(printf '%s' "$dns" | tr -d '[:space:],') ]]; then
     dns=$(resolved_dropin_dns)
+    if [[ -z $(printf '%s' "$dns" | tr -d '[:space:],') ]] && resolved_dropin_managed; then
+      echo "DHCP"
+      return 0
+    fi
   fi
   if [[ -z $(printf '%s' "$dns" | tr -d '[:space:],') ]]; then
     dns=$(resolved_dns)
@@ -448,24 +476,71 @@ split_dns_servers() {
   done
 }
 
-write_networkmanager_dns() {
+managed_file() {
+  local path="$1"
+
+  [[ -f $path && ! -L $path ]] || return 1
+  grep -Fq "$MANAGED_MARKER" "$path"
+}
+
+ensure_managed_target() {
+  local path="$1"
+
+  [[ -e $path || -L $path ]] || return 0
+  if [[ -O $path ]] && managed_file "$path"; then
+    return 0
+  fi
+  printf 'Error: refusing to overwrite unmanaged DNS configuration: %s\n' "$path" >&2
+  return 1
+}
+
+write_owned_file() {
+  local path="$1" content="$2" directory temporary
+
+  ensure_managed_target "$path" || return 1
+  directory=$(dirname "$path")
+  if [[ ! -d $directory ]]; then
+    install -d -m 0755 "$directory" || return 1
+  fi
+  temporary=$(mktemp "$directory/.omarchy-dns.XXXXXX") || return 1
+  if ! printf '%s\n' "$content" >"$temporary"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  if ! chown 0:0 "$temporary"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  if ! chmod 0644 "$temporary"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+  if ! mv -f -- "$temporary" "$path"; then
+    rm -f -- "$temporary"
+    return 1
+  fi
+}
+
+remove_owned_file() {
+  local path="$1"
+
+  [[ -e $path || -L $path ]] || return 0
+  ensure_managed_target "$path" || return 1
+  rm -f -- "$path"
+}
+
+networkmanager_dns_content() {
   local servers="$1"
 
-  install -d -m 0755 "$(dirname "$NM_DNS_CONF")"
-  # omarchy:heredoc-expands paths=none -- $servers is a normalized, single-line
-  # DNS server list written as data, not a path or command; nothing user-writable
-  # is resolved or executed from the root-owned drop-in.
-  cat >"$NM_DNS_CONF" <<EOF
-# Managed by omarchy-dns. Remove this file or run omarchy dns DHCP to use DHCP DNS again.
-[global-dns]
+  printf '%s\n' "$MANAGED_MARKER" '[global-dns]' '' '[global-dns-domain-*]' "servers=$servers"
+}
 
-[global-dns-domain-*]
-servers=$servers
-EOF
+write_networkmanager_dns() {
+  write_owned_file "$NM_DNS_CONF" "$(networkmanager_dns_content "$1")"
 }
 
 clear_networkmanager_dns() {
-  rm -f "$NM_DNS_CONF"
+  remove_owned_file "$NM_DNS_CONF"
 }
 
 networkmanager_dns_connection() {
@@ -528,26 +603,19 @@ clear_connection_dns_dot() {
   done < <(nmcli -t -f UUID,TYPE connection show)
 }
 
-write_dot_drop_in() {
-  local servers="$1"
+resolved_dropin_content() {
+  local servers="$1" tls_mode="$2" fallback="${3-}"
+  local -a lines=("$MANAGED_MARKER" '[Resolve]' 'DNS=')
 
-  install -d -m 0755 "$(dirname "$RESOLVED_DROP_IN")"
-  # omarchy:heredoc-expands paths=none -- $servers is a space-separated list of
-  # IP#hostname DNS entries written as data, not a path or command.
-  cat >"$RESOLVED_DROP_IN" <<EOF
-# Managed by omarchy-dns. Custom DNS-over-TLS endpoint; remove with omarchy dns DHCP.
-[Resolve]
-DNS=$servers
-DNSOverTLS=opportunistic
-EOF
+  [[ -z $servers ]] || lines+=("DNS=$servers")
+  [[ -z $fallback ]] || lines+=("FallbackDNS=$fallback")
+  lines+=("DNSOverTLS=$tls_mode")
+  ((${#lines[@]} > 0)) || return 1
+  printf '%s\n' "${lines[@]}"
 }
 
-# A resolved.conf DNS= line merges with the drop-in, so a stale plain-IP line
-# would otherwise end up in the global server list alongside the DoT entries.
-disable_base_dns() {
-  [[ -f /etc/systemd/resolved.conf ]] || return 0
-  grep -Eq '^DNS=' /etc/systemd/resolved.conf || return 0
-  sed -i -E 's/^DNS=(.*)$/# DNS=\1  # disabled by omarchy-dns (90-dot.conf)/' /etc/systemd/resolved.conf
+write_resolved_drop_in() {
+  write_owned_file "$RESOLVED_DROP_IN" "$(resolved_dropin_content "$1" "$2" "${3-}")"
 }
 
 reapply_active_dns_connections() {
@@ -581,6 +649,227 @@ reload_dns_stack() {
   fi
 }
 
+acquire_dns_lock() {
+  local created=0 directory
+
+  directory=$(dirname "$DNS_LOCK_FILE")
+  if [[ ! -d $directory ]]; then
+    install -d -m 0755 "$directory" || return 1
+  fi
+  if [[ -e $DNS_LOCK_FILE || -L $DNS_LOCK_FILE ]]; then
+    if [[ ! -f $DNS_LOCK_FILE || -L $DNS_LOCK_FILE || ! -O $DNS_LOCK_FILE ]]; then
+      printf 'Error: refusing unsafe DNS transaction lock: %s\n' "$DNS_LOCK_FILE" >&2
+      return 1
+    fi
+    exec {DNS_LOCK_FD}<>"$DNS_LOCK_FILE" || return 1
+  else
+    set -o noclobber
+    if ! exec {DNS_LOCK_FD}>"$DNS_LOCK_FILE"; then
+      set +o noclobber
+      DNS_LOCK_FD=
+      printf '%s\n' "Error: another DNS configuration transaction created the lock." >&2
+      return 1
+    fi
+    set +o noclobber
+    created=1
+  fi
+  if ! flock -n "$DNS_LOCK_FD"; then
+    exec {DNS_LOCK_FD}>&-
+    DNS_LOCK_FD=
+    printf '%s\n' "Error: another DNS configuration transaction is active." >&2
+    return 1
+  fi
+  if ! chown 0:0 "$DNS_LOCK_FILE" || ! chmod 0600 "$DNS_LOCK_FILE"; then
+    flock -u "$DNS_LOCK_FD" 2>/dev/null || true
+    exec {DNS_LOCK_FD}>&-
+    DNS_LOCK_FD=
+    if ((created == 1)); then
+      rm -f -- "$DNS_LOCK_FILE"
+    fi
+    printf '%s\n' "Error: could not secure the DNS transaction lock." >&2
+    return 1
+  fi
+}
+
+release_dns_lock() {
+  if [[ -n ${DNS_LOCK_FD:-} ]]; then
+    flock -u "$DNS_LOCK_FD" 2>/dev/null || true
+    exec {DNS_LOCK_FD}>&-
+    DNS_LOCK_FD=
+  fi
+}
+
+snapshot_file_state() {
+  local path index backup
+
+  SNAPSHOT_PATHS=()
+  SNAPSHOT_PRESENT=()
+  for path in "$NM_DNS_CONF" "$RESOLVED_DROP_IN" "$RESOLVED_CONF"; do
+    index=${#SNAPSHOT_PATHS[@]}
+    SNAPSHOT_PATHS+=("$path")
+    if [[ -e $path || -L $path ]]; then
+      backup="$SNAPSHOT_DIR/file-$index"
+      cp -a -- "$path" "$backup" || return 1
+      SNAPSHOT_PRESENT+=(1)
+    else
+      SNAPSHOT_PRESENT+=(0)
+    fi
+  done
+}
+
+snapshot_profile_state() {
+  local uuid type property value index profile
+  local -A seen=()
+
+  SNAPSHOT_PROFILE_IDS=()
+  nmcli -t -f UUID,TYPE connection show >"$SNAPSHOT_DIR/profiles.list" || return 1
+  : >"$SNAPSHOT_DIR/profile-ids"
+  while IFS=: read -r uuid type; do
+    [[ -n $uuid ]] || continue
+    [[ -z ${seen["$uuid"]+yes} ]] || continue
+    seen["$uuid"]=1
+    networkmanager_dns_connection "$type" || continue
+    index=${#SNAPSHOT_PROFILE_IDS[@]}
+    profile="$SNAPSHOT_DIR/profile-$index"
+    : >"$profile"
+    for property in ipv4.ignore-auto-dns ipv4.dns ipv6.ignore-auto-dns ipv6.dns; do
+      if ! value=$(nmcli -g "$property" connection show "$uuid" 2>/dev/null); then
+        return 1
+      fi
+      printf '%s\t%s\n' "$property" "$value" >>"$profile"
+    done
+    printf '%s\n' "$uuid" >>"$SNAPSHOT_DIR/profile-ids"
+  done <"$SNAPSHOT_DIR/profiles.list"
+  mapfile -t SNAPSHOT_PROFILE_IDS <"$SNAPSHOT_DIR/profile-ids"
+}
+
+begin_dns_transaction() {
+  local snapshot_base
+
+  ensure_managed_target "$NM_DNS_CONF" || return 1
+  ensure_managed_target "$RESOLVED_DROP_IN" || return 1
+  snapshot_base=$(dirname "$DNS_LOCK_FILE")
+  SNAPSHOT_DIR=$(mktemp -d "$snapshot_base/.omarchy-dns-snapshot.XXXXXX") || return 1
+  if ! snapshot_file_state || ! snapshot_profile_state; then
+    rm -rf -- "$SNAPSHOT_DIR"
+    SNAPSHOT_DIR=
+    return 1
+  fi
+}
+
+restore_file_state() {
+  local index path backup present failed=0
+
+  for ((index = ${#SNAPSHOT_PATHS[@]} - 1; index >= 0; index--)); do
+    path=${SNAPSHOT_PATHS[index]}
+    present=${SNAPSHOT_PRESENT[index]}
+    backup="$SNAPSHOT_DIR/file-$index"
+    if ((present == 1)); then
+      cp -a -- "$backup" "$path" || failed=1
+    elif [[ -e $path || -L $path ]]; then
+      if managed_file "$path"; then
+        rm -f -- "$path" || failed=1
+      else
+        failed=1
+      fi
+    fi
+  done
+  return "$failed"
+}
+
+restore_profile_state() {
+  local index uuid property value profile failed=0
+
+  for ((index = 0; index < ${#SNAPSHOT_PROFILE_IDS[@]}; index++)); do
+    uuid=${SNAPSHOT_PROFILE_IDS[index]}
+    profile="$SNAPSHOT_DIR/profile-$index"
+    while IFS=$'\t' read -r property value; do
+      nmcli connection modify "$uuid" "$property" "$value" >/dev/null || failed=1
+    done <"$profile"
+  done
+  return "$failed"
+}
+
+rollback_dns_transaction() {
+  local failed=0
+
+  restore_file_state || failed=1
+  restore_profile_state || failed=1
+  return "$failed"
+}
+
+finish_dns_transaction() {
+  if [[ -n ${SNAPSHOT_DIR:-} ]]; then
+    rm -rf -- "$SNAPSHOT_DIR"
+    SNAPSHOT_DIR=
+  fi
+}
+
+run_dns_transaction() {
+  local status
+
+  acquire_dns_lock || return 1
+  if ! begin_dns_transaction; then
+    release_dns_lock
+    return 1
+  fi
+  set +e
+  (set -e; "$@")
+  status=$?
+  set -e
+  if ((status == 0)); then
+    finish_dns_transaction
+    release_dns_lock
+    return 0
+  else
+    if ! rollback_dns_transaction; then
+      printf '%s\n' "Error: DNS configuration rollback did not complete." >&2
+    fi
+    finish_dns_transaction
+    release_dns_lock
+    return "$status"
+  fi
+}
+
+apply_provider() {
+  case "$1" in
+    Cloudflare)
+      write_networkmanager_dns "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
+      set_connection_dns "1.1.1.1 1.0.0.1" "2606:4700:4700::1111 2606:4700:4700::1001"
+      write_resolved_drop_in "1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com" opportunistic "9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net"
+      ;;
+    Google)
+      write_networkmanager_dns "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844"
+      set_connection_dns "8.8.8.8 8.8.4.4" "2001:4860:4860::8888 2001:4860:4860::8844"
+      write_resolved_drop_in "8.8.8.8#dns.google 8.8.4.4#dns.google 2001:4860:4860::8888#dns.google 2001:4860:4860::8844#dns.google" opportunistic "9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net"
+      ;;
+    DHCP)
+      clear_networkmanager_dns
+      clear_connection_dns
+      write_resolved_drop_in "" no
+      ;;
+  esac
+  reload_dns_stack
+}
+
+apply_custom_dot() {
+  clear_networkmanager_dns
+  clear_connection_dns_dot
+  write_resolved_drop_in "$1" opportunistic
+  reload_dns_stack
+}
+
+apply_custom_plain() {
+  local servers="$1"
+
+  dns_servers=$(normalize_servers "$servers")
+  split_dns_servers "$dns_servers"
+  write_networkmanager_dns "$dns_servers"
+  set_connection_dns "$ipv4_dns" "$ipv6_dns"
+  write_resolved_drop_in "${dns_servers//,/ }" no "9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net"
+  reload_dns_stack
+}
+
 usage() {
   echo "Usage: omarchy-dns [Cloudflare|Google|DHCP|Custom]" >&2
 }
@@ -611,42 +900,7 @@ else
   require_root "$provider"
 fi
 
-case "$provider" in
-Cloudflare)
-  rm -f "$RESOLVED_DROP_IN"
-  write_networkmanager_dns "1.1.1.1,1.0.0.1,2606:4700:4700::1111,2606:4700:4700::1001"
-  set_connection_dns "1.1.1.1 1.0.0.1" "2606:4700:4700::1111 2606:4700:4700::1001"
-  tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
-[Resolve]
-DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com
-FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
-DNSOverTLS=opportunistic
-EOF
-  ;;
-
-Google)
-  rm -f "$RESOLVED_DROP_IN"
-  write_networkmanager_dns "8.8.8.8,8.8.4.4,2001:4860:4860::8888,2001:4860:4860::8844"
-  set_connection_dns "8.8.8.8 8.8.4.4" "2001:4860:4860::8888 2001:4860:4860::8844"
-  tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
-[Resolve]
-DNS=8.8.8.8#dns.google 8.8.4.4#dns.google 2001:4860:4860::8888#dns.google 2001:4860:4860::8844#dns.google
-FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
-DNSOverTLS=opportunistic
-EOF
-  ;;
-
-DHCP)
-  rm -f "$RESOLVED_DROP_IN"
-  clear_networkmanager_dns
-  clear_connection_dns
-  tee /etc/systemd/resolved.conf >/dev/null <<'EOF'
-[Resolve]
-DNSOverTLS=no
-EOF
-  ;;
-
-Custom)
+if [[ $provider == Custom ]]; then
   if ((parse_only == 0)); then
     echo "Enter DNS servers (space-separated): plain IPs, bracketed IP:port, tls://host, IP#host, or a bare hostname for DoT:"
   fi
@@ -667,28 +921,11 @@ Custom)
     exit 0
   fi
 
-  if (( dot_mode == 1 )); then
-    dns_servers="$resolved_servers"
-    write_dot_drop_in "$dns_servers"
-    disable_base_dns
-    clear_networkmanager_dns
-    clear_connection_dns_dot
+  if ((dot_mode == 1)); then
+    run_dns_transaction apply_custom_dot "$resolved_servers"
   else
-    rm -f "$RESOLVED_DROP_IN"
-    dns_servers=$(normalize_servers "$plain_servers")
-    split_dns_servers "$dns_servers"
-    write_networkmanager_dns "$dns_servers"
-    set_connection_dns "$ipv4_dns" "$ipv6_dns"
-    # omarchy:heredoc-expands paths=none -- $dns_servers is a normalized,
-    # single-line DNS server list; the //,/ turns its comma separators into the
-    # spaces resolved.conf wants. It is written as data, not a path or command.
-    tee /etc/systemd/resolved.conf >/dev/null <<EOF
-[Resolve]
-DNS=${dns_servers//,/ }
-FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
-EOF
+    run_dns_transaction apply_custom_plain "$plain_servers"
   fi
-  ;;
-esac
-
-reload_dns_stack
+else
+  run_dns_transaction apply_provider "$provider"
+fi
