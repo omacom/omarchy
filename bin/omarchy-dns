@@ -660,16 +660,41 @@ networkmanager_dns_connection() {
   esac
 }
 
-modify_snapshotted_profiles() {
-  local action="$1" ipv4_dns="${2:-}" ipv6_dns="${3:-}"
-  local index uuid type
+list_dns_profiles() {
+  local listing uuid type
+
+  listing=$(nmcli -t -f UUID,TYPE connection show 2>/dev/null) || return 1
+  while IFS=: read -r uuid type; do
+    [[ -n $uuid && -n $type ]] || continue
+    [[ $uuid != *:* && $type != *:* && $uuid != *$'\t'* && $type != *$'\t'* ]] || return 1
+    networkmanager_dns_connection "$type" || continue
+    printf '%s\t%s\n' "$uuid" "$type"
+  done <<<"$listing"
+}
+
+snapshotted_profile() {
+  local index uuid=$1
 
   for ((index = 0; index < ${#SNAPSHOT_PROFILE_IDS[@]}; index++)); do
-    uuid=${SNAPSHOT_PROFILE_IDS[index]}
-    type=${SNAPSHOT_PROFILE_TYPES[index]:-}
-    [[ -n $uuid && -n $type ]] || continue
-    networkmanager_dns_connection "$type" || continue
+    [[ ${SNAPSHOT_PROFILE_IDS[index]} == "$uuid" ]] && return 0
+  done
+  return 1
+}
 
+# Every profile that exists right now gets the same treatment, so a connection
+# created after the snapshot cannot keep forced DNS that a later reset would
+# never clear.
+modify_dns_profiles() {
+  local action="$1" ipv4_dns="${2:-}" ipv6_dns="${3:-}"
+  local listing uuid type
+
+  case "$action" in
+    set | clear | dot) ;;
+    *) return 1 ;;
+  esac
+  listing=$(list_dns_profiles) || return 1
+  while IFS=$'\t' read -r uuid type; do
+    [[ -n $uuid ]] || continue
     case "$action" in
       set)
         nmcli connection modify "$uuid" \
@@ -695,26 +720,23 @@ modify_snapshotted_profiles() {
           ipv6.dns "" \
           >/dev/null
         ;;
-      *)
-        return 1
-        ;;
     esac
-  done
+  done <<<"$listing"
 }
 
 set_connection_dns() {
-  modify_snapshotted_profiles set "${1:-}" "${2:-}"
+  modify_dns_profiles set "${1:-}" "${2:-}"
 }
 
 clear_connection_dns() {
-  modify_snapshotted_profiles clear
+  modify_dns_profiles clear
 }
 
 # DoT mode needs no per-link DNS at all so the global drop-in (which carries the
 # SNI hostname) serves each link; per-link plain IPs would drop the SNI and make
 # certificate validation fail for most custom endpoints.
 clear_connection_dns_dot() {
-  modify_snapshotted_profiles dot
+  modify_dns_profiles dot
 }
 
 resolved_dropin_content() {
@@ -730,7 +752,11 @@ resolved_dropin_content() {
 
 write_resolved_drop_in() {
   write_owned_file "$RESOLVED_DROP_IN" "$(resolved_dropin_content "$1" "$2" "${3-}")" || return 1
-  remove_legacy_resolved_drop_in
+  if ! remove_legacy_resolved_drop_in 2>/dev/null; then
+    if [[ -e $LEGACY_RESOLVED_DROP_IN || -L $LEGACY_RESOLVED_DROP_IN ]]; then
+      printf 'Warning: leaving unmanaged %s in place\n' "$LEGACY_RESOLVED_DROP_IN" >&2
+    fi
+  fi
 }
 
 reapply_active_dns_connections() {
@@ -744,6 +770,7 @@ reapply_active_dns_connections() {
     case "$type" in
       wifi|ethernet)
         if ! nmcli device reapply "$device" >/dev/null 2>&1; then
+          printf 'Error: could not reapply DNS settings on %s\n' "$device" >&2
           failed=1
         fi
         ;;
@@ -918,7 +945,6 @@ begin_dns_transaction() {
 
   ensure_managed_target "$NM_DNS_CONF" || return 1
   ensure_managed_target "$RESOLVED_DROP_IN" || return 1
-  ensure_legacy_managed_target "$LEGACY_RESOLVED_DROP_IN" || return 1
   snapshot_base=$(dirname "$DNS_LOCK_FILE")
   SNAPSHOT_DIR=$(mktemp -d "$snapshot_base/.omarchy-dns-snapshot.XXXXXX") || return 1
   snapshot_file_state || snapshot_status=$?
@@ -992,7 +1018,19 @@ restore_file_state() {
   return "$failed"
 }
 
+profile_listed() {
+  local listing="$1" uuid="$2" entry
+
+  while IFS=$'\t' read -r entry _; do
+    if [[ -n $entry && $entry == "$uuid" ]]; then
+      return 0
+    fi
+  done <<<"$listing"
+  return 1
+}
+
 restore_profile_state() {
+  local listing="$1"
   local index uuid property value extra profile failed=0
 
   for ((index = 0; index < ${#SNAPSHOT_PROFILE_IDS[@]}; index++)); do
@@ -1002,6 +1040,7 @@ restore_profile_state() {
       failed=1
       continue
     fi
+    profile_listed "$listing" "$uuid" || continue
     while IFS=$'\t' read -r property value extra; do
       nmcli connection modify "$uuid" "$property" "$value" >/dev/null || failed=1
     done <"$profile"
@@ -1009,11 +1048,34 @@ restore_profile_state() {
   return "$failed"
 }
 
+# A connection that appeared mid-transaction has no recorded prior state, so the
+# only safe end state is the one NetworkManager ships: no forced DNS.
+release_unsnapshotted_profiles() {
+  local listing="$1" uuid type failed=0
+
+  while IFS=$'\t' read -r uuid type; do
+    [[ -n $uuid ]] || continue
+    snapshotted_profile "$uuid" && continue
+    nmcli connection modify "$uuid" \
+      ipv4.ignore-auto-dns no \
+      ipv4.dns "" \
+      ipv6.ignore-auto-dns no \
+      ipv6.dns "" \
+      >/dev/null || failed=1
+  done <<<"$listing"
+  return "$failed"
+}
+
 rollback_dns_transaction() {
-  local failed=0
+  local failed=0 listing
 
   restore_file_state || failed=1
-  restore_profile_state || failed=1
+  if listing=$(list_dns_profiles); then
+    restore_profile_state "$listing" || failed=1
+    release_unsnapshotted_profiles "$listing" || failed=1
+  else
+    failed=1
+  fi
   reload_dns_stack || failed=1
   return "$failed"
 }

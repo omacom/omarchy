@@ -290,9 +290,35 @@ NMCLI_CHANGE_PROFILE_LIST=1
 export NMCLI_CHANGE_PROFILE_LIST
 run_dns Cloudflare
 unset NMCLI_CHANGE_PROFILE_LIST
-assert_success "applies a snapshotted profile set"
-[[ $(<"$(profile_file extra-uuid ipv4.dns)") == initial-extra-uuid-ipv4.dns ]] || fail "does not modify a profile added after the snapshot" "$(<"$(profile_file extra-uuid ipv4.dns)")"
-! grep -Fq 'modify extra-uuid' "$CALL_LOG" || fail "profile application does not re-enumerate a new profile" "$(<"$CALL_LOG")"
+assert_success "applies DNS to the live profile set"
+[[ $(<"$(profile_file extra-uuid ipv4.ignore-auto-dns)") == yes ]] || fail "a profile created after the snapshot keeps forced DNS" "$(<"$(profile_file extra-uuid ipv4.ignore-auto-dns)")"
+[[ $(<"$(profile_file extra-uuid ipv4.dns)") == "1.1.1.1 1.0.0.1" ]] || fail "a profile created after the snapshot does not get the provider servers" "$(<"$(profile_file extra-uuid ipv4.dns)")"
+grep -Fq 'modify extra-uuid' "$CALL_LOG" || fail "profile application re-enumerates before modifying" "$(<"$CALL_LOG")"
+! grep -Fq 'modify vpn-uuid' "$CALL_LOG" || fail "profile application leaves non-DNS connection types alone" "$(<"$CALL_LOG")"
+
+init_case profile-set-reset
+NMCLI_CHANGE_PROFILE_LIST=1
+export NMCLI_CHANGE_PROFILE_LIST
+run_dns Cloudflare
+assert_success "applies DNS to the live profile set"
+run_dns DHCP
+unset NMCLI_CHANGE_PROFILE_LIST
+assert_success "resets to DHCP DNS"
+[[ $(<"$(profile_file extra-uuid ipv4.ignore-auto-dns)") == no ]] || fail "a profile created after the snapshot keeps suppressed DHCP DNS" "$(<"$(profile_file extra-uuid ipv4.ignore-auto-dns)")"
+[[ $(<"$(profile_file extra-uuid ipv4.dns)") == "" ]] || fail "a profile created after the snapshot keeps forced provider DNS" "$(<"$(profile_file extra-uuid ipv4.dns)")"
+[[ $(<"$(profile_file wired-uuid ipv4.ignore-auto-dns)") == no ]] || fail "a reset leaves a snapshotted profile suppressed" "$(<"$(profile_file wired-uuid ipv4.ignore-auto-dns)")"
+
+init_case profile-set-rollback
+NMCLI_CHANGE_PROFILE_LIST=1
+NM_ACTIVE=1
+SYSTEMCTL_FAIL_RESOLVED_ONCE=1
+export NMCLI_CHANGE_PROFILE_LIST NM_ACTIVE SYSTEMCTL_FAIL_RESOLVED_ONCE
+run_dns Cloudflare
+unset NMCLI_CHANGE_PROFILE_LIST NM_ACTIVE SYSTEMCTL_FAIL_RESOLVED_ONCE
+assert_failure "fails when a profile set is rolled back"
+[[ $(<"$(profile_file extra-uuid ipv4.ignore-auto-dns)") == no ]] || fail "a rolled-back run leaves a late profile with suppressed DHCP DNS" "$(<"$(profile_file extra-uuid ipv4.ignore-auto-dns)")"
+[[ $(<"$(profile_file extra-uuid ipv4.dns)") == "" ]] || fail "a rolled-back run leaves a late profile with provider DNS" "$(<"$(profile_file extra-uuid ipv4.dns)")"
+[[ $(<"$(profile_file wired-uuid ipv4.ignore-auto-dns)") == initial-wired-uuid-ipv4.ignore-auto-dns ]] || fail "a rolled-back run does not restore snapshotted profiles" "$(<"$(profile_file wired-uuid ipv4.ignore-auto-dns)")"
 
 init_case enumeration-failure
 NMCLI_ENUMERATION_FAIL=1
@@ -342,10 +368,11 @@ init_case legacy-unmanaged
 printf '%s\n' 'unmanaged legacy configuration' >"$legacy_drop_in"
 before=$(<"$legacy_drop_in")
 run_dns Custom "192.0.2.72"
-assert_failure "refuses an unmanaged legacy resolved drop-in"
-[[ $OUTPUT == *unmanaged* ]] || fail "reports an unmanaged legacy collision" "$OUTPUT"
+assert_success "configures DNS alongside an unmanaged legacy drop-in"
+[[ $OUTPUT == *unmanaged* ]] || fail "reports the unmanaged legacy collision" "$OUTPUT"
 [[ $(<"$legacy_drop_in") == "$before" ]] || fail "does not overwrite an unmanaged legacy collision"
-[[ ! -e $drop_in ]] || fail "does not configure after an unmanaged legacy collision"
+[[ -f $drop_in ]] || fail "still configures DNS when a foreign legacy drop-in exists"
+grep -Fxq 'DNS=192.0.2.72' "$drop_in" || fail "the managed drop-in carries the requested server" "$(<"$drop_in")"
 
 init_case lock-umask
 old_umask=$(umask)
