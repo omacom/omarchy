@@ -116,3 +116,62 @@ HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 [[ ! -f $home/.config/fontconfig/fonts.conf ]] ||
   fail "omarchy font set removes a stale generated fonts.conf"
 pass "omarchy font set removes a stale generated fonts.conf"
+
+# A fonts.conf mixing the generated block with the user's own rules loses only
+# the generated block — the rest survives byte-for-byte.
+cat >"$home/.config/fontconfig/fonts.conf" <<'XML'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <!-- user hinting tweak, must survive -->
+  <match target="font">
+    <edit name="rgba" mode="assign"><const>rgb</const></edit>
+  </match>
+  <match target="pattern">
+    <test name="family" qual="any">
+      <string>monospace</string>
+    </test>
+    <edit name="family" mode="prepend_first" binding="strong">
+      <string>JetBrainsMono Nerd Font</string>
+    </edit>
+  </match>
+  <match target="pattern">
+    <test name="family" qual="any">
+      <string>serif</string>
+    </test>
+    <edit name="family" mode="prepend" binding="weak">
+      <string>User Serif</string>
+    </edit>
+  </match>
+</fontconfig>
+XML
+
+HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-font-set" "CaskaydiaMono Nerd Font" >/dev/null
+
+if ! cmp -s "$home/.config/fontconfig/fonts.conf" <(cat <<'XML'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <!-- user hinting tweak, must survive -->
+  <match target="font">
+    <edit name="rgba" mode="assign"><const>rgb</const></edit>
+  </match>
+  <match target="pattern">
+    <test name="family" qual="any">
+      <string>serif</string>
+    </test>
+    <edit name="family" mode="prepend" binding="weak">
+      <string>User Serif</string>
+    </edit>
+  </match>
+</fontconfig>
+XML
+); then
+  fail "omarchy font set removes only the generated block from fonts.conf" "$(cat "$home/.config/fontconfig/fonts.conf")"
+fi
+pass "omarchy font set removes only the generated block from fonts.conf"
+
+grep -q 'conf.d/50-omarchy-monospace.conf' "$ROOT/shell/Commons/Style.qml" ||
+  fail "Style.qml watches the fontconfig drop-in"
+pass "Style.qml watches the fontconfig drop-in"

@@ -72,20 +72,38 @@ cat >"$fontconfig_file" <<XML
 </fontconfig>
 XML
 
-# conf.d loads before fonts.conf, so a file written by earlier versions of
-# this command would still win over the drop-in. Remove it only when it is
-# byte-identical to the template we used to generate — a file the user has
-# touched stays put.
+# conf.d loads before fonts.conf, so a match block written by earlier versions
+# of this command would still win over the drop-in. Surgically remove every
+# <match target="pattern"> block that carries both the monospace test and
+# prepend_first — whatever font it names — and keep the rest of the file
+# byte-for-byte. A file left with nothing but the XML skeleton is deleted.
 legacy_fontconfig="$HOME/.config/fontconfig/fonts.conf"
 if [[ -f $legacy_fontconfig ]]; then
-  normalise() {
-    sed -E '/<edit name="family" mode="prepend_first" binding="strong">/{
-      n
-      s|<string>[^<]*</string>|<string>@FONT@</string>|
-    }' "$1"
-  }
-  if normalise "$legacy_fontconfig" | cmp -s - <(normalise "$fontconfig_file"); then
-    rm -f "$legacy_fontconfig"
+  legacy_tmp=$(mktemp "$legacy_fontconfig.XXXXXX")
+  awk '
+    /<match[^>]*>.*<\/match>/ {
+      if (!($0 ~ /<match target="pattern">/ && $0 ~ /<string>monospace<\/string>/ && $0 ~ /mode="prepend_first"/)) print
+      next
+    }
+    /<match[^>]*>/ { inmatch = 1; buf = $0 "\n"; next }
+    inmatch {
+      buf = buf $0 "\n"
+      if (/<\/match>/) {
+        if (!(buf ~ /<match target="pattern">/ && buf ~ /<string>monospace<\/string>/ && buf ~ /mode="prepend_first"/)) printf "%s", buf
+        buf = ""
+        inmatch = 0
+      }
+      next
+    }
+    { print }
+  ' "$legacy_fontconfig" >"$legacy_tmp"
+
+  if cmp -s "$legacy_tmp" "$legacy_fontconfig"; then
+    rm -f "$legacy_tmp"
+  elif ! grep -vE '^[[:space:]]*$|<\?xml[^?]*\?>|<!DOCTYPE[^>]*>|</?fontconfig>' "$legacy_tmp" | grep -q .; then
+    rm -f "$legacy_tmp" "$legacy_fontconfig"
+  else
+    mv "$legacy_tmp" "$legacy_fontconfig"
   fi
 fi
 
