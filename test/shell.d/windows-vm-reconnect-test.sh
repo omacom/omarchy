@@ -5,11 +5,15 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-set -- help
-source "$ROOT/bin/omarchy-windows-vm" >/dev/null 2>&1
-
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
+
+# launch_windows writes ~/.config/windows/krb5.conf; keep it out of the real HOME.
+export HOME="$test_tmp/home"
+mkdir -p "$HOME"
+
+set -- help
+source "$ROOT/bin/omarchy-windows-vm" >/dev/null 2>&1
 
 # --- rdp_state against real sockets on 127.0.0.1:3389 ------------------------
 
@@ -40,8 +44,10 @@ EOF
     done
   }
 
+  probe_err=$(rdp_state 2>&1 >/dev/null)
   [[ $(rdp_state) == "stopped" ]] || fail "RDP probe reports stopped when nothing listens"
-  pass "RDP probe reports stopped when nothing listens"
+  [[ -z $probe_err ]] || fail "RDP probe reports stopped without printing errors" "$probe_err"
+  pass "RDP probe reports stopped when nothing listens, without printing errors"
 
   fake_server rdp
   [[ $(rdp_state) == "up" ]] || fail "RDP probe reports up when Windows answers"
