@@ -138,6 +138,14 @@ Panel {
     return isFinite(ms) ? ms - root.nowMs : -1
   }
 
+  // The 7-day window is known by its title: "Weekly" on its own, or
+  // "<model> Weekly" when scoped to a model. The reset countdown can't tell
+  // it apart, since it runs short in the week's last hours and is missing
+  // when the collector reports no reset time.
+  function isWeeklyWindow(w) {
+    return !!w && /\bweekly$/i.test(String(w.title || "").trim())
+  }
+
   function formatDuration(ms) {
     if (!(ms > 0)) return "now"
     var minutes = Math.floor(ms / 60000)
@@ -747,8 +755,7 @@ Panel {
       width: parent.width
       value: limitRow.window ? limitRow.window.percent : -1
       alarming: limitRow.alarming
-      // Only the 7-day window resets more than a few hours out.
-      weekly: root.resetMsFor(limitRow.window) > 6 * 3600000
+      weekly: root.isWeeklyWindow(limitRow.window)
     }
 
     Text {
@@ -803,7 +810,9 @@ Panel {
         width: Math.max(1, Math.round(meter.thickness * 0.3))
         height: meterTrack.height
         x: Math.round(meterTrack.width * (index + 1) / 7) - width / 2
-        color: root.surface
+        // Opaque, so a translucent popup background doesn't let the track
+        // show through and hide the day boundaries.
+        color: root.alpha(root.surface, 1)
       }
     }
   }
