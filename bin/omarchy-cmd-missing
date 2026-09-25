@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether any required commands are missing
+
+for cmd in "$@"; do
+  if ! command -v "$cmd" &>/dev/null; then
+    exit 0
+  fi
+done
+
+exit 1

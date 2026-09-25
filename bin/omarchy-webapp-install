@@ -1,0 +1,241 @@
+#!/bin/bash
+
+# omarchy:summary=Create a desktop launcher for a web app
+# omarchy:args=[name url icon-url-or-name [custom-exec] [mime-types]]
+
+set -e
+
+ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+
+safe_icon_name() {
+  printf '%s\n' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//'
+}
+
+require_plain_name() {
+  # The name becomes a filename. A slash would turn it into directory levels, so
+  # the launcher lands somewhere omarchy-webapp-remove cannot address and the app
+  # is stuck in the launcher; a leading ../ leaves the applications directory
+  # altogether. Refuse rather than silently renaming what the user typed -- most
+  # often it is a URL entered in the name field.
+  if [[ $1 == */* ]]; then
+    echo "App name cannot contain '/': $1"
+    exit 1
+  fi
+}
+
+icon_name_from_ref() {
+  local ref="$1"
+  local name
+  name=$(basename "$ref")
+
+  if [[ $name == *.* ]]; then
+    safe_icon_name "${name%.*}"
+  else
+    printf '%s\n' "$name"
+  fi
+}
+
+install_user_icon() {
+  local source="$1"
+  local name="$2"
+  local ext="${source##*.}"
+
+  [[ $ext == "$source" ]] && ext="png"
+  mkdir -p "$ICON_DIR"
+  cp "$source" "$ICON_DIR/$name.$ext"
+  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+  printf '%s\n' "$name"
+}
+
+download_icon() {
+  curl -fsSL --max-time 10 -o "$2" "$1" 2>/dev/null &&
+    [[ -s $2 && $(file -b --mime-type "$2") == image/* ]]
+}
+
+# Chromium --app= treats javascript:, file:, and data: as a document to
+# run. Prefix schemeless input with https as before, then refuse anything
+# that is not http(s).
+normalize_webapp_url() {
+  local url=$1
+  if [[ ! $url =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]; then
+    url="https://$url"
+  fi
+  printf '%s' "$url"
+}
+
+# Raw whitespace must be percent-encoded in a URL. Refuse it before serializing
+# the desktop entry; before Exec argument quoting, it also split browser flags
+# and additional URLs into separate arguments. Schemes are case-insensitive.
+require_http_url() {
+  local url=$1
+
+  if [[ $url =~ [[:space:]] ]]; then
+    echo "Error: web app URL must not contain whitespace." >&2
+    exit 1
+  fi
+
+  if [[ ! ${url,,} =~ ^https?:// ]]; then
+    echo "Error: web app URL must be http or https." >&2
+    exit 1
+  fi
+}
+
+fetch_site_icon() {
+  local site_url="$1" dest="$2"
+  local origin page icon_url
+  origin=$(sed -E 's|^(https?://[^/]+).*|\1|' <<<"$site_url")
+
+  # Prefer the site's own high-res icon (apple-touch-icon is typically 180px+),
+  # then the well-known path, then Google's favicon service as a last resort.
+  page=$(curl -fsSL --max-time 5 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
+  icon_url=$(grep -oiE "<link[^>]*rel=[\"'][^\"']*apple-touch-icon[^\"']*[\"'][^>]*>" <<<"$page" |
+    grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//")
+
+  case $icon_url in
+  http://* | https://*) ;;
+  //*) icon_url="https:$icon_url" ;;
+  /*) icon_url="$origin$icon_url" ;;
+  ?*) icon_url="$origin/$icon_url" ;;
+  esac
+
+  { [[ -n $icon_url ]] && download_icon "$icon_url" "$dest"; } ||
+    download_icon "$origin/apple-touch-icon.png" "$dest" ||
+    download_icon "https://www.google.com/s2/favicons?domain=${site_url}&sz=256" "$dest"
+}
+
+desktop_string_escape() {
+  # Desktop Entry "string" value (freedesktop Desktop Entry Spec, "Value types"):
+  # a raw newline would start a new key line and let a value inject a second
+  # Exec=. Escape backslash first, then tab/CR/LF and a leading space. Every value
+  # written into the .desktop file passes through here.
+  #
+  # Parameter expansion rather than sed: GNU sed's N auto-prints the pattern space
+  # and exits at end of input, so a `:a;N;$!ba` slurp skips every following s///
+  # for a value with no newline in it - which is every value except the injection
+  # attempt this exists to stop.
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//$'\t'/\\t}
+  value=${value//$'\r'/\\r}
+  value=${value//$'\n'/\\n}
+  [[ $value == " "* ]] && value="\\s${value# }"
+
+  printf '%s' "$value"
+}
+
+desktop_exec_arg() {
+  # One Exec argument, double-quoted per the freedesktop Exec spec: inside quotes
+  # " ` $ \ take a backslash and a literal % becomes %%. Only the default Exec's
+  # URL needs this; $CUSTOM_EXEC stays a whole command line (file-syntax only).
+  local escaped
+  escaped=$(printf '%s' "$1" \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/`/\\`/g' -e 's/\$/\\$/g' -e 's/%/%%/g')
+  printf '"%s"' "$escaped"
+}
+
+if (( $# < 3 )); then
+  echo -e "\e[32mLet's create a new web app you can start with the app launcher.\n\e[0m"
+  APP_NAME=$(gum input --prompt "Name> " --placeholder "My favorite web app")
+  require_plain_name "$APP_NAME"
+  APP_URL=$(gum input --prompt "URL> " --placeholder "https://example.com")
+  APP_URL=$(normalize_webapp_url "$APP_URL")
+  require_http_url "$APP_URL"
+
+  # Try to fetch the site's icon automatically first.
+  mkdir -p "$ICON_DIR"
+  ICON_VALUE=$(safe_icon_name "$APP_NAME")
+  if fetch_site_icon "$APP_URL" "$ICON_DIR/$ICON_VALUE.png"; then
+    gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+    ICON_REF="$ICON_VALUE"
+  else
+    ICON_REF=$(gum input --prompt "Icon URL/name> " --placeholder "Could not fetch favicon automatically. Enter PNG icon URL or icon name")
+  fi
+
+  CUSTOM_EXEC=""
+  MIME_TYPES=""
+  INTERACTIVE_MODE=true
+else
+  APP_NAME="$1"
+  APP_URL=$(normalize_webapp_url "$2")
+  require_http_url "$APP_URL"
+  ICON_REF="$3"
+  CUSTOM_EXEC="$4" # Optional custom exec command
+  MIME_TYPES="$5"  # Optional mime types
+  INTERACTIVE_MODE=false
+fi
+
+# Ensure valid execution
+if [[ -z $APP_NAME || -z $APP_URL ]]; then
+  echo "You must set app name and app URL!"
+  exit 1
+fi
+
+require_plain_name "$APP_NAME"
+
+if [[ -z $ICON_REF ]]; then
+  ICON_VALUE=$(safe_icon_name "$APP_NAME")
+  mkdir -p "$ICON_DIR"
+  if ! fetch_site_icon "$APP_URL" "$ICON_DIR/$ICON_VALUE.png"; then
+    echo "Error: Failed to download icon."
+    exit 1
+  fi
+  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+elif [[ $ICON_REF =~ ^https?:// ]]; then
+  ICON_VALUE=$(safe_icon_name "$APP_NAME")
+  mkdir -p "$ICON_DIR"
+  if ! download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
+    echo "Error: Failed to download icon."
+    exit 1
+  fi
+  gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+elif [[ -f $ICON_REF ]]; then
+  ICON_VALUE=$(install_user_icon "$ICON_REF" "$(safe_icon_name "$APP_NAME")")
+else
+  # Bundled Omarchy icons are package-owned under /usr/share/icons/hicolor.
+  # Accept either "HEY" or the historical "HEY.png" argument form.
+  ICON_VALUE=$(icon_name_from_ref "$ICON_REF")
+fi
+
+# Default Exec quotes the URL as one Exec-spec argument; the whole line then gets
+# the file-syntax escaping below (unescaped first at read time per spec, so the
+# layers compose). $CUSTOM_EXEC is a full command line, so it gets file-syntax only.
+if [[ -n $CUSTOM_EXEC ]]; then
+  EXEC_COMMAND=$CUSTOM_EXEC
+else
+  EXEC_COMMAND="omarchy-launch-webapp $(desktop_exec_arg "$APP_URL")"
+fi
+
+# Create application .desktop file
+DESKTOP_DIR="$HOME/.local/share/applications"
+DESKTOP_FILE="$DESKTOP_DIR/$APP_NAME.desktop"
+mkdir -p "$DESKTOP_DIR"
+
+name_field=$(desktop_string_escape "$APP_NAME")
+exec_field=$(desktop_string_escape "$EXEC_COMMAND")
+icon_field=$(desktop_string_escape "$ICON_VALUE")
+
+cat >"$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Version=1.0
+Name=$name_field
+Comment=$name_field
+Exec=$exec_field
+Terminal=false
+Type=Application
+Icon=$icon_field
+StartupNotify=true
+EOF
+
+# Add mime types if provided
+if [[ -n $MIME_TYPES ]]; then
+  printf 'MimeType=%s\n' "$(desktop_string_escape "$MIME_TYPES")" >>"$DESKTOP_FILE"
+fi
+
+chmod +x "$DESKTOP_FILE"
+
+if [[ $INTERACTIVE_MODE == "true" ]]; then
+  echo -e "You can now find $APP_NAME using the app launcher (SUPER + SPACE)\n"
+fi

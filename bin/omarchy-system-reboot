@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Reboot after closing application windows
+# omarchy:examples=omarchy reboot | omarchy system reboot
+# omarchy:aliases=omarchy reboot
+
+# Schedule the reboot in the user manager so closing the terminal's systemd
+# scope cannot terminate it before it runs.
+systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl reboot --no-wall || exit 1
+
+omarchy-osd -i reboot -m "Rebooting" -d 5000
+
+omarchy-state clear re*-required
+
+# Now close all windows
+omarchy-hyprland-window-close-all
+sleep 1 # Allow apps like Chrome to shutdown correctly

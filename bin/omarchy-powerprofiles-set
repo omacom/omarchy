@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# omarchy:summary=Set and remember the power profile for AC or battery use
+# omarchy:args=[autodetect|ac|battery] [power-saver|balanced|performance]
+
+action="${1:-autodetect}"
+requested_profile="${2:-}"
+
+usage() {
+  echo "Usage: omarchy-powerprofiles-set [autodetect|ac|battery] [power-saver|balanced|performance]" >&2
+  exit 1
+}
+
+(( $# <= 2 )) || usage
+
+case "$action" in
+  autodetect)
+    # Use the same signal as the shell (UPower.onBattery) so every entry point
+    # saves and restores the profile under the same ac/battery key.
+    if [[ $(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null) == "b true" ]]; then
+      action=battery
+    else
+      action=ac
+    fi
+    ;;
+  ac | battery) ;;
+  *) usage ;;
+esac
+
+mapfile -t profiles < <(omarchy-powerprofiles-list)
+
+profile_available() {
+  [[ " ${profiles[*]} " == *" $1 "* ]]
+}
+
+state_dir="${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/powerprofiles}"
+state_file="$state_dir/$action"
+
+if [[ -n $requested_profile ]]; then
+  profile_available "$requested_profile" || {
+    echo "Power profile is not available: $requested_profile" >&2
+    exit 1
+  }
+
+  profile="$requested_profile"
+elif [[ -r $state_file ]]; then
+  profile=$(<"$state_file")
+fi
+
+if [[ -z ${profile:-} ]] || ! profile_available "$profile"; then
+  if [[ $action == "ac" ]] && profile_available performance; then
+    profile=performance
+  else
+    profile=balanced
+  fi
+fi
+
+powerprofilesctl set "$profile" || exit
+
+if [[ -n $requested_profile ]]; then
+  mkdir -p "$state_dir"
+  printf '%s\n' "$requested_profile" >"$state_file"
+fi

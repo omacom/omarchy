@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether a webcam is available
+
+[[ -n $(omarchy-capture-webcam-list) ]]

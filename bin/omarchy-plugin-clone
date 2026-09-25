@@ -1,0 +1,168 @@
+#!/bin/bash
+
+# omarchy:summary=Clone a built-in Omarchy shell plugin into your own config
+# omarchy:group=plugin
+# omarchy:args=<source-id> [--edit]
+
+set -euo pipefail
+
+PLUGINS_DIR="$HOME/.config/omarchy/plugins"
+
+fail() {
+  echo "omarchy-plugin-clone: $*" >&2
+  exit 1
+}
+
+copy_plugin() {
+  local source_dir="$1"
+  local manifest="$2"
+  local target_dir="$3"
+
+  if [[ ${manifest##*/} == "manifest.json" ]]; then
+    cp -aL "$source_dir/." "$target_dir/"
+    return
+  fi
+
+  cp -aL "$manifest" "$target_dir/manifest.json"
+
+  local source target source_pattern file
+  while IFS=$'\t' read -r source target; do
+    [[ $target != /* && $target != *".."* ]] || fail "invalid clone target path: $target"
+    if [[ -d $source_dir/$source ]]; then
+      mkdir -p "$target_dir/$target"
+      cp -aL "$source_dir/$source/." "$target_dir/$target/"
+    else
+      mkdir -p "$(dirname "$target_dir/$target")"
+      cp -aL "$source_dir/$source" "$target_dir/$target"
+    fi
+
+    if [[ $source != "$target" ]]; then
+      source_pattern=${source//./\\.}
+      while IFS= read -r -d '' file; do
+        sed -i "s|$source_pattern|$target|g" "$file"
+      done < <(rg --files-with-matches --null --fixed-strings "$source" "$target_dir")
+    fi
+  done < <(jq -r '
+    [
+      (.entryPoints[] | {source: ., target: .}),
+      (.omarchy.clonePaths[]? | {source: .source, target: .target})
+    ] | unique_by(.target)[] | [.source, .target] | @tsv
+  ' "$manifest")
+}
+
+update_manifest() {
+  local target_dir="$1"
+  local source_id="$2"
+  local new_id="$3"
+  local display_name="$4"
+  local manifest="$target_dir/manifest.json"
+
+  # Keep built-in ids inside the plugin code as stable IPC targets. The shell
+  # uses clonedFrom to route those calls to this local manifest id.
+  jq \
+    --arg id "$new_id" \
+    --arg name "$display_name" \
+    --arg sourceId "$source_id" '
+      .id = $id |
+      .name = $name |
+      if (.barWidget | type) == "object" then
+        .barWidget.displayName = $name
+      else
+        .
+      end |
+      .omarchy = (
+        (if (.omarchy | type) == "object" then .omarchy else {} end) +
+        { clonedFrom: $sourceId }
+      ) |
+      del(.omarchy.clonePaths)
+    ' "$manifest" >"$manifest.tmp"
+  mv "$manifest.tmp" "$manifest"
+}
+
+usage() {
+  cat <<USAGE
+Usage: omarchy plugin clone <source-id> [--edit]
+
+Copies a built-in plugin into ~/.config/omarchy/plugins/<username>.<id>/ so you
+can edit it freely. The clone keeps all of the source plugin's files and kinds
+and uses "My <name>" as its display name, then replaces the built-in with the
+clone. The username prefix keeps the id yours, so a shared clone does not
+collide with anyone else's. --edit opens the clone in \$EDITOR afterwards.
+
+USAGE
+}
+
+source_id=""
+edit_clone=0
+if (( $# > 0 )) && [[ $1 != --* ]]; then
+  source_id="$1"
+  shift
+fi
+
+while (( $# > 0 )); do
+  case "$1" in
+  --edit)
+    edit_clone=1
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    fail "unknown clone option: $1"
+    ;;
+  esac
+done
+
+[[ -n $source_id ]] || fail "clone source is required"
+
+source_info=$(omarchy-plugin-catalog | jq -r --arg id "$source_id" '
+    .[] | select(.firstParty and .id == $id)
+    | [
+        .sourceDir,
+        .manifestPath,
+        (.name // .id)
+      ] | @tsv
+  ')
+[[ -n $source_info ]] || fail "unknown built-in plugin: $source_id"
+IFS=$'\t' read -r source_dir source_manifest source_name <<<"$source_info"
+
+new_id="${USER:-$(id -un)}.${source_id#omarchy.}"
+display_name="My $source_name"
+target_dir="$PLUGINS_DIR/$new_id"
+[[ ! -e $target_dir && ! -L $target_dir ]] || fail "$target_dir already exists"
+
+mkdir -p "$PLUGINS_DIR"
+stage=$(mktemp -d "$PLUGINS_DIR/.clone.XXXXXX")
+clone_complete=0
+cleanup() {
+  [[ -d ${stage:-} ]] && rm -rf "$stage"
+  (( clone_complete )) || rm -rf "$target_dir"
+}
+trap cleanup EXIT
+copy_plugin "$source_dir" "$source_manifest" "$stage"
+update_manifest "$stage" "$source_id" "$new_id" "$display_name"
+mv "$stage" "$target_dir"
+stage=""
+
+omarchy-shell shell rescanPlugins >/dev/null
+discovered=0
+for (( attempt = 0; attempt < 40; attempt++ )); do
+  if omarchy-plugin-list --json | jq -e --arg id "$new_id" 'any(.[]; .id == $id)' >/dev/null; then
+    discovered=1
+    break
+  fi
+  sleep 0.05
+done
+(( discovered )) || fail "cloned plugin '$new_id' was not discovered"
+omarchy-plugin-enable "$new_id" >/dev/null
+clone_complete=1
+omarchy-notification-send -g 󰐱 \
+  "Editing Cloned Plugin" \
+  "Original plugin has been replace by clone."
+echo "Cloned $source_id to $target_dir and switched to $new_id"
+if (( edit_clone )); then
+  # Word-splitting is deliberate: EDITOR may carry flags.
+  exec $EDITOR "$target_dir"
+fi

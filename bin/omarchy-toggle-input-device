@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# omarchy:summary=Enable, disable, or toggle a Hyprland input device
+# omarchy:args=<touchpad|touchscreen> [on|off|toggle]
+# omarchy:hidden=true
+
+KIND="${1:-}"
+ACTION="${2:-toggle}"
+
+usage() {
+  echo "Usage: omarchy-toggle-input-device <touchpad|touchscreen> [on|off|toggle]" >&2
+}
+
+case "$KIND" in
+  touchpad) LABEL="Touchpad" ICON="touchpad" ;;
+  touchscreen) LABEL="Touchscreen" ICON="touch" ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+
+# The persisted disable is the device name stored as plain data; on every
+# reload default/hypr/disabled-input-device.lua reads it back and disables the
+# device. Names come from USB descriptors and must not be interpolated into
+# shell or Lua. The path is hardcoded to ~/.local/state like the sibling
+# toggle tools, so it keeps working when XDG_STATE_HOME diverges.
+NAME_FILE="$HOME/.local/state/omarchy/toggles/hypr/$KIND-disabled-name"
+
+device="$("omarchy-hw-$KIND")"
+
+require_device() {
+  if [[ -z $device ]]; then
+    echo "No $KIND device found" >&2
+    exit 1
+  fi
+
+  if [[ $device == *[[:cntrl:]]* ]]; then
+    echo "Invalid $KIND device name" >&2
+    exit 1
+  fi
+}
+
+apply_device() {
+  local enabled=$1
+  local quoted=${device//\\/\\\\}
+  quoted=${quoted//\"/\\\"}
+  hyprctl eval "hl.device({ name = \"$quoted\", enabled = $enabled })" >/dev/null
+}
+
+enable() {
+  # Clear the persisted state before requiring a usable device, so a device
+  # that stops reporting a valid name can never wedge the disable in place.
+  rm -f "$NAME_FILE"
+  require_device
+  apply_device true
+  omarchy-osd -i "$ICON" -m "$LABEL enabled"
+}
+
+disable() {
+  require_device
+  apply_device false
+  mkdir -p "$(dirname "$NAME_FILE")"
+  printf '%s\n' "$device" >"$NAME_FILE"
+  omarchy-osd -i "$ICON" -m "$LABEL disabled"
+}
+
+case "$ACTION" in
+  on) enable ;;
+  off) disable ;;
+  toggle) if [[ -f $NAME_FILE ]]; then enable; else disable; fi ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

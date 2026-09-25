@@ -1,0 +1,114 @@
+#!/bin/bash
+
+# omarchy:summary=Watch Hyprland monitor events and recover monitor toggles when a monitor is removed
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-clamshell.lock"
+MODELESS_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-monitor-modeless.lock"
+
+sync_clamshell() {
+  (
+    flock -n 9 || exit 0
+    omarchy-hyprland-monitor-clamshell
+  ) 9>"$LOCK"
+}
+
+sync_clamshell_after_monitor_change() {
+  sync_clamshell
+
+  (
+    for delay in 1 3 7; do
+      sleep "$delay"
+      sync_clamshell
+    done
+  ) &
+}
+
+# Powering the monitor on fires no DRM hotplug, and forcing a re-probe needs
+# root, so only a reload re-reads the EDID and only a reload reveals whether it
+# worked. Back off: the machine can sit like this all night. The lock keeps one
+# loop running across the events that call this; the wait is for an event landing
+# in the moment one is exiting, which would otherwise be the last one to come.
+recover_modeless() {
+  (
+    flock -w 1 9 || exit 0
+
+    local delay=3 state reloaded unanswered=0
+
+    while true; do
+      omarchy-hyprland-monitor-modeless
+      state=$?
+
+      # A monitor reporting a mode is recovered. One the compositor cannot speak
+      # for is not an answer, and nothing else will ask again -- but a compositor
+      # that stays silent has gone, taking the session and this loop's reason
+      # with it.
+      (( state == 1 )) && break
+      (( state == 2 )) && (( ++unanswered > 20 )) && break
+      (( state == 0 )) && unanswered=0
+
+      reloaded=0
+      # Reloading into half-replaced package config is what the guard prevents.
+      if (( state == 0 )) && ! omarchy-hyprland-reload-guard paused; then
+        hyprctl reload >/dev/null 2>&1 || true
+        reloaded=1
+      fi
+
+      sleep "$delay"
+      (( reloaded )) && (( delay = delay * 2 > 60 ? 60 : delay * 2 ))
+    done
+  ) 9>"$MODELESS_LOCK" &
+}
+
+poll_clamshell_state() {
+  while true; do
+    sleep 2
+    sync_clamshell
+  done
+}
+
+# The internal panel is only ever disabled while a laptop is docked (lid shut
+# with an external monitor active), so the reconciliation poll only has anything
+# to reconcile in that window. Run it while docked, stop it when undocked, and
+# never on a machine without a lid. Lid open/close itself is handled by the
+# Hyprland "switch:*:Lid Switch" binds; this poll is the recovery backstop for
+# drift those binds can miss (e.g. across suspend/resume).
+poll_pid=""
+sync_poll_state() {
+  if omarchy-hw-laptop && omarchy-hyprland-monitor-external-active; then
+    if [[ -z $poll_pid ]] || ! kill -0 "$poll_pid" 2>/dev/null; then
+      poll_clamshell_state &
+      poll_pid=$!
+    fi
+  elif [[ -n $poll_pid ]]; then
+    kill "$poll_pid" 2>/dev/null
+    poll_pid=""
+  fi
+}
+
+sync_clamshell_after_monitor_change
+sync_poll_state
+recover_modeless
+
+# Process substitution (not a pipe) keeps this loop in the main shell, so
+# sync_poll_state can start and stop the background poll as monitors come and go.
+while read -r event; do
+  case "$event" in
+    monitoradded\>\>*|monitoraddedv2\>\>*)
+      sync_clamshell_after_monitor_change
+      sync_poll_state
+      recover_modeless
+      ;;
+    monitorremoved\>\>*|monitorremovedv2\>\>*)
+      sync_clamshell_after_monitor_change
+      sync_poll_state
+      recover_modeless
+      ;;
+    # A reload while the monitor is unpowered leaves it at 0x0 with no hotplug
+    # to notice, same as at boot. Our own recovery reload lands here too, and is
+    # a no-op while its loop still holds the pid.
+    configreloaded\>\>*)
+      recover_modeless
+      ;;
+  esac
+done < <(socat -U - "UNIX-CONNECT:$SOCKET")

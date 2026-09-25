@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Copy a shipped user config from $OMARCHY_PATH/config into ~/.config (backs up your version).
+# omarchy:args=<config-path>
+
+config_file=${1:-}
+
+if [[ -z $config_file ]]; then
+  cat <<USAGE
+  Usage: $0 [config_file]
+
+  Must provide a file path relative to .config to be refreshed.
+  To copy $OMARCHY_PATH/config/hypr/hyprland.lua to ~/.config/hypr/hyprland.lua:
+
+    $0 hypr/hyprland.lua
+USAGE
+  exit 1
+fi
+
+user_config_file="${HOME}/.config/$config_file"
+default_config_file="$OMARCHY_PATH/config/$config_file"
+backup_config_file="$user_config_file.bak.$(date +%s)"
+
+if [[ ! -e $default_config_file ]]; then
+  echo "Not a shipped user config: $config_file" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$user_config_file")"
+
+if [[ -f $user_config_file ]]; then
+  cp -f "$user_config_file" "$backup_config_file"
+  cp -f "$default_config_file" "$user_config_file"
+
+  if cmp -s "$user_config_file" "$backup_config_file"; then
+    rm "$backup_config_file"
+  else
+    echo -e "\e[31mReplaced $user_config_file with new Omarchy default.\nSaved backup as ${backup_config_file}.\n\n\e[32mChanges:\e[0m"
+    diff "$user_config_file" "$backup_config_file" || true
+  fi
+else
+  cp -f "$default_config_file" "$user_config_file"
+fi

@@ -1,0 +1,391 @@
+# Omarchy theming
+
+Omarchy themes live under `themes/<name>/` in the source tree (installed at
+`/usr/share/omarchy/themes/<name>/`), with optional user themes under
+`~/.config/omarchy/themes/<name>/`. A theme normally starts with a
+`colors.toml`; Omarchy generates the active theme files from
+`default/themed/*.tpl` when `omarchy-theme-set <name>` runs.
+
+Beyond `colors.toml` and hand-written config overrides, a first-party theme can
+ship `backgrounds/` (users overlay their own via
+`~/.config/omarchy/backgrounds/<name>/`; the active image is the
+`~/.local/state/omarchy/current/background` symlink), `preview.png` and
+`preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`,
+`unlock.png`, and a `light.mode` marker file.
+
+A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
+
+## Theme activation flow
+
+`omarchy-theme-set <name>` builds a clean staging directory at
+`~/.local/state/omarchy/current/next-theme`:
+
+1. Copy the first-party theme from `themes/<name>/`.
+2. Overlay `~/.config/omarchy/themes/<name>/`, in full when the user wrote it and filtered when it came from a git repo, naming anything it dropped on stderr.
+3. If needed, generate `colors.toml` from `alacritty.toml`.
+4. Run `omarchy-theme-set-templates` to render templates into the staging
+   theme.
+5. Move the staging theme into `~/.local/state/omarchy/current/theme`, write
+   `~/.local/state/omarchy/current/theme.name`, and notify the running shell.
+
+Template rendering only happens when the staged theme has `colors.toml`.
+Existing files are never overwritten by a template, so a hand-written
+`themes/<name>/shell.toml` or `hyprland.lua` wins over
+`default/themed/shell.toml.tpl` or `hyprland.lua.tpl`.
+
+User templates in `~/.config/omarchy/themed/*.tpl` are processed before the
+built-in templates. If a user template has the same output filename as a
+built-in template, the built-in output is skipped.
+
+After activation, `omarchy-theme-set` fires the `theme-set` hook
+(`~/.config/omarchy/hooks/theme-set*`, theme name in `$1`) and dispatches a
+parallel retint of running apps — terminals, Hyprland, btop, browser, editors,
+and the rest of the `post_theme_commands` list in `bin/omarchy-theme-set`.
+Making a new app follow theme changes means adding its restart/retint command
+to that list. Runs serialize on a `flock`, so scripted theme changes queue
+instead of racing.
+
+## What an installed theme may not ship
+
+`themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.
+
+`omarchy theme install <url>` is different. It clones a stranger's git repo straight into that same directory, so the contents are whatever the theme author pushed. `omarchy-theme-set` tells the two apart the way `omarchy-theme-extras` already does — a `.git` directory means it was cloned, while a plain directory or a symlink to a working copy is the user's own — and from a cloned one it drops only what can run code:
+
+- any `*.lua` — Hyprland `require`s a theme's `hyprland.lua` and `gum_env.lua` at login, and Neovim loads its `neovim.lua` at startup
+- `alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf` — each names the program the terminal launches
+- `vscode.json` — names the extension `omarchy-theme-set-vscode` installs, and a VS Code extension is arbitrary JavaScript
+
+Symlinks are dropped with them, at any depth; in a cloned theme they point wherever the theme author chose. Everything a cloned theme ships that is colour is kept, including files Omarchy would otherwise have generated — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, `icons.theme`, `keyboard.rgb` and the rest — so a theme can still say exactly how it wants each app to look. What is dropped gets generated from `default/themed/*.tpl` instead, and is named on stderr.
+
+A denylist is only right while it is maintained. Adding a template for another terminal, or for another editor that loads Lua, means adding it to `INSTALLED_THEME_DENIED` in `bin/omarchy-theme-set`; `test/shell.d/theme-staging-test.sh` fails on any `default/themed/*.tpl` whose output is recorded as neither code nor colour, so a new template cannot be added without that decision being made.
+
+A theme predating `colors.toml` is not left without a palette: its `alacritty.toml` is read through `omarchy-theme-colors-from-alacritty` into a scratch directory and only the resulting `colors.toml` is staged, so the colors survive and the terminal config does not.
+
+The restriction lives in `omarchy-theme-set` rather than in `omarchy-theme-install` on purpose. Filtering at staging also covers themes installed before the rule existed and files a theme gains later through `omarchy theme update`.
+
+What this does not cover: a theme distributed as an archive rather than a git repo, extracted into `~/.config/omarchy/themes/` by hand, is indistinguishable from one the user wrote and stages in full. `omarchy theme install` only takes git URLs, so the supported path is always filtered, but the check is a statement about where a theme came from and not a sandbox.
+
+## `colors.toml`
+
+`colors.toml` provides the palette keys used by templates. Keys are grouped
+semantic-first: accent/selection/muted, then the backgrounds, then the
+foregrounds, then the named colors:
+
+```toml
+mode = "dark"
+
+accent = "#7aa2f7"
+selection = "#292e42"
+muted = "#414868"
+
+background = "#1a1b26"
+dark_background = "#13141c"
+darker_background = "#0e0e14"
+lighter_background = "#24283b"
+
+foreground = "#a9b1d6"
+dark_foreground = "#565f89"
+light_foreground = "#b4bee6"
+bright_foreground = "#c0caf5"
+
+red = "#f7768e"
+blue = "#7aa2f7"
+```
+
+Any key can be referenced from a template with `{{ key }}`. The foundational
+shell palette is loaded from:
+
+- `foreground` — primary readable text color
+- `background` — primary background color
+- `accent` — preferred when present; otherwise some places fall back to
+  `color4`
+- `muted` — de-emphasized elements (comments, placeholders, dividers); also
+  serves as ANSI `color8`
+- `red` / `color1` — populate the shell's urgent role; there is no `urgent`
+  palette key (one defined in `colors.toml` is ignored)
+
+Themes and user templates using the legacy short names remain supported.
+Canonical names take precedence when both forms are defined, and resolved
+canonical values are also exposed through their legacy names:
+
+| Canonical | Legacy |
+|-----------|--------|
+| `background` | `bg` |
+| `dark_background` | `dark_bg` |
+| `darker_background` | `darker_bg` |
+| `lighter_background` | `lighter_bg` |
+| `foreground` | `fg` |
+| `dark_foreground` | `dark_fg` |
+| `light_foreground` | `light_fg` |
+| `bright_foreground` | `bright_fg` |
+
+The neutral ramp is centered on `background -> bright_foreground`. Dark themes
+should read from darkest to lightest; light themes should read from lightest to
+darkest. Terminal and editor cursors use `bright_foreground`; there is no
+separate cursor palette key. `selection` is the text-selection background stop
+in that ramp; Omarchy derives `selection_background = selection` and
+`selection_foreground = bright_foreground`. Use
+`omarchy dev theme-preview [theme]` to inspect that ramp, including
+`dark_background`, `darker_background`, and a selected-text sample.
+
+## Template placeholders
+
+Templates are plain files ending in `.tpl`. `omarchy-theme-set-templates`
+replaces placeholders with values from `colors.toml`.
+
+### Color placeholders
+
+For a color key such as `accent = "#7aa2f7"`:
+
+| Placeholder | Output |
+|-------------|--------|
+| `{{ accent }}` | `#7aa2f7` |
+| `{{ accent_strip }}` | `7aa2f7` |
+| `{{ accent_rgb }}` | `122,162,247` |
+
+### Color mixing
+
+`mix`, `mix_strip`, and `mix_rgb` blend two hex colors by a fraction or
+percentage:
+
+```text
+{{ mix background foreground 15% }}
+{{ mix_strip background accent 0.35 }}
+{{ mix_rgb color0 color7 50 }}
+```
+
+### Gradient helpers
+
+Some theme keys can be either a solid color or a Hyprland-style gradient:
+
+```toml
+hyprland_active_border = "rgba(33ccffee) rgba(00ff99ee) 45deg"
+```
+
+Gradient helper placeholders understand those values:
+
+| Helper | Use | Example output |
+|--------|-----|----------------|
+| `{{ hypr_gradient hyprland_active_border accent }}` | Hyprland Lua config | `{ colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, angle = 45 }` |
+| `{{ shell_gradient hyprland_active_border accent }}` | shell border tokens | `rgba(33ccffee) rgba(00ff99ee) 45deg` |
+| `{{ gradient_start hyprland_active_border accent }}` | flat-color-only consumers | `#33ccff` |
+
+The second argument is a fallback. For example,
+`{{ shell_gradient hyprland_active_border accent }}` means: use
+`hyprland_active_border` if the theme defines it; otherwise use `accent`.
+The helper does not choose the first color unless you use `gradient_start`.
+
+## `shell.toml`
+
+`shell.toml` contains shell surface roles, control states, spacing, typography,
+and bar sizing. The default generated file comes from
+`default/themed/shell.toml.tpl`.
+
+Themes can override the entire generated file by shipping `shell.toml`, or just
+one section by shipping `shell.<section>.toml`. For example,
+`shell.lock.toml` replaces only the `[lock]` section after the default
+`shell.toml` has been generated:
+
+```toml
+text        = "#ffffff"
+placeholder = "#ffffff"
+border      = "#ffffff"
+```
+
+The filename decides the target section, so the `[lock]` header is optional.
+
+The running shell reads `shell.toml` into two QML singletons:
+
+- `Color` for palette and surface roles like `Color.menu.border`.
+- `Style` for controls, spacing, font scale, corner radius, and bar sizing.
+
+### Borders
+
+Shell border tokens accept either a solid color or a gradient in the same key:
+
+```toml
+[notifications]
+border = "#7aa2f7"
+```
+
+or:
+
+```toml
+[notifications]
+border = "rgba(33ccffee) rgba(00ff99ee) 45deg"
+```
+
+Do not add a separate `border-gradient` key for new themes. The parser still
+accepts `border-gradient` and `*-border-gradient` for compatibility with older
+configs, but the canonical form is the border key itself.
+
+Border alphas apply to solid borders and to every gradient stop:
+
+```toml
+[notifications]
+border       = "rgba(33ccffee) rgba(00ff99ee) 45deg"
+border-alpha = 0.8
+```
+
+If a color stop already includes alpha, the stop alpha and `border-alpha` are
+combined.
+
+### Border widths
+
+Border widths accept CSS-style lists:
+
+```toml
+border-width = 2          # all sides
+border-width = "2 4"      # top/bottom, right/left
+border-width = "2 4 6"    # top, right/left, bottom
+border-width = "2 4 6 8"  # top, right, bottom, left
+```
+
+Per-side keys override the list:
+
+```toml
+[notifications]
+border-width = 2
+border-width-left = 6
+```
+
+That gives notifications a 2px border on the top, right, and bottom, and a 6px
+left edge.
+
+State-specific borders follow the same pattern. A selected menu row can use a
+different width from the card border:
+
+```toml
+[menu]
+selected-border = "accent"
+selected-border-width = "1 1 1 4"
+```
+
+For state-specific surfaces such as lock and polkit, the token name prefixes
+the width key:
+
+```toml
+[lock]
+border-active = "rgba(33ccffee) rgba(00ff99ee) 45deg"
+border-active-width-left = 6
+```
+
+### Control borders
+
+`[controls]` governs shared controls such as buttons, dropdowns, text fields,
+toggles, and cursor rows. Each state has a fill color, optional border value,
+border width, and border alpha:
+
+```toml
+[controls]
+normal-color        = "#a9b1d6"
+normal-border       = "#a9b1d6"
+normal-border-width = 1
+normal-border-alpha = 0.4
+
+hover-cursor-color        = "#a9b1d6"
+hover-cursor-border       = "#a9b1d6"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 0.25
+```
+
+The `*-border` keys can also be gradients:
+
+```toml
+[controls]
+focus-border = "rgba(33ccffee) rgba(00ff99ee) 45deg"
+focus-border-width = "2 2 2 4"
+```
+
+Set a border width to `0` to keep the fill but remove that state border.
+
+### Surface sections
+
+Common shell sections include:
+
+- `[bar]`
+- `[controls]`
+- `[popups]`
+- `[tooltip]`
+- `[notifications]`
+- `[launcher]`
+- `[menu]`
+- `[polkit]`
+- `[lock]`
+- `[image-picker]`
+- `[spacing]`
+- `[font]`
+
+Clipboard and emojis inherit menu tokens. Popups are used by bar flyouts,
+dropdowns, OSD, and popup cards.
+
+## QML border API
+
+Plugin and shell QML should use `BorderSurface` for theme-aware borders:
+
+```qml
+import qs.Commons
+import qs.Ui
+
+BorderSurface {
+  color: Color.popups.background
+  borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, 2)
+  padding: Style.spacing.popupPadding
+
+  Item {
+    anchors.fill: parent
+    anchors.topMargin: parent.contentTopInset
+    anchors.rightMargin: parent.contentRightInset
+    anchors.bottomMargin: parent.contentBottomInset
+    anchors.leftMargin: parent.contentLeftInset
+  }
+}
+```
+
+Use `Border.surfaceSpec(section, token, fallbackColor, fallbackWidth, alphaKey)`
+for shell theme tokens (the optional `alphaKey` names the alpha token, e.g.
+`"border-alpha"`), `Border.controlSpec(state, foreground, accent, urgent)` for
+shared controls, and `Border.flat(color, width)` for a deliberate local border
+that should not be overridden by the active theme. `Color.<section>.border` is the
+flat first-stop color for consumers that cannot render full border specs.
+
+## Hyprland templates
+
+Hyprland theme output is generated from `default/themed/hyprland.lua.tpl`.
+Use `hypr_gradient` for border values because Hyprland's Lua config wants a
+Lua string for solid colors and a Lua table for gradients:
+
+```lua
+local active_border_color = {{ hypr_gradient hyprland_active_border accent }}
+```
+
+For a solid fallback this renders:
+
+```lua
+local active_border_color = "#7aa2f7"
+```
+
+For a gradient it renders:
+
+```lua
+local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, angle = 45 }
+```
+
+## Adding or overriding theme files
+
+- Add palette values to `themes/<name>/colors.toml`.
+- Hand-written overrides work everywhere except a `.lua`, a terminal config or a `vscode.json` in a theme cloned from a git repo; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
+- Prefer generated files when the theme can be expressed with templates.
+- Add a hand-written file in `themes/<name>/` only when that theme needs to
+  override the generated output entirely.
+- Add a new built-in template under `default/themed/<file>.tpl` when every
+  theme should generate that file.
+- Add a user-wide template under `~/.config/omarchy/themed/<file>.tpl` when a
+  local customization should apply across themes.
+
+When changing templates or theme helpers, run focused tests such as:
+
+```bash
+./test/cli
+./test/shell
+```
