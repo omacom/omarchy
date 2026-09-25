@@ -1,7 +1,34 @@
 function stripJsonc(raw) {
-  return String(raw || "")
+  var noComments = String(raw || "")
     .replace(/^\s*\/\/[^\n]*(\n|$)/gm, "")
-    .replace(/,(\s*[}\]])/g, "$1")
+  // Trailing commas are stripped string-aware: a comma inside a string
+  // literal is data, not JSONC syntax. A comma outside any string is dropped
+  // only when the next non-whitespace character is } or ]; everything else
+  // (including "\" escapes inside strings) is copied verbatim.
+  var out = ""
+  var inString = false
+  for (var i = 0; i < noComments.length; i++) {
+    var ch = noComments[i]
+    if (inString) {
+      out += ch
+      if (ch === "\\") {
+        if (i + 1 < noComments.length) out += noComments[++i]
+      } else if (ch === "\"") {
+        inString = false
+      }
+    } else if (ch === "\"") {
+      inString = true
+      out += ch
+    } else if (ch === ",") {
+      var next = i + 1
+      while (next < noComments.length && /\s/.test(noComments[next])) next++
+      if (next >= noComments.length || (noComments[next] !== "}" && noComments[next] !== "]"))
+        out += ch
+    } else {
+      out += ch
+    }
+  }
+  return out
 }
 
 function normalizeAliases(value) {
