@@ -31,11 +31,20 @@ enable_unit omarchy-thunderbolt-notify.timer "$HOME/.config/systemd/user/timers.
 # would skip the start anyway. The enablement above is the whole job; the next
 # graphical login starts it.
 if systemctl --user is-active --quiet graphical-session.target; then
-  # Report what systemctl actually said. A start failure here would leave USB
-  # ports silently disabled all session, so it has to be loud instead of
-  # leaving the session without the prompt and a migration marked complete.
-  if ! error=$(systemctl --user start omarchy-thunderbolt-notify.service 2>&1); then
-    echo "Could not start omarchy-thunderbolt-notify.service: $error"
+  # Start the timer and path too, not just the service: the service is a oneshot
+  # that runs one scan and exits. Without the timer/path the session has no
+  # further detection until the next login activates them.
+  start_error=0
+  for unit in omarchy-thunderbolt-notify.timer omarchy-thunderbolt-notify.path omarchy-thunderbolt-notify.service; do
+    # Report what systemctl actually said. A start failure here would leave USB
+    # ports silently disabled all session, so it has to be loud instead of
+    # leaving the session without the prompt and a migration marked complete.
+    if ! error=$(systemctl --user start "$unit" 2>&1); then
+      echo "Could not start $unit: $error"
+      start_error=1
+    fi
+  done
+  if ((start_error)); then
     echo "Thunderbolt prompts will not appear until the next login."
   fi
 fi

@@ -4,6 +4,11 @@ Description=Backstop polling for unauthorized Thunderbolt devices
 # where sysfs changes never deliver events. This timer guarantees a check at
 # worst every ~30s so a waiting device is never silently skipped because the
 # watch went quiet.
+# Conditions here (not just in the service) keep the timer from firing every
+# 30s on machines without a Thunderbolt controller and for users who opted
+# out: the timer going quiet is the point, and the journal stays clean.
+ConditionPathExistsGlob=/sys/bus/thunderbolt/devices/domain*
+ConditionPathExists=!%h/.local/state/omarchy/toggles/thunderbolt-auth-off
 
 [Timer]
 OnBootSec=45s

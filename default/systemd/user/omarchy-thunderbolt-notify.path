@@ -1,8 +1,9 @@
 [Unit]
 Description=Watch the Thunderbolt bus for device changes
-# kernfs exposes sysfs directories to inotify, so PathChanged on the devices
-# directory fires the instant a Thunderbolt device connects -- the check runs
-# while the user is still wondering why the dock is dead, not at the next poll.
+# Best-effort instant trigger: PathChanged on the devices directory may fire
+# on some kernels when a Thunderbolt device connects, but kernfs does not
+# deliver create events reliably -- the 30s backstop timer is what guarantees
+# detection. This unit shortens the wait when the event does arrive.
 After=graphical-session.target
 PartOf=graphical-session.target
 ConditionEnvironment=WAYLAND_DISPLAY

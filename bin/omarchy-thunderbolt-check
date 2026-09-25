@@ -24,7 +24,9 @@ for device_path in "$devices_dir"/*/; do
   device_dir=$(basename "$device_path")
   [[ $device_dir != domain* && $device_dir != "0-0" ]] || continue
 
-  [[ -r ${device_path}authorized && -r ${device_path}unique_id && -r ${device_path}device_name ]] || continue
+  # device_name is optional: the kernel hides it when the device DROM lacks a
+  # name or it fails to parse. unique_id is the real requirement.
+  [[ -r ${device_path}authorized && -r ${device_path}unique_id ]] || continue
 
   authorized=$(<"${device_path}authorized")
   [[ $authorized == "0" ]] || continue
@@ -33,7 +35,13 @@ for device_path in "$devices_dir"/*/; do
   [[ -n $unique_id ]] || continue
 
   unauthorized_ids+=("$unique_id")
-  device_names[$unique_id]=$(<"${device_path}device_name")
+  # The kernel hides device_name when the device DROM lacks a name or it fails
+  # to parse. Fall back to the unique id so the device still gets a toast.
+  if [[ -r ${device_path}device_name ]]; then
+    device_names[$unique_id]=$(<"${device_path}device_name")
+  else
+    device_names[$unique_id]="$unique_id"
+  fi
   if [[ -r ${device_path}vendor_name ]]; then
     device_vendors[$unique_id]=$(<"${device_path}vendor_name")
   else
@@ -82,7 +90,7 @@ for unique_id in "${pending_ids[@]}"; do
   if omarchy-notification-send -u critical -g ⚡ \
     "Thunderbolt device waiting for authorization" \
     "$subject connected — USB ports stay disabled until it is authorized. Click to review." \
-    --exec "omarchy-launch-floating-terminal-with-presentation omarchy-thunderbolt"; then
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-thunderbolt; then
     notified[$unique_id]=1
     echo "notified: $unique_id ($name)"
   else
@@ -113,6 +121,7 @@ done
 
 for known_id in "${!notified[@]}"; do
   if [[ -z ${unauthorized_lookup[$known_id]+x} ]]; then
+    unset "notified[$known_id]"
     echo "pruned: $known_id"
   fi
 done

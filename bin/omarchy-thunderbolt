@@ -21,7 +21,9 @@ if [[ -d $devices_dir ]]; then
     device_dir=$(basename "$device_path")
     [[ $device_dir != domain* && $device_dir != "0-0" ]] || continue
 
-    [[ -r ${device_path}authorized && -r ${device_path}unique_id && -r ${device_path}device_name ]] || continue
+    # device_name is optional: the kernel hides it when the device DROM lacks a
+    # name or it fails to parse. unique_id is the real requirement.
+    [[ -r ${device_path}authorized && -r ${device_path}unique_id ]] || continue
 
     authorized=$(<"${device_path}authorized")
     [[ $authorized == "0" ]] || continue
@@ -31,7 +33,11 @@ if [[ -d $devices_dir ]]; then
 
     waiting_ids+=("$unique_id")
     device_paths[$unique_id]=$device_path
-    device_names[$unique_id]=$(<"${device_path}device_name")
+    if [[ -r ${device_path}device_name ]]; then
+      device_names[$unique_id]=$(<"${device_path}device_name")
+    else
+      device_names[$unique_id]="$unique_id"
+    fi
     if [[ -r ${device_path}vendor_name ]]; then
       device_vendors[$unique_id]=$(<"${device_path}vendor_name")
     else
@@ -48,7 +54,7 @@ fi
 if ((${#waiting_ids[@]} == 0)); then
   enrolled_count=$(boltctl list | grep -c '^ \*' || true)
   echo "No Thunderbolt devices waiting for authorization."
-  echo "Enrolled devices: $enrolled_count"
+  echo "Connected devices: $enrolled_count"
   exit 0
 fi
 
@@ -96,7 +102,7 @@ for unique_id in "${waiting_ids[@]}"; do
     authorized_now=$(<"$authorized_path")
   fi
 
-  if (( boltctl_status == 0 && authorized_now == 1 )); then
+  if (( boltctl_status == 0 && authorized_now != 0 )); then
     gum style --foreground 2 "$name is authorized for this system."
 
     # Forget that this device was notified, so the next unauthorized event
