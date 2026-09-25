@@ -26,8 +26,11 @@ import qs.Ui
 ShellRoot {
   id: root
 
+  property var textSizeStops: [10, 11, 12, 13, 14, 16, 18]
+  property int stopIndex: 0
+
   function fail(message) {
-    console.log("RESULT fail " + message)
+    console.log("RESULT fail at " + textSizeStops[stopIndex] + "px: " + message)
     Qt.quit()
   }
 
@@ -51,55 +54,63 @@ ShellRoot {
     return true
   }
 
-  Component.onCompleted: Qt.callLater(function() {
-    if (!checkIcon(bluetooth, "bluetooth")) return
-    if (!checkIcon(network, "network")) return
-    if (!checkIcon(audio, "audio")) return
-    if (!checkIcon(monitor, "monitor")) return
-    if (!checkIcon(power, "power")) return
-    var baseline = bluetooth.glyphBaselineY
-    if (network.glyphBaselineY !== baseline || audio.glyphBaselineY !== baseline
-        || monitor.glyphBaselineY !== baseline || power.glyphBaselineY !== baseline) {
-      fail("glyph baselines do not match")
-      return
-    }
-    if (vector.implicitWidth !== Style.bar.iconSlot || vector.opticalSize !== Style.bar.iconCanvas) {
-      fail("vector icon does not share glyph geometry")
-      return
-    }
-    if (verticalIcon.implicitWidth !== Style.bar.sizeVertical || verticalIcon.implicitHeight !== Style.bar.iconSlot) {
-      fail("vertical icon does not use the shared slot")
-      return
-    }
-    if (verticalIndicator.implicitWidth !== Style.bar.sizeVertical || verticalIndicator.implicitHeight >= Style.bar.iconSlot) {
-      fail("vertical indicator does not retain compact spacing")
-      return
-    }
-    if (verticalIndicator.glyphFontSize !== Style.font.caption) {
-      fail("indicator does not use the secondary icon scale")
-      return
-    }
-    if (Math.abs(verticalIndicator.opticalCenterErrorX) > 0.5) {
-      fail("vertical indicator is not optically centered")
-      return
-    }
-    if (horizontalIndicator.implicitWidth >= Style.bar.iconSlot) {
-      fail("horizontal indicator does not retain compact spacing")
-      return
-    }
-    if (horizontalIndicatorPair.implicitWidth >= Style.bar.iconSlot * 2
-        || verticalIndicatorPair.implicitHeight >= Style.bar.iconSlot * 2) {
-      fail("indicator groups do not retain compact internal spacing")
-      return
-    }
-    if (compactStatusIcon.implicitWidth !== Style.bar.statusSlot
-        || compactVerticalStatusIcon.implicitHeight !== Style.bar.statusSlot) {
-      fail("compact status icons do not use the shared status slot")
-      return
-    }
-    console.log("RESULT pass")
-    Qt.quit()
-  })
+  function checkLayout() {
+    Style.applyShellValues({ "font.base-size": String(textSizeStops[stopIndex]) })
+    Qt.callLater(function() {
+      if (!checkIcon(bluetooth, "bluetooth")) return
+      if (!checkIcon(network, "network")) return
+      if (!checkIcon(audio, "audio")) return
+      if (!checkIcon(monitor, "monitor")) return
+      if (!checkIcon(power, "power")) return
+      var baseline = bluetooth.glyphBaselineY
+      if (network.glyphBaselineY !== baseline || audio.glyphBaselineY !== baseline
+          || monitor.glyphBaselineY !== baseline || power.glyphBaselineY !== baseline) {
+        fail("glyph baselines do not match")
+        return
+      }
+      if (vector.implicitWidth !== Style.bar.iconSlot || vector.opticalSize !== Style.bar.iconCanvas) {
+        fail("vector icon does not share glyph geometry")
+        return
+      }
+      if (verticalIcon.implicitWidth !== Style.bar.sizeVertical || verticalIcon.implicitHeight !== Style.bar.iconSlot) {
+        fail("vertical icon does not use the shared slot")
+        return
+      }
+      if (verticalIndicator.implicitWidth !== Style.bar.sizeVertical || verticalIndicator.implicitHeight >= Style.bar.iconSlot) {
+        fail("vertical indicator does not retain compact spacing")
+        return
+      }
+      if (verticalIndicator.glyphFontSize !== Style.font.caption) {
+        fail("indicator does not use the secondary icon scale")
+        return
+      }
+      if (Math.abs(verticalIndicator.opticalCenterErrorX) > 0.5) {
+        fail("vertical indicator is not optically centered")
+        return
+      }
+      if (horizontalIndicator.implicitWidth >= Style.bar.iconSlot) {
+        fail("horizontal indicator does not retain compact spacing")
+        return
+      }
+      if (horizontalIndicatorPair.implicitWidth >= Style.bar.iconSlot * 2
+          || verticalIndicatorPair.implicitHeight >= Style.bar.iconSlot * 2) {
+        fail("indicator groups do not retain compact internal spacing")
+        return
+      }
+      if (compactStatusIcon.implicitWidth !== Style.bar.statusSlot
+          || compactVerticalStatusIcon.implicitHeight !== Style.bar.statusSlot) {
+        fail("compact status icons do not use the shared status slot")
+        return
+      }
+      if (++root.stopIndex < root.textSizeStops.length) root.checkLayout()
+      else {
+        console.log("RESULT pass")
+        Qt.quit()
+      }
+    })
+  }
+
+  Component.onCompleted: root.checkLayout()
 
   QtObject {
     id: testBar
