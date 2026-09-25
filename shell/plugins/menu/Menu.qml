@@ -35,6 +35,13 @@ Item {
       }
     }
 
+    // Default each session to the theme's disabled alpha before honoring a
+    // per-session override; a summoner that wants its disabled rows dimmed
+    // differently from the theme can name one in the payload.
+    root.disabledAlphaOverride = -1
+    if (typeof payload.disabledAlpha === "number" && isFinite(payload.disabledAlpha))
+      root.disabledAlphaOverride = Util.clampAlpha(payload.disabledAlpha)
+
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
     } else {
@@ -55,6 +62,12 @@ Item {
   function ping() { return "ok" }
 
   property string fontFamily: Style.font.menuFamily
+  // Disabled rows render at this alpha. A summon can override it for the
+  // session by naming `disabledAlpha` in the open payload; otherwise the
+  // active theme's [menu] disabled-alpha token decides (default 0.4). -1
+  // means "no override this session, use the theme".
+  property real disabledAlphaOverride: -1
+  readonly property real disabledAlpha: root.disabledAlphaOverride >= 0 ? root.disabledAlphaOverride : Color.menu.disabledAlpha
   // JSONC menu definitions. The shell parses both at startup and merges
   // the user file on top of the defaults, so the keybind → IPC → visible
   // path doesn't have to shell out to bash + jq on every open.
@@ -1302,7 +1315,7 @@ Item {
               height: root.rowHeightForDetail(row.detail)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
-              opacity: row.disabled ? 0.4 : 1
+              opacity: row.disabled ? root.disabledAlpha : 1
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()

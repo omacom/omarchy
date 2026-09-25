@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+const colorQml = fs.readFileSync(path.join(root, 'shell/Commons/Color.qml'), 'utf8')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
 
 const parsed = menu.parseMenuJsonc(`
@@ -95,6 +96,18 @@ assert(
 assert(
   /function matchesQuery\(entry, query\) \{\s*\n\s*return MenuModel\.matchesQuery\(entry, query, root\.isVisible\(entry\) && !root\.isDisabled\(entry\)\)/.test(menuQml),
   'menu search skips disabled rows, which belong to the submenu they sit in rather than a list of what you can do'
+)
+assert(
+  /property real disabledAlpha: root\.disabledAlphaOverride >= 0 \? root\.disabledAlphaOverride : Color\.menu\.disabledAlpha/.test(menuQml),
+  'menu resolves disabledAlpha from the session override, falling back to the theme token'
+)
+assert(
+  /root\.disabledAlphaOverride = -1\s*\n\s*if \(typeof payload\.disabledAlpha === "number" && isFinite\(payload\.disabledAlpha\)\)\s*\n\s*root\.disabledAlphaOverride = Util\.clampAlpha\(payload\.disabledAlpha\)/.test(menuQml),
+  'menu resets the disabledAlpha override on each open and honors a numeric payload value'
+)
+assert(
+  /property real disabledAlpha: root\.pickAlpha\("menu\.disabled-alpha", 0\.4\)/.test(colorQml),
+  'menu disabled alpha defaults to 0.4 and reads the theme menu.disabled-alpha token'
 )
 
 const entry = merged.items['style.theme']
@@ -501,7 +514,7 @@ assert(
   'menu leaves the cursor put when the pointer crosses a disabled row'
 )
 assert(
-  /opacity: row\.disabled \? 0\.4 : 1/.test(menuQml) && !/font\.italic/.test(menuQml),
+  /opacity: row\.disabled \? root\.disabledAlpha : 1/.test(menuQml) && !/font\.italic/.test(menuQml),
   'menu renders a disabled row faded, and leaves it at that'
 )
 assert(

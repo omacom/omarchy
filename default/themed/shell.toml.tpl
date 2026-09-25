@@ -185,6 +185,8 @@ selected-background-alpha = 0.08
 selected-text             = "{{ accent }}"
 selected-border           = "hyprland.active-border-foreground"
 selected-border-alpha     = 0.25
+# Dim of `disabled:` rows (kept listed, but dim and unselectable).
+disabled-alpha            = 0.4
 
 [polkit]
 # Polkit authentication prompt (sudo/password dialogs). scrim is the

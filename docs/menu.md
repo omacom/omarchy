@@ -92,6 +92,9 @@ The three guards differ in what failure means:
   installed rather than vanishing from the list it was installed from — the
   list stays a catalog of what Omarchy can install. Since a dimmed row means
   "you already have this", it earns the same ✓ as `checked` does elsewhere.
+  The dim level is the theme's `[menu] disabled-alpha` (default 0.4), and a
+  summon can override it for one session with the `disabledAlpha` payload
+  option.
 
 Install rows should therefore carry `disabled:` with the presence check, not
 `when:`; Remove rows are the opposite, hiding via `when:` what is not there
@@ -159,7 +162,11 @@ displayed rows), `initialId` (a row id that survives menus whose display
 order differs from item order — apps sort alphabetically, provider rows and
 search results reorder freely), and `checked` (a `{ rowId: bool, ... }` map
 that primes the ✓ markers for the first paint; the guard batch confirms the
-same conditions once it lands). All three are optional and independent. The
+same conditions once it lands). All three are optional and independent. A
+menu whose `disabled:` rows the summoner wants dimmed differently from the
+theme can pass `disabledAlpha` (a number 0–1) in the same payload; it applies
+for that session only, and the theme's `[menu] disabled-alpha` otherwise
+decides. The
 IPC transports every argument as a string, so a `select` call from a keybind
 or a script should send a numeric-looking string — the menu coerces it before
 stepping the cursor.
