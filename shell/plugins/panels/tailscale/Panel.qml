@@ -724,6 +724,7 @@ Panel {
             Text {
               visible: tailscale.installed && tailscale.active && tailscale.peers.length === 0
               width: parent.width
+              textFormat: Text.PlainText
               text: tailscale.showOfflinePeers ? "No machines found on this tailnet." : "No online machines found on this tailnet."
               color: root.dim
               font.family: root.fontFamily
