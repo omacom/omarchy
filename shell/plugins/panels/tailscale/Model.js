@@ -114,6 +114,12 @@ function peerFromStatus(id, peer) {
   }
 }
 
+function visiblePeers(peers, showOfflinePeers) {
+  return peers.filter(function(peer) {
+    return peer.Online === true || showOfflinePeers === true
+  })
+}
+
 function sliceTableColumn(line, start, end) {
   var text = String(line || "")
   if (start < 0 || start >= text.length) return ""
@@ -319,6 +325,7 @@ if (typeof module !== "undefined") {
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
+    visiblePeers: visiblePeers,
     parseExitNodeList: parseExitNodeList,
     mullvadRegionOptions: mullvadRegionOptions,
     mullvadCountryOptions: mullvadCountryOptions,

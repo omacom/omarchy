@@ -209,4 +209,47 @@ assertDeepEqual(
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+
+// Regression: OS hostnames differ from the admin-console machine names.
+for (const [host, dns, expected] of [
+  ['iPhone 17 Pro Max', 'iris.tailnet.ts.net.', 'iris'],
+  ['Atlas', 'atlas.tailnet.ts.net', 'atlas'],
+  ['localhost', 'work.tailnet.ts.net.', 'work'],
+  ['', 'renamed.tailnet.ts.net.', 'renamed'],
+  ['workstation', '', 'workstation'],
+  ['workstation', undefined, 'workstation'],
+  ['', '', 'Unknown'],
+  [undefined, undefined, 'Unknown']
+]) {
+  assertEqual(tailscale.displayHostName(host, dns), expected, `machine name fallback: ${host} / ${dns}`)
+}
+const renamed = tailscale.parseStatus(JSON.stringify({
+  BackendState: 'Running',
+  Self: { HostName: 'old-self', DNSName: 'new-self.tailnet.ts.net.' },
+  Peer: {
+    a: { HostName: 'AAA', DNSName: 'zulu.tailnet.ts.net.', Online: true, ExitNodeOption: true },
+    b: { HostName: 'ZZZ', DNSName: 'alpha.tailnet.ts.net.', Online: true, ExitNodeOption: true },
+    c: { HostName: 'sleeping', DNSName: 'aardvark.tailnet.ts.net.', Online: false, ExitNodeOption: true },
+    d: { HostName: 'unknown-status', DNSName: 'unknown.tailnet.ts.net.' },
+    e: { HostName: 'provider', DNSName: 'provider.mullvad.ts.net.', Online: false }
+  }
+}))
+assertEqual(renamed.selfName, 'new-self', 'header uses the registered machine name')
+assertDeepEqual(renamed.peers.map(p => p.DisplayName), ['alpha', 'zulu', 'aardvark', 'unknown'], 'peers sort by registered name with offline peers last')
+assertDeepEqual(renamed.exitNodes.map(p => p.DisplayName), ['alpha', 'zulu'], 'exit nodes use registered names and exclude offline machines')
+assertEqual(renamed.peers[0].DNSName, 'alpha.tailnet.ts.net', 'full DNS address remains available for copying and actions')
+for (const option of [undefined, false, null, 'true', 1]) {
+  assertDeepEqual(tailscale.visiblePeers(renamed.peers, option).map(p => p.DisplayName), ['alpha', 'zulu'], `offline visibility requires explicit boolean true: ${option}`)
+}
+assertDeepEqual(tailscale.visiblePeers(renamed.peers, true).map(p => p.DisplayName), ['alpha', 'zulu', 'aardvark', 'unknown'], 'opt-in includes offline and unknown-status peers but not Mullvad')
+assertDeepEqual(tailscale.visiblePeers(renamed.peers, false).map(p => p.DisplayName), ['alpha', 'zulu'], 'turning the setting off re-filters the same snapshot')
+assertEqual(renamed.peers.length, 4, 'filtering does not mutate cached peers')
+assertDeepEqual(tailscale.visiblePeers([], true), [], 'empty tailnets remain empty')
+assertDeepEqual(tailscale.visiblePeers(renamed.peers.slice(2), false), [], 'offline-only tailnets are empty by default')
+const manifest = requireFromRoot('shell/plugins/panels/tailscale/manifest.json')
+assertEqual(manifest.barWidget.defaults.showOfflinePeers, false, 'offline peers remain opt-in for existing installations')
+const offlineSetting = manifest.barWidget.schema.find(s => s.key === 'showOfflinePeers')
+assertEqual(offlineSetting.type, 'boolean', 'widget settings expose a boolean toggle')
+assertEqual(offlineSetting.defaultValue, false, 'settings editor and runtime defaults agree')
+
 JS
