@@ -186,6 +186,8 @@ Panel {
   // there is more than one.
   property var hotspotBands: []
   property string hotspotError: ""
+  property string hotspotStatusError: ""
+  readonly property string hotspotMessage: hotspotError !== "" ? hotspotError : hotspotStatusError
   // The credential fields hide behind a cog so the section stays compact.
   property bool hotspotSetupOpen: false
   // Reveal the passphrase in the setup dropdown (eye toggle).
@@ -920,8 +922,17 @@ Panel {
     hotspotProc.running = true
   }
 
-  function updateHotspot(raw) {
-    var next = Model.parseHotspotStatus(raw)
+  function updateHotspot(raw, exitCode, errorOutput) {
+    var output = String(raw || "").trim()
+    if (exitCode !== 0 || output === "") {
+      var reason = String(errorOutput || "").replace(/\s+/g, " ").trim().slice(0, 500)
+      if (reason !== "") hotspotStatusError = "Hotspot status failed: " + reason
+      else if (exitCode !== 0) hotspotStatusError = "Hotspot status failed"
+      else hotspotStatusError = "Hotspot status returned no data"
+      return
+    }
+    hotspotStatusError = ""
+    var next = Model.parseHotspotStatus(output)
     // AP capability is a hardware property; it cannot vanish mid-session. A
     // transient `iw phy` failure inside the status poll must not make the
     // hotspot section flicker away once it has been detected.
@@ -1150,9 +1161,12 @@ Panel {
 
   Process {
     id: hotspotProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: root.updateHotspot(text)
+    stdout: StdioCollector { id: hotspotStatusOut; waitForEnd: true }
+    stderr: StdioCollector { id: hotspotStatusErr; waitForEnd: true }
+    onExited: function(exitCode) {
+      Qt.callLater(function() {
+        root.updateHotspot(hotspotStatusOut.text, exitCode, hotspotStatusErr.text)
+      })
     }
   }
 
@@ -2142,8 +2156,8 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          visible: root.hotspotError !== ""
-          text: root.hotspotError
+          visible: root.hotspotMessage !== ""
+          text: root.hotspotMessage
           color: root.bar.urgent
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption

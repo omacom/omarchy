@@ -146,7 +146,7 @@ profile_secret() {
 
 upstream_type() {
   local dev
-  dev=$(ip route get 1.1.1.1 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }')
+  dev=$(ip route get 1.1.1.1 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }') || true
   [[ -n $dev ]] || { echo "none"; return; }
   if [[ -d /sys/class/net/$dev/wireless ]]; then echo "wifi"
   elif [[ -d /sys/class/net/$dev/bridge ]]; then echo "bridge"

@@ -341,9 +341,35 @@ assert(/if \(\(next\.active === "1"\) !== wasActive\) syncWifiNetworks\(\)/.test
 assert(/focusSection === "hotspot"/.test(panelSource), 'network has a keyboard cursor zone for the hotspot section')
 assert(/stderr: StdioCollector \{ id: hotspotErr; waitForEnd: true \}/.test(panelSource), 'network surfaces the hotspot command stderr')
 assert(/omarchy hotspot diagnose` for details/.test(panelSource), 'network points hotspot failures at the diagnose command')
-const updateHotspot = panelSource.match(/function updateHotspot\(raw\) \{[\s\S]*?\n {2}\}/)
-assert(updateHotspot, 'network has updateHotspot()')
-assert(!/hotspotError = ""/.test(updateHotspot[0]), 'network does not clear hotspot errors on a status poll')
+assert(/stderr: StdioCollector \{ id: hotspotStatusErr; waitForEnd: true \}/.test(panelSource), 'network collects hotspot status stderr')
+assert(/readonly property string hotspotMessage: hotspotError !== "" \? hotspotError : hotspotStatusError/.test(panelSource), 'network keeps action errors ahead of status errors')
+const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
+assert(updateHotspotSource, 'network accepts a hotspot process result')
+if (updateHotspotSource) {
+  let hotspot = {}
+  let hotspotLoaded = false
+  let hotspotBands = []
+  let hotspotSsid = ''
+  let hotspotPassword = ''
+  let hotspotBand = ''
+  let hotspotStatusError = ''
+  const Model = network
+  function syncWifiNetworks() {}
+  eval(updateHotspotSource[0])
+
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
+  assert(hotspot.ssid === 'Saved Hotspot' && hotspotLoaded && hotspotSsid === 'Saved Hotspot' && hotspotPassword === 'savedpassword' && hotspotBand === '5', 'network loads saved hotspot state only from successful output')
+  const lastGood = hotspot
+  const lastSsid = hotspotSsid
+  const lastPassword = hotspotPassword
+  const lastBand = hotspotBand
+  updateHotspot('', 1, 'status probe\nfailed')
+  assert(hotspot === lastGood && hotspotSsid === lastSsid && hotspotPassword === lastPassword && hotspotBand === lastBand, 'network preserves hotspot state after failed status')
+  assertEqual(hotspotStatusError, 'Hotspot status failed: status probe failed', 'network surfaces collapsed hotspot status stderr')
+  updateHotspot('  \n', 0, '')
+  assert(hotspot === lastGood && hotspotSsid === lastSsid, 'network preserves hotspot state after empty status')
+  assertEqual(hotspotStatusError, 'Hotspot status returned no data', 'network reports empty hotspot status')
+}
 assert((panelSource.match(/Model\.hotspotCredentialsError\(hotspotSsid, hotspotPassword\)/g) || []).length === 2, 'network shares hotspot credential validation between start and apply')
 assert(/id: hotspotQrButton\s+visible: root\.hotspotActive/.test(panelSource), 'network hides the hotspot QR unless the AP is on')
 assert(/readonly property int hotspotFocusMax: hotspotActive \? 2 : 1/.test(panelSource), 'network drops QR from the keyboard cycle while the AP is off')
