@@ -183,9 +183,9 @@ printf '{}\n' >"$OTHER_HOME/empty/auth.json"
 result=$(HOME="$OTHER_HOME" GROK_HOME="$OTHER_HOME/empty" XDG_CACHE_HOME="$OTHER_HOME/.cache" \
   "$ROOT/bin/omarchy-agent-usage-grok" --force)
 
-[[ $(jq -r '.authHelpText' <<<"$result") == "" ]] ||
-  fail "Grok collector stays quiet when signed in with no usage yet" "$result"
-pass "Grok collector stays quiet when signed in with no usage yet"
+[[ $(jq -r '.usageStatusText' <<<"$result") == "Waiting for auth" ]] ||
+  fail "Grok collector waits for a live token when auth.json has no access key" "$result"
+pass "Grok collector waits for a live token when auth.json has no access key"
 
 CACHE_HOME=$(mktemp -d)
 trap 'rm -rf "$TEST_HOME" "$SESSION_HOME" "$MULTI_HOME" "$OTHER_HOME" "$CACHE_HOME"' EXIT
