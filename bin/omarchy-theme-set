@@ -10,8 +10,10 @@ if [[ -z $1 ]]; then
 fi
 
 CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
+CURRENT_THEME_NAME_PATH="$HOME/.local/state/omarchy/current/theme.name"
 NEXT_THEME_PATH="$HOME/.local/state/omarchy/current/next-theme"
 CURRENT_BACKGROUND_LINK="$HOME/.local/state/omarchy/current/background"
+THEME_BACKGROUND_STATE_PATH="$HOME/.local/state/omarchy/theme-backgrounds"
 BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
 THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
@@ -48,12 +50,17 @@ shell_ipc() {
   timeout 2 omarchy-shell "$@" >/dev/null 2>&1
 }
 
+is_video_path() {
+  [[ ${1,,} =~ \.(mp4|m4v|mov|webm|mkv|avi)$ ]]
+}
+
 snapshot_background_path() {
   local background="$1"
   local name="$2"
   local snapshot extension
 
   [[ -f $background ]] || return
+  is_video_path "$background" && return
 
   mkdir -p "$BACKGROUND_TRANSITION_CACHE"
   extension=${background##*.}
@@ -69,33 +76,91 @@ snapshot_current_background() {
   snapshot_background_path "$current_background" "previous"
 }
 
+theme_background_state_file() {
+  local theme="$1"
+
+  [[ -n $theme && ${theme##*/} == $theme && $theme != "." && $theme != ".." ]] || return 1
+  printf '%s/%s\n' "$THEME_BACKGROUND_STATE_PATH" "$theme"
+}
+
+remember_current_theme_background() {
+  local current_background state_file
+
+  state_file=$(theme_background_state_file "$PREVIOUS_THEME_NAME") || return
+  current_background=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
+  [[ -f $current_background ]] || return
+
+  mkdir -p "$THEME_BACKGROUND_STATE_PATH"
+  printf '%s\n' "$current_background" >"$state_file"
+}
+
+background_transition_uses_snapshots() {
+  local next_background="$1"
+  local current_background
+
+  current_background=$(readlink -f "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
+  ! is_video_path "$current_background" && ! is_video_path "$next_background"
+}
+
 choose_theme_background() {
+  local theme_path="${1:-$CURRENT_THEME_PATH}"
+  local current_theme_backgrounds="$CURRENT_THEME_PATH/backgrounds"
   local backgrounds=()
-  local current_background index next_index i
+  local current_background remembered_background state_file index next_index i
 
   CHOSEN_THEME_BACKGROUND=""
   mapfile -d '' -t backgrounds < <(
-    find -L "$HOME/.config/omarchy/backgrounds/$THEME_NAME/" "$CURRENT_THEME_PATH/backgrounds/" -maxdepth 1 -type f \
-      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \) \
+    find -L "$HOME/.config/omarchy/backgrounds/$THEME_NAME/" "$theme_path/backgrounds/" -maxdepth 1 -type f \
+      \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
+         -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
       -print0 2>/dev/null | sort -z
   )
 
   (( ${#backgrounds[@]} > 0 )) || return 1
 
-  current_background=$(readlink "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
-  index=-1
-  for i in "${!backgrounds[@]}"; do
-    if [[ ${backgrounds[$i]} == $current_background ]]; then
-      index=$i
-      break
+  if [[ $PREVIOUS_THEME_NAME == "$THEME_NAME" ]]; then
+    current_background=$(readlink "$CURRENT_BACKGROUND_LINK" 2>/dev/null || true)
+    if [[ $theme_path != $CURRENT_THEME_PATH && ${current_background%/*} == $current_theme_backgrounds ]]; then
+      current_background="$theme_path/backgrounds/${current_background##*/}"
     fi
-  done
 
-  if (( index == -1 )); then
-    CHOSEN_THEME_BACKGROUND="${backgrounds[0]}"
-  else
-    next_index=$(((index + 1) % ${#backgrounds[@]}))
-    CHOSEN_THEME_BACKGROUND="${backgrounds[$next_index]}"
+    index=-1
+    for i in "${!backgrounds[@]}"; do
+      if [[ ${backgrounds[$i]} == $current_background ]]; then
+        index=$i
+        break
+      fi
+    done
+
+    if (( index != -1 )); then
+      next_index=$(((index + 1) % ${#backgrounds[@]}))
+      CHOSEN_THEME_BACKGROUND="${backgrounds[$next_index]}"
+    else
+      CHOSEN_THEME_BACKGROUND="${backgrounds[0]}"
+    fi
+    return
+  fi
+
+  state_file=$(theme_background_state_file "$THEME_NAME" 2>/dev/null || true)
+  remembered_background=$(cat "$state_file" 2>/dev/null || true)
+  if [[ $theme_path != $CURRENT_THEME_PATH && ${remembered_background%/*} == $current_theme_backgrounds ]]; then
+    remembered_background="$theme_path/backgrounds/${remembered_background##*/}"
+  fi
+  if [[ -f $remembered_background ]]; then
+    CHOSEN_THEME_BACKGROUND="$remembered_background"
+    return
+  fi
+
+  CHOSEN_THEME_BACKGROUND="${backgrounds[0]}"
+}
+
+choose_staged_theme_background() {
+  local next_theme_backgrounds="$NEXT_THEME_PATH/backgrounds"
+
+  choose_theme_background "$NEXT_THEME_PATH" || return 1
+
+  if [[ ${CHOSEN_THEME_BACKGROUND%/*} == $next_theme_backgrounds ]]; then
+    CHOSEN_THEME_BACKGROUND="$CURRENT_THEME_PATH/backgrounds/${CHOSEN_THEME_BACKGROUND##*/}"
   fi
 }
 
@@ -107,14 +172,19 @@ set_theme_background_link() {
 set_theme_background() {
   local new_background new_background_snapshot
 
-  if ! choose_theme_background; then
-    omarchy-notification-send "No background was found for theme" -t 2000
-    shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
-    return
+  if [[ -z $CHOSEN_THEME_BACKGROUND || ! -f $CHOSEN_THEME_BACKGROUND ]]; then
+    if ! choose_theme_background; then
+      omarchy-notification-send "No background was found for theme" -t 2000
+      shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
+      return
+    fi
   fi
 
   new_background="$CHOSEN_THEME_BACKGROUND"
-  new_background_snapshot=$(snapshot_background_path "$new_background" "next")
+  new_background_snapshot=""
+  if [[ $BACKGROUND_TRANSITION_SNAPSHOTS == "true" ]]; then
+    new_background_snapshot=$(snapshot_background_path "$new_background" "next")
+  fi
 
   if [[ -f $OLD_BACKGROUND_SNAPSHOT && -f $new_background_snapshot ]]; then
     shell_ipc background themeTransition "$OLD_BACKGROUND_SNAPSHOT" "$new_background_snapshot" "$new_background" "$colors_payload" "$shell_payload" || \
@@ -261,6 +331,9 @@ fi
 exec 9>"$THEME_SET_LOCK"
 flock 9
 
+PREVIOUS_THEME_NAME=$(cat "$CURRENT_THEME_NAME_PATH" 2>/dev/null || true)
+remember_current_theme_background
+
 # Setup clean next theme directory (for atomic theme config swapping)
 rm -rf "$NEXT_THEME_PATH"
 mkdir -p "$NEXT_THEME_PATH"
@@ -283,9 +356,19 @@ fi
 # Generate dynamic configs
 omarchy-theme-set-templates
 
+CHOSEN_THEME_BACKGROUND=""
 OLD_BACKGROUND_SNAPSHOT=""
+BACKGROUND_TRANSITION_SNAPSHOTS=true
 if [[ $THEME_HEADLESS != "1" && $OMARCHY_THEME_SKIP_BACKGROUND != "1" ]]; then
-  OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
+  # Resolve the staged choice while the old theme still exists. Video changes
+  # switch directly to the durable path in QML, so neither side needs a copy.
+  if choose_staged_theme_background; then
+    if background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
+      OLD_BACKGROUND_SNAPSHOT=$(snapshot_current_background)
+    else
+      BACKGROUND_TRANSITION_SNAPSHOTS=false
+    fi
+  fi
 fi
 
 # Swap next theme in as current
@@ -293,7 +376,7 @@ rm -rf "$CURRENT_THEME_PATH"
 mv "$NEXT_THEME_PATH" "$CURRENT_THEME_PATH"
 
 # Store theme name for reference
-echo "$THEME_NAME" >"$HOME/.local/state/omarchy/current/theme.name"
+echo "$THEME_NAME" >"$CURRENT_THEME_NAME_PATH"
 
 # Make the running shell pick up the new palette immediately while the rest of
 # the theme hooks run.
@@ -326,6 +409,8 @@ post_theme_commands=(
   omarchy-theme-set-gnome
   omarchy-theme-set-pi
   omarchy-theme-set-claude
+  omarchy-theme-set-hermes
+  omarchy-theme-set-t3code
   omarchy-theme-set-browser
   omarchy-theme-set-vscode
   omarchy-theme-set-obsidian
