@@ -60,6 +60,17 @@ stop() {
 }
 trap stop HUP INT TERM
 
+# Quickshell never reconnects once Hyprland closes its event socket (Hyprland
+# does that to a client that stalls while events pile up): the bar then shows
+# stale workspaces until a restart. Do that restart when the error is logged.
+# setsid keeps the restart alive when it stops this launcher's shell.
+# One restart per launcher is enough: the restart brings a new launcher and watcher.
+(journalctl --user -f -n 0 -o cat -t omarchy-shell |
+  grep -q -m 1 'Hyprland event socket error' &&
+  setsid -f omarchy-restart-shell >/dev/null 2>&1) &
+watcher_pid=$!
+trap 'pkill -P "$watcher_pid" 2>/dev/null; kill "$watcher_pid" 2>/dev/null' EXIT
+
 attempts=0
 window_started=$SECONDS
 
