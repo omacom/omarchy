@@ -157,9 +157,18 @@ assertEqual(
 // The location label must come from the same response as the weather data;
 // wttr.in can return a different nearest_area for format=%l than for
 // format=j1, which paired one city's name with another's conditions.
-assert(!/id: locationProc/.test(panelSource), 'weather panel does not run a separate location lookup')
-assert(!/property string wttrLocation/.test(panelSource) && !/root\.wttrLocation/.test(panelSource), 'weather panel does not prefer a separate IP-detected label')
-assert(/reportLocation.*areaInfo.*areaName/.test(panelSource), 'weather labels the location that supplied the weather')
+assertEqual(
+  weather.reportLocationName({ areaName: [{ value: 'Orient' }] }, ''),
+  'Orient',
+  'weather labels the location that supplied the weather'
+)
+assertEqual(
+  weather.reportLocationName({ areaName: [{ value: 'Orient' }] }, 'Tel Aviv'),
+  'Tel Aviv',
+  'weather prefers the configured location name over the detected one'
+)
+assertEqual(weather.reportLocationName(null, ''), '', 'weather reports no location name without a nearest_area')
+assert(/Model\.reportLocationName\(areaInfo, configuredLocation\)/.test(panelSource), 'weather panel labels itself through the shared location-name resolver')
 JS
 
 test_tmp=$(mktemp -d)
@@ -189,3 +198,20 @@ pass "weather location rejects malformed coordinates"
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
 pass "weather location clear removes the state file"
+
+# With nothing stored, the no-arg location comes from the same j1 payload the
+# panel reads, not a separate format=%l guess that can name a different city.
+mkdir -p "$test_tmp/bin"
+cat >"$test_tmp/bin/curl" <<'SH'
+#!/bin/bash
+printf 'curl %s\n' "$*" >>"$CURL_LOG"
+printf '%s' '{"nearest_area":[{"areaName":[{"value":"Orient"}]}]}'
+SH
+chmod +x "$test_tmp/bin/curl"
+
+detected=$(CURL_LOG="$test_tmp/curl.log" HOME="$test_tmp" PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-weather-location")
+[[ $detected == "Orient" ]] ||
+  fail "weather location reports the j1 nearest_area name" "$detected"
+grep -q 'format=j1' "$test_tmp/curl.log" ||
+  fail "weather location queries wttr.in with the panel's j1 format" "$(cat "$test_tmp/curl.log")"
+pass "weather location reports the j1 nearest_area name"

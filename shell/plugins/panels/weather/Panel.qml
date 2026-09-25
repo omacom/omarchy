@@ -144,7 +144,7 @@ Panel {
   // Label the location that supplied the weather, not a separate IP-detected
   // guess: wttr.in can return a different nearest_area for format=%l than for
   // format=j1, which used to pair one city's name with another's conditions.
-  readonly property string reportLocation:  configuredLocation || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
+  readonly property string reportLocation:  Model.reportLocationName(areaInfo, configuredLocation)
   readonly property string reportTempNum:   current ? String(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
   readonly property string reportFeels:     current ? formatTemp(useImperial ? current.FeelsLikeF : current.FeelsLikeC) : ""
