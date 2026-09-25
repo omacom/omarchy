@@ -233,10 +233,10 @@ function lifeProgressPercent(age, expectancy) {
 // panel jump under the pointer.
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
-  var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
+  var leading = (new Date(year, month, 1, 12).getDay() - start + 7) % 7
   // Build the cursor at local noon rather than midnight: a forward DST jump can
-  // make midnight not exist, and Qt's V4 engine rolls the stored time back a
-  // day instead of forward an hour, duplicating the day in the grid.
+  // make midnight not exist, and Qt's V4 engine resolves a skipped local
+  // midnight to 23:00 the previous day, duplicating the day in the grid.
   var cursor = new Date(year, month, 1 - leading, 12)
   var today = String(todayKey || "")
   var weeks = []
@@ -277,7 +277,7 @@ function monthGrid(year, month, weekStart, todayKey) {
 }
 
 function stepMonth(year, month, delta) {
-  var target = new Date(year, Number(month) + Number(delta), 1)
+  var target = new Date(year, Number(month) + Number(delta), 1, 12)
   return { year: target.getFullYear(), month: target.getMonth() }
 }
 

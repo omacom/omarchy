@@ -233,7 +233,11 @@ assertEqual(calendar.parseBirthYear(0, 2026), 0, 'a cleared birth year reads bac
 assert(/blocked: root\.editingLife/.test(panelSource), 'calendar lets the inputs have the keyboard while they are up')
 assert(/if \(root\.editingLife\) root\.cancelEditingLife\(\)/.test(panelSource), 'calendar drops a half-finished edit when the panel closes')
 
-assert(/new Date\(year, month, 1 - leading, 12\)/.test(fs.readFileSync(root + '/shell/plugins/panels/clock/Model.js', 'utf8')), 'calendar builds the grid cursor at noon so a forward DST jump cannot duplicate a day')
+const modelSource = fs.readFileSync(root + '/shell/plugins/panels/clock/Model.js', 'utf8')
+assert(/new Date\(year, month, 1 - leading, 12\)/.test(modelSource), 'calendar builds the grid cursor at noon so a forward DST jump cannot duplicate a day')
+assert(/new Date\(year, month, 1, 12\)\.getDay\(\)/.test(modelSource), 'calendar computes the grid leading offset at noon')
+assert(/new Date\(year, Number\(month\) \+ Number\(delta\), 1, 12\)/.test(modelSource), 'calendar steps months at noon')
+assert(/new Date\(viewYear, viewMonth, 1, 12\)/.test(panelSource), 'calendar panel pins its view date at noon')
 
 assert(/source: Qt\.resolvedUrl\("Panel\.qml"\)/.test(widgetSource), 'clock widget hosts the calendar panel')
 assert(/readonly property bool opened:/.test(widgetSource), 'clock widget exposes the panel open state to shell routing')
