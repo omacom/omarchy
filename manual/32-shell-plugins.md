@@ -95,6 +95,8 @@ omarchy plugin validate ./my-plugin
 
 That runs the same checks the shell does at load time: the schema version, the required fields, an id that isn't reserved, entry points that are safe relative paths and actually exist, an entry point for every kind you claimed, and no symlinks anywhere inside the folder.
 
+Build your UI from the shell's shared components (`Button`, `Toggle`, `BarIconButton` and friends) and screen readers can find and operate it too. The one thing they can't work out on their own is what an icon means, so give every icon-only control a name with `accessibleName: "Refresh"` (or a `tooltipText`, which also shows a tooltip). The [shell reference](https://github.com/omacom/omarchy/blob/quattro/docs/omarchy-shell.md#accessibility) has the details.
+
 For plugin development, see the [shell reference](https://github.com/omacom/omarchy/blob/quattro/docs/omarchy-shell.md) and [first-party plugin catalog](https://github.com/omacom/omarchy/blob/quattro/shell/plugins/README.md).
 
 ## Sharing yours with the world
