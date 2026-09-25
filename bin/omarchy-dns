@@ -855,7 +855,7 @@ apply_provider() {
 apply_custom_dot() {
   clear_networkmanager_dns
   clear_connection_dns_dot
-  write_resolved_drop_in "$1" opportunistic
+  write_resolved_drop_in "$1" yes
   reload_dns_stack
 }
 
