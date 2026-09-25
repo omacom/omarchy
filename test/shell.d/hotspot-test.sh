@@ -166,7 +166,7 @@ case "$*" in
   '-e no -g 802-11-wireless.band connection show omarchy-hotspot')
     [[ -e $PROFILE_STATE ]] && printf '%s\n' 'bg'
     ;;
-  'connection add type wifi ifname wlan0 con-name omarchy-hotspot ssid Shared mode ap 802-11-wireless.band a wifi-sec.key-mgmt wpa-psk ipv4.method shared autoconnect no') touch "$PROFILE_STATE" ;;
+  'connection add type wifi ifname wlan0 con-name omarchy-hotspot ssid Shared mode ap 802-11-wireless.band a wifi-sec.key-mgmt wpa-psk ipv4.method shared ipv4.addresses 10.42.0.1/24 autoconnect no') touch "$PROFILE_STATE" ;;
   'connection edit omarchy-hotspot')
     while IFS= read -r line; do
       :

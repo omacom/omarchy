@@ -17,6 +17,8 @@
 set -euo pipefail
 
 PROFILE="omarchy-hotspot"
+DEFAULT_SHARED_ADDRESS="10.42.0.1/24"
+UFW_OWNER="omarchy-hotspot"
 
 fail() {
   echo "hotspot: $*" >&2
@@ -250,84 +252,158 @@ status() {
 }
 
 firewall_backend() {
-  if omarchy-cmd-present ufw &&
-    { systemctl is-active ufw >/dev/null 2>&1 || [[ -s /etc/ufw/user.rules ]]; }; then
+  if omarchy-cmd-present ufw && systemctl is-active ufw >/dev/null 2>&1; then
     echo ufw
   elif omarchy-cmd-present firewalld && systemctl is-active firewalld >/dev/null 2>&1; then
     echo firewalld
-  elif omarchy-cmd-present nft && nft list ruleset 2>/dev/null | grep -q '^table'; then
+  elif omarchy-cmd-present nft &&
+    { systemctl is-active nftables >/dev/null 2>&1 ||
+      nft list ruleset 2>/dev/null | grep -q '^table'; }; then
     echo nftables
   else
     echo none
   fi
 }
 
-# The rules a shared connection needs through ufw: DHCP (udp 67) and the
-# 10.42.0.0/24 subnet for inbound traffic and forwarding. /etc/ufw/user.rules
-# is world-readable, so this works without privileges; an unreadable or absent
-# file means we cannot tell, and we do not nag about it. Returns 0 when all
-# three rules are present.
-firewall_rules_present() {
-  local iface=$1
-  local rules=/etc/ufw/user.rules
-  [[ -r $rules ]] || return 0
-  local present=1
-  grep -q -- "-A ufw-user-input -i $iface -p udp --dport 67 -j ACCEPT" "$rules" || present=0
-  grep -q -- "-A ufw-user-input -i $iface -s 10.42.0.0/24 -j ACCEPT" "$rules" || present=0
-  grep -q -- "-A ufw-user-forward -i $iface -s 10.42.0.0/24 -j ACCEPT" "$rules" || present=0
-  return $((!present))
+profile_shared_address() {
+  local address
+  address=$(nm_get ipv4.addresses connection show "$PROFILE")
+  [[ $address != "--" ]] || address=""
+  printf '%s' "$address"
 }
 
-# Idempotent: adds only the rules that are not already present.
+shared_subnet() {
+  local address prefix network mask i octet
+  local -a octets
+  address=$(profile_shared_address)
+  [[ -n $address ]] || address=$DEFAULT_SHARED_ADDRESS
+  address=${address%% *}
+  [[ $address =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$ ]] ||
+    fail "invalid shared IPv4 address '$address' in hotspot profile"
+  prefix=${address##*/}
+  address=${address%/*}
+  IFS=. read -r -a octets <<<"$address"
+  (( ${#octets[@]} == 4 )) || fail "invalid shared IPv4 address '$address' in hotspot profile"
+  for i in "${!octets[@]}"; do
+    octet=${octets[$i]}
+    [[ -n $octet && $octet != *[!0-9]* ]] || fail "invalid shared IPv4 address '$address' in hotspot profile"
+    (( 10#$octet <= 255 )) || fail "invalid shared IPv4 address '$address' in hotspot profile"
+    octets[$i]=$((10#$octet))
+  done
+  network=$(((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]))
+  if (( prefix == 0 )); then
+    mask=0
+  else
+    mask=$((0xffffffff << (32 - prefix)))
+  fi
+  network=$((network & mask))
+  printf '%d.%d.%d.%d/%d\n' \
+    $(((network >> 24) & 255)) $(((network >> 16) & 255)) \
+    $(((network >> 8) & 255)) $((network & 255)) "$prefix"
+}
+
+firewall_expected_rules() {
+  local iface=$1 subnet=$2
+  printf '%s\n' \
+    "ufw allow in on $iface to any port 67 proto udp comment '$UFW_OWNER:dhcp'" \
+    "ufw allow in on $iface from $subnet to any port 53 proto udp comment '$UFW_OWNER:dns'" \
+    "ufw allow in on $iface from $subnet to any port 53 proto tcp comment '$UFW_OWNER:dns'" \
+    "ufw route allow in on $iface from $subnet comment '$UFW_OWNER:forward'"
+}
+
+firewall_rule_present() {
+  local rules=$1 expected=$2 line
+  while IFS= read -r line; do
+    [[ $line != "$expected" ]] || return 0
+  done <<<"$rules"
+  return 1
+}
+
+firewall_rules_present() {
+  local iface=$1 subnet=$2 rules expected
+  rules=$(ufw show added 2>/dev/null) || return 1
+  while IFS= read -r expected; do
+    firewall_rule_present "$rules" "$expected" || return 1
+  done < <(firewall_expected_rules "$iface" "$subnet")
+}
+
 firewall_apply() {
-  local iface=$1
-  (( EUID == 0 )) || fail "firewall rules need root"
+  local iface=$1 subnet=$2 rules
   [[ -n $iface ]] || fail "no Wi-Fi interface to scope firewall rules to"
-  local rules=/etc/ufw/user.rules
-  local added=0
-  if [[ ! -r $rules ]] || ! grep -q -- "-A ufw-user-input -i $iface -p udp --dport 67 -j ACCEPT" "$rules"; then
-    ufw allow in on "$iface" proto udp to any port 67 >/dev/null
-    added=1
+  [[ -n $subnet ]] || fail "no shared IPv4 subnet for firewall rules"
+  rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
+
+  if ! firewall_rule_present "$rules" "ufw allow in on $iface to any port 67 proto udp comment '$UFW_OWNER:dhcp'"; then
+    ufw allow in on "$iface" proto udp to any port 67 comment "$UFW_OWNER:dhcp" >/dev/null ||
+      fail "could not allow hotspot DHCP on $iface"
   fi
-  if [[ ! -r $rules ]] || ! grep -q -- "-A ufw-user-input -i $iface -s 10.42.0.0/24 -j ACCEPT" "$rules"; then
-    ufw allow in on "$iface" from 10.42.0.0/24 >/dev/null
-    added=1
+  if ! firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto udp comment '$UFW_OWNER:dns'"; then
+    ufw allow in on "$iface" from "$subnet" proto udp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
+      fail "could not allow hotspot DNS over UDP on $iface"
   fi
-  if [[ ! -r $rules ]] || ! grep -q -- "-A ufw-user-forward -i $iface -s 10.42.0.0/24 -j ACCEPT" "$rules"; then
-    ufw route allow in on "$iface" from 10.42.0.0/24 >/dev/null
-    added=1
+  if ! firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto tcp comment '$UFW_OWNER:dns'"; then
+    ufw allow in on "$iface" from "$subnet" proto tcp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
+      fail "could not allow hotspot DNS over TCP on $iface"
   fi
-  if (( !added )); then
-    echo "hotspot: firewall rules already present for $iface"
+  if ! firewall_rule_present "$rules" "ufw route allow in on $iface from $subnet comment '$UFW_OWNER:forward'"; then
+    ufw route allow in on "$iface" from "$subnet" comment "$UFW_OWNER:forward" >/dev/null ||
+      fail "could not allow hotspot forwarding on $iface"
   fi
 }
 
 firewall_remove() {
-  local iface=$1
-  (( EUID == 0 )) || fail "firewall rules need root"
+  local iface=$1 subnet=$2 rules
   [[ -n $iface ]] || fail "no Wi-Fi interface to scope firewall rules to"
-  ufw delete allow in on "$iface" proto udp to any port 67 >/dev/null 2>&1 || true
-  ufw delete allow in on "$iface" from 10.42.0.0/24 >/dev/null 2>&1 || true
-  ufw delete route allow in on "$iface" from 10.42.0.0/24 >/dev/null 2>&1 || true
+  [[ -n $subnet ]] || fail "no shared IPv4 subnet for firewall rules"
+  rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
+
+  if firewall_rule_present "$rules" "ufw allow in on $iface to any port 67 proto udp comment '$UFW_OWNER:dhcp'"; then
+    ufw delete allow in on "$iface" proto udp to any port 67 comment "$UFW_OWNER:dhcp" >/dev/null ||
+      fail "could not remove hotspot DHCP rule from $iface"
+  fi
+  if firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto udp comment '$UFW_OWNER:dns'"; then
+    ufw delete allow in on "$iface" from "$subnet" proto udp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
+      fail "could not remove hotspot UDP DNS rule from $iface"
+  fi
+  if firewall_rule_present "$rules" "ufw allow in on $iface from $subnet to any port 53 proto tcp comment '$UFW_OWNER:dns'"; then
+    ufw delete allow in on "$iface" from "$subnet" proto tcp to any port 53 comment "$UFW_OWNER:dns" >/dev/null ||
+      fail "could not remove hotspot TCP DNS rule from $iface"
+  fi
+  if firewall_rule_present "$rules" "ufw route allow in on $iface from $subnet comment '$UFW_OWNER:forward'"; then
+    ufw delete route allow in on "$iface" from "$subnet" comment "$UFW_OWNER:forward" >/dev/null ||
+      fail "could not remove hotspot forwarding rule from $iface"
+  fi
 }
 
-# One-time plumbing for the shared connection, run lazily from `start` and
-# re-runnable (idempotent). Privileged: prefers sudo in a terminal, pkexec
-# from a graphical caller with no terminal to type into.
+firewall_unsupported() {
+  local backend=$1 iface=$2
+  fail "$backend is active but unsupported; disable it or configure DHCP (UDP/67), DNS (TCP/UDP/53), and forwarding for $iface before retrying"
+}
+
+ipv4_forwarding_enabled() {
+  [[ $(sysctl -n net.ipv4.ip_forward 2>/dev/null) == "1" ]]
+}
+
 firewall_ensure() {
-  [[ $(firewall_backend) == "ufw" ]] || return 0
-  local iface
+  local backend iface subnet
+  backend=$(firewall_backend)
   iface=$(ap_iface)
-  [[ -n $iface ]] || return 0
-  if ! firewall_rules_present "$iface"; then
-    if (( EUID == 0 )); then
-      firewall_apply "$iface"
-    elif [[ -t 0 ]]; then
-      sudo "$(self_path)" firewall-apply "$iface"
-    else
-      pkexec "$(self_path)" firewall-apply "$iface"
-    fi
-  fi
+  [[ -n $iface ]] || fail "no Wi-Fi interface to scope firewall setup"
+  case $backend in
+    ufw)
+      subnet=$(shared_subnet)
+      if ! firewall_rules_present "$iface" "$subnet"; then
+        if (( EUID == 0 )); then
+          firewall_apply "$iface" "$subnet"
+        elif [[ -t 0 ]]; then
+          sudo "$(self_path)" firewall-apply "$iface" "$subnet" || fail "could not apply hotspot firewall rules"
+        else
+          pkexec "$(self_path)" firewall-apply "$iface" "$subnet" || fail "could not apply hotspot firewall rules"
+        fi
+      fi
+      ;;
+    firewalld | nftables) firewall_unsupported "$backend" "$iface" ;;
+  esac
 }
 
 # A freshly-generated hotspot passphrase: unambiguously typable (no O/0, I/l,
@@ -347,11 +423,15 @@ start() {
     fail "dnsmasq is missing; run 'omarchy migrate' to install the hotspot dependency"
   fi
 
-  firewall_ensure
   apply "$ssid" "$band"
+  firewall_ensure
 
   if ! nmcli connection up "$PROFILE" >/dev/null 2>&1; then
     fail "could not start hotspot (does this adapter allow AP mode on band '$band'?)"
+  fi
+  if ! ipv4_forwarding_enabled; then
+    nmcli connection down "$PROFILE" >/dev/null 2>&1 || true
+    fail "IPv4 forwarding is not enabled after hotspot activation; check NetworkManager shared-mode configuration and 'sysctl net.ipv4.ip_forward'"
   fi
 }
 
@@ -435,13 +515,17 @@ apply() {
     nmcli connection modify "$PROFILE" ssid "$ssid" 802-11-wireless.band "$nm_band" \
       connection.interface-name "$device" >/dev/null 2>&1 ||
       fail "could not apply hotspot settings"
+    if [[ -z $(profile_shared_address) ]]; then
+      nmcli connection modify "$PROFILE" ipv4.method shared ipv4.addresses "$DEFAULT_SHARED_ADDRESS" >/dev/null 2>&1 ||
+        fail "could not configure hotspot shared subnet"
+    fi
     printf 'set wifi-sec.psk %s\nsave\nquit\n' "$password" |
       nmcli connection edit "$PROFILE" >/dev/null 2>&1 ||
       fail "could not apply hotspot password"
   else
     nmcli connection add type wifi ifname "$device" con-name "$PROFILE" ssid "$ssid" \
       mode ap 802-11-wireless.band "$nm_band" wifi-sec.key-mgmt wpa-psk \
-      ipv4.method shared autoconnect no >/dev/null ||
+      ipv4.method shared ipv4.addresses "$DEFAULT_SHARED_ADDRESS" autoconnect no >/dev/null ||
       fail "could not create hotspot profile"
     printf 'set wifi-sec.psk %s\nsave\nquit\n' "$password" |
       nmcli connection edit "$PROFILE" >/dev/null 2>&1 ||
@@ -458,13 +542,16 @@ apply() {
 teardown() {
   require_root teardown
   stop
-  local backend iface
+  local backend iface subnet
   backend=$(firewall_backend)
   iface=$(ap_iface)
   case $backend in
-    ufw) firewall_remove "$iface" ;;
+    ufw)
+      subnet=$(shared_subnet)
+      firewall_remove "$iface" "$subnet"
+      ;;
     firewalld | nftables)
-      echo "hotspot: $backend detected; remove the forwarding/DHCP rules for $iface manually" >&2
+      firewall_unsupported "$backend" "$iface"
       ;;
     none) echo "hotspot: no active firewall found; nothing to remove" >&2 ;;
   esac
@@ -474,17 +561,16 @@ teardown() {
 # report dependency readiness. Privileged via sudo/pkexec.
 setup() {
   require_root setup
-  local backend iface
+  local backend iface subnet
   backend=$(firewall_backend)
   iface=$(ap_iface)
   case $backend in
     ufw)
-      firewall_apply "$iface"
+      subnet=$(shared_subnet)
+      firewall_apply "$iface" "$subnet"
       echo "hotspot: firewall rules installed for $iface"
       ;;
-    firewalld | nftables)
-      echo "hotspot: $backend detected; add rules to allow DHCP (udp 67) and forward 10.42.0.0/24 on $iface manually" >&2
-      ;;
+    firewalld | nftables) firewall_unsupported "$backend" "$iface" ;;
     none)
       echo "hotspot: no active firewall found; nothing to configure"
       ;;
@@ -511,6 +597,11 @@ diagnose() {
     echo "dnsmasq: missing"
   fi
   echo "firewall: $(firewall_backend)"
+  if ipv4_forwarding_enabled; then
+    echo "ipv4 forwarding: yes"
+  else
+    echo "ipv4 forwarding: no"
+  fi
   if [[ -n $iface ]] && ap_capable "$iface"; then
     echo "ap capable: yes"
   else
@@ -547,7 +638,11 @@ case "${1:-}" in
   apply) shift; apply "$@" ;;
   setup) setup ;;
   teardown) teardown ;;
-  firewall-apply) shift; firewall_apply "$1" ;;
+  firewall-apply)
+    shift
+    require_root firewall-apply "$@"
+    firewall_apply "$@"
+    ;;
   diagnose) diagnose ;;
   generate-password) generate_password ;;
   *) usage; exit 2 ;;
