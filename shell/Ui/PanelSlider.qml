@@ -29,27 +29,26 @@ Item {
 
   // Sliders carry no label of their own; callers name them ("Volume").
   property string accessibleName: ""
-  // Names the Value interface reads.
-  readonly property real minimumValue: minimum
-  readonly property real maximumValue: maximum
-  readonly property real stepSize: step
+  // The item that carries the slider's accessibility node (see below).
+  readonly property Item accessibleItem: accessibleValue
 
-  // One wheel notch or one accessibility increase/decrease.
-  function _stepBy(delta) {
-    var next = Math.max(minimum, Math.min(maximum, liveValue + delta))
+  // Commit a value the way a drag release does: clamp, snap, then emit
+  // moved and released so the caller applies it. Disabled sliders ignore it,
+  // as they ignore the pointer.
+  function _commit(next) {
+    if (!enabled) return
+    next = Math.max(minimum, Math.min(maximum, next))
     if (integer) next = Math.round(next)
     liveValue = next
     moved(next)
     released(next)
   }
 
+  // One wheel notch or one accessibility increase/decrease.
+  function _stepBy(delta) { _commit(liveValue + delta) }
+
   signal moved(real value)
   signal released(real value)
-
-  Accessible.role: Accessible.Slider
-  Accessible.name: accessibleName
-  Accessible.onIncreaseAction: root._stepBy(root.step)
-  Accessible.onDecreaseAction: root._stepBy(-root.step)
 
   // Right-click is a secondary action on the whole track — audio uses it to
   // mute the channel the slider belongs to. Dragging stays left-button only.
@@ -61,6 +60,43 @@ Item {
   readonly property real range: Math.max(0.0001, maximum - minimum)
   readonly property real progress: Math.max(0, Math.min(1, (liveValue - minimum) / range))
   readonly property bool _hot: mouseArea.containsMouse || root.dragging
+
+  // Qt's Value interface reads and writes a `value` property on the
+  // accessible item. Writing root.value would replace the caller's binding
+  // and skip moved/released, so this proxy mirrors liveValue and routes an
+  // assistive-technology write through _commit() instead.
+  Item {
+    id: accessibleValue
+    anchors.fill: parent
+
+    property real value: 0
+    readonly property real minimumValue: root.minimum
+    readonly property real maximumValue: root.maximum
+    readonly property real stepSize: root.step
+    property bool _mirroring: false
+
+    function mirror() {
+      _mirroring = true
+      value = root.liveValue
+      _mirroring = false
+    }
+
+    Component.onCompleted: mirror()
+    Connections {
+      target: root
+      function onLiveValueChanged() { accessibleValue.mirror() }
+    }
+    onValueChanged: {
+      if (_mirroring || value === root.liveValue) return
+      root._commit(value)
+      mirror()
+    }
+
+    Accessible.role: Accessible.Slider
+    Accessible.name: root.accessibleName
+    Accessible.onIncreaseAction: root._stepBy(root.step)
+    Accessible.onDecreaseAction: root._stepBy(-root.step)
+  }
 
   Rectangle {
     id: track
