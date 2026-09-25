@@ -433,6 +433,7 @@ Rules for anything built on the kit:
 - Never use a glyph as a name. Nerd Font and other icon code points read as noise.
 - Name the function and let state carry the rest: a `Toggle` is "Wi-Fi" plus checked, not "Wi-Fi on". Where a name includes state, bind it to coarse state ("Battery 80%"), not text that changes every second.
 - Password fields never report a name, by Qt design; the kit copies `accessibleName` into the description, and a field with a visible label can also set `Accessible.labelledBy`.
+- Keep controls out of the accessibility tree whenever they are concealed or otherwise unavailable to sighted users.
 - A `CursorSurface` row that should be reachable sets `accessibleName` and wires `Accessible.onPressAction` next to its own click handler.
 
-`test/shell.d/ui-accessibility-test.sh` enforces the naming rule for first-party plugins and checks the kit's roles, names and states.
+`test/shell.d/ui-accessibility-test.sh` statically checks first-party uses of `BarIconButton`, `BarIndicator`, `ToggleSwitch`, `PanelSlider`, `PanelActionButton` and icon-only `Button` for a non-empty name, and its runtime fixture checks the kit's roles, names, states and actions.
