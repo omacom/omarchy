@@ -1876,6 +1876,7 @@ Panel {
 
           Text {
             id: hotspotStatusLine
+            textFormat: Text.PlainText
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: {
@@ -1886,7 +1887,7 @@ Panel {
               }
               if (root.hotspotActive) {
                 var band = root.hotspot.band || root.hotspotBand
-                var s = root.hotspotSsid + " \u00b7 " + band + "GHZ"
+                var s = root.hotspotSsid + " \u00b7 " + band + "GHz"
                 if (root.hotspotClients.length > 0) {
                   s += " \u00b7 " + root.hotspotClients.length + " CLIENT"
                   if (root.hotspotClients.length > 1) s += "S"
@@ -1918,6 +1919,7 @@ Panel {
           }
           Text {
             id: hotspotWarning
+            textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: Style.space(8)
@@ -1939,6 +1941,7 @@ Panel {
 
           Text {
             id: hotspotToggleLabel
+            textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             text: root.hotspotActive ? "Sharing my internet" : "Share my internet"
@@ -2138,6 +2141,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           visible: root.hotspotError !== ""
           text: root.hotspotError
           color: root.bar.urgent
@@ -2150,6 +2154,7 @@ Panel {
           model: root.hotspotActive ? root.hotspotClients : []
           delegate: Text {
             required property var modelData
+            textFormat: Text.PlainText
             width: parent.width
             text: Model.hotspotClientLabel(modelData)
             color: Qt.darker(root.bar.foreground, 1.35)
