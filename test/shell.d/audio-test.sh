@@ -71,6 +71,10 @@ assert(
   'audio volume writer replays the last queued percentage on exit'
 )
 assert(
+  /root\.pendingOutputVolume\s*=\s*-1/.test(panelSource) && /root\.sentOutputVolume\s*=\s*-1/.test(panelSource),
+  'audio clears the pending volume once the writer catches up so steps resume from the live volume'
+)
+assert(
   /pendingOutputVolume\s*>=\s*0\s*\?\s*root\.pendingOutputVolume\s*\/\s*100\s*:\s*root\.outputVolume/.test(panelSource) &&
   /pendingOutputVolume\s*>=\s*0\s*\?\s*pendingOutputVolume\s*\/\s*100\s*:\s*outputVolume/.test(panelSource),
   'audio relative volume steps accumulate on the queued value, not the stale sink reading'

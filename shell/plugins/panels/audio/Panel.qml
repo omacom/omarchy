@@ -615,7 +615,14 @@ Panel {
   Process {
     id: outputVolumeWriter
     onExited: {
-      if (root.pendingOutputVolume !== root.sentOutputVolume) root.sendOutputVolume()
+      if (root.pendingOutputVolume !== root.sentOutputVolume) {
+        root.sendOutputVolume()
+      } else {
+        // Burst drained: drop the pending value so the next relative step
+        // bases off the live volume, which other clients may have changed.
+        root.pendingOutputVolume = -1
+        root.sentOutputVolume = -1
+      }
     }
   }
 
