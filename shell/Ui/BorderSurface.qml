@@ -31,10 +31,11 @@ Rectangle {
   readonly property real contentBottomInset: borderBottom + bottomPadding
   readonly property real contentLeftInset: borderLeft + leftPadding
   readonly property bool chamfered: Style.cornerChamfer && radius > 0
-  // A cut as deep as half the height turns short surfaces (rows, OSD,
-  // notifications) into hexagons, so the cut is capped relative to the
-  // surface's shorter side. Large panels keep the full window-matching cut.
-  readonly property real chamferSize: Math.min(radius, Math.min(width, height) * 0.3)
+  // Hyprland cuts window corners at rounding * rounding_power / 2
+  // (CWindow::rounding), so scale the radius the same way. A cut as deep as
+  // half the height still turns short surfaces (rows, OSD, notifications)
+  // into hexagons, so it is also capped relative to the shorter side.
+  readonly property real chamferSize: Math.min(radius * Style.cornerPower / 2, Math.min(width, height) * 0.3)
   readonly property bool usesOverlayBorder: Border.needsOverlay(borderSpec) || chamfered
 
   // The native fill would clamp `radius` to half the height and round the

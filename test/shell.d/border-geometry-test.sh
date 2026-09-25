@@ -310,8 +310,37 @@ for (let mask = 1; mask < 16; mask++) {
   const paths = geometry.borderPaths(100, 50, 10, widths, true)
   assertValidPaths(paths, label)
   assert(!/\bA\b/.test(paths.join(' ')), `${label} emits no arcs`)
-  assertEqual(geometry.ringPath(100, 50, 10, widths), pathsFor(widths).join(' '), `${label} leaves the rounded default unchanged`)
 }
+
+// Rounded geometry is pinned to literal paths so chamfer changes cannot
+// silently alter it.
+const pinnedRounded = [
+  [{ top: 3, right: 0, bottom: 0, left: 0 },
+    'M 0 10 A 10 10 0 0 1 10 0 L 90 0 A 10 10 0 0 1 100 10 L 100 10 A 10 7 0 0 0 90 3 L 10 3 A 10 7 0 0 0 0 10 Z'],
+  [{ top: 0, right: 0, bottom: 1, left: 3 },
+    'M 100 40 A 10 10 0 0 1 90 50 L 10 50 A 10 10 0 0 1 0 40 L 0 10 A 10 10 0 0 1 10 0 L 10 0 A 7 10 0 0 0 3 10 L 3 40 A 7 9 0 0 0 10 49 L 90 49 A 10 9 0 0 0 100 40 Z'],
+  [{ top: 3, right: 3, bottom: 3, left: 3 },
+    'M 10 0 H 90 A 10 10 0 0 1 100 10 V 40 A 10 10 0 0 1 90 50 H 10 A 10 10 0 0 1 0 40 V 10 A 10 10 0 0 1 10 0 Z M 10 3 A 7 7 0 0 0 3 10 L 3 40 A 7 7 0 0 0 10 47 L 90 47 A 7 7 0 0 0 97 40 L 97 10 A 7 7 0 0 0 90 3 L 10 3 Z'],
+]
+for (const [widths, expected] of pinnedRounded) {
+  const label = `rounded ${JSON.stringify(widths)}`
+  assertEqual(geometry.ringPath(100, 50, 10, widths), expected, `${label} is unchanged without chamfer`)
+  assertEqual(geometry.ringPath(100, 50, 10, widths, false), expected, `${label} is unchanged with chamfer false`)
+}
+
+// One-sided chamfered borders taper at the borderless neighbours instead of
+// painting strips along them.
+const topChamfer = geometry.borderPaths(100, 50, 10, { top: 3, right: 0, bottom: 0, left: 0 }, true)
+assert(pathContains(topChamfer, 50, 1.5), 'chamfered top-only border paints the top edge')
+assert(!pathContains(topChamfer, 0.5, 11), 'chamfered top-only border leaves the left edge empty')
+assert(!pathContains(topChamfer, 99.5, 11), 'chamfered top-only border leaves the right edge empty')
+assert(flattenedBounds(topChamfer).maxY <= 10, 'chamfered top-only geometry stays localized to the top corner cuts')
+
+const leftChamfer = geometry.borderPaths(100, 50, 10, { top: 0, right: 0, bottom: 0, left: 4 }, true)
+assert(pathContains(leftChamfer, 1, 25), 'chamfered left-only border paints the left edge')
+assert(!pathContains(leftChamfer, 12, 0.5), 'chamfered left-only border leaves the top edge empty')
+assert(!pathContains(leftChamfer, 12, 49.5), 'chamfered left-only border leaves the bottom edge empty')
+assert(flattenedBounds(leftChamfer).maxX <= 10, 'chamfered left-only geometry stays localized to the left corner cuts')
 
 // A uniform chamfered ring keeps its stroke width along the diagonal: the
 // inner cut line x + y = c sits exactly `width` from the outer line x + y = 10.
@@ -324,7 +353,8 @@ for (const width of [1, 2, 6]) {
 
 const surfaceQml = fs.readFileSync(path.join(root, 'shell/Ui/BorderSurface.qml'), 'utf8')
 assert(surfaceQml.includes('Style.cornerChamfer'), 'border surface follows the Hyprland corner shape')
-assert(/chamferSize:\s*Math\.min\(radius,\s*Math\.min\(width,\s*height\)\s*\*\s*0\.3\)/.test(surfaceQml), 'border surface caps the cut on short surfaces')
+assert(/chamferSize:\s*Math\.min\(radius \* Style\.cornerPower \/ 2,/.test(surfaceQml), 'border surface cuts at Hyprland\'s effective window rounding (rounding * power / 2)')
+assert(/Math\.min\(width,\s*height\)\s*\*\s*0\.3\)/.test(surfaceQml), 'border surface caps the cut on short surfaces')
 assert(/topLeftRadius:\s*chamfered \? 0 : radius/.test(surfaceQml), 'border surface squares its native fill under the chamfer mask')
 
 const styleQml = fs.readFileSync(path.join(root, 'shell/Commons/Style.qml'), 'utf8')

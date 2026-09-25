@@ -309,8 +309,12 @@ function borderPaths(w, h, radius, widths, chamfer) {
 
   // A 45° cut offset inward by w keeps an even stroke when the inner cut
   // shrinks by w * (2 - sqrt 2) rather than the full w an arc would lose.
-  var inset = chamfer ? function (r, a, b) { return Math.max(0, r - (a + b) * (1 - Math.SQRT1_2)) }
-                      : function (r, a) { return Math.max(0, r - a) }
+  // Next to a borderless side, use the rounded inset instead so the inner
+  // cut ends on the outer tangent point and the band tapers to nothing.
+  var inset = function (r, a, b) {
+    if (!chamfer || a <= 0 || b <= 0) return Math.max(0, r - a)
+    return Math.max(0, r - (a + b) * (1 - Math.SQRT1_2))
+  }
   var desiredInnerRadii = {
     tlrx: inset(outerRadii.tl.rx, left, top),
     tlry: inset(outerRadii.tl.ry, top, left),
