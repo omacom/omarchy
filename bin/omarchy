@@ -575,6 +575,12 @@ print_command_table() {
     (( width > max_width )) && max_width=$width
   done <<<"$rows"
 
+  # A few usages are much longer than the rest (agent usage update alone pushes
+  # the column past 90 characters). Padding every row out to the widest one
+  # shoves the summaries far enough right that they wrap on normal terminals,
+  # so cap the column at a width that fits the overwhelming majority.
+  (( max_width > 48 )) && max_width=48
+
   while IFS=$'\t' read -r command rest; do
     [[ -n $command ]] || continue
 
