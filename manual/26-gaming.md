@@ -70,14 +70,14 @@ You can also turn an Omarchy machine into the host by running `omarchy install s
 
 Install [Battle.net](https://eu.shop.battle.net/en-us) by selecting _Install > Gaming > Battle.net_ from the Omarchy menu (`Super + Space`). This gives you titles like Diablo, Starcraft, and World of Warcraft as a standalone install running under GE-Proton — no Steam, Lutris, or Heroic needed.
 
-If Battle.net appears too small or too large on your display, set extra launch arguments in `~/.config/omarchy/launchers/battlenet.conf`:
+If Battle.net appears too small or too large on your display, set extra launch arguments in `${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/launchers/battlenet.conf`:
 
 ```bash
-mkdir -p ~/.config/omarchy/launchers
-echo 'LAUNCH_ARGS="--force-device-scale-factor=1.5"' > ~/.config/omarchy/launchers/battlenet.conf
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/launchers"
+echo 'LAUNCH_ARGS="--force-device-scale-factor=1.5"' > "${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/launchers/battlenet.conf"
 ```
 
-Adjust `1.5` to the scale factor that fits your machine.
+Arguments are separated by whitespace, so options that require a value should use `--option=value` form. Adjust `1.5` to the scale factor that fits your machine.
 
  ![gaming-starcraft](images/gaming-starcraft.webp)
 

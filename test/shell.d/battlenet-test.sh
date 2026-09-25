@@ -31,8 +31,15 @@ for arg in "$@"; do
   printf '<%s>' "$arg" >>"$OMARCHY_TEST_LOG"
 done
 printf '\n' >>"$OMARCHY_TEST_LOG"
+exit "${OMARCHY_TEST_UMU_STATUS:-0}"
 SH
 chmod +x "$mock_bin/umu-run"
+
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_NOTIFICATIONS"
+SH
+chmod +x "$mock_bin/omarchy-notification-send"
 
 HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" PATH="$mock_bin:$PATH" OMARCHY_TEST_LOG="$launch_log" \
   "$ROOT/bin/omarchy-launch-battlenet" --with-mangohud
@@ -51,3 +58,45 @@ HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" PATH="$mock_bin:$PATH" OM
 grep -Fxq "args:<$launcher><--force-device-scale-factor=1.75><--some-other-option>" "$launch_log" ||
   fail "Battle.net launcher appends launch arguments from config" "$(cat "$launch_log")"
 pass "Battle.net launcher appends launch arguments from config"
+
+notifications="$test_tmp/notifications"
+rm -f "$launch_log" "$notifications"
+printf '%s\n' 'LAUNCH_ARGS="--some-option"' 'false' >"$test_home/.config/omarchy/launchers/battlenet.conf"
+if HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" PATH="$mock_bin:$PATH" OMARCHY_TEST_LOG="$launch_log" OMARCHY_TEST_NOTIFICATIONS="$notifications" \
+  "$ROOT/bin/omarchy-launch-battlenet" 2>/dev/null; then
+  fail "Battle.net launcher fails when config sourcing returns an error"
+fi
+[[ ! -s $launch_log ]] || fail "Battle.net is not launched after a config error" "$(cat "$launch_log")"
+grep -Fq -- "-u critical Battle.net launch failed Could not load $test_home/.config/omarchy/launchers/battlenet.conf" "$notifications" ||
+  fail "Battle.net config error is reported as a desktop notification" "$(cat "$notifications")"
+pass "Battle.net launcher fails and notifies when config sourcing fails"
+
+rm -f "$notifications"
+if HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" PATH="$mock_bin:$PATH" OMARCHY_TEST_NOTIFICATIONS="$notifications" \
+  "$ROOT/bin/omarchy-launch-battlenet" --invalid-option; then
+  fail "Battle.net launcher rejects an unknown argument"
+fi
+grep -Fq -- "Unknown argument: --invalid-option" "$notifications" ||
+  fail "unknown arguments are reported as desktop notifications" "$(cat "$notifications")"
+pass "Battle.net launcher reports argument errors as desktop notifications"
+
+rm -f "$notifications" "$test_home/.config/omarchy/launchers/battlenet.conf"
+if HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" PATH="$mock_bin:$PATH" OMARCHY_TEST_LOG="$launch_log" OMARCHY_TEST_NOTIFICATIONS="$notifications" OMARCHY_TEST_UMU_STATUS=23 \
+  "$ROOT/bin/omarchy-launch-battlenet"; then
+  fail "Battle.net launcher preserves umu-run failure status"
+else
+  status=$?
+fi
+(( status == 23 )) || fail "Battle.net launcher preserves umu-run failure status" "$status"
+grep -Fq -- "umu-run exited with status 23" "$notifications" ||
+  fail "umu-run failures are reported as desktop notifications" "$(cat "$notifications")"
+pass "Battle.net launcher reports umu-run failures as desktop notifications"
+
+rm -f "$launcher" "$notifications"
+if HOME="$test_home" XDG_CONFIG_HOME="$test_home/.config" PATH="$mock_bin:$PATH" OMARCHY_TEST_NOTIFICATIONS="$notifications" \
+  "$ROOT/bin/omarchy-launch-battlenet"; then
+  fail "Battle.net launcher fails when the client is not installed"
+fi
+grep -Fq -- "Battle.net is not installed" "$notifications" ||
+  fail "missing installation is reported as a desktop notification" "$(cat "$notifications")"
+pass "Battle.net launcher reports a missing installation as a desktop notification"
