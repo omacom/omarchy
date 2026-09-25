@@ -78,6 +78,27 @@ grep -Fq $'setsid\t-w\tuwsm-app' "$tmpdir/log" ||
   fail "inline launch waits for the GUI editor" "$(cat "$tmpdir/log")"
 pass "inline launch passes --wait to code and setsid waits"
 
+# gnome-text-editor rejects --wait, so it takes the unknown-GUI path even
+# though gedit keeps the flag.
+printf 'gnome-text-editor\n' > "$home/.local/state/omarchy/defaults/editor"
+cat >"$stub_bin/gnome-text-editor" <<'SH'
+#!/bin/bash
+printf 'gnome-text-editor' >>"$LAUNCH_EDITOR_LOG"
+for arg in "$@"; do
+  printf '\t%s' "$arg" >>"$LAUNCH_EDITOR_LOG"
+done
+printf '\n' >>"$LAUNCH_EDITOR_LOG"
+SH
+chmod +x "$stub_bin/gnome-text-editor"
+
+: > "$tmpdir/log"
+run_launcher --inline /tmp/file.txt
+grep -Fqx $'uwsm-app\t--\tgnome-text-editor\t--\t/tmp/file.txt' "$tmpdir/log" ||
+  fail "inline launch passes no --wait to gnome-text-editor" "$(cat "$tmpdir/log")"
+grep -Fq $'setsid\t-w\tuwsm-app' "$tmpdir/log" ||
+  fail "inline launch of gnome-text-editor still waits" "$(cat "$tmpdir/log")"
+pass "inline launch passes no --wait to gnome-text-editor and still waits"
+
 # Unknown GUI editors get no wait flag but still wait via setsid.
 printf 'unknown-gui\n' > "$home/.local/state/omarchy/defaults/editor"
 cat >"$stub_bin/unknown-gui" <<'SH'

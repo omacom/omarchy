@@ -46,7 +46,7 @@ nvim | vim | nano | micro | hx | helix | fresh)
       subl | sublime_text)
         wait_flag=(-w)
         ;;
-      gnome-text-editor | gedit)
+      gedit)
         wait_flag=(--wait)
         ;;
     esac
