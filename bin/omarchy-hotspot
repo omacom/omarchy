@@ -19,14 +19,16 @@ set -euo pipefail
 PROFILE="omarchy-hotspot"
 DEFAULT_SHARED_ADDRESS="10.42.0.1/24"
 UFW_OWNER="omarchy-hotspot"
-if (( EUID == 0 )); then
+SCRIPT_PATH=$(readlink -f "${BASH_SOURCE[0]}")
+if (( EUID == 0 )) || [[ $SCRIPT_PATH == /usr/share/omarchy/bin/* ]]; then
+  UFW_RULES_FILE="/etc/ufw/user.rules"
   HOTSPOT_STATE_DIR="/var/lib/omarchy/hotspot"
 else
+  UFW_RULES_FILE="${OMARCHY_HOTSPOT_UFW_RULES:-/etc/ufw/user.rules}"
   HOTSPOT_STATE_DIR="${OMARCHY_HOTSPOT_STATE_DIR:-/var/lib/omarchy/hotspot}"
 fi
 FIREWALL_STATE_FILE="$HOTSPOT_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$HOTSPOT_STATE_DIR/forwarding.state"
-UFW_RULES_FILE="${OMARCHY_HOTSPOT_UFW_RULES:-/etc/ufw/user.rules}"
 FIREWALL_TAGS=(dhcp dns-udp dns-tcp forward)
 
 fail() {
@@ -35,11 +37,7 @@ fail() {
 }
 
 self_path() {
-  if [[ -n ${OMARCHY_PATH:-} ]]; then
-    readlink -f "$OMARCHY_PATH/bin/${BASH_SOURCE[0]##*/}"
-  else
-    readlink -f "$0"
-  fi
+  printf '%s\n' "$SCRIPT_PATH"
 }
 
 require_root() {
@@ -169,10 +167,24 @@ profile_active() {
   [[ -n $(LC_ALL=C nmcli -t -f NAME connection show --active 2>/dev/null | grep -x "$PROFILE") ]]
 }
 
+recorded_iface() {
+  local dev
+  dev=$(nm_get GENERAL.DEVICE connection show "$PROFILE" 2>/dev/null | head -n 1) || true
+  if [[ $dev != "--" && -n $dev ]]; then
+    printf '%s\n' "$dev"
+    return 0
+  fi
+  dev=$(nm_get connection.interface-name connection show "$PROFILE" 2>/dev/null | head -n 1) || true
+  if [[ $dev != "--" && -n $dev ]]; then
+    printf '%s\n' "$dev"
+  fi
+  return 0
+}
+
 ap_iface() {
   local dev
   dev=$(nm_get GENERAL.DEVICE connection show "$PROFILE" 2>/dev/null | head -n 1)
-  if [[ $dev != "--" ]] && wifi_device_present "$dev" && ap_capable "$dev"; then
+  if [[ $dev != "--" ]] && wifi_device_present "$dev" && { profile_active || ap_capable "$dev"; }; then
     printf '%s\n' "$dev"
     return
   fi
@@ -290,17 +302,17 @@ status() {
 
 nft_firewall_active() {
   LC_ALL=C nft list ruleset 2>/dev/null | LC_ALL=C awk '
-    function packet_family(f) { return f == "ip" || f == "ip6" || f == "inet" }
-    function firewall_table(n) { return n == "filter" || n == "firewalld" }
-    function base_chain(c) { return c == "input" || c == "forward" || c == "output" }
-    $1 == "table" { family = $2; name = $3; chain = ""; next }
-    $1 == "chain" { chain = $2 }
-    {
-      if (chain == "" || !packet_family(family) || !firewall_table(name) || !base_chain(chain)) next
+    function firewall_family(f) { return f == "ip" || f == "ip6" || f == "inet" }
+    $1 == "table" { family = $2; in_chain = 0; next }
+    $1 == "chain" && firewall_family(family) {
+      in_chain = 1
       for (i = 1; i < NF; i++) {
-        if ($i == "hook" && base_chain($(i + 1))) active = 1
+        if ($i == "type" && $(i + 1) == "filter" && $(i + 2) == "hook") active = 1
       }
+      next
     }
+    in_chain && $1 == "}" { in_chain = 0; next }
+    in_chain && $1 == "type" && $2 == "filter" && $3 == "hook" { active = 1 }
     END { exit active ? 0 : 1 }
   '
 }
@@ -378,29 +390,48 @@ firewall_tag_valid() {
   esac
 }
 
-hotspot_state_prepare() {
-  [[ ! -L $HOTSPOT_STATE_DIR ]] || fail "invalid hotspot state directory"
-  install -d -m 0755 "$HOTSPOT_STATE_DIR" || fail "could not create hotspot state directory"
-  chmod 0755 "$HOTSPOT_STATE_DIR" || fail "could not secure hotspot state directory"
-}
-
-hotspot_state_file_usable() {
-  local file=$1 message=$2
-  [[ -e $file || -L $file ]] || return 0
-  [[ -f $file && ! -L $file && -r $file ]] || fail "$message"
-  if (( EUID == 0 )) && [[ ! -O $file ]]; then
-    fail "$message"
+hotspot_state_dir_usable() {
+  local message=$1 mode
+  [[ -d $HOTSPOT_STATE_DIR && ! -L $HOTSPOT_STATE_DIR ]] || fail "$message"
+  if (( EUID == 0 )); then
+    [[ $(stat -c %u -- "$HOTSPOT_STATE_DIR") == 0 ]] || fail "$message"
+    mode=$(stat -c %a -- "$HOTSPOT_STATE_DIR")
+    (( (8#$mode & 022) == 0 )) || fail "$message"
   fi
 }
 
+hotspot_state_prepare() {
+  local -a owner=()
+  hotspot_state_dir_usable "invalid hotspot state directory"
+  (( EUID == 0 )) && owner=(-o 0 -g 0)
+  install -d "${owner[@]}" -m 0755 "$HOTSPOT_STATE_DIR" || fail "could not create hotspot state directory"
+  chmod 0755 "$HOTSPOT_STATE_DIR" || fail "could not secure hotspot state directory"
+  hotspot_state_dir_usable "invalid hotspot state directory"
+}
+
+hotspot_state_file_usable() {
+  local file=$1 message=$2 mode
+  [[ -e $file || -L $file ]] || return 0
+  [[ -f $file && ! -L $file && -r $file ]] || fail "$message"
+  if (( EUID == 0 )); then
+    [[ $(stat -c %u -- "$file") == 0 ]] || fail "$message"
+  fi
+  mode=$(stat -c %a -- "$file")
+  (( (8#$mode & 022) == 0 )) || fail "$message"
+}
+
 firewall_state_records() {
-  local iface="" subnet="" tag="" extra=""
+  local iface="" subnet="" tag="" extra="" key
+  local -A seen=()
   [[ -e $FIREWALL_STATE_FILE || -L $FIREWALL_STATE_FILE ]] || return 0
   hotspot_state_file_usable "$FIREWALL_STATE_FILE" "invalid hotspot firewall state file"
   while IFS=$'\t' read -r iface subnet tag extra || [[ -n ${iface}${subnet}${tag}${extra} ]]; do
     [[ -z $extra && -n $tag ]] || fail "invalid hotspot firewall state record"
     firewall_scope_valid "$iface" "$subnet" && firewall_tag_valid "$tag" ||
       fail "invalid hotspot firewall state record"
+    key="$iface"$'\t'"$subnet"$'\t'"$tag"
+    [[ -z ${seen["$key"]:-} ]] || fail "invalid hotspot firewall state record"
+    seen["$key"]=1
     printf '%s\t%s\t%s\n' "$iface" "$subnet" "$tag"
   done <"$FIREWALL_STATE_FILE"
 }
@@ -506,26 +537,28 @@ firewall_rules_file() {
 }
 
 firewall_rules_file_tag_present() {
-  local rules=$1 iface=$2 tag=$3 comment protocol="" port=""
+  local rules=$1 iface=$2 subnet=$3 tag=$4 comment protocol="" port="" chain="ufw-user-input" need_source=0
   comment=$(firewall_tag_comment "$tag") || return 1
   case "$tag" in
     dhcp) protocol=udp port=67 ;;
-    dns-udp) protocol=udp port=53 ;;
-    dns-tcp) protocol=tcp port=53 ;;
-    forward) ;;
+    dns-udp) protocol=udp port=53 need_source=1 ;;
+    dns-tcp) protocol=tcp port=53 need_source=1 ;;
+    forward) chain="ufw-user-forward" need_source=1 ;;
   esac
-  LC_ALL=C awk -v iface="$iface" -v comment="$comment" -v protocol="$protocol" -v port="$port" '
+  LC_ALL=C awk -v iface="$iface" -v subnet="$subnet" -v comment="$comment" -v protocol="$protocol" -v port="$port" -v chain="$chain" -v need_source="$need_source" '
     index($0, comment) == 0 { next }
-    {
+    $1 == "-A" && $2 == chain {
       scoped = 0
+      matched_source = (need_source == 0)
       matched_protocol = (protocol == "")
       matched_port = (port == "")
-      for (i = 1; i < NF; i++) {
+      for (i = 3; i < NF; i++) {
         if ($i == "-i" && $(i + 1) == iface) scoped = 1
+        if ($i == "-s" && $(i + 1) == subnet) matched_source = 1
         if ($i == "-p" && $(i + 1) == protocol) matched_protocol = 1
         if ($i == "--dport" && $(i + 1) == port) matched_port = 1
       }
-      if (scoped && matched_protocol && matched_port) found = 1
+      if (scoped && matched_source && matched_protocol && matched_port) found = 1
     }
     END { exit found ? 0 : 1 }
   ' <<<"$rules"
@@ -538,9 +571,9 @@ firewall_rules_present() {
   for tag in "${FIREWALL_TAGS[@]}"; do
     firewall_state_text_has "$state" "$iface" "$subnet" "$tag" || return 1
   done
-  rules=$(firewall_rules_file) || return 0
+  rules=$(firewall_rules_file) || return 1
   for tag in "${FIREWALL_TAGS[@]}"; do
-    firewall_rules_file_tag_present "$rules" "$iface" "$tag" || return 1
+    firewall_rules_file_tag_present "$rules" "$iface" "$subnet" "$tag" || return 1
   done
 }
 
@@ -654,23 +687,22 @@ firewall_remove_record() {
 }
 
 firewall_remove() {
-  local rules="" iface subnet tag record
+  local rules="" state="" iface subnet tag record
   local -a records=()
   require_privileged
-  firewall_state_records >/dev/null || fail "could not read hotspot firewall state"
-  mapfile -t records < <(firewall_state_records)
+  state=$(firewall_state_records) || fail "could not read hotspot firewall state"
+  [[ -z $state ]] || mapfile -t records <<<"$state"
+  rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
   if ((${#records[@]} == 0)); then
-    iface=$(ap_iface)
+    iface=$(recorded_iface)
     [[ -n $iface ]] || return 0
     subnet=$(shared_subnet)
-    rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
     for tag in "${FIREWALL_TAGS[@]}"; do
       firewall_remove_record "$rules" "$iface" "$subnet" "$tag" ||
         fail "could not remove hotspot firewall rule $tag"
     done
     return
   fi
-  rules=$(ufw show added 2>/dev/null) || fail "could not read active UFW rules"
   for record in "${records[@]}"; do
     IFS=$'\t' read -r iface subnet tag <<<"$record"
     firewall_remove_record "$rules" "$iface" "$subnet" "$tag" ||
@@ -723,13 +755,19 @@ firewall_ensure() {
       output=$(privileged_run firewall-apply "$iface" "$subnet") || fail "could not apply hotspot firewall rules"
       while IFS= read -r tag; do
         [[ -n $tag ]] || continue
-        firewall_tag_valid "$tag" || fail "invalid firewall helper response"
+        if ! firewall_tag_valid "$tag"; then
+          firewall_rollback_if_needed || fail "invalid firewall helper response; rollback also failed"
+          fail "invalid firewall helper response"
+        fi
         duplicate=0
         local existing
         for existing in "${FIREWALL_ADDED_TAGS[@]}"; do
           [[ $existing != "$tag" ]] || duplicate=1
         done
-        (( duplicate == 0 )) || fail "duplicate firewall helper response"
+        if (( duplicate != 0 )); then
+          firewall_rollback_if_needed || fail "duplicate firewall helper response; rollback also failed"
+          fail "duplicate firewall helper response"
+        fi
         FIREWALL_ADDED_TAGS+=("$tag")
       done <<<"$output"
       ;;
@@ -853,12 +891,9 @@ start() {
 }
 
 stop() {
-  local -a failed=()
   if profile_active; then
-    nmcli connection down "$PROFILE" >/dev/null 2>&1 || failed+=("AP deactivation")
+    nmcli connection down "$PROFILE" >/dev/null 2>&1 || return 1
   fi
-  forwarding_restore_if_owned || failed+=("IPv4 forwarding restore")
-  ((${#failed[@]} == 0)) || fail "could not stop hotspot: ${failed[*]}"
 }
 
 # Flip the current state. When nothing has been configured yet, hand over to
@@ -962,15 +997,19 @@ apply() {
 # is up). Privileged via sudo/pkexec.
 teardown() {
   require_root teardown
-  stop
   local backend iface
+  local -a failed=()
+  stop || failed+=("AP deactivation")
+  forwarding_restore_if_owned || failed+=("IPv4 forwarding restore")
   backend=$(firewall_backend)
-  iface=$(ap_iface)
+  iface=$(recorded_iface)
+  [[ -n $iface ]] || iface=$(ap_iface)
   case $backend in
-    ufw) firewall_remove ;;
+    ufw) firewall_remove || failed+=("firewall removal") ;;
     firewalld | nftables) firewall_warn_unsupported "$backend" "$iface" ;;
     none) echo "hotspot: no active firewall found; nothing to remove" >&2 ;;
   esac
+  ((${#failed[@]} == 0)) || fail "could not tear down hotspot: ${failed[*]}"
 }
 
 # One-time setup: ensure the firewall rules a shared connection needs and
@@ -1045,7 +1084,7 @@ diagnose() {
     echo "ap freq: $(iw dev "$iface" link 2>/dev/null | awk '/freq:/ { print $2; exit }')"
   fi
   echo "upstream: $(upstream_type)"
-  echo "valid interface combinations:"
+  echo "valid interface combi"
   iw phy 2>/dev/null |
     awk '/valid interface combinations/ { in_block = 1 } in_block && /^[[:space:]]*\*/ { print } in_block && !/^[[:space:]]*\*/ && !/valid interface combinations/ { exit }' ||
     echo "unknown (iw could not read the PHYs)"

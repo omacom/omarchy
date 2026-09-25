@@ -954,11 +954,7 @@ Panel {
       return
     }
     hotspotStatusError = ""
-    var parsed = Model.parseHotspotStatus(output)
-    var next = {}
-    var key
-    for (key in hotspot) next[key] = hotspot[key]
-    for (key in parsed) next[key] = parsed[key]
+    var next = Model.parseHotspotStatus(output)
     if (next.ap_capable !== "1" && hotspot.ap_capable === "1") next.ap_capable = "1"
     var wasActive = hotspot.active === "1"
     hotspot = next

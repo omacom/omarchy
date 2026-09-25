@@ -264,11 +264,11 @@ FIREWALLD_ACTIVE=1
 FIREWALLD_ACTIVE=0
 NFT_ACTIVE=1
 NFT_RULESET=$'table ip docker-bridge\n  chain DOCKER-BRIDGE { type filter hook forward priority 0; }'
-[[ $(firewall_backend) == "none" ]] || fail "Docker nft tables do not imply a firewall backend"
+[[ $(firewall_backend) == "nftables" ]] || fail "hooked Docker nft state fails closed"
 NFT_RULESET=$'table inet hotspot-test\n  chain input { type filter hook input priority filter; }'
-[[ $(firewall_backend) == "none" ]] || fail "an unrelated nft table does not imply a firewall backend"
+[[ $(firewall_backend) == "nftables" ]] || fail "custom nft firewall names fail closed"
 NFT_RULESET=$'table inet filter\n  chain DOCKER {\n  }\n  chain FORWARD { type filter hook forward priority 0; policy drop; }'
-[[ $(firewall_backend) == "none" ]] || fail "Docker-shaped chains inside a filter table are not a firewall"
+[[ $(firewall_backend) == "nftables" ]] || fail "hooked chains in a custom filter table fail closed"
 NFT_RULESET=$'table inet filter\n  chain input {\n  }'
 [[ $(firewall_backend) == "none" ]] || fail "a regular chain without a base hook is not a firewall"
 NFT_RULESET=$'table inet filter\n  chain input { type filter hook input priority filter; }'
@@ -283,8 +283,8 @@ set +e
 backend_output=$(run_isolated "$TEST_TMP/backend-driver.sh" 2>&1)
 backend_status=$?
 set -e
-(( backend_status == 0 )) || fail "firewall backend detection requires active firewall state" "$backend_output"
-pass "firewall backend detection excludes unrelated Docker nft state"
+(( backend_status == 0 )) || fail "firewall backend detection fails closed on filter base chains" "$backend_output"
+pass "firewall backend detection fails closed on filter base chains"
 
 cat >"$TEST_TMP/apply-driver.sh" <<'DRIVER'
 require_privileged() { :; }
@@ -503,16 +503,33 @@ if (( EUID != 0 )); then
   [[ $(<"$FORWARDING_STATE_VALUE") == 1 ]] || fail "hotspot start explicitly enables forwarding"
   [[ -e $FORWARDING_STATE ]] || fail "hotspot records forwarding ownership"
   KEEP_FORWARDING_ON_DOWN=1 OMARCHY_HOTSPOT_STATE_DIR="$STATE_DIR" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" stop
-  [[ $(<"$FORWARDING_STATE_VALUE") == 0 ]] || fail "hotspot stop restores forwarding it enabled"
-  [[ ! -e $FORWARDING_STATE ]] || fail "hotspot stop releases forwarding ownership"
+  [[ $(<"$FORWARDING_STATE_VALUE") == 1 ]] || fail "hotspot stop leaves global IPv4 forwarding alone"
+  [[ -e $FORWARDING_STATE ]] || fail "hotspot stop keeps forwarding ownership for teardown"
+  pass "hotspot stop only deactivates the AP and leaves forwarding untouched"
+
+  cat >"$TEST_TMP/teardown-forwarding-driver.sh" <<'DRIVER'
+require_root() { :; }
+require_privileged() { :; }
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+export UFW_SHOW_ALLOWED=1
+teardown
+DRIVER
+  export KEEP_FORWARDING_ON_DOWN=1
+  run_isolated "$TEST_TMP/teardown-forwarding-driver.sh"
+  [[ $(<"$FORWARDING_STATE_VALUE") == 0 ]] || fail "hotspot teardown restores forwarding it enabled"
+  [[ ! -e $FORWARDING_STATE ]] || fail "hotspot teardown releases forwarding ownership"
+  [[ ! -s $FIREWALL_STATE ]] || fail "hotspot teardown releases firewall ownership"
 
   reset_firewall_fixture
   run_isolated "$TEST_TMP/seed-complete-driver.sh"
   printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
   : >"$PRIVILEGED_LOG"
   printf '%s\n' savedpassword | NMCLI_UP_SUCCEED=1 KEEP_FORWARDING_ON_DOWN=1 OMARCHY_HOTSPOT_STATE_DIR="$STATE_DIR" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" start Shared 2.4
-  KEEP_FORWARDING_ON_DOWN=1 OMARCHY_HOTSPOT_STATE_DIR="$STATE_DIR" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" stop
-  [[ $(<"$FORWARDING_STATE_VALUE") == 1 ]] || fail "hotspot stop preserves forwarding enabled by another routing user"
+  run_isolated "$TEST_TMP/teardown-forwarding-driver.sh"
+  unset KEEP_FORWARDING_ON_DOWN
+  [[ $(<"$FORWARDING_STATE_VALUE") == 1 ]] || fail "hotspot teardown preserves forwarding enabled by another routing user"
   [[ ! -e $FORWARDING_STATE ]] || fail "hotspot never claims externally enabled forwarding"
 
   reset_firewall_fixture
@@ -523,20 +540,22 @@ if (( EUID != 0 )); then
   : >"$NMCLI_LOG"
   : >"$SYSCTL_LOG"
   set +e
-  NMCLI_DOWN_SUCCEED=0 SYSCTL_FORWARDING_RESTORE_FAILS=1 OMARCHY_HOTSPOT_STATE_DIR="$STATE_DIR" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" stop >"$TEST_TMP/stop.out" 2>"$TEST_TMP/stop.err"
-  stop_status=$?
+  export KEEP_FORWARDING_ON_DOWN=1 NMCLI_DOWN_SUCCEED=0 SYSCTL_FORWARDING_RESTORE_FAILS=1
+  run_isolated "$TEST_TMP/teardown-forwarding-driver.sh" >"$TEST_TMP/teardown.out" 2>"$TEST_TMP/teardown.err"
+  teardown_status=$?
   set -e
-  (( stop_status != 0 )) || fail "a failed teardown step still fails stop"
-  stop_error=$(<"$TEST_TMP/stop.err")
-  [[ $stop_error == *"could not stop hotspot"* ]] || fail "stop names the teardown failure" "$stop_error"
-  [[ $stop_error == *"AP deactivation"* ]] || fail "stop reports the refused AP deactivation" "$stop_error"
-  [[ $stop_error == *"IPv4 forwarding restore"* ]] || fail "stop reports the failed forwarding restore" "$stop_error"
-  grep -q 'connection down omarchy-hotspot' "$NMCLI_LOG" || fail "stop still attempts AP deactivation" "$(<"$NMCLI_LOG")"
-  grep -q 'net.ipv4.ip_forward=0' "$SYSCTL_LOG" || fail "stop still attempts the forwarding restore" "$(<"$SYSCTL_LOG")"
+  unset KEEP_FORWARDING_ON_DOWN NMCLI_DOWN_SUCCEED SYSCTL_FORWARDING_RESTORE_FAILS
+  (( teardown_status != 0 )) || fail "a failed teardown step still fails teardown"
+  teardown_error=$(<"$TEST_TMP/teardown.err")
+  [[ $teardown_error == *"could not tear down hotspot"* ]] || fail "teardown names the teardown failure" "$teardown_error"
+  [[ $teardown_error == *"AP deactivation"* ]] || fail "teardown reports the refused AP deactivation" "$teardown_error"
+  [[ $teardown_error == *"IPv4 forwarding restore"* ]] || fail "teardown reports the failed forwarding restore" "$teardown_error"
+  grep -q 'connection down omarchy-hotspot' "$NMCLI_LOG" || fail "teardown still attempts AP deactivation" "$(<"$NMCLI_LOG")"
+  grep -q 'net.ipv4.ip_forward=0' "$SYSCTL_LOG" || fail "teardown still attempts the forwarding restore" "$(<"$SYSCTL_LOG")"
   pass "forwarding ownership is explicit, reversible, and preserves existing routing users"
-  pass "stop attempts every teardown step and reports both failures together"
+  pass "teardown attempts every step and reports both failures together"
 else
-  skip "running as root; the escalated start and stop paths would write the production state directory"
+  skip "running as root; the escalated start and teardown paths would write the production state directory"
 fi
 
 write_user_rules() {
@@ -615,7 +634,10 @@ cat >"$TEST_TMP/reconcile-unreadable-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-firewall_rules_present wlan2 10.55.0.0/24
+if firewall_rules_present wlan2 10.55.0.0/24; then
+  echo "an unreadable rules file reads as installed" >&2
+  exit 1
+fi
 printf '%s\n' $'wlan2\t10.55.0.0/24\tdhcp' >"$FIREWALL_STATE_FILE"
 if firewall_rules_present wlan2 10.55.0.0/24; then
   echo "an incomplete ownership state reads as installed" >&2
@@ -802,3 +824,60 @@ reset_firewall_fixture
 run_isolated "$TEST_TMP/state-temp-driver.sh"
 [[ -z $(compgen -G "$STATE_DIR/.firewall.state.*" || true) ]] || fail "a failed ownership rewrite leaves no temp file behind"
 pass "a failed ownership rewrite leaves the state directory clean"
+
+cat >"$TEST_TMP/duplicate-state-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+printf '%s\n' $'wlan2\t10.55.0.0/24\tdhcp' $'wlan2\t10.55.0.0/24\tdhcp' >"$FIREWALL_STATE_FILE"
+out=$(firewall_state_records 2>&1) && exit 1
+[[ $out == *"invalid hotspot firewall state record"* ]] || exit 1
+DRIVER
+reset_firewall_fixture
+run_isolated "$TEST_TMP/duplicate-state-driver.sh"
+pass "a duplicated ownership record is rejected instead of reconciled twice"
+
+cat >"$TEST_TMP/rules-file-match-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+rules=$(cat "$OMARCHY_HOTSPOT_UFW_RULES")
+firewall_rules_file_tag_present "$rules" wlan2 10.55.0.0/24 forward
+firewall_rules_file_tag_present "$rules" wlan2 10.55.0.0/24 dns-udp
+firewall_rules_file_tag_present "$rules" wlan2 10.55.0.0/24 dhcp
+if firewall_rules_file_tag_present "$rules" wlan2 10.99.0.0/24 forward; then
+  echo "a stale subnet reads as this hotspot's forwarding rule" >&2
+  exit 1
+fi
+if firewall_rules_file_tag_present "$rules" wlan9 10.55.0.0/24 dhcp; then
+  echo "another interface reads as this hotspot's DHCP rule" >&2
+  exit 1
+fi
+printf '%s\n' '-A ufw-user-input -s 10.55.0.0/24 -i wlan2 -m comment --comment omarchy-hotspot:forward -j ACCEPT' >"$OMARCHY_HOTSPOT_UFW_RULES"
+rules=$(cat "$OMARCHY_HOTSPOT_UFW_RULES")
+if firewall_rules_file_tag_present "$rules" wlan2 10.55.0.0/24 forward; then
+  echo "an input rule reads as this hotspot's forwarding rule" >&2
+  exit 1
+fi
+DRIVER
+write_user_rules "$UFW_RULES_FILE" wlan2 10.55.0.0/24
+run_isolated "$TEST_TMP/rules-file-match-driver.sh"
+pass "a recorded rule only counts when its interface, subnet, and UFW chain match"
+
+if unshare --user --map-auto --map-root-user true 2>/dev/null; then
+  cat >"$TEST_TMP/root-paths-driver.sh" <<'DRIVER'
+[[ $UFW_RULES_FILE == "/etc/ufw/user.rules" ]] || { echo "a root process reads $UFW_RULES_FILE" >&2; exit 1; }
+[[ $HOTSPOT_STATE_DIR == "/var/lib/omarchy/hotspot" ]] || { echo "a root process uses $HOTSPOT_STATE_DIR" >&2; exit 1; }
+[[ $(self_path) == "$(readlink -f "$1")" ]] || { echo "a root process resolves $(self_path)" >&2; exit 1; }
+DRIVER
+  set +e
+  root_paths_output=$(unshare --user --map-auto --map-root-user \
+    env OMARCHY_HOTSPOT_UFW_RULES="$UFW_RULES_FILE" OMARCHY_HOTSPOT_STATE_DIR="$STATE_DIR" OMARCHY_PATH=/tmp \
+    PATH="$STUB_BIN:$PATH" bash -c 'source "$1"; source "$2"' _ "$FUNCTIONS" "$TEST_TMP/root-paths-driver.sh" 2>&1)
+  root_paths_status=$?
+  set -e
+  (( root_paths_status == 0 )) || fail "a root process ignores test overrides for production paths" "$root_paths_output"
+  pass "a root process ignores environment overrides for the UFW rules file and state directory"
+else
+  skip "no subordinate-id user namespace; skipping the production path pin probe"
+fi

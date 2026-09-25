@@ -362,9 +362,8 @@ if (updateHotspotSource) {
   const lastSsid = hotspotSsid
   const lastPassword = hotspotPassword
   const lastBand = hotspotBand
-  updateHotspot('client_count\t2\n', 0, '')
-  assert(hotspot.active === '0' && hotspot.ssid === 'Saved Hotspot' && hotspot.password === 'savedpassword' && hotspotBand === '5', 'network preserves fields missing from a partial successful hotspot status')
-  assertEqual(hotspot.client_count, '2', 'network applies fields present in a partial successful hotspot status')
+  updateHotspot('active\t1\nclient_count\t0\nclients\t[]\n', 0, '')
+  assert(hotspot.active === '1' && hotspot.client_count === '0' && hotspot.ssid === undefined, 'network replaces stale fields from a successful hotspot status')
   lastGood = hotspot
   updateHotspot('', 1, 'status probe\nfailed')
   assert(hotspot === lastGood && hotspotSsid === lastSsid && hotspotPassword === lastPassword && hotspotBand === lastBand, 'network preserves hotspot state after failed status')
