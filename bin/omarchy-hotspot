@@ -73,34 +73,49 @@ nm_channel_for() {
   esac
 }
 
-# Any wireless PHY that can run AP mode at all?
-ap_capable() {
-  iw phy 2>/dev/null | grep -Eq '^[[:space:]]*\*[[:space:]]*AP[[:space:]]*$'
+# AP capability for the selected interface's PHY.
+phy_for_iface() {
+  local iface=$1
+  iw dev "$iface" info 2>/dev/null | awk '$1 == "wiphy" { print "phy" $2; exit }'
 }
 
-# Bands the radios report, comma-separated ("2.4,5"). `iw phy` only exposes
-# band *presence* (Band 1 = 2.4 GHz, Band 2 = 5 GHz, Band 3 = 6 GHz), not
-# per-band AP support, so this over-approximates; an AP that fails on a
-# reported band surfaces the real NetworkManager reason instead of a silent
-# fallback.
+ap_capable() {
+  local phy
+  phy=$(phy_for_iface "$1") || return 1
+  [[ -n $phy ]] || return 1
+  iw phy "$phy" 2>/dev/null | awk -v phy="$phy" '
+    $1 == "Wiphy" { selected = ($2 == phy) }
+    selected && /^[[:space:]]*\*[[:space:]]*AP[[:space:]]*$/ { capable = 1 }
+    END { exit capable ? 0 : 1 }
+  '
+}
+
+# Bands the selected interface's PHY reports, comma-separated ("2.4,5").
+# `iw phy` only exposes band presence, not per-band AP support, so this
+# over-approximates; an AP that fails on a reported band surfaces the real
+# NetworkManager reason instead of a silent fallback.
 ap_bands() {
-  iw phy 2>/dev/null | awk '
-    /^[[:space:]]*Band 1:[[:space:]]*$/ { out = emit(out, "2.4") }
-    /^[[:space:]]*Band 2:[[:space:]]*$/ { out = emit(out, "5") }
-    /^[[:space:]]*Band 3:[[:space:]]*$/ { out = emit(out, "6") }
+  local phy
+  phy=$(phy_for_iface "$1") || return 0
+  [[ -n $phy ]] || return 0
+  iw phy "$phy" 2>/dev/null | awk -v phy="$phy" '
+    $1 == "Wiphy" { selected = ($2 == phy) }
+    selected && /^[[:space:]]*Band 1:[[:space:]]*$/ { out = emit(out, "2.4") }
+    selected && /^[[:space:]]*Band 2:[[:space:]]*$/ { out = emit(out, "5") }
+    selected && /^[[:space:]]*Band 3:[[:space:]]*$/ { out = emit(out, "6") }
     function emit(acc, band) {
       if (seen[band]) return acc
       seen[band] = 1
       return acc == "" ? band : acc "," band
     }
     END { print out }
-  ' || true
+  '
 }
 
 band_supported() {
-  local requested=$1 supported
-  supported=$(ap_bands)
-  [[ -z $supported ]] && return 0
+  local iface=$1 requested=$2 supported
+  supported=$(ap_bands "$iface")
+  [[ -n $supported ]] || return 1
   case ",$supported," in
     *",$requested,"*) return 0 ;;
     *) return 1 ;;
@@ -120,10 +135,15 @@ profile_active() {
   [[ -n $(LC_ALL=C nmcli -t -f NAME connection show --active 2>/dev/null | grep -x "$PROFILE") ]]
 }
 
-# The device the profile runs on when active, else the first wifi device.
+# The active profile device, else its saved interface, else the first Wi-Fi device.
 ap_iface() {
   local dev
   dev=$(nm_get GENERAL.DEVICE connection show "$PROFILE" 2>/dev/null | head -n 1)
+  if [[ -n $dev && $dev != "--" ]]; then
+    echo "$dev"
+    return
+  fi
+  dev=$(nm_get connection.interface-name connection show "$PROFILE" 2>/dev/null | head -n 1)
   if [[ -n $dev && $dev != "--" ]]; then
     echo "$dev"
   else
@@ -176,11 +196,11 @@ status() {
   local capable=0 active=0 configured=0 iface ssid band password freq ip clients upstream
   local client_list client_count bands
 
-  if ap_capable; then capable=1; fi
+  iface=$(ap_iface)
+  if [[ -n $iface ]] && ap_capable "$iface"; then capable=1; fi
   if profile_active; then active=1; fi
   if profile_configured; then configured=1; fi
 
-  iface=""
   ssid=""
   band=""
   password=""
@@ -192,9 +212,8 @@ status() {
   bands=""
 
   if ((capable)); then
-    iface=$(ap_iface)
     upstream=$(upstream_type)
-    bands=$(ap_bands)
+    bands=$(ap_bands "$iface")
     # The profile is the single source of truth; these ride along so the
     # panel can repopulate its editable fields after a restart.
     ssid=$(profile_ssid)
@@ -398,10 +417,10 @@ qr() {
 apply() {
   local ssid=$1 band=${2:-2.4} password device nm_band nm_channel
 
-  ap_capable || fail "no Wi-Fi adapter supports AP mode"
-  band_supported "$band" || fail "band '$band' is not available on this adapter"
-  device=$(first_wifi_device)
+  device=$(ap_iface)
   [[ -n $device ]] || fail "no Wi-Fi device found"
+  ap_capable "$device" || fail "no Wi-Fi adapter supports AP mode"
+  band_supported "$device" "$band" || fail "band '$band' is not available on this adapter"
 
   IFS= read -r password || true
   [[ -n $ssid ]] || fail "SSID required"
@@ -414,7 +433,7 @@ apply() {
     # SSID/band ride argv (not secret); the passphrase goes through the
     # scriptable editor so it never shows up in /proc.
     nmcli connection modify "$PROFILE" ssid "$ssid" 802-11-wireless.band "$nm_band" \
-      >/dev/null 2>&1 ||
+      connection.interface-name "$device" >/dev/null 2>&1 ||
       fail "could not apply hotspot settings"
     printf 'set wifi-sec.psk %s\nsave\nquit\n' "$password" |
       nmcli connection edit "$PROFILE" >/dev/null 2>&1 ||
@@ -478,6 +497,8 @@ setup() {
 }
 
 diagnose() {
+  local iface
+  iface=$(ap_iface)
   echo "== hotspot diagnose =="
   echo "kernel: $(uname -r)"
   echo "nmcli: $(nmcli --version 2>/dev/null || echo missing)"
@@ -490,23 +511,23 @@ diagnose() {
     echo "dnsmasq: missing"
   fi
   echo "firewall: $(firewall_backend)"
-  if ap_capable; then
+  if [[ -n $iface ]] && ap_capable "$iface"; then
     echo "ap capable: yes"
   else
     echo "ap capable: no"
   fi
-  echo "ap bands: $(ap_bands)"
+  echo "ap bands: $(ap_bands "$iface")"
   echo "wifi devices: $(first_wifi_device)"
   if profile_configured; then
     echo "profile: configured / $(profile_active && echo active || echo inactive)"
-    echo "profile iface: $(ap_iface)"
+    echo "profile iface: $iface"
     echo "profile ssid: $(profile_ssid)"
     echo "profile band: $(profile_band)"
   else
     echo "profile: absent"
   fi
   if profile_active; then
-    echo "ap freq: $(iw dev "$(ap_iface)" link 2>/dev/null | awk '/freq:/ { print $2; exit }')"
+    echo "ap freq: $(iw dev "$iface" link 2>/dev/null | awk '/freq:/ { print $2; exit }')"
   fi
   echo "upstream: $(upstream_type)"
   echo "valid interface combinations:"
