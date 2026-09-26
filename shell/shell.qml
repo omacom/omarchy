@@ -790,8 +790,14 @@ ShellRoot {
       var expectedProfile = descriptor
         ? shell.pluginShellCapabilityProfile(manifest, descriptor.allowOwnService, barCapabilities) : ""
       var active = descriptor && manifest && shell.pluginRegistry.isEnabled(descriptor.pluginId)
-      if (!active || descriptor.profile !== expectedProfile)
+      if (!active || descriptor.profile !== expectedProfile) {
         shell.revokePluginShellApi(shellKey)
+        // Revoking destroys the api objects. A kept panel instance holds them
+        // from its one-time onLoaded and would silently be left with null, so
+        // hand it fresh ones when this was only a profile change. A disabled
+        // plugin often stays installed, and its panel must stay without them.
+        if (active) shell.refreshPanelPluginApis(String(descriptor.pluginId || ""))
+      }
     }
 
     var registryNext = ({})
@@ -1224,6 +1230,37 @@ ShellRoot {
     deliverIfLoaded(pluginId)
   }
 
+  // Re-deliver the host apis to an already loaded panel, overlay or menu
+  // plugin. Its Loader assigns them once in onLoaded, so anything that revokes
+  // and recreates them afterwards has to push the replacements itself; this
+  // mirrors the kept-service path in ensureServices().
+  function refreshPanelPluginApis(pluginId) {
+    var id = String(pluginId || "")
+    var loader = panelLoaders[id]
+    var item = loader ? loader.item : null
+    if (!item) return
+    var manifest = shell.pluginRegistry.installedPlugins[id]
+    if (!manifest) return
+    shell.deliverPanelPluginApis(item, id, manifest)
+  }
+
+  // Hand a panel, overlay or menu plugin instance its host apis. Build them
+  // from the registry manifest: the copy that reaches a panel through the
+  // Instantiator model has its kinds converted to a sequence type, so
+  // manifestHasKind() misses "menu", the facade comes without appLibrary, and
+  // its profile disagrees with the one pluginShellForId() asks for, which
+  // makes the two callers revoke each other's facade.
+  function deliverPanelPluginApis(item, pluginId, manifest) {
+    if ("omarchyPath" in item) item.omarchyPath = shell.omarchyPath
+    if ("shell" in item) item.shell = shell.pluginShellFor(manifest)
+    if ("manifest" in item) item.manifest = shell.publicPluginManifest(manifest)
+    if ("barWidgetRegistry" in item) item.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
+    if ("pluginRegistry" in item) item.pluginRegistry = shell.pluginRegistryFor(manifest)
+    // Plugins that pair a panel UI with a service entry read shared state off
+    // `service`. Hand them the matching singleton if one was loaded.
+    if ("service" in item) item.service = shell.serviceFor(pluginId)
+  }
+
   function unregisterPanelLoader(pluginId) {
     if (!panelLoaders[pluginId]) return
     var next = ({})
@@ -1327,15 +1364,8 @@ ShellRoot {
         asynchronous: true
         onLoaded: {
           if (!item) return
-          if ("omarchyPath" in item) item.omarchyPath = shell.omarchyPath
-          if ("shell" in item) item.shell = shell.pluginShellFor(panelEntry.manifest)
-          if ("manifest" in item) item.manifest = shell.publicPluginManifest(panelEntry.manifest)
-          if ("barWidgetRegistry" in item) item.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(panelEntry.manifest)
-          if ("pluginRegistry" in item) item.pluginRegistry = shell.pluginRegistryFor(panelEntry.manifest)
-          // Plugins that pair a panel UI with a service entry read shared
-          // state off `service`. Hand them the matching singleton if one was
-          // loaded.
-          if ("service" in item) item.service = shell.serviceFor(panelEntry.pluginId)
+          shell.deliverPanelPluginApis(item, panelEntry.pluginId,
+            shell.pluginRegistry.installedPlugins[panelEntry.pluginId] || panelEntry.manifest)
           shell.registerPanelLoader(panelEntry.pluginId, this)
         }
         onStatusChanged: {
