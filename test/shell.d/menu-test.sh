@@ -491,12 +491,36 @@ assert(
   'menu filter changes disarm pointer selection'
 )
 assert(
-  /function setActiveMenu\(id, pushHistory, fromPointer\)[\s\S]*if \(fromPointer\) pointerGate\.allowInitialSample\(\)\s*else root\.disarmPointer\(\)/.test(menuQml),
+  /function setActiveMenu\(id, pushHistory, fromPointer, fromItem\)[\s\S]*if \(fromPointer\) pointerGate\.allowInitialSample\(\)\s*else root\.disarmPointer\(\)/.test(menuQml),
   'menu route changes only accept an initial pointer sample for mouse activation'
 )
 assert(
   /\(event\.key === Qt\.Key_Backspace \|\| event\.key === Qt\.Key_Left\) && !root\.filterText[\s\S]*root\.goBack\(\)/.test(menuQml),
   'menu Left key follows empty-filter Backspace navigation'
+)
+
+// Going back lands on the row that was drilled into, not the top of the list.
+const backItems = menu.mergeMenuSources(menu.parseMenuJsonc(`
+{
+  "items": {
+    "root": { "label": "Go" },
+    "style": { "label": "Style" },
+    "style.bar": { "label": "Menu Bar" },
+    "style.bar.position": { "label": "Position", "action": "omarchy-bar-position" },
+    "learn": { "label": "Learn" }
+  }
+}
+`), []).items
+const rootRows = ['style', 'learn']
+assertEqual(menu.nearestRowIndex(backItems, rootRows, 'learn'), 1, 'menu back lands on the row that was entered')
+assertEqual(menu.nearestRowIndex(backItems, rootRows, 'style.bar.position'), 0, 'menu back from a search drilldown lands on the branch it was under')
+assertEqual(menu.nearestRowIndex(backItems, rootRows, 'missing'), -1, 'menu back leaves the cursor alone for a row it cannot find')
+assertEqual(menu.nearestRowIndex(backItems, [], 'style'), -1, 'menu back copes with an empty list')
+assert(
+  /root\.navStack = root\.navStack\.concat\(\[\{ menu: root\.activeMenu, item: fromItem \|\| "" \}\]\)/.test(menuQml)
+    && /function goBack\(\)[\s\S]*?root\.setActiveMenu\(previous, false\)\s*\n\s*root\.placeCursorOn\(returnTo\)/.test(menuQml)
+    && /function placeCursorOn\(itemId\)[\s\S]*?MenuModel\.nearestRowIndex\(root\.items, rowIds, itemId\)[\s\S]*?if \(index < 0 \|\| !root\.rowSelectable\(index\)\) return/.test(menuQml),
+  'menu remembers the entered row in history and returns the cursor to it'
 )
 assert(
   /PointerMoveGate\s*\{[\s\S]*id: pointerGate[\s\S]*referenceItem: card[\s\S]*\}/.test(menuQml),
@@ -634,7 +658,7 @@ assert(
   'menu samples pointer movement immediately when entering a row'
 )
 assert(
-  /function activateIndex\(index, fromPointer\)[\s\S]*root\.setActiveMenu\(row\.target \|\| row\.itemId, true, fromPointer\)/.test(menuQml)
+  /function activateIndex\(index, fromPointer\)[\s\S]*root\.setActiveMenu\(row\.target \|\| row\.itemId, true, fromPointer, row\.itemId\)/.test(menuQml)
     && /onClicked:[\s\S]*root\.activateIndex\(row\.index, true\)/.test(menuQml),
   'mouse activation carries pointer intent into subordinate menus'
 )

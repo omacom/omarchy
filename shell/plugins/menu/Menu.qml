@@ -70,6 +70,8 @@ Item {
   property int applySerial: 0
   property var items: ({})
   property var itemOrder: []
+  // Menus left behind by drilling down, each with the row that was entered,
+  // so Left/Backspace can put the cursor back where it was.
   property var navStack: []
   property var providersLoaded: ({})
   property var providerQueue: []
@@ -550,6 +552,17 @@ Item {
     root.cursorActive = target >= 0
   }
 
+  // Put the cursor on the row for `itemId` (or the branch it sits under) when
+  // that row can take it; otherwise leave it where settleCursor parked it.
+  function placeCursorOn(itemId) {
+    var rowIds = []
+    for (var i = 0; i < displayModel.count; i++) rowIds.push(displayModel.get(i).itemId)
+    var index = MenuModel.nearestRowIndex(root.items, rowIds, itemId)
+    if (index < 0 || !root.rowSelectable(index)) return
+    root.selectedIndex = index
+    root.cursorActive = true
+  }
+
   function rebuildDmenuDisplay() {
     displayModel.clear()
     root.searchDivider = false
@@ -726,10 +739,10 @@ Item {
     root.rebuildDisplay()
   }
 
-  function setActiveMenu(id, pushHistory, fromPointer) {
+  function setActiveMenu(id, pushHistory, fromPointer, fromItem) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
-    if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
+    if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([{ menu: root.activeMenu, item: fromItem || "" }])
     root.activeMenu = id
     root.filterText = ""
     root.selectedIndex = 0
@@ -741,18 +754,26 @@ Item {
     root.loadProviderForMenu(id)
   }
 
+  // Going back returns the cursor to the row that was drilled into rather
+  // than the top of the list. Without history -- the menu was summoned
+  // straight into a submenu -- the parent opens on that submenu's own row.
   function goBack() {
     if (root.activeMenu === "root") return false
 
+    var previous
+    var returnTo = root.activeMenu
     if (root.navStack.length > 0) {
-      var previous = root.navStack[root.navStack.length - 1]
+      var frame = root.navStack[root.navStack.length - 1]
       root.navStack = root.navStack.slice(0, root.navStack.length - 1)
-      root.setActiveMenu(previous, false)
-      return true
+      previous = frame.menu
+      returnTo = frame.item || returnTo
+    } else {
+      var active = root.item(root.activeMenu)
+      previous = (active && active.parent) ? active.parent : "root"
     }
 
-    var active = root.item(root.activeMenu)
-    root.setActiveMenu((active && active.parent) ? active.parent : "root", false)
+    root.setActiveMenu(previous, false)
+    root.placeCursorOn(returnTo)
     return true
   }
 
@@ -773,7 +794,7 @@ Item {
 
     var row = displayModel.get(index)
     if (row.kind === "menu" || row.kind === "link") {
-      root.setActiveMenu(row.target || row.itemId, true, fromPointer)
+      root.setActiveMenu(row.target || row.itemId, true, fromPointer, row.itemId)
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label

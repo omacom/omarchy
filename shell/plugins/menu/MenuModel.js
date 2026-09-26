@@ -252,6 +252,26 @@ function childCount(items, itemOrder, id) {
   return count
 }
 
+// Row to land the cursor on when coming back to a menu: the one for `id`, or
+// for its nearest ancestor when `id` itself is not a row here -- a search
+// result drills several levels down at once, and coming back lands on the
+// branch it was under. -1 when no ancestor is a row either.
+function nearestRowIndex(items, rowIds, id) {
+  var ids = Array.isArray(rowIds) ? rowIds : []
+  var current = id
+  var guard = 0
+
+  while (current && guard < 32) {
+    var index = ids.indexOf(current)
+    if (index >= 0) return index
+    var entry = item(items, current)
+    current = entry ? entry.parent : ""
+    guard += 1
+  }
+
+  return -1
+}
+
 function isVisible(items, itemOrder, whenResults, entry, depth) {
   if (!entry) return false
   if (entry.when && whenResults && whenResults[entry.id] === false) return false
@@ -509,6 +529,7 @@ if (typeof module !== "undefined") {
     parentPathFor: parentPathFor,
     isDescendantOf: isDescendantOf,
     childCount: childCount,
+    nearestRowIndex: nearestRowIndex,
     isVisible: isVisible,
     isDisabled: isDisabled,
     labelFor: labelFor,
