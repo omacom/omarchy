@@ -226,8 +226,10 @@ assert(
   'network failure reprompts use the row credential requirement'
 )
 assert(
-  /networkFailureReason\(reason, requiresCredentials\(network\.security\)\)/.test(panelSource),
-  'network failure copy uses the live network credential requirement'
+  /networkFailureReason\(/.test(panelSource) &&
+    /requiresCredentials\(network\.security\)/.test(panelSource) &&
+    /isEnterpriseSecurity\(network\.security\)/.test(panelSource),
+  'network failure copy uses the live network credential and enterprise flags'
 )
 assert(
   /readonly property bool canForget: root\.canForgetNetwork\(net\)/.test(panelSource),
@@ -253,9 +255,36 @@ assert(
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }
 assertEqual(network.networkFailureReason(reasons.NoSecrets, true, reasons), 'Passphrase required', 'network maps missing credential failures')
 assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, true, reasons), 'Wrong password', 'network maps credentialed auth timeouts')
+assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, true, reasons, true), 'Connection timed out', 'network does not call enterprise timeouts a wrong password')
 assertEqual(network.networkFailureReason(reasons.NoSecrets, false, reasons), 'Failed to connect', 'network gives passwordless missing-secret failures generic copy')
 assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, false, reasons), 'Failed to connect', 'network gives passwordless auth timeouts generic copy')
 assertEqual(network.networkFailureReason(99, true, reasons), 'Failed to connect', 'network maps unknown failures')
+assert(
+  /networkFailureReason\(\s*reason,\s*requiresCredentials\(network\.security\),\s*isEnterpriseSecurity\(network\.security\)\s*\)/.test(panelSource),
+  'network failure copy distinguishes enterprise security'
+)
+assert(
+  /Prefer an existing wpa-eap profile/.test(network.enterpriseConnectScript) ||
+    /while IFS=: read -r cand/.test(network.enterpriseConnectScript),
+  'enterprise connect reuses an existing wpa-eap profile for the SSID'
+)
+assert(
+  /created=1/.test(network.enterpriseConnectScript) &&
+    /\(\( created \)\) && nmcli connection delete/.test(network.enterpriseConnectScript),
+  'enterprise connect only deletes a profile it just created'
+)
+assert(
+  /nmcli -e no -g 802-11-wireless\.ssid/.test(network.enterpriseConnectScript),
+  'enterprise connect reads SSIDs without nmcli escaping so colon/backslash names reuse'
+)
+assert(
+  !/802-1x\.auth-timeout 8/.test(network.enterpriseConnectScript),
+  'enterprise connect does not pin an eight-second auth timeout'
+)
+assert(
+  /row\.isFailed \? \(root\.failureReason \|\| "Wrong password"\)/.test(panelSource),
+  'password prompt shows the mapped failureReason instead of a hard-coded wrong password'
+)
 
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Owe }), true, 'network can forget known disconnected OWE networks')
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Open }), true, 'network can forget known disconnected open networks')

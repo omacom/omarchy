@@ -332,19 +332,38 @@ function canForgetNetwork(network) {
 // `connection edit` editor -- argv is world-readable in /proc, so the secret
 // must never be an argument (printf is a bash builtin, so no process spawns
 // with it either).
+//
+// Prefer an existing wpa-eap profile for the SSID so institutional CAT
+// installers (CA cert, anonymous identity, domain match) stay intact. Only
+// synthesize a minimal PEAP/MSCHAPv2 profile when none exists, and delete that
+// new UUID on failure — never delete a pre-existing profile.
 var enterpriseConnectScript =
-  "u=$(uuidgen); IFS= read -r pw;" +
-  " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
-  " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
-  " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
-  " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
+  "IFS= read -r pw; created=0; u=;" +
+  " while IFS=: read -r cand _type; do" +
+  "   [[ $_type == 802-11-wireless ]] || continue;" +
+  "   ssid=$(nmcli -e no -g 802-11-wireless.ssid connection show uuid \"$cand\" 2>/dev/null);" +
+  "   [[ $ssid == \"$1\" ]] || continue;" +
+  "   km=$(nmcli -g 802-11-wireless-security.key-mgmt connection show uuid \"$cand\" 2>/dev/null);" +
+  "   [[ $km == wpa-eap ]] || continue;" +
+  "   u=$cand; break;" +
+  " done < <(nmcli -t -f UUID,TYPE connection show 2>/dev/null);" +
+  " if [[ -z $u ]]; then" +
+  "   u=$(uuidgen); created=1;" +
+  "   nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
+  "     wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
+  "     802-1x.identity \"$2\" 802-1x.auth-timeout 0 >/dev/null || exit 1;" +
+  " fi;" +
+  " printf 'set 802-1x.identity %s\\nset 802-1x.password %s\\nsave\\nquit\\n' \"$2\" \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
   " && nmcli connection up uuid \"$u\"" +
-  " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
+  " || { (( created )) && nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
-function networkFailureReason(reason, needsCredentials, reasons) {
+function networkFailureReason(reason, needsCredentials, reasons, isEnterprise) {
   var r = reasons || {}
   if (needsCredentials && reason === r.NoSecrets) return "Passphrase required"
-  if (needsCredentials && reason === r.WifiAuthTimeout) return "Wrong password"
+  // PSK timeouts usually mean a bad passphrase. Enterprise timeouts commonly
+  // mean a slow RADIUS round-trip, so do not call them a wrong password.
+  if (needsCredentials && reason === r.WifiAuthTimeout)
+    return isEnterprise ? "Connection timed out" : "Wrong password"
   if (reason === r.WifiNetworkLost) return "Network lost"
   if (reason === r.WifiClientDisconnected) return "Disconnected"
   if (reason === r.WifiClientFailed) return "Connection failed"
@@ -353,10 +372,11 @@ function networkFailureReason(reason, needsCredentials, reasons) {
 
 // Whether a failed connect should reopen the passphrase prompt. NoSecrets
 // means credentials are missing only for a network that actually uses them.
-// An auth timeout on such a network means the saved passphrase is wrong (the
+// An auth timeout on a PSK network means the saved passphrase is wrong (the
 // same profile a first failed attempt leaves behind as "known"), so the user
 // needs a chance to re-enter it -- connectWithPsk overwrites the stored PSK on
-// submit.
+// submit. Enterprise timeouts still reprompt so identity/password can be fixed
+// without inventing a second insecure profile.
 function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   var r = reasons || {}
   if (!needsCredentials) return false
