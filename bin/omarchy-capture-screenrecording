@@ -18,6 +18,10 @@
 # the picker target it was launched with) to
 # $XDG_RUNTIME_DIR/omarchy-screenrecord.log so users can attach a log when
 # reporting capture failures.
+#
+# Env: OMARCHY_SCREENRECORD_STOP_TIMEOUT=<seconds> overrides the stop grace period
+# after SIGINT (default 30, clamped 1..600). Non-numeric or oversized digit
+# strings fall back to 30.
 
 [[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
 OUTPUT_DIR="${OMARCHY_SCREENRECORD_DIR:-${XDG_VIDEOS_DIR:-$HOME/Videos}}"
@@ -219,9 +223,19 @@ start_screenrecording() {
 stop_screenrecording() {
   pkill -SIGINT -f "^gpu-screen-recorder" # SIGINT required to save video properly
 
-  # Wait a maximum of 5 seconds to finish before hard killing
+  # Wait for the muxer to write the trailer. Five seconds is too short on a
+  # loaded or thermally throttled machine and SIGKILL then truncates the file
+  # (issue #12469). Honour OMARCHY_SCREENRECORD_STOP_TIMEOUT seconds, default 30.
+  # Digit-only values still need base-10 forcing and a small upper bound so
+  # leading zeros are not octal and huge inputs cannot overflow the *10 bound.
+  local timeout_s=${OMARCHY_SCREENRECORD_STOP_TIMEOUT:-30}
+  [[ $timeout_s =~ ^[0-9]{1,5}$ ]] || timeout_s=30
+  timeout_s=$((10#$timeout_s))
+  ((timeout_s < 1)) && timeout_s=1
+  ((timeout_s > 600)) && timeout_s=600
   local count=0
-  while pgrep -f "^gpu-screen-recorder" >/dev/null && ((count < 50)); do
+  local max=$((timeout_s * 10))
+  while pgrep -f "^gpu-screen-recorder" >/dev/null && ((count < max)); do
     sleep 0.1
     count=$((count + 1))
   done
