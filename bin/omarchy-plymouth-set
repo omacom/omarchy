@@ -3,9 +3,15 @@
 # omarchy:summary=Set the Plymouth boot theme colors and logo
 # omarchy:args=<background-hex> <text-hex> <path-to-logo.png>
 # omarchy:examples=omarchy plymouth set '#1d2021' '#ebdbb2' ~/.local/state/omarchy/current/theme/plymouth/logo.png
-# omarchy:requires-sudo=true
 
 set -euo pipefail
+
+# Self-elevates for the publish transaction. Do not advertise requires-sudo: a
+# leading `sudo omarchy plymouth set` strips OMARCHY_PATH and used to half-apply
+# the theme while still rebuilding the initramfs (#10036).
+
+# Session env usually exports this; fall back for non-login / stripped environments.
+: "${OMARCHY_PATH:=/usr/share/omarchy}"
 
 # Build the authoritative theme in a root-owned directory, then publish each
 # fixed destination atomically. The caller opens the selected logo before sudo,
@@ -134,6 +140,34 @@ run_root_transaction() {
         directory=${directory%/*}
         [[ -n $directory ]] || directory=/
       done
+    }
+
+    # Older Omarchy published the theme tree with cp -a from a 0700 stage, so
+    # /usr/share/{plymouth,sddm}/themes/omarchy can still be user-owned mode
+    # 0700 after upgrade. That exact shape is safe to reclaim: no group/world
+    # write, and the parent chain must already be root-owned. Hostile modes
+    # (group/world-writable, symlinks) stay refused by validate_trusted_directory.
+    repair_legacy_theme_directory() {
+      local directory=$1 uid directory_mode parent
+
+      [[ -e $directory || -L $directory ]] || return 0
+
+      failure_context="legacy theme directory $directory"
+      [[ -d $directory && ! -L $directory ]]
+
+      uid=$(stat -c %u -- "$directory")
+      directory_mode=$(stat -c %a -- "$directory")
+      (( uid != 0 )) || return 0
+      [[ $directory_mode == "700" ]] || return 0
+      (( (8#$directory_mode & 0022) == 0 ))
+
+      parent=${directory%/*}
+      [[ -n $parent ]]
+      validate_trusted_directory "$parent"
+
+      failure_context="repairing legacy theme directory $directory"
+      chown 0:0 -- "$directory"
+      chmod 0755 -- "$directory"
     }
 
     validate_trusted_configuration_file() {
@@ -314,13 +348,18 @@ run_root_transaction() {
     fi
 
     if (( ${#plymouth_assets[@]} )); then
+      repair_legacy_theme_directory "$theme_dir"
+      repair_legacy_theme_directory "$theme_dir/logos"
       validate_trusted_directory "$theme_dir"
       if [[ $mode == "refresh-plymouth" ]]; then
         validate_trusted_directory "$theme_dir/logos"
       fi
+      failure_hint=
     fi
     if (( ${#sddm_assets[@]} )); then
+      repair_legacy_theme_directory "$sddm_dir"
       validate_trusted_directory "$sddm_dir"
+      failure_hint=
     fi
 
     publish_asset() {
