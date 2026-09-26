@@ -151,12 +151,12 @@ Panel {
 
   function updateProfiles(raw) {
     var parsed = Model.parseProfiles(raw, profileIndex)
-    // Same guard as battery: preserve the last known profile list across
-    // transient empty payloads so the buttons don't blink out.
-    if (parsed.profiles.length === 0) return
-    profiles = parsed.profiles
-    activeProfile = parsed.activeProfile
+    // Reset rather than keep stale data on a transient empty payload: the
+    // buttons should clear/recover instead of freezing on a one-off failure.
+    profiles = parsed.profiles.length ? parsed.profiles : []
+    activeProfile = parsed.activeProfile || ""
     profileIndex = parsed.profileIndex
+    if (parsed.profiles.length === 0) return
     if (opened && !cursorActive) {
       var idx = profiles.indexOf(activeProfile)
       if (idx >= 0) profileIndex = idx
@@ -193,6 +193,9 @@ Panel {
       }
 
       refresh()
+      // Backstop: if the profile list is still empty (e.g. a transient failed
+      // first query), kick it again so the buttons recover on the next open.
+      if (profiles.length === 0) profilesProc.running = true
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
