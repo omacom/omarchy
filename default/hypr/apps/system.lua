@@ -28,6 +28,8 @@ o.window("org.omarchy.about", { center = true })
 o.window("org.omarchy.about", { size = { 920, 480 } })
 
 o.window("omacalc", { float = true })
+o.window("omacalc", { center = true })
+o.window("omacalc", { size = { 420, 640 } })
 
 -- Fullscreen screensaver.
 o.window("org.omarchy.screensaver", { fullscreen = true })
