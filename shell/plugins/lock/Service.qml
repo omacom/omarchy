@@ -42,6 +42,17 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Compositor finished / dropped the ext-session-lock without PAM success.
+  // Must not be treated as unlock (#10459).
+  property int lockLossRelocks: 0
+  property double lockLossWindowStartedAt: 0
+  // Guards against overlapping sessionLock.locked = true writes. A second
+  // acquire while the first is still in flight makes Quickshell abort with
+  // "Tried to show lockscreen surfaces without active lock" (#9654).
+  property bool sessionLockAcquirePending: false
+  // Bumped so each LockView (inside WlSessionLockSurface's own id scope)
+  // can call forcePasswordFocus() itself — Service must not read lockView.
+  property int passwordFocusRequest: 0
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -54,7 +65,11 @@ Item {
 
     for (var i = 0; i < screens.length; i++) {
       var screen = screens[i]
-      if (screen && screen.name && screen.width > 0 && screen.height > 0) count += 1
+      // Quickshell's placeholder "FALLBACK" screen is not a real connector.
+      // Locking against it, then watching it disappear, leaves a secure lock
+      // with no keyboard focus on the panel that comes back (#7811).
+      if (!screen || !screen.name || screen.name === "FALLBACK") continue
+      if (screen.width > 0 && screen.height > 0) count += 1
     }
 
     return count
@@ -62,6 +77,11 @@ Item {
 
   function hasRealScreen() {
     return realScreenCount() > 0
+  }
+
+  function forceLockPasswordFocus() {
+    if (!lockRequested) return
+    passwordFocusRequest += 1
   }
 
   function queueSessionLock() {
@@ -73,6 +93,7 @@ Item {
 
   function requestSessionLock() {
     if (!lockRequested || sessionLock.locked || sessionLock.secure) return
+    if (sessionLockAcquirePending) return
     if (sessionLockStabilizeTimer.running) return
 
     if (!hasRealScreen()) {
@@ -84,6 +105,8 @@ Item {
 
     pendingSessionLock = false
     pendingSessionLockTimer.stop()
+    sessionLockAcquirePending = true
+    sessionLockAcquireWatchdog.restart()
     sessionLock.locked = true
   }
 
@@ -155,6 +178,7 @@ Item {
     resetAuthenticationState()
     lockRequested = true
     armBlankTimer()
+    lockAcquireTimeoutTimer.restart()
     logEvent("lock-requested")
     queueSessionLock()
 
@@ -166,13 +190,47 @@ Item {
     return true
   }
 
+  function clearStalledLockRequest(reason) {
+    if (!lockRequested) return
+    if (sessionLock.locked || sessionLock.secure) return
+
+    // No physical output yet (Hyprland FALLBACK alone does not count). Keep the
+    // request pending so a later hot-plug still locks; only reset acquire flags.
+    if (!hasRealScreen()) {
+      logEvent("lock-pending: waiting-for-screen")
+      sessionLockAcquirePending = false
+      sessionLockAcquireWatchdog.stop()
+      pendingSessionLock = true
+      if (!pendingSessionLockTimer.running) pendingSessionLockTimer.start()
+      lockAcquireTimeoutTimer.restart()
+      return
+    }
+
+    logEvent(reason)
+    lockRequested = false
+    pendingSessionLock = false
+    sessionLockAcquirePending = false
+    sessionLockStabilizeTimer.stop()
+    pendingSessionLockTimer.stop()
+    lockAcquireTimeoutTimer.stop()
+    sessionLockAcquireWatchdog.stop()
+    resetAuthenticationState()
+    runWake()
+  }
+
   function finishUnlock() {
     if (!root.locked && !lockRequested) return
 
+    // Clear the request before dropping the compositor lock so
+    // onLockStateChanged does not treat this as an involuntary loss.
     lockRequested = false
     pendingSessionLock = false
+    sessionLockAcquirePending = false
     sessionLockStabilizeTimer.stop()
     pendingSessionLockTimer.stop()
+    lockLossProbeRetryTimer.stop()
+    lockAcquireTimeoutTimer.stop()
+    sessionLockAcquireWatchdog.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
@@ -180,7 +238,61 @@ Item {
     runWake()
   }
 
-  function armBlankTimer() {
+  // ext-session-lock finished without PAM. Never wake the desktop for that.
+  function handleInvoluntaryLockLoss() {
+    logEvent("lock-lost: unauthenticated")
+    pendingSessionLock = false
+    sessionLockStabilizeTimer.stop()
+    pendingSessionLockTimer.stop()
+    resetAuthenticationState()
+
+    if (!lockLossProbeProc.running) lockLossProbeProc.running = true
+  }
+
+  function noteLockLossRelock() {
+    var now = Date.now()
+    if (lockLossWindowStartedAt === 0 || now - lockLossWindowStartedAt > 60000) {
+      lockLossWindowStartedAt = now
+      lockLossRelocks = 0
+    }
+    lockLossRelocks += 1
+    return lockLossRelocks <= 3
+  }
+
+  function onLockLossProbeFinished(exitCode) {
+    if (!lockRequested) return
+
+    // Undetermined (outputs still settling): retry shortly.
+    if (exitCode === 2) {
+      logEvent("lock-lost: probe-undetermined")
+      lockLossProbeRetryTimer.restart()
+      return
+    }
+
+    // Compositor still holds the lock — re-requesting in-process can qFatal
+    // in quickshell 0.3.1; leave recovery to a shell restart / stranded check.
+    if (exitCode === 0) {
+      logEvent("lock-lost: compositor still locked")
+      return
+    }
+
+    // Session is open: take the lock again before the desktop is usable.
+    if (!noteLockLossRelock()) {
+      logEvent("lock-lost: relock-rate-limited")
+      return
+    }
+
+    logEvent("lock-lost: session is open, relocking")
+    queueSessionLock()
+  }
+
+
+  function armBlankTimer(customInterval) {
+    // Deliberate wakes need longer than a DisplayPort re-sync (~5–15s). A
+    // hard-coded 5s re-arm in runWake blanked slow panels before the lock
+    // screen could appear, looping forever until the user typed blind.
+    var ms = (typeof customInterval === "number" && customInterval > 0) ? customInterval : 5000
+    idleBlankTimer.interval = ms
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
   }
@@ -189,7 +301,10 @@ Item {
     root.displaysBlank = false
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
-    if (lockRequested) armBlankTimer()
+    // After an intentional wake, give the panel time to finish DPMS
+    // renegotiation before blanking again.
+    if (lockRequested) armBlankTimer(30000)
+    forceLockPasswordFocus()
   }
 
   function runBlank() {
@@ -241,18 +356,22 @@ Item {
 
   function respondToPasswordPrompt() {
     if (!authenticatingPassword || !passwordPam.active || !passwordPam.responseRequired) return
+    // Only answer an echo-off password prompt. Echo-on consent / yes-no
+    // prompts (e.g. face modules) must not be fed the typed password or the
+    // stack aborts before pam_unix with no failure UI (#8762).
+    if (passwordPam.responseVisible) return
     passwordPam.respond(pendingPassword)
   }
 
   function handlePasswordFailure() {
-    if (!lockRequested) return
-
+    // A submit that was in flight must still flash failure even if the
+    // compositor dropped the lock mid-conversation and cleared lockRequested.
     authenticatingPassword = false
     enteredPassword = ""
     pendingPassword = ""
     failedAttempts += 1
     failureMessage = "Authentication failed (" + failedAttempts + ")"
-    runWake()
+    if (lockRequested) runWake()
   }
 
   function startFingerprint() {
@@ -285,8 +404,11 @@ Item {
       root.logEvent("secure=" + secure)
       if (secure) {
         root.pendingSessionLock = false
+        root.sessionLockAcquirePending = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        lockAcquireTimeoutTimer.stop()
+        sessionLockAcquireWatchdog.stop()
         root.startFingerprint()
       }
     }
@@ -296,17 +418,22 @@ Item {
 
       if (locked) {
         root.pendingSessionLock = false
+        root.sessionLockAcquirePending = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        lockAcquireTimeoutTimer.stop()
+        sessionLockAcquireWatchdog.stop()
       }
 
+      if (!locked) {
+        root.sessionLockAcquirePending = false
+        sessionLockAcquireWatchdog.stop()
+      }
+
+      // Authenticated unlock clears lockRequested in finishUnlock first.
+      // Anything else is the compositor dropping the lock — fail closed (#10459).
       if (!locked && root.lockRequested) {
-        root.lockRequested = false
-        root.pendingSessionLock = false
-        sessionLockStabilizeTimer.stop()
-        pendingSessionLockTimer.stop()
-        root.resetAuthenticationState()
-        root.runWake()
+        root.handleInvoluntaryLockLoss()
       }
     }
 
@@ -315,7 +442,6 @@ Item {
       color: Color.background
 
       LockView {
-        id: lockView
         anchors.fill: parent
         backgroundPath: root.backgroundPath
         videoPosterPath: root.videoPosterPath
@@ -329,6 +455,7 @@ Item {
         displaysBlank: root.screenBlank(lockSurface.screen ? lockSurface.screen.name : "")
         powerSaverActive: root.powerSaverActive
         passwordText: root.enteredPassword
+        passwordFocusRequest: root.passwordFocusRequest
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
@@ -379,12 +506,17 @@ Item {
     onPamMessage: root.respondToPasswordPrompt()
 
     onCompleted: function(result) {
-      root.authenticatingPassword = false
       root.pendingPassword = ""
 
-      if (!root.lockRequested) return
-      if (result === PamResult.Success) root.finishUnlock()
-      else root.handlePasswordFailure()
+      if (result === PamResult.Success) {
+        root.authenticatingPassword = false
+        if (root.lockRequested) root.finishUnlock()
+        return
+      }
+
+      // Always surface failure for a password submit, even if lockRequested
+      // was cleared while PAM was still finishing (#8762).
+      root.handlePasswordFailure()
     }
 
     onError: function(error) {
@@ -472,6 +604,14 @@ Item {
   }
 
   Process {
+    id: lockLossProbeProc
+    command: ["bash", "-c", "omarchy-hyprland-session-locked"]
+    onExited: function(exitCode) {
+      root.onLockLossProbeFinished(exitCode)
+    }
+  }
+
+  Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
   }
@@ -540,6 +680,43 @@ Item {
     onTriggered: root.requestSessionLock()
   }
 
+  // A request that never reaches sessionLock.locked/secure must not latch
+  // forever and make later lock() calls report success (#10299).
+  Timer {
+    id: lockAcquireTimeoutTimer
+    interval: 15000
+    repeat: false
+    onTriggered: root.clearStalledLockRequest("lock-failed: acquire-timeout")
+  }
+
+  Timer {
+    id: lockLossProbeRetryTimer
+    interval: 300
+    repeat: false
+    onTriggered: {
+      if (root.lockRequested && !lockLossProbeProc.running)
+        lockLossProbeProc.running = true
+    }
+  }
+
+  // If acquire never reaches locked/secure, clear the pending flag so a later
+  // requestSessionLock can try again instead of wedging forever (#9654).
+  Timer {
+    id: sessionLockAcquireWatchdog
+    interval: 2000
+    repeat: false
+    onTriggered: {
+      if (!root.sessionLockAcquirePending) return
+      if (sessionLock.locked || sessionLock.secure) {
+        root.sessionLockAcquirePending = false
+        return
+      }
+      root.sessionLockAcquirePending = false
+      root.logEvent("lock-acquire: watchdog-reset")
+      if (root.lockRequested) root.queueSessionLock()
+    }
+  }
+
   Timer {
     id: strandedLockRetryTimer
     interval: 500
@@ -571,6 +748,7 @@ Item {
       // A monitor still coming up has no workspace, so cannot answer yet.
       strandedLockRetryTimer.rearm()
       root.checkStrandedLock()
+      root.forceLockPasswordFocus()
     }
   }
 
@@ -611,7 +789,15 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
-      if (!root.locked && !root.beginLock()) return "failed"
+      // sessionLock.locked/secure are the real compositor lock. lockRequested
+      // alone can latch forever after a stalled acquire (#10299).
+      if (sessionLock.locked || sessionLock.secure) return "ok"
+      if (root.lockRequested) {
+        root.queueSessionLock()
+        lockAcquireTimeoutTimer.restart()
+        return "ok"
+      }
+      if (!root.beginLock()) return "failed"
       return "ok"
     }
 
