@@ -26,6 +26,27 @@ case "$command" in
 esac
 
 mkdir -p "$HOME/.local/bin"
+target="$HOME/.local/bin/$command"
+
+# Never clobber something that is not a mise wrapper. `cat >` used to write
+# through a symlink into the real binary behind it (see issue #6618), so a
+# symlink is always safe to remove: it only drops the link. A regular file is
+# only replaced when a previous run of this script -- or one of the wrapper
+# migrations -- wrote it: the current template, the forms the migration
+# regenerates (see the four stale_template bodies in migrations/1787573629.sh),
+# and the bare-exec form that predates `mise exec`. A user's own wrapper at the
+# same path (pinning a version, setting an API base URL) is left alone and
+# keeps precedence over the mise shim.
+if [[ -e $target || -L $target ]]; then
+  if [[ -L $target ]]; then
+    rm -f "$target"
+  elif [[ -f $target ]] && grep -qE '^(export MISE_MINIMUM_RELEASE_AGE=0|exec mise x |exec mise exec |exec "[^"]*" "\$@"$)' "$target" 2>/dev/null; then
+    rm -f "$target"
+  else
+    echo "omarchy-mise-install: not overwriting $target (not a mise wrapper)" >&2
+    exit 1
+  fi
+fi
 
 # The heredoc below is unquoted, so whatever these hold is written into the
 # wrapper as shell source. Quote them the way omarchy-install-and-launch does, so
@@ -48,7 +69,6 @@ esac
 # hold a new version back for days after it ships. Exported rather than set on
 # the install line alone, so resolving the version to execute agrees with the
 # one just installed.
-rm -f "$HOME/.local/bin/$command"
 cat >"$HOME/.local/bin/$command" <<EOF
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
