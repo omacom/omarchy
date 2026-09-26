@@ -1,0 +1,160 @@
+#!/usr/bin/python3
+# omarchy:summary=Auto-accept Bluetooth Just Works pairing requests
+# omarchy:group=bluetooth
+# omarchy:hidden=true
+
+# bluez-tools' bt-agent never accepts RequestAuthorization: interactive mode
+# prompts on stdin (EOF under systemd → Rejected), and -d mode rejects
+# unconditionally. Device-initiated Just Works pairing (Xbox controllers, BLE
+# keyboards) therefore never bonds. This agent registers with NoInputNoOutput
+# and accepts RequestAuthorization / RequestConfirmation only while a BlueZ
+# adapter is Pairable (the Bluetooth panel turns Pairable on for the scan and
+# off when it closes). AuthorizeService stays permissive so known devices can
+# reconnect outside that window.
+
+from __future__ import annotations
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+AGENT_PATH = "/org/omarchy/bluetooth_agent"
+AGENT_XML = """
+<node>
+  <interface name="org.bluez.Agent1">
+    <method name="Release"/>
+    <method name="RequestPinCode">
+      <arg name="device" type="o" direction="in"/>
+      <arg name="pincode" type="s" direction="out"/>
+    </method>
+    <method name="DisplayPinCode">
+      <arg name="device" type="o" direction="in"/>
+      <arg name="pincode" type="s" direction="in"/>
+    </method>
+    <method name="RequestPasskey">
+      <arg name="device" type="o" direction="in"/>
+      <arg name="passkey" type="u" direction="out"/>
+    </method>
+    <method name="DisplayPasskey">
+      <arg name="device" type="o" direction="in"/>
+      <arg name="passkey" type="u" direction="in"/>
+      <arg name="entered" type="q" direction="in"/>
+    </method>
+    <method name="RequestConfirmation">
+      <arg name="device" type="o" direction="in"/>
+      <arg name="passkey" type="u" direction="in"/>
+    </method>
+    <method name="RequestAuthorization">
+      <arg name="device" type="o" direction="in"/>
+    </method>
+    <method name="AuthorizeService">
+      <arg name="device" type="o" direction="in"/>
+      <arg name="uuid" type="s" direction="in"/>
+    </method>
+    <method name="Cancel"/>
+  </interface>
+</node>
+"""
+
+BUS: Gio.DBusConnection | None = None
+
+
+def any_adapter_pairable() -> bool:
+    """True if any BlueZ adapter currently has Pairable=true."""
+    if BUS is None:
+        return False
+    try:
+        managed = BUS.call_sync(
+            "org.bluez",
+            "/",
+            "org.freedesktop.DBus.ObjectManager",
+            "GetManagedObjects",
+            None,
+            GLib.VariantType("(a{oa{sa{sv}}})"),
+            Gio.DBusCallFlags.NONE,
+            2000,
+            None,
+        )
+    except GLib.Error:
+        return False
+
+    objects = managed.unpack()[0]
+    for _path, interfaces in objects.items():
+        props = interfaces.get("org.bluez.Adapter1")
+        if not props:
+            continue
+        if props.get("Pairable") is True:
+            return True
+    return False
+
+
+def reject(invocation: Gio.DBusMethodInvocation) -> None:
+    invocation.return_dbus_error(
+        "org.bluez.Error.Rejected",
+        "Pairing is only accepted while an adapter is pairable",
+    )
+
+
+def on_method_call(connection, sender, object_path, interface_name, method_name, parameters, invocation):
+    if method_name == "RequestPinCode":
+        if not any_adapter_pairable():
+            reject(invocation)
+            return
+        invocation.return_value(GLib.Variant("(s)", ("0000",)))
+    elif method_name == "RequestPasskey":
+        if not any_adapter_pairable():
+            reject(invocation)
+            return
+        invocation.return_value(GLib.Variant("(u)", (0,)))
+    elif method_name in ("RequestConfirmation", "RequestAuthorization"):
+        if not any_adapter_pairable():
+            reject(invocation)
+            return
+        invocation.return_value(None)
+    elif method_name in ("Release", "Cancel", "DisplayPinCode", "DisplayPasskey", "AuthorizeService"):
+        # AuthorizeService covers reconnect of already-bonded devices and is
+        # not gated on Pairable (BlueZ Pairable only covers new pairing).
+        invocation.return_value(None)
+    else:
+        invocation.return_dbus_error(
+            "org.freedesktop.DBus.Error.UnknownMethod",
+            "Method %s is not implemented" % method_name,
+        )
+
+
+def main() -> None:
+    global BUS
+    BUS = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    node_info = Gio.DBusNodeInfo.new_for_xml(AGENT_XML)
+    BUS.register_object(AGENT_PATH, node_info.interfaces[0], on_method_call, None, None)
+
+    def register(_connection, _name, _name_owner):
+        for method, args in (
+            ("RegisterAgent", GLib.Variant("(os)", (AGENT_PATH, "NoInputNoOutput"))),
+            ("RequestDefaultAgent", GLib.Variant("(o)", (AGENT_PATH,))),
+        ):
+            BUS.call_sync(
+                "org.bluez",
+                "/org/bluez",
+                "org.bluez.AgentManager1",
+                method,
+                args,
+                None,
+                Gio.DBusCallFlags.NONE,
+                5000,
+                None,
+            )
+
+    Gio.bus_watch_name_on_connection(
+        BUS,
+        "org.bluez",
+        Gio.BusNameWatcherFlags.NONE,
+        register,
+        None,
+    )
+    GLib.MainLoop().run()
+
+
+if __name__ == "__main__":
+    main()
