@@ -100,6 +100,69 @@ function sinkGlyph(node) {
   return "󰓃"
 }
 
+function parseOutputPorts(raw) {
+  try {
+    var parsed = JSON.parse(String(raw || "").trim() || "{}")
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+function isHeadphonesPort(port) {
+  if (!port) return false
+  var type = String(port.type || "").toLowerCase()
+  if (type === "headphones" || type === "headset") return true
+  var description = String(port.description || "").toLowerCase()
+  return description.indexOf("headphone") !== -1 || description.indexOf("headset") !== -1
+}
+
+// Analog cards usually drive the rear Line Out and the front Headphones as ports
+// of one sink. List each plugged-in port of such a sink as an output of its own,
+// so the jacks can be picked directly and an empty jack drops out of the list.
+// Sinks with a single port, or with nothing plugged in, stay a single entry.
+function outputEntries(sinks, portsBySink) {
+  var entries = []
+  var values = Array.isArray(sinks) ? sinks : []
+  for (var i = 0; i < values.length; i++) {
+    var node = values[i]
+    if (!node) continue
+    var info = portsBySink && node.name ? portsBySink[String(node.name)] : null
+    var ports = info && Array.isArray(info.ports) ? info.ports : []
+    var available = []
+    if (ports.length > 1) {
+      for (var j = 0; j < ports.length; j++)
+        if (ports[j] && ports[j].available !== false) available.push(ports[j])
+    }
+    if (available.length === 0) {
+      entries.push({ node: node, port: null })
+      continue
+    }
+    for (var k = 0; k < available.length; k++)
+      entries.push({ node: node, port: available[k] })
+  }
+  return entries
+}
+
+function outputEntryLabel(entry) {
+  if (!entry) return "Unknown"
+  if (entry.port && entry.port.description) return friendlyDeviceLabel(entry.port.description)
+  return nodeLabel(entry.node)
+}
+
+function outputEntryGlyph(entry) {
+  if (!entry) return sinkGlyph(null)
+  if (!entry.port) return sinkGlyph(entry.node)
+  return isHeadphonesPort(entry.port) ? "󰋋" : "󰓃"
+}
+
+function outputEntryIsActive(entry, defaultSink, portsBySink) {
+  if (!entry || !entry.node || !defaultSink || defaultSink.id !== entry.node.id) return false
+  if (!entry.port) return true
+  var info = portsBySink ? portsBySink[String(entry.node.name)] : null
+  return !!info && info.activePort === entry.port.name
+}
+
 function sourceGlyph(node) {
   if (!node) return "󰍬"
   var p = nodeProps(node)
@@ -245,6 +308,12 @@ if (typeof module !== "undefined") {
     nodeLabel: nodeLabel,
     isHeadphones: isHeadphones,
     sinkGlyph: sinkGlyph,
+    parseOutputPorts: parseOutputPorts,
+    isHeadphonesPort: isHeadphonesPort,
+    outputEntries: outputEntries,
+    outputEntryLabel: outputEntryLabel,
+    outputEntryGlyph: outputEntryGlyph,
+    outputEntryIsActive: outputEntryIsActive,
     sourceGlyph: sourceGlyph,
     friendlyStreamLabel: friendlyStreamLabel,
     streamLabelKey: streamLabelKey,

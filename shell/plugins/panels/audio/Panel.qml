@@ -58,6 +58,10 @@ Panel {
   property var sinkAvailability: ({})
   property bool sinkAvailabilityLoaded: false
 
+  // Ports of each sink, keyed by sink name. Quickshell's PipeWire nodes do not
+  // expose routes, so omarchy-audio-output-ports reads them from pactl.
+  property var outputPorts: ({})
+
   // Identify true playback streams without reading node.properties here:
   // PwNode.properties is invalid until the node is bound, and reading it while
   // capture streams are appearing (for example, when Voxtype starts recording)
@@ -105,7 +109,10 @@ Panel {
   // removal signal; rebuilding a Repeater from that signal path has crashed
   // in Quickshell's PipeWire service. The snapshot timer lets that mutation
   // settle first, and closed panels keep their repeaters detached entirely.
-  property var displayAudioSinks: []
+  //
+  // Output entries are { node, port }: a sink driving several jacks yields one
+  // entry per plugged-in port, see Model.outputEntries.
+  property var displayOutputEntries: []
   property var displayAudioSources: []
   property var displayAudioStreams: []
 
@@ -184,7 +191,7 @@ Panel {
     : "transparent"
 
   function sectionCount(section) {
-    if (section === "output") return displayAudioSinks.length
+    if (section === "output") return displayOutputEntries.length
     if (section === "input") return displayAudioSources.length
     if (section === "streams") return displayAudioStreams.length
     return 0
@@ -291,8 +298,8 @@ Panel {
     if (focusSection === "header") { toggleAllMuted(); return }
     if (focusSection === "output") {
       if (selectedIndex === -1) { toggleOutputMute(); return }
-      var sink = displayAudioSinks[selectedIndex]
-      if (sink) setDefaultSink(sink)
+      var entry = displayOutputEntries[selectedIndex]
+      if (entry) setDefaultOutput(entry)
       return
     }
     if (focusSection === "input") {
@@ -323,6 +330,7 @@ Panel {
   onAudioSinksChanged: scheduleDisplayAudioModelRefresh()
   onAudioSourcesChanged: scheduleDisplayAudioModelRefresh()
   onAudioStreamsChanged: scheduleDisplayAudioModelRefresh()
+  onOutputPortsChanged: scheduleDisplayAudioModelRefresh()
 
   function listSnapshot(list) {
     return Model.listSnapshot(list)
@@ -330,7 +338,7 @@ Panel {
 
   function refreshDisplayAudioModels() {
     if (!opened) return
-    displayAudioSinks = listSnapshot(audioSinks)
+    displayOutputEntries = Model.outputEntries(listSnapshot(audioSinks), outputPorts)
     displayAudioSources = listSnapshot(audioSources)
     displayAudioStreams = listSnapshot(audioStreams)
     clampCursor()
@@ -343,7 +351,7 @@ Panel {
 
   function clearDisplayAudioModels() {
     audioModelRefreshTimer.stop()
-    displayAudioSinks = []
+    displayOutputEntries = []
     displayAudioSources = []
     displayAudioStreams = []
   }
@@ -460,15 +468,25 @@ Panel {
     if (hasInput) source.audio.muted = mute
   }
 
-  function setDefaultSink(node) {
-    if (!node) return
+  function setDefaultOutput(entry) {
+    if (!entry || !entry.node) return
+    var node = entry.node
+    var port = entry.port ? String(entry.port.name) : ""
     Pipewire.preferredDefaultAudioSink = node
     if (node.id !== undefined && node.name) {
-      Quickshell.execDetached([
-        "omarchy-audio-output-set-default",
-        String(node.id),
-        String(node.name)
-      ])
+      var command = ["omarchy-audio-output-set-default", String(node.id), String(node.name)]
+      if (port) command.push(port)
+      Quickshell.execDetached(command)
+    }
+    // Mark the port active now rather than on the next poll, so the row the
+    // user picked is the one highlighted.
+    if (port) {
+      var info = outputPorts[String(node.name)]
+      if (info) {
+        var next = Object.assign({}, outputPorts)
+        next[String(node.name)] = Object.assign({}, info, { activePort: port })
+        outputPorts = next
+      }
     }
   }
 
@@ -593,6 +611,15 @@ Panel {
   }
 
   Process {
+    id: outputPortsProc
+    command: ["omarchy-audio-output-ports"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.outputPorts = Model.parseOutputPorts(text)
+    }
+  }
+
+  Process {
     id: volumeSinkProc
     command: ["omarchy-audio-output-sink"]
     stdout: StdioCollector {
@@ -606,7 +633,10 @@ Panel {
     running: root.opened
     repeat: true
     triggeredOnStart: true
-    onTriggered: if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+    onTriggered: {
+      if (!sinkAvailabilityProc.running) sinkAvailabilityProc.running = true
+      if (!outputPortsProc.running) outputPortsProc.running = true
+    }
   }
 
   // Runs whether or not the panel is open: the bar shows and scrolls the output
@@ -851,13 +881,13 @@ Panel {
             }
 
             Repeater {
-              model: root.displayAudioSinks
+              model: root.displayOutputEntries
 
               SinkRow {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: modelData
+                entry: modelData
                 rowIndex: index
               }
             }
@@ -1010,12 +1040,13 @@ Panel {
   // Output device row — cursor target inside the "output" section. Mouse
   // hover updates the panel cursor at the root; visuals come entirely
   // from hasCursor/current via CursorSurface, never from containsMouse.
+  // One row per output entry: a whole sink, or one port of a multi-jack sink.
   component SinkRow: CursorSurface {
     id: sinkRow
-    required property var node
+    required property var entry
     required property int rowIndex
 
-    readonly property bool isActive: root.sink && node && root.sink.id === node.id
+    readonly property bool isActive: Model.outputEntryIsActive(entry, root.sink, root.outputPorts)
     hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sinkRow)
     current: isActive
@@ -1035,7 +1066,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.sinkGlyph(sinkRow.node)
+        text: Model.outputEntryGlyph(sinkRow.entry)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.title
@@ -1046,7 +1077,7 @@ Panel {
 
       Text {
         textFormat: Text.PlainText
-        text: root.nodeLabel(sinkRow.node)
+        text: Model.outputEntryLabel(sinkRow.entry)
         color: root.bar.foreground
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.body
@@ -1066,7 +1097,7 @@ Panel {
         root.focusSection = "output"
         root.selectedIndex = sinkRow.rowIndex
       }
-      onClicked: root.setDefaultSink(sinkRow.node)
+      onClicked: root.setDefaultOutput(sinkRow.entry)
     }
   }
 
