@@ -296,12 +296,25 @@ function leafIdFor(id) {
   return parts.length > 0 ? parts[parts.length - 1] : id
 }
 
+// Both spellings of every alias and of the leaf id: tokenized, so "power menu"
+// finds the row whose alias is `power-menu`, and raw, so the alias typed as it
+// is written finds it too. Tokenizing alone dropped every dot, hyphen and
+// underscore from the text being searched, which made an alias unfindable by
+// the spelling `omarchy menu summon` documents for it. `description` does not
+// rescue those queries: it is matched whole word, and `power-menu` is one word.
 function nameSearchText(entry) {
   if (!entry) return ""
-  var aliases = []
+  var parts = [entry.label]
   var values = Array.isArray(entry.aliases) ? entry.aliases : []
-  for (var i = 0; i < values.length; i++) aliases.push(searchableToken(values[i]))
-  return [entry.label, searchableToken(leafIdFor(entry.id)), aliases.join(" ")].join(" ").toLowerCase()
+  var raw = [leafIdFor(entry.id)]
+  for (var i = 0; i < values.length; i++) raw.push(values[i])
+  for (var j = 0; j < raw.length; j++) {
+    var value = String(raw[j] || "")
+    var token = searchableToken(value)
+    parts.push(token)
+    if (token !== value) parts.push(value)
+  }
+  return parts.join(" ").toLowerCase()
 }
 
 function termInSearchWords(term, text) {
