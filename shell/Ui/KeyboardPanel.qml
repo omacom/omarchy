@@ -27,8 +27,9 @@ import qs.Commons
 // axis (away-from-bar) because mapToItem on the anchor returns
 // bar-content-relative coords with internal layout offsets baked in
 // (e.g. ~13px from the bar's vertical centering of its widget row). The
-// parallel axis (along-the-bar) uses the anchor's content x/y since the
-// bar spans full screen on that axis.
+// parallel axis (along-the-bar) uses the anchor's content x/y, shifted by
+// the bar window's origin on screen: a floating bar sits `barMargins` off
+// the screen edges.
 //
 // Outside-click dismissal: an overlay MouseArea catches clicks, with the
 // QsWindow.mask subtracting the bar strip so clicks on the bar still
@@ -119,7 +120,7 @@ PanelWindow {
   readonly property real _barStripSize: {
     if (!bar) return 0
     var actual = (root.barPos === "top" || root.barPos === "bottom") ? root.barH : root.barW
-    return Math.max(bar.barSize, actual) + root.gap
+    return Math.max(bar.barSize, actual) + root.barEdgeMargin + root.gap
   }
   mask: Region {
     width: root.screenW
@@ -144,17 +145,18 @@ PanelWindow {
   readonly property point anchorScreenPos: {
     anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
-    return anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    var p = anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    return Qt.point(p.x + barX, p.y + barY)
   }
   readonly property real anchorW: anchorItem ? anchorItem.width : 0
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
   readonly property real screenW: screen ? screen.width : 0
   readonly property real screenH: screen ? screen.height : 0
   readonly property real availableCardWidth: screenW > 0
-    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barW + gap + margin : margin * 2))
+    ? Math.max(120, screenW - ((barPos === "left" || barPos === "right") ? barW + barEdgeMargin + gap + margin : margin * 2))
     : 0
   readonly property real availableCardHeight: screenH > 0
-    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barH + gap + margin : margin * 2))
+    ? Math.max(120, screenH - ((barPos === "top" || barPos === "bottom") ? barH + barEdgeMargin + gap + margin : margin * 2))
     : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
@@ -191,27 +193,34 @@ PanelWindow {
   // centering the card under the icon.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+  // A floating bar sits barMargins off the screen edges it touches, so its
+  // window starts at (barX, barY) on screen. Both are 0 for a flush top or
+  // left bar.
+  readonly property var barMargins: bar && bar.barMargins ? bar.barMargins : ({ top: 0, right: 0, bottom: 0, left: 0 })
+  readonly property real barEdgeMargin: barMargins[barPos] || 0
+  readonly property real barX: barPos === "right" ? screenW - barMargins.right - barW : barMargins.left
+  readonly property real barY: barPos === "bottom" ? screenH - barMargins.bottom - barH : barMargins.top
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
-      x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barH - contentHeight - gap : barH + gap
+      x = barX + barW / 2 - contentWidth / 2
+      y = barPos === "bottom" ? barY - contentHeight - gap : barY + barH + gap
     } else if (centerOnBar) {
-      x = barPos === "left" ? barW + gap : screenW - barW - contentWidth - gap
-      y = screenH / 2 - contentHeight / 2
+      x = barPos === "left" ? barX + barW + gap : barX - contentWidth - gap
+      y = barY + barH / 2 - contentHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barH - contentHeight - gap
+      y = barY - contentHeight - gap
     } else if (barPos === "left") {
-      x = barW + gap
+      x = barX + barW + gap
       y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
     } else if (barPos === "right") {
-      x = screenW - barW - contentWidth - gap
+      x = barX - contentWidth - gap
       y = anchorScreenPos.y + anchorH / 2 - contentHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barH + gap
+      y = barY + barH + gap
     }
     x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
     y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
@@ -294,9 +303,7 @@ PanelWindow {
     }
 
     function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
+      return Qt.point(px - root.barX, py - root.barY)
     }
 
     function pressTargetAt(px, py) {

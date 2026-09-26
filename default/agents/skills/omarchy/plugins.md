@@ -28,6 +28,24 @@ omarchy bar move omarchy.clock --section right
 For layout edits beyond what the commands cover, edit the bar configuration
 in `~/.config/omarchy/shell.json`; it hot-reloads on save.
 
+## Floating Bar
+
+`"floating": true` in the `bar` block of `~/.config/omarchy/shell.json` lifts
+the bar off the screen edge and rounds it like the windows. It is opt-in:
+unset, the bar stays flush as it always has. It applies on save.
+
+- With no theme margin the bar floats inside the gap above the windows: half
+  of Hyprland's `gaps_out` from the screen edge, so the gap above the bar
+  matches the gap below it, and the full `gaps_out` at its ends, so they line
+  up with the windows. Windows do not move when floating is toggled; the gap
+  follows Hyprland's `gaps_out`, so change that rather than adding a bar
+  setting.
+- Theme keys in the `[bar]` section of `~/.config/omarchy/shell.toml` (or a
+  theme's `shell.toml`): `margin` (`N`, `"Y X"`, `"T X B"`, `"T R B L"`) and
+  `radius`. A non-zero `margin` floats the bar on its own; `"floating": false`
+  keeps it flush anyway.
+- Combine with `omarchy bar transparent true` to drop the bar background.
+
 ## Customizing Built-In Plugins and Widgets
 
 To customize a built-in bar widget, never edit `$OMARCHY_PATH/shell/plugins/`.

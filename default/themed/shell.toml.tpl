@@ -15,6 +15,13 @@ active           = "{{ red }}"
 scale-with-font  = true
 size-horizontal  = 26
 size-vertical    = 28
+# Floating bar: gap between the bar and the screen edges it touches, as one
+# CSS-style scalar/list (N, "Y X", "T X B", "T R B L"), and corner rounding.
+# A non-zero margin floats the bar unless shell.json sets bar.floating. Unset,
+# a floating bar floats inside Hyprland's gaps_out and takes its rounding.
+# radius applies only while the bar floats, capped at half its thickness.
+#   margin = 10
+#   radius = 12
 
 [hyprland]
 # Shared Hyprland-derived border tokens. Surface sections reference these so

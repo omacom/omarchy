@@ -48,6 +48,8 @@ Example `shell.json` (bar subtree only shown):
 
 `centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. Set to an empty string to disable anchoring (the center list is centered as a group).
 
+`floating: true` lifts the bar into the gap above the windows: half of Hyprland's `gaps_out` from the screen edge and the full `gaps_out` at its ends, so it lines up with the windows, which do not move. Its corners follow the windows'. Unset, a theme's `[bar] margin` decides; `false` keeps it flush. Theme keys are in [`docs/omarchy-shell.md`](../../../docs/omarchy-shell.md#floating-bar).
+
 ## Module catalogue
 
 ### First-party interactive widgets
