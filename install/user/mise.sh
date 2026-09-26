@@ -9,6 +9,7 @@ omarchy-mise-install antigravity-cli agy
 omarchy-mise-install gh
 omarchy-mise-install copilot
 omarchy-mise-install opencode
+omarchy-mise-install npm:command-code commandcode
 omarchy-mise-install npm:playwright playwright
 omarchy-mise-install pi
 omarchy-mise-install github:can1357/oh-my-pi omp
