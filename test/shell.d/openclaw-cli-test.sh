@@ -24,6 +24,7 @@ SH
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+[[ -z ${OMARCHY_TEST_STOP_FAIL:-} ]]
 SH
 chmod +x "$mock_bin/"*
 
@@ -31,7 +32,7 @@ chmod +x "$mock_bin/"*
 # real one does, execing into the prefix's tools, and that command logs what
 # it is asked. OMARCHY_TEST_INSTALL_BROKEN leaves a command that cannot run.
 cat >"$seed/install-cli.sh" <<'SH'
-printf 'install-cli %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+printf 'install-cli %s%s\n' "$*" "${OPENCLAW_PROFILE:+ profile=$OPENCLAW_PROFILE}" >>"$OMARCHY_TEST_ROOT/events"
 prefix=$HOME/.openclaw
 mkdir -p "$prefix/bin" "$prefix/tools/node-v24.19.0"
 cat >"$prefix/bin/openclaw" <<EOF
@@ -162,11 +163,22 @@ mkdir -p "$units"
 printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$units/openclaw-gateway.service"
 printf 'ExecStart=/opt/node /home/someone/openclaw/dist/index.js node run\n' >"$units/openclaw-node.service"
 OPENCLAW_PROFILE=work run omarchy-install-openclaw-cli --now || fail "--now moves the old package's services" "$(cat "$test_tmp/output")"
-grep -A1 -Fx "systemctl --user stop openclaw-gateway.service" "$events" | grep -Fxq "runtime gateway install --force" ||
-  fail "--now stops a gateway the old package installed, then moves it" "$(cat "$events")"
+order=$(grep -n -e '^systemctl --user stop openclaw-gateway.service$' -e '^install-cli ' -e '^runtime gateway install --force$' "$events" | cut -d: -f2- | cut -c1-11)
+[[ $order == $'systemctl -\ninstall-cli\nruntime gat' ]] ||
+  fail "--now stops a gateway the old package installed before seeding, then moves it" "$(cat "$events")"
 ! grep -q "runtime node install\|openclaw-node" "$events" || fail "--now leaves a service running another OpenClaw alone" "$(cat "$events")"
-! grep -q "install --force profile=work" "$events" || fail "--now moves the default unit whatever profile the shell selects" "$(cat "$events")"
+! grep -q "profile=work" <(grep -v -e '^runtime --version' "$events") ||
+  fail "--now seeds and moves the default unit whatever profile the shell selects" "$(cat "$events")"
 pass "a service the old package installed moves to the runtime, and only that one"
+
+new_home stop-fails
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+OMARCHY_TEST_STOP_FAIL=1 run omarchy-install-openclaw-cli --now && fail "a gateway that will not stop stops the install"
+grep -q "Could not stop the OpenClaw gateway service" "$test_tmp/output" || fail "a gateway that will not stop is named" "$(cat "$test_tmp/output")"
+! grep -q '^install-cli' "$events" && [[ ! -e $test_home/.openclaw ]] ||
+  fail "a gateway that will not stop leaves the runtime unseeded" "$(cat "$events")"
+pass "a gateway that will not stop stops the install before anything is seeded"
 
 # The migration moves only machines that have the package, and waits for the
 # package that seeds.
