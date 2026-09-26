@@ -1,0 +1,14 @@
+--- a/libfsemu/src/emu/emu.c
++++ b/libfsemu/src/emu/emu.c
+@@ -128,7 +128,10 @@
+     }
+     printf("WARNING: %s\n", buffer);
+     fs_log("WARNING: %s\n", buffer);
+-    fs_emu_hud_add_console_line(buffer, 0);
++    /* Opt-in: hide warning overlays only; keep logging and other HUD text. */
++    if (fs_config_get_boolean("suppress_warning_hud") != 1) {
++        fs_emu_hud_add_console_line(buffer, 0);
++    }
+     g_free(buffer);
+ }
+

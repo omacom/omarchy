@@ -1,0 +1,156 @@
+--- a/libfsemu/include/fs/emu/buffer.h
++++ b/libfsemu/include/fs/emu/buffer.h
+@@ -4,6 +4,8 @@
+ #include <fs/emu.h>
+
+ typedef struct fs_emu_buffer {
++    unsigned int probe_generation;
++    unsigned int probe_rows[FS_EMU_MAX_LINES];
+     int seq;
+     void *data;
+     int width;
+--- a/libfsemu/src/emu/render.c
++++ b/libfsemu/src/emu/render.c
+@@ -420,8 +420,10 @@
+ #endif
+ }
+
++extern void fsuae_probe_uploaded(unsigned int, int) __attribute__((weak));
+ static int update_texture(void)
+ {
++    if (fsuae_probe_uploaded) fsuae_probe_uploaded(0, 0);
+     fs_emu_video_buffer *buffer = fs_emu_video_buffer_lock();
+ #ifdef DEBUG_VIDEO_SYNC
+     printf("u %p\n", buffer);
+@@ -651,6 +653,10 @@
+     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, upload_w, upload_h,
+             gl_buffer_format, gl_buffer_type, gl_buffer_start);
+ #endif
++    if (glGetError() != GL_NO_ERROR) {
++        extern void fsuae_probe_error(const char *) __attribute__((weak));
++        if (fsuae_probe_error) fsuae_probe_error("texture-upload-gl-error");
++    }
+     CHECK_GL_ERROR();
+
+     int update_black_border = 1;
+@@ -770,6 +776,13 @@
+     }
+ #endif
+ #endif
++    unsigned int generation = buffer->probe_generation;
++    if (upload_y < 0 || upload_h <= 0 || upload_y + upload_h > FS_EMU_MAX_LINES)
++        generation = 0;
++    else for (int y = upload_y; y < upload_y + upload_h; y++)
++        if (buffer->probe_rows[y] != generation) generation = 0;
++    if (fsuae_probe_uploaded)
++        fsuae_probe_uploaded(generation, buffer->seq);
+     return last_seq_no;
+ }
+
+--- a/libfsemu/src/emu/video_buffer.c
++++ b/libfsemu/src/emu/video_buffer.c
+@@ -64,9 +64,14 @@
+ }
+ */
+
++extern unsigned int fsuae_probe_generation(void) __attribute__((weak));
+ fs_emu_video_buffer *fs_emu_video_buffer_get_available(int copy) {
+     fs_mutex_lock(g_video_buffers_mutex);
+     int next_buffer = get_next_video_buffer();
++    g_video_buffers[next_buffer].probe_generation = fsuae_probe_generation ?
++        fsuae_probe_generation() : 0;
++    memset(g_video_buffers[next_buffer].probe_rows, 0,
++           sizeof(g_video_buffers[next_buffer].probe_rows));
+     fs_mutex_unlock(g_video_buffers_mutex);
+
+     // FIXME: REMOVE
+@@ -167,6 +172,14 @@
+     // lines which are not updated in this frame are copied from the last
+     // completed video frame
+     copy_buffer_data(buffer, g_video_buffer_current);
++    /* Unchanged rows inherit the actual source provenance, never the new
++     * acquisition generation. Out-of-range rows remain unproven. */
++    for (int y = 0; y < buffer->height && y < FS_EMU_MAX_LINES; y++) {
++        buffer->probe_rows[y] = buffer->line[y] ?
++            (g_video_buffer_current && y < g_video_buffer_current->height &&
++             buffer->width == g_video_buffer_current->width ?
++             g_video_buffer_current->probe_rows[y] : 0) : buffer->probe_generation;
++    }
+ }
+
+ void fs_emu_video_buffer_set_current(fs_emu_video_buffer *buffer) {
+--- a/libfsemu/src/ml/render.c
++++ b/libfsemu/src/ml/render.c
+@@ -271,11 +271,13 @@
+     }
+ }
+
++extern void fsuae_probe_rendered(int) __attribute__((weak));
+ static void render_frame(void)
+ {
+     if (g_fs_ml_video_render_function) {
+         g_fs_ml_video_render_function();
+         g_rendered_frame = g_uploaded_frame;
++        if (fsuae_probe_rendered) fsuae_probe_rendered(g_rendered_frame);
+     }
+ }
+
+@@ -287,7 +289,9 @@
+ {
+     //int64_t t1 = fs_get_monotonic_time();
+ #if defined(USE_SDL2)
+-    SDL_GL_SwapWindow(g_fs_ml_window);
++    extern void fsuae_probe_swap(SDL_Window *) __attribute__((weak));
++    if (fsuae_probe_swap) fsuae_probe_swap(g_fs_ml_window);
++    else SDL_GL_SwapWindow(g_fs_ml_window);
+ #elif defined(USE_SDL)
+     SDL_GL_SwapBuffers();
+ #else
+--- a/src/fs-uae/recording.c
++++ b/src/fs-uae/recording.c
+@@ -274,10 +274,13 @@
+     g_free(recording_path);
+ }
+
++/* Private runtime observer; core callback is not dynamically exported. */
++extern void fsuae_probe_restore(const char *) __attribute__((weak));
+ static void on_restore_state_finished(void *data)
+ {
+     const char *path = (const char *) data;
+     printf("on_restore_state_finished path = %s\n", path);
++    if (fsuae_probe_restore) fsuae_probe_restore(path);
+
+     if (g_recording_enabled) {
+         char *recording_path = get_state_recording_path(path);
+--- a/src/savestate.cpp
++++ b/src/savestate.cpp
+@@ -500,6 +500,9 @@
+ 	xfree (emuversion);
+ 	xfree (emuname);
+ }
++
++/* Fail-closed readiness observer; does not change emulator restore policy. */
++extern "C" void fsuae_probe_error(const char *) __attribute__((weak));
+
+ /* restore all subsystems */
+
+@@ -731,8 +734,11 @@
+ 			end = restore_log (chunk);
+ 		else {
+ 			end = chunk + len;
++			if (fsuae_probe_error) fsuae_probe_error("unknown-state-chunk");
+ 			write_log (_T("unknown chunk '%s' size %d bytes\n"), name, len);
+ 		}
++		if (end == NULL || totallen != end - chunk)
++			if (fsuae_probe_error) fsuae_probe_error("rejected-state-chunk");
+ 		if (end == NULL)
+ 			write_log (_T("Chunk '%s', size %d bytes was not accepted!\n"),
+ 			name, len);
+@@ -745,6 +751,7 @@
+ 	return;
+
+ error:
++	if (fsuae_probe_error) fsuae_probe_error("state-restore-error");
+ 	savestate_state = 0;
+ 	savestate_file = 0;
+ 	if (chunk)
