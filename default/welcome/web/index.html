@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Welcome to Omarchy</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#welcome" aria-label="Omarchy welcome"
+          ><img src="/icon.svg" alt="" width="34" height="34" /><span
+            >omarchy<span class="brand-caption"
+              >MAKE YOURSELF AT HOME</span
+            ></span
+          ></a
+        >
+        <div class="sidebar-label">YOUR NEW BEGINNING</div>
+        <nav aria-label="Setup steps" id="steps"></nav>
+        <div class="sidebar-bottom">
+          <div class="saved">
+            <span class="status-dot"></span
+            ><span id="save-status">Progress saved on this device</span>
+          </div>
+          <p>A little guidance.<br />A whole new way to work.</p>
+          <span id="version">WELCOME WIZARD · 0.1</span>
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <span>FROM macOS, WITH LOVE</span
+          ><a href="https://learn.omacom.io/" target="_blank" rel="noreferrer"
+            >Omarchy manual <span aria-hidden="true">↗</span></a
+          >
+        </header>
+        <main id="content" tabindex="-1">
+          <p class="loading">Getting your welcome ready…</p>
+        </main>
+        <footer class="footer">
+          <button class="text-button" id="back">← Back</button
+          ><span id="step-count"></span
+          ><button class="primary" id="next">
+            Let’s get started <span aria-hidden="true">→</span>
+          </button>
+        </footer>
+      </div>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
