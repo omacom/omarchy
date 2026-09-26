@@ -4,6 +4,11 @@
 -- Monitor scale is Hyprland's scale for the output. It sizes everything
 -- Wayland-native, accepts fractions (1.6, 1.75), and applies immediately.
 -- "auto" lets Hyprland pick per display.
+--
+-- An empty output is the fallback for every monitor without its own rule.
+-- Leave mode at "preferred" so each display keeps its native resolution and
+-- refresh rate. A fixed mode on this line is applied to external monitors too.
+-- Pin that on a named output instead (hyprctl monitors all); examples are below.
 local omarchy_monitor_scale = "auto"
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
 

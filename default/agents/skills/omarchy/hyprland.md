@@ -62,7 +62,9 @@ hl.monitor({ output = "eDP-1", mode = "1920x1080@60", position = "0x0", scale = 
 hl.monitor({ output = "HDMI-A-1", mode = "2560x1440@144", position = "1920x0", scale = 1 })
 ```
 
-List monitors and supported modes: `hyprctl monitors all`
+List monitors and supported modes: `hyprctl monitors all`.
+
+An empty `output` (`""`) is the fallback for every monitor without its own rule. The shipped rule uses `mode = "preferred"` so each display keeps its native mode. Do not replace that mode with a fixed resolution to fix one panel. Add a rule that names the output (`eDP-1`, `HDMI-A-1`, or `desc:...` from `hyprctl monitors all`) and leave the empty-output rule at `preferred`.
 
 ## Window Rules
 
