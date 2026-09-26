@@ -65,6 +65,45 @@ account    include                     system-local-login
 EOF
 }
 
+verify_fingerprint() {
+  local attempt output status
+  local output_file
+  output_file=$(mktemp)
+
+  # Some readers are still owned by the enroll operation for a moment after it
+  # returns. Give that handoff one settle interval, then retry only errors that
+  # mean the device could not be claimed. A real no-match must fail immediately
+  # so a wrong swipe never turns into several seconds of retries.
+  sleep 0.5
+
+  for attempt in 1 2 3 4 5; do
+    : >"$output_file"
+
+    # Keep fprintd's interactive prompts visible while retaining its output for
+    # failure classification. The pipeline itself succeeds through tee; inspect
+    # fprintd's PIPESTATUS explicitly.
+    fprintd-verify 2>&1 | tee "$output_file"
+    status=${PIPESTATUS[0]}
+
+    if (( status == 0 )); then
+      rm -f "$output_file"
+      return 0
+    fi
+
+    output=$(<"$output_file")
+    if [[ $output == *"failed to claim"* || $output == *"busy"* || $output == *"already in use"* ]]; then
+      (( attempt < 5 )) && sleep 0.5
+      continue
+    fi
+
+    rm -f "$output_file"
+    return 1
+  done
+
+  rm -f "$output_file"
+  return 1
+}
+
 
 echo -e "\e[32mSetting up fingerprint scanner for authentication.\n\e[0m"
 
@@ -92,7 +131,7 @@ if sudo fprintd-enroll "$USER"; then
 
   # Verify
   echo -e "\nNow let's verify that it's working correctly.\n"
-  if fprintd-verify; then
+  if verify_fingerprint; then
     # PAM comes last, once a print is enrolled and verified. Detection only
     # proves a reader is there, not that libfprint can drive it — an Elan MOC
     # sensor outside the elanmoc table gets this far and then fails to enroll.
