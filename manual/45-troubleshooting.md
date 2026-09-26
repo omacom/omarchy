@@ -22,6 +22,12 @@ hl.config({
 })
 ```
 
+### Why did all my Super key binds stop working?
+
+On some ASUS ROG laptops, **Fn + Super** is an easy-to-miss chord that toggles a firmware Windows-key lock (meant for gaming so you don't leave a game by accident). Nothing on screen tells you it happened. While the lock is on, Super emits nothing at all — so every Omarchy bind that uses Super just stops, and it looks like Hyprland broke.
+
+Press **Fn + Super** once before you dig into `~/.config/hypr/`. This is not Fn-lock (that's **Fn + Esc**, and only affects the F-key row).
+
 ### My Wi-Fi, Bluetooth, audio, or trackpad just stopped working
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.
