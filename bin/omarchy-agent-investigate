@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Hunt down an Omarchy or Hyprland desktop bug
+# omarchy:args=[--inline]
+# omarchy:examples=omarchy agent investigate --inline
+
+set -euo pipefail
+
+inline=()
+if [[ ${1:-} == "--inline" ]]; then
+  inline=(--inline)
+  shift
+fi
+
+if (( $# > 0 )); then
+  echo "Usage: omarchy agent investigate [--inline]" >&2
+  exit 1
+fi
+
+prompt='Use the diagnose-omarchy skill for this session. I want to hunt down an Omarchy or Hyprland desktop bug or unexpected behavior. Start by asking me to describe the symptom, expected behavior, exact reproduction steps, and when it started. Gather relevant non-sensitive diagnostics and inspect local configuration and logs. Determine whether the problem belongs to an application, Hyprland, Omarchy, or local configuration. If a coredump exists, use the diagnose-crash skill; otherwise continue with the non-crash investigation. Do not upload diagnostics, post reports, or make irreversible changes without my review. When the evidence is sufficient, give me a concise diagnosis and a proposed fix, bug report, or pull request plan.'
+
+exec omarchy-agent "${inline[@]}" --prompt "$prompt"
