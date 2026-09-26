@@ -17,6 +17,11 @@ USAGE
   exit 1
 fi
 
+if [[ $config_file == /* || $config_file == ".." || $config_file == ../* || $config_file == */../* || $config_file == */.. ]]; then
+  echo "Invalid config path: $config_file" >&2
+  exit 1
+fi
+
 user_config_file="${HOME}/.config/$config_file"
 default_config_file="$OMARCHY_PATH/config/$config_file"
 backup_config_file="$user_config_file.bak.$(date +%s)"
