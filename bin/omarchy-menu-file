@@ -44,5 +44,26 @@ for format in "${formats[@]}"; do
 done
 find_args+=(")" -printf '%T@\t%p\n')
 
-find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- |
-  omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
+# -L follows a starting point that is itself a symlink (e.g. ~/Videos ->
+# /mnt/storage/Videos). Without it find does not descend, so transcode sees
+# zero files and omarchy-menu-select fails on empty stdin.
+# Cap entry count and total path bytes for ordinary valid-UTF-8 names so
+# omarchy-menu-select is less likely to hit a single-argument MAX_ARG_STRLEN
+# (~128KiB). LC_ALL=C makes awk length() count bytes (not UTF-8 characters).
+# Encoded JSON expansion (escapes / invalid UTF-8 -> U+FFFD) is enforced in
+# omarchy-menu-select itself; this budget is only a first cut at the lister.
+# Temporarily drop pipefail so SIGPIPE from the consumer does not fail the pipeline.
+set +o pipefail
+find -L "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- | LC_ALL=C awk '
+  BEGIN { max_n = 500; max_bytes = 80000; n = 0; bytes = 0 }
+  {
+    len = length($0) + 1
+    if (n >= max_n || bytes + len > max_bytes) exit
+    print
+    n++
+    bytes += len
+  }
+' | omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
+status=${PIPESTATUS[4]:-$?}
+set -o pipefail
+exit "$status"

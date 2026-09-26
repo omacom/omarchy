@@ -73,6 +73,17 @@ rm -f "$done_file"
 trap 'rm -f "$selection_file" "$done_file"' EXIT
 
 options_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${options[@]}")
+
+# Bound the exact encoded options JSON before building the shell/IPC payload.
+# Lister path-byte budgets cannot see escapes / invalid-UTF-8 expansion here.
+# ${#var} is characters under UTF-8 LC_CTYPE; count bytes in C locale.
+MAX_MENU_OPTIONS_JSON_BYTES=120000
+options_json_bytes=$(LC_ALL=C; printf '%s' "${#options_json}")
+if (( options_json_bytes > MAX_MENU_OPTIONS_JSON_BYTES )); then
+  echo "omarchy-menu-select: options payload too large (${options_json_bytes} bytes; max ${MAX_MENU_OPTIONS_JSON_BYTES})" >&2
+  exit 1
+fi
+
 payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   my $payload = {
     mode => "select",
