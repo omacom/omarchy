@@ -23,4 +23,12 @@ assert(tray.ownedByOmarchy({ id: 'dropbox' }, layout), 'tray suppresses dropbox 
 assert(!tray.ownedByOmarchy({ id: 'dropbox' }, { left: [], center: [], right: [] }), 'tray keeps dropbox when dedicated widget is absent')
 assert(tray.ownedByOmarchy({ id: 'qlBCprNUqU', title: 'localsend' }, { left: [], center: [], right: [] }), 'tray suppresses localsend regardless of layout')
 assert(!tray.ownedByOmarchy({ id: 'nextcloud' }, layout), 'tray keeps unrelated tray items')
+
+// Left-click: menu-only and AppIndicator items with a menu open the menu;
+// items that only implement Activate still activate.
+assert(tray.leftClickOpensMenu({ onlyMenu: true, hasMenu: false, menu: null }), 'tray opens menu when ItemIsMenu is set')
+assert(tray.leftClickOpensMenu({ onlyMenu: false, hasMenu: true, menu: {} }), 'tray opens menu when hasMenu is set without ItemIsMenu')
+assert(tray.leftClickOpensMenu({ onlyMenu: false, hasMenu: false, menu: { path: '/Menu' } }), 'tray opens menu when a menu handle is present')
+assert(!tray.leftClickOpensMenu({ onlyMenu: false, hasMenu: false, menu: null }), 'tray activates when no menu is exposed')
+assert(!tray.leftClickOpensMenu(null), 'tray treats a missing item as activate')
 JS
