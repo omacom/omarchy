@@ -77,6 +77,53 @@ if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e
   exit 0
 fi
 
+plugin_owner_for_desktop() {
+  local plugins_dir candidate resolved exec_paths path plugin_id
+  plugins_dir="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins"
+
+  [[ -d $plugins_dir ]] || return 1
+
+  # The common plugin launcher shape uses the plugin id as the desktop id.
+  if [[ -e $plugins_dir/$desktop_name || -L $plugins_dir/$desktop_name ]]; then
+    printf '%s\n' "$desktop_name"
+    return 0
+  fi
+
+  # A launcher with another desktop id can still be owned by a plugin when its
+  # executable or working directory resolves inside that plugin tree. Icon= is
+  # deliberately excluded: borrowing an icon must never grant removal authority.
+  exec_paths=$(sed -n 's/^\(Exec\|TryExec\|Path\)=//p' "$desktop_file")
+  while IFS= read -r candidate; do
+    [[ -n $candidate ]] || continue
+
+    # Exec field codes occur after the executable in the plugin launchers this
+    # handles. Keep only the command token; quoted paths with spaces are not
+    # inferred as ownership and safely fall through to normal desktop removal.
+    candidate=${candidate%% \%*}
+    candidate=$(awk '{print $1}' <<<"$candidate")
+    [[ $candidate == /* ]] || continue
+
+    resolved=$(readlink -f "$candidate" 2>/dev/null || true)
+    [[ -n $resolved ]] || continue
+    case "$resolved" in
+      "$plugins_dir"/*)
+        path=${resolved#"$plugins_dir"/}
+        plugin_id=${path%%/*}
+        if [[ -n $plugin_id && ( -e $plugins_dir/$plugin_id || -L $plugins_dir/$plugin_id ) ]]; then
+          printf '%s\n' "$plugin_id"
+          return 0
+        fi
+        ;;
+    esac
+  done <<<"$exec_paths"
+
+  return 1
+}
+
+if plugin_id="$(plugin_owner_for_desktop)"; then
+  exec omarchy-plugin-remove --yes "$plugin_id"
+fi
+
 if is_user_desktop_file; then
   display_name="${entry_name:-$desktop_name}"
   rm -f "$desktop_file"
