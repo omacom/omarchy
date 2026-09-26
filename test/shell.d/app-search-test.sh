@@ -74,6 +74,21 @@ assert(
 const acronymMatches = search.sortedEntries(entries, 'gc').map(row => search.entryName(row.entry))
 assertEqual(acronymMatches[0], 'Google Contacts', 'short acronym matching still works')
 
+const chineseEntries = [
+  { name: '小红书', genericName: '', comment: '', keywords: [], id: 'com.xiaohongshu.app.desktop' },
+  { name: '抖音', genericName: '', comment: '', keywords: [], id: 'com.douyin.app.desktop' },
+  { name: '微信 Universal', genericName: '', comment: '', keywords: ['wechat', 'weixin'], id: 'wechat-universal.desktop' }
+]
+
+assertEqual(search.pinyinInitials('小红书'), 'xhs', 'search computes pinyin initials for Chinese names')
+
+for (const [query, name] of [['xhs', '小红书'], ['dy', '抖音'], ['wx', '微信 Universal']]) {
+  const hits = search.sortedEntries(chineseEntries, query).map(row => search.entryName(row.entry))
+  assertEqual(hits[0], name, 'pinyin initials find ' + name)
+}
+
+assert(!search.sortedEntries(chineseEntries, 'dy').some(row => search.entryName(row.entry) === '小红书'), 'unrelated pinyin initials do not match')
+
 const directMatches = search.sortedEntries(entries, 'obs').map(row => search.entryName(row.entry))
 assertEqual(directMatches[0], 'OBS Studio', 'direct app-name matching still works')
 
