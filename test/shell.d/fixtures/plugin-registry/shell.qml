@@ -64,9 +64,7 @@ ShellRoot {
   }
 
   function block(kind, source, payload) {
-    return "===" + kind + "::" + source + "===\n"
-      + (typeof payload === "string" ? payload : JSON.stringify(payload))
-      + "\n=== EOM ===\n"
+    return JSON.stringify({ kind: kind, source: source, manifest: typeof payload === "string" ? payload : JSON.stringify(payload) }) + "\n"
   }
 
   function has(id) {
@@ -156,6 +154,18 @@ ShellRoot {
     root.assertTrue(!has("third.missing"), "incomplete manifests are rejected")
     root.assertTrue(!has("third.bad-section"), "invalid default bar widget sections are rejected")
     root.assertTrue(!has("third.schema"), "unsupported schema versions are rejected")
+
+    var scanned = Quickshell.env("OMARCHY_QML_TEST_SCAN")
+    if (scanned) {
+      registry.parseScanOutput(scanned)
+      root.assertDeepEqual(pluginIds(), ["omarchy.encoded", "omarchy.sibling", "third.encoded"], "scanner output loads only valid records")
+      root.assertEqual(registry.installedPlugins["omarchy.encoded"].__sourceDir, Quickshell.env("OMARCHY_QML_TEST_FIRST_DIR") + "/with\nnewline", "newline source path survives scanner and parser")
+      root.assertEqual(registry.installedPlugins["omarchy.sibling"].__sourceDir, Quickshell.env("OMARCHY_QML_TEST_FIRST_DIR") + "/trailing\n", "sibling source trailing newline survives scanner and parser")
+      root.assertTrue(registry.installedPlugins["omarchy.encoded"].__isFirstParty, "scanner first-party classification survives")
+      root.assertTrue(!registry.installedPlugins["third.encoded"].__isFirstParty, "scanner third-party classification survives")
+      root.assertEqual(registry.installedPlugins["third.encoded"].name, "=== EOM ===\n===firstparty::/bogus===", "delimiter-like manifest text stays data")
+      registry.parseScanOutput(scan)
+    }
 
     root.assertTrue(registry.isEnabled("omarchy.first-widget"), "first-party plugins are implicitly enabled")
     root.assertTrue(registry.isEnabled("omarchy.bar"), "built-in bar option is active by default")
