@@ -29,17 +29,22 @@ assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: s
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states), 'On battery', 'power labels battery mode')
-assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'Charging', 'power treats external power as newer than stale discharging state')
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'On battery', 'power trusts discharging state over a stale onBattery flag')
 assert(power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging }, false, states).length > 0, 'power maps battery icons')
 assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, false, states),
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states),
-  'power shows charging icon when external power is present before battery state refreshes'
+  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
+  'power shows the discharging icon while the battery is discharging on AC'
 )
 assertEqual(
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging }, true, states),
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
-  'power shows battery icon when unplugged before battery state refreshes'
+  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, true, states),
+  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states),
+  'power shows the charging icon while the battery state is charging'
+)
+assertEqual(
+  power.modeLabel({ isPresent: true, percentage: 0.4, state: states.Charging }, true, states),
+  'Charging',
+  'power labels charging from device state when onBattery is still true'
 )
 
 assert(/if \(b === Qt\.RightButton\) root\.togglePercentage\(\)/.test(panelSource), 'power right click toggles the bar percentage')
@@ -48,4 +53,7 @@ assert(/Math\.round\(root\.batteryFraction \* 100\) \+ "% " \+ root\.batteryIcon
 assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
 assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
 assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
+assert(/device\.state === UPowerDeviceState\.Discharging/.test(panelSource), 'power panel discharging follows the device state')
+assert(/d\.state === UPowerDeviceState\.Charging/.test(panelSource), 'power panel charging follows the device state')
+assert(/omarchy-powerprofiles-set", UPower\.onBattery/.test(panelSource), 'powerprofiles still follow the daemon onBattery flag')
 JS
