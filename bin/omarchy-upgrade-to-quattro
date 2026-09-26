@@ -409,12 +409,15 @@ configure_pacman_channel() {
   local tmp
 
   tmp=$(mktemp)
+  # Do not plant an Optional/trust-all SigLevel override. Packages from
+  # [omarchy] are signed; the section must inherit the global Required
+  # DatabaseOptional (see default/pacman/pacman-*.conf and the migrations that
+  # strip the old override).
   awk -v server="$package_server" '
     BEGIN { in_omarchy = 0; wrote = 0 }
     /^[[:space:]]*\[omarchy\][[:space:]]*$/ {
       if (!wrote) {
         print "[omarchy]"
-        print "SigLevel = Optional TrustAll"
         print "Server = " server
         wrote = 1
       }
@@ -427,7 +430,6 @@ configure_pacman_channel() {
       if (!wrote) {
         print ""
         print "[omarchy]"
-        print "SigLevel = Optional TrustAll"
         print "Server = " server
       }
     }
@@ -498,7 +500,7 @@ remove_legacy_limine_configs() {
 }
 
 normalize_limine_config() {
-  local machine_id legacy_uki
+  local machine_id legacy_uki prune
 
   as_root test -f /boot/limine.conf || return 0
 
@@ -517,6 +519,18 @@ normalize_limine_config() {
   legacy_uki="/boot/EFI/Linux/${machine_id}_linux.efi"
   if [[ -n $machine_id ]] && as_root test -f /boot/EFI/Linux/omarchy_linux.efi && as_root test -f "$legacy_uki"; then
     as_root rm -f "$legacy_uki"
+  fi
+
+  # An archinstall Limine install writes its own `/Arch Linux (linux)` entry
+  # pointing at /EFI/Linux/arch-linux.efi. It carries no limine-entry-tool
+  # marker, so every regeneration correctly leaves it alone -- and it stays at
+  # the top of the menu, which is the entry the timeout selects. Once this
+  # upgrade switches the UKI to omarchy_linux.efi, the next kernel update
+  # deletes the image it names and the default boot entry panics.
+  prune=/usr/share/omarchy/bin/omarchy-limine-prune-missing-entries
+  if as_root test -x "$prune"; then
+    as_root "$prune" /boot/limine.conf /boot ||
+      warn "Stale Limine entries could not be pruned; check /boot/limine.conf before rebooting."
   fi
 }
 
@@ -1455,6 +1469,7 @@ EOF
   if [[ -f /etc/pam.d/sddm ]]; then
     as_root sed -i '/-auth.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm
     as_root sed -i '/-password.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm
+    as_root sed -i '/-session.*pam_gnome_keyring\.so.*auto_start/d' /etc/pam.d/sddm
   fi
 
   if [[ -f /etc/pam.d/system-auth ]]; then
@@ -1462,6 +1477,9 @@ EOF
     as_root sed -i 's|^\(auth\s\+\[default=die\]\s\+pam_faillock.so\)\s\+authfail.*$|\1 authfail deny=10 unlock_time=120|' /etc/pam.d/system-auth
   fi
   if [[ -f /etc/pam.d/sddm-autologin ]]; then
+    as_root sed -i '/-auth.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm-autologin
+    as_root sed -i '/-password.*pam_gnome_keyring\.so/d' /etc/pam.d/sddm-autologin
+    as_root sed -i '/-session.*pam_gnome_keyring\.so.*auto_start/d' /etc/pam.d/sddm-autologin
     as_root sed -i '/pam_faillock\.so preauth/d' /etc/pam.d/sddm-autologin
     as_root sed -i '/pam_faillock\.so authsucc/d' /etc/pam.d/sddm-autologin
     as_root sed -i '/auth.*pam_permit\.so/a auth        required    pam_faillock.so authsucc' /etc/pam.d/sddm-autologin

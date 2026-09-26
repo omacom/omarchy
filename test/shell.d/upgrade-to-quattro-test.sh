@@ -25,6 +25,58 @@ if grep -F 'pacman -Sy --noconfirm archlinux-keyring omarchy-keyring' "$upgrade_
 fi
 pass "Omarchy 4 upgrade forces a database refresh before installing keyrings"
 
+# Packages from [omarchy] are signed. Planting Optional TrustAll here undoes
+# migrations/1787589206.sh and leaves upgrades accepting unsigned packages.
+pacman_body=$(function_body configure_pacman_channel)
+if grep -F 'TrustAll' <<<"$pacman_body" >/dev/null; then
+  fail "Omarchy 4 upgrade must not set SigLevel = Optional TrustAll on [omarchy]"
+fi
+grep -F 'print "Server = " server' <<<"$pacman_body" >/dev/null ||
+  fail "Omarchy 4 upgrade still rewrites the [omarchy] Server line"
+pass "Omarchy 4 upgrade leaves [omarchy] on the global Required SigLevel"
+
+# Exercise the awk that configure_pacman_channel embeds: an existing TrustAll
+# override in the [omarchy] section must be discarded with the old section.
+rewritten=$(
+  awk -v server='https://pkgs.omarchy.org/stable/$arch' '
+    BEGIN { in_omarchy = 0; wrote = 0 }
+    /^[[:space:]]*\[omarchy\][[:space:]]*$/ {
+      if (!wrote) {
+        print "[omarchy]"
+        print "Server = " server
+        wrote = 1
+      }
+      in_omarchy = 1
+      next
+    }
+    /^[[:space:]]*\[/ { in_omarchy = 0 }
+    !in_omarchy { print }
+    END {
+      if (!wrote) {
+        print ""
+        print "[omarchy]"
+        print "Server = " server
+      }
+    }
+  ' <<'PACMAN'
+SigLevel = Required DatabaseOptional
+[core]
+Include = /etc/pacman.d/mirrorlist
+[omarchy]
+SigLevel = Optional TrustAll
+Server = https://pkgs.omarchy.org/stable/$arch
+[extra]
+Include = /etc/pacman.d/mirrorlist
+PACMAN
+)
+grep -F 'SigLevel = Optional TrustAll' <<<"$rewritten" >/dev/null &&
+  fail "channel rewrite must drop Optional TrustAll from [omarchy]"
+grep -F '[omarchy]' <<<"$rewritten" >/dev/null || fail "channel rewrite keeps [omarchy]"
+grep -F 'Server = https://pkgs.omarchy.org/stable/$arch' <<<"$rewritten" >/dev/null ||
+  fail "channel rewrite keeps the Omarchy Server"
+pass "Omarchy 4 upgrade channel rewrite drops Optional TrustAll"
+
+
 grep -F 'pacman -Syu --needed' "$upgrade_to_quattro" >/dev/null
 grep -F 'omarchy-update-aur-pkgs' "$upgrade_to_quattro" >/dev/null
 grep -F 'omarchy-update-available' "$upgrade_to_quattro" >/dev/null
@@ -280,6 +332,23 @@ pass "Omarchy 4 upgrade repair path refuses a partial dm-crypt cmdline"
 # root= must block the reboot rather than just warn.
 grep -F -- '--only-section=.cmdline' "$upgrade_to_quattro" >/dev/null
 grep -F "as_root find /boot/EFI/Linux -maxdepth 1 -name 'omarchy_linux*.efi'" "$upgrade_to_quattro" >/dev/null
+
+# archinstall's own entry names a UKI this upgrade stops generating, carries no
+# limine-entry-tool marker so no regeneration touches it, and sits above the
+# Omarchy entry where the timeout selects it. Prune it while normalizing, and
+# only from the packaged tree -- an older build has no such command and must not
+# abort the upgrade partway through.
+grep -F 'omarchy-limine-prune-missing-entries' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade prunes Limine entries whose image is gone"
+grep -F 'as_root test -x "$prune"' "$upgrade_to_quattro" >/dev/null ||
+  fail "Omarchy 4 upgrade survives a packaged tree without the prune command"
+prune_line=$(grep -n 'as_root "$prune" /boot/limine.conf /boot' "$upgrade_to_quattro" | cut -d: -f1)
+normalize_line=$(grep -n '^normalize_limine_config() {' "$upgrade_to_quattro" | cut -d: -f1)
+cmdline_line=$(grep -n '^preserve_kernel_cmdline_root() {' "$upgrade_to_quattro" | cut -d: -f1)
+[[ -n $prune_line ]] || fail "Omarchy 4 upgrade prunes stale entries from the packaged command"
+(( normalize_line < prune_line && prune_line < cmdline_line )) ||
+  fail "Omarchy 4 upgrade prunes stale entries while normalizing the Limine config"
+pass "Omarchy 4 upgrade prunes Limine entries whose image left the ESP"
 grep -F 'boot_cmdline_unsafe=1' "$upgrade_to_quattro" >/dev/null
 unsafe_line=$(grep -n 'if (( boot_cmdline_unsafe )); then' "$upgrade_to_quattro" | cut -d: -f1)
 reboot_line=$(grep -n 'Rebooting because --reboot was passed' "$upgrade_to_quattro" | cut -d: -f1)
