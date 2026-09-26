@@ -20,7 +20,8 @@ stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
 muse_login_log="$test_tmp/muse-login"
-mkdir -p "$mock_bin" "$test_home"
+resolved_dir="$test_tmp/resolved"
+mkdir -p "$mock_bin" "$test_home" "$resolved_dir"
 
 cat >"$mock_bin/omarchy-install-chromium-claude" <<'SH'
 #!/bin/bash
@@ -71,6 +72,11 @@ if [[ $1 == "where" ]]; then
   exit
 fi
 
+if [[ $1 == "bin-paths" ]]; then
+  printf '%s\n' "$OMARCHY_TEST_RESOLVED_DIR"
+  exit
+fi
+
 [[ ${OMARCHY_TEST_MISE_FAIL:-false} != "true" ]]
 SH
 
@@ -118,6 +124,7 @@ export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
+export OMARCHY_TEST_RESOLVED_DIR="$resolved_dir"
 export OMARCHY_PATH="$ROOT"
 
 grok_package="npm:@xai-official/grok"
@@ -132,12 +139,16 @@ assert_lazy_stub() {
   local package=$1
   local command=$2
 
+  printf '#!/bin/bash\nexit 0\n' >"$resolved_dir/$command"
+  chmod +x "$resolved_dir/$command"
   : >"$mise_history"
   "$ROOT/bin/omarchy-mise-install" "$package" "$command"
   "$test_home/.local/bin/$command" --version
   mapfile -t mise_calls <"$mise_history"
 
-  [[ ${mise_calls[0]} == "use -g --quiet $package" && ${mise_calls[1]} == "x $package -- $command --version" ]] ||
+  [[ ${mise_calls[0]} == "use -g --quiet $package" &&
+    ${mise_calls[1]} == "bin-paths $package" &&
+    ${mise_calls[2]} == "x $package -- $resolved_dir/$command --version" ]] ||
     fail "$command lazy stub preserves its mise package"
 }
 
