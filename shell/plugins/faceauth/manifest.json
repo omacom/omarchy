@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.faceauth",
+  "name": "Face Authentication Consent",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "The window the face authentication daemon opens for every elevation: what is asking, and buttons to deny and kill or block it. The yes is a nod the daemon sees; nothing here can approve.",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Consent.qml"
+  }
+}

@@ -17,6 +17,21 @@ function fingerprintConfiguredFromPamConfig(raw) {
   return false
 }
 
+function faceConsentConfiguredFromPamConfig(raw) {
+  // With pam_faceauth in consent mode, the face daemon opens its own consent
+  // window (omarchy.faceauth) as soon as polkit starts the PAM conversation.
+  // The agent dialog would sit on top of it with exclusive keyboard focus, so
+  // it stays hidden until PAM actually asks for a password.
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].replace(/^\s+|\s+$/g, "")
+    if (!line || line.charAt(0) === "#") continue
+    if (!line.match(/^auth\s+/)) continue
+    if (line.indexOf("pam_faceauth.so") !== -1 && line.match(/(^|\s)consent(\s|$)/)) return true
+  }
+  return false
+}
+
 function authorizationLabel(message) {
   var text = String(message || "")
   var match = text.match(/^Authentication is (?:needed|required) to run [`']([^`']+)[`'] as /i)
@@ -27,6 +42,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     promptLooksFingerprint: promptLooksFingerprint,
     fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
+    faceConsentConfiguredFromPamConfig: faceConsentConfiguredFromPamConfig,
     authorizationLabel: authorizationLabel
   }
 }

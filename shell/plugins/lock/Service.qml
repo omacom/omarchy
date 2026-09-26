@@ -20,8 +20,10 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property bool faceAuthenticating: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
+  property bool faceConfigured: false
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -43,8 +45,24 @@ Item {
   property bool strandedLock: false
   property bool strandedLockResolved: false
 
+  readonly property var mediaService: shell && shell.firstPartyServiceFor ? shell.firstPartyServiceFor("omarchy.media") : null
+  readonly property var notificationService: shell && shell.firstPartyServiceFor ? shell.firstPartyServiceFor("omarchy.notifications") : null
+  // How long the panel stays lit after a lock. A lock the presence watch took
+  // keeps it lit for ten minutes: the owner may be a few feet away and wants
+  // to see the screen waiting for them.
+  readonly property int blankDelayDefaultMs: 5000
+  readonly property int blankDelayPresenceMs: 600000
+  property int blankDelayMs: 5000
+  // After a few failed scans with the panel lit (nobody there), the loop
+  // stops scanning and probes instead, exactly as it does while blank.
+  property int faceFailures: 0
+  property bool faceProbeMode: false
+  // Notifications that arrived during this lock, masked: app name and count only.
+  property var lockNotices: []
+  property int lockNoticeSeen: 0
+  readonly property string faceState: !faceConfigured ? "" : (faceAuthenticating ? "scanning" : (displaysBlank ? "probing" : "idle"))
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
-  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
+  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating || faceAuthenticating
   readonly property var batteryService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.battery") : null
   readonly property bool powerSaverActive: batteryService ? batteryService.powerSaverOnBattery : false
 
@@ -141,9 +159,14 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    faceAuthenticating = false
+    faceFailures = 0
+    faceProbeMode = false
     fingerprintRetryTimer.stop()
+    faceRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
+    if (facePam.active) facePam.abort()
   }
 
   function beginLock() {
@@ -153,6 +176,8 @@ Item {
     }
 
     resetAuthenticationState()
+    lockNotices = []
+    lockNoticeSeen = notificationService && notificationService.popupModel ? notificationService.popupModel.count : 0
     lockRequested = true
     armBlankTimer()
     logEvent("lock-requested")
@@ -175,14 +200,37 @@ Item {
     pendingSessionLockTimer.stop()
     resetAuthenticationState()
     idleBlankTimer.stop()
+    blankDelayMs = blankDelayDefaultMs
+    lockNotices = []
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
   }
 
   function armBlankTimer() {
+    idleBlankTimer.interval = blankDelayMs
     idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
+  }
+
+  function noteNotifications() {
+    if (!lockRequested || !notificationService || !notificationService.popupModel) return
+    var model = notificationService.popupModel
+    var count = model.count
+    if (count <= lockNoticeSeen) { lockNoticeSeen = count; return }
+    // New rows are inserted at the top; take only the app name.
+    var notices = lockNotices.slice()
+    for (var i = 0; i < count - lockNoticeSeen; i++) {
+      var row = model.get(i)
+      var app = row && row.app ? String(row.app) : "App"
+      var found = false
+      for (var j = 0; j < notices.length; j++) {
+        if (notices[j].app === app) { notices[j].count += 1; found = true; break }
+      }
+      if (!found) notices.push({ app: app, count: 1 })
+    }
+    lockNoticeSeen = count
+    lockNotices = notices
   }
 
   function runWake() {
@@ -190,11 +238,19 @@ Item {
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
+    faceFailures = 0
+    faceProbeMode = false
+    startFace()
   }
 
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
+    // A face scan drives the IR camera and its illuminator while armed; a
+    // blanked panel means nobody is in front of it, so stop until wake.
+    faceRetryTimer.stop()
+    faceAuthenticating = false
+    if (facePam.active) facePam.abort()
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -276,6 +332,43 @@ Item {
     }
   }
 
+  // Face authentication: a third PAM stack, omarchy-lock-face, on its own lane
+  // like the fingerprint one. Typing a password preempts nothing here because
+  // the daemon answers within its own timeout; the stacks run independently.
+  function startFace() {
+    if (!lockRequested || !sessionLock.secure || !faceConfigured) return
+    if (displaysBlank || faceProbeMode) return
+    if (facePam.active || faceAuthenticating) return
+
+    faceAuthenticating = true
+    if (!facePam.start()) {
+      faceAuthenticating = false
+      logEvent("face-start-failed")
+      return
+    }
+    logEvent("face-started")
+  }
+
+  function handleFaceFinished(result) {
+    faceAuthenticating = false
+    logEvent("face-finished: " + (result === PamResult.Success ? "success" : "result=" + result))
+
+    if (!lockRequested) return
+    if (result === PamResult.Success) {
+      finishUnlock()
+    } else if (faceConfigured && !displaysBlank) {
+      faceFailures += 1
+      // Three misses with the panel lit means nobody is there: stop scanning
+      // (camera and illuminator) and let the cheap probe watch for a return.
+      if (faceFailures >= 3) {
+        faceProbeMode = true
+        logEvent("face-probe-mode: on")
+      } else {
+        faceRetryTimer.restart()
+      }
+    }
+  }
+
   WlSessionLock {
     id: sessionLock
 
@@ -288,6 +381,7 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+        root.startFace()
       }
     }
 
@@ -321,6 +415,10 @@ Item {
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        faceConfigured: root.faceConfigured
+        faceState: root.faceState
+        mediaService: root.mediaService
+        lockNotices: root.lockNotices
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -354,6 +452,9 @@ Item {
       videoPosterPath: root.videoPosterPath
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured
+      faceConfigured: root.faceConfigured
+      faceState: root.faceState
+      mediaService: root.mediaService
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -407,11 +508,94 @@ Item {
     }
   }
 
+  Connections {
+    target: root.notificationService && root.notificationService.popupModel ? root.notificationService.popupModel : null
+    function onCountChanged() { root.noteNotifications() }
+  }
+
   Timer {
     id: fingerprintRetryTimer
     interval: 250
     repeat: false
     onTriggered: root.startFingerprint()
+  }
+
+  PamContext {
+    id: facePam
+    config: "omarchy-lock-face"
+    user: root.userName
+
+    onCompleted: function(result) {
+      root.handleFaceFinished(result)
+    }
+
+    onError: function(error) {
+      root.faceAuthenticating = false
+      root.logEvent("face-error: " + error)
+      if (root.lockRequested && root.faceConfigured && !root.displaysBlank) faceRetryTimer.restart()
+    }
+  }
+
+  // While the panel is blank the scan loop is off (it would run the camera and
+  // its illuminator all night). Instead the daemon is asked every few seconds
+  // for one short look, detector only; a face wakes the panel, and the wake
+  // starts the scan. Sitting back down opens the screen with nothing touched.
+  Timer {
+    id: faceProbeTimer
+    interval: 3000
+    repeat: true
+    running: root.lockRequested && (root.displaysBlank || root.faceProbeMode) && root.faceConfigured && !root.previewVisible
+    triggeredOnStart: true
+    onTriggered: {
+      if (!faceProbeProc.running) faceProbeProc.running = true
+    }
+  }
+
+  Process {
+    id: faceProbeProc
+    command: ["/usr/bin/faceauth", "probe", "--user", root.userName]
+    stdout: StdioCollector {
+      id: faceProbeStdout
+      waitForEnd: true
+    }
+    onExited: {
+      var text = String(faceProbeStdout.text || "")
+      if (!root.lockRequested || !(root.displaysBlank || root.faceProbeMode)) return
+      // Wake a blank panel only for a face turned towards the screen; a
+      // face merely in view (someone at the next desk, a glance past the
+      // machine) leaves it dark. A lit panel scans on any face.
+      var present = text.indexOf('"face":true') !== -1
+      var attentive = text.indexOf('"attentive":true') !== -1
+      if (present && (attentive || !root.displaysBlank)) {
+        root.logEvent("face-probe: " + (attentive ? "attentive" : "present") + ", " + (root.displaysBlank ? "waking" : "scanning"))
+        if (root.displaysBlank) root.runWake()
+        else { root.faceProbeMode = false; root.faceFailures = 0; root.startFace() }
+      } else if (present) {
+        root.logEvent("face-probe: present but not attentive, staying dark")
+      }
+    }
+  }
+
+  // An attempt that failed has already spent the daemon's own timeout; this only
+  // spaces the retries. The daemon reports "no face" in about a second when the
+  // seat is empty, so an empty desk costs one short attempt every 1.5 s until
+  // the panel blanks, and nothing after that.
+  Timer {
+    id: faceRetryTimer
+    interval: 1500
+    repeat: false
+    onTriggered: root.startFace()
+  }
+
+  // Setup writes this PAM service only once a face is enrolled, so its presence
+  // is the "configured" check (the templates themselves are root-only).
+  FileView {
+    path: "/etc/pam.d/omarchy-lock-face"
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.faceConfigured = true
+    onLoadFailed: root.faceConfigured = false
+    onFileChanged: reload()
   }
 
   Process {
@@ -611,7 +795,18 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
+      root.blankDelayMs = root.blankDelayDefaultMs
       if (!root.locked && !root.beginLock()) return "failed"
+      return "ok"
+    }
+
+    // A lock taken because the owner walked away: keep the panel lit for ten
+    // minutes so the waiting screen is visible from across the room.
+    function lockPresence(): string {
+      if (!root.passwordPamConfigured) return "missing-pam"
+      root.blankDelayMs = root.blankDelayPresenceMs
+      if (root.locked) { root.armBlankTimer(); return "ok" }
+      if (!root.beginLock()) return "failed"
       return "ok"
     }
 
