@@ -641,11 +641,25 @@ Item {
 
       currentRows.sort(searchSort)
       drilldownRows.sort(searchSort)
-      root.searchDivider = currentRows.length > 0 && drilldownRows.length > 0
-      if (root.searchDivider) {
-        for (var d = 0; d < drilldownRows.length; d++) drilldownRows[d].section = "drilldown"
+      // Matching apps pin above everything else. At the root the Apps
+      // submenu itself matches short queries (via its "applications"
+      // alias) and, as a direct child, would otherwise sit above every
+      // app. Sections follow the rows: apps first, then menu entries.
+      var appRows = []
+      var deeperRows = []
+      for (var f = 0; f < drilldownRows.length; f++) {
+        if (drilldownRows[f].kind === "app") appRows.push(drilldownRows[f])
+        else deeperRows.push(drilldownRows[f])
       }
-      rows = currentRows.concat(drilldownRows)
+      if (appRows.length > 0 && (currentRows.length > 0 || deeperRows.length > 0)) {
+        for (var c = 0; c < currentRows.length; c++) currentRows[c].section = "drilldown"
+      }
+      if ((appRows.length > 0 || currentRows.length > 0) && deeperRows.length > 0) {
+        for (var d = 0; d < deeperRows.length; d++) deeperRows[d].section = "drilldown"
+      }
+      rows = appRows.concat(currentRows).concat(deeperRows)
+      root.searchDivider = rows.some(function(row) { return row.section === "drilldown" })
+        && rows.some(function(row) { return row.section !== "drilldown" })
     } else {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
