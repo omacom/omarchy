@@ -23,6 +23,8 @@ Saved screenshots land in `~/Pictures/Screenshots` by default, with a name such 
 
 From the terminal, `omarchy screenshot` opens the same overlay, and you can choose its starting mode: `omarchy capture screenshot region`, `windows`, `fullscreen`, or `scroll`. A second argument of `copy` or `save` skips the preview and sends the shot straight to that destination. To edit before output, use `omarchy screenshot --editor=overlay` for a fullscreen editor or `omarchy screenshot --editor=window` for a separate window.
 
+For a mouse-first shortcut, hover the indicator area beside the clock and click the camera icon. Drag over a region and release to copy it straight to the clipboard without saving a file or opening the editor.
+
 ### Driving the picker from the keyboard
 
 While the selection is up, you don't have to use the mouse at all:
