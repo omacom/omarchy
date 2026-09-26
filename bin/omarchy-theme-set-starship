@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Sync current Omarchy theme to Starship prompt
+# omarchy:hidden=true
+
+set -euo pipefail
+
+CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
+STARSHIP_SOURCE="$CURRENT_THEME_PATH/starship.toml"
+STARSHIP_TARGET="${STARSHIP_CONFIG:-$HOME/.config/starship.toml}"
+
+[[ -f $STARSHIP_SOURCE ]] || exit 0
+
+if [[ -L $STARSHIP_TARGET ]] || [[ ! -e $STARSHIP_TARGET ]]; then
+  mkdir -p "$(dirname "$STARSHIP_TARGET")"
+  ln -snf "$STARSHIP_SOURCE" "$STARSHIP_TARGET"
+elif [[ -f $STARSHIP_TARGET && -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/config/starship.toml ]] && cmp -s "$STARSHIP_TARGET" "$OMARCHY_PATH/config/starship.toml"; then
+  mkdir -p "$(dirname "$STARSHIP_TARGET")"
+  ln -snf "$STARSHIP_SOURCE" "$STARSHIP_TARGET"
+fi
