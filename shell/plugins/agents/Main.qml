@@ -186,7 +186,7 @@ Item {
     var rev = dataRevision
     var syncRev = syncRevision
     var result = []
-    var localIds = {}
+    var localIds = Object.create(null)
     for (var i = 0; i < agents.length; i++) {
       var record = agents[i] ? agents[i].record : null
       if (!record || !record.id) continue
@@ -200,7 +200,7 @@ Item {
     // its synced numbers still deserve a tab. Rate limits stay blank — they
     // are per-account and never travel.
     var syncedProviders = syncConfigured() && aggregateData && aggregateData.providers ? aggregateData.providers : {}
-    for (var syncedId in syncedProviders) {
+    for (var syncedId of Object.keys(syncedProviders)) {
       if (localIds[syncedId] || !providerEnabled(syncedId)) continue
       var stats = syncedProviders[syncedId] || {}
       var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
@@ -469,7 +469,7 @@ Item {
       var raw = currentJson.join("\n").trim()
       try {
         var parsed = JSON.parse(raw)
-        if (parsed && parsed.providers) snapshots.push(parsed)
+        if (plainMap(parsed) && plainMap(parsed.providers)) snapshots.push(parsed)
       } catch (e) {
         console.warn("agents/sync", "Ignoring bad snapshot", currentPath, e)
       }
@@ -509,8 +509,13 @@ Item {
   }
 
   function numberValue(value) {
+    if (typeof value !== "number" && typeof value !== "string") return 0
     var n = Number(value || 0)
     return isFinite(n) ? Math.round(n) : 0
+  }
+
+  function plainMap(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
   }
 
   function dateString(date) {
@@ -543,18 +548,28 @@ Item {
   }
 
   function combineObjectNumbers(additive, target, source) {
-    if (!source) return
-    for (var key in source) target[key] = combineNumber(additive, target[key], source[key])
+    if (!plainMap(source)) return
+    for (var key of Object.keys(source)) target[key] = combineNumber(additive, target[key], source[key])
+  }
+
+  function combineTokenBucket(additive, target, source) {
+    if (!plainMap(source)) return
+    var fields = ["inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens"]
+    for (var i = 0; i < fields.length; i++) {
+      var field = fields[i]
+      if (Object.prototype.hasOwnProperty.call(source, field))
+        target[field] = combineNumber(additive, target[field], source[field])
+    }
   }
 
   function aggregateSnapshots(snapshots) {
     var dates = recentDateStrings()
-    var devices = {}
-    var providers = {}
+    var devices = Object.create(null)
+    var providers = Object.create(null)
 
     function providerAcc(id) {
       if (providers[id]) return providers[id]
-      var recentByDay = {}
+      var recentByDay = Object.create(null)
       for (var d = 0; d < dates.length; d++) recentByDay[dates[d]] = 0
       providers[id] = {
         providerId: id,
@@ -565,34 +580,36 @@ Item {
         todayPrompts: 0,
         todaySessions: 0,
         todayTotalTokens: 0,
-        todayTokensByModel: ({}),
+        todayTokensByModel: Object.create(null),
         recentByDay: recentByDay,
         totalPrompts: 0,
         totalSessions: 0,
         activeDays: 0,
-        activeDates: ({}),
-        modelUsage: ({}),
-        devices: ({})
+        activeDates: Object.create(null),
+        modelUsage: Object.create(null),
+        devices: Object.create(null)
       }
       return providers[id]
     }
 
     for (var i = 0; i < snapshots.length; i++) {
       var snapshot = snapshots[i]
-      var device = safeDeviceId(snapshot.deviceId || "device")
+      if (!plainMap(snapshot) || !plainMap(snapshot.providers)) continue
+      var device = safeDeviceId(typeof snapshot.deviceId === "string" ? snapshot.deviceId : "device")
       devices[device] = true
-      var snapshotProviders = snapshot.providers || {}
-      for (var providerId in snapshotProviders) {
-        var stats = snapshotProviders[providerId] || {}
+      var snapshotProviders = snapshot.providers
+      for (var providerId of Object.keys(snapshotProviders)) {
+        var stats = snapshotProviders[providerId]
+        if (!plainMap(stats)) continue
         var acc = providerAcc(String(providerId))
         acc.devices[device] = true
-        if (stats.providerName && acc.providerName === "") acc.providerName = String(stats.providerName)
+        if (typeof stats.providerName === "string" && stats.providerName && acc.providerName === "") acc.providerName = stats.providerName
         acc.ready = acc.ready || stats.ready === true
         acc.hasLocalStats = acc.hasLocalStats || stats.hasLocalStats !== false
         // Snapshots from before the field existed only came from agents that
         // count prompts, so a missing value reads as true.
         acc.hasPromptStats = acc.hasPromptStats || stats.hasPromptStats !== false
-        var additive = String(stats.scope || "device") !== "account"
+        var additive = stats.scope !== "account"
         acc.todayPrompts = combineNumber(additive, acc.todayPrompts, stats.todayPrompts)
         acc.todaySessions = combineNumber(additive, acc.todaySessions, stats.todaySessions)
         acc.todayTotalTokens = combineNumber(additive, acc.todayTotalTokens, stats.todayTotalTokens)
@@ -602,29 +619,34 @@ Item {
         // summing counts. Snapshots written before activeDates existed only
         // carry a count; the widest one stands in for them.
         var activeDates = Array.isArray(stats.activeDates) ? stats.activeDates : []
-        for (var ad = 0; ad < activeDates.length; ad++) acc.activeDates[String(activeDates[ad])] = true
+        for (var ad = 0; ad < activeDates.length; ad++) {
+          if (typeof activeDates[ad] === "string") acc.activeDates[activeDates[ad]] = true
+        }
         acc.activeDays = Math.max(acc.activeDays, numberValue(stats.activeDays))
-        combineObjectNumbers(additive, acc.todayTokensByModel, stats.todayTokensByModel || {})
+        combineObjectNumbers(additive, acc.todayTokensByModel, stats.todayTokensByModel)
 
         var recent = Array.isArray(stats.recentDays) ? stats.recentDays : []
         for (var r = 0; r < recent.length; r++) {
-          var day = recent[r] || {}
-          var date = String(day.date || "")
-          if (acc.recentByDay[date] !== undefined)
+          var day = recent[r]
+          if (!plainMap(day) || typeof day.date !== "string") continue
+          var date = day.date
+          if (Object.prototype.hasOwnProperty.call(acc.recentByDay, date))
             acc.recentByDay[date] = combineNumber(additive, acc.recentByDay[date], day.messageCount)
         }
 
-        var usage = stats.modelUsage || {}
-        for (var modelId in usage) {
+        var usage = stats.modelUsage
+        if (!plainMap(usage)) continue
+        for (var modelId of Object.keys(usage)) {
+          if (!plainMap(usage[modelId])) continue
           var bucket = acc.modelUsage[modelId]
           if (!bucket) bucket = acc.modelUsage[modelId] = emptyTokenBucket()
-          combineObjectNumbers(additive, bucket, usage[modelId] || {})
+          combineTokenBucket(additive, bucket, usage[modelId])
         }
       }
     }
 
-    var outProviders = {}
-    for (var id in providers) {
+    var outProviders = Object.create(null)
+    for (var id of Object.keys(providers)) {
       var acc = providers[id]
       var recentDays = []
       for (var di = 0; di < dates.length; di++) recentDays.push({ date: dates[di], messageCount: acc.recentByDay[dates[di]] || 0 })
@@ -683,7 +705,7 @@ Item {
   }
 
   function localSnapshot() {
-    var providerMap = {}
+    var providerMap = Object.create(null)
     for (var i = 0; i < agents.length; i++) {
       var record = agents[i] ? agents[i].record : null
       if (!record || !record.id) continue
@@ -701,7 +723,7 @@ Item {
   function syncedStatsFor(providerId) {
     var rev = syncRevision
     if (!syncConfigured() || !aggregateData || !aggregateData.providers) return null
-    return aggregateData.providers[providerId] || null
+    return Object.prototype.hasOwnProperty.call(aggregateData.providers, providerId) ? aggregateData.providers[providerId] : null
   }
 
   // ---------------------------------------------------------------- format
