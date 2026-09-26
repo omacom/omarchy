@@ -528,7 +528,7 @@ Item {
 
   Timer {
     id: sessionLockStabilizeTimer
-    interval: 500
+    interval: 1500
     repeat: false
     onTriggered: root.requestSessionLock()
   }
