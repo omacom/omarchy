@@ -6,7 +6,11 @@
 set -e
 
 echo "Installing Lutris..."
-omarchy-pkg-add lutris umu-launcher wine-staging wine-mono wine-gecko winetricks python-protobuf
+wine_pkg=wine-staging
+if omarchy-pkg-present wine; then
+  wine_pkg=wine
+fi
+omarchy-pkg-add lutris umu-launcher "$wine_pkg" wine-mono wine-gecko winetricks python-protobuf
 omarchy-install-gaming-gpu-lib32
 
 # Lutris ships with `#!/usr/bin/env python3`, which resolves to mise's Python and
