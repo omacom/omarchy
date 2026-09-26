@@ -91,7 +91,14 @@ o.bind("SUPER + ALT + mouse_down", "Next window in group", hl.dsp.group.next())
 o.bind("SUPER + ALT + mouse_up", "Previous window in group", hl.dsp.group.prev())
 
 for index = 1, 5 do
-  o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, hl.dsp.group.active({ index = index }))
+  -- Hyprland rejects an index past the group's window count with a runtime
+  -- error notification; a group rarely has all five bound indices, so a miss
+  -- should be a silent no-op instead. Only a Lua function dispatcher runs at
+  -- keypress time, so the pcall guard has to live here rather than around a
+  -- plain hl.dsp.group.active(...) dispatcher.
+  o.bind("SUPER + ALT + code:" .. tostring(index + 9), "Switch to group window " .. index, function()
+    pcall(function() hl.dispatch(hl.dsp.group.active({ index = index })) end)
+  end)
 end
 
 o.bind("SUPER + SLASH", "Monitor scaling up", "omarchy-hyprland-monitor-scaling up")
