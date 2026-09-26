@@ -84,9 +84,52 @@ leftover arguments, and the exit code is the binary's own. The router itself
 exits 127 for unknown routes or missing binaries.
 
 When nothing resolves, the router tries a prefix listing — `omarchy hw asus`
-prints every command whose usage starts with that prefix — and otherwise
-errors with a "did you mean" suggestion (a known route extending the first
-word) and a pointer to `omarchy commands --all`.
+prints every command whose usage starts with that prefix — then abbreviation
+expansion, and otherwise errors with a "did you mean" suggestion (a known
+route extending the first word) and a pointer to `omarchy commands --all`.
+
+Abbreviation expansion lets `omarchy pl u` run `omarchy plugin update`. It is
+an alternative spelling, never a replacement: the canonical route stays the
+one thing that always resolves, and everything the router prints — help,
+ambiguity errors, JSON — names commands by their canonical route. Every
+argument must be a prefix of the route word at the same position (`pl` →
+`plugin`, `u` → `update`), and whatever follows the matched words is forwarded
+to the binary exactly as with an exact route, so `--help` and required-args
+guards keep working. Hidden commands are never candidates: `provision user`
+is hidden, which is why `p u` is not ambiguous. A bare group name is a
+one-word candidate, so `omarchy plug` shows the plugin group help. The longest
+match wins, then the one with more exact words. When two different commands
+are still tied, the router prints an "Ambiguous Omarchy command" error listing
+them and exits 127 without running anything — abbreviations are a typing
+convenience for people, and scripts should keep spelling routes out. Because
+exact resolution always runs first, and only on the slow path after every
+exact route has failed, existing invocations neither change meaning nor pay
+for the expansion.
+
+Command help advertises the shortest spelling under a "Short form" heading,
+after the canonical usage, and per-command JSON help carries it as `short`
+(`null` when the route cannot be shortened, like `omarchy bar` next to
+`battery` and the `background` alias). Only routes with the same number of
+words compete, since the longest match wins; each position takes the shortest
+prefix that leaves no competitor able to hide behind the remaining canonical
+words, and the result is checked against the real matcher before it is shown.
+Computing it needs every route, so command help now loads the full metadata
+table — the one place where help left the fast path's single-header load.
+Group help and `omarchy commands --json` do not compute short forms, as doing
+so for hundreds of commands at once would dominate their runtime.
+
+The top-level group listing shows each group's shortest prefix too. A bare
+abbreviated group only competes with other one-word routes, and a header can
+only put a route on one word through `group=` or a one-word alias, so one
+grep over the headers collects every competitor (filename groups, metadata
+groups, one-word aliases, and every advertised `GROUP_DESCRIPTIONS` entry)
+without the full metadata load; hidden commands are included since an extra
+competitor can only lengthen a short form. In a sorted list the longest
+prefix a name shares with any other is shared with a neighbour, so one pass
+over the sorted routes settles every group. An advertised group whose commands
+are all hidden abbreviates like any other, since the listing advertises it
+either way. Expanded words re-enter dispatch where the full spelling would,
+so a short form behaves exactly like the long one.
 
 ## Groups and the top-level listing
 

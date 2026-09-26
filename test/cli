@@ -712,3 +712,167 @@ assert_output_contains "a --help behind -- belongs to the command and still forw
 
 output=$("$TMPDIR/omarchy" parenthelp --helpme x--help)
 assert_output_contains "help lookalike tokens do not trigger help" "$output" "parenthelp-parent-ran args=[--helpme x--help]"
+
+# Abbreviations are a last resort: once no exact route matches, each argument may prefix
+# the route word at its position, hidden commands are excluded, and ambiguity is an error.
+for name in abbrone-update abbrone-upgrade abbrone-list abbrtwo-list; do
+  {
+    printf '#!/bin/bash\n\n'
+    printf '# omarchy:summary=Abbreviation test %s\n' "$name"
+    printf 'echo "%s-ran args=[$*]"\n' "$name"
+  } >"$TMPDIR/omarchy-$name"
+  chmod +x "$TMPDIR/omarchy-$name"
+done
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Abbreviation test hidden command\n'
+  printf '# omarchy:hidden=true\n'
+  printf 'echo abbrhidden-user-ran\n'
+} >"$TMPDIR/omarchy-abbrhidden-user"
+chmod +x "$TMPDIR/omarchy-abbrhidden-user"
+
+output=$("$TMPDIR/omarchy" abbro upd)
+assert_output_contains "unique abbreviation dispatches" "$output" "abbrone-update-ran args=[]"
+
+output=$("$TMPDIR/omarchy" abbro upd extra --flag)
+assert_output_contains "abbreviation forwards leftover arguments" "$output" "abbrone-update-ran args=[extra --flag]"
+
+output=$("$TMPDIR/omarchy" abbrone upd)
+assert_output_contains "exact word plus abbreviated word dispatches" "$output" "abbrone-update-ran args=[]"
+
+output=$("$TMPDIR/omarchy" abbro upd --help)
+assert_output_contains "abbreviation with --help renders help instead of running" "$output" "omarchy-abbrone-update"
+if [[ $output == *"abbrone-update-ran"* ]]; then
+  fail "abbreviation with --help does not execute the command"
+fi
+pass "abbreviation with --help does not execute the command"
+
+output=$("$TMPDIR/omarchy" abbro up 2>&1) && fail "ambiguous abbreviation exits non-zero"
+assert_output_contains "ambiguous abbreviation is reported" "$output" "Ambiguous Omarchy command: omarchy abbro up"
+assert_output_contains "ambiguous abbreviation lists first candidate" "$output" "omarchy abbrone update"
+assert_output_contains "ambiguous abbreviation lists second candidate" "$output" "omarchy abbrone upgrade"
+if [[ $output == *"-ran"* ]]; then
+  fail "ambiguous abbreviation does not execute any command"
+fi
+pass "ambiguous abbreviation does not execute any command"
+
+output=$("$TMPDIR/omarchy" abbr l 2>&1) && fail "ambiguous group abbreviation exits non-zero"
+assert_output_contains "ambiguous group abbreviation lists candidates across groups" "$output" "omarchy abbrtwo list"
+
+output=$("$TMPDIR/omarchy" abbrt l)
+assert_output_contains "abbreviated group resolved by its unique child dispatches" "$output" "abbrtwo-list-ran args=[]"
+
+output=$("$TMPDIR/omarchy" abbrh u 2>&1) && fail "hidden commands are not abbreviation candidates"
+assert_output_contains "hidden commands are not abbreviation candidates" "$output" "Unknown Omarchy command: omarchy abbrh u"
+
+output=$("$TMPDIR/omarchy" abbrhidden user)
+assert_output_contains "hidden commands still dispatch by their exact route" "$output" "abbrhidden-user-ran"
+
+output=$("$TMPDIR/omarchy" abbrt)
+assert_output_contains "abbreviated bare group renders group help" "$output" "omarchy abbrtwo list"
+
+output=$("$TMPDIR/omarchy" abbrone bogus 2>&1) && fail "unknown word after an exact group is still unknown"
+assert_output_contains "unknown word after an exact group is still unknown" "$output" "Unknown Omarchy command: omarchy abbrone bogus"
+
+# A root command that is also a group (it has children) and carries an alias stays one candidate.
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Abbreviation test root command\n'
+  printf '# omarchy:alias=omarchy abbrroot-alias\n'
+  printf 'echo "abbrroot-ran args=[$*]"\n'
+} >"$TMPDIR/omarchy-abbrroot"
+chmod +x "$TMPDIR/omarchy-abbrroot"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Abbreviation test root child\n'
+  printf 'echo abbrroot-child-ran\n'
+} >"$TMPDIR/omarchy-abbrroot-child"
+chmod +x "$TMPDIR/omarchy-abbrroot-child"
+
+output=$("$TMPDIR/omarchy" abbrro)
+assert_output_contains "root command with children and an alias is a single abbreviation candidate" "$output" "abbrroot-ran args=[]"
+
+output=$("$TMPDIR/omarchy" abbrro ch)
+assert_output_contains "abbreviated child of a root command dispatches" "$output" "abbrroot-child-ran"
+
+# Command help shows the canonical route first and the shortest abbreviation after it, only when one exists.
+output=$("$TMPDIR/omarchy" abbrone update --help)
+assert_output_contains "command help lists the short form" "$output" "Short form:"$'\n'"  omarchy a upd"
+if [[ $output != "Usage:"$'\n'"  omarchy abbrone update"$'\n'*"Short form:"* ]]; then
+  fail "command help shows the canonical usage before the short form"
+fi
+pass "command help shows the canonical usage before the short form"
+
+output=$("$TMPDIR/omarchy" a upd)
+assert_output_contains "the advertised short form dispatches to its command" "$output" "abbrone-update-ran args=[]"
+
+"$TMPDIR/omarchy" abbrone update --help --json | jq -e '.command.short == "omarchy a upd"' >/dev/null
+pass "command JSON help exposes the short form"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Abbreviation test unshortenable\n'
+  printf 'echo abbrx-ran\n'
+} >"$TMPDIR/omarchy-abbrx"
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=Abbreviation test shadowing sibling\n'
+  printf 'echo abbrxy-ran\n'
+} >"$TMPDIR/omarchy-abbrxy"
+chmod +x "$TMPDIR/omarchy-abbrx" "$TMPDIR/omarchy-abbrxy"
+
+output=$("$TMPDIR/omarchy" abbrx --help)
+if [[ $output == *"Short form:"* ]]; then
+  fail "a route shadowed by a longer sibling advertises no short form"
+fi
+pass "a route shadowed by a longer sibling advertises no short form"
+
+"$TMPDIR/omarchy" abbrx --help --json | jq -e '.command.short == null' >/dev/null
+pass "command JSON help reports null when there is no short form"
+
+output=$("$TMPDIR/omarchy" abbrx)
+assert_output_contains "a full route still dispatches exactly even when a longer sibling shares its prefix" "$output" "abbrx-ran"
+
+# Every short form the main help advertises must resolve to the command printed next to it.
+advertised=0
+while IFS=$'\t' read -r full short; do
+  [[ -n $full && -n $short ]] || continue
+  advertised=$((advertised + 1))
+  # shellcheck disable=SC2086
+  resolved=$("$CLI" ${short#omarchy } --help --json 2>/dev/null | jq -r '.command.route' || true)
+  [[ $resolved == "$full" ]] || fail "main help short form '$short' resolves to '$full' (got '$resolved')"
+done < <("$CLI" --help | awk '
+  /^Short forms:/ { active = 1; next }
+  /^$/ { active = 0 }
+  active && /^  omarchy .*  omarchy / {
+    line = $0
+    sub(/^  /, "", line)
+    split(line, cols, /  +/)
+    full = cols[1]; short = cols[2]
+    sub(/ <[a-z-]+>$/, "", full); sub(/ <[a-z-]+>$/, "", short)
+    printf "%s\t%s\n", full, short
+  }')
+(( advertised >= 6 )) || fail "main help advertises short forms"
+pass "main help short forms resolve to the commands they advertise"
+
+# Every group short form the main help lists must behave like the full group name (the fast path only loads a group's
+# filename-prefixed binaries, so compare the header rather than the full listing).
+advertised=0
+while read -r group short; do
+  [[ $short =~ ^[a-z]+$ ]] || continue
+  advertised=$((advertised + 1))
+  expected=$("$CLI" "$group" --help 2>&1 | head -2 || true)
+  actual=$("$CLI" "$short" --help 2>&1 | head -2 || true)
+  [[ $actual == "$expected" ]] || fail "main help group short form '$short' behaves like '$group' (got: $actual)"
+  [[ $actual != Ambiguous* ]] || fail "main help group short form '$short' is unambiguous"
+done < <("$CLI" --help | awk '/^Groups/ { active = 1; next } /^$/ { active = 0 } active && NF >= 3 { print $1, $2 }')
+(( advertised >= 50 )) || fail "main help lists group short forms"
+pass "main help group short forms behave like the full group names"
+
+output=$("$CLI" --help)
+if grep -Eq '^  bar +[a-z]+ +Omarchy shell bar' <<<"$output"; then
+  fail "a group shadowed by longer names lists no short form"
+fi
+pass "a group shadowed by longer names lists no short form"
