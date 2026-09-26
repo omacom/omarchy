@@ -86,12 +86,18 @@ The three guards differ in what failure means:
   their rows load on demand).
 - `checked` appends ✓ when it succeeds — the "this is the current choice"
   marker on defaults, DNS, channel rows.
-- `disabled` keeps the row listed but dims it, marks it ✓, and makes it
+- `disabled` keeps the row listed but dims it and makes it
   unselectable: cursor, pointer, and Enter all step over it, and search omits
   it. The Install submenus use it so software already on the machine reads as
   installed rather than vanishing from the list it was installed from — the
-  list stays a catalog of what Omarchy can install. Since a dimmed row means
-  "you already have this", it earns the same ✓ as `checked` does elsewhere.
+  list stays a catalog of what Omarchy can install. A row whose only statement
+  is `disabled:` therefore earns the same ✓ as `checked` does elsewhere ("you
+  already have this"). A row that defines its own `checked:` owns its ✓
+  exclusively — its dimmed siblings are unavailable, not current — so such a
+  row never picks up the disabled fallback mark. 
+  The dim level is the theme's `[menu] disabled-alpha` (default 0.4), and a
+  summon can override it for one session with the `disabledAlpha` payload
+  option.
 
 Install rows should therefore carry `disabled:` with the presence check, not
 `when:`; Remove rows are the opposite, hiding via `when:` what is not there
@@ -152,6 +158,25 @@ the action directly instead of opening an action with no children, and a
 link is followed to its target. The default Hyprland bindings in
 `default/hypr/bindings/utilities.lua` all go through this surface
 (SUPER+SPACE toggles root, SUPER+ESCAPE the system menu, and so on).
+
+A menu-mode summon can open already sitting on a row with its checkmarks
+ already in place. The payload accepts `initialIndex` (an ordinal into the
+ displayed rows), `initialId` (a row id that survives menus whose display
+ order differs from item order — apps sort alphabetically, provider rows and
+ search results reorder freely), `checked` (a `{ rowId: bool, ... }` map
+ that primes the ✓ markers for the first paint; the guard batch confirms the
+ same conditions once it lands), and `disabled` (the same shape, seeding the
+ rows that should render dimmed and unselectable until the batch reconfirms —
+ a summoner whose availability just changed can otherwise race the batch and
+ let a fast activation land on a row that reads enabled). All of these are
+ optional and independent. A
+ menu whose `disabled:` rows the summoner wants dimmed differently from the
+ theme can pass `disabledAlpha` (a number 0–1) in the same payload; it applies
+ for that session only, and the theme's `[menu] disabled-alpha` otherwise
+ decides. The
+ IPC transports every argument as a string, so a `select` call from a keybind
+ or a script should send a numeric-looking string — the menu coerces it before
+ stepping the cursor.
 
 ## Select and input modes
 

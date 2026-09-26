@@ -24,10 +24,40 @@ Item {
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
 
+    // checkedResults is normally filled by the async guard batch after open,
+    // so a caller that already knows the ✓ state (the batch confirms it, it
+    // does not override it) can prime the first paint instead of showing
+    // stale markers until that batch lands.
+    if (payload.checked && typeof payload.checked === "object") {
+      for (var ck in payload.checked) {
+        if (Object.prototype.hasOwnProperty.call(payload.checked, ck))
+          root.checkedResults[ck] = !!payload.checked[ck]
+      }
+    }
+
+    // The same first-paint deal for `disabled:` rows: a summoner whose
+    // condition changed since the last guard batch can name the rows it
+    // expects to be disabled. The batch re-derives the truth on the way in
+    // and reconfirms (it does not read these), so a primed row settles the
+    // dim/inert state only until that lands -- never a permanent override.
+    if (payload.disabled && typeof payload.disabled === "object") {
+      for (var dis in payload.disabled) {
+        if (Object.prototype.hasOwnProperty.call(payload.disabled, dis))
+          root.disabledResults[dis] = !!payload.disabled[dis]
+      }
+    }
+
+    // Default each session to the theme's disabled alpha before honoring a
+    // per-session override; a summoner that wants its disabled rows dimmed
+    // differently from the theme can name one in the payload.
+    root.disabledAlphaOverride = -1
+    if (typeof payload.disabledAlpha === "number" && isFinite(payload.disabledAlpha))
+      root.disabledAlphaOverride = Util.clampAlpha(payload.disabledAlpha)
+
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
     } else {
-      root.openRoute(payload.initialMenu || payload.menu || "root")
+      root.openRoute(payload.initialMenu || payload.menu || "root", payload.initialIndex, payload.initialId)
     }
   }
 
@@ -44,6 +74,12 @@ Item {
   function ping() { return "ok" }
 
   property string fontFamily: Style.font.menuFamily
+  // Disabled rows render at this alpha. A summon can override it for the
+  // session by naming `disabledAlpha` in the open payload; otherwise the
+  // active theme's [menu] disabled-alpha token decides (default 0.4). -1
+  // means "no override this session, use the theme".
+  property real disabledAlphaOverride: -1
+  readonly property real disabledAlpha: root.disabledAlphaOverride >= 0 ? root.disabledAlphaOverride : Color.menu.disabledAlpha
   // JSONC menu definitions. The shell parses both at startup and merges
   // the user file on top of the defaults, so the keybind → IPC → visible
   // path doesn't have to shell out to bash + jq on every open.
@@ -550,6 +586,17 @@ Item {
     root.cursorActive = target >= 0
   }
 
+  // Rows are keyed by itemId, which lets a summoning caller name the row its
+  // cursor should start on even when the display order differs from item
+  // order (apps sort alphabetically, provider rows and search results reorder
+  // freely). -1 means the id is not on screen right now.
+  function indexOfItemId(id) {
+    for (var ri = 0; ri < displayModel.count; ri++) {
+      if (displayModel.get(ri).itemId === id) return ri
+    }
+    return -1
+  }
+
   function rebuildDmenuDisplay() {
     displayModel.clear()
     root.searchDivider = false
@@ -705,6 +752,7 @@ Item {
 
   function select(delta) {
     if (displayModel.count === 0) return
+    delta = Number(delta) || 0
 
     root.disarmPointer()
     var from = cursorActive ? selectedIndex + delta : (delta < 0 ? displayModel.count - 1 : 0)
@@ -834,7 +882,7 @@ Item {
     filterText = ""
   }
 
-  function openExistingMenu(initialMenu) {
+  function openExistingMenu(initialMenu, initialIndex, initialId) {
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -843,12 +891,21 @@ Item {
     activeMenu = root.item(initialMenu) ? initialMenu : "root"
     navStack = []
     filterText = ""
-    selectedIndex = 0
+    selectedIndex = typeof initialIndex === "number" && initialIndex >= 0 ? initialIndex : 0
     cursorActive = true
     root.disarmPointer()
     root.evaluateGuards()
     opened = true
     rebuildDisplay()
+    // A summoner can name the starting row by itemId as well as by ordinal,
+    // which matters for menus whose display order differs from item order
+    // (apps sort alphabetically, provider rows reorder on refresh). settle-
+    // Cursor() then normalizes a row that turned disabled or filtered off.
+    if (initialId) {
+      var idRow = root.indexOfItemId(initialId)
+      if (idRow >= 0) selectedIndex = idRow
+      root.settleCursor()
+    }
     invalidateVolatileProvider(activeMenu)
     loadProviderForMenu(activeMenu)
     // The shell may start before first-install packages have finished placing
@@ -892,7 +949,7 @@ Item {
     return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
-  function openRoute(initialMenu) {
+  function openRoute(initialMenu, initialIndex, initialId) {
     var id = root.resolveRoute(initialMenu)
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
@@ -906,7 +963,7 @@ Item {
     // If it's a link (a redirect to another menu), follow the link.
     if (entry && entry.kind === "link" && entry.target) id = entry.target
     root.pendingInitialMenu = id
-    root.openExistingMenu(id)
+    root.openExistingMenu(id, initialIndex, initialId)
     return "ok"
   }
 
@@ -1270,7 +1327,7 @@ Item {
               height: root.rowHeightForDetail(row.detail)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
-              opacity: row.disabled ? 0.4 : 1
+              opacity: row.disabled ? root.disabledAlpha : 1
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
