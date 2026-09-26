@@ -823,20 +823,31 @@ BarWidget {
       cursorShape: Qt.PointingHandCursor
       onEntered: if (root.bar) root.bar.showTooltip(trayItemRoot, root.trayTooltip(modelData))
       onExited: if (root.bar) root.bar.hideTooltip(trayItemRoot)
+      // A press is a decision, so the tooltip has done its job: hide it here
+      // rather than waiting for the hover poller, which would otherwise leave
+      // it drawn over the menu the same press opens.
       onPressed: function(mouse) {
+        if (root.bar) root.bar.hideTooltip(trayItemRoot)
         if (mouse.button === Qt.RightButton) {
           trayItemRoot.displayMenu(mouse)
           mouse.accepted = true
         }
       }
+      // Activating an item dismisses an open tray menu. Nothing else will:
+      // PopupCard's HyprlandFocusGrab lists the bar window among the windows
+      // it routes input to, so a click on the bar - this icon included - never
+      // clears the grab. Without this the menu stayed open behind whatever
+      // activate() went on to show.
       onClicked: function(mouse) {
         if (mouse.button === Qt.RightButton) {
           mouse.accepted = true
         } else if (mouse.button === Qt.MiddleButton) {
+          root.close()
           trayItemRoot.modelData.secondaryActivate()
         } else if (trayItemRoot.modelData.onlyMenu) {
           trayItemRoot.displayMenu(mouse)
         } else {
+          root.close()
           trayItemRoot.modelData.activate()
         }
       }
@@ -845,6 +856,11 @@ BarWidget {
       }
     }
 
-    readonly property bool tooltipHovered: visible && opacity > 0 && mouseArea.containsMouse
+    // The cursor is still over the icon while that icon's menu is open - it
+    // is what was just right-clicked - so containsMouse alone kept the
+    // tooltip alive on top of the menu. Dropping out of "hovered" while any
+    // tray popup is open both hides a shown tooltip (Bar's hover poller) and
+    // refuses a new one (Bar.showTooltip checks the same property).
+    readonly property bool tooltipHovered: visible && opacity > 0 && mouseArea.containsMouse && !root.trayMenuOpen && !root.managePopupOpen
   }
 }
