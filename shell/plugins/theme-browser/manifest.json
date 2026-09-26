@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.theme-browser",
+  "name": "Theme browser",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Browse the community themes and install one",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "ThemeBrowser.qml"
+  }
+}
