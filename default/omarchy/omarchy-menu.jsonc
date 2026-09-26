@@ -200,6 +200,8 @@
   "install.style": {"icon":"","label":"Style"},
   "install.style.theme": {"icon":"󰸌","label":"Theme","action":"omarchy-launch-floating-terminal-with-presentation omarchy-theme-install"},
   "install.style.background": {"icon":"","label":"Background","action":"omarchy-theme-bg-install"},
+  "install.style.wallpaper": {"icon":"","label":"Live Wallpaper"},
+  "install.style.wallpaper.asciipaper": {"icon":"","label":"ASCII Paper","disabled":"omarchy-cmd-present asciipaper","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-wallpaper-asciipaper"},
   "install.style.font": {"icon":"","label":"Font"},
   "install.style.font.cascadia": {"icon":"","label":"Cascadia Mono","action":"omarchy-install-font 'Cascadia Mono' ttf-cascadia-mono-nerd 'CaskaydiaMono Nerd Font'"},
   "install.style.font.meslo": {"icon":"","label":"Meslo LG Mono","action":"omarchy-install-font 'Meslo LG Mono' ttf-meslo-nerd 'MesloLGL Nerd Font'"},
