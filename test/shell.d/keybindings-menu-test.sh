@@ -220,3 +220,66 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# The Lua bind scan runs the user's config under a fake environment. A config
+# that hands it a cyclic table used to recurse the serializer without bound
+# and take the session's memory with it (#12852). The scan must fail instead,
+# leaving the menu to render the row from hyprctl alone.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+local cyclic = { name = "boom" }
+cyclic.self = cyclic
+hl.bind("SUPER + O", "Cyclic dispatch", hl.dsp.exec_cmd(cyclic))
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + O" "Cyclic dispatch")
+BINDS
+
+# The fallback row also appears on an unpatched baseline (the pcall catches
+# Lua's stack overflow), so the row alone cannot tell the cycle check from a
+# crash being swallowed. The DEBUG diagnostic is what pins the check itself.
+debug_err="$tmpdir/cyclic-debug.err"
+rendered=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" DEBUG=1 \
+  bash "$ROOT/bin/omarchy-menu-keybindings" --print 2>"$debug_err")
+grep -q '→ Cyclic dispatch$' <<<"$rendered" ||
+  fail "a cyclic bind argument fails the scan instead of the session" "$rendered"
+grep -q 'cyclic table in a bind argument' "$debug_err" ||
+  fail "the scan reports why the cyclic bind argument failed" "$(cat "$debug_err")"
+pass "a cyclic bind argument fails the scan instead of the session"
+
+# Dispatcher expressions serialize their own arguments back into the
+# expression, so a nest of them doubles in size every level. Forty levels
+# used to be enough to reach the OOM killer; the size cap now fails the scan
+# within its first few hundred bytes.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+local bomb = hl.dsp.exec_cmd("omarchy-notify boom")
+for _ = 1, 40 do
+  bomb = hl.dsp.exec_cmd(bomb)
+end
+hl.bind("SUPER + N", "Nested dispatch", bomb)
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + N" "Nested dispatch")
+BINDS
+
+rendered=$(keybindings)
+grep -q '→ Nested dispatch$' <<<"$rendered" ||
+  fail "a nested dispatcher expression fails the scan instead of growing" "$rendered"
+pass "a nested dispatcher expression fails the scan instead of growing"
+
+# A config that never terminates fails the scan on its instruction budget,
+# and the menu still opens on plain hyprctl binds.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+while true do end
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + L" "Looping dispatch")
+BINDS
+
+rendered=$(keybindings)
+grep -q '→ Looping dispatch$' <<<"$rendered" ||
+  fail "a config that never terminates still cannot hang the menu" "$rendered"
+pass "a config that never terminates still cannot hang the menu"

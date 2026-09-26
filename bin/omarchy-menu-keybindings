@@ -81,7 +81,10 @@ build_lua_bind_cache() {
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
   done < <(
-    lua <<'LUA'
+    # The child is the blast radius for anything that escapes the Lua caps
+    # above: cap its wall clock and address space so even a scan that slips
+    # the watchdog cannot take the session's memory with it (#12852).
+    timeout 20 bash -c 'ulimit -v 1048576; exec lua' <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 
 local function split_keys(keys)
@@ -102,20 +105,48 @@ local function split_keys(keys)
   return modmask, key
 end
 
-local function lua_literal(value)
+-- A config runs arbitrary Lua under this fake environment, and dispatcher
+-- arguments get serialized back into expressions. A cyclic table, a deeply
+-- nested dispatcher expression (whose serialized argument doubles every
+-- level) or a plain runaway loop grows without bound here - that was the
+-- #12852 OOM. The scan carries hard caps and aborts instead: failing the
+-- scan is the safe outcome, since the menu then renders binds without their
+-- dispatch, which everything downstream already handles.
+local MAX_LITERAL_DEPTH = 10
+local MAX_LITERAL_CHARS = 65536
+
+local literal_chars = 0
+
+local function literal(value, seen, depth)
   local value_type = type(value)
 
   if value_type == "string" then
-    return string.format("%q", value)
+    local encoded = string.format("%q", value)
+    literal_chars = literal_chars + #encoded
+    if literal_chars > MAX_LITERAL_CHARS then
+      error("bind argument serialization grew past the size cap", 0)
+    end
+    return encoded
   elseif value_type == "number" or value_type == "boolean" then
-    return tostring(value)
+    local encoded = tostring(value)
+    literal_chars = literal_chars + #encoded
+    return encoded
   elseif value_type == "table" then
+    if seen[value] then
+      error("cyclic table in a bind argument", 0)
+    end
+    if depth >= MAX_LITERAL_DEPTH then
+      error("bind argument nested past the depth cap", 0)
+    end
+
+    seen[value] = true
+
     local parts = {}
     local keys = {}
     local array_length = #value
 
     for index = 1, array_length do
-      parts[#parts + 1] = lua_literal(value[index])
+      parts[#parts + 1] = literal(value[index], seen, depth + 1)
     end
 
     for key in pairs(value) do
@@ -133,18 +164,30 @@ local function lua_literal(value)
       if type(key) == "string" and key:match("^[%a_][%w_]*$") then
         key_prefix = key .. " = "
       else
-        key_prefix = "[" .. lua_literal(key) .. "] = "
+        key_prefix = "[" .. literal(key, seen, depth + 1) .. "] = "
       end
 
-      parts[#parts + 1] = key_prefix .. lua_literal(value[key])
+      parts[#parts + 1] = key_prefix .. literal(value[key], seen, depth + 1)
     end
 
-    return "{ " .. table.concat(parts, ", ") .. " }"
+    seen[value] = nil
+
+    local encoded = "{ " .. table.concat(parts, ", ") .. " }"
+    literal_chars = literal_chars + #encoded
+    if literal_chars > MAX_LITERAL_CHARS then
+      error("bind argument serialization grew past the size cap", 0)
+    end
+    return encoded
   elseif value_type == "nil" then
     return "nil"
   else
     return "nil"
   end
+end
+
+local function lua_literal(value)
+  literal_chars = 0
+  return literal(value, {}, 0)
 end
 
 local function call_expression(path, ...)
@@ -231,7 +274,14 @@ local file = io.open(config, "r")
 
 if file then
   file:close()
+  -- Cap the whole config run by instruction count: a config stuck in a loop
+  -- burns its budget and the pcall catches, instead of the scan spinning
+  -- until the OOM killer takes the session down (#12852).
+  debug.sethook(function()
+    error("config ran past the keybind scan budget", 0)
+  end, "", 100000000)
   local ok, err = pcall(dofile, config)
+  debug.sethook()
   if not ok and os.getenv("DEBUG") == "1" then
     io.stderr:write("[DEBUG] lua bind scan failed: " .. tostring(err) .. "\n")
   end
@@ -543,6 +593,10 @@ refresh_keybindings_cache() {
   local tmp_file
 
   tmp_file=$(mktemp "$cache_dir/keybindings.XXXXXX") || return 1
+
+  # A refresh killed mid-run (OOM, logout) leaves its mktemp scratch behind,
+  # and the records glob that prunes old caches never matches those names.
+  find "$cache_dir" -maxdepth 1 -type f -name 'keybindings.??????' -mmin +10 -delete 2>/dev/null || true
 
   if output_binding_records_uncached >"$tmp_file"; then
     mv "$tmp_file" "$cache_file"
