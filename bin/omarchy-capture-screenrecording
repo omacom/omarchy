@@ -118,7 +118,19 @@ start_webcam_overlay() {
 }
 
 cleanup_webcam() {
-  pkill -f "WebcamOverlay" 2>/dev/null
+  # mpv blocked inside the v4l2 open/read path never returns to its event loop
+  # to honour SIGTERM, so escalate to SIGKILL after a short grace period.
+  # Anchor the pattern to ^mpv: a bare -f "WebcamOverlay" also matches this
+  # script's own command line and would kill the caller.
+  pkill -f "^mpv.*WebcamOverlay" 2>/dev/null || true
+  local waited=0
+  while ((waited < 10)) && pgrep -f "^mpv.*WebcamOverlay" >/dev/null 2>&1; do
+    sleep 0.1
+    ((waited++))
+  done
+  if pgrep -f "^mpv.*WebcamOverlay" >/dev/null 2>&1; then
+    pkill -9 -f "^mpv.*WebcamOverlay" 2>/dev/null || true
+  fi
   rm -f "$REGION_FILE"
 }
 
@@ -297,6 +309,10 @@ finalize_recording() {
 if screenrecording_active; then
   stop_screenrecording
 elif [[ $STOP_RECORDING == "true" ]]; then
+  # No recorder running, but a dead-camera overlay may still be stuck on
+  # screen. A second --stop-recording press must sweep leftovers instead of
+  # exiting silently.
+  cleanup_webcam
   exit 1
 else
   start_screenrecording || cleanup_webcam
