@@ -474,18 +474,24 @@ def _cached_local_stats(max_age):
     return stats
 
 
-def rpc_request(proc, request_id, method, params=None, timeout=8):
+def rpc_request(proc, pending, request_id, method, params=None, timeout=8):
   payload = {"id": request_id, "method": method, "params": params or {}}
-  proc.stdin.write(json.dumps(payload) + "\n")
+  proc.stdin.write((json.dumps(payload) + "\n").encode())
   proc.stdin.flush()
-  deadline = time.time() + timeout
-  while time.time() < deadline:
-    ready, _, _ = select.select([proc.stdout], [], [], 0.25)
-    if not ready:
+  deadline = time.monotonic() + timeout
+  while time.monotonic() < deadline:
+    # Drain complete messages before waiting for more bytes on the pipe.
+    if b"\n" not in pending:
+      ready, _, _ = select.select([proc.stdout], [], [], 0.25)
+      if not ready:
+        continue
+      chunk = os.read(proc.stdout.fileno(), 65536)
+      if not chunk:
+        break
+      pending.extend(chunk)
       continue
-    line = proc.stdout.readline()
-    if not line:
-      break
+    line, _, rest = pending.partition(b"\n")
+    pending[:] = rest
     try:
       message = json.loads(line)
     except Exception:
@@ -532,7 +538,7 @@ def fetch_codex_rpc():
       stdin=subprocess.PIPE,
       stdout=subprocess.PIPE,
       stderr=subprocess.DEVNULL,
-      text=True,
+      bufsize=0,
       env=ENV,
     )
   except Exception as exc:
@@ -541,11 +547,12 @@ def fetch_codex_rpc():
     return result
 
   try:
-    rpc_request(proc, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
-    proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+    pending = bytearray()
+    rpc_request(proc, pending, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
+    proc.stdin.write((json.dumps({"method": "initialized", "params": {}}) + "\n").encode())
     proc.stdin.flush()
-    account_msg = rpc_request(proc, 2, "account/read", timeout=4)
-    limits_msg = rpc_request(proc, 3, "account/rateLimits/read", timeout=4)
+    account_msg = rpc_request(proc, pending, 2, "account/read", timeout=4)
+    limits_msg = rpc_request(proc, pending, 3, "account/rateLimits/read", timeout=4)
 
     account = (account_msg.get("result") or {}).get("account") or {}
     limits = (limits_msg.get("result") or {}).get("rateLimits") or {}
