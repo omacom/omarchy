@@ -6,17 +6,29 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
-# Mapping can lag the first watchdog poll, and follow_mouse can leave focus
-# elsewhere for a beat after openwindow. Only treat "not focused" as a
-# dismissal once the screensaver has actually been the active window.
+# The screensaver may not be the active window when the first poll runs.
+# Treat "not focused" as a dismissal only after it has been focused once.
+# A launch that never receives focus gives up after a few polls. An idle-cycle
+# launch (--idle) does not: the idle service would treat that exit as a
+# dismissal and cancel the pending lock.
 screensaver_seen_focus=0
+screensaver_idle=0
+screensaver_unfocused_polls=0
+screensaver_unfocused_limit=8
 
 screensaver_lost_focus() {
   if screensaver_in_focus; then
     screensaver_seen_focus=1
     return 1
   fi
-  (( screensaver_seen_focus ))
+  if ((screensaver_seen_focus)); then
+    return 0
+  fi
+  screensaver_unfocused_polls=$((screensaver_unfocused_polls + 1))
+  if ((screensaver_idle == 0 && screensaver_unfocused_polls >= screensaver_unfocused_limit)); then
+    return 0
+  fi
+  return 1
 }
 
 exit_screensaver() {
@@ -29,6 +41,10 @@ exit_screensaver() {
 if [[ ${BASH_SOURCE[0]} != "$0" ]]; then
   return 0
 fi
+
+for arg in "$@"; do
+  [[ $arg == --idle ]] && screensaver_idle=1
+done
 
 # Exit the screensaver on signals and input from keyboard and mouse
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
