@@ -21,16 +21,27 @@ cat >"$mock_bin/omarchy-pkg-add" <<'SH'
 printf 'pkg-add %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
 touch "$OMARCHY_TEST_ROOT/package-installed"
 SH
+# The user manager, as far as these tests need one: a service is active while
+# a marker says so. Stopping clears it; OMARCHY_TEST_STOP_FAIL refuses.
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
-printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
-[[ -z ${OMARCHY_TEST_STOP_FAIL:-} ]]
+case "$2" in
+  stop)
+    printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+    [[ -z ${OMARCHY_TEST_STOP_FAIL:-} ]] || exit 1
+    rm -f "$HOME/active-$3"
+    ;;
+  is-active) [[ -e $HOME/active-$4 ]] ;;
+esac
 SH
 chmod +x "$mock_bin/"*
 
 # Stands in for upstream's install-cli.sh: it writes the command the way the
 # real one does, execing into the prefix's tools, and that command logs what
 # it is asked. OMARCHY_TEST_INSTALL_BROKEN leaves a command that cannot run.
+# Like upstream, `<role> install --force` rewrites the unit onto the runtime
+# and starts it, OMARCHY_TEST_START_FAIL making the start fail, and the
+# installer does that itself for a gateway it finds loaded.
 cat >"$seed/install-cli.sh" <<'SH'
 printf 'install-cli %s%s\n' "$*" "${OPENCLAW_PROFILE:+ profile=$OPENCLAW_PROFILE}" >>"$OMARCHY_TEST_ROOT/events"
 prefix=$HOME/.openclaw
@@ -38,11 +49,19 @@ mkdir -p "$prefix/bin" "$prefix/tools/node-v24.19.0"
 cat >"$prefix/bin/openclaw" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-[[ -z "${OMARCHY_TEST_INSTALL_BROKEN:-}" ]] || exit 1
+[[ -z "\${OMARCHY_TEST_INSTALL_BROKEN:-}" ]] || exit 1
 printf 'runtime %s%s\n' "\$*" "\${OPENCLAW_PROFILE:+ profile=\$OPENCLAW_PROFILE}" >>"$OMARCHY_TEST_ROOT/events"
+if [[ \${2:-} == "install" ]]; then
+  printf 'ExecStart=$prefix/tools/node-v24.19.0/bin/node $prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js %s\n' "\$1" >"\$HOME/.config/systemd/user/openclaw-\$1.service"
+  [[ -z "\${OMARCHY_TEST_START_FAIL:-}" ]] || exit 1
+  touch "\$HOME/active-openclaw-\$1.service"
+fi
 exec true "$prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/entry.js" "\$@"
 EOF
 chmod 755 "$prefix/bin/openclaw"
+if [[ -f $HOME/.config/systemd/user/openclaw-gateway.service ]]; then
+  "$prefix/bin/openclaw" gateway install --force || true
+fi
 SH
 touch "$seed/openclaw.tgz"
 
@@ -179,6 +198,29 @@ grep -q "Could not stop the OpenClaw gateway service" "$test_tmp/output" || fail
 ! grep -q '^install-cli' "$events" && [[ ! -e $test_home/.openclaw ]] ||
   fail "a gateway that will not stop leaves the runtime unseeded" "$(cat "$events")"
 pass "a gateway that will not stop stops the install before anything is seeded"
+
+# Upstream's installer rewrites the gateway itself and only warns when it will
+# not start again, so a gateway that was running has to be running afterwards.
+new_home start-fails
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/active-openclaw-gateway.service"
+OMARCHY_TEST_START_FAIL=1 run omarchy-install-openclaw-cli --now && fail "a moved gateway that does not start fails the install"
+grep -q "Could not move the OpenClaw gateway service" "$test_tmp/output" && grep -q "is not running now" "$test_tmp/output" ||
+  fail "a moved gateway that does not start is named, and so is its being stopped" "$(cat "$test_tmp/output")"
+pass "a gateway that was running is running again from the runtime, or the install fails saying it is stopped"
+
+# With the runtime already in place nothing is seeded, so the move is Omarchy's.
+new_home runtime-first
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+touch "$test_home/active-openclaw-gateway.service"
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now moves a gateway beside a runtime that already runs" "$(cat "$test_tmp/output")"
+! grep -q '^install-cli' "$events" && grep -Fxq "runtime gateway install --force" "$events" && [[ -e $test_home/active-openclaw-gateway.service ]] ||
+  fail "--now moves a gateway beside a runtime that already runs" "$(cat "$events")"
+pass "a gateway beside a runtime that already runs is moved without seeding"
 
 # The migration moves only machines that have the package, and waits for the
 # package that seeds.
