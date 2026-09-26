@@ -1,0 +1,34 @@
+#!/bin/bash
+
+set -euo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+shopt -s nullglob
+
+for catalog in "$root"/i18n/*.po; do
+  locale=${catalog##*/}
+  locale=${locale%.po}
+  if [[ ! $locale =~ ^[a-z][A-Za-z0-9_@-]*$ ]]; then
+    echo "Invalid catalog locale: $locale" >&2
+    exit 1
+  fi
+
+  destination="$root/default/locale/$locale/LC_MESSAGES"
+  mkdir -p "$destination"
+  msgfmt --check --check-format -o "$destination/omarchy.mo" "$catalog"
+
+  python3 - "$destination/omarchy.mo" "$destination/menu.json" <<'PY'
+import gettext
+import json
+import sys
+
+with open(sys.argv[1], 'rb') as catalog:
+    translations = gettext.GNUTranslations(catalog)
+
+source = 'Language & Region'
+translated = translations.gettext(source)
+with open(sys.argv[2], 'w', encoding='utf-8') as output:
+    json.dump({'setup.language': translated} if translated != source else {}, output, ensure_ascii=False)
+    output.write('\n')
+PY
+done

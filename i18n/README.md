@@ -1,0 +1,5 @@
+# Locale selector translations
+
+Run `./i18n/extract` after changing the text in `bin/omarchy-menu-language` or the `setup.language` menu label. It updates `i18n/omarchy.pot`, the gettext template for the selector's messages. A translator can initialize a language catalog with `msginit -i i18n/omarchy.pot -l <locale> -o i18n/<locale>.po` and edit the resulting `.po` file. Run `./i18n/compile` to validate every `.po` file and produce the compiled catalogs under `default/locale/`. Commit the `.po`, `.mo`, and `menu.json` files together.
+
+The locale codes come from glibc's `SUPPORTED` file and the language and region names come from `iso-codes`, including its existing translations; they are data, not strings to extract into this catalog. The selector's command reads `omarchy.mo` with gettext, and the menu reads `menu.json` for its translated label. The menu tries the full regional locale first and then its language code. User menu label overrides take precedence. This catalog currently covers the new selector; a wider localization PR can add the other menu and Quickshell strings.

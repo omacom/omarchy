@@ -95,6 +95,29 @@ function mergeMenuSources(defaultItems, userItems) {
   }
 }
 
+function localeCandidates(locale) {
+  var name = String(locale || "").split(".")[0]
+  if (!/^[A-Za-z][A-Za-z0-9_@-]*$/.test(name)) return []
+  var region = name.split("@")[0]
+  var language = region.split("_")[0]
+  var candidates = [name]
+  if (region !== name) candidates.push(region)
+  if (language !== region) candidates.push(language)
+  return candidates
+}
+
+function translateMenuItems(defaultItems, translations) {
+  var strings = translations || ({})
+  return (defaultItems || []).map(function(item) {
+    var translated = strings[item.id]
+    if (typeof translated !== "string" || !translated) return item
+    var copy = {}
+    for (var key in item) copy[key] = item[key]
+    copy.label = translated
+    return copy
+  })
+}
+
 // Both merges below return fresh items/itemOrder objects for the caller to
 // assign in one go. They must never write into the maps they are handed: those
 // live in QML `var` properties, and an in-place write into such an object is
@@ -499,6 +522,8 @@ if (typeof module !== "undefined") {
     normalizeItem: normalizeItem,
     parseMenuJsonc: parseMenuJsonc,
     mergeMenuSources: mergeMenuSources,
+    localeCandidates: localeCandidates,
+    translateMenuItems: translateMenuItems,
     mergeAppRows: mergeAppRows,
     swapProviderRows: swapProviderRows,
     item: item,

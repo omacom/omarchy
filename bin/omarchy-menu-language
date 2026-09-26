@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# omarchy:summary=Select and set the system language and regional locale
+# omarchy:group=menu
+# omarchy:name=language
+
+set -euo pipefail
+
+export TEXTDOMAIN=omarchy
+export TEXTDOMAINDIR="$OMARCHY_PATH/default/locale"
+
+supported=/usr/share/i18n/SUPPORTED
+locale_gen=/etc/locale.gen
+
+supported_name() {
+  [[ $1 =~ ^[a-z][A-Za-z0-9_@.-]*\.UTF-8(@[A-Za-z0-9_-]+)?$ ]] || return 1
+  local shortened=${1/.UTF-8/}
+  awk -v locale="$1" -v shortened="$shortened" '
+    $2 == "UTF-8" && ($1 == locale || $1 == shortened) { print $1; exit }
+  ' "$supported"
+}
+
+apply_locale() {
+  local selected=$1
+  local source_name
+
+  if ! source_name=$(supported_name "$selected") || [[ -z $source_name ]]; then
+    printf "$(gettext 'Unsupported UTF-8 locale: %s')\n" "$selected" >&2
+    exit 1
+  fi
+
+  if (( EUID != 0 )); then
+    sudo /usr/bin/env "OMARCHY_PATH=$OMARCHY_PATH" "$0" --apply "$selected"
+    return
+  fi
+
+  local staged
+  staged=$(mktemp "${locale_gen}.omarchy-XXXXXX")
+  if ! awk -v locale="$source_name" '
+    $1 == locale && $2 == "UTF-8" { found = 1 }
+    $1 == "#" locale && $2 == "UTF-8" { found = 1; sub(/^#/, "") }
+    { print }
+    END { if (!found) exit 1 }
+  ' "$locale_gen" >"$staged"; then
+    rm -f "$staged"
+    printf "$(gettext 'Locale is missing from %s: %s')\n" "$locale_gen" "$selected" >&2
+    exit 1
+  fi
+
+  if ! install -m 644 "$staged" "$locale_gen"; then
+    rm -f "$staged"
+    exit 1
+  fi
+  rm -f "$staged"
+  locale-gen
+  if ! locale -a | awk -v selected="$selected" '
+    BEGIN { wanted = tolower(selected) }
+    { actual = tolower($0); sub(/\.utf8/, ".utf-8", actual); if (actual == wanted) found = 1 }
+    END { exit !found }
+  '; then
+    printf "$(gettext 'Failed to generate locale: %s')\n" "$selected" >&2
+    exit 1
+  fi
+  localectl set-locale "LANG=$selected"
+}
+
+if [[ ${1:-} == "--apply" && $# == 2 ]]; then
+  apply_locale "$2"
+  exit
+elif (( $# != 0 )); then
+  gettext "Usage: omarchy menu language" >&2
+  echo >&2
+  exit 1
+fi
+
+languages=$(mktemp)
+regions=$(mktemp)
+trap 'rm -f "$languages" "$regions"' EXIT
+
+if [[ -r /usr/share/iso-codes/json/iso_639-3.json && -r /usr/share/iso-codes/json/iso_3166-1.json ]]; then
+  python3 - "$languages" "$regions" <<'PY'
+import gettext
+import json
+import sys
+
+sources = (
+    ('/usr/share/iso-codes/json/iso_639-3.json', '639-3', 'iso_639-3', sys.argv[1]),
+    ('/usr/share/iso-codes/json/iso_3166-1.json', '3166-1', 'iso_3166-1', sys.argv[2]),
+)
+for source, key, domain, destination in sources:
+    with open(source, encoding='utf-8') as data:
+        entries = json.load(data)[key]
+    catalog = gettext.translation(domain, fallback=True)
+    with open(destination, 'w', encoding='utf-8') as output:
+        for entry in entries:
+            code = entry.get('alpha_2')
+            if code:
+                name = catalog.gettext(entry['name']).replace('\t', ' ')
+                output.write(f'{code}\t{name}\n')
+PY
+fi
+
+current=$(sed -n 's/^LANG=//p' /etc/locale.conf | head -1)
+selection=$(
+  awk -F '\t' -v current="$current" '
+    FILENAME == ARGV[1] { language[$1] = $2; next }
+    FILENAME == ARGV[2] { region[$1] = $2; next }
+    FILENAME == ARGV[3] {
+      split($0, fields, /[[:space:]]+/)
+      code = fields[1]
+      if (fields[2] != "UTF-8" || code !~ /^[a-z]/) next
+      if (code !~ /\.UTF-8/) {
+        split(code, modifier, "@")
+        code = modifier[1] ".UTF-8" (modifier[2] == "" ? "" : "@" modifier[2])
+      }
+      split(code, parts, /[_.]/)
+      name = language[parts[1]]
+      if (name == "") name = parts[1]
+      if (parts[2] != "") name = name " (" (region[parts[2]] == "" ? parts[2] : region[parts[2]]) ")"
+      if (code == current) print "✓\t" name "\t" code
+      else print "\t" name "\t" code
+    }
+  ' "$languages" "$regions" "$supported" | sort -f -t $'\t' -k2,2 | omarchy-menu-select "$(gettext 'Set system language and region')" -- --width 560 --maxheight 560
+) || exit 1
+
+selected=${selection##*$'\t'}
+if [[ $selected == "$current" ]]; then
+  exit 0
+fi
+
+apply_locale "$selected"
+printf -v notification "$(gettext 'System language set to %s. Log out and back in to apply it.')" "$selected"
+omarchy-notification-send "$notification"

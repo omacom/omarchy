@@ -4,6 +4,10 @@ This is a collection of common tailorings to the Omarchy setup. Know that it mig
 
 If you screw something up, you can restore individual configs to their original setup via _Update > Config_ in the Omarchy menu. If you _really_ screw everything up, you can reset all configs via `omarchy-reinstall`.
 
+### Change language and region
+
+Open _Setup > Language & Region_ in the Omarchy menu and choose a UTF-8 locale. The selection changes the system language and regional formats for every account on the computer. Log out and back in to apply it to your session. The selector has a Spanish translation; most other Omarchy menu and shell text currently remains in English.
+
 ### Reveal all tray icons all the time
 
 By default, tray icons, like Dropbox, 1password, or Steam, are hidden behind the tray expander arrow, which reveals them when you hover it. If you'd like to have them exposed all the time, right-click the expander arrow to open the tray icon manager, then pin the icons you want to keep visible (you can also hide the ones you never want to see).

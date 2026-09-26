@@ -33,6 +33,7 @@ expac
 eza
 fakeroot
 fastfetch
+gettext
 fcitx5
 fcitx5-gtk
 fcitx5-qt
@@ -61,6 +62,7 @@ imv
 inetutils
 inotify-tools
 inxi
+iso-codes
 networkmanager
 jq
 kdenlive
@@ -107,6 +109,7 @@ plocate
 plymouth
 postgresql-libs
 power-profiles-daemon
+python
 python-gobject
 python-poetry-core
 ttfx
