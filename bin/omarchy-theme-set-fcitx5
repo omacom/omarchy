@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to the fcitx5 candidate window
+# omarchy:hidden=true
+
+set -euo pipefail
+
+THEME_SOURCE="$HOME/.local/state/omarchy/current/theme/fcitx5-theme.conf"
+THEME_DIR="$HOME/.local/share/fcitx5/themes/omarchy"
+CLASSICUI_CONF="$HOME/.config/fcitx5/conf/classicui.conf"
+PACKAGED_THEME="${OMARCHY_FCITX5_PACKAGED_THEME:-/usr/share/fcitx5/themes/default-dark}"
+
+if [[ ! -f $THEME_SOURCE ]]; then
+  exit 0
+fi
+
+mkdir -p "$THEME_DIR"
+
+# fcitx5 resolves the page-button and radio Image= entries relative to the theme
+# directory, so a generated theme needs its own copies. They are monochrome
+# glyphs that suit any palette, and ship as SVG in fcitx5 5.1 and PNG before it.
+for asset in "$PACKAGED_THEME"/*.svg "$PACKAGED_THEME"/*.png; do
+  if [[ -f $asset ]]; then
+    cp -f "$asset" "$THEME_DIR/"
+  fi
+done
+
+theme_tmp=$(mktemp "$THEME_DIR/theme.conf.XXXXXX")
+cp "$THEME_SOURCE" "$theme_tmp"
+mv "$theme_tmp" "$THEME_DIR/theme.conf"
+
+# Point classicui at the theme without rewriting the file: font, candidate
+# layout and tray settings stay the user's.
+set_classicui_key() {
+  local key="$1"
+  local value="$2"
+
+  if grep -q "^$key=" "$CLASSICUI_CONF"; then
+    sed -i "s|^$key=.*|$key=$value|" "$CLASSICUI_CONF"
+  else
+    printf '%s=%s\n' "$key" "$value" >>"$CLASSICUI_CONF"
+  fi
+}
+
+mkdir -p "$(dirname "$CLASSICUI_CONF")"
+touch "$CLASSICUI_CONF"
+
+# DarkTheme is what classicui picks when the user follows the system color
+# scheme, so both keys have to point at the generated theme for the popup to
+# track light and dark Omarchy themes alike.
+set_classicui_key Theme omarchy
+set_classicui_key DarkTheme omarchy
+
+# classicui caches theme images, so a running fcitx5 keeps the old colors until
+# its addon config is reloaded. Nothing to reload when fcitx5 is not running.
+busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 \
+  ReloadAddonConfig s classicui >/dev/null 2>&1 || true
