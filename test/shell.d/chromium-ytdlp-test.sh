@@ -37,6 +37,20 @@ pass "yt-dlp native host manifest uses Omarchy host path and extension id"
   fail "yt-dlp native host installer covers Brave Origin"
 pass "yt-dlp native host installer covers Brave Origin"
 
+jq -e '
+  .manifest_version == 3 and
+  (.permissions | index("nativeMessaging")) and
+  (.permissions | index("cookies")) and
+  (.permissions | index("activeTab")) and
+  .background.service_worker == "background-1.2.js"
+' "$ROOT/default/chromium/extensions/yt-dlp/manifest.json" >/dev/null ||
+  fail "yt-dlp extension reads tab cookies for its native messaging host"
+grep -q "chrome.cookies.getAll({ url })" "$ROOT/default/chromium/extensions/yt-dlp/background-1.2.js" ||
+  fail "yt-dlp extension reads tab cookies for its native messaging host"
+grep -q "sendNativeMessage('com.omarchy.ytdlp'" "$ROOT/default/chromium/extensions/yt-dlp/background-1.2.js" ||
+  fail "yt-dlp extension reads tab cookies for its native messaging host"
+pass "yt-dlp extension reads tab cookies for its native messaging host"
+
 parse_result=$(bash -c '
   OMARCHY_PATH="$3"
   source "$1"
@@ -135,6 +149,23 @@ dash_title=$(host_fn title_from_file "$download_dir/--include.mp4")
 [[ $dash_title == "Video" ]] || fail "yt-dlp native host does not pass a leading-dash title to the notifier" "$dash_title"
 pass "yt-dlp native host does not pass a leading-dash title to the notifier"
 
+cookie_jar="$TMPDIR/tab-cookies.txt"
+host_fn write_tab_cookies '{"url":"https://www.youtube.com/watch?v=x","cookies":[{"name":"LOGIN_INFO","value":"abc","domain":".youtube.com","path":"/","secure":true,"httpOnly":true,"session":false,"expirationDate":1735689600.9}]}' "$cookie_jar" ||
+  fail "yt-dlp native host writes a Netscape jar from tab cookies"
+grep -qx $'#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1735689600\tLOGIN_INFO\tabc' "$cookie_jar" ||
+  fail "yt-dlp native host writes HttpOnly Netscape records" "$(cat "$cookie_jar")"
+pass "yt-dlp native host writes HttpOnly Netscape records"
+
+host_fn write_tab_cookies '{"url":"https://www.youtube.com/watch?v=x","cookies":[{"name":"SID","value":"sess","domain":"www.youtube.com","path":"/","secure":true,"httpOnly":false,"session":true}]}' "$cookie_jar" ||
+  fail "yt-dlp native host writes session cookies"
+grep -qx $'www.youtube.com\tFALSE\t/\tTRUE\t0\tSID\tsess' "$cookie_jar" ||
+  fail "yt-dlp native host writes session cookies as expires 0" "$(cat "$cookie_jar")"
+pass "yt-dlp native host writes session cookies as expires 0"
+
+host_fn write_tab_cookies '{"url":"https://www.youtube.com/watch?v=x","cookies":[{"name":"bad\tname","value":"x","domain":".youtube.com","path":"/"}]}' "$cookie_jar" &&
+  fail "yt-dlp native host rejects a cookie that would forge a jar record"
+pass "yt-dlp native host rejects a cookie that would forge a jar record"
+
 # The click action passes the path as a discrete --exec argument (asserted
 # end-to-end below against the real download); `--` keeps mpv from parsing a
 # leading-dash filename as an option.
@@ -183,6 +214,13 @@ notify_argv="$TMPDIR/notify-argv"
 cat >"$fake_root/bin/yt-dlp" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$YTDLP_ARGV_LOG"
+if [[ -n ${YTDLP_FAIL_IF_COOKIES:-} ]]; then
+  for arg in "$@"; do
+    if [[ $arg == "--cookies" ]]; then
+      exit 1
+    fi
+  done
+fi
 for arg in "$@"; do
   if [[ $arg == "--no-simulate" ]]; then
     printf 'OMARCHY_FILE\t%s\n' "$YTDLP_FAKE_FILE"
@@ -253,3 +291,43 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
 grep -qF -- "Download complete Real_Clip [id]" "$notify_argv" ||
   fail "yt-dlp native host falls back to the filename when no title record arrives" "$(cat "$notify_argv")"
 pass "yt-dlp native host falls back to the filename when no title record arrives"
+
+: >"$notify_argv"
+: >"$ytdlp_argv"
+tab_jar="$TMPDIR/download-cookies.txt"
+printf '%s\n' '# Netscape HTTP Cookie File' $'.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\tabc' >"$tab_jar"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  OMARCHY_YTDLP_COOKIES="$tab_jar" \
+  bash -c '
+    source "$1"
+    download_url "$2"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" >/dev/null 2>&1
+
+(($(grep -cF -- "--cookies $tab_jar" "$ytdlp_argv") == 2)) ||
+  fail "yt-dlp native host passes the tab cookie jar to simulate and download" "$(cat "$ytdlp_argv")"
+[[ ! -e $tab_jar ]] ||
+  fail "yt-dlp native host deletes the tab cookie jar after the download"
+pass "yt-dlp native host passes the tab cookie jar to simulate and download"
+
+: >"$notify_argv"
+: >"$ytdlp_argv"
+tab_jar="$TMPDIR/stale-cookies.txt"
+printf '%s\n' '# Netscape HTTP Cookie File' $'.youtube.com\tTRUE\t/\tTRUE\t0\tLOGIN_INFO\tabc' >"$tab_jar"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  YTDLP_FAIL_IF_COOKIES=1 OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  OMARCHY_YTDLP_COOKIES="$tab_jar" \
+  bash -c '
+    source "$1"
+    download_url "$2"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" >/dev/null 2>&1
+
+grep -qF -- "--cookies $tab_jar" "$ytdlp_argv" ||
+  fail "yt-dlp native host still tries the tab cookie jar first" "$(cat "$ytdlp_argv")"
+grep -q -- '--no-simulate' "$ytdlp_argv" ||
+  fail "yt-dlp native host retries the download without cookies when the jar fails" "$(cat "$ytdlp_argv")"
+grep -E -- '--no-simulate' "$ytdlp_argv" | grep -q -- '--cookies ' &&
+  fail "yt-dlp native host does not keep --cookies after a failed cookie simulate" "$(cat "$ytdlp_argv")"
+grep -qF -- "Download complete My Great Clip" "$notify_argv" ||
+  fail "yt-dlp native host downloads public videos after a cookie failure" "$(cat "$notify_argv")"
+pass "yt-dlp native host retries without cookies when the jar fails"

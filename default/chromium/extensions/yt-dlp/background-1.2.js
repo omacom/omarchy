@@ -1,10 +1,19 @@
+// Keep this filename versioned. Chromium caches service workers for extensions
+// loaded via --load-extension, so a new URL forces registration of new code.
+
+function tabCookies(url) {
+  return chrome.cookies.getAll({ url }).catch(() => []);
+}
+
 function sendUrl(url) {
   if (!url || !/^https?:/i.test(url)) return;
 
-  // The native messaging host runs yt-dlp and owns all the desktop
-  // notifications, so we just hand off the URL and ignore the reply.
-  chrome.runtime.sendNativeMessage('com.omarchy.ytdlp', { url }, () => {
-    void chrome.runtime.lastError;
+  tabCookies(url).then((cookies) => {
+    // The native messaging host runs yt-dlp and owns all the desktop
+    // notifications, so we just hand off the URL and ignore the reply.
+    chrome.runtime.sendNativeMessage('com.omarchy.ytdlp', { url, cookies }, () => {
+      void chrome.runtime.lastError;
+    });
   });
 }
 
