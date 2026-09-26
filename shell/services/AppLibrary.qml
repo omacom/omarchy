@@ -82,7 +82,7 @@ Item {
     // inherit wayland-wm@.service. Keeping gtk-launch as the desktop-entry
     // resolver supports IDs with spaces and entries that UWSM rejects.
     // Keep the .desktop suffix or ids like org.telegram.desktop won't resolve.
-    Util.execDetached("uwsm-app -- gtk-launch " + Util.shellQuote(id + ".desktop"))
+    Util.execDetached(Util.shellQuote(root.omarchyPath + "/bin/omarchy-launch-desktop") + " " + Util.shellQuote(id + ".desktop"))
   }
 
   function remove(desktopId, name) {
