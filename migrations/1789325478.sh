@@ -1,12 +1,23 @@
 echo "Install the Omarchy kernel and make it the first Limine boot entry"
 
-# linux-omarchy is an x86_64 kernel. T2 Macs must keep their specialized kernel,
-# including when other kernels are installed or the running T2 package is gone.
+# linux-omarchy is an x86_64 kernel. Macs keep the kernel they were installed
+# with: T2 Macs need their specialized kernel, including when other kernels are
+# installed or the running T2 package is gone, and T1 and older Macs carry
+# their own out-of-tree drivers and quirks that linux-omarchy was never tested
+# against (#12097, #12131). Read the DMI vendor for the latter, since nothing
+# else on a pre-T2 Mac names it.
 [[ $(uname -m) == "x86_64" ]] || exit 0
 running_kernel=$(uname -r)
+dmi_vendor="${OMARCHY_KERNEL_DMI_VENDOR:-/sys/class/dmi/id/sys_vendor}"
 if omarchy-pkg-present linux-t2 || [[ ${running_kernel,,} == *-t2* ]]; then
   exit 0
 fi
+
+if ! vendor=$(cat "$dmi_vendor" 2>/dev/null) || [[ -z ${vendor//[[:space:]]/} ]]; then
+  echo "Cannot identify the system vendor; keeping the installed kernel and leaving migration pending." >&2
+  exit 1
+fi
+[[ ${vendor,,} != apple* ]] || exit 0
 
 limine_conf="${OMARCHY_KERNEL_LIMINE_CONF:-/etc/default/limine}"
 rebuild_marker="${OMARCHY_KERNEL_REBUILD_MARKER:-/var/lib/omarchy/migrations/1789325478}"
