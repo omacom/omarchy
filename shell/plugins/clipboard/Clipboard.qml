@@ -5,6 +5,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 import "ClipboardHistory.js" as ClipboardHistory
+import "ColorParse.js" as ColorParse
 
 Item {
   id: root
@@ -29,6 +30,7 @@ Item {
   property color scrim: Color.menu.scrim
   property color selectedBackground: Color.menu.selectedBackground
   property color selectedText: Color.menu.selectedText
+  property color swatchBorder: Util.alpha(border, 0.6)
   readonly property int cornerRadius: Style.cornerRadius
   property string fontFamily: Style.font.menuFamily
   property int contentMargin: Style.spacing.panelPadding
@@ -476,6 +478,7 @@ Item {
                   required property string previewImage
 
                   readonly property bool hasCursor: root.cursorActive && index === root.selectedIndex
+                  readonly property var swatchColor: entryType === "text" ? ColorParse.parse(fullText) : null
 
                   width: ListView.view.width
                   height: root.rowHeight
@@ -500,9 +503,21 @@ Item {
                       smooth: true
                     }
 
+                    Rectangle {
+                      id: rowSwatch
+                      visible: row.swatchColor !== null
+                      width: Style.font.title
+                      height: width
+                      anchors.verticalCenter: parent.verticalCenter
+                      radius: Math.min(root.cornerRadius, Math.floor(width / 4))
+                      color: row.swatchColor ? Qt.rgba(row.swatchColor.r, row.swatchColor.g, row.swatchColor.b, row.swatchColor.a) : "transparent"
+                      border.width: 1
+                      border.color: root.swatchBorder
+                    }
+
                     Text {
                       textFormat: Text.PlainText
-                      width: parent.width - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0)
+                      width: parent.width - (parent.parent.previewImage.length > 0 ? parent.height + parent.spacing : 0) - (rowSwatch.visible ? rowSwatch.width + parent.spacing : 0)
                       height: parent.height
                       text: parent.parent.previewText
                       color: parent.parent.hasCursor ? root.selectedText : root.foreground
