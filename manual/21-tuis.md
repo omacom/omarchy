@@ -42,6 +42,10 @@ When the drive fills up and you have no idea what's eating it, launch _Disk Usag
 
 [Cliamp](https://www.cliamp.stream/) is a retro terminal music player inspired by Winamp 2.x, complete with built-in radio stations for lo-fi beats. Launch it with `Super + Shift + Alt + M`, or from the Omarchy menu under _Apps_. Press `?` for the full keybinding list.
 
+## xytz
+
+[xytz](https://github.com/xdagiz/xytz) is a terminal YouTube player and downloader built on Bubble Tea, with Vim-style navigation, thumbnail previews, playlist support, and a download queue. It streams via `mpv` and searches through `yt-dlp`. Launch it with `Super + Shift + Alt + Y`, or from the Omarchy menu under _Apps_. Press `?` for the full keybinding list.
+
 ## What about Wi-Fi and Bluetooth?
 
 You won't find TUIs for Wi-Fi and Bluetooth — those jobs belong to the Omarchy shell. Click the Wi-Fi icon in the top bar (or hit `Super + Ctrl + W`) to see networks and connect, and click the Bluetooth icon (or hit `Super + Ctrl + B`) to pair and connect devices. See [networking](35-networking.md) for the full story.
