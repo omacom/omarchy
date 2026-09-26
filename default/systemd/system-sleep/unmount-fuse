@@ -3,7 +3,8 @@
 # Lazy-unmount gvfsd-fuse filesystems before suspend/hibernate to prevent the
 # kernel's process freeze from timing out. FUSE daemons (like gvfsd-fuse from
 # Nautilus) can block in uninterruptible sleep during freeze, causing suspend
-# to silently fail. After wake, restart gvfs so the FUSE mount is restored.
+# to silently fail. After wake, restore only the gvfsd-fuse bridge so active
+# GIO mounts and their backend processes survive the recovery.
 
 if [[ $1 == "pre" ]]; then
   while IFS=' ' read -r _ mountpoint fstype _; do
@@ -15,18 +16,30 @@ if [[ $1 == "pre" ]]; then
 fi
 
 if [[ $1 == "post" ]]; then
-  # Run in background — user.slice is still frozen at this point, so a
-  # synchronous restart would block the thaw for up to 90 seconds.
-  (
-    sleep 5
-    for uid_dir in /run/user/*; do
-      uid=$(basename "$uid_dir")
-      if [[ -S $uid_dir/bus ]]; then
-        sudo -u "#$uid" env \
-          DBUS_SESSION_BUS_ADDRESS="unix:path=$uid_dir/bus" \
-          XDG_RUNTIME_DIR="$uid_dir" \
-          systemctl --user restart gvfs-daemon.service 2>/dev/null || true
+  # The post hook still runs inside systemd-suspend.service. A background child
+  # stays in that unit's cgroup and is killed when the unit exits, so schedule
+  # the delayed recovery as its own transient system unit instead. Keep that
+  # unit alive for daemonized gvfsd-fuse children after this script exits.
+  systemd-run --quiet --collect --property=ExitType=cgroup --on-active=5s "$0" restore >/dev/null 2>&1 || true
+fi
+
+if [[ $1 == "restore" ]]; then
+  for uid_dir in /run/user/*; do
+    uid=$(basename "$uid_dir")
+    [[ $uid =~ ^[0-9]+$ ]] || continue
+
+    if [[ -S $uid_dir/bus && -x /usr/lib/gvfsd-fuse ]]; then
+      # gvfsd-fuse is only the POSIX bridge over the user's active GIO mounts.
+      # Leave the master gvfsd and protocol backends (SMB/SFTP/etc.) running so
+      # their mount state is not discarded just to restore the FUSE pathname.
+      if findmnt -rn -t fuse.gvfsd-fuse --target "$uid_dir/gvfs" >/dev/null 2>&1; then
+        continue
       fi
-    done
-  ) &
+
+      sudo -u "#$uid" env \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=$uid_dir/bus" \
+        XDG_RUNTIME_DIR="$uid_dir" \
+        /usr/lib/gvfsd-fuse "$uid_dir/gvfs" >/dev/null 2>&1 || true
+    fi
+  done
 fi
