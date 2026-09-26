@@ -15,6 +15,11 @@ omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
 omarchy_security_require_source_root "$0"
+# omarchy update authorizes once and revokes when it is done. Revoking here
+# would throw that away and prompt again for the rest of the update.
+if [[ ${OMARCHY_UPDATE_SUDO_SESSION:-} == "1" ]]; then
+  omarchy_security_revoke_sudo_timestamp() { :; }
+fi
 # Traps first, so a signal or failure during the entry revocation still
 # exits through the cleanup path.
 omarchy_security_install_sudo_cleanup_traps

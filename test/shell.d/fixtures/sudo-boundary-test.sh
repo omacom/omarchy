@@ -77,6 +77,9 @@ else
 fi
 STUB
 chmod +x "$SUDO_TEST_ROOT/mock/sudo"
+# The updater's own phases call a bare sudo from its fixed PATH. Resolve it to
+# the stand-in so no test can ever reach the host's sudo.
+ln -s ../mock/sudo "$SUDO_TEST_ROOT/bin/sudo"
 
 cat >"$SUDO_TEST_ROOT/bin/test-step" <<'STUB'
 #!/bin/bash
@@ -89,7 +92,11 @@ if [[ $step == "systemd-run" ]]; then
   while (( $# )) && [[ $1 == -* ]]; do shift; done
   exec "$@"
 fi
-if [[ $step == "omarchy-hook" || $step == "omarchy-update-mise" ]]; then
+# omarchy update shares one authorization with its post-update hook and mise.
+# Standalone hooks, such as the pre-refresh one, and AUR builds run cold.
+if [[ $step == "omarchy-hook" && ${1:-} == "post-update" ]] || [[ $step == "omarchy-update-mise" ]]; then
+  [[ -e $SUDO_TEST_CACHE ]] || exit 94
+elif [[ $step == "omarchy-hook" || $step == "yay" ]]; then
   [[ ! -e $SUDO_TEST_CACHE ]] || exit 91
 fi
 if [[ -n ${SUDO_TEST_REMOVE_WRAPPER_STEP:-} && "$step $*" == $SUDO_TEST_REMOVE_WRAPPER_STEP ]]; then
@@ -116,6 +123,7 @@ case "$step" in
   yay)
     [[ $* == *"--sudo $OMARCHY_PATH/default/omarchy/sudo-no-update/sudo"* ]] || exit 92
     [[ $* == *"--sudoloop=false"* ]] || exit 93
+    [[ $(command -v sudo) == "$OMARCHY_PATH/default/omarchy/sudo-no-update/sudo" ]] || exit 95
     ;;
 esac
 STUB
