@@ -37,6 +37,18 @@ AUTH_HELP = "Run `codex login` to authenticate."
 SCAN_REUSE_SECONDS = 20
 LIMITS_ONLY_REUSE_SECONDS = 900
 
+# Per-file totals survive between runs, so a rescan only reads session files
+# that changed. Bumping the schema retires every record written by an older
+# layout.
+FILE_CACHE_SCHEMA = 1
+
+# rg takes the changed files as arguments; batching keeps a first scan of a
+# very large history off the argument-length limit.
+SEARCH_BATCH_SIZE = 256
+
+# --force means "read everything again", including the per-file records.
+force_rescan = False
+
 
 def local_day(value):
   if value is None:
@@ -104,38 +116,63 @@ today_prompts = 0
 today_total_tokens = 0
 total_prompts = 0
 total_sessions = set()
-seen_pi_messages = set()
+
+
+# One session file's totals, the unit the file cache stores: day -> model ->
+# [input, output, cacheRead, cacheWrite, prompts]. Day-keyed and with no
+# "today" in it, so a record stays true however long it is kept.
+def new_file_record(stat_result):
+  return {"mtime": stat_result.st_mtime, "size": stat_result.st_size, "days": {}}
+
+
+def record_usage(record, day, model, input_tokens, output_tokens, cache_read, cache_write):
+  totals = record["days"].setdefault(day, {}).setdefault(model, [0, 0, 0, 0, 0])
+  totals[0] += input_tokens
+  totals[1] += output_tokens
+  totals[2] += cache_read
+  totals[3] += cache_write
+  totals[4] += 1
+
+
+def merge_file_record(session_key, record):
+  """Fold one file's totals, freshly read or replayed from cache, into the run."""
+  global today_prompts, today_total_tokens, total_prompts
+  for day, models in record["days"].items():
+    for model, totals in models.items():
+      input_tokens, output_tokens, cache_read, cache_write, prompts = totals
+      total = input_tokens + output_tokens + cache_read + cache_write
+      total_prompts += prompts
+      total_sessions.add(session_key)
+      active_days.add(day)
+
+      bucket = model_usage.setdefault(model, {
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+      })
+      bucket["inputTokens"] += input_tokens
+      bucket["outputTokens"] += output_tokens
+      bucket["cacheReadInputTokens"] += cache_read
+      bucket["cacheCreationInputTokens"] += cache_write
+
+      if day in recent:
+        recent[day]["messageCount"] += total
+
+      if day == today:
+        today_prompts += prompts
+        today_sessions.add(session_key)
+        today_total_tokens += total
+        today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total
 
 
 def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, cache_write):
-  global today_prompts, today_total_tokens, total_prompts
-  total = input_tokens + output_tokens + cache_read + cache_write
-  total_prompts += 1
-  total_sessions.add(session_key)
-  active_days.add(day)
-
-  bucket = model_usage.setdefault(model, {
-    "inputTokens": 0,
-    "outputTokens": 0,
-    "cacheReadInputTokens": 0,
-    "cacheCreationInputTokens": 0,
-  })
-  bucket["inputTokens"] += input_tokens
-  bucket["outputTokens"] += output_tokens
-  bucket["cacheReadInputTokens"] += cache_read
-  bucket["cacheCreationInputTokens"] += cache_write
-
-  if day in recent:
-    recent[day]["messageCount"] += total
-
-  if day == today:
-    today_prompts += 1
-    today_sessions.add(session_key)
-    today_total_tokens += total
-    today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total
+  record = {"days": {}}
+  record_usage(record, day, model, input_tokens, output_tokens, cache_read, cache_write)
+  merge_file_record(session_key, record)
 
 
-def scan_pi_sessions():
+def scan_pi_sessions(cached_files, scanned_files):
   roots = [
     Path.home() / ".pi" / "agent" / "sessions",
     Path.home() / ".omp" / "agent" / "sessions",
@@ -144,65 +181,103 @@ def scan_pi_sessions():
   for root in roots:
     if not root.exists():
       continue
-    try:
-      proc = subprocess.Popen(
-        [rg, "--json", "-e", r'"provider"\s*:\s*"openai-codex"', "-e", r'"api"\s*:\s*"openai-codex', str(root)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        errors="replace",
-        env=ENV,
-      )
-    except FileNotFoundError:
-      return
 
-    assert proc.stdout is not None
-    for raw in proc.stdout:
+    # Replay every file the last scan already read, and hand rg only the rest.
+    # A file with no openai-codex message in it caches an empty record, so the
+    # search does not walk it again either.
+    stale = []
+    for path in root.rglob("*"):
       try:
-        event = json.loads(raw)
-        if event.get("type") != "match":
+        if not path.is_file():
           continue
-        line = event.get("data", {}).get("lines", {}).get("text", "")
-        path = event.get("data", {}).get("path", {}).get("text", "pi-session")
-        entry = json.loads(line)
+        stat_result = path.stat()
+      except OSError:
+        continue
+      key = str(path)
+      record = reusable_record(cached_files, key, stat_result)
+      if record is not None:
+        scanned_files[key] = record
+        merge_file_record(key, record)
+      elif os.access(key, os.R_OK):
+        stale.append((key, stat_result))
+      # rg reports an unreadable file only on stderr, so a search that cannot
+      # open one looks exactly like a search that found nothing in it. Leave
+      # it out rather than cache an empty record that would outlive the
+      # permission problem.
+
+    if not stale:
+      continue
+
+    pending = {key: new_file_record(stat_result) for key, stat_result in stale}
+    seen_messages = set()
+    paths = list(pending)
+    for start in range(0, len(paths), SEARCH_BATCH_SIZE):
+      batch = paths[start:start + SEARCH_BATCH_SIZE]
+      try:
+        proc = subprocess.Popen(
+          [rg, "--json", "-e", r'"provider"\s*:\s*"openai-codex"', "-e", r'"api"\s*:\s*"openai-codex'] + batch,
+          stdout=subprocess.PIPE,
+          stderr=subprocess.DEVNULL,
+          text=True,
+          errors="replace",
+          env=ENV,
+        )
+      except FileNotFoundError:
+        return
+
+      assert proc.stdout is not None
+      for raw in proc.stdout:
+        try:
+          event = json.loads(raw)
+          if event.get("type") != "match":
+            continue
+          line = event.get("data", {}).get("lines", {}).get("text", "")
+          path = event.get("data", {}).get("path", {}).get("text", "pi-session")
+          entry = json.loads(line)
+        except Exception:
+          continue
+
+        record = pending.get(path)
+        if record is None:
+          continue
+        if entry.get("type") != "message":
+          continue
+        message_key = path + ":" + str(entry.get("id") or "")
+        if message_key in seen_messages:
+          continue
+        seen_messages.add(message_key)
+        message = entry.get("message") or {}
+        if message.get("role") != "assistant":
+          continue
+        provider = str(message.get("provider") or "")
+        api = str(message.get("api") or "")
+        if provider != "openai-codex" and not api.startswith("openai-codex"):
+          continue
+
+        usage = message.get("usage") or {}
+        if not usage:
+          continue
+        total = number(usage.get("totalTokens"))
+        input_tokens = number(usage.get("input"))
+        output_tokens = number(usage.get("output"))
+        cache_read = number(usage.get("cacheRead"))
+        cache_write = number(usage.get("cacheWrite"))
+        if total and not (input_tokens or output_tokens or cache_read or cache_write):
+          input_tokens = total
+        if not (input_tokens or output_tokens or cache_read or cache_write):
+          continue
+
+        day = local_day(entry.get("timestamp") or message.get("timestamp"))
+        record_usage(record, day, model_name(message.get("model")), input_tokens, output_tokens, cache_read, cache_write)
+
+      try:
+        proc.wait(timeout=1)
       except Exception:
-        continue
+        proc.kill()
 
-      if entry.get("type") != "message":
-        continue
-      message_key = path + ":" + str(entry.get("id") or "")
-      if message_key in seen_pi_messages:
-        continue
-      seen_pi_messages.add(message_key)
-      message = entry.get("message") or {}
-      if message.get("role") != "assistant":
-        continue
-      provider = str(message.get("provider") or "")
-      api = str(message.get("api") or "")
-      if provider != "openai-codex" and not api.startswith("openai-codex"):
-        continue
-
-      usage = message.get("usage") or {}
-      if not usage:
-        continue
-      total = number(usage.get("totalTokens"))
-      input_tokens = number(usage.get("input"))
-      output_tokens = number(usage.get("output"))
-      cache_read = number(usage.get("cacheRead"))
-      cache_write = number(usage.get("cacheWrite"))
-      if total and not (input_tokens or output_tokens or cache_read or cache_write):
-        input_tokens = total
-      if not (input_tokens or output_tokens or cache_read or cache_write):
-        continue
-
-      day = local_day(entry.get("timestamp") or message.get("timestamp"))
-      session_key = path
-      add_usage(day, session_key, model_name(message.get("model")), input_tokens, output_tokens, cache_read, cache_write)
-
-    try:
-      proc.wait(timeout=1)
-    except Exception:
-      proc.kill()
+    for key, record in pending.items():
+      scanned_files[key] = record
+      merge_file_record(key, record)
 
 
 def scan_opencode_sessions():
@@ -283,7 +358,7 @@ def scan_opencode_sessions():
   return True
 
 
-def scan_native_codex_sessions():
+def scan_native_codex_sessions(cached_files, scanned_files):
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   roots = [codex_home / "sessions", codex_home / "archived_sessions"]
   files = []
@@ -293,48 +368,64 @@ def scan_native_codex_sessions():
       continue
     for path in root.rglob("*.jsonl"):
       try:
-        if path.stat().st_mtime >= cutoff:
-          files.append(path)
+        stat_result = path.stat()
       except OSError:
-        pass
+        continue
+      if stat_result.st_mtime >= cutoff:
+        files.append((path, stat_result))
 
-  for path in files:
-    current_model = "codex"
-    try:
-      with path.open(errors="replace") as handle:
-        for raw in handle:
-          try:
-            entry = json.loads(raw)
-          except Exception:
-            continue
-          if entry.get("type") == "turn_context":
-            payload = entry.get("payload") or {}
-            current_model = model_name(payload.get("model") or payload.get("model_slug") or current_model)
-            continue
-          payload = entry.get("payload") or entry
-          if entry.get("type") == "response_item" and isinstance(payload, dict):
-            payload = payload.get("payload") or payload
-          if not isinstance(payload, dict):
-            continue
-          if payload.get("type") != "token_count":
-            continue
-          info = payload.get("info") or {}
-          # total_token_usage is cumulative for the session. Adding every
-          # snapshot makes usage grow quadratically, so count the last turn.
-          usage = info.get("last_token_usage") or {}
-          cache_read = number(usage.get("cached_input_tokens"))
-          cache_write = number(usage.get("cache_write_input_tokens"))
-          # Cached tokens are included in input_tokens, and reasoning tokens
-          # are included in output_tokens. Keep the cache split without
-          # counting either category twice.
-          input_tokens = max(0, number(usage.get("input_tokens")) - cache_read - cache_write)
-          output_tokens = number(usage.get("output_tokens"))
-          if not (input_tokens or output_tokens or cache_read or cache_write):
-            continue
-          day = local_day(entry.get("timestamp") or path.stat().st_mtime)
-          add_usage(day, str(path), current_model, input_tokens, output_tokens, cache_read, cache_write)
-    except Exception:
-      continue
+  for path, stat_result in files:
+    key = str(path)
+    record = reusable_record(cached_files, key, stat_result)
+    if record is None:
+      record = read_native_codex_session(path, stat_result)
+    if record["mtime"] is not None:
+      scanned_files[key] = record
+    merge_file_record(key, record)
+
+
+def read_native_codex_session(path, stat_result):
+  record = new_file_record(stat_result)
+  current_model = "codex"
+  try:
+    with path.open(errors="replace") as handle:
+      for raw in handle:
+        try:
+          entry = json.loads(raw)
+        except Exception:
+          continue
+        if entry.get("type") == "turn_context":
+          payload = entry.get("payload") or {}
+          current_model = model_name(payload.get("model") or payload.get("model_slug") or current_model)
+          continue
+        payload = entry.get("payload") or entry
+        if entry.get("type") == "response_item" and isinstance(payload, dict):
+          payload = payload.get("payload") or payload
+        if not isinstance(payload, dict):
+          continue
+        if payload.get("type") != "token_count":
+          continue
+        info = payload.get("info") or {}
+        # total_token_usage is cumulative for the session. Adding every
+        # snapshot makes usage grow quadratically, so count the last turn.
+        usage = info.get("last_token_usage") or {}
+        cache_read = number(usage.get("cached_input_tokens"))
+        cache_write = number(usage.get("cache_write_input_tokens"))
+        # Cached tokens are included in input_tokens, and reasoning tokens
+        # are included in output_tokens. Keep the cache split without
+        # counting either category twice.
+        input_tokens = max(0, number(usage.get("input_tokens")) - cache_read - cache_write)
+        output_tokens = number(usage.get("output_tokens"))
+        if not (input_tokens or output_tokens or cache_read or cache_write):
+          continue
+        day = local_day(entry.get("timestamp") or stat_result.st_mtime)
+        record_usage(record, day, current_model, input_tokens, output_tokens, cache_read, cache_write)
+  except Exception:
+    # A file that cannot be read contributes nothing, and caching that empty
+    # record would hide it until it changes, so hand back a record the cache
+    # refuses to keep.
+    return {"mtime": None, "size": None, "days": {}}
+  return record
 
 
 def cache_root():
@@ -343,14 +434,86 @@ def cache_root():
   return root
 
 
-def scan_cache_paths():
+def scan_cache_digest():
   codex_home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
   db = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "opencode" / "opencode.db"
   # The digest covers every data path the scan reads: the codex session
   # roots, the opencode DB, and (via Path.home()) the pi/omp session roots.
-  digest = hashlib.sha1((str(Path.home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
+  return hashlib.sha1((str(Path.home()) + "\n" + str(codex_home) + "\n" + str(db)).encode("utf-8")).hexdigest()[:16]
+
+
+def scan_cache_paths():
+  digest = scan_cache_digest()
   root = cache_root()
   return root / f"codex-scan-{digest}.json", root / f"codex-scan-{digest}.lock"
+
+
+def file_cache_path():
+  return cache_root() / f"codex-files-{scan_cache_digest()}.json"
+
+
+def valid_file_record(value):
+  if not isinstance(value, dict):
+    return False
+  if not isinstance(value.get("mtime"), (int, float)) or isinstance(value.get("mtime"), bool):
+    return False
+  if not isinstance(value.get("size"), int) or isinstance(value.get("size"), bool):
+    return False
+  days = value.get("days")
+  if not isinstance(days, dict):
+    return False
+  for models in days.values():
+    if not isinstance(models, dict):
+      return False
+    for totals in models.values():
+      if not isinstance(totals, list) or len(totals) != 5:
+        return False
+      if not all(isinstance(count, int) and not isinstance(count, bool) for count in totals):
+        return False
+  return True
+
+
+def read_file_cache():
+  """Per-file totals from earlier scans, keyed by path.
+
+  Session files are append-only, so a file whose mtime and size both match the
+  record cannot have grown a turn since: its totals can be replayed instead of
+  read. That is what keeps a refresh off the gigabytes of history it already
+  counted. Unlike the aggregate scan cache these records carry no "today" and
+  never expire on their own -- only the file they describe can invalidate one,
+  so midnight and the clock moving leave them true.
+  """
+  if force_rescan:
+    return {}
+  try:
+    payload = json.loads(file_cache_path().read_text(encoding="utf-8"))
+  except Exception:
+    return {}
+  if not isinstance(payload, dict) or payload.get("schemaVersion") != FILE_CACHE_SCHEMA:
+    return {}
+  files = payload.get("files")
+  if not isinstance(files, dict):
+    return {}
+  return {path: record for path, record in files.items() if valid_file_record(record)}
+
+
+def write_file_cache(files):
+  # Only the files this scan saw are written back, so deleted sessions and
+  # sessions that aged out of the 30-day window leave the cache instead of
+  # growing it forever.
+  try:
+    write_json(file_cache_path(), {"schemaVersion": FILE_CACHE_SCHEMA, "files": files})
+  except Exception as exc:
+    print(f"omarchy-agent-usage-codex: could not write file cache ({exc})", file=sys.stderr)
+
+
+def reusable_record(cached_files, key, stat_result):
+  record = cached_files.get(key)
+  if record is None:
+    return None
+  if record["mtime"] != stat_result.st_mtime or record["size"] != stat_result.st_size:
+    return None
+  return record
 
 
 def read_fresh_json(path, max_age_seconds):
@@ -433,9 +596,12 @@ def local_stats():
 
 
 def run_local_scans():
-  scan_pi_sessions()
-  scan_native_codex_sessions()
+  cached_files = read_file_cache()
+  scanned_files = {}
+  scan_pi_sessions(cached_files, scanned_files)
+  scan_native_codex_sessions(cached_files, scanned_files)
   complete = scan_opencode_sessions()
+  write_file_cache(scanned_files)
   return local_stats(), complete
 
 
@@ -581,6 +747,9 @@ def main():
   parser.add_argument("--force", action="store_true")
   parser.add_argument("--limits-only", action="store_true")
   args = parser.parse_args()
+
+  global force_rescan
+  force_rescan = args.force
 
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
   stats = cached_local_stats(max_age)
