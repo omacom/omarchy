@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "LimitResetModel.js" as LimitResetModel
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -76,8 +77,57 @@ Item {
 
   function recordsChanged() {
     dataRevision++
+    scheduleLimitResetNotifications()
     scheduleLimitsRetry()
     scheduleSync()
+  }
+
+  // A reset deadline is stable for the lifetime of a rate-limit window. Keep
+  // the deadlines we first see in memory and announce them when they pass;
+  // this stays accurate even when the normal usage refresh is deliberately
+  // infrequent. Deadlines already past when the shell starts are ignored.
+  property var pendingLimitResets: ({})
+
+  function limitResetNotificationsEnabled() {
+    return setting("notifyOnLimitReset", true) !== false
+  }
+
+  function scheduleLimitResetNotifications() {
+    var records = []
+    for (var i = 0; i < agents.length; i++) {
+      records.push(agents[i] ? agents[i].record : null)
+    }
+    pendingLimitResets = LimitResetModel.schedule(
+      pendingLimitResets,
+      records,
+      Date.now(),
+      limitResetNotificationsEnabled(),
+      function(id) { return providerEnabled(id) }
+    )
+  }
+
+  function announcePassedLimitResets() {
+    var result = LimitResetModel.announce(
+      pendingLimitResets,
+      Date.now(),
+      limitResetNotificationsEnabled(),
+      function(id) { return providerEnabled(id) }
+    )
+    pendingLimitResets = result.pending
+    for (var i = 0; i < result.notifications.length; i++) {
+      var notification = result.notifications[i]
+      Quickshell.execDetached(["omarchy-notification-send",
+        notification.title,
+        notification.body])
+    }
+  }
+
+  Timer {
+    interval: 15000
+    running: root.limitResetNotificationsEnabled()
+    repeat: true
+    onTriggered: root.announcePassedLimitResets()
+    onRunningChanged: if (!running && !root.limitResetNotificationsEnabled()) root.pendingLimitResets = ({})
   }
 
   // A collector that could not reach its limits endpoint at all — typically
