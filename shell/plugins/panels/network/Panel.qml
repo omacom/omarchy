@@ -119,9 +119,9 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
+  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ hotspot ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "hotspot" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -168,6 +168,55 @@ Panel {
   // The band section has up to two cursor rows: the Automatic switch on the
   // header line, then the pills. Same shape as wifiActionFocused.
   property bool bandAutoFocused: true
+
+  // --- Hotspot (AP-mode internet sharing) state from `omarchy-hotspot
+  // status`. `hotspot` is the raw key/value map; the mirrors below make the
+  // QML bindings readable. `hotspotBusy` covers an in-flight start/stop.
+  property var hotspot: ({})
+  property bool hotspotBusy: false
+  property string hotspotActionKind: ""  // "start" | "stop" | "apply"
+  property string hotspotSsid: ""
+  property string hotspotPassword: ""
+  // The band the AP is configured for. Empty until the first status poll
+  // fills it from the card's capabilities (see Model.hotspotDefaultBand).
+  property string hotspotBand: ""
+  // AP bands the card reports (["2.4"], ["2.4", "5"], ...). `omarchy-hotspot`
+  // derives them from `iw phy` band presence, which over-approximates AP
+  // support, so this is a best-effort hint. The selector only appears when
+  // there is more than one.
+  property var hotspotBands: []
+  property string hotspotError: ""
+  property string hotspotStatusError: ""
+  readonly property string hotspotMessage: hotspotError !== "" ? hotspotError : hotspotStatusError
+  // The credential fields hide behind a cog so the section stays compact.
+  property bool hotspotSetupOpen: false
+  // Reveal the passphrase in the setup dropdown (eye toggle).
+  property bool hotspotPasswordVisible: false
+  // Keyboard cursor row inside the hotspot section. 0=toggle 1=cog, and 2=QR
+  // only while the AP is on air. The band selector is mouse-only.
+  property int hotspotFocusIndex: 0
+  // The status poll carries the saved profile's ssid/band/password. They
+  // prefill the editable fields once per open; after that the poll must leave
+  // them alone so it doesn't fight the user's typing and revert the values.
+  property bool hotspotLoaded: false
+  property bool hotspotRefreshPending: false
+  property int hotspotStatusGeneration: 0
+  readonly property string hotspotCommand: "omarchy-hotspot"
+  readonly property bool hotspotAvailable: hotspot.ap_capable === "1"
+  readonly property bool hotspotActive: hotspot.active === "1"
+  readonly property bool hotspotConfigured: hotspot.configured === "1"
+  // The AP runs on the Wi-Fi radio, so the internet it shares has to come
+  // from somewhere else (ethernet / USB tether). When the default route still
+  // rides the same Wi-Fi radio (or nothing at all), clients would get no
+  // internet -- that is a warning, not a blocker.
+  readonly property bool hotspotHasUpstream: hotspot.upstream !== "wifi" && hotspot.upstream !== "none" && hotspot.upstream !== ""
+  readonly property var hotspotClients: Model.hotspotClients(hotspot)
+  // Keyboard cycle is toggle / cog, plus QR only while the AP is on air.
+  readonly property int hotspotFocusMax: hotspotActive ? 2 : 1
+
+  onHotspotActiveChanged: {
+    if (hotspotFocusIndex > hotspotFocusMax) hotspotFocusIndex = hotspotFocusMax
+  }
 
   onHeaderActionCountChanged: clampHeaderIndex()
 
@@ -216,6 +265,8 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function toggleNetwork() { root.toggleNetwork() }
+    function toggleHotspot() { root.toggleHotspot() }
+    function openHotspotSetup() { root.openHotspotSetup() }
     // Compat routes for configs that summon the centered cards through the
     // network target; both cards are their own plugins now.
     function showQr() { root.summonWifiQr(true) }
@@ -322,6 +373,10 @@ Panel {
   onOpenedChanged: {
     if (opened) {
       refresh(true)
+      refreshHotspot()
+      hotspotFocusIndex = 0
+      hotspotLoaded = false
+      resetHotspotErrors()
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -661,6 +716,10 @@ Panel {
     wifiNetworks = Model.sortWifiRows(nets)
     wifiStationAvailable = !!wifiDevice
     scanning = false
+    // While the hotspot borrows the radio, the station list is meaningless --
+    // it would even surface the AP's own SSID. Drop the whole section; the
+    // existing onWifiNetworksChanged bounce moves the cursor back to DNS.
+    if (hotspotActive) wifiNetworks = []
   }
 
   function wifiSectionTitle(index) {
@@ -856,6 +915,149 @@ Panel {
     runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
   }
 
+  // --- Hotspot (AP mode) actions ---
+
+  function resetHotspotErrors() {
+    hotspotError = ""
+    hotspotStatusError = ""
+  }
+
+  function refreshHotspot() {
+    if (hotspotProc.running) {
+      hotspotRefreshPending = true
+      return
+    }
+    hotspotRefreshPending = false
+    hotspotStatusGeneration++
+    hotspotProc.command = [hotspotCommand, "status"]
+    hotspotProc.runGeneration = hotspotStatusGeneration
+    hotspotProc.running = true
+  }
+
+  function completeHotspotStatus(run, raw, exitCode, errorOutput) {
+    if (run !== hotspotStatusGeneration) return
+    if (hotspotRefreshPending) {
+      hotspotRefreshPending = false
+      refreshHotspot()
+      return
+    }
+    updateHotspot(raw, exitCode, errorOutput)
+  }
+
+  function updateHotspot(raw, exitCode, errorOutput) {
+    var output = String(raw || "").trim()
+    if (exitCode !== 0 || output === "") {
+      var reason = String(errorOutput || "").replace(/\s+/g, " ").trim().slice(0, 500)
+      if (reason !== "") hotspotStatusError = "Hotspot status failed: " + reason
+      else if (exitCode !== 0) hotspotStatusError = "Hotspot status failed"
+      else hotspotStatusError = "Hotspot status returned no data"
+      return
+    }
+    hotspotStatusError = ""
+    var next = Model.parseHotspotStatus(output)
+    if (next.ap_capable !== "1" && hotspot.ap_capable === "1") next.ap_capable = "1"
+    var wasActive = hotspot.active === "1"
+    hotspot = next
+    var bands = Model.hotspotBands(next)
+    if (bands.length > 0 && hotspotBands.join(",") !== bands.join(",")) hotspotBands = bands
+    if (!hotspotLoaded) {
+      hotspotLoaded = true
+      if (next.ssid) hotspotSsid = next.ssid
+      if (next.password) hotspotPassword = next.password
+      hotspotBand = Model.hotspotDefaultBand(next)
+    }
+    if ((next.active === "1") !== wasActive) syncWifiNetworks()
+  }
+
+  function startHotspot() {
+    if (hotspotBusy) return
+    var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword)
+    if (err !== "") { hotspotError = err; return }
+    hotspotActionKind = "start"
+    hotspotBusy = true
+    hotspotError = ""
+    hotspotActionProc.secret = hotspotPassword
+    hotspotActionProc.command = [hotspotCommand, "start", hotspotSsid.trim(), hotspotBand]
+    hotspotActionProc.running = true
+  }
+
+  function stopHotspot() {
+    if (hotspotBusy) return
+    hotspotActionKind = "stop"
+    hotspotBusy = true
+    hotspotError = ""
+    hotspotActionProc.command = [hotspotCommand, "stop"]
+    hotspotActionProc.running = true
+  }
+
+  function toggleHotspot() {
+    if (hotspotActive) stopHotspot()
+    else startHotspot()
+  }
+
+  function toggleHotspotSetup() {
+    hotspotSetupOpen = !hotspotSetupOpen
+  }
+
+  // Opens the panel with the credential box (SSID / password / band) already
+  // unfolded and the hotspot section focused. Used by the setup menu entry.
+  function openHotspotSetup() {
+    open()
+    hotspotSetupOpen = true
+    focusHotspot()
+  }
+
+  // Apply writes the editable credentials into the NetworkManager profile
+  // without starting the AP, so edits survive restarts on their own. The
+  // profile is the single source of truth; no plaintext copy is kept.
+  function applyHotspot() {
+    if (hotspotBusy) return
+    var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword)
+    if (err !== "") { hotspotError = err; return }
+    hotspotActionKind = "apply"
+    hotspotBusy = true
+    hotspotError = ""
+    hotspotActionProc.secret = hotspotPassword
+    hotspotActionProc.command = [hotspotCommand, "apply", hotspotSsid.trim(), hotspotBand]
+    hotspotActionProc.running = true
+  }
+
+  function generateHotspotPassword() {
+    if (hotspotPasswordProc.running) return
+    // The secret comes from omarchy-hotspot over /dev/urandom, never from
+    // Math.random(): a WPA2 pre-shared key must not be predictable.
+    hotspotPasswordProc.command = [hotspotCommand, "generate-password"]
+    hotspotPasswordProc.running = true
+  }
+
+  function focusHotspot() {
+    if (!hotspotAvailable) return
+    cursorActive = true
+    focusSection = "hotspot"
+    hotspotFocusIndex = 0
+  }
+
+  function activateHotspot() {
+    if (hotspotFocusIndex === 0) toggleHotspot()
+    else if (hotspotFocusIndex === 1) toggleHotspotSetup()
+    else if (hotspotFocusIndex === 2) summonHotspotQr()
+  }
+
+  function summonHotspotQr() {
+    // Same floating card the hero's Wi-Fi QR button opens, aimed at the
+    // hotspot's interface. The wifiqr plugin reads the active connection on
+    // that interface, so the card shows the hotspot's join QR while it runs.
+    // Hidden while the AP is down: the same iface would otherwise QR the
+    // station network the radio is joined to.
+    if (!hotspotActive) return
+    controller.hide()
+    cancelPasswordPrompt()
+    var payload = {}
+    if (hotspot.iface) payload.iface = hotspot.iface
+    if (hotspotSsid) payload.ssid = hotspotSsid
+    bar.shell.summon("omarchy.wifiqr", JSON.stringify(payload))
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -951,6 +1153,86 @@ Panel {
     repeat: true
     running: root.opened
     onTriggered: if (!detailsProc.running) detailsProc.running = true
+  }
+
+  // Hotspot state poll. Status read is cheap (nmcli + iw), so 2s keeps the
+  // toggle, client count and QR in step with reality while the panel is open.
+  Timer {
+    id: hotspotPoll
+    interval: 2000
+    repeat: true
+    running: root.opened
+    onTriggered: root.refreshHotspot()
+  }
+
+  Process {
+    id: hotspotProc
+    property int runGeneration: 0
+    stdout: StdioCollector { id: hotspotStatusOut; waitForEnd: true }
+    stderr: StdioCollector { id: hotspotStatusErr; waitForEnd: true }
+    onExited: function(exitCode) {
+      const run = hotspotProc.runGeneration
+      const raw = hotspotStatusOut.text
+      const errorOutput = hotspotStatusErr.text
+      Qt.callLater(function() {
+        root.completeHotspotStatus(run, raw, exitCode, errorOutput)
+      })
+    }
+  }
+
+  // Fill the editable password field with a fresh secret from omarchy-hotspot
+  // (see generateHotspotPassword). The command prints only the 10-char key.
+  Process {
+    id: hotspotPasswordProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var pw = String(text || "").replace(/\s+/g, "").trim()
+        if (pw !== "") root.hotspotPassword = pw
+      }
+    }
+  }
+
+  // Start/stop/apply runner. The passphrase travels over stdin for `start`
+  // and `apply`, never argv (see omarchy-hotspot). onExited refreshes both
+  // the hotspot state and the hero/connection rows, since switching the radio
+  // to AP changes them.
+  Process {
+    id: hotspotActionProc
+    property string secret: ""
+    stdinEnabled: true
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { id: hotspotErr; waitForEnd: true }
+    onStarted: {
+      if (secret !== "") {
+        write(secret + "\n")
+        secret = ""
+      }
+    }
+    onExited: function(exitCode) {
+      root.hotspotBusy = false
+      if (exitCode !== 0) {
+        var verb = root.hotspotActionKind === "stop" ? "stop"
+          : root.hotspotActionKind === "apply" ? "apply" : "start"
+        root.hotspotError = "Failed to " + verb + " hotspot"
+        // stderr may still be draining when the process exits, so read it
+        // after the event loop settles and surface the command's own reason
+        // (missing dnsmasq, unsupported band, ...) instead of a generic line.
+        Qt.callLater(function() {
+          var reason = String(hotspotErr.text || "").replace(/\s+/g, " ").trim()
+          if (reason !== "") {
+            root.hotspotError = "Failed to " + verb + " hotspot: " + reason
+          } else {
+            root.hotspotError = "Failed to " + verb + " hotspot (run `omarchy hotspot diagnose` for details)"
+          }
+        })
+      }
+      root.hotspotActionKind = ""
+      Qt.callLater(function() {
+        root.refreshHotspot()
+        root.refresh()
+      })
+    }
   }
 
   Timer {
@@ -1098,8 +1380,8 @@ Panel {
             }
           } else if (root.focusSection === "dns") {
             // k from DNS moves up into the band section when it's on screen,
-            // then the disconnect button; otherwise stays put. j drops into the
-            // wifi list if there's anywhere to land.
+            // then the disconnect button; otherwise stays put. j drops into
+            // the hotspot section if there is one, else the wifi list.
             if (dy < 0) {
               if (root.canSelectBand) {
                 root.focusSection = "band"
@@ -1110,15 +1392,35 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
+            } else if (root.hotspotAvailable) {
+              root.focusSection = "hotspot"
+              root.hotspotFocusIndex = 0
+            } else if (root.wifiNetworks.length > 0) {
+              root.focusSection = "wifi"
+              if (root.selectedIndex < 0) root.selectedIndex = 0
+            }
+          } else if (root.focusSection === "hotspot") {
+            // Hotspot is a small vertical block (toggle / cog, plus QR while
+            // the AP is on). k walks back up to DNS, j down into the wifi list.
+            if (dy < 0) {
+              if (root.hotspotFocusIndex > 0) root.hotspotFocusIndex--
+              else root.focusSection = "dns"
+            } else if (root.hotspotFocusIndex < root.hotspotFocusMax) {
+              root.hotspotFocusIndex++
             } else if (root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
             }
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
+            // k from the top row escapes back up to the hotspot section when
+            // present, else the DNS row; never wraps around the list.
             if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
+              if (root.hotspotAvailable) {
+                root.focusSection = "hotspot"
+                root.hotspotFocusIndex = root.hotspotFocusMax
+              } else {
+                root.focusSection = "dns"
+              }
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1137,6 +1439,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "hotspot") root.activateHotspot()
           else root.activateSelected()
         }
       }
@@ -1569,15 +1872,330 @@ Panel {
         }
       }
 
-
-      // Wi-Fi networks (only if a Wi-Fi station is available).
+      // Hotspot: share this machine's internet as a Wi-Fi access point.
+      // Shown whenever any adapter can run AP mode; the toggle lives here
+      // with credentials tucked behind a cog.
       PanelSeparator {
-        visible: root.wifiStationAvailable
+        visible: root.hotspotAvailable
+        foreground: root.bar.foreground
+      }
+
+      Column {
+        visible: root.hotspotAvailable
+        width: parent.width
+        spacing: Style.space(10)
+
+        Item {
+          width: parent.width
+          implicitHeight: Math.max(hotspotHeader.implicitHeight, hotspotStatusLine.implicitHeight)
+
+          PanelSectionHeader {
+            id: hotspotHeader
+            text: root.hotspotActive ? "HOTSPOT ACTIVE" : "HOTSPOT"
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          Text {
+            id: hotspotStatusLine
+            textFormat: Text.PlainText
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: {
+              if (root.hotspotBusy) {
+                if (root.hotspotActionKind === "stop") return "STOPPING…"
+                if (root.hotspotActionKind === "apply") return "SAVING…"
+                return "STARTING…"
+              }
+              if (root.hotspotActive) {
+                var band = root.hotspot.band || root.hotspotBand
+                var s = root.hotspotSsid + " \u00b7 " + band + "GHz"
+                if (root.hotspotClients.length > 0) {
+                  s += " \u00b7 " + root.hotspotClients.length + " CLIENT"
+                  if (root.hotspotClients.length > 1) s += "S"
+                }
+                return s
+              }
+              return root.hotspotConfigured ? "OFF" : "NOT CONFIGURED"
+            }
+            color: Qt.darker(root.bar.foreground, 1.4)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.letterSpacing: 1.2
+            elide: Text.ElideRight
+          }
+        }
+
+        // The AP runs on the Wi-Fi radio, so the internet it shares has to
+        // come from somewhere else (ethernet / USB tether). Warn when there
+        // is no such upstream, but still allow a LAN-only hotspot.
+        Item {
+          visible: !root.hotspotHasUpstream
+          width: parent.width
+          implicitHeight: hotspotWarning.implicitHeight + Style.space(6)
+          Rectangle {
+            anchors.fill: parent
+            radius: Style.cornerRadius
+            color: Qt.rgba(0.8, 0.5, 0.05, 0.12)
+          }
+          Text {
+            id: hotspotWarning
+            textFormat: Text.PlainText
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: Style.space(8)
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            wrapMode: Text.Wrap
+            text: root.hotspotActive
+              ? "Sharing the Wi-Fi radio — connect by ethernet or USB tether to give clients internet."
+              : "No wired or tethered upstream — clients will connect with no internet."
+            color: Qt.darker(root.bar.foreground, 1.25)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+
+        Item {
+          width: parent.width
+          implicitHeight: Math.max(hotspotToggleLabel.implicitHeight, Math.max(hotspotCogButton.implicitHeight, hotspotToggle.implicitHeight))
+
+          Text {
+            id: hotspotToggleLabel
+            textFormat: Text.PlainText
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.hotspotActive ? "Sharing my internet" : "Share my internet"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.body
+          }
+
+          Button {
+            id: hotspotQrButton
+            visible: root.hotspotActive
+            anchors.right: hotspotToggle.left
+            anchors.rightMargin: visible ? Style.space(8) : 0
+            anchors.verticalCenter: parent.verticalCenter
+            iconText: "󰐲"
+            width: visible ? Style.space(30) : 0
+            height: Style.spacing.controlHeight
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            iconSize: Style.font.subtitle
+            horizontalPadding: 0
+            verticalPadding: 0
+            bordered: true
+            hasCursor: root.cursorActive && root.focusSection === "hotspot" && root.hotspotFocusIndex === 2
+            onClicked: root.summonHotspotQr()
+            onHovered: function(isHovered) {
+              if (!isHovered) return
+              root.cursorActive = true
+              root.focusSection = "hotspot"
+              root.hotspotFocusIndex = 2
+            }
+
+            tooltipText: "Show QR code"
+          }
+
+          Button {
+            id: hotspotCogButton
+            anchors.right: hotspotQrButton.left
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            iconText: ""
+            width: Style.space(30)
+            height: Style.spacing.controlHeight
+            active: root.hotspotSetupOpen
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            iconSize: Style.font.subtitle
+            horizontalPadding: 0
+            verticalPadding: 0
+            bordered: true
+            hasCursor: root.cursorActive && root.focusSection === "hotspot" && root.hotspotFocusIndex === 1
+            onClicked: root.toggleHotspotSetup()
+            onHovered: function(isHovered) {
+              if (!isHovered) return
+              root.cursorActive = true
+              root.focusSection = "hotspot"
+              root.hotspotFocusIndex = 1
+            }
+
+            tooltipText: root.hotspotSetupOpen ? "Hide hotspot settings" : "Hotspot settings"
+          }
+
+          ToggleSwitch {
+            id: hotspotToggle
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            checked: root.hotspotActive
+            busy: root.hotspotBusy
+            hasCursor: root.cursorActive && root.focusSection === "hotspot" && root.hotspotFocusIndex === 0
+            foreground: root.bar.foreground
+            onToggled: root.toggleHotspot()
+            onHovered: function(isHovered) {
+              if (!isHovered) return
+              root.cursorActive = true
+              root.focusSection = "hotspot"
+              root.hotspotFocusIndex = 0
+            }
+
+            PanelToolTip {
+              visible: hotspotToggle.containsMouse
+              text: root.hotspotActive ? "Turn the hotspot off" : "Start the hotspot"
+              fontFamily: root.bar.fontFamily
+            }
+          }
+        }
+
+        // AP band selector. Most cards serve a single band and get no
+        // selector at all; only a real choice is worth a row. Mouse-only:
+        // the keyboard cursor cycle stays on the toggle / cog / QR row.
+        Row {
+          visible: root.hotspotBands.length > 1
+          width: parent.width
+          spacing: Style.space(6)
+
+          Repeater {
+            model: root.hotspotBands
+            delegate: HotspotBandPill {
+              band: modelData
+              slot: index
+            }
+          }
+        }
+
+        Column {
+          id: hotspotSetupBody
+          visible: root.hotspotSetupOpen
+          width: parent.width
+          spacing: Style.space(10)
+          enabled: root.hotspotSetupOpen
+
+          TextField {
+            id: hotspotSsidField
+            width: parent.width
+            enabled: !root.hotspotBusy
+            placeholderText: "Hotspot name (SSID)"
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            foreground: root.bar.foreground
+            horizontalPadding: Style.spacing.controlGap
+            verticalPadding: Style.spacing.controlPaddingY
+            text: root.hotspotSsid
+            onTextChanged: if (text !== root.hotspotSsid) root.hotspotSsid = text
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+
+            TextField {
+              id: hotspotPwField
+              width: parent.width - Style.space(120)
+              enabled: !root.hotspotBusy
+              password: !root.hotspotPasswordVisible
+              placeholderText: "Password (8+ characters)"
+              font.family: Style.font.family
+              font.pixelSize: Style.font.body
+              foreground: root.bar.foreground
+              horizontalPadding: Style.spacing.controlGap
+              verticalPadding: Style.spacing.controlPaddingY
+              text: root.hotspotPassword
+              onTextChanged: if (text !== root.hotspotPassword) root.hotspotPassword = text
+            }
+
+            Button {
+              id: hotspotEyeBtn
+              width: Style.space(34)
+              height: Style.spacing.controlHeight
+              iconText: root.hotspotPasswordVisible ? "" : ""
+              tooltipText: root.hotspotPasswordVisible ? "Hide password" : "Show password"
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              iconSize: Style.font.subtitle
+              horizontalPadding: 0
+              verticalPadding: 0
+              bordered: true
+              onClicked: root.hotspotPasswordVisible = !root.hotspotPasswordVisible
+            }
+
+            Button {
+              id: hotspotRandomBtn
+              width: Style.space(34)
+              height: Style.spacing.controlHeight
+              iconText: ""
+              tooltipText: "Random password"
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              iconSize: Style.font.subtitle
+              horizontalPadding: 0
+              verticalPadding: 0
+              bordered: true
+              onClicked: root.generateHotspotPassword()
+            }
+
+            Button {
+              id: hotspotApplyBtn
+              width: Style.space(34)
+              height: Style.spacing.controlHeight
+              iconText: "󰄬"
+              tooltipText: "Apply credentials"
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              iconSize: Style.font.subtitle
+              horizontalPadding: 0
+              verticalPadding: 0
+              bordered: true
+              onClicked: root.applyHotspot()
+            }
+          }
+        }
+
+        Text {
+          id: hotspotMessageText
+          textFormat: Text.PlainText
+          visible: root.hotspotMessage !== ""
+          width: parent.width
+          wrapMode: Text.Wrap
+          elide: Text.ElideRight
+          maximumLineCount: 4
+          text: root.hotspotMessage
+          color: root.bar.urgent
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        // Connected clients, MAC + signal. Hidden while idle.
+        Repeater {
+          model: root.hotspotActive ? root.hotspotClients : []
+          delegate: Text {
+            required property var modelData
+            textFormat: Text.PlainText
+            width: parent.width
+            text: Model.hotspotClientLabel(modelData)
+            color: Qt.darker(root.bar.foreground, 1.35)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+        }
+      }
+
+
+      // Wi-Fi networks (only if a Wi-Fi station is available). Hidden while
+      // the hotspot owns the radio — see syncWifiNetworks.
+      PanelSeparator {
+        visible: root.wifiStationAvailable && !root.hotspotActive
         foreground: root.bar.foreground
       }
 
       PanelSectionHeader {
-        visible: root.wifiStationAvailable && root.scanning
+        visible: root.wifiStationAvailable && !root.hotspotActive && root.scanning
         text: "SCANNING WI-FI…"
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
@@ -1671,6 +2289,29 @@ Panel {
       root.focusSection = "band"
       root.bandIndex = pill.slot
     }
+  }
+
+  // One AP-band pill for the hotspot section. `selected` (bold) is the band
+  // the hotspot would start with; `active` (fill) is the band actually
+  // serving while the AP is up. Mouse-only: the hotspot cursor cycle stays on
+  // the toggle / cog / QR row.
+  component HotspotBandPill: Button {
+    id: pill
+    required property string band
+    required property int slot
+
+    text: root.bandLabel(band)
+    fontSize: Style.font.bodySmall
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.controlPaddingX
+    verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+    bordered: true
+
+    active: root.hotspotActive && root.hotspot.band === band
+    selected: root.hotspotBand === band
+
+    onClicked: root.hotspotBand = band
   }
 
   // One DNS provider pill. The cursor + current visuals come entirely from

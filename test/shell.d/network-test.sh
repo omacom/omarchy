@@ -8,6 +8,7 @@ run_node_test <<'JS'
 const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
+const hotspotSource = fs.readFileSync(root + '/bin/omarchy-hotspot', 'utf8')
 
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
@@ -293,4 +294,185 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// Hotspot status parsing and helpers (omarchy-hotspot status output).
+assertDeepEqual(
+  network.parseHotspotStatus('ap_capable\t1\nap_bands\t2.4,5\nactive\t1\nssid\tMy Net\nclients\t[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]\n'),
+  { ap_capable: '1', ap_bands: '2.4,5', active: '1', ssid: 'My Net', clients: '[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]' },
+  'network parses hotspot status key/values'
+)
+assertDeepEqual(network.parseHotspotStatus(''), {}, 'network parses empty hotspot status')
+assertDeepEqual(network.hotspotBands({ ap_bands: '2.4,5' }), ['2.4', '5'], 'network lists hotspot ap bands')
+assertDeepEqual(network.hotspotBands({ ap_bands: '2.4' }), ['2.4'], 'network keeps a single hotspot band')
+assertDeepEqual(network.hotspotBands({}), [], 'network reports no hotspot bands when unknown')
+assertEqual(network.hotspotDefaultBand({ ap_bands: '2.4,5', band: '5' }), '5', 'network prefers the profile band when supported')
+assertEqual(network.hotspotDefaultBand({ ap_bands: '2.4,5', band: '6' }), '2.4', 'network falls back to 2.4 when the profile band is unsupported')
+assertEqual(network.hotspotDefaultBand({ ap_bands: '5' }), '5', 'network uses the only available hotspot band')
+assertEqual(network.hotspotDefaultBand({}), '', 'network returns no hotspot band when none exist')
+assertDeepEqual(
+  network.hotspotClients({ clients: '[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]' }),
+  [{ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5', hostname: 'pixel-8' }],
+  'network parses hotspot clients'
+)
+assertDeepEqual(network.hotspotClients({ clients: 'garbage' }), [], 'network ignores malformed hotspot clients')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }), 'AA:BB:CC · -42 dBm', 'network labels a hotspot client with signal')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc' }), 'AA:BB:CC', 'network labels a hotspot client without signal')
+assertEqual(network.hotspotClientLabel({}), '', 'network labels an empty hotspot client')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5', hostname: 'pixel-8' }), 'pixel-8 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network leads a named client with its name')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5' }), '10.42.0.5 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network falls back to the address when a client has no name')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, hostname: 'pixel-8' }), 'pixel-8 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network keeps the MAC when a client has no address')
+assertEqual(network.hotspotCredentialsError('', 'abcdefgh'), 'Enter a hotspot name', 'network requires a hotspot ssid')
+assertEqual(network.hotspotCredentialsError('  ', 'abcdefgh'), 'Enter a hotspot name', 'network treats a blank hotspot ssid as missing')
+assertEqual(network.hotspotCredentialsError('Home', 'short'), 'Password needs 8+ characters', 'network rejects a short hotspot password')
+assertEqual(network.hotspotCredentialsError('Home', 'a'.repeat(64)), "Password can't exceed 63 characters", 'network rejects a hotspot password over 63 characters')
+assertEqual(network.hotspotCredentialsError('Home', 'abcdefgh'), '', 'network accepts an 8-character hotspot password')
+assertEqual(network.hotspotCredentialsError('Home', 'a'.repeat(63)), '', 'network accepts a 63-character hotspot password')
+assert(/hotspotPasswordProc\.command = \[hotspotCommand, "generate-password"\]/.test(panelSource), 'network generates the hotspot password through the first-party command')
+
+// The hotspot section in the panel: dynamic AP bands drive the selector, the
+// whole wifi list hides while the AP owns the radio, and the command runs by
+// its first-party name so the script can be exercised from the CLI too.
+assert(/readonly property string hotspotCommand: "omarchy-hotspot"/.test(panelSource), 'network runs the first-party hotspot command')
+assert(/var bands = Model\.hotspotBands\(next\)/.test(panelSource), 'network refreshes the hotspot ap bands from status')
+assert(/hotspotBand = Model\.hotspotDefaultBand\(next\)/.test(panelSource), 'network prefills the hotspot band from status')
+assert(/hotspotActive\) wifiNetworks = \[\]/.test(panelSource), 'network drops the wifi list while the hotspot owns the radio')
+assert(/visible: root\.wifiStationAvailable && !root\.hotspotActive/.test(panelSource), 'network hides the wifi separator while the hotspot is active')
+assert(/function toggleHotspot\(\) \{ root\.toggleHotspot\(\) \}/.test(panelSource), 'network exposes the hotspot toggle over IPC')
+assert(/function openHotspotSetup\(\) \{ root\.openHotspotSetup\(\) \}/.test(panelSource), 'network exposes an IPC opener for the hotspot setup')
+assert(/if \(\(next\.active === "1"\) !== wasActive\) syncWifiNetworks\(\)/.test(panelSource), 'network re-syncs the wifi list when the hotspot active state changes')
+assert(/focusSection === "hotspot"/.test(panelSource), 'network has a keyboard cursor zone for the hotspot section')
+assert(/stderr: StdioCollector \{ id: hotspotErr; waitForEnd: true \}/.test(panelSource), 'network surfaces the hotspot command stderr')
+assert(/omarchy hotspot diagnose` for details/.test(panelSource), 'network points hotspot failures at the diagnose command')
+assert(/stderr: StdioCollector \{ id: hotspotStatusErr; waitForEnd: true \}/.test(panelSource), 'network collects hotspot status stderr')
+assert(/readonly property string hotspotMessage: hotspotError !== "" \? hotspotError : hotspotStatusError/.test(panelSource), 'network keeps action errors ahead of status errors')
+const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
+assert(updateHotspotSource, 'network accepts a hotspot process result')
+if (updateHotspotSource) {
+  let hotspot = {}
+  let hotspotLoaded = false
+  let hotspotBands = []
+  let hotspotSsid = ''
+  let hotspotPassword = ''
+  let hotspotBand = ''
+  let hotspotStatusError = ''
+  const Model = network
+  function syncWifiNetworks() {}
+  eval(updateHotspotSource[0])
+
+  updateHotspot('ap_capable\t1\nap_bands\t2.4,5\nactive\t0\nconfigured\t1\nssid\tSaved Hotspot\npassword\tsavedpassword\nband\t5\n', 0, '')
+  assert(hotspot.ssid === 'Saved Hotspot' && hotspotLoaded && hotspotSsid === 'Saved Hotspot' && hotspotPassword === 'savedpassword' && hotspotBand === '5', 'network loads saved hotspot state only from successful output')
+  let lastGood = hotspot
+  const lastSsid = hotspotSsid
+  const lastPassword = hotspotPassword
+  const lastBand = hotspotBand
+  updateHotspot('active\t1\nclient_count\t0\nclients\t[]\n', 0, '')
+  assert(hotspot.active === '1' && hotspot.client_count === '0' && hotspot.ssid === undefined, 'network replaces stale fields from a successful hotspot status')
+  lastGood = hotspot
+  updateHotspot('', 1, 'status probe\nfailed')
+  assert(hotspot === lastGood && hotspotSsid === lastSsid && hotspotPassword === lastPassword && hotspotBand === lastBand, 'network preserves hotspot state after failed status')
+  assertEqual(hotspotStatusError, 'Hotspot status failed: status probe failed', 'network surfaces collapsed hotspot status stderr')
+  updateHotspot('  \n', 0, '')
+  assert(hotspot === lastGood && hotspotSsid === lastSsid, 'network preserves hotspot state after empty status')
+  assertEqual(hotspotStatusError, 'Hotspot status returned no data', 'network reports empty hotspot status')
+}
+
+const resetHotspotErrorsSource = panelSource.match(/function resetHotspotErrors\(\) \{[\s\S]*?\n {2}\}/)
+assert(resetHotspotErrorsSource, 'network has a stale hotspot error reset path')
+if (resetHotspotErrorsSource) {
+  let hotspotError = 'old action error'
+  let hotspotStatusError = 'old status error'
+  eval(resetHotspotErrorsSource[0])
+  resetHotspotErrors()
+  assert(hotspotError === '' && hotspotStatusError === '', 'network clears action and status errors when the panel reopens')
+}
+
+const completeHotspotStatusSource = panelSource.match(/function completeHotspotStatus\(run, raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
+assert(completeHotspotStatusSource, 'network has one hotspot status completion path')
+if (completeHotspotStatusSource) {
+  let hotspotStatusGeneration = 7
+  let hotspotRefreshPending = false
+  let appliedResults = 0
+  let refreshes = 0
+  function updateHotspot() { appliedResults += 1 }
+  function refreshHotspot() {
+    refreshes += 1
+    hotspotRefreshPending = false
+  }
+  eval(completeHotspotStatusSource[0])
+
+  completeHotspotStatus(6, 'stale output', 0, '')
+  assert(appliedResults === 0 && refreshes === 0, 'network drops a status result from an obsolete process generation')
+  hotspotRefreshPending = true
+  completeHotspotStatus(7, 'pre-action output', 0, '')
+  assert(appliedResults === 0 && refreshes === 1 && hotspotRefreshPending === false, 'network refetches instead of publishing pre-action status')
+  completeHotspotStatus(7, 'current output', 0, '')
+  assert(appliedResults === 1 && refreshes === 1, 'network applies the current status result after the pending refetch')
+}
+
+assert(/property bool hotspotRefreshPending: false/.test(panelSource), 'network records a hotspot status refetch requested while a process is running')
+assert(/property int hotspotStatusGeneration: 0/.test(panelSource), 'network versions hotspot status processes')
+assert(/root\.completeHotspotStatus\(/.test(panelSource), 'network routes onExited through the generation-aware completion path')
+assert(/if \(hotspotProc\.running\) \{[\s\S]*hotspotRefreshPending = true/.test(panelSource), 'network records status refetches instead of dropping them')
+
+const hotspotStatusProcess = panelSource.match(/id: hotspotProc[\s\S]*?\n {2}\}/)
+assert(hotspotStatusProcess, 'network has a hotspot status process')
+if (hotspotStatusProcess) {
+  assert(/property int runGeneration: 0/.test(hotspotStatusProcess[0]), 'network tracks the generation a hotspot status run was launched for')
+  assert(/Qt\.callLater\(function\(\) \{[\s\S]*root\.completeHotspotStatus\(/.test(hotspotStatusProcess[0]), 'network defers hotspot status completion so stderr is drained first')
+}
+
+const refreshHotspotSource = panelSource.match(/function refreshHotspot\(\) \{[\s\S]*?\n {2}\}/)
+assert(refreshHotspotSource, 'network has a hotspot status poller')
+if (refreshHotspotSource) {
+  assert(/hotspotStatusGeneration\+\+\s*\n\s*hotspotProc\.command = \[hotspotCommand, "status"\]\s*\n\s*hotspotProc\.runGeneration = hotspotStatusGeneration\s*\n\s*hotspotProc\.running = true/.test(refreshHotspotSource[0]), 'network stamps each hotspot status run with the generation it was started for')
+}
+
+const hotspotStatusOnExited = panelSource.match(/onExited: function\(exitCode\) \{\n {6}const run = hotspotProc\.runGeneration[\s\S]*?\n {4}\}/)
+assert(hotspotStatusOnExited, 'network captures the hotspot status run before deferring it')
+if (hotspotStatusOnExited) {
+  let hotspotProc = { running: false, runGeneration: 4 }
+  const hotspotStatusOut = { text: 'ap_capable\t1\n' }
+  const hotspotStatusErr = { text: '' }
+  const deferred = []
+  const Qt = { callLater: function(fn) { deferred.push(fn) } }
+  const completions = []
+  const root = { completeHotspotStatus: function(run, raw, exitCode, errorOutput) { completions.push([run, raw, exitCode, errorOutput]) } }
+  const onExited = eval('(' + hotspotStatusOnExited[0].replace(/^onExited: /, '') + ')')
+
+  onExited(0)
+  assert(completions.length === 0 && deferred.length === 1, 'network defers hotspot status completion instead of publishing inside onExited')
+
+  hotspotProc.running = true
+  hotspotProc.runGeneration = 12
+  hotspotStatusOut.text = 'newer output'
+  hotspotStatusErr.text = 'newer stderr'
+  deferred.forEach(fn => fn())
+
+  assertEqual(completions.length, 1, 'network completes exactly one deferred hotspot status run')
+  assertEqual(completions[0][0], 4, 'network reports the generation the exited run was launched for, not the live counter')
+  assertEqual(completions[0][1], 'ap_capable\t1\n', 'network reports the output captured when the run exited')
+  assertEqual(completions[0][2], 0, 'network reports the exit code captured when the run exited')
+  assertEqual(completions[0][3], '', 'network reports stderr captured when the run exited')
+}
+
+const hotspotMessageText = panelSource.match(/Text \{\s*id: hotspotMessageText[\s\S]*?\n {8}\}/)
+assert(hotspotMessageText, 'network has a dedicated hotspot message surface')
+if (hotspotMessageText) {
+  assert(/width: parent\.width/.test(hotspotMessageText[0]), 'network bounds hotspot messages to the panel width')
+  assert(/wrapMode: Text\.Wrap/.test(hotspotMessageText[0]), 'network wraps hotspot messages')
+  assert(/elide: Text\.ElideRight/.test(hotspotMessageText[0]), 'network elides hotspot messages after wrapping')
+  assert(/maximumLineCount: 4/.test(hotspotMessageText[0]), 'network bounds hotspot error height')
+}
+const hotspotSetupBodyIndex = panelSource.indexOf('id: hotspotSetupBody')
+const hotspotApplyIndex = panelSource.indexOf('id: hotspotApplyBtn', hotspotSetupBodyIndex)
+const hotspotMessageIndex = panelSource.indexOf('id: hotspotMessageText')
+assert(hotspotSetupBodyIndex >= 0 && hotspotApplyIndex > hotspotSetupBodyIndex && hotspotMessageIndex > hotspotApplyIndex, 'network keeps status errors outside the collapsed setup body')
+
+assert((panelSource.match(/Model\.hotspotCredentialsError\(hotspotSsid, hotspotPassword\)/g) || []).length === 2, 'network shares hotspot credential validation between start and apply')
+assert(/id: hotspotQrButton\s+visible: root\.hotspotActive/.test(panelSource), 'network hides the hotspot QR unless the AP is on')
+assert(/readonly property int hotspotFocusMax: hotspotActive \? 2 : 1/.test(panelSource), 'network drops QR from the keyboard cycle while the AP is off')
+assert(!/hotspotQrButton\.containsMouse|hotspotCogButton\.containsMouse/.test(panelSource), 'network does not bind a hover state Button does not expose')
+assert(/id: hotspotCogButton[\s\S]*?tooltipText: root\.hotspotSetupOpen \? "Hide hotspot settings" : "Hotspot settings"/.test(panelSource), 'network labels the hotspot settings button through the button tooltip')
+assert(!/wifi-sec\.psk "\$password"/.test(hotspotSource), 'hotspot never puts the PSK on nmcli argv')
+assert(/apply "\$ssid" "\$band"/.test(hotspotSource), 'hotspot start writes the profile through apply')
 JS
