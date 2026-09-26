@@ -42,6 +42,14 @@ When the drive fills up and you have no idea what's eating it, launch _Disk Usag
 
 [Cliamp](https://www.cliamp.stream/) is a retro terminal music player inspired by Winamp 2.x, complete with built-in radio stations for lo-fi beats. Launch it with `Super + Shift + Alt + M`, or from the Omarchy menu under _Apps_. Press `?` for the full keybinding list.
 
+## tql
+
+[tql](https://github.com/VheissuLabs/tql) is a database client for the terminal. It opens SQLite files and MySQL and PostgreSQL servers, lets you browse, filter, and sort the tables, and always shows the SQL behind what's on screen. Edits and deletions stay pending until you write them with `:w`.
+
+Install it with `omarchy install tql`, which also adds it to the app launcher (`Super + Space`). Running `tql` shows your saved connections, and `tql open` adds one. The databases from _Install > Development > Docker DB_ open with `tql open "pgsql://postgres@127.0.0.1:5432/postgres"` or `tql open "mysql://root@127.0.0.1:3306"`.
+
+Press `ctrl+k` for every command in one searchable list, `s` for the SQL editor, `f` to filter the rows, `E` to edit a row in a form, and `?` for the keys.
+
 ## What about Wi-Fi and Bluetooth?
 
 You won't find TUIs for Wi-Fi and Bluetooth — those jobs belong to the Omarchy shell. Click the Wi-Fi icon in the top bar (or hit `Super + Ctrl + W`) to see networks and connect, and click the Bluetooth icon (or hit `Super + Ctrl + B`) to pair and connect devices. See [networking](35-networking.md) for the full story.
