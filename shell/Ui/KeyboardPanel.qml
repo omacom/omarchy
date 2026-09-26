@@ -78,7 +78,7 @@ PanelWindow {
   // --- screen + lifetime ---------------------------------------------------
 
   screen: anchorWindow ? anchorWindow.screen : null
-  visible: open || card.opacity > 0 || popoutSwitching
+  visible: open || card.opacity > 0 || popoutSwitching || popoutSwitchClosing
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
 
@@ -88,6 +88,9 @@ PanelWindow {
   // mapped during the fade-out so the opacity animation has something to
   // animate, but keyboard/click ownership must release the moment the
   // logical close fires — otherwise the user is locked out for 140ms.
+  // An exception is made when switching panels, focus is kept until the
+  // incoming panel takes it, so it never drops to the window below, which
+  // causes the sensation of flickering.
   //
   // Prime with Exclusive on every open, then settle on OnDemand. Hyprland
   // focuses OnDemand when a surface first maps, but not when an already-mapped
@@ -97,7 +100,7 @@ PanelWindow {
   // pointer hit-testing so clicks can reach the dismissal windows below.
   WlrLayershell.keyboardFocus: open
     ? (focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
-    : WlrKeyboardFocus.None
+    : (popoutSwitchClosing ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None)
 
   onBackingWindowVisibleChanged: beginFocusPrime()
 
@@ -266,7 +269,8 @@ PanelWindow {
 
   Timer {
     id: closeSwitchTimer
-    interval: 1
+    // Long enough for the incoming panel to appear, matches focusPrimeTimer.
+    interval: 75
     onTriggered: root.popoutSwitchClosing = false
   }
 
