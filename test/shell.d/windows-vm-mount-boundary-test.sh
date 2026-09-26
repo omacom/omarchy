@@ -123,6 +123,16 @@ if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared
 fi
 pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves deny another account"
 
+# A caller can leave setgid or other special bits on ~/Windows (mode 2700).
+# Numeric chmod as root keeps those bits on directories, so hardening must
+# still land on exactly 0700 instead of failing the launch without a message.
+chmod 2700 /home/shared-target
+chmod 4700 /home/storage-target
+with_vm_lock prepare_caller_mounts || fail "root rejected pinned sources carrying stray special mode bits"
+[[ $(command stat -Lc '%a' /home/storage-target) == 700 &&
+  $(command stat -Lc '%a' /home/shared-target) == 700 ]] || fail "hardening left special mode bits on the pinned sources"
+pass "root strips stray setuid/setgid bits while hardening the pinned sources"
+
 # Existing production boundary components are never repaired in place when
 # their ownership or write permissions are unsafe. Both the preparation path
 # and the final pre-Docker guard must fail closed without disturbing the binds.
