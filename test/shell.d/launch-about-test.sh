@@ -27,6 +27,8 @@ pass "the launcher finds the sheen it sources"
 
 # Kept before the stubs replace it, so the real one can be exercised below.
 real_measure_layout=$(declare -f measure_layout)
+real_tick=$(declare -f tick)
+real_copy_report=$(declare -f copy_report)
 
 # Stand in for the terminal, and for the fastfetch run that measures the layout.
 rows_by_cols="45 140"
@@ -265,3 +267,114 @@ if measure_layout; then
 else
   pass "a render without the logo in it is not measured"
 fi
+
+# The copied report is pasted where box drawing and Nerd Font glyphs turn to noise,
+# so none of it can survive into the plain config — and every module still needs
+# a name, or its line reads as a bare value nobody can place.
+OMARCHY_FASTFETCH_DIR="$ROOT/etc/fastfetch"
+plain=$(plain_config) || fail "the report config is made from About's own"
+pass "the report config is made from About's own"
+
+[[ $(jq -r '.logo.type' <<<"$plain") == "none" ]] || fail "the report leaves the logo out"
+pass "the report leaves the logo out"
+
+[[ $(jq '[.modules[] | select(type != "object" or .type == "custom")] | length' <<<"$plain") == 0 ]] ||
+  fail "the report drops the frame and breaks around the modules"
+pass "the report drops the frame and breaks around the modules"
+
+shown=$(jq '[.modules[] | select(type == "object" and .type != "custom")] | length' "$OMARCHY_FASTFETCH_DIR/config.jsonc")
+[[ $(jq '.modules | length' <<<"$plain") == "$shown" ]] || fail "the report keeps every module About shows"
+pass "the report keeps every module About shows"
+
+glyphs=$(jq -r '.modules[] | (.key // empty), (.format // empty) | select(test("[^ -~]"))' <<<"$plain")
+[[ -z $glyphs ]] || fail "the report keys are plain text" "$glyphs"
+pass "the report keys are plain text"
+
+unnamed=$(jq -r '.modules[] | select(.type == "command" and (has("key") | not)) | .text' <<<"$plain")
+[[ -z $unnamed ]] || fail "every command in the report is named" "$unnamed"
+pass "every command in the report is named"
+
+[[ $(jq -r '.modules[] | select(.key == "Theme") | .text' <<<"$plain") != *'\e'* ]] ||
+  fail "the report leaves the theme's colour swatch behind"
+pass "the report leaves the theme's colour swatch behind"
+
+# c copies and leaves About open; any other key still closes it.
+eval "$real_tick"
+copy_report() { touch "$tmp_dir/copied"; }
+after=$( tick 1 <<<"c"; wait; echo open )
+[[ -e $tmp_dir/copied ]] || fail "c copies the report"
+pass "c copies the report"
+[[ $after == "open" ]] || fail "c leaves About open"
+pass "c leaves About open"
+
+rm -f "$tmp_dir/copied"
+after=$( tick 1 <<<"q"; wait; echo open ) || true
+[[ -z $after && ! -e $tmp_dir/copied ]] || fail "any other key closes About without copying"
+pass "any other key closes About without copying"
+
+# What lands on the clipboard is what gets pasted into an issue, so run the real
+# copy against About's own config and read back exactly what wl-copy was handed:
+# a fenced block of "Label: value" lines, with nothing a GitHub issue would show
+# as noise. The clipboard itself is left alone, so running the suite never
+# clobbers what the developer had copied.
+eval "$real_copy_report"
+unset -f fastfetch
+clipboard="$tmp_dir/clipboard"
+notified="$tmp_dir/notified"
+wl-copy() { printf '%s\n' "$*" >"$tmp_dir/wl-copy-args"; cat >"$clipboard"; }
+omarchy-notification-send() { printf '%s\n' "$*" >"$notified"; }
+rm -f "$clipboard" "$notified"
+
+copy_report
+[[ -s $clipboard ]] || fail "the report reaches the clipboard"
+pass "the report reaches the clipboard"
+
+[[ $(<"$tmp_dir/wl-copy-args") == "--type text/plain" ]] || fail "the report is copied as plain text" "$(<"$tmp_dir/wl-copy-args")"
+pass "the report is copied as plain text"
+
+mapfile -t pasted <"$clipboard"
+[[ ${pasted[0]} == '```' && ${pasted[-1]} == '```' ]] || fail "the report is fenced for a GitHub issue" "${pasted[0]} … ${pasted[-1]}"
+pass "the report is fenced for a GitHub issue"
+
+# A trailing newline after the fence would paste a stray blank line under it.
+[[ $(tail -c 1 "$clipboard") == '`' ]] || fail "the report ends on its closing fence"
+pass "the report ends on its closing fence"
+
+body=("${pasted[@]:1:${#pasted[@]}-2}")
+(( ${#body[@]} > 0 )) || fail "the report has details inside its fence"
+pass "the report has details inside its fence"
+
+for line in "${body[@]}"; do
+  [[ $line =~ ^[A-Za-z][A-Za-z0-9\ \(\)/._-]*:\ .+ ]] || fail "every report line reads as Label: value" "$line"
+done
+pass "every report line reads as Label: value"
+
+# Colour escapes, box drawing, the theme's swatch dots and Nerd Font glyphs (the
+# private use areas) all turn to noise once pasted.
+if LC_ALL=C.UTF-8 grep -qP '\x1b|[\x{2500}-\x{257F}\x{25CF}\x{E000}-\x{F8FF}\x{F0000}-\x{10FFFF}]' "$clipboard"; then
+  fail "the report is free of escapes, box drawing and glyphs" "$(LC_ALL=C.UTF-8 grep -nP '\x1b|[\x{2500}-\x{257F}\x{25CF}\x{E000}-\x{F8FF}\x{F0000}-\x{10FFFF}]' "$clipboard" | cat -v)"
+fi
+pass "the report is free of escapes, box drawing and glyphs"
+
+# The hint belongs to the screen, not the report.
+! grep -q "Press c" "$clipboard" || fail "the report leaves the on-screen hint behind"
+pass "the report leaves the on-screen hint behind"
+
+# Modules any machine can answer for, so a report missing them lost its lines.
+for label in OS Kernel Memory Uptime; do
+  printf '%s\n' "${body[@]}" | grep -q "^$label: " || fail "the report names $label" "$(<"$clipboard")"
+done
+pass "the report carries the details a bug report needs"
+
+[[ $(<"$notified") == *"copied to clipboard"* ]] || fail "copying says so" "$(<"$notified")"
+pass "copying says so"
+
+# A report fastfetch could not produce copies nothing, rather than an empty fence
+# that pastes as if the details had been there.
+fastfetch() { return 1; }
+rm -f "$clipboard" "$notified"
+copy_report || true
+[[ ! -e $clipboard ]] || fail "a failed report leaves the clipboard alone"
+pass "a failed report leaves the clipboard alone"
+[[ $(<"$notified") == *"-u critical"*"Could not copy"* ]] || fail "a failed report says so" "$(<"$notified")"
+pass "a failed report says so"
