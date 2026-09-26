@@ -79,22 +79,18 @@ unit_runs() {
 # rewrites a loaded gateway service to the copy it has just installed, so
 # seeding beside one would take it over.
 foreign_gateway() {
-  local unit="$HOME/.config/systemd/user/openclaw-gateway.service"
+  local unit
+  unit=$(unit_path gateway)
   [[ -f $unit ]] && ! unit_runs "$unit" "$prefix/" && ! unit_runs "$unit" "/usr/lib/node_modules/openclaw/"
 }
 
 # A service the openclaw package's own copy installed runs from
 # /usr/lib/node_modules/openclaw, which that package no longer ships, and is
 # moved to the runtime, where `openclaw update` can replace its code. A service
-# running any other OpenClaw is the user's arrangement and stays.
-legacy_units() {
-  local role unit
-  for role in gateway node; do
-    unit="$HOME/.config/systemd/user/openclaw-$role.service"
-    if [[ -f $unit ]] && unit_runs "$unit" "/usr/lib/node_modules/openclaw/"; then
-      echo "$role"
-    fi
-  done
+# running any other OpenClaw is the user's arrangement and stays. The --now
+# steps below list these, and which were running, before anything changes.
+unit_path() {
+  echo "$HOME/.config/systemd/user/openclaw-$1.service"
 }
 
 # Stopped before anything is installed: still running the old code from deleted
@@ -102,7 +98,7 @@ legacy_units() {
 # migrate, which upstream's installer does the moment it finds one loaded.
 stop_legacy_services() {
   local role
-  for role in $(legacy_units); do
+  for role in "${moving[@]}"; do
     if ! systemctl --user stop "openclaw-$role.service"; then
       echo "Could not stop the OpenClaw $role service, so OpenClaw was not moved to $prefix." >&2
       return 1
@@ -110,17 +106,34 @@ stop_legacy_services() {
   done
 }
 
-# Installed again from the runtime, upstream rewrites the unit and starts it,
-# unless its installer already did.
+# Not moved yet: still on the old copy, or running before and not now.
+unsettled() {
+  unit_runs "$(unit_path "$1")" "/usr/lib/node_modules/openclaw/" ||
+    { [[ " ${running[*]} " == *" $1 "* ]] && ! systemctl --user is-active --quiet "openclaw-$1.service"; }
+}
+
+# Upstream's installer rewrites a loaded gateway itself, but only warns when
+# the restart fails, so whatever is still unsettled is installed again from the
+# runtime and then has to have settled.
 rehome_services() {
   local role
-  for role in $(legacy_units); do
-    echo "Moving the OpenClaw $role service to $prefix..."
-    if ! "$runtime_command" "$role" install --force; then
-      echo "Could not move the OpenClaw $role service. Finish with: openclaw $role install --force" >&2
+  for role in "${moving[@]}"; do
+    if unsettled "$role"; then
+      echo "Moving the OpenClaw $role service to $prefix..."
+      "$runtime_command" "$role" install --force || true
+    fi
+    if unsettled "$role"; then
+      echo "Could not move the OpenClaw $role service to $prefix. Finish with: openclaw $role install --force" >&2
       return 1
     fi
   done
+}
+
+# Said whenever a failure leaves a service stopped by this run.
+stopped_note() {
+  if (( ${#running[@]} )); then
+    echo "The OpenClaw ${running[*]} service was stopped for this and is not running now." >&2
+  fi
 }
 
 case "$mode" in
@@ -167,15 +180,29 @@ if [[ $seeding == "true" && ( ! -r $seed/install-cli.sh || ! -r $seed/openclaw.t
   exit 1
 fi
 
+# What the old package installed and what of it was running, read before
+# anything changes.
+moving=()
+running=()
+for role in gateway node; do
+  if [[ -f $(unit_path "$role") ]] && unit_runs "$(unit_path "$role")" "/usr/lib/node_modules/openclaw/"; then
+    moving+=("$role")
+    if systemctl --user is-active --quiet "openclaw-$role.service"; then
+      running+=("$role")
+    fi
+  fi
+done
+
 stop_legacy_services
 
 if [[ $seeding == "true" ]]; then
   # Every choice the installer reads from the environment is named, so an
   # OPENCLAW_INSTALL_METHOD or OPENCLAW_PREFIX left in a shell cannot move it.
   echo "Setting up OpenClaw in $prefix..."
-  bash "$seed/install-cli.sh" --install-method npm --prefix "$prefix" --version "$seed/openclaw.tgz" --no-onboard
+  bash "$seed/install-cli.sh" --install-method npm --prefix "$prefix" --version "$seed/openclaw.tgz" --no-onboard || true
   if ! runtime_runs; then
     echo "OpenClaw setup did not complete. Re-run this command after resolving the installer error." >&2
+    stopped_note
     exit 1
   fi
 fi
@@ -183,7 +210,10 @@ fi
 mkdir -p "${command_path%/*}"
 ln -sfn "$runtime_command" "$command_path"
 
-rehome_services
+if ! rehome_services; then
+  stopped_note
+  exit 1
+fi
 
 if ! on_path; then
   echo "$runtime_command is ready, but 'openclaw' on PATH is $(type -P openclaw || echo missing), which is what Omarchy runs." >&2
