@@ -177,6 +177,49 @@ function pickPanelSlot(candidates, focusedScreen) {
   return pickDrawnSlot(pool.map(function(row) { return row.slot }))
 }
 
+// Reposition-drag needs a screen to name the candidate edge. It does not
+// need a mapped xdg-toplevel: an empty desktop is a valid place to grab
+// the bar. Gating on client count left the gesture dead after the last
+// window closed.
+function barMoveEligible(input) {
+  var screens = input && Array.isArray(input.screens) ? input.screens : []
+  return screens.length > 0
+}
+
+// After the strip loses the grab the overlay owns the pointer, but it never
+// saw the original press. Arming at handoff is what lets a release with no
+// further motion finish instead of leaving the ghost up. Escape, a secondary
+// click, or a short handoff timeout abort that same stuck state.
+function barMovePointerAfterHandoff() {
+  return { takePointer: true, armed: true }
+}
+
+function barMoveReleaseAction(armed, buttons) {
+  if ((Number(buttons) || 0) & 1) return "hold"
+  return armed ? "finish" : "ignore"
+}
+
+function barMoveAbortReason(input) {
+  if (!input) return ""
+  if (input.escape === true) return "escape"
+  if (input.secondaryClick === true) return "secondary"
+  if (input.handoffTimedOut === true) return "timeout"
+  return ""
+}
+
+function resolveBarMoveScreen(window, screens, focusedName) {
+  if (window && window.screen) return window.screen
+
+  var outputs = Array.isArray(screens) ? screens : []
+  var focused = String(focusedName || "")
+  if (focused) {
+    for (var i = 0; i < outputs.length; i++) {
+      if (outputs[i] && String(outputs[i].name || "") === focused) return outputs[i]
+    }
+  }
+  return outputs.length > 0 ? outputs[0] : null
+}
+
 // Resolve a pointer anywhere along the bar to the closest insertion edge.
 // Requiring the pointer to sit inside another widget makes the empty space
 // around a centered group a dead zone, even though it visually reads as the
@@ -213,6 +256,11 @@ if (typeof module !== "undefined") {
     isDrawnSlot: isDrawnSlot,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
+    barMoveEligible: barMoveEligible,
+    barMovePointerAfterHandoff: barMovePointerAfterHandoff,
+    barMoveReleaseAction: barMoveReleaseAction,
+    barMoveAbortReason: barMoveAbortReason,
+    resolveBarMoveScreen: resolveBarMoveScreen,
     nearestDropTarget: nearestDropTarget,
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,

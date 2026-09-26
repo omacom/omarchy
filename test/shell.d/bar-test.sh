@@ -30,6 +30,55 @@ if ! perl -0ne 'exit(/onPressAndHold:\s*function[^{]*\{[^}]*?\bpressed\b[^}]*?\b
 fi
 pass "bar move ignores a press-and-hold propagated from a widget above"
 
+# Reposition-drag must stay eligible with zero mapped clients. The bar is a
+# layer surface; requiring an xdg-toplevel made the gesture die on an empty
+# desktop and again after the last window closed.
+if ! perl -0ne 'exit(/function beginBarMove\b[\s\S]*?BarModel\.barMoveEligible\(\{\s*mappedClients:\s*\[\]/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move start must ask eligibility without requiring mapped clients"
+fi
+pass "bar move start asks eligibility without requiring mapped clients"
+
+if ! perl -0ne 'exit(/onCanceled:\s*\{[\s\S]*?\bbarMoveActive\b[\s\S]*?takeBarMovePointer\(\)[\s\S]*?clearBarMove\(\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must hand a lost grab to the overlay instead of aborting"
+fi
+pass "bar move hands a lost grab to the overlay instead of aborting"
+
+# Handoff must arm the pointer. The overlay never saw the original press, so
+# a cancel at the strip edge and a still release would otherwise never finish
+# and leave the ghost mapped. Escape, a secondary click, and a short timeout
+# abort that same stuck state.
+if ! perl -0ne 'exit(/function takeBarMovePointer\b[\s\S]*?barMovePointerAfterHandoff[\s\S]*?barMovePointerArmed\s*=\s*handoff\.armed/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move handoff must arm the pointer so a still release can finish"
+fi
+pass "bar move handoff arms the pointer so a still release can finish"
+
+if ! perl -0ne 'exit(/function abortBarMove\b[\s\S]*?barMoveAbortReason[\s\S]*?clearBarMove\(\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must abort a handed-off gesture that never sees a release"
+fi
+pass "bar move aborts a handed-off gesture that never sees a release"
+
+if ! perl -0ne 'exit(/id: barMoveHandoffAbortTimer[\s\S]*?abortBarMove\("timeout"\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must time out a handed-off gesture that never confirms the button"
+fi
+pass "bar move times out a handed-off gesture that never confirms the button"
+
+if ! perl -0ne 'exit(/Keys\.onEscapePressed:\s*root\.abortBarMove\("escape"\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must abort a handed-off gesture on Escape"
+fi
+pass "bar move aborts a handed-off gesture on Escape"
+
+if ! perl -0ne 'exit(/RightButton[\s\S]*?abortBarMove\("secondary"\)/s ? 0 : 1)' \
+  "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar move must abort a handed-off gesture on a secondary click"
+fi
+pass "bar move aborts a handed-off gesture on a secondary click"
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
@@ -282,6 +331,52 @@ assert(
   /width: root\.vertical \? Style\.space\(2\) : slot\.panelIndicatorExtent/.test(indicator) &&
   /height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(indicator),
   'bar sizes the open-panel mark from the same content hint on both axes'
+)
+
+const emptyDesktop = { mappedClients: [], screens: [{ name: 'eDP-1', width: 1920, height: 1080 }] }
+const occupiedDesktop = { mappedClients: [{ mapped: true }], screens: emptyDesktop.screens }
+assertEqual(bar.barMoveEligible(emptyDesktop), true, 'bar move is eligible with zero mapped clients')
+assertEqual(bar.barMoveEligible(occupiedDesktop), true, 'bar move is eligible with mapped clients')
+assertEqual(bar.barMoveEligible({ mappedClients: [], screens: [] }), false, 'bar move is not eligible without a screen')
+assertEqual(
+  bar.resolveBarMoveScreen(null, emptyDesktop.screens, 'eDP-1'),
+  emptyDesktop.screens[0],
+  'bar move resolves a screen without a layer window or mapped client'
+)
+const windowScreen = { name: 'DP-1' }
+assertEqual(
+  bar.resolveBarMoveScreen({ screen: windowScreen }, emptyDesktop.screens, 'eDP-1'),
+  windowScreen,
+  'bar move prefers the grabbing window screen when it has one'
+)
+assert(
+  /BarModel\.barMoveEligible\(\{\s*mappedClients:\s*\[\],\s*screens: screens \}\)/.test(barSource),
+  'bar move treats mapped clients as irrelevant to eligibility'
+)
+assert(
+  /barMoveTakePointer/.test(barSource) &&
+    /width: root\.barMoveTakePointer && moveGhostWindow\.visible \? moveGhostWindow\.width : 0/.test(barSource),
+  'bar move overlay captures the pointer only after the strip loses the grab'
+)
+assertDeepEqual(
+  bar.barMovePointerAfterHandoff(),
+  { takePointer: true, armed: true },
+  'bar move handoff arms the pointer when it takes it'
+)
+assertEqual(bar.barMoveReleaseAction(true, 0), 'finish', 'an armed handoff finishes when the button is already up')
+assertEqual(bar.barMoveReleaseAction(true, 1), 'hold', 'an armed handoff holds while the left button is down')
+assertEqual(bar.barMoveReleaseAction(false, 0), 'ignore', 'an unarmed pointer with no button does not finish')
+assertEqual(bar.barMoveAbortReason({ escape: true }), 'escape', 'bar move aborts a handed-off gesture on Escape')
+assertEqual(bar.barMoveAbortReason({ secondaryClick: true }), 'secondary', 'bar move aborts a handed-off gesture on a secondary click')
+assertEqual(bar.barMoveAbortReason({ handoffTimedOut: true }), 'timeout', 'bar move aborts a handed-off gesture when the handoff times out')
+assertEqual(bar.barMoveAbortReason({}), '', 'bar move does not abort without an abort signal')
+assert(
+  /function takeBarMovePointer\(\) \{[\s\S]*?BarModel\.barMovePointerAfterHandoff\(\)/.test(barSource),
+  'bar move applies the armed handoff from the model'
+)
+assert(
+  /function abortBarMove\(kind\) \{[\s\S]*?BarModel\.barMoveAbortReason\(/.test(barSource),
+  'bar move routes abort signals through the model'
 )
 
 assertEqual(bar.normalizePosition('left'), 'left', 'bar accepts valid positions')
