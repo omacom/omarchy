@@ -186,15 +186,18 @@ Item {
   }
 
   function runWake() {
+    var wasBlank = root.displaysBlank
     root.displaysBlank = false
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
+    if (wasBlank && lockRequested && fingerprintConfigured && !authenticatingPassword) root.startFingerprint()
   }
 
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
+    fingerprintRetryTimer.stop()
     if (!blankProcess.running) blankProcess.running = true
   }
 
@@ -257,6 +260,7 @@ Item {
 
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (displaysBlank) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
@@ -520,8 +524,8 @@ Item {
         return
       }
       // Only a password check in flight should hold the display up. The
-      // fingerprint PAM stays armed for the whole lock, so gating on
-      // `authenticating` here would keep the panel lit until unlock.
+      // fingerprint reader is paused while the display is blanked and
+      // re-armed on wake, so it never races the blank timer.
       if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
     }
   }
@@ -567,6 +571,16 @@ Item {
       // wallpaper stays frozen until the next keypress.
       root.displaysBlank = false
       root.requestSessionLock()
+
+      // The panel set changed under a lock that may be awake or blanked. Hand
+      // the display back to the normal wake/blank flow instead of leaving the
+      // fingerprint reader off on a lit lock or scanning with the panels off:
+      // fingerprint re-arms (its own guards decide) and the blank timer gets a
+      // fresh run-up so a panel that is still dark re-blanks shortly.
+      if (root.lockRequested) {
+        root.armBlankTimer()
+        if (!root.authenticatingPassword) root.startFingerprint()
+      }
 
       // A monitor still coming up has no workspace, so cannot answer yet.
       strandedLockRetryTimer.rearm()
