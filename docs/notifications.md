@@ -37,6 +37,28 @@ from a dead server generation (ids restart from 1 each shell process), so
 they are keyed by timestamp+id and never matched against live objects — a
 fresh notification reusing an old id must not dismiss or replace them.
 
+## Web app senders
+
+A web app is Chromium running `--app=URL`, so its notifications arrive as
+Chromium's: `app_name` is "Chromium" and `app_icon` is the browser logo. The
+one thing Chromium does reveal is the sending page's origin, which it prepends
+to the body — as a link when the server advertises the body-markup capability,
+as bare text otherwise. The card strips that line from the text it renders,
+and it is also the only clue to which web app the notification came from.
+
+`NotificationLogic.webappFor` matches the origin's host against the user's
+web app launchers: the desktop entries whose command is
+`omarchy-launch-webapp`, which is how `omarchy webapp install` writes them.
+The launchers are read off Quickshell's `DesktopEntries` and their icons
+resolved through `AppLibrary`'s index, so a web app installed while the shell
+runs is matched and drawn without a restart. The card then draws the matching
+launcher's `Icon=` in place of the browser's.
+
+A per-notification image (a chat avatar) still comes first. A host with no
+launcher, or a launcher whose icon name does not resolve, keeps the browser
+icon. And the origin line names only the site, so two launchers on one host
+(two Google accounts) cannot be told apart; the first by name answers for both.
+
 ## Silencing
 
 Do-not-disturb is a single boolean, persisted as the `dnd` key in

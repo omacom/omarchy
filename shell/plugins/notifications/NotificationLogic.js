@@ -89,13 +89,108 @@ function styledBody(body, app, appIcon) {
   return stripImageTags(sanitizeBody(body, app, appIcon).replace(/\r\n|\r|\n/g, "<br/>"))
 }
 
+// Chromium puts the sending page's origin at the head of every web
+// notification's body: as a link when the server advertises body markup (see
+// Service.qml), as bare text otherwise. The card strips it, and it is also
+// the only thing that says which web app a "Chromium" notification came from.
+var CHROMIUM_ORIGIN_LINK = /^\s*<a\b([^>]*)>\s*((?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^<\s]*)?)\s*<\/a>\s*/i
+var CHROMIUM_ORIGIN_TEXT = /^\s*((?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/\S*)?)\s+/i
+
 function sanitizeBody(body, app, appIcon) {
   var text = stripImageTags(String(body || ""))
   if (!isChromiumDerived(app, appIcon)) return text
 
   return text
-    .replace(/^\s*<a\b[^>]*>\s*(?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/[^<\s]*)?\s*<\/a>\s*/i, "")
-    .replace(/^\s*(?:https?:\/\/|www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:\/\S*)?\s+/i, "")
+    .replace(CHROMIUM_ORIGIN_LINK, "")
+    .replace(CHROMIUM_ORIGIN_TEXT, "")
+}
+
+// The origin line Chromium prepended, or "" when the body does not start with
+// one. The link form names the origin twice; the href is the one with a scheme.
+function chromiumOrigin(body, app, appIcon) {
+  if (!isChromiumDerived(app, appIcon)) return ""
+  var text = stripImageTags(String(body || ""))
+
+  var link = CHROMIUM_ORIGIN_LINK.exec(text)
+  if (link) {
+    var href = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(link[1])
+    return (href && (href[1] || href[2] || href[3])) || link[2]
+  }
+
+  var bare = CHROMIUM_ORIGIN_TEXT.exec(text)
+  return bare ? bare[1] : ""
+}
+
+// ---------------------------------------------------- web app launchers
+//
+// A web app is Chromium running --app=URL, so its notifications arrive as
+// Chromium's: app_name "Chromium", app_icon the browser logo. The launcher
+// `omarchy webapp install` wrote for it knows the URL, name and icon the user
+// actually chose, and the origin line (above) is what ties a notification
+// back to that launcher.
+
+// The host a launcher URL and an origin line can agree on, or "" when the
+// URL has none: lower-cased, a leading www. dropped (a launcher written as
+// youtube.com notifies from www.youtube.com), and the scheme's default port
+// dropped. Chromium's origin line never carries a path, so the path is not
+// part of the key.
+function hostOf(url) {
+  var parts = /^(?:([a-z][a-z0-9+.-]*):\/\/)?([^\/?#]+)/i.exec(String(url || "").trim())
+  if (!parts) return ""
+  var scheme = String(parts[1] || "").toLowerCase()
+  var host = parts[2].toLowerCase().replace(/^www\./, "")
+  if (scheme === "https" && host.slice(-4) === ":443") host = host.slice(0, -4)
+  if (scheme === "http" && host.slice(-3) === ":80") host = host.slice(0, -3)
+  return host
+}
+
+// The web app launchers among a set of desktop entries (DesktopEntries
+// values, or anything with the same name/icon/command shape): those whose
+// command is omarchy-launch-webapp with a URL, which is how
+// `omarchy webapp install` writes them. resolveIcon turns a launcher's Icon=
+// into an image source the card can draw; "" means it did not resolve.
+//
+// Sorted by name: DesktopEntries hands its values back in hash order, which
+// can change between rescans, and two launchers on one host (two Google
+// accounts) cannot be told apart by an origin line, so the pick between
+// them has to at least be the same pick every time.
+function webappLaunchers(entries, resolveIcon) {
+  var out = []
+  var list = entries || []
+  for (var i = 0; i < list.length; i++) {
+    var entry = list[i]
+    var command = entry && entry.command
+    if (!command || command.length < 2) continue
+    if (String(command[0]).split("/").pop() !== "omarchy-launch-webapp") continue
+    var host = hostOf(command[1])
+    if (!host) continue
+    var icon = String(entry.icon || "")
+    out.push({
+      name: String(entry.name || ""),
+      id: String(entry.id || ""),
+      icon: icon,
+      iconSource: resolveIcon ? String(resolveIcon(icon) || "") : "",
+      host: host
+    })
+  }
+  out.sort(function(a, b) {
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  })
+  return out
+}
+
+// The launcher of the web app a notification came from, or null: for one
+// that is not Chromium's, carries no origin line, or names a host no
+// launcher was installed for. Launchers sharing a host are indistinguishable
+// (see webappLaunchers), so the first by name answers for all of them.
+function webappFor(body, app, appIcon, launchers) {
+  var host = hostOf(chromiumOrigin(body, app, appIcon))
+  if (!host) return null
+  var list = launchers || []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].host === host) return list[i]
+  }
+  return null
 }
 
 function summaryStartsWithGlyph(summary) {
@@ -451,6 +546,9 @@ if (typeof module !== "undefined") {
     isChromiumDerived: isChromiumDerived,
     sanitizeBody: sanitizeBody,
     styledBody: styledBody,
+    chromiumOrigin: chromiumOrigin,
+    webappLaunchers: webappLaunchers,
+    webappFor: webappFor,
     summaryStartsWithGlyph: summaryStartsWithGlyph,
     shouldBypassDnd: shouldBypassDnd,
     isEphemeralApp: isEphemeralApp,
