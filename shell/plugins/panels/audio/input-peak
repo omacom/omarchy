@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Streams the peak level of a PipeWire source to stdout, one line per window,
+# as a plain sample magnitude: 0..1, or above if the source is boosted past
+# unity. Used by InputMeter.qml for sources that Quickshell's built-in
+# PwNodePeakMonitor cannot meter.
+#
+#   input-peak <node.name> [channels]
+#
+# pw-record captures the source at a low rate, od turns the raw f32 samples
+# into one number per line, and awk keeps the largest magnitude seen in each
+# window, across all channels. Everything downstream of pw-record is
+# coreutils; there is nothing to install.
+#
+# The pipeline runs as its own process group so that it can be torn down
+# as a unit when omarchy-shell stops this script. Killing only the shell
+# would leave pw-record capturing for as long as the source stays quiet.
+
+set -uo pipefail
+
+target="${1:?usage: input-peak <node.name> [channels]}"
+channels="${2:-2}"
+rate=16000
+window_ms=40
+
+(( channels >= 1 )) || channels=1
+window_frames=$(( rate * window_ms / 1000 ))
+window_samples=$(( window_frames * channels ))
+
+set -m
+
+pw-record \
+  --target "$target" \
+  --format f32 \
+  --rate "$rate" \
+  --channels "$channels" \
+  --latency "$window_frames/$rate" \
+  - 2>/dev/null |
+  od -An -tf4 -w4 -v |
+  awk -v samples="$window_samples" '
+    {
+      v = ($1 < 0) ? -$1 : $1
+      if (v > peak) peak = v
+      if (++count >= samples) {
+        printf "%.5f\n", peak
+        fflush()
+        peak = 0
+        count = 0
+      }
+    }' &
+
+group=$(jobs -p)
+trap 'kill -TERM -- "-$group" 2>/dev/null' EXIT
+trap 'exit 143' TERM INT
+
+wait
