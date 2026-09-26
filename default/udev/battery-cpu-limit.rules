@@ -1,0 +1,8 @@
+# A big parallel build on battery can spike an Intel CPU past what the battery
+# sustains alone: the voltage droops until the BMS cuts all power (a hard
+# shutdown with nothing in the journal). power-saver only hints EPP, it never
+# caps frequency or package power, so cap the package while discharging and
+# restore the AC policy when the charger returns. add covers boot (fired by
+# systemd-udev-trigger), change covers plug/unplug. The helper exits quietly
+# on machines without Intel RAPL or without a battery.
+SUBSYSTEM=="power_supply", ATTR{type}=="Mains", ACTION=="add|change", RUN+="/usr/bin/omarchy-battery-cpu-limit $attr{online}"
