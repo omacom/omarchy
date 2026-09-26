@@ -13,7 +13,10 @@ exit_screensaver() {
   exit 0
 }
 
-# Exit the screensaver on signals and input from keyboard and mouse
+# Exit the screensaver on signals and tty input. Bare Ctrl never delivers a
+# tty byte (issue #10583); Hyprland binds Control_L/R (press, non_consuming) to
+# SIGHUP while an org.omarchy.screensaver window is open
+# (default/hypr/bindings/utilities.lua).
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
 
 printf '\033]11;rgb:00/00/00\007'  # Set background color to black
