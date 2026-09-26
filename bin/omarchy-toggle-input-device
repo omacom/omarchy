@@ -20,11 +20,12 @@ case "$KIND" in
     ;;
 esac
 
-# The persisted disable is the device name stored as plain data; on every
-# reload default/hypr/disabled-input-device.lua reads it back and disables the
-# device. Names come from USB descriptors and must not be interpolated into
-# shell or Lua. The path is hardcoded to ~/.local/state like the sibling
-# toggle tools, so it keeps working when XDG_STATE_HOME diverges.
+# The persisted disable is one device name per line; on every reload
+# default/hypr/disabled-input-device.lua reads them back and disables each.
+# A touchpad line may be followed by its -mouse sibling. Names come from USB
+# descriptors and must not be interpolated into shell or Lua. The path is
+# hardcoded to ~/.local/state like the sibling toggle tools, so it keeps
+# working when XDG_STATE_HOME diverges.
 NAME_FILE="$HOME/.local/state/omarchy/toggles/hypr/$KIND-disabled-name"
 
 device="$("omarchy-hw-$KIND")"
@@ -41,27 +42,79 @@ require_device() {
   fi
 }
 
+# Precision touchpads often expose a kernel mouse-emulation node next to the
+# -touchpad node (msft0001:00-093a:0255-mouse). Toggling only the touchpad
+# leaves that sibling enabled and desyncs finger tracking.
+#
+# The sibling is chosen by name. On some touchpad-plus-pointing-stick
+# controllers the stick's events share that -mouse node, and udev's
+# pointing-stick tag does not separate them for I2C *Mouse nodes. Turning the
+# touchpad off then turns the stick off as well, until the touchpad is turned
+# back on. A failed `hyprctl devices` query skips the sibling instead of guessing.
+related_devices() {
+  local primary=$1
+  printf '%s\n' "$primary"
+  [[ $KIND == touchpad ]] || return 0
+  [[ $primary =~ ^(.*)-(touchpad|trackpad)$ ]] || return 0
+
+  local sibling="${BASH_REMATCH[1]}-mouse"
+  [[ $sibling != "$primary" ]] || return 0
+  [[ $sibling != *[[:cntrl:]]* ]] || return 0
+
+  local json
+  json=$(hyprctl devices -j 2>/dev/null) || return 0
+  [[ -n $json ]] || return 0
+  jq -e --arg n "$sibling" '.mice[]? | select(.name == $n)' >/dev/null <<<"$json" || return 0
+  printf '%s\n' "$sibling"
+}
+
 apply_device() {
   local enabled=$1
-  local quoted=${device//\\/\\\\}
+  local name=$2
+  local quoted=${name//\\/\\\\}
   quoted=${quoted//\"/\\\"}
   hyprctl eval "hl.device({ name = \"$quoted\", enabled = $enabled })" >/dev/null
 }
 
+apply_devices() {
+  local enabled=$1
+  local name
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    apply_device "$enabled" "$name"
+  done
+}
+
 enable() {
+  # Read the saved names before deleting them. `on` must re-enable the sibling
+  # that `off` persisted even when a later `hyprctl devices` query fails and
+  # related_devices can no longer see it.
+  local saved=""
+  [[ -f $NAME_FILE ]] && saved=$(<"$NAME_FILE")
   # Clear the persisted state before requiring a usable device, so a device
   # that stops reporting a valid name can never wedge the disable in place.
   rm -f "$NAME_FILE"
   require_device
-  apply_device true
+
+  local -A seen=()
+  local name
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    [[ -n ${seen[$name]:-} ]] && continue
+    seen[$name]=1
+    apply_device true "$name"
+  done < <(printf '%s\n' "$saved"; related_devices "$device")
+
   omarchy-osd -i "$ICON" -m "$LABEL enabled"
 }
 
 disable() {
   require_device
-  apply_device false
+  local names
+  names=$(related_devices "$device")
+  apply_devices false <<<"$names"
   mkdir -p "$(dirname "$NAME_FILE")"
-  printf '%s\n' "$device" >"$NAME_FILE"
+  printf '%s\n' "$names" >"$NAME_FILE"
   omarchy-osd -i "$ICON" -m "$LABEL disabled"
 }
 

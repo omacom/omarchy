@@ -1,5 +1,7 @@
--- Disable a Hyprland input device whose name was stored as data, not Lua.
--- Device names come from USB descriptors and must never be loaded as code.
+-- Disable Hyprland input devices whose names were stored as data, not Lua.
+-- One name per line. A touchpad disable may list the touchpad and its
+-- -mouse sibling. Device names come from USB descriptors and must never be
+-- loaded as code.
 
 local paths = require("default.hypr.paths")
 
@@ -12,10 +14,10 @@ return function(kind)
     return
   end
 
-  local name = file:read("*l")
-  file:close()
-
-  if name and name ~= "" then
-    hl.device({ name = name, enabled = false })
+  for name in file:lines() do
+    if name and name ~= "" then
+      hl.device({ name = name, enabled = false })
+    end
   end
+  file:close()
 end
