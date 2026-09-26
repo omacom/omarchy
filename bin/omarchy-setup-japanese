@@ -1,0 +1,126 @@
+#!/bin/bash
+
+# omarchy:summary=Set up Japanese input with Mozc
+
+set -e
+
+fcitx_dir="$HOME/.config/fcitx5"
+
+# The X11 layout picked at install time, which Hyprland also reads (see
+# default/hypr/keyboard.lua). Only the leading layout counts, as in Hyprland.
+x11_setting() {
+  localectl status 2>/dev/null | sed -n "s/^[[:space:]]*X11 $1: //p" | cut -d, -f1
+}
+
+# Set key=value under [section] in an fcitx5 config file, keeping everything
+# else the user has set there.
+fcitx_config_set() {
+  local file="$1" section="$2" key="$3" value="$4"
+
+  mkdir -p "${file%/*}"
+  touch "$file"
+  awk -v section="[$section]" -v key="$key" -v value="$value" '
+    function flush() {
+      if (in_section && !done) {
+        print key "=" value
+        done = 1
+      }
+    }
+    $0 == section { in_section = 1; print; next }
+    /^\[/ { flush(); in_section = 0; print; next }
+    in_section && index($0, key "=") == 1 {
+      if (!done) print key "=" value
+      done = 1
+      next
+    }
+    { print }
+    END {
+      flush()
+      if (!done) {
+        if (NR) print ""
+        print section
+        print key "=" value
+      }
+    }
+  ' "$file" >"$file.tmp"
+  mv "$file.tmp" "$file"
+}
+
+# fcitx5 writes its profile back out when it exits, so it has to be down while
+# we edit, or it would put back the input methods it started with.
+stop_fcitx5() {
+  systemctl --user stop omarchy-fcitx5.service
+  pkill -x fcitx5 >/dev/null 2>&1 || true
+}
+
+start_fcitx5() {
+  systemctl --user start omarchy-fcitx5.service
+}
+
+# fcitx5 forwards keys through its own keymap while an input method is on, so
+# the group has to use the same layout as the desktop.
+setup_input_method() {
+  local profile="$fcitx_dir/profile"
+  local layout variant group_layout
+
+  layout=$(x11_setting Layout)
+  variant=$(x11_setting Variant)
+  group_layout=${layout:-us}
+  if [[ -n $variant ]]; then
+    group_layout="$group_layout-$variant"
+  fi
+
+  if [[ -f $profile ]] && grep -qx "Name=mozc" "$profile"; then
+    echo "Mozc is already one of your input methods."
+    return
+  fi
+
+  if [[ -f $profile ]]; then
+    cp "$profile" "$profile.bak.$(date +%s)"
+  fi
+
+  mkdir -p "$fcitx_dir"
+  cat >"$profile" <<EOF
+[Groups/0]
+# Group Name
+Name=Default
+# Layout
+Default Layout=$group_layout
+# Default Input Method
+DefaultIM=mozc
+
+[Groups/0/Items/0]
+# Name
+Name=keyboard-$group_layout
+# Layout
+Layout=
+
+[Groups/0/Items/1]
+# Name
+Name=mozc
+# Layout
+Layout=
+
+[GroupOrder]
+0=Default
+EOF
+
+  echo "Added Mozc after keyboard-$group_layout in your input methods."
+}
+
+echo "Installing Mozc..."
+omarchy-pkg-add fcitx5-mozc fcitx5-configtool
+
+stop_fcitx5
+setup_input_method
+
+# Keep Japanese input on when switching windows. The default resets every
+# window to direct input on focus, so moving back to a chat or editor drops out
+# of Japanese mid-conversation.
+fcitx_config_set "$fcitx_dir/config" "Behavior" "resetStateWhenFocusIn" "No"
+
+start_fcitx5
+
+echo
+echo "Japanese input is ready. Toggle it with Ctrl + Space."
+echo "Change input methods and hotkeys with fcitx5-configtool."
