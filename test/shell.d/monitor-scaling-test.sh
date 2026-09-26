@@ -29,6 +29,19 @@ fi
 SH
 chmod +x "$stub_bin/hyprctl"
 
+# The command under test uses GNU `sed -i`; BSD sed wants `sed -i ''`.
+if ! sed --version >/dev/null 2>&1; then
+  real_sed=$(command -v sed)
+  cat >"$stub_bin/sed" <<SH
+#!/bin/bash
+if [[ \$1 == "-i" && \$2 == "-E" ]]; then
+  exec "$real_sed" -i "" -E "\${@:3}"
+fi
+exec "$real_sed" "\$@"
+SH
+  chmod +x "$stub_bin/sed"
+fi
+
 write_monitor_config() {
   cat >"$monitor_lua" <<'LUA'
 local omarchy_gdk_scale = 2
@@ -112,10 +125,41 @@ OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITO
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling down reaches approximated 3.2x"
 pass "monitor scaling down reaches approximated 3.2x"
 
+# 1.175 is the nearest clean scale to 1.25 on this mode, and it is below the
+# request. Rounding upward only sent 1.33333 instead -- a scale Hyprland would
+# not have chosen for itself.
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=6016 OMARCHY_TEST_MONITOR_HEIGHT=3384 run_scaling 1.25
-grep -F 'scale = 1.33333' "$eval_out" >/dev/null || fail "monitor scaling approximates explicit 1.25x"
+grep -F 'scale = 1.175' "$eval_out" >/dev/null || fail "monitor scaling approximates explicit 1.25x"
 pass "monitor scaling approximates explicit 1.25x"
+
+# What reaches hyprctl is what the panel labelled, so the two have to agree on
+# every preset. shell/plugins/panels/monitor/Model.js is the label; this is the
+# value applied.
+for mode in "1366 768 1.25 1" "2256 1504 1.25 1.175" "3024 1964 1.6 1.33333" "1920 1080 1.75 1.66667"; do
+  set -- $mode
+  write_monitor_config
+  : >"$eval_out"
+  OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=$1 OMARCHY_TEST_MONITOR_HEIGHT=$2 run_scaling "$3"
+  grep -F "scale = $4" "$eval_out" >/dev/null ||
+    fail "monitor scaling applies the scale Hyprland picks on ${1}x${2}" \
+      "requested $3, wanted $4, got $(cat "$eval_out")"
+done
+pass "monitor scaling applies the scale Hyprland picks, including below the request"
+
+# Hyprland gives up after 89 steps rather than reaching further, falling back to
+# the display default. Applying something unrelated to the request instead would
+# move the display somewhere nobody asked for.
+write_monitor_config
+: >"$eval_out"
+if OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1366 OMARCHY_TEST_MONITOR_HEIGHT=768 \
+  run_scaling 3 2>/dev/null; then
+  fail "monitor scaling refuses a request this mode cannot reach"
+fi
+[[ ! -s $eval_out ]] || fail "monitor scaling applies nothing when it refuses" "$(cat "$eval_out")"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves the persisted scale alone when it refuses"
+pass "monitor scaling refuses a request no clean scale is near"
 
 write_monitor_config
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling 3.2
@@ -129,3 +173,95 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+# Named per-output rules override the catch-all. Persist to the focused
+# output's rule so the clamshell poller does not revert the live eval, and
+# leave every other output's scale alone.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 2
+local omarchy_monitor_scale = 2
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 2 })
+hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up
+grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling applies named-rule 3x via hyprctl eval"
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 3 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists 3x on the focused output's named rule"
+grep -Fx 'hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves an unrelated output's named rule unchanged"
+grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves the catch-all variable alone when a named rule is updated"
+grep -Fx 'local omarchy_gdk_scale = 3' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists GDK scale alongside a named rule"
+pass "monitor scaling persists to the focused output's named rule"
+
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({
+    output = "eDP-1",
+    mode = "2880x1800@120.0",
+    position = "0x0",
+    scale = 2
+})
+hl.monitor({
+    output = "HDMI-A-1",
+    mode = "2560x1440@144.0",
+    position = "2880x0",
+    scale = 1
+})
+LUA
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
+grep -F 'scale = 1.6' "$eval_out" >/dev/null || fail "monitor scaling applies multi-line 1.6x via hyprctl eval"
+grep -Fx '    scale = 1.6' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists 1.6x on a multi-line nwg-displays eDP-1 rule"
+grep -Fx '    scale = 1' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves a multi-line HDMI-A-1 rule unchanged"
+grep -Fx '    output = "HDMI-A-1",' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling keeps the unrelated HDMI-A-1 block"
+pass "monitor scaling persists to a multi-line nwg-displays named rule"
+
+# No named rule and no generic default: append one for this output rather
+# than silently leaving the live eval to be undone.
+cat >"$monitor_lua" <<'LUA'
+hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
+grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling applies appended-rule 3x via hyprctl eval"
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 3 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling appends a named rule when none matches the focused output"
+grep -Fx 'hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves an existing unrelated rule in place when appending"
+pass "monitor scaling appends a named rule when none matches"
+
+# Symlinked monitors.lua must stay a link to the same target after persist
+# (GNU sed -i without --follow-symlinks replaces the symlink with a file).
+dotfiles_lua="$test_tmp/dotfiles/monitors.lua"
+mkdir -p "$(dirname "$dotfiles_lua")"
+write_monitor_config
+mv "$monitor_lua" "$dotfiles_lua"
+ln -s "$dotfiles_lua" "$monitor_lua"
+[[ -L $monitor_lua ]] || fail "fixture monitors.lua should be a symlink"
+pre_target=$(readlink "$monitor_lua")
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
+[[ -L $monitor_lua ]] || fail "set_scale must leave monitors.lua as a symlink"
+[[ $(readlink "$monitor_lua") == "$pre_target" ]] ||
+  fail "set_scale must keep the same symlink target"
+grep -Fx 'local omarchy_monitor_scale = 3' "$dotfiles_lua" >/dev/null ||
+  fail "set_scale must update the symlink target content"
+pass "monitor scaling preserves symlinked monitors.lua"
+
+# Named-rule updates must also write through the symlink (not replace it).
+dotfiles_named="$test_tmp/dotfiles/named-monitors.lua"
+mkdir -p "$(dirname "$dotfiles_named")"
+cat >"$dotfiles_named" <<'LUA'
+hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 2 })
+LUA
+rm -f "$monitor_lua"
+ln -s "$dotfiles_named" "$monitor_lua"
+pre_target=$(readlink "$monitor_lua")
+OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
+[[ -L $monitor_lua ]] || fail "named-rule persist must leave monitors.lua as a symlink"
+[[ $(readlink "$monitor_lua") == "$pre_target" ]] ||
+  fail "named-rule persist must keep the same symlink target"
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 1.6 })' "$dotfiles_named" >/dev/null ||
+  fail "named-rule persist must update the symlink target content"
+pass "monitor scaling preserves symlinked monitors.lua for named rules"

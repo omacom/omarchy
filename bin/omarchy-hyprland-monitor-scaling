@@ -54,21 +54,146 @@ audit_scale_change() {
 
 # Hyprland only accepts scales where the mode divides into whole logical
 # pixels (in 1/120 steps), so clean scales are divisors of gcd(w*120, h*120).
-# Round the requested scale up to the nearest clean value.
+#
+# This value is what reaches the compositor -- set_scale sends it rather than
+# the request -- so it has to be the scale Hyprland would have picked itself.
+# Hyprland steps outward from the rounded request, one up and one down at each
+# distance, for 89 steps, and gives up rather than reaching further
+# (CMonitor::applyMonitorRule). Rounding upward only, and without that bound,
+# sent it somewhere else entirely: a 1366x768 panel asked for 1.25 was rewritten
+# to 2 before Hyprland ever saw the request, where Hyprland itself applies 1.
+#
+# Prints nothing and fails when no clean scale is near enough, so a caller
+# cannot apply a scale that has no relation to what was asked for.
 clean_scale() {
   awk -v scale="$1" -v width="$2" -v height="$3" '
     function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
     BEGIN {
       g = gcd(width * 120, height * 120)
       k = int(scale * 120 + 0.5)
-      if (k > g) k = g
-      while (g % k != 0) k++
-      printf "%g\n", k / 120
+      if (k > 0 && g % k == 0) { printf "%g\n", k / 120; exit 0 }
+      for (i = 1; i < 90; i++) {
+        if (g % (k + i) == 0) { printf "%g\n", (k + i) / 120; exit 0 }
+        if (k - i > 0 && g % (k - i) == 0) { printf "%g\n", (k - i) / 120; exit 0 }
+      }
+      exit 1
     }'
 }
 
 normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
+}
+
+persist_gdk_scale() {
+  local gdk_scale="$1"
+  local file="$2"
+
+  # --follow-symlinks: GNU sed -i otherwise replaces a symlink with a regular
+  # file (stow/dotfiles setups keep monitors.lua linked into a repo).
+  sed --follow-symlinks -i -E \
+    -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
+    -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
+    "$file"
+}
+
+# Rewrite `scale = ...` inside the hl.monitor entry naming this output,
+# whether that entry is one line or the multi-line form nwg-displays writes.
+# Succeeds only when such an entry was found. Commented-out examples and
+# rules for other outputs are left alone.
+update_named_monitor_scale() {
+  local monitor="$1"
+  local scale="$2"
+  local file="$3"
+  local target=$file
+  local tmp
+
+  # Write through a symlink rather than replacing it (stow/dotfiles setups).
+  if [[ -L $file ]]; then
+    target=$(readlink -f -- "$file") || return 1
+  fi
+  tmp="${target}.omarchy-scale.$$"
+
+  if awk -v monitor="$monitor" -v scale="$scale" '
+    function strip_comment(s) {
+      sub(/--.*/, "", s)
+      return s
+    }
+    function has_named_output(buf, name,    n, i, lines, line, stripped) {
+      n = split(buf, lines, "\n")
+      stripped = ""
+      for (i = 1; i <= n; i++) {
+        line = strip_comment(lines[i])
+        stripped = stripped line "\n"
+      }
+      return (index(stripped, "output = \"" name "\"") || index(stripped, "output=\"" name "\""))
+    }
+    function replace_scale(buf, value,    n, i, lines, line, out, found, last_brace, pos, c, after, end, sep) {
+      n = split(buf, lines, "\n")
+      out = ""
+      found = 0
+      for (i = 1; i <= n; i++) {
+        line = lines[i]
+        if (!found && line !~ /^[[:space:]]*--/ && match(line, /scale[[:space:]]*=[[:space:]]*("[^"]*"|[^,;})[:space:]]+)/)) {
+          after = substr(line, RSTART + RLENGTH)
+          if (after ~ /^[[:space:]]*([,;})]|$)/) {
+            line = substr(line, 1, RSTART - 1) "scale = " value substr(line, RSTART + RLENGTH)
+            found = 1
+          }
+        }
+        if (i == 1)
+          out = line
+        else
+          out = out "\n" line
+      }
+      if (found) {
+        buffer = out
+        return 1
+      }
+      last_brace = 0
+      for (pos = 1; pos <= length(buf); pos++) {
+        c = substr(buf, pos, 1)
+        if (c == "}") last_brace = pos
+      }
+      if (last_brace == 0) return 0
+      end = last_brace - 1
+      while (end > 0 && substr(buf, end, 1) ~ /[[:space:]]/) end--
+      sep = ", "
+      c = substr(buf, end, 1)
+      if (c == "," || c == "{") sep = " "
+      buffer = substr(buf, 1, end) sep "scale = " value substr(buf, end + 1)
+      return 1
+    }
+    {
+      if (depth == 0) {
+        if ($0 ~ /^[[:space:]]*--/ || $0 !~ /hl\.monitor\(/) {
+          print
+          next
+        }
+      }
+      buffer = buffer $0 "\n"
+      line = $0
+      depth += gsub(/\{/, "{", line)
+      depth -= gsub(/\}/, "}", line)
+      if (depth < 0) depth = 0
+      if (depth > 0) next
+      if (buffer ~ /hl\.monitor\(/ && has_named_output(buffer, monitor)) {
+        if (replace_scale(buffer, scale)) changed = 1
+      }
+      printf "%s", buffer
+      buffer = ""
+    }
+    END {
+      printf "%s", buffer
+      exit changed ? 0 : 1
+    }
+  ' "$file" >"$tmp"; then
+    cat "$tmp" >"$file"
+    rm -f "$tmp"
+    return 0
+  else
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 set_scale() {
@@ -88,7 +213,11 @@ set_scale() {
     exit 1
   fi
 
-  local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
+  local new_scale
+  new_scale="$(clean_scale "$requested_scale" "$width" "$height")" || {
+    echo "No scale near $requested_scale divides ${width}x${height} into whole pixels." >&2
+    return 1
+  }
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
@@ -97,18 +226,36 @@ set_scale() {
   hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
-    sed -i -E \
+  [[ -f $monitor_lua ]] || return 0
+
+  # A named hl.monitor rule for this output overrides the catch-all, so it
+  # must be updated in place. Writing only the generic default leaves that
+  # rule stale, and omarchy-hyprland-monitor-watch's docked poller re-applies
+  # the stale file scale every ~2s.
+  # --follow-symlinks: GNU sed -i otherwise replaces a symlink with a regular
+  # file (stow/dotfiles setups keep monitors.lua linked into a repo).
+  if update_named_monitor_scale "$active_monitor" "$new_scale" "$monitor_lua"; then
+    persist_gdk_scale "$new_gdk_scale" "$monitor_lua"
+  elif grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
+    sed --follow-symlinks -i -E \
       -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
       -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
       "$monitor_lua"
-  elif [[ -f $monitor_lua ]] && grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
-    sed -i -E \
+  elif grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$monitor_lua"; then
+    sed --follow-symlinks -i -E \
       -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
       -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
       "$monitor_lua"
+  else
+    # No named rule and no generic default matched. Appending a named rule is
+    # the safe persist: Hyprland's named output rules override a catch-all
+    # regardless of order, so other monitors keep whatever they already have.
+    # Rewriting a catch-all we failed to recognize would retarget every
+    # unpinned output; leaving the file untouched lets the 2s poller undo the
+    # live eval we just applied.
+    printf '\nhl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = %s })\n' \
+      "$active_monitor" "$new_scale" >>"$monitor_lua"
+    persist_gdk_scale "$new_gdk_scale" "$monitor_lua"
   fi
 }
 
@@ -119,12 +266,18 @@ scale_from_current() {
 
   awk -v direction="$direction" -v list="${SCALES[*]}" -v width="$width" -v height="$height" '
     function gcd(a, b, t) { while (b) { t = a % b; a = b; b = t } return a }
-    function clean(scale,    g, k) {
+    # Same search as clean_scale above, and for the same reason: a preset that
+    # steps to a scale the compositor would not have chosen is not a step the
+    # user can see. Returns 0 for a preset this mode cannot reach at all.
+    function clean(scale,    g, k, i) {
       g = gcd(width * 120, height * 120)
       k = int(scale * 120 + 0.5)
-      if (k > g) k = g
-      while (g % k != 0) k++
-      return k / 120
+      if (k > 0 && g % k == 0) return k / 120
+      for (i = 1; i < 90; i++) {
+        if (g % (k + i) == 0) return (k + i) / 120
+        if (k - i > 0 && g % (k - i) == 0) return (k - i) / 120
+      }
+      return 0
     }
     NR == 1 { scale = $0; found = 1 }
     END {
@@ -133,6 +286,7 @@ scale_from_current() {
       preset_count = split(list, presets, " ")
       for (i = 1; i <= preset_count; i++) {
         effective = clean(presets[i])
+        if (effective == 0) continue
         key = sprintf("%.8f", effective)
         distance = presets[i] - effective
         if (distance < 0) distance = -distance
@@ -152,6 +306,9 @@ scale_from_current() {
           }
         }
       }
+
+      # Every preset was unreachable on this mode, so there is no step to take.
+      if (n == 0) exit 1
 
       # Snap to the nearest effective scale first. Hyprland reports floating
       # point values, so exact comparisons can otherwise get stuck.
