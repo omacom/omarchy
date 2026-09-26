@@ -39,7 +39,7 @@ function normalizeItem(id, raw) {
   }
 }
 
-function parseMenuJsonc(raw) {
+function parseMenuJsonc(raw, normalize) {
   var stripped = stripJsonc(raw)
   if (!stripped.trim()) return []
 
@@ -58,11 +58,29 @@ function parseMenuJsonc(raw) {
   for (var id in source) {
     var entry = source[id]
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue
-    out.push(normalizeItem(id, entry))
+    // Fill defaults only when asked. The live menu parses sources raw and
+    // normalizes once after merge, so an extension that sets `action` does
+    // not wipe the shipped icon/label/when with empty placeholders.
+    // Pin `id` after the copy: an `id` field inside the entry must not
+    // replace the object key, or the override lands on a stray row.
+    if (normalize === false) {
+      var item = {}
+      for (var k in entry) {
+        if (Object.prototype.hasOwnProperty.call(entry, k)) item[k] = entry[k]
+      }
+      item.id = id
+      out.push(item)
+    } else {
+      out.push(normalizeItem(id, entry))
+    }
   }
   return out
 }
 
+// Overlay user entries onto the shipped ones per id, then normalize once.
+// Callers must pass un-normalized items (`parseMenuJsonc(raw, false)`):
+// normalizeItem fills omitted fields with empty strings, and those would
+// overwrite the shipped values this merge is meant to keep.
 function mergeMenuSources(defaultItems, userItems) {
   var nextItems = ({})
   var nextOrder = []
@@ -87,7 +105,11 @@ function mergeMenuSources(defaultItems, userItems) {
     nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: "Go", title: "", target: "", description: "", aliases: [], when: "", checked: "", disabled: "", action: "", provider: "" }
     nextOrder.unshift("root")
   }
-  for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
+  for (var k3 = 0; k3 < nextOrder.length; k3++) {
+    var normalized = normalizeItem(nextOrder[k3], nextItems[nextOrder[k3]])
+    normalized.order = k3
+    nextItems[nextOrder[k3]] = normalized
+  }
 
   return {
     items: nextItems,

@@ -56,7 +56,7 @@ The Omarchy menu (`Super + Space`) can be extended with your own rows by editing
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Reuse an existing id and you override that row instead of adding a new one. The file ships with all the available fields documented as comments.
+Reuse an existing id and you override that row instead of adding a new one. Only the fields you write are replaced — omit a field to keep the shipped value, or set it to `""` to clear it. The file ships with all the available fields documented as comments.
 
 ### Adding your own shell exports, functions, and aliases
 
