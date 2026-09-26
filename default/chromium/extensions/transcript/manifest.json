@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Download Transcript",
+  "version": "1.0",
+  "description": "Download the current page's transcript, this extension is installed by Omarchy",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA11yWxQQzda67CnY+wzFgm5z8Pyhlzl1H/uNwDM4uv4NRSwqP80gZO23hmFH/6Bgnrf78Q7aLmeANMYjjknPNodnz3WB+m4Eq3L8+nLr9CemqGFVxKf35ZJdhpVhujOrrGBx1lIdd1zTwzahxop+tGpvlGUu5EEm1ssDfrWeu/CfKP7O9NeEh2D9JiY8Nl9IertV9hql/HEZkJSqzDqDZhy1NNdpiCyPQe7Fu739MJCz5uA5QWvYdopkToVlphWR/joseQJRVU4mJbcwytknVVinOewlOETVBEd4QtR4stOWzMe7t8KcNGnRm1nA9hiEQeFXuzbme5CJ3emLm9zcRYQIDAQAB",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "nativeMessaging"
+  ],
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "action": {
+    "default_title": "Download Transcript"
+  },
+  "commands": {
+    "download-transcript": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Download Transcript"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
