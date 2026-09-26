@@ -1340,13 +1340,23 @@ ShellRoot {
         }
         onStatusChanged: {
           if (status === Loader.Error) {
-            // Loader.errorString() reflects the source-load failure even when
-            // sourceComponent is null. Surface both so the user sees something
-            // actionable instead of a panel that silently refuses to open.
-            var detail = errorString && errorString() ? errorString() : ""
+            // Loader has no errorString(), so referencing it bare throws a
+            // ReferenceError that aborts this handler: no warning is logged and
+            // hide() below never runs. Probe it defensively and fall back to the
+            // component, so the user sees something actionable instead of a
+            // panel that silently refuses to open.
+            var detail = typeof errorString === "function" && errorString()
+              ? errorString() : ""
             if (!detail && sourceComponent) detail = sourceComponent.errorString()
-            console.warn("panel plugin " + panelEntry.pluginId + " failed to load:", detail)
-            shell.hide(panelEntry.pluginId)
+            // An object-creation failure (e.g. an unset required property)
+            // keeps its errors on the incubator, so name the source at least.
+            console.warn("panel plugin " + panelEntry.pluginId + " failed to load:",
+              detail || panelEntry.sourceUrl)
+            // Hiding synchronously rewrites openPanelIds while the active
+            // binding is still being written, which Qt reports as a binding
+            // loop and which leaves later summons stuck open. Defer it.
+            var failedId = panelEntry.pluginId
+            Qt.callLater(function() { shell.hide(failedId) })
           }
         }
         Component.onDestruction: shell.unregisterPanelLoader(panelEntry.pluginId)
