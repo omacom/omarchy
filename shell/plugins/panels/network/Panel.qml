@@ -112,6 +112,10 @@ Panel {
   // disable themselves on this so clicks on the other rows don't silently
   // no-op against runNetworkAction's serialized guard.
   readonly property bool busy: actionKind !== ""
+  // True while a list rebuild is still laying out. Height binding loops used
+  // to keep this window open indefinitely; even after that fix, a scan can
+  // recreate delegates under the pointer and fire a stale click (#11099).
+  property bool layoutBusy: false
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
@@ -658,7 +662,12 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    wifiNetworks = Model.sortWifiRows(nets)
+    var next = Model.sortWifiRows(nets)
+    if (!Model.wifiRowsEqual(wifiNetworks, next)) {
+      layoutBusy = true
+      layoutSettle.restart()
+      wifiNetworks = next
+    }
     wifiStationAvailable = !!wifiDevice
     scanning = false
   }
@@ -694,6 +703,7 @@ Panel {
   // report it as it happens.
   function setBand(band) {
     if (!band || actionProc.running) return
+    if (!Model.shouldCommitWifiAction({ opened: opened, layoutBusy: layoutBusy })) return
 
     root.pendingBand = band
     actionProc.command = ["omarchy-network-band", band]
@@ -764,6 +774,15 @@ Panel {
 
   function runNetworkAction(kind, network, callback) {
     if (actionKind !== "" || !network) return
+    if (kind === "connect") {
+      if (!Model.shouldActivateWifiConnection({
+        opened: opened,
+        layoutBusy: layoutBusy,
+        alreadyConnected: !!network.connected
+      })) return
+    } else if (!Model.shouldCommitWifiAction({ opened: opened, layoutBusy: layoutBusy })) {
+      return
+    }
     var ssid = network.name || ""
     actionSsid = ssid
     actionKind = kind
@@ -869,6 +888,13 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.updateDetails(text)
     }
+  }
+
+  Timer {
+    id: layoutSettle
+    interval: 80
+    repeat: false
+    onTriggered: root.layoutBusy = false
   }
 
   Timer {
@@ -1624,7 +1650,10 @@ Panel {
               text: sectionTitle
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
-              height: visible ? implicitHeight : 0
+              // Do not bind height to implicitHeight. This is a Text with
+              // topPadding; that bind loops, and the layout thrash was
+              // activating Wi-Fi connections (#11099). Column already skips
+              // invisible children, so an empty title collapses on visible.
             }
 
             NetworkRow {
@@ -1792,7 +1821,7 @@ Panel {
       hoverEnabled: true
       acceptedButtons: Qt.LeftButton
       cursorShape: Qt.PointingHandCursor
-      enabled: !root.busy
+      enabled: root.opened && !root.busy
 
       // Move the cursor here when the mouse enters; mouse leaving doesn't
       // clear it (so the cursor stays where the mouse last was and
@@ -1878,7 +1907,7 @@ Panel {
           anchors.fill: parent
           hoverEnabled: true
           acceptedButtons: Qt.LeftButton
-          enabled: row.canForget && !root.busy
+          enabled: root.opened && row.canForget && !root.busy
           cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
           onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true }
           onClicked: if (row.net) root.forget(row.net)
@@ -1914,11 +1943,11 @@ Panel {
           // Signal strength is conveyed by the wifi-bars icon and the
           // right-edge glyph/buttons carry protection or forget affordances,
           // so the second line only carries action status (Connecting…,
-          // Connected, Failed, etc.). Collapses to zero height when empty
-          // so rows without status keep a tight one-line look.
+          // Connected, Failed, etc.). Column skips this line when the
+          // text is empty; do not bind height to implicitHeight — that
+          // Text loop was the other half of the #11099 reconnect thrash.
           text: row.statusText
           visible: row.statusText !== ""
-          height: visible ? implicitHeight : 0
           color: row.statusColor
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption

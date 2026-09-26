@@ -407,3 +407,7 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
 `requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for
 `run`, use `Util.shellQuote(v)` from `qs.Commons`.
+
+## Network panel list layout
+
+The network panel list must not bind `height` to `implicitHeight` on `Text` or `PanelSectionHeader`. That loop resizes the popup continuously; during the thrash a stale row click or band pin can issue a NetworkManager `connection-activate` and drop the radio for a full reconnect. `Column` already omits invisible children, so empty section titles and status lines collapse with `visible` alone. Connection-activate is also refused while the panel is closed, while a list rebuild is still settling, or when the live network is already connected.
