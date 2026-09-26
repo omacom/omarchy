@@ -100,13 +100,16 @@ Item {
   readonly property int maxPopupDuration: 30000
 
   function durationFor(urgency, expireTimeout) {
+    var requested = requestedDuration(expireTimeout)
     switch (urgency) {
     case NotificationUrgency.Critical:
-      return 0
+      // FreeDesktop spec: expireTimeout 0 (or -1 default for critical) means never expire.
+      // If the sender explicitly requests a positive timeout, honour it.
+      return requested > 0 ? requested : 0
     case NotificationUrgency.Low:
-      return Math.min(maxPopupDuration, Math.max(lowPopupDuration, requestedDuration(expireTimeout)))
+      return Math.min(maxPopupDuration, Math.max(lowPopupDuration, requested))
     default:
-      return Math.min(maxPopupDuration, Math.max(normalPopupDuration, requestedDuration(expireTimeout)))
+      return Math.min(maxPopupDuration, Math.max(normalPopupDuration, requested))
     }
   }
 
