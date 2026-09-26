@@ -155,6 +155,23 @@ run_scan 0 >"$test_tmp/output"
 grep -qx hermes "$test_tmp/output" || fail "an escaped Exec path was left live after its target went"
 pass "an escaped Exec path is judged dead once its target is gone"
 
+# A backslash inside the quoted token also escapes for the token layer the
+# launcher applies on top of the string escapes: \\$ is a literal dollar
+# sign where the command runs, and the scan resolves the path GLib's launch
+# parser resolves -- live while it exists, hidden once it is gone.
+mkdir -p "$test_tmp/home/Hermes\$Desktop/bin"
+: >"$test_tmp/home/Hermes\$Desktop/bin/hermes"
+chmod +x "$test_tmp/home/Hermes\$Desktop/bin/hermes"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s/Hermes\\\\$Desktop/bin/hermes" desktop\n' "$test_tmp/home" \
+  >"$user_apps/hermes.desktop"
+run_scan 0 >"$test_tmp/output"
+grep -qx hermes "$test_tmp/output" && fail "a quoted token escape was judged without decoding it"
+pass "a backslash-escaped dollar inside a quoted Exec resolves to its literal path"
+rm -rf "$test_tmp/home/Hermes\$Desktop"
+run_scan 0 >"$test_tmp/output"
+grep -qx hermes "$test_tmp/output" || fail "a quoted token escape was left live after its target went"
+pass "a backslash-escaped dollar inside a quoted Exec is judged dead once its target is gone"
+
 # An escape the decoder does not know leaves the command unreadable. What
 # cannot be read cannot be judged dead, so the entry stays on disk but its
 # ID is hidden -- the launcher would not run it either.

@@ -243,6 +243,31 @@ remove || fail "remove succeeds with a launcher entry using an unknown escape"
   fail "a launcher entry with an unknown escape was deleted"
 pass "removal keeps a launcher entry whose escape it cannot decode"
 
+# A backslash inside the quoted token also escapes for the token layer the
+# launcher applies on top of the string escapes: an entry whose quoted token
+# escape resolves to a real command is a working entry, and survives.
+seed_install
+mkdir -p "$test_home/.local/share/applications" "$test_home/Hermes\$Desktop/bin"
+printf '#!/bin/bash\nexit 0\n' >"$test_home/Hermes\$Desktop/bin/hermes"
+chmod +x "$test_home/Hermes\$Desktop/bin/hermes"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s/Hermes\\\\$Desktop/bin/hermes" desktop\n' "$test_home" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with a launcher entry using a quoted token escape"
+[[ -f $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry whose quoted token escape resolves survives removal"
+pass "removal leaves a launcher entry whose quoted token escape resolves"
+
+# And once the decoded target is gone, such an entry is judged dead like
+# any other, and is deleted rather than left behind as search noise.
+seed_install
+mkdir -p "$test_home/.local/share/applications"
+printf '[Desktop Entry]\nType=Application\nName=Hermes\nExec="%s/Hermes\\\\$Desktop/bin/hermes" desktop\n' "$test_home" \
+  >"$test_home/.local/share/applications/hermes.desktop"
+remove || fail "remove succeeds with a quoted-token-escape entry whose target is gone"
+[[ ! -e $test_home/.local/share/applications/hermes.desktop ]] ||
+  fail "a launcher entry whose quoted-token-escape target is gone is deleted"
+pass "removal deletes a launcher entry whose quoted token escape resolves to nothing"
+
 # Removal also asks the installer to tear down a mise CLI the app superseded, so
 # a copy left from before the app took over does not linger once Hermes is gone.
 tr '\0' '\n' <"$test_tmp/installer-log" | grep -qx -- '--remove' ||

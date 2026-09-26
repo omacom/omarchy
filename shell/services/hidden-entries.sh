@@ -126,6 +126,24 @@ exec_target_exists() {
     return 1
   fi
   decoded=${decoded//${placeholder}/\\}
+  # The launcher then tokenizes the Exec value itself: inside a quoted
+  # token (and in a bare one) a backslash escapes $, `, " and another
+  # backslash. Decode that second layer too, the way GLib's launch
+  # parser resolves the token, so the path checked here is the path the
+  # launcher would run; a backslash left over means a form this decoder
+  # does not know, and the entry is left to the launcher.
+  local quoted=$'\x03' dollar=$'\x04' tick=$'\x05' quote=$'\x06'
+  decoded=${decoded//\\\\/$quoted}
+  decoded=${decoded//\\\$/$dollar}
+  decoded=${decoded//\\\`/$tick}
+  decoded=${decoded//\\\"/$quote}
+  if [[ $decoded == *\\* ]]; then
+    return 1
+  fi
+  decoded=${decoded//${dollar}/$}
+  decoded=${decoded//${tick}/\`}
+  decoded=${decoded//${quote}/\"}
+  decoded=${decoded//${quoted}/\\}
   target=$decoded
   if [[ $target == /* ]]; then
     [[ -e $target ]]
