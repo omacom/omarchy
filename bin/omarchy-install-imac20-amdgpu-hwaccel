@@ -1,10 +1,129 @@
 #!/bin/bash
 
-# omarchy:summary=Enable hardware acceleration on 2020 5K iMacs with Navi 14.
+# omarchy:summary=Add a hardware-accelerated boot entry for 2020 5K iMacs with Navi 14.
+# omarchy:args=[--default|--remove]
+# omarchy:requires-sudo=true
 
-# opt-in: the user runs this after install. The base safe-fallback is set
-# up by install/hardware/apple/fix-imac20-display.sh. This command adds the
-# patched amdgpu.ko + Limine 'imac20-hwaccel' boot entry + pacman hook.
-# See install/hardware/apple/install-imac20-amdgpu-hwaccel.sh for details.
+# The installer boots these iMacs with `plymouth.enable=0 nomodeset` (see
+# install/hardware/apple/fix-imac20-display.sh). The linux-t2 package's own
+# amdgpu brings the GPU up once the EFI framebuffer is off, so this builds a
+# second UKI with `amdgpu.modeset=1 video=efifb:off` and adds it as a Limine
+# entry. The safe entry stays in place, and stays the default unless --default
+# is given. A pacman hook rebuilds the entry when linux-t2 is upgraded.
+#
+#   omarchy-install-imac20-amdgpu-hwaccel             add the entry
+#   omarchy-install-imac20-amdgpu-hwaccel --default   add it and boot it by default
+#   omarchy-install-imac20-amdgpu-hwaccel --remove    remove the entry and hook
+#
+# See https://github.com/omacom/omarchy/issues/12197
 
-source "$OMARCHY_PATH/install/hardware/apple/install-imac20-amdgpu-hwaccel.sh"
+set -euo pipefail
+
+DISPLAY_CONF="${OMARCHY_IMAC20_DISPLAY_CONF:-/etc/limine-entry-tool.d/imac20-display.conf}"
+LIMINE_CONF="${OMARCHY_LIMINE_CONF:-/boot/limine.conf}"
+UKI_DIR="${OMARCHY_UKI_DIR:-/boot/EFI/Linux}"
+SAFE_UKI=$UKI_DIR/omarchy_linux-t2.efi
+HWACCEL_UKI=$UKI_DIR/omarchy_linux-t2-hwaccel.efi
+ENTRY=imac20-hwaccel
+HOOK="${OMARCHY_IMAC20_HWACCEL_HOOK:-/etc/pacman.d/hooks/zz-omarchy-imac20-hwaccel.hook}"
+SAFE_FLAGS="plymouth.enable=0 nomodeset"
+HWACCEL_FLAGS="plymouth.enable=0 amdgpu.modeset=1 video=efifb:off"
+
+uki_cmdline() {
+  sudo objcopy -O binary --only-section=.cmdline "$1" /dev/stdout 2>/dev/null | tr -d '\0'
+}
+
+write_display_conf() {
+  sudo tee "$DISPLAY_CONF" >/dev/null <<EOF
+# 2020 27" 5K iMac (iMac20,1 / iMac20,2) with Radeon Pro 5300/5500 (Navi 14).
+# amdgpu SMU init fails under KMS and blanks the panel before LUKS.
+KERNEL_CMDLINE[default]+=" $1"
+EOF
+}
+
+remove_entry() {
+  sudo limine-entry-tool --remove-efi-path "$HWACCEL_UKI" >/dev/null 2>&1 || sudo rm -f "$HWACCEL_UKI"
+  sudo sed -i "s|^default_entry: $ENTRY$|#default_entry: <OS name>/<kernel name>|" "$LIMINE_CONF"
+}
+
+build_entry() {
+  # limine-mkinitcpio only builds the default UKI, so build it once with the
+  # hardware-acceleration flags, keep a copy, then rebuild the safe one.
+  trap 'write_display_conf "$SAFE_FLAGS"' EXIT
+  write_display_conf "$HWACCEL_FLAGS"
+  sudo limine-mkinitcpio >/dev/null
+  uki_cmdline "$SAFE_UKI" | grep -q 'amdgpu.modeset=1' || { echo "Hardware-acceleration flags missing from the built UKI"; exit 1; }
+  sudo cp "$SAFE_UKI" "$HWACCEL_UKI"
+
+  write_display_conf "$SAFE_FLAGS"
+  trap - EXIT
+  sudo limine-mkinitcpio >/dev/null
+  uki_cmdline "$SAFE_UKI" | grep -q 'nomodeset' || { echo "Safe flags missing from the rebuilt UKI"; exit 1; }
+
+  sudo limine-entry-tool --add-efi "$ENTRY" "$HWACCEL_UKI" --overwrite \
+    --comment "Hardware acceleration. Black screen? Boot the Omarchy entry." >/dev/null
+}
+
+set_default() {
+  if grep -q '^#\?default_entry:' "$LIMINE_CONF"; then
+    sudo sed -i "s|^#\?default_entry:.*|default_entry: $ENTRY|" "$LIMINE_CONF"
+  else
+    echo "default_entry: $ENTRY" | sudo tee -a "$LIMINE_CONF" >/dev/null
+  fi
+}
+
+install_hook() {
+  sudo mkdir -p "$(dirname "$HOOK")"
+  sudo tee "$HOOK" >/dev/null <<EOF
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = linux-t2
+
+[Action]
+Description = Rebuilding the iMac20 hardware-acceleration boot entry...
+When = PostTransaction
+Exec = /usr/bin/omarchy-install-imac20-amdgpu-hwaccel --rebuild
+EOF
+}
+
+if ! omarchy-hw-imac20-navi14; then
+  echo "Not a 2020 5K iMac with Navi 14; nothing to do"
+  exit 0
+fi
+
+case ${1:-} in
+  --remove)
+    remove_entry
+    sudo rm -f "$HOOK"
+    echo "Hardware-acceleration entry removed; only the safe entry remains"
+    ;;
+  --rebuild)
+    # From the pacman hook: never fail the transaction. A stale UKI would boot a
+    # kernel whose modules are gone, so drop the entry if the rebuild fails.
+    [[ -f $HWACCEL_UKI ]] || exit 0
+    if ! (build_entry); then
+      remove_entry
+      echo "Could not rebuild the iMac20 hardware-acceleration entry; removed it. Retry with: omarchy-install-imac20-amdgpu-hwaccel"
+    fi
+    ;;
+  "" | --default)
+    [[ -f $DISPLAY_CONF ]] || { echo "Missing $DISPLAY_CONF; run omarchy-apply-hardware first"; exit 1; }
+    build_entry
+    install_hook
+    [[ ${1:-} == "--default" ]] && set_default
+
+    echo "Added the '$ENTRY' Limine entry."
+    if [[ ${1:-} == "--default" ]]; then
+      echo "It is now the default. If the panel stays black, hold power, then pick the Omarchy entry."
+    else
+      echo "Reboot and pick it from the Limine menu. The Omarchy entry stays the safe default."
+      echo "Once it works, make it the default with: omarchy-install-imac20-amdgpu-hwaccel --default"
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-install-imac20-amdgpu-hwaccel [--default|--remove]"
+    exit 1
+    ;;
+esac
