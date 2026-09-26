@@ -14,6 +14,7 @@ Item {
   readonly property string home: Quickshell.env("HOME")
   readonly property string stayAwakeStateDir: home + "/.local/state/omarchy/indicators"
   readonly property string stayAwakeStatePath: stayAwakeStateDir + "/stay-awake"
+  readonly property string lidStayAwakeStatePath: stayAwakeStateDir + "/lid-stay-awake"
   readonly property int defaultScreensaverSeconds: 150
   readonly property int defaultLockSeconds: 300
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
@@ -30,6 +31,16 @@ Item {
   property bool stayAwakeStateLoaded: false
   property bool hasPendingStayAwakePersist: false
   property bool pendingStayAwakePersist: false
+  // Lid stay awake keeps a closed lid from suspending the machine, so work
+  // carries on while the laptop travels. It is persisted like Stay Awake: a
+  // flag file the CLI and this service both watch. While the flag is set the
+  // service holds a logind handle-lid-switch inhibitor; Hyprland's lid switch
+  // binding still locks the session and reconciles clamshell displays.
+  property bool lidPresent: false
+  property bool lidStayAwake: false
+  property bool lidStayAwakeStateLoaded: false
+  property bool hasPendingLidStayAwakePersist: false
+  property bool pendingLidStayAwakePersist: false
   property bool idledThisCycle: false
   property bool screensaverStartedThisCycle: false
   property string lastEvent: "starting"
@@ -184,6 +195,11 @@ Item {
       stayAwake: root.stayAwake,
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
+      lidPresent: root.lidPresent,
+      lidStayAwake: root.lidStayAwake,
+      lidStayAwakeStateLoaded: root.lidStayAwakeStateLoaded,
+      lidStayAwakeStatePath: root.lidStayAwakeStatePath,
+      lidInhibitor: lidInhibitor.running,
       idle: idleMonitor.isIdle,
       inIdleCycle: root.idledThisCycle,
       screensaverStarted: root.screensaverStartedThisCycle,
@@ -248,6 +264,61 @@ Item {
     return applyStayAwake(!value, true, "ipc")
   }
 
+  function persistLidStayAwake(value) {
+    var command = value
+      ? "mkdir -p \"$HOME/.local/state/omarchy/indicators\" && touch \"$HOME/.local/state/omarchy/indicators/lid-stay-awake\""
+      : "rm -f \"$HOME/.local/state/omarchy/indicators/lid-stay-awake\""
+
+    if (lidStayAwakeStateWriter.running) {
+      root.pendingLidStayAwakePersist = !!value
+      root.hasPendingLidStayAwakePersist = true
+      return
+    }
+
+    lidStayAwakeStateWriter.command = ["bash", "-c", command]
+    lidStayAwakeStateWriter.running = true
+  }
+
+  function refreshLidStayAwakeState() {
+    if (!lidStayAwakeStateProbe.running) lidStayAwakeStateProbe.running = true
+  }
+
+  function syncLidInhibitor() {
+    var wanted = IdleModel.lidInhibitorWanted(root.lidPresent, root.lidStayAwake)
+    if (lidInhibitor.running === wanted) return
+    logEvent("lid-inhibitor", wanted ? "acquire" : "release")
+    lidInhibitor.running = wanted
+  }
+
+  function applyLidProbeLine(line) {
+    var next = IdleModel.lidProbeUpdate({ lidPresent: root.lidPresent, lidStayAwake: root.lidStayAwake }, line)
+    root.lidPresent = next.lidPresent
+    if (next.lidStayAwake !== root.lidStayAwake || !root.lidStayAwakeStateLoaded) {
+      applyLidStayAwake(next.lidStayAwake, false, "state-file")
+    }
+    syncLidInhibitor()
+  }
+
+  function applyLidStayAwake(value, persist, reason) {
+    var enabled = !!value
+    var changed = !root.lidStayAwakeStateLoaded || root.lidStayAwake !== enabled
+
+    if (persist) persistLidStayAwake(enabled)
+
+    root.lidStayAwake = enabled
+    root.lidStayAwakeStateLoaded = true
+
+    if (changed) logEvent("lid-stay-awake", (enabled ? "enabled" : "disabled") + (reason ? " " + reason : ""))
+    syncLidInhibitor()
+
+    return enabled ? "stay-awake" : "suspend"
+  }
+
+  function setLidStayAwake(value) {
+    if (!root.lidPresent) return "suspend"
+    return applyLidStayAwake(value, true, "ipc")
+  }
+
   IdleMonitor {
     id: idleMonitor
     enabled: root.idleEnabled
@@ -309,6 +380,38 @@ Item {
   }
 
   Process {
+    id: lidStayAwakeStateProbe
+    command: ["bash", "-c", "omarchy-hw-lid && echo lid || echo nolid; if [[ -f $HOME/.local/state/omarchy/indicators/lid-stay-awake ]]; then echo yes; else echo no; fi"]
+    stdout: SplitParser {
+      onRead: function(line) { root.applyLidProbeLine(line) }
+    }
+  }
+
+  Process {
+    id: lidStayAwakeStateWriter
+    onExited: function() {
+      if (root.hasPendingLidStayAwakePersist) {
+        var pending = root.pendingLidStayAwakePersist
+        root.hasPendingLidStayAwakePersist = false
+        root.persistLidStayAwake(pending)
+        return
+      }
+
+      root.refreshLidStayAwakeState()
+    }
+  }
+
+  // `cat` blocks on the shell's stdin pipe, so the lock is released the moment
+  // the service drops it or the shell goes away; nothing lingers in the
+  // background and no privileges are involved.
+  Process {
+    id: lidInhibitor
+    stdinEnabled: true
+    command: ["systemd-inhibit", "--what=handle-lid-switch", "--who=Omarchy", "--why=Lid close set to stay awake", "--mode=block", "cat"]
+    onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "lid-inhibitor exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+
+  Process {
     id: stayAwakeStateWriter
     onExited: function() {
       if (root.hasPendingStayAwakePersist) {
@@ -327,12 +430,16 @@ Item {
     path: root.stayAwakeStateDir
     watchChanges: true
     printErrors: false
-    onFileChanged: root.refreshStayAwakeState()
+    onFileChanged: {
+      root.refreshStayAwakeState()
+      root.refreshLidStayAwakeState()
+    }
   }
 
   Component.onCompleted: {
     logEvent("service-ready")
     refreshStayAwakeState()
+    refreshLidStayAwakeState()
   }
 
   IpcHandler {
@@ -356,6 +463,18 @@ Item {
 
     function toggle(): string {
       return root.setIdleEnabled(!root.idleEnabled)
+    }
+
+    function lidStayAwake(): string {
+      return root.setLidStayAwake(true)
+    }
+
+    function lidSuspend(): string {
+      return root.setLidStayAwake(false)
+    }
+
+    function lidToggle(): string {
+      return root.setLidStayAwake(!root.lidStayAwake)
     }
   }
 }

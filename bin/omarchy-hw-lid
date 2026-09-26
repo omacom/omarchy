@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when the machine has a lid switch
+# omarchy:hidden=true
+
+# Only an ACPI lid button counts. omarchy-hw-laptop also accepts the DMI
+# chassis type, which covers tablets and handhelds that carry a battery but
+# have no lid to close.
+lid_path="${OMARCHY_ACPI_LID_PATH:-/proc/acpi/button/lid}"
+
+for state in "$lid_path"/*/state; do
+  [[ -e $state ]] && exit 0
+done
+
+exit 1
