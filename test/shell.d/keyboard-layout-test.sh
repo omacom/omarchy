@@ -121,6 +121,7 @@ assertEqual(model.isTypedKeyboard('power-button'), false, 'a power button is not
 assertEqual(model.isTypedKeyboard('lid-switch'), false, 'a lid switch is not')
 assertEqual(model.isTypedKeyboard('sleep-button'), false, 'a sleep button is not')
 assertEqual(model.isTypedKeyboard('hl-virtual-keyboard-1'), false, 'the keyboard an input method injects through is not')
+assertEqual(model.isTypedKeyboard('apple-smc-power/lid-events'), false, 'the SMC power/lid device an Apple laptop reports is not')
 assertEqual(model.isTypedKeyboard(''), true, 'a keyboard reporting no name is left where it was found')
 
 // The activelayout event names the keyboard ahead of the layout it moved to,
@@ -131,6 +132,30 @@ const parsedEvent = data => ({ data, parse: count => data.split(',', count - 1).
 assertEqual(model.eventKeyboardName(rawEvent('at-translated-set-2-keyboard,French')), 'at-translated-set-2-keyboard', 'the event names its keyboard')
 assertEqual(model.eventKeyboardName(parsedEvent('at-translated-set-2-keyboard,English (US, intl.)')), 'at-translated-set-2-keyboard', 'a description carrying a comma leaves the name alone')
 assertEqual(model.eventKeyboardName(rawEvent('hl-virtual-keyboard,English (US)')), '', 'the keyboard an input method injects through is not typed on')
+assertEqual(model.eventKeyboardName(rawEvent('apple-smc-power/lid-events,French')), '', 'a device nobody types on names no keyboard either')
 assertEqual(model.eventKeyboardName({ parse: () => { throw new Error('unsupported') }, data: 'kb,French' }), 'kb', 'a binding without parse falls back to the raw data')
 assertEqual(model.eventKeyboardName({}), '', 'an event with nothing in it names no keyboard')
+// Apple SMC and headset controls can be further through the layout list than
+// either real keyboard. They must not become the label's source. Layout-sync
+// recipients are a separate widget policy and deliberately remain unchanged.
+const appleSeat = [
+  { name: 'apple-headset', active_layout_index: 2, active_keymap: 'Greek', main: true },
+  { name: 'apple-smc-power/lid-events', active_layout_index: 1, active_keymap: 'French' },
+  { name: 'apple-spi-keyboard', active_layout_index: 0, active_keymap: 'English (US)' },
+  { name: 'usb-keyboard', active_layout_index: 1, active_keymap: 'German' },
+]
+const appleTyped = appleSeat.filter(keyboard => model.isTypedKeyboard(keyboard.name))
+assertDeepEqual(appleTyped.map(k => k.name), ['apple-spi-keyboard', 'usb-keyboard'], 'Apple controls are excluded while both typing keyboards remain')
+assertEqual(model.selectKeyboard(appleTyped).active_keymap, 'German', 'an advanced Apple control does not determine the label')
+assertEqual(model.selectKeyboard(appleTyped, 'apple-spi-keyboard').active_keymap, 'English (US)', 'the named real keyboard wins after wrapping its layout')
+assertEqual(model.selectKeyboard(appleTyped, 'apple-headset').name, 'usb-keyboard', 'a previously remembered headset cannot win after filtering')
+assertEqual(model.isTypedKeyboard('unrecognised-keyboard'), true, 'unknown devices keep the existing permissive behavior')
+assertEqual(model.isTypedKeyboard('apple-headset-1'), false, 'a numbered headset control is excluded')
+
+for (const name of ['apple-headset', 'apple-smc-power/lid-events', 'power-button', 'lid-switch']) {
+  assertEqual(model.eventKeyboardName(rawEvent(name + ',Greek')), '', name + ' cannot replace the remembered typing keyboard')
+  assertEqual(model.eventKeyboardName(parsedEvent(name + ',English (US, intl.)')), '', name + ' parsed events are excluded too')
+}
+assertEqual(model.eventKeyboardName(parsedEvent('usb-keyboard,English (US, intl.)')), 'usb-keyboard', 'a real USB keyboard still owns its parsed event')
+assertEqual(model.selectKeyboard(appleSeat.slice(0, 2).filter(k => model.isTypedKeyboard(k.name))), undefined, 'a seat with only Apple controls has no typing source')
 JS
