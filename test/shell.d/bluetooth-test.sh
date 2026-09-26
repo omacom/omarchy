@@ -20,6 +20,23 @@ assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so 
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
 
+// On hardware whose bluetooth rfkill is a platform switch the soft block
+// cuts power to the radio rather than only clearing Powered: the controller
+// leaves the bus, BlueZ drops the adapter and `adapter` goes null. Visibility
+// keyed on the adapter alone then removed the very widget that owns the switch
+// back on, so turning Bluetooth off left no way to turn it on. rfkill keeps
+// listing the switch while it is blocked, and that is what separates a
+// turned-off radio from a machine that has no Bluetooth at all.
+const offGlyph = String.fromCodePoint(0xf00b2)
+assert(/command: \["sh", "-c", "rfkill --noheadings --output TYPE list bluetooth[\s\S]*?grep -qx bluetooth"\]/.test(panelSource), 'bluetooth probes rfkill to tell a blocked radio from absent hardware')
+assert(/onExited: function\(exitCode\) \{ root\.radioPresent = exitCode === 0 \}/.test(panelSource), 'bluetooth records whether the kernel still lists a bluetooth switch')
+assert(/onAdapterChanged: radioProbe\.running = true/.test(panelSource), 'bluetooth re-probes rfkill whenever the adapter comes or goes')
+assert(/visible: adapter !== null \|\| radioPresent/.test(panelSource), 'bluetooth keeps the bar widget up when a blocked radio drops the adapter')
+assert(/visible: !!root\.adapter \|\| root\.radioPresent/.test(panelSource), 'bluetooth keeps the panel power switch usable while the radio is blocked')
+assert(/function toggleBluetooth\(\)[\s\S]*?if \(!adapter\) \{[\s\S]*?if \(radioPresent\) Quickshell\.execDetached\(\["omarchy-bluetooth-power", "on"\]\)/.test(panelSource), 'bluetooth turns a blocked radio back on when the adapter is gone')
+assert(panelSource.includes('if (!adapter) return radioPresent ? "' + offGlyph + '" : ""'), 'bluetooth shows the off glyph for a blocked radio instead of a blank label')
+assert(/if \(!adapter\) return radioPresent \? "Turned Off" : "No adapter"/.test(panelSource), 'bluetooth reserves No adapter for machines without Bluetooth hardware')
+
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
 // shell, and a leaked session keeps the radio in inquiry, starving A2DP audio
