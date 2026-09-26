@@ -265,6 +265,105 @@ function iconForCode(code, night) {
   }
 }
 
+// ---- Sky scenes for the panel's animated background.
+//      A scene name plus night/intensity/hail/wind modifiers, resolved from the
+//      Open-Meteo WMO weather code and day flag when present, else from the
+//      resolved bar glyph.
+var SKY_SCENES = ["sun", "partly", "clouds", "fog", "rain", "storm", "snow", "sleet"]
+
+var SKY_LEVEL = { LIGHT: 0, MODERATE: 1, HEAVY: 2 }
+var WINDY_KMPH = 30
+
+// WMO weather interpretation codes, as Open-Meteo reports them.
+var WMO = {
+  CLEAR: 0, MAINLY_CLEAR: 1, PARTLY_CLOUDY: 2, OVERCAST: 3,
+  FOG: 45, RIME_FOG: 48,
+  DRIZZLE_LIGHT: 51, DRIZZLE_MODERATE: 53, DRIZZLE_DENSE: 55,
+  FREEZING_DRIZZLE_LIGHT: 56, FREEZING_DRIZZLE_DENSE: 57,
+  RAIN_SLIGHT: 61, RAIN_MODERATE: 63, RAIN_HEAVY: 65,
+  FREEZING_RAIN_LIGHT: 66, FREEZING_RAIN_HEAVY: 67,
+  SNOW_SLIGHT: 71, SNOW_MODERATE: 73, SNOW_HEAVY: 75, SNOW_GRAINS: 77,
+  RAIN_SHOWERS_SLIGHT: 80, RAIN_SHOWERS_MODERATE: 81, RAIN_SHOWERS_VIOLENT: 82,
+  SNOW_SHOWERS_SLIGHT: 85, SNOW_SHOWERS_HEAVY: 86,
+  THUNDERSTORM: 95, THUNDERSTORM_HAIL_SLIGHT: 96, THUNDERSTORM_HAIL_HEAVY: 99
+}
+
+function skyEntry(scene, level, hail) { return { scene: scene, level: level, hail: hail === true } }
+
+var SKY_BY_WMO = {}
+SKY_BY_WMO[WMO.CLEAR]                    = skyEntry("sun",    SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.MAINLY_CLEAR]             = skyEntry("partly", SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.PARTLY_CLOUDY]            = skyEntry("partly", SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.OVERCAST]                 = skyEntry("clouds", SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.FOG]                      = skyEntry("fog",    SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.RIME_FOG]                 = skyEntry("fog",    SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.DRIZZLE_LIGHT]            = skyEntry("rain",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.DRIZZLE_MODERATE]         = skyEntry("rain",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.DRIZZLE_DENSE]            = skyEntry("rain",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.FREEZING_DRIZZLE_LIGHT]   = skyEntry("sleet",  SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.FREEZING_DRIZZLE_DENSE]   = skyEntry("sleet",  SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.RAIN_SLIGHT]              = skyEntry("rain",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.RAIN_MODERATE]            = skyEntry("rain",   SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.RAIN_HEAVY]               = skyEntry("rain",   SKY_LEVEL.HEAVY)
+SKY_BY_WMO[WMO.FREEZING_RAIN_LIGHT]      = skyEntry("sleet",  SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.FREEZING_RAIN_HEAVY]      = skyEntry("sleet",  SKY_LEVEL.HEAVY)
+SKY_BY_WMO[WMO.SNOW_SLIGHT]              = skyEntry("snow",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.SNOW_MODERATE]            = skyEntry("snow",   SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.SNOW_HEAVY]               = skyEntry("snow",   SKY_LEVEL.HEAVY)
+SKY_BY_WMO[WMO.SNOW_GRAINS]              = skyEntry("snow",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.RAIN_SHOWERS_SLIGHT]      = skyEntry("rain",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.RAIN_SHOWERS_MODERATE]    = skyEntry("rain",   SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.RAIN_SHOWERS_VIOLENT]     = skyEntry("rain",   SKY_LEVEL.HEAVY)
+SKY_BY_WMO[WMO.SNOW_SHOWERS_SLIGHT]      = skyEntry("snow",   SKY_LEVEL.LIGHT)
+SKY_BY_WMO[WMO.SNOW_SHOWERS_HEAVY]       = skyEntry("snow",   SKY_LEVEL.HEAVY)
+SKY_BY_WMO[WMO.THUNDERSTORM]             = skyEntry("storm",  SKY_LEVEL.MODERATE)
+SKY_BY_WMO[WMO.THUNDERSTORM_HAIL_SLIGHT] = skyEntry("storm",  SKY_LEVEL.HEAVY, true)
+SKY_BY_WMO[WMO.THUNDERSTORM_HAIL_HEAVY]  = skyEntry("storm",  SKY_LEVEL.HEAVY, true)
+
+// wttr.in condition codes, one per bar glyph, for the glyph-only fallback.
+var WTTR = {
+  SUNNY: 113, PARTLY_CLOUDY: 116, CLOUDY: 119, MIST: 143,
+  PATCHY_RAIN: 176, PATCHY_SNOW: 179, PATCHY_SLEET: 182,
+  LIGHT_DRIZZLE: 266, HEAVY_SNOW: 338, THUNDERY_RAIN: 389
+}
+var SKY_BY_WTTR = [
+  [WTTR.SUNNY, "sun"], [WTTR.PARTLY_CLOUDY, "partly"], [WTTR.CLOUDY, "clouds"],
+  [WTTR.MIST, "fog"], [WTTR.PATCHY_RAIN, "rain"], [WTTR.LIGHT_DRIZZLE, "rain"],
+  [WTTR.THUNDERY_RAIN, "storm"], [WTTR.PATCHY_SNOW, "snow"], [WTTR.HEAVY_SNOW, "snow"],
+  [WTTR.PATCHY_SLEET, "sleet"]
+]
+
+// Scene and night flag for a bar glyph, by matching it against the glyphs
+// iconForCode draws for each wttr.in code.
+function skySceneForGlyph(glyph) {
+  for (var n = 0; n < SKY_BY_WTTR.length; n++) {
+    var day = iconForCode(SKY_BY_WTTR[n][0], false), night = iconForCode(SKY_BY_WTTR[n][0], true)
+    if (glyph === day || glyph === night) return { scene: SKY_BY_WTTR[n][1], night: glyph === night && glyph !== day }
+  }
+  return { scene: "off", night: false }
+}
+
+function resolveSkyScene(current, glyph) {
+  var windK = current ? parseFloat(current.windspeedKmph) : NaN
+  var fromGlyph = skySceneForGlyph(glyph)
+  var r = { scene: fromGlyph.scene, night: fromGlyph.night, level: SKY_LEVEL.MODERATE, hail: false,
+            windy: isFinite(windK) && windK >= WINDY_KMPH }
+  if (current && current.isDay !== undefined && current.isDay !== null) r.night = Number(current.isDay) === 0
+  var code = current && current.openMeteoWeatherCode !== undefined && current.openMeteoWeatherCode !== null
+           ? parseInt(String(current.openMeteoWeatherCode), 10) : NaN
+  if (isNaN(code)) return r
+  var entry = SKY_BY_WMO[code] || skyEntry("clouds", SKY_LEVEL.MODERATE)
+  r.scene = entry.scene; r.level = entry.level; r.hail = entry.hail
+  return r
+}
+
+// The scene actually drawn: the base scene with night applied.
+function skyMode(base, night) {
+  if (base === "sun" && night) return "moon"
+  if (base === "partly" && night) return "partly-night"
+  return base
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
@@ -290,6 +389,13 @@ if (typeof module !== "undefined") {
     bareTempForDay: bareTempForDay,
     dayIcon: dayIcon,
     iconForOpenMeteoCode: iconForOpenMeteoCode,
-    iconForCode: iconForCode
+    iconForCode: iconForCode,
+    SKY_SCENES: SKY_SCENES,
+    SKY_LEVEL: SKY_LEVEL,
+    WMO: WMO,
+    SKY_BY_WMO: SKY_BY_WMO,
+    skySceneForGlyph: skySceneForGlyph,
+    resolveSkyScene: resolveSkyScene,
+    skyMode: skyMode
   }
 }

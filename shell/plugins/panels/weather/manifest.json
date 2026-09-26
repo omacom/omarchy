@@ -16,6 +16,18 @@
     "description": "Weather pill with detail popup",
     "category": "Info",
     "allowMultiple": false,
-    "settingsForm": "weatherSettings"
+    "settingsForm": "weatherSettings",
+    "defaults": {
+      "fx": true
+    },
+    "schema": [
+      {
+        "key": "fx",
+        "type": "boolean",
+        "label": "Animated weather effects",
+        "description": "Draw an animated scene of the current conditions behind the forecast popup.",
+        "defaultValue": true
+      }
+    ]
   }
 }
