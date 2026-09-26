@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Ghost UI, keeping its runtime and every ghost home in place.
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Remove the HUD while preserving the runtime for other apps.
+# `plugin remove` disables it and unlinks the symlink; the rm covers a shell
+# that is not running to answer.
+omarchy plugin remove ferdousbhai.ghost --yes 2>/dev/null || true
+rm -f "$HOME/.config/omarchy/plugins/ferdousbhai.ghost"
+# pkg-drop uses pacman -Rns; mark the runtime explicit so it cannot be orphaned.
+if pacman -Qq ghost-runtime >/dev/null 2>&1; then
+  sudo pacman -D --asexplicit ghost-runtime
+fi
+
+omarchy-pkg-drop ghost
+
+echo ""
+echo "Ghost UI has been removed. Its runtime, ghosts, settings, and state remain available."
