@@ -8,6 +8,7 @@ import qs.Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
+import "services/ServiceLoadState.js" as ServiceLoadState
 
 ShellRoot {
   id: shell
@@ -274,6 +275,7 @@ ShellRoot {
   }
 
   property var _services: ({})
+  property var _pendingServiceLoads: ({})
   property var _pluginShellApis: ({})
   property var _pluginShellApiDescriptors: ({})
   property var _pluginBarEntryShellApis: ({})
@@ -887,12 +889,30 @@ ShellRoot {
         && manifest.__hostCapabilities.indexOf("authentication") !== -1)
   }
 
+  function setPendingServiceLoad(key, claim) {
+    var next = ({})
+    for (var id in _pendingServiceLoads) if (id !== key) next[id] = _pendingServiceLoads[id]
+    if (claim) next[key] = claim
+    _pendingServiceLoads = next
+  }
+
+  function serviceLoadClaimCurrent(key, claim) {
+    var current = pluginRegistry && pluginRegistry.installedPlugins
+      ? pluginRegistry.installedPlugins[key] : null
+    var currentUrl = current ? pluginRegistry.entryPointUrl(current, "service") : ""
+    return ServiceLoadState.claimCurrent(
+      _pendingServiceLoads[key], claim, current, currentUrl,
+      !!current && pluginRegistry.isEnabled(key)
+    )
+  }
+
   function ensureService(pluginId) {
     var key = String(pluginId)
     if (_services[key]) return _services[key]
     var manifest = pluginRegistry && pluginRegistry.installedPlugins
       ? pluginRegistry.installedPlugins[key] : null
     if (!manifest) return null
+    if (!pluginRegistry.isEnabled(key)) return null
     if (!Array.isArray(manifest.kinds) || manifest.kinds.indexOf("service") === -1) return null
     if (!manifest.entryPoints || !manifest.entryPoints.service) return null
     var url = pluginRegistry.entryPointUrl(manifest, "service")
@@ -900,29 +920,55 @@ ShellRoot {
     var authenticationService = shell.isAuthenticationService(manifest, key)
     if (authenticationService && AuthServiceStore.has(key)) return null
 
-    var comp = Qt.createComponent(url, Component.PreferSynchronous)
+    var pending = _pendingServiceLoads[key]
+    if (pending) {
+      if (pending.manifest === manifest && pending.url === url) return null
+      // A rescan replaced the manifest/entry point while compilation was in
+      // flight. Revoke that claim; its callback will see it no longer owns key.
+      shell.setPendingServiceLoad(key, null)
+    }
+
+    var comp = Qt.createComponent(url, Component.Asynchronous)
+    var claim = { component: comp, manifest: manifest, url: url }
+    shell.setPendingServiceLoad(key, claim)
+
     function finalize() {
+      if (comp.status === Component.Loading) return
+      if (_pendingServiceLoads[key] !== claim) return
+
       if (comp.status !== Component.Ready) {
+        shell.setPendingServiceLoad(key, null)
         console.warn("service plugin load failed for " + key + ": " + comp.errorString())
         return
       }
-      // Authentication services and third-party services have no visual
-      // parent. Parenting either to serviceHost would let a plugin's object
-      // traversal walk between the host and credential-bearing QML.
+
+      // Revalidate ownership at publication time. Disable/remove/rescan may
+      // happen while the asynchronous component is compiling.
+      if (!shell.serviceLoadClaimCurrent(key, claim)) {
+        shell.setPendingServiceLoad(key, null)
+        return
+      }
+
+      // Authentication services and every third-party service stay detached.
+      // clonedFrom is plugin-authored metadata, not authorization to enter the
+      // host QObject tree.
       var inst = comp.createObject(manifest.__isFirstParty && !authenticationService ? serviceHost : null)
       if (!inst) {
+        shell.setPendingServiceLoad(key, null)
         console.warn("service plugin createObject returned null for", key)
         return
       }
+
+      // Claim still owns publication; clear only after instance creation so a
+      // concurrent sync cannot start a duplicate during createObject().
+      shell.setPendingServiceLoad(key, null)
+
       if ("omarchyPath" in inst) inst.omarchyPath = shell.omarchyPath
       if ("shell" in inst) inst.shell = shell.pluginShellFor(manifest)
       if ("manifest" in inst) inst.manifest = shell.publicPluginManifest(manifest)
       if ("barWidgetRegistry" in inst) inst.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
       if ("pluginRegistry" in inst) inst.pluginRegistry = shell.pluginRegistryFor(manifest)
       if (authenticationService) {
-        // Never publish lock/polkit through ShellRoot._services. The private JS
-        // import retains their lifetime without adding a traversable property
-        // or QObject parent back to the host shell.
         AuthServiceStore.put(key, inst)
       } else {
         var snext = ({})
@@ -931,6 +977,7 @@ ShellRoot {
         _services = snext
       }
     }
+
     if (comp.status === Component.Loading) {
       comp.statusChanged.connect(finalize)
       return null
@@ -993,6 +1040,17 @@ ShellRoot {
       for (var k in _services) if (k !== existingId) next[k] = _services[k]
       _services = next
     }
+    // Revoke asynchronous claims whose service disappeared or was disabled.
+    // Late callbacks compare claim identity and therefore cannot publish.
+    for (var pendingId in _pendingServiceLoads) {
+      var pendingManifest = plugins[pendingId]
+      var pendingStillService = pendingManifest && Array.isArray(pendingManifest.kinds)
+        && pendingManifest.kinds.indexOf("service") !== -1
+        && pendingManifest.entryPoints && pendingManifest.entryPoints.service
+      if (pendingStillService && pluginRegistry.isEnabled(pendingId)) continue
+      shell.setPendingServiceLoad(pendingId, null)
+    }
+
     // Authentication services are retained outside the root object graph, so
     // reconcile their disable/remove lifecycle separately from _services.
     var authenticationIds = AuthServiceStore.ids()
@@ -1020,6 +1078,13 @@ ShellRoot {
   // Destroying omarchy.lock drops the ext-session-lock client while Hyprland
   // still holds the lock, which surfaces the crashed-lockscreen fallback.
   function unloadPluginServices() {
+    // Any callback that completes after reload starts must not publish an
+    // instance from the previous registry generation.
+    var pendingNext = ({})
+    for (var pendingId in _pendingServiceLoads)
+      if (serviceKeepLoaded(pendingId)) pendingNext[pendingId] = _pendingServiceLoads[pendingId]
+    _pendingServiceLoads = pendingNext
+
     var next = ({})
     for (var existingId in _services) {
       if (serviceKeepLoaded(existingId)) {

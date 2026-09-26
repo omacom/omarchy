@@ -35,7 +35,10 @@ qml_matches() {
 }
 
 qml_matches "$shell_qml" 'comp\.createObject\( *manifest\.__isFirstParty *&& *!authenticationService *\? *serviceHost *: *null *\)' ||
-  fail "third-party and authentication services are detached from the host object tree"
+  fail "third-party, cloned, and authentication services are detached from the host object tree"
+if qml_matches "$shell_qml" 'clonedFrom\.indexOf\( *"omarchy\." *\) *=== *0[^;]*attachToHost'; then
+  fail "manifest-authored clonedFrom grants host parenting"
+fi
 qml_matches "$shell_qml" 'AuthServiceStore\.put\( *key, *inst *\)' ||
   fail "authentication services are retained outside the host service map"
 qml_matches "$shell_qml" 'AuthServiceStore\.isTrusted\( *key *\)' ||
@@ -45,6 +48,19 @@ qml_matches "$shell_qml" 'AuthServiceStore\.updateManifest\( *id, *shell\.public
 qml_matches "$shell_qml" 'if *\( *!serviceKeepLoaded\( *authenticationId *\) *\) *AuthServiceStore\.destroy\( *authenticationId *\)' ||
   fail "keepLoaded authentication services survive plugin rescans"
 pass "third-party and authentication services are detached from the host object tree"
+
+run_node_test "service load claims are generation-owned" <<'JS'
+const state = requireFromRoot('shell/services/ServiceLoadState.js')
+const manifest = { id: 'tester.background' }
+const replacement = { id: 'tester.background' }
+const claim = { manifest, url: 'file:///Background.qml' }
+
+assert(state.claimCurrent(claim, claim, manifest, claim.url, true), 'current enabled claim may publish')
+assert(!state.claimCurrent({}, claim, manifest, claim.url, true), 'superseded claim cannot publish')
+assert(!state.claimCurrent(claim, claim, replacement, claim.url, true), 'replaced manifest invalidates pending load')
+assert(!state.claimCurrent(claim, claim, manifest, 'file:///Other.qml', true), 'changed entry point invalidates pending load')
+assert(!state.claimCurrent(claim, claim, manifest, claim.url, false), 'disabled service invalidates pending load')
+JS
 
 run_node_test <<'JS'
 const fs = require('fs')
@@ -71,6 +87,14 @@ qml_matches "$shell_qml" 'item\.shell *= *shell\.pluginShellFor\( *panelEntry\.m
 qml_matches "$shell_qml" 'target\.shell *= *shell\.pluginShellFor\( *manifest *\)' ||
   fail "full-bar plugins receive a scoped shell facade"
 pass "third-party entry points receive scoped shell facades"
+
+qml_matches "$shell_qml" 'property var _pendingServiceLoads: *\(\{\}\)' ||
+  fail "service loader does not track in-flight claims"
+qml_matches "$shell_qml" 'if *\( *pending\.manifest *=== *manifest *&& *pending\.url *=== *url *\) *return null' ||
+  fail "duplicate sync can start a second service compile"
+qml_matches "$shell_qml" 'serviceLoadClaimCurrent\( *key, *claim *\)' ||
+  fail "late service callback does not revalidate claim ownership"
+pass "asynchronous service loads are claimed before publication"
 
 if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
   fail "replacement-bar facade exposes a generic plugin-shell factory"
