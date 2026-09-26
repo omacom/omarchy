@@ -5,6 +5,11 @@
 # omarchy:name=wake
 # omarchy:examples=omarchy system wake
 
+skip_keyboard=0
+if [[ ${1:-} == "--skip-keyboard" ]]; then
+  skip_keyboard=1
+fi
+
 omarchy-brightness-display on
-omarchy-brightness-keyboard restore
+(( skip_keyboard )) || omarchy-brightness-keyboard restore
 omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true

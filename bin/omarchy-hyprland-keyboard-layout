@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# omarchy:summary=Save or restore the active Hyprland keyboard layout across sleep
+# omarchy:group=hyprland
+# omarchy:hidden=true
+# omarchy:args=<save|restore>
+
+action="${1:-}"
+state_dir="${OMARCHY_KEYBOARD_LAYOUT_STATE_DIR:-${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy}"
+state_file="$state_dir/keyboard-layout.state"
+
+# Match shell/plugins/bar/widgets/KeyboardLayoutModel.js: leave out ACPI
+# buttons and the fcitx5 virtual keyboard Hyprland still reports as keyboards.
+untyped_re='^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)'
+
+select_typed_keyboard() {
+  hyprctl devices -j 2>/dev/null | jq -c --arg re "$untyped_re" '
+    [.keyboards[]? | select((.name // "") | test($re) | not)] as $typed
+    | if ($typed | length) == 0 then empty
+      else ($typed | max_by(.active_layout_index // 0))
+      end
+  ' 2>/dev/null
+}
+
+case $action in
+  save)
+    mkdir -p "$state_dir" 2>/dev/null || exit 0
+    # A failed new observation must not leave a prior sleep cycle's receipt live.
+    rm -f "$state_file"
+    kb=$(select_typed_keyboard) || exit 0
+    [[ -n $kb && $kb != "null" ]] || exit 0
+
+    name=$(jq -r '.name // empty' <<<"$kb" 2>/dev/null) || exit 0
+    index=$(jq -r '.active_layout_index // 0' <<<"$kb" 2>/dev/null) || exit 0
+    [[ -n $name && $index =~ ^[0-9]+$ ]] || exit 0
+
+    printf '%s\t%s\n' "$name" "$index" >"$state_file"
+    ;;
+  restore)
+    [[ -f $state_file ]] || exit 0
+    IFS=      hyprctl switchxkblayout all "$index" >/dev/null 2>&1 || true
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-hyprland-keyboard-layout <save|restore>" >&2
+    exit 1
+    ;;
+esac
+\t' read -r name index <"$state_file" || exit 0
+    rm -f "$state_file"
+    [[ -n $name && $index =~ ^[0-9]+$ ]] || exit 0
+
+    if ! hyprctl switchxkblayout "$name" "$index" >/dev/null 2>&1; then
+      hyprctl switchxkblayout all "$index" >/dev/null 2>&1 || true
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy-hyprland-keyboard-layout <save|restore>" >&2
+    exit 1
+    ;;
+esac

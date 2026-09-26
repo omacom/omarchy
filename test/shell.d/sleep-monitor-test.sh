@@ -10,97 +10,92 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 mock_bin="$tmpdir/bin"
 mock_omarchy="$tmpdir/omarchy"
-producer_pid_file="$tmpdir/producer-pid"
 lock_log="$tmpdir/lock-log"
+layout_log="$tmpdir/layout-log"
+wake_log="$tmpdir/wake-log"
+resume_ready="$tmpdir/resume-ready"
+prepare_seen="$tmpdir/prepare-seen"
 mkdir -p "$mock_bin" "$mock_omarchy/bin"
 
 cat >"$mock_bin/systemd-inhibit" <<'SH'
 #!/bin/bash
-
-while [[ $1 == --* ]]; do
-  shift
-done
-
+while [[ $1 == --* ]]; do shift; done
 exec "$@"
 SH
 
 cat >"$mock_bin/dbus-monitor" <<'SH'
 #!/bin/bash
-
-echo "$$" >"$PRODUCER_PID_FILE"
-printf '   boolean true\n'
-exec sleep 30
+case "${OMARCHY_SLEEP_EVENT_ROLE:-}" in
+  resume)
+    # Subscription exists before the inhibited listener. Queue the prepare edge,
+    # then keep this exact producer alive until the lock path has handled it.
+    touch "$RESUME_READY"
+    printf '   boolean true\n'
+    for _ in {1..200}; do
+      [[ -e $PREPARE_SEEN ]] && break
+      sleep 0.01
+    done
+    printf '   boolean false\n'
+    exec sleep 30
+    ;;
+  prepare)
+    for _ in {1..200}; do
+      [[ -e $RESUME_READY ]] && break
+      sleep 0.01
+    done
+    printf '   boolean true\n'
+    exec sleep 30
+    ;;
+  *)
+    exit 2
+    ;;
+esac
 SH
 
 cat >"$mock_omarchy/bin/omarchy-system-sleep-lock" <<'SH'
 #!/bin/bash
-
 echo locked >>"$LOCK_LOG"
+touch "$PREPARE_SEEN"
 SH
 
-chmod +x \
-  "$mock_bin/systemd-inhibit" \
-  "$mock_bin/dbus-monitor" \
-  "$mock_omarchy/bin/omarchy-system-sleep-lock"
+cat >"$mock_omarchy/bin/omarchy-hyprland-keyboard-layout" <<'SH'
+#!/bin/bash
+echo "$1" >>"$LAYOUT_LOG"
+SH
+
+cat >"$mock_omarchy/bin/omarchy-system-wake" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$WAKE_LOG"
+SH
+
+chmod +x "$mock_bin/systemd-inhibit" "$mock_bin/dbus-monitor"   "$mock_omarchy/bin/omarchy-system-sleep-lock"   "$mock_omarchy/bin/omarchy-hyprland-keyboard-layout"   "$mock_omarchy/bin/omarchy-system-wake"
 ln -s "$sleep_monitor" "$mock_omarchy/bin/omarchy-system-sleep-monitor"
 
-start_us=${EPOCHREALTIME//[!0-9]/}
-OMARCHY_PATH="$mock_omarchy" \
-  PATH="$mock_bin:$PATH" \
-  PRODUCER_PID_FILE="$producer_pid_file" \
-  LOCK_LOG="$lock_log" \
-  "$sleep_monitor"
-elapsed_us=$((10#${EPOCHREALTIME//[!0-9]/} - 10#$start_us))
+OMARCHY_PATH="$mock_omarchy" PATH="$mock_bin:$PATH"   LOCK_LOG="$lock_log" LAYOUT_LOG="$layout_log" WAKE_LOG="$wake_log"   RESUME_READY="$resume_ready" PREPARE_SEEN="$prepare_seen"   "$sleep_monitor"
 
 [[ $(<"$lock_log") == "locked" ]] ||
-  fail "sleep monitor invokes the lock helper for a sleep event"
-pass "sleep monitor invokes the lock helper for a sleep event"
+  fail "full sleep cycle invokes the lock helper"
+mapfile -t layout_calls <"$layout_log"
+[[ ${layout_calls[0]:-} == save && ${layout_calls[1]:-} == restore && ${#layout_calls[@]} -eq 2 ]] ||
+  fail "one subscription cycle saves before sleep and restores after resume" "$(cat "$layout_log")"
+[[ $(<"$wake_log") == "--skip-keyboard" ]] ||
+  fail "resume wakes the session without consuming the lock/idle keyboard receipt" "$(cat "$wake_log")"
+pass "one prepare/resume subscription cycle owns both keyboard layout edges"
 
-(( elapsed_us < 2000000 )) ||
-  fail "sleep monitor releases the inhibitor after locking" "elapsed: ${elapsed_us}us"
-pass "sleep monitor releases the inhibitor after locking"
+# The key regression: resume listener must have subscribed before the prepare
+# listener can release the delay inhibitor.
+[[ -e $resume_ready && -e $prepare_seen ]] ||
+  fail "resume subscription was not established before prepare completed"
+pass "resume subscription exists before the sleep inhibitor is released"
 
-producer_pid=$(<"$producer_pid_file")
-if kill -0 "$producer_pid" 2>/dev/null; then
-  fail "sleep monitor reaps its event producer" "producer still running: $producer_pid"
-fi
-pass "sleep monitor reaps its event producer"
+# Unit-mode edges remain independently testable.
+: >"$layout_log"
+printf '   boolean true\n' |   OMARCHY_PATH="$mock_omarchy" LAYOUT_LOG="$layout_log" LOCK_LOG="$lock_log"   "$sleep_monitor" --consume-prepare
+[[ $(<"$layout_log") == save ]] || fail "prepare consumer saves layout"
 
-# Terminating the monitor must also clean up the producer instead of orphaning
-# it under the user systemd instance.
-cat >"$mock_bin/dbus-monitor" <<'SH'
-#!/bin/bash
-
-sleep 0.1
-echo "$$" >"$PRODUCER_PID_FILE"
-exec sleep 30
-SH
-chmod +x "$mock_bin/dbus-monitor"
-rm -f "$producer_pid_file"
-
-OMARCHY_PATH="$mock_omarchy" \
-  PATH="$mock_bin:$PATH" \
-  PRODUCER_PID_FILE="$producer_pid_file" \
-  LOCK_LOG="$lock_log" \
-  "$sleep_monitor" &
-monitor_pid=$!
-
-for _ in {1..100}; do
-  [[ -s $producer_pid_file ]] && break
-  sleep 0.01
-done
-if [[ ! -s $producer_pid_file ]]; then
-  kill "$monitor_pid" 2>/dev/null || true
-  wait "$monitor_pid" 2>/dev/null || true
-  fail "sleep monitor starts its event producer"
-fi
-
-producer_pid=$(<"$producer_pid_file")
-kill "$monitor_pid"
-wait "$monitor_pid" 2>/dev/null || true
-
-if kill -0 "$producer_pid" 2>/dev/null; then
-  kill "$producer_pid" 2>/dev/null || true
-  fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
-fi
-pass "sleep monitor cleans up its producer when terminated"
+: >"$layout_log"
+: >"$wake_log"
+printf '   boolean false\n' |   OMARCHY_PATH="$mock_omarchy" LAYOUT_LOG="$layout_log" WAKE_LOG="$wake_log"   "$sleep_monitor" --consume-resume
+[[ $(<"$layout_log") == restore ]] || fail "resume consumer restores layout"
+[[ $(<"$wake_log") == "--skip-keyboard" ]] || fail "resume consumer skips duplicate keyboard restore"
+pass "prepare and resume consumers preserve their individual edge behavior"
