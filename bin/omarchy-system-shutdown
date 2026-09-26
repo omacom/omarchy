@@ -4,9 +4,12 @@
 # omarchy:examples=omarchy shutdown | omarchy system shutdown
 # omarchy:aliases=omarchy shutdown
 
+# Capture before windows close; a failed snapshot must not prevent shutdown.
+timeout 5 omarchy-session prepare-exit || true
+
 # Schedule the shutdown in the user manager so closing the terminal's systemd
 # scope cannot terminate it before it runs.
-systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl poweroff --no-wall || exit 1
+systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms systemctl poweroff --no-wall || { omarchy-session cancel-exit; exit 1; }
 
 omarchy-osd -i shutdown -m "Shutting down" -d 5000
 
