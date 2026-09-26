@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Launch Activity (btop) without waking a runtime-suspended NVIDIA GPU
+
+# btop initialises NVML at startup whenever shown_gpus lists nvidia, GPU box
+# or not, and that alone resumes a suspended discrete GPU on hybrid laptops
+# for as long as Activity stays open. Leave nvidia out of the list while the
+# card sleeps, and put it back once the card is awake and worth watching.
+btop_conf="$HOME/.config/btop/btop.conf"
+
+if [[ -w $btop_conf ]] && shown=$(sed -n 's/^shown_gpus = "\(.*\)"$/\1/p' "$btop_conf") && [[ -n $shown ]]; then
+  read -r -a vendors <<<"$shown"
+  wanted=()
+  for vendor in "${vendors[@]}"; do
+    [[ $vendor == "nvidia" ]] || wanted+=("$vendor")
+  done
+
+  if ! omarchy-hw-nvidia-suspended; then
+    wanted=("nvidia" "${wanted[@]}")
+  fi
+
+  if [[ ${wanted[*]} != "$shown" ]]; then
+    sed -i "s/^shown_gpus = .*/shown_gpus = \"${wanted[*]}\"/" "$btop_conf"
+  fi
+fi
+
+exec omarchy-launch-tui btop
