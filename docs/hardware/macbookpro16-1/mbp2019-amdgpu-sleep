@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+(( EUID == 0 )) || exit 1
+[[ $# == 1 ]] || exit 2
+unit=mbp2019-amdgpu-demand.service
+marker=/run/mbp2019-amdgpu-sleep/restart-controller
+case "$1" in
+  pre)
+    if systemctl is-active --quiet "$unit"; then
+      printf 'active\n' > "$marker"
+      systemctl stop "$unit"
+      [[ $(< /sys/bus/pci/devices/0000:03:00.0/power_dpm_force_performance_level) == "low" ]]
+    fi
+    ;;
+  post)
+    # Preserve a manually stopped controller: only resume one we stopped.
+    if [[ -f $marker && ! -L $marker && $(< "$marker") == "active" ]]; then
+      rm -- "$marker"
+      systemctl start --no-block "$unit"
+    fi
+    ;;
+  *) exit 2 ;;
+esac
