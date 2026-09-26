@@ -20,32 +20,40 @@ case "$KIND" in
     ;;
 esac
 
-# The persisted disable is the device name stored as plain data; on every
-# reload default/hypr/disabled-input-device.lua reads it back and disables the
-# device. Names come from USB descriptors and must not be interpolated into
-# shell or Lua. The path is hardcoded to ~/.local/state like the sibling
-# toggle tools, so it keeps working when XDG_STATE_HOME diverges.
+# The persisted disable is device names stored as plain data (one per line); on
+# every reload default/hypr/disabled-input-device.lua reads them back and
+# disables each device. Names come from USB descriptors and must not be
+# interpolated into shell or Lua. The path is hardcoded to ~/.local/state like
+# the sibling toggle tools, so it keeps working when XDG_STATE_HOME diverges.
 NAME_FILE="$HOME/.local/state/omarchy/toggles/hypr/$KIND-disabled-name"
 
-device="$("omarchy-hw-$KIND")"
+names=()
+while IFS= read -r name; do
+  [[ -n $name ]] && names+=("$name")
+done < <("omarchy-hw-$KIND" || true)
 
 require_device() {
-  if [[ -z $device ]]; then
+  if (( ${#names[@]} == 0 )); then
     echo "No $KIND device found" >&2
     exit 1
   fi
 
-  if [[ $device == *[[:cntrl:]]* ]]; then
-    echo "Invalid $KIND device name" >&2
-    exit 1
-  fi
+  local name
+  for name in "${names[@]}"; do
+    if [[ $name == *[[:cntrl:]]* ]]; then
+      echo "Invalid $KIND device name" >&2
+      exit 1
+    fi
+  done
 }
 
-apply_device() {
-  local enabled=$1
-  local quoted=${device//\\/\\\\}
-  quoted=${quoted//\"/\\\"}
-  hyprctl eval "hl.device({ name = \"$quoted\", enabled = $enabled })" >/dev/null
+apply_devices() {
+  local enabled=$1 name quoted
+  for name in "${names[@]}"; do
+    quoted=${name//\\/\\\\}
+    quoted=${quoted//\"/\\\"}
+    hyprctl eval "hl.device({ name = \"$quoted\", enabled = $enabled })" >/dev/null
+  done
 }
 
 enable() {
@@ -53,15 +61,15 @@ enable() {
   # that stops reporting a valid name can never wedge the disable in place.
   rm -f "$NAME_FILE"
   require_device
-  apply_device true
+  apply_devices true
   omarchy-osd -i "$ICON" -m "$LABEL enabled"
 }
 
 disable() {
   require_device
-  apply_device false
+  apply_devices false
   mkdir -p "$(dirname "$NAME_FILE")"
-  printf '%s\n' "$device" >"$NAME_FILE"
+  printf '%s\n' "${names[@]}" >"$NAME_FILE"
   omarchy-osd -i "$ICON" -m "$LABEL disabled"
 }
 

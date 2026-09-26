@@ -100,6 +100,31 @@ run_toggle touchscreen on
 pass "touchscreen routes through the same persisted-name state"
 
 : >"$log_file"
+stub_device touchscreen $'elan9008:00-04f3:4447\nelan9009:00-04f3:4448'
+run_toggle touchscreen off
+[[ $(<"$ts_name_file") == $'elan9008:00-04f3:4447\nelan9009:00-04f3:4448' ]] ||
+  fail "touchscreen disable persists every device name"
+grep -Fx 'hl.device({ name = "elan9008:00-04f3:4447", enabled = false })' "$log_file" >/dev/null ||
+  fail "touchscreen disable applies the first digitizer"
+grep -Fx 'hl.device({ name = "elan9009:00-04f3:4448", enabled = false })' "$log_file" >/dev/null ||
+  fail "touchscreen disable applies the second digitizer"
+HOME="$home_dir" XDG_STATE_HOME="$xdg_decoy" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+local seen = {}
+hl = { device = function(opts) table.insert(seen, opts) end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.toggles")
+assert(#seen == 2, "reload disables every stored touchscreen")
+assert(seen[1].name == "elan9008:00-04f3:4447")
+assert(seen[2].name == "elan9009:00-04f3:4448")
+assert(seen[1].enabled == false and seen[2].enabled == false)
+LUA
+run_toggle touchscreen on
+[[ ! -e $ts_name_file ]] || fail "touchscreen enable clears every persisted device name"
+grep -Fx 'hl.device({ name = "elan9009:00-04f3:4448", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchscreen enable applies the second digitizer"
+pass "touchscreen toggle applies every digitizer"
+
+: >"$log_file"
 rm -f "$marker"
 stub_device touchpad 'touchpad"; touch '"$marker"'; echo "'
 
@@ -175,7 +200,7 @@ pass "PoC device name cannot execute via eval or reload"
 
 cat >"$stub_dir/omarchy-hw-touchpad" <<'EOF'
 #!/bin/bash
-printf 'evil\nname\n'
+printf 'evil\tname\n'
 EOF
 chmod +x "$stub_dir/omarchy-hw-touchpad"
 
@@ -184,7 +209,7 @@ set +e
 run_toggle touchpad off >/dev/null 2>&1
 status=$?
 set -e
-(( status != 0 )) || fail "disable rejects a device name with a newline"
+(( status != 0 )) || fail "disable rejects a device name with a control character"
 [[ ! -e $name_file ]] || fail "a rejected device name is not persisted"
 pass "disable rejects control characters in a device name"
 
