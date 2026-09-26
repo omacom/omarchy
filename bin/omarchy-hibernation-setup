@@ -15,15 +15,15 @@ done
 
 if [[ ! -f /sys/power/image_size ]]; then
   echo -e "Hibernation is not supported on your system" >&2
-  exit 0
+  exit 1
 fi
 
 # When --no-rebuild is set, the caller is responsible for the UKI rebuild
 # (e.g. running before limine-mkinitcpio-hook is installed during initial
 # install), so we only require limine-mkinitcpio when we'd invoke it ourselves.
 if ! $NO_REBUILD && omarchy-cmd-missing limine-mkinitcpio; then
-  echo "Skipping hibernation setup (requires Limine bootloader)"
-  exit 0
+  echo "Skipping hibernation setup (requires Limine bootloader)" >&2
+  exit 1
 fi
 
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
@@ -72,8 +72,18 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
       fi
     fi
   fi
-  echo "Hibernation is already set up"
-  exit 0
+
+  # Empty resume= (device) with a nonempty offset leaves a hibernation image
+  # that the next boot silently ignores (#12630). findmnt can return blank when
+  # the swapfile is not mounted; refuse to keep that drop-in.
+  if [[ -f $RESUME_DROP_IN ]] && grep -Eq 'resume=[[:space:]]+resume_offset=' "$RESUME_DROP_IN"; then
+    echo "Broken hibernation drop-in has an empty resume= device; removing it so setup can rewrite it." >&2
+    sudo rm -f "$RESUME_DROP_IN"
+    # Fall through and rewrite rather than claiming setup is complete.
+  else
+    echo "Hibernation is already set up"
+    exit 0
+  fi
 fi
 
 if ! $FORCE; then
@@ -133,12 +143,15 @@ if [[ ! -f $RESUME_DROP_IN ]]; then
   sudo swapon -p 0 "$SWAP_FILE" 2>/dev/null
   RESUME_DEVICE=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
   RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE")
-  if [[ -n $RESUME_OFFSET ]]; then
-    sudo mkdir -p /etc/limine-entry-tool.d
-    echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null
-  else
-    echo "Warning: Could not determine resume offset for $SWAP_FILE" >&2
+  # Both values are required. An empty device with a valid offset produces
+  # `resume= resume_offset=N` and a cold boot that drops the hibernation image.
+  if [[ -z $RESUME_DEVICE || -z $RESUME_OFFSET ]]; then
+    echo "Could not determine resume device and offset for $SWAP_FILE (device='${RESUME_DEVICE:-}' offset='${RESUME_OFFSET:-}')." >&2
+    echo "Hibernation was not configured. Fix the swapfile mount, then re-run omarchy-hibernation-setup." >&2
+    exit 1
   fi
+  sudo mkdir -p /etc/limine-entry-tool.d
+  echo "KERNEL_CMDLINE[default]+=\" resume=$RESUME_DEVICE resume_offset=$RESUME_OFFSET\"" | sudo tee "$RESUME_DROP_IN" >/dev/null
 fi
 
 # Use ACPI alarm for RTC wakeup on s2idle systems (needed for suspend-then-hibernate)
