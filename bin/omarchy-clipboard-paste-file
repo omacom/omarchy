@@ -2,22 +2,35 @@
 
 # omarchy:summary=Copy a file to the clipboard and paste it
 # omarchy:group=clipboard
-# omarchy:args=[--copy-only] <mime-type> <path>
+# omarchy:args=[--copy-only] [--window <address>] <mime-type> <path>
 # omarchy:examples=omarchy clipboard paste file image/png /tmp/screenshot.png
 # omarchy:hidden=true
 
 copy_only=false
+window=""
 
-if [[ ${1:-} == "--copy-only" ]]; then
-  copy_only=true
-  shift
-fi
+while (( $# > 0 )); do
+  case "$1" in
+    --copy-only)
+      copy_only=true
+      shift
+      ;;
+    --window)
+      window="${2:-}"
+      shift
+      (( $# > 0 )) && shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 mime=${1:-}
 path=${2:-}
 
 if [[ -z $mime || -z $path ]]; then
-  echo "Usage: omarchy-clipboard-paste-file [--copy-only] <mime-type> <path>" >&2
+  echo "Usage: omarchy-clipboard-paste-file [--copy-only] [--window <address>] <mime-type> <path>" >&2
   exit 1
 fi
 
@@ -29,5 +42,29 @@ if [[ $copy_only == "true" ]]; then
   exit
 fi
 
-sleep 0.15
+# The picker is a fullscreen layer holding exclusive keyboard focus, so a
+# focus request while it is still up does nothing. Once it closes,
+# follow_mouse hands focus to whichever window sits under the (centred)
+# cursor — so a mouse-picked entry would paste into the wrong window. Wait
+# for the layer to go, then re-focus the recorded origin window and confirm
+# it stuck before typing.
+focus_origin_window() {
+  if [[ -z $window ]]; then
+    sleep 0.15
+    return
+  fi
+
+  [[ $window == 0x* ]] || window="0x$window"
+
+  sleep 0.15
+  for _ in {1..15}; do
+    [[ $(hyprctl activewindow -j 2>/dev/null | jq -r '.address // ""') == "$window" ]] && return
+    hyprctl dispatch "hl.dsp.focus({ window = \"address:$window\" })" >/dev/null 2>&1 ||
+      hyprctl dispatch focuswindow "address:$window" >/dev/null 2>&1
+    sleep 0.04
+  done
+}
+
+focus_origin_window
+
 wtype -M shift -k Insert -m shift 2>/dev/null || true

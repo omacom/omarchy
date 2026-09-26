@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -10,6 +11,10 @@ Item {
   id: root
 
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // Address of the window that was focused when the manager opened, so a
+  // mouse-picked entry pastes back into it rather than whatever follow_mouse
+  // focuses once the overlay closes.
+  property string targetWindow: ""
   property bool opened: false
   property string filterText: ""
   property int selectedIndex: 0
@@ -40,6 +45,12 @@ Item {
   property int historyLimit: 500
 
   function open(payloadJson) {
+    // Only record an origin on the focused workspace: after a switch to an
+    // empty workspace activeToplevel still points at the previous window, and
+    // refocusing it would jump workspaces and paste where the user isn't.
+    var active = Hyprland.activeToplevel
+    var onFocusedWorkspace = active && active.workspace && active.workspace.focused
+    root.targetWindow = (onFocusedWorkspace && active.address) ? active.address : ""
     root.opened = true
     root.filterText = ""
     root.selectedIndex = 0
@@ -216,9 +227,14 @@ Item {
     if (!row) return
     root.opened = false
     if (row.entryType === "image") {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-file", row.mime, row.path])
+      var fileArgs = [root.omarchyPath + "/bin/omarchy-clipboard-paste-file"]
+      if (root.targetWindow) fileArgs.push("--window", root.targetWindow)
+      fileArgs.push(row.mime, row.path)
+      Quickshell.execDetached(fileArgs)
     } else if (row.fullText) {
-      Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)])
+      var textArgs = [root.omarchyPath + "/bin/omarchy-clipboard-paste-text", "--shift-insert", "--history-index", String(row.historyIndex)]
+      if (root.targetWindow) textArgs.push("--window", root.targetWindow)
+      Quickshell.execDetached(textArgs)
     }
   }
 

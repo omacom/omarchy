@@ -174,6 +174,26 @@ assert(
   clipboardQml.includes('command: ["pkill", "-f", "wl-paste .*--watch .*/shell/plugins/clipboard/capture\\\\.sh"]'),
   'clipboard init reaps stale watchers before starting new ones'
 )
+
+// The manager records the window it was opened from and hands its address to
+// the paste helpers, so a mouse-picked entry pastes back into the origin
+// window rather than whatever follow_mouse focuses when the overlay closes.
+assert(
+  /function open\(payloadJson\)[\s\S]*active\.workspace\.focused[\s\S]*root\.targetWindow = \(onFocusedWorkspace && active\.address\) \? active\.address : ""/.test(clipboardQml),
+  'clipboard records the origin window only when its workspace is focused'
+)
+assert(
+  !clipboardQml.includes('lastToplevelAddress'),
+  'clipboard no longer falls back to a stale toplevel address'
+)
+assert(
+  /omarchy-clipboard-paste-text", "--shift-insert", "--history-index"[\s\S]*?"--window", root\.targetWindow/.test(clipboardQml),
+  'clipboard passes the origin window to the text paste helper'
+)
+assert(
+  /omarchy-clipboard-paste-file"[\s\S]*?"--window", root\.targetWindow/.test(clipboardQml),
+  'clipboard passes the origin window to the file paste helper'
+)
 assertEqual(
   (clipboardQml.match(/onExited: watchRestartTimer\.restart\(\)/g) || []).length,
   2,
@@ -436,32 +456,36 @@ kill "$stale_pid" 2>/dev/null || true
 wait "$stale_pid" 2>/dev/null || true
 pass "clipboard reaper pattern matches running watchers"
 
-watch_owner="$clipboard_lifecycle_dir/watch-owner.sh"
-watch_pid_file="$clipboard_lifecycle_dir/watch.pid"
-cat >"$watch_owner" <<SH
+if command -v setpriv >/dev/null; then
+  watch_owner="$clipboard_lifecycle_dir/watch-owner.sh"
+  watch_pid_file="$clipboard_lifecycle_dir/watch.pid"
+  cat >"$watch_owner" <<SH
 #!/bin/bash
 PATH="$TMPDIR/bin:\$PATH" setpriv --pdeathsig TERM wl-paste --type text --watch "$current_script" text &
 printf '%s\n' "\$!" >"$watch_pid_file"
 wait
 SH
-chmod +x "$watch_owner"
+  chmod +x "$watch_owner"
 
-"$watch_owner" &
-owner_pid=$!
-PIDS_TO_KILL+=("$owner_pid")
+  "$watch_owner" &
+  owner_pid=$!
+  PIDS_TO_KILL+=("$owner_pid")
 
-for _ in {1..40}; do
-  [[ -s $watch_pid_file ]] && break
-  sleep 0.1
-done
+  for _ in {1..40}; do
+    [[ -s $watch_pid_file ]] && break
+    sleep 0.1
+  done
 
-watch_pid=$(<"$watch_pid_file")
-[[ -n $watch_pid ]] && process_alive "$watch_pid" || fail "clipboard watcher starts under setpriv"
-PIDS_TO_KILL+=("$watch_pid")
+  watch_pid=$(<"$watch_pid_file")
+  [[ -n $watch_pid ]] && process_alive "$watch_pid" || fail "clipboard watcher starts under setpriv"
+  PIDS_TO_KILL+=("$watch_pid")
 
-kill "$owner_pid" 2>/dev/null || true
-process_gone "$watch_pid" || fail "clipboard watcher dies with its owner via pdeathsig"
-pass "clipboard watcher dies with its owner via pdeathsig"
+  kill "$owner_pid" 2>/dev/null || true
+  process_gone "$watch_pid" || fail "clipboard watcher dies with its owner via pdeathsig"
+  pass "clipboard watcher dies with its owner via pdeathsig"
+else
+  skip "clipboard watcher dies with its owner via pdeathsig (no setpriv)"
+fi
 
 jq -n --arg text "$(printf 'large block line 1\nlarge block line 2\n')" '[{type:"text", text:"ignored"}, {type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
@@ -518,3 +542,143 @@ OMASNAP_OUT="$TMPDIR/omasnap" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
 
 [[ $(<"$TMPDIR/omasnap") == "$TMPDIR/image.png" ]] || fail "clipboard open helper opens image entries in Omasnap"
 pass "clipboard open helper opens image entries in Omasnap"
+
+# A paste that names the window the manager was opened from must refocus that
+# window before typing: once the overlay layer unmaps, follow_mouse hands
+# focus to whatever sits under the (centred) pointer, so without the refocus
+# the Shift+Insert lands in the wrong window.
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$HYPRCTL_OUT"
+case "$*" in
+  *activewindow*)
+    printf '{"address": "%s"}\n' "${HYPRCTL_ADDRESS:-0xother}"
+    ;;
+  "dispatch hl.dsp.focus"*)
+    if [[ ${HYPRCTL_LUA_FAIL:-} == "1" ]]; then
+      exit 1
+    fi
+    ;;
+esac
+SH
+chmod +x "$TMPDIR/bin/hyprctl"
+
+: >"$TMPDIR/hyprctl"
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hyprctl" \
+  HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 0 --window 0xdeadbeef
+
+grep -qF 'dispatch hl.dsp.focus({ window = "address:0xdeadbeef" })' "$TMPDIR/hyprctl" ||
+  fail "clipboard text paste refocuses the origin window" "$(cat "$TMPDIR/hyprctl")"
+pass "clipboard text paste refocuses the origin window"
+
+if grep -q "focuswindow" "$TMPDIR/hyprctl"; then
+  fail "clipboard text paste does not need the legacy focuswindow fallback" "$(cat "$TMPDIR/hyprctl")"
+fi
+pass "clipboard text paste does not need the legacy focuswindow fallback"
+
+[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] ||
+  fail "clipboard text paste still types after refocusing" "$(cat "$TMPDIR/wtype" 2>/dev/null)"
+pass "clipboard text paste still types after refocusing"
+
+# A bare (0x-less) address is normalised before dispatch.
+: >"$TMPDIR/hyprctl"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hyprctl" \
+  HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 0 --window deadbeef
+
+grep -qF 'dispatch hl.dsp.focus({ window = "address:0xdeadbeef" })' "$TMPDIR/hyprctl" ||
+  fail "clipboard text paste normalises a bare window address" "$(cat "$TMPDIR/hyprctl")"
+pass "clipboard text paste normalises a bare window address"
+
+# The refocus loop stops once the origin window is active again.
+: >"$TMPDIR/hyprctl"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hyprctl" HYPRCTL_ADDRESS="0xdeadbeef" \
+  HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 0 --window 0xdeadbeef
+
+if grep -q "hl.dsp.focus\|focuswindow" "$TMPDIR/hyprctl"; then
+  fail "clipboard text paste stops refocusing once the origin window is active" "$(cat "$TMPDIR/hyprctl")"
+fi
+pass "clipboard text paste stops refocusing once the origin window is active"
+
+# The file helper refocuses the same way.
+: >"$TMPDIR/hyprctl"
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hyprctl" \
+  PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" --window 0xdeadbeef image/png "$TMPDIR/image.png"
+
+grep -qF 'dispatch hl.dsp.focus({ window = "address:0xdeadbeef" })' "$TMPDIR/hyprctl" ||
+  fail "clipboard file paste refocuses the origin window" "$(cat "$TMPDIR/hyprctl")"
+pass "clipboard file paste refocuses the origin window"
+
+if grep -q "focuswindow" "$TMPDIR/hyprctl"; then
+  fail "clipboard file paste does not need the legacy focuswindow fallback" "$(cat "$TMPDIR/hyprctl")"
+fi
+pass "clipboard file paste does not need the legacy focuswindow fallback"
+
+[[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] ||
+  fail "clipboard file paste still sends the paste keystroke after refocusing" "$(cat "$TMPDIR/wtype" 2>/dev/null)"
+pass "clipboard file paste still sends the paste keystroke after refocusing"
+
+# Without --window nothing is refocused: the plain settle sleep stays.
+: >"$TMPDIR/hyprctl"
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hyprctl" \
+  HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 0
+
+[[ ! -s "$TMPDIR/hyprctl" ]] ||
+  fail "clipboard text paste leaves focus alone without a target window" "$(cat "$TMPDIR/hyprctl")"
+pass "clipboard text paste leaves focus alone without a target window"
+
+# When the Lua dispatcher rejects the call the legacy dispatcher is tried.
+: >"$TMPDIR/hyprctl"
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" HYPRCTL_OUT="$TMPDIR/hyprctl" HYPRCTL_LUA_FAIL=1 \
+  HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 0 --window 0xdeadbeef
+
+grep -qF 'dispatch hl.dsp.focus({ window = "address:0xdeadbeef" })' "$TMPDIR/hyprctl" ||
+  fail "clipboard text paste tries the Lua focus dispatcher first" "$(cat "$TMPDIR/hyprctl")"
+pass "clipboard text paste tries the Lua focus dispatcher first"
+
+grep -qF 'dispatch focuswindow address:0xdeadbeef' "$TMPDIR/hyprctl" ||
+  fail "clipboard text paste falls back to the legacy focus dispatcher" "$(cat "$TMPDIR/hyprctl")"
+pass "clipboard text paste falls back to the legacy focus dispatcher"
+
+# A trailing --window with no value must not spin the option loop forever.
+run_with_timeout() {
+  if command -v timeout >/dev/null; then
+    timeout 2 "$@"
+  elif command -v gtimeout >/dev/null; then
+    gtimeout 2 "$@"
+  else
+    "$@" &
+    local pid=$!
+    ( sleep 2; kill "$pid" 2>/dev/null ) &
+    local watchdog=$!
+    wait "$pid"
+    local status=$?
+    kill "$watchdog" 2>/dev/null || true
+    wait "$watchdog" 2>/dev/null || true
+    return "$status"
+  fi
+}
+
+window_flag_status=0
+run_with_timeout "$ROOT/bin/omarchy-clipboard-paste-file" --window >/dev/null 2>&1 || window_flag_status=$?
+(( window_flag_status == 1 )) ||
+  fail "clipboard file paste exits instead of spinning on a valueless --window" "status: $window_flag_status"
+pass "clipboard file paste exits instead of spinning on a valueless --window"
+
+grep -q 'active.workspace.focused' "$ROOT/shell/plugins/clipboard/Clipboard.qml" ||
+  fail "clipboard only records an origin window on the focused workspace"
+pass "clipboard only records an origin window on the focused workspace"
+
+if grep -q 'lastToplevelAddress' "$ROOT/shell/plugins/clipboard/Clipboard.qml"; then
+  fail "clipboard no longer tracks a last toplevel fallback"
+fi
+pass "clipboard no longer tracks a last toplevel fallback"
