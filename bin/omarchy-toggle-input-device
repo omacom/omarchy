@@ -35,7 +35,10 @@ require_device() {
     exit 1
   fi
 
-  if [[ $device == *[[:cntrl:]]* ]]; then
+  # USB iProduct strings are attacker-controlled with physical access (#8139).
+  # Reject control characters and shell expansion characters. Quotes and
+  # backslashes are escaped before the name is placed in a Lua string literal.
+  if [[ $device == *[[:cntrl:]]* || $device == *['$`']* ]]; then
     echo "Invalid $KIND device name" >&2
     exit 1
   fi
@@ -45,7 +48,9 @@ apply_device() {
   local enabled=$1
   local quoted=${device//\\/\\\\}
   quoted=${quoted//\"/\\\"}
-  hyprctl eval "hl.device({ name = \"$quoted\", enabled = $enabled })" >/dev/null
+  # Keep the eval payload single-quoted so bash cannot expand anything from
+  # the USB name; only our escaped quotes are spliced into the Lua string.
+  hyprctl eval 'hl.device({ name = "'"$quoted"'", enabled = '"$enabled"' })' >/dev/null
 }
 
 enable() {
