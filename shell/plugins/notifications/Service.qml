@@ -391,23 +391,54 @@ Item {
     // Chat apps (Slack, Discord, Vesktop, etc.) rarely register a "default"
     // libnotify action — they just expect clicking the notification to
     // focus their window. Fall back to focusing the sending app by class so
-    // that click-to-jump actually works.
-    if (!invoked) focusApp(entry)
+    // that click-to-jump actually works. Apps that DO register a "default"
+    // action don't always raise their window when it fires (Telegram Desktop
+    // ignores it on Linux), so focus regardless: the action may still do
+    // useful side work, but the click must always jump to the app.
+    focusApp(entry)
     dismissPopup(index)
   }
 
   // Try to focus an existing Hyprland window matching the notification's
-  // sender. The helper handles case-insensitive class matching.
+  // sender. The helper handles case-insensitive class matching. Apps often
+  // notify with an appName that differs from their window class (Telegram
+  // sends "Telegram Desktop" while the class is org.telegram.desktop), so
+  // try appIcon — typically the desktop-file id, usually equal to the class
+  // — before falling back to appName.
   function focusApp(entry) {
-    if (!entry || !entry.app) return
+    if (!entry) return
+    var candidates = []
+    if (entry.appIcon && String(entry.appIcon).length > 0) candidates.push(String(entry.appIcon))
+    if (entry.app && String(entry.app).length > 0) candidates.push(String(entry.app))
+    if (candidates.length === 0) return
+    focusAppProc.candidates = candidates
+    focusAppProc.candidateIndex = 0
     focusAppProc.command = [
       service.omarchyPath + "/bin/omarchy-hyprland-focus-app",
-      String(entry.app)
+      candidates[0]
     ]
     focusAppProc.running = true
   }
 
-  Process { id: focusAppProc; running: false }
+  // Runs the focus helper once per candidate pattern until one matches a
+  // window (helper exits 0) or the candidates are exhausted.
+  Process {
+    id: focusAppProc
+    running: false
+    property var candidates: []
+    property int candidateIndex: 0
+    onExited: function(exitCode) {
+      if (exitCode === 0) return
+      var next = focusAppProc.candidateIndex + 1
+      if (next >= focusAppProc.candidates.length) return
+      focusAppProc.candidateIndex = next
+      focusAppProc.command = [
+        service.omarchyPath + "/bin/omarchy-hyprland-focus-app",
+        focusAppProc.candidates[next]
+      ]
+      focusAppProc.running = true
+    }
+  }
 
   Process {
     id: ensureDirsProc
