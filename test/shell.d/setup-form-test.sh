@@ -57,6 +57,13 @@ if [[ -n ${TAKEN_USERS:-} ]]; then
   omarchy_username_taken() { [[ " $TAKEN_USERS " == *" $1 "* ]]; }
 fi
 
+if [[ -n ${CONFLICT_GROUPS:-} ]]; then
+  omarchy_username_conflicts_group() { [[ " $CONFLICT_GROUPS " == *" $1 "* ]]; }
+else
+  # Deterministic in CI: do not consult the host's group database.
+  omarchy_username_conflicts_group() { return 1; }
+fi
+
 trap 'if [[ ${FUNCNAME[0]:-} == "$PROMPT_FN" ]]; then printf "returned\n" >>"$MARKER"; fi' RETURN
 
 "$PROMPT_FN"
@@ -144,14 +151,15 @@ pass "keyboard prompt propagates Esc and Ctrl+C without dying under set -e"
 
 # Username
 
-TAKEN_USERS=dhh run_prompt omarchy_prompt_username "0:Not A Username" "0:root" "0:cups-browsed" "0:dhh" "0:david"
+TAKEN_USERS=dhh CONFLICT_GROUPS=audio run_prompt omarchy_prompt_username   "0:Not A Username" "0:root" "0:cups-browsed" "0:dhh" "0:audio" "0:david"
 assert_status 0 "username prompt accepts a valid name"
 [[ $(field username) == "david" ]] || fail "username prompt keeps re-asking until the name is valid"
 assert_notices "username prompt explains each rejection" "Username must be alphanumeric with no spaces
 Username is reserved for system
 Username is reserved for system
-That username already exists on this machine"
-pass "username prompt rejects malformed, reserved, and taken names"
+That username already exists on this machine
+Username conflicts with a system group"
+pass "username prompt rejects malformed, reserved, taken, and group-colliding names"
 
 run_prompt omarchy_prompt_username "1:"
 assert_status "$OMARCHY_FORM_BACK" "username prompt reports Esc as back"
