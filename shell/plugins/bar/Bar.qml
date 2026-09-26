@@ -1999,10 +1999,13 @@ Item {
     function injectProps() {
       var target = activeItem
       if (!target) return
+      // `in` reports read-only properties too: CustomCommandModule declares
+      // its own readonly moduleName/settings, and assigning to one throws a
+      // TypeError mid-incubation. Skip those writes on command slots.
       if ("bar" in target) target.bar = firstParty
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
-      if ("moduleName" in target) target.moduleName = moduleName
-      if ("settings" in target) target.settings = moduleSettings
+      if (!commandCustom && "moduleName" in target) target.moduleName = moduleName
+      if (!commandCustom && "settings" in target) target.settings = moduleSettings
     }
 
     Component {

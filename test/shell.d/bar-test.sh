@@ -278,6 +278,17 @@ assert(
   /key in activeItem/.test(barSource),
   'bar asks whether a widget declares an indicator hint before reading it'
 )
+
+// `in` reports read-only properties too: CustomCommandModule declares its own
+// readonly moduleName/settings, so injectProps must skip those writes — a
+// TypeError mid-incubation preceded a crash reported in #13011.
+const inject = barSource.slice(barSource.indexOf('function injectProps'), barSource.indexOf('function injectProps') + 1200)
+assert(
+  /"bar" in target/.test(inject) &&
+  /!commandCustom && "moduleName" in target/.test(inject) &&
+  /!commandCustom && "settings" in target/.test(inject),
+  'bar skips injected properties that command modules declare read-only'
+)
 assert(
   /width: root\.vertical \? Style\.space\(2\) : slot\.panelIndicatorExtent/.test(indicator) &&
   /height: root\.vertical \? slot\.panelIndicatorExtent : Style\.space\(2\)/.test(indicator),
