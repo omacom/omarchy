@@ -362,6 +362,32 @@ function searchScore(items, entry, query) {
   return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
 }
 
+// searchScore sees one row at a time, so it cannot tell an action that manages
+// the app the query found from one that merely shares its prefix. The tell is
+// the label: "Chrome" under Setup, Install and Remove is a whole word of the
+// "Google Chrome" app row, while "Vim" is no word of "Document Viewer". When
+// both the app and such an action match, the app is what the query is after,
+// so the action sorts directly behind it. Menus and links keep their place:
+// "Browser" is a word of every browser, and a group is not a manager of one.
+function demoteManagementRows(items, rows) {
+  var appScores = ({})
+  for (var i = 0; i < rows.length; i++) {
+    var app = items[rows[i].itemId]
+    if (!app || app.kind !== "app") continue
+    var words = app.label.toLowerCase().split(/\s+/)
+    for (var w = 0; w < words.length; w++) {
+      if (appScores[words[w]] === undefined || rows[i].score < appScores[words[w]]) appScores[words[w]] = rows[i].score
+    }
+  }
+  for (var j = 0; j < rows.length; j++) {
+    var entry = items[rows[j].itemId]
+    if (!entry || entry.kind !== "action") continue
+    var appScore = appScores[entry.label.toLowerCase()]
+    if (appScore !== undefined && rows[j].score < appScore) rows[j].score = appScore + 1
+  }
+  return rows
+}
+
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
   var target = entry.kind === "link" ? entry.target : entry.id
   return {
@@ -519,6 +545,7 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
+    demoteManagementRows: demoteManagementRows,
     displayRow: displayRow
   }
 }

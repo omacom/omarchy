@@ -136,7 +136,9 @@ const rankBase = menu.mergeMenuSources(defaultItems, [])
 const ranked = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
   { id: 'apps.brave', parent: 'apps', kind: 'app', label: 'Brave', description: '', aliases: [] },
   { id: 'apps.fontforge', parent: 'apps', kind: 'app', label: 'FontForge', description: '', aliases: [] },
-  { id: 'apps.zen', parent: 'apps', kind: 'app', label: 'Zen Browser', description: '', aliases: [] }
+  { id: 'apps.zen', parent: 'apps', kind: 'app', label: 'Zen Browser', description: '', aliases: [] },
+  { id: 'apps.chrome', parent: 'apps', kind: 'app', label: 'Google Chrome', description: '', aliases: [] },
+  { id: 'apps.viewer', parent: 'apps', kind: 'app', label: 'Document Viewer', description: '', aliases: [] }
 ])
 const rankScore = (id, query) => menu.searchScore(ranked.items, ranked.items[id], query)
 assert(
@@ -154,6 +156,38 @@ assert(
 assert(
   rankScore('style.font', 'font') < rankScore('apps.fontforge', 'font'),
   'menu keeps a better-matching menu entry above a weaker app match'
+)
+
+// "Google Chrome" carries the name people type second, so "chr" lands mid-label
+// on the app while it starts the whole label of the Chrome rows under Setup,
+// Install and Remove. Per row the app loses to all three; the pass over the
+// result set settles it, because "Chrome" is a word of the app's own label.
+const searchRows = (query, ids) => ids.map(id => menu.displayRow(ranked.items, ranked.itemOrder, {}, {}, ranked.items[id], '', rankScore(id, query)))
+const rowScore = (rows, id) => rows.find(row => row.itemId === id).score
+const chromeIds = ['setup.default.browser.chrome', 'install.browser.chrome', 'remove.browser.chrome']
+const chromeRows = menu.demoteManagementRows(ranked.items, searchRows('chr', chromeIds.concat(['apps.chrome', 'apps.brave'])))
+assert(
+  chromeIds.every(id => rowScore(chromeRows, id) === rowScore(chromeRows, 'apps.chrome') + 1),
+  'menu sorts actions labelled with a word of a matching app directly behind that app'
+)
+assertEqual(rowScore(chromeRows, 'apps.brave'), rankScore('apps.brave', 'chr'), 'menu leaves other app rows where searchScore put them')
+// "Vim" is no word of "Document Viewer", so the Vim rows keep their lead on
+// "vi": the pass must not turn into a general app lift.
+const vimRows = menu.demoteManagementRows(ranked.items, searchRows('vi', ['install.editor.vim', 'setup.default.editor.vim', 'apps.viewer']))
+assert(
+  ['install.editor.vim', 'setup.default.editor.vim'].every(id => rowScore(vimRows, id) === rankScore(id, 'vi') && rowScore(vimRows, id) < rowScore(vimRows, 'apps.viewer')),
+  'menu leaves an action alone when its label is no word of the matching app'
+)
+// A group named for a whole class of apps stays ahead of any one of them.
+const browserRows = menu.demoteManagementRows(ranked.items, searchRows('bro', ['setup.default.browser', 'install.browser', 'apps.zen']))
+assert(
+  ['setup.default.browser', 'install.browser'].every(id => rowScore(browserRows, id) === rankScore(id, 'bro') && rowScore(browserRows, id) < rowScore(browserRows, 'apps.zen')),
+  'menu leaves menu rows alone even when their label is a word of a matching app'
+)
+assert(
+  /root\.demoteManagementRows\(currentRows\.concat\(drilldownRows\)\)/.test(menuQml) &&
+    /function demoteManagementRows\(rows\) \{\s*\n\s*return MenuModel\.demoteManagementRows\(root\.items, rows\)\s*\n\s*\}/.test(menuQml),
+  'menu runs the result-set pass over every search row through the shared model'
 )
 
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.

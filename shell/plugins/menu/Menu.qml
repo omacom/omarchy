@@ -515,6 +515,10 @@ Item {
     return MenuModel.searchScore(root.items, entry, query)
   }
 
+  function demoteManagementRows(rows) {
+    return MenuModel.demoteManagementRows(root.items, rows)
+  }
+
   function displayRow(entry, detail, score, section) {
     return MenuModel.displayRow(root.items, root.itemOrder, root.checkedResults, root.disabledResults, entry, detail, score, section)
   }
@@ -633,6 +637,10 @@ Item {
         if (entry.parent === active) currentRows.push(row)
         else drilldownRows.push(row)
       }
+
+      // An action named for an app the query also found sorts behind that
+      // app, which takes the whole result set to see.
+      root.demoteManagementRows(currentRows.concat(drilldownRows))
 
       var searchSort = function(a, b) {
         if (a.score !== b.score) return a.score - b.score
