@@ -241,7 +241,7 @@ ask_to_put() {
     if PUT_RESULT=$(omarchy-shell shell putBarWidget "$id" "$placement" 2>&1); then
       SHELL_ANSWERED=1
       [[ $PUT_RESULT == "not ready" ]] || return 0
-    elif [[ $PUT_RESULT == *"not ready"* ]]; then
+    elif [[ $PUT_RESULT == *"not ready"* || $PUT_RESULT == *"is not responding"* ]]; then
       SHELL_ANSWERED=1
     elif [[ $PUT_RESULT == *"is not running"* ]]; then
       # Answered once and now gone: it stopped mid-request.
