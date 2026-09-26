@@ -1,0 +1,843 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the OpenCode Go usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect OpenCode Go usage into one display-ready JSON record.
+
+Local stats come from opencode's own database, counting assistant messages
+that ran on the opencode-go provider; the authoritative plan limits come from
+OpenCode's official usage endpoint (GET /zen/go/v1/usage), which reports the
+rolling 5-hour, weekly, and monthly windows as percentages with reset times —
+the same numbers the opencode.ai dashboard shows. The agents panel only ever
+reads the JSON this prints; it never talks to the database or the endpoint.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import math
+import os
+import sqlite3
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any, NamedTuple
+
+AGENT_ID = "opencode-go"
+AGENT_NAME = "OpenCode"
+AUTH_HELP = "Run `opencode auth login` and subscribe to OpenCode Go, or set OPENCODE_API_KEY."
+API_BASE_URL = "https://opencode.ai"
+USAGE_PATH = "/zen/go/v1/usage"
+CONSOLE_USAGE_PATH = "/inference/go/v1/usage"
+CONSOLE_ORG_HEADER = "x-opencode-org-id"
+CONSOLE_EXPIRED_HELP = (
+  "OpenCode's Console session has expired — run `opencode auth login` to refresh it."
+)
+PROBE_MIN_INTERVAL_SECONDS = 15
+
+
+def data_home() -> Path:
+  return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+
+
+def cache_root() -> Path:
+  root = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def date_string(value: dt.date) -> str:
+  return value.strftime("%Y-%m-%d")
+
+
+def recent_date_strings() -> list[str]:
+  today = dt.datetime.now().date()
+  return [date_string(today - dt.timedelta(days=offset)) for offset in range(6, -1, -1)]
+
+
+def local_date_string() -> str:
+  return date_string(dt.datetime.now().date())
+
+
+def number(value: Any) -> int:
+  try:
+    n = float(value or 0)
+    return max(0, round(n)) if n == n else 0
+  except Exception:
+    return 0
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+# ---------------------------------------------------------------- local scan
+#
+# OpenCode has both the original message table and the newer session_message
+# table. Both carry assistant usage, but a migrated message can appear in both,
+# so rows are deduplicated by message id after filtering to opencode-go.
+
+
+def opencode_db_path() -> Path | None:
+  root = data_home() / "opencode"
+  configured = os.environ.get("OPENCODE_DB", "").strip()
+  if configured:
+    configured_path = Path(configured).expanduser()
+    return (configured_path if configured_path.is_absolute() else root / configured_path).resolve()
+  v2 = root / "opencode-v2.db"
+  if v2.is_file():
+    return v2
+  normal = root / "opencode.db"
+  return normal if normal.is_file() else None
+
+
+def parse_usage_message(
+  raw: str, legacy: bool, today: str
+) -> dict[str, Any] | None:
+  try:
+    entry = json.loads(raw)
+  except Exception:
+    return None
+  if not isinstance(entry, dict):
+    return None
+
+  if legacy:
+    if entry.get("role") != "assistant":
+      return None
+    provider = entry.get("providerID")
+    model_id = entry.get("modelID")
+  else:
+    model_info = entry.get("model")
+    if not isinstance(model_info, dict):
+      return None
+    provider = model_info.get("providerID")
+    model_id = model_info.get("id")
+  if str(provider or "") != "opencode-go":
+    return None
+
+  tokens = entry.get("tokens")
+  if not isinstance(tokens, dict):
+    return None
+  cache = tokens.get("cache") or {}
+  if not isinstance(cache, dict):
+    cache = {}
+  input_tokens = number(tokens.get("input"))
+  output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
+  cache_read = number(cache.get("read"))
+  cache_write = number(cache.get("write"))
+  total = input_tokens + output_tokens + cache_read + cache_write
+  if total <= 0:
+    return None
+
+  time_info = entry.get("time") or {}
+  if not isinstance(time_info, dict):
+    return None
+  created = number(time_info.get("created"))
+  day = (
+    dt.datetime.fromtimestamp(created / 1000).strftime("%Y-%m-%d")
+    if created > 0
+    else today
+  )
+  model = str(model_id or "opencode").rstrip("/").split("/")[-1]
+  return {
+    "day": day,
+    "model": model or "opencode",
+    "input": input_tokens,
+    "output": output_tokens,
+    "cacheRead": cache_read,
+    "cacheWrite": cache_write,
+    "total": total,
+  }
+
+
+def scan_opencode_db(db: Path) -> tuple[dict[str, Any], bool]:
+  """Returns (stats, complete): a scan cut short by a database error still
+  contributes what it read, but its caller must not cache it as the whole
+  story."""
+  today = local_date_string()
+  recent_dates = recent_date_strings()
+  recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+  sessions: set[str] = set()
+  active_days: set[str] = set()
+  today_sessions: set[str] = set()
+  today_tokens: dict[str, int] = {}
+  usage_by_model: dict[str, dict[str, int]] = {}
+  prompts = 0
+  today_prompt_count = 0
+  today_token_total = 0
+
+  try:
+    # Read-only: opencode may be writing right now.
+    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return empty_stats(), False
+  complete = True
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    tables = {
+      name
+      for (name,) in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'"
+      )
+    }
+    if not tables.intersection({"message", "session_message"}):
+      return empty_stats(), False
+
+    seen_message_ids: set[str] = set()
+
+    def scan_table(legacy: bool) -> None:
+      nonlocal prompts, today_prompt_count, today_token_total
+      if legacy:
+        query = (
+          "SELECT id, session_id, data FROM message"
+          " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
+          " AND data LIKE '%\"providerID\"%:%\"opencode-go\"%'"
+          " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+          " AND CASE WHEN json_valid(data) THEN "
+          "json_extract(data, '$.providerID') END = 'opencode-go'"
+        )
+      else:
+        query = (
+          "SELECT id, session_id, data FROM session_message"
+          " WHERE type = 'assistant'"
+          " AND data LIKE '%\"providerID\"%:%\"opencode-go\"%'"
+          " AND CASE WHEN json_valid(data) THEN "
+          "json_extract(data, '$.model.providerID') END = 'opencode-go'"
+        )
+
+      for message_id, session_id, raw in conn.execute(query):
+        try:
+          usage = parse_usage_message(raw, legacy, today)
+        except Exception:
+          continue
+        if usage is None or str(message_id) in seen_message_ids:
+          continue
+        seen_message_ids.add(str(message_id))
+        day = usage["day"]
+        model = usage["model"]
+        input_tokens = usage["input"]
+        output_tokens = usage["output"]
+        cache_read = usage["cacheRead"]
+        cache_write = usage["cacheWrite"]
+        total = usage["total"]
+        session_key = "opencode:" + str(session_id)
+        sessions.add(session_key)
+        active_days.add(day)
+        prompts += 1
+
+        bucket = usage_by_model.setdefault(model, empty_bucket())
+        bucket["inputTokens"] += input_tokens
+        bucket["outputTokens"] += output_tokens
+        bucket["cacheReadInputTokens"] += cache_read
+        bucket["cacheCreationInputTokens"] += cache_write
+
+        if day in recent:
+          # recentDays.messageCount is actually a token total, despite the
+          # legacy name shared by synced snapshots.
+          recent[day]["messageCount"] += total
+        if day == today:
+          today_prompt_count += 1
+          today_sessions.add(session_key)
+          today_token_total += total
+          today_tokens[model] = today_tokens.get(model, 0) + total
+
+    if "session_message" in tables:
+      scan_table(False)
+    if "message" in tables:
+      scan_table(True)
+  except sqlite3.Error:
+    complete = False
+  finally:
+    conn.close()
+
+  return {
+    "todayPrompts": today_prompt_count,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_token_total,
+    "todayTokensByModel": today_tokens,
+    "recentDays": [recent[day] for day in recent_dates],
+    "totalPrompts": prompts,
+    "totalSessions": len(sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": usage_by_model,
+  }, complete
+
+
+def empty_stats() -> dict[str, Any]:
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [{"date": day, "messageCount": 0} for day in recent_date_strings()],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+  }
+
+
+# The same freshness contract as the other collectors: --limits-only promises
+# to reuse recent local stats, and a big opencode history walked on every
+# panel open would break that promise.
+
+
+def scan_cache_paths(db: Path) -> tuple[Path, Path]:
+  digest = hashlib.sha1(str(db.resolve()).encode("utf-8")).hexdigest()[:16]
+  root = cache_root()
+  return root / f"opencode-go-scan-{digest}.json", root / f"opencode-go-scan-{digest}.lock"
+
+
+def read_fresh_json(path: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    # A negative age means the mtime is in the future: the clock moved
+    # backwards since the write, so the cache's freshness cannot be trusted.
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      return json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  return None
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+def read_cached_stats(cache_file: Path, max_age_seconds: float) -> dict[str, Any] | None:
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != 2:
+    return None
+  # today* fields only mean "today" on the day they were scanned: a cache
+  # from another local date (midnight passed, or the clock moved) is a miss,
+  # not merely old, whatever its mtime says.
+  if cached.get("scanDate") != local_date_string():
+    return None
+  stats = cached.get("stats")
+  if not isinstance(stats, dict):
+    return None
+  required = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
+  if not all(key in stats for key in required):
+    return None
+  return stats
+
+
+def write_cached_stats(cache_file: Path, stats: dict[str, Any]) -> None:
+  write_json(cache_file, {"schemaVersion": 2, "scanDate": local_date_string(), "stats": stats})
+
+
+def cached_scan(db: Path, max_age_seconds: float) -> dict[str, Any]:
+  # The cache is a pure optimization: any cache-layer failure (unwritable
+  # root, lock errors, disk full) degrades to a direct scan, never a crash.
+  try:
+    return _cached_scan(db, max_age_seconds)
+  except Exception as exc:
+    print(
+      f"omarchy-agent-usage-opencode-go: cache unavailable ({exc}); scanning directly",
+      file=sys.stderr,
+    )
+    stats, _ = scan_opencode_db(db)
+    return stats
+
+
+def _cached_scan(db: Path, max_age_seconds: float) -> dict[str, Any]:
+  cache_file, lock_file = scan_cache_paths(db)
+
+  cached = read_cached_stats(cache_file, max_age_seconds)
+  if cached is not None:
+    return cached
+
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = read_cached_stats(cache_file, max_age_seconds)
+    if cached is not None:
+      return cached
+    stats, complete = scan_opencode_db(db)
+    # An interrupted scan still serves this run, but caching it would
+    # suppress the missing usage for every reader until the cache expires.
+    if complete:
+      write_cached_stats(cache_file, stats)
+    return stats
+
+
+# ------------------------------------------------------------------ limits
+#
+# The usage endpoint is opencode's own account dashboard data: rolling 5-hour,
+# weekly, and monthly windows as a used percentage and a reset time. Limits
+# are per-account and authoritative, so the panel's meters show the same
+# numbers the website does — no local estimate that would undercount sessions
+# run on other machines or in other harnesses.
+
+
+class Credential(NamedTuple):
+  """One way of answering who is asking for OpenCode Go usage."""
+
+  token: str
+  path: str
+  headers: dict[str, str]
+  expired: bool = False
+
+
+def read_auth_json(path: Path) -> str:
+  try:
+    parsed = json.loads(path.read_text())
+  except (OSError, json.JSONDecodeError):
+    return ""
+  entry = parsed.get("opencode-go") if isinstance(parsed, dict) else None
+  if not isinstance(entry, dict):
+    return ""
+  return str(entry.get("key") or "").strip()
+
+
+def read_sqlite_credential(db: Path) -> str:
+  try:
+    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return ""
+  try:
+    rows = conn.execute(
+      "SELECT value FROM credential WHERE integration_id = ? AND active = 1 "
+      "ORDER BY active DESC, time_updated DESC",
+      ("opencode-go",),
+    )
+    for (raw,) in rows:
+      try:
+        value = json.loads(raw)
+      except (TypeError, json.JSONDecodeError):
+        continue
+      if isinstance(value, dict) and value.get("type") == "key":
+        key = str(value.get("key") or "").strip()
+        if key:
+          return key
+  except sqlite3.Error:
+    return ""
+  finally:
+    conn.close()
+  return ""
+
+
+def read_console_credential(db: Path) -> Credential | None:
+  """Read the OpenCode Console session opencode v2 stores in SQLite.
+
+  The opencode-go provider resolves its own credentials through the `opencode`
+  integration, so a Console session answers as an OpenCode Go credential — on
+  Console's own endpoint, carrying the workspace id Console traffic is scoped
+  to. A wrong workspace is a hard 403, so the header only goes out when the
+  id is actually there.
+  """
+  try:
+    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return None
+  try:
+    rows = conn.execute(
+      "SELECT value FROM credential WHERE integration_id = ? AND active = 1 "
+      "ORDER BY active DESC, time_updated DESC",
+      ("opencode",),
+    )
+    for (raw,) in rows:
+      try:
+        value = json.loads(raw)
+      except (TypeError, json.JSONDecodeError):
+        continue
+      if not isinstance(value, dict) or value.get("type") != "oauth":
+        continue
+      token = str(value.get("access") or "").strip()
+      if not token:
+        continue
+      metadata = value.get("metadata")
+      org = str(metadata.get("orgID") or "").strip() if isinstance(metadata, dict) else ""
+      headers = {CONSOLE_ORG_HEADER: org} if org else {}
+      expired = 0 < number(value.get("expires")) <= time.time() * 1000
+      return Credential(token, CONSOLE_USAGE_PATH, headers, expired)
+  except sqlite3.Error:
+    return None
+  finally:
+    conn.close()
+  return None
+
+
+def credential_candidates(auth_path: Path, db: Path | None = None) -> list[Credential]:
+  # An explicit key beats whatever opencode happens to be signed in with, and
+  # the Console session is the implicit one, so it comes last. Candidates are
+  # only skipped when they are absent: which one the endpoint accepts is not
+  # knowable from here, and a stale key in front must not hide a live one.
+  tokens = [str(os.environ.get("OPENCODE_API_KEY", "")).strip()]
+  if db is not None:
+    tokens.append(read_sqlite_credential(db))
+  tokens.append(read_auth_json(auth_path))
+  candidates = [Credential(token, USAGE_PATH, {}) for token in tokens if token]
+  if db is not None:
+    console = read_console_credential(db)
+    if console is not None:
+      candidates.append(console)
+  return candidates
+
+
+class GoUsageError(Exception):
+  def __init__(
+    self,
+    message: str,
+    auth: bool = False,
+    entitlement: bool = False,
+    transport: bool = False,
+    retry: bool = False,
+  ):
+    super().__init__(message)
+    self.auth = auth
+    self.entitlement = entitlement
+    self.transport = transport
+    self.retry = retry
+
+
+class GoUsageClient:
+  def __init__(
+    self,
+    token: str,
+    base_url: str = API_BASE_URL,
+    path: str = USAGE_PATH,
+    headers: dict[str, str] | None = None,
+  ):
+    self.token = token
+    self.base_url = base_url.rstrip("/")
+    self.path = path
+    self.headers = headers or {}
+
+  def probe(self) -> dict[str, Any]:
+    # Cloudflare in front of opencode.ai blocks the default Python-urllib
+    # signature (Error 1010); any recognizable agent passes, so identify the
+    # probe rather than borrow a browser's.
+    request = urllib.request.Request(
+      self.base_url + self.path,
+      headers={
+        "Authorization": "Bearer " + self.token,
+        "Accept": "application/json",
+        "User-Agent": "omarchy-agent-usage/1",
+        **self.headers,
+      },
+    )
+    try:
+      with urllib.request.urlopen(request, timeout=10) as response:
+        payload = json.loads(response.read().decode("utf-8", errors="replace"))
+        if not isinstance(payload, dict) or not payload:
+          raise GoUsageError(
+            "OpenCode's usage endpoint returned an empty payload", retry=True
+          )
+        return payload
+    except urllib.error.HTTPError as error:
+      if error.code == 401:
+        raise GoUsageError("OpenCode Go rejected the API key", auth=True)
+      body = ""
+      if error.code == 403:
+        try:
+          body = error.read().decode("utf-8", errors="replace")
+        except Exception:
+          pass
+        if "EntitlementError" in body:
+          raise GoUsageError(
+            "OpenCode Go subscription required", entitlement=True
+          )
+      retry = error.code == 429 or error.code >= 500
+      raise GoUsageError(
+        f"OpenCode's usage endpoint returned status {error.code}", retry=retry
+      )
+    except (urllib.error.URLError, OSError, TimeoutError) as error:
+      raise GoUsageError("Could not reach OpenCode's usage endpoint", transport=True) from error
+    except json.JSONDecodeError as error:
+      raise GoUsageError(
+        "OpenCode returned an invalid usage response", retry=True
+      ) from error
+
+
+# The live endpoint nests the windows under "usage" with "percent" and
+# "resetsAt"; the merged PR shape spelled them "<window>Usage" with
+# "usagePercent" and "resetInSec". Accept both so the collector does not
+# depend on which deployment shape is in front of it.
+WINDOW_LABELS = {
+  "rolling": "Session (5-hour)",
+  "weekly": "Weekly (7-day)",
+  "monthly": "Monthly (30-day)",
+}
+
+
+def parse_percent(value: Any) -> float:
+  try:
+    return float(str(value).strip())
+  except Exception:
+    return float("nan")
+
+
+def normalize_percent(value: Any) -> float | None:
+  n = parse_percent(value)
+  if not (n >= 0):
+    return None
+  return min(1.0, n / 100.0)
+
+
+def reset_from_seconds(value: Any) -> str:
+  seconds = number(value)
+  if seconds <= 0:
+    return ""
+  return (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)).isoformat()
+
+
+def parse_usage_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+  usage = payload.get("usage")
+  usage = usage if isinstance(usage, dict) else payload
+  windows: list[tuple[str, dict[str, Any]]] = []
+  for key, label in WINDOW_LABELS.items():
+    entry = usage.get(key) if isinstance(usage, dict) else None
+    if not isinstance(entry, dict):
+      entry = payload.get(key + "Usage")
+    if not isinstance(entry, dict):
+      continue
+    windows.append((label, entry))
+  out: list[dict[str, Any]] = []
+  for label, entry in windows:
+    percent = normalize_percent(entry.get("percent", entry.get("usagePercent")))
+    if percent is None:
+      continue
+    # A rate-limited window is at 100% and its reset is what matters.
+    if str(entry.get("status") or "") == "rate-limited":
+      percent = 1.0
+    resets_at = str(entry.get("resetsAt") or "").strip()
+    resets_at = resets_at or reset_from_seconds(entry.get("resetInSec"))
+    out.append({"label": label, "percent": percent, "resetsAt": resets_at})
+  return out
+
+
+# A cached percentage outlives the probe that measured it, but only until its
+# window rolls over: once a window has reset, the figure describes a period
+# that is over, and a stale 78% would misreport an allowance that is now
+# untouched. A window with no reset time, or one that will not parse, is kept
+# — an unreadable timestamp is no reason to throw away a real number.
+def limit_window_open(entry: dict[str, Any], now: dt.datetime) -> bool:
+  raw = str(entry.get("resetsAt") or "")
+  if raw == "":
+    return True
+  try:
+    resets_at = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except Exception:
+    return True
+  if resets_at.tzinfo is None:
+    resets_at = resets_at.replace(tzinfo=dt.timezone.utc)
+  return resets_at > now
+
+
+def usable_cached_limits(cached: dict[str, Any]) -> list[dict[str, Any]]:
+  if cached_fetched_at(cached) is None:
+    return []
+  entries = cached.get("limits")
+  if not isinstance(entries, list):
+    return []
+  now = dt.datetime.now(dt.timezone.utc)
+  return [entry for entry in entries if isinstance(entry, dict) and limit_window_open(entry, now)]
+
+
+def cached_fetched_at(cached: dict[str, Any]) -> float | None:
+  try:
+    fetched_at_ms = float(cached.get("fetchedAtMs"))
+  except (TypeError, ValueError):
+    return None
+  if not math.isfinite(fetched_at_ms) or fetched_at_ms <= 0:
+    return None
+  if fetched_at_ms > time.time() * 1000:
+    return None
+  return fetched_at_ms / 1000
+
+
+def limits_cache_path(api_key: str) -> Path:
+  digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
+  return cache_root() / f"opencode-go-limits-{digest}.json"
+
+
+def collect_limits(
+  candidates: list[Credential], base_url: str, force: bool
+) -> dict[str, Any]:
+  result: dict[str, Any] = {
+    "limits": [],
+    "usageStatusText": "",
+    "authHelpText": AUTH_HELP,
+  }
+
+  # A panel that is opened and shut repeatedly must not turn into a request
+  # per flick, so recent probe results are reused for a short window — and
+  # kept as the answer of record when a later probe fails, for as long as
+  # their windows have not since reset. A forced refresh bypasses the window:
+  # that is what the user asked for.
+  if not candidates:
+    result["usageStatusText"] = "Waiting for auth"
+    return result
+
+  min_interval = 0 if force else PROBE_MIN_INTERVAL_SECONDS
+  refused: tuple[GoUsageError, list[dict[str, Any]], bool] | None = None
+
+  for candidate in candidates:
+    probe_cache = None
+    cached: dict[str, Any] = {}
+    try:
+      probe_cache = limits_cache_path(candidate.token)
+      if not force:
+        loaded = read_fresh_json(probe_cache, float("inf"))
+        if isinstance(loaded, dict):
+          cached = loaded
+    except Exception:
+      probe_cache = None
+    fallback = [] if force else usable_cached_limits(cached)
+    fetched_at = cached_fetched_at(cached)
+    if (
+      fallback
+      and fetched_at is not None
+      and min_interval > 0
+      and time.time() - fetched_at < min_interval
+    ):
+      result["limits"] = fallback
+      return result
+
+    try:
+      payload = GoUsageClient(
+        candidate.token, base_url, candidate.path, candidate.headers
+      ).probe()
+      limits = parse_usage_payload(payload)
+      if not limits:
+        raise GoUsageError(
+          "OpenCode's usage endpoint returned no usage windows", retry=True
+        )
+    except GoUsageError as error:
+      # A credential the endpoint refuses may just be the wrong one for this
+      # account, so the next way in still gets its turn. Anything else is not
+      # about which credential we picked: a transport failure reached no
+      # server at all, and any real answer — including an error status — is a
+      # server we should stop pestering.
+      if error.auth or error.entitlement:
+        refused = (error, fallback, candidate.expired)
+        continue
+      if error.transport or error.retry:
+        result["retryAdvised"] = True
+      if fallback:
+        result["limits"] = fallback
+      else:
+        result["usageStatusText"] = "OpenCode Go limits unavailable"
+        result["authHelpText"] = str(error)
+      return result
+
+    result["limits"] = limits
+    if probe_cache is not None:
+      try:
+        write_json(probe_cache, {"fetchedAtMs": round(time.time() * 1000), "limits": limits})
+      except Exception:
+        pass
+    return result
+
+  # Every way in was refused. A rejected credential is an account problem, not
+  # a transient outage: keep any still-open numbers, but say what went wrong.
+  error, fallback, expired = refused
+  result["limits"] = fallback
+  if error.entitlement:
+    result["usageStatusText"] = "OpenCode Go subscription required"
+    result["authHelpText"] = (
+      "This API key does not include OpenCode Go"
+      + (" — showing the last known limits." if fallback else ".")
+      + " " + AUTH_HELP
+    )
+  elif expired:
+    result["usageStatusText"] = "OpenCode Console session expired"
+    result["authHelpText"] = CONSOLE_EXPIRED_HELP
+  else:
+    result["usageStatusText"] = "Sign-in rejected"
+    result["authHelpText"] = (
+      "OpenCode rejected the stored sign-in"
+      + (" — showing the last known limits." if fallback else ".")
+      + " " + AUTH_HELP
+    )
+  return result
+
+
+# -------------------------------------------------------------------- record
+
+
+def scan(
+  auth_path: Path,
+  db: Path | None = None,
+  base_url: str = API_BASE_URL,
+  force: bool = False,
+  limits_only: bool = False,
+) -> dict[str, Any]:
+  db = opencode_db_path() if db is None else db
+  scan_age = 0 if force else (900 if limits_only else 20)
+  stats = cached_scan(db, scan_age) if db and db.is_file() else empty_stats()
+
+  limits = collect_limits(credential_candidates(auth_path, db), base_url, force)
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": dt.datetime.now(dt.timezone.utc).isoformat(),
+    "ready": number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0,
+    "hasLocalStats": True,
+    # The database is machine-local, so cross-device sync sums the numbers
+    # the way it does for the claude and codex collectors.
+    "scope": "device",
+    "hasPromptStats": True,
+    "tierLabel": "Go",
+    "usageStatusText": limits["usageStatusText"],
+    "authHelpText": limits["authHelpText"],
+    "limits": limits["limits"],
+  }
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  record.update(stats)
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the OpenCode Go usage record as JSON")
+  parser.add_argument(
+    "--force",
+    action="store_true",
+    help="rescan the database and re-probe limits, ignoring caches",
+  )
+  parser.add_argument(
+    "--limits-only",
+    action="store_true",
+    help="reuse any recent database scan; only the limits probe must be fresh",
+  )
+  args = parser.parse_args()
+
+  record = scan(
+    data_home() / "opencode" / "auth.json",
+    force=args.force,
+    limits_only=args.limits_only,
+  )
+  print(json.dumps(record, separators=(",", ":"), sort_keys=True))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
