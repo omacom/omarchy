@@ -90,6 +90,7 @@ ShellRoot {
     scan += block("thirdparty", "/third/widget", manifest("third.widget", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "left" }))
     scan += block("thirdparty", "/third/center-widget", manifest("third.center-widget", ["bar-widget"], { barWidget: "Widget.qml" }))
     scan += block("thirdparty", "/third/right-widget", manifest("third.right-widget", ["bar-widget"], { barWidget: "Widget.qml" }, { defaultSection: "right" }))
+    scan += block("thirdparty", "/third/hybrid-widget", manifest("third.hybrid-widget", ["panel", "bar-widget"], { panel: "Panel.qml", barWidget: "Widget.qml" }, { defaultSection: "left" }))
     var localWidget = manifest("local.first-widget", ["bar-widget"], { barWidget: "Widget.qml" })
     localWidget.omarchy = { clonedFrom: "omarchy.first-widget" }
     scan += block("thirdparty", "/third/local-widget", localWidget)
@@ -136,6 +137,7 @@ ShellRoot {
       "omarchy.hybrid",
       "third.bar",
       "third.center-widget",
+      "third.hybrid-widget",
       "third.panel",
       "third.right-widget",
       "third.spoofed-auth",
@@ -456,6 +458,25 @@ ShellRoot {
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/acme.clock/BarWidget.qml"), "acme.clock", "installed plugin changes are watched")
     root.assertEqual(registry.localPluginIdForPath(cloneBase + "/.git/index"), "", "plugin git metadata is ignored")
     root.assertEqual(registry.localPluginIdForPath(registry.pluginsDir + "/.clone.abc123/manifest.json"), "", "hidden staging and backup dirs are ignored")
+
+    // A widget that is also a panel keeps a plugins[] record after its bar
+    // entry is disabled. Re-enabling must restore the bar entry even though
+    // the residual plugins[] record satisfies findEntryLocation.
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "third.hybrid-widget" }], center: [], right: [] } },
+      plugins: [{ id: "third.hybrid-widget" }]
+    }
+    registry.setEnabled("third.hybrid-widget", false)
+    root.assertDeepEqual(root.config.bar.layout.left, [], "disabling a hybrid widget removes only its bar entry")
+    root.assertDeepEqual(root.config.plugins, [{ id: "third.hybrid-widget" }], "the panel side of a hybrid widget survives disable")
+    registry.setEnabled("third.hybrid-widget", true)
+    root.assertDeepEqual(
+      root.config.bar.layout.left,
+      [{ id: "third.hybrid-widget" }],
+      "re-enabling a hybrid widget restores its bar entry despite a residual plugins[] record"
+    )
+    root.assertDeepEqual(root.config.plugins, [{ id: "third.hybrid-widget" }], "re-enabling a hybrid widget keeps the panel record")
 
     root.assertTrue(changeCount > 0, "registry emits change notifications")
     writeResult()
