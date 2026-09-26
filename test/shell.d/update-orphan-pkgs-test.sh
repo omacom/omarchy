@@ -15,21 +15,21 @@ mkdir -p "$stub_bin"
 cat >"$stub_bin/pacman" <<'STUB'
 #!/bin/bash
 if [[ ${1:-} == "-Qtdq" ]]; then
-  printf 'asar\\nvulkan-headers\\n'
+  printf 'asar\nvulkan-headers\n'
   exit 0
 fi
-printf 'pacman %s\\n' "$*" >>"$CALL_LOG"
+printf 'pacman %s\n' "$*" >>"$CALL_LOG"
 STUB
 
 cat >"$stub_bin/gum" <<'STUB'
 #!/bin/bash
-printf 'gum %s\\n' "$*" >>"$CALL_LOG"
+printf 'gum %s\n' "$*" >>"$CALL_LOG"
 exit 1
 STUB
 
 cat >"$stub_bin/sudo" <<'STUB'
 #!/bin/bash
-printf 'sudo %s\\n' "$*" >>"$CALL_LOG"
+printf 'sudo %s\n' "$*" >>"$CALL_LOG"
 exit 1
 STUB
 
@@ -37,8 +37,8 @@ chmod +x "$stub_bin/"*
 printf -v command '%q' "$ROOT/bin/omarchy-update-orphan-pkgs"
 
 : >"$call_log"
-output=$(OMARCHY_UPDATE_UNATTENDED=1 CALL_LOG="$call_log" PATH="$stub_bin:/usr/bin:/bin" \\
-  script -qefc "$command" /dev/null | tr -d '\\r') ||
+output=$(OMARCHY_UPDATE_UNATTENDED=1 CALL_LOG="$call_log" PATH="$stub_bin:/usr/bin:/bin" \
+  script -qefc "$command" /dev/null | tr -d '\r') ||
   fail "unattended orphan review exits successfully" "$output"
 
 [[ ! -s $call_log ]] ||
@@ -48,8 +48,8 @@ grep -Fq '2 orphaned package(s) found. Re-run omarchy-update-orphan-pkgs in a te
 pass "unattended orphan review skips the prompt even on a PTY"
 
 : >"$call_log"
-output=$(CALL_LOG="$call_log" PATH="$stub_bin:/usr/bin:/bin" \\
-  script -qefc "$command" /dev/null | tr -d '\\r') ||
+output=$(CALL_LOG="$call_log" PATH="$stub_bin:/usr/bin:/bin" \
+  script -qefc "$command" /dev/null | tr -d '\r') ||
   fail "interactive orphan review exits successfully when removal is declined" "$output"
 
 grep -Fq 'gum confirm --default=false Remove 2 orphaned package(s)?' "$call_log" ||
