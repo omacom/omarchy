@@ -16,6 +16,12 @@ pass "default shell.json is valid JSON"
 jq -e '.version == 1 and (.bar.layout.left | type == "array") and (.bar.layout.center | type == "array") and (.bar.layout.right | type == "array")' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 
+jq -e '.bar.transparentOnlyWhenWorkspaceEmpty == false' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default bar disables workspace-conditional transparency"
+
+jq -e '.bar.transparentForegroundPerMonitor == false' "$ROOT/config/omarchy/shell.json" >/dev/null
+pass "default bar keeps one transparent foreground across monitors"
+
 # Pinning the whole row made this fail every time an unrelated widget moved,
 # so assert the adjacency the name is about and let the rest of the row change.
 jq -e '

@@ -7,6 +7,8 @@
   "bar": {
     "position": "top",
     "transparent": false,
+    "transparentOnlyWhenWorkspaceEmpty": false,
+    "transparentForegroundPerMonitor": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [
