@@ -2087,8 +2087,13 @@ if [[ ! -e $HOME/.local/state/omarchy/current/background && -d $HOME/.local/stat
 fi
 
 mkdir -p "$HOME/.config/wireplumber/wireplumber.conf.d"
-if [[ -f $root/default/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf ]]; then
-  cp "$root/default/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" "$HOME/.config/wireplumber/wireplumber.conf.d/"
+dest="$HOME/.config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf"
+if [[ ! -e $dest ]]; then
+  if [[ -f $root/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf ]]; then
+    cp "$root/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" "$dest"
+  elif [[ -f $root/default/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf ]]; then
+    cp "$root/default/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" "$dest"
+  fi
 fi
 
 enable_user_unit() {
