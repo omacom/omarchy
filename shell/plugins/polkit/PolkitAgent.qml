@@ -38,8 +38,12 @@ Item {
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
   property int shakeOffset: 0
+  // Cap recovery attempts so a legitimate foreign agent does not get hammered.
+  property int registerAttempts: 0
+  readonly property int maxRegisterAttempts: 5
 
-  readonly property bool dialogVisible: polkitAgent.isActive || closing
+  readonly property var polkitAgent: agentLoader.item
+  readonly property bool dialogVisible: (polkitAgent && polkitAgent.isActive) || closing
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
@@ -75,7 +79,7 @@ Item {
   }
 
   function syncFromFlow() {
-    var flow = polkitAgent.flow
+    var flow = polkitAgent ? polkitAgent.flow : null
     if (!flow) return
 
     currentMessage = String(flow.message || "Authentication is needed...")
@@ -107,7 +111,7 @@ Item {
   }
 
   function submitResponse() {
-    var flow = polkitAgent.flow
+    var flow = polkitAgent ? polkitAgent.flow : null
     if (!flow || !flow.isResponseRequired) return
     submitted = true
     errorFlash = false
@@ -117,7 +121,7 @@ Item {
   }
 
   function cancelRequest() {
-    var flow = polkitAgent.flow
+    var flow = polkitAgent ? polkitAgent.flow : null
     passwordInput.text = ""
     submitted = false
     closing = true
@@ -132,6 +136,25 @@ Item {
     errorTimer.restart()
     shakeAnimation.restart()
     Qt.callLater(refocus)
+  }
+
+  function scheduleAgentRecovery() {
+    if (registerAttempts >= maxRegisterAttempts) {
+      console.warn("omarchy polkit agent registration failed; giving up after "
+        + registerAttempts + " attempts")
+      return
+    }
+    reregisterTimer.restart()
+  }
+
+  function recreateAgent() {
+    if (polkitAgent && polkitAgent.isRegistered) return
+    if (registerAttempts >= maxRegisterAttempts) return
+    registerAttempts += 1
+    console.warn("omarchy polkit agent recreating after failed registration (attempt "
+      + registerAttempts + "/" + maxRegisterAttempts + ")")
+    agentLoader.active = false
+    Qt.callLater(function() { agentLoader.active = true })
   }
 
   Timer {
@@ -149,6 +172,15 @@ Item {
     interval: 1200
     repeat: false
     onTriggered: root.errorFlash = false
+  }
+
+  // Wait for a competing listener (stale same-session agent, or a briefly
+  // overlapping Quickshell process) to drop before retrying registration.
+  Timer {
+    id: reregisterTimer
+    interval: 1500
+    repeat: false
+    onTriggered: root.recreateAgent()
   }
 
   SequentialAnimation {
@@ -173,27 +205,56 @@ Item {
     onExited: root.laptopClosed = String(laptopClosedOut.text || "").trim() === "closed"
   }
 
-  PolkitAgent {
-    id: polkitAgent
-    path: "/org/omarchy/PolkitAgent"
+  // Host the native agent in a Loader so a failed registration can destroy the
+  // previous listener and construct a fresh one once the subject is free.
+  Loader {
+    id: agentLoader
+    active: true
+    asynchronous: false
+    sourceComponent: Component {
+      PolkitAgent {
+        path: "/org/omarchy/PolkitAgent"
 
-    onAuthenticationRequestStarted: root.beginFlow()
-    onIsActiveChanged: {
-      if (isActive) root.syncFromFlow()
-      else if (!root.closing) root.resetSnapshot()
+        onAuthenticationRequestStarted: root.beginFlow()
+        onIsActiveChanged: {
+          if (isActive) root.syncFromFlow()
+          else if (!root.closing) root.resetSnapshot()
+        }
+        onIsRegisteredChanged: {
+          if (isRegistered) {
+            root.registerAttempts = 0
+            reregisterTimer.stop()
+            startupRegisterTimer.stop()
+            console.log("omarchy polkit agent registered")
+          } else {
+            console.warn("omarchy polkit agent is not registered; another agent may be running")
+            root.scheduleAgentRecovery()
+          }
+        }
+        Component.onCompleted: startupRegisterTimer.restart()
+      }
     }
-    onIsRegisteredChanged: {
-      if (isRegistered) console.log("omarchy polkit agent registered")
-      else console.warn("omarchy polkit agent is not registered; another agent may be running")
+  }
+
+  // Registration is asynchronous. isRegistered starts false and stays false on
+  // failure without a change signal, so poll once after a short grace period.
+  Timer {
+    id: startupRegisterTimer
+    interval: 2000
+    repeat: false
+    onTriggered: {
+      if (root.polkitAgent && !root.polkitAgent.isRegistered)
+        root.scheduleAgentRecovery()
     }
   }
 
   Connections {
-    target: polkitAgent.flow
+    target: root.polkitAgent ? root.polkitAgent.flow : null
 
     function onIsResponseRequiredChanged() {
       root.syncFromFlow()
-      if (!polkitAgent.flow || !polkitAgent.flow.isResponseRequired) passwordInput.text = ""
+      if (!root.polkitAgent || !root.polkitAgent.flow || !root.polkitAgent.flow.isResponseRequired)
+        passwordInput.text = ""
       Qt.callLater(root.refocus)
     }
 
