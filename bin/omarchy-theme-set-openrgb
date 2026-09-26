@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# omarchy:summary=Apply the current theme color to devices managed by OpenRGB
+# omarchy:hidden=true
+
+OPENRGB_THEME=$HOME/.local/state/omarchy/current/theme/keyboard.rgb
+
+if ! omarchy-cmd-present openrgb || [[ ! -f $OPENRGB_THEME ]]; then
+  exit 0
+fi
+
+color=$(cat "$OPENRGB_THEME")
+color="${color#\#}"
+
+[[ $color =~ ^[0-9A-Fa-f]{6}$ ]] || exit 0
+
+# LEDs render the raw accent dim, so mix it toward white before applying and
+# run the devices at full brightness.
+OPENRGB_BRIGHTEN_AMOUNT=0.4
+
+brighten_color() {
+  awk -v hex="$1" -v amount="$OPENRGB_BRIGHTEN_AMOUNT" '
+    function hex_value(char) {
+      return index("0123456789abcdef", tolower(char)) - 1
+    }
+    function hex_pair_to_int(hex, idx) {
+      return hex_value(substr(hex, idx, 1)) * 16 + hex_value(substr(hex, idx + 1, 1))
+    }
+    BEGIN {
+      red = int(hex_pair_to_int(hex, 1) * (1 - amount) + 255 * amount + 0.5)
+      green = int(hex_pair_to_int(hex, 3) * (1 - amount) + 255 * amount + 0.5)
+      blue = int(hex_pair_to_int(hex, 5) * (1 - amount) + 255 * amount + 0.5)
+      printf "%02x%02x%02x\n", red, green, blue
+    }
+  '
+}
+
+color=$(brighten_color "$color")
+
+# A device-native gradient effect wins when one exists; everything else gets
+# the static theme accent. Detection runs once and every apply is bounded, so
+# a missing server or a slow scan never stalls the theme switch.
+devices=$(timeout 20 openrgb --list-devices 2>/dev/null || true)
+
+declare -A GRADIENT_MODE_FOR_DEVICE
+declare -A DIRECT_DEVICE
+DEVICE_IDS=()
+
+if [[ -n $devices ]]; then
+  while IFS=$'\t' read -r id mode is_direct; do
+    if [[ -n $mode && $mode != "-" ]]; then
+      GRADIENT_MODE_FOR_DEVICE[$id]="$mode"
+    elif [[ $mode == "-" ]]; then
+      # Direct-only marker: the bare id line already queued this device,
+      # so only record the mode without pushing a second entry.
+      DIRECT_DEVICE[$id]=1
+    else
+      DEVICE_IDS+=("$id")
+      if [[ $is_direct == direct ]]; then
+        DIRECT_DEVICE[$id]=1
+      fi
+    fi
+  done < <(awk '
+    /^[0-9]+: / {
+      id = $1
+      sub(/:$/, "", id)
+      current = id
+      print id
+    }
+    /^  Modes: / && current != "" {
+      modes = substr($0, 9)
+      stripped = modes
+      gsub(/[\[\]]/, "", stripped)
+      emitted = 0
+      if (match(modes, /'"'"'[^'"'"']*[Gg]radient[^'"'"']*'"'"'/)) {
+        print current "\t" substr(modes, RSTART + 1, RLENGTH - 2)
+        emitted = 1
+      } else {
+        count = split(stripped, parts, /[ ]+/)
+        for (i = 1; i <= count; i++) {
+          if (parts[i] ~ /[Gg]radient/) {
+            print current "\t" parts[i]
+            emitted = 1
+            break
+          }
+        }
+      }
+      if (!emitted) {
+        has_static = 0
+        has_direct = 0
+        for (i = 1; i <= count; i++) {
+          if (parts[i] ~ /^[Ss]tatic$/) has_static = 1
+          if (parts[i] ~ /^[Dd]irect$/) has_direct = 1
+        }
+        if (!has_static && has_direct) {
+          # Direct-only devices (e.g. Logitech G213) reject `static`, and
+          # openrgb still exits 0 on that failure, so a static apply would
+          # silently no-op. Direct is load-bearing mode-wise (#7977).
+          # One line per device: static devices emit nothing (the bare id
+          # line already classifies them). The `-` placeholder keeps the
+          # read loop from collapsing the empty mode (tab is IFS whitespace).
+          print current "\t-\t" "direct"
+        }
+      }
+      current = ""
+    }
+  ' <<<"$devices")
+fi
+
+if (( ${#GRADIENT_MODE_FOR_DEVICE[@]} == 0 && ${#DEVICE_IDS[@]} == 0 )); then
+  timeout 20 openrgb -m static -c "$color" -b 100 >/dev/null 2>&1 || true
+else
+  for id in "${DEVICE_IDS[@]}"; do
+    if [[ -n ${GRADIENT_MODE_FOR_DEVICE[$id]:-} ]]; then
+      timeout 20 openrgb -d "$id" -m "${GRADIENT_MODE_FOR_DEVICE[$id]}" -c "$color" -b 100 >/dev/null 2>&1 || true
+    elif [[ -n ${DIRECT_DEVICE[$id]:-} ]]; then
+      timeout 20 openrgb -d "$id" -m direct -c "$color" -b 100 >/dev/null 2>&1 || true
+    else
+      timeout 20 openrgb -d "$id" -m static -c "$color" -b 100 >/dev/null 2>&1 || true
+    fi
+  done
+fi
+
+exit 0
