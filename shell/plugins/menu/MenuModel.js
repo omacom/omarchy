@@ -1,7 +1,26 @@
 function stripJsonc(raw) {
-  return String(raw || "")
-    .replace(/^\s*\/\/[^\n]*(\n|$)/gm, "")
-    .replace(/,(\s*[}\]])/g, "$1")
+  var s = String(raw || "").replace(/^\s*\/\/[^\n]*(\n|$)/gm, "");
+  var out = "";
+  var inString = false;
+  var escape = false;
+  for (var i = 0; i < s.length; i++) {
+    var c = s[i];
+    if (escape) {
+      escape = false;
+    } else if (c === '"') {
+      inString = !inString;
+    } else if (c === '\\' && inString) {
+      escape = true;
+    }
+    
+    if (!inString && c === ',') {
+      var j = i + 1;
+      while (j < s.length && /\s/.test(s[j])) j++;
+      if (j < s.length && (s[j] === '}' || s[j] === ']')) continue;
+    }
+    out += c;
+  }
+  return out;
 }
 
 function normalizeAliases(value) {
