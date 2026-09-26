@@ -20,8 +20,18 @@ prompt_reboot=1
 # the packaged copy while every unprivileged call runs the checkout. Prepending
 # the checkout's bin keeps root on the code being edited — the same trust the
 # link already extends to every system script Omarchy runs out of $OMARCHY_PATH.
+#
+# Scoped to the linking user with Defaults:<user>, because that trust is theirs
+# to extend and nobody else's. A plain Defaults puts a directory inside one
+# user's home ahead of /usr/bin for every sudoer on the machine — root's own
+# `sudo -i`, a second admin account, an automation user — none of whom ran
+# `omarchy dev link` or have any reason to run that checkout's code.
 sudoers_file="/etc/sudoers.d/omarchy-dev-path"
 system_secure_path="/usr/local/sbin:/usr/local/bin:/usr/bin"
+
+# sudo matches a Defaults user list against the real uid's account, and $USER is
+# inherited from the environment and can disagree with it.
+link_user=$(id -un)
 
 if (( $# < 1 || $# > 2 )) || [[ $1 == "-h" || $1 == "--help" ]]; then
   cat <<USAGE
@@ -41,9 +51,12 @@ The Plymouth and SDDM themes under /usr/share are the exception: omarchy
 plymouth set and omarchy refresh plymouth republish them from the checkout,
 reading this link's authorization out of the root-owned /etc/omarchy.conf.
 
-Also writes $sudoers_file so sudo resolves omarchy-*
-from the checkout instead of the packaged copies. That part takes effect
-immediately, no reboot needed.
+Also writes $sudoers_file so that, for $link_user only,
+sudo resolves commands from the checkout's bin/ before the system directories.
+That covers every command name sudo looks up, not just omarchy-*, so anything
+writable in the checkout's bin/ runs as root on the next sudo. Treat the
+checkout as root-owned territory while the link is up, or run
+omarchy dev unlink. This part takes effect immediately, no reboot needed.
 
 Use --no-reboot when another command will handle the reboot prompt.
 USAGE
@@ -78,6 +91,23 @@ sudoers_quote() {
   printf '"%s"' "$value"
 }
 
+# A user name in a Defaults list is not a quoted string the way secure_path's
+# value is: sudoers wants a backslash escape for anything outside its unquoted
+# alphabet, and reads a bare leading '#' as a uid rather than a name.
+sudoers_escape_user() {
+  local value="$1" out="" i char
+
+  for (( i = 0; i < ${#value}; i++ )); do
+    char=${value:i:1}
+    case $char in
+    [A-Za-z0-9_.-]) out+=$char ;;
+    *) out+="\\$char" ;;
+    esac
+  done
+
+  printf '%s' "$out"
+}
+
 target=$(realpath -e "$1" 2>/dev/null) || {
   echo "Error: path does not exist: $1" >&2
   exit 1
@@ -96,7 +126,7 @@ staged_sudoers=$(mktemp)
 trap 'rm -f "$staged_sudoers"' EXIT
 
 {
-  printf 'Defaults secure_path='
+  printf 'Defaults:%s secure_path=' "$(sudoers_escape_user "$link_user")"
   sudoers_quote "$target/bin:$system_secure_path"
   printf '\n'
 } >"$staged_sudoers"
@@ -115,7 +145,9 @@ fi
 sudo install -Dm440 -o root -g root "$staged_sudoers" "$sudoers_file"
 
 echo "Pointed Omarchy at $target"
-echo "sudo now resolves omarchy-* from $target/bin"
+echo "For $link_user, sudo now resolves commands from $target/bin first."
+echo "That is every command name, not just omarchy-*: anything writable there"
+echo "runs as root on your next sudo. Run 'omarchy dev unlink' when you are done."
 echo
 
 if (( prompt_reboot )) && gum confirm "Reboot now to activate?"; then

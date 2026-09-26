@@ -35,7 +35,8 @@ after reboot. This intentionally does not rewrite the running Hyprland,
 systemd, shell, or app-launcher environment; reboot to make every layer agree.
 
 Removes $sudoers_file, the drop-in that pointed sudo
-at the checkout, so sudo goes back to the packaged omarchy-* immediately.
+at the checkout, so sudo resolves commands from the system directories again
+immediately.
 
 Use --no-reboot when another command will handle the reboot prompt.
 USAGE
