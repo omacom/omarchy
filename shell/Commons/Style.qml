@@ -23,8 +23,9 @@ import Quickshell.Io
 // padding, controls, and panel dimensions while preserving each component's
 // proportions; by default it also tracks `base-size`. `[bar]
 // size-horizontal` / `size-vertical` set the cross-axis dimension for
-// top/bottom and left/right bars at the default 12px font size; by default
-// those dimensions scale with `base-size` so larger fonts don't clip.
+// top/bottom and left/right bars at the default 12px font size, and
+// `icon-slot`, `icon-canvas`, `icon-font` and `status-slot` the widget sizes;
+// by default all of them scale with `base-size` so larger fonts don't clip.
 QtObject {
   id: root
 
@@ -301,6 +302,17 @@ QtObject {
     return Math.max(1, Math.round(base))
   }
 
+  // Bar tokens whose resting value is zero: a bar flush against its edge with
+  // square corners. barToken() floors at 1 and reads 0 as "unset", so margin
+  // and radius need a reader that keeps a deliberate 0.
+  function barInsetToken(key, fallback) {
+    var v = barOverrides[key]
+    var n = Number(v)
+    var base = (isFinite(n) && n >= 0) ? n : fallback
+    if (barScaleWithFont) base *= fontScale
+    return Math.max(0, Math.round(base))
+  }
+
   function boolToken(value, fallback) {
     if (value === undefined || value === null) return fallback
     var s = String(value).replace(/^\s+|\s+$/g, "").toLowerCase()
@@ -345,6 +357,14 @@ QtObject {
     readonly property int iconCanvas:     root.barToken("icon-canvas",     16)
     readonly property int iconFont:       root.barToken("icon-font",       13)
     readonly property int statusSlot:     root.barToken("status-slot",     21)
+    // Pills (bar.pills in shell.json). pill-inset is the gap between a pill
+    // and the bar's edges and ends; pill-padding the space inside a pill at
+    // its ends. Radius and inset keep a deliberate 0; unset, the radius
+    // follows Hyprland's rounding, capped at half the pill's thickness.
+    readonly property int pillRadius:  root.barOverrides["pill-radius"] !== undefined ? root.barInsetToken("pill-radius", 0) : root.cornerRadius
+    readonly property int pillInset:   root.barOverrides["pill-inset"] !== undefined ? root.barInsetToken("pill-inset", 0) : root.space(2)
+    readonly property int pillPadding: root.barToken("pill-padding", 4)
+    readonly property int pillGap:     root.barToken("pill-gap",     6)
   }
 
   function refresh() {
@@ -405,7 +425,10 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
-        } else if (key === "size-horizontal" || key === "size-vertical") {
+        } else {
+          // Every numeric [bar] key reaches barToken(), which reads only the
+          // keys it declares; naming them here dropped icon-slot, icon-canvas,
+          // icon-font and status-slot on the floor.
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }

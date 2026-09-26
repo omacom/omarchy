@@ -378,9 +378,40 @@ of top/bottom and left/right bars respectively, measured at the default
 scale-with-font = true
 size-horizontal = 26   # top/bottom bar height at base-size 12
 size-vertical   = 28   # left/right bar width at base-size 12
+icon-slot       = 27   # width of one widget slot
+icon-canvas     = 16   # size of a widget's icon
+icon-font       = 13   # glyph size of a font icon
+status-slot     = 21   # width of a status indicator slot
 ```
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
+
+### Bar pills
+
+Pills give bar widgets their own background, so the bar background can be switched off (`transparent: true`) and the widgets still sit on something. They are off unless you turn them on, so a stock bar is unchanged.
+
+Turn them on with `"pills": "section"` under `bar` in `shell.json`, or let a theme set a default with `[bar] pills`. `shell.json` wins.
+
+| Mode | Effect |
+|---|---|
+| `off` | no pills |
+| `section` | one pill per run of neighbouring widgets. A spacer ends the run, even at `"size": 0`, and so does a change of `"group"` value between neighbours |
+| `widget` | one pill per widget |
+
+These `[bar]` keys shape the pills. All are optional.
+
+| Key | Default | Effect |
+|---|---|---|
+| `pill` | see below | fill colour |
+| `pill-alpha` | `background-alpha` | fill opacity, 0 to 1, used with `pill` or on a transparent bar |
+| `pill-text` | picked | widget text while pills are on, `"pill": false` widgets included. Unset, the shell picks `text` or the theme background, whichever contrasts more with the pill, composited over the wallpaper when the pill is translucent on a transparent bar |
+| `pill-border`, `pill-border-alpha` | none | a 1 px outline; shown when its alpha is above 0, also on a transparent fill |
+| `pill-radius` | Hyprland `decoration:rounding` | corner radius; 0 is square; capped at half the pill's thickness |
+| `pill-inset` | 2 | gap between a pill and the bar's edges and ends |
+| `pill-padding` | 4 | space inside a pill at its ends |
+| `pill-gap` | 6 | space between neighbouring pills |
+
+Unset, `pill` depends on the bar background. On a transparent bar the pill is the bar `background` at `background-alpha`, so the bar colour stays behind the widgets. On the drawn bar that colour would not show, so the pill is `text` at 10% over the bar, a raised tone that works for dark and light themes. A theme that sets `pill` gets that colour in both states. The sizes scale with the font like the bar sizes above; a `pill-radius` or `pill-inset` of 0 stays 0.
 
 ## Custom bar modules
 

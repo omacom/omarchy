@@ -15,6 +15,24 @@ active           = "{{ red }}"
 scale-with-font  = true
 size-horizontal  = 26
 size-vertical    = 28
+# Widget sizes at base-size 12, scaled the same way. Uncomment to change.
+#   icon-slot   = 27   # width of one widget slot
+#   icon-canvas = 16   # size of a widget's icon
+#   icon-font   = 13   # glyph size of a font icon
+#   status-slot = 21   # width of a status indicator slot
+# Pills: a background per widget or run of widgets, so the bar background can
+# be switched off. Off unless a theme or shell.json (bar.pills) turns them on.
+# Unset keys fall back to the bar's own colours and Hyprland's rounding.
+#   pills               = "section"   # off | section | widget
+#   pill                = "{{ background }}"
+#   pill-alpha          = 0.85
+#   pill-text           = "{{ foreground }}"
+#   pill-border         = "{{ accent }}"
+#   pill-border-alpha   = 0.25
+#   pill-radius         = 8
+#   pill-inset          = 2   # gap to the bar's edges and ends
+#   pill-padding        = 4   # space inside a pill at its ends
+#   pill-gap            = 6   # space between pills
 
 [hyprland]
 # Shared Hyprland-derived border tokens. Surface sections reference these so
