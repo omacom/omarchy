@@ -119,6 +119,8 @@ BarWidget {
     onDateChanged: root.displayDate = date
   }
 
+  Component.onCompleted: root.displayDate = new Date()
+
   Loader {
     id: panelLoader
     active: true
