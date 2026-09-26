@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Omarchy",
   "license": "MIT",
-  "description": "Claude Code, Codex, and Fireworks usage, limits, and pace in a native Omarchy bar panel.",
+  "description": "Claude Code, Codex, and Fireworks usage with freshness status and low-allowance alerts.",
   "kinds": ["bar-widget"],
   "activation": "on-demand",
   "entryPoints": {
@@ -24,12 +24,14 @@
         "fireworks": { "enabled": true }
       },
       "refreshIntervalSec": 900,
+      "lowRemainingPercent": 10,
       "syncMode": "Off",
       "syncDir": "",
       "syncFileName": "",
       "syncDeviceId": ""
     },
     "schema": [
+      { "key": "lowRemainingPercent", "type": "integer", "label": "Low allowance alert (%)", "min": 1, "max": 50, "step": 1, "defaultValue": 10 },
       { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh interval (seconds)", "min": 30, "max": 3600, "step": 30, "defaultValue": 900 },
       { "key": "syncMode", "type": "enum", "label": "Synced aggregation", "options": ["Off", "On"], "defaultValue": "Off", "description": "When On, write this machine's local usage snapshot and merge snapshots from other machines." },
       { "key": "syncDir", "type": "path", "label": "Sync folder", "defaultValue": "", "description": "A folder synced by Syncthing, Dropbox, rsync, etc." },
