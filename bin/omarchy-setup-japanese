@@ -46,6 +46,37 @@ fcitx_config_set() {
   mv "$file.tmp" "$file"
 }
 
+# Replace the whole [section] list (0=, 1=, ...) in an fcitx5 config file.
+fcitx_config_set_list() {
+  local file="$1" section="$2"
+  shift 2
+
+  mkdir -p "${file%/*}"
+  touch "$file"
+  # Blank lines are held back until something follows them, so dropping the
+  # old list doesn't leave a gap behind.
+  awk -v section="[$section]" '
+    $0 == section { skipping = 1; next }
+    /^\[/ { skipping = 0 }
+    skipping { next }
+    /^$/ { blanks++; next }
+    { for (; blanks > 0; blanks--) print ""; print }
+  ' "$file" >"$file.tmp"
+
+  local index=0 value
+  {
+    if [[ -s $file.tmp ]]; then
+      echo
+    fi
+    echo "[$section]"
+    for value in "$@"; do
+      echo "$index=$value"
+      ((index += 1))
+    done
+  } >>"$file.tmp"
+  mv "$file.tmp" "$file"
+}
+
 # fcitx5 writes its profile back out when it exits, so it has to be down while
 # we edit, or it would put back the input methods it started with.
 stop_fcitx5() {
@@ -57,15 +88,16 @@ start_fcitx5() {
   systemctl --user start omarchy-fcitx5.service
 }
 
+layout=$(x11_setting Layout)
+layout=${layout:-us}
+variant=$(x11_setting Variant)
+
 # fcitx5 forwards keys through its own keymap while an input method is on, so
 # the group has to use the same layout as the desktop.
 setup_input_method() {
   local profile="$fcitx_dir/profile"
-  local layout variant group_layout
+  local group_layout=$layout
 
-  layout=$(x11_setting Layout)
-  variant=$(x11_setting Variant)
-  group_layout=${layout:-us}
   if [[ -n $variant ]]; then
     group_layout="$group_layout-$variant"
   fi
@@ -119,8 +151,22 @@ setup_input_method
 # of Japanese mid-conversation.
 fcitx_config_set "$fcitx_dir/config" "Behavior" "resetStateWhenFocusIn" "No"
 
+# JIS keyboards have dedicated keys for this: Henkan turns Japanese input on,
+# Muhenkan turns it off, and Zenkaku/Hankaku toggles. That frees Ctrl + Space,
+# the default toggle, for the tmux and Herdr prefix (see
+# default/hypr/bindings/jis.lua).
+if [[ $layout == "jp" ]]; then
+  fcitx_config_set_list "$fcitx_dir/config" "Hotkey/TriggerKeys" "Zenkaku_Hankaku"
+  fcitx_config_set_list "$fcitx_dir/config" "Hotkey/ActivateKeys" "Henkan"
+  fcitx_config_set_list "$fcitx_dir/config" "Hotkey/DeactivateKeys" "Muhenkan"
+fi
+
 start_fcitx5
 
 echo
-echo "Japanese input is ready. Toggle it with Ctrl + Space."
+if [[ $layout == "jp" ]]; then
+  echo "Japanese input is ready. Turn it on with Henkan and off with Muhenkan."
+else
+  echo "Japanese input is ready. Toggle it with Ctrl + Space."
+fi
 echo "Change input methods and hotkeys with fcitx5-configtool."

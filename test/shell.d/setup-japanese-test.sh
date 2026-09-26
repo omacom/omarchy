@@ -82,6 +82,38 @@ grep -Fx 'Name=keyboard-jp' <<<"$(profile_of jis)" >/dev/null &&
   fail "a JIS keyboard gets Mozc after keyboard-jp" "$(profile_of jis)"
 pass "a JIS keyboard gets Mozc after keyboard-jp"
 
+config=$(config_of jis)
+grep -A1 -Fx '[Hotkey/TriggerKeys]' <<<"$config" | grep -Fx '0=Zenkaku_Hankaku' >/dev/null &&
+  grep -A1 -Fx '[Hotkey/ActivateKeys]' <<<"$config" | grep -Fx '0=Henkan' >/dev/null &&
+  grep -A1 -Fx '[Hotkey/DeactivateKeys]' <<<"$config" | grep -Fx '0=Muhenkan' >/dev/null ||
+  fail "a JIS keyboard switches input with Henkan and Muhenkan" "$config"
+pass "a JIS keyboard switches input with Henkan and Muhenkan"
+
+if grep -F 'Hotkey/' <<<"$(config_of us)" >/dev/null; then
+  fail "other keyboards keep the fcitx5 default hotkeys" "$(config_of us)"
+fi
+pass "other keyboards keep the fcitx5 default hotkeys"
+
+# Ctrl + Space has to leave the toggle list, not just gain company, or it keeps
+# eating the tmux and Herdr prefix.
+home="$test_dir/jis-existing/home"
+mkdir -p "$home/.config/fcitx5"
+printf '[Hotkey/TriggerKeys]\n0=Control+space\n1=Zenkaku_Hankaku\n2=Hangul\n\n[Behavior]\nShareInputState=No\n' >"$home/.config/fcitx5/config"
+TEST_LAYOUT=jp run_setup jis-existing
+config=$(config_of jis-existing)
+if grep -F 'Control+space' <<<"$config" >/dev/null; then
+  fail "a JIS keyboard frees Ctrl + Space from the input method toggle" "$config"
+fi
+grep -Fx 'ShareInputState=No' <<<"$config" >/dev/null ||
+  fail "replacing hotkey lists keeps the other sections" "$config"
+pass "a JIS keyboard frees Ctrl + Space from the input method toggle"
+
+before=$(config_of jis-existing)
+TEST_LAYOUT=jp run_setup jis-existing
+[[ $(config_of jis-existing) == "$before" ]] ||
+  fail "replacing hotkey lists is idempotent" "$before"$'\n---\n'"$(config_of jis-existing)"
+pass "replacing hotkey lists is idempotent"
+
 TEST_LAYOUT=us TEST_VARIANT=intl run_setup variant
 grep -Fx 'Name=keyboard-us-intl' <<<"$(profile_of variant)" >/dev/null ||
   fail "the keyboard input method keeps the layout variant" "$(profile_of variant)"
