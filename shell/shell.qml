@@ -598,7 +598,20 @@ ShellRoot {
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
       _serviceLookup: function(requestedId) {
-        return allowOwnService ? shell.pluginServiceFor(key, requestedId) : null
+        if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
+          return shell.pluginServiceFor(key, requestedId)
+        // A bar-capable plugin hosts its bar's entries and already drives
+        // their panels — summon, hide, toggle, inline settings — so reaching
+        // the service of an entry configured in the bar it hosts crosses no
+        // new boundary. This is also how a replacement bar hands a widget its
+        // own service: the widget asks through the bar-level shell the bar
+        // passes down as `bar.shell`, and the trusted bar satisfies the same
+        // request through pluginShellForId() instead. Still no generic
+        // factory: only ids with a configured bar entry resolve.
+        if (hasCurrentBarCapabilities()
+            && shell.barEntryConfigured(shell.pluginRegistry.resolveEnabledId(requestedId)))
+          return shell.serviceFor(shell.pluginRegistry.resolveEnabledId(requestedId))
+        return null
       },
       _firstPartyServiceLookup: function(requestedId) {
         if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
@@ -691,6 +704,15 @@ ShellRoot {
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: target,
       barConfig: shell.publicBarConfig(),
+      // The widget this facade is handed to may reach its own service, the
+      // same capability the trusted bar grants through pluginShellForId().
+      // The lookup is still scoped to the entry's own plugin id (or its
+      // enabled clone): any other requested id fails the owns-check inside
+      // pluginServiceFor() and returns null, so the bar hosting the entry
+      // gains no reach beyond the entries it is configured to host.
+      _serviceLookup: function(requestedId) {
+        return shell.pluginServiceFor(target, requestedId)
+      },
       _summon: function(requestedId, payloadJson) {
         if (!owns(requestedId)
             && !shell.pluginCloneMaySummon(currentManifest(), requestedId)) return false
