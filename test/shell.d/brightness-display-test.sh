@@ -144,3 +144,24 @@ if PATH="$mock_bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-focused-apple"; th
   fail "focused non-Apple display is not detected as Apple"
 fi
 pass "named Apple display is detected independently of focus"
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+if [[ $* == "monitors -j" ]]; then
+  printf '%s\n' '[{"name":"eDP-1","disabled":false,"dpmsStatus":true}]'
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+: >"$call_log"
+CALL_LOG="$call_log" PATH="$mock_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-brightness-display" on
+if grep -F "dispatch 'hl.dsp.dpms({ action = \"enable\" })'" "$call_log" >/dev/null; then
+  fail "on skips DPMS enable when every panel already reports lit"
+fi
+pass "on skips DPMS enable when every panel already reports lit"
+
+: >"$call_log"
+CALL_LOG="$call_log" PATH="$mock_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-brightness-display" --force on
+grep -F "dispatch 'hl.dsp.dpms({ action = \"enable\" })'" "$call_log" >/dev/null || \
+  fail "--force on dispatches DPMS enable despite stale dpmsStatus"
+pass "--force on dispatches DPMS enable despite stale dpmsStatus"

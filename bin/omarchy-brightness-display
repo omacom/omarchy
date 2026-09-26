@@ -1,16 +1,21 @@
 #!/bin/bash
 
 # omarchy:summary=Show or adjust brightness on the focused display.
-# omarchy:args=[--no-osd] [--monitor name] [+N%|N%-|N%|off|on]
+# omarchy:args=[--no-osd] [--force] [--monitor name] [+N%|N%-|N%|off|on]
 # omarchy:examples=omarchy brightness display | omarchy brightness display +5% | omarchy brightness display --monitor DP-1 50% | omarchy brightness display off | omarchy brightness display on
 
 no_osd=0
+force=0
 monitor=""
 
 while (( $# > 0 )); do
   case "$1" in
   --no-osd)
     no_osd=1
+    shift
+    ;;
+  --force)
+    force=1
     shift
     ;;
   --monitor)
@@ -66,7 +71,11 @@ elif [[ $step == "on" ]]; then
   # Skip the dispatch when every active display is already lit: a redundant
   # DPMS enable right after system resume forces another modeset, which blanks
   # the panel for a beat (visible flash at the unlock screen).
-  hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
+  # Resume can report stale dpmsStatus=true while the panel is still dark
+  # (NVIDIA s2idle). --force bypasses that guard for the wake path only.
+  if (( !force )); then
+    hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
+  fi
   hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
   exit 0
 fi
