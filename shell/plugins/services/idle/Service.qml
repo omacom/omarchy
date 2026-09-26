@@ -18,6 +18,7 @@ Item {
   readonly property int defaultLockSeconds: 300
   readonly property var idleConfig: shell && shell.shellConfig && shell.shellConfig.idle
     ? shell.shellConfig.idle : (shell && shell.idleConfig ? shell.idleConfig : ({}))
+  readonly property var lockService: shell && shell.services ? shell.firstPartyServiceFor("omarchy.lock") : null
   readonly property int screensaverTimeoutSeconds: secondsFromConfig(idleConfig.screensaver, defaultScreensaverSeconds)
   readonly property int lockTimeoutSeconds: secondsFromConfig(idleConfig.lock, defaultLockSeconds)
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
@@ -98,13 +99,13 @@ Item {
     else lockTimer.restart()
   }
 
-  function cancelIdleCycle(reason) {
+  function cancelIdleCycle(reason, wakeDisplay) {
     logEvent("idle-cycle-cancel", reason || "requested")
     screensaverTimer.stop()
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
 
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
+    if (root.idledThisCycle && wakeDisplay !== false) runProcess(wakeProcess, "wake", "omarchy-system-wake")
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
@@ -275,8 +276,11 @@ Item {
     interval: 3000
     repeat: false
     onTriggered: {
-      if (root.idleEnabled && root.idledThisCycle && root.screensaverStartedThisCycle && root.screensaverWindowCount === 0 && !idleMonitor.isIdle) {
-        root.cancelIdleCycle("screensaver-not-running")
+      var locked = root.lockService ? root.lockService.locked : false
+      var action = IdleModel.missingScreensaverAction(root.idleEnabled, root.idledThisCycle, root.screensaverStartedThisCycle, root.screensaverWindowCount, idleMonitor.isIdle, locked)
+      if (action !== "none") {
+        var reason = action === "clear" ? "screensaver-not-running-locked" : "screensaver-not-running"
+        root.cancelIdleCycle(reason, action === "wake")
       }
     }
   }
