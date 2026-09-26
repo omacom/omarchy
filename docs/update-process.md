@@ -27,7 +27,7 @@ The design goal is:
 | `~/.local/state/omarchy/current/` | user | Generated active theme, selected theme name, and current background symlink. |
 | `~/.local/state/omarchy/migrations/` | user | Per-user migration markers. |
 | `~/.local/state/omarchy/reboot-required` | user | Optional reboot marker checked by `omarchy-update-restart`. |
-| `~/.local/state/omarchy/restart-*-required` | user | Optional service/app restart markers checked by `omarchy-update-restart`. The shell needs no marker: it is restarted unconditionally after every update. |
+| `~/.local/state/omarchy/restart-*-required` | user | Optional regular-file component restart markers checked against the explicit allowlist in `omarchy-update-restart`. Successful restarts clear their marker; failed restarts retain it for retry. The shell restarts once per update, including when a shell marker exists. |
 
 ## Migration layout
 
@@ -150,6 +150,8 @@ omarchy-update
 Important behavior:
 
 - Protected update entrypoints require the session's canonical `OMARCHY_PATH` to match their own checkout or the packaged `/usr/bin` entrypoint before selecting commands or the sudo wrapper. This preserves intentionally trusted development checkouts while rejecting a command paired with a different source root. System phases use a fixed command search path; user PATH is restored behind the sudo wrapper for hooks and mise.
+- Restart handling accepts only its explicit set of zero-argument component commands. Unsupported markers and unavailable optional targets are removed without dispatch; symlinks and other non-regular marker entries are ignored. Commands use absolute paths under the canonical session source root, which must match the running packaged command or development checkout. The package's links to matching `/usr/bin` commands are supported; arbitrary helper symlinks are not. The generic `restart-app` dispatcher and source-only `restart-gum` helper cannot be selected by markers.
+- `omarchy-update-restart` also establishes command-scoped authorization when invoked directly. Service restarts finish before reboot prompts; `--reboot-only` leaves service markers untouched and never starts a service restart. Failed component restarts report the failure and keep their marker without blocking the rest of the package update. A shell restart is attempted only once, and a failed attempt retains any existing shell marker.
 - Mixed-trust update entrypoints start Bash in privileged mode, discard `BASH_ENV`, `ENV`, and exported-function records before launching helpers, and reject an ordinary `bash path/to/command` invocation. Run them as executables (normally through the `omarchy` CLI); `/usr/bin/bash -p path/to/command` is the explicit interpreter form. This keeps shell startup injection from replacing the no-update sudo boundary.
 - In dev-link mode, `omarchy update` fast-forwards the active checkout from its configured upstream before changing system packages or running migrations.
 - Migrations remain in chronological order even though historical entries mix user-controlled code with later privileged repairs. Before entering that mixed-trust tail, Omarchy invalidates its timestamp and forces every later sudo call—including AUR's configurable sudo command—to use `--no-update`; prompts authorize one command without publishing a reusable timestamp. Yay's credential loop is disabled for the update.
