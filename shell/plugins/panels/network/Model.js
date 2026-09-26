@@ -411,19 +411,21 @@ function hotspotClients(status) {
   }
 }
 
-// What to call a client: the name the network gave it when there is one, then
-// its address, then the MAC. The name and address arrive from the network, so
-// they are only rendered in the shapes the status parser allows and the text is
-// plain either way.
+// What to call a client: the name the user gave it, else the name the network
+// gave it, else its address, always with the MAC. The network name, address, and
+// the stored alias all arrive from outside this file, so they are only rendered
+// in the shapes the status parser allows and the text is plain either way.
 function hotspotClientLabel(client) {
   var c = client || {}
   var mac = String(c.mac || "").toUpperCase()
   var signal = parseInt(c.signal, 10)
   if (!mac) return ""
   var parts = []
+  var alias = String(c.alias || "")
   var hostname = String(c.hostname || "")
   var address = String(c.address || "")
-  if (hostname !== "") parts.push(hostname)
+  if (alias !== "") parts.push(alias)
+  else if (hostname !== "") parts.push(hostname)
   else if (address !== "") parts.push(address)
   parts.push(mac)
   var label = parts.join(" \u00b7 ")

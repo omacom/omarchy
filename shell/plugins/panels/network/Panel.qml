@@ -211,6 +211,11 @@ Panel {
   // internet -- that is a warning, not a blocker.
   readonly property bool hotspotHasUpstream: hotspot.upstream !== "wifi" && hotspot.upstream !== "none" && hotspot.upstream !== ""
   readonly property var hotspotClients: Model.hotspotClients(hotspot)
+  // Alias editing. The MAC identifies the client; the label itself is free text
+  // and reaches the command over stdin, never argv.
+  property string hotspotAliasMac: ""
+  property string hotspotAliasDraft: ""
+  property bool hotspotAliasBusy: false
   // Keyboard cycle is toggle / cog, plus QR only while the AP is on air.
   readonly property int hotspotFocusMax: hotspotActive ? 2 : 1
 
@@ -1022,6 +1027,47 @@ Panel {
     hotspotActionProc.running = true
   }
 
+  function beginHotspotAlias(client) {
+    if (hotspotAliasBusy) return
+    hotspotAliasMac = String((client || {}).mac || "")
+    hotspotAliasDraft = String((client || {}).alias || "")
+    hotspotError = ""
+  }
+
+  function cancelHotspotAlias() {
+    hotspotAliasMac = ""
+    hotspotAliasDraft = ""
+  }
+
+  function saveHotspotAlias() {
+    if (hotspotAliasBusy) return
+    if (hotspotAliasMac === "") return
+    var label = hotspotAliasDraft.trim()
+    if (label.length > 64 || /[\u0000-\u001f\u007f]/.test(label)) {
+      hotspotError = "Alias must be 1-64 characters without control characters"
+      return
+    }
+    if (label === "") {
+      removeHotspotAlias()
+      return
+    }
+    hotspotAliasBusy = true
+    hotspotError = ""
+    hotspotAliasProc.secret = label
+    hotspotAliasProc.command = [hotspotCommand, "alias-set", hotspotAliasMac]
+    hotspotAliasProc.running = true
+  }
+
+  function removeHotspotAlias() {
+    if (hotspotAliasBusy) return
+    if (hotspotAliasMac === "") return
+    hotspotAliasBusy = true
+    hotspotError = ""
+    hotspotAliasProc.secret = ""
+    hotspotAliasProc.command = [hotspotCommand, "alias-remove", hotspotAliasMac]
+    hotspotAliasProc.running = true
+  }
+
   function generateHotspotPassword() {
     if (hotspotPasswordProc.running) return
     // The secret comes from omarchy-hotspot over /dev/urandom, never from
@@ -1197,6 +1243,36 @@ Panel {
   // and `apply`, never argv (see omarchy-hotspot). onExited refreshes both
   // the hotspot state and the hero/connection rows, since switching the radio
   // to AP changes them.
+  // Alias writes are their own process: the hotspot toggle must stay usable
+  // while a rename is in flight, and the draft text belongs to this editor.
+  Process {
+    id: hotspotAliasProc
+    property string secret: ""
+    stdinEnabled: true
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { id: hotspotAliasErr; waitForEnd: true }
+    onStarted: {
+      if (secret !== "") {
+        write(secret + "\n")
+        secret = ""
+      }
+    }
+    onExited: function(exitCode) {
+      root.hotspotAliasBusy = false
+      if (exitCode !== 0) {
+        root.hotspotError = "Failed to save the hotspot alias"
+        Qt.callLater(function() {
+          var reason = String(hotspotAliasErr.text || "").replace(/\s+/g, " ").trim().slice(0, 500)
+          if (reason !== "") root.hotspotError = reason
+        })
+        return
+      }
+      root.hotspotAliasMac = ""
+      root.hotspotAliasDraft = ""
+      root.refreshHotspot()
+    }
+  }
+
   Process {
     id: hotspotActionProc
     property string secret: ""
@@ -2170,18 +2246,99 @@ Panel {
           font.pixelSize: Style.font.caption
         }
 
-        // Connected clients, MAC + signal. Hidden while idle.
+        // Alias editor for one client. Only the MAC travels to the command; the
+        // label is written over stdin, and the client list refreshes after.
+        Column {
+          id: hotspotAliasEditor
+          visible: root.hotspotAliasMac !== ""
+          width: parent.width
+          spacing: Style.space(6)
+
+          TextField {
+            id: hotspotAliasField
+            width: parent.width
+            enabled: !root.hotspotAliasBusy
+            placeholderText: "Name this device"
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            foreground: root.bar.foreground
+            horizontalPadding: Style.spacing.controlGap
+            verticalPadding: Style.spacing.controlPaddingY
+            text: root.hotspotAliasDraft
+            onTextChanged: if (text !== root.hotspotAliasDraft) root.hotspotAliasDraft = text
+            onAccepted: root.saveHotspotAlias()
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(6)
+
+            Button {
+              width: parent.width - Style.space(120)
+              height: Style.spacing.controlHeight
+              text: "Save"
+              enabled: !root.hotspotAliasBusy
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY
+              bordered: true
+              onClicked: root.saveHotspotAlias()
+            }
+
+            Button {
+              id: hotspotAliasClearBtn
+              width: Style.space(34)
+              height: Style.spacing.controlHeight
+              iconText: "\u232b"
+              tooltipText: "Remove this name"
+              enabled: !root.hotspotAliasBusy
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              iconSize: Style.font.subtitle
+              horizontalPadding: 0
+              verticalPadding: 0
+              bordered: true
+              onClicked: root.removeHotspotAlias()
+            }
+
+            Button {
+              width: Style.space(34)
+              height: Style.spacing.controlHeight
+              iconText: "\u2715"
+              tooltipText: "Cancel"
+              enabled: !root.hotspotAliasBusy
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              iconSize: Style.font.subtitle
+              horizontalPadding: 0
+              verticalPadding: 0
+              bordered: true
+              onClicked: root.cancelHotspotAlias()
+            }
+          }
+        }
+
+        // Connected clients, label + signal. Hidden while idle. Clicking a row
+        // names it; the editor above stays keyboard-reachable on its own.
         Repeater {
           model: root.hotspotActive ? root.hotspotClients : []
           delegate: Text {
+            id: clientRow
             required property var modelData
             textFormat: Text.PlainText
             width: parent.width
-            text: Model.hotspotClientLabel(modelData)
+            text: (root.hotspotAliasMac === String(modelData.mac || "") ? "\u270e " : "") + Model.hotspotClientLabel(modelData)
             color: Qt.darker(root.bar.foreground, 1.35)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
             elide: Text.ElideRight
+
+            MouseArea {
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.beginHotspotAlias(clientRow.modelData)
+            }
           }
         }
       }

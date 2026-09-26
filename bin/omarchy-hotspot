@@ -2,7 +2,7 @@
 
 # omarchy:summary=Share this machine's internet as a Wi-Fi access point (hotspot)
 # omarchy:group=network
-# omarchy:args=<status|start|stop|toggle|qr|apply|setup|teardown|diagnose|generate-password> [ssid] [band]
+# omarchy:args=<status|start|stop|toggle|qr|apply|setup|teardown|alias-set|alias-remove|diagnose|generate-password> [ssid] [band]
 # omarchy:examples=omarchy hotspot status | omarchy hotspot toggle | omarchy hotspot apply MyWifi 2.4 | omarchy hotspot diagnose
 
 # Drives NetworkManager's shared-mode AP profile so other devices can join
@@ -252,6 +252,104 @@ station_hostname() {
   printf '%s\n' "$name"
 }
 
+# A user-chosen name for a client. The alias is free text, so it never rides
+# argv (which is world-readable in /proc): it arrives on stdin and only the MAC
+# identifies the record.
+alias_file() {
+  printf '%s/omarchy/hotspot-aliases.tsv' "${XDG_STATE_HOME:-$HOME/.local/state}"
+}
+
+normalize_client_mac() {
+  local mac=${1,,}
+  [[ $mac =~ ^[0-9a-f]{2}(:[0-9a-f]{2}){5}$ ]] || return 1
+  printf '%s' "$mac"
+}
+
+# A tab separates the fields and a newline ends the record, so neither may
+# appear in an alias. Everything else printable is allowed: the point is a name
+# the user can type.
+valid_client_alias() {
+  local alias=$1
+  [[ -n $alias && ${#alias} -le 64 ]] || return 1
+  [[ $alias != *[[:cntrl:]]* ]]
+}
+
+trim_client_alias() {
+  local alias=$1
+  alias=${alias#"${alias%%[![:space:]]*}"}
+  alias=${alias%"${alias##*[![:space:]]}"}
+  printf '%s' "$alias"
+}
+
+# Rewrite the store without $1, then append it when $2 is set. Records that do
+# not validate are dropped instead of carried forward, so a hand-edited or
+# truncated file cannot inject a field or a bogus MAC into the status output.
+alias_store_rewrite() {
+  local skip=${1:-} alias=${2:-} directory temporary existing_mac existing_alias
+  directory=$(dirname "$(alias_file)")
+  mkdir -p "$directory" || return 1
+  temporary=$(mktemp "$(alias_file).XXXXXX") || return 1
+  if ! chmod 0600 "$temporary"; then
+    rm -f "$temporary"
+    return 1
+  fi
+  if [[ -f $(alias_file) ]]; then
+    while IFS=$'\t' read -r existing_mac existing_alias || [[ -n ${existing_mac:-} ]]; do
+      existing_mac=${existing_mac,,}
+      valid_client_alias "${existing_alias:-}" || continue
+      normalize_client_mac "$existing_mac" >/dev/null || continue
+      [[ -n $skip && $existing_mac == "$skip" ]] && continue
+      printf '%s\t%s\n' "$existing_mac" "$existing_alias" >>"$temporary" || {
+        rm -f "$temporary"
+        return 1
+      }
+    done <"$(alias_file)"
+  fi
+  if [[ -n $alias ]]; then
+    printf '%s\t%s\n' "$skip" "$alias" >>"$temporary" || {
+      rm -f "$temporary"
+      return 1
+    }
+  fi
+  if ! mv -f "$temporary" "$(alias_file)"; then
+    rm -f "$temporary"
+    return 1
+  fi
+}
+
+set_client_alias() {
+  local mac alias
+  mac=$(normalize_client_mac "${1:-}") || fail "invalid hotspot client MAC"
+  IFS= read -r alias || true
+  alias=$(trim_client_alias "$alias")
+  valid_client_alias "$alias" || fail "hotspot alias must be 1-64 characters without control characters"
+  alias_store_rewrite "$mac" "$alias" || fail "could not save the hotspot alias"
+}
+
+remove_client_alias() {
+  local mac
+  mac=$(normalize_client_mac "${1:-}") || fail "invalid hotspot client MAC"
+  [[ -f $(alias_file) ]] || return 0
+  alias_store_rewrite "$mac" "" || fail "could not remove the hotspot alias"
+}
+
+# The store as a JSON object keyed by lowercase MAC. A file that cannot be read
+# or parsed yields no aliases rather than failing the whole status poll.
+client_alias_records() {
+  local mac alias records="{}"
+  [[ -f $(alias_file) ]] || { printf '{}'; return 0; }
+  while IFS=$'\t' read -r mac alias || [[ -n ${mac:-} ]]; do
+    mac=${mac,,}
+    valid_client_alias "${alias:-}" || continue
+    normalize_client_mac "$mac" >/dev/null || continue
+    records=$(printf '%s' "$records" | jq --arg mac "$mac" --arg alias "$alias" '. + {($mac): $alias}' 2>/dev/null) || {
+      printf '{}'
+      return 0
+    }
+  done <"$(alias_file)"
+  printf '%s' "$records"
+}
+
 station_list() {
   local iface=$1 mac signal address hostname
   local dump block
@@ -275,7 +373,7 @@ station_list() {
 
 status() {
   local capable=0 active=0 configured=0 iface ssid band password freq ip clients upstream
-  local client_list client_count bands
+  local client_list client_count bands aliases
 
   iface=$(ap_iface)
   if [[ -n $iface ]] && ap_capable "$iface"; then capable=1; fi
@@ -291,6 +389,7 @@ status() {
   client_count=0
   upstream="none"
   bands=""
+  aliases="{}"
 
   if ((capable)); then
     upstream=$(upstream_type)
@@ -308,12 +407,14 @@ status() {
       client_list=$(station_list "$iface")
       if [[ -n $client_list ]]; then
         client_count=$(printf '%s\n' "$client_list" | grep -c . || true)
+        aliases=$(client_alias_records)
         clients=$(printf '%s\n' "$client_list" |
-          jq -R 'split("\t") as $f | {
+          jq -R --argjson aliases "$aliases" 'split("\t") as $f | {
             mac: $f[0],
             signal: ($f[1] | tonumber? // 0),
             address: (($f[2] // "") | select(test("^[0-9.]+$")) // ""),
-            hostname: (($f[3] // "") | select(test("^[A-Za-z0-9._-]+$")) // "")
+            hostname: (($f[3] // "") | select(test("^[A-Za-z0-9._-]+$")) // ""),
+            alias: ($aliases[($f[0] | ascii_downcase)] // "")
           }' 2>/dev/null |
           jq -sc . 2>/dev/null || echo "[]")
       fi
@@ -1176,6 +1277,8 @@ case "${1:-}" in
     require_root forwarding-restore
     forwarding_restore
     ;;
+  alias-set) shift; set_client_alias "$@" ;;
+  alias-remove) shift; remove_client_alias "$@" ;;
   diagnose) diagnose ;;
   generate-password) generate_password ;;
   *) usage; exit 2 ;;

@@ -383,3 +383,64 @@ foreign=$(printf '%s' "$hostile_clients" | jq -r '.[] | select(.mac == "aa:bb:cc
 unrelated=$(printf '%s' "$hostile_clients" | jq -r '[.[] | select(.mac == "aa:bb:cc:dd:ee:09")] | length')
 [[ $unrelated == "0" ]] || fail "a station that is not associated is not reported" "$unrelated"
 pass "a hostile neighbour table cannot widen the status contract"
+
+# Client aliases are user text in a user-owned file: the store has to survive a
+# hostile or truncated file, and status must still answer when it is unreadable.
+ALIAS_ROOT="$TEST_TMP/state"
+mkdir -p "$ALIAS_ROOT"
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:01 <<<"Bedroom Pixel"
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set AA:BB:CC:DD:EE:02 <<<"Wifi Printer"
+alias_store="$ALIAS_ROOT/omarchy/hotspot-aliases.tsv"
+[[ -f $alias_store ]] || fail "a client alias is stored"
+[[ $(stat -c %a "$alias_store") == "600" ]] || fail "the alias store is not private" "$(stat -c %a "$alias_store")"
+[[ $(cut -f1 <"$alias_store" | tr '\n' ' ') == "aa:bb:cc:dd:ee:01 aa:bb:cc:dd:ee:02 " ]] || fail "aliases keep a normalized MAC key" "$(<"$alias_store")"
+
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:01 <<<"Kitchen Tablet"
+[[ $(wc -l <"$alias_store") == 2 ]] || fail "re-aliasing replaces instead of appending" "$(<"$alias_store")"
+grep -Fq $'aa:bb:cc:dd:ee:01\tKitchen Tablet' "$alias_store" || fail "the newest alias wins" "$(<"$alias_store")"
+
+set +e
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set not-a-mac <<<"x" >/dev/null 2>&1
+bad_mac_status=$?
+printf 'bad\tname\n' | XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:03 >/dev/null 2>&1
+bad_alias_status=$?
+printf '' | XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-set aa:bb:cc:dd:ee:03 >/dev/null 2>&1
+empty_alias_status=$?
+set -e
+(( bad_mac_status != 0 )) || fail "an invalid MAC is refused"
+(( bad_alias_status != 0 )) || fail "an alias carrying the field separator is refused"
+(( empty_alias_status != 0 )) || fail "an empty alias is refused"
+[[ $(wc -l <"$alias_store") == 2 ]] || fail "a refused alias leaves the store untouched" "$(<"$alias_store")"
+pass "a client alias is validated before it is stored"
+
+# A hand-edited store must not widen what status reports.
+printf '%s\n' \
+  $'aa:bb:cc:dd:ee:01\tKitchen Tablet' \
+  $'not-a-mac\tInjected' \
+  $'aa:bb:cc:dd:ee:04' \
+  $'aa:bb:cc:dd:ee:05\tbad\tname' \
+  >"$alias_store"
+HOTSPOT_ACTIVE=1 XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/alias-status.out" 2>"$TEST_TMP/alias-status.err"
+[[ -z $(<"$TEST_TMP/alias-status.err") ]] || fail "a hand-edited alias store keeps status stderr empty" "$(<"$TEST_TMP/alias-status.err")"
+alias_clients=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/alias-status.out")
+applied=$(printf '%s' "$alias_clients" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .alias')
+[[ $applied == "Kitchen Tablet" ]] || fail "a stored alias reaches the client" "$applied"
+unnamed=$(printf '%s' "$alias_clients" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .alias')
+[[ -z $unnamed ]] || fail "a removed alias stops reaching the client" "$unnamed"
+printf '%s' "$alias_clients" | jq -e 'all(.[]; (.alias | type) == "string")' >/dev/null ||
+  fail "a malformed alias record cannot change the client shape" "$alias_clients"
+pass "a hand-edited alias store cannot widen the status contract"
+
+XDG_STATE_HOME="$ALIAS_ROOT" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
+[[ -z $(cut -f1 <"$alias_store" | grep -F 'aa:bb:cc:dd:ee:01' || true) ]] || fail "a removed alias is gone" "$(<"$alias_store")"
+XDG_STATE_HOME="$TEST_TMP/absent-state" PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" alias-remove aa:bb:cc:dd:ee:01
+pass "removing an alias works and is a no-op when there is no store"
