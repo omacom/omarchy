@@ -37,6 +37,7 @@ mkdir -p "$stub_bin" "$test_home" "$mapped_root/bin" "$mapped_root/default/omarc
 
 cat >"$stub_bin/pkexec" <<'SH'
 #!/bin/bash
+[[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'pkexec\n' >>"$SUDO_EVENT_LOG"
 exec "$@"
 SH
 
@@ -44,8 +45,12 @@ cat >"$stub_bin/sudo" <<'SH'
 #!/bin/bash
 case ${1:-} in
   -h) echo 'usage: sudo [-bHkNnPS] command'; exit 0 ;;
-  -k|-K|-v) exit 0 ;;
+  -k|-K|-v)
+    [[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'sudo %s\n' "$1" >>"$SUDO_EVENT_LOG"
+    exit 0
+    ;;
 esac
+[[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'sudo %s\n' "$*" >>"$SUDO_EVENT_LOG"
 background=0
 while (( $# )); do
   case "$1" in
@@ -173,8 +178,30 @@ read -r version valid_pid valid_start valid_owner valid_token <"$state_dir/inhib
   fail "inhibitor state is private, caller-owned, and singly linked"
 run_helper stop
 wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
+
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
+
+# omarchy update owns its one authorization; the helper must not revoke it.
+# Run on its own, the helper still starts and ends cold.
+sudo_events="$test_tmp/sudo-events"
+: >"$sudo_events"
+OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper start
+OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop
+! grep -qx 'sudo -k' "$sudo_events" || fail "helper revoked the update's authorization" "$(<"$sudo_events")"
+SUDO_EVENT_LOG="$sudo_events" run_helper start
+SUDO_EVENT_LOG="$sudo_events" run_helper stop
+grep -qx 'sudo -k' "$sudo_events" || fail "standalone helper no longer revokes sudo"
+pass "helper leaves the update's authorization alone and revokes when standalone"
+
+# Without a terminal, an update's inhibitor reuses the update's authorization
+# non-interactively instead of asking again through polkit.
+: >"$sudo_events"
+OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+grep -q -- '^sudo -n -N -b -- ' "$sudo_events" || fail "update inhibitor without a terminal did not reuse sudo" "$(<"$sudo_events")"
+! grep -qx pkexec "$sudo_events" || fail "update inhibitor without a terminal asked polkit" "$(<"$sudo_events")"
+pass "update inhibitor without a terminal reuses the update's authorization instead of polkit"
 
 permissive_runtime="$test_tmp/permissive-runtime"
 mkdir -m 755 "$permissive_runtime"
@@ -419,8 +446,8 @@ pause = ': >"$TEST_CANCEL_READY"; while :; do /usr/bin/sleep 0.02; done'
 if sys.argv[2] == 'published':
     anchor = '  while :; do\n    inhibit_record='
     edits = [(anchor, '  ' + pause + '\n' + anchor),
-             ('      exec -a "$expected"',
-              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      exec -a "$expected"')]
+             ('      trap "kill \\$!; exit 0" TERM',
+              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      trap "kill \\$!; exit 0" TERM')]
 elif sys.argv[2] == 'idle-temporary':
     anchor = '  temporary=$(mktemp "$state_dir/.${state_file##*/}.XXXXXXXX") || return 1'
     edits = [(anchor, anchor + '\n  if [[ $state_file == "$idle_owner_file" ]]; then ' + pause + '; fi')]

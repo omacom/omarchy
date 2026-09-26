@@ -20,15 +20,29 @@ for args in '-y' ''; do
   touch "$SUDO_TEST_CACHE"
   run_update $args || fail "update failed" "$(<"$boundary_tmp/output")"
   assert_boundary_cold "successful update"
-  grep -q '^sudo -N /usr/bin/true$' "$SUDO_TEST_LOG" || fail "update package helpers must use no-update sudo"
   python3 - "$SUDO_TEST_LOG" <<'PY'
 import sys
 s=open(sys.argv[1]).read().splitlines()
-positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-restart --services-only','step:yay','step:omarchy-hook post-update','step:omarchy-update-mise','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
+# A cached credential from before the update is revoked, then the update
+# authorizes exactly once before any step that could need sudo.
+assert s[0]=='sudo -k', s
+# Authorization runs a command (sudo -v prompts even with passwordless sudo).
+prune=s.index('step:omarchy-update-pkg-prune ')
+auth=s.index('sudo /usr/bin/true')
+assert auth < prune, s
+assert [l for l in s[:prune] if l.startswith('sudo ') and l not in ('sudo -k','sudo -h')]==['sudo /usr/bin/true'], s
+assert 'sudo -v' not in s, s
+positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
-assert not any(line.startswith('sudo -N ') for line in s[positions[2]:]), s
+yay=positions[5]
+# Everything before AUR shares the one authorization: plain sudo, no revokes.
+assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:positions[4]]), s
+assert 'sudo /usr/bin/true' in s[auth:positions[0]+1], s
+# AUR builds start from a revoked credential and cannot refresh one.
+assert 'sudo -k' in s[positions[4]:yay], s
+assert not any(line.startswith('sudo ') and line!='sudo -k' and not line.startswith('sudo -N ') for line in s[yay:]), s
 PY
-  pass "update $args runs privileged phases before hooks and exits cold"
+  pass "update $args authorizes once for everything but AUR, which runs cold last, and exits cold"
 done
 
 for step in omarchy-update-system-pkgs yay omarchy-hook omarchy-update-mise; do
