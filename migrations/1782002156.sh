@@ -8,6 +8,17 @@ as_root() {
   fi
 }
 
+# After switching away from networkd, DNS depends on systemd-resolved owning the
+# stub resolv.conf. Swallowing a failed restart left machines with the symlink
+# and an inactive unit (#8395). Fail the migration rather than continue blind.
+ensure_systemd_resolved() {
+  as_root systemctl enable --now systemd-resolved.service
+  if ! systemctl is-active --quiet systemd-resolved.service; then
+    echo "Failed to start systemd-resolved; DNS will be broken until it is running." >&2
+    exit 1
+  fi
+}
+
 stock_networkd_file() {
   local file="$1"
 
@@ -55,7 +66,7 @@ if [[ ${OMARCHY_UPGRADE_TO_QUATTRO_LIVE:-0} == "1" ]]; then
     backup_stock_networkd_files
     as_root systemctl stop systemd-networkd.service >/dev/null 2>&1 || true
     as_root systemctl reload NetworkManager.service >/dev/null 2>&1 || true
-    as_root systemctl restart systemd-resolved.service >/dev/null 2>&1 || true
+    ensure_systemd_resolved
   else
     # Older live upgrades may still be relying on networkd/iwd. Disable for the
     # next boot, but do not stop or reconfigure the running link.
@@ -85,4 +96,4 @@ backup_stock_networkd_files
 as_root systemctl stop systemd-networkd.service >/dev/null 2>&1 || true
 
 as_root systemctl reload NetworkManager.service >/dev/null 2>&1 || true
-as_root systemctl restart systemd-resolved.service >/dev/null 2>&1 || true
+ensure_systemd_resolved
