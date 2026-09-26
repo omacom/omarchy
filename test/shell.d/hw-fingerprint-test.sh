@@ -71,6 +71,12 @@ assert_rejects "an FPC token mid-string is not detected"
 write_usb_devices '1234:5678:Goodix Fingerprint USB Device'
 assert_detects "a reader is detected by an existing product-name match"
 
+write_usb_devices '2541:fa03:Realtek USB2.0 Finger Print Bridge'
+assert_detects "a Realtek reader is detected by its spaced Finger Print product string"
+
+write_usb_devices '2541:fa03'
+assert_detects "a Realtek reader is detected by its vendor id"
+
 write_usb_devices '27c6:1234'
 assert_detects "a reader is detected by an existing vendor match"
 
