@@ -446,8 +446,8 @@ pause = ': >"$TEST_CANCEL_READY"; while :; do /usr/bin/sleep 0.02; done'
 if sys.argv[2] == 'published':
     anchor = '  while :; do\n    inhibit_record='
     edits = [(anchor, '  ' + pause + '\n' + anchor),
-             ('      exec -a "$expected"',
-              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      exec -a "$expected"')]
+             ('      trap "kill \\$!; exit 0" TERM',
+              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      trap "kill \\$!; exit 0" TERM')]
 elif sys.argv[2] == 'idle-temporary':
     anchor = '  temporary=$(mktemp "$state_dir/.${state_file##*/}.XXXXXXXX") || return 1'
     edits = [(anchor, anchor + '\n  if [[ $state_file == "$idle_owner_file" ]]; then ' + pause + '; fi')]

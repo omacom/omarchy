@@ -468,8 +468,9 @@ start_locked() {
   trap cleanup_pending_launch EXIT
   atomic_write_state "$launch_control_file" "active $token" || return 1
 
-  # The child is identifiable before it publishes state, including before exec.
-  # exec -a retains that identity without keeping an extra shell alive.
+  # The child is identifiable by the token in its arguments from the moment it
+  # starts. It stays a shell so stop's TERM ends it with a clean exit, since
+  # systemd-inhibit reports a child killed by a signal as an error.
   local hold_command=(
     /usr/bin/systemd-inhibit --what=sleep:idle --who=omarchy-update
     --why="Omarchy update in progress [$token]" --mode=block
@@ -481,7 +482,6 @@ start_locked() {
       token=$2
       owner=$3
       control=$4
-      expected="--why=Omarchy update in progress [$token]"
       temporary=""
       cleanup() { [[ -z $temporary ]] || /usr/bin/rm -f -- "$temporary"; }
       trap cleanup EXIT
@@ -500,7 +500,9 @@ start_locked() {
       /usr/bin/flock -u "$control_fd"
       exec {control_fd}>&-
       trap - EXIT
-      exec -a "$expected" /usr/bin/sleep infinity
+      trap "kill \$!; exit 0" TERM
+      /usr/bin/sleep infinity &
+      wait
     ' "--why=Omarchy update in progress [$token]" "$state_dir" "$token" "$caller_uid" "$launch_control_file"
   )
 
