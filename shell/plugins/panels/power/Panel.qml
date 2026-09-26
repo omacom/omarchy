@@ -138,6 +138,7 @@ Panel {
     if (!batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
+    if (chargeLimitSupported && !thresholdReadProc.running) thresholdReadProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -169,6 +170,31 @@ Panel {
     actionProc.running = true
   }
 
+  property string chargeLimitRaw: ""
+  property string chargeLimitMessage: ""
+  property bool chargeLimitFailed: false
+  property bool chargeLimitSupported: false
+  property bool chargeLimitCursor: false
+  property int chargeLimitIndex: 0
+  property var chargeLimitOptions: []
+  readonly property var chargeLimit: Model.parseChargeLimit(chargeLimitRaw)
+  readonly property bool chargeLimitReady: chargeLimit !== null || chargeLimitRaw === "mixed"
+
+  function setChargeLimit(value) {
+    if (thresholdProc.running || !chargeLimitReady || chargeLimitOptions.indexOf(value) < 0) return
+    chargeLimitMessage = "Applying charge limit…"
+    chargeLimitFailed = false
+    thresholdProc.command = ["omarchy-battery-limit-set", String(value)]
+    thresholdProc.running = true
+  }
+
+  function finishChargeLimit(code, error) {
+    chargeLimitFailed = code !== 0
+    if (code === 0) chargeLimitMessage = "Saved for every startup."
+    else chargeLimitMessage = Model.chargeLimitError(error)
+    refresh()
+  }
+
   function togglePercentage() {
     root.settings = Object.assign({}, root.settings, { showPercentage: !root.showPercentage })
     if (root.bar && root.bar.shell) root.bar.shell.updateEntryInline(root.moduleName, root.settings)
@@ -193,9 +219,13 @@ Panel {
       }
 
       refresh()
+      if (!chargeLimitCheckProc.running) chargeLimitCheckProc.running = true
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+      chargeLimitCursor = false
+      chargeLimitMessage = ""
+      chargeLimitFailed = false
     }
   }
 
@@ -226,6 +256,44 @@ Panel {
   Process {
     id: actionProc
     onExited: root.refresh()
+  }
+
+  Process {
+    id: thresholdProc
+    stderr: StdioCollector { id: thresholdError; waitForEnd: true }
+    onExited: function(code) { root.finishChargeLimit(code, thresholdError.text) }
+  }
+
+  Process {
+    id: thresholdReadProc
+    command: ["omarchy-battery-limit-get"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.chargeLimitRaw = text.trim() }
+    onExited: function(code) {
+      if (code !== 0) root.chargeLimitRaw = ""
+      if (!root.chargeLimitCursor) root.chargeLimitIndex = Math.max(0, root.chargeLimitOptions.indexOf(root.chargeLimit))
+    }
+  }
+
+  Process {
+    id: chargeLimitCheckProc
+    command: ["omarchy-hw-battery-charge-limit"]
+    onExited: function(exitCode) {
+      root.chargeLimitSupported = exitCode === 0
+      if (!root.chargeLimitSupported) root.chargeLimitCursor = false
+      if (root.chargeLimitSupported && !thresholdReadProc.running) thresholdReadProc.running = true
+      root.chargeLimitOptions = []
+      if (root.chargeLimitSupported && !thresholdOptionsProc.running) thresholdOptionsProc.running = true
+    }
+  }
+
+  Process {
+    id: thresholdOptionsProc
+    command: ["omarchy-battery-limit-get", "--options"]
+    stdout: StdioCollector { id: thresholdOptionsOutput; waitForEnd: true }
+    onExited: function(code) {
+      root.chargeLimitOptions = code === 0 ? Model.parseChargeLimitOptions(thresholdOptionsOutput.text) : []
+      root.chargeLimitIndex = Math.max(0, root.chargeLimitOptions.indexOf(root.chargeLimit))
+    }
   }
 
   Timer { interval: 5000; running: root.opened; repeat: true; onTriggered: root.refresh() }
@@ -304,10 +372,17 @@ Panel {
       anchors.fill: parent
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
+        if (dy !== 0 && root.chargeLimitSupported) {
+          root.chargeLimitCursor = dy > 0
+        } else if (root.chargeLimitCursor) {
+          root.chargeLimitIndex = Model.selectProfileIndex(root.chargeLimitIndex, dx || dy, root.chargeLimitOptions)
+        } else root.selectProfileByDelta(dx || dy)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: {
+        if (!root.cursorActive) return
+        if (root.chargeLimitCursor) root.setChargeLimit(root.chargeLimitOptions[root.chargeLimitIndex])
+        else root.activateSelectedProfile()
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -491,16 +566,90 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && !root.chargeLimitCursor && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
                     root.profileIndex = index
+                    root.chargeLimitCursor = false
                   }
                 }
               }
             }
+          }
+        }
+
+        // ---------- Charge limit picker ----------
+        PanelSeparator {
+          visible: root.chargeLimitSupported
+          foreground: root.bar.foreground
+        }
+
+        Column {
+          visible: root.chargeLimitSupported
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: "CHARGE LIMIT" + (root.chargeLimit !== null ? " — " + root.chargeLimit + "%" : (root.chargeLimitRaw === "mixed" ? " — MIXED" : " — UNAVAILABLE"))
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Row {
+            id: chargeLimitRow
+            width: parent.width
+            spacing: Style.space(6)
+
+            readonly property real cellWidth: root.chargeLimitOptions.length > 0
+              ? (width - spacing * (root.chargeLimitOptions.length - 1)) / root.chargeLimitOptions.length : 0
+            enabled: root.chargeLimitReady && !thresholdProc.running
+            opacity: enabled ? 1 : 0.5
+            readonly property var icons: ({ 80: "󰹦", 90: "󰌪", 100: "󰁹" })
+
+            Repeater {
+              model: root.chargeLimitOptions
+              Button {
+                required property var modelData
+                required property int index
+                width: chargeLimitRow.cellWidth
+                iconText: chargeLimitRow.icons[modelData] || ""
+                iconSize: Style.font.title
+                text: modelData + "%"
+                fontSize: Style.font.bodySmall
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                horizontalPadding: Style.space(2)
+                verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                bordered: true
+                active: root.chargeLimit === modelData
+                hasCursor: root.cursorActive && root.chargeLimitCursor && root.chargeLimitIndex === index
+                onClicked: root.setChargeLimit(modelData)
+                onHovered: function(hovered) {
+                  if (hovered) {
+                    root.cursorActive = true
+                    root.chargeLimitCursor = true
+                    root.chargeLimitIndex = index
+                  }
+                }
+              }
+            }
+          }
+
+          Text {
+            width: parent.width
+            textFormat: Text.PlainText
+            text: root.chargeLimitMessage || (root.chargeLimitOptions.length === 0
+              ? "Could not read the available charging presets."
+              : root.chargeLimitReady
+              ? "80% helps preserve battery health. Choose 100% when you need a full charge."
+              : "Could not read the current charging limit.")
+            color: root.chargeLimitFailed ? Color.accent : root.bar.foreground
+            opacity: root.chargeLimitFailed ? 1 : 0.65
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
           }
         }
       }
