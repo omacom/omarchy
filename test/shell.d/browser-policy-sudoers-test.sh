@@ -174,11 +174,11 @@ color_for_theme() {
 for malformed in "" "not,a,color" "1,2" "1,2,3,4" "256,0,0" "999,999,999" "-1,0,0" \
   "1,2,3;id" '1,2,$(id)' "0x10,0,0" "1,2,3 4,5,6"; do
   color=$(color_for_theme "$malformed")
-  [[ $color == "1c2027" ]] ||
+  [[ $color == "1f1f1f" ]] ||
     fail "omarchy-theme-set-browser falls back to the stock colour for '$malformed'" "got: $color"
 done
 
-[[ $(color_for_theme) == "1c2027" ]] ||
+[[ $(color_for_theme) == "1f1f1f" ]] ||
   fail "omarchy-theme-set-browser falls back to the stock colour with no theme file"
 
 pass "browser theme color is derived as six hex digits or falls back to the stock grey"

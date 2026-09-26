@@ -29,7 +29,10 @@ BROWSER_POLICY_FIREFOX_DIRS=(
   /opt/zen-browser/distribution
 )
 
-BROWSER_POLICY_DEFAULT_COLOR="#1c2027"
+# The default must be neutral: Chromium renders the seed's hue at full
+# saturation at the lightness extremes, so a tinted fallback like the old
+# blue-grey #1c2027 rendered as loud blue chrome.
+BROWSER_POLICY_DEFAULT_COLOR="#1f1f1f"
 
 browser_policy_purge_dir() {
   local dir=$1
