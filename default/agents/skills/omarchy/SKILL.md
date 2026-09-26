@@ -227,6 +227,29 @@ omarchy system reboot           # Reboot
 
 **IMPORTANT:** Always run `omarchy debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
 
+## Dell Firmware Power Recovery
+
+For Dell systems that must start automatically when external AC power returns, use Dell Command | Configure. The `AcPwrRcvry` BIOS attribute accepts:
+
+- `Off`: remain shut down after power is restored.
+- `Last`: restore the power state from before the outage.
+- `On`: start whenever AC power is restored.
+
+Read the value before changing it:
+
+```bash
+sudo cctk --AcPwrRcvry
+```
+
+To start unconditionally after an outage, set and verify `On`:
+
+```bash
+sudo cctk --AcPwrRcvry=On
+sudo cctk --AcPwrRcvry
+```
+
+On Arch, install `dell-command-configure` from the AUR with `omarchy pkg aur add dell-command-configure` when `cctk` is absent. If the legacy `openssl-1.1` dependency fails only at the kernel-dependent `30-test_afalg.t` test, review the AUR package and retry with `yay -S --mflags="--nocheck" openssl-1.1 dell-command-configure`. On Command Configure 5.x, use `AcPwrRcvry`; the older `acpwrrec` spelling is rejected. This BIOS setting does not restart a system after a software shutdown, panic, or hang.
+
 ## Troubleshooting
 
 ```bash
