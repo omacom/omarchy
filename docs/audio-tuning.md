@@ -65,8 +65,12 @@ needed: matching is data. A tuning declares how to recognise its hardware, plus 
 been validated on:
 
 ```bash
-match_sku=("0DB9" "0DBA")   # XPS 14 and XPS 16
+match_sku=("0AB1" "0AB2")   # two models validated on the same profile
 ```
+
+Share a tuning only between models whose speakers really are the same. The XPS 14
+and XPS 16 share amplifiers but load different Cirrus speaker firmware, and are
+tuned separately (`dell-xps-14-2026`, `dell-xps-16-2026`).
 
 Only the first *defined* key is consulted, in the order `match_command`,
 `match_sku`, `match_dmi` — keys below a defined one are ignored, and a tuning
