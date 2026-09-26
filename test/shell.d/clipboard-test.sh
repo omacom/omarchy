@@ -495,6 +495,25 @@ pass "clipboard file paste helper copy-only copies file content"
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
 
+rm -f "$TMPDIR/wtype"
+WL_COPY_OUT="$TMPDIR/copied" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image.png"
+
+[[ $(<"$TMPDIR/copied") == "image-data" ]] || fail "clipboard file paste helper copies file content"
+pass "clipboard file paste helper copies file content"
+
+[[ $(<"$TMPDIR/wtype") == "-M ctrl -k v -m ctrl" ]] || fail "clipboard file paste helper pastes files with ctrl v"
+pass "clipboard file paste helper pastes files with ctrl v"
+
+(! PATH="$TMPDIR/bin:$PATH" "$ROOT/bin/omarchy-clipboard-paste-file" 2>/dev/null) || fail "clipboard file paste helper fails on missing arguments"
+pass "clipboard file paste helper fails on missing arguments"
+
+rm -f "$TMPDIR/copied" "$TMPDIR/wtype"
+(! PATH="$TMPDIR/bin:$PATH" "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/nonexistent.png" 2>/dev/null) || fail "clipboard file paste helper fails on unreadable file"
+[[ ! -e "$TMPDIR/copied" ]] || fail "clipboard file paste helper does not copy unreadable file"
+[[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper does not paste when file unreadable"
+pass "clipboard file paste helper fails safely on unreadable file"
+
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
