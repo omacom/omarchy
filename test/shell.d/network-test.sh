@@ -249,6 +249,82 @@ assert(
   /forgetVisible: canForget && \(!requiresCredentials \|\| forgetFocused \|\| rightMouse\.containsMouse\)/.test(panelSource),
   'network shows the forget action directly for known passwordless networks'
 )
+assert(
+  /height: Style\.space\(22\)/.test(rightAction[0]),
+  'network gives the right-edge action a fixed square so the hover background has a real box'
+)
+assert(
+  /anchors\.centerIn: parent/.test(lockIndicator[0]),
+  'network centers the lock/forget glyph in its hover box'
+)
+assert(
+  /visible: row\.requiresCredentials \|\| row\.canForget \|\| row\.isCancellable/.test(rightAction[0]),
+  'network keeps the right-edge slot mounted for the connecting row so Cancel has a target'
+)
+assert(
+  /readonly property bool isCancellable: root\.isConnectTarget\(net \? net\.ssid : ""\)/.test(panelSource),
+  'network tracks which row owns the in-flight connect for cancellation'
+)
+assert(
+  /function cancelNetworkAction\(\) \{/.test(panelSource),
+  'network has a cancel path for in-flight connects'
+)
+assert(
+  /if \(actionKind !== "connect"\) return/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network cancel only aborts connects'
+)
+assert(
+  /if \(enterpriseConnect\.running\) enterpriseConnect\.running = false/.test(panelSource),
+  'network cancel stops the enterprise helper before clearing state'
+)
+assert(
+  /row\.isCancellable \? "Cancel" : "Forget network"/.test(panelSource),
+  'network labels the abort control Cancel instead of reusing Forget'
+)
+assert(
+  /visible: row\.isCancellable && row\.isPasswordOpen/.test(panelSource),
+  'network offers Cancel inside the passphrase prompt while connecting'
+)
+assert(
+  /if \(row\.isCancellable\) \{\s*root\.cancelNetworkAction\(\)/.test(panelSource),
+  'network row clicks abort the in-flight connect instead of no-opping behind busy'
+)
+assert(
+  /if \(isConnectTarget\(net\.ssid\)\) \{ cancelNetworkAction\(\); return \}/.test(panelSource),
+  'network keyboard activation cancels the connecting row instead of being gated on busy'
+)
+assert(
+  /function isConnectTarget\(ssid\) \{\s*return actionKind === "connect" && actionSsid !== "" && actionSsid === \(ssid \|\| ""\)/.test(panelSource),
+  'network shares one connect-target helper so hidden-SSID gating stays identical'
+)
+assert(
+  (panelSource.match(/isConnectTarget\(/g) || []).length >= 5,
+  'network routes every connect-lane check through the shared helper'
+)
+assert(
+  /function resetActionState\(\) \{/.test(panelSource),
+  'network shares one lane-reset tail instead of repeating it'
+)
+assert(
+  /function clearForgetAction\(\) \{/.test(panelSource) && /id: forgetTimeout/.test(panelSource),
+  'network tracks forgetting on its own lane with its own timeout'
+)
+assert(
+  /enabled: \(row\.canForget && !row\.isBusy\) \|\| row\.isCancellable/.test(panelSource),
+  'network keeps Forget available on other rows while one SSID connects'
+)
+assert(
+  (panelSource.match(/if \(row\.isCancellable\) root\.cancelNetworkAction\(\)\s*else root\.cancelPasswordPrompt\(\)/g) || []).length >= 2,
+  'network Esc aborts the in-flight connect before closing the passphrase prompt'
+)
+assert(
+  /cancelledSsid = actionSsid/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network remembers the aborted SSID so late outcomes stay silent'
+)
+assert(
+  /cancelledSsid = ""/.test(panelSource.match(/function runNetworkAction\(kind, network, callback\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network drops the aborted marker once a new action starts'
+)
 
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }
 assertEqual(network.networkFailureReason(reasons.NoSecrets, true, reasons), 'Passphrase required', 'network maps missing credential failures')
