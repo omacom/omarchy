@@ -40,7 +40,10 @@ Panel {
   property int viewYear: today.getFullYear()
   property int viewMonth: today.getMonth()
 
-  readonly property date viewDate: new Date(viewYear, viewMonth, 1)
+  // Noon, not midnight: a first-of-month midnight that does not exist (a
+  // DST switch landing on the 1st) resolves to the previous evening, which
+  // would name the heading after the wrong month above a correct grid.
+  readonly property date viewDate: new Date(viewYear, viewMonth, 1, 12)
   readonly property bool viewingCurrentMonth: viewYear === today.getFullYear() && viewMonth === today.getMonth()
 
   // Pinned to today, not to the month being browsed — stepping through the

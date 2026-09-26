@@ -231,10 +231,15 @@ function lifeProgressPercent(age, expectancy) {
 // Always six rows of seven days. A fixed grid keeps the popup exactly the
 // same height in every month, so stepping through the year never makes the
 // panel jump under the pointer.
+//
+// The cursor walks from noon, not midnight: in timezones whose DST switch
+// lands at midnight that midnight does not exist, and the engine resolves it
+// to 23:00 of the previous day, repeating a day and shifting the rest of the
+// grid. Noon always survives the switch.
 function monthGrid(year, month, weekStart, todayKey) {
   var start = normalizedWeekStart(weekStart, 1)
-  var leading = (new Date(year, month, 1).getDay() - start + 7) % 7
-  var cursor = new Date(year, month, 1 - leading)
+  var leading = (new Date(year, month, 1, 12).getDay() - start + 7) % 7
+  var cursor = new Date(year, month, 1 - leading, 12)
   var today = String(todayKey || "")
   var weeks = []
 
@@ -274,7 +279,9 @@ function monthGrid(year, month, weekStart, todayKey) {
 }
 
 function stepMonth(year, month, delta) {
-  var target = new Date(year, Number(month) + Number(delta), 1)
+  // Noon for the same reason as the grid cursor: the first of the month may
+  // itself be a midnight that does not exist.
+  var target = new Date(year, Number(month) + Number(delta), 1, 12)
   return { year: target.getFullYear(), month: target.getMonth() }
 }
 
