@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Install the optional AirPods bar panel and in-ear connection service
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+url="https://github.com/artinlenz/omarchy-airpods.git"
+plugin_dir="$HOME/.config/omarchy/plugins/artinlenz.airpods"
+
+cat <<'NOTICE'
+AirPods support is third-party code: an MIT-licensed panel and an AGPL-3.0-only service.
+The plugin runs unsandboxed as your user; only install it if you trust its public source.
+This installs Rust build tools and compiles the background service.
+One-time setup connects your selected, already-paired AirPods and stores private keys locally.
+After setup, the service uses device-specific blocking to gate connections on in-ear status.
+Removing one worn bud pauses active MPRIS players; reinsertion resumes only playback it paused.
+This does not change global Bluetooth/audio settings or manage other paired devices.
+Hardware support must be checked with a case-open / in-ear / removal test.
+NOTICE
+
+gum confirm "Install AirPods support from $url?" || exit 0
+
+if [[ -e $plugin_dir || -L $plugin_dir ]]; then
+  echo "AirPods plugin already exists at $plugin_dir. Update and run its install.sh explicitly." >&2
+  exit 1
+fi
+
+omarchy-pkg-add base-devel rust bluez dbus libpulse
+omarchy-plugin-add "$url" --yes
+"$plugin_dir/install.sh"
