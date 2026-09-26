@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Record opened windows as passive activity views
+# omarchy:group=activity
+
+# Passive catch-all for usage the menu never sees: apps opened from the
+# terminal, tray, or clicks. Listens for Hyprland openwindow events and logs
+# one view per window. Views carry via=view, which top excludes by default,
+# so passive sightings accumulate history without outvoting explicit picks.
+
+set -euo pipefail
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+omarchy-cmd-present omarchy-activity || exit 0
+
+# openwindow>>ADDRESS,WORKSPACE,CLASS,TITLE — the title may hold commas, so
+# only the first three fields are read and the rest stays unread.
+while read -r event; do
+  case "$event" in
+    openwindow\>\>*)
+      rest="${event#*>>}"
+      IFS=, read -r _ _ class _ <<<"$rest"
+      class="${class,,}"
+      [[ -n $class ]] || continue
+      omarchy-activity record app "$class" "" --via view >/dev/null 2>&1 || true
+      ;;
+  esac
+done < <(socat -U - "UNIX-CONNECT:$SOCKET")
