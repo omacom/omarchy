@@ -20,11 +20,10 @@ the end and exits non-zero.
   the theme pipeline: template rendering (`omarchy-theme-set-templates`,
   `omarchy-theme-color`, `omarchy-theme-osc`), the theme sync commands
   (tmux, GNOME, VS Code, Pi, Claude) run against stub binaries and a fake
-  `$HOME`, and the theme-state migrations.
+  `$HOME`.
 - **`./test/shell`** — runs every `test/shell.d/*-test.sh` (except
   `base-test.sh` itself). Each file is an independent suite covering one area:
-  a shell plugin, a `bin/` command, a config invariant, a migration. This is
-  where new tests go.
+  a shell plugin, a `bin/` command, a config invariant, or a still-live migration. This is where new tests go.
 - **Acceptance** — everything that needs a real desktop doing real things.
   Deliberately excluded from `./test/all`; it runs in a VM, not the
   development session.
@@ -53,6 +52,7 @@ directory or an installed Omarchy.
 Assertions are TAP-flavored and blunt:
 
 - `pass "description"` prints `ok - description`.
+- `skip "description"` prints `ok - description # SKIP`. Include why the check could not run. Like `pass`, it returns normally; use `exit 0` afterwards only when the rest of the file cannot run either.
 - `fail "description" [detail]` prints the optional detail and
   `not ok - description` to stderr, then **exits the file**. There is no
   counting or continuing within a file: the first failed assertion ends it,
@@ -60,19 +60,13 @@ Assertions are TAP-flavored and blunt:
   already invalidated.
 - `require_command <cmd>` fails the file when a needed tool is absent.
 
-The runner compensates for that early exit: `./test/shell` continues past a
-failing file and summarizes the failures at the end. Aborting the whole run at
-the first bad file once let a single packaging failure mask 114 of 134 files.
-Failure granularity is therefore per file inside a run, per assertion inside a
-file.
+The runner compensates for that early exit: `./test/shell` continues past a failing file and summarizes the failures at the end. Aborting the whole run at the first bad file once let a single packaging failure mask 114 of 134 files. Failure granularity is therefore per file inside a run, per assertion inside a file.
+
+The runner also lists files with skipped checks, including files that ran some checks or later failed. Skips do not fail a run. When no files fail, a run with skips is reported as completed without failures rather than having passed every check.
 
 ## Compositor-dependent tests
 
-Some tests launch Quickshell or query Hyprland, but the suite must stay green
-on headless machines. `require_compositor "description"` handles this: when no
-compositor answers it prints `ok - no Wayland compositor; skipping ...` and
-exits 0 — a skip is a passing test — and otherwise returns so the file
-proceeds.
+Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
 
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through
@@ -120,6 +114,7 @@ only a live session can prove.
 
 ## Conventions worth copying
 
+- **Redirect background output.** Send background fixtures' stdout to a log or `/dev/null` and clean up the processes on exit. An inherited output pipe can hold the runner open after the test exits.
 - **Stub the world, run the real code.** Tests build a scratch `bin/` of stub
   executables (`sudo`, `tmux`, `gsettings`, helper commands) that log their
   arguments to a file, prepend it to `PATH`, and then run the real script
@@ -132,7 +127,7 @@ only a live session can prove.
   fake `$HOME`, runs `bash -euo pipefail "$ROOT/migrations/<ts>.sh"`, and
   asserts the resulting state — including running it twice to prove
   idempotence, and once against non-legacy state to prove it leaves user
-  customization alone.
+  customization alone. Keep that test while the migration is still being written or bugfixed, if it calls an Omarchy helper whose interface can still change, or if it is a security-sensitive privileged repair. Once a one-shot rewrite has shipped in a tagged release and is frozen, drop the test even when that rewrite used sudo, pacman, or limine-mkinitcpio. Keep the migration itself for late-updaters. Tests of `omarchy-migrate`, the login notifier, and `omarchy-upgrade-to-quattro` stay.
 - **Assert the invariant, not the snapshot.** Config tests pin the property a
   test is named for (this widget stays adjacent to that one) rather than whole
   structures, so unrelated churn does not fail them.

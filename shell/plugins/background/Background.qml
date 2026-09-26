@@ -26,6 +26,10 @@ Item {
   property string pendingShellRaw: ""
   property real revealProgress: 1
 
+  function isVideo(path) {
+    return Util.isVideoPath(path)
+  }
+
   function imageUrl(path) {
     return Util.fileUrl(path)
   }
@@ -50,10 +54,12 @@ Item {
     revealAnimation.stop()
     finishingTransition = false
 
-    if (instant || !displayedBackground) {
+    // Video frames are not fed through the image-only reveal stack. Switching
+    // instantly also avoids decoding two full videos during a transition.
+    if (instant || !displayedBackground || isVideo(path) || isVideo(displayedBackground)) {
       oldBackground = ""
       incomingBackground = ""
-      displayedBackground = path
+      displayedBackground = finalPath
       revealProgress = 1
       return
     }
@@ -196,9 +202,8 @@ Item {
       color: "transparent"
       // Keep render updates enabled. The background layer has been observed to
       // lose its committed buffer while parked with updatesEnabled=false,
-      // leaving a black desktop until omarchy-shell is restarted. The wallpaper
-      // itself is static, so this favors correctness over a small render-loop
-      // optimization.
+      // leaving a black desktop until omarchy-shell is restarted. A still
+      // wallpaper costs nothing to keep enabled. OWE manages video layers.
       updatesEnabled: true
 
       property bool maskReady: false
@@ -218,15 +223,14 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
-      Image {
+      // OWE owns video backgrounds. This layer draws stills, and stays empty
+      // behind a video so OWE's own layer shows through.
+      BackgroundMedia {
         id: base
         anchors.fill: parent
-        source: root.imageUrl(root.displayedBackground)
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: true
-        onStatusChanged: {
-          if (status === Image.Ready && root.finishingTransition) {
+        path: root.displayedBackground
+        onReadyChanged: {
+          if (ready && root.finishingTransition) {
             root.incomingBackground = ""
             root.oldBackground = ""
             root.finishingTransition = false
