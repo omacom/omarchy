@@ -151,12 +151,14 @@ trap 'rm -rf "$device_tmp"' EXIT
 mock_bin="$device_tmp/bin"
 mkdir -p "$mock_bin"
 export POWERED_FILE="$device_tmp/powered"
+export PAIRABLE_FILE="$device_tmp/pairable"
 
 cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 [[ $1 == "power" && $2 == "on" ]] && echo yes >"$POWERED_FILE"
+[[ $1 == "pairable" ]] && echo "$2" >"$PAIRABLE_FILE"
 [[ $1 == "list" ]] &&
   for c in ${MOCK_CONTROLLERS:-AA:BB:CC:DD:EE:FF}; do printf 'Controller %s mock\n' "$c"; done
 # Per-controller state where a test set it, the shared file otherwise.
@@ -164,6 +166,7 @@ if [[ $1 == "show" ]]; then
   state="$POWERED_FILE"
   [[ -n ${2:-} && -f "$POWERED_FILE.$2" ]] && state="$POWERED_FILE.$2"
   printf '\tPowered: %s\n' "$(cat "$state")"
+  printf '\tPairable: %s\n' "$(cat "$PAIRABLE_FILE" 2>/dev/null || echo no)"
 fi
 exit 0
 SH
@@ -262,6 +265,43 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# BlueZ only marks the adapter pairable while a default agent is registered, and
+# bt-agent is skipped whenever bluetoothd or a USB dongle comes up after the
+# session does. Pairing against a non-pairable adapter bonds without
+# persistence: the link key never reaches /var/lib/bluetooth and the next
+# reconnect is refused, so the device has to be forgotten and paired again.
+bluetooth_pair_log() {
+  echo "$1" >"$PAIRABLE_FILE"
+  bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF
+}
+
+log_line() {
+  grep -nx "$2" "$1" | cut -d: -f1 | head -1
+}
+
+pair_log=$(bluetooth_pair_log no)
+grep -qx "pairable on" "$pair_log" ||
+  fail "bluetooth makes the adapter pairable before pairing" "$(cat "$pair_log")"
+pass "bluetooth makes the adapter pairable before pairing"
+
+(( $(log_line "$pair_log" "pairable on") < $(log_line "$pair_log" "pair AA:BB:CC:DD:EE:FF") )) ||
+  fail "bluetooth raises pairable ahead of the pair handshake" "$(cat "$pair_log")"
+pass "bluetooth raises pairable ahead of the pair handshake"
+
+(( $(log_line "$pair_log" "pairable off") > $(log_line "$pair_log" "pair AA:BB:CC:DD:EE:FF") )) ||
+  fail "bluetooth lowers pairable again after the pair handshake" "$(cat "$pair_log")"
+pass "bluetooth lowers pairable again after the pair handshake"
+
+grep -qx "connect AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth still connects after pairing" "$(cat "$pair_log")"
+pass "bluetooth still connects after pairing"
+
+# An adapter the agent already holds pairable is not ours to switch off.
+agent_log=$(bluetooth_pair_log yes)
+grep -q "pairable" "$agent_log" &&
+  fail "bluetooth leaves pairable alone when the agent already holds it" "$(cat "$agent_log")"
+pass "bluetooth leaves pairable alone when the agent already holds it"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.
