@@ -22,13 +22,14 @@ printf 'pkg-add %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
 touch "$OMARCHY_TEST_ROOT/package-installed"
 SH
 # The user manager, as far as these tests need one: a service is active while
-# a marker says so. Stopping clears it; OMARCHY_TEST_STOP_FAIL refuses.
+# a marker says so. Stopping clears it, except for the unit named in
+# OMARCHY_TEST_STOP_FAIL.
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
 case "$2" in
   stop)
     printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
-    [[ -z ${OMARCHY_TEST_STOP_FAIL:-} ]] || exit 1
+    [[ ${OMARCHY_TEST_STOP_FAIL:-} != "$3" ]] || exit 1
     rm -f "$HOME/active-$3"
     ;;
   is-active) [[ -e $HOME/active-$4 ]] ;;
@@ -166,7 +167,7 @@ pass "--check needs the package too, so --now never has a password to ask for un
 # just made, so a gateway running another OpenClaw stops the seeding first.
 new_home foreign-gateway
 mkdir -p "$test_home/.config/systemd/user"
-printf 'Environment=OPENCLAW_CONFIG_PATH=%s/.openclaw/openclaw.json\nExecStart=/opt/node %s/openclaw/dist/index.js gateway\n' "$test_home" "$test_home" \
+printf 'Environment=OPENCLAW_CONFIG_PATH=%s/.openclaw/openclaw.json\nExecStart=/opt/node %s/openclaw/dist/index.js gateway --config %s/.openclaw/openclaw.json\n' "$test_home" "$test_home" "$test_home" \
   >"$test_home/.config/systemd/user/openclaw-gateway.service"
 run omarchy-install-openclaw-cli --now && fail "a gateway running another OpenClaw stops the install"
 grep -q "runs another OpenClaw" "$test_tmp/output" || fail "a gateway running another OpenClaw is named" "$(cat "$test_tmp/output")"
@@ -193,11 +194,22 @@ pass "a service the old package installed moves to the runtime, and only that on
 new_home stop-fails
 mkdir -p "$test_home/.config/systemd/user"
 printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
-OMARCHY_TEST_STOP_FAIL=1 run omarchy-install-openclaw-cli --now && fail "a gateway that will not stop stops the install"
+OMARCHY_TEST_STOP_FAIL=openclaw-gateway.service run omarchy-install-openclaw-cli --now && fail "a gateway that will not stop stops the install"
 grep -q "Could not stop the OpenClaw gateway service" "$test_tmp/output" || fail "a gateway that will not stop is named" "$(cat "$test_tmp/output")"
 ! grep -q '^install-cli' "$events" && [[ ! -e $test_home/.openclaw ]] ||
   fail "a gateway that will not stop leaves the runtime unseeded" "$(cat "$events")"
 pass "a gateway that will not stop stops the install before anything is seeded"
+
+new_home stop-partial
+mkdir -p "$test_home/.config/systemd/user"
+for role in gateway node; do
+  printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js %s\n' "$role" >"$test_home/.config/systemd/user/openclaw-$role.service"
+  touch "$test_home/active-openclaw-$role.service"
+done
+OMARCHY_TEST_STOP_FAIL=openclaw-node.service run omarchy-install-openclaw-cli --now && fail "a node host that will not stop stops the install"
+grep -q "gateway service was stopped for this and is not running now" "$test_tmp/output" ||
+  fail "a gateway stopped before a later stop failed is named as stopped" "$(cat "$test_tmp/output")"
+pass "a service this run stopped is named whenever the run then fails"
 
 # Upstream's installer rewrites the gateway itself and only warns when it will
 # not start again, so a gateway that was running has to be running afterwards.
