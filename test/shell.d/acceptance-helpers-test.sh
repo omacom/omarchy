@@ -51,3 +51,55 @@ assert_layer_on_screen "visible-negative-offset" "visible layer is found on a ne
 assert_layer_off_screen "parked-negative-offset" "left-parked layer stays off a negatively offset monitor"
 assert_layer_on_screen "visible-rotated" "visible layer uses the transformed monitor height"
 assert_layer_off_screen "parked-rotated" "parked layer uses the transformed monitor width"
+
+# Keep OCR cases deterministic: these are the line breaks and scale-dependent
+# recognition errors observed in the real reminder and notification overlays.
+timeout() {
+  shift
+  "$@"
+}
+
+grim() {
+  [[ ${capture_fails:-false} == "false" ]] || return 1
+  printf '%s\n' "$2" > "$3"
+}
+
+tesseract() {
+  case $(cat "$1") in
+  1) printf '%s\n' "$native_text" ;;
+  2) printf '%s\n' "$doubled_text" ;;
+  esac
+}
+
+# A helper-test failure should not attempt a real compositor screenshot.
+screenshot() { :; }
+
+native_text=$'Reminder\n\nmessage...'
+doubled_text="unreadable"
+screen_contains "Reminder message" || fail "OCR matches a phrase split across lines"
+pass "OCR matches a phrase split across lines"
+
+native_text="Acceptance notification"
+doubled_text="oeephnce notification"
+screen_contains "Acceptance notification" || fail "OCR uses native resolution when scaling distorts text"
+pass "OCR uses native resolution when scaling distorts text"
+
+native_text="unreadable"
+doubled_text="Small weather caption"
+screen_contains "Small weather caption" || fail "OCR retains doubled resolution for small captions"
+pass "OCR retains doubled resolution for small captions"
+
+native_text="Different notification"
+doubled_text="Different notification"
+if screen_contains "Acceptance notification"; then
+  fail "OCR rejects text absent at both resolutions"
+fi
+pass "OCR rejects text absent at both resolutions"
+
+capture_fails=true
+native_text="Acceptance notification"
+doubled_text="Acceptance notification"
+if screen_contains "Acceptance notification"; then
+  fail "OCR rejects failed captures"
+fi
+pass "OCR rejects failed captures"
