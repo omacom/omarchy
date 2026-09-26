@@ -26,6 +26,10 @@ if (( EUID == 0 )); then
   exit 1
 fi
 
+# These select another profile's unit and command, for upstream's installer
+# and the CLI alike, and everything here is about the default ones.
+unset OPENCLAW_PROFILE OPENCLAW_SYSTEMD_UNIT OPENCLAW_WRAPPER
+
 prefix="$HOME/.openclaw"
 runtime_command="$prefix/bin/openclaw"
 command_path="$HOME/.local/bin/openclaw"
@@ -80,24 +84,41 @@ foreign_gateway() {
 }
 
 # A service the openclaw package's own copy installed runs from
-# /usr/lib/node_modules/openclaw, which that package no longer ships. Installed
-# again from the runtime, it runs code `openclaw update` can replace; upstream
-# rewrites the unit and starts it. It is stopped first: still running the old
-# code from deleted files, it holds the state directory the newer runtime has
-# to migrate, and could not restart from those files anyway. A service running
-# any other OpenClaw is the user's arrangement and stays.
-rehome_services() {
+# /usr/lib/node_modules/openclaw, which that package no longer ships, and is
+# moved to the runtime, where `openclaw update` can replace its code. A service
+# running any other OpenClaw is the user's arrangement and stays.
+legacy_units() {
   local role unit
   for role in gateway node; do
     unit="$HOME/.config/systemd/user/openclaw-$role.service"
     if [[ -f $unit ]] && unit_runs "$unit" "/usr/lib/node_modules/openclaw/"; then
-      echo "Moving the OpenClaw $role service to $prefix..."
-      systemctl --user stop "openclaw-$role.service" 2>/dev/null || true
-      # The selectors would point the install at another unit and command.
-      if ! env -u OPENCLAW_PROFILE -u OPENCLAW_SYSTEMD_UNIT -u OPENCLAW_WRAPPER "$runtime_command" "$role" install --force; then
-        echo "Could not move the OpenClaw $role service. Finish with: openclaw $role install --force" >&2
-        return 1
-      fi
+      echo "$role"
+    fi
+  done
+}
+
+# Stopped before anything is installed: still running the old code from deleted
+# files, such a service holds the state directory the newer runtime has to
+# migrate, which upstream's installer does the moment it finds one loaded.
+stop_legacy_services() {
+  local role
+  for role in $(legacy_units); do
+    if ! systemctl --user stop "openclaw-$role.service"; then
+      echo "Could not stop the OpenClaw $role service, so OpenClaw was not moved to $prefix." >&2
+      return 1
+    fi
+  done
+}
+
+# Installed again from the runtime, upstream rewrites the unit and starts it,
+# unless its installer already did.
+rehome_services() {
+  local role
+  for role in $(legacy_units); do
+    echo "Moving the OpenClaw $role service to $prefix..."
+    if ! "$runtime_command" "$role" install --force; then
+      echo "Could not move the OpenClaw $role service. Finish with: openclaw $role install --force" >&2
+      return 1
     fi
   done
 }
@@ -113,14 +134,16 @@ case "$mode" in
   ;;
 esac
 
+# Refused before anything is installed or touched: the command's name, what
+# PATH finds, and a gateway running another OpenClaw all have to be clear.
 if ! command_ours; then
   echo "$command_path is not the OpenClaw Omarchy set up. Move it aside, then run omarchy-install-openclaw-cli --now again." >&2
   exit 1
 fi
-
-if ! omarchy-pkg-present openclaw; then
-  echo "Installing OpenClaw..."
-  omarchy-pkg-add openclaw
+if ! path_clear; then
+  echo "'openclaw' on PATH is $(type -P openclaw), which is what Omarchy would run instead of $runtime_command." >&2
+  echo "Remove it or reorder PATH, then run omarchy-install-openclaw-cli --now again." >&2
+  exit 1
 fi
 
 # A runtime that already answers is never reinstalled: it may be past the
@@ -128,23 +151,23 @@ fi
 seeding=false
 if ! runtime_runs; then
   seeding=true
-  if [[ ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ]]; then
-    echo "The installed OpenClaw package cannot set up a self-updating OpenClaw. Run 'omarchy update', then try again." >&2
-    exit 1
-  fi
-fi
-
-# Refused before anything in the home is touched.
-if ! path_clear; then
-  echo "'openclaw' on PATH is $(type -P openclaw), which is what Omarchy would run instead of $runtime_command." >&2
-  echo "Remove it or reorder PATH, then run omarchy-install-openclaw-cli --now again." >&2
-  exit 1
 fi
 if [[ $seeding == "true" ]] && foreign_gateway; then
   echo "The OpenClaw gateway service runs another OpenClaw, which setting one up in $prefix would take over." >&2
   echo "Remove that gateway with 'openclaw gateway uninstall', then run omarchy-install-openclaw-cli --now again." >&2
   exit 1
 fi
+
+if ! omarchy-pkg-present openclaw; then
+  echo "Installing OpenClaw..."
+  omarchy-pkg-add openclaw
+fi
+if [[ $seeding == "true" && ( ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ) ]]; then
+  echo "The installed OpenClaw package cannot set up a self-updating OpenClaw. Run 'omarchy update', then try again." >&2
+  exit 1
+fi
+
+stop_legacy_services
 
 if [[ $seeding == "true" ]]; then
   # Every choice the installer reads from the environment is named, so an
