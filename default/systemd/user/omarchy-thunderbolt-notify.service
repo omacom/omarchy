@@ -1,0 +1,18 @@
+[Unit]
+Description=Notify about unauthorized Thunderbolt devices
+# The actionable notification launches its terminal through uwsm-app, whose
+# daemon starts after graphical-session.target. Run after the target too so this
+# oneshot cannot hold the target open while waiting for that daemon.
+After=graphical-session.target
+# Headless sessions have no shell to show the toast, let alone act on its click.
+ConditionEnvironment=WAYLAND_DISPLAY
+# Opt-out: users who accept silent USB ports until they run boltctl themselves
+# create this toggle file.
+ConditionPathExists=!%h/.local/state/omarchy/toggles/thunderbolt-auth-off
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-thunderbolt-check
+
+[Install]
+WantedBy=graphical-session.target

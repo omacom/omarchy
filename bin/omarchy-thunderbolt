@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# omarchy:summary=Authorize a waiting Thunderbolt device
+
+set -euo pipefail
+
+devices_dir=/sys/bus/thunderbolt/devices
+state_file=$HOME/.local/state/omarchy/thunderbolt/notified
+
+# Same detection as omarchy-thunderbolt-check: only real peripherals expose all
+# three attributes, domain0 never does, and the host router 0-0 is skipped by
+# name because newer kernels expose the trio for it too.
+waiting_ids=()
+declare -A device_paths=()
+declare -A device_names=()
+declare -A device_vendors=()
+declare -A device_generations=()
+
+if [[ -d $devices_dir ]]; then
+  for device_path in "$devices_dir"/*/; do
+    device_dir=$(basename "$device_path")
+    [[ $device_dir != domain* && $device_dir != "0-0" ]] || continue
+
+    # device_name is optional: the kernel hides it when the device DROM lacks a
+    # name or it fails to parse. unique_id is the real requirement.
+    [[ -r ${device_path}authorized && -r ${device_path}unique_id ]] || continue
+
+    authorized=$(<"${device_path}authorized")
+    [[ $authorized == "0" ]] || continue
+
+    unique_id=$(<"${device_path}unique_id")
+    [[ -n $unique_id ]] || continue
+
+    waiting_ids+=("$unique_id")
+    device_paths[$unique_id]=$device_path
+    if [[ -r ${device_path}device_name ]]; then
+      device_names[$unique_id]=$(<"${device_path}device_name")
+    else
+      device_names[$unique_id]="$unique_id"
+    fi
+    if [[ -r ${device_path}vendor_name ]]; then
+      device_vendors[$unique_id]=$(<"${device_path}vendor_name")
+    else
+      device_vendors[$unique_id]=""
+    fi
+    if [[ -r ${device_path}generation ]]; then
+      device_generations[$unique_id]=$(<"${device_path}generation")
+    else
+      device_generations[$unique_id]=""
+    fi
+  done
+fi
+
+if ((${#waiting_ids[@]} == 0)); then
+  enrolled_count=$(boltctl list | grep -c '^ \*' || true)
+  echo "No Thunderbolt devices waiting for authorization."
+  echo "Connected devices: $enrolled_count"
+  exit 0
+fi
+
+for unique_id in "${waiting_ids[@]}"; do
+  name=${device_names[$unique_id]}
+  vendor=${device_vendors[$unique_id]}
+  generation=${device_generations[$unique_id]}
+
+  gum style --bold "$name"
+  [[ -n $vendor ]] && gum style "  Vendor: $vendor"
+  (( generation > 0 )) && gum style "  Generation: $generation"
+  gum style "  ID: $unique_id"
+
+  # Cancelled gum (Esc or Ctrl-C) exits non-zero; treat that as a clean exit.
+  choice=$(gum choose --header "Authorize $name?" \
+    "Authorize for this session" \
+    "Authorize permanently (enroll)" \
+    "Skip") || exit 0
+
+  case $choice in
+  "Authorize for this session")
+    action=authorize
+    ;;
+  "Authorize permanently (enroll)")
+    action=enroll
+    ;;
+  "Skip")
+    continue
+    ;;
+  esac
+
+  if boltctl "$action" "$unique_id" >/dev/null 2>&1; then
+    boltctl_status=0
+  else
+    boltctl_status=$?
+  fi
+
+  # boltctl returns before the sysfs attribute flips, so give it a beat before
+  # trusting the kernel state.
+  sleep 1
+
+  authorized_path="${device_paths[$unique_id]}authorized"
+  authorized_now=0
+  if [[ -r $authorized_path ]]; then
+    authorized_now=$(<"$authorized_path")
+  fi
+
+  if (( boltctl_status == 0 && authorized_now != 0 )); then
+    gum style --foreground 2 "$name is authorized for this system."
+
+    # Forget that this device was notified, so the next unauthorized event
+    # starts fresh instead of staying silent.
+    if [[ -f $state_file ]]; then
+      while IFS= read -r known_id; do
+        [[ -n $known_id && $known_id != $unique_id ]] || continue
+        printf '%s\n' "$known_id"
+      done <"$state_file" >"$state_file.tmp"
+      mv "$state_file.tmp" "$state_file"
+    fi
+
+    omarchy-notification-send -u normal -g ⚡ "Thunderbolt device authorized" \
+      "$name is authorized and its ports are active." || true
+  else
+    gum style --foreground 1 --bold "Failed to authorize $name (boltctl exit code $boltctl_status)."
+    gum style --foreground 1 "Check 'boltctl list' for the device state, then run omarchy-thunderbolt again."
+  fi
+done
