@@ -284,13 +284,40 @@ Panel {
 
   // Marks resolve by convention, so a new agent's data file needs nothing
   // from this panel: assets/<id>.svg if it ships one, the module's bar glyph
-  // if it doesn't.
+  // if it doesn't. Plugins can supply explicit `icon` (and `iconLight`) paths
+  // in the usage record or place marks into ~/.config/omarchy/agents/assets/.
   function iconCandidatesForProvider(p, surfaceColor) {
     if (!p) return []
     var candidates = []
-    if (colorLuminance(surfaceColor || Color.background) >= 0.5)
+    var isLight = colorLuminance(surfaceColor || Color.background) >= 0.5
+
+    function toUrl(path) {
+      if (!path) return ""
+      if (path.indexOf("://") >= 0) return path
+      if (path.charAt(0) === "/") return "file://" + path
+      return Qt.resolvedUrl(path)
+    }
+
+    if (p.icon) {
+      if (isLight && p.iconLight) {
+        var lightUrl = toUrl(p.iconLight)
+        if (lightUrl) candidates.push(lightUrl)
+      }
+      var iconUrl = toUrl(p.icon)
+      if (iconUrl) candidates.push(iconUrl)
+    }
+
+    if (isLight)
       candidates.push(Qt.resolvedUrl("assets/" + p.providerId + "-light.svg"))
     candidates.push(Qt.resolvedUrl("assets/" + p.providerId + ".svg"))
+
+    var home = Quickshell.env("HOME") || ""
+    var configHome = Quickshell.env("XDG_CONFIG_HOME") || (home + "/.config")
+    var agentAssetsDir = configHome + "/omarchy/agents/assets"
+    if (isLight)
+      candidates.push("file://" + agentAssetsDir + "/" + p.providerId + "-light.svg")
+    candidates.push("file://" + agentAssetsDir + "/" + p.providerId + ".svg")
+
     return candidates
   }
 
