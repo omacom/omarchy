@@ -55,6 +55,16 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // The last user shell.json that parsed. A truncated or torn write reaches
+  // applyShellConfig() as empty/invalid text, and falling back to defaults
+  // there is not just a visual reset: the next mutateShellConfig() persists
+  // the stock config over the user's file. Keep the last good parse instead;
+  // a mutation then repairs the file rather than wiping it.
+  property var lastUserConfig: null
+  // Set by userConfigFile so applyShellConfig() can tell "file missing"
+  // (fresh install, or a deliberate reset — fall back to defaults and forget
+  // the last parse) from "file present but unreadable" (keep it).
+  property bool userConfigMissing: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -85,7 +95,18 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
-    shellConfig = user || defaults
+    if (user) {
+      lastUserConfig = user
+      shellConfig = user
+    } else if (userConfigMissing) {
+      lastUserConfig = null
+      shellConfig = defaults
+    } else if (lastUserConfig) {
+      console.warn("shell.json is empty or invalid; keeping last loaded config")
+      shellConfig = lastUserConfig
+    } else {
+      shellConfig = defaults
+    }
   }
 
   function loadDefaults(raw) {
@@ -110,6 +131,7 @@ ShellRoot {
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
+    lastUserConfig = payload
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
@@ -137,8 +159,14 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
-    onLoadFailed: function(error) { shell.applyShellConfig() }
+    onLoaded: {
+      shell.userConfigMissing = false
+      shell.applyShellConfig()
+    }
+    onLoadFailed: function(error) {
+      shell.userConfigMissing = error === FileViewError.FileNotFound
+      shell.applyShellConfig()
+    }
     onFileChanged: reload()
   }
 

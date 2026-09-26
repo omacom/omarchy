@@ -210,5 +210,44 @@ check(
   '_syncServices still drops disabled or removed services'
 )
 
+// A truncated or torn user shell.json must not fall back to stock config:
+// the next mutation would persist the defaults over the user's file,
+// disabling every third-party plugin at once. Keep the last good parse and
+// only reset on a genuinely missing file.
+check(
+  /property var lastUserConfig/.test(shellSource),
+  'shell keeps the last valid user shell.json parse'
+)
+check(
+  /if \(user\) \{[\s\S]*?lastUserConfig = user[\s\S]*?else if \(userConfigMissing\)[\s\S]*?lastUserConfig = null[\s\S]*?else if \(lastUserConfig\)/.test(shellSource),
+  'shell keeps the last user config when shell.json is empty or invalid'
+)
+check(
+  /id: userConfigFile[\s\S]*?onLoaded: \{[\s\S]*?userConfigMissing = false[\s\S]*?onLoadFailed: function\(error\) \{\s*shell\.userConfigMissing = error === FileViewError\.FileNotFound/.test(shellSource),
+  'shell distinguishes a missing shell.json from a truncated one'
+)
+check(
+  /function persistShellConfig[\s\S]*?shellConfig = payload[\s\S]*?lastUserConfig = payload[\s\S]*?setText/.test(shellSource),
+  'shell remembers the config it just persisted as the last good user config'
+)
+
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
 JS
+
+# A 0-byte shell.json is a torn write, not an empty config: the commit path
+# must refuse to seed it with defaults rather than overwrite whatever was
+# being written.
+EMPTY_HOME=$(mktemp -d)
+trap 'rm -rf "$EMPTY_HOME"' EXIT
+mkdir -p "$EMPTY_HOME/.config/omarchy"
+: >"$EMPTY_HOME/.config/omarchy/shell.json"
+
+commit_status=0
+HOME="$EMPTY_HOME" OMARCHY_PATH="$ROOT" bash -c "source '$ROOT/bin/omarchy-shell-config'; commit '.'" >/dev/null 2>&1 || commit_status=$?
+(( commit_status != 0 )) ||
+  fail "omarchy-shell-config refuses to commit over an empty shell.json"
+pass "omarchy-shell-config refuses to commit over an empty shell.json"
+
+[[ -e "$EMPTY_HOME/.config/omarchy/shell.json" && ! -s "$EMPTY_HOME/.config/omarchy/shell.json" ]] ||
+  fail "omarchy-shell-config leaves the empty shell.json untouched"
+pass "omarchy-shell-config leaves the empty shell.json untouched"
