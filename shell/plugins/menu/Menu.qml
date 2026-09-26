@@ -1102,6 +1102,7 @@ Item {
 
     BorderSurface {
       id: card
+      shadowSection: "menu"
       width: root.cardWidth
       height: Math.min(root.cardHeight, panel.height - Style.gapsOut - panel.effectiveCardTop)
       radius: root.cornerRadius

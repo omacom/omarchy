@@ -135,6 +135,17 @@ Item {
       onPositionChanged: root.wakeRequested()
     }
 
+    // A sibling keeps the shadow outside the password field's content clip.
+    Loader {
+      anchors.fill: inputField
+      readonly property var spec: Shadow.surfaceSpec("lock")
+      active: spec.enabled
+      sourceComponent: SurfaceShadow {
+        spec: parent.spec
+        radius: inputField.radius
+      }
+    }
+
     BorderSurface {
       id: inputField
       width: root.fieldWidth

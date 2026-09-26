@@ -7,6 +7,9 @@ import qs.Commons
 Rectangle {
   id: root
 
+  // Opt in only on outer cards, never ordinary controls or the bar.
+  property string shadowSection: ""
+  readonly property var shadowSpec: Shadow.surfaceSpec(shadowSection)
   property var borderSpec: Border.none()
   property real padding: 0
   property real topPadding: padding
@@ -26,6 +29,16 @@ Rectangle {
 
   border.color: Border.canUseNative(borderSpec) ? Border.color(borderSpec) : "transparent"
   border.width: Border.canUseNative(borderSpec) ? Border.uniformWidth(borderSpec) : 0
+
+  Loader {
+    anchors.fill: parent
+    z: -1
+    active: root.shadowSpec.enabled
+    sourceComponent: SurfaceShadow {
+      spec: root.shadowSpec
+      radius: root.radius
+    }
+  }
 
   Loader {
     anchors.fill: parent

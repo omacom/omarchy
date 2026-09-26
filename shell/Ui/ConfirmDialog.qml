@@ -48,6 +48,7 @@ Item {
 
     BorderSurface {
       id: card
+      shadowSection: "popups"
       width: Math.min(parent.width - Style.space(32), Style.space(370))
       // Grows with the wrapped message so narrow hosts (like the menu card)
       // don't squeeze the text into the buttons.

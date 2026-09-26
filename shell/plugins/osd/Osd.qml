@@ -138,6 +138,7 @@ Item {
 
     BorderSurface {
       id: card
+      shadowSection: "popups"
       width: card.borderLeft + root.pad + root.contentWidth + root.pad + card.borderRight
       height: card.borderTop + root.pad + Style.font.displayLarge + root.pad + card.borderBottom
       anchors.horizontalCenter: parent.horizontalCenter

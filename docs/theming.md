@@ -199,6 +199,48 @@ The running shell reads `shell.toml` into two QML singletons:
 - `Color` for palette and surface roles like `Color.menu.border`.
 - `Style` for controls, spacing, font scale, corner radius, and bar sizing.
 
+### Surface shadows
+
+Outer shell cards can opt into one shadow per surface section. Shadows are off by default, so existing themes keep their appearance. Set `shadow-alpha` above zero to enable a shadow; setting only its color or geometry does not enable it.
+
+```toml
+[popups]
+shadow-color    = "#000000"
+shadow-alpha    = 0.35
+shadow-blur     = 24
+shadow-spread   = 0
+shadow-offset-x = 0
+shadow-offset-y = 6
+```
+
+| Section | Surfaces |
+| --- | --- |
+| `[popups]` | Keyboard panels, popup cards, dropdown popups, confirmation dialogs, OSD, and the Wi-Fi QR canvas |
+| `[menu]` | Menu/application launcher card, clipboard, emoji picker, and reminders |
+| `[notifications]` | Notification toasts only, not cards embedded in notification history |
+| `[tooltip]` | Bar tooltips and panel/button tooltips |
+| `[polkit]` | Authentication dialog card |
+| `[lock]` | Password field card, including the lock preview |
+
+The bar itself, ordinary controls and rows, fullscreen scrims, wallpaper, image picker, and cardless speed-test overlay do not receive shadows. `[bar]` shadow keys have no effect. There is no separate compositor-layer shadow: the shell draws around the visible card, not around its sometimes-fullscreen Wayland window.
+
+| Key | Default | Accepted range |
+| --- | --- | --- |
+| `shadow-color` | `"#000000"` | One solid color or color-role reference; no gradients |
+| `shadow-alpha` | `0` | 0–1, multiplied by any alpha in the color |
+| `shadow-blur` | `24` | 0–128 logical pixels |
+| `shadow-spread` | `0` | −64–64 logical pixels; negative values contract the shadow |
+| `shadow-offset-x` | `0` | −128–128 logical pixels; positive moves right |
+| `shadow-offset-y` | `6` | −128–128 logical pixels; positive moves down |
+
+Dimensions use logical pixels, independent of the font/spacing scale; the compositor applies output scaling. Finite values are clamped to these bounds. Missing or malformed numbers use the defaults. Invalid colors fall back to black. Colors support the border solid-color syntax, named Qt colors, foundational roles (`background`, `foreground`, `text`, `accent`, `urgent`, `muted`, `transparent`), and cycle-safe references such as `"menu.text"`. A fully transparent color also disables rendering.
+
+Shadows follow the card's corner radius and opacity and are masked out of its interior so translucent backgrounds retain their color. Tightly sized popup windows reserve transparent space for the blur without changing the card's content padding or making the shadow clickable. Physical screen edges still clip shadows; in-window control popups cannot paint beyond their containing Wayland window. Shadow settings do not move fullscreen-overlay cards away from their existing screen-edge positions or enlarge notification spacing.
+
+A theme can also ship a section file such as `shell.popups.toml`. Machine-level `~/.config/omarchy/shell.toml` values override theme values and update live; for example, `[popups] shadow-alpha = 0` disables that section across theme switches. Theme changes use the existing theme-apply IPC path; editing the staged theme file alone does not reload it.
+
+Plugin authors can set `shadowSection: "popups"` on an outer `BorderSurface`. Keep ordinary controls flat. A clipped card needs a sibling `Loader` containing `SurfaceShadow`, gated on `Shadow.surfaceSpec(section).enabled`, rather than a shadow inside its clip. The renderer requires Qt Quick Effects with `RectangularShadow` (Qt 6.9 or newer) and a shader-capable Qt Quick backend.
+
 ### Borders
 
 Shell border tokens accept either a solid color or a gradient in the same key:

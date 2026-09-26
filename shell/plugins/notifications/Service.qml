@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.Notifications
 import qs.Commons
+import qs.Ui
 
 import "components"
 import "NotificationLogic.js" as NotificationLogic
@@ -1035,6 +1036,18 @@ Item {
                   cardSlot.remainingLifetime = 0
                   service.expirePopup(cardSlot.index)
                 }
+              }
+            }
+
+            // Toast-only: history reuses NotificationCard without a shadow.
+            // Keep its existing content clip and the column's input mask.
+            Loader {
+              anchors.fill: card
+              readonly property var spec: Shadow.surfaceSpec("notifications")
+              active: spec.enabled
+              sourceComponent: SurfaceShadow {
+                spec: parent.spec
+                radius: card.radius
               }
             }
 

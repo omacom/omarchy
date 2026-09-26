@@ -128,11 +128,17 @@ BorderSurface {
   Behavior on color { ColorAnimation { duration: 120 } }
 
   ToolTip {
+    readonly property var shadowInsets: Shadow.surfaceSpec("tooltip")
+    leftMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.left) : margins
+    rightMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.right) : margins
+    topMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.top) : margins
+    bottomMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.bottom) : margins
     visible: root.tooltipText !== "" && mouseArea.containsMouse
     text: root.tooltipText
     delay: 400
     padding: 0
     background: BorderSurface {
+      shadowSection: "tooltip"
       color: root.tooltipBackground
       borderSpec: root._tooltipBorderSpec
       radius: 0

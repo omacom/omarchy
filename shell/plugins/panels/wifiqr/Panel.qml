@@ -275,8 +275,9 @@ Item {
           // the dark modules paint, so the white canvas can keep its rounded
           // corners; the spec quiet zone baked into the matrix keeps the code
           // itself clear of them.
-          Rectangle {
+          BorderSurface {
             id: qrCanvas
+            shadowSection: "popups"
             readonly property int moduleSize: root.qrSize > 0
               ? Math.max(4, Math.floor(Style.space(240) / root.qrSize))
               : 0

@@ -334,6 +334,11 @@ Item {
 
       QQC.Popup {
         id: popup
+        readonly property var shadowInsets: Shadow.surfaceSpec("popups")
+        leftMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.left) : margins
+        rightMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.right) : margins
+        topMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.top) : margins
+        bottomMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.bottom) : margins
         // Reparent to the window's content item so the popup is free of any
         // clipping ancestor. Position
         // and available height are recomputed on open and any time the
@@ -377,6 +382,7 @@ Item {
         }
 
         background: BorderSurface {
+          shadowSection: "popups"
           color: root.background
           borderSpec: root.popupBorderSpec
           radius: Style.cornerRadius

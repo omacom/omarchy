@@ -113,7 +113,7 @@ Item {
 
   readonly property var visibleSections: [
     "cursor-surface", "button", "button-group", "panel-action-button",
-    "panel-tool-tip", "slider", "text-field", "number-field",
+    "panel-tool-tip", "surface-shadow", "slider", "text-field", "number-field",
     "toggle", "toggle-switch", "dropdown", "searchable-dropdown", "composed"
   ]
 
@@ -124,6 +124,7 @@ Item {
       case "button-group":        return 4
       case "panel-action-button": return 4
       case "panel-tool-tip":      return 1
+      case "surface-shadow":     return 1
       case "slider":              return 1
       case "text-field":          return 2
       case "number-field":        return 1
@@ -1216,6 +1217,60 @@ Item {
             }
           }
 
+
+          // ---- SurfaceShadow -----------------------------------------------
+          Column {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              text: "SurfaceShadow"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+            }
+            Text {
+              text: "Outer-only shadow on a real BorderSurface. Set [popups] shadow-alpha in shell.toml to enable; translucent fills retain their color. Off by default."
+              color: Qt.darker(root.foreground, 1.5)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              width: parent.width
+              wrapMode: Text.WordWrap
+            }
+            Item {
+              width: parent.width
+              height: Style.space(180)
+              readonly property bool focused: root.focusSection === "surface-shadow"
+              onFocusedChanged: if (focused) root.ensureCursorVisible(this)
+
+              BorderSurface {
+                anchors.centerIn: parent
+                width: Math.min(parent.width - Style.space(80), Style.space(320))
+                height: Style.space(90)
+                color: Color.popups.background
+                borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, 2)
+                radius: Style.cornerRadius
+                shadowSection: "popups"
+
+                Text {
+                  anchors.centerIn: parent
+                  text: "Theme surface shadow"
+                  color: Color.popups.text
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                }
+                MouseArea {
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  onEntered: {
+                    root.focusSection = "surface-shadow"
+                    root.selectedIndex = 0
+                  }
+                }
+              }
+            }
+          }
 
           // ---- Slider ------------------------------------------------------
           Column {
