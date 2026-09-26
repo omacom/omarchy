@@ -44,9 +44,11 @@ pass "legacy cleanup removes generated rules for any account and quarantines eve
 
 # Run the actual migration queue for separate temporary homes. Sudo only calls
 # the mapped helper and can be refused without requesting host authorization.
+# The migration names the helper rather than a path, so both of its calls reach
+# the mapped copy through PATH, as they reach a dev checkout's through the link.
 mkdir -p "$test_tmp/source/migrations"
-sed "s|/usr/bin/omarchy-sudo-passwordless|$test_tmp/omarchy-sudo-passwordless|g" \
-  "$ROOT/migrations/1788163635.sh" >"$test_tmp/source/migrations/1788163635.sh"
+cp "$ROOT/migrations/1788163635.sh" "$test_tmp/source/migrations/"
+ln -s ../omarchy-sudo-passwordless "$test_tmp/bin/omarchy-sudo-passwordless"
 printf 'echo "later migration ran"\n' >"$test_tmp/source/migrations/1788163636.sh"
 run_migrations() {
   TEST_MIGRATION=1 OMARCHY_PATH="$test_tmp/source" OMARCHY_MIGRATION_STATE="$test_tmp/$1" \
