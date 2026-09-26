@@ -3,6 +3,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
+require_command xkbcli
 
 run_application_bindings() {
   local home="$1"
@@ -95,6 +96,74 @@ require("default.hypr.omarchy")
 LUA
 }
 
+run_clipboard_shortcuts() {
+  local layout="$1"
+  local variant="$2"
+
+  TEST_KB_LAYOUT="$layout" TEST_KB_VARIANT="$variant" OMARCHY_PATH="$ROOT" lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local bindings = {}
+local active_tags = {}
+local current_binding = ""
+local config = {
+  ["input.kb_layout"] = os.getenv("TEST_KB_LAYOUT"),
+  ["input.kb_variant"] = os.getenv("TEST_KB_VARIANT"),
+  ["input.kb_model"] = "",
+  ["input.kb_options"] = "",
+  ["input.kb_rules"] = "",
+}
+
+hl = {
+  dsp = {
+    exec_cmd = function(command)
+      return { command = command }
+    end,
+    send_key_state = function(spec)
+      return spec
+    end,
+  },
+  bind = function(keys, dispatcher)
+    bindings[keys] = dispatcher
+  end,
+  dispatch = function(dispatcher)
+    print(table.concat({
+      current_binding,
+      dispatcher.mods,
+      dispatcher.key,
+      dispatcher.state,
+    }, "\t"))
+  end,
+  get_active_window = function()
+    return { tags = active_tags }
+  end,
+  get_config = function(key)
+    return config[key]
+  end,
+  timer = function(callback)
+    callback()
+  end,
+}
+
+require("default.hypr.helpers")
+require("default.hypr.bindings.clipboard")
+
+local function invoke(label, keys)
+  current_binding = label
+  bindings[keys]()
+end
+
+invoke("gui-select-all", "SUPER + A")
+invoke("gui-copy", "SUPER + C")
+invoke("gui-paste", "SUPER + V")
+invoke("gui-cut", "SUPER + X")
+
+active_tags = { "terminal*" }
+invoke("terminal-copy", "SUPER + C")
+invoke("terminal-paste", "SUPER + V")
+LUA
+}
+
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -118,6 +187,39 @@ if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; th
   fail "universal clipboard shortcuts avoid the virtual keyboard so held SUPER cannot merge in"
 fi
 pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
+
+qwerty_clipboard_output=$(run_clipboard_shortcuts "us,ru" "")
+grep -Fqx $'gui-select-all\tCTRL\tcode:38\tdown' <<<"$qwerty_clipboard_output" ||
+  fail "select-all resolves A from the primary QWERTY layout" "$qwerty_clipboard_output"
+grep -Fqx $'gui-copy\tCTRL\tcode:54\tdown' <<<"$qwerty_clipboard_output" ||
+  fail "universal copy resolves C from the primary QWERTY layout" "$qwerty_clipboard_output"
+grep -Fqx $'gui-paste\tCTRL\tcode:55\tdown' <<<"$qwerty_clipboard_output" ||
+  fail "universal paste resolves V from the primary QWERTY layout" "$qwerty_clipboard_output"
+grep -Fqx $'gui-cut\tCTRL\tcode:53\tdown' <<<"$qwerty_clipboard_output" ||
+  fail "universal cut resolves X from the primary QWERTY layout" "$qwerty_clipboard_output"
+pass "universal clipboard shortcuts resolve primary QWERTY letters before injection"
+
+dvorak_clipboard_output=$(run_clipboard_shortcuts "us,ru" "dvorak,")
+grep -Fqx $'gui-copy\tCTRL\tcode:31\tdown' <<<"$dvorak_clipboard_output" ||
+  fail "universal copy resolves C from primary Dvorak" "$dvorak_clipboard_output"
+grep -Fqx $'gui-paste\tCTRL\tcode:60\tdown' <<<"$dvorak_clipboard_output" ||
+  fail "universal paste resolves V from primary Dvorak" "$dvorak_clipboard_output"
+grep -Fqx $'gui-cut\tCTRL\tcode:56\tdown' <<<"$dvorak_clipboard_output" ||
+  fail "universal cut resolves X from primary Dvorak" "$dvorak_clipboard_output"
+grep -Fqx $'terminal-copy\tCTRL SHIFT\tcode:31\tdown' <<<"$dvorak_clipboard_output" ||
+  fail "terminal copy preserves Ctrl+Shift+C on Dvorak" "$dvorak_clipboard_output"
+grep -Fqx $'terminal-paste\tCTRL SHIFT\tcode:60\tdown' <<<"$dvorak_clipboard_output" ||
+  fail "terminal paste preserves Ctrl+Shift+V on Dvorak" "$dvorak_clipboard_output"
+pass "universal clipboard shortcuts preserve logical letters on primary Dvorak"
+
+azerty_clipboard_output=$(run_clipboard_shortcuts "fr,ru" ",")
+grep -Fqx $'gui-select-all\tCTRL\tcode:24\tdown' <<<"$azerty_clipboard_output" ||
+  fail "select-all resolves A from primary French AZERTY instead of the QWERTY A position" "$azerty_clipboard_output"
+pass "select-all preserves logical A on primary AZERTY"
+
+grep -F 'timeout = 50, type = "oneshot"' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null ||
+  fail "clipboard key resolution change removed the existing key-up timer"
+pass "clipboard key resolution keeps the existing down/up timing"
 
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
