@@ -58,10 +58,11 @@ translate = false
 # threads = 4
 
 [output]
-# Primary output mode: "type" or "clipboard"
+# Primary output mode: "paste", "type", or "clipboard"
+# - paste: Copies text and pastes at the cursor (requires wl-copy and wtype)
 # - type: Simulates keyboard input at cursor position (requires ydotool)
 # - clipboard: Copies text to clipboard (requires wl-copy)
-mode = "type"
+mode = "paste"
 
 # Fall back to clipboard if typing fails
 fallback_to_clipboard = true
@@ -89,6 +90,10 @@ on_recording_stop = false
 
 # Show notification with transcribed text after transcription completes
 on_transcription = false
+
+[osd]
+# Omarchy's shell provides the recording and transcription visuals.
+enabled = false
 
 # [text]
 # Text processing options (word replacements, spoken punctuation)

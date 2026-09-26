@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Start dictation with verified local Cohere or the configured fallback
+# omarchy:hidden=true
+
+# The optional systemd dependency has already attempted to start and warm Cohere.
+# A failed GPU/model startup must not prevent ordinary Whisper dictation.
+if curl --silent --fail --max-time 2 http://127.0.0.1:8178/health |
+  jq -e '.ready == true and .backend == "vulkan" and .model == "cohere-transcribe-vulkan"' >/dev/null; then
+  exec env -u VOXTYPE_WHISPER_API_KEY voxtype --engine whisper --whisper-mode remote \
+    --remote-endpoint http://127.0.0.1:8178 --remote-model cohere-transcribe-vulkan daemon
+else
+  echo "Cohere Vulkan unavailable; using Voxtype's configured fallback." >&2
+  exec voxtype daemon
+fi

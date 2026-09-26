@@ -7,16 +7,24 @@ set -e
 
 # Install voxtype and configure it for use.
 
-if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
-  omarchy-pkg-add wtype voxtype-bin
+if gum confirm "Install Voxtype + AI models (up to 1.7GB) to enable dictation?"; then
+  omarchy-pkg-add wtype wl-clipboard voxtype-bin
 
   # Setup voxtype
   mkdir -p ~/.config/voxtype
-  cp "$OMARCHY_PATH/default/voxtype/config.toml" ~/.config/voxtype/
+  fresh_config=0
+  if [[ ! -f ~/.config/voxtype/config.toml ]]; then
+    cp "$OMARCHY_PATH/default/voxtype/config.toml" ~/.config/voxtype/
+    touch ~/.config/voxtype/omarchy-osd
+    fresh_config=1
+  fi
 
   voxtype setup --download --no-post-install
-  if omarchy-hw-vulkan; then
+  if (( fresh_config )) && omarchy-hw-vulkan; then
     voxtype setup gpu --enable || true
+    if omarchy-pkg-add voxtype-cohere-vulkan; then
+      omarchy-voxtype-cohere enable || echo "Using local Whisper; Cohere Vulkan was not available."
+    fi
   fi
   voxtype setup systemd
 
