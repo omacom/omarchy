@@ -27,6 +27,11 @@ cat >"$test_bin/omarchy-hyprland-monitor-scaling" <<'EOF'
 echo 1.5
 EOF
 
+cat >"$test_bin/omarchy-monitor-profile" <<'EOF'
+#!/bin/bash
+printf '%s\n' '{"active":"desk","profiles":[{"name":"desk","monitors":["eDP-1","DP-1"]}]}'
+EOF
+
 chmod +x "$test_bin"/*
 
 # The panel reads this output by line index, so every case has to answer with
@@ -52,8 +57,8 @@ assert_line() {
 assert_line_count() {
   local description="$1"
 
-  (( ${#state_lines[@]} == 8 )) ||
-    fail "$description" "expected 8 lines, got ${#state_lines[@]}"
+  (( ${#state_lines[@]} == 9 )) ||
+    fail "$description" "expected 9 lines, got ${#state_lines[@]}"
 }
 
 extended='[
@@ -88,6 +93,8 @@ assert_line 3 eDP-1 "monitor state reports the internal monitor enabled"
 assert_line 4 "" "monitor state reports no mirror while extended"
 assert_line 5 DP-1 "monitor state reports the focused monitor"
 assert_line 6 1.5 "monitor state reports the scale"
+assert_line 8 '{"active":"desk","profiles":[{"name":"desk","monitors":["eDP-1","DP-1"]}]}' \
+  "monitor state reports saved profiles"
 pass "monitor state keeps its lines aligned when nothing is mirrored"
 
 monitor_state "$mirrored"
