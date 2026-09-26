@@ -153,6 +153,17 @@ link is followed to its target. The default Hyprland bindings in
 `default/hypr/bindings/utilities.lua` all go through this surface
 (SUPER+SPACE toggles root, SUPER+ESCAPE the system menu, and so on).
 
+A menu-mode summon can open already sitting on a row with its checkmarks
+already in place. The payload accepts `initialIndex` (an ordinal into the
+displayed rows), `initialId` (a row id that survives menus whose display
+order differs from item order — apps sort alphabetically, provider rows and
+search results reorder freely), and `checked` (a `{ rowId: bool, ... }` map
+that primes the ✓ markers for the first paint; the guard batch confirms the
+same conditions once it lands). All three are optional and independent. The
+IPC transports every argument as a string, so a `select` call from a keybind
+or a script should send a numeric-looking string — the menu coerces it before
+stepping the cursor.
+
 ## Select and input modes
 
 The same plugin doubles as the system's dmenu. `omarchy-menu-select` and

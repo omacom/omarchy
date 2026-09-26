@@ -452,6 +452,35 @@ assert(
   /function select\(delta\)[\s\S]*root\.disarmPointer\(\)[\s\S]*selectedIndex =/.test(menuQml),
   'menu keyboard navigation disarms pointer selection'
 )
+// The shell IPC delivers every argument as a JS string, so `select("1")`
+// lands raw: `selectedIndex + "1"` concatenates instead of adding, and the
+// highs and lows of a 4-row menu collapse onto one row. Coerce before the
+// arithmetic instead of leaving the row choice to string-to-number casts.
+assert(
+  /function select\(delta\)[\s\S]*\n    delta = Number\(delta\) \|\| 0\s*\n\s*root\.disarmPointer\(\)[\s\S]*selectedIndex \+ delta/.test(menuQml),
+  'menu coerces an IPC string delta to a number before stepping the cursor'
+)
+// A summoner can prime the first paint: checked markers seed synchronously
+// (the guard batch only confirms the same conditions later), and the starting
+// cursor can be named by ordinal or by row id — id survives menus whose
+// display order differs from item order. resolveRoute keeps the action/link
+// shortcuts; the state parameters ride through to openExistingMenu.
+assert(
+  /if \(payload\.checked && typeof payload\.checked === "object"\) \{[\s\S]*?root\.checkedResults\[ck\] = !!payload\.checked\[ck\]/.test(menuQml),
+  'menu primes checked markers from the summon payload'
+)
+assert(
+  /root\.openRoute\(payload\.initialMenu \|\| payload\.menu \|\| "root", payload\.initialIndex, payload\.initialId\)/.test(menuQml),
+  'menu threads initial highlight state from the summon payload'
+)
+assert(
+  /function openExistingMenu\(initialMenu, initialIndex, initialId\)[\s\S]*root\.indexOfItemId\(initialId\)/.test(menuQml),
+  'menu resolves an initial highlight by row id'
+)
+assert(
+  /function indexOfItemId\(id\)[\s\S]*if \(displayModel\.get\(ri\)\.itemId === id\) return ri[\s\S]*return -1/.test(menuQml),
+  'menu maps a row id to a display index'
+)
 // A dimmed row is not a target: the cursor steps over it, the pointer refuses
 // to land on it, and neither Enter nor a click can reach it.
 assert(
