@@ -2,8 +2,8 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url] [--enable] [--yes]
-# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
+# omarchy:args=[git-url] [--branch <name>] [--enable] [--yes]
+# omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable | omarchy plugin add https://github.com/acme/omarchy-weather.git --branch dev
 # omarchy:alias=omarchy plugin install
 
 set -euo pipefail
@@ -59,10 +59,16 @@ plugin_id_manifest() {
 }
 
 url=""
+branch=""
 enable_after=""
 
 while (( $# > 0 )); do
   case "$1" in
+  --branch)
+    (( $# >= 2 )) || fail "--branch needs a branch name"
+    branch="$2"
+    shift 2
+    ;;
   --enable)
     enable_after=true
     shift
@@ -72,7 +78,7 @@ while (( $# > 0 )); do
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url] [--branch <name>] [--enable] [--yes]"
     exit 0
     ;;
   -*)
@@ -100,6 +106,18 @@ fi
 # cloning it.
 omarchy-git-url-check "$url" || exit 1
 
+# A branch name reaches git as an argument, so an option-shaped one would be
+# read as a flag rather than a ref -- the same hole omarchy-git-url-check
+# closes for the URL.
+if [[ -n $branch && $branch == -* ]]; then
+  fail "'$branch' names a git option, not a branch."
+fi
+
+source_description="      URL: $url"
+if [[ -n $branch ]]; then
+  source_description+=$'\n'"   Branch: $branch"
+fi
+
 if (( ! ASSUME_YES )); then
   cat >&2 <<WARN
 
@@ -107,7 +125,7 @@ if (( ! ASSUME_YES )); then
   omarchy-shell process. Only add repos you trust, and review the code
   before you enable it.
 
-      URL: $url
+$source_description
 
 WARN
   confirm "Clone and add this plugin?" || fail "aborted"
@@ -117,9 +135,14 @@ mkdir -p "$PLUGINS_DIR"
 
 stage="$PLUGINS_DIR/.add.tmp.$$"
 rm -rf "$stage"
-if ! git clone -- "$url" "$stage"; then
+clone_options=()
+if [[ -n $branch ]]; then
+  clone_options=(--branch "$branch")
+fi
+
+if ! git clone "${clone_options[@]}" -- "$url" "$stage"; then
   rm -rf "$stage"
-  fail "failed to clone $url"
+  fail "failed to clone $url${branch:+ at branch '$branch'}"
 fi
 
 if ! omarchy-plugin-validate "$stage"; then

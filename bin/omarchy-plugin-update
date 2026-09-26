@@ -40,7 +40,16 @@ update_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
 
-  if ! git -C "$dir" fetch --quiet origin HEAD; then
+  # Follow the branch the plugin is actually on, not the remote's default.
+  # For a plugin added without --branch the two are the same, since the clone
+  # checked out the default branch. For one added with it they are not, and
+  # fetching HEAD would fast-forward the checkout onto a different branch --
+  # or, where the default branch is an ancestor, report success having
+  # changed nothing.
+  local branch
+  branch=$(git -C "$dir" symbolic-ref --quiet --short HEAD) || branch="HEAD"
+
+  if ! git -C "$dir" fetch --quiet origin "$branch"; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
     return 1
   fi
