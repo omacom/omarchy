@@ -105,9 +105,9 @@ Panel {
 
   // "files" is a fixed one-row section pinned under the hero switch. It owns
   // the Object Push receiver: omarchy-bluetooth-files enables the user unit
-  // that auto-accepts pushes from paired devices into ~/Downloads. The unit is
-  // the state — the switch reads it back with `is-on` instead of keeping a copy
-  // that could drift from systemd.
+  // whose agent stores pushes from paired devices into the downloads
+  // directory. The unit is the state — the switch reads it back with `is-on`
+  // instead of keeping a copy that could drift from systemd.
   readonly property bool filesHasCursor: cursorActive && focusSection === "files"
   readonly property string fileReceiveHint: fileReceiveActive ? "Stop accepting files" : "Accept files from paired devices"
   property bool fileReceiveActive: false

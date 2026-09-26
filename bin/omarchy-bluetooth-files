@@ -4,16 +4,16 @@
 # omarchy:group=bluetooth
 # omarchy:args=<on|off|toggle|is-on>
 
-# Receiving is BlueZ's Object Push profile: obexd (bluez-obex) accepts the
-# session, and an agent on this bus names where the file lands. bt-obex is that
-# agent — it auto-accepts and writes into the download directory, which is what
-# the phone's own Bluetooth share target pushes to. Nothing here needs Wi-Fi or
-# an app on the phone, so it works while the phone is on mobile data.
+# Receiving is BlueZ's Object Push profile: obexd (bluez-obex) serves the
+# profile, and the agent the unit runs decides what happens to a push — only a
+# sender BlueZ still lists as paired gets its file stored, in the download
+# directory the agent resolves. Nothing here needs Wi-Fi or an app on the
+# phone, so it works while the phone is on mobile data.
 #
 # The unit is the state. `on` enables it, so the receiver also comes up at the
 # next login, `off` disables it, and the panel switch reads it back with
-# `is-on`. Only paired devices can push: Android's share sheet only offers
-# bonded devices, and pairing runs through omarchy-bluetooth-device.
+# `is-on`. Pairing runs through omarchy-bluetooth-device; the agent is what
+# makes "paired devices only" true rather than the share sheet's manners.
 
 case "${1:-}" in
   on)
