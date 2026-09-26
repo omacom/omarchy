@@ -1,0 +1,765 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Devin usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Devin usage into one display-ready JSON record.
+
+Local stats come from pi/omp sessions that ran on the devin provider and
+from the Devin CLI/Desktop session databases under XDG_DATA_HOME/devin; the
+plan and quota come from the same unary GetUserStatus Connect RPC the
+released CLI issues at startup. The agents panel only ever reads the JSON
+this prints.
+"""
+
+import argparse
+import fcntl
+import gzip
+import hashlib
+import json
+import os
+import shutil
+import sqlite3
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AGENT_ID = "devin"
+AGENT_NAME = "Devin"
+AUTH_HELP = "Run `devin auth login`, or sign in to Devin in pi or omp."
+
+# A scan this recent is only reused to dedup concurrent collector runs (the
+# update command backgrounds one per agent while the panel refreshes on its
+# own); every periodic widget refresh lands a real rescan, however low
+# refreshIntervalSec is set. --limits-only promises only fresh limits, so it
+# may reuse a scan for up to 15 minutes.
+SCAN_REUSE_SECONDS = 20
+LIMITS_ONLY_REUSE_SECONDS = 900
+
+STATUS_PATH = "/exa.seat_management_pb.SeatManagementService/GetUserStatus"
+DEFAULT_API_SERVER = "https://server.codeium.com"
+TOKEN_PREFIX = "devin-session-token$"
+
+TEAMS_TIER = {
+  1: "Teams", 2: "Pro", 3: "Enterprise Saas", 4: "Hybrid", 5: "Enterprise Self Hosted",
+  6: "Waitlist Pro", 7: "Teams Ultimate", 9: "Trial", 10: "Enterprise Self Serve",
+  12: "Devin Enterprise", 14: "Devin Teams", 15: "Devin Teams V2", 16: "Devin Pro",
+  17: "Devin Max", 18: "Max", 19: "Devin Free", 20: "Devin Trial",
+}
+
+
+def user_home():
+  # HOME, not Path.home(): the tests run under a fake HOME, and Path.home()
+  # consults the passwd database instead of the environment.
+  return Path(os.environ.get("HOME") or str(Path.home()))
+
+
+def data_home():
+  return Path(os.environ.get("XDG_DATA_HOME") or (user_home() / ".local" / "share"))
+
+
+def local_day(value):
+  if value is None:
+    return datetime.now().strftime("%Y-%m-%d")
+  if isinstance(value, (int, float)):
+    # Session timestamps arrive in seconds, milliseconds, or worse; walk the
+    # magnitude down until it is a sane epoch in seconds.
+    while value > 10_000_000_000_000:
+      value = value / 1000
+    if value > 10_000_000_000:
+      value = value / 1000
+    return datetime.fromtimestamp(value).strftime("%Y-%m-%d")
+  text = str(value)
+  try:
+    if text.endswith("Z"):
+      dt = datetime.fromisoformat(text[:-1] + "+00:00")
+    else:
+      dt = datetime.fromisoformat(text)
+    if dt.tzinfo is not None:
+      dt = dt.astimezone()
+    return dt.strftime("%Y-%m-%d")
+  except Exception:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def number(value):
+  try:
+    return int(value or 0)
+  except Exception:
+    return 0
+
+
+def runtime_env():
+  home = str(user_home())
+  path_parts = [
+    os.environ.get("PATH", ""),
+    f"{home}/.local/bin",
+    f"{home}/.npm-global/bin",
+    f"{home}/.local/share/mise/shims",
+  ]
+  env = os.environ.copy()
+  env["PATH"] = os.pathsep.join(part for part in path_parts if part)
+  return env
+
+
+ENV = runtime_env()
+
+
+def find_command(name):
+  return shutil.which(name, path=ENV.get("PATH"))
+
+
+now = datetime.now()
+today = now.strftime("%Y-%m-%d")
+recent_dates = [(now - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
+recent = {day: {"date": day, "messageCount": 0} for day in recent_dates}
+today_tokens_by_model = {}
+model_usage = {}
+today_sessions = set()
+active_days = set()
+
+today_prompts = 0
+today_total_tokens = 0
+total_prompts = 0
+total_sessions = set()
+seen_messages = set()
+
+
+def add_usage(day, session_key, model, input_tokens, output_tokens, cache_read, cache_write):
+  global today_prompts, today_total_tokens, total_prompts
+  total = input_tokens + output_tokens + cache_read + cache_write
+  total_prompts += 1
+  total_sessions.add(session_key)
+  active_days.add(day)
+
+  bucket = model_usage.setdefault(model, {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  })
+  bucket["inputTokens"] += input_tokens
+  bucket["outputTokens"] += output_tokens
+  bucket["cacheReadInputTokens"] += cache_read
+  bucket["cacheCreationInputTokens"] += cache_write
+
+  if day in recent:
+    recent[day]["messageCount"] += total
+
+  if day == today:
+    today_prompts += 1
+    today_sessions.add(session_key)
+    today_total_tokens += total
+    today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total
+
+
+def scan_pi_sessions():
+  roots = [
+    user_home() / ".pi" / "agent" / "sessions",
+    user_home() / ".omp" / "agent" / "sessions",
+  ]
+  rg = find_command("rg")
+  if not rg:
+    return
+  for root in roots:
+    if not root.exists():
+      continue
+    try:
+      proc = subprocess.Popen(
+        [rg, "--json", "-e", r'"provider"\s*:\s*"devin"', str(root)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        errors="replace",
+        env=ENV,
+      )
+    except FileNotFoundError:
+      return
+
+    assert proc.stdout is not None
+    for raw in proc.stdout:
+      try:
+        event = json.loads(raw)
+        if event.get("type") != "match":
+          continue
+        line = event.get("data", {}).get("lines", {}).get("text", "")
+        path = event.get("data", {}).get("path", {}).get("text", "pi-session")
+        entry = json.loads(line)
+      except Exception:
+        continue
+
+      if entry.get("type") != "message":
+        continue
+      message_key = path + ":" + str(entry.get("id") or "")
+      if message_key in seen_messages:
+        continue
+      seen_messages.add(message_key)
+      message = entry.get("message") or {}
+      if message.get("role") != "assistant":
+        continue
+      if str(message.get("provider") or "") != "devin":
+        continue
+
+      usage = message.get("usage") or {}
+      if not usage:
+        continue
+      total = number(usage.get("totalTokens"))
+      input_tokens = number(usage.get("input"))
+      output_tokens = number(usage.get("output"))
+      cache_read = number(usage.get("cacheRead"))
+      cache_write = number(usage.get("cacheWrite"))
+      if total and not (input_tokens or output_tokens or cache_read or cache_write):
+        input_tokens = total
+      if not (input_tokens or output_tokens or cache_read or cache_write):
+        continue
+
+      day = local_day(entry.get("timestamp") or message.get("timestamp"))
+      model = str(message.get("model") or "devin")
+      add_usage(day, path, model, input_tokens, output_tokens, cache_read, cache_write)
+
+    try:
+      proc.wait(timeout=1)
+    except Exception:
+      proc.kill()
+
+
+def add_native_tokens(day, session_key, model, tokens):
+  """A session whose only number is its lifetime total: tokens land on the
+  day it was last active, and in modelUsage they count as inputTokens — the
+  one bucket that cannot inflate a per-category split the database does not
+  keep."""
+  global today_total_tokens
+  if day in recent:
+    recent[day]["messageCount"] += tokens
+  if day == today:
+    today_sessions.add(session_key)
+    today_total_tokens += tokens
+    today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + tokens
+  bucket = model_usage.setdefault(model, {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  })
+  bucket["inputTokens"] += tokens
+
+
+def add_native_prompt(day):
+  global today_prompts, total_prompts
+  total_prompts += 1
+  if day == today:
+    today_prompts += 1
+
+
+def scan_native_sessions():
+  """Native Devin CLI/Desktop usage from the session databases under
+  XDG_DATA_HOME/devin: cli_sessions.db (terminal CLI) and sessions.db
+  (Desktop). Both share one schema:
+
+    sessions(id, working_directory, backend_type, model, permission_mode,
+             created_at, last_activity_at, total_tokens, current_epoch)
+    messages(id, session_id, sequence_number, role, content, tool_call_id,
+             tool_calls_json, timestamp, compaction_epoch)
+
+  sessions.total_tokens is cumulative for the session, so the session's
+  tokens are attributed to its last-activity day. Messages contribute prompt
+  counts by role — their content column is opaque to this collector.
+  Returns whether every database present was scanned to completion.
+  """
+  complete = True
+  for db_name in ("cli_sessions.db", "sessions.db"):
+    db = data_home() / "devin" / db_name
+    if not db.is_file():
+      continue
+    try:
+      conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    except sqlite3.Error:
+      complete = False
+      continue
+    try:
+      conn.execute("PRAGMA query_only = ON")
+      tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+      columns = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")} if "sessions" in tables else set()
+      # A database present but missing the expected schema is a scan cut
+      # short (partial migration, corruption): report what was read, but do
+      # not let it count as a complete scan — it must not be cached.
+      if not {"id", "model", "created_at", "last_activity_at", "total_tokens"} <= columns:
+        complete = False
+        continue
+      session_key_prefix = db_name.split(".")[0] + ":"
+      for sid, model, created_at, last_activity_at, total_tokens in conn.execute(
+        "SELECT id, model, created_at, last_activity_at, total_tokens FROM sessions"
+      ):
+        session_key = session_key_prefix + str(sid)
+        total_sessions.add(session_key)
+        active_days.add(local_day(created_at))
+        activity_day = local_day(last_activity_at or created_at)
+        active_days.add(activity_day)
+        tokens = number(total_tokens)
+        if tokens:
+          add_native_tokens(activity_day, session_key, str(model or "devin"), tokens)
+      if "messages" in tables:
+        # Assistant turns are the record's prompt unit; user turns add nothing
+        # on top because prompts and their replies share a session either way.
+        for role, ts in conn.execute("SELECT role, timestamp FROM messages"):
+          if role != "assistant":
+            continue
+          add_native_prompt(local_day(ts))
+    except sqlite3.Error:
+      # Transient lock, schema migration, corruption: the numbers stop here.
+      complete = False
+    finally:
+      conn.close()
+  return complete
+
+
+def local_stats():
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": [recent[day] for day in recent_dates],
+    "totalPrompts": total_prompts,
+    "totalSessions": len(total_sessions),
+    # Days with any recorded usage, for the all-time "N days" summary. The
+    # dates travel too: merging snapshots from several machines needs their
+    # union, which a count alone cannot give.
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": model_usage,
+  }
+
+
+def run_local_scans():
+  scan_pi_sessions()
+  complete = scan_native_sessions()
+  return local_stats(), complete
+
+
+def cache_root():
+  root = Path(os.environ.get("XDG_CACHE_HOME") or (user_home() / ".cache")) / "omarchy" / "agent-usage"
+  root.mkdir(parents=True, exist_ok=True)
+  return root
+
+
+def scan_cache_paths():
+  devin_home = data_home() / "devin"
+  digest = hashlib.sha1((str(user_home()) + "\n" + str(devin_home)).encode("utf-8")).hexdigest()[:16]
+  root = cache_root()
+  return root / f"devin-scan-{digest}.json", root / f"devin-scan-{digest}.lock"
+
+
+def read_fresh_json(path, max_age_seconds):
+  if max_age_seconds <= 0 or not path.exists():
+    return None
+  try:
+    # A negative age means the mtime is in the future: the clock moved
+    # backwards since the write, so the cache's freshness cannot be trusted.
+    age = time.time() - path.stat().st_mtime
+    if 0 <= age <= max_age_seconds:
+      return json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return None
+  return None
+
+
+def write_json(path, payload):
+  # A temp name unique to this writer, not derived from the target: several
+  # collectors can run at once (the update command backgrounds one per agent,
+  # the panel refreshes on its own), and a shared temp path means the second
+  # replace finds the first one's file already moved away.
+  handle_fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+  tmp = Path(tmp_name)
+  try:
+    with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
+      handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
+    # mkstemp opens at 0600; nothing in the cache is sensitive, so open it
+    # up to the usual 0644.
+    tmp.chmod(0o644)
+    tmp.replace(path)
+  except BaseException:
+    tmp.unlink(missing_ok=True)
+    raise
+
+
+# The cache payload is a versioned envelope around the local-stats dict, so a
+# corrupted or foreign-shaped file is a cache miss (rescan + rewrite) instead
+# of a crash or a garbage record.
+def read_cached_stats(cache_file, max_age_seconds):
+  cached = read_fresh_json(cache_file, max_age_seconds)
+  if not isinstance(cached, dict) or cached.get("schemaVersion") != 1:
+    return None
+  # today* fields only mean "today" on the day they were scanned. A cache
+  # from another local date (midnight passed, or the clock moved) is a miss,
+  # not merely old, whatever its mtime says.
+  if cached.get("scanDate") != today:
+    return None
+  stats = cached.get("stats")
+  if not isinstance(stats, dict):
+    return None
+  if not all(key in stats for key in ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")):
+    return None
+  return stats
+
+
+def write_cached_stats(cache_file, stats):
+  try:
+    write_json(cache_file, {"schemaVersion": 1, "scanDate": today, "stats": stats})
+  except Exception as exc:
+    print(f"omarchy-agent-usage-devin: could not write usage cache ({exc})", file=sys.stderr)
+
+
+def cached_local_stats(max_age):
+  """Local stats, with the cache as a pure optimization.
+
+  The cache must never take the collector down: any cache-layer failure
+  (unwritable cache root, lock errors, disk full) degrades to a direct scan
+  and a warning on stderr. The JSON record is the contract; the cache is not.
+  """
+  try:
+    return _cached_local_stats(max_age)
+  except Exception as exc:
+    print(f"omarchy-agent-usage-devin: cache unavailable ({exc}); scanning directly", file=sys.stderr)
+    stats, _ = run_local_scans()
+    return stats
+
+
+def _cached_local_stats(max_age):
+  cache_file, lock_file = scan_cache_paths()
+
+  cached = read_cached_stats(cache_file, max_age)
+  if cached is not None:
+    return cached
+
+  with lock_file.open("w") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    cached = read_cached_stats(cache_file, max_age)
+    if cached is not None:
+      return cached
+    stats, complete = run_local_scans()
+    # An interrupted scan still serves this run, but caching it would
+    # suppress the missing usage for every reader until the cache expires.
+    if complete:
+      write_cached_stats(cache_file, stats)
+    return stats
+
+
+# ── minimal proto wire helpers ───────────────────────────────────────────────
+# The backend answers one unary Connect RPC whose request and response are raw
+# protobuf. Rather than depend on a generated pb2, the handful of fields the
+# record needs are encoded and walked by hand.
+
+def varint(v):
+  if v < 0:
+    v &= 0xFFFFFFFFFFFFFFFF
+  out = bytearray()
+  while v > 127:
+    out.append((v & 0x7F) | 0x80)
+    v >>= 7
+  out.append(v)
+  return bytes(out)
+
+
+def tag(n, w):
+  return varint((n << 3) | w)
+
+
+def estr(n, s):
+  b = s.encode()
+  return tag(n, 2) + varint(len(b)) + b
+
+
+def emsg(n, body):
+  return tag(n, 2) + varint(len(body)) + body
+
+
+def dec_varint(buf, i):
+  res = 0
+  shift = 0
+  while i < len(buf):
+    b = buf[i]
+    i += 1
+    res |= (b & 0x7F) << shift
+    if not (b & 0x80):
+      return res, i
+    shift += 7
+  raise ValueError("truncated varint")
+
+
+def fields(buf):
+  i = 0
+  while i < len(buf):
+    t, i = dec_varint(buf, i)
+    n = t >> 3
+    w = t & 7
+    if w == 0:
+      v, i = dec_varint(buf, i)
+      yield n, w, v
+    elif w == 1:
+      yield n, w, buf[i:i + 8]
+      i += 8
+    elif w == 2:
+      ln, i = dec_varint(buf, i)
+      yield n, w, buf[i:i + ln]
+      i += ln
+    elif w == 5:
+      yield n, w, buf[i:i + 4]
+      i += 4
+    else:
+      return
+
+
+def fmsg(buf, n):
+  for f in fields(buf):
+    if f[0] == n and f[1] == 2:
+      return f[2]
+  return None
+
+
+def fstr(buf, n):
+  for f in fields(buf):
+    if f[0] == n and f[1] == 2:
+      return f[2].decode("utf-8", "replace")
+  return None
+
+
+def fint(buf, n):
+  for f in fields(buf):
+    if f[0] == n and f[1] == 0:
+      v = f[2]
+      return v - (1 << 64) if v >= (1 << 63) else v
+  return None
+
+
+def fbool(buf, n):
+  v = fint(buf, n)
+  return None if v is None else v != 0
+
+
+def ts_ms(buf):
+  if buf is None:
+    return None
+  sec = fint(buf, 1) or 0
+  nanos = fint(buf, 2) or 0
+  return sec * 1000 + nanos / 1e6
+
+
+# ── credentials ─────────────────────────────────────────────────────────────
+
+def read_credentials():
+  """The Devin CLI's own credential file: windsurf_api_key is a
+  devin-session-token$ bearer and api_server_url names the backend (the
+  default is the public endpoint; enterprise installs point elsewhere)."""
+  creds = data_home() / "devin" / "credentials.toml"
+  try:
+    token = None
+    server = None
+    for line in creds.read_text().splitlines():
+      key, _, value = line.partition("=")
+      key = key.strip()
+      value = value.strip().strip('"').strip("'")
+      if key == "windsurf_api_key" and value:
+        token = value
+      elif key == "api_server_url" and value:
+        server = value
+    return token, server
+  except Exception:
+    return None, None
+
+
+def read_agent_token(agent_home):
+  """pi and omp keep provider credentials in <agent>/auth.json."""
+  try:
+    auth = json.loads((agent_home / "agent" / "auth.json").read_text())
+    tok = str((auth.get("devin") or {}).get("access") or "")
+    return tok or None
+  except Exception:
+    return None
+
+
+def devin_auth():
+  """Returns (token, api_server_url) or (None, None). Order: explicit env,
+  the Devin CLI's credentials, then pi/omp sessions that signed in to
+  Devin. The CLI's api_server_url travels with whichever token is used: an
+  enterprise install points every client at its own backend, so a pi-stored
+  token belongs there too, not at the public endpoint."""
+  token = os.environ.get("DEVIN_API_KEY")
+  if token:
+    return token, os.environ.get("DEVIN_API_SERVER") or DEFAULT_API_SERVER
+
+  token, server = read_credentials()
+  if token:
+    return token, server or DEFAULT_API_SERVER
+
+  for agent_home in (user_home() / ".pi", user_home() / ".omp"):
+    token = read_agent_token(agent_home)
+    if token:
+      return token, server or DEFAULT_API_SERVER
+  return None, None
+
+
+# ── GetUserStatus RPC ────────────────────────────────────────────────────────
+
+def fetch_devin_status():
+  """Plan, quota windows, and credit buckets. Raises on any failure so the
+  caller can mark the record not-ready and advise a retry."""
+  token, server = devin_auth()
+  if not token:
+    raise RuntimeError("no Devin credentials found")
+  if not token.startswith(TOKEN_PREFIX):
+    token = TOKEN_PREFIX + token
+
+  # The backend gates the response on the Metadata identity tuple: it must
+  # announce itself as the released Devin CLI ("chisel" client).
+  meta = b"".join([
+    estr(1, "devin-cli"),       # ide_name
+    estr(28, "chisel"),         # ide_type — unlocks the CLI surface
+    estr(7, "3000.6.2"),        # ide_version
+    estr(12, "chisel"),         # extension_name
+    estr(2, "3000.6.2"),        # extension_version
+    estr(3, token),             # api_key
+    estr(4, "en"),              # locale
+    estr(5, {"darwin": "darwin", "win32": "windows"}.get(sys.platform, "linux")),  # os
+  ])
+  req = urllib.request.Request(
+    server.rstrip("/") + STATUS_PATH,
+    data=emsg(1, meta),
+    headers={
+      "content-type": "application/proto",
+      "connect-protocol-version": "1",
+      "accept": "*/*",
+    },
+  )
+  payload = urllib.request.urlopen(req, timeout=15).read()
+  try:
+    user_status = fmsg(payload, 1)
+    plan_info = fmsg(payload, 2)
+    if user_status is None:
+      raise ValueError("empty user_status")
+  except Exception:
+    # Edges sometimes return gzipped protobuf.
+    payload = gzip.decompress(payload)
+    user_status = fmsg(payload, 1)
+    plan_info = fmsg(payload, 2)
+  if user_status is None:
+    raise RuntimeError("GetUserStatus: empty user_status in response")
+
+  out = {"tierLabel": "", "limits": [], "usageStatusText": "", "authHelpText": AUTH_HELP}
+  user_tier = fint(user_status, 10)
+  plan_status = fmsg(user_status, 13)
+  plan = plan_info or (fmsg(plan_status, 1) if plan_status else None)
+
+  if plan:
+    tier = fint(plan, 1)
+    # plan_info (response field 2) is authoritative; plan_status field 1 is a
+    # fallback copy. The CLI also keeps a nested devin_info (field 33) whose
+    # plan name wins when present.
+    devin_info = fmsg(plan, 33)
+    plan_name = (fstr(devin_info, 2) if devin_info else None) or (fstr(plan, 2) or "").strip()
+    out["tierLabel"] = plan_name or TEAMS_TIER.get(tier) or TEAMS_TIER.get(user_tier) or ""
+    billing_strategy = fint(plan, 35)
+    hide_daily = fbool(plan, 36) is True
+    hide_weekly = fbool(plan, 37) is True
+    plan_end_ms = ts_ms(fmsg(plan_status, 3)) if plan_status else None
+
+    if plan_status:
+      # Quota percents are REMAINING 0..100; the record contract wants the
+      # fraction used. Only surface a window when the server dates its reset
+      # or the plan is explicitly quota-billed — credit plans leave the
+      # percents at proto defaults.
+      is_quota_plan = billing_strategy == 2
+      daily_p = fint(plan_status, 14)
+      weekly_p = fint(plan_status, 15)
+      daily_reset = fint(plan_status, 17) or 0
+      weekly_reset = fint(plan_status, 18) or 0
+
+      def iso(unix):
+        return datetime.fromtimestamp(unix, timezone.utc).isoformat() if unix else ""
+
+      if not hide_daily and daily_p is not None and (daily_reset > 0 or is_quota_plan):
+        out["limits"].append({
+          "label": "Daily quota",
+          "percent": max(0.0, min(1.0, 1 - daily_p / 100.0)),
+          "resetsAt": iso(daily_reset),
+        })
+      if not hide_weekly and weekly_p is not None and (weekly_reset > 0 or is_quota_plan):
+        out["limits"].append({
+          "label": "Weekly quota",
+          "percent": max(0.0, min(1.0, 1 - weekly_p / 100.0)),
+          "resetsAt": iso(weekly_reset),
+        })
+
+      # Monthly credit buckets only exist on credit plans; quota plans report
+      # -1 (no bucket granted) and are skipped.
+      def nn(v):
+        return v if v is not None and v > 0 else 0
+
+      buckets = [
+        ("Prompt credits", fint(plan, 12), fint(plan_status, 6)),
+        ("Flow credits", fint(plan, 13), fint(plan_status, 5)),
+        ("Flex credits", fint(plan, 14), fint(plan_status, 7)),
+      ]
+      for label, limit, used in buckets:
+        limit, used = nn(limit), nn(used)
+        if limit > 0:
+          out["limits"].append({
+            "label": label,
+            "percent": min(1.0, used / limit),
+            "resetsAt": datetime.fromtimestamp(plan_end_ms / 1000, timezone.utc).isoformat() if plan_end_ms else "",
+          })
+
+      overage_micros = fint(plan_status, 16) or 0
+      if overage_micros:
+        out["overageUsd"] = overage_micros / 1_000_000
+  elif user_tier is not None:
+    out["tierLabel"] = TEAMS_TIER.get(user_tier, "")
+
+  return out
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  # --force rescans everything and rewrites the cache. --limits-only is kept
+  # for CLI compatibility with the panel's refreshLimits() call: only the
+  # limits probe must be fresh, so it may reuse a scan for far longer than a
+  # normal run, whose short window exists purely to dedup concurrent
+  # collector runs.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  args = parser.parse_args()
+
+  max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
+  stats = cached_local_stats(max_age)
+
+  record = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": True,
+    "hasLocalStats": True,
+  }
+  record.update(stats)
+
+  try:
+    record.update(fetch_devin_status())
+  except Exception as exc:
+    # A quota probe that could not reach the backend — or found no
+    # credentials — still leaves local stats worth showing. retryAdvised
+    # asks the panel for one sooner rerun rather than waiting out the full
+    # refresh interval (it only reruns this agent).
+    record["ready"] = False
+    record["usageStatusText"] = "Devin quota unavailable"
+    record["authHelpText"] = str(exc) if str(exc) != "no Devin credentials found" else AUTH_HELP
+    record["retryAdvised"] = True
+
+  print(json.dumps(record, separators=(",", ":")))
+
+
+if __name__ == "__main__":
+  main()
