@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Upgrade Chromium to the in-the-wild CVE floor when the installed package is older.
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Stable can lag Arch when the Omarchy stable mirror freezes (#10732). Chromium
+# 152.0.7977.82 fixes CVE-2026-85046 (known in-the-wild). When Chromium is
+# installed and behind that floor, upgrade from whatever the configured repos
+# currently offer (exact superseded .pkg.tar.zst files disappear from live
+# mirrors). Leave a non-zero exit when the floor is still unmet so a calling
+# migration is not marked done and will retry on a later update.
+
+CHROMIUM_MIN_VERSION="${OMARCHY_CHROMIUM_MIN_VERSION:-152.0.7977.82-1}"
+
+if ! pacman -Q chromium &>/dev/null; then
+  exit 0
+fi
+
+current=$(pacman -Q chromium | awk '{print $2}')
+if [[ $(vercmp "$current" "$CHROMIUM_MIN_VERSION") -ge 0 ]]; then
+  exit 0
+fi
+
+available=$(pacman -Si chromium 2>/dev/null | awk -F': ' '/^Version / { print $2; exit }')
+if [[ -z $available ]]; then
+  echo "Chromium $current is older than the security floor $CHROMIUM_MIN_VERSION, and no chromium package is available in the configured repos." >&2
+  exit 1
+fi
+
+if [[ $(vercmp "$available" "$CHROMIUM_MIN_VERSION") -lt 0 ]]; then
+  echo "Chromium $current is older than the security floor $CHROMIUM_MIN_VERSION; repos only offer $available. Will retry when a new enough build is available." >&2
+  exit 1
+fi
+
+if [[ $(vercmp "$current" "$available") -lt 0 ]]; then
+  echo "Upgrading Chromium $current → $available (CVE-2026-85046 floor $CHROMIUM_MIN_VERSION)..."
+  sudo pacman -S --noconfirm chromium
+fi
+
+current=$(pacman -Q chromium | awk '{print $2}')
+if [[ $(vercmp "$current" "$CHROMIUM_MIN_VERSION") -ge 0 ]]; then
+  exit 0
+fi
+
+echo "Chromium $current is still older than the security floor $CHROMIUM_MIN_VERSION after upgrade." >&2
+exit 1
