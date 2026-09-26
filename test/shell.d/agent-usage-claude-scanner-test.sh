@@ -175,6 +175,6 @@ PY
   fail "Claude collector survives concurrent writes to one cache file" "$race_output"
 [[ $(jq -r '.payload.writer != null and (.leftovers | length) == 0' <<<"$race_output") == "true" ]] ||
   fail "Claude collector leaves one intact cache file and no temp files" "$race_output"
-[[ $(jq -r '.mode' <<<"$race_output") == "0o644" ]] ||
+[[ $(jq -r '.mode' <<<"$race_output") == "0o600" ]] ||
   fail "Claude collector keeps cache files readable" "$race_output"
 pass "Claude collector survives concurrent writes to one cache file"

@@ -377,9 +377,8 @@ def write_json(path, payload):
   try:
     with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
       handle.write(json.dumps(payload, separators=(",", ":")) + "\n")
-    # mkstemp opens at 0600; nothing in the cache is sensitive, so open it
-    # up to the usual 0644.
-    tmp.chmod(0o644)
+    # Keep the mkstemp 0600 mode: usage caches are per-user and should not be
+    # world-readable.
     tmp.replace(path)
   except BaseException:
     tmp.unlink(missing_ok=True)
