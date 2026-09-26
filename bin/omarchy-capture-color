@@ -1,0 +1,16 @@
+#!/bin/bash
+# omarchy:summary=Pick a color and copy it to the clipboard
+
+if pkill hyprpicker; then
+  exit 0
+fi
+
+if ! COLOR_HEX=$(hyprpicker --autocopy --no-fancy); then
+  exit 0
+fi
+
+if [[ -z $COLOR_HEX ]]; then
+  exit 0
+fi
+
+omarchy-notification-send "Color copied" "$COLOR_HEX copied to clipboard"
