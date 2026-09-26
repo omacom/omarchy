@@ -26,6 +26,7 @@ Panel {
     passwordSsid = ""
     passwordText = ""
     identityText = ""
+    passwordVisible = false
   }
 
   // Live connection details from `ip` / /sys / iw.
@@ -97,6 +98,11 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+
+  // Whether the prompt shows the passphrase rather than masking it. Off
+  // unless asked for, and dropped as the prompt moves between networks
+  // (Model.shouldKeepPassphraseVisible).
+  property bool passwordVisible: false
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -346,6 +352,9 @@ Panel {
       internetPingLatency = -1
       internetPingPacketLoss = 0
       setScannerEnabled(false)
+      // The prompt survives a close with its text, so the reveal must not:
+      // a panel reopened later would come back showing the passphrase.
+      passwordVisible = false
     }
   }
 
@@ -354,6 +363,9 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    // A closed prompt keeps no reveal, however it closed -- Esc, a successful
+    // connect, the panel going away.
+    if (passwordSsid === "") passwordVisible = false
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
@@ -739,11 +751,27 @@ Panel {
     return Model.requiresCredentials(security, WifiSecurityType.Open, WifiSecurityType.Owe)
   }
 
+  // Named as the QR card names its own reveal, which this sits beside in the
+  // panel: there it shows the saved password, here the one being typed.
+  function togglePassword() {
+    passwordVisible = !passwordVisible
+  }
+
+  // Alt because every plain key belongs to the fields, and per-field because
+  // the panel's keys are blocked while the prompt owns input.
+  function revealKey(event) {
+    if (event.key !== Qt.Key_S || !(event.modifiers & Qt.AltModifier)) return
+    // A held key repeats, and a toggle on repeat would strobe the field.
+    if (!event.isAutoRepeat) togglePassword()
+    event.accepted = true
+  }
+
   function openPasswordPrompt(ssid) {
     if (passwordSsid !== ssid) {
       passwordText = ""
       identityText = ""
     }
+    passwordVisible = Model.shouldKeepPassphraseVisible(passwordSsid, ssid, passwordVisible)
     passwordSsid = ssid
   }
 
@@ -1959,9 +1987,10 @@ Panel {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        // Ends where the passphrase field does, under the eye.
+        anchors.right: revealPwBtn.left
         anchors.top: parent.top
-        anchors.rightMargin: Style.space(6)
+        anchors.rightMargin: Style.space(2)
         placeholderText: "Identity (user@domain)"
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -1974,6 +2003,7 @@ Panel {
         onAccepted: pwField.forceActiveFocus()
         onTextChanged: if (row.isPasswordOpen && text !== root.identityText) root.identityText = text
         Keys.onEscapePressed: root.cancelPasswordPrompt()
+        Keys.onPressed: function(event) { root.revealKey(event) }
 
         onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible) Qt.callLater(forceActiveFocus)
@@ -1983,11 +2013,11 @@ Panel {
         id: pwField
         visible: !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: revealPwBtn.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
-        anchors.rightMargin: Style.space(6)
-        password: true
+        anchors.rightMargin: Style.space(2)
+        password: !root.passwordVisible
         placeholderText: "Passphrase"
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2000,6 +2030,8 @@ Panel {
         onAccepted: row.submitCredentials()
         onTextChanged: if (row.isPasswordOpen && text !== root.passwordText) root.passwordText = text
         Keys.onEscapePressed: root.cancelPasswordPrompt()
+
+        Keys.onPressed: function(event) { root.revealKey(event) }
 
         onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
@@ -2025,6 +2057,23 @@ Panel {
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
+        }
+      }
+
+      // Hands focus back to the field, so a click does not interrupt typing.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: !row.isBusy && !row.isFailed
+        anchors.right: connectPwBtn.left
+        anchors.rightMargin: Style.space(2)
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: root.passwordVisible ? "󰈉" : "󰈈"
+        tooltipText: root.passwordVisible ? "Hide passphrase" : "Show passphrase"
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: {
+          root.togglePassword()
+          pwField.forceActiveFocus()
         }
       }
 

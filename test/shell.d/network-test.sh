@@ -12,6 +12,18 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.
 assert(/IpcHandler[\s\S]*?function toggleNetwork\(\) \{ root\.toggleNetwork\(\) \}/.test(panelSource), 'network exposes the Wi-Fi radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'network owns its IPC handler so it can extend the target methods')
 
+// The passphrase field masks unless the reveal was asked for, and the reveal
+// itself is decided in one place, so no path can leave a passphrase on screen
+// after the prompt has moved on.
+assert(/password: !root\.passwordVisible/.test(panelSource), 'network masks the passphrase unless it has been revealed')
+assert(/passwordVisible = Model\.shouldKeepPassphraseVisible\(passwordSsid, ssid, passwordVisible\)/.test(panelSource), 'network decides the reveal through the model when a prompt opens')
+const cancelPrompt = panelSource.match(/function cancelPasswordPrompt\(\)[\s\S]*?\n {2}\}/)
+assert(cancelPrompt, 'network has a cancelPasswordPrompt() function')
+assert(/passwordVisible = false/.test(cancelPrompt[0]), 'network masks the passphrase again when the prompt is cancelled')
+const openedChanged = panelSource.match(/onOpenedChanged: \{[\s\S]*?\n {2}\}/)
+assert(openedChanged, 'network has an onOpenedChanged handler')
+assert(/passwordVisible = false/.test(openedChanged[0]), 'network drops the reveal when the panel closes')
+
 // Opening from the bar must call open() and nothing else. open() runs
 // refresh(true), which defers the PHY scan; a second bare refresh() defaults
 // scanWifi to false, sets scannerEnabled synchronously, and stalls the open on
@@ -267,6 +279,12 @@ assertEqual(network.shouldRepromptPassphrase(reasons.NoSecrets, false, reasons),
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reasons), true, 'network reprompts a credentialed network after a wrong password')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, false, reasons), false, 'network does not reprompt an open network on auth timeout')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiClientFailed, true, reasons), false, 'network does not reprompt on generic connection failures')
+
+assertEqual(network.shouldKeepPassphraseVisible('Cafe', 'Cafe', true), true, 'network keeps a revealed passphrase through a reprompt on the same network')
+assertEqual(network.shouldKeepPassphraseVisible('Cafe', 'Hotel', true), false, 'network masks the passphrase again when the prompt moves to another network')
+assertEqual(network.shouldKeepPassphraseVisible('', 'Cafe', true), false, 'network opens a fresh prompt masked')
+assertEqual(network.shouldKeepPassphraseVisible('Cafe', '', true), false, 'network keeps no reveal once the prompt closes')
+assertEqual(network.shouldKeepPassphraseVisible('Cafe', 'Cafe', false), false, 'network leaves a masked passphrase masked')
 
 
 assertEqual(network.bandLabel('2.4'), '2.4ghz', 'network labels the 2.4GHz band')
