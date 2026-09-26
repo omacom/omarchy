@@ -384,7 +384,33 @@ ShellRoot {
 
   function pluginServiceFor(pluginId, requestedId) {
     if (!shell.pluginOwnsTarget(pluginId, requestedId)) return null
-    return shell.serviceFor(shell.pluginRegistry.resolveEnabledId(requestedId))
+    var id = shell.pluginRegistry.resolveEnabledId(requestedId)
+    // Authentication services stay out of this ShellRoot-reachable helper.
+    // Own-auth wiring happens inside the facade closure and the host panel
+    // Loader so a bare `shell.pluginServiceFor("omarchy.lock", …)` stays null.
+    return shell.serviceFor(id)
+  }
+
+  // Settings fields from this plugin's own shell.json entry (id stripped).
+  // Deep-copied so nested arrays/objects are not live host config aliases.
+  function pluginEntrySettings(pluginId) {
+    var id = shell.pluginRegistry.resolveEnabledId(String(pluginId || ""))
+    if (!id) return ({})
+    var config = shell.shellConfig
+    var location = shell.pluginRegistry.findEntryLocation(config, id)
+    if (!location || !location.found) return ({})
+    var entry = null
+    if (location.kind === "plugin" && Array.isArray(config.plugins))
+      entry = config.plugins[location.index]
+    else if (location.kind === "bar" && config.bar && config.bar.layout
+        && config.bar.layout[location.section])
+      entry = config.bar.layout[location.section][location.index]
+    else if (location.kind === "bar-option" && config.bar)
+      entry = config.bar
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return ({})
+    var copy = JSON.parse(JSON.stringify(entry))
+    delete copy.id
+    return copy
   }
 
   function barEntryConfigured(pluginId) {
@@ -597,12 +623,23 @@ ShellRoot {
       bar: shell.pluginBarStateFor(cacheKey, key),
       barConfig: shell.publicBarConfig(),
       idleConfig: shell.publicIdleConfigFor(manifest),
+      entrySettings: shell.pluginEntrySettings(key),
       _serviceLookup: function(requestedId) {
-        return allowOwnService ? shell.pluginServiceFor(key, requestedId) : null
+        if (!allowOwnService) return null
+        if (!shell.pluginOwnsTarget(key, requestedId)) return null
+        var id = shell.pluginRegistry.resolveEnabledId(requestedId)
+        var fromMap = shell.serviceFor(id)
+        if (fromMap) return fromMap
+        // Own auth services only — closed over here, not via ShellRoot.
+        return AuthServiceStore.has(id) ? AuthServiceStore.get(id) : null
       },
       _firstPartyServiceLookup: function(requestedId) {
-        if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
-          return shell.pluginServiceFor(key, requestedId)
+        if (allowOwnService && shell.pluginOwnsTarget(key, requestedId)) {
+          var id = shell.pluginRegistry.resolveEnabledId(requestedId)
+          var fromMap = shell.serviceFor(id)
+          if (fromMap) return fromMap
+          return AuthServiceStore.has(id) ? AuthServiceStore.get(id) : null
+        }
         return hasCurrentBarCapabilities() ? (firstPartyServices[requestedId] || null) : null
       },
       _barEntryShellLookup: function(ownerId, moduleName) {
@@ -863,6 +900,7 @@ ShellRoot {
       var shellManifest = descriptor ? plugins[descriptor.pluginId] : null
       shellApi.barConfig = shell.publicBarConfig()
       shellApi.idleConfig = shell.publicIdleConfigFor(shellManifest)
+      shellApi.entrySettings = shell.pluginEntrySettings(descriptor ? descriptor.pluginId : "")
     }
     for (var entryKey in _pluginBarEntryShellApis)
       _pluginBarEntryShellApis[entryKey].barConfig = shell.publicBarConfig()
@@ -1334,8 +1372,14 @@ ShellRoot {
           if ("pluginRegistry" in item) item.pluginRegistry = shell.pluginRegistryFor(panelEntry.manifest)
           // Plugins that pair a panel UI with a service entry read shared
           // state off `service`. Hand them the matching singleton if one was
-          // loaded.
-          if ("service" in item) item.service = shell.serviceFor(panelEntry.pluginId)
+          // loaded. Auth services stay outside _services; resolve them here in
+          // host Loader code only (not via pluginServiceFor on ShellRoot).
+          if ("service" in item) {
+            var serviceId = panelEntry.pluginId
+            item.service = AuthServiceStore.has(serviceId)
+              ? AuthServiceStore.get(serviceId)
+              : shell.serviceFor(serviceId)
+          }
           shell.registerPanelLoader(panelEntry.pluginId, this)
         }
         onStatusChanged: {
