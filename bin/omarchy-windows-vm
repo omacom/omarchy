@@ -1098,7 +1098,7 @@ migrate_legacy_compose() {
   [[ -f $LEGACY_COMPOSE_FILE ]] || return 1
 
   echo "Migrating Windows VM configuration to $COMPOSE_FILE ..."
-  local ram cores disk username password tz
+  local ram cores disk username password tz rdp_username
   ram=$(read_compose_value RAM_SIZE "$LEGACY_COMPOSE_FILE")
   cores=$(read_compose_value CPU_CORES "$LEGACY_COMPOSE_FILE")
   disk=$(read_compose_value DISK_SIZE "$LEGACY_COMPOSE_FILE")
@@ -1110,7 +1110,19 @@ migrate_legacy_compose() {
     echo "Could not validate the existing Windows VM data directories." >&2
     return 1
   }
-  write_credentials "$username" "$password" || return 1
+
+  # Pre-4.0.1 installers accepted any username (including emails). The elevated
+  # writer now rejects those. USERNAME is only used during first-run unattend,
+  # so fall back to docker like install does; keep the original for RDP so the
+  # existing Windows account still logs in.
+  rdp_username=$username
+  if ! valid_username "$username"; then
+    echo "Legacy username is not valid for the compose writer; using docker. The Windows account itself is unchanged."
+    username="docker"
+    [[ -n $rdp_username ]] || rdp_username="docker"
+  fi
+
+  write_credentials "$rdp_username" "$password" || return 1
   # The elevated writer derives both mount anchors from the authenticated uid;
   # it never consumes volume paths from this user-owned legacy file.
   if ! write_compose "$ram" "$cores" "$disk" "$username" "$password" "$tz"; then
