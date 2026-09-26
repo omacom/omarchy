@@ -38,11 +38,14 @@ case "${1:-}" in
     ;;
 esac
 
-cpu=$(top -bn1 | awk '/^%?Cpu/ {
-  gsub(/,/, "")
+cpu=$(LC_ALL=C LC_NUMERIC=C top -bn1 | awk '/^%?Cpu/ {
   for (i = 1; i <= NF; i++) {
-    if ($(i + 1) == "id") {
-      printf "%.0f%%", 100 - $i
+    label = $(i + 1)
+    sub(/,$/, "", label)
+    if (label == "id") {
+      idle = $i
+      gsub(/,/, ".", idle)
+      printf "%.0f%%", 100 - idle
       exit
     }
   }
