@@ -15,6 +15,7 @@ done
 
 if [[ ! -f /sys/power/image_size ]]; then
   echo -e "Hibernation is not supported on your system" >&2
+  echo -e "Tip: 'omarchy battery-floor setup' powers off a bagged laptop instead of draining to zero" >&2
   exit 0
 fi
 
@@ -23,6 +24,7 @@ fi
 # install), so we only require limine-mkinitcpio when we'd invoke it ourselves.
 if ! $NO_REBUILD && omarchy-cmd-missing limine-mkinitcpio; then
   echo "Skipping hibernation setup (requires Limine bootloader)"
+  echo "Tip: 'omarchy battery-floor setup' powers off a bagged laptop instead of draining to zero"
   exit 0
 fi
 

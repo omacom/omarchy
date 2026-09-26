@@ -17,3 +17,7 @@ You toggle suspend by running `omarchy toggle suspend` from the terminal. That j
 You set up hibernation by running `omarchy hibernation setup` from the terminal. Hibernation creates a /swap subvolume on your boot drive the size of your physical RAM allocation, so make sure you have plenty of room to spare. On a 32GB machine, you'll always need 32GB+ free for this volume. Hibernation also requires the default Limine bootloader.
 
 When set up, you'll see the hibernate option under _System_ (or `Super + Esc`), and then you can see if it works consistently on your system. If not, you can remove it again by running `omarchy hibernation remove`.
+
+### Suspend battery floor
+
+If hibernation won't work on your machine, suspend alone has no floor: it drains until the battery is flat. The battery floor is the fallback — run `omarchy battery-floor setup` and a lid-closed, undocked suspend starts a 20-minute countdown, tracked across early wakes. When it expires, the machine powers off cleanly; a cold boot beats a dead machine. The decision runs after the suspend job completes, so nothing delays your resume. Waking for any other reason with the lid still closed just re-arms the remaining time; an open lid or a dock cancels the countdown entirely. Remove it with `omarchy battery-floor remove`.

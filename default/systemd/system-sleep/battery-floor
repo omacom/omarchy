@@ -1,0 +1,111 @@
+#!/bin/bash
+
+# Suspend battery floor: keep a bagged laptop from draining to zero when
+# hibernation is unavailable. On the way into suspend with the lid shut,
+# record a deadline and arm the RTC to self-wake before it; on resume, act
+# only once the deadline has passed, and then as a deferred decision.
+#
+# Opt-in via `omarchy battery-floor setup`. Inert on machines without a
+# battery.
+#
+# The decision runs after the suspend job has finished, through a transient
+# systemd-run unit: systemctl poweroff/suspend called from inside the post
+# hook is refused by logind while the original suspend is still in progress,
+# and a synchronous sleep inside any hook freezes user.slice for its whole
+# duration.
+#
+# systemd runs hooks as: <hook> <pre|post> <suspend|...>. The "act" phase
+# below is invoked by systemd-run, never by systemd. Hooks live in
+# /usr/lib/systemd/system-sleep: systemd does not read /etc/systemd/system-sleep.
+
+GRACE_SEC=1200
+DEADLINE_DIR="${OMARCHY_BATTERY_FLOOR_DIR:-/run/omarchy-battery-floor}"
+DEADLINE_FILE="$DEADLINE_DIR/deadline"
+
+# Desktops have no battery to protect; stay out of the way.
+omarchy-battery-present || exit 0
+
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+
+# The deferred decision, outside the suspend job: the deadline has expired,
+# so end the night for a still-bagged machine.
+if [[ $1 == "act" ]]; then
+  # Let the lid state settle: powering off a machine someone just opened
+  # would be the worst answer.
+  /usr/bin/sleep 5
+
+  # Lid open means somebody woke it; docked means the session is in use on
+  # an external display (clamshell, same rule as omarchy-system-lid-close).
+  omarchy-hw-laptop-closed || exit 0
+  omarchy-hw-external-monitors && exit 0
+
+  # Charging with the lid down: back to sleep; logind and the pre hook take
+  # it from here. On battery: the floor. A cold boot beats a dead machine
+  # and a stopped clock.
+  if omarchy-power-present; then
+    /usr/bin/systemctl suspend >/dev/null 2>&1 || true
+    exit 0
+  fi
+  /usr/bin/systemctl poweroff >/dev/null 2>&1 || true
+  exit 0
+fi
+
+if [[ $1 == "pre" ]]; then
+  # Only suspend drains without a floor; hibernate already protects the
+  # battery. Only arm with the lid shut: an open-lid suspend (menu,
+  # idle action, docked clamshell) has no bag to guard against. rtcwake
+  # replaces any stale alarm, which would wake the machine early. Failure
+  # here must never block suspend.
+  [[ $sleep_action == suspend* ]] || exit 0
+  if ! omarchy-hw-laptop-closed; then
+    # Lid open: manual or docked suspend, no bag to guard. Cancel a stale
+    # countdown so its alarm cannot wake this machine out of a suspend
+    # nobody asked the floor to police.
+    if [[ -f $DEADLINE_FILE ]]; then
+      /usr/bin/rtcwake -m disable >/dev/null 2>&1 || true
+      rm -f "$DEADLINE_FILE"
+    fi
+    exit 0
+  fi
+  mkdir -p "$DEADLINE_DIR" || exit 0
+  printf '%s\n' "$(( $(/usr/bin/date +%s) + GRACE_SEC ))" >"$DEADLINE_FILE" || exit 0
+  /usr/bin/rtcwake -m no -s "$GRACE_SEC" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+[[ $1 == "post" && $sleep_action == suspend* ]] || exit 0
+
+# No armed deadline: this wake is not ours (an unmanaged suspend, or the
+# floor already fired), so stay out of the way.
+[[ -f $DEADLINE_FILE ]] || exit 0
+
+deadline=$(<"$DEADLINE_FILE")
+[[ $deadline =~ ^[0-9]+$ ]] || { rm -f "$DEADLINE_FILE"; exit 0; }
+
+now=$(/usr/bin/date +%s)
+
+if (( now < deadline )); then
+  # Woken before the deadline: a charger event, a wake-on-USB, somebody
+  # opened the lid. Only the armed alarm may ever power the machine off.
+  if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
+    # Still bagged: re-arm the remaining time and wait for the real expiry.
+    /usr/bin/rtcwake -m no -s "$(( deadline - now ))" >/dev/null 2>&1 || true
+  else
+    # Lid open or docked: somebody is back (or about to be). Stand the
+    # floor down; a later lid-shut suspend re-arms from pre.
+    /usr/bin/rtcwake -m disable >/dev/null 2>&1 || true
+    rm -f "$DEADLINE_FILE"
+  fi
+  exit 0
+fi
+
+# Deadline reached: consume it, disarm the RTC (some boards honor an RTC
+# alarm even from soft-off), and defer the decision to a transient unit.
+# Once this hook returns, the suspend job completes and logind accepts the
+# next action.
+rm -f "$DEADLINE_FILE"
+/usr/bin/rtcwake -m disable >/dev/null 2>&1 || true
+/usr/bin/systemd-run --quiet --collect --unit=omarchy-battery-floor \
+  --description="Omarchy suspend battery floor" \
+  "$0" act >/dev/null 2>&1 || true
+exit 0
