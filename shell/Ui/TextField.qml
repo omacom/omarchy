@@ -22,8 +22,17 @@ TextField {
   property color accent: Color.accent
   property color selectionTint: Style.selectionFillFor(foreground, accent)
   property bool password: false
+  // Opt-in reveal control for masked fields: renders an eye button inside the
+  // field's right padding that flips masking off. Only drawn when `password`
+  // is set, so a plain field never grows an inert button. `revealed` resets
+  // whenever the field is hidden, so a prompt reopened later always starts
+  // masked.
+  property bool revealable: false
+  property bool revealed: false
   property real horizontalPadding: Style.spacing.controlPaddingX
   property real verticalPadding: Style.spacing.inputPaddingY
+
+  readonly property bool _hasReveal: password && revealable
 
   // Panel-cursor flag. When true (and the field isn't already focused),
   // the background paints the shared hover/cursor state.
@@ -36,7 +45,7 @@ TextField {
   readonly property bool _hot: hovered || hasCursor
   readonly property var _borderSpec: Border.controlSpec(_focused ? "focus" : (_hot ? "hover-cursor" : "normal"), root.foreground, root.accent)
 
-  echoMode: password ? TextInput.Password : TextInput.Normal
+  echoMode: (password && !revealed) ? TextInput.Password : TextInput.Normal
   font.family: Style.font.family
   font.pixelSize: Style.font.body
   color: foreground
@@ -45,7 +54,7 @@ TextField {
   placeholderTextColor: Qt.darker(foreground, 1.6)
 
   leftPadding: horizontalPadding + Border.left(_borderSpec)
-  rightPadding: horizontalPadding + Border.right(_borderSpec)
+  rightPadding: horizontalPadding + Border.right(_borderSpec) + (_hasReveal ? revealButton.width : 0)
   topPadding: verticalPadding + Border.top(_borderSpec)
   bottomPadding: verticalPadding + Border.bottom(_borderSpec)
 
@@ -53,5 +62,23 @@ TextField {
     color: Style.controlFill(root._focused, root._hot, root.foreground, root.accent)
     borderSpec: root._borderSpec
     radius: Style.cornerRadius
+  }
+
+  onVisibleChanged: if (!visible) revealed = false
+
+  // Sized off the body font rather than the icon font so the button stays
+  // inside the 22-26px inline fields; `focusable` stays false because the
+  // field itself owns the keys while it is open.
+  PanelActionButton {
+    id: revealButton
+    visible: root._hasReveal
+    anchors.right: parent.right
+    anchors.rightMargin: Border.right(root._borderSpec)
+    anchors.verticalCenter: parent.verticalCenter
+    fontSize: Style.font.body
+    iconText: root.revealed ? "󰈉" : "󰈈"
+    tooltipText: root.revealed ? "Hide" : "Show"
+    foreground: root.foreground
+    onClicked: root.revealed = !root.revealed
   }
 }

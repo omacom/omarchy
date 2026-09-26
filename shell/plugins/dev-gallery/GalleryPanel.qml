@@ -1310,7 +1310,7 @@ Item {
               font.bold: true
             }
             Text {
-              text: "Single-line input. Inherits Qt Quick Controls TextField, swaps in the kit's focus chrome and selection styling. Toggle `password: true` for masked entry."
+              text: "Single-line input. Inherits Qt Quick Controls TextField, swaps in the kit's focus chrome and selection styling. Toggle `password: true` for masked entry, and add `revealable: true` for an eye button that unmasks it."
               color: Qt.darker(root.foreground, 1.5)
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -1359,6 +1359,7 @@ Item {
                   id: demoPasswordField
                   width: parent.width
                   password: true
+                  revealable: true
                   placeholderText: "Password"
                   foreground: root.foreground
                   accent: root.accent
