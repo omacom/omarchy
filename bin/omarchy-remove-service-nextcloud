@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Nextcloud desktop sync client and stop it starting with the session.
+# omarchy:requires-sudo=true
+
+HYPR_AUTOSTART_FILE="$HOME/.config/hypr/autostart.lua"
+HYPR_AUTOSTART_ENTRY='o.launch_on_start("nextcloud --background")'
+
+disable_hyprland_autostart() {
+  if [[ -f $HYPR_AUTOSTART_FILE ]]; then
+    sed -i "\|^$HYPR_AUTOSTART_ENTRY$|d" "$HYPR_AUTOSTART_FILE"
+  fi
+}
+
+pkill -x nextcloud 2>/dev/null || true
+disable_hyprland_autostart
+omarchy-pkg-drop nextcloud-client
+
+echo ""
+echo "Nextcloud has been removed. Your synced files were left where they are."
