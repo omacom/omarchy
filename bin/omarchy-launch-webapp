@@ -10,4 +10,39 @@ google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
 *) browser="chromium.desktop" ;;
 esac
 
+# Extra arguments are passed straight to the browser, and Chromium is a
+# singleton per profile: if this launch is the one that starts the browser, the
+# flags apply to every window in the session — ordinary browsing included — not
+# just to this web app. Refuse the flags that would turn a web app launcher into
+# a session-wide security downgrade.
+# Compare switch names, not spellings. Chromium's POSIX parser accepts one or
+# two leading dashes and splits an optional "=value", so --no-sandbox=1 and
+# -ignore-certificate-errors carry the same meaning as the canonical forms and
+# have to be refused with them.
+# Chromium trims surrounding ASCII whitespace before it parses a switch, so
+# " --ignore-certificate-errors" as a single argument still reaches it as that
+# switch. Trim the same set here before deciding whether an argument is a switch
+# and which one it names. Only the comparison uses the trimmed form; the
+# argument is forwarded to the browser exactly as it was given.
+for arg in "${@:2}"; do
+  trimmed=${arg#"${arg%%[![:space:]]*}"}
+  trimmed=${trimmed%"${trimmed##*[![:space:]]}"}
+
+  [[ $trimmed == -* ]] || continue
+
+  switch=${trimmed#-}
+  switch=${switch#-}
+  switch=${switch%%=*}
+
+  case $switch in
+  ignore-certificate-errors | disable-web-security | allow-running-insecure-content | \
+    remote-debugging-port | remote-debugging-address | remote-debugging-pipe | \
+    remote-allow-origins | load-extension | disable-extensions-except | \
+    user-data-dir | no-sandbox | disable-site-isolation-trials | disable-gpu-sandbox)
+    echo "omarchy-launch-webapp: refusing '$arg' - it would apply to the whole browser session, not just this web app." >&2
+    exit 1
+    ;;
+  esac
+done
+
 exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"
