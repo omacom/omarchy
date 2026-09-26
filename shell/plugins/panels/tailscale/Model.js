@@ -229,6 +229,11 @@ function parseStatus(raw) {
     var backendState = String(data.BackendState || "Unknown")
     var self = data.Self || {}
     var selfIps = filterIPv4(self.TailscaleIPs || data.TailscaleIPs || [])
+    // This machine is a sibling of Peer in the status JSON, so build a row for
+    // it the same way peers are built and let the panel pin it to the top.
+    var selfPeer = peerFromStatus("self", self)
+    selfPeer.IsSelf = true
+    selfPeer.Online = true
     var peers = []
     var exitNodes = []
     var rawPeers = data.Peer || {}
@@ -261,6 +266,7 @@ function parseStatus(raw) {
       selfDnsName: cleanDnsName(self.DNSName),
       selfIp: selfIps.length > 0 ? selfIps[0] : "",
       selfUserId: String(self.UserID || ""),
+      selfPeer: selfPeer,
       fileSharing: hasFileSharing(self),
       peers: peers,
       exitNodes: exitNodes
