@@ -5,6 +5,24 @@
 
 code="${1:-0}"
 
+# (( )) evaluates its operands as arithmetic, so a hostile $1 like
+# 'a[$(touch /tmp/pwned)]' would run command substitution. Accept only what a
+# real exit status can be: ASCII digits forced to base 10 (so a leading zero
+# like 010 means decimal 10, not octal, and 08 is valid), within the 0-255
+# exit-status range. Anything else is a caller bug: fail loudly on stderr
+# rather than printing a misleading "Done!".
+case $code in
+  '' | *[!0-9]*)
+    printf 'omarchy-show-done: invalid exit code: %s\n' "${1-}" >&2
+    exit 2
+    ;;
+esac
+if ((${#code} > 3)) || ((10#$code > 255)); then
+  printf 'omarchy-show-done: exit code out of range (0-255): %s\n' "${1-}" >&2
+  exit 2
+fi
+code=$((10#$code))
+
 # The device node is there whether or not a terminal is behind it, so opening
 # it is the only test that means anything.
 : 2>/dev/null <>/dev/tty || exit 0
