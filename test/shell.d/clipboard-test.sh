@@ -179,6 +179,53 @@ assertEqual(
   2,
   'clipboard respawns both watchers when they die'
 )
+assert(
+  clipboardQml.includes('import Quickshell.Hyprland'),
+  'clipboard imports Hyprland to read the focused toplevel'
+)
+assert(
+  /property string targetWindow: ""/.test(clipboardQml),
+  'clipboard tracks one explicit origin target'
+)
+assert(
+  !/lastToplevelAddress/.test(clipboardQml),
+  'clipboard does not fall back to a stale previous toplevel'
+)
+assert(
+  /function open\(payloadJson\)[\s\S]*ClipboardHistory\.originAddress\(Hyprland\.activeToplevel, Hyprland\.focusedWorkspace\)/.test(clipboardQml),
+  'clipboard only captures an origin eligible on the focused workspace'
+)
+assertEqual(
+  clipboard.originAddress({ address: '0xabc', workspace: { id: 2 } }, { id: 2 }),
+  '0xabc',
+  'clipboard accepts the active toplevel on the focused workspace'
+)
+assertEqual(
+  clipboard.originAddress({ address: '0xabc', workspace: { id: 1 } }, { id: 2 }),
+  '',
+  'clipboard rejects a stale toplevel from another workspace'
+)
+assertEqual(
+  clipboard.originAddress(null, { id: 2 }),
+  '',
+  'clipboard keeps an empty workspace copy-only instead of inventing an origin'
+)
+assert(
+  /if \(!root\.targetWindow\) fileArgs\.push\("--copy-only"\)/.test(clipboardQml),
+  'clipboard image selection is copy-only when there is no eligible origin'
+)
+assert(
+  /if \(!root\.targetWindow\) textArgs\.push\("--copy-only"\)/.test(clipboardQml),
+  'clipboard text selection is copy-only when there is no eligible origin'
+)
+assert(
+  /var textArgs = \[root\.omarchyPath \+ "\/bin\/omarchy-clipboard-paste-text"[\s\S]*if \(root\.targetWindow\) textArgs\.push\(root\.targetWindow\)/.test(clipboardQml),
+  'clipboard passes the origin window address to the text paste helper'
+)
+assert(
+  /var fileArgs = \[root\.omarchyPath \+ "\/bin\/omarchy-clipboard-paste-file"[\s\S]*if \(root\.targetWindow\) fileArgs\.push\(root\.targetWindow\)/.test(clipboardQml),
+  'clipboard passes the origin window address to the file paste helper'
+)
 
 assertDeepEqual(
   clipboard.displayRows([{ type: 'text', text: 'a'.repeat(8192) + 'needle' }], 'needle', 50),
@@ -494,6 +541,137 @@ pass "clipboard file paste helper copy-only copies file content"
 
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
+
+cat >"$TMPDIR/bin/sleep" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$SLEEP_OUT"
+SH
+
+cat >"$TMPDIR/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$HYPRCTL_OUT"
+case "$*" in
+  *activewindow*)
+    if [[ -n ${HYPRCTL_ACTIVE:-} ]]; then
+      printf '%s\n' "$HYPRCTL_ACTIVE"
+    elif [[ -n ${HYPRCTL_STATE_FILE:-} && -s $HYPRCTL_STATE_FILE ]]; then
+      printf '{"address": "%s"}\n' "$(<"$HYPRCTL_STATE_FILE")"
+    else
+      printf '{"address": "%s"}\n' "${HYPRCTL_ADDRESS:-0x0}"
+    fi
+    ;;
+  *dsp.focus*|*focuswindow*)
+    if [[ -n ${HYPRCTL_STATE_FILE:-} ]]; then
+      address=$(sed -n 's/.*address:\(0x[0-9A-Fa-f]*\).*/\1/p' <<<"$*")
+      [[ -n $address ]] && printf '%s\n' "$address" >"$HYPRCTL_STATE_FILE"
+    fi
+    ;;
+esac
+SH
+
+chmod +x "$TMPDIR/bin/sleep" "$TMPDIR/bin/hyprctl"
+
+focus_env=(
+  WL_COPY_OUT="$TMPDIR/copied-focus"
+  WTYPE_OUT="$TMPDIR/wtype-focus"
+  SLEEP_OUT="$TMPDIR/sleep-focus"
+  HYPRCTL_OUT="$TMPDIR/hyprctl-focus"
+  HYPRCTL_STATE_FILE="$TMPDIR/hyprctl-state"
+  HOME="$TMPDIR/home"
+  PATH="$TMPDIR/bin:$PATH"
+)
+
+: >"$TMPDIR/hyprctl-focus"
+: >"$TMPDIR/sleep-focus"
+rm -f "$TMPDIR/hyprctl-state" "$TMPDIR/wtype-focus"
+env "${focus_env[@]}" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1 "0xdeadbeef"
+
+[[ $(<"$TMPDIR/wtype-focus") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper still pastes after refocusing the origin window"
+pass "clipboard paste helper still pastes after refocusing the origin window"
+
+grep -qF 'hl.dsp.focus({ window = "address:0xdeadbeef" })' "$TMPDIR/hyprctl-focus" || fail "clipboard paste helper refocuses the origin window by address"
+pass "clipboard paste helper refocuses the origin window by address"
+
+[[ -s "$TMPDIR/sleep-focus" ]] || fail "clipboard paste helper waits for focus to settle before pasting"
+pass "clipboard paste helper waits for focus to settle before pasting"
+
+: >"$TMPDIR/hyprctl-focus"
+rm -f "$TMPDIR/hyprctl-state"
+env "${focus_env[@]}" WTYPE_OUT="$TMPDIR/wtype-focus-bare" SLEEP_OUT="$TMPDIR/sleep-focus-bare" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1 "deadbeef"
+grep -qF 'address:0xdeadbeef' "$TMPDIR/hyprctl-focus" || fail "clipboard paste helper normalises a bare window address"
+pass "clipboard paste helper normalises a bare window address"
+
+: >"$TMPDIR/hyprctl-focus"
+env "${focus_env[@]}" WTYPE_OUT="$TMPDIR/wtype-focus-active" SLEEP_OUT="$TMPDIR/sleep-focus-active" \
+  HYPRCTL_ACTIVE='{"address": "0xdeadbeef"}' \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1 "0xdeadbeef"
+! grep -q "address:" "$TMPDIR/hyprctl-focus" || fail "clipboard paste helper stops refocusing once the origin window is active"
+pass "clipboard paste helper stops refocusing once the origin window is active"
+
+env "${focus_env[@]}" WTYPE_OUT="$TMPDIR/wtype-no-target" HYPRCTL_OUT="$TMPDIR/hyprctl-no-target" \
+  SLEEP_OUT="$TMPDIR/sleep-no-target" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1
+[[ $(<"$TMPDIR/wtype-no-target") == "-M shift -k Insert -m shift" ]] || fail "clipboard paste helper still pastes without a window address"
+pass "clipboard paste helper still pastes without a window address"
+[[ ! -e "$TMPDIR/hyprctl-no-target" ]] || ! grep -qE 'dsp\.focus|dispatch focuswindow' "$TMPDIR/hyprctl-no-target" || fail "clipboard paste helper skips refocus without a window address"
+pass "clipboard paste helper skips refocus without a window address"
+
+# If the captured origin never becomes active, preserve clipboard data but do not inject.
+: >"$TMPDIR/hyprctl-focus-fail"
+rm -f "$TMPDIR/wtype-focus-fail" "$TMPDIR/hyprctl-state-fail"
+env WL_COPY_OUT="$TMPDIR/copied-focus-fail" WTYPE_OUT="$TMPDIR/wtype-focus-fail" \
+  SLEEP_OUT="$TMPDIR/sleep-focus-fail" HYPRCTL_OUT="$TMPDIR/hyprctl-focus-fail" \
+  HYPRCTL_ADDRESS="0xother" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-text" --shift-insert --history-index 1 "0xdeadbeef"
+[[ -s "$TMPDIR/copied-focus-fail" ]] || fail "clipboard text helper still copies when origin refocus fails"
+[[ ! -e "$TMPDIR/wtype-focus-fail" ]] || fail "clipboard text helper must not inject into a different focused window"
+pass "clipboard text helper aborts injection when origin cannot be restored"
+
+printf 'image-data' >"$TMPDIR/image-focus.png"
+: >"$TMPDIR/hyprctl-file"
+: >"$TMPDIR/sleep-file"
+rm -f "$TMPDIR/wtype-file"
+rm -f "$TMPDIR/hyprctl-file-state"
+env WL_COPY_OUT="$TMPDIR/copied-file" WTYPE_OUT="$TMPDIR/wtype-file" SLEEP_OUT="$TMPDIR/sleep-file" \
+  HYPRCTL_OUT="$TMPDIR/hyprctl-file" HYPRCTL_STATE_FILE="$TMPDIR/hyprctl-file-state" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image-focus.png" "0xcafebabe"
+
+[[ $(<"$TMPDIR/copied-file") == "image-data" ]] || fail "clipboard file paste helper copies file content before refocus"
+pass "clipboard file paste helper copies file content before refocus"
+
+[[ $(<"$TMPDIR/wtype-file") == "-M shift -k Insert -m shift" ]] || fail "clipboard file paste helper pastes after refocusing the origin window"
+pass "clipboard file paste helper pastes after refocusing the origin window"
+
+grep -qF 'hl.dsp.focus({ window = "address:0xcafebabe" })' "$TMPDIR/hyprctl-file" || fail "clipboard file paste helper refocuses the origin window by address"
+pass "clipboard file paste helper refocuses the origin window by address"
+
+: >"$TMPDIR/hyprctl-file-bare"
+rm -f "$TMPDIR/hyprctl-file-bare-state"
+env WL_COPY_OUT="$TMPDIR/copied-file-bare" WTYPE_OUT="$TMPDIR/wtype-file-bare" SLEEP_OUT="$TMPDIR/sleep-file-bare" \
+  HYPRCTL_OUT="$TMPDIR/hyprctl-file-bare" HYPRCTL_STATE_FILE="$TMPDIR/hyprctl-file-bare-state" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image-focus.png" "cafebabe"
+grep -qF 'address:0xcafebabe' "$TMPDIR/hyprctl-file-bare" || fail "clipboard file paste helper normalises a bare window address"
+pass "clipboard file paste helper normalises a bare window address"
+
+: >"$TMPDIR/hyprctl-file-fail"
+rm -f "$TMPDIR/wtype-file-fail"
+env WL_COPY_OUT="$TMPDIR/copied-file-fail" WTYPE_OUT="$TMPDIR/wtype-file-fail" \
+  SLEEP_OUT="$TMPDIR/sleep-file-fail" HYPRCTL_OUT="$TMPDIR/hyprctl-file-fail" \
+  HYPRCTL_ADDRESS="0xother" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image-focus.png" "0xcafebabe"
+[[ $(<"$TMPDIR/copied-file-fail") == "image-data" ]] || fail "clipboard file helper still copies when origin refocus fails"
+[[ ! -e "$TMPDIR/wtype-file-fail" ]] || fail "clipboard file helper must not inject into a different focused window"
+pass "clipboard file helper aborts injection when origin cannot be restored"
+
+env WL_COPY_OUT="$TMPDIR/copied-file-none" WTYPE_OUT="$TMPDIR/wtype-file-none" SLEEP_OUT="$TMPDIR/sleep-file-none" \
+  HYPRCTL_OUT="$TMPDIR/hyprctl-file-none" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-clipboard-paste-file" image/png "$TMPDIR/image-focus.png"
+[[ $(<"$TMPDIR/wtype-file-none") == "-M shift -k Insert -m shift" ]] || fail "clipboard file paste helper still pastes without a window address"
+pass "clipboard file paste helper still pastes without a window address"
+[[ ! -e "$TMPDIR/hyprctl-file-none" ]] || ! grep -qE 'dsp\.focus|dispatch focuswindow' "$TMPDIR/hyprctl-file-none" || fail "clipboard file paste helper skips refocus without a window address"
+pass "clipboard file paste helper skips refocus without a window address"
 
 jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
