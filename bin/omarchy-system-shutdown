@@ -14,12 +14,19 @@ if [[ ${1:-} == "--inhibited" ]]; then
 
   sleep 2 # Allow apps like Chrome to shut down correctly
   systemctl poweroff --no-wall
+elif [[ ${1:-} == "--inhibit" ]]; then
+  # Report failures from inside the service, independently of the launching terminal.
+  # Block lid handling explicitly: it ignores high-level sleep inhibitors.
+  systemd-inhibit --what=sleep:idle:handle-lid-switch \
+    --who=Omarchy --why="Shutdown in progress" --mode=block \
+    "$OMARCHY_PATH/bin/omarchy-system-shutdown" --inhibited || {
+    status=$?
+    omarchy-notification-send -u critical "Shutdown failed" "Could not complete shutdown. Please try again."
+    exit "$status"
+  }
 else
   # Schedule the shutdown in the user manager so closing the terminal's systemd
   # scope cannot terminate it before it runs.
-  # Block lid handling explicitly: it ignores high-level sleep inhibitors.
   systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
-    systemd-inhibit --what=sleep:idle:handle-lid-switch \
-    --who=Omarchy --why="Shutdown in progress" --mode=block \
-    "$OMARCHY_PATH/bin/omarchy-system-shutdown" --inhibited
+    "$OMARCHY_PATH/bin/omarchy-system-shutdown" --inhibit
 fi
