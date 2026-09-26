@@ -45,6 +45,18 @@ case "$1" in
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
+cat > "$scratch/bin/busctl" <<'STUB'
+#!/bin/bash
+printf 'busctl %s\n' "$*" >> "$CALL_LOG"
+
+# The readiness probe must run only after fprintd is already installed or the
+# package transaction has completed. Keep this test isolated from the host
+# system bus while also guarding that ordering.
+if grep -qx fprintd <<< "${INSTALLED:-}" || grep -q '^pacman -S ' "$CALL_LOG"; then
+  exit 0
+fi
+exit 1
+STUB
 cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 #!/bin/bash
 # Stop before verification/PAM; no host authentication files may be changed.
