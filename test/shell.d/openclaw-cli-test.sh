@@ -1,0 +1,168 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+mock_bin="$test_tmp/bin"
+seed="$test_tmp/share"
+events="$test_tmp/events"
+mkdir -p "$mock_bin" "$seed"
+
+cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+#!/bin/bash
+[[ $1 == openclaw && -e $OMARCHY_TEST_ROOT/package-installed ]]
+SH
+cat >"$mock_bin/omarchy-pkg-add" <<'SH'
+#!/bin/bash
+printf 'pkg-add %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+touch "$OMARCHY_TEST_ROOT/package-installed"
+SH
+chmod +x "$mock_bin/"*
+
+# Stands in for upstream's install-cli.sh: it writes the command the way the
+# real one does, execing into the prefix's tools, and that command logs what
+# it is asked. OMARCHY_TEST_INSTALL_BROKEN leaves a command that cannot run.
+cat >"$seed/install-cli.sh" <<'SH'
+printf 'install-cli %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+prefix=$HOME/.openclaw
+mkdir -p "$prefix/bin" "$prefix/tools/node-v24.19.0"
+cat >"$prefix/bin/openclaw" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+[[ -z "${OMARCHY_TEST_INSTALL_BROKEN:-}" ]] || exit 1
+printf 'runtime %s\n' "\$*" >>"$OMARCHY_TEST_ROOT/events"
+exec true "$prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/entry.js" "\$@"
+EOF
+chmod 755 "$prefix/bin/openclaw"
+SH
+touch "$seed/openclaw.tgz"
+
+# Scratch copies of the actual scripts, with only the package's path swapped.
+for script in bin/omarchy-install-openclaw-cli migrations/1790397381.sh; do
+  sed "s|/usr/share/openclaw|$seed|g" "$ROOT/$script" >"$mock_bin/${script##*/}"
+done
+mv "$mock_bin/1790397381.sh" "$test_tmp/migration.sh"
+chmod +x "$mock_bin/omarchy-install-openclaw-cli"
+
+new_home() {
+  test_home="$test_tmp/$1"
+  runtime="$test_home/.openclaw/bin/openclaw"
+  command="$test_home/.local/bin/openclaw"
+  mkdir -p "$test_home/.local/bin"
+  rm -f "$test_tmp/package-installed"
+  : >"$events"
+}
+
+# PATH puts a directory ahead of ~/.local/bin the way Omarchy's does, where a
+# test can drop another openclaw.
+mkdir -p "$test_tmp/usr-bin"
+run() {
+  HOME="$test_home" OMARCHY_TEST_ROOT="$test_tmp" PATH="$test_tmp/usr-bin:$mock_bin:$test_home/.local/bin:$PATH" \
+    "$@" >"$test_tmp/output" 2>&1
+}
+
+new_home usage
+run omarchy-install-openclaw-cli && fail "no mode is a usage error"
+[[ ! -s $events ]] || fail "no mode installs nothing" "$(cat "$events")"
+pass "every mode is named outright"
+
+new_home fresh
+run omarchy-install-openclaw-cli --check && fail "--check calls a machine without OpenClaw installed"
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+grep -Fxq "pkg-add openclaw" "$events" || fail "--now installs the package" "$(cat "$events")"
+grep -Fxq "install-cli --install-method npm --prefix $test_home/.openclaw --version $seed/openclaw.tgz --no-onboard" "$events" ||
+  fail "--now seeds the runtime from the packaged release" "$(cat "$events")"
+[[ -L $command && $(readlink -- "$command") == "$runtime" ]] || fail "--now points the command on PATH at the runtime"
+run omarchy-install-openclaw-cli --check || fail "--check follows a finished install"
+pass "--now seeds a self-updating OpenClaw from the packaged release"
+
+: >"$events"
+run omarchy-install-openclaw-cli --now || fail "--now accepts a finished install" "$(cat "$test_tmp/output")"
+! grep -q '^install-cli\|^pkg-add' "$events" || fail "a runtime that answers is never reseeded" "$(cat "$events")"
+pass "a runtime that answers is never reseeded, whatever version its updates reached"
+
+rm -f "$command"
+ln -s "$runtime" "$command.tmp" && mv "$command.tmp" "$command"
+mv "$test_home/.openclaw" "$test_home/.openclaw.gone"
+run omarchy-install-openclaw-cli --check && fail "--check calls a dangling link installed"
+run omarchy-install-openclaw-cli --now || fail "--now reseeds behind its own dangling link" "$(cat "$test_tmp/output")"
+[[ -x $runtime && $(readlink -- "$command") == "$runtime" ]] || fail "--now reseeds behind its own dangling link"
+pass "a link Omarchy left behind is rewritten, and a missing runtime reseeded"
+
+new_home old-package
+touch "$test_tmp/package-installed"
+mv "$seed" "$seed.old"
+run omarchy-install-openclaw-cli --now && fail "a package with no seed cannot set OpenClaw up"
+grep -q "Run 'omarchy update'" "$test_tmp/output" || fail "a package with no seed says to update" "$(cat "$test_tmp/output")"
+[[ ! -e $test_home/.openclaw && ! -e $command ]] || fail "a package with no seed leaves the home untouched"
+mv "$seed.old" "$seed"
+pass "a package that is still the runtime is refused before anything is touched"
+
+new_home broken
+OMARCHY_TEST_INSTALL_BROKEN=1 run omarchy-install-openclaw-cli --now && fail "a runtime that does not run is not a finished install"
+grep -q "did not complete" "$test_tmp/output" || fail "a failed setup says so" "$(cat "$test_tmp/output")"
+[[ ! -e $command ]] || fail "a failed setup puts nothing on PATH"
+pass "a runtime that does not run fails the install"
+
+new_home foreign
+printf '#!/bin/bash\necho mine\n' >"$command"
+chmod +x "$command"
+run omarchy-install-openclaw-cli --now && fail "a command that is the user's is not replaced"
+grep -q "Move it aside" "$test_tmp/output" || fail "a command that is the user's is named" "$(cat "$test_tmp/output")"
+[[ ! -L $command ]] && grep -q mine "$command" || fail "a command that is the user's is kept"
+run omarchy-install-openclaw-cli --check && fail "--check calls the runtime installed while the command is somebody else's"
+pass "a command at the path that is the user's is kept and named"
+
+new_home shadowed
+printf '#!/bin/bash\n' >"$test_tmp/usr-bin/openclaw"
+chmod +x "$test_tmp/usr-bin/openclaw"
+run omarchy-install-openclaw-cli --now && fail "an openclaw earlier on PATH fails the install"
+grep -q "on PATH is $test_tmp/usr-bin/openclaw" "$test_tmp/output" || fail "an openclaw earlier on PATH is named" "$(cat "$test_tmp/output")"
+run omarchy-install-openclaw-cli --check && fail "--check calls a shadowed runtime installed"
+rm "$test_tmp/usr-bin/openclaw"
+run omarchy-install-openclaw-cli --check || fail "--check follows once nothing shadows the runtime"
+pass "the runtime has to be the openclaw PATH finds"
+
+# A gateway the old package installed runs from /usr/lib/node_modules, which
+# the seed package no longer ships; one running any other OpenClaw stays.
+new_home services
+units="$test_home/.config/systemd/user"
+mkdir -p "$units"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$units/openclaw-gateway.service"
+printf 'ExecStart=/opt/node /home/someone/openclaw/dist/index.js node run\n' >"$units/openclaw-node.service"
+run omarchy-install-openclaw-cli --now || fail "--now moves the old package's services" "$(cat "$test_tmp/output")"
+grep -Fxq "runtime gateway install --force" "$events" || fail "--now moves a gateway the old package installed" "$(cat "$events")"
+! grep -q "runtime node install" "$events" || fail "--now leaves a service running another OpenClaw alone" "$(cat "$events")"
+pass "a service the old package installed moves to the runtime, and only that one"
+
+# The migration moves only machines that have the package, and waits for the
+# package that seeds.
+new_home migration-none
+run bash -euo pipefail "$test_tmp/migration.sh" || fail "a machine without OpenClaw has nothing to move" "$(cat "$test_tmp/output")"
+[[ ! -s $events && ! -e $test_home/.openclaw ]] || fail "a machine without OpenClaw is untouched" "$(cat "$events")"
+
+new_home migration-old
+touch "$test_tmp/package-installed"
+mv "$seed" "$seed.old"
+run bash -euo pipefail "$test_tmp/migration.sh" && fail "an old package keeps the migration pending"
+[[ ! -e $test_home/.openclaw ]] || fail "an old package leaves the home untouched"
+mv "$seed.old" "$seed"
+
+new_home migration
+touch "$test_tmp/package-installed"
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+run bash -euo pipefail "$test_tmp/migration.sh" || fail "the migration moves OpenClaw" "$(cat "$test_tmp/output")"
+grep -q "^install-cli " "$events" && grep -Fxq "runtime gateway install --force" "$events" ||
+  fail "the migration seeds the runtime and moves the gateway to it" "$(cat "$events")"
+[[ $(readlink -- "$command") == "$runtime" ]] || fail "the migration points the command at the runtime"
+
+new_home migration-foreign
+touch "$test_tmp/package-installed"
+printf '#!/bin/bash\n' >"$command"
+run bash -euo pipefail "$test_tmp/migration.sh" && fail "a migration that cannot finish stays pending"
+pass "the migration moves a packaged OpenClaw to its runtime, and stays pending until it can"

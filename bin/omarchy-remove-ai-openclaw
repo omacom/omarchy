@@ -49,6 +49,19 @@ done
 
 omarchy-pkg-drop openclaw
 
+# The runtime omarchy-install-openclaw-cli set up lives beside the user's state
+# in ~/.openclaw: the command upstream's installer wrote, and the Node and
+# package under tools/. Only a command that execs into those tools is the
+# installer's; the link on PATH goes only when it points at that command.
+if [[ -f $HOME/.openclaw/bin/openclaw ]] && grep -qF "\"$HOME/.openclaw/tools/" "$HOME/.openclaw/bin/openclaw"; then
+  rm -rf "$HOME/.openclaw/tools"
+  rm -f "$HOME/.openclaw/bin/openclaw"
+  rmdir "$HOME/.openclaw/bin" 2>/dev/null || true
+fi
+if [[ -L $HOME/.local/bin/openclaw && $(readlink -- "$HOME/.local/bin/openclaw") == "$HOME/.openclaw/bin/openclaw" ]]; then
+  rm -f "$HOME/.local/bin/openclaw"
+fi
+
 # The web app launcher and icon omarchy-install-ai-openclaw created.
 rm -f "$HOME/.local/share/applications/OpenClaw.desktop"
 rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/openclaw.png"
@@ -59,12 +72,13 @@ gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 # better surprise. But it also holds the plugin runtimes and caches OpenClaw
 # downloads for itself, easily hundreds of megabytes, so the choice is put in
 # front of the user with the size rather than left silent. Without a terminal
-# to ask in, keeping it is the answer.
+# to ask in, keeping it is the answer. The snapshots `openclaw update` takes
+# of that state sit beside it and go with it.
 state_removed=false
 if [[ -d $HOME/.openclaw && -t 0 ]]; then
   size=$(du -sh "$HOME/.openclaw" 2>/dev/null | cut -f1)
   if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, and downloaded plugins)?"; then
-    rm -rf "$HOME/.openclaw"
+    rm -rf "$HOME/.openclaw" "$HOME/.openclaw.update-captures"
     state_removed=true
   fi
 fi
