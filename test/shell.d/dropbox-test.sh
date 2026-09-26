@@ -32,3 +32,71 @@ assertEqual(
   'dropbox file metadata includes relative time and folder'
 )
 JS
+
+require_compositor "Dropbox link lifecycle runtime test"
+require_command quickshell
+
+stage=$(mktemp -d)
+trap 'rm -rf -- "$stage"' EXIT
+mkdir -p "$stage/dropbox" "$stage/bin" "$stage/home" "$stage/shell/plugins/panels"
+ln -s "$ROOT/shell/Ui" "$stage/Ui"
+ln -s "$ROOT/shell/Commons" "$stage/Commons"
+ln -s "$stage/dropbox" "$stage/shell/plugins/panels/dropbox"
+cp "$SHELL_TEST_DIR/fixtures/dropbox-link/shell.qml" "$stage/shell.qml"
+cp "$ROOT/shell/plugins/panels/dropbox/"{Model.js,DropboxIcon.qml} "$stage/dropbox/"
+node - "$ROOT" "$stage" <<'JS'
+const fs = require('fs')
+const [root, stage] = process.argv.slice(2)
+// Exercise the real QML and expose private IDs only in the disposable copy.
+// Intercept the browser boundary so the fixture cannot open real link pages.
+let service = fs.readFileSync(`${root}/shell/plugins/panels/dropbox/Service.qml`, 'utf8')
+service = service.replace('  id: root', `  id: root
+  property alias testLinkWait: linkWait
+  property alias testRefreshTimer: refreshTimer
+  property alias testStartupRamp: startupRamp
+  property alias testDelayedRefresh: delayedRefresh
+  property alias testLoginProcess: loginProcess
+  property alias testStatusProcess: statusProcess
+  property var testOpenedUrls: []
+  function testOpenUrl(url) { testOpenedUrls.push(url) }`)
+service = service.replace(/Qt\.openUrlExternally\(/g, 'root.testOpenUrl(')
+fs.writeFileSync(`${stage}/dropbox/Service.qml`, service)
+let panel = fs.readFileSync(`${root}/shell/plugins/panels/dropbox/Panel.qml`, 'utf8')
+panel = panel.replace('  id: root', `  id: root
+  property alias testService: dropbox
+  property alias testMessage: testStatusMessage
+  property alias testKeys: keyCatcher`)
+panel = panel.replace('          Text {\n            textFormat: Text.PlainText',
+  '          Text {\n            id: testStatusMessage\n            textFormat: Text.PlainText')
+fs.writeFileSync(`${stage}/dropbox/Panel.qml`, panel)
+JS
+cat > "$stage/bin/dropbox-cli" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >> "$DROPBOX_TEST_COMMAND_LOG"
+if (( $(wc -l < "$DROPBOX_TEST_COMMAND_LOG") == 2 )); then
+  echo "https://www.dropbox.com/cli_link_nonce?nonce=fixture"
+else
+  echo "Dropbox is already running!"
+fi
+SH
+chmod +x "$stage/bin/dropbox-cli"
+cat > "$stage/dropbox/status.py" <<'PY'
+import json
+print(json.dumps({
+  "ok": True, "installed": True, "running": False,
+  "authenticated": False, "statusText": "Unlinked", "files": []
+}))
+PY
+
+# Fake HOME, status helper, CLI and browser keep this independent of the host
+# account. Preview captures use the same real panel with synthetic state.
+output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
+  DROPBOX_TEST_ROOT="$stage" DROPBOX_TEST_COMMAND_LOG="$stage/commands.log" \
+  timeout 20 quickshell -p "$stage" --no-color 2>&1) || fail "Dropbox link fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "Dropbox link lifecycle assertions pass" "$output"
+if [[ $output =~ RESULT\ fail|ReferenceError|TypeError|Error:|Unable\ to\ assign|Binding\ loop ]]; then
+  fail "Dropbox link fixture has no QML errors" "$output"
+fi
+[[ $(<"$stage/commands.log") == $'start\nstart\nstart' ]] ||
+  fail "only fresh login attempts run dropbox-cli start"
+pass "Dropbox no-URL and URL waits, repeated polling, timeout, late authentication, retry, and panel errors work in QML"

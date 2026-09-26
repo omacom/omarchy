@@ -282,10 +282,10 @@ Panel {
 
           Text {
             textFormat: Text.PlainText
-            visible: dropbox.actionStatus !== "" || dropbox.lastError !== ""
+            visible: text !== ""
             width: parent.width
-            text: dropbox.actionStatus !== "" ? dropbox.actionStatus : dropbox.lastError
-            color: dropbox.lastError !== "" && dropbox.actionStatus === "" ? root.urgent : root.dim
+            text: dropbox.actionStatus !== "" ? dropbox.actionStatus : dropbox.linkError !== "" ? dropbox.linkError : dropbox.lastError
+            color: dropbox.actionStatus !== "" ? root.dim : root.urgent
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
             wrapMode: Text.WordWrap
@@ -424,7 +424,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: dropbox.installed ? "Login to Dropbox" : "Dropbox CLI is not installed"
+          text: !dropbox.installed ? "Dropbox CLI is not installed" : dropbox.linkPending ? "Finish linking in your browser" : "Login to Dropbox"
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -434,7 +434,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: dropbox.installed ? "Start the authentication flow" : "Install Dropbox from the service menu"
+          text: !dropbox.installed ? "Install Dropbox from the service menu" : !dropbox.linkPending ? "Start the authentication flow" : dropbox.linkUrlKnown ? "Click to reopen the Dropbox page" : "Waiting for Dropbox to confirm the link"
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
