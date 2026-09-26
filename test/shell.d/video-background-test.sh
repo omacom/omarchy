@@ -339,3 +339,62 @@ set_theme_background
 
 pass "theme transitions skip snapshots whenever either side is a video"
 pass "theme changes recover from a missing preselected background"
+intro_home="$test_tmp/intro-home"
+intro_state="$intro_home/.local/state/omarchy/current"
+mkdir -p "$intro_state/theme/backgrounds" "$intro_state/theme/intros"
+printf 'still\n' >"$intro_state/theme/backgrounds/0-winding-road.webp"
+printf 'video\n' >"$intro_state/theme/intros/0-winding-road.mp4"
+intro_hash=$(sha256sum "$intro_state/theme/backgrounds/0-winding-road.webp")
+intro_hash=${intro_hash%% *}
+printf '%s\n' "$intro_hash" >"$intro_state/theme/intros/0-winding-road.sha256"
+printf 'tokyo-night\n' >"$intro_state/theme.name"
+ln -s "$intro_state/theme/backgrounds/0-winding-road.webp" "$intro_state/background"
+intro_calls="$test_tmp/intro-calls"
+cat >"$test_tmp/bin/owe" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$INTRO_CALLS"
+SH
+chmod +x "$test_tmp/bin/owe"
+
+HOME="$intro_home" PATH="$test_tmp/bin:$PATH" INTRO_CALLS="$intro_calls" OMARCHY_BOOT_ID=video-test-boot \
+  "$ROOT/bin/omarchy-theme-bg-boot-intro"
+expected_intro_calls=$(printf 'intro-prepare %s\nintro-commit' "$intro_state/theme/intros/0-winding-road.mp4")
+[[ $(<"$intro_calls") == "$expected_intro_calls" ]] || \
+  fail "boot intro starts the exact selected background pairing" "$(<"$intro_calls")"
+
+HOME="$intro_home" PATH="$test_tmp/bin:$PATH" INTRO_CALLS="$intro_calls" OMARCHY_BOOT_ID=video-test-boot \
+  "$ROOT/bin/omarchy-theme-bg-boot-intro"
+[[ $(wc -l <"$intro_calls") == 2 ]] || fail "boot intro runs once for a boot id" "$(<"$intro_calls")"
+
+pass "boot intro starts the selected still pairing once per boot"
+
+migration="$ROOT/migrations/1788281348.sh"
+migration_home="$test_tmp/migration-home"
+migration_bin="$test_tmp/migration-bin"
+migration_calls="$test_tmp/migration-calls"
+mkdir -p "$migration_home/.local/state/omarchy/current" "$migration_bin"
+
+cat >"$migration_bin/omarchy-theme-refresh" <<'SH'
+#!/bin/bash
+printf 'refresh\n' >>"$MIGRATION_CALLS"
+SH
+chmod +x "$migration_bin/omarchy-theme-refresh"
+
+printf 'catppuccin\n' >"$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$migration" >/dev/null
+[[ $(<"$migration_calls") == "refresh" ]] || fail "boot intro migration refreshes an active theme with packaged intros"
+[[ -s $migration_home/.local/state/omarchy/background-intro.boot-id ]] || fail "boot intro migration records the current boot after refreshing"
+
+: >"$migration_calls"
+printf 'custom-theme\n' >"$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$migration" >/dev/null
+[[ ! -s $migration_calls ]] || fail "boot intro migration leaves a theme without packaged intros alone"
+
+rm "$migration_home/.local/state/omarchy/current/theme.name"
+HOME="$migration_home" PATH="$migration_bin:$PATH" MIGRATION_CALLS="$migration_calls" OMARCHY_PATH="$ROOT" \
+  bash -euo pipefail "$migration" >/dev/null
+[[ ! -s $migration_calls ]] || fail "boot intro migration tolerates missing theme state"
+
+pass "boot intro migration stages assets only for an active theme with packaged intros"

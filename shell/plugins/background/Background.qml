@@ -20,6 +20,10 @@ Item {
   property string oldBackground: ""
   property bool finishingTransition: false
   property int backgroundVersion: 0
+  property bool bootIntroChecked: false
+  property int bootIntroAttempts: 0
+  readonly property int bootIntroMaxAttempts: 60
+  readonly property int bootIntroRetryInterval: 1000
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -40,6 +44,13 @@ Item {
 
   function setBackground(path, instant) {
     transitionBackground("", path, path, instant, false)
+  }
+
+  function checkBootIntro() {
+    if (bootIntroChecked || bootIntroProc.running) return
+    bootIntroChecked = true
+    bootIntroAttempts += 1
+    bootIntroProc.running = true
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
@@ -130,8 +141,29 @@ Item {
     id: readlinkProc
     command: ["readlink", "-f", root.currentBackgroundLink]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        root.setBackground(String(text || "").trim(), false)
+        root.checkBootIntro()
+      }
     }
+  }
+
+  Process {
+    id: bootIntroProc
+    command: ["omarchy-theme-bg-boot-intro"]
+    onExited: function(exitCode) {
+      if (exitCode === 2 && root.bootIntroAttempts < root.bootIntroMaxAttempts) {
+        root.bootIntroChecked = false
+        bootIntroRetry.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: bootIntroRetry
+    interval: root.bootIntroRetryInterval
+    repeat: false
+    onTriggered: root.checkBootIntro()
   }
 
   IpcHandler {
