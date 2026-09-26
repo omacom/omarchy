@@ -66,21 +66,42 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Each transfer is individually bounded so a slow or hung OCA endpoint cannot
+# pin a worker (and so orphaned workers die on their own when the caller --
+# the speedtest panel -- disappears without signalling). timeout is the hard
+# per-attempt cap: it fires even while curl is stuck inside a hung connection
+# attempt, which no loop-level deadline reached between attempts can do. Workers
+# keep the round-robin going rather than dying on the first failed request.
+max_seconds=8
+connect_timeout=5
+max_time=15
+
 # Round-robin across the returned URLs so we spread load across Netflix OCA nodes.
 traffic_worker() {
   local urls=("$@")
   local url_count=${#urls[@]}
   local idx=$RANDOM
+  local start now url
+
+  start=$(date +%s)
   if [[ $direction == "down" ]]; then
     while true; do
+      now=$(date +%s)
+      if (( now - start >= max_seconds )); then
+        break
+      fi
       url=${urls[$((idx % url_count))]}
-      curl -fsS -o /dev/null "$url" 2>/dev/null || return
+      timeout -k 1 "$max_seconds" curl -fsS --connect-timeout "$connect_timeout" --max-time "$max_time" -o /dev/null "$url" 2>/dev/null || continue
       idx=$((idx + 1))
     done
   else
     while true; do
+      now=$(date +%s)
+      if (( now - start >= max_seconds )); then
+        break
+      fi
       url=${urls[$((idx % url_count))]}
-      dd if=/dev/zero bs=1M count=64 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || return
+      dd if=/dev/zero bs=1M count=64 2>/dev/null | timeout -k 1 "$max_seconds" curl -fsS --connect-timeout "$connect_timeout" --max-time "$max_time" -o /dev/null -X POST --data-binary @- "$url" 2>/dev/null || continue
       idx=$((idx + 1))
     done
   fi
@@ -105,7 +126,14 @@ any_alive() {
   return 1
 }
 
+run_start=$(date +%s)
+
 while any_alive; do
+  # Self-imposed hard cap: finish even if the caller never sends SIGTERM.
+  if (( $(date +%s) - run_start >= max_seconds )); then
+    break
+  fi
+
   sleep 1
   rx_after=$(cat "/sys/class/net/$iface/statistics/rx_bytes")
   tx_after=$(cat "/sys/class/net/$iface/statistics/tx_bytes")
@@ -127,4 +155,8 @@ while any_alive; do
   tx_before=$tx_after
 done
 
+# The loop can end while workers are still mid-transfer (self-timeout cap), and
+# a bare `wait` would then block until the slowest one gives up. Stop the
+# stragglers first; the EXIT trap makes this idempotent.
+cleanup
 wait 2>/dev/null || true
