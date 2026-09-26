@@ -105,6 +105,9 @@ etc/**                         ──►  omarchy-settings    /etc/**           
 default/limine/limine.conf     ──►  omarchy-settings    /usr/share/omarchy/default/limine/limine.conf
 default/limine/default.conf    ──►  omarchy-settings    /usr/share/omarchy/default/limine/default.conf
                                                         (template; ISO substitutes @@CMDLINE@@ → /etc/default/limine)
+                                                        (kernel cmdline is assembled from this file plus
+                                                        limine-entry-tool.d/*.conf drop-ins — /etc/kernel/cmdline,
+                                                        the usual mkinitcpio UKI input elsewhere on Arch, is not read)
 default/snapper/root           ──►  omarchy-settings    /etc/snapper/config-templates/omarchy
                                                         (+ /usr/share/omarchy/default/snapper/root)
 
