@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, and Brave
+# omarchy:summary=Apply the current theme color to Chromium, Chrome, Edge, Brave, and Helium
 # omarchy:hidden=true
 
 source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
@@ -29,6 +29,7 @@ refresh_running_browser chromium chromium
 refresh_running_browser chrome google-chrome-stable || refresh_running_browser chrome google-chrome
 refresh_running_browser msedge microsoft-edge-stable
 refresh_running_browser brave brave
+refresh_running_browser helium helium-browser
 # Match on the binary path: the running process is named plain "brave", and a
 # bare -f brave-origin pattern would also match the installer's own terminal.
 refresh_running_browser /opt/brave-origin-bin/ brave-origin -f
