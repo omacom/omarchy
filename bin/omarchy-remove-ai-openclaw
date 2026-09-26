@@ -50,15 +50,10 @@ done
 
 omarchy-pkg-drop openclaw
 
-# The runtime omarchy-install-openclaw-cli set up lives beside the user's state
-# in ~/.openclaw: the command upstream's installer wrote, and the Node and
-# package under tools/. Only a command that execs into those tools is the
-# installer's; the link on PATH goes only when it points at that command.
-if [[ -f $HOME/.openclaw/bin/openclaw ]] && grep -qF "\"$HOME/.openclaw/tools/" "$HOME/.openclaw/bin/openclaw"; then
-  rm -rf "$HOME/.openclaw/tools"
-  rm -f "$HOME/.openclaw/bin/openclaw"
-  rmdir "$HOME/.openclaw/bin" 2>/dev/null || true
-fi
+# The command on PATH goes, so nothing answers to openclaw. The OpenClaw it
+# pointed at stays in ~/.openclaw with the state below: its own updates may
+# have migrated that state past the packaged release, which could not open it
+# again, and a reinstall picks the kept copy back up instead of seeding one.
 if [[ -L $HOME/.local/bin/openclaw && $(readlink -- "$HOME/.local/bin/openclaw") == "$HOME/.openclaw/bin/openclaw" ]]; then
   rm -f "$HOME/.local/bin/openclaw"
 fi
@@ -78,7 +73,7 @@ gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 state_removed=false
 if [[ -d $HOME/.openclaw && -t 0 ]]; then
   size=$(du -sh "$HOME/.openclaw" 2>/dev/null | cut -f1)
-  if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, and downloaded plugins)?"; then
+  if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, downloaded plugins, and OpenClaw itself)?"; then
     rm -rf "$HOME/.openclaw" "$HOME/.openclaw.update-captures"
     state_removed=true
   fi
