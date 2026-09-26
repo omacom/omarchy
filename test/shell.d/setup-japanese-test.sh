@@ -22,6 +22,15 @@ cat >"$stub_bin/pkill" <<'STUB'
 #!/bin/bash
 printf 'pkill %s\n' "$*" >>"${CALL_LOG:?}"
 STUB
+cat >"$stub_bin/gum" <<'STUB'
+#!/bin/bash
+printf 'gum %s\n' "$*" >>"${CALL_LOG:?}"
+[[ ${TEST_CONFIRM:-no} == "yes" ]]
+STUB
+cat >"$stub_bin/sudo" <<'STUB'
+#!/bin/bash
+printf 'sudo %s\n' "$*" >>"${CALL_LOG:?}"
+STUB
 cat >"$stub_bin/localectl" <<'STUB'
 #!/bin/bash
 [[ $1 == "status" ]] || exit 2
@@ -154,3 +163,36 @@ TEST_LAYOUT=us run_setup us
 [[ $(profile_of us; config_of us) == "$before" ]] ||
   fail "setup is idempotent" "$(config_of us)"
 pass "setup is idempotent"
+
+# The system language is offered, never assumed.
+TEST_CONFIRM=no run_setup locale-declined
+if grep -F 'sudo' "$test_dir/locale-declined.calls" >/dev/null; then
+  fail "declining the Japanese system language changes nothing" "$(<"$test_dir/locale-declined.calls")"
+fi
+pass "declining the Japanese system language changes nothing"
+
+TEST_CONFIRM=yes run_setup locale-accepted
+calls=$(grep -F 'sudo' "$test_dir/locale-accepted.calls")
+expected="sudo sed -i -E s/^#[[:space:]]*(ja_JP\.UTF-8 UTF-8)/\1/ /etc/locale.gen
+sudo locale-gen
+sudo localectl set-locale LANG=ja_JP.UTF-8"
+[[ $calls == "$expected" ]] ||
+  fail "accepting the Japanese system language generates and sets ja_JP.UTF-8" "$calls"
+pass "accepting the Japanese system language generates and sets ja_JP.UTF-8"
+
+TEST_CONFIRM=yes TEST_LANG=ja_JP.UTF-8 run_setup locale-present
+if grep -E '^(gum|sudo) ' "$test_dir/locale-present.calls" >/dev/null; then
+  fail "a Japanese system language is not offered again" "$(<"$test_dir/locale-present.calls")"
+fi
+pass "a Japanese system language is not offered again"
+
+# The expression the command hands to sed enables the stock Arch entry.
+if sed --version >/dev/null 2>&1; then
+  printf '#ja_JP.EUC-JP EUC-JP\n#ja_JP.UTF-8 UTF-8\n#ka_GE.UTF-8 UTF-8\n' >"$test_dir/locale.gen"
+  sed -i -E 's/^#[[:space:]]*(ja_JP\.UTF-8 UTF-8)/\1/' "$test_dir/locale.gen"
+  [[ $(<"$test_dir/locale.gen") == $'#ja_JP.EUC-JP EUC-JP\nja_JP.UTF-8 UTF-8\n#ka_GE.UTF-8 UTF-8' ]] ||
+    fail "only the ja_JP.UTF-8 entry is enabled in locale.gen" "$(<"$test_dir/locale.gen")"
+  pass "only the ja_JP.UTF-8 entry is enabled in locale.gen"
+else
+  skip "no GNU sed; skipping the locale.gen expression check"
+fi

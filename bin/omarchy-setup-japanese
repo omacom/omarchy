@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# omarchy:summary=Set up Japanese input with Mozc
+# omarchy:summary=Set up Japanese input with Mozc, and optionally the Japanese system language
+# omarchy:requires-sudo=true
 
 set -e
 
@@ -140,6 +141,25 @@ EOF
   echo "Added Mozc after keyboard-$group_layout in your input methods."
 }
 
+# Typing Japanese doesn't need a Japanese desktop, so the language is a choice.
+setup_locale() {
+  local current
+
+  current=$(localectl status 2>/dev/null | sed -n 's/^[[:space:]]*System Locale: .*LANG=\([^[:space:]]*\).*/\1/p')
+  if [[ $current == "ja_JP.UTF-8" ]]; then
+    echo "The system language is already Japanese."
+    return
+  fi
+
+  echo
+  if gum confirm "Use Japanese as the system language (ja_JP.UTF-8)?"; then
+    sudo sed -i -E 's/^#[[:space:]]*(ja_JP\.UTF-8 UTF-8)/\1/' /etc/locale.gen
+    sudo locale-gen
+    sudo localectl set-locale LANG=ja_JP.UTF-8
+    echo "The system language switches to Japanese the next time you log in."
+  fi
+}
+
 echo "Installing Mozc..."
 omarchy-pkg-add fcitx5-mozc fcitx5-configtool
 
@@ -162,6 +182,8 @@ if [[ $layout == "jp" ]]; then
 fi
 
 start_fcitx5
+
+setup_locale
 
 echo
 if [[ $layout == "jp" ]]; then
