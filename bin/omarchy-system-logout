@@ -5,8 +5,7 @@
 # omarchy:aliases=omarchy logout
 
 # Schedule the logout in the user manager so closing the terminal's systemd
-# scope cannot terminate it before it runs. nohup only survives SIGHUP; it
-# does not survive the invoking scope being reaped.
+# scope cannot terminate it before it runs.
 systemd-run --user --collect --quiet --on-active="2s" --timer-property=AccuracySec=100ms uwsm stop || exit 1
 
 omarchy-osd -i logout -m "Logging out" -d 5000

@@ -17,7 +17,10 @@ printf 'systemd-run %s\n' "$*" >>"$CALL_LOG"
 exit 0
 SH
 
-for command in omarchy-state omarchy-hyprland-window-close-all sleep; do
+# uwsm and systemctl are what a real systemd-run would execute. Stub them so a
+# test run cannot stop the session or reboot the machine, and so the expected
+# log fails if the script starts calling them directly.
+for command in omarchy-state omarchy-hyprland-window-close-all sleep omarchy-osd uwsm systemctl; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 
@@ -36,10 +39,12 @@ run_power_command() {
 assert_power_calls() {
   local action="$1"
   local systemctl_action="$2"
+  local osd_message="$3"
   local expected_log="$test_tmp/$action-expected.log"
 
   cat >"$expected_log" <<EOF
 systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms systemctl $systemctl_action --no-wall
+omarchy-osd -i $action -m $osd_message -d 5000
 omarchy-state clear re*-required
 omarchy-hyprland-window-close-all 
 sleep 1
@@ -50,14 +55,15 @@ EOF
 }
 
 run_power_command reboot
-assert_power_calls reboot reboot
+assert_power_calls reboot reboot Rebooting
 
 run_power_command shutdown
-assert_power_calls shutdown poweroff
+assert_power_calls shutdown poweroff "Shutting down"
 
 run_power_command logout
 cat >"$test_tmp/logout-expected.log" <<EOF
 systemd-run --user --collect --quiet --on-active=2s --timer-property=AccuracySec=100ms uwsm stop
+omarchy-osd -i logout -m Logging out -d 5000
 omarchy-hyprland-window-close-all 
 sleep 1
 EOF
