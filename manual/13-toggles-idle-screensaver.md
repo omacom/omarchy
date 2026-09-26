@@ -16,12 +16,15 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
+| Battery cap | — | `omarchy toggle battery-limit` |
 | Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
 | Touchscreen | — | `omarchy toggle touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
+
+Battery cap only appears when the hardware can stop charging at 80%. That is the same health limit ASUS exposes on Windows as Balanced charging: the battery holds at 80% while you stay plugged in, which is easier on the cells than sitting at 100%. Toggle it off when you want a full charge.
 
 The Toggle menu also carries a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, workspace layout (`Super + L`), window gaps (`Super + Shift + Backspace`), and the 1-window square aspect (`Super + Ctrl + Backspace`).
 
