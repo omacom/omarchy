@@ -42,6 +42,39 @@ To change how Omarchy themes an app for every theme, write the template rather
 than the theme: `~/.config/omarchy/themed/<config-name>.tpl` overrides the
 built-in one. See `docs/theming.md` in the Omarchy repo.
 
+## What a Theme Does Not Control
+
+A theme owns color, plus the extras it may ship (`backgrounds/`, `icons.theme`,
+`keyboard.rgb`, `unlock.png`, `light.mode`). It does not own app preferences
+like terminal opacity or blur. Those live in the app's base config
+(`~/.config/foot/foot.ini`, `~/.config/kitty/kitty.conf`,
+`~/.config/ghostty/config`, `~/.config/alacritty/alacritty.toml`) and are
+global, so they persist across every theme switch. Setting them there to chase
+a themed look leaks a per-theme intent into a machine-wide setting.
+
+To make such a setting follow the current theme, drive it from a `theme-set`
+hook instead. The hook gets the theme slug in `$1` — lowercased, spaces turned
+into hyphens — so it can write a small file the base config already includes:
+
+```bash
+# One-time: create the file, and add under [main] in ~/.config/foot/foot.ini:
+#   include=~/.config/foot/theme-alpha.ini
+touch ~/.config/foot/theme-alpha.ini
+
+cat >~/.config/omarchy/hooks/theme-set.d/50-foot-alpha <<'EOF'
+#!/bin/bash
+# Translucent terminal for one theme, solid for the rest.
+if [[ $1 == "tokyo-night" ]]; then
+  printf '[colors-dark]\nalpha=0.80\nalpha-mode=all\n' >~/.config/foot/theme-alpha.ini
+else
+  : >~/.config/foot/theme-alpha.ini
+fi
+EOF
+chmod +x ~/.config/omarchy/hooks/theme-set.d/50-foot-alpha
+```
+
+Omarchy fires the hook after it activates a theme; see [`hooks.md`](hooks.md).
+
 ## Customizing a Stock Theme
 
 Never edit stock themes under `/usr/share/omarchy/themes/` — changes are lost
