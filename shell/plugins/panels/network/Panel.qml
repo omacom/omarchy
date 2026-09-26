@@ -440,7 +440,7 @@ Panel {
   readonly property var wiredDevice: findDevice(DeviceType.Wired)
   readonly property string kind: {
     if (wiredDevice && wiredDevice.connected) return "ethernet"
-    if (connectedWifiNetwork) return "wifi"
+    if (wifiDevice && wifiDevice.connected) return "wifi"
     return "disconnected"
   }
   readonly property int signalStrength: connectedWifiNetwork
