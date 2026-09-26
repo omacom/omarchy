@@ -55,6 +55,9 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // True once a versioned user shell.json has been applied successfully.
+  // Empty/truncated reloads must retain that in-memory config (#12990).
+  property bool hasAppliedUserShellConfig: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -73,6 +76,10 @@ ShellRoot {
   function applyShellConfig() {
     // Decide which source is canonical: a valid user shell.json overrides
     // defaults entirely; otherwise fall back to defaults. We do not deep-merge.
+    // After a valid user config has been applied, an empty/truncated or
+    // unparseable reload retains the last valid in-memory config instead of
+    // clobbering with builtins (#12990). First load with nothing valid still
+    // falls back to defaults.
     var defaults = Util.isPlainObject(defaultsConfig) ? defaultsConfig : builtinShellConfig
     var user = null
     var userText = userConfigFile.text() || ""
@@ -80,12 +87,21 @@ ShellRoot {
       try {
         var parsed = JSON.parse(userText)
         if (Util.isPlainObject(parsed) && parsed.version === 1) user = parsed
-        else if (Util.isPlainObject(parsed)) console.warn("shell.json missing version: 1, using defaults")
+        else if (Util.isPlainObject(parsed)) console.warn("shell.json missing version: 1")
       } catch (e) {
-        console.warn("shell.json parse failed, using defaults:", e)
+        console.warn("shell.json parse failed:", e)
       }
     }
-    shellConfig = user || defaults
+    if (user) {
+      shellConfig = user
+      hasAppliedUserShellConfig = true
+      return
+    }
+    if (hasAppliedUserShellConfig) {
+      console.warn("shell.json empty or invalid after a prior valid load; retaining last valid config")
+      return
+    }
+    shellConfig = defaults
   }
 
   function loadDefaults(raw) {
