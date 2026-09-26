@@ -24,12 +24,15 @@ for command in omarchy-plugin-enable omarchy-plugin-disable; do
   cat >"$STUB_DIR/$command" <<'STUB'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$FAKE_CALLS"
+[[ " ${FAKE_FAIL:-} " == *" $1 "* ]] && exit 1
+exit 0
 STUB
 done
 
 # Records the rows it was offered, then answers with the pick under test.
 cat >"$STUB_DIR/omarchy-menu-select" <<'STUB'
 #!/bin/bash
+printf '%s\n' "$*" >"$FAKE_ARGS"
 cat >"$FAKE_ROWS"
 printf '%s\n' "$FAKE_PICK"
 STUB
@@ -53,16 +56,20 @@ pick() {
 
   : >"$TMPDIR/calls"
   : >"$TMPDIR/rows"
+  : >"$TMPDIR/args"
   HOME="$TMPDIR/home" \
     PATH="$STUB_DIR:$PATH" \
     FAKE_PLUGINS="$TMPDIR/plugins.json" \
     FAKE_CALLS="$TMPDIR/calls" \
     FAKE_ROWS="$TMPDIR/rows" \
+    FAKE_ARGS="$TMPDIR/args" \
+    FAKE_FAIL="${FAKE_FAIL:-}" \
     FAKE_PICK="$choice" \
     "$ROOT/bin/omarchy-menu-plugin" "$verb" >/dev/null 2>&1
 
   ROWS=$(cat "$TMPDIR/rows")
   CALLS=$(cat "$TMPDIR/calls")
+  ARGS=$(cat "$TMPDIR/args")
 }
 
 # Two plugins can declare the same display name. The id rides along as row
@@ -183,3 +190,71 @@ pick enable ""
 [[ $CALLS == *"notification: No plugin to enable"* ]] \
   || fail "picker says when a verb has nothing to act on" "$CALLS"
 pass "picker says when a verb has nothing to act on"
+
+# --------------------------------------------------------------------------
+# Picking several at once
+# --------------------------------------------------------------------------
+
+cat >"$TMPDIR/plugins.json" <<'JSON'
+[
+  {"id": "acme.weather", "name": "Weather", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false},
+  {"id": "acme.notes", "name": "Notes", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false},
+  {"id": "acme.timer", "name": "Timer", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false}
+]
+JSON
+
+# Enable, disable and remove are all things people do to a handful of plugins
+# in one sitting, so the menu is opened as a multi-picker for those verbs.
+pick enable "$(printf 'Weather\tacme.weather\nTimer\tacme.timer')"
+[[ $ARGS == *"--multi"* ]] ||
+  fail "picker opens enable as a multi-picker" "$ARGS"
+pass "picker opens enable as a multi-picker"
+[[ $CALLS == *"omarchy-plugin-enable acme.weather"* && $CALLS == *"omarchy-plugin-enable acme.timer"* ]] ||
+  fail "picker enables every plugin that was picked" "$CALLS"
+[[ $CALLS != *"acme.notes"* ]] ||
+  fail "picker enables a plugin that was not picked" "$CALLS"
+pass "picker enables every plugin that was picked, and only those"
+
+# Cloning ends in an editor, so it stays a single pick however many rows the
+# menu could have offered.
+cat >"$TMPDIR/plugins.json" <<'JSON'
+[
+  {"id": "omarchy.clock", "name": "Clock", "kinds": ["bar-widget"], "enabled": true, "active": false, "canDisable": true, "firstParty": true},
+  {"id": "omarchy.tray", "name": "Tray", "kinds": ["bar-widget"], "enabled": true, "active": false, "canDisable": true, "firstParty": true}
+]
+JSON
+
+pick clone "$(printf 'Clock\tomarchy.clock')"
+[[ $ARGS != *"--multi"* ]] ||
+  fail "clone picker opens as a multi-picker" "$ARGS"
+pass "clone picker picks one"
+
+# A batch of removals is one terminal, but still one confirmation each: the
+# remove command prompts per plugin and backs each folder up on its own.
+cat >"$TMPDIR/plugins.json" <<'JSON'
+[
+  {"id": "acme.weather", "name": "Weather", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false},
+  {"id": "acme.notes", "name": "Notes", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false}
+]
+JSON
+
+pick remove "$(printf 'Weather\tacme.weather\nNotes\tacme.notes')"
+[[ $CALLS == *"terminal: omarchy-plugin-remove acme.weather; omarchy-plugin-remove acme.notes"* ]] ||
+  fail "picker removes a batch as one command per plugin in one terminal" "$CALLS"
+pass "picker removes a batch as one command per plugin in one terminal"
+
+# A verb that fails partway leaves the rest of the batch alone and says which
+# ones did not take -- a silent partial run is the failure mode worth catching.
+cat >"$TMPDIR/plugins.json" <<'JSON'
+[
+  {"id": "acme.weather", "name": "Weather", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false},
+  {"id": "acme.notes", "name": "Notes", "kinds": ["bar-widget"], "enabled": false, "active": false, "canDisable": true, "firstParty": false}
+]
+JSON
+
+FAKE_FAIL="acme.weather" pick enable "$(printf 'Weather\tacme.weather\nNotes\tacme.notes')"
+[[ $CALLS == *"omarchy-plugin-enable acme.notes"* ]] ||
+  fail "picker abandons the rest of the batch when one plugin fails" "$CALLS"
+[[ $CALLS == *"notification: Could not enable 1 plugin(s) acme.weather"* ]] ||
+  fail "picker says which plugins did not take" "$CALLS"
+pass "picker finishes the batch and names the plugins that did not take"
