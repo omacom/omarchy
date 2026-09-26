@@ -10,10 +10,11 @@ if [[ ${1:-} == "--no-osd" ]]; then
 fi
 
 direction="${1:-up}"
+leds_path="${OMARCHY_LEDS_PATH:-/sys/class/leds}"
 
 # Find keyboard backlight device (look for *kbd_backlight* pattern in leds class).
 device=""
-for candidate in /sys/class/leds/*kbd_backlight*; do
+for candidate in "$leds_path"/*kbd_backlight*; do
   if [[ -e $candidate ]]; then
     device="$(basename "$candidate")"
     break
@@ -25,17 +26,46 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+state_file="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}/omarchy-keyboard-backlight-$device"
+
+# Serialize hardware changes with their saved state, including repeated keys.
+exec {lock_fd}>"$state_file.lock" || exit 1
+flock "$lock_fd" || exit 1
+
+save_brightness() {
+  if printf '%s\n' "$1" >"$state_file.tmp" && mv -T -- "$state_file.tmp" "$state_file"; then
+    return 0
+  else
+    rm -f -- "$state_file.tmp"
+    return 1
+  fi
+}
+
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  current_brightness="$(brightnessctl -d "$device" get)" || exit 1
+
+  # Zero could be a hardware timeout or a manual choice. Never infer a new
+  # preference from it or send set 0 again, which can disable Dell wake triggers.
+  if (( current_brightness > 0 )); then
+    # Seed a lit first lock if no manual change has recorded a level yet.
+    if [[ ! -f $state_file ]]; then
+      save_brightness "$current_brightness" || exit 1
+    fi
+    brightnessctl -d "$device" set 0 >/dev/null || exit 1
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
-  brightnessctl -rd "$device" >/dev/null
+  if [[ -f $state_file ]]; then
+    read -r saved_brightness <"$state_file" || exit 1
+    [[ $saved_brightness =~ ^[0-9]+$ ]] || exit 1
+    brightnessctl -d "$device" set "$saved_brightness" >/dev/null || exit 1
+  fi
   exit 0
 fi
 
 # Get current and max brightness to determine step size.
-max_brightness="$(brightnessctl -d "$device" max)"
-current_brightness="$(brightnessctl -d "$device" get)"
+max_brightness="$(brightnessctl -d "$device" max)" || exit 1
+current_brightness="$(brightnessctl -d "$device" get)" || exit 1
 
 # Calculate step as 10% of max brightness. Keyboards with many levels (e.g. 512)
 # need larger steps; keyboards with few levels (e.g. 3) fall back to step=1.
@@ -53,6 +83,8 @@ else
   (( new_brightness < 0 )) && new_brightness=0
 fi
 
-# Set the new brightness.
-brightnessctl -d "$device" set "$new_brightness" >/dev/null
+# Record successful manual changes, including an intentional zero, before a
+# hardware timeout can make the current reading ambiguous.
+brightnessctl -d "$device" set "$new_brightness" >/dev/null || exit 1
+save_brightness "$new_brightness" || exit 1
 (( no_osd )) || omarchy-osd -i keyboard -p "$(( new_brightness * 100 / max_brightness ))"
