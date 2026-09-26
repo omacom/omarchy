@@ -268,7 +268,7 @@ assert(
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // Software you already have keeps its place in Install, dimmed rather than
 // dropped, so the list reads as a catalog of what Omarchy can install.
-// Chromium Account is the sole Install row with anything left to hide for, so
+// Google Account (Chrome) is the sole Install row with anything left to hide for, so
 // any other `when:` here is a row that went back to vanishing once installed.
 assertDeepEqual(
   defaultItems
@@ -288,12 +288,14 @@ assertEqual(
   'omarchy-pkg-present zen-browser-bin',
   'menu asks the same presence question it used to hide the row with'
 )
-// A guard can still be about something other than having the software: no
-// Chromium at all means no account to wire up, and that row stays hidden.
+// Google Account (Chrome) stays available until Chrome is installed and any
+// leftover Chromium OAuth workaround flags are gone.
 assert(
-  defaultById['install.service.chromium-account'].when === '[[ -f ~/.config/chromium-flags.conf ]]'
-    && defaultById['install.service.chromium-account'].disabled.includes('oauth2-client-id'),
-  'menu keeps hiding Chromium Account without Chromium, and dims it once the account is set up'
+  defaultById['install.service.chromium-account'].label === 'Google Account (Chrome)'
+    && defaultById['install.service.chromium-account'].when.includes('chromium-flags.conf')
+    && defaultById['install.service.chromium-account'].disabled.includes('google-chrome')
+    && defaultById['install.service.chromium-account'].disabled.includes('oauth2-client'),
+  'menu offers Google Account via Chrome and dims it once Chrome is ready'
 )
 assert(
   defaultItems.filter(item => item.id.startsWith('remove.')).every(item => !item.disabled)
