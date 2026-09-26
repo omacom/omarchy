@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <action id="org.omarchy.thunderbolt.approve">
+    <description>Approve a connected Thunderbolt accessory</description>
+    <message>Authentication is required to approve this Thunderbolt accessory</message>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-thunderbolt-authorization-approve</annotate>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

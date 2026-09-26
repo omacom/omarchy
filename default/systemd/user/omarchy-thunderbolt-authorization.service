@@ -1,0 +1,16 @@
+[Unit]
+Description=Offer approval for blocked Thunderbolt accessories
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionPathExists=|/etc/omarchy/thunderbolt-authorization.enabled
+ConditionPathExists=|/etc/omarchy/thunderbolt-authorization.pending
+
+[Service]
+ExecStart=/usr/bin/omarchy-thunderbolt-authorization-watch
+Restart=always
+RestartSec=2
+UMask=0077
+
+[Install]
+WantedBy=graphical-session.target

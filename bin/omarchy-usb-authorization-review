@@ -1,0 +1,144 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Review a blocked USB device authorization request
+
+set -euo pipefail
+
+token="${1:-}"
+if [[ ! $token =~ ^request-[0-9a-f]{64}$ ]]; then
+  echo "This USB authorization request is invalid or expired." >&2
+  exit 1
+fi
+
+request="$HOME/.local/state/omarchy/usb-authorization/requests/$token.json"
+# Serialize request updates with watcher events, but release the lock while the
+# user chooses. A changed request must never inherit an old dialog's approval.
+if [[ ! -d ${request%/*} ]]; then
+  echo "This USB authorization request is no longer available." >&2
+  exit 1
+fi
+exec 9>"${request%/*}/.lock"
+flock 9
+if [[ ! -f $request || -L $request ]]; then
+  echo "This USB authorization request is no longer available." >&2
+  exit 1
+fi
+
+snapshot=$(cat "$request")
+id=$(jq -er '.id | select(test("^[0-9]+$"))' <<<"$snapshot")
+expected_rule=$(jq -er '.rule | select(type == "string" and startswith("block "))' <<<"$snapshot")
+choice=$(jq -er '.approval // "" | select(. == "" or . == "Allow once" or . == "Always allow this device")' <<<"$snapshot")
+allowed_rule="allow ${expected_rule#block }"
+
+approval_failed() {
+  echo "Could not confirm USB approval. The request has been kept; try again." >&2
+  exit 1
+}
+
+read_current_rule() {
+  local devices line
+
+  current_rule=""
+  devices=$(usbguard list-devices) || approval_failed
+  while IFS= read -r line; do
+    if [[ $line == "$id: "* ]]; then
+      current_rule="${line#"$id: "}"
+      return
+    fi
+  done <<<"$devices"
+}
+
+validate_device() {
+  read_current_rule
+  if [[ $current_rule == "$expected_rule" ]] ||
+    [[ -n $choice && $current_rule == "$allowed_rule" ]]; then
+    return
+  fi
+  rm -f "$request"
+  echo "That USB device was removed or changed. Connect it again to review it." >&2
+  exit 1
+}
+
+validate_device
+
+if [[ -z $choice ]]; then
+  flock -u 9
+  gum style --foreground 212 --bold "Blocked USB accessory"
+  echo
+  echo "The following details come from the device and can be forged:"
+  printf '%s\n' "$current_rule" | LC_ALL=C tr -c '\11\12\15\40-\176' '?'
+  echo
+
+  choice=$(gum choose \
+    "Allow once" \
+    "Always allow this device" \
+    "Keep blocked") || exit 130
+
+  flock 9
+  if [[ ! -f $request || -L $request || $(cat "$request") != "$snapshot" ]]; then
+    echo "This USB authorization request changed. Open the latest notification to review it." >&2
+    exit 1
+  fi
+  # A fresh choice can authorize only the blocked identity shown in the dialog.
+  read_current_rule
+  if [[ $current_rule != "$expected_rule" ]]; then
+    rm -f "$request"
+    echo "That USB device was removed or changed. Connect it again to review it." >&2
+    exit 1
+  fi
+fi
+
+case "$choice" in
+"Allow once" | "Always allow this device")
+  # Save intent before applying policy: a later query can fail after the device
+  # was authorized. Retry must verify that approval, including persistent trust.
+  temporary=$(mktemp "${request%/*}/.request.XXXXXXXXXX")
+  trap 'rm -f "$temporary"' EXIT
+  jq --arg approval "$choice" '.approval = $approval' "$request" >"$temporary"
+  mv -f "$temporary" "$request"
+
+  if [[ $current_rule == "$expected_rule" ]]; then
+    # Match the complete identity, since numeric IDs can be reassigned.
+    options=()
+    if [[ $choice == "Always allow this device" ]]; then
+      options+=(--permanent)
+    fi
+    usbguard allow-device "${options[@]}" "$expected_rule" || approval_failed
+  fi
+
+  # Rule-based USBGuard commands swallow applyDevicePolicy exceptions and can
+  # return success without authorizing anything. Verify the exact device.
+  allowed=$(usbguard list-devices --allowed) || approval_failed
+  grep -Fqx -- "$id: $allowed_rule" <<<"$allowed" || approval_failed
+
+  if [[ $choice == "Always allow this device" ]]; then
+    # Let USBGuard match policy rules: saved rules can omit the device's port.
+    # --show-devices indents the devices matching each policy rule.
+    policy=$(usbguard list-rules --show-devices) || approval_failed
+    policy_allows=0
+    matched=0
+    while IFS= read -r line; do
+      if [[ $line =~ ^[0-9]+:[[:space:]] ]]; then
+        policy_allows=0
+        if [[ $line =~ ^[0-9]+:[[:space:]]allow[[:space:]] ]]; then
+          policy_allows=1
+        fi
+      elif (( policy_allows )) && [[ $line == $'\t'"$id: $allowed_rule" ]]; then
+        matched=1
+        break
+      fi
+    done <<<"$policy"
+    (( matched )) || approval_failed
+    echo "USB accessory added to the trusted policy."
+  else
+    echo "USB accessory allowed until it is disconnected."
+  fi
+  ;;
+"Keep blocked")
+  echo "USB accessory remains blocked."
+  ;;
+*) exit 1 ;;
+esac
+
+rm -f "$request"

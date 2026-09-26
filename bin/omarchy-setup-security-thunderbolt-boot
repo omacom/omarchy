@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Clear supported Thunderbolt firmware boot allowlists
+# omarchy:args=[recover]
+
+set -euo pipefail
+
+if [[ ${1:-} == "recover" && $# == 1 ]]; then
+  sudo /usr/bin/omarchy-thunderbolt-authorization-admin boot-recover
+elif [[ $# == 0 ]]; then
+  gum style --bold "Thunderbolt at Boot"
+  echo "This trusts connected accessories for use after Linux starts, then clears the firmware boot allowlist."
+  echo "Trusted Thunderbolt keyboards, storage, and network adapters may be unavailable at disk unlock."
+  echo "You must be able to unlock and recover without Thunderbolt accessories."
+  echo "All controllers must be connected and support a boot allowlist in user or secure mode."
+  echo "Older snapshots or another operating system may restore firmware boot permissions."
+  gum confirm "Clear firmware boot access with these recovery limits?" || exit 0
+  sudo /usr/bin/omarchy-thunderbolt-authorization-admin boot-enable
+  echo "Firmware boot allowlists cleared and verified. Current connections were not disconnected."
+else
+  echo "Usage: omarchy-setup-security-thunderbolt-boot [recover]" >&2
+  exit 1
+fi

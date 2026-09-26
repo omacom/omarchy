@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Check whether Thunderbolt firmware boot access is restricted
+
+set -euo pipefail
+source "$OMARCHY_PATH/install/helpers/thunderbolt-policy.sh"
+tb_public_snapshot | jq -e .boot_protection >/dev/null

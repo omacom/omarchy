@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# omarchy:summary=Stop asking before new USB devices can access the system
+# omarchy:args=[--boot-only] [--yes]
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+assume_yes=0
+boot_only=0
+
+while (( $# > 0 )); do
+  case "$1" in
+  --yes) assume_yes=1 ;;
+  --boot-only) boot_only=1 ;;
+  -h | --help)
+    echo "Usage: omarchy-remove-security-usb-authorization [--boot-only] [--yes]"
+    echo
+    echo "Disables Omarchy's USB approval prompts and restores the kernel's"
+    echo "normal default-allow behavior."
+    echo "Use --boot-only to keep USBGuard enabled after the system starts."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-security-usb-authorization: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
+if (( boot_only )); then
+  if (( ! assume_yes )); then
+    gum style --foreground 212 --bold "Remove USB authorization from boot"
+    echo
+    echo "USBGuard will continue blocking unknown devices after its service starts."
+    echo "Devices can reach kernel drivers earlier during boot."
+    echo
+    gum confirm "Disable USB authorization from kernel boot?" || exit 130
+  fi
+
+  sudo omarchy-usb-authorization-boot disable
+  echo
+  echo "Boot-time USB authorization is disabled and takes effect after reboot."
+  exit 0
+fi
+
+state_dir="$HOME/.local/state/omarchy/usb-authorization"
+unit="$HOME/.config/systemd/user/omarchy-usb-authorization.service"
+
+if (( ! assume_yes )); then
+  gum style --foreground 212 --bold "Remove USB device authorization"
+  echo
+  echo "New USB devices will be allowed to bind to kernel drivers without approval."
+  echo
+  gum confirm "Disable USB device authorization?" || exit 130
+fi
+
+# Rebuild a permissive boot image before stopping USBGuard. If rebuilding
+# fails, the command stops here and leaves the complete policy enabled.
+sudo omarchy-usb-authorization-boot disable
+
+systemctl --user disable --now omarchy-usb-authorization.service 2>/dev/null || true
+rm -f "$unit"
+systemctl --user daemon-reload
+
+if omarchy-pkg-present usbguard; then
+  sudo usbguard remove-user "$USER" 2>/dev/null || true
+fi
+
+if omarchy-pkg-present usbguard; then
+  sudo systemctl disable --now usbguard.service 2>/dev/null || true
+  sudo omarchy-usb-authorization-restore-default
+fi
+
+if [[ -d $state_dir/requests ]]; then
+  find "$state_dir/requests" -mindepth 1 -maxdepth 1 -type f -delete
+  rmdir "$state_dir/requests" 2>/dev/null || true
+fi
+
+rm -f "$state_dir/package-installed-by-omarchy" \
+  "$state_dir/policy-generated-by-omarchy" \
+  "$state_dir/service-enabled-by-omarchy"
+rmdir "$state_dir" 2>/dev/null || true
+
+echo "USB device authorization is disabled."
