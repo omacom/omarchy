@@ -127,6 +127,7 @@
   "setup.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
   "setup.input": {"icon":"","label":"Input","when":"[[ -f ~/.config/hypr/input.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/input.lua\""},
   "setup.network": {"icon":"󰛳","label":"Network","aliases":["network"]},
+  "setup.network.wifi": {"icon":"󰖩","label":"Wi-Fi","action":"omarchy-shell shell summon omarchy.network"},
   "setup.network.dns": {"icon":"󰇖","label":"DNS","aliases":["dns"]},
   "setup.network.dns.dhcp": {"icon":"󰩟","label":"DHCP","checked":"[[ \"$(omarchy-dns)\" == \"DHCP\" ]]","action":"omarchy-dns DHCP"},
   "setup.network.dns.cloudflare": {"icon":"󰅟","label":"Cloudflare","checked":"[[ \"$(omarchy-dns)\" == \"Cloudflare\" ]]","action":"omarchy-dns Cloudflare"},
