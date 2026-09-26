@@ -43,10 +43,39 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+// True once every expected screensaver window has mapped, or the launch grace
+// expired with at least one window still up (partial multi-monitor).
+function screensaverLaunchCompleteAfter(windowCount, expectedWindows, graceExpired) {
+  if (windowCount <= 0) return false
+  if (expectedWindows > 0 && windowCount >= expectedWindows) return true
+  return !!graceExpired
+}
+
+// Second IdleMonitor state while a screensaver is visible.
+// Launch activity and focus warps happen before launchComplete / before settle;
+// only a post-settle active edge dismisses. Lock handoff must not dismiss.
+function dismissStateAfter(state) {
+  var visible = !!(state && state.visible)
+  var launchComplete = !!(state && state.launchComplete)
+  var locking = !!(state && state.locking)
+  var settled = !!(state && state.settled)
+  var isIdle = !!(state && state.isIdle)
+  var dismissInFlight = !!(state && state.dismissInFlight)
+
+  if (!visible || locking || !launchComplete || dismissInFlight) {
+    return { settled: false, dismiss: false }
+  }
+  if (isIdle) return { settled: true, dismiss: false }
+  if (settled) return { settled: false, dismiss: true }
+  return { settled: false, dismiss: false }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    screensaverLaunchCompleteAfter: screensaverLaunchCompleteAfter,
+    dismissStateAfter: dismissStateAfter
   }
 }
