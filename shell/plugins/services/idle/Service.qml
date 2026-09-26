@@ -23,6 +23,8 @@ Item {
   readonly property int firstIdleTimeoutSeconds: Math.min(screensaverTimeoutSeconds, lockTimeoutSeconds)
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
+  // Timer.interval is a 32-bit int; clamp so a large timeout cannot wrap negative.
+  readonly property int maxTimerIntervalMs: 2147483647
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
@@ -258,14 +260,14 @@ Item {
 
   Timer {
     id: screensaverTimer
-    interval: root.screensaverDelaySeconds * 1000
+    interval: Math.min(root.screensaverDelaySeconds * 1000, root.maxTimerIntervalMs)
     repeat: false
     onTriggered: root.launchScreensaver()
   }
 
   Timer {
     id: lockTimer
-    interval: root.lockDelaySeconds * 1000
+    interval: Math.min(root.lockDelaySeconds * 1000, root.maxTimerIntervalMs)
     repeat: false
     onTriggered: if (root.idleEnabled && root.idledThisCycle) root.lockSystem("lock-timeout")
   }
