@@ -1,12 +1,12 @@
 [Default Applications]
 inode/directory=org.gnome.Nautilus.desktop
 
-image/png=imv.desktop
-image/jpeg=imv.desktop
-image/gif=imv.desktop
-image/webp=imv.desktop
-image/bmp=imv.desktop
-image/tiff=imv.desktop
+image/png=imv-dir.desktop
+image/jpeg=imv-dir.desktop
+image/gif=imv-dir.desktop
+image/webp=imv-dir.desktop
+image/bmp=imv-dir.desktop
+image/tiff=imv-dir.desktop
 
 application/pdf=org.gnome.Evince.desktop
 
