@@ -1383,6 +1383,40 @@ remove_windows() {
   echo "Windows VM removal completed!"
 }
 
+# Whether Windows itself is accepting RDP: "up", "booting" when the container
+# runs but the guest does not answer (starting, restarting), or "stopped" when
+# nothing listens. docker-proxy holds 127.0.0.1:3389 open for the container's
+# whole lifetime, so a TCP connect alone says nothing about the guest; send an
+# X.224 Connection Request and require the RDP reply (TPKT version 3).
+rdp_state() {
+  local reply
+  # Bash opens /dev/tcp before applying a redirection on the same exec, so
+  # silence the failed connect from an enclosing group instead.
+  if ! { exec {RDP_PROBE_FD}<>/dev/tcp/127.0.0.1/3389; } 2>/dev/null; then
+    echo "stopped"
+    return
+  fi
+  printf '\x03\x00\x00\x13\x0e\xe0\x00\x00\x00\x00\x00\x01\x00\x08\x00\x03\x00\x00\x00' >&"$RDP_PROBE_FD" 2>/dev/null
+  reply=$(timeout 3 head -c 2 <&"$RDP_PROBE_FD" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+  exec {RDP_PROBE_FD}<&-
+  if [[ $reply == "0300" ]]; then
+    echo "up"
+  else
+    echo "booting"
+  fi
+}
+
+# Poll rdp_state until it differs from $1 or $2 seconds pass; print the state.
+wait_for_rdp_change() {
+  local from="$1" timeout="$2" state start=$SECONDS
+  state=$(rdp_state)
+  while [[ $state == "$from" ]] && ((SECONDS - start < timeout)); do
+    sleep 2
+    state=$(rdp_state)
+  done
+  echo "$state"
+}
+
 launch_windows() {
   KEEP_ALIVE=false
   if [[ $1 = "--keep-alive" ]] || [[ $1 = "-k" ]]; then
@@ -1481,7 +1515,59 @@ To stop: omarchy-windows-vm stop"
   # to every other user on the machine for as long as the session is open.
   # /args-from must stay the only argument here — FreeRDP rejects it outright
   # when it is combined with any other, so new flags belong in RDP_ARGS above.
-  printf '%s\n' "${RDP_ARGS[@]}" | xfreerdp3 /args-from:stdin
+  local rc state quick_failures=0 connected_at session_secs
+  while true; do
+    connected_at=$SECONDS
+    printf '%s\n' "${RDP_ARGS[@]}" | xfreerdp3 /args-from:stdin
+    rc=$?
+    session_secs=$((SECONDS - connected_at))
+    state=$(rdp_state)
+
+    # FreeRDP exits 0 when the window is closed on this side, and 11 when the
+    # user picks Disconnect inside Windows. Anything else means the session
+    # ended from the Windows side or never started.
+    if ((rc == 0 || rc == 11)) && [[ $state == "up" ]]; then
+      break
+    fi
+
+    # Restart and shutdown both end the session with a server-initiated
+    # disconnect (rc 1), but Windows keeps answering RDP for several seconds
+    # while it winds down. Reconnecting then lands in a dying session, so wait
+    # for RDP to actually go away first.
+    if ((rc == 1)); then
+      state=$(wait_for_rdp_change up 90)
+    fi
+
+    if [[ $state == "booting" ]]; then
+      echo "Windows is restarting. Reconnecting when it is back..."
+      omarchy-notification-send "Windows VM" "Windows is restarting. Reconnecting when it is back..."
+      state=$(wait_for_rdp_change booting 600)
+    fi
+
+    if [[ $state == "stopped" ]]; then
+      echo ""
+      echo "Windows shut down. Windows VM stopped."
+      return 0
+    fi
+
+    if [[ $state != "up" ]]; then
+      echo "⚠️  Windows did not come back within 10 minutes. The VM is still running."
+      echo "   Reconnect with: omarchy-windows-vm launch, or stop it with: omarchy-windows-vm stop"
+      omarchy-notification-send -u critical "Windows VM" "Windows did not come back after restarting"
+      return 1
+    fi
+
+    # Windows is up but the session ended (sign-out, admin disconnect). A
+    # connection that keeps failing straight away (bad credentials, RDP
+    # misconfigured) must not spin forever, so give up after a few tries. Time
+    # the session itself: the waits above would otherwise always exceed 15s.
+    if ((session_secs < 15)); then
+      ((++quick_failures >= 3)) && break
+    else
+      quick_failures=0
+    fi
+    sleep 3
+  done
 
   # After RDP closes, stop the container unless --keep-alive was specified
   if [[ $KEEP_ALIVE = "false" ]]; then
