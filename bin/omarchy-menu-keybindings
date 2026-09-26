@@ -184,13 +184,79 @@ local function dsp_proxy(path)
   })
 end
 
+-- Stand-in for every Hyprland API the config touches that this scan does not
+-- model. It answers calls, indexing, and arithmetic so a config which reads a
+-- real monitor or workspace mid-load cannot abort the scan: a crash here used
+-- to end the scan before the user's own bindings.lua was reached, which left
+-- every binding declared there without a dispatcher.
 local noop
 noop = setmetatable({}, {
-  __index = function()
+  __index = function(_, key)
+    -- Positive integer keys must stay nil: Lua's ipairs() honours __index, so a
+    -- stub that answers them loops forever over any config that iterates an
+    -- API result.
+    if type(key) == "number" and key >= 1 and key % 1 == 0 then
+      return nil
+    end
+
     return noop
   end,
   __call = function()
     return noop
+  end,
+  __lt = function()
+    return false
+  end,
+  __le = function()
+    return false
+  end,
+  __concat = function()
+    return ""
+  end,
+  __unm = function()
+    return 0
+  end,
+  __add = function()
+    return 0
+  end,
+  __sub = function()
+    return 0
+  end,
+  __mul = function()
+    return 0
+  end,
+  __div = function()
+    return 0
+  end,
+  __mod = function()
+    return 0
+  end,
+  __pow = function()
+    return 0
+  end,
+  __idiv = function()
+    return 0
+  end,
+  __band = function()
+    return 0
+  end,
+  __bor = function()
+    return 0
+  end,
+  __bxor = function()
+    return 0
+  end,
+  __bnot = function()
+    return 0
+  end,
+  __shl = function()
+    return 0
+  end,
+  __shr = function()
+    return 0
+  end,
+  __tostring = function()
+    return ""
   end,
 })
 
@@ -530,7 +596,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
+    printf 'v14\n'
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
