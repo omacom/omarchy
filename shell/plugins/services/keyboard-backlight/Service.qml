@@ -10,6 +10,7 @@ Item {
   property var shell: null
 
   readonly property string home: Quickshell.env("HOME")
+  readonly property string ledsPath: Quickshell.env("OMARCHY_LEDS_PATH") || "/sys/class/leds"
   readonly property string manualOffPath: home + "/.local/state/omarchy/keyboard-backlight-manual-off"
   readonly property var tuning: KeyboardBacklightModel.config(shell && shell.shellConfig ? shell.shellConfig.keyboardBacklight : null)
 
@@ -19,6 +20,10 @@ Item {
   property string device: ""
   property int maxLevel: 0
   readonly property bool active: probed && hasSensor && device !== "" && maxLevel > 0 && !disabled
+
+  // Set while the session has the keyboard blanked (lock or idle), between
+  // `omarchy brightness keyboard off` and its `restore`.
+  property bool paused: false
 
   property var state: null
   property var lux: null
@@ -62,17 +67,26 @@ Item {
     return Number(String(manualOffFile.text()).trim()) || 0
   }
 
+  function syncMonitor() {
+    var wanted = root.active && root.state !== null
+    if (monitorProcess.running !== wanted) monitorProcess.running = wanted
+  }
+
   function start() {
     root.lux = null
     root.state = KeyboardBacklightModel.initialState(readBrightness(), root.maxLevel, readManualOff())
   }
 
   function step() {
-    if (!root.active || !root.state) return
+    if (!root.active || !root.state || root.paused) return
 
     var now = Date.now()
     var manualOffBefore = root.state.manualOffSince
-    var observed = KeyboardBacklightModel.observeBrightness(root.state, readBrightness(), now)
+
+    // A reading taken while our own write is in flight isn't a user change.
+    var writing = setProcess.running || root.pendingLevel >= 0
+    var observed = writing ? root.state : KeyboardBacklightModel.observeBrightness(root.state, readBrightness(), now)
+
     var result = KeyboardBacklightModel.evaluate(observed, root.lux, now, root.tuning)
     root.state = result.state
 
@@ -80,7 +94,8 @@ Item {
     if (root.state.manualOffSince !== manualOffBefore) manualOffFile.setText(root.state.manualOffSince > 0 ? String(root.state.manualOffSince) : "")
 
     if (result.nextCheckMs >= 0) {
-      checkTimer.interval = Math.max(1, result.nextCheckMs)
+      // Timer intervals are 32-bit.
+      checkTimer.interval = Math.min(2147483647, Math.max(1, result.nextCheckMs))
       checkTimer.restart()
     } else {
       checkTimer.stop()
@@ -97,13 +112,27 @@ Item {
     setProcess.running = true
   }
 
+  function pause() {
+    root.paused = true
+    checkTimer.stop()
+  }
+
+  function resume() {
+    root.paused = false
+    if (!root.active || !root.state) return
+    root.state = KeyboardBacklightModel.resume(root.state, readBrightness())
+    step()
+  }
+
   onActiveChanged: {
     if (active) {
       start()
     } else {
       checkTimer.stop()
+      restartTimer.stop()
       root.state = null
     }
+    syncMonitor()
   }
 
   // The toggle is a flag file; `omarchy-toggle-keyboard-backlight-auto` nudges
@@ -112,7 +141,7 @@ Item {
     id: probeProcess
     command: ["bash", "-c",
       "omarchy-hw-ambient-light && omarchy-cmd-present monitor-sensor && echo sensor; " +
-      "for led in /sys/class/leds/*kbd_backlight*; do [[ -e $led ]] && { echo \"device ${led##*/} $(< \"$led/max_brightness\")\"; break; }; done; " +
+      "for led in \"${OMARCHY_LEDS_PATH:-/sys/class/leds}\"/*kbd_backlight*; do [[ -e $led ]] && { echo \"device ${led##*/} $(< \"$led/max_brightness\")\"; break; }; done; " +
       "[[ -f $HOME/.local/state/omarchy/toggles/keyboard-backlight-auto-off ]] && echo disabled; true"]
     stdout: StdioCollector {
       waitForEnd: true
@@ -120,12 +149,13 @@ Item {
     }
   }
 
-  // Idle blanking and the backlight keys change this behind our back; the
-  // model treats any level it didn't set as the user's choice.
+  // The backlight keys change this behind our back; the model treats any
+  // level it didn't set as the user's choice. blockAllReads makes reload()
+  // return the current value rather than the one from the previous load.
   FileView {
     id: brightnessFile
-    path: root.device !== "" ? "/sys/class/leds/" + root.device + "/brightness" : ""
-    blockLoading: true
+    path: root.device !== "" ? root.ledsPath + "/" + root.device + "/brightness" : ""
+    blockAllReads: true
     printErrors: false
   }
 
@@ -134,7 +164,7 @@ Item {
   FileView {
     id: manualOffFile
     path: root.manualOffPath
-    blockLoading: true
+    blockAllReads: true
     printErrors: false
   }
 
@@ -142,10 +172,13 @@ Item {
   // light. Holding the claim open is what keeps the sensor reporting. The
   // pdeathsig makes the kernel end it whenever the shell exits, however it
   // exits; an orphan would keep the sensor claimed and never write again.
+  // Readings are printed with %lf, so pin the C locale for a "." separator.
+  // `running` is set only through syncMonitor(), never bound, so a restart
+  // can't detach it from the toggle.
   Process {
     id: monitorProcess
-    running: root.active && root.state !== null
     command: ["setpriv", "--pdeathsig", "TERM", "stdbuf", "-oL", "monitor-sensor", "--light"]
+    environment: ({ LC_ALL: "C" })
     stdout: SplitParser {
       onRead: function(line) {
         var value = KeyboardBacklightModel.parseLux(line)
@@ -160,7 +193,7 @@ Item {
   Timer {
     id: restartTimer
     interval: 5000
-    onTriggered: if (root.active && !monitorProcess.running) monitorProcess.running = true
+    onTriggered: root.syncMonitor()
   }
 
   // Acts on a settled reading or an expired manual off when the sensor has
@@ -185,6 +218,17 @@ Item {
 
     function sync(): void {
       root.probe()
+    }
+
+    // `omarchy-brightness-keyboard off` and `restore` bracket session blanking
+    // with these, so the blank and the restored level aren't taken as the
+    // user's choice and nothing is switched on behind a locked screen.
+    function pause(): void {
+      root.pause()
+    }
+
+    function resume(): void {
+      root.resume()
     }
   }
 

@@ -36,11 +36,12 @@ function config(raw) {
 // `monitor-sensor --light` prints the first reading as
 // "=== Has ambient light sensor (value: 2.000000, unit: lux)" and later ones
 // as "    Light changed: 1.000000 (lux)". Vendor-unit sensors aren't lux, so
-// thresholds don't apply to them.
+// thresholds don't apply to them. The service runs it under LC_ALL=C, but a
+// comma decimal separator is accepted too rather than silently never matching.
 function parseLux(line) {
-  var match = /(?:value: |Light changed: )([0-9.]+)(?:, unit: | \()(\w+)/.exec(String(line || ""))
+  var match = /(?:value: |Light changed: )([0-9]+(?:[.,][0-9]+)?)(?:, unit: | \()(\w+)/.exec(String(line || ""))
   if (!match || match[2] !== "lux") return null
-  return Number(match[1])
+  return Number(match[1].replace(",", "."))
 }
 
 function initialState(brightness, maxLevel, manualOffSince) {
@@ -72,10 +73,10 @@ function wantFor(lux, cfg) {
   return ""
 }
 
-// A level other than the one last set came from outside: the backlight keys,
-// `omarchy brightness keyboard`, or idle blanking and waking. All of them are
-// the user's (or the session's) choice, so off is held and any other level
-// becomes the one used when the room next gets dark.
+// A level other than the one last set came from outside: the backlight keys
+// or `omarchy brightness keyboard`. Either is the user's choice, so off is held
+// and any other level becomes the one used when the room next gets dark.
+// Session blanking and waking are not observed; see resume().
 function observeBrightness(state, brightness, now) {
   if (brightness === null || brightness === undefined || brightness === state.expected) return state
 
@@ -109,13 +110,29 @@ function apply(state, want, now, cfg) {
   next.applied = "on"
 
   if (manualOffActive(next, now, cfg)) {
+    // Normally already off. After a restart or a session wake restored a
+    // level, the held off is put back.
     next.held = true
-    return { state: next, set: null }
+    var restored = next.expected !== 0
+    next.expected = 0
+    return { state: next, set: restored ? 0 : null }
   }
 
   next.held = false
   next.expected = next.level
   return { state: next, set: next.level }
+}
+
+// After the session blanked the keyboard and restored it on wake, the restored
+// level is the session's, not the user's: take it as the new baseline and
+// decide again from the current light, keeping any held manual off.
+function resume(state, brightness) {
+  var next = copy(state)
+  next.expected = brightness
+  next.applied = ""
+  next.pending = ""
+  next.held = false
+  return next
 }
 
 function nextCheckMs(state, now, cfg) {
@@ -158,6 +175,7 @@ if (typeof module !== "undefined") {
     parseLux: parseLux,
     initialState: initialState,
     observeBrightness: observeBrightness,
+    resume: resume,
     evaluate: evaluate
   }
 }
