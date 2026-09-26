@@ -42,6 +42,20 @@ Item {
   readonly property bool videoBackground: Util.isVideoPath(backgroundPath)
   property bool strandedLock: false
   property bool strandedLockResolved: false
+  // Consecutive fingerprint attempts that failed before the user could have
+  // presented a finger. A wrong finger takes seconds; a reader that is
+  // unplugged, claimed by another process, or disabled by libfprint's
+  // overheating guard fails in milliseconds. Retrying those at the base
+  // interval spins: a PAM session several times a second for as long as the
+  // screen stays locked, and a reader waiting to cool never gets the idle time
+  // it needs to recover.
+  property int fingerprintImmediateFailures: 0
+  property double fingerprintStartedAt: 0
+
+  readonly property int fingerprintRetryBaseMs: 250
+  readonly property int fingerprintRetryMaxMs: 30000
+  // Below this, the attempt cannot have involved a finger.
+  readonly property int fingerprintImmediateFailureMs: 1000
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
@@ -141,6 +155,7 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintImmediateFailures = 0
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
@@ -255,11 +270,30 @@ Item {
     runWake()
   }
 
+  function fingerprintRetryDelay(immediateFailures) {
+    if (immediateFailures < 1) return fingerprintRetryBaseMs
+    return Math.min(fingerprintRetryBaseMs * Math.pow(2, immediateFailures - 1), fingerprintRetryMaxMs)
+  }
+
+  function scheduleFingerprintRetry() {
+    if (Date.now() - fingerprintStartedAt < fingerprintImmediateFailureMs) {
+      fingerprintImmediateFailures += 1
+    } else {
+      // The attempt ran long enough for a finger to have been read, so this is
+      // an ordinary mismatch: stay responsive for the next try.
+      fingerprintImmediateFailures = 0
+    }
+
+    fingerprintRetryTimer.interval = fingerprintRetryDelay(fingerprintImmediateFailures)
+    fingerprintRetryTimer.restart()
+  }
+
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
+    fingerprintStartedAt = Date.now()
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
     }
@@ -272,7 +306,7 @@ Item {
     if (result === PamResult.Success) {
       finishUnlock()
     } else if (fingerprintConfigured) {
-      fingerprintRetryTimer.restart()
+      scheduleFingerprintRetry()
     }
   }
 
@@ -403,7 +437,7 @@ Item {
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      if (root.lockRequested && root.fingerprintConfigured) root.scheduleFingerprintRetry()
     }
   }
 
