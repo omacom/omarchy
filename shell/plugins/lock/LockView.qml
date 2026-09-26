@@ -71,6 +71,15 @@ Item {
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
+  // Suspend can remove every keyboard, which makes Qt drop its focus window.
+  // When the keyboard returns, the compositor re-enters this surface, but Qt
+  // never re-activates the window, so typing goes nowhere until a click.
+  // Taking focus straight back fixes that. It only becomes active focus while
+  // no other window has it, so it cannot pull focus from another monitor.
+  readonly property Item windowFocusItem: Window.activeFocusItem
+  onWindowFocusItemChanged: {
+    if (inputEnabled && !windowFocusItem) Qt.callLater(forcePasswordFocus)
+  }
   Component.onCompleted: {
     syncPasswordText()
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
@@ -147,6 +156,7 @@ Item {
 
       TextInput {
         id: passwordInput
+        objectName: "lockPasswordInput"
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
