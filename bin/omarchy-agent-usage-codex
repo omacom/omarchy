@@ -474,17 +474,46 @@ def _cached_local_stats(max_age):
     return stats
 
 
-def rpc_request(proc, request_id, method, params=None, timeout=8):
+class RpcLineReader:
+  """Unbuffered line reader over a pipe fd.
+
+  select() watches the fd, but proc.stdout is a buffered text stream: a
+  reply that shares a chunk with a notification is already inside Python's
+  buffer when readline() returns the first line, so the fd never becomes
+  readable again and the request times out with its reply in hand. Reading
+  the fd raw and splitting lines here keeps leftover bytes where the next
+  read can see them — and the buffer must outlive one request, since a
+  reply can arrive together with the previous one.
+  """
+
+  def __init__(self, stream):
+    self.fd = stream.fileno()
+    self.buf = b""
+
+  def readline(self, deadline):
+    while b"\n" not in self.buf:
+      remaining = deadline - time.time()
+      if remaining <= 0:
+        return None
+      ready, _, _ = select.select([self.fd], [], [], remaining)
+      if not ready:
+        return None
+      chunk = os.read(self.fd, 65536)
+      if not chunk:
+        return None
+      self.buf += chunk
+    line, self.buf = self.buf.split(b"\n", 1)
+    return line
+
+
+def rpc_request(proc, reader, request_id, method, params=None, timeout=8):
   payload = {"id": request_id, "method": method, "params": params or {}}
   proc.stdin.write(json.dumps(payload) + "\n")
   proc.stdin.flush()
   deadline = time.time() + timeout
-  while time.time() < deadline:
-    ready, _, _ = select.select([proc.stdout], [], [], 0.25)
-    if not ready:
-      continue
-    line = proc.stdout.readline()
-    if not line:
+  while True:
+    line = reader.readline(deadline)
+    if line is None:
       break
     try:
       message = json.loads(line)
@@ -541,11 +570,12 @@ def fetch_codex_rpc():
     return result
 
   try:
-    rpc_request(proc, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
+    reader = RpcLineReader(proc.stdout)
+    rpc_request(proc, reader, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
     proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
     proc.stdin.flush()
-    account_msg = rpc_request(proc, 2, "account/read", timeout=4)
-    limits_msg = rpc_request(proc, 3, "account/rateLimits/read", timeout=4)
+    account_msg = rpc_request(proc, reader, 2, "account/read", timeout=4)
+    limits_msg = rpc_request(proc, reader, 3, "account/rateLimits/read", timeout=4)
 
     account = (account_msg.get("result") or {}).get("account") or {}
     limits = (limits_msg.get("result") or {}).get("rateLimits") or {}

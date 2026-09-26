@@ -8,6 +8,17 @@ require_command python3
 TEST_HOME=$(mktemp -d)
 trap 'rm -rf "$TEST_HOME"' EXIT
 
+# touch -d is GNU-only; set a file's mtime to seconds from now, portably.
+set_mtime_offset() {
+  python3 - "$1" "$2" <<'PY'
+import os
+import sys
+import time
+
+os.utime(sys.argv[1], (time.time() + int(sys.argv[2]),) * 2)
+PY
+}
+
 mkdir -p "$TEST_HOME/.codex/sessions/$(date +%Y/%m/%d)" "$TEST_HOME/bin"
 
 cat >"$TEST_HOME/bin/codex" <<'EOF'
@@ -50,7 +61,10 @@ result=$(HOME="$TEST_HOME" CODEX_HOME="$TEST_HOME/.codex" CODEX_ARGS_FILE="$TEST
 # NUL-separated, so the assertion sees argument boundaries: a single "-a on-request"
 # would flatten to the same text as two arguments but is not a policy codex accepts.
 expected_args=(-s read-only -a on-request app-server)
-mapfile -d '' -t codex_args <"$TEST_HOME/codex-args"
+codex_args=()
+while IFS= read -r -d '' arg; do
+  codex_args+=("$arg")
+done <"$TEST_HOME/codex-args"
 
 [[ ${codex_args[*]@Q} == "${expected_args[*]@Q}" ]] ||
   fail "Codex collector uses the supported approval policy" "${codex_args[*]@Q}"
@@ -186,7 +200,8 @@ result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CAC
 cache_file=$(ls "$CACHE_HOME/.cache/omarchy/agent-usage/"/codex-scan-*.json 2>/dev/null | head -n 1)
 [[ -n $cache_file && -s $cache_file ]] ||
   fail "Codex collector leaves a cache file behind" "$result"
-[[ $(stat -c %a "$cache_file") == "644" ]] ||
+cache_mode=$(stat -c %a "$cache_file" 2>/dev/null || stat -f %Lp "$cache_file")
+[[ $cache_mode == "644" ]] ||
   fail "Codex collector keeps cache files readable" "$result"
 [[ $(jq -r '.schemaVersion' "$cache_file") == "1" && $(jq -r '.stats.todayTotalTokens' "$cache_file") == "5" ]] ||
   fail "Codex collector writes a versioned cache envelope" "$result"
@@ -278,7 +293,7 @@ conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
 conn.commit()
 conn.close()
 PY
-touch -d "2 hours ago" "$cache_file"
+set_mtime_offset "$cache_file" -7200
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
 
@@ -321,7 +336,7 @@ result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CAC
 
 # 30 seconds is the lowest refreshIntervalSec the widget supports, so a
 # cache that old must already be past the no-flag reuse window.
-touch -d "30 seconds ago" "$cache_file"
+set_mtime_offset "$cache_file" -30
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
 
@@ -353,7 +368,7 @@ conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
 conn.commit()
 conn.close()
 PY
-touch -d "10 minutes ago" "$cache_file"
+set_mtime_offset "$cache_file" -600
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
 
@@ -399,7 +414,7 @@ conn.execute("INSERT INTO message VALUES (?, ?, ?, ?, ?)", (
 conn.commit()
 conn.close()
 PY
-touch -d "@$(( $(date +%s) + 3600 ))" "$cache_file"
+set_mtime_offset "$cache_file" 3600
 result=$(HOME="$CACHE_HOME" CODEX_HOME="$CACHE_HOME/.codex" XDG_CACHE_HOME="$CACHE_HOME/.cache" XDG_DATA_HOME="$CACHE_HOME/.local/share" \
   PATH="$CACHE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
 
@@ -603,3 +618,43 @@ result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACH
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "9" ]] ||
   fail "Codex collector does not reuse a snapshot from an interrupted scan" "$result"
 pass "Codex collector does not cache an interrupted opencode scan"
+
+# The app-server emits notifications next to replies, and the pipe chunks them
+# however it likes: a notification can share one read with the reply a request
+# is waiting on. The collector must not lose the reply to stdio buffering.
+CHUNKED_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$CHUNKED_HOME"' EXIT
+mkdir -p "$CHUNKED_HOME/bin"
+
+cat >"$CHUNKED_HOME/bin/codex" <<'EOF'
+#!/bin/bash
+
+while read -r request; do
+  id=$(jq -r '.id // empty' <<<"$request")
+  method=$(jq -r '.method // empty' <<<"$request")
+
+  case "$method" in
+    initialize)
+      # One write carrying a notification AND the reply: a buffered reader
+      # that returns the first line leaves the reply stranded off-fd.
+      printf '{"method":"remoteControl/status/changed","params":{}}\n{"id":%s,"result":{}}\n' "$id"
+      ;;
+    account/read)
+      printf '{"method":"account/updated","params":{}}\n{"id":%s,"result":{"account":{"type":"plus"}}}\n' "$id"
+      ;;
+    account/rateLimits/read)
+      jq -cn --argjson id "$id" '{id: $id, result: {rateLimits: {planType: "plus", primary: {usedPercent: 40, windowDurationMins: 300, resetsAt: 2000000000}}}}'
+      ;;
+  esac
+done
+EOF
+chmod +x "$CHUNKED_HOME/bin/codex"
+
+result=$(HOME="$CHUNKED_HOME" CODEX_HOME="$CHUNKED_HOME/.codex" XDG_CACHE_HOME="$CHUNKED_HOME/.cache" XDG_DATA_HOME="$CHUNKED_HOME/.local/share" \
+  PATH="$CHUNKED_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex" --limits-only)
+
+[[ $(jq -r '.usageStatusText' <<<"$result") != "Codex limits unavailable" ]] ||
+  fail "Codex collector reads a reply chunked together with a notification" "$result"
+[[ $(jq -r '.tierLabel' <<<"$result") == "plus" && $(jq -r '.limits[0].percent' <<<"$result") == "0.4" ]] ||
+  fail "Codex collector reads the limits reply after a coalesced notification" "$result"
+pass "Codex collector reads replies chunked together with notifications"
