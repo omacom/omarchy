@@ -50,6 +50,15 @@ assert(/sibling\.owesDiscoveryStop = true/.test(stopTimer[0]), 'bluetooth moves 
 assert(/onDiscoveringChanged[\s\S]{0,120}owesDiscoveryStop = false/.test(panelSource), 'bluetooth settles the stop it owes once discovery is confirmed down')
 assert(/Component\.onDestruction: \{[\s\S]{0,400}owesDiscoveryStop = true[\s\S]{0,200}discovering = false/.test(panelSource), 'bluetooth passes the stop it owes to a sibling when an instance is destroyed')
 
+// Keyboard navigation calls positionViewAtIndex, which slides a delegate under
+// a stationary pointer and fires containsMouse. Writing the cursor from that
+// signal let a synthetic hover overwrite the keyboard selection mid-navigation.
+assert(/PointerMoveGate \{\s*\n\s*id: pointerGate/.test(panelSource), 'bluetooth gates row hover behind real pointer movement')
+assert(/onPositionChanged: function\(mouse\) \{\s*\n\s*root\.selectFromPointer\(/.test(panelSource), 'bluetooth moves the cursor from pointer movement, not from hover state')
+assert(!/onContainsMouseChanged:[\s\S]{0,200}root\.selectedIndex = /.test(panelSource), 'bluetooth never sets the cursor straight out of containsMouse')
+assert(/function moveCursor\(delta\) \{\s*\n\s*disarmPointer\(\)/.test(panelSource), 'bluetooth disarms the pointer gate when the keyboard moves the cursor')
+assert(/onDiscoveredDevicesChanged: \{ disarmPointer\(\)/.test(panelSource), 'bluetooth disarms the pointer gate when discovery rebuilds the list')
+
 assert(bluetooth.isUuidLike('0000110b-0000-1000-8000-00805f9b34fb'), 'bluetooth detects UUID-like names')
 assert(bluetooth.isAddressLike('AA:BB:CC:DD:EE:FF'), 'bluetooth detects address-like names')
 assertEqual(bluetooth.normalizedAddress('AA:BB_CC-dd-ee-ff'), 'aabbccddeeff', 'bluetooth normalizes BlueZ and PipeWire address formats')
@@ -102,6 +111,35 @@ assertEqual(
   'MX Master 3S',
   'bluetooth keeps deviceName in row projections so labels survive QObject-free rows'
 )
+
+// Binding a rebuilt JS array to ListView.model resets the view and drops the
+// scroll position, and discovery rebuilds that array every few seconds. The
+// panel reconciles a ListModel against these entries instead, keyed so a row
+// that merely re-sorts moves rather than being torn down.
+const scrollRows = [
+  { dev: bluetooth.deviceRow({ name: 'Speaker', address: '2' }), section: 'known', indexInSection: 0 },
+  { dev: bluetooth.deviceRow({ name: 'Mouse', address: '5' }), section: 'known', indexInSection: 1 },
+  { dev: bluetooth.deviceRow({ name: 'Keyboard', address: '3' }), section: 'discovered', indexInSection: 0 }
+]
+const scrollEntries = bluetooth.scrollRowEntries(scrollRows)
+assertDeepEqual(
+  scrollEntries.map((entry) => entry.sectionTitle),
+  ['PAIRED', '', 'AVAILABLE'],
+  'bluetooth titles only the row that opens each section'
+)
+assertDeepEqual(
+  scrollEntries.map((entry) => entry.key),
+  ['known/2', 'known/5', 'discovered/3'],
+  'bluetooth keys scroll rows by section and address so re-sorted rows move instead of resetting'
+)
+assertEqual(scrollEntries[0].devName, 'Speaker', 'bluetooth flattens device fields into dev-prefixed roles')
+assertEqual(scrollEntries[0].devState, -1, 'bluetooth avoids the bare state role that would collide with Item.state')
+assertEqual(bluetooth.scrollRowEntries([]).length, 0, 'bluetooth tolerates an empty scroll list')
+
+assert(/ListModel \{ id: scrollModel \}/.test(panelSource), 'bluetooth keeps the scroll list in a ListModel')
+assert(/model: scrollModel/.test(panelSource), 'bluetooth binds the view to the reconciled model')
+assert(!/model: root\.scrollRows/.test(panelSource), 'bluetooth never assigns a rebuilt array straight to the view')
+assert(/function onScrollRowIndexChanged\(\)/.test(panelSource), 'bluetooth drives auto-scroll off the cursor, not off a currentIndex the view can overwrite')
 
 assertDeepEqual(
   bluetooth.withPendingAction({ a: 'connecting' }, 'b', 'forgetting'),

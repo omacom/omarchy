@@ -178,13 +178,43 @@ Panel {
     return -1
   }
 
-  // A row opens a section when it is the first of its kind in the flat list.
-  function scrollSectionTitle(index) {
-    var rows = scrollRows
-    if (index < 0 || index >= rows.length) return ""
-    if (index > 0 && rows[index - 1].section === rows[index].section) return ""
-    return rows[index].section === "known" ? "PAIRED" : "AVAILABLE"
+  // Assigning a fresh JS array to ListView.model is a model reset: every
+  // delegate is destroyed and contentY snaps back to 0. scrollRows is rebuilt
+  // on every BlueZ add or remove — roughly one every few seconds while a scan
+  // is up — so binding the array directly yanked the list out from under
+  // anyone mid-scroll. Reconcile a ListModel in place instead, which also
+  // turns a re-sort into a move() rather than a reset.
+  ListModel { id: scrollModel }
+
+  function syncScrollModel() {
+    var entries = Model.scrollRowEntries(scrollRows)
+    var i, j
+
+    // Drop rows BlueZ no longer reports.
+    for (i = scrollModel.count - 1; i >= 0; i--) {
+      var gone = true
+      for (j = 0; j < entries.length; j++)
+        if (entries[j].key === scrollModel.get(i).key) { gone = false; break }
+      if (gone) scrollModel.remove(i)
+    }
+
+    // Align order, moving rows that merely re-sorted and inserting new ones.
+    for (i = 0; i < entries.length; i++) {
+      if (i < scrollModel.count && scrollModel.get(i).key === entries[i].key) continue
+      var found = -1
+      for (j = i + 1; j < scrollModel.count; j++)
+        if (scrollModel.get(j).key === entries[i].key) { found = j; break }
+      if (found >= 0) scrollModel.move(found, i, 1)
+      else scrollModel.insert(i, entries[i])
+    }
+
+    // Refresh mutable fields in place; setProperty only notifies on a change.
+    for (i = 0; i < entries.length && i < scrollModel.count; i++)
+      for (var prop in entries[i]) scrollModel.setProperty(i, prop, entries[i][prop])
   }
+
+  onScrollRowsChanged: syncScrollModel()
+  Component.onCompleted: syncScrollModel()
 
   function audioSinks() {
     var sinks = []
@@ -321,9 +351,34 @@ Panel {
     if (changed) pendingActions = next
   }
 
+  // Keyboard navigation scrolls the list under a stationary pointer, so a
+  // delegate slides beneath the cursor and fires containsMouse without the
+  // user having touched the mouse. Ungated, that synthetic hover overwrites
+  // focusSection/selectedIndex and the selection jumps to whichever row
+  // landed under the pointer — reliably near the top, where the pointer sits
+  // after clicking the bar icon. Only bites once the list is long enough to
+  // scroll, because Contain does not move the view until a row is clipped.
+  PointerMoveGate {
+    id: pointerGate
+    referenceItem: keyCatcher
+  }
+
+  function disarmPointer() {
+    pointerGate.reset()
+  }
+
+  function selectFromPointer(section, index, item, mouse) {
+    if (!pointerGate.moved(item, mouse)) return
+    cursorActive = true
+    focusSection = section
+    selectedIndex = index
+    actionFocused = false
+  }
+
   // j/k navigates the hero toggle ("header") and the device sections
   // row-by-row.
   function moveCursor(delta) {
+    disarmPointer()
     var sections = visibleSections
     if (focusSection === "header") {
       if (delta > 0 && sections && sections.length > 0) {
@@ -365,6 +420,7 @@ Panel {
 
   function moveCursorH(delta) {
     if (!cursorActive) { cursorActive = true; return }
+    disarmPointer()
     if (focusSection !== "known" && focusSection !== "connected") return
     var dev = deviceAt(focusSection, selectedIndex)
     if (!dev || !dev.address) return
@@ -464,9 +520,9 @@ Panel {
 
   onSelectedIndexChanged: updateFocusedAddress()
   onFocusSectionChanged: updateFocusedAddress()
-  onConnectedDevicesChanged: { reselectFocusedDevice(); syncPendingActions() }
-  onKnownDevicesChanged: { reselectFocusedDevice(); syncPendingActions() }
-  onDiscoveredDevicesChanged: { reselectFocusedDevice(); syncPendingActions() }
+  onConnectedDevicesChanged: { disarmPointer(); reselectFocusedDevice(); syncPendingActions() }
+  onKnownDevicesChanged: { disarmPointer(); reselectFocusedDevice(); syncPendingActions() }
+  onDiscoveredDevicesChanged: { disarmPointer(); reselectFocusedDevice(); syncPendingActions() }
   onVisibleSectionsChanged: clampCursor()
 
   function clampCursor() {
@@ -814,22 +870,48 @@ Panel {
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-          model: root.scrollRows
+          model: scrollModel
           currentIndex: root.scrollRowIndex
-          // Deferred by a turn. Called straight out of the signal the position
-          // does not take — verified with the cursor six rows down and
-          // contentY still 0 — because scrollRows is rebuilt every time
-          // discovery reports, and swapping the model resets the view out from
-          // under the call. Network's list is stable enough not to need this.
-          onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(keepCurrentVisible)
+          // Deferred by a turn: called straight out of the signal, the
+          // position does not take. Driven off root.scrollRowIndex rather than
+          // this.currentIndex because the view writes currentIndex itself on
+          // an insert or a move, which breaks the binding and would silently
+          // disable keyboard auto-scroll.
+          Connections {
+            target: root
+            function onScrollRowIndexChanged() { Qt.callLater(deviceListView.keepCurrentVisible) }
+          }
           function keepCurrentVisible() {
-            if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+            var i = root.scrollRowIndex
+            if (i >= 0 && i < count) positionViewAtIndex(i, ListView.Contain)
           }
 
           delegate: Item {
-            required property var modelData
+            id: scrollDelegate
             required property int index
-            readonly property string sectionTitle: root.scrollSectionTitle(index)
+            required property string section
+            required property int indexInSection
+            required property string sectionTitle
+            required property string devAddress
+            required property string devName
+            required property string devDeviceName
+            required property bool devConnected
+            required property int devState
+            required property bool devBatteryAvailable
+            required property real devBattery
+            required property bool devPairing
+
+            // Reassembled from roles so DeviceRow keeps taking one device object.
+            readonly property var dev: ({
+              address: scrollDelegate.devAddress,
+              name: scrollDelegate.devName,
+              deviceName: scrollDelegate.devDeviceName,
+              connected: scrollDelegate.devConnected,
+              state: scrollDelegate.devState,
+              batteryAvailable: scrollDelegate.devBatteryAvailable,
+              battery: scrollDelegate.devBattery,
+              pairing: scrollDelegate.devPairing
+            })
 
             width: ListView.view.width
             height: delegateColumn.implicitHeight
@@ -840,25 +922,25 @@ Panel {
               spacing: Style.space(10)
 
               PanelSeparator {
-                visible: index > 0 && sectionTitle !== ""
+                visible: scrollDelegate.index > 0 && scrollDelegate.sectionTitle !== ""
                 height: visible ? implicitHeight : 0
                 foreground: root.bar.foreground
               }
 
               PanelSectionHeader {
-                visible: sectionTitle !== ""
+                visible: scrollDelegate.sectionTitle !== ""
                 height: visible ? implicitHeight : 0
-                text: sectionTitle
+                text: scrollDelegate.sectionTitle
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
               }
 
               DeviceRow {
                 width: parent.width
-                dev: modelData.dev
-                rowIndex: modelData.indexInSection
-                sectionName: modelData.section
-                isDiscovered: modelData.section === "discovered"
+                dev: scrollDelegate.dev
+                rowIndex: scrollDelegate.indexInSection
+                sectionName: scrollDelegate.section
+                isDiscovered: scrollDelegate.section === "discovered"
               }
             }
           }
@@ -937,11 +1019,8 @@ Panel {
       acceptedButtons: Qt.LeftButton | Qt.RightButton
       cursorShape: row.dev ? Qt.PointingHandCursor : Qt.ArrowCursor
 
-      onContainsMouseChanged: if (containsMouse) {
-        root.cursorActive = true
-        root.focusSection = row.sectionName
-        root.selectedIndex = row.rowIndex
-        root.actionFocused = false
+      onPositionChanged: function(mouse) {
+        root.selectFromPointer(row.sectionName, row.rowIndex, row, mouse)
       }
 
       onClicked: function(mouse) {
