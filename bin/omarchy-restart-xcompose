@@ -2,6 +2,10 @@
 
 # omarchy:summary=Restart the XCompose input method service (fcitx5) to apply new compose key settings.
 
+# Refresh the home-local emoji table from the packaged tree so package updates
+# reach sandboxed apps that include %H/.XCompose.omarchy rather than /usr.
+omarchy-refresh-xcompose
+
 # A fcitx5 running outside the unit owns org.fcitx.Fcitx5, so the unit's
 # instance would exit on arrival and the stale process would keep serving the
 # old ~/.XCompose -- a restart that reports success and changes nothing.
