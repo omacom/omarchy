@@ -476,8 +476,11 @@ def _cached_local_stats(max_age):
 
 def rpc_request(proc, request_id, method, params=None, timeout=8):
   payload = {"id": request_id, "method": method, "params": params or {}}
-  proc.stdin.write(json.dumps(payload) + "\n")
-  proc.stdin.flush()
+  try:
+    proc.stdin.write(json.dumps(payload) + "\n")
+    proc.stdin.flush()
+  except BrokenPipeError:
+    raise RuntimeError(f"codex app-server exited before answering {method}") from None
   deadline = time.time() + timeout
   while time.time() < deadline:
     ready, _, _ = select.select([proc.stdout], [], [], 0.25)
@@ -485,14 +488,14 @@ def rpc_request(proc, request_id, method, params=None, timeout=8):
       continue
     line = proc.stdout.readline()
     if not line:
-      break
+      raise RuntimeError(f"codex app-server exited before answering {method}")
     try:
       message = json.loads(line)
     except Exception:
       continue
     if message.get("id") == request_id:
       return message
-  raise TimeoutError(method)
+  raise TimeoutError(f"{method} timed out after {timeout}s")
 
 
 def limit_window(window):
@@ -542,8 +545,11 @@ def fetch_codex_rpc():
 
   try:
     rpc_request(proc, 1, "initialize", {"clientInfo": {"name": "omarchy-agent-usage", "version": "1"}}, timeout=8)
-    proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
-    proc.stdin.flush()
+    try:
+      proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+      proc.stdin.flush()
+    except BrokenPipeError:
+      raise RuntimeError("codex app-server exited before answering account/read") from None
     account_msg = rpc_request(proc, 2, "account/read", timeout=4)
     limits_msg = rpc_request(proc, 3, "account/rateLimits/read", timeout=4)
 
@@ -560,6 +566,13 @@ def fetch_codex_rpc():
     result["usageStatusText"] = "Codex limits unavailable"
     result["authHelpText"] = str(exc)
   finally:
+    # Close stdin before terminate so CPython does not retry a buffered
+    # flush during file finalization (stderr "Exception ignored ... BrokenPipe").
+    try:
+      if proc.stdin is not None:
+        proc.stdin.close()
+    except OSError:
+      pass
     try:
       proc.terminate()
       proc.wait(timeout=1)

@@ -603,3 +603,78 @@ result=$(HOME="$INTERRUPTED_HOME" CODEX_HOME="$INTERRUPTED_HOME/.codex" XDG_CACH
 [[ $(jq -r '.todayTotalTokens' <<<"$result") == "9" ]] ||
   fail "Codex collector does not reuse a snapshot from an interrupted scan" "$result"
 pass "Codex collector does not cache an interrupted opencode scan"
+
+TIMEOUT_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$TIMEOUT_HOME" "$EOF_HOME" "$EPIPE_HOME"' EXIT
+mkdir -p "$TIMEOUT_HOME/.codex/sessions/$(date +%Y/%m/%d)" "$TIMEOUT_HOME/bin"
+cat >"$TIMEOUT_HOME/bin/codex" <<'EOF'
+#!/bin/bash
+while read -r request; do
+  id=$(jq -r '.id // empty' <<<"$request")
+  method=$(jq -r '.method // empty' <<<"$request")
+  case "$method" in
+    initialize)
+      jq -cn --argjson id "$id" '{id: $id, result: {}}'
+      ;;
+    account/read)
+      jq -cn --argjson id "$id" '{id: $id, result: {account: {}}}'
+      ;;
+    account/rateLimits/read)
+      sleep 6
+      ;;
+  esac
+done
+EOF
+chmod +x "$TIMEOUT_HOME/bin/codex"
+
+timeout_result=$(HOME="$TIMEOUT_HOME" CODEX_HOME="$TIMEOUT_HOME/.codex" XDG_CACHE_HOME="$TIMEOUT_HOME/.cache" XDG_DATA_HOME="$TIMEOUT_HOME/.local/share" \
+  PATH="$TIMEOUT_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '.usageStatusText' <<<"$timeout_result") == "Codex limits unavailable" ]] ||
+  fail "Codex collector reports limits unavailable on RPC timeout" "$timeout_result"
+[[ $(jq -r '.authHelpText' <<<"$timeout_result") == "account/rateLimits/read timed out after 4s" ]] ||
+  fail "Codex collector stores a timeout description, not the bare method name" "$timeout_result"
+pass "Codex collector describes rate-limit RPC timeouts"
+
+# Early app-server exit must not be labeled as a multi-second timeout.
+EOF_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$TIMEOUT_HOME" "$EOF_HOME" "$EPIPE_HOME"' EXIT
+mkdir -p "$EOF_HOME/.codex/sessions/$(date +%Y/%m/%d)" "$EOF_HOME/bin"
+cat >"$EOF_HOME/bin/codex" <<'EOF'
+#!/bin/bash
+# Drain one request so the collector's initialize write is not a racey EPIPE.
+read -r _ || true
+exit 0
+EOF
+chmod +x "$EOF_HOME/bin/codex"
+
+eof_result=$(HOME="$EOF_HOME" CODEX_HOME="$EOF_HOME/.codex" XDG_CACHE_HOME="$EOF_HOME/.cache" XDG_DATA_HOME="$EOF_HOME/.local/share" \
+  PATH="$EOF_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '.usageStatusText' <<<"$eof_result") == "Codex limits unavailable" ]] ||
+  fail "Codex collector reports limits unavailable when app-server exits early" "$eof_result"
+[[ $(jq -r '.authHelpText' <<<"$eof_result") == "codex app-server exited before answering initialize" ]] ||
+  fail "Codex collector stores an early-exit description, not a false timeout" "$eof_result"
+pass "Codex collector describes early app-server exit"
+
+# Write-side early exit: answer initialize then close stdin so the
+# initialized notification hits BrokenPipeError (not the readline EOF path).
+EPIPE_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME" "$TIMEOUT_HOME" "$EOF_HOME" "$EPIPE_HOME"' EXIT
+mkdir -p "$EPIPE_HOME/.codex/sessions/$(date +%Y/%m/%d)" "$EPIPE_HOME/bin"
+cat >"$EPIPE_HOME/bin/codex" <<'EOF'
+#!/bin/bash
+read -r _ || exit 0
+exec 0<&-
+printf '%s\n' '{"id":1,"result":{}}'
+EOF
+chmod +x "$EPIPE_HOME/bin/codex"
+
+epipe_result=$(HOME="$EPIPE_HOME" CODEX_HOME="$EPIPE_HOME/.codex" XDG_CACHE_HOME="$EPIPE_HOME/.cache" XDG_DATA_HOME="$EPIPE_HOME/.local/share" \
+  PATH="$EPIPE_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '.usageStatusText' <<<"$epipe_result") == "Codex limits unavailable" ]] ||
+  fail "Codex collector reports limits unavailable on write-side early exit" "$epipe_result"
+[[ $(jq -r '.authHelpText' <<<"$epipe_result") == "codex app-server exited before answering account/read" ]] ||
+  fail "Codex collector maps BrokenPipe on initialized write to early-exit text" "$epipe_result"
+pass "Codex collector describes write-side app-server exit"
