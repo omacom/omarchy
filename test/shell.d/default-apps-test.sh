@@ -67,6 +67,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   case $package in
   chromium) command=chromium ;;
   firefox) command=firefox ;;
+  librewolf) command=librewolf ;;
   zen-browser-bin) command=zen-browser ;;
   cursor-bin) command=cursor ;;
   sublime-text-4) command=subl ;;
@@ -84,6 +85,7 @@ omarchy-install-browser)
   brave-origin) command=brave-origin ;;
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
+  librewolf) command=librewolf ;;
   zen) command=zen-browser ;;
   esac
   ;;
@@ -155,6 +157,7 @@ browser_cases=(
   'brave-origin brave-origin browser:brave-origin'
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
+  'librewolf librewolf browser:librewolf'
   'zen zen-browser browser:zen'
 )
 
@@ -241,6 +244,21 @@ grep -Fxq "sudo:install -m 644 -o root -g root -T $ROOT/default/firefox/policies
   fail "Firefox browser installer copies policies.json without following a destination symlink"
 [[ -e $installed_dir/firefox ]] || fail "Firefox browser installer marks firefox installed"
 pass "Firefox browser installer restores the complete Omarchy setup"
+
+: >"$install_log"
+: >"$setup_log"
+rm -f "$installed_dir/librewolf"
+OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install librewolf >/dev/null
+[[ $(<"$install_log") == "pkg:librewolf" ]] || fail "LibreWolf browser installer installs the package"
+[[ $(omarchy-default-browser) == "librewolf" ]] || fail "LibreWolf becomes the default after its full installer succeeds"
+grep -Fxq 'sudo:install -d -m 0755 -o root -g root /usr/lib/librewolf/distribution' "$setup_log" ||
+  fail "LibreWolf browser installer creates its distribution directory"
+grep -Fxq 'sudo:find /usr/lib/librewolf/distribution -mindepth 1 -maxdepth 1 ! -user root -exec rm -rf -- {} +' "$setup_log" ||
+  fail "LibreWolf browser installer drops non-root files from its distribution directory"
+grep -Fxq "sudo:install -m 644 -o root -g root -T $ROOT/default/firefox/policies.json /usr/lib/librewolf/distribution/policies.json" "$setup_log" ||
+  fail "LibreWolf browser installer copies policies.json without following a destination symlink"
+[[ -e $installed_dir/librewolf ]] || fail "LibreWolf browser installer marks librewolf installed"
+pass "LibreWolf browser installer restores the complete Omarchy setup"
 
 : >"$install_log"
 : >"$setup_log"

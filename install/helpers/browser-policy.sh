@@ -26,6 +26,7 @@ BROWSER_POLICY_PARENT_DIRS=(
 
 BROWSER_POLICY_FIREFOX_DIRS=(
   /usr/lib/firefox/distribution
+  /usr/lib/librewolf/distribution
   /opt/zen-browser/distribution
 )
 
