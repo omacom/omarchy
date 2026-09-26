@@ -22,6 +22,19 @@ hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprc
 
 tty=$(tty 2>/dev/null)
 
+# The launcher starts one instance per monitor and focuses each monitor before
+# that monitor's window has mapped, so early on a screensaver can look unfocused
+# purely because a sibling instance has not appeared yet. screensaver_in_focus
+# is a global check and exit_screensaver's pkill is global, so acting on it then
+# tears down every instance on multi-monitor setups. Hold off until a screensaver
+# has actually held focus once; the deadline is the safety net for a launch that
+# never produces a window at all. Slow-starting terminals like WezTerm are what
+# make this window wide enough to matter.
+LAUNCH_GRACE_SECONDS=10
+
+seen_focus=false
+launch_deadline=$((SECONDS + LAUNCH_GRACE_SECONDS))
+
 # Terminals allocate the pty at the default 80x24 and only resize it once the
 # compositor has told the window how big it is. ttfx measures the terminal once,
 # at startup, so starting it before the resize lands sizes an 80x24 canvas and
@@ -41,7 +54,11 @@ while true; do
     --random-effect --no-eol --no-restore-cursor &
 
   while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
-    if read -n1 -t 1 || ! screensaver_in_focus; then
+    if read -n1 -t 1; then
+      exit_screensaver
+    elif screensaver_in_focus; then
+      seen_focus=true
+    elif [[ $seen_focus == "true" ]] || ((SECONDS >= launch_deadline)); then
       exit_screensaver
     fi
   done
