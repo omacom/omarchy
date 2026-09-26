@@ -211,19 +211,72 @@ assertEqual(notifications.parseExecArgv('["mpv",5]'), null, 'notifications rejec
 assertEqual(notifications.parseExecArgv('["--include=x","y"]'), null, 'notifications reject a leading-dash program in the exec argv')
 assertEqual(notifications.parseExecArgv('["",""]'), null, 'notifications reject an empty program in the exec argv')
 
+// Click-to-exec requires the matching per-session token. A sandboxed sender
+// can forge omarchy-exec-argv, but without the token the snapshot stays inert.
+assertEqual(
+  notifications.execArgvFromHints({ 'omarchy-exec-argv': '["bash","-c","touch /tmp/pwn"]' }, 'session-token'),
+  '',
+  'notifications drop exec argv without a matching token'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    'omarchy-exec-argv': '["bash","-c","touch /tmp/pwn"]',
+    'omarchy-exec-token': 'wrong'
+  }, 'session-token'),
+  '',
+  'notifications drop exec argv with a mismatched token'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]',
+    'omarchy-exec-token': 'session-token'
+  }, 'session-token'),
+  '["mpv","--","/tmp/clip.mp4"]',
+  'notifications keep exec argv when the session token matches'
+)
+assertEqual(
+  notifications.execArgvFromHints({
+    'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]',
+    'omarchy-exec-token': 'session-token'
+  }, ''),
+  '',
+  'notifications drop exec argv before the session token is minted'
+)
+
 // The argv vector rides on the snapshot as the raw JSON string, so the model's
 // value comparison stays a plain string compare and the file round-trip is
-// lossless.
+// lossless. Token is checked at snapshot time and never persisted.
 const execSnapshot = notifications.snapshotOf({
   id: 3,
   appName: 'omarchy-action',
   summary: 'Download complete',
-  hints: { 'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]' }
-}, 1)
+  hints: {
+    'omarchy-exec-argv': '["mpv","--","/tmp/clip.mp4"]',
+    'omarchy-exec-token': 'session-token'
+  }
+}, 1, 'session-token')
 assertEqual(
   execSnapshot.execArgv,
   '["mpv","--","/tmp/clip.mp4"]',
   'notifications carry the exec argv hint onto the snapshot'
+)
+assertEqual(
+  notifications.snapshotOf({
+    id: 4,
+    hints: { 'omarchy-exec-argv': '["bash","-c","x"]' }
+  }, 1, 'session-token').execArgv,
+  '',
+  'notifications do not carry an untoked exec argv onto the snapshot'
+)
+assertEqual(
+  notifications.serializePopup(execSnapshot, 1).indexOf('omarchy-exec-token'),
+  -1,
+  'notifications never persist the session exec token'
+)
+assertEqual(
+  'execToken' in JSON.parse(notifications.serializePopup(execSnapshot, 1)),
+  false,
+  'notifications persist validated execArgv without a token field'
 )
 
 assertDeepEqual(
@@ -714,6 +767,22 @@ assert(
 assert(
   /parseExecArgv\(entry \? entry\.execArgv : ""\)[\s\S]{0,200}?Util\.execArgv\(argv\)/.test(serviceQml),
   'notifications service runs the popup click argv itself instead of a libnotify action'
+)
+assert(
+  /property string execToken: ""/.test(serviceQml),
+  'notifications service keeps the per-session exec token in memory'
+)
+assert(
+  /id: mintExecTokenProc[\s\S]*?running: true/.test(serviceQml),
+  'notifications service mints the exec token on startup'
+)
+assert(
+  /startRestoreAfterToken/.test(serviceQml) && /entry\.execArgv = ""/.test(serviceQml),
+  'notifications service restores popups only after the token and clears restored click-exec'
+)
+assert(
+  /notification-exec-token/.test(serviceQml),
+  'notifications service writes the exec token under XDG_RUNTIME_DIR'
 )
 assert(
   /function clear\(\): string \{\s*service\.clearHistory\(\)/.test(serviceQml),

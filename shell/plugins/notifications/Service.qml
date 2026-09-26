@@ -127,12 +127,17 @@ Item {
   //     Trusted because it's almost always omarchy or system shell scripts —
   //     chat apps set app_name to their brand (Discord/Slack/Vesktop), which
   //     falls outside this rule.
+  // Per-session capability for honoring omarchy-exec-argv. Written under
+  // XDG_RUNTIME_DIR (mode 0600) so sandboxed same-uid bus clients cannot read
+  // it; omarchy-notification-send attaches it as omarchy-exec-token.
+  property string execToken: ""
+
   function shouldBypassDnd(notification) {
     return NotificationLogic.shouldBypassDnd(notification, NotificationUrgency.Critical)
   }
 
   function snapshotOf(notification) {
-    return NotificationLogic.snapshotOf(notification, Date.now())
+    return NotificationLogic.snapshotOf(notification, Date.now(), service.execToken)
   }
 
   // A notification nobody looks back at:
@@ -206,7 +211,7 @@ Item {
     writeHistoryFile(written, function() {
       var updated = null
       try {
-        updated = NotificationLogic.replacementSnapshot(notification, written.originalId, written.timestamp)
+        updated = NotificationLogic.replacementSnapshot(notification, written.originalId, written.timestamp, service.execToken)
       } catch (e) {
         // Torn down by the server while the write was queued.
       }
@@ -260,7 +265,7 @@ Item {
 
     var updated
     try {
-      updated = NotificationLogic.replacementSnapshot(notification, originalId, timestamp)
+      updated = NotificationLogic.replacementSnapshot(notification, originalId, timestamp, service.execToken)
     } catch (e) {
       // Object torn down by the server while the signal was in flight.
       return
@@ -353,8 +358,9 @@ Item {
   }
 
   // Run the popup's click action, then dismiss. Omarchy's own toasts carry the
-  // action as an argv vector in the `execArgv` role (see execArgvFromHints),
-  // which the persistence files preserve, so restored toasts stay clickable.
+  // action as an argv vector in the `execArgv` role (see execArgvFromHints).
+  // Restore clears execArgv so pre-token or planted popup files cannot keep
+  // a click-to-exec after restart.
   // Third-party clients register a libnotify action under the canonical
   // identifier "default" instead; that one only works while the sender is live.
   function invokePopupDefault(index) {
@@ -413,6 +419,48 @@ Item {
     id: ensureDirsProc
     command: ["mkdir", "-p", service.stateDir, service.popupStateDir, service.historyDir, service.imagesDir]
     running: false
+  }
+
+  // Mint a fresh click-exec token for this shell session and park it where
+  // only host processes can read it. Sandboxed notify callers share the bus
+  // but not $XDG_RUNTIME_DIR/omarchy. Start immediately (not from
+  // Component.onCompleted) so the token file exists before early --exec
+  // senders race the bus claim.
+  property bool restoreAfterTokenStarted: false
+  Process {
+    id: mintExecTokenProc
+    running: true
+    command: ["bash", "-c",
+      "set -euo pipefail\n" +
+      "runtime=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}\"\n" +
+      "dir=\"$runtime/omarchy\"\n" +
+      "mkdir -p -m 700 -- \"$dir\"\n" +
+      "token=$(openssl rand -hex 32)\n" +
+      "umask 077\n" +
+      "printf '%s' \"$token\" > \"$dir/notification-exec-token\"\n" +
+      "printf '%s' \"$token\"\n"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var token = String(text || "").trim()
+        if (token) service.execToken = token
+        else console.warn("omarchy notifications: failed to mint exec token")
+        service.startRestoreAfterToken()
+      }
+    }
+  }
+
+  function startRestoreAfterToken() {
+    if (service.restoreAfterTokenStarted) return
+    service.restoreAfterTokenStarted = true
+    // Re-show popups that were on screen when the previous shell died.
+    // The glob-through-bash tolerates a missing/empty dir (first run).
+    // awk 1 (not cat) so a torn file missing its trailing newline can't
+    // glue itself onto the next file and take a valid popup down with it.
+    restorePopupsProc.command = ["bash", "-c",
+      "awk 1 \"$1\"/*.json 2>/dev/null || true", "--", service.popupStateDir]
+    restorePopupsProc.running = true
+    service.sweepOrphanImages()
   }
 
   // ---------------------------------------------------- popup persistence
@@ -743,6 +791,11 @@ Item {
         // never carry it, and ListModel roles must stay consistent.
         delete entry.deadline
       }
+      // Drop click-exec on restore. Pre-token snapshots (and any file an
+      // attacker could plant under the popup dir) must not keep working
+      // after a shell restart; a fresh Notify with a matching token can
+      // re-attach the action.
+      entry.execArgv = ""
       live.push(entry)
     }
     if (live.length === 0) return
@@ -834,21 +887,15 @@ Item {
 
   Component.onCompleted: {
     ensureDirsProc.running = true
+    // Token mint starts with the Process itself (running: true). Restore
+    // waits for that so a missing token cannot leave restored click-exec
+    // armed before the gate is live. If mint already finished, restore now.
+    if (service.execToken) service.startRestoreAfterToken()
     // Once mkdir has had a tick, load the existing settings file. FileView
     // surfaces an empty string when the file doesn't exist; loadSettings
     // handles that path.
     Qt.callLater(function() {
       settingsFile.reload()
-      // Re-show popups that were on screen when the previous shell died.
-      // The glob-through-bash tolerates a missing/empty dir (first run).
-      // awk 1 (not cat) so a torn file missing its trailing newline can't
-      // glue itself onto the next file and take a valid popup down with it.
-      restorePopupsProc.command = ["bash", "-c",
-        "awk 1 \"$1\"/*.json 2>/dev/null || true", "--", service.popupStateDir]
-      restorePopupsProc.running = true
-      // Safe beside the restore read: it only re-persists entries whose
-      // JSON exists, exactly the images the sweep keeps.
-      service.sweepOrphanImages()
     })
   }
 
