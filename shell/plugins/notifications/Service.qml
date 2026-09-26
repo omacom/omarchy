@@ -391,19 +391,28 @@ Item {
     // Chat apps (Slack, Discord, Vesktop, etc.) rarely register a "default"
     // libnotify action — they just expect clicking the notification to
     // focus their window. Fall back to focusing the sending app by class so
-    // that click-to-jump actually works.
-    if (!invoked) focusApp(entry)
+    // that click-to-jump actually works — launching it instead when it has no
+    // window left, since chat apps closed to their tray keep notifying.
+    if (!invoked) focusApp(entry, ref)
     dismissPopup(index)
   }
 
   // Try to focus an existing Hyprland window matching the notification's
-  // sender. The helper handles case-insensitive class matching.
-  function focusApp(entry) {
+  // sender, or launch the sender when it has none. The helper handles
+  // case-insensitive class matching; the live notification's desktop-entry
+  // hint, when the sender set one, names the exact entry to launch.
+  function focusApp(entry, ref) {
     if (!entry || !entry.app) return
-    focusAppProc.command = [
-      service.omarchyPath + "/bin/omarchy-hyprland-focus-app",
-      String(entry.app)
-    ]
+    var command = [service.omarchyPath + "/bin/omarchy-hyprland-focus-app", "--or-launch"]
+    var desktopEntry = ""
+    try {
+      desktopEntry = ref && ref.desktopEntry ? String(ref.desktopEntry) : ""
+    } catch (e) {
+      // Notification already torn down by the server — resolve by app name.
+    }
+    if (desktopEntry.length > 0) command.push("--entry", desktopEntry)
+    command.push(String(entry.app))
+    focusAppProc.command = command
     focusAppProc.running = true
   }
 
