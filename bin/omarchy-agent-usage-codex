@@ -146,7 +146,11 @@ def scan_pi_sessions():
       continue
     try:
       proc = subprocess.Popen(
-        [rg, "--json", "-e", r'"provider"\s*:\s*"openai-codex"', "-e", r'"api"\s*:\s*"openai-codex', str(root)],
+        # --no-ignore: these are data files, not a source tree. When $HOME is
+        # itself a git checkout (a common dotfiles setup), the parent repo's
+        # ignore rules would otherwise silently exclude every session file and
+        # the scan would count zero usage.
+        [rg, "--json", "--no-ignore", "-e", r'"provider"\s*:\s*"openai-codex"', "-e", r'"api"\s*:\s*"openai-codex', str(root)],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
