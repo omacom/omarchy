@@ -17,11 +17,28 @@ announce_browser_installed() {
   echo "$1 browser installed. Make it the default via Setup > Defaults > Browser."
 }
 
+# Write Chromium-family flags. Google Chrome 137+ ignores --load-extension in
+# branded builds, so chrome installs omit that line and warn instead.
 copy_chromium_flags() {
+  local dest=$1
+  local omit_load_extension=${2:-false}
+
   mkdir -p ~/.config
-  cp -f "$OMARCHY_PATH/config/chromium-flags.conf" "$1"
+  if [[ $omit_load_extension == true ]]; then
+    sed '/^--load-extension=/d' "$OMARCHY_PATH/config/chromium-flags.conf" >"$dest"
+  else
+    cp -f "$OMARCHY_PATH/config/chromium-flags.conf" "$dest"
+  fi
   omarchy-install-chromium-copy-url
   omarchy-install-chromium-ytdlp
+}
+
+warn_chrome_bundled_extensions() {
+  echo ""
+  echo "Warning: Google Chrome 137+ removed --load-extension, so Omarchy's bundled"
+  echo "extensions (copy-url, yt-dlp, whatsapp-slim) will not load automatically."
+  echo "Load them unpacked via chrome://extensions (Developer mode), or use"
+  echo "Chromium, Brave, or Edge where --load-extension still works."
 }
 
 setup_firefox_wayland() {
@@ -44,7 +61,8 @@ chrome)
   omarchy-pkg-aur-add google-chrome || exit 1
 
   setup_chromium_policy_directory /etc/opt/chrome/policies/managed
-  copy_chromium_flags ~/.config/chrome-flags.conf
+  copy_chromium_flags ~/.config/chrome-flags.conf true
+  warn_chrome_bundled_extensions
   omarchy-theme-set-browser
   announce_browser_installed "Chrome"
   ;;
