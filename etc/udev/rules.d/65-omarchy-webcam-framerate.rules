@@ -1,0 +1,12 @@
+# UVC webcams commonly boot with auto-exposure priority on, so in anything
+# short of bright light they stretch the exposure past the frame interval and
+# deliver 10-15 fps while still reporting 30. Chromium turns it off on every
+# open; mpv, OBS and Firefox never touch it. Turn it off at the device layer,
+# on capture nodes only (the metadata node has no controls). A camera without
+# the control makes v4l2-ctl fail, and udev logs every failed RUN, hence the
+# guarded shell. One line on purpose: a commented-out first line would leave
+# a continuation RUN with no match keys. add|change so a plain udevadm
+# trigger applies it too. Sorted after 60-persistent-v4l, which sets the
+# properties matched here; the capabilities glob also takes a node that
+# lists more than capture.
+ACTION=="add|change", SUBSYSTEM=="video4linux", ENV{ID_USB_DRIVER}=="uvcvideo", ENV{ID_V4L_CAPABILITIES}=="*:capture:*", RUN+="/bin/sh -c '/usr/bin/v4l2-ctl -d $devnode --set-ctrl exposure_dynamic_framerate=0 2>/dev/null || :'"
