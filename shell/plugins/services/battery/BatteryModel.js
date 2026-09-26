@@ -19,10 +19,3 @@ function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, al
   }
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    batteryPercentage: batteryPercentage,
-    isDischarging: isDischarging,
-    shouldWarnLowBattery: shouldWarnLowBattery
-  }
-}

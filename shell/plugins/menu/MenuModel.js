@@ -490,35 +490,3 @@ function guardScript(items) {
   return guards ? guardPrelude(guards) + guards : ""
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    guardReaders: GUARD_READERS,
-    guardScript: guardScript,
-    stripJsonc: stripJsonc,
-    normalizeAliases: normalizeAliases,
-    normalizeItem: normalizeItem,
-    parseMenuJsonc: parseMenuJsonc,
-    mergeMenuSources: mergeMenuSources,
-    mergeAppRows: mergeAppRows,
-    swapProviderRows: swapProviderRows,
-    item: item,
-    resolveRoute: resolveRoute,
-    slugify: slugify,
-    depthFor: depthFor,
-    pathFor: pathFor,
-    parentPathFor: parentPathFor,
-    isDescendantOf: isDescendantOf,
-    childCount: childCount,
-    isVisible: isVisible,
-    isDisabled: isDisabled,
-    labelFor: labelFor,
-    searchableToken: searchableToken,
-    leafIdFor: leafIdFor,
-    nameSearchText: nameSearchText,
-    termInSearchWords: termInSearchWords,
-    descriptionTextMatches: descriptionTextMatches,
-    matchesQuery: matchesQuery,
-    searchScore: searchScore,
-    displayRow: displayRow
-  }
-}

@@ -119,24 +119,3 @@ function osdMessage(player, fallback) {
   return label || fallback
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    isProxyPlayer: isProxyPlayer,
-    hasMetadata: hasMetadata,
-    hasTrackMetadata: hasTrackMetadata,
-    playerCanControl: playerCanControl,
-    canHandleAction: canHandleAction,
-    canCycleSource: canCycleSource,
-    nodeProps: nodeProps,
-    isPlaybackStream: isPlaybackStream,
-    streamLabelKey: streamLabelKey,
-    rawStreamLabel: rawStreamLabel,
-    playerAppLabel: playerAppLabel,
-    playerHasPlaybackStream: playerHasPlaybackStream,
-    playerKey: playerKey,
-    trackSignature: trackSignature,
-    trackChanged: trackChanged,
-    labelFor: labelFor,
-    osdMessage: osdMessage
-  }
-}

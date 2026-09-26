@@ -23,10 +23,3 @@ function authorizationLabel(message) {
   return match ? "Authorize running '" + match[1] + "'" : text
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    promptLooksFingerprint: promptLooksFingerprint,
-    fingerprintConfiguredFromPamConfig: fingerprintConfiguredFromPamConfig,
-    authorizationLabel: authorizationLabel
-  }
-}

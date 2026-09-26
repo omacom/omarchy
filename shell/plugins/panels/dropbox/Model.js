@@ -121,17 +121,3 @@ function fileMeta(file, nowMs) {
   return parts.join(" · ")
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    parseStatus: parseStatus,
-    defaultStatus: defaultStatus,
-    fileExtension: fileExtension,
-    fileKind: fileKind,
-    fileGlyph: fileGlyph,
-    formatBytes: formatBytes,
-    formatPercent: formatPercent,
-    usageText: usageText,
-    relativeTime: relativeTime,
-    fileMeta: fileMeta
-  }
-}

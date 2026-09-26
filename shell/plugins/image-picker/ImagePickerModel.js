@@ -82,16 +82,3 @@ function nextSelectedIndexForFilter(images, selectedIndex, filterText) {
   return firstMatchingIndex(images, filterText)
 }
 
-if (typeof module !== "undefined") {
-  module.exports = {
-    nameForPath: nameForPath,
-    labelForPath: labelForPath,
-    loadRows: loadRows,
-    itemMatches: itemMatches,
-    firstMatchingIndex: firstMatchingIndex,
-    filteredPosition: filteredPosition,
-    selectedFilteredPosition: selectedFilteredPosition,
-    indexForSelectedImage: indexForSelectedImage,
-    nextSelectedIndexForFilter: nextSelectedIndexForFilter
-  }
-}
