@@ -8,8 +8,8 @@ set -e
 mapfile -t orphans < <(pacman -Qtdq 2>/dev/null || true)
 (( ${#orphans[@]} )) || exit 0
 
-echo -e "\\e[32m\\nOrphan system packages\\e[0m"
-printf '  %s\\n' "${orphans[@]}"
+echo -e "\e[32m\nOrphan system packages\e[0m"
+printf '  %s\n' "${orphans[@]}"
 echo
 
 if [[ ${OMARCHY_UPDATE_UNATTENDED:-0} == "1" || ! -t 0 || ! -t 1 ]]; then
@@ -24,6 +24,6 @@ if ! gum confirm --default=false "Remove ${#orphans[@]} orphaned package(s)?"; t
   exit 0
 fi
 
-echo -e "\\e[32m\\nRemoving orphan system packages\\e[0m"
+echo -e "\e[32m\nRemoving orphan system packages\e[0m"
 sudo pacman -Rns "${orphans[@]}"
 echo
