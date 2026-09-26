@@ -17,6 +17,7 @@ run_logged "$OMARCHY_INSTALL/hardware/intel/thermald.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/ipu7-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fred.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/fix-wifi7-eht.sh"
+run_logged "$OMARCHY_INSTALL/hardware/intel/fix-xps-wcl-display.sh"
 run_logged "$OMARCHY_INSTALL/hardware/intel/sof-firmware.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/fix-elgato-camlink-4k.sh"
