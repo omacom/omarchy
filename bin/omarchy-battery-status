@@ -18,10 +18,29 @@ case "${1:-}" in
     ;;
 esac
 
-battery=$(upower -e 2>/dev/null | grep BAT | head -n 1)
-[[ -z $battery ]] && exit 0
+mapfile -t battery_candidates < <(upower -e 2>/dev/null | grep BAT)
+(( ${#battery_candidates[@]} == 0 )) && exit 0
 
-battery_info=$(upower -i "$battery")
+# Some laptops (e.g. ThinkPads with a second, unpopulated battery bay) expose
+# a phantom BAT device with no real capacity data alongside the real one.
+# `upower -e` has no defined ordering, so prefer the first candidate that
+# reports a nonzero energy-full over blindly taking the first device listed.
+# This doesn't change behavior on a genuinely dual-battery machine (this
+# script has always reported a single device's data, never aggregated both).
+battery=""
+battery_info=""
+for candidate in "${battery_candidates[@]}"; do
+  candidate_info=$(upower -i "$candidate")
+  candidate_energy_full=$(awk '/energy-full:/ { print $2; exit }' <<<"$candidate_info")
+
+  [[ -z $battery ]] && { battery=$candidate; battery_info=$candidate_info; }
+
+  if [[ $candidate_energy_full =~ ^[0-9]+([.][0-9]+)?$ ]] && awk -v v="$candidate_energy_full" 'BEGIN { exit !(v > 0) }'; then
+    battery=$candidate
+    battery_info=$candidate_info
+    break
+  fi
+done
 
 percentage=$(awk '/percentage/ { print int($2); exit }' <<<"$battery_info")
 capacity=$(awk '/energy-full:/ { printf "%d", $2; exit }' <<<"$battery_info")
@@ -43,13 +62,15 @@ time_remaining=$(awk '/time to (empty|full)/ {
 }' <<<"$battery_info")
 power_rate_raw=$(awk '/energy-rate/ { print $2; exit }' <<<"$battery_info")
 native_path=$(awk '/native-path/ { print $2; exit }' <<<"$battery_info")
-battery_path="$power_supply_path/$native_path"
+battery_path=""
+[[ -n $native_path && $native_path != /* ]] && battery_path="$power_supply_path/$native_path"
+[[ -n $battery_path && -d $battery_path ]] || battery_path=""
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
-if [[ -r $battery_path/power_now ]]; then
+if [[ -n $battery_path && -r $battery_path/power_now ]]; then
   power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
-elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
+elif [[ -n $battery_path && -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
   power_rate_raw=$(awk \
     -v microamps="$(<"$battery_path/current_now")" \
     -v microvolts="$(<"$battery_path/voltage_now")" \
@@ -65,8 +86,8 @@ state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
-[[ -z $threshold_end ]] && threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
-[[ -z $threshold_start ]] && threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+[[ -z $threshold_end && -n $battery_path ]] && threshold_end=$(cat "$battery_path/charge_control_end_threshold" 2>/dev/null)
+[[ -z $threshold_start && -n $battery_path ]] && threshold_start=$(cat "$battery_path/charge_control_start_threshold" 2>/dev/null)
 
 ac_online=false
 for supply in "$power_supply_path"/*; do
@@ -107,7 +128,8 @@ if [[ $shell_output == "true" ]]; then
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
-  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  cycles=""
+  [[ -n $battery_path ]] && cycles=$(cat "$battery_path/cycle_count" 2>/dev/null)
 
   [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
 
