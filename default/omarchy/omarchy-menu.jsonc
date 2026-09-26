@@ -132,6 +132,7 @@
   "setup.network.dns.cloudflare": {"icon":"󰅟","label":"Cloudflare","checked":"[[ \"$(omarchy-dns)\" == \"Cloudflare\" ]]","action":"omarchy-dns Cloudflare"},
   "setup.network.dns.google": {"icon":"󰊭","label":"Google","checked":"[[ \"$(omarchy-dns)\" == \"Google\" ]]","action":"omarchy-dns Google"},
   "setup.network.dns.custom": {"icon":"","label":"Custom","checked":"[[ \"$(omarchy-dns)\" == \"Custom\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dns Custom'"},
+  "setup.network.portal-signin": {"icon":"󰖟","label":"Portal In Browser","checked":"omarchy-toggle-enabled portal-in-browser","action":"omarchy-toggle portal-in-browser"},
   "setup.network.qr": {"icon":"󰐲","label":"QR Code","aliases":["wifi-qr"],"when":"[[ $(omarchy-network-status) == wifi* ]]","action":"omarchy-shell shell summon omarchy.wifiqr"},
   "setup.default": {"icon":"","label":"Defaults","aliases":["default","defaults"]},
   "setup.default.agent": {"icon":"󰚩","label":"Agent","title":"Default Agent"},

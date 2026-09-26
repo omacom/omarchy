@@ -1,0 +1,425 @@
+#!/usr/bin/python3
+# omarchy:summary=Open a captive portal's sign-in page as a dropdown under the bar
+# omarchy:args=[url] [ssid] [--beside=<px>]
+"""A captive portal's sign-in page, as a dropdown under the bar.
+
+The network panel used to hand this job to the default browser. That works, but
+a browser window joins the workspace: it tiles, it shoves the layout around when
+it opens and again when it closes, and it signs in to the hotel's gateway
+carrying the user's real cookie jar, extensions and DNS settings.
+
+This is a wlr-layer-shell surface instead. A layer surface belongs to the
+compositor's layer stack, so Hyprland never puts it in a workspace and never
+tiles it, and `exclusive_zone` is 0 so it reserves no space -- nothing on the
+desktop moves when it opens or closes. Its WebKit session is ephemeral, so the
+gateway sees an empty profile and leaves nothing behind.
+
+It keeps the panel's security posture exactly as it was. The URL is still the
+fixed plain-HTTP probe endpoint the caller passes in, never a Location header
+scraped off the network, and the redirect to the real portal is followed by the
+web view the same way a browser would follow it -- only inside a throwaway
+profile that cannot reach the filesystem.
+
+It is phone-shaped because every portal ships a mobile page -- most guests sign
+in from a phone -- and those pages are single-column, large-target, and far
+likelier to work than the desktop variant. Responsive pages pick that layout
+from the viewport width; the user agent is WebKit's own and names Omarchy.
+
+Not embedded in the bar itself: QtWebEngine cannot be instantiated inside
+Quickshell (Chromium's base::CommandLine needs an argv that process never
+passes) and it takes the whole shell down with it -- bar, notifications and
+lock screen included.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from urllib.parse import urlparse
+
+# Keep in sync with captivePortalUrl in
+# shell/plugins/panels/network/Model.js, which is the source of truth. The
+# network panel passes it explicitly; this default is for running the command
+# by hand.
+DEFAULT_URL = "http://ping.archlinux.org/nm-check.txt"
+
+# What a browser gets instead. archlinux.org is on the HSTS preload list, so
+# Chromium-family browsers rewrite the probe URL to https:// before the first
+# request and a portal can never intercept it. This host is not preloaded and
+# is what Apple's own captive-network assistant fetches.
+BROWSER_URL = "http://captive.apple.com/hotspot-detect.html"
+
+
+def target_url() -> str:
+  """The endpoint to sign in at. The caller passes a fixed URL, never portal
+  input, but nothing except http(s) should reach a browser or a web view from a
+  command line."""
+  positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+  url = positional[0] if positional else DEFAULT_URL
+  if urlparse(url).scheme not in ("http", "https"):
+    print("Refusing to open a non-http(s) URL: %s" % url, file=sys.stderr)
+    raise SystemExit(1)
+  return url
+
+
+URL = target_url()
+
+# The dropdown is the default because it leaves the workspace alone, but the
+# browser is still one toggle away for anyone who wants their own bookmarks,
+# password manager and extensions on a portal:
+#   omarchy toggle portal-in-browser
+# Checked before the GUI is loaded at all, so choosing the browser costs
+# nothing.
+if subprocess.run(["omarchy-toggle-enabled", "portal-in-browser"],
+                  capture_output=True).returncode == 0:
+  # A sign-in page belongs in front of you, not as a tab in a window on some
+  # other workspace: ask the browser for a new window.
+  os.execvp("omarchy-launch-browser", ["omarchy-launch-browser", "--new-window", BROWSER_URL])
+
+# gtk-layer-shell must be loaded before libwayland-client or its init quietly
+# fails and this comes up as an ordinary window -- the one thing it exists to
+# avoid. It cannot fix its own link order from inside Python, so re-exec once.
+LAYER_SHELL_LIB = "/usr/lib/libgtk-layer-shell.so.0"
+if os.environ.get("OMARCHY_PORTAL_PRELOADED") != "1":
+  os.environ["OMARCHY_PORTAL_PRELOADED"] = "1"
+  preload = os.environ.get("LD_PRELOAD", "")
+  os.environ["LD_PRELOAD"] = LAYER_SHELL_LIB + (":" + preload if preload else "")
+  os.execv(sys.executable, [sys.executable] + sys.argv)
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+gi.require_version("WebKit2", "4.1")
+from gi.repository import Gdk, GLib, Gtk, GtkLayerShell, WebKit2  # noqa: E402
+
+WIDTH = 400
+HEIGHT = 720
+GAP = 4
+
+# 400px sits inside every common mobile breakpoint, so responsive pages pick
+# their phone layout from the viewport width alone -- no need to claim to be a
+# phone. The user agent stays WebKit's own, with Omarchy named honestly.
+
+# Portals that hard-code a desktop width ignore the surface size; give them a
+# device-width viewport so they reflow instead of overflowing.
+VIEWPORT_SCRIPT = """
+(function () {
+  function fit() {
+    if (!document.head) return;
+    var meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'viewport';
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', 'width=device-width, initial-scale=1');
+  }
+  fit();
+  document.addEventListener('DOMContentLoaded', fit);
+})();
+"""
+
+STYLE = """
+window.portal       {{ background: {background}; }}
+.portal-header      {{ background: {background}; padding: 7px 10px;
+                       border-bottom: 1px solid {border}; }}
+.portal-title       {{ color: {foreground}; font-weight: 700; font-size: 11px; }}
+.portal-url         {{ color: {muted}; font-size: 10px; }}
+.portal-close       {{ color: {foreground}; padding: 0 6px;
+                       min-height: 0; min-width: 0; }}
+.portal-close:hover {{ color: {alert}; }}
+.portal-browser     {{ color: {muted}; font-size: 10px; padding: 0 8px;
+                       min-height: 0; min-width: 0; }}
+.portal-browser:hover {{ color: {foreground}; }}
+.portal-footer      {{ color: {muted}; font-size: 10px; padding: 6px 10px;
+                       background: {background}; border-top: 1px solid {border}; }}
+"""
+
+FALLBACK_COLORS = {
+  "background": "#12141a",
+  "foreground": "#d8dee9",
+  "muted": "#7b8496",
+  "border": "#2e3440",
+  "alert": "#e06c75",
+}
+
+
+def browser_env() -> dict[str, str]:
+  """The preload that makes this a layer surface is for this process only; a
+  browser started from here must not inherit it."""
+  env = dict(os.environ)
+  env.pop("OMARCHY_PORTAL_PRELOADED", None)
+  preload = [p for p in env.get("LD_PRELOAD", "").split(":") if p and p != LAYER_SHELL_LIB]
+  if preload:
+    env["LD_PRELOAD"] = ":".join(preload)
+  else:
+    env.pop("LD_PRELOAD", None)
+  return env
+
+
+def omarchy_version() -> str:
+  try:
+    return subprocess.run(["omarchy-version"], capture_output=True, text=True,
+                          timeout=5).stdout.strip() or "dev"
+  except (OSError, subprocess.SubprocessError):
+    return "dev"
+
+
+def theme_colors() -> dict[str, str]:
+  """Resolve the frame through the same helper every other consumer uses, so
+  this dropdown cannot drift from the rest of the desktop."""
+  colors = dict(FALLBACK_COLORS)
+  try:
+    dumped = subprocess.run(["omarchy-theme-color", "--all"], capture_output=True,
+                            text=True, timeout=5, check=True).stdout
+  except (OSError, subprocess.SubprocessError):
+    return colors
+
+  palette = {}
+  for line in dumped.splitlines():
+    key, _, value = line.partition("\t")
+    if value.startswith("#"):
+      palette[key.strip()] = value.strip()
+
+  for name, key in (("background", "background"), ("foreground", "foreground"),
+                    ("alert", "red")):
+    if key in palette:
+      colors[name] = palette[key]
+  colors["muted"] = palette.get("bright_black", colors["muted"])
+  colors["border"] = palette.get("bright_black", colors["border"])
+  return colors
+
+
+class Portal:
+  def __init__(self, url: str, ssid: str, beside: int) -> None:
+    self.url = url
+    self.ssid = ssid
+    self.trust_prompt = None
+    self.pending_certificate = None
+
+    self.window = Gtk.Window()
+    self.window.get_style_context().add_class("portal")
+    # A layer surface takes the size its content asks for; it is not a toplevel
+    # the compositor will size for you.
+    # It starts narrow and grows to full width over a few frames, so it reads
+    # as coming out of the panel rather than replacing it.
+    self.window.set_size_request(40, HEIGHT)
+    self.window.connect("destroy", Gtk.main_quit)
+    self.window.connect("key-press-event", self.on_key)
+
+    GtkLayerShell.init_for_window(self.window)
+    GtkLayerShell.set_namespace(self.window, "omarchy-portal")
+    # OVERLAY, above the network panel's own overlay: opened from the panel it
+    # stacks on top, takes its own clicks and keyboard, and the panel -- which
+    # dismisses on any click outside its card -- never sees one. They stay open
+    # together.
+    GtkLayerShell.set_layer(self.window, GtkLayerShell.Layer.OVERLAY)
+    GtkLayerShell.set_anchor(self.window, GtkLayerShell.Edge.TOP, True)
+    GtkLayerShell.set_anchor(self.window, GtkLayerShell.Edge.RIGHT, True)
+    # The bar owns an exclusive zone, so a TOP-anchored layer already starts
+    # below it; only the visual gap is added here.
+    GtkLayerShell.set_margin(self.window, GtkLayerShell.Edge.TOP, GAP)
+    # `beside` is the width of the panel this was opened from: the surface sits
+    # to its left, with that panel still open, instead of taking its place.
+    GtkLayerShell.set_margin(self.window, GtkLayerShell.Edge.RIGHT, GAP * 2 + beside)
+    GtkLayerShell.set_exclusive_zone(self.window, 0)
+    # ON_DEMAND, not EXCLUSIVE: credentials need a keyboard, but the surface
+    # must not swallow keystrokes meant for whatever is behind it.
+    GtkLayerShell.set_keyboard_mode(self.window, GtkLayerShell.KeyboardMode.ON_DEMAND)
+
+    layout = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    layout.pack_start(self.build_header(), False, False, 0)
+    layout.pack_start(self.build_view(), True, True, 0)
+    self.footer = Gtk.Label(xalign=0)
+    self.footer.get_style_context().add_class("portal-footer")
+    self.footer.set_text("Esc closes. Private session — nothing is kept.")
+    layout.pack_start(self.footer, False, False, 0)
+    self.window.add(layout)
+
+    self.apply_style()
+    self.window.show_all()
+    self.grow()
+    GLib.timeout_add_seconds(5, self.close_once_online)
+    if beside:
+      GLib.timeout_add(400, self.follow_panel)
+
+  def follow_panel(self) -> bool:
+    """Opened from the network panel, the surface is part of that dropdown:
+    when the panel goes, so does this."""
+    try:
+      layers = subprocess.run(["hyprctl", "layers", "-j"], capture_output=True,
+                              text=True, timeout=2).stdout
+    except (OSError, subprocess.SubprocessError):
+      return True
+    if '"omarchy-keyboard-panel"' not in layers:
+      Gtk.main_quit()
+      return False
+    return True
+
+  def grow(self, steps: int = 12) -> None:
+    done = [0]
+
+    def step() -> bool:
+      done[0] += 1
+      self.window.set_size_request(max(40, WIDTH * done[0] // steps), HEIGHT)
+      return done[0] < steps
+
+    GLib.timeout_add(16, step)
+
+  def build_header(self) -> Gtk.Box:
+    header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    header.get_style_context().add_class("portal-header")
+
+    labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+    title = Gtk.Label(label="Sign in — " + self.ssid if self.ssid else "Sign in", xalign=0)
+    title.get_style_context().add_class("portal-title")
+    self.address = Gtk.Label(label=self.url, xalign=0)
+    self.address.get_style_context().add_class("portal-url")
+    self.address.set_ellipsize(3)  # PANGO_ELLIPSIZE_END
+    labels.pack_start(title, False, False, 0)
+    labels.pack_start(self.address, False, False, 0)
+    header.pack_start(labels, True, True, 0)
+
+    close = Gtk.Button(label="×")
+    close.get_style_context().add_class("portal-close")
+    close.set_relief(Gtk.ReliefStyle.NONE)
+    close.connect("clicked", lambda _button: Gtk.main_quit())
+    header.pack_end(close, False, False, 0)
+
+    # For the portal that wants a password manager or an account you are
+    # already signed in to: carry on in the real browser, without changing the
+    # default for next time.
+    browser = Gtk.Button(label="Open in browser")
+    browser.get_style_context().add_class("portal-browser")
+    browser.set_relief(Gtk.ReliefStyle.NONE)
+    browser.connect("clicked", self.open_in_browser)
+    header.pack_end(browser, False, False, 0)
+    return header
+
+  def open_in_browser(self, _button) -> None:
+    # A fixed URL, not the page the gateway redirected to: the browser follows
+    # the redirect itself, and nothing the network wrote ever becomes a command
+    # argument.
+    subprocess.Popen(["omarchy-launch-browser", "--new-window", BROWSER_URL],
+                     env=browser_env())
+    Gtk.main_quit()
+
+  def build_view(self) -> WebKit2.WebView:
+    content = WebKit2.UserContentManager()
+    content.add_script(WebKit2.UserScript.new(
+      VIEWPORT_SCRIPT,
+      WebKit2.UserContentInjectedFrames.ALL_FRAMES,
+      WebKit2.UserScriptInjectionTime.START,
+      None, None))
+
+    view = WebKit2.WebView(web_context=WebKit2.WebContext.new_ephemeral(),
+                           user_content_manager=content)
+    settings = view.get_settings()
+
+    def option(name, value):
+      # WebKitSettings gains and loses properties across releases; set what
+      # exists rather than pinning this file to one WebKit.
+      try:
+        settings.set_property(name, value)
+      except TypeError:
+        pass
+
+    settings.set_user_agent_with_application_details("Omarchy", omarchy_version())
+    option("enable-developer-extras", False)
+    # The page here is written by whoever runs the network. Deny it the local
+    # filesystem outright.
+    option("allow-file-access-from-file-urls", False)
+    option("allow-universal-access-from-file-urls", False)
+    # Portals are plain HTTP and full of mixed content by design.
+    option("allow-running-of-insecure-content", True)
+    option("allow-display-of-insecure-content", True)
+
+    view.connect("load-changed", self.on_load)
+    view.connect("load-failed-with-tls-errors", self.on_tls_error)
+    view.connect("load-failed", self.on_load_failed)
+    view.load_uri(self.url)
+    self.view = view
+    return view
+
+  def on_load(self, view, event) -> None:
+    if event == WebKit2.LoadEvent.COMMITTED:
+      self.address.set_text(view.get_uri() or "")
+
+  def on_tls_error(self, view, failing_uri, certificate, errors) -> bool:
+    """A gateway presenting a bad certificate is ordinary -- intercepting
+    traffic is its job -- but it is not something to wave through silently. The
+    exception is offered per host, taken only on a click, and dies with this
+    ephemeral session."""
+    host = urlparse(failing_uri).hostname or failing_uri
+    self.pending_certificate = (failing_uri, certificate, host)
+    self.footer.set_text("This gateway's certificate is not valid for %s." % host)
+
+    if self.trust_prompt is None:
+      self.trust_prompt = Gtk.Button(label="Continue to %s anyway" % host)
+      self.trust_prompt.connect("clicked", self.accept_certificate)
+      self.window.get_child().pack_start(self.trust_prompt, False, False, 0)
+      self.trust_prompt.show()
+    return True
+
+  def accept_certificate(self, _button) -> None:
+    failing_uri, certificate, host = self.pending_certificate
+    self.view.get_context().allow_tls_certificate_for_host(certificate, host)
+    self.trust_prompt.destroy()
+    self.trust_prompt = None
+    self.view.load_uri(failing_uri)
+
+  def on_load_failed(self, _view, _event, failing_uri, error) -> bool:
+    self.footer.set_text("Could not load %s — %s" % (failing_uri, error.message))
+    return True
+
+  def on_key(self, _widget, event) -> bool:
+    if event.keyval == Gdk.KEY_Escape:
+      Gtk.main_quit()
+      return True
+    ctrl = event.state & Gdk.ModifierType.CONTROL_MASK
+    if event.keyval == Gdk.KEY_F5 or (event.keyval == Gdk.KEY_r and ctrl):
+      self.view.reload()
+      return True
+    return False
+
+  def close_once_online(self) -> bool:
+    """Leave once the network works, so a finished sign-in does not strand a
+    dead page over the desktop. NetworkManager already runs the connectivity
+    probe on its own schedule; ask it rather than starting a second one."""
+    try:
+      state = subprocess.run(["nmcli", "-e", "no", "-g", "CONNECTIVITY", "general", "status"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+      return True
+
+    if state == "full":
+      self.footer.set_text("Signed in.")
+      GLib.timeout_add_seconds(2, Gtk.main_quit)
+      return False
+    return True
+
+  def apply_style(self) -> None:
+    provider = Gtk.CssProvider()
+    provider.load_from_data(STYLE.format(**theme_colors()).encode())
+    Gtk.StyleContext.add_provider_for_screen(
+      Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+
+def main() -> int:
+  positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+  beside = 0
+  for arg in sys.argv[1:]:
+    if arg.startswith("--beside=") and arg[9:].isdigit():
+      # A panel is a few hundred pixels wide; anything that would push the
+      # surface off the screen is a bad measurement, not a wide panel.
+      beside = min(int(arg[9:]), 1200)
+  Portal(URL, positional[1] if len(positional) > 1 else "", beside)
+  Gtk.main()
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())
