@@ -103,7 +103,8 @@ BorderSurface {
     RowLayout {
       Layout.fillWidth: true
       Layout.leftMargin: Style.space(12)
-      Layout.rightMargin: Style.space(12)
+      // Reserve room for the always-visible dismiss control.
+      Layout.rightMargin: Style.space(40)
       Layout.topMargin: root.singleLineToast ? Style.space(7) : Style.space(10)
       Layout.bottomMargin: root.singleLineToast ? Style.space(7) : Style.space(10)
       spacing: root.collapseRedundantIcon ? 0 : (root.compactGlyph ? Style.space(8) : Style.space(12))
@@ -195,7 +196,7 @@ BorderSurface {
     }
   }
 
-  // Hover-revealed close. Stacked after mainColumn so its MouseArea sits
+  // Always-visible close. Stacked after mainColumn so its MouseArea sits
   // above the full-card one and the click never reaches cardClicked.
   Item {
     anchors.top: parent.top
@@ -204,10 +205,6 @@ BorderSurface {
     anchors.rightMargin: root.borderRight + Style.space(3)
     width: Style.space(18)
     height: Style.space(18)
-    visible: opacity > 0
-    opacity: root.hovered ? 1 : 0
-
-    Behavior on opacity { NumberAnimation { duration: 100 } }
 
     Text {
       anchors.centerIn: parent
