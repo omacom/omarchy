@@ -188,6 +188,17 @@ set -e
 [[ ! -e $name_file ]] || fail "a rejected device name is not persisted"
 pass "disable rejects control characters in a device name"
 
+rm -f "$marker" "$name_file"
+stub_device touchpad 'pad$(touch '"$marker"')'
+set +e
+run_toggle touchpad off >/dev/null 2>&1
+status=$?
+set -e
+(( status != 0 )) || fail "disable rejects a device name with shell expansion characters"
+[[ ! -e $marker ]] || fail "a rejected \$() device name does not run"
+[[ ! -e $name_file ]] || fail "a rejected \$() device name is not persisted"
+pass "disable rejects shell expansion characters in a device name"
+
 printf 'elan-touchpad\n' >"$name_file"
 set +e
 run_toggle touchpad on >/dev/null 2>&1
