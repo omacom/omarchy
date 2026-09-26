@@ -101,8 +101,14 @@ Item {
 
   function durationFor(urgency, expireTimeout) {
     switch (urgency) {
-    case NotificationUrgency.Critical:
-      return 0
+    case NotificationUrgency.Critical: {
+      // FreeDesktop: expireTimeout 0 means never expire. A positive timeout
+      // from the sender must still be honoured for critical urgency — otherwise
+      // battery-low and similar toasts stick forever and resurrect on reboot.
+      var requested = requestedDuration(expireTimeout)
+      if (requested <= 0) return 0
+      return Math.min(maxPopupDuration, requested)
+    }
     case NotificationUrgency.Low:
       return Math.min(maxPopupDuration, Math.max(lowPopupDuration, requestedDuration(expireTimeout)))
     default:

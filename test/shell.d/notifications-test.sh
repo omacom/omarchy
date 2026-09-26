@@ -509,6 +509,14 @@ assertDeepEqual(
 )
 
 assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups never expire on restore')
+assert(
+  notifications.popupExpired({ timestamp: 1000 }, 30000, 40000),
+  'a critical popup that requested a finite lifetime expires on restore once that lifetime elapses'
+)
+assert(
+  !notifications.popupExpired({ timestamp: 1000 }, 30000, 20000),
+  'a critical popup with a finite lifetime still within that window is restored'
+)
 assert(!notifications.popupExpired({ timestamp: 1000 }, 8000, 5000), 'popups within their lifetime are restored')
 assert(notifications.popupExpired({ timestamp: 1000 }, 8000, 9000), 'popups past their lifetime are not restored')
 assert(
@@ -575,6 +583,50 @@ assert(
   /readonly property int historyLimit: 10/.test(serviceQml),
   'notifications service keeps the last ten notifications in history'
 )
+
+// durationFor lives in QML, so pin the Critical branch and evaluate the same
+// clamp the service uses for Low/Normal floors so Critical expireTimeout is
+// honoured without regressing the other urgencies' minimums.
+assert(
+  /case NotificationUrgency\.Critical: \{[\s\S]*?var requested = requestedDuration\(expireTimeout\)[\s\S]*?if \(requested <= 0\) return 0[\s\S]*?return Math\.min\(maxPopupDuration, requested\)/.test(serviceQml),
+  'notifications service honours a positive expireTimeout for critical urgency'
+)
+assert(
+  /case NotificationUrgency\.Critical: \{[\s\S]*?if \(requested <= 0\) return 0/.test(serviceQml),
+  'notifications service keeps critical sticky when expireTimeout is 0 or absent'
+)
+assert(
+  /case NotificationUrgency\.Low:\s*\n\s*return Math\.min\(maxPopupDuration, Math\.max\(lowPopupDuration, requestedDuration\(expireTimeout\)\)\)/.test(serviceQml),
+  'notifications service keeps the Low urgency duration floor'
+)
+assert(
+  /default:\s*\n\s*return Math\.min\(maxPopupDuration, Math\.max\(normalPopupDuration, requestedDuration\(expireTimeout\)\)\)/.test(serviceQml),
+  'notifications service keeps the Normal urgency duration floor'
+)
+
+function requestedDuration(expireTimeout) {
+  const ms = Number(expireTimeout || 0)
+  if (!Number.isFinite(ms) || ms <= 0) return 0
+  return Math.round(ms)
+}
+function durationFor(urgency, expireTimeout, { low = 5000, normal = 8000, max = 30000 } = {}) {
+  // Mirror Service.qml: Critical=2, Low=0, Normal=1 (FreeDesktop / Quickshell).
+  if (urgency === 2) {
+    const requested = requestedDuration(expireTimeout)
+    if (requested <= 0) return 0
+    return Math.min(max, requested)
+  }
+  if (urgency === 0) return Math.min(max, Math.max(low, requestedDuration(expireTimeout)))
+  return Math.min(max, Math.max(normal, requestedDuration(expireTimeout)))
+}
+assertEqual(durationFor(2, 30000), 30000, 'critical with a positive expireTimeout gets a finite duration')
+assertEqual(durationFor(2, 60000), 30000, 'critical expireTimeout is clamped to maxPopupDuration')
+assertEqual(durationFor(2, 0), 0, 'critical with expireTimeout 0 stays sticky')
+assertEqual(durationFor(2, undefined), 0, 'critical with a missing expireTimeout stays sticky')
+assertEqual(durationFor(0, 1000), 5000, 'low urgency keeps its minimum floor')
+assertEqual(durationFor(1, 1000), 8000, 'normal urgency keeps its minimum floor')
+assertEqual(durationFor(0, 25000), 25000, 'low urgency honouring a request above the floor is unchanged')
+assertEqual(durationFor(1, 25000), 25000, 'normal urgency honouring a request above the floor is unchanged')
 assert(
   /function showHistory\(\): string \{\s*return service\.showRecentHistory\(\)\s*\}/.test(serviceQml),
   'notifications history IPC replays recent notifications'
