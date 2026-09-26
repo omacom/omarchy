@@ -79,7 +79,8 @@ set_scale() {
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
   local height="$(echo "$monitor_info" | jq -r '.height')"
-  local refresh_rate="$(echo "$monitor_info" | jq -r '.refreshRate')"
+  local pos_x="$(echo "$monitor_info" | jq -r '.x // 0')"
+  local pos_y="$(echo "$monitor_info" | jq -r '.y // 0')"
 
   # active_monitor is written into the Lua string eval'd below, so only a plain
   # connector name may pass; a hostile output name could execute otherwise.
@@ -88,18 +89,43 @@ set_scale() {
     exit 1
   fi
 
+  if [[ ! $width =~ ^[0-9]+$ ]] || [[ ! $height =~ ^[0-9]+$ ]]; then
+    echo "Refusing to scale a monitor with unknown geometry" >&2
+    exit 1
+  fi
+
+  if [[ ! $pos_x =~ ^-?[0-9]+$ ]]; then
+    pos_x=0
+  fi
+  if [[ ! $pos_y =~ ^-?[0-9]+$ ]]; then
+    pos_y=0
+  fi
+
   local new_scale="$(clean_scale "$requested_scale" "$width" "$height")"
   # GTK only honors integer GDK_SCALE values, so persist the nearest whole
   # factor even when the monitor scale itself is fractional.
   local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
   local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
+  # Keep the current position instead of resetting to "auto", so explicit
+  # multi-monitor layouts (e.g. DP-1 at 0x0 plus DP-2 at 1920x0) survive a
+  # scale change. The mode names no refresh rate so Hyprland keeps the
+  # current one instead of fighting float formatting (monitors.lua pins
+  # 164.92 while Hyprland reports 164.91701). Live-verified: re-applying
+  # the active scale leaves mode, rate and position untouched.
+  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}\", position = \"${pos_x}x${pos_y}\", scale = $new_scale })" >/dev/null
   audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 
-  # Persist to monitors.lua if the user still has Omarchy's generic catch-all
-  # defaults, so the scale survives reboots.
-  if [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
+  # Persist to monitors.lua so the scale survives reboots. An explicit
+  # per-output entry wins over the generic catch-all, so update it in place
+  # where one exists and leave the catch-all alone.
+  if [[ -f $monitor_lua ]] && grep -qE "^hl\.monitor\(\{ output = \"$active_monitor\"" "$monitor_lua"; then
+    sed -i -E "s|^(hl\.monitor\(\{ output = \"$active_monitor\".*scale = )[0-9.]+(.*)$|\1${new_scale}\2|" "$monitor_lua"
+    if grep -q '^local omarchy_gdk_scale = ' "$monitor_lua"; then
+      sed -i -E "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" "$monitor_lua"
+    fi
+    sed -i -E 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' "$monitor_lua"
+  elif [[ -f $monitor_lua ]] && grep -q '^local omarchy_monitor_scale = ' "$monitor_lua"; then
     sed -i -E \
       -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
       -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \

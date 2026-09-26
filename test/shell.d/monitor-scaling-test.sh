@@ -19,8 +19,9 @@ cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
 if [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}]' \
-    "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
+  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"x":%s,"y":%s}]' \
+    "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}" \
+    "${OMARCHY_TEST_MONITOR_X:-0}" "${OMARCHY_TEST_MONITOR_Y:-0}"
 elif [[ $1 == "eval" ]]; then
   printf '%s\n' "$2" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
 else
@@ -129,3 +130,34 @@ grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips d
 grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
   fail "monitor scaling down persists 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
+
+# An explicit multi-monitor layout keeps its position instead of resetting
+# to "auto", so a scale change does not collapse side-by-side outputs.
+write_monitor_config
+OMARCHY_TEST_MONITOR_SCALE=1 OMARCHY_TEST_MONITOR_WIDTH=1920 OMARCHY_TEST_MONITOR_HEIGHT=1080 \
+  OMARCHY_TEST_MONITOR_X=1920 OMARCHY_TEST_MONITOR_Y=0 run_scaling 1
+grep -F 'position = "1920x0"' "$eval_out" >/dev/null || fail "monitor scaling preserves the explicit monitor position"
+pass "monitor scaling preserves the explicit monitor position"
+
+# The mode names no refresh rate, so Hyprland keeps the current one instead
+# of fighting float formatting (164.92 vs 164.91701).
+grep -F 'mode = "1920x1080"' "$eval_out" >/dev/null || fail "monitor scaling names the mode without a refresh rate"
+! grep -q "@" "$eval_out" || fail "monitor scaling sends no refresh rate suffix"
+pass "monitor scaling names the mode without a refresh rate"
+
+# An explicit per-output entry keeps its own scale, so the change survives
+# a reload instead of reverting to the stale explicit value.
+cat >"$monitor_lua" <<'LUA'
+local omarchy_gdk_scale = 1
+local omarchy_monitor_scale = 1
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+hl.monitor({ output = "eDP-1", mode = "2880x1800", position = "0x0", scale = 1 })
+LUA
+OMARCHY_TEST_MONITOR_SCALE=1 run_scaling 2
+grep -Fx 'hl.monitor({ output = "eDP-1", mode = "2880x1800", position = "0x0", scale = 2 })' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists into the explicit per-output entry"
+grep -Fx 'local omarchy_monitor_scale = 1' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling leaves the generic catch-all alone with an explicit entry present"
+grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null ||
+  fail "monitor scaling persists integer GDK scale with an explicit entry present"
+pass "monitor scaling persists into the explicit per-output entry"
