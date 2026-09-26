@@ -47,4 +47,11 @@ high_temp=75
 speed_curve=linear
 always_full_speed=false
 EOF
+
+  # t2fanrd holds applesmc fan FDs open across suspend; after resume it never
+  # reasserts manual control (fan1_manual=0, failsafe full speed).
+  # Restart it on resume so fans return to the configured curve.
+  # See https://github.com/omacom/omarchy/issues/12393
+  sudo install -Dm0755 "$OMARCHY_PATH/default/systemd/system-sleep/t2fanrd" \
+    /usr/lib/systemd/system-sleep/t2fanrd
 fi
