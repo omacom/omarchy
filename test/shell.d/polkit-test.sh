@@ -36,7 +36,15 @@ auth [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-clo
 auth sufficient pam_fprintd.so
 auth required pam_unix.so
 `),
-  'polkit detects fingerprint even behind a clamshell gate'
+  'polkit detects fingerprint even behind a leftover lid-closed clamshell gate'
+)
+assert(
+  polkit.fingerprintConfiguredFromPamConfig(`
+auth [success=ignore default=1] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-open
+auth sufficient pam_fprintd.so
+auth required pam_unix.so
+`),
+  'polkit detects fingerprint behind the silent lid-open clamshell gate'
 )
 assert(
   !polkit.fingerprintConfiguredFromPamConfig(`
