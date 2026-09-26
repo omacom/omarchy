@@ -45,6 +45,29 @@ mode=$(stat -c '%a' "$write_dir/color.json")
 [[ $mode == "644" ]] || fail "theme colour creates a root-mode policy file" "mode=$mode"
 pass "theme colour writes a 0644 color.json"
 
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_install_privacy "$write_dir" ||
+  fail "privacy policy installs into a writable managed directory"
+[[ -f $write_dir/privacy.json && ! -L $write_dir/privacy.json ]] ||
+  fail "privacy policy writes a regular privacy.json"
+mode=$(stat -c '%a' "$write_dir/privacy.json")
+[[ $mode == "644" ]] || fail "privacy policy creates a root-mode policy file" "mode=$mode"
+jq -e '.SearchSuggestEnabled == false
+  and .NetworkPredictionOptions == 2
+  and .BlockThirdPartyCookies == true
+  and .WebRtcIPHandling == "default_public_interface_only"
+  and .AlternateErrorPagesEnabled == false
+  and .SpellCheckServiceEnabled == false' "$write_dir/privacy.json" >/dev/null ||
+  fail "privacy policy carries the hardened Chromium defaults"
+pass "privacy policy writes a hardened 0644 privacy.json"
+
+missing_dir=$test_tmp/not-created
+browser_policy_install_privacy "$missing_dir" ||
+  fail "privacy policy skips a managed directory that does not exist"
+[[ ! -e $missing_dir/privacy.json ]] ||
+  fail "privacy policy must not create a managed directory"
+pass "privacy policy leaves absent managed directories alone"
+
 if (( EUID == 0 )); then
   skip "running as root; skipping the mktemp-failure check"
 else
@@ -328,3 +351,15 @@ grep -F 'browser_policy_firefox_policy_file_ok' "${migrations[0]}" >/dev/null ||
 grep -F '/opt/zen-browser/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
   fail "the shared helper names the Zen distribution directory"
 pass "a migration locks existing policy directories"
+
+# The privacy policy has to be wired everywhere the colour policy is, not just
+# defined in the helper.
+grep -F 'browser_policy_install_privacy /etc/chromium/policies/managed' "$ROOT/install/config/browser-policy.sh" >/dev/null ||
+  fail "fresh installs ship the Chromium privacy policy"
+grep -F 'browser_policy_install_privacy "$1"' "$ROOT/bin/omarchy-install-browser" >/dev/null ||
+  fail "browser installs ship the privacy policy for managed directories"
+grep -F 'browser_policy_install_privacy "$dir"' "$ROOT/migrations/1790226946.sh" >/dev/null ||
+  fail "the privacy migration installs into existing managed directories"
+grep -F '{color,privacy}.json' "$ROOT/bin/omarchy-remove-browser" >/dev/null ||
+  fail "browser removal cleans up privacy.json too"
+pass "privacy policy is wired into install, browser management and removal"
