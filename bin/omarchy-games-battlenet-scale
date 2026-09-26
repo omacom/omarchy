@@ -80,7 +80,9 @@ dpi=$(wanted_dpi)
 
 if [[ -n $dpi ]] && (( dpi != $(prefix_dpi) )) && ! session_in_use; then
   if [[ -n $(session_pids) ]]; then
-    umu wineboot -k >/dev/null
+    # Plain -k boots the session right back up after the kill, restarting the
+    # services and the prefix's Run and Startup entries; -s makes it stay down.
+    umu wineboot -k -s >/dev/null
   fi
 
   if wait_for_rest; then

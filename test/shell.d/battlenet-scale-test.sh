@@ -29,12 +29,12 @@ else
 fi
 SH
 
-# wineboot -k ends the session, so it takes the stand-in processes down with it.
+# wineboot -k -s ends the session, so it takes the stand-in processes down with it.
 cat >"$mock_bin/umu-run" <<'SH'
 #!/bin/bash
 printf '%s | %s\n' "$WINEPREFIX" "$*" >>"$CALL_LOG"
 
-if [[ $* == "wineboot -k" && -s $FAKE_PIDS ]]; then
+if [[ $* == "wineboot -k -s" && -s $FAKE_PIDS ]]; then
   xargs kill <"$FAKE_PIDS" 2>/dev/null
 fi
 exit 0
@@ -115,7 +115,7 @@ fake_pids=()
 fake_session_process 'C:\windows\system32\services.exe'
 fake_session_process 'C:/ProgramData/Battle.net/Agent/Agent.9775/Agent.exe'
 run_scale
-[[ $(sed -n 1p "$call_log") == "$prefix | wineboot -k" ]] || fail "a session only the agent holds open is stopped first" "$(cat "$call_log")"
+[[ $(sed -n 1p "$call_log") == "$prefix | wineboot -k -s" ]] || fail "a session only the agent holds open is stopped first" "$(cat "$call_log")"
 [[ $(sed -n 2p "$call_log") == *"/d 192 /f" ]] || fail "the DPI is written once the agent's session is gone" "$(cat "$call_log")"
 pass "a session only the agent holds open is stopped before the DPI is written"
 fake_pids=()
@@ -138,7 +138,7 @@ fake_pids=()
 
 fake_session_process 'C:/ProgramData/Battle.net/Agent/Agent.9775/Agent.exe'
 run_scale
-[[ $(sed -n 1p "$call_log") == "$prefix | wineboot -k" ]] || fail "an agent behind a symlinked ~/Games is stopped first" "$(cat "$call_log")"
+[[ $(sed -n 1p "$call_log") == "$prefix | wineboot -k -s" ]] || fail "an agent behind a symlinked ~/Games is stopped first" "$(cat "$call_log")"
 [[ $(sed -n 2p "$call_log") == *"/d 192 /f" ]] || fail "the DPI is written behind a symlinked ~/Games" "$(cat "$call_log")"
 pass "a symlinked ~/Games gets the agent stopped and the DPI written"
 fake_pids=()
