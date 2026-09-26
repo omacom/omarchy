@@ -232,6 +232,10 @@ assert_output_contains "pkg add help shows direct route" "$output" "omarchy pkg 
 output=$("$CLI" system reboot --help)
 assert_output_contains "system command help is safe" "$output" "omarchy-system-reboot"
 
+output=$("$CLI" debug --help)
+assert_output_contains "debug help resolves" "$output" "omarchy-debug"
+assert_output_contains "debug help shows direct route" "$output" "omarchy debug [--no-sudo] [--print]"
+
 output=$("$CLI" dev benchmark cli --repeat=1)
 assert_output_contains "benchmark command runs" "$output" "Omarchy CLI benchmark"
 
