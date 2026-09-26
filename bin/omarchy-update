@@ -25,7 +25,18 @@ unset OMARCHY_UPDATE_USER_PATH
 # exits through the cleanup path.
 omarchy_security_install_sudo_cleanup_traps
 omarchy_security_revoke_sudo_timestamp || exit 1
-omarchy_security_enable_no_update_sudo
+# Fixed helpers below share one cached authorization, so a sudo without
+# --no-update support must stop the update before any work. Channel switching
+# has already installed the wrapper and exports OMARCHY_SUDO_NO_UPDATE; keep
+# that boundary instead of opening a caching window inside it.
+if ! omarchy_security_sudo_supports_no_update; then
+  echo "This sudo does not support --no-update; refusing mixed-trust work." >&2
+  exit 1
+fi
+if [[ ${OMARCHY_SUDO_NO_UPDATE:-0} != "1" ]]; then
+  PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+  export PATH
+fi
 
 update_stay_awake_stopped=0
 cleanup_update() {
@@ -82,11 +93,13 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # takes the update with it rather than migrating against what is still on disk.
   omarchy-update-system-pkgs
 
-  # Historical migrations are strictly ordered and mix user hooks/downloaded
-  # tooling with privileged repairs. The no-update sudo wrapper has covered the
-  # whole update, so neither the package transaction nor a later repair can
-  # publish a timestamp to a detached migration child.
+  # Historical migrations are strictly ordered and mix user hooks and
+  # downloaded tooling with later privileged repairs. Drop the cached timestamp
+  # here. Every later sudo — migrations, orphan removal, service restarts, AUR,
+  # hooks, and mise — goes through --no-update, so a migration child cannot
+  # wait for one of those repairs to publish a ticket.
   omarchy_security_revoke_sudo_timestamp
+  omarchy_security_enable_no_update_sudo
   omarchy-migrate
   omarchy-update-orphan-pkgs
 

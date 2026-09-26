@@ -20,15 +20,21 @@ for args in '-y' ''; do
   touch "$SUDO_TEST_CACHE"
   run_update $args || fail "update failed" "$(<"$boundary_tmp/output")"
   assert_boundary_cold "successful update"
-  grep -q '^sudo -N /usr/bin/true$' "$SUDO_TEST_LOG" || fail "update package helpers must use no-update sudo"
+  grep -q '^sudo /usr/bin/true$' "$SUDO_TEST_LOG" || fail "trusted update phases must use caching sudo"
   python3 - "$SUDO_TEST_LOG" <<'PY'
 import sys
 s=open(sys.argv[1]).read().splitlines()
-positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-restart --services-only','step:yay','step:omarchy-hook post-update','step:omarchy-update-mise','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
+positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-migrate','step:omarchy-update-restart --services-only','step:yay','step:omarchy-hook post-update','step:omarchy-update-mise','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
-assert not any(line.startswith('sudo -N ') for line in s[positions[2]:]), s
+migrate=positions[0]
+cached=[i for i,line in enumerate(s) if line=='sudo /usr/bin/true']
+assert cached and max(cached) < migrate, s
+between=s[max(cached)+1:migrate]
+assert between==['sudo -k','sudo -h'], s
+assert all(line in ('sudo -h','sudo -k') or line.startswith('sudo -N ') for line in s[migrate:] if line.startswith('sudo ')), s
+assert not any(line.startswith('sudo -N ') for line in s[positions[3]:]), s
 PY
-  pass "update $args runs privileged phases before hooks and exits cold"
+  pass "update $args caches sudo before migrations, then stays cold"
 done
 
 for step in omarchy-update-system-pkgs yay omarchy-hook omarchy-update-mise; do

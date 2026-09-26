@@ -349,9 +349,17 @@ assert_boundary_cold "standalone inhibitor cleanup"
 pass "standalone inhibitor cleanup revokes before and after session work"
 
 reset_boundary
-export SUDO_TEST_REVOKE_FAIL=1
-if run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" start; then
-  fail "inhibitor started after failed initial revocation"
-fi
-[[ ! -e $stay_awake_helper_state/inhibit-pid ]] || fail "failed revocation started an inhibitor"
-pass "failed initial revocation prevents standalone inhibition"
+touch "$SUDO_TEST_CACHE"
+preserve_driver="$test_tmp/preserve-stay-awake"
+cat >"$preserve_driver" <<'SH'
+#!/bin/bash
+set -euo pipefail
+omarchy-update-stay-awake start
+SH
+chmod +x "$preserve_driver"
+run_with_lock_env script -qefc "$preserve_driver" /dev/null >/dev/null
+[[ -e $SUDO_TEST_CACHE ]] || fail "start cleared a timestamp it did not create" "$(<"$SUDO_TEST_LOG")"
+grep -q -- '^sudo -N -b -- ' "$SUDO_TEST_LOG" || fail "start did not authenticate with sudo -N" "$(<"$SUDO_TEST_LOG")"
+grep -qx 'sudo -k' "$SUDO_TEST_LOG" && fail "start revoked a timestamp it did not create" "$(<"$SUDO_TEST_LOG")"
+run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update-stay-awake" stop
+pass "start borrows a cached timestamp with sudo -N and leaves it in place"

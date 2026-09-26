@@ -15,11 +15,10 @@ omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
 omarchy_security_require_source_root "$0"
-# Traps first, so a signal or failure during the entry revocation still
-# exits through the cleanup path.
-omarchy_security_install_sudo_cleanup_traps
-omarchy_security_revoke_sudo_timestamp || exit 1
-omarchy_security_enable_no_update_sudo
+# A signal during start must still reach the launch rollback. start itself
+# authenticates with sudo -N, which borrows a timestamp without publishing
+# one, and must not clear a ticket the update's trusted phases still hold.
+omarchy_security_install_signal_exit_traps
 
 stay_awake_state="$HOME/.local/state/omarchy/indicators/stay-awake"
 caller_uid=""
@@ -557,7 +556,10 @@ start_locked() {
     fi
   fi
   launch_pending=0
-  omarchy_security_install_sudo_cleanup_traps
+  # The successful launch used sudo -N, so it did not create a timestamp.
+  # Drop the rollback trap without revoking the caller's cached authorization.
+  trap - EXIT
+  omarchy_security_install_signal_exit_traps
 }
 
 case "${1:-}" in
@@ -567,6 +569,15 @@ case "${1:-}" in
     exit 2
     ;;
 esac
+
+# stop is invoked on its own, including after the update has moved into
+# untrusted phases. It revokes on entry and exit. start does not: its only
+# sudo is `sudo -N`, and clearing here would throw away the update's ticket.
+if [[ $1 == "stop" ]]; then
+  omarchy_security_install_sudo_cleanup_traps
+  omarchy_security_revoke_sudo_timestamp || exit 1
+  omarchy_security_enable_no_update_sudo
+fi
 
 initialize_state_boundary
 exec {state_lock_fd}<"$state_base" || fail_state_boundary

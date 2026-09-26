@@ -77,6 +77,14 @@ else
 fi
 STUB
 chmod +x "$SUDO_TEST_ROOT/mock/sudo"
+# Trusted update phases call bare sudo. The wrapper is not on PATH until
+# migrations, so this has to win over the host sudo. A real file, not a
+# symlink: a later test replaces bin/sudo with a decoy via truncation.
+cat >"$SUDO_TEST_ROOT/bin/sudo" <<'STUB'
+#!/bin/bash
+exec "$OMARCHY_PATH/mock/sudo" "$@"
+STUB
+chmod +x "$SUDO_TEST_ROOT/bin/sudo"
 
 cat >"$SUDO_TEST_ROOT/bin/test-step" <<'STUB'
 #!/bin/bash
