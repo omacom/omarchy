@@ -712,3 +712,57 @@ assert_output_contains "a --help behind -- belongs to the command and still forw
 
 output=$("$TMPDIR/omarchy" parenthelp --helpme x--help)
 assert_output_contains "help lookalike tokens do not trigger help" "$output" "parenthelp-parent-ran args=[--helpme x--help]"
+
+# Binaries packaged outside $OMARCHY_BIN_DIR (omarchy-debug ships in
+# omarchy-settings to /usr/bin only; see docs/file-layout.md) still resolve
+# through PATH so their `omarchy ...` routes keep working.
+make_tmpdir PATHBIN_DIR
+{
+  printf '#!/bin/bash\n\n'
+  printf '# omarchy:summary=PATH fallback probe\n'
+  printf 'echo path-fallback-ok args=[$*]\n'
+} >"$PATHBIN_DIR/omarchy-path-fallback-probe"
+chmod +x "$PATHBIN_DIR/omarchy-path-fallback-probe"
+
+output=$(PATH="$PATHBIN_DIR:$PATH" "$TMPDIR/omarchy" path fallback probe --flag1)
+assert_output_contains "PATH-packaged binary dispatches by route" "$output" "path-fallback-ok args=[--flag1]"
+
+output=$(PATH="$PATHBIN_DIR:$PATH" "$TMPDIR/omarchy" path fallback probe --help)
+assert_output_contains "PATH-packaged binary renders help" "$output" "omarchy-path-fallback-probe"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf 'echo path-shadowed-wrong\n'
+} >"$PATHBIN_DIR/omarchy-weird-test"
+chmod +x "$PATHBIN_DIR/omarchy-weird-test"
+
+output=$(PATH="$PATHBIN_DIR:$PATH" "$TMPDIR/omarchy" weird test)
+assert_output_contains "checkout binary wins over PATH" "$output" "weird-ok"
+
+# PATH fallback resolves only after checkout metadata and group resolution, so
+# checkout aliases and group help win over a same-named PATH entry.
+{
+  printf '#!/bin/bash\n\n'
+  printf 'echo path-shadowed-wrong\n'
+} >"$PATHBIN_DIR/omarchy-parenthelp-alias"
+chmod +x "$PATHBIN_DIR/omarchy-parenthelp-alias"
+
+output=$(PATH="$PATHBIN_DIR:$PATH" "$TMPDIR/omarchy" parenthelp-alias somearg)
+assert_output_contains "checkout alias wins over PATH" "$output" "parenthelp-parent-ran args=[somearg]"
+if [[ $output == *"path-shadowed-wrong"* ]]; then
+  fail "checkout alias wins over PATH"
+fi
+pass "checkout alias wins over PATH"
+
+{
+  printf '#!/bin/bash\n\n'
+  printf 'echo path-shadowed-wrong\n'
+} >"$PATHBIN_DIR/omarchy-weird"
+chmod +x "$PATHBIN_DIR/omarchy-weird"
+
+output=$(PATH="$PATHBIN_DIR:$PATH" "$TMPDIR/omarchy" weird)
+assert_output_contains "checkout group wins over PATH" "$output" "omarchy weird test"
+if [[ $output == *"path-shadowed-wrong"* ]]; then
+  fail "checkout group wins over PATH"
+fi
+pass "checkout group wins over PATH"

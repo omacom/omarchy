@@ -4,8 +4,12 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+# bin/omarchy (the router) resolves PATH entries itself: it needs the resolved
+# path for exec and metadata, which the helpers do not return, so raw
+# `command -v` is the correct tool there just as it is inside the helpers.
 raw_command_checks=$(rg -l 'command -v' "$ROOT/bin" \
-  | rg -v '/omarchy-(cmd-|pkg-|upgrade-to-quattro)' || true)
+  | rg -v '/omarchy-(cmd-|pkg-|upgrade-to-quattro)' \
+  | rg -v '/omarchy$' || true)
 [[ -z $raw_command_checks ]] || fail "bin commands use command helpers" "$raw_command_checks"
 pass "bin commands use command helpers"
 

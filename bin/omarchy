@@ -411,6 +411,31 @@ resolve_direct_route() {
   return 1
 }
 
+# Some binaries ship outside $OMARCHY_BIN_DIR: omarchy-debug, omarchy-debug-idle
+# and omarchy-upload-log ship in omarchy-settings to /usr/bin only, and
+# omarchy-nvim-* come from the omarchy-nvim package (see docs/file-layout.md).
+# Resolve those through PATH so their `omarchy ...` routes still work.
+resolve_path_route() {
+  local argc="$1"
+  shift
+  local args=("$@")
+  local prefix_count=0
+  local candidate=""
+  local found=""
+
+  for (( prefix_count = argc; prefix_count >= 1; prefix_count-- )); do
+    candidate="omarchy-$(join_words "-" "${args[@]:0:prefix_count}")"
+    [[ $candidate == *"/"* ]] && continue
+    found=$(command -v "$candidate" 2>/dev/null) || continue
+    [[ -f $found && -x $found ]] || continue
+    PATH_RESOLVED_BINARY="$found"
+    PATH_RESOLVED_COUNT="$prefix_count"
+    return 0
+  done
+
+  return 1
+}
+
 sorted_keys() {
   local include_all="$1"
   local key=""
@@ -1014,6 +1039,7 @@ dispatch_or_help() {
   local remaining=()
   local key=""
   local binary_path=""
+  local sibling=""
   local suggestion=""
 
   if resolve_route "$#" "${args[@]}"; then
@@ -1059,6 +1085,39 @@ dispatch_or_help() {
 
   if show_prefix_help "omarchy ${args[*]}"; then
     return 0
+  fi
+
+  # Last resort for binaries packaged outside $OMARCHY_BIN_DIR (omarchy-debug
+  # and friends ship in omarchy-settings to /usr/bin only). This runs after
+  # checkout metadata, group, and prefix resolution, so checkout routes —
+  # including aliases and group help — always win over a same-named PATH entry.
+  if resolve_path_route "$#" "${args[@]}"; then
+    remaining=("${args[@]:PATH_RESOLVED_COUNT}")
+    register_command "$PATH_RESOLVED_BINARY"
+    key="${BINARY_TO_KEY[${PATH_RESOLVED_BINARY##*/}]}"
+
+    if (( PATH_RESOLVED_COUNT == 1 )); then
+      for sibling in "${PATH_RESOLVED_BINARY%/*}/${PATH_RESOLVED_BINARY##*/}"-*; do
+        [[ -f $sibling && -x $sibling ]] || continue
+        register_command "$sibling"
+      done
+    fi
+
+    if remaining_has_help_flag "${remaining[@]}"; then
+      if remaining_has_json_flag "${remaining[@]}"; then
+        show_command_json "$key"
+      else
+        show_command_help "$key"
+      fi
+      return 0
+    fi
+
+    if (( ${#remaining[@]} == 0 )) && [[ -n $key ]] && command_requires_args "$key"; then
+      show_command_help "$key"
+      return 0
+    fi
+
+    exec "$PATH_RESOLVED_BINARY" "${remaining[@]}"
   fi
 
   echo "Unknown Omarchy command: omarchy ${args[*]}" >&2
