@@ -119,10 +119,40 @@ assertNoImageSurvives(
   'notifications leave no image tag when a CRLF rewrite splits a kept tag'
 )
 
+// Escaping subsumes the splice defence: nothing from the body survives as a
+// live tag at all, so the rewrite has no kept tag to splice into.
 assertEqual(
   notifications.styledBody('<x\n<img src="http://host/split.png">', 'Slack', ''),
-  '<x<br/>',
-  'notifications drop the image half of a tag the newline rewrite splits'
+  '&lt;x<br/>&lt;img src="http://host/split.png"&gt;',
+  'notifications escape both halves of a tag the newline rewrite splits'
+)
+
+// Senders that advertise body-markup escape their own text (Chromium writes
+// "AT&amp;T"), so escaping again would show the entity spelling to the user.
+assertEqual(
+  notifications.styledBody('AT&amp;T invoice', 'Slack', ''),
+  'AT&amp;T invoice',
+  'notifications leave a sender-escaped ampersand alone'
+)
+
+assertEqual(
+  notifications.styledBody('Alice &lt;alice@example.com&gt;', 'Slack', ''),
+  'Alice &lt;alice@example.com&gt;',
+  'notifications leave sender-escaped angle brackets alone'
+)
+
+assertEqual(
+  notifications.styledBody('AT&T', 'Slack', ''),
+  'AT&amp;T',
+  'notifications escape a raw ampersand'
+)
+
+// The reason the two are kept apart: a sender's escaped tag must stay text. If
+// restoration could not tell it from a raw one, escaping would be bypassable.
+assertEqual(
+  notifications.styledBody('&lt;b&gt;not bold&lt;/b&gt;', 'Slack', ''),
+  '&lt;b&gt;not bold&lt;/b&gt;',
+  'notifications do not promote a sender-escaped tag to live formatting'
 )
 
 // The rewrite itself still happens, and body markup other than images survives it.

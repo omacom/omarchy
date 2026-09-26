@@ -77,16 +77,52 @@ function stripImageTags(text) {
   return out
 }
 
+// The body is rendered with Text.StyledText so notifications can use the small
+// amount of inline markup the freedesktop `body-markup` capability defines. Qt's
+// rich text parser accepts a great deal more than that, and the body is
+// attacker-influenced — a video title, a page title, a chat message — so
+// everything is escaped and only the intended tags are put back.
+//
+// `<a>` is deliberately not restored. Nothing in the shell connects
+// linkActivated, so a link cannot navigate anywhere; all it can do is look
+// convincingly clickable, which is the spoofing half of the problem rather
+// than a feature.
+function escapeMarkup(text) {
+  // Senders that advertise body-markup support escape their own text first —
+  // Chromium writes "AT&amp;T" — so escaping every & again would show the
+  // entity spelling instead of the character. Park the references the sender
+  // already wrote behind a sentinel, escape what is genuinely raw, then put
+  // them back untouched.
+  //
+  // The sentinel is what keeps the two apart, and that matters for more than
+  // cosmetics: without it, a sender's literal "&lt;b&gt;" would survive the
+  // escape as "&lt;b&gt;" and the restore below would promote it to live
+  // formatting, which is the hole this function exists to close. \x00 cannot
+  // come back from the input because it is stripped first.
+  var s = String(text || "").replace(/\x00/g, "")
+
+  s = s.replace(/&(#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]*);/gi, "\x00$1;")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+
+  // Only a tag that was raw in the input reaches this as &lt;b&gt;; a sender's
+  // escaped one is still parked.
+  return s
+    .replace(/&lt;(\/?(?:b|i|u))&gt;/gi, "<$1>")
+    .replace(/\x00([^;]*);/g, "&$1;")
+}
+
 // What the card renders, and the last thing to touch the string before Qt parses
-// it. The newline rewrite belongs here rather than in the card because it inserts
-// `<br/>` into text stripImageTags chose to KEEP, and a kept tag may hold a `<` of
-// its own: `<x`, newline, `<img src="http://…">` is one tag named `x` to both the
-// stripper and Qt, until the rewrite splits it into `<x<br/>` and a live image tag
-// the input never contained. Measured against Qt 6.11.2 — the rewritten form
-// fetches, the original does not. So strip again after, and what Qt parses is what
-// was checked last.
+// it. escapeMarkup runs after sanitizeBody and before the newline rewrite: once
+// every `<`, `>` and `&` the notification supplied is escaped, the only live
+// markup left is what this function put there, so the `<br/>` inserted below
+// cannot be spliced into a tag the input never contained. That is what the
+// second stripImageTags pass here used to defend against — `<x`, newline,
+// `<img src="http://…">` becoming `<x<br/>` plus a live image tag — and
+// escaping removes the possibility rather than re-checking for it.
 function styledBody(body, app, appIcon) {
-  return stripImageTags(sanitizeBody(body, app, appIcon).replace(/\r\n|\r|\n/g, "<br/>"))
+  return escapeMarkup(sanitizeBody(body, app, appIcon)).replace(/\r\n|\r|\n/g, "<br/>")
 }
 
 function sanitizeBody(body, app, appIcon) {
@@ -451,6 +487,7 @@ if (typeof module !== "undefined") {
     isChromiumDerived: isChromiumDerived,
     sanitizeBody: sanitizeBody,
     styledBody: styledBody,
+    escapeMarkup: escapeMarkup,
     summaryStartsWithGlyph: summaryStartsWithGlyph,
     shouldBypassDnd: shouldBypassDnd,
     isEphemeralApp: isEphemeralApp,
