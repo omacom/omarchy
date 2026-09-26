@@ -247,6 +247,7 @@ Item {
     return {
       providerId: String(record.id),
       providerName: String(record.name || record.id),
+      updatedAt: String(record.updatedAt || ""),
       ready: record.ready === true || synced,
       usageStatusText: String(record.usageStatusText || ""),
       authHelpText: String(record.authHelpText || ""),

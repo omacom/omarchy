@@ -23,6 +23,8 @@
         "codex": { "enabled": true },
         "fireworks": { "enabled": true }
       },
+      "barDisplay": "Icon",
+      "sessionActivity": "Off",
       "refreshIntervalSec": 900,
       "syncMode": "Off",
       "syncDir": "",
@@ -30,6 +32,8 @@
       "syncDeviceId": ""
     },
     "schema": [
+      { "key": "barDisplay", "type": "enum", "label": "Bar display", "options": ["Icon", "Usage rings"], "defaultValue": "Icon", "description": "Show one usage ring per enabled provider. Click a ring to open its panel." },
+      { "key": "sessionActivity", "type": "enum", "label": "Local session activity", "options": ["Off", "On"], "defaultValue": "Off", "description": "Read Claude Code session states locally every five seconds. Other providers remain unsupported." },
       { "key": "refreshIntervalSec", "type": "integer", "label": "Refresh interval (seconds)", "min": 30, "max": 3600, "step": 30, "defaultValue": 900 },
       { "key": "syncMode", "type": "enum", "label": "Synced aggregation", "options": ["Off", "On"], "defaultValue": "Off", "description": "When On, write this machine's local usage snapshot and merge snapshots from other machines." },
       { "key": "syncDir", "type": "path", "label": "Sync folder", "defaultValue": "", "description": "A folder synced by Syncthing, Dropbox, rsync, etc." },
