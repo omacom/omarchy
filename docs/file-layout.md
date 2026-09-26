@@ -140,6 +140,12 @@ logo.{txt,svg}, icon.{txt,png}  ──► omarchy-settings    /usr/share/omarchy
 
 The hardware-conditional `force-igpu` and `keyboard-backlight` sources also live under `default/systemd/system-sleep/`, but their setup commands publish root-owned copies only on machines that need them; they are not installed by `omarchy-settings`.
 
+### BCM4350 Bluetooth coexistence
+
+`etc/NetworkManager/dispatcher.d/90-omarchy-bcm4350-coexistence` ships executable through `omarchy-settings`, so package updates also update or retire the quirk. It selects parallel coexistence for MacBookPro14,1 with BCM4350 rev 5 and firmware `7.35.180.133` / `01-c45b39d6` on 2.4 GHz; [the controlled comparison](https://github.com/omacom/omarchy/issues/13297) documents the audio failure under the default hybrid policy. Other hardware, firmware versions, and nondefault policies are preserved.
+
+The dispatcher runs on network activation, reapply, DHCP changes, and disconnect. It restores hybrid mode when the link leaves 2.4 GHz only if `/run/omarchy-bcm4350-coexistence/` records that it applied parallel mode. New and existing installations pick it up at their next network activation; no copied installer artifact or migration is needed. Roaming within an active connection is checked at the next dispatcher event, not continuously. Reboot/resume and headset microphone calls have not been validated on hardware.
+
 ### Why `etc-overrides/` exists
 
 Some files under `/etc/` (`.bashrc` in `/etc/skel`, `nsswitch.conf`,
