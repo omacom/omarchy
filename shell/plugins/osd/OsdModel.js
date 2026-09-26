@@ -14,6 +14,8 @@ function iconFor(name, percent) {
   if (n === "volume-high" || n === "volume") return ""
   if (n === "microphone-muted" || n === "microphone-off" || n === "mic-muted" || n === "mic-off") return "󰍭"
   if (n === "microphone" || n === "mic") return "󰍬"
+  if (n === "camera-off" || n === "webcam-off") return "󱜷"
+  if (n === "camera" || n === "webcam") return "󰖠"
   if (n === "keyboard") return "󰌌"
   if (n === "brightness" || n === "display") return "󰍹"
   if (n === "touchpad") return "󰟸"

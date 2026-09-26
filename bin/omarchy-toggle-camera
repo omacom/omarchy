@@ -1,0 +1,125 @@
+#!/bin/bash
+
+# omarchy:summary=Enable, disable, or toggle every USB camera
+# omarchy:args=[on|off|toggle]
+
+set -euo pipefail
+
+# As root, sudo's secure_path decides where bare helpers resolve, and a dev link
+# (etc/sudoers.d/omarchy-dev-path) prepends a user-writable checkout to it.
+if (( EUID == 0 )); then
+  export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+fi
+
+# The flag is what keeps cameras off across reboots and replugs, through
+# etc/udev/rules.d/70-omarchy-camera-disabled.rules. The override exists for
+# tests, so root never honors it.
+DISABLED_FLAG=/var/lib/omarchy/camera-disabled
+USB_BUS=/sys/bus/usb
+if (( EUID != 0 )); then
+  DISABLED_FLAG="${OMARCHY_CAMERA_DISABLED_FLAG:-$DISABLED_FLAG}"
+fi
+
+# Always elevate the packaged copy, so etc/sudoers.d/omarchy-toggle-camera
+# matches even where $OMARCHY_PATH points at a checkout.
+PACKAGED_PATH=/usr/bin/omarchy-toggle-camera
+
+usage() {
+  echo "Usage: omarchy-toggle-camera [on|off|toggle]" >&2
+}
+
+# `sudo -l` alone says yes to everything under the blanket %wheel rule; only the
+# long listing shows whether the passwordless grant applies.
+sudo_grants_passwordless() {
+  sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
+}
+
+# No exec, so the OSD still shows as the user who asked.
+elevate() {
+  if [[ -t 0 ]] || sudo_grants_passwordless "$@"; then
+    sudo "$PACKAGED_PATH" "$@"
+  else
+    pkexec "$PACKAGED_PATH" "$@"
+  fi
+}
+
+# Interfaces rather than whole devices, so a webcam's microphone keeps working.
+video_interfaces() {
+  local interface
+
+  for interface in "$USB_BUS"/devices/*:*; do
+    [[ -r $interface/bInterfaceClass ]] || continue
+    if [[ $(<"$interface/bInterfaceClass") == "0e" ]]; then
+      echo "$interface"
+    fi
+  done
+}
+
+disable_cameras() {
+  local interface
+  local interfaces
+
+  install -d -m 0755 "$(dirname "$DISABLED_FLAG")"
+  : >"$DISABLED_FLAG"
+
+  # A camera unplugged halfway through takes its interfaces with it, and must
+  # not stop the rest from going dark.
+  mapfile -t interfaces < <(video_interfaces)
+  for interface in "${interfaces[@]}"; do
+    echo 0 2>/dev/null >"$interface/authorized" || true
+  done
+}
+
+enable_cameras() {
+  local interface
+  local interfaces
+
+  rm -f "$DISABLED_FLAG"
+  mapfile -t interfaces < <(video_interfaces)
+
+  # The kernel does not probe an interface when it is authorized again, and
+  # uvcvideo only binds once every interface of the camera is back.
+  for interface in "${interfaces[@]}"; do
+    echo 1 2>/dev/null >"$interface/authorized" || true
+  done
+
+  for interface in "${interfaces[@]}"; do
+    echo "${interface##*/}" 2>/dev/null >"$USB_BUS/drivers_probe" || true
+  done
+}
+
+if (( $# > 1 )); then
+  usage
+  exit 1
+fi
+
+action="${1:-toggle}"
+
+if [[ $action == "toggle" ]]; then
+  if [[ -e $DISABLED_FLAG ]]; then
+    action="on"
+  else
+    action="off"
+  fi
+fi
+
+if [[ $action != "on" && $action != "off" ]]; then
+  usage
+  exit 1
+fi
+
+if (( EUID == 0 )); then
+  if [[ $action == "on" ]]; then
+    enable_cameras
+  else
+    disable_cameras
+  fi
+else
+  elevate "$action"
+
+  if [[ $action == "on" ]]; then
+    omarchy-osd -i camera -m "Camera enabled"
+  else
+    omarchy-osd -i camera-off -m "Camera disabled"
+  fi
+fi

@@ -1,0 +1,155 @@
+#!/bin/bash
+
+# omarchy:summary=Print camera state as JSON, or stream it with --watch
+# omarchy:args=[--watch]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+DISABLED_FLAG="${OMARCHY_CAMERA_DISABLED_FLAG:-/var/lib/omarchy/camera-disabled}"
+USB_DEVICES="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+
+# Disabled cameras still count, so the bar keeps a way to turn them back on.
+cameras_present() {
+  local interface
+
+  for interface in "$USB_DEVICES"/*:*; do
+    [[ -r $interface/bInterfaceClass ]] || continue
+    if [[ $(<"$interface/bInterfaceClass") == "0e" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+camera_users() {
+  local fd comm via_pipewire=0
+
+  # A single find, because resolving every fd link from bash takes seconds.
+  # Other users' fd tables are unreadable, so find always exits non-zero, and
+  # an app still holding a camera that was just disabled points at a deleted
+  # node that no longer captures.
+  while IFS= read -r fd; do
+    comm=$(cat "${fd%/fd/*}/comm" 2>/dev/null) || continue
+    if [[ $comm == "pipewire" || $comm == "wireplumber" ]]; then
+      via_pipewire=1
+    else
+      echo "$comm"
+    fi
+  done < <(find /proc/[0-9]*/fd -mindepth 1 -maxdepth 1 \
+    -lname '/dev/video*' ! -lname '* (deleted)' 2>/dev/null || true)
+
+  if (( via_pipewire )); then
+    pipewire_camera_users
+  fi
+}
+
+# PipeWire opens every camera for a moment when it shows up, and also holds it
+# for apps that capture through the camera portal. Only a running video source
+# means an app is actually getting frames.
+pipewire_camera_users() {
+  pw-dump 2>/dev/null | jq -r '
+    (map(select(.type == "PipeWire:Interface:Client") | {key: (.id | tostring), value: .info.props}) | from_entries) as $clients
+    | [.[] | select(.type == "PipeWire:Interface:Node" and .info.state == "running") | .info.props] as $running
+    | if any($running[]; ."media.class" == "Video/Source") then
+        ([$running[] | select(."media.class" == "Stream/Input/Video")
+          | $clients[(."client.id" // "" | tostring)] as $client
+          | ."application.name" // $client."application.name" // ."node.name" // empty]
+          | if length > 0 then .[] else "PipeWire" end)
+      else empty end
+  ' || true
+}
+
+json_bool() {
+  if "$@"; then
+    echo true
+  else
+    echo false
+  fi
+}
+
+# Browsers open every camera for well under 100ms when one appears, just to
+# list it, so only an app still holding a camera a moment later is using it.
+lasting_camera_users() {
+  local first
+
+  first=$(camera_users | sort -u)
+  if [[ -n $first ]]; then
+    sleep 0.3
+    comm -12 <(echo "$first") <(camera_users | sort -u)
+  fi
+}
+
+status() {
+  local present disabled apps
+
+  present=$(json_bool cameras_present)
+  disabled=$(json_bool test -e "$DISABLED_FLAG")
+  apps=$(lasting_camera_users | jq -Rsc 'split("\n") | map(select(length > 0))')
+
+  jq -nc \
+    --argjson present "$present" \
+    --argjson disabled "$disabled" \
+    --argjson apps "$apps" \
+    '{present: $present, disabled: $disabled, inUse: ($apps | length > 0), apps: $apps}'
+}
+
+watch() {
+  local current previous="" waiter_fd="" waited
+
+  while true; do
+    # Started before the scan, so an event landing mid-scan waits in the pipe
+    # instead of leaving the bar stale.
+    if [[ -z $waiter_fd ]]; then
+      # inotify sees apps opening cameras; udev sees cameras plugged, unplugged,
+      # disabled, or enabled, including a disabled one being unplugged, which
+      # has no /dev node left to go away. /dev/null alone is opened several
+      # times a second, so only camera nodes get through. pdeathsig keeps the waiters from outliving the
+      # shell, and wait -n ends both when either dies so the loop sets them up
+      # again.
+      exec {waiter_fd}< <(exec setpriv --pdeathsig TERM bash -c '
+        setpriv --pdeathsig TERM inotifywait -m -q -e open,close \
+          --include "^/dev/video[0-9]+\$" /dev 2>/dev/null &
+        setpriv --pdeathsig TERM udevadm monitor --udev \
+          --subsystem-match=usb/usb_interface 2>/dev/null &
+        wait -n
+      ')
+    fi
+
+    current=$(status)
+    if [[ $current != "$previous" ]]; then
+      echo "$current"
+      previous=$current
+    fi
+
+    # The timeout only bounds how stale a missed event can leave the bar.
+    waited=0
+    read -r -t 30 -u "$waiter_fd" _ || waited=$?
+
+    if (( waited == 0 )); then
+      # Plugging or opening a camera comes as a burst of events; one scan covers
+      # them all.
+      while read -r -t 0.1 -u "$waiter_fd" _; do :; done
+    elif (( waited <= 128 )); then
+      # A waiter that cannot start ends at once; back off instead of rescanning
+      # in a tight loop.
+      exec {waiter_fd}<&-
+      waiter_fd=""
+      sleep 5
+    fi
+  done
+}
+
+case "${1:-}" in
+  "")
+    status
+    ;;
+  --watch)
+    watch
+    ;;
+  *)
+    echo "Usage: omarchy-camera-status [--watch]" >&2
+    exit 1
+    ;;
+esac

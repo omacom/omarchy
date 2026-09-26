@@ -1,0 +1,4 @@
+# Keeps cameras disabled by omarchy-toggle-camera off when they show up again at
+# boot or on replug.
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", ENV{INTERFACE}=="14/*", \
+  TEST=="/var/lib/omarchy/camera-disabled", ATTR{authorized}="0"

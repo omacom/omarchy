@@ -1,0 +1,4 @@
+# The camera switch is a one-click toggle in the bar, so it cannot stop for a
+# password. It reaches every user, not just %wheel, because blocking cameras is
+# machine-wide and anyone at the machine should be able to flip it.
+ALL ALL=(root) NOPASSWD: /usr/bin/omarchy-toggle-camera on, /usr/bin/omarchy-toggle-camera off
