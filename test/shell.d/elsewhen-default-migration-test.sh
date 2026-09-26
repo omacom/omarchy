@@ -38,15 +38,13 @@ exit 1
 SH
 chmod +x "$test_dir/bin/"*
 
-mkdir -p "$test_dir/packaged/shell/plugins/omacom.elsewhen"
 migration="$ROOT/migrations/1790042972.sh"
-sed "s|/usr/share/omarchy|$test_dir/packaged|g" "$migration" >"$test_dir/migration.sh"
 
 plugin="$test_dir/home/.config/omarchy/plugins/omacom.elsewhen"
 run_migration() {
   : >"$CALL_LOG"
   HOME="$test_dir/home" OMARCHY_PATH="${1:-$test_dir/packaged}" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
-    bash -euo pipefail "$test_dir/migration.sh" >"$test_dir/output" 2>&1
+    bash -euo pipefail "$migration" >"$test_dir/output" 2>&1
 }
 
 if PACKAGE_STATUS=1 run_migration; then
@@ -71,59 +69,28 @@ run_migration
 pass "migration can be rerun without a user plugin link"
 
 run_migration "$ROOT"
-[[ $(readlink "$plugin") == "$test_dir/packaged/shell/plugins/omacom.elsewhen" ]] || fail "dev checkout links the packaged plugin"
-pass "dev checkout discovers Elsewhen through a user plugin link"
-run_migration "$ROOT"
-[[ $(readlink "$plugin") == "$test_dir/packaged/shell/plugins/omacom.elsewhen" ]] || fail "dev link survives a rerun"
-pass "dev link is idempotent"
-rm "$plugin"
-
-mkdir -p "$plugin"
-printf 'local work\n' >"$plugin/notes"
-run_migration "$ROOT"
-[[ ! -L $plugin && $(cat "$plugin/notes") == "local work" ]] || fail "existing checkout is preserved"
-pass "existing checkout and local files are preserved"
-
-rm "$plugin/notes"
-rmdir "$plugin"
-ln -s "$test_dir/custom-plugin" "$plugin"
-run_migration "$ROOT"
-[[ $(readlink "$plugin") == "$test_dir/custom-plugin" ]] || fail "existing symlink is preserved"
-pass "existing symlink is preserved, including a missing target"
-
-# An earlier revision, and a symlink once shipped under config/, pointed every
-# install at the package's old path.
-for tree in "$ROOT" "$test_dir/packaged"; do
-  ln -sfn "$test_dir/packaged/plugins/omacom.elsewhen" "$plugin"
-  run_migration "$tree"
-  [[ $(readlink "$plugin") == "$test_dir/packaged/shell/plugins/omacom.elsewhen" ]] ||
-    fail "a stranded link to the package's old path is re-pointed (OMARCHY_PATH=$tree)" "$(readlink "$plugin")"
-done
-pass "a stranded link to the package's old path is re-pointed on every install"
-rm "$plugin"
+[[ ! -e $plugin && ! -L $plugin ]] || fail "dev migration does not create a user plugin link"
+[[ $(cat "$CALL_LOG") == "$expected" ]] || fail "dev migration uses the same install, scan and placement"
+pass "dev checkout uses the same migration without a user plugin link"
 
 if env TEST_PUT_RESULT=unknown HOME="$test_dir/home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
-  bash -euo pipefail "$test_dir/migration.sh" >"$test_dir/output" 2>&1; then
+  bash -euo pipefail "$migration" >"$test_dir/output" 2>&1; then
   fail "an unknown widget must leave the migration pending"
 fi
 pass "an unknown widget leaves the migration pending"
 
-# An update with no shell to ask, from a TTY or with the shell down, still
-# finishes: the package and link land, the placement is skipped, and the update
-# restarts the shell afterwards.
-rm "$plugin"
 : >"$CALL_LOG"
 if ! env SHELL_ABSENT=1 OMARCHY_SHELL_ABSENT_ATTEMPTS=1 HOME="$test_dir/home" OMARCHY_PATH="$ROOT" PATH="$test_dir/bin:$ROOT/bin:$PATH" \
-  bash -euo pipefail "$test_dir/migration.sh" >"$test_dir/output" 2>&1; then
+  bash -euo pipefail "$migration" >"$test_dir/output" 2>&1; then
   fail "an absent shell must not fail the migration" "$(cat "$test_dir/output")"
 fi
 grep -q "omacom.elsewhen was not put on the bar" "$test_dir/output" || fail "an absent shell is reported" "$(cat "$test_dir/output")"
-[[ $(readlink "$plugin") == "$test_dir/packaged/shell/plugins/omacom.elsewhen" ]] || fail "the package and plugin link land without a shell"
+[[ ! -e $plugin && ! -L $plugin ]] || fail "an absent shell does not create a user plugin link"
 [[ $(cat "$CALL_LOG") == "$expected" ]] || fail "the rescan is best-effort and the put is still asked" "$(cat "$CALL_LOG")"
-pass "an absent shell leaves the update running with the package and link in place"
+pass "an absent shell keeps the existing bar helper behavior without a user plugin link"
 
-# The first run of this migration was under 1789581661.sh, before the re-point
-# existed; that marker must not stop the renamed file from running there.
+# The first version of this migration ran as 1789581661.sh; that marker must
+# not stop this one from running there.
 state="$test_dir/state"
 mkdir -p "$state"
 touch "$state/1789581661.sh"
