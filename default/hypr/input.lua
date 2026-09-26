@@ -1,32 +1,13 @@
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#input
 
-local function read_vconsole()
-  local values = {}
-  local file = io.open("/etc/vconsole.conf", "r")
-  if not file then
-    return values
-  end
-
-  for line in file:lines() do
-    local key, value = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
-    if key and value then
-      value = value:gsub("%s+#.*$", "")
-      value = value:gsub('^"(.*)"$', "%1")
-      value = value:gsub("^'(.*)'$", "%1")
-      values[key] = value
-    end
-  end
-
-  file:close()
-  return values
-end
+local keyboard = require("default.hypr.keyboard")
 
 -- Layouts that can't type Latin letters. Keep in sync with the list in
 -- etc/mkinitcpio.conf.d/omarchy_hooks.conf.
 local non_latin_layouts =
   " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
 
-local vconsole = read_vconsole()
+local vconsole = keyboard.vconsole()
 
 local kb_layout = vconsole.XKBLAYOUT or "us"
 local kb_variant = vconsole.XKBVARIANT or ""
