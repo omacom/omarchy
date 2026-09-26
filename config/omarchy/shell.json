@@ -65,5 +65,8 @@
       ]
     }
   },
+  "menu": {
+    "webSearchUrl": "https://www.google.com/search?q={searchTerms}"
+  },
   "plugins": []
 }
