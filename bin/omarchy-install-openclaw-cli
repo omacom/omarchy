@@ -26,9 +26,10 @@ if (( EUID == 0 )); then
   exit 1
 fi
 
-# These select another profile's unit and command, for upstream's installer
-# and the CLI alike, and everything here is about the default ones.
-unset OPENCLAW_PROFILE OPENCLAW_SYSTEMD_UNIT OPENCLAW_WRAPPER
+# Omarchy's OpenClaw is the default one, in ~/.openclaw with the default unit,
+# whatever another profile, unit or state directory a shell selects; a service
+# installed from here would otherwise carry that selection.
+unset OPENCLAW_PROFILE OPENCLAW_SYSTEMD_UNIT OPENCLAW_WRAPPER OPENCLAW_HOME OPENCLAW_STATE_DIR OPENCLAW_CONFIG_PATH
 
 prefix="$HOME/.openclaw"
 runtime_command="$prefix/bin/openclaw"
@@ -69,10 +70,22 @@ installed() {
   omarchy-pkg-present openclaw && runtime_runs && on_path
 }
 
-# The service a unit runs, read from its ExecStart alone: other lines can name
-# ~/.openclaw paths whichever OpenClaw the unit starts.
+# Whether a unit's ExecStart runs a program from under a path: the program
+# itself, or the script it is handed. Later arguments and other lines can name
+# ~/.openclaw whichever OpenClaw the unit starts.
 unit_runs() {
-  grep -E '^ExecStart=' "$1" | grep -qF -- "$2"
+  local words word
+  read -ra words <<<"$(sed -n 's/^ExecStart=//p' "$1" | head -1)"
+  if [[ ${words[0]:-} == "$2"* ]]; then
+    return 0
+  fi
+  for word in "${words[@]:1}"; do
+    if [[ $word != -* ]]; then
+      [[ $word == "$2"* ]]
+      return
+    fi
+  done
+  return 1
 }
 
 # A gateway service already running some other OpenClaw. Upstream's installer
@@ -103,6 +116,9 @@ stop_legacy_services() {
       echo "Could not stop the OpenClaw $role service, so OpenClaw was not moved to $prefix." >&2
       return 1
     fi
+    if [[ " ${running[*]} " == *" $role "* ]]; then
+      stopped+=("$role")
+    fi
   done
 }
 
@@ -129,11 +145,14 @@ rehome_services() {
   done
 }
 
-# Said whenever a failure leaves a service stopped by this run.
+# Said on any failure that leaves a service this run stopped not running.
 stopped_note() {
-  if (( ${#running[@]} )); then
-    echo "The OpenClaw ${running[*]} service was stopped for this and is not running now." >&2
-  fi
+  local role
+  for role in "${stopped[@]}"; do
+    if ! systemctl --user is-active --quiet "openclaw-$role.service"; then
+      echo "The OpenClaw $role service was stopped for this and is not running now." >&2
+    fi
+  done
 }
 
 case "$mode" in
@@ -184,6 +203,7 @@ fi
 # anything changes.
 moving=()
 running=()
+stopped=()
 for role in gateway node; do
   if [[ -f $(unit_path "$role") ]] && unit_runs "$(unit_path "$role")" "/usr/lib/node_modules/openclaw/"; then
     moving+=("$role")
@@ -193,6 +213,7 @@ for role in gateway node; do
   fi
 done
 
+trap 'status=$?; (( status == 0 )) || stopped_note' EXIT
 stop_legacy_services
 
 if [[ $seeding == "true" ]]; then
@@ -202,7 +223,6 @@ if [[ $seeding == "true" ]]; then
   bash "$seed/install-cli.sh" --install-method npm --prefix "$prefix" --version "$seed/openclaw.tgz" --no-onboard || true
   if ! runtime_runs; then
     echo "OpenClaw setup did not complete. Re-run this command after resolving the installer error." >&2
-    stopped_note
     exit 1
   fi
 fi
@@ -210,10 +230,7 @@ fi
 mkdir -p "${command_path%/*}"
 ln -sfn "$runtime_command" "$command_path"
 
-if ! rehome_services; then
-  stopped_note
-  exit 1
-fi
+rehome_services
 
 if ! on_path; then
   echo "$runtime_command is ready, but 'openclaw' on PATH is $(type -P openclaw || echo missing), which is what Omarchy runs." >&2
