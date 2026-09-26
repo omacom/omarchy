@@ -3,6 +3,84 @@
 # omarchy:summary=Launch an app or focus an existing window matching a pattern
 # omarchy:args=<window-pattern> <launch-command>
 
+# Proves a launch command string can only word-split, expand variables, and
+# glob when handed to eval: separators, redirects, and command substitution
+# must be quoted, and $ may only start a name, never $( ${ $[ or $'.
+launch_command_is_safe() {
+  local s=$1 c next quote="" word_start=1 continuation=0 i=0
+
+  while (( i < ${#s} )); do
+    c=${s:i:1}
+    case $c in
+      "'")
+        if [[ $quote == single ]]; then
+          quote=""
+        elif [[ $quote != double ]]; then
+          quote=single
+        fi
+        ;;
+      '"')
+        if [[ $quote == double ]]; then
+          quote=""
+        elif [[ $quote != single ]]; then
+          quote=double
+        fi
+        ;;
+      "\\")
+        if [[ $quote != single ]]; then
+          if (( i + 1 < ${#s} )) && [[ ${s:i+1:1} == $'\n' ]]; then
+            continuation=1
+          else
+            word_start=0
+          fi
+          (( i++ ))
+        fi
+        ;;
+      "\\")
+        if [[ $quote != single ]]; then
+          if (( i + 1 < ${#s} )) && [[ ${s:i+1:1} == $'\n' ]]; then
+            word_start=1
+          else
+            word_start=0
+          fi
+          (( i++ ))
+        fi
+        ;;
+      '$')
+        if [[ $quote != single ]]; then
+          (( i + 1 < ${#s} )) || return 1
+          next=${s:i+1:1}
+          [[ $next == [A-Za-z0-9_] ]] || return 1
+        fi
+        ;;
+      '`')
+        [[ $quote == single ]] || return 1
+        ;;
+      ';'|'|'|'&'|'('|')'|'<'|'>'|$'\n')
+        [[ -n $quote ]] || return 1
+        ;;
+      ' '|$'\t')
+        if [[ -z $quote ]]; then
+          word_start=1
+        fi
+        ;;
+      '#')
+        if [[ -z $quote && $word_start == 1 ]]; then
+          return 1
+        fi
+        ;;
+    esac
+    if [[ $continuation == 1 ]]; then
+      continuation=0
+    elif [[ $c != ' ' && $c != $'\t' ]]; then
+      word_start=0
+    fi
+    (( i++ ))
+  done
+
+  [[ -z $quote ]]
+}
+
 if (($# == 0)); then
   echo "Usage: omarchy-launch-or-focus [window-pattern] [launch-command]"
   exit 1
@@ -15,5 +93,13 @@ WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|selec
 if [[ -n $WINDOW_ADDRESS ]]; then
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"
 else
-  eval exec setsid $LAUNCH_COMMAND
+  launch_command_is_safe "$LAUNCH_COMMAND" || {
+    echo "Refusing to launch: $LAUNCH_COMMAND contains unquoted shell syntax that could execute code" >&2
+    exit 1
+  }
+  if ! eval "set -- $LAUNCH_COMMAND"; then
+    echo "Refusing to launch: $LAUNCH_COMMAND could not be parsed" >&2
+    exit 1
+  fi
+  exec setsid "$@"
 fi
