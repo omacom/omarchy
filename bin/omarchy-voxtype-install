@@ -15,7 +15,12 @@ if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
   cp "$OMARCHY_PATH/default/voxtype/config.toml" ~/.config/voxtype/
 
   voxtype setup --download --no-post-install
-  if omarchy-hw-vulkan; then
+  if omarchy-hw-intel-haswell-gpu; then
+    # hasvk advertises Vulkan, but ggml cannot load models without 16-bit
+    # storage. Reset an existing Vulkan selection too when reinstalling.
+    echo "Using CPU dictation: Intel Haswell Vulkan lacks the required 16-bit storage."
+    sudo voxtype setup gpu --disable
+  elif omarchy-hw-vulkan; then
     voxtype setup gpu --enable || true
   fi
   voxtype setup systemd
