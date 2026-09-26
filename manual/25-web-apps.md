@@ -12,6 +12,25 @@ All the keyboard hotkeys for these web apps can be changed in `~/.config/hypr/bi
 
 When you're in a web app, you can copy the current URL to the clipboard using `Shift + Alt + L`.
 
+## Choosing the web app browser
+
+Use _Setup > Defaults > Web App Browser_ to choose an installed app-mode browser separately from your normal browser. For example, you can use Zen for links and Helium for web apps:
+
+```bash
+omarchy default browser zen
+omarchy default webapp-browser helium
+```
+
+This applies when opening existing web-app shortcuts too. Custom launch commands supplied when creating a shortcut keep their own behavior. Cookies, extensions, and sign-ins come from the selected browser, so sign in there first. Helium is also available under _Setup > Defaults > Browser_ for normal browsing; choosing it there installs it if needed.
+
+The web-app setting starts at **Automatic**. In this mode, Omarchy uses the regular browser if it supports Chromium's app-window mode, otherwise Chromium. Run `omarchy default webapp-browser auto` to restore this behavior. With no argument, the command prints `auto` or the selected desktop entry ID. If a selected browser is removed, choose another browser or Automatic before opening web apps.
+
+### Experimental Zen web apps
+
+Zen has a separate native web-app feature. In Zen's `about:config`, set `browser.taskbarTabs.enabled` to `true`, then use the app button in the address bar on an HTTPS site. Zen creates its own app shortcut and uses that browser profile. Set the preference back to `false` to disable the feature.
+
+This is separate from Omarchy's _Install > Web App_ command. In Zen 1.22.1b, the native command-line recovery path drops URL paths and query strings, and the app window can show an empty sidebar. Omarchy therefore does not list Zen as an app-mode browser. See [Zen’s layout issue](https://github.com/zen-browser/desktop/issues/14314) and [Mozilla’s start-page issue](https://bugzilla.mozilla.org/show_bug.cgi?id=2035949).
+
 By default, Omarchy already ships with an assortment of default apps:
 
 ## HEY
