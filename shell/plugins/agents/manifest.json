@@ -18,6 +18,7 @@
     "aliases": ["agents", "model-usage"],
     "allowMultiple": false,
     "defaults": {
+      "providerOrder": [],
       "providers": {
         "claude": { "enabled": true },
         "codex": { "enabled": true },
