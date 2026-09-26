@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a supported browser and clean up Omarchy browser defaults
-# omarchy:args=<chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chrome|brave|brave-origin|edge|firefox|zen|qutebrowser>
 # omarchy:examples=omarchy remove browser firefox | omarchy remove browser brave
 # omarchy:requires-sudo=true
 
@@ -63,8 +63,17 @@ zen)
   set_fallback_default_browser zen.desktop
   omarchy-pkg-drop zen-browser-bin
   ;;
+qutebrowser)
+  echo "Removing qutebrowser..."
+  set_fallback_default_browser org.qutebrowser.qutebrowser.desktop
+  omarchy-pkg-drop qutebrowser python-adblock
+  rm -f ~/.config/qutebrowser/omarchy.py
+
+  # config.py, bookmarks, history and the rest of the profile are the user's,
+  # and mpv and yt-dlp are useful on their own, so none of that is touched.
+  ;;
 *)
-  echo "Usage: omarchy-remove-browser <chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-remove-browser <chrome|brave|brave-origin|edge|firefox|zen|qutebrowser>"
   exit 1
   ;;
 esac
