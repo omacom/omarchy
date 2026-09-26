@@ -1,9 +1,10 @@
 # Agents
 
 One bar icon and one panel for every AI coding subscription on the machine.
-The panel is strictly a display: it watches the usage records that
+The panel watches the usage records that
 `omarchy-agent-usage-update` writes to `~/.local/state/omarchy/agents/usage/`
-and draws whatever appears there. `Panel.qml` owns the bar button and the
+and draws whatever appears there; it also writes this widget's `providers`
+map. `Panel.qml` owns the bar button and the
 popup; `Main.qml` discovers and watches the records (and handles the optional
 cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
@@ -27,9 +28,10 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
-there is no switch row at all; with none, the module leaves the bar entirely
-rather than sitting there with nothing to say. A CLI installed mid-session
-shows up at the next refresh, so nothing polls the disk waiting for it.
+there is no switch row at all. Switching every agent off leaves the bar icon
+in place so the switches stay reachable; a machine that has never recorded
+usage still draws nothing. A CLI installed mid-session shows up at the next
+refresh, so nothing polls the disk waiting for it.
 
 That self-hiding is why the widget ships in the default bar layout: a machine
 that has never run an AI coding agent draws nothing, and the icon arrives on
@@ -96,7 +98,12 @@ only adds the meter and the spent-of-funded line under the real figure.
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
 - Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
-  Tab moves to the neighboring bar panel, Esc closes.
+  `s` or the gear opens the provider switches with the first row highlighted
+  (`j`/`k` move from that row and clamp to the list, keeping the highlighted
+  switch in view; Enter or Space flips it as soon as the view opens; `h`/`l`
+  do nothing; mouse hover still moves the cursor). Tab moves to the neighboring
+  bar panel. Esc leaves the switches when a dashboard exists, otherwise it
+  closes the panel.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
 ## Settings
@@ -120,9 +127,33 @@ omarchy bar set omarchy.agents refreshIntervalSec 300 --json
 omarchy bar set omarchy.agents syncDir '~/Sync/agent-usage'
 ```
 
-Per-agent enablement is nested, and `set` writes its key literally rather
-than walking a dotted path — so pass the whole `providers` object as JSON (or
-edit `shell.json` directly):
+### Which agents are live
+
+The gear in the panel hero (or `s`) swaps the dashboard for a switch per
+agent, with the first row highlighted so Enter or Space flips it as soon as
+the view opens (`j`/`k` move from that row and clamp to the list, keeping the
+highlighted switch in view; mouse hover still moves the cursor). Flipping a
+switch merges that one id into the existing `providers` map as a shallow copy
+of that entry with `enabled` overwritten, so extra keys a user wrote by hand
+survive; other entries stay as they were. A flip that would not change the
+map does not notify and does not call the writer. If the writer is missing or
+refuses a changed map, the previous settings are restored and a notification
+is sent. The updater's `--except` list is the
+ids in that map with `enabled` set to `false`.
+
+Off hides the agent in the panel and bar and stops its collector refreshing.
+Agents default to on: a missing map, or a map that does not name an id,
+counts as enabled. Only `enabled: false` turns one off.
+
+Switching every agent off leaves the bar icon in place so the switches stay
+reachable, and the panel opens onto them with the first switch highlighted.
+Empty leftover records do not keep
+the icon around. To remove the widget itself, use
+`omarchy plugin disable omarchy.agents`.
+
+The same map can be written by hand. `set` writes its key literally rather
+than walking a dotted path, so pass the whole object as JSON (or edit
+`shell.json` directly):
 
 ```bash
 omarchy bar set omarchy.agents providers '{
