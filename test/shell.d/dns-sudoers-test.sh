@@ -42,7 +42,7 @@ grep -Eq '^\s*export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin' "$dns" ||
 # require_root carries its own `(( EUID == 0 ))`, so matching that text alone
 # would pass with the pin deleted. Anchor on the unindented guard and require the
 # pin to be the line it opens.
-gated=$(grep -A1 -E '^if \(\( EUID == 0 \)\); then$' "$dns" || true)
+gated=$(grep -A1 -E '^if \(\( EUID == 0 \)\) && \[\[ -z .*OMARCHY_DNS_CONFIG_ROOT.*\]\]; then$' "$dns" || true)
 [[ $gated == *"export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin"* ]] ||
   fail "omarchy-dns gates the trusted-PATH pin on holding root"
 
