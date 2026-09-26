@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Launch or focus a Firefox web app identified by the window pattern
+# omarchy:args=<window-pattern> <url-and-flags...>
+# omarchy:examples=omarchy launch or focus firefox webapp YouTube https://youtube.com/
+
+if (( $# == 0 )); then
+  echo "Usage: omarchy launch or focus firefox webapp [window-pattern] [url-and-flags...]" >&2
+  exit 1
+fi
+
+window_pattern="$1"
+shift
+launch_command="omarchy-launch-firefox-webapp $*"
+
+exec omarchy-launch-or-focus "$window_pattern" "$launch_command"

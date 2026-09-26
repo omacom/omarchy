@@ -73,3 +73,20 @@ You start Zoom using the application launcher (`Super + Space`).
 [Discord](https://discord.com/) is where most gaming and open source communities hang out, including [Omarchy's own](https://discord.gg/tXFUdasqhY).
 
 You start Discord using the application launcher (`Super + Space`).
+
+## Firefox web apps
+
+If your default browser is Firefox, Zen, LibreWolf, Waterfox, or Floorp, you can run web apps in it instead of Chromium with `omarchy webapp install firefox`. It asks for the same name, URL, and icon, plus which Firefox-based browser to use, then creates an isolated per-app profile (same approach as the Linux Mint Web App Manager) with its own window identity for taskbar grouping.
+
+```bash
+omarchy webapp install firefox YouTube https://youtube.com/ youtube firefox
+omarchy webapp install firefox YouTube https://youtube.com/ youtube zen
+```
+
+You can also launch URLs directly without installing anything:
+
+```bash
+omarchy launch firefox webapp https://youtube.com/
+omarchy launch firefox webapp --browser zen https://youtube.com/
+```
+
