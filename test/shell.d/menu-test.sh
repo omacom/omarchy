@@ -184,6 +184,31 @@ assertEqual(
   'omarchy-menu-emoji',
   'menu opens the emoji picker from Trigger'
 )
+assertEqual(
+  defaultById['learn.omarchy'].label,
+  'Omarchy Manual',
+  'menu names the manual link under Learn so it reads apart from the course'
+)
+assert(
+  defaultById['learn.omarchy'].action.includes('omarchy.org/manual'),
+  'menu keeps Learn > Omarchy Manual pointed at the published manual'
+)
+assertEqual(
+  defaultById['learn.omarchy-guided'].label,
+  'Omarchy (Guided)',
+  'menu offers the guided course under Learn'
+)
+assertEqual(
+  defaultById['learn.omarchy-guided'].action,
+  'uwsm-app -- learn-omarchy',
+  'menu launches learn-omarchy for the guided course'
+)
+const learnItems = defaultItems.filter(item => item.parent === 'learn')
+assertEqual(
+  learnItems[learnItems.findIndex(item => item.id === 'learn.omarchy') + 1].id,
+  'learn.omarchy-guided',
+  'menu lists the guided course right after the manual'
+)
 assert(
   defaultById['update.omarchy'].icon === '\ue900',
   'menu update Omarchy entry uses the Omarchy glyph'
