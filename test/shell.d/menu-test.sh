@@ -267,15 +267,34 @@ assert(
 )
 assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // Software you already have keeps its place in Install, dimmed rather than
-// dropped, so the list reads as a catalog of what Omarchy can install.
-// Chromium Account is the sole Install row with anything left to hide for, so
-// any other `when:` here is a row that went back to vanishing once installed.
+// dropped. Architecture gates are different: rows that cannot exist on this
+// machine should not open a terminal that can only fail with target-not-found.
+const x86OnlyInstallRows = [
+  'install.ai.lm-studio',
+  'install.ai.ollama',
+  'install.browser.edge',
+  'install.editor.cursor',
+  'install.editor.zed',
+  'install.service.dropbox',
+  'install.service.spotify',
+]
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when)
-    .map(item => item.id),
-  ['install.service.chromium-account'],
-  'menu never hides an Install row because the software is already there'
+    .map(item => item.id)
+    .sort(),
+  [...x86OnlyInstallRows, 'install.service.chromium-account'].sort(),
+  'menu hides Install rows only for real architecture or prerequisite guards'
+)
+assert(
+  x86OnlyInstallRows.every(
+    id => defaultById[id].when === 'omarchy-hw-x86-64' && defaultById[id].disabled
+  ),
+  'menu gates the current x86_64-only Install rows and still dims them when installed'
+)
+assert(
+  !defaultById['install.development.php.symfony'].when,
+  'Symfony stays visible on aarch64 now that omarchy-pkgs ships an aarch64 build'
 )
 assert(
   ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
