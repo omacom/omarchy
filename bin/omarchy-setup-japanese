@@ -1,0 +1,206 @@
+#!/bin/bash
+
+# omarchy:summary=Set up Japanese input with Mozc, and optionally the Japanese system language
+# omarchy:requires-sudo=true
+
+set -e
+
+fcitx_dir="$HOME/.config/fcitx5"
+
+# The X11 layout picked at install time, which Hyprland also reads (see
+# default/hypr/keyboard.lua). Only the leading layout counts, as in Hyprland.
+x11_setting() {
+  localectl status 2>/dev/null | sed -n "s/^[[:space:]]*X11 $1: //p" | cut -d, -f1
+}
+
+# Set key=value under [section] in an fcitx5 config file, keeping everything
+# else the user has set there.
+fcitx_config_set() {
+  local file="$1" section="$2" key="$3" value="$4"
+
+  mkdir -p "${file%/*}"
+  touch "$file"
+  awk -v section="[$section]" -v key="$key" -v value="$value" '
+    function flush() {
+      if (in_section && !done) {
+        print key "=" value
+        done = 1
+      }
+    }
+    $0 == section { in_section = 1; print; next }
+    /^\[/ { flush(); in_section = 0; print; next }
+    in_section && index($0, key "=") == 1 {
+      if (!done) print key "=" value
+      done = 1
+      next
+    }
+    { print }
+    END {
+      flush()
+      if (!done) {
+        if (NR) print ""
+        print section
+        print key "=" value
+      }
+    }
+  ' "$file" >"$file.tmp"
+  mv "$file.tmp" "$file"
+}
+
+# Replace the whole [section] list (0=, 1=, ...) in an fcitx5 config file.
+fcitx_config_set_list() {
+  local file="$1" section="$2"
+  shift 2
+
+  mkdir -p "${file%/*}"
+  touch "$file"
+  # Blank lines are held back until something follows them, so dropping the
+  # old list doesn't leave a gap behind.
+  awk -v section="[$section]" '
+    $0 == section { skipping = 1; next }
+    /^\[/ { skipping = 0 }
+    skipping { next }
+    /^$/ { blanks++; next }
+    { for (; blanks > 0; blanks--) print ""; print }
+  ' "$file" >"$file.tmp"
+
+  local index=0 value
+  {
+    if [[ -s $file.tmp ]]; then
+      echo
+    fi
+    echo "[$section]"
+    for value in "$@"; do
+      echo "$index=$value"
+      ((index += 1))
+    done
+  } >>"$file.tmp"
+  mv "$file.tmp" "$file"
+}
+
+# fcitx5 writes its profile back out when it exits, so it has to be down while
+# we edit, or it would put back the input methods it started with.
+stop_fcitx5() {
+  systemctl --user stop omarchy-fcitx5.service
+  pkill -x fcitx5 >/dev/null 2>&1 || true
+}
+
+start_fcitx5() {
+  systemctl --user start omarchy-fcitx5.service
+}
+
+layout=$(x11_setting Layout)
+layout=${layout:-us}
+variant=$(x11_setting Variant)
+
+# fcitx5 forwards keys through its own keymap while an input method is on, so
+# the group has to use the same layout as the desktop.
+setup_input_method() {
+  local profile="$fcitx_dir/profile"
+  local group_layout=$layout
+
+  if [[ -n $variant ]]; then
+    group_layout="$group_layout-$variant"
+  fi
+
+  if [[ -f $profile ]] && grep -qx "Name=mozc" "$profile"; then
+    echo "Mozc is already one of your input methods."
+    return
+  fi
+
+  if [[ -f $profile ]]; then
+    cp "$profile" "$profile.bak.$(date +%s)"
+  fi
+
+  mkdir -p "$fcitx_dir"
+  cat >"$profile" <<EOF
+[Groups/0]
+# Group Name
+Name=Default
+# Layout
+Default Layout=$group_layout
+# Default Input Method
+DefaultIM=mozc
+
+[Groups/0/Items/0]
+# Name
+Name=keyboard-$group_layout
+# Layout
+Layout=
+
+[Groups/0/Items/1]
+# Name
+Name=mozc
+# Layout
+Layout=
+
+[GroupOrder]
+0=Default
+EOF
+
+  echo "Added Mozc after keyboard-$group_layout in your input methods."
+}
+
+# fontconfig picks the CJK face by locale, so outside a Japanese locale GTK can
+# draw shared kanji in their Chinese forms. Name the Japanese face outright, at
+# the size the interface already uses (see omarchy-display-text-size).
+setup_interface_font() {
+  local current size
+
+  current=$(gsettings get org.gnome.desktop.interface font-name 2>/dev/null) || current=""
+  size=$(sed -n "s/^'.* \([0-9.]*\)'$/\1/p" <<<"$current")
+  gsettings set org.gnome.desktop.interface font-name "Noto Sans CJK JP ${size:-11}"
+}
+
+# Typing Japanese doesn't need a Japanese desktop, so the language is a choice.
+setup_locale() {
+  local current
+
+  current=$(localectl status 2>/dev/null | sed -n 's/^[[:space:]]*System Locale: .*LANG=\([^[:space:]]*\).*/\1/p')
+  if [[ $current == "ja_JP.UTF-8" ]]; then
+    echo "The system language is already Japanese."
+    return
+  fi
+
+  echo
+  if gum confirm "Use Japanese as the system language (ja_JP.UTF-8)?"; then
+    sudo sed -i -E 's/^#[[:space:]]*(ja_JP\.UTF-8 UTF-8)/\1/' /etc/locale.gen
+    sudo locale-gen
+    sudo localectl set-locale LANG=ja_JP.UTF-8
+    echo "The system language switches to Japanese the next time you log in."
+  fi
+}
+
+echo "Installing Mozc..."
+omarchy-pkg-add fcitx5-mozc fcitx5-configtool
+
+stop_fcitx5
+setup_input_method
+
+# Keep Japanese input on when switching windows. The default resets every
+# window to direct input on focus, so moving back to a chat or editor drops out
+# of Japanese mid-conversation.
+fcitx_config_set "$fcitx_dir/config" "Behavior" "resetStateWhenFocusIn" "No"
+
+# JIS keyboards have dedicated keys for this: Henkan turns Japanese input on,
+# Muhenkan turns it off, and Zenkaku/Hankaku toggles. That frees Ctrl + Space,
+# the default toggle, for the tmux and Herdr prefix (see
+# default/hypr/bindings/jis.lua).
+if [[ $layout == "jp" ]]; then
+  fcitx_config_set_list "$fcitx_dir/config" "Hotkey/TriggerKeys" "Zenkaku_Hankaku"
+  fcitx_config_set_list "$fcitx_dir/config" "Hotkey/ActivateKeys" "Henkan"
+  fcitx_config_set_list "$fcitx_dir/config" "Hotkey/DeactivateKeys" "Muhenkan"
+fi
+
+start_fcitx5
+
+setup_interface_font
+setup_locale
+
+echo
+if [[ $layout == "jp" ]]; then
+  echo "Japanese input is ready. Turn it on with Henkan and off with Muhenkan."
+else
+  echo "Japanese input is ready. Toggle it with Ctrl + Space."
+fi
+echo "Change input methods and hotkeys with fcitx5-configtool."
