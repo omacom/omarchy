@@ -343,7 +343,7 @@ assertEqual(
 )
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
-  ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Clone Plugin', 'Remove Plugin'],
+  ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Clone Plugin', 'Remove Plugin', 'Update Plugin'],
   'menu manages plugins from Setup > Plugins'
 )
 assert(
@@ -413,6 +413,47 @@ assert(
 
 // A font installed since the shell started should show up without a restart.
 const providerBlock = menuQml.match(/readonly property var providers: \(\{[\s\S]*?\n  \}\)/)[0]
+assertEqual(
+  defaultById['setup.plugin.update'].provider,
+  'plugin-updates',
+  'menu loads plugin updates through the provider-backed submenu'
+)
+assert(
+  defaultById['setup.plugin.update'].when.includes('plugins/*/.git'),
+  'menu hides Update until a git-managed plugin is installed'
+)
+const pluginUpdateProvider = providerBlock.match(/"plugin-updates": \{[\s\S]*?\n    \}/)[0]
+assert(
+  /placeholder: "Fetching updates from git…"/.test(pluginUpdateProvider)
+    && /emptyLabel: "All plugins are up to date"/.test(pluginUpdateProvider)
+    && /volatile: true/.test(pluginUpdateProvider),
+  'plugin update provider shows loading and empty states and fetches again on every open'
+)
+assert(
+  /actionFor: function\(value\) \{ return "omarchy-launch-floating-terminal-with-presentation " \+ Util\.shellQuote\("omarchy-plugin-update " \+ value\) \}/.test(pluginUpdateProvider),
+  'plugin update provider quotes the complete floating-terminal command'
+)
+assert(
+  /function startProviderForMenu\([\s\S]*?if \(spec\.placeholder\)[\s\S]*?label: spec\.placeholder[\s\S]*?disabled: "true"/.test(menuQml),
+  'menu swaps in a disabled placeholder while a provider loads'
+)
+assert(
+  /function mergeProviderRows\([\s\S]*?providerRows\.length === 0 && spec\.emptyLabel[\s\S]*?label: spec\.emptyLabel[\s\S]*?disabled: "true"/.test(menuQml),
+  'menu swaps in a disabled provider-specific empty state when no rows return'
+)
+const providerBaseItems = { root: { id: 'root', kind: 'menu', label: 'Go' } }
+const providerBaseOrder = ['root']
+const pluginLoading = menu.swapProviderRows(providerBaseItems, providerBaseOrder, 'setup.plugin.update', [
+  { id: 'setup.plugin.update.placeholder', kind: 'action', parent: 'setup.plugin.update', label: 'Fetching updates from git…', disabled: true }
+])
+const pluginEmpty = menu.swapProviderRows(pluginLoading.items, pluginLoading.itemOrder, 'setup.plugin.update', [
+  { id: 'setup.plugin.update.empty', kind: 'action', parent: 'setup.plugin.update', label: 'All plugins are up to date', disabled: true }
+])
+assert(
+  !pluginEmpty.items['setup.plugin.update.placeholder']
+    && pluginEmpty.items['setup.plugin.update.empty'].disabled,
+  'plugin update provider replaces its loading row with its empty state'
+)
 assert(
   /"fonts": \{[\s\S]*?volatile: true/.test(providerBlock),
   'menu re-enumerates the font list every time it is opened'
