@@ -32,12 +32,21 @@ fi
 
 if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
   mkdir -p ~/.config/kitty
+  kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
   if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
-    kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
     sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" ~/.config/kitty/kitty.conf
   else
     printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
   fi
+  # Explicit face overrides don't track font_family, so a stale bold_font
+  # keeps rendering bold text in the previous font. The shipped template
+  # leaves font_family commented out, so this has to run after both branches:
+  # the first font set appends font_family and must still rewrite faces that
+  # were already there. Point every non-auto face at the new family; `auto`
+  # (and absent lines) already derive from font_family on their own.
+  for face in bold_font italic_font bold_italic_font; do
+    sed --follow-symlinks -i -E "/^[[:space:]]*$face[[:space:]]+auto([[:space:]]|$)/!s/^[[:space:]]*$face[[:space:]]+.*/$face $kitty_font_name/" ~/.config/kitty/kitty.conf
+  done
   pkill -USR1 kitty
 fi
 
