@@ -45,4 +45,7 @@ env_args=(
 )
 (( with_mangohud )) && env_args+=(MANGOHUD=1)
 
+# Wine only takes a new DPI on a cold start, so follow the monitor's scale now.
+omarchy-games-battlenet-scale
+
 env "${env_args[@]}" umu-run "$LAUNCHER"

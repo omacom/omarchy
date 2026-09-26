@@ -70,6 +70,8 @@ You can also turn an Omarchy machine into the host by running `omarchy install s
 
 Install [Battle.net](https://eu.shop.battle.net/en-us) by selecting _Install > Gaming > Battle.net_ from the Omarchy menu (`Super + Space`). This gives you titles like Diablo, Starcraft, and World of Warcraft as a standalone install running under GE-Proton — no Steam, Lutris, or Heroic needed.
 
+Battle.net sizes itself to the scale of the monitor it's launched on. Wine only picks that up on a fresh start, so after changing your display scale or moving to a different monitor, exit Battle.net and launch it again.
+
  ![gaming-starcraft](images/gaming-starcraft.webp)
 
 ## Lutris (Windows games)
