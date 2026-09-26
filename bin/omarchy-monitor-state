@@ -19,5 +19,14 @@ printf '%s\n' "$monitors_json" | jq -r '
 printf '%s\n' "$focused_monitor"
 omarchy-hyprland-monitor-scaling 2>/dev/null || echo
 
-printf '%s\n' "$monitors_json" | jq -c \
-  '[.[] | {name, enabled:(.disabled != true), focused:(.focused == true), width, height}]'
+printf '%s\n' "$monitors_json" | jq -c '
+  def present: . != null and . != "";
+  def listable:
+    ((.name | test("^(eDP|LVDS|DSI)-")) | not)
+    or ((.width // 0) > 0 and (.height // 0) > 0)
+    or ((.availableModes // []) | length) > 0
+    or (.description | present)
+    or (.make | present)
+    or (.model | present);
+  [.[] | select(listable) | {name, enabled:(.disabled != true), focused:(.focused == true), width, height}]
+'

@@ -75,8 +75,23 @@ reverse_mirrored='[
 ]'
 
 clamshell='[
-  { "name": "eDP-1", "mirrorOf": "none", "disabled": true, "focused": false, "width": 0, "height": 0 },
-  { "name": "DP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+  { "name": "eDP-1", "description": "AU Optronics 0x1234", "make": "AU Optronics", "model": "0x1234", "availableModes": ["1920x1080@60.00Hz"], "mirrorOf": "none", "disabled": true, "focused": false, "width": 0, "height": 0 },
+  { "name": "DP-1", "description": "Dell Inc. DELL U2720Q", "make": "Dell Inc.", "model": "DELL U2720Q", "availableModes": ["2560x1440@60.00Hz"], "mirrorOf": "none", "disabled": false, "focused": true, "width": 2560, "height": 1440 }
+]'
+
+ghost='[
+  { "name": "eDP-1", "description": "", "make": "", "model": "", "availableModes": [], "mirrorOf": "none", "disabled": false, "focused": false, "width": 0, "height": 0 },
+  { "name": "eDP-2", "description": "Apple Computer Inc Color LCD", "make": "Apple Computer Inc", "model": "Color LCD", "availableModes": ["2880x1800@60.00Hz"], "mirrorOf": "none", "disabled": false, "focused": true, "width": 2880, "height": 1800 }
+]'
+
+disabled_ghost='[
+  { "name": "eDP-1", "description": "", "make": "", "model": "", "availableModes": [], "mirrorOf": "none", "disabled": true, "focused": false, "width": 0, "height": 0 },
+  { "name": "eDP-2", "description": "Apple Computer Inc Color LCD", "make": "Apple Computer Inc", "model": "Color LCD", "availableModes": ["2880x1800@60.00Hz"], "mirrorOf": "none", "disabled": false, "focused": true, "width": 2880, "height": 1800 }
+]'
+
+swapped_ghost='[
+  { "name": "eDP-1", "description": "Apple Computer Inc Color LCD", "make": "Apple Computer Inc", "model": "Color LCD", "availableModes": ["2880x1800@60.00Hz"], "mirrorOf": "none", "disabled": false, "focused": true, "width": 2880, "height": 1800 },
+  { "name": "eDP-2", "description": "", "make": "", "model": "", "availableModes": [], "mirrorOf": "none", "disabled": false, "focused": false, "width": 0, "height": 0 }
 ]'
 
 monitor_state "$extended"
@@ -115,3 +130,26 @@ monitor_state "$clamshell"
 [[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
   fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
 pass "monitor state lists every display with its enabled and focused state"
+
+monitor_state "$ghost"
+assert_line_count "monitor state answers every line with a ghost internal connector"
+[[ ${state_lines[7]-} == '[{"name":"eDP-2","enabled":true,"focused":true,"width":2880,"height":1800}]' ]] ||
+  fail "monitor state omits an empty duplicate internal connector" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state omits an empty duplicate internal connector"
+
+monitor_state "$disabled_ghost"
+assert_line_count "monitor state answers every line with a disabled ghost connector"
+[[ ${state_lines[7]-} == '[{"name":"eDP-2","enabled":true,"focused":true,"width":2880,"height":1800}]' ]] ||
+  fail "monitor state omits a disabled empty internal connector" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state omits a disabled empty internal connector"
+
+monitor_state "$swapped_ghost"
+assert_line_count "monitor state answers every line when the ghost is eDP-2"
+[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":true,"width":2880,"height":1800}]' ]] ||
+  fail "monitor state omits an empty duplicate regardless of eDP numbering" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state omits an empty duplicate regardless of eDP numbering"
+
+monitor_state '[{"name":"DP-1","description":"","make":"","model":"","availableModes":[],"mirrorOf":"none","disabled":false,"focused":false,"width":0,"height":0}]'
+[[ ${state_lines[7]-} == '[{"name":"DP-1","enabled":true,"focused":false,"width":0,"height":0}]' ]] ||
+  fail "a modeless external connector remains available for recovery in the panel" "actual: ${state_lines[7]-<missing>}"
+pass "identityless modeless external connectors remain listed"
