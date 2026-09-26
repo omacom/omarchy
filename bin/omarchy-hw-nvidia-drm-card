@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Print the NVIDIA DRM card to pin the compositor to when NVIDIA is the only GPU next to a firmware framebuffer.
+
+# When NVIDIA is the only GPU with a DRM driver -- a desktop, or a hybrid laptop
+# with the iGPU switched off in firmware (MUX set to discrete) -- nothing may
+# evict the boot framebuffer: nvidia-drm with fbdev=0 leaves simpledrm (or
+# efidrm/vesadrm) registered as a second DRM card with a phantom "Unknown-1"
+# output. Aquamarine autodetects it as a secondary GPU, EGL fails on it and
+# Hyprland aborts into safe mode. Pinning AQ_DRM_DEVICES to the NVIDIA card
+# avoids that.
+#
+# Prints nothing and exits 1 unless an NVIDIA card, no other GPU card and at
+# least one firmware framebuffer card are present, so every other machine keeps
+# Aquamarine's autodetection.
+#
+# The card is matched by the driver of its own device, not through udev links
+# or DRIVERS== matches: the firmware framebuffer is a child of the GPU's PCI
+# device, so anything that looks at ancestors matches it too.
+drm_class_path="${OMARCHY_DRM_CLASS_PATH:-/sys/class/drm}"
+
+shopt -s nullglob extglob
+
+nvidia_card=""
+other_gpu=false
+firmware_framebuffer=false
+
+for card in "$drm_class_path"/card[0-9]*; do
+  name=${card##*/}
+  [[ $name == card+([0-9]) ]] || continue
+
+  driver=$(basename "$(readlink -f "$card/device/driver")")
+
+  case $driver in
+    nvidia) [[ -n $nvidia_card ]] || nvidia_card="/dev/dri/$name" ;;
+    *-framebuffer) firmware_framebuffer=true ;;
+    *) other_gpu=true ;;
+  esac
+done
+
+if [[ -n $nvidia_card ]] && ! $other_gpu && $firmware_framebuffer; then
+  echo "$nvidia_card"
+else
+  exit 1
+fi
