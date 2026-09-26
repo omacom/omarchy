@@ -254,6 +254,9 @@ Item {
       // Rate limits and balances stay per-account and are never merged
       // across devices.
       limits: Array.isArray(record.limits) ? record.limits : [],
+      // True when the limits above are the last-known cache served after
+      // a failed probe, rather than fresh numbers.
+      limitsStale: record.limitsStale === true,
       tierLabel: String(record.tierLabel || ""),
       balance: balanceValue(record.balance),
 
