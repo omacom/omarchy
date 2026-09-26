@@ -25,11 +25,16 @@ if [[ -z $device ]]; then
   exit 1
 fi
 
+# off and restore bracket session blanking (lock, idle wake). The automatic
+# keyboard backlight pauses in between, so it neither lights the keys behind a
+# blanked screen nor mistakes the blank or the restored level for the user's.
 if [[ $direction == "off" ]]; then
+  omarchy-shell -q omarchy.keyboard-backlight pause
   brightnessctl -sd "$device" set 0 >/dev/null
   exit 0
 elif [[ $direction == "restore" ]]; then
   brightnessctl -rd "$device" >/dev/null
+  omarchy-shell -q omarchy.keyboard-backlight resume
   exit 0
 fi
 

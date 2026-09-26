@@ -59,18 +59,16 @@ Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~
 
 On laptops with an ambient light sensor, Omarchy turns the keyboard backlight on when the room gets dark and off again when it gets bright. It's on by default wherever the hardware supports it, and the _Auto Keyboard Backlight_ entry in the Toggle menu only shows up on those machines.
 
-It only acts when the room crosses from dark to bright or back, so the backlight keys still work as usual. A brightness you pick is remembered for the next time the room gets dark. If you turn the backlight off in the dark, it stays off until the room has been bright for ten minutes, or eight hours have passed, or you turn it back on yourself. That's the "I'm in a dark room on purpose" case, without leaving it off forever if you forget.
+It only acts when the room crosses from dark to bright or back, so the backlight keys still work as usual. A brightness you pick is reused the next time the room gets dark, until the shell restarts. While the lock screen has the display blanked it leaves the keyboard alone, then decides again from the room's light when you wake the machine. If you turn the backlight off in the dark, it stays off until the room has been bright for ten minutes, or eight hours have passed, or you turn it back on yourself. That's the "I'm in a dark room on purpose" case, without leaving it off forever if you forget.
 
 `omarchy toggle keyboard backlight auto` turns the whole thing off, which also releases the light sensor. The flag it sets is `keyboard-backlight-auto-off`.
 
-The defaults suit most rooms, but you can tune them with a `keyboardBacklight` block in `~/.config/omarchy/shell.json`:
+The defaults suit most rooms, but you can tune them by adding a `keyboardBacklight` block to your existing `~/.config/omarchy/shell.json`, next to `idle` and `bar`:
 
 ```json
-{
-  "keyboardBacklight": {
-    "onBelowLux": 10,
-    "offAboveLux": 50
-  }
+"keyboardBacklight": {
+  "onBelowLux": 10,
+  "offAboveLux": 50
 }
 ```
 

@@ -15,6 +15,8 @@ assertEqual(kb.parseLux('=== Has ambient light sensor (value: 2.000000, unit: lu
 assertEqual(kb.parseLux('    Light changed: 80.000004 (lux)'), 80.000004, 'parses a change')
 assertEqual(kb.parseLux('    Light changed: 12.000000 (vendor-specific)'), null, 'ignores non-lux units')
 assertEqual(kb.parseLux('+++ iio-sensor-proxy appeared'), null, 'ignores other lines')
+assertEqual(kb.parseLux('=== Has ambient light sensor (value: 2,500000, unit: lux)'), 2.5, 'parses a comma decimal separator')
+assertEqual(kb.parseLux('    Light changed: 77,000004 (lux)'), 77.000004, 'parses a comma decimal change')
 
 assertDeepEqual(kb.config({}), kb.config({ onBelowLux: 10, offAboveLux: 50 }), 'defaults the thresholds')
 assertEqual(kb.config({ onBelowLux: 20, offAboveLux: 5 }).offAboveLux, 100, 'keeps off above on')
@@ -87,6 +89,35 @@ state = kb.initialState(0, 2, 1 * hour)
 r = kb.evaluate(state, 1, 11 * hour, cfg)
 r = kb.evaluate(r.state, 1, 11 * hour + 5 * s, cfg)
 assertEqual(r.set, 2, 'drops an expired saved manual off')
+
+// Session wake: the restored level is a baseline, not the user's choice.
+// Blanked while bright and off, woken in the dark with 0 restored: turns on.
+state = kb.initialState(0, 2, 0)
+r = kb.evaluate(state, 70, 0, cfg)
+r = kb.evaluate(r.state, 70, 5 * s, cfg)
+state = kb.resume(r.state, 0)
+r = kb.evaluate(state, 1, 1 * hour, cfg)
+r = kb.evaluate(r.state, 1, 1 * hour + 5 * s, cfg)
+assertEqual(r.set, 2, 'turns on after a wake into a dark room')
+assertEqual(r.state.manualOffSince, 0, 'does not take the restored off as a manual off')
+
+// Blanked while dark and on, woken in daylight with the on level restored: turns off
+state = kb.resume(r.state, 2)
+r = kb.evaluate(state, 70, 9 * hour, cfg)
+r = kb.evaluate(r.state, 70, 9 * hour + 5 * s, cfg)
+assertEqual(r.set, 0, 'turns off after a wake into daylight')
+assertEqual(r.state.level, 2, 'does not take the restored level as the user level')
+
+// A held manual off is put back when a wake restores a lit level in the dark
+state = kb.initialState(0, 2, 0)
+r = kb.evaluate(state, 1, 0, cfg)
+r = kb.evaluate(r.state, 1, 5 * s, cfg)
+state = kb.observeBrightness(r.state, 0, 10 * s)
+state = kb.resume(state, 2)
+r = kb.evaluate(state, 1, 1 * min, cfg)
+r = kb.evaluate(r.state, 1, 1 * min + 5 * s, cfg)
+assertEqual(r.set, 0, 'restores a held manual off after a wake')
+assertEqual(r.state.held, true, 'keeps holding after a wake')
 
 // Our own changes are not mistaken for manual ones
 state = kb.initialState(0, 2, 0)
