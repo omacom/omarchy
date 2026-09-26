@@ -8,6 +8,7 @@
   "kinds": [
     "service"
   ],
+  "keepLoaded": true,
   "entryPoints": {
     "service": "Background.qml"
   }
