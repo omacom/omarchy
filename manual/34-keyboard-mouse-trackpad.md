@@ -61,6 +61,22 @@ On Dell XPS laptops with a haptic touchpad, you can also set the click strength 
 
 Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part of every session — it's what powers the CapsLock compose sequences. That means the plumbing for non-Latin input is already in place: install an input engine like `fcitx5-mozc` (Japanese) or `fcitx5-chinese-addons` (Chinese) with `omarchy pkg add`, plus `fcitx5-configtool` to add the engine to your input methods and set the key that switches between them.
 
+### Typing in Korean
+
+Korean is one step away: pick _Setup > Input Method > Hangul (Korean)_ in the Omarchy menu (or run `omarchy setup input hangul`), and Omarchy installs the [fcitx5-hangul](https://github.com/fcitx/fcitx5-hangul) engine and adds it to your input methods. You keep typing English until you press the 한/영 key — or Ctrl+Space on keyboards without one — which toggles Hangul on and off. While typing Korean, the 한자 key (or F9) offers Hanja for what you just typed. Caps Lock stays the compose key, as on every other layout.
+
+Keyboards without dedicated 한/영 and 한자 keys can put them on Right Alt and Right Ctrl, the way Korean Windows does, with an xkb option in `~/.config/hypr/input.lua`:
+
+```lua
+hl.config({
+  input = {
+    kb_options = "compose:caps,shift:both_capslock_cancel,korean:ralt_hangul,korean:rctrl_hanja",
+  },
+})
+```
+
+The engine reads letters rather than key positions, so on Dvorak or Colemak give Hangul its own QWERTY layout: run `omarchy pkg add fcitx5-configtool`, select Hangul under _Input Method_, and set its layout to English (US).
+
 ### Use ALT as SUPER
 
 On some keyboards, it's not convenient to use the primary meta key (Windows/cmd key) as SUPER. You can change this to be ALT instead using this change:
