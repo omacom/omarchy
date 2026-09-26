@@ -1,4 +1,6 @@
-if lspci | grep -qi 'nvidia'; then
+# omarchy-hw-nvidia reads sysfs IDs. lspci would walk PCI config space and
+# wake a runtime-suspended GPU, and Hyprland already uses the same helper.
+if omarchy-hw-nvidia; then
   if omarchy-hw-nvidia-gsp; then
     PACKAGES=(nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then
@@ -17,13 +19,13 @@ if lspci | grep -qi 'nvidia'; then
 
   # Configure modprobe for early KMS
   mkdir -p /etc/modprobe.d
-  cat > /etc/modprobe.d/nvidia.conf <<'EOF'
+  cat > /etc/modprobe.d/nvidia.conf <<'NVEOF'
 options nvidia_drm modeset=1
-EOF
+NVEOF
 
   # Configure mkinitcpio for early loading
   mkdir -p /etc/mkinitcpio.conf.d
-  cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'EOF'
+  cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'NVEOF'
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
-EOF
+NVEOF
 fi
