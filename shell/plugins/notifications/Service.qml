@@ -131,8 +131,10 @@ Item {
     return NotificationLogic.shouldBypassDnd(notification, NotificationUrgency.Critical)
   }
 
+  readonly property var desktopEntries: DesktopEntries.applications ? DesktopEntries.applications.values : []
+
   function snapshotOf(notification) {
-    return NotificationLogic.snapshotOf(notification, Date.now())
+    return NotificationLogic.snapshotOf(notification, Date.now(), desktopEntries)
   }
 
   // A notification nobody looks back at:
@@ -206,7 +208,7 @@ Item {
     writeHistoryFile(written, function() {
       var updated = null
       try {
-        updated = NotificationLogic.replacementSnapshot(notification, written.originalId, written.timestamp)
+        updated = NotificationLogic.replacementSnapshot(notification, written.originalId, written.timestamp, desktopEntries)
       } catch (e) {
         // Torn down by the server while the write was queued.
       }
@@ -234,7 +236,7 @@ Item {
   // about after the popup exists.
   readonly property var updateSignals: [
     "summaryChanged", "bodyChanged", "appNameChanged", "appIconChanged",
-    "imageChanged", "urgencyChanged", "expireTimeoutChanged", "hintsChanged"
+    "imageChanged", "desktopEntryChanged", "urgencyChanged", "expireTimeoutChanged", "hintsChanged"
   ]
 
   // A client that updates a notification through replaces_id does not produce
@@ -260,7 +262,7 @@ Item {
 
     var updated
     try {
-      updated = NotificationLogic.replacementSnapshot(notification, originalId, timestamp)
+      updated = NotificationLogic.replacementSnapshot(notification, originalId, timestamp, desktopEntries)
     } catch (e) {
       // Object torn down by the server while the signal was in flight.
       return

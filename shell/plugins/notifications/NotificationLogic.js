@@ -180,7 +180,9 @@ function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
 
-function snapshotOf(notification, timestamp) {
+// Resolve while the notification is live, so persisted history keeps the icon.
+// Some senders (including GTK terminals) leave both app_name and app_icon empty.
+function snapshotOf(notification, timestamp, desktopEntries) {
   var n = notification || {}
   var id = n.id || 0
   var expireTimeout = Number(n.expireTimeout || 0)
@@ -188,8 +190,10 @@ function snapshotOf(notification, timestamp) {
   return {
     id: id,
     originalId: id,
-    app: n.appName || "",
-    appIcon: n.appIcon || "",
+    app: n.appName || n.desktopEntry || stringHint(n.hints, "desktop-entry"),
+    appIcon: n.appIcon || stringHint(n.hints, "image-path") || stringHint(n.hints, "image_path")
+      || appIconFor(n.desktopEntry || stringHint(n.hints, "desktop-entry"), desktopEntries)
+      || appIconFor(n.appName, desktopEntries),
     summary: String(n.summary || ""),
     body: n.body || "",
     image: n.image || "",
@@ -227,8 +231,8 @@ function popupRowChanged(row, updated) {
 // the popup it took over: the file name is the timestamp and id the popup was
 // first persisted under, and the restore, replace and archive paths all key
 // off that name. Only what the card draws comes from the updated object.
-function replacementSnapshot(notification, originalId, timestamp) {
-  var updated = snapshotOf(notification, timestamp)
+function replacementSnapshot(notification, originalId, timestamp, desktopEntries) {
+  var updated = snapshotOf(notification, timestamp, desktopEntries)
   updated.id = originalId
   updated.originalId = originalId
   return updated
@@ -446,6 +450,30 @@ function historyRows(raw, liveRows, normalUrgency, limit) {
   return out.slice(0, max)
 }
 
+// Find an installed app's icon by desktop id, display name, or startup class.
+// Snapshots prefer desktop-entry when provided; old persisted cards can still
+// fall back by app name. Do not resolve arbitrary app names as themed icons:
+// names such as "Mail" or "Zoom" can otherwise select unrelated action icons.
+function appIconFor(appName, entries) {
+  var wanted = String(appName || "").trim().toLowerCase()
+  if (wanted.length === 0) return ""
+  var hyphenated = wanted.replace(/\s+/g, "-")
+  var list = entries || []
+  for (var i = 0; i < list.length; i++) {
+    var entry = list[i]
+    if (!entry) continue
+    var icon = String(entry.icon || "")
+    if (icon.length === 0) continue
+    var keys = [entry.name, entry.id, entry.startupClass]
+    for (var k = 0; k < keys.length; k++) {
+      var key = String(keys[k] || "").trim().toLowerCase()
+      if (key.length === 0) continue
+      if (key === wanted || key === hyphenated) return icon
+    }
+  }
+  return ""
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isChromiumDerived: isChromiumDerived,
@@ -459,6 +487,7 @@ if (typeof module !== "undefined") {
     execArgvFromHints: execArgvFromHints,
     parseExecArgv: parseExecArgv,
     shouldRenderCompactGlyph: shouldRenderCompactGlyph,
+    appIconFor: appIconFor,
     snapshotOf: snapshotOf,
     popupRoles: popupRoles,
     popupRowChanged: popupRowChanged,
