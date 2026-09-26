@@ -1,0 +1,448 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Grok usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Grok CLI usage into one display-ready JSON record.
+
+Grok is a first-party default coding agent, but the agents panel only
+shows subscriptions that have a collector. This one prints the same
+record contract as Claude, Codex, and Fireworks: local token stats from
+$GROK_HOME/sessions, plus the weekly credit pool Grok's own /usage modal
+reads from cli-chat-proxy. The panel itself only ever reads the JSON
+this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Callable
+
+AGENT_ID = "grok"
+AGENT_NAME = "Grok"
+AUTH_HELP = "Run `grok` and sign in to xAI."
+BILLING_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
+USER_URL = "https://cli-chat-proxy.grok.com/v1/user?include=subscription"
+SESSION_ID_RE = re.compile(
+  r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+  re.IGNORECASE,
+)
+TIER_LABELS = {
+  "SuperGrokPlus": "SuperGrok Plus",
+  "SuperGrok": "SuperGrok",
+  "XPremiumPlus": "X Premium+",
+  "XPremium": "X Premium",
+  "PremiumPlus": "Premium+",
+  "Premium": "Premium",
+}
+
+
+class GrokError(Exception):
+  pass
+
+
+def grok_home() -> Path:
+  return Path(os.environ.get("GROK_HOME") or (Path.home() / ".grok")).expanduser()
+
+
+def number(value: Any) -> int:
+  try:
+    n = float(value or 0)
+    return max(0, round(n) if n == n else 0)
+  except (TypeError, ValueError):
+    return 0
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def recent_dates(today: date) -> list[str]:
+  return [(today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)]
+
+
+def empty_stats(today: date | None = None) -> dict[str, Any]:
+  today = today or datetime.now().astimezone().date()
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [{"date": day, "messageCount": 0} for day in recent_dates(today)],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+  }
+
+
+def read_json(path: Path) -> dict[str, Any] | None:
+  try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+  except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+    return None
+  return data if isinstance(data, dict) else None
+
+
+def parse_day(value: Any, tz=None) -> str:
+  if isinstance(value, (int, float)):
+    try:
+      seconds = float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+      parsed = datetime.fromtimestamp(seconds)
+      return parsed.date().isoformat()
+    except (OverflowError, OSError, ValueError):
+      return ""
+  raw = str(value or "").strip()
+  if not raw:
+    return ""
+  try:
+    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    if parsed.tzinfo is not None:
+      parsed = parsed.astimezone()
+    return parsed.date().isoformat()
+  except ValueError:
+    return raw[:10] if len(raw) >= 10 else ""
+
+
+def add_tokens(bucket: dict[str, int], usage: dict[str, Any]) -> int:
+  inp = number(usage.get("inputTokens"))
+  out = number(usage.get("outputTokens"))
+  cache_read = number(usage.get("cachedReadTokens") or usage.get("cacheReadInputTokens"))
+  cache_write = number(usage.get("cacheCreationTokens") or usage.get("cacheCreationInputTokens"))
+  bucket["inputTokens"] += inp
+  bucket["outputTokens"] += out
+  bucket["cacheReadInputTokens"] += cache_read
+  bucket["cacheCreationInputTokens"] += cache_write
+  return inp + out + cache_read + cache_write
+
+
+def session_dirs(root: Path) -> list[Path]:
+  if not root.is_dir():
+    return []
+  found: list[Path] = []
+  for cwd_dir in root.iterdir():
+    if not cwd_dir.is_dir() or cwd_dir.name.startswith("session_"):
+      continue
+    for sess in cwd_dir.iterdir():
+      if sess.is_dir() and SESSION_ID_RE.match(sess.name):
+        found.append(sess)
+  return found
+
+
+def update_payloads(path: Path) -> list[tuple[str, dict[str, Any]]]:
+  rows: list[tuple[str, dict[str, Any]]] = []
+  try:
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+      for line in handle:
+        try:
+          entry = json.loads(line)
+        except json.JSONDecodeError:
+          continue
+        if not isinstance(entry, dict):
+          continue
+        params = entry.get("params") if isinstance(entry.get("params"), dict) else {}
+        update = params.get("update") if isinstance(params.get("update"), dict) else {}
+        if update.get("sessionUpdate") != "turn_completed":
+          continue
+        if not isinstance(update.get("usage"), dict):
+          continue
+        kind = str(update.get("session_kind") or update.get("session_relationship") or "")
+        if kind.startswith("subagent"):
+          continue
+        day = parse_day(entry.get("timestamp")) or parse_day(update.get("endedAt"))
+        rows.append((day, update))
+  except OSError:
+    return []
+  return rows
+
+
+def usage_turns(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+  turns = payload.get("turns")
+  if not isinstance(turns, list):
+    session = payload.get("session")
+    if isinstance(session, dict):
+      return [(parse_day(payload.get("updatedAt")), session)]
+    return []
+  rows: list[tuple[str, dict[str, Any]]] = []
+  for turn in turns:
+    if not isinstance(turn, dict):
+      continue
+    rows.append((parse_day(turn.get("endedAt")), turn))
+  return rows
+
+
+def apply_usage(
+  recent: dict[str, dict[str, int]],
+  model_usage: dict[str, dict[str, int]],
+  today_tokens: dict[str, int],
+  active_dates: set[str],
+  today: str,
+  day: str,
+  usage: dict[str, Any],
+) -> int:
+  models = usage.get("modelUsage")
+  if not isinstance(models, dict) or not models:
+    model_name = str(usage.get("primaryModelId") or "grok")
+    models = {model_name: usage}
+  total = 0
+  for model_name, raw in models.items():
+    if not isinstance(raw, dict):
+      continue
+    bucket = model_usage.setdefault(str(model_name), empty_bucket())
+    added = add_tokens(bucket, raw)
+    total += added
+    if day == today:
+      today_tokens[str(model_name)] = today_tokens.get(str(model_name), 0) + added
+  if day in recent:
+    recent[day]["messageCount"] += total
+  if day:
+    active_dates.add(day)
+  return total
+
+
+def scan_sessions(sessions_root: Path, today: date | None = None) -> dict[str, Any]:
+  today_date = today or datetime.now().astimezone().date()
+  today = today_date.isoformat()
+  stats = empty_stats(today_date)
+  recent = {row["date"]: row for row in stats["recentDays"]}
+  model_usage: dict[str, dict[str, int]] = {}
+  today_tokens: dict[str, int] = {}
+  active_dates: set[str] = set()
+  today_sessions = 0
+  total_prompts = 0
+  today_prompts = 0
+  today_token_total = 0
+
+  for sess in session_dirs(sessions_root):
+    summary = read_json(sess / "summary.json") or {}
+    usage_file = read_json(sess / "usage.json")
+    turns = update_payloads(sess / "updates.jsonl")
+    if not turns and usage_file:
+      turns = [(day, {"prompt_id": f"{sess.name}:{index}", **block}) for index, (day, block) in enumerate(usage_turns(usage_file))]
+
+    session_day = parse_day(summary.get("last_active_at") or summary.get("updated_at") or summary.get("created_at")) or today
+    stats["totalSessions"] += 1
+    active_dates.add(session_day)
+    if session_day == today:
+      today_sessions += 1
+
+    seen_prompts: dict[str, dict[str, Any]] = {}
+    for day, update in turns:
+      prompt_id = str(update.get("prompt_id") or "")
+      usage = update.get("usage") if isinstance(update.get("usage"), dict) else update
+      if not isinstance(usage, dict):
+        continue
+      key = prompt_id or f"{sess.name}:{len(seen_prompts)}"
+      seen_prompts[key] = {"day": day or session_day, "usage": usage}
+
+    for item in seen_prompts.values():
+      day = item["day"] or session_day
+      added = apply_usage(recent, model_usage, today_tokens, active_dates, today, day, item["usage"])
+      total_prompts += 1
+      if day == today:
+        today_prompts += 1
+        today_token_total += added
+
+    if not seen_prompts:
+      prompts = number(summary.get("num_chat_messages")) or 1
+      total_prompts += prompts
+      if session_day == today:
+        today_prompts += prompts
+
+  stats.update(
+    {
+      "todayPrompts": today_prompts,
+      "todaySessions": today_sessions,
+      "todayTotalTokens": today_token_total,
+      "todayTokensByModel": today_tokens,
+      "recentDays": [recent[key] for key in sorted(recent)],
+      "totalPrompts": total_prompts,
+      "activeDays": len(active_dates),
+      "activeDates": sorted(active_dates),
+      "modelUsage": model_usage,
+    }
+  )
+  return stats
+
+
+def load_auth(home: Path) -> dict[str, Any] | None:
+  payload = read_json(home / "auth.json")
+  if not payload:
+    return None
+  for value in payload.values():
+    if isinstance(value, dict) and value.get("key"):
+      return value
+  return None
+
+
+def friendly_tier(raw: str) -> str:
+  text = str(raw or "").strip()
+  if not text:
+    return ""
+  if text in TIER_LABELS:
+    return TIER_LABELS[text]
+  compact = text.replace(" ", "")
+  if compact in TIER_LABELS:
+    return TIER_LABELS[compact]
+  split = re.sub(r"([a-z])([A-Z])", r"\1 \2", text).replace("_", " ").strip()
+  return split or text
+
+
+def percent_from_api(value: Any) -> float | None:
+  try:
+    raw = float(value)
+  except (TypeError, ValueError):
+    return None
+  if raw != raw or raw < 0:
+    return None
+  if raw > 1:
+    raw = raw / 100.0
+  return min(1.0, raw)
+
+
+def limits_from_billing(payload: dict[str, Any]) -> list[dict[str, str | float]]:
+  config = payload.get("config") if isinstance(payload.get("config"), dict) else payload
+  if not isinstance(config, dict):
+    return []
+  period = config.get("currentPeriod") if isinstance(config.get("currentPeriod"), dict) else {}
+  resets = str(period.get("end") or config.get("billingPeriodEnd") or "")
+  period_type = str(period.get("type") or "")
+  weekly = "WEEKLY" in period_type.upper() or "week" in period_type.lower()
+  label = "Weekly (7-day)" if weekly else "Monthly"
+  title = "Weekly" if weekly else "Monthly"
+  limits: list[dict[str, str | float]] = []
+  weekly_percent = percent_from_api(config.get("creditUsagePercent"))
+  if weekly_percent is not None:
+    limits.append({"label": label, "title": title, "percent": weekly_percent, "resetsAt": resets})
+  products = config.get("productUsage")
+  if isinstance(products, list):
+    for product in products:
+      if not isinstance(product, dict):
+        continue
+      name = str(product.get("product") or "")
+      if name != "GrokBuild":
+        continue
+      build_percent = percent_from_api(product.get("usagePercent"))
+      if build_percent is None:
+        continue
+      limits.append(
+        {
+          "label": "Grok Build",
+          "title": "Grok Build",
+          "percent": build_percent,
+          "resetsAt": resets,
+        }
+      )
+  return limits
+
+
+def http_get_json(url: str, token: str, timeout: int = 10) -> dict[str, Any]:
+  request = urllib.request.Request(url, method="GET")
+  request.add_header("Authorization", f"Bearer {token}")
+  request.add_header("Accept", "application/json")
+  try:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+      payload = json.loads(response.read().decode("utf-8", "replace"))
+  except urllib.error.HTTPError as error:
+    raise GrokError(f"HTTP {error.code}") from error
+  except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as error:
+    raise GrokError(str(error) or type(error).__name__) from error
+  if not isinstance(payload, dict):
+    raise GrokError("unexpected billing payload")
+  return payload
+
+
+def probe_account(token: str, get_json: Callable[[str, str], dict[str, Any]] | None = None) -> dict[str, Any]:
+  getter = get_json or http_get_json
+  billing = getter(BILLING_URL, token)
+  try:
+    user = getter(USER_URL, token)
+  except GrokError:
+    user = {}
+  return {"billing": billing, "user": user}
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  record: dict[str, Any] = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": False,
+    "hasLocalStats": False,
+    "hasPromptStats": True,
+    "tierLabel": "SuperGrok",
+    "usageStatusText": "",
+    "authHelpText": "",
+    "limits": [],
+  }
+  record.update(empty_stats())
+  record.update(overrides)
+  return record
+
+
+def collect(
+  home: Path | None = None,
+  today: date | None = None,
+  get_json: Callable[[str, str], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+  home = home or grok_home()
+  auth = load_auth(home)
+  if not auth:
+    return base_record(usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
+
+  stats = scan_sessions(home / "sessions", today=today)
+  record = base_record(
+    ready=True,
+    hasLocalStats=True,
+    authHelpText=AUTH_HELP,
+    tierLabel="SuperGrok",
+  )
+  record.update(stats)
+
+  try:
+    account = probe_account(str(auth.get("key") or ""), get_json=get_json)
+    user = account.get("user") if isinstance(account.get("user"), dict) else {}
+    tier = friendly_tier(str(user.get("subscriptionTier") or ""))
+    if tier:
+      record["tierLabel"] = tier
+    record["limits"] = limits_from_billing(account.get("billing") if isinstance(account.get("billing"), dict) else {})
+  except GrokError:
+    record["retryAdvised"] = True
+    if stats["totalSessions"] <= 0 and stats["totalPrompts"] <= 0:
+      record["ready"] = False
+      record["usageStatusText"] = "Waiting for auth"
+      record["authHelpText"] = AUTH_HELP
+
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Grok usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.parse_args()
+  try:
+    record = collect()
+  except Exception as error:
+    record = base_record(usageStatusText="Grok unavailable", authHelpText="Grok usage scan failed")
+    print(f"omarchy-agent-usage-grok: {type(error).__name__}", file=sys.stderr)
+  print(json.dumps(record, separators=(",", ":")))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

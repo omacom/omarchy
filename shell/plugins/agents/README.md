@@ -55,14 +55,23 @@ light surfaces — and the bar glyph stands in when there is none.
 | `claude` | Anthropic's OAuth usage endpoint (5-hour session + 7-day weekly) | `~/.claude/projects` transcripts, opencode sessions on an Anthropic provider, plus `stats-cache.json` and `history.jsonl` as fallback |
 | `codex` | The Codex app-server RPC | native Codex CLI session files (plus pi and opencode sessions) |
 | `fireworks` | Estimated prepaid balance: configured funding minus rated account costs | Fireworks billing API, grouped by day and model for the last 30 days |
+| `grok` | Weekly SuperGrok credit pool from Grok's `/usage` billing endpoint, plus the Grok Build slice of that pool | `$GROK_HOME/sessions` `updates.jsonl` `turn_completed` rows (with `usage.json` as fallback). Nested `subagents/` directories are skipped. |
 
 Claude limits need a signed-in CLI; without credentials the panel says so and
 falls back to local stats only. A non-default Claude directory is honored via
-`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`. Fireworks reads
+`CLAUDE_CONFIG_DIR`, Codex via `CODEX_HOME`, Grok via `GROK_HOME` (default
+`~/.grok`). Fireworks reads
 `FIREWORKS_API_KEY` and `FIREWORKS_ACCOUNT_ID` first, then
 `~/.fireworks/auth.ini` (which `firectl set-api-key` creates), then the key
 opencode stores in `~/.local/share/opencode/auth.json` when Fireworks is
 signed in there.
+
+Grok limits come from the same `cli-chat-proxy` billing document the TUI's
+`/usage` modal uses, authenticated with the OAuth session in `~/.grok/auth.json`.
+A zero prepaid balance is omitted rather than drawn as an empty credit ledger:
+SuperGrok is a subscription, not a prepaid Fireworks-style account. Local
+token charts only cover Grok CLI sessions on this machine — work done on
+grok.com or another device does not appear.
 
 ### Fireworks balance
 
@@ -128,7 +137,8 @@ edit `shell.json` directly):
 omarchy bar set omarchy.agents providers '{
   "claude": { "enabled": true },
   "codex": { "enabled": false },
-  "fireworks": { "enabled": true }
+  "fireworks": { "enabled": true },
+  "grok": { "enabled": true }
 }' --json
 ```
 
