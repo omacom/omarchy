@@ -178,3 +178,46 @@ PY
 [[ $(jq -r '.mode' <<<"$race_output") == "0o644" ]] ||
   fail "Claude collector keeps cache files readable" "$race_output"
 pass "Claude collector survives concurrent writes to one cache file"
+
+# Unreadable transcript files are expected when an agent has run as another
+# user, so report one bounded summary rather than one log line per file.
+UNREADABLE_DIR=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$HISTORY_HOME" "$OPENCODE_HOME" "$PI_HOME" "$UNREADABLE_DIR"' EXIT
+mkdir -p "$UNREADABLE_DIR/project"
+touch "$UNREADABLE_DIR/project/unreadable-1.jsonl" \
+  "$UNREADABLE_DIR/project/unreadable-2.jsonl" \
+  "$UNREADABLE_DIR/project/unreadable-3.jsonl" \
+  "$UNREADABLE_DIR/project/unreadable-4.jsonl" \
+  "$UNREADABLE_DIR/project/unreadable-5.jsonl"
+
+warning=$(python3 - "$ROOT/bin/omarchy-agent-usage-claude" "$UNREADABLE_DIR" <<'PY'
+import contextlib
+import importlib.util
+import io
+import sys
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+
+spec = importlib.util.spec_from_loader("collector", SourceFileLoader("collector", sys.argv[1]))
+collector = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(collector)
+
+original_open = Path.open
+
+def deny_unreadable(path, *args, **kwargs):
+  if path.name.startswith("unreadable-"):
+    raise PermissionError("permission denied")
+  return original_open(path, *args, **kwargs)
+
+collector.Path.open = deny_unreadable
+with contextlib.redirect_stderr(io.StringIO()) as stderr:
+  collector.scan_projects(Path(sys.argv[2]))
+print(stderr.getvalue(), end="")
+PY
+)
+
+[[ $(grep -c '^Ignoring ' <<<"$warning") == 1 ]] ||
+  fail "Claude collector emits one bounded warning for unreadable transcripts" "$warning"
+grep -q '^Ignoring 5 unreadable Claude project files' <<<"$warning" ||
+  fail "Claude collector reports the unreadable transcript count" "$warning"
+pass "Claude collector bounds unreadable transcript warnings"
