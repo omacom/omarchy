@@ -16,6 +16,10 @@
 
 PREFIX="$HOME/Games/battlenet"
 
+# umu resolves symlinks in the prefix path before exporting it to the
+# session's processes, so sessions are matched by the resolved form.
+COMPAT=$(realpath -m -- "$PREFIX")
+
 umu() {
   env WINEPREFIX="$PREFIX" PROTONPATH=GE-Proton GAMEID=umu-battlenet PROTON_VERB=run umu-run "$@"
 }
@@ -41,7 +45,7 @@ prefix_dpi() {
 }
 
 session_pids() {
-  grep -lszxF "STEAM_COMPAT_DATA_PATH=$PREFIX" /proc/[0-9]*/environ 2>/dev/null | cut -d / -f 3
+  grep -lszxF "STEAM_COMPAT_DATA_PATH=$COMPAT" /proc/[0-9]*/environ 2>/dev/null | cut -d / -f 3
 }
 
 # The client, its installer, or a game, as opposed to Wine's own services and

@@ -57,11 +57,12 @@ write_prefix_dpi() {
 }
 
 # A process the way the helper sees one from a live prefix session: tagged with
-# the prefix in its environment and carrying a Windows command line.
+# the prefix in its environment and carrying a Windows command line. umu
+# resolves symlinks in the prefix path before exporting it.
 fake_session_process() {
   local name="$1"
 
-  STEAM_COMPAT_DATA_PATH="$prefix" bash -c 'exec -a "$0" sleep 60' "$name" &
+  STEAM_COMPAT_DATA_PATH="$(realpath -- "$prefix")" bash -c 'exec -a "$0" sleep 60' "$name" &
   fake_pids+=("$!")
   printf '%s\n' "$!" >>"$test_tmp/fake-pids"
   sleep 0.2
@@ -117,6 +118,29 @@ run_scale
 [[ $(sed -n 1p "$call_log") == "$prefix | wineboot -k" ]] || fail "a session only the agent holds open is stopped first" "$(cat "$call_log")"
 [[ $(sed -n 2p "$call_log") == *"/d 192 /f" ]] || fail "the DPI is written once the agent's session is gone" "$(cat "$call_log")"
 pass "a session only the agent holds open is stopped before the DPI is written"
+fake_pids=()
+: >"$test_tmp/fake-pids"
+
+# A game library on a second disk: ~/Games is a symlink, so the resolved path
+# the session's processes carry differs from the path the helper starts from.
+mv "$home/Games" "$test_tmp/disk"
+ln -s "$test_tmp/disk" "$home/Games"
+
+write_prefix_dpi ""
+fake_session_process 'C:\Program Files (x86)\World of Warcraft\_retail_\Wow.exe'
+run_scale
+[[ ! -s $call_log ]] || fail "a game session behind a symlinked ~/Games is never interrupted" "$(cat "$call_log")"
+pass "a game session behind a symlinked ~/Games is never interrupted"
+kill "${fake_pids[@]}" 2>/dev/null
+wait "${fake_pids[@]}" 2>/dev/null || true
+fake_pids=()
+: >"$test_tmp/fake-pids"
+
+fake_session_process 'C:/ProgramData/Battle.net/Agent/Agent.9775/Agent.exe'
+run_scale
+[[ $(sed -n 1p "$call_log") == "$prefix | wineboot -k" ]] || fail "an agent behind a symlinked ~/Games is stopped first" "$(cat "$call_log")"
+[[ $(sed -n 2p "$call_log") == *"/d 192 /f" ]] || fail "the DPI is written behind a symlinked ~/Games" "$(cat "$call_log")"
+pass "a symlinked ~/Games gets the agent stopped and the DPI written"
 fake_pids=()
 
 for script in omarchy-launch-battlenet omarchy-install-gaming-battlenet; do
