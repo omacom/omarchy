@@ -20,12 +20,12 @@ assertDeepEqual(weather.locationCommit('  Pasadena  ', [], 0), { name: 'Pasadena
 assertDeepEqual(weather.locationCommit('', [], 0), { name: '', latitude: null, longitude: null }, 'weather commits an empty location as auto-detect')
 assertDeepEqual(
   weather.locationCommit('mal', [{ name: 'Malibu', latitude: 34.02577, longitude: -118.7804 }], 0),
-  { name: 'Malibu', latitude: 34.02577, longitude: -118.7804 },
-  'weather commits the selected geocoding suggestion when available'
+  { name: 'Malibu', latitude: 34.03, longitude: -118.78 },
+  'weather commits the selected geocoding suggestion rounded to ~1 km'
 )
 
-assertEqual(weather.wttrLocationQuery('Malibu', 34.02577, -118.7804), '34.02577,-118.7804', 'weather prefers coordinates for the wttr query')
-assertEqual(weather.wttrLocationQuery('Malibu', '34.02577', '-118.7804'), '34.02577,-118.7804', 'weather accepts string coordinates')
+assertEqual(weather.wttrLocationQuery('Malibu', 34.02577, -118.7804), '34.03,-118.78', 'weather sends coordinates rounded to ~1 km in the wttr query')
+assertEqual(weather.wttrLocationQuery('Malibu', '34.02577', '-118.7804'), '34.03,-118.78', 'weather accepts string coordinates')
 assertEqual(weather.wttrLocationQuery('New York', null, null), 'New%20York', 'weather URL-encodes a name-only location')
 assertEqual(weather.wttrLocationQuery('Malibu', 'nope', -118.7804), 'Malibu', 'weather ignores unparseable coordinates')
 assertEqual(weather.wttrLocationQuery('', null, null), '', 'weather falls back to IP auto-detect without a location')
@@ -163,8 +163,8 @@ weather_location() {
 }
 
 weather_location --set "Malibu" "34.02577,-118.7804"
-[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"Malibu","latitude":34.02577,"longitude":-118.7804}' ]] || fail "weather location stores name and coordinates as JSON"
-pass "weather location stores name and coordinates as JSON"
+[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"Malibu","latitude":34.03,"longitude":-118.78}' ]] || fail "weather location stores coordinates rounded to ~1 km"
+pass "weather location stores coordinates rounded to ~1 km"
 
 [[ $(weather_location) == "Malibu" ]] || fail "weather location returns the stored name"
 pass "weather location returns the stored name"
