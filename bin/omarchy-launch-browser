@@ -17,10 +17,6 @@ else
   private_flag="--incognito"
 fi
 
-systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-  --property=StandardOutput=null --property=StandardError=null \
-  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
-
 url=""
 for argument in "$@"; do
   if [[ $argument != "--private" ]]; then
@@ -30,5 +26,16 @@ for argument in "$@"; do
 done
 
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
+  # Focus before launching: Chromium adds the tab to its last active window, and
+  # an app window cannot hold tabs, so leaving a web app focused makes Chromium
+  # spawn a second browser window on whatever workspace the web app lives on.
+  #
+  # Web apps share the browser's class prefix and only differ by the app id
+  # Chromium derives from their URL (brave-chat.example.com__-Default), so the
+  # lookahead keeps the follow on the real browser window.
+  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable)(?!.*__).*$" || true
 fi
+
+systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+  --property=StandardOutput=null --property=StandardError=null \
+  uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
