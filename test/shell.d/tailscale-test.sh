@@ -212,6 +212,15 @@ assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, mess
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
 
-which_hits=$(rg -n '\["which"' "$ROOT/shell" || true)
+# The scan is the argv form plugins use (["which" or ['which', with optional
+# space). rg has to be present: `|| true` would treat a missing rg as no hits.
+require_command rg
+set +e
+which_hits=$(rg -n '\[[[:space:]]*["'\'']which["'\'']' "$ROOT/shell")
+rg_status=$?
+set -e
+if ((rg_status > 1)); then
+  fail "shell which scan failed" "rg exit $rg_status"
+fi
 [[ -z $which_hits ]] || fail "shell plugins do not call the which binary" "$which_hits"
 pass "shell plugins do not call the which binary"
