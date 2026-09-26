@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true if all of the named packages can be installed from the configured repositories (or false if any of them cannot).
+# omarchy:args=<packages...>
+
+# Omarchy's own repositories publish x86_64 only, and Arch Linux ARM does not
+# carry everything extra does, so an install entry that resolves on one
+# architecture can have nothing behind it on another. This asks the sync
+# databases the same question omarchy-pkg-add will put to pacman, so a menu
+# entry gated on it is only offered when the install can actually succeed.
+#
+# AUR packages never resolve here; gate yay-backed installs on
+# omarchy-pkg-aur-accessible instead.
+
+for pkg in "$@"; do
+  pacman -Si "$pkg" &>/dev/null || exit 1
+done
+
+exit 0
