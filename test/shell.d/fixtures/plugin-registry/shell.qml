@@ -185,6 +185,38 @@ ShellRoot {
 
     root.config = {
       version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "third.widget" }]
+    }
+    registry.setEnabled("third.widget", true)
+    root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "enabling a bar widget listed in plugins[] places it in the bar")
+    root.assertDeepEqual(root.config.plugins, [], "enabling a bar widget listed in plugins[] prunes it from plugins array")
+    root.assertTrue(registry.inBar("third.widget"), "enabled bar widget listed in plugins[] is reported inBar")
+    root.assertTrue(registry.isEnabled("third.widget"), "enabled bar widget listed in plugins[] is reported isEnabled")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [], center: [], right: [] } },
+      plugins: [{ id: "third.right-widget" }]
+    }
+    root.assertEqual(registry.putBarWidget("third.right-widget", {}), "", "put accepts a bar widget listed in plugins[]")
+    root.assertDeepEqual(root.config.bar.layout.right, [{ id: "third.right-widget" }], "put places a bar widget listed in plugins[]")
+    root.assertDeepEqual(root.config.plugins, [], "put prunes a placed bar widget from plugins array")
+    root.assertTrue(registry.inBar("third.right-widget"), "put bar widget listed in plugins[] is reported inBar")
+
+    root.config = {
+      version: 1,
+      bar: { layout: { left: [{ id: "third.widget" }], center: [], right: [] } },
+      plugins: [{ id: "third.widget" }]
+    }
+    registry.setEnabled("third.widget", false)
+    root.assertDeepEqual(root.config.bar.layout.left, [], "disabling a bar widget removes it from layout")
+    root.assertDeepEqual(root.config.plugins, [], "disabling a bar widget prunes any stray entry from plugins array")
+    root.assertTrue(!registry.inBar("third.widget"), "disabled bar widget is not inBar")
+    root.assertTrue(!registry.isEnabled("third.widget"), "disabled bar widget is not isEnabled")
+
+    root.config = {
+      version: 1,
       bar: {
         layout: {
           left: [{ id: "omarchy.workspaces" }, { id: "omarchy.menu" }],
