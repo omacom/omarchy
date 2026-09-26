@@ -1,14 +1,70 @@
 # Detect T2 MacBook models using PCI IDs
 # Vendor: 106b (Apple), Device IDs: 1801 or 1802 (T2 Security Chip)
-if lspci -nn | grep "106b:180[12]" >/dev/null; then
+if ! t2_pci_devices=$(/usr/bin/lspci -nn); then
+  echo "Could not inspect PCI devices; refusing to skip T2 hardware setup." >&2
+  return 1
+fi
+if [[ $t2_pci_devices == *"106b:1801"* || $t2_pci_devices == *"106b:1802"* ]]; then
   echo "Detected MacBook with T2 chip. Installing support items..."
 
-  omarchy-pkg-add \
-    linux-t2 \
-    linux-t2-headers \
-    apple-t2-audio-config \
-    apple-bcm-firmware \
+  t2_packages=(
+    linux-t2
+    linux-t2-headers
+    apple-t2-audio-config
+    apple-bcm-firmware
     t2fanrd
+  )
+  t2_targets=("${t2_packages[@]/#/omarchy/}")
+
+  effective_siglevel=$(/usr/bin/pacman-conf --repo omarchy SigLevel 2>/dev/null) || {
+    echo "Could not resolve the Omarchy repository signature policy; refusing T2 setup." >&2
+    return 1
+  }
+  if [[ -z ${effective_siglevel//[$' \t\n\r']/} ]]; then
+    effective_siglevel=$(/usr/bin/pacman-conf SigLevel 2>/dev/null) || {
+      echo "Could not resolve the inherited package signature policy; refusing T2 setup." >&2
+      return 1
+    }
+  fi
+  effective_siglevel=${effective_siglevel//$'\n'/ }
+  effective_siglevel=${effective_siglevel//$'\t'/ }
+  if [[ " $effective_siglevel " != *" PackageRequired "* ||
+    " $effective_siglevel " != *" PackageTrustedOnly "* ||
+    " $effective_siglevel " == *" PackageOptional "* ||
+    " $effective_siglevel " == *" PackageNever "* ||
+    " $effective_siglevel " == *" PackageTrustAll "* ]]; then
+    echo "The Omarchy repository is not enforcing trusted package signatures; refusing T2 setup." >&2
+    return 1
+  fi
+
+  # These kernel-level artifacts used to come from an unsigned third-party
+  # repository. They must now exist in Omarchy's pinned-key repository before
+  # any installation starts; otherwise leave the machine unchanged and report
+  # the packaging prerequisite explicitly.
+  for package in "${t2_packages[@]}"; do
+    if ! repository_metadata=$(LC_ALL=C /usr/bin/pacman -Si "omarchy/$package" 2>/dev/null); then
+      repository=""
+    else
+      # Consume the complete producer output. Exiting awk after the first field
+      # turns a large successful pacman query into SIGPIPE under pipefail.
+      repository=$(/usr/bin/awk -F: '
+        !found && /^Repository[[:space:]]*:/ {
+          gsub(/[[:space:]]/, "", $2)
+          print $2
+          found = 1
+        }
+      ' <<<"$repository_metadata")
+    fi
+    if [[ $repository != "omarchy" ]]; then
+      echo "Authenticated T2 package '$package' is unavailable from the Omarchy repository." >&2
+      echo "T2 setup cannot continue until all support packages are published there with Omarchy signatures." >&2
+      return 1
+    fi
+  done
+
+  # Pin the transaction as well as the preflight query. Reinstall same-version
+  # packages too: existing bytes may predate the authenticated repository.
+  /usr/bin/pacman -S --noconfirm "${t2_targets[@]}" || return 1
 
   # Enable T2 fan control
   systemctl enable t2fanrd.service
