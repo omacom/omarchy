@@ -96,6 +96,190 @@ function isTaildropTarget(peer, selfUserId) {
   return owner !== "" && owner === String(selfUserId || "")
 }
 
+// A service name becomes a DNS label in the URL the panel opens, so anything
+// that is not one is a service this panel cannot address — skip it rather than
+// build a URL out of it.
+function isDnsLabel(name) {
+  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(String(name || ""))
+}
+
+function magicDnsSuffix(data) {
+  var tailnet = (data && data.CurrentTailnet) || {}
+  // The suffix is reported whether or not MagicDNS is on, and without MagicDNS
+  // nothing resolves the names built from it. Only an explicit "off" counts:
+  // a daemon too old to say should still get its services listed.
+  if (tailnet.MagicDNSEnabled === false) return ""
+  var suffix = String(tailnet.MagicDNSSuffix || "")
+  if (suffix === "") return ""
+  var labels = suffix.split(".")
+  for (var i = 0; i < labels.length; i++) {
+    if (!isDnsLabel(labels[i])) return ""
+  }
+  return suffix
+}
+
+// The daemon advertises a service's addresses, but routes it as CIDRs, so the
+// two only meet once the bare addresses are widened to host routes.
+function serviceHostRoutes(addresses) {
+  var routes = []
+  var values = Array.isArray(addresses) ? addresses : []
+  for (var i = 0; i < values.length; i++) {
+    var address = String(values[i] || "")
+    if (address === "") continue
+    routes.push(address + (address.indexOf(":") === -1 ? "/32" : "/128"))
+  }
+  return routes
+}
+
+function carriesAnyRoute(peer, routes) {
+  var advertised = (peer && peer.PrimaryRoutes) || []
+  if (!Array.isArray(advertised)) return false
+  for (var i = 0; i < advertised.length; i++) {
+    if (routes.indexOf(String(advertised[i])) !== -1) return true
+  }
+  return false
+}
+
+// Any number of peers can advertise a service's route, but only one answers at
+// a time, and an online one is the one worth naming. Falling back to an offline
+// carrier still beats saying nothing: it tells you which machine to go wake up.
+function serviceHost(peers, routes) {
+  var fallback = null
+  for (var i = 0; i < peers.length; i++) {
+    var peer = peers[i] || {}
+    if (!carriesAnyRoute(peer, routes)) continue
+    if (peer.Online === true) return peer
+    if (fallback === null) fallback = peer
+  }
+  return fallback
+}
+
+// Tailscale Services reach this node through its capability map: one
+// "services/<name>" key per service the tailnet grants it, each entry naming
+// the service and the ports it answers on. Only the HTTPS ones belong in a
+// panel — the rest are not something a click can open.
+function parseServices(data) {
+  var suffix = magicDnsSuffix(data)
+  if (suffix === "") return []
+
+  var self = (data && data.Self) || {}
+  var rawPeers = (data && data.Peer) || {}
+  var peers = [self]
+  for (var id in rawPeers) peers.push(rawPeers[id] || {})
+
+  var capabilities = self.CapMap || {}
+  var byName = {}
+  for (var capability in capabilities) {
+    if (String(capability).indexOf("services/") !== 0) continue
+    var entries = capabilities[capability]
+    if (!Array.isArray(entries)) continue
+
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i] || {}
+      var ports = Array.isArray(entry.Ports) ? entry.Ports : []
+      if (ports.indexOf("tcp:443") === -1) continue
+
+      var name = String(entry.Name || "").replace(/^svc:/, "")
+      // hasOwnProperty, not truthiness: "constructor" and "valueOf" are valid
+      // DNS labels, and inherited members would read as services already seen.
+      if (!isDnsLabel(name) || Object.prototype.hasOwnProperty.call(byName, name)) continue
+
+      var host = serviceHost(peers, serviceHostRoutes(entry.Addrs))
+      byName[name] = {
+        Name: name,
+        Url: "https://" + name + "." + suffix + "/",
+        HostName: host ? displayHostName(host.HostName, host.DNSName) : "",
+        HostOnline: host ? host.Online === true : false
+      }
+    }
+  }
+
+  var result = []
+  for (var serviceName in byName) result.push(byName[serviceName])
+  result.sort(function(a, b) {
+    return String(a.Name).localeCompare(String(b.Name))
+  })
+  return result
+}
+
+// One curl for the whole list: it probes them in parallel and reports each on
+// its own line. Every flag here is a refusal — no ~/.curlrc, no proxy, no
+// plaintext, no redirects, no credentials, no unbounded wait — because this
+// runs unattended on a timer against whatever the tailnet advertises.
+function serviceProbeCommand(services) {
+  var values = Array.isArray(services) ? services : []
+  if (values.length === 0) return []
+
+  var command = [
+    "curl", "--disable", "--silent", "--noproxy", "*", "--proto", "=https",
+    "--connect-timeout", "2", "--max-time", "5", "--parallel",
+    "--write-out", "%{url_effective}\t%{http_code}\t%{time_total}\n"
+  ]
+  for (var i = 0; i < values.length; i++) {
+    // --output binds to the URL before it, so every URL needs its own or the
+    // response bodies land in the report.
+    command.push("--url", String(values[i].Url || ""), "--output", "/dev/null")
+  }
+  return command
+}
+
+// curl exits non-zero the moment any single transfer fails and still reports
+// every URL on stdout, so the output is the source of truth, not the status.
+function parseProbeResults(raw) {
+  var results = {}
+  var lines = String(raw || "").split(/\r?\n/)
+  for (var i = 0; i < lines.length; i++) {
+    var fields = lines[i].split("\t")
+    if (fields.length < 3) continue
+
+    var url = String(fields[0] || "")
+    if (url === "") continue
+    var code = parseInt(fields[1], 10)
+    var seconds = parseFloat(fields[2])
+    if (!isFinite(code)) code = 0
+    if (!isFinite(seconds)) seconds = 0
+
+    results[url] = {
+      code: code,
+      latencyMs: Math.round(seconds * 1000),
+      // An answer is an answer: 401 and 403 mean the service is up and holding
+      // the door, which is not the same failure as nothing listening at all.
+      reachable: code >= 100 && code < 500
+    }
+  }
+  return results
+}
+
+// The probe results arrive keyed by URL and a second behind the list itself,
+// so the panel gets one already-joined row per service instead of having to
+// hold both halves and line them up.
+function serviceRows(services, probes) {
+  var rows = []
+  var values = Array.isArray(services) ? services : []
+  for (var i = 0; i < values.length; i++) {
+    var service = values[i] || {}
+    var row = {}
+    for (var propertyName in service) row[propertyName] = service[propertyName]
+
+    var probe = (probes && probes[service.Url]) || null
+    row.Probed = probe !== null
+    row.Code = probe ? probe.code : 0
+    row.LatencyMs = probe ? probe.latencyMs : 0
+    row.Reachable = probe ? probe.reachable === true : false
+    rows.push(row)
+  }
+  return rows
+}
+
+function reachableServiceCount(rows) {
+  var count = 0
+  var values = Array.isArray(rows) ? rows : []
+  for (var i = 0; i < values.length; i++) {
+    if (values[i] && values[i].Reachable === true) count++
+  }
+  return count
+}
+
 function peerFromStatus(id, peer) {
   return {
     id: id,
@@ -263,7 +447,8 @@ function parseStatus(raw) {
       selfUserId: String(self.UserID || ""),
       fileSharing: hasFileSharing(self),
       peers: peers,
-      exitNodes: exitNodes
+      exitNodes: exitNodes,
+      services: parseServices(data)
     }
   } catch (e) {
     return { ok: false, unavailable: true, message: "Status error", error: "Failed to parse tailscale status" }
@@ -316,6 +501,11 @@ if (typeof module !== "undefined") {
     isTaildropTarget: isTaildropTarget,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
+    parseServices: parseServices,
+    serviceProbeCommand: serviceProbeCommand,
+    parseProbeResults: parseProbeResults,
+    serviceRows: serviceRows,
+    reachableServiceCount: reachableServiceCount,
     parseExitNodeList: parseExitNodeList,
     mullvadRegionOptions: mullvadRegionOptions,
     mullvadCountryOptions: mullvadCountryOptions,
