@@ -144,6 +144,10 @@ Panel {
   }
 
   readonly property real outputVolume: volumeSink && volumeSink.audio ? volumeSink.audio.volume : 0
+  // Last percentage asked for and last one handed to pactl; -1 while no write
+  // is pending so relative steps fall back to the live volume.
+  property int pendingOutputVolume: -1
+  property int sentOutputVolume: -1
   readonly property bool outputMuted: volumeSink && volumeSink.audio ? volumeSink.audio.muted : false
   readonly property real inputVolume: source && source.audio ? source.audio.volume : 0
   readonly property bool inputMuted: source && source.audio ? source.audio.muted : false
@@ -273,7 +277,8 @@ Panel {
   // moving the global slider would surprise the user.
   function adjustVolume(delta) {
     if (focusSection === "output" && selectedIndex === -1) {
-      setOutputVolume(outputVolume + delta)
+      var base = pendingOutputVolume >= 0 ? pendingOutputVolume / 100 : outputVolume
+      setOutputVolume(base + delta)
       return
     }
     if (focusSection === "input" && selectedIndex === -1) {
@@ -426,8 +431,21 @@ Panel {
   function setOutputVolume(v) {
     if (!volumeSink || !volumeSink.audio) return outputVolume
     var volume = Math.max(0, Math.min(1, v))
-    volumeSink.audio.volume = volume
+    // Quickshell 0.3.1 drops device-routed volume writes for Bluetooth sinks
+    // when the card route publishes no volumeStep; pactl is authoritative for
+    // every sink type. A single percentage intentionally sets all channels,
+    // consistent with omarchy-audio-output-volume. Writes coalesce through
+    // one writer process: a scroll burst used to spawn a pactl per step.
+    pendingOutputVolume = Math.round(volume * 100)
+    if (!outputVolumeWriter.running) sendOutputVolume()
     return volume
+  }
+
+  function sendOutputVolume() {
+    if (!volumeSink || pendingOutputVolume < 0) return
+    sentOutputVolume = pendingOutputVolume
+    outputVolumeWriter.command = Model.outputVolumeCommand(String(volumeSink.name), pendingOutputVolume / 100)
+    outputVolumeWriter.running = true
   }
 
   function showVolumeOsd(volume) {
@@ -592,6 +610,22 @@ Panel {
     }
   }
 
+  // Coalescing volume writer: while a burst queues up pendingOutputVolume,
+  // only one pactl runs at a time and the last queued value wins on exit.
+  Process {
+    id: outputVolumeWriter
+    onExited: {
+      if (root.pendingOutputVolume !== root.sentOutputVolume) {
+        root.sendOutputVolume()
+      } else {
+        // Burst drained: drop the pending value so the next relative step
+        // bases off the live volume, which other clients may have changed.
+        root.pendingOutputVolume = -1
+        root.sentOutputVolume = -1
+      }
+    }
+  }
+
   Process {
     id: volumeSinkProc
     command: ["omarchy-audio-output-sink"]
@@ -642,7 +676,8 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      var volume = root.setOutputVolume(root.outputVolume + wheel.steps * 0.05)
+      var base = root.pendingOutputVolume >= 0 ? root.pendingOutputVolume / 100 : root.outputVolume
+      var volume = root.setOutputVolume(base + wheel.steps * 0.05)
       root.showVolumeOsd(volume)
     }
   }

@@ -22,6 +22,14 @@ function listSnapshot(list) {
   return list && list.slice ? list.slice() : []
 }
 
+// pactl argv for writing a sink volume. The panel caps output at 100%, and a
+// single percentage intentionally sets all channels — the same semantics as
+// omarchy-audio-output-volume.
+function outputVolumeCommand(sinkName, volume) {
+  var clamped = Math.max(0, Math.min(1, Number(volume) || 0))
+  return ["pactl", "set-sink-volume", String(sinkName), Math.round(clamped * 100) + "%"]
+}
+
 function outputVolumeName(volume, muted) {
   if (muted) return "Muted"
   var p = Math.round(volume * 100)
@@ -239,6 +247,7 @@ if (typeof module !== "undefined") {
     isAudioSource: isAudioSource,
     listSnapshot: listSnapshot,
     outputVolumeName: outputVolumeName,
+    outputVolumeCommand: outputVolumeCommand,
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,
     nodeProps: nodeProps,
