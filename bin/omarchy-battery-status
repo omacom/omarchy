@@ -47,20 +47,38 @@ battery_path="$power_supply_path/$native_path"
 
 # UPower's energy-rate can lag the kernel telemetry by tens of seconds. Use
 # the instantaneous sysfs reading when available so the open panel stays live.
+sysfs_rate=""
 if [[ -r $battery_path/power_now ]]; then
-  power_rate_raw=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
+  sysfs_rate=$(awk -v microwatts="$(<"$battery_path/power_now")" 'BEGIN { print microwatts / 1000000 }')
 elif [[ -r $battery_path/current_now && -r $battery_path/voltage_now ]]; then
-  power_rate_raw=$(awk \
+  sysfs_rate=$(awk \
     -v microamps="$(<"$battery_path/current_now")" \
     -v microvolts="$(<"$battery_path/voltage_now")" \
     'BEGIN { print microamps * microvolts / 1000000000000 }')
 fi
 
-power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
-  rounded = sprintf("%.1f", rate)
-  sub(/\.0$/, "", rounded)
-  print rounded
-}')
+if [[ -n $sysfs_rate ]]; then
+  # Some firmware reports current as an unsigned 16-bit field, turning a ~0.5 A
+  # draw into a ~-1100 W reading. Keep UPower's rate when the sysfs value is
+  # beyond any laptop's draw.
+  if awk -v sysfs="$sysfs_rate" 'BEGIN {
+    s = sysfs < 0 ? -sysfs : sysfs
+    exit !(s <= 200)
+  }'; then
+    power_rate_raw=$sysfs_rate
+  fi
+fi
+
+# No trustworthy rate (UPower reported none or 0 W and sysfs was rejected)
+# renders no rate segment rather than a misleading 0W.
+power_rate=""
+if [[ -n $power_rate_raw ]] && awk -v rate="$power_rate_raw" 'BEGIN { exit !(rate > 0) }'; then
+  power_rate=$(awk -v rate="$power_rate_raw" 'BEGIN {
+    rounded = sprintf("%.1f", rate)
+    sub(/\.0$/, "", rounded)
+    print rounded
+  }')
+fi
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
 threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
@@ -103,7 +121,7 @@ if [[ $shell_output == "true" ]]; then
   else
     printf 'state\t%s\n' "$state"
   fi
-  printf 'rate\t%s\n' "${power_rate}W"
+  [[ -n $power_rate ]] && printf 'rate\t%s\n' "${power_rate}W"
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
@@ -122,6 +140,12 @@ if [[ $shell_output == "true" ]]; then
   exit 0
 fi
 
+if [[ -n $power_rate ]]; then
+  rate_segment="${power_rate}W / ${capacity}Wh"
+else
+  rate_segment="${capacity}Wh"
+fi
+
 if [[ $charge_holding == "true" ]]; then
   if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
     threshold_label="${threshold_start}-${threshold_end}%"
@@ -129,9 +153,9 @@ if [[ $charge_holding == "true" ]]; then
     threshold_label="${threshold_end}%"
   fi
 
-  echo "Battery ${percentage}%  ·  Holding at ${threshold_label}  ·  ${power_rate}W / ${capacity}Wh"
+  echo "Battery ${percentage}%  ·  Holding at ${threshold_label}  ·  ${rate_segment}"
 elif [[ $state == "charging" ]]; then
-  echo "Battery ${percentage}%  ·  ${time_remaining} to full  ·   ${power_rate}W / ${capacity}Wh"
+  echo "Battery ${percentage}%  ·  ${time_remaining} to full  ·   ${rate_segment}"
 else
-  echo "Battery ${percentage}%  ·  ${time_remaining} left  ·   ${power_rate}W / ${capacity}Wh"
+  echo "Battery ${percentage}%  ·  ${time_remaining} left  ·   ${rate_segment}"
 fi
