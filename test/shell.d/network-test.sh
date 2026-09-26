@@ -297,8 +297,8 @@ assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit',
 
 // Hotspot status parsing and helpers (omarchy-hotspot status output).
 assertDeepEqual(
-  network.parseHotspotStatus('ap_capable\t1\nap_bands\t2.4,5\nactive\t1\nssid\tMy Net\nclients\t[{"mac":"aa:bb:cc","signal":-42}]\n'),
-  { ap_capable: '1', ap_bands: '2.4,5', active: '1', ssid: 'My Net', clients: '[{"mac":"aa:bb:cc","signal":-42}]' },
+  network.parseHotspotStatus('ap_capable\t1\nap_bands\t2.4,5\nactive\t1\nssid\tMy Net\nclients\t[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]\n'),
+  { ap_capable: '1', ap_bands: '2.4,5', active: '1', ssid: 'My Net', clients: '[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]' },
   'network parses hotspot status key/values'
 )
 assertDeepEqual(network.parseHotspotStatus(''), {}, 'network parses empty hotspot status')
@@ -310,14 +310,17 @@ assertEqual(network.hotspotDefaultBand({ ap_bands: '2.4,5', band: '6' }), '2.4',
 assertEqual(network.hotspotDefaultBand({ ap_bands: '5' }), '5', 'network uses the only available hotspot band')
 assertEqual(network.hotspotDefaultBand({}), '', 'network returns no hotspot band when none exist')
 assertDeepEqual(
-  network.hotspotClients({ clients: '[{"mac":"aa:bb:cc","signal":-42}]' }),
-  [{ mac: 'aa:bb:cc', signal: -42 }],
+  network.hotspotClients({ clients: '[{"mac":"aa:bb:cc","signal":-42,"address":"10.42.0.5","hostname":"pixel-8"}]' }),
+  [{ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5', hostname: 'pixel-8' }],
   'network parses hotspot clients'
 )
 assertDeepEqual(network.hotspotClients({ clients: 'garbage' }), [], 'network ignores malformed hotspot clients')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42 }), 'AA:BB:CC · -42 dBm', 'network labels a hotspot client with signal')
 assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc' }), 'AA:BB:CC', 'network labels a hotspot client without signal')
 assertEqual(network.hotspotClientLabel({}), '', 'network labels an empty hotspot client')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5', hostname: 'pixel-8' }), 'pixel-8 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network leads a named client with its name')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, address: '10.42.0.5' }), '10.42.0.5 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network falls back to the address when a client has no name')
+assertEqual(network.hotspotClientLabel({ mac: 'aa:bb:cc', signal: -42, hostname: 'pixel-8' }), 'pixel-8 \u00b7 AA:BB:CC \u00b7 -42 dBm', 'network keeps the MAC when a client has no address')
 assertEqual(network.hotspotCredentialsError('', 'abcdefgh'), 'Enter a hotspot name', 'network requires a hotspot ssid')
 assertEqual(network.hotspotCredentialsError('  ', 'abcdefgh'), 'Enter a hotspot name', 'network treats a blank hotspot ssid as missing')
 assertEqual(network.hotspotCredentialsError('Home', 'short'), 'Password needs 8+ characters', 'network rejects a short hotspot password')

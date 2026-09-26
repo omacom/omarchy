@@ -224,8 +224,36 @@ upstream_type() {
   else echo "ethernet"; fi
 }
 
+# The IPv4 the kernel currently has for a station, from the neighbour table
+# rather than dnsmasq's root-only lease file, so an unprivileged status poll can
+# still name the client.
+station_address() {
+  local iface=$1 mac=$2 want=${2,,} entry
+  [[ -n $mac ]] || return 0
+  while IFS= read -r entry; do
+    [[ -n $entry ]] || continue
+    if [[ ${entry,,} == *" $want" ]]; then
+      printf '%s\n' "${entry%% *}"
+      return 0
+    fi
+  done < <(ip neigh show dev "$iface" 2>/dev/null |
+    awk '$1 ~ /^[0-9.]+$/ && $2 == "dev" && $4 == "lladdr" { print $1, tolower($5) }')
+}
+
+# A name for that address from the system resolver, which covers plain DNS and
+# mDNS when nss-mdns is installed. Only a bare label is reported: whatever the
+# network hands back is untrusted text that ends up on screen.
+station_hostname() {
+  local address=$1 name
+  [[ -n $address ]] || return 0
+  name=$(getent hosts "$address" 2>/dev/null | awk 'NR == 1 { print $1 }') || return 0
+  name=${name%%.*}
+  [[ $name =~ ^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$ ]] || return 0
+  printf '%s\n' "$name"
+}
+
 station_list() {
-  local iface=$1 mac signal
+  local iface=$1 mac signal address hostname
   local dump block
   dump=$(iw dev "$iface" station dump 2>/dev/null) || return 0
   [[ -n $dump ]] || return 0
@@ -237,9 +265,11 @@ station_list() {
     mac=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "Station") { print $(i + 1); break } }' <<<"$line")
     signal=$(awk '{ for (i = 1; i <= NF; i++) if ($i == "signal:") { gsub(/[^0-9-]/, "", $(i + 1)); print $(i + 1); break } }' <<<"$line")
     [[ -n $mac ]] || continue
+    address=$(station_address "$iface" "$mac")
+    hostname=$(station_hostname "$address")
     [[ $first == 1 ]] || printf '\n'
     first=0
-    printf '%s\t%s' "$mac" "${signal:-0}"
+    printf '%s\t%s\t%s\t%s' "$mac" "${signal:-0}" "$address" "$hostname"
   done <<<"$block"
 }
 
@@ -279,8 +309,13 @@ status() {
       if [[ -n $client_list ]]; then
         client_count=$(printf '%s\n' "$client_list" | grep -c . || true)
         clients=$(printf '%s\n' "$client_list" |
-          jq -R 'split("\t") as $f | { mac: $f[0], signal: ($f[1] | tonumber? // 0) }' 2>/dev/null |
-          jq -s . 2>/dev/null || echo "[]")
+          jq -R 'split("\t") as $f | {
+            mac: $f[0],
+            signal: ($f[1] | tonumber? // 0),
+            address: (($f[2] // "") | select(test("^[0-9.]+$")) // ""),
+            hostname: (($f[3] // "") | select(test("^[A-Za-z0-9._-]+$")) // "")
+          }' 2>/dev/null |
+          jq -sc . 2>/dev/null || echo "[]")
       fi
     fi
   fi

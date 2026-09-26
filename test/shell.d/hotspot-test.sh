@@ -156,6 +156,9 @@ case "$*" in
   '-e no -g NAME connection show')
     [[ -e $PROFILE_STATE ]] && printf '%s\n' 'omarchy-hotspot'
     ;;
+  '-t -f NAME connection show --active')
+    [[ ${HOTSPOT_ACTIVE:-0} == 1 ]] && printf '%s\n' 'omarchy-hotspot'
+    ;;
   '-e no -g GENERAL.DEVICE connection show omarchy-hotspot')
     [[ -n ${GENERAL_DEVICE:-} ]] && printf '%s\n' "$GENERAL_DEVICE"
     ;;
@@ -273,3 +276,110 @@ SAVED_INTERFACE=wlan0 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bi
 [[ $(<"$TEST_TMP/missing-phy-diagnose.out") == *"ap capable: unknown (could not determine Wi-Fi PHY for wlan0)"* ]] || fail "diagnose distinguishes missing PHY data from an incapable adapter" "$(<"$TEST_TMP/missing-phy-diagnose.out")"
 pass "missing PHY information degrades status instead of failing it"
 pass "missing PHY information stays diagnosable"
+
+# Client names come from the neighbour table and the system resolver, both of
+# which an unprivileged status poll can read, unlike dnsmasq's lease file.
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "dev" && ${3:-} == "station" && ${4:-} == "dump" ]]; then
+  printf '%s\n' \
+    'Station aa:bb:cc:dd:ee:01 (on wlan0)' \
+    '	inactive time:	10 ms' \
+    '	signal:  	-40 dBm' \
+    'Station aa:bb:cc:dd:ee:02 (on wlan0)' \
+    '	signal:  	-71 dBm'
+  exit 0
+fi
+if [[ ${1:-} == "dev" && ${3:-} == "link" ]]; then
+  printf '%s\n' '  freq: 5.18 GHz'
+  exit 0
+fi
+if [[ ${1:-} == "dev" ]]; then
+  printf '%s\n' "Interface ${2:-}" '  type managed' '  wiphy 0'
+  exit 0
+fi
+if [[ ${1:-} == "phy" ]]; then
+  printf '%s\n' "Wiphy ${2:-phy0}" '  Band 1:' '    * AP'
+  exit 0
+fi
+exit 1
+STUB
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "-j" && ${2:-} == "addr" ]]; then
+  printf '%s\n' '[{"addr_info":[{"family":"inet","local":"10.42.0.1"}]}]'
+  exit 0
+fi
+if [[ ${1:-} == "neigh" ]]; then
+  printf '%s\n' \
+    '10.42.0.5 dev wlan0 lladdr aa:bb:cc:dd:ee:01 REACHABLE' \
+    '10.42.0.6 dev wlan0 lladdr aa:bb:cc:dd:ee:02 STALE' \
+    'fe80::1 dev wlan0 lladdr aa:bb:cc:dd:ee:03 REACHABLE'
+  exit 0
+fi
+exit 2
+STUB
+cat >"$STUB_BIN/getent" <<'STUB'
+#!/bin/bash
+case "${1:-}:${2:-}" in
+  hosts:10.42.0.5) printf '%s\n' 'pixel-8.lan 10.42.0.5' ;;
+  hosts:10.42.0.6) printf '%s\n' 'bad;name.lan 10.42.0.6' ;;
+  *) exit 2 ;;
+esac
+STUB
+chmod +x "$STUB_BIN/iw" "$STUB_BIN/ip" "$STUB_BIN/getent"
+
+: >"$NMCLI_LOG"
+touch "$PROFILE_STATE"
+HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/client-status.out" 2>"$TEST_TMP/client-status.err"
+[[ -z $(<"$TEST_TMP/client-status.err") ]] || fail "client status keeps stderr empty" "$(<"$TEST_TMP/client-status.err")"
+client_line_count=$(wc -l <"$TEST_TMP/client-status.out")
+expected_lines=$(grep -c '	' "$TEST_TMP/client-status.out")
+(( client_line_count == expected_lines )) || fail "a client list keeps the status one key per line" "$client_line_count lines, $expected_lines keyed"
+clients_json=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/client-status.out")
+clients_count=$(awk -F'\t' '$1 == "client_count" { print $2 }' "$TEST_TMP/client-status.out")
+[[ $clients_count == "2" ]] || fail "client status counts every station" "$clients_count"
+resolved=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .hostname')
+[[ $resolved == "pixel-8" ]] || fail "a resolvable station reports its short hostname" "$resolved"
+resolved_address=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:01") | .address')
+[[ $resolved_address == "10.42.0.5" ]] || fail "a station reports its neighbour address" "$resolved_address"
+rejected=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .hostname')
+[[ -z $rejected ]] || fail "a name the resolver cannot vouch for is dropped" "$rejected"
+kept_address=$(printf '%s' "$clients_json" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .address')
+[[ $kept_address == "10.42.0.6" ]] || fail "a station without a usable name still reports its address" "$kept_address"
+signals=$(printf '%s' "$clients_json" | jq -r '[.[].signal] | sort | join(",")')
+[[ $signals == "-71,-40" ]] || fail "station signal survives the new fields" "$signals"
+pass "status names clients from the neighbour table and the system resolver"
+
+# A hostile neighbour table must not widen the status contract.
+cat >"$STUB_BIN/ip" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "neigh" ]]; then
+  printf '%s\n' \
+    '10.42.0.5 dev wlan0 lladdr aa:bb:cc:dd:ee:01 REACHABLE' \
+    'not-an-address dev wlan0 lladdr aa:bb:cc:dd:ee:02 STALE' \
+    '10.42.0.9 dev wlan0 lladdr aa:bb:cc:dd:ee:09 REACHABLE'
+  exit 0
+fi
+exit 2
+STUB
+cat >"$STUB_BIN/getent" <<'STUB'
+#!/bin/bash
+case "${2:-}" in
+  10.42.0.5) printf '%s\n' "$(printf 'a\tb\nc') 10.42.0.5" ;;
+  10.42.0.9) printf '%s\n' 'has spaces 10.42.0.9' ;;
+  *) exit 2 ;;
+esac
+STUB
+chmod +x "$STUB_BIN/ip" "$STUB_BIN/getent"
+: >"$NMCLI_LOG"
+HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/hostile-status.out" 2>"$TEST_TMP/hostile-status.err"
+[[ -z $(<"$TEST_TMP/hostile-status.err") ]] || fail "a hostile neighbour table keeps stderr empty" "$(<"$TEST_TMP/hostile-status.err")"
+hostile_clients=$(awk -F'\t' '$1 == "clients" { print $2 }' "$TEST_TMP/hostile-status.out")
+printf '%s' "$hostile_clients" | jq -e 'all(.[]; (.hostname | test("^[A-Za-z0-9._-]*$")) and (.address | test("^[0-9.]*$")))' >/dev/null ||
+  fail "status only reports plain hostnames and addresses" "$hostile_clients"
+foreign=$(printf '%s' "$hostile_clients" | jq -r '.[] | select(.mac == "aa:bb:cc:dd:ee:02") | .address')
+[[ -z $foreign ]] || fail "a malformed neighbour entry is dropped" "$foreign"
+unrelated=$(printf '%s' "$hostile_clients" | jq -r '[.[] | select(.mac == "aa:bb:cc:dd:ee:09")] | length')
+[[ $unrelated == "0" ]] || fail "a station that is not associated is not reported" "$unrelated"
+pass "a hostile neighbour table cannot widen the status contract"
