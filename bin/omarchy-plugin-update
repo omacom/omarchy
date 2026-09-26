@@ -55,7 +55,8 @@ update_one() {
     if omarchy-cmd-present delta; then
       git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
     else
-      git -C "$dir" diff HEAD FETCH_HEAD
+      # Without --no-pager git opens less, which hides the confirmation below it.
+      git -C "$dir" --no-pager diff HEAD FETCH_HEAD
     fi
     echo
     confirm "Update $id?" || {
