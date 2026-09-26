@@ -8,6 +8,9 @@ set -e
 echo "Installing Spotify..."
 omarchy-pkg-add spotify
 
+mkdir -p ~/.config
+cp -f "$OMARCHY_PATH/config/spotify-flags.conf" ~/.config/spotify-flags.conf
+
 echo "Opening Spotify..."
 setsid uwsm-app -- /usr/bin/spotify >/dev/null 2>&1 &
 
