@@ -38,17 +38,21 @@ Item {
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
   property int shakeOffset: 0
+  property var securityKeyCues: []
+  property var securityKey: ({ active: false, biometric: false, remaining: 0 })
+  property bool securityKeyError: false
+  readonly property bool securityKeyVisible: securityKey.active && dialogVisible && !responseRequired && !submitted
 
   readonly property bool dialogVisible: polkitAgent.isActive || closing
   // We show one method at a time. Fingerprint owns the dialog while PAM is
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
   // gate skips pam_fprintd — we switch to the password field instead.
-  readonly property bool fingerprintMode: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
+  readonly property bool fingerprintMode: !securityKeyVisible && fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
   readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
   // Password mode is a wide field; fingerprint mode collapses to a square that
   // just frames the centered sensor icon.
-  readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
+  readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(securityKeyVisible ? 380 : 312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
   function authorizationLabel(message) {
     return PolkitModel.authorizationLabel(message)
@@ -56,13 +60,43 @@ Item {
 
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
+    securityKeyCues = PolkitModel.securityKeyCuesFromPamConfig(raw)
   }
 
   function refreshLidState() {
     if (!laptopClosedProc.running) laptopClosedProc.running = true
   }
 
+  function resetSecurityKey() {
+    securityKey = { active: false, biometric: false, remaining: 0 }
+    securityKeyError = false
+    securityKeyErrorTimer.stop()
+  }
+
+  function syncSecurityKey() {
+    var flow = polkitAgent.flow
+    if (!flow || flow.isResponseRequired || flow.isCompleted || flow.isCancelled) return
+    if (flow.supplementaryIsError) {
+      if (securityKey.active) {
+        securityKeyError = true
+        securityKeyErrorTimer.restart()
+      }
+      return
+    }
+    var cue = PolkitModel.securityKeyCue(String(flow.supplementaryMessage || ""), securityKeyCues)
+    if (!cue) return
+    var next = PolkitModel.securityKeyProgress(securityKey, cue)
+    securityKey = next
+    passwordInput.text = ""
+    if (next.failed) {
+      securityKeyError = true
+      securityKeyErrorTimer.restart()
+    }
+    Qt.callLater(refocus)
+  }
+
   function resetSnapshot() {
+    resetSecurityKey()
     currentMessage = ""
     currentPrompt = ""
     currentSupplementary = ""
@@ -85,7 +119,10 @@ Item {
     responseVisible = !!flow.responseVisible
     failed = !!flow.failed
 
-    if (responseRequired) submitted = false
+    if (responseRequired) {
+      submitted = false
+      resetSecurityKey()
+    }
   }
 
   function beginFlow() {
@@ -93,8 +130,10 @@ Item {
     closing = false
     submitted = false
     passwordInput.text = ""
+    resetSecurityKey()
     refreshLidState()
     syncFromFlow()
+    syncSecurityKey()
     Qt.callLater(refocus)
   }
 
@@ -102,7 +141,7 @@ Item {
     if (!dialogVisible) return
     // In fingerprint mode there is no field to type into — park focus on the
     // key catcher so Escape still cancels; otherwise focus the password field.
-    if (fingerprintMode) keyCatcher.forceActiveFocus()
+    if (fingerprintMode || securityKeyVisible) keyCatcher.forceActiveFocus()
     else passwordInput.forceActiveFocus()
   }
 
@@ -151,6 +190,12 @@ Item {
     onTriggered: root.errorFlash = false
   }
 
+  Timer {
+    id: securityKeyErrorTimer
+    interval: 1200
+    onTriggered: root.securityKeyError = false
+  }
+
   SequentialAnimation {
     id: shakeAnimation
     NumberAnimation { target: root; property: "shakeOffset"; to: -8; duration: 35; easing.type: Easing.OutQuad }
@@ -162,7 +207,10 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: root.loadPamConfig(text())
-    onLoadFailed: root.fingerprintConfigured = false
+    onLoadFailed: {
+      root.fingerprintConfigured = false
+      root.securityKeyCues = []
+    }
     onFileChanged: reload()
   }
 
@@ -199,11 +247,16 @@ Item {
 
     function onInputPromptChanged() { root.syncFromFlow() }
     function onResponseVisibleChanged() { root.syncFromFlow() }
-    function onSupplementaryMessageChanged() { root.syncFromFlow() }
+    function onSupplementaryMessageChanged() {
+      root.syncFromFlow()
+      root.syncSecurityKey()
+    }
+    function onSupplementaryIsErrorChanged() { root.syncSecurityKey() }
     function onFailedChanged() { root.syncFromFlow() }
 
     function onAuthenticationFailed() {
       root.syncFromFlow()
+      root.resetSecurityKey()
       root.triggerFailureFeedback()
     }
 
@@ -302,8 +355,18 @@ Item {
           verticalAlignment: Text.AlignVCenter
         }
 
+        OpticalGlyph {
+          visible: root.securityKeyVisible
+          width: Style.space(26)
+          height: root.fieldHeight
+          text: root.securityKey.biometric ? "\udb80\ude37" : "\uf084"
+          fontFamily: root.fontFamily
+          fontSize: Style.font.iconLarge
+          color: root.securityKeyError ? Color.polkit.textError : root.accent
+        }
+
         Item {
-          width: parent.width - Style.space(40)
+          width: parent.width - Style.space(root.securityKeyVisible ? 80 : 40)
           height: root.fieldHeight
 
           TextInput {
@@ -319,8 +382,8 @@ Item {
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
             passwordCharacter: "\u2022"
             color: root.errorFlash ? Color.polkit.textError : root.foreground
-            cursorVisible: activeFocus && !root.submitted && !root.errorFlash
-            readOnly: root.submitted || root.errorFlash
+            cursorVisible: activeFocus && !root.securityKeyVisible && !root.submitted && !root.errorFlash
+            readOnly: root.securityKeyVisible || root.submitted || root.errorFlash
             enabled: root.dialogVisible
             onAccepted: root.submitResponse()
             Keys.onPressed: function(event) {
@@ -336,13 +399,30 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
+            anchors.verticalCenterOffset: root.securityKeyVisible && root.securityKey.remaining > 0 ? -Style.space(10) : 0
+            text: root.securityKeyVisible ? (root.securityKeyError ? "Try again" : "Touch your key")
+                  : (root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password"))
             color: root.errorFlash ? Color.polkit.textError : root.foreground
-            opacity: root.errorFlash ? 1 : 0.36
+            opacity: root.errorFlash || root.securityKeyVisible ? 1 : 0.36
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
             elide: Text.ElideRight
             visible: passwordInput.text.length === 0
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: Style.space(14)
+            visible: root.securityKeyVisible && root.securityKey.remaining > 0
+            text: root.securityKey.remaining + (root.securityKey.remaining === 1 ? " prompt try left" : " prompt tries left")
+            color: root.foreground
+            opacity: 0.6
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            elide: Text.ElideRight
           }
 
           Rectangle {
@@ -351,7 +431,7 @@ Item {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             color: root.errorFlash ? Color.polkit.textError : root.foreground
-            visible: passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.submitted && !root.errorFlash
+            visible: !root.securityKeyVisible && passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.submitted && !root.errorFlash
           }
 
           MouseArea {
