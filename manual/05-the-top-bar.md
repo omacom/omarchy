@@ -28,7 +28,7 @@ Nearly every widget does something on left, right, and middle click, and several
 | Power | Power panel | Toggle the battery percentage | — |
 | Media | Play/pause | Cover-art popup | Middle: next · scroll: prev/next |
 | Agents | Agents panel | Launch your agent | Middle: next subscription |
-| Tray | Hover to reveal the drawer | Right on the chevron to manage | — |
+| Tray | Hover or click to reveal the drawer | Right on the chevron to manage | — |
 | Omarchy update | Run the update | — | — |
 
 Not everything in that table is on your bar out of the box. The media widget (MPRIS now-playing, with a scrolling track and artist) and the microphone widget are both built in but off by default — add them if you want them, as described below.

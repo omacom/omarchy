@@ -11,7 +11,11 @@ BarWidget {
   id: root
   moduleName: "omarchy.tray"
 
-  property bool expanded: false
+  property bool drawerPinned: false
+  property bool drawerAreaHovered: false
+  property bool drawerHoverSuppressed: false
+  readonly property bool drawerHovered: TrayModel.drawerHovered(drawerAreaHovered, drawerHoverSuppressed)
+  readonly property bool expanded: TrayModel.drawerExpanded(drawerPinned, drawerHovered)
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
   property var activeTrayItem: null
@@ -30,7 +34,7 @@ BarWidget {
   readonly property int drawerExtent: drawerCount > 0 ? drawerCount * trayItemExtent + (drawerCount - 1) * trayItemGap : 0
   // Match Waybar's group/tray-expander drawer transition-duration.
   readonly property int animationDuration: 600
-  property real revealProgress: expanded ? 1 : 0
+  property real revealProgress: TrayModel.drawerRevealProgress(expanded, managePopupOpen, trayMenuOpen)
   readonly property real revealExtent: drawerExtent * revealProgress
 
   // Submenu drill-down state. QsMenuEntry.display() renders a *platform* menu,
@@ -112,6 +116,12 @@ BarWidget {
   function close() {
     managePopupOpen = false
     trayMenuOpen = false
+  }
+
+  function toggleExpanded() {
+    var next = TrayModel.toggleExpandedState(drawerPinned, drawerAreaHovered)
+    drawerPinned = next.drawerPinned
+    drawerHoverSuppressed = next.drawerHoverSuppressed
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
@@ -260,7 +270,10 @@ BarWidget {
         visible: root.allItems.length > 0
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: {
+            root.drawerAreaHovered = hovered
+            if (!hovered) root.drawerHoverSuppressed = false
+          }
         }
 
         BarIconButton {
@@ -269,9 +282,13 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           x: root.drawerExtent - root.revealExtent
-          text: "\uf053"
+          text: (root.expanded || root.managePopupOpen || root.trayMenuOpen) ? "\uf054" : "\uf053"
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.RightButton) {
+              root.managePopupOpen = !root.managePopupOpen
+            } else if (button === Qt.LeftButton) {
+              root.toggleExpanded()
+            }
           }
         }
 
@@ -342,7 +359,10 @@ BarWidget {
         visible: root.allItems.length > 0
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: {
+            root.drawerAreaHovered = hovered
+            if (!hovered) root.drawerHoverSuppressed = false
+          }
         }
 
         BarIconButton {
@@ -351,10 +371,14 @@ BarWidget {
           width: implicitWidth
           height: implicitHeight
           y: root.drawerExtent - root.revealExtent
-          text: "\uf053"
+          text: (root.expanded || root.managePopupOpen || root.trayMenuOpen) ? "\uf054" : "\uf053"
           textRotation: 90
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.RightButton) {
+              root.managePopupOpen = !root.managePopupOpen
+            } else if (button === Qt.LeftButton) {
+              root.toggleExpanded()
+            }
           }
         }
 

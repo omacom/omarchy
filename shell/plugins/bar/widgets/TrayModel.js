@@ -38,11 +38,40 @@ function ownedByOmarchy(item, layout) {
     || (layoutHasWidget(layout, "omarchy.dropbox") && itemNamed(item, "dropbox"))
 }
 
+function toggleExpandedState(drawerPinned, drawerAreaHovered) {
+  if (drawerPinned) {
+    return {
+      drawerPinned: false,
+      drawerHoverSuppressed: Boolean(drawerAreaHovered)
+    }
+  }
+  return {
+    drawerPinned: true,
+    drawerHoverSuppressed: false
+  }
+}
+
+function drawerHovered(drawerAreaHovered, drawerHoverSuppressed) {
+  return Boolean(drawerAreaHovered && !drawerHoverSuppressed)
+}
+
+function drawerExpanded(drawerPinned, drawerHovered) {
+  return Boolean(drawerPinned || drawerHovered)
+}
+
+function drawerRevealProgress(expanded, managePopupOpen, trayMenuOpen) {
+  return (expanded || managePopupOpen || trayMenuOpen) ? 1 : 0
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    toggleExpandedState: toggleExpandedState,
+    drawerHovered: drawerHovered,
+    drawerExpanded: drawerExpanded,
+    drawerRevealProgress: drawerRevealProgress
   }
 }
