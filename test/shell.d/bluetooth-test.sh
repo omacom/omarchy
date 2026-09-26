@@ -8,6 +8,177 @@ grep -q '^ConditionPathIsDirectory=/sys/class/bluetooth$' "$ROOT/default/systemd
   fail "bt-agent is skipped on machines without Bluetooth hardware"
 pass "bt-agent is skipped on machines without Bluetooth hardware"
 
+files_unit="$ROOT/default/systemd/user/omarchy-bluetooth-files.service"
+grep -Fx 'ExecStart=/usr/bin/omarchy-bluetooth-files-agent' "$files_unit" >/dev/null || \
+  fail "bluetooth file receiving runs the Object Push agent"
+pass "bluetooth file receiving runs the Object Push agent"
+
+grep -q 'bt-obex' "$files_unit" && \
+  fail "bluetooth file receiving does not hand pushes to a receiver that auto-accepts them"
+pass "bluetooth file receiving does not hand pushes to a receiver that auto-accepts them"
+
+[[ -x $ROOT/bin/omarchy-bluetooth-files-agent ]] || \
+  fail "the Object Push agent ships as an executable"
+pass "the Object Push agent ships as an executable"
+
+grep -Fx 'ConditionPathIsDirectory=/sys/class/bluetooth' "$files_unit" >/dev/null || \
+  fail "bluetooth file receiving is skipped on machines without Bluetooth hardware"
+pass "bluetooth file receiving is skipped on machines without Bluetooth hardware"
+
+grep -Fx 'ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service' "$files_unit" >/dev/null || \
+  fail "bluetooth file receiving is skipped when bluetooth.service is inactive"
+pass "bluetooth file receiving is skipped when bluetooth.service is inactive"
+
+grep -qx 'bluez-obex' "$ROOT/install/omarchy-base.packages" || \
+  fail "bluez-obex ships with the base package set"
+pass "bluez-obex ships with the base package set"
+
+# obexd stores nothing until the agent answers AuthorizePush, so the agent is
+# where "paired devices only" and "never over an existing download" have to
+# hold. The fakes stand in for obexd's and BlueZ's D-Bus connections; the
+# destination logic runs against a real directory.
+python3 - "$ROOT" <<'PY'
+import importlib.machinery
+import importlib.util
+import os
+import sys
+import tempfile
+
+from gi.repository import GLib
+
+root = sys.argv[1]
+loader = importlib.machinery.SourceFileLoader("agent", os.path.join(root, "bin/omarchy-bluetooth-files-agent"))
+spec = importlib.util.spec_from_loader("agent", loader)
+agent = importlib.util.module_from_spec(spec)
+loader.exec_module(agent)
+
+
+def check(condition, description, detail=""):
+    if not condition:
+        print(f"not ok - {description}" + (f"\n{detail}" if detail else ""), file=sys.stderr)
+        sys.exit(1)
+    print(f"ok - {description}")
+
+
+PAIRED = "C0:7A:D6:CB:7C:86"
+UNPAIRED = "AA:BB:CC:DD:EE:FF"
+TRANSFER = "/org/bluez/obex/session1/transfer1"
+SESSION = "/org/bluez/obex/session1"
+
+
+class FakeConnection:
+    """The two calls the agent makes: obexd properties and BlueZ's objects."""
+
+    def __init__(self, objects=None, properties=None):
+        self.objects = objects or {}
+        self.properties = properties or {}
+
+    def call_sync(self, service, path, interface, method, parameters, *rest):
+        if method == "GetManagedObjects":
+            return GLib.Variant("(a{oa{sa{sv}}})", (self.objects,))
+        if method == "Get":
+            interface_name, name = parameters.unpack()
+            value = self.properties.get((path, interface_name, name))
+            if value is None:
+                raise GLib.Error.new_literal(GLib.quark_from_string("omarchy.test"), 0, f"no {name}")
+            if not isinstance(value, GLib.Variant):
+                value = GLib.Variant("s", value)
+            return GLib.Variant("(v)", (value,))
+        raise AssertionError(f"unexpected call {service} {path} {interface} {method}")
+
+
+def properties_for(name, root, destination=PAIRED):
+    return {
+        (TRANSFER, "org.bluez.obex.Transfer1", "Session"): SESSION,
+        (SESSION, "org.bluez.obex.Session1", "Destination"): destination,
+        (SESSION, "org.bluez.obex.Session1", "Root"): root,
+        (TRANSFER, "org.bluez.obex.Transfer1", "Name"): name,
+    }
+
+
+def objects_for(address, paired):
+    return {
+        f"/org/bluez/hci0/dev_{address.replace(':', '_')}": {
+            "org.bluez.Device1": {"Address": GLib.Variant("s", address), "Paired": GLib.Variant("b", paired)}
+        }
+    }
+
+
+with tempfile.TemporaryDirectory() as directory:
+    unpaired = agent.Receiver(
+        FakeConnection(properties=properties_for("report.pdf", directory, UNPAIRED)),
+        FakeConnection(objects=objects_for(UNPAIRED, False)),
+        directory,
+    )
+    check(unpaired.authorize(TRANSFER) is None, "the agent refuses a push from a device BlueZ does not list as paired")
+    check(os.listdir(directory) == [], "a refused push leaves the downloads directory alone")
+
+    unknown = agent.Receiver(
+        FakeConnection(properties=properties_for("report.pdf", directory, UNPAIRED)),
+        FakeConnection(objects=objects_for(PAIRED, True)),
+        directory,
+    )
+    check(unknown.authorize(TRANSFER) is None, "the agent refuses a push whose sender BlueZ does not know at all")
+    check(os.listdir(directory) == [], "a push from an unknown device leaves the downloads directory alone")
+
+    nameless = agent.Receiver(
+        FakeConnection(properties={}),
+        FakeConnection(objects=objects_for(PAIRED, True)),
+        directory,
+    )
+    check(nameless.authorize(TRANSFER) is None, "the agent refuses a transfer that names no file")
+
+    # obexd stores nothing outside its root folder, so a session rooted
+    # elsewhere is an obexd the agent did not start.
+    foreign = agent.Receiver(
+        FakeConnection(properties=properties_for("report.pdf", "/var/cache/obexd")),
+        FakeConnection(objects=objects_for(PAIRED, True)),
+        directory,
+    )
+    check(foreign.authorize(TRANSFER) is None, "the agent refuses a push through an obexd rooted somewhere else")
+    check(os.listdir(directory) == [], "a push through a foreign obexd leaves the downloads directory alone")
+
+    paired = agent.Receiver(
+        FakeConnection(properties=properties_for("report.pdf", directory)),
+        FakeConnection(objects=objects_for(PAIRED, True)),
+        directory,
+    )
+    first = paired.authorize(TRANSFER)
+    check(first == os.path.join(directory, "report.pdf"), "the agent claims the incoming name for a paired sender", first)
+    check(os.path.exists(first), "the claimed name is taken before the transfer starts")
+    check((os.stat(first).st_mode & 0o777) == 0o600, "the claim is private to the user")
+
+    with open(first, "w", encoding="utf-8") as existing:
+        existing.write("already here")
+
+    second = paired.authorize(TRANSFER)
+    check(second == os.path.join(directory, "report (1).pdf"), "a second push of the same name gets the next free name", second)
+    check(open(first, encoding="utf-8").read() == "already here", "the push never lands on the existing download")
+
+    third = paired.authorize(TRANSFER)
+    check(third == os.path.join(directory, "report (2).pdf"), "further pushes keep counting", third)
+
+    escaped = agent.claim_path(directory, "../escape.pdf")
+    check(escaped == os.path.join(directory, "escape.pdf"),
+          "a name carrying a path cannot leave the downloads directory")
+
+with tempfile.TemporaryDirectory() as directory:
+    os.environ["XDG_DOWNLOAD_DIR"] = directory
+    check(agent.downloads_dir() == directory, "the agent honours XDG_DOWNLOAD_DIR")
+    del os.environ["XDG_DOWNLOAD_DIR"]
+
+config_home = tempfile.mkdtemp()
+home = os.path.join(config_home, "home")
+os.makedirs(home)
+os.environ["HOME"] = home
+os.environ["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
+os.makedirs(os.environ["XDG_CONFIG_HOME"])
+check(agent.downloads_dir() == os.path.join(home, "Downloads"), "the agent falls back to ~/Downloads")
+with open(os.path.join(os.environ["XDG_CONFIG_HOME"], "user-dirs.dirs"), "w", encoding="utf-8") as user_dirs:
+    user_dirs.write('# XDG user directories\nXDG_DOWNLOAD_DIR="$HOME/Telechargements"\n')
+check(agent.downloads_dir() == os.path.join(home, "Telechargements"), "the agent reads the desktop's download directory")
+PY
+
 run_node_test <<'JS'
 const fs = require('fs')
 const bluetooth = requireFromRoot('shell/plugins/panels/bluetooth/Model.js')
@@ -15,6 +186,15 @@ const panelSource = fs.readFileSync(root + '/shell/plugins/panels/bluetooth/Pane
 
 assert(/IpcHandler[\s\S]*?function toggleBluetooth\(\) \{ root\.toggleBluetooth\(\) \}/.test(panelSource), 'bluetooth exposes the radio toggle over IPC')
 assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so it can extend the target methods')
+
+// Receiving is the user unit's job, not the panel's: the switch asks the helper
+// for a direction and reads the result back off its exit code, so the row can
+// never disagree with systemd about whether files are being accepted.
+assert(/function toggleFileReceive\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-files", fileReceiveActive \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles file receiving through the unit helper')
+assert(/id: fileStateProc[\s\S]*?command: \["omarchy-bluetooth-files", "is-on"\][\s\S]*?onExited: function\(exitCode\) \{\s*root\.fileReceiveActive = exitCode === 0/.test(panelSource), 'bluetooth reads the receiver state from the helper exit code')
+assert(/function toggleFiles\(\) \{ root\.toggleFileReceive\(\) \}/.test(panelSource), 'bluetooth exposes the file receiver over IPC')
+assert(/return \["files"\]\.concat\(Model\.visibleSections/.test(panelSource), 'bluetooth keeps the file receiver above the device sections')
+assert(/if \(section === "files"\) return true/.test(panelSource), 'bluetooth reaches the file receiver with the keyboard cursor')
 
 // Writing adapter.enabled sets BlueZ Powered, which does not survive a reboot.
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
@@ -280,3 +460,70 @@ pass "bluetooth counts a secondary controller as on"
 grep -q 'AutoEnable=false' "$ROOT/install/hardware/bluetooth.sh" &&
   fail "bluetooth install leaves AutoEnable at its default"
 pass "bluetooth install leaves AutoEnable at its default"
+
+# The switch reads the unit back instead of trusting the click, so the helper
+# only has to move the unit and report it: `on` and `off` enable or disable it
+# (the enable is what brings the receiver up at the next login), `toggle` picks
+# the direction from the unit's own state, and `is-on` is the exit code the
+# switch paints.
+files_tmp=$(mktemp -d)
+trap 'rm -rf "$device_tmp" "$files_tmp"' EXIT
+
+mkdir -p "$files_tmp/bin"
+
+cat >"$files_tmp/bin/systemctl" <<'SH'
+#!/bin/bash
+
+printf 'systemctl %s\n' "$*" >>"$SYSTEMCTL_LOG"
+
+# The unit's enabled state is the only thing the helper asks about, and the
+# file stands in for it so `toggle` can be driven both ways.
+[[ $* == *is-enabled* ]] && exit "$(cat "$SYSTEMCTL_STATE" 2>/dev/null || printf 1)"
+
+exit "${SYSTEMCTL_EXIT:-0}"
+SH
+chmod +x "$files_tmp/bin/systemctl"
+
+export SYSTEMCTL_LOG="$files_tmp/log"
+
+files_run() {
+  : >"$SYSTEMCTL_LOG"
+  PATH="$files_tmp/bin:$PATH" SYSTEMCTL_STATE="$files_tmp/enabled" "$ROOT/bin/omarchy-bluetooth-files" "$@"
+}
+
+if files_run bogus >/dev/null 2>&1; then
+  fail "bluetooth files rejects an unknown direction"
+fi
+pass "bluetooth files rejects an unknown direction"
+
+printf 1 >"$files_tmp/enabled"
+files_run on >/dev/null
+grep -qx 'systemctl --user enable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files turns receiving on through the unit" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files turns receiving on through the unit"
+
+files_run off >/dev/null
+grep -qx 'systemctl --user disable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files turns receiving off through the unit" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files turns receiving off through the unit"
+
+files_run toggle >/dev/null
+grep -qx 'systemctl --user enable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files toggles a disabled receiver on" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files toggles a disabled receiver on"
+
+printf 0 >"$files_tmp/enabled"
+files_run toggle >/dev/null
+grep -qx 'systemctl --user disable --now omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files toggles an enabled receiver off" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files toggles an enabled receiver off"
+
+files_run is-on >/dev/null
+grep -qx 'systemctl --user is-active --quiet omarchy-bluetooth-files.service' "$SYSTEMCTL_LOG" ||
+  fail "bluetooth files reads the receiver state from the unit" "$(cat "$SYSTEMCTL_LOG")"
+pass "bluetooth files reads the receiver state from the unit"
+
+if SYSTEMCTL_EXIT=3 files_run is-on >/dev/null 2>&1; then
+  fail "bluetooth files reports a stopped receiver as off"
+fi
+pass "bluetooth files reports a stopped receiver as off"

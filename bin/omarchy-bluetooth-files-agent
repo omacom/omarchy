@@ -1,0 +1,380 @@
+#!/usr/bin/python3
+
+# omarchy:summary=Accept Bluetooth file pushes from paired devices
+# omarchy:hidden=true
+
+"""Object Push agent behind omarchy-bluetooth-files.service.
+
+obexd serves the Object Push profile and asks a registered agent before it
+stores an incoming push. This agent is that decision point: it reads the
+sender's address off the transfer's session, allows the push only when BlueZ
+still knows the address as a paired device, and names the destination itself —
+a free name in the downloads directory, claimed with O_EXCL before the transfer
+starts. Unpaired senders are rejected with org.bluez.obex.Error.Rejected.
+
+The agent starts obexd rather than letting the unit do it, because obexd
+refuses to store outside its root folder and the download directory is the
+agent's to resolve: obexd runs with `--root <downloads>` so the name the agent
+returns is the name the transfer writes, and there is no rename afterwards.
+Nothing can land on a download that already exists; a second push of the same
+filename gets the next free "name (1)" style variant.
+"""
+
+import os
+import re
+import signal
+import subprocess
+import sys
+
+import gi
+
+gi.require_version("Gio", "2.0")
+
+from gi.repository import Gio, GLib, GLibUnix
+
+# PyGObject 3.56 deprecated the callable-taking register_object override in
+# favour of register_object_with_closures2; older releases only have the former.
+REGISTER_OBJECT = getattr(Gio.DBusConnection, "register_object_with_closures2", Gio.DBusConnection.register_object)
+
+OBEXD = "/usr/lib/bluetooth/obexd"
+OBEX_SERVICE = "org.bluez.obex"
+OBEX_MANAGER_PATH = "/org/bluez/obex"
+AGENT_MANAGER_INTERFACE = "org.bluez.obex.AgentManager1"
+AGENT_INTERFACE = "org.bluez.obex.Agent1"
+AGENT_PATH = "/org/omarchy/bluetooth/files/agent"
+TRANSFER_INTERFACE = "org.bluez.obex.Transfer1"
+SESSION_INTERFACE = "org.bluez.obex.Session1"
+BLUEZ_SERVICE = "org.bluez"
+DEVICE_INTERFACE = "org.bluez.Device1"
+REJECTED_ERROR = "org.bluez.obex.Error.Rejected"
+TIMEOUT_MS = 5000
+RETRY_SECONDS = 5
+CLAIM_ATTEMPTS = 1000
+
+AGENT_XML = f"""<node>
+  <interface name="{AGENT_INTERFACE}">
+    <method name="Release"/>
+    <method name="AuthorizePush">
+      <arg type="o" name="transfer" direction="in"/>
+      <arg type="s" name="path" direction="out"/>
+    </method>
+    <method name="Cancel">
+      <arg type="o" name="transfer" direction="in"/>
+    </method>
+  </interface>
+</node>"""
+
+
+def log(message):
+    print(f"omarchy-bluetooth-files-agent: {message}", file=sys.stderr, flush=True)
+
+
+def home():
+    return os.path.expanduser("~")
+
+
+def downloads_dir():
+    """The directory XDG names for downloads, then ~/Downloads.
+
+    XDG_DOWNLOAD_DIR from the environment wins, then the user-dirs.dirs the
+    desktop writes, then the conventional path — the same directory a browser
+    would download into, and the one obexd is pointed at.
+    """
+    configured = os.environ.get("XDG_DOWNLOAD_DIR", "")
+    if not configured:
+        config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.join(home(), ".config")
+        try:
+            with open(os.path.join(config_home, "user-dirs.dirs"), encoding="utf-8") as user_dirs:
+                for line in user_dirs:
+                    match = re.match(r'\s*XDG_DOWNLOAD_DIR\s*=\s*"(.*)"\s*$', line)
+                    if match:
+                        configured = match.group(1)
+        except OSError:
+            pass
+    if configured:
+        configured = configured.replace("$HOME", home())
+    return configured or os.path.join(home(), "Downloads")
+
+
+def claim_path(directory, name):
+    """Take a free name for `name` in `directory` and return the path it took.
+
+    The empty file is the claim: O_EXCL fails when the name is taken, so two
+    pushes of the same filename cannot pick the same destination, and obexd
+    opens what the claim created instead of renaming over an existing download.
+    Returns None when nothing is free or the directory refuses the name.
+    """
+    name = os.path.basename(name).strip() or "bluetooth-file"
+    base, extension = os.path.splitext(name)
+    if not base:
+        base, extension = name, ""
+
+    for index in range(CLAIM_ATTEMPTS):
+        candidate = os.path.join(directory, name if index == 0 else f"{base} ({index}){extension}")
+        try:
+            os.close(os.open(candidate, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+            return candidate
+        except FileExistsError:
+            continue
+        except OSError as error:
+            log(f"cannot claim {candidate}: {error.strerror}")
+            return None
+
+    log(f"gave up claiming a name for {name!r} in {directory}")
+    return None
+
+
+def device_is_paired(objects, address):
+    """True when BlueZ lists `address` as a paired device."""
+    wanted = address.upper()
+    for interfaces in objects.values():
+        device = interfaces.get(DEVICE_INTERFACE)
+        if not device:
+            continue
+        if str(device.get("Address", "")).upper() == wanted and device.get("Paired", False):
+            return True
+    return False
+
+
+def dbus_property(connection, service, path, interface, name):
+    """The value of one property, or None when it is absent."""
+    try:
+        reply = connection.call_sync(
+            service,
+            path,
+            "org.freedesktop.DBus.Properties",
+            "Get",
+            GLib.Variant("(ss)", (interface, name)),
+            GLib.VariantType.new("(v)"),
+            Gio.DBusCallFlags.NONE,
+            TIMEOUT_MS,
+            None,
+        )
+    except GLib.Error:
+        return None
+    return reply.unpack()[0]
+
+
+class Receiver:
+    """The policy obexd asks: who may push, and where the file lands."""
+
+    def __init__(self, session, system, directory):
+        self.session = session
+        self.system = system
+        self.directory = directory
+
+    def sender_is_paired(self, address):
+        """Ask bluetoothd for the device list and look the sender up in it.
+
+        The check fails closed: a device BlueZ does not list, or lists without
+        Paired, is not allowed to push.
+        """
+        try:
+            reply = self.system.call_sync(
+                BLUEZ_SERVICE,
+                "/",
+                "org.freedesktop.DBus.ObjectManager",
+                "GetManagedObjects",
+                None,
+                GLib.VariantType.new("(a{oa{sa{sv}}})"),
+                Gio.DBusCallFlags.NONE,
+                TIMEOUT_MS,
+                None,
+            )
+        except GLib.Error as error:
+            log(f"cannot read the BlueZ object tree: {error.message}")
+            return False
+        return device_is_paired(reply.unpack()[0], address)
+
+    def authorize(self, transfer_path):
+        """The path an accepted push should be stored at, or None to reject."""
+        session_path = dbus_property(self.session, OBEX_SERVICE, transfer_path, TRANSFER_INTERFACE, "Session")
+        address = dbus_property(self.session, OBEX_SERVICE, session_path, SESSION_INTERFACE, "Destination") if session_path else None
+        name = dbus_property(self.session, OBEX_SERVICE, transfer_path, TRANSFER_INTERFACE, "Name")
+        root = dbus_property(self.session, OBEX_SERVICE, session_path, SESSION_INTERFACE, "Root") if session_path else None
+
+        if not address or not name:
+            log(f"refusing {transfer_path}: the transfer names no sender or file")
+            return None
+
+        # obexd stores nothing outside its root folder, so a session rooted
+        # anywhere else belongs to an obexd this agent did not start and must
+        # not be trusted with a download.
+        if not root or os.path.realpath(root) != os.path.realpath(self.directory):
+            log(f"refusing a push from {address}: obexd stores in {root}, not {self.directory}")
+            return None
+
+        if not self.sender_is_paired(address):
+            log(f"refusing a push from {address}: not a paired device")
+            return None
+
+        path = claim_path(self.directory, name)
+        if path is None:
+            log(f"refusing a push from {address}: no free name for {name!r}")
+            return None
+
+        log(f"accepting {name!r} from {address} as {path}")
+        return path
+
+    def on_method_call(self, connection, sender, path, interface, method, parameters, invocation):
+        if method == "AuthorizePush":
+            transfer_path = parameters.unpack()[0]
+            destination = self.authorize(transfer_path)
+            if destination is None:
+                invocation.return_dbus_error(REJECTED_ERROR, "the sender is not a paired device")
+            else:
+                invocation.return_value(GLib.Variant("(s)", (destination,)))
+        elif method == "Cancel":
+            log("obexd cancelled an authorization request")
+            invocation.return_value(None)
+        elif method == "Release":
+            log("obexd released the agent")
+            invocation.return_value(None)
+        else:
+            invocation.return_dbus_error("org.freedesktop.DBus.Error.UnknownMethod", f"no {method} here")
+
+
+class Registrar:
+    """Keeps the agent registered with the obexd the agent started.
+
+    obexd keeps exactly one agent, so a registration can fail while obexd is
+    still coming up or while somebody else's agent holds the slot; both are
+    retried on a timer. The registration only ever runs while org.bluez.obex
+    has an owner, so a retry can never activate a second obexd behind the one
+    the agent started.
+    """
+
+    def __init__(self, session):
+        self.session = session
+        self.owned = False
+        self.registered = False
+        self.retry = None
+
+    def obexd_appeared(self):
+        self.owned = True
+        self.try_register()
+
+    def obexd_vanished(self):
+        self.owned = False
+        self.registered = False
+
+    def try_register(self):
+        if self.registered or not self.owned:
+            return
+        try:
+            self.session.call_sync(
+                OBEX_SERVICE,
+                OBEX_MANAGER_PATH,
+                AGENT_MANAGER_INTERFACE,
+                "RegisterAgent",
+                GLib.Variant("(o)", (AGENT_PATH,)),
+                None,
+                Gio.DBusCallFlags.NONE,
+                TIMEOUT_MS,
+                None,
+            )
+        except GLib.Error as error:
+            log(f"not registered with obexd yet ({error.message})")
+            self.schedule_retry()
+            return
+        self.registered = True
+        log("registered with obexd")
+
+    def schedule_retry(self):
+        if self.retry is None:
+            self.retry = GLib.timeout_add_seconds(RETRY_SECONDS, self.on_retry)
+
+    def on_retry(self):
+        self.retry = None
+        self.try_register()
+        return GLib.SOURCE_REMOVE
+
+
+def obexd_is_running(session):
+    """True when something already owns org.bluez.obex on this bus."""
+    try:
+        reply = session.call_sync(
+            "org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "NameHasOwner",
+            GLib.Variant("(s)", (OBEX_SERVICE,)),
+            GLib.VariantType.new("(b)"),
+            Gio.DBusCallFlags.NONE,
+            TIMEOUT_MS,
+            None,
+        )
+    except GLib.Error as error:
+        log(f"cannot ask the bus about {OBEX_SERVICE}: {error.message}")
+        return True
+    return reply.unpack()[0]
+
+
+def main():
+    directory = downloads_dir()
+    try:
+        os.makedirs(directory, exist_ok=True)
+    except OSError as error:
+        log(f"cannot use {directory}: {error.strerror}")
+        return 1
+
+    try:
+        session = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        system = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+    except GLib.Error as error:
+        log(f"cannot reach D-Bus: {error.message}")
+        return 1
+
+    # An obexd the agent did not start has a root of its own, and obexd stores
+    # nothing outside it, so the receiver cannot work through it.
+    if obexd_is_running(session):
+        log(f"another {OBEX_SERVICE} is already running; stop it and start this unit again")
+        return 1
+
+    receiver = Receiver(session, system, directory)
+    node = Gio.DBusNodeInfo.new_for_xml(AGENT_XML)
+    REGISTER_OBJECT(session, AGENT_PATH, node.interfaces[0], receiver.on_method_call, None, None)
+
+    loop = GLib.MainLoop()
+    registrar = Registrar(session)
+    Gio.bus_watch_name_on_connection(
+        session,
+        OBEX_SERVICE,
+        Gio.BusNameWatcherFlags.NONE,
+        lambda *_: registrar.obexd_appeared(),
+        lambda *_: registrar.obexd_vanished(),
+    )
+
+    state = {"obexd_died": False}
+
+    def receiver_exited(pid, status):
+        log(f"obexd exited with status {status}; stopping the receiver")
+        state["obexd_died"] = True
+        loop.quit()
+
+    # obexd only stores inside its root folder, and the download directory is
+    # this agent's to resolve, so the agent starts obexd with that root.
+    try:
+        obexd = subprocess.Popen([OBEXD, "--nodetach", "--root", directory])
+    except OSError as error:
+        log(f"cannot start {OBEXD}: {error.strerror}")
+        return 1
+    GLib.child_watch_add(GLib.PRIORITY_DEFAULT, obexd.pid, receiver_exited)
+
+    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, lambda *_: loop.quit())
+    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGINT, lambda *_: loop.quit())
+
+    log(f"receiving into {directory}")
+    loop.run()
+
+    if obexd.poll() is None:
+        obexd.terminate()
+        try:
+            obexd.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            obexd.kill()
+    return 1 if state["obexd_died"] else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
