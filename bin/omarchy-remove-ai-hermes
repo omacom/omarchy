@@ -131,6 +131,71 @@ if left:
 PY
 }
 
+# The first word of an entry's Exec, quoted or bare, is the command it
+# launches: an absolute path is checked where it points and a bare name on
+# PATH, the way the launcher runs it. A relative path resolves against the
+# entry's own Path= and an escape such as \s is decoded by the launcher;
+# neither is read here, so both are taken as live.
+launcher_entry_runs() {
+  local exec_line target
+
+  exec_line=$(grep -m1 '^Exec=' "$1" 2>/dev/null) || return 1
+  target=${exec_line#Exec=}
+  if [[ $target == \"*\"* ]]; then
+    target=${target#\"}
+    target=${target%%\"*}
+  else
+    target=${target%%[[:space:]]*}
+  fi
+  [[ -n $target ]] || return 1
+  # The launcher decodes desktop-entry string escapes before running the
+  # command; judging the raw form here would call any escaped target live
+  # forever, so decode it the same way. Leftover backslash means an escape
+  # this decoder does not know, and the entry is left to the launcher like
+  # one with a relative command.
+  local decoded=$target placeholder=$'\x01' unknown=$'\x02'
+  decoded=${decoded//\\\\/$placeholder}
+  decoded=${decoded//\\/$unknown}
+  decoded=${decoded//${unknown}s/ }
+  decoded=${decoded//${unknown}t/$'\t'}
+  decoded=${decoded//${unknown}n/$'\n'}
+  decoded=${decoded//${unknown}r/$'\r'}
+  if [[ $decoded == *$unknown* ]]; then
+    # An escape this decoder does not know leaves the command unreadable:
+    # the entry is kept, never judged dead, while the scan hides its ID.
+    return 0
+  fi
+  decoded=${decoded//${placeholder}/\\}
+  # The launcher then tokenizes the Exec value itself: inside a quoted
+  # token (and in a bare one) a backslash escapes $, `, " and another
+  # backslash. Decode that second layer too, the way GLib's launch
+  # parser resolves the token, so the path checked here is the path the
+  # launcher would run; a backslash left over means a form this decoder
+  # does not know, and the entry is left to the launcher.
+  local quoted=$'\x03' dollar=$'\x04' tick=$'\x05' quote=$'\x06'
+  decoded=${decoded//\\\\/$quoted}
+  decoded=${decoded//\\\$/$dollar}
+  decoded=${decoded//\\\`/$tick}
+  decoded=${decoded//\\\"/$quote}
+  if [[ $decoded == *\\* ]]; then
+    return 0
+  fi
+  decoded=${decoded//${dollar}/$}
+  decoded=${decoded//${tick}/\`}
+  decoded=${decoded//${quote}/\"}
+  decoded=${decoded//${quoted}/\\}
+  target=$decoded
+  if [[ $target == /* ]]; then
+    [[ -e $target ]]
+  elif [[ $target == */* ]]; then
+    return 0
+  else
+    omarchy-cmd-present "$target"
+  fi
+}
+
+# Removing an open SQLite WAL leaves a live writer on a deleted generation.
+
 hermes_holders check
 
 # The gateway unit that upstream's `hermes gateway install` writes starts the
@@ -205,6 +270,17 @@ if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
     fi
   done
 
+  # The runtime registers its own launcher entry, pointing at the wrapper or
+  # the venv that just went. The launcher re-reads its hidden entries only when
+  # a .desktop file changes, so an entry left pointing at nothing would stay on
+  # offer until something else changed one; deleting it is that change.
+  # The runtime writes its entry under the XDG data home, wherever that is;
+  # a custom XDG_DATA_HOME left $HOME/.local/share alone to delete.
+  [[ -n ${XDG_DATA_HOME-} ]] && entry_dir="$XDG_DATA_HOME/applications" || entry_dir="$HOME/.local/share/applications"
+  entry="$entry_dir/hermes.desktop"
+  if [[ -f $entry ]] && ! launcher_entry_runs "$entry"; then
+    rm -f "$entry"
+  fi
 fi
 
 # What survives to here is the user's: the chats, memories and skills in
