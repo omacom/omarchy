@@ -28,6 +28,12 @@ fi
 
 HOOK_DIR="$HOME/.config/omarchy/hooks/$HOOK_TYPE.d"
 HOOK_NAME=$(basename -- "$HOOK_FILE")
+# basename of a path ending in /. or /.. is `.` or `..`, which would write
+# outside the type directory. Refuse those the same way as the type label.
+if [[ -z $HOOK_NAME || $HOOK_NAME == "." || $HOOK_NAME == ".." ]]; then
+  echo "Invalid hook file name: $HOOK_NAME" >&2
+  exit 2
+fi
 HOOK_PATH="$HOOK_DIR/$HOOK_NAME"
 
 if [[ ! -f $HOOK_FILE ]]; then
