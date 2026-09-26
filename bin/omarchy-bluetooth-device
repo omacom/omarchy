@@ -2,23 +2,38 @@
 
 # omarchy:summary=Control a Bluetooth device
 # omarchy:group=bluetooth
-# omarchy:args=[pair|connect|disconnect|forget] <address>
+# omarchy:args=[pair|connect|disconnect|forget] <address> [adapter-id]
 # omarchy:examples=omarchy bluetooth device connect 00:11:22:33:44:55
 
 set -e
 
 usage() {
-  echo "Usage: omarchy-bluetooth-device [pair|connect|disconnect|forget] <address>" >&2
+  echo "Usage: omarchy-bluetooth-device [pair|connect|disconnect|forget] <address> [adapter-id]" >&2
   exit 1
 }
 
 action=${1:-}
 address=${2:-}
+adapter_id=${3:-}
 
 [[ $action == "pair" || $action == "connect" || $action == "disconnect" || $action == "forget" ]] || usage
 [[ $address =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || usage
+[[ -z $adapter_id || $adapter_id =~ ^hci[0-9]+$ ]] || usage
+
+target=$address
+if [[ -n $adapter_id ]]; then
+  address=${address^^}
+  target="/org/bluez/$adapter_id/dev_${address//:/_}"
+fi
 
 power_on() {
+  if [[ -n $adapter_id ]]; then
+    # The panel may be using a different controller than bluetoothctl's default.
+    # Lift Omarchy's type-wide rfkill block without consulting that default.
+    omarchy-bluetooth-power on || true
+    return
+  fi
+
   [[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Powered: yes"* ]] && return
   # Not bluetoothctl directly: Bluetooth is turned off by an rfkill soft block,
   # and BlueZ refuses to power an adapter up while one is set.
@@ -26,27 +41,27 @@ power_on() {
 }
 
 trust_device() {
-  bluetoothctl trust "$address" >/dev/null 2>&1 || true
+  bluetoothctl trust "$target" >/dev/null 2>&1 || true
 }
 
 case "$action" in
   pair)
     power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
+    timeout 20s bluetoothctl pair "$target" >/dev/null 2>&1 || true
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    timeout 20s bluetoothctl connect "$target" >/dev/null 2>&1 || true
     ;;
   connect)
     power_on
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    timeout 20s bluetoothctl connect "$target" >/dev/null 2>&1 || true
     ;;
   disconnect)
-    timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
+    timeout 10s bluetoothctl disconnect "$target" >/dev/null 2>&1 || true
     ;;
   forget)
     power_on
-    timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
-    timeout 10s bluetoothctl remove "$address" >/dev/null 2>&1 || true
+    timeout 10s bluetoothctl disconnect "$target" >/dev/null 2>&1 || true
+    timeout 10s bluetoothctl remove "$target" >/dev/null 2>&1 || true
     ;;
 esac
