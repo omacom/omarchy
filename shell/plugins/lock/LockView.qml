@@ -51,6 +51,10 @@ Item {
   signal passwordTextEdited(string password)
   signal clearFailureRequested()
   signal wakeRequested()
+  // Deliberate input only: a click, a keystroke or typing. Pointer motion wakes
+  // the display but must not hand the fingerprint sensor a fresh budget, or a
+  // nudged mouse re-arms a paused reader every few seconds.
+  signal rearmRequested()
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
@@ -131,7 +135,7 @@ Item {
     MouseArea {
       anchors.fill: parent
       hoverEnabled: true
-      onClicked: { root.wakeRequested(); root.forcePasswordFocus() }
+      onClicked: { root.wakeRequested(); root.rearmRequested(); root.forcePasswordFocus() }
       onPositionChanged: root.wakeRequested()
     }
 
@@ -180,6 +184,7 @@ Item {
           if (!root.syncingPasswordText) root.passwordTextEdited(text)
           if (text.length > 0) {
             root.wakeRequested()
+            root.rearmRequested()
           }
           if (text.length > 0 && root.failureMessage.length > 0) root.clearFailureRequested()
         }
@@ -192,6 +197,7 @@ Item {
 
         Keys.onPressed: function(event) {
           root.wakeRequested()
+          root.rearmRequested()
           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
             root.passwordTextEdited("")
             event.accepted = true
