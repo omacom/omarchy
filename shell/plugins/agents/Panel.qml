@@ -37,6 +37,12 @@ Panel {
   property double nowMs: Date.now()
 
   readonly property var limits: limitWindows(provider)
+  // Where the numbers under each section header come from. Limits and
+  // balances are always the provider's own account-level figures; day and
+  // model totals depend on what the collector could reach.
+  readonly property string daysScope: provider ? String(provider.daysScope || "device") : "device"
+  readonly property string modelUsageScope: provider ? String(provider.modelUsageScope || "device") : "device"
+  readonly property int scopeDeviceCount: provider ? Number(provider.syncDeviceCount || 0) : 0
   readonly property var models: modelRows(provider)
   readonly property var headline: bindingWindow(provider)
   readonly property var balance: provider ? (provider.balance || null) : null
@@ -178,6 +184,18 @@ Panel {
 
   // The plan you pay for, under the name of the tool it pays for. Limits live
   // in their own section; the hero just says what this is.
+  // Names the source of a section's numbers, so an account-wide figure is
+  // never read as this machine's tally, and a local scan is never mistaken
+  // for the whole subscription.
+  function scopeSuffix(scope, deviceCount) {
+    if (scope === "account") return " · ACCOUNT"
+    if (scope === "synced") {
+      var devices = Number(deviceCount || 0)
+      return devices > 1 ? " · " + devices + " MACHINES" : " · SYNCED"
+    }
+    return " · THIS MACHINE"
+  }
+
   function heroMeta(p) {
     if (!p) return ""
     if (String(p.usageStatusText || "") !== "") return p.usageStatusText
@@ -539,7 +557,7 @@ Panel {
 
             PanelSectionHeader {
               width: parent.width
-              text: "BALANCE"
+              text: "BALANCE" + root.scopeSuffix("account", 0)
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -595,7 +613,7 @@ Panel {
             spacing: Style.space(10)
 
             PanelSectionHeader {
-              text: "LIMITS"
+              text: "LIMITS" + root.scopeSuffix("account", 0)
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -628,7 +646,7 @@ Panel {
 
             PanelSectionHeader {
               width: parent.width
-              text: "TOKENS BY DAY"
+              text: "TOKENS BY DAY" + root.scopeSuffix(root.daysScope, root.scopeDeviceCount)
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -664,7 +682,7 @@ Panel {
 
             PanelSectionHeader {
               width: parent.width
-              text: "TOKENS BY MODEL"
+              text: "TOKENS BY MODEL" + root.scopeSuffix(root.modelUsageScope, root.scopeDeviceCount)
               foreground: root.foreground
               fontFamily: root.fontFamily
             }

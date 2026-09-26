@@ -20,6 +20,7 @@ fi
 while read -r request; do
   id=$(jq -r '.id // empty' <<<"$request")
   method=$(jq -r '.method // empty' <<<"$request")
+  [[ -n $id ]] || continue
 
   case "$method" in
     initialize)
@@ -30,6 +31,10 @@ while read -r request; do
       ;;
     account/rateLimits/read)
       jq -cn --argjson id "$id" '{id: $id, result: {rateLimits: {}}}'
+      ;;
+    *)
+      # Like a real app-server that predates the method: an error, not silence.
+      jq -cn --argjson id "$id" '{id: $id, error: {code: -32601, message: "Method not found"}}'
       ;;
   esac
 done
@@ -68,10 +73,50 @@ pass "Codex collector does not double-count cache or reasoning tokens"
   fail "Codex collector identifies itself with an empty limits list" "$result"
 pass "Codex collector identifies itself with an empty limits list"
 
+[[ $(jq -c '[.scope, .daysScope, .modelUsageScope]' <<<"$result") == '[null,null,null]' ]] ||
+  fail "Codex collector stays device-scoped when the app-server has no account usage" "$result"
+pass "Codex collector stays device-scoped when the app-server has no account usage"
+
+# A current app-server also answers account/usage/read with the account's
+# daily token totals. OpenAI records those per account, so they cover Codex on
+# every device and replace the machine-local day figures; the model split has
+# no account counterpart and stays local. Only the day totals turn
+# account-scoped, so synced snapshots take the widest value for them instead
+# of summing one copy of the same totals per machine, while the locally
+# scanned families keep adding up across machines.
+ACCOUNT_HOME=$(mktemp -d)
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME"' EXIT
+mkdir -p "$ACCOUNT_HOME/bin" "$ACCOUNT_HOME/.codex/sessions/$(date +%Y/%m/%d)"
+cp "$session" "$ACCOUNT_HOME/.codex/sessions/$(date +%Y/%m/%d)/rollout.jsonl"
+yesterday=$(date -d yesterday +%Y-%m-%d)
+last_month=$(date -d '31 days ago' +%Y-%m-%d)
+sed "s|\*)|account/usage/read) jq -cn --argjson id \"\$id\" --arg today \"$(date +%Y-%m-%d)\" --arg yesterday \"$yesterday\" --arg old \"$last_month\" '{id: \$id, result: {summary: {lifetimeTokens: 5210}, dailyUsageBuckets: [{startDate: \$old, tokens: 5000}, {startDate: \$yesterday, tokens: 100}, {startDate: \$today, tokens: 110}], threadUsage: null}}' ;;\n    *)|" \
+  "$TEST_HOME/bin/codex" >"$ACCOUNT_HOME/bin/codex"
+chmod +x "$ACCOUNT_HOME/bin/codex"
+
+result=$(HOME="$ACCOUNT_HOME" CODEX_HOME="$ACCOUNT_HOME/.codex" XDG_DATA_HOME="$ACCOUNT_HOME/.local/share" \
+  PATH="$ACCOUNT_HOME/bin:$PATH" "$ROOT/bin/omarchy-agent-usage-codex")
+
+[[ $(jq -r '.todayTotalTokens' <<<"$result") == "110" ]] ||
+  fail "Codex collector takes today's total from the account usage" "$result"
+[[ $(jq -c '[.recentDays[-2:][].messageCount]' <<<"$result") == '[100,110]' ]] ||
+  fail "Codex collector takes the daily totals from the account usage" "$result"
+[[ $(jq -r '.recentDays | length' <<<"$result") == "7" ]] ||
+  fail "Codex collector keeps the seven-day window" "$result"
+[[ $(jq -c '.modelUsage["gpt-test"]' <<<"$result") == '{"inputTokens":70,"outputTokens":30,"cacheReadInputTokens":110,"cacheCreationInputTokens":0}' ]] ||
+  fail "Codex collector keeps the model split from local sessions" "$result"
+[[ $(jq -r '.activeDays' <<<"$result") == "3" && $(jq -r --arg d "$last_month" '.activeDates | index($d) != null' <<<"$result") == "true" ]] ||
+  fail "Codex collector unions active days from account usage and local sessions" "$result"
+[[ $(jq -r '.daysScope' <<<"$result") == "account" ]] ||
+  fail "Codex collector marks the day totals as account-scoped" "$result"
+[[ $(jq -c '[.scope, .modelUsageScope]' <<<"$result") == '[null,null]' ]] ||
+  fail "Codex collector keeps the record and its model split machine-local" "$result"
+pass "Codex collector prefers the account's daily token totals over the local scan"
+
 # Pi and omp can both spend a Codex subscription without creating native
 # Codex sessions. Their compatible JSONL transcripts must be included.
 PI_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME" "$PI_HOME"' EXIT
 mkdir -p "$PI_HOME/bin" "$PI_HOME/.pi/agent/sessions/project" "$PI_HOME/.omp/agent/sessions/project"
 cp "$TEST_HOME/bin/codex" "$PI_HOME/bin/codex"
 cat >"$PI_HOME/.pi/agent/sessions/project/pi.jsonl" <<EOF
@@ -94,7 +139,7 @@ pass "Codex collector counts pi and omp subscription usage"
 # A subscription burned entirely through opencode has no native session files;
 # usage must come from opencode's message database, filtered to OpenAI.
 OPENCODE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME" "$PI_HOME" "$OPENCODE_HOME"' EXIT
 mkdir -p "$OPENCODE_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$OPENCODE_HOME/bin/codex"
 
@@ -145,7 +190,7 @@ pass "Codex collector ignores prefix-colliding providers, user messages, and mal
 # A warm cache makes --limits-only cheap: local stats come from the last scan
 # instead of another walk over the opencode database, and --force bypasses it.
 CACHE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
 mkdir -p "$CACHE_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$CACHE_HOME/bin/codex"
 
@@ -409,7 +454,7 @@ pass "Codex collector treats a future-dated cache as a miss"
 
 # First --limits-only on a machine with no cache falls back to a full scan.
 FRESH_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME"' EXIT
 mkdir -p "$FRESH_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$FRESH_HOME/bin/codex"
 
@@ -449,7 +494,7 @@ pass "Codex collector --limits-only falls back to a full scan without a cache"
 # parse, so the good rows are still counted. Real opencode data also stores
 # compact JSON, so one row is serialized compactly here on purpose.
 MALFORMED_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME"' EXIT
 mkdir -p "$MALFORMED_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$MALFORMED_HOME/bin/codex"
 
@@ -503,7 +548,7 @@ pass "Codex collector counts good opencode rows past malformed ones"
 
 # An unwritable cache must not kill the collector: the record is the contract.
 UNWRITABLE_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME"' EXIT
 mkdir -p "$UNWRITABLE_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$UNWRITABLE_HOME/bin/codex"
 
@@ -545,7 +590,7 @@ pass "Codex collector still prints a complete record when the cache is unwritabl
 # corruption) must not be cached as the whole story, or the missing usage
 # would be suppressed for every reader until the cache expires.
 INTERRUPTED_HOME=$(mktemp -d)
-trap 'rm -rf "$TEST_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME"' EXIT
+trap 'rm -rf "$TEST_HOME" "$ACCOUNT_HOME" "$PI_HOME" "$OPENCODE_HOME" "$CACHE_HOME" "$FRESH_HOME" "$MALFORMED_HOME" "$UNWRITABLE_HOME" "$INTERRUPTED_HOME"' EXIT
 mkdir -p "$INTERRUPTED_HOME/bin"
 cp "$TEST_HOME/bin/codex" "$INTERRUPTED_HOME/bin/codex"
 

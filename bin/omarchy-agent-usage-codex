@@ -6,8 +6,10 @@
 
 Local stats come from native Codex CLI session files, pi/omp sessions that
 ran through openai-codex, and opencode sessions that ran on an OpenAI
-provider; rate limits and the plan come from the Codex app-server RPC. The agents
-panel only ever reads the JSON this prints.
+provider; rate limits, the plan, and the account's daily token totals come
+from the Codex app-server RPC. When the app-server reports those totals they
+replace the machine-local day figures, since they cover every device the
+account is used on. The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
@@ -518,6 +520,41 @@ def limit_window(window):
   }
 
 
+def account_daily_tokens(buckets):
+  """Map account/usage/read's dailyUsageBuckets to {YYYY-MM-DD: tokens}."""
+  daily = {}
+  for bucket in buckets:
+    if not isinstance(bucket, dict):
+      continue
+    day = str(bucket.get("startDate") or "")[:10]
+    if len(day) != 10:
+      continue
+    daily[day] = daily.get(day, 0) + number(bucket.get("tokens"))
+  return daily
+
+
+def apply_account_usage(record, daily):
+  """Replace the machine-local day totals with the account-wide ones.
+
+  OpenAI records usage per account, so these cover Codex on every device the
+  user signs into, not just sessions stored here. The endpoint carries no
+  model split, so per-model usage stays local. Scoping just the day totals
+  to the account makes synced aggregation take the widest value for them
+  instead of summing the same numbers once per machine, while the locally
+  scanned families keep adding up.
+  """
+  record["recentDays"] = [{"date": day, "messageCount": daily.get(day, 0)} for day in recent_dates]
+  record["todayTotalTokens"] = daily.get(today, 0)
+  active = set(record.get("activeDates") or []) | {day for day, tokens in daily.items() if tokens > 0}
+  record["activeDates"] = sorted(active)
+  record["activeDays"] = len(active)
+  # Only the day totals are account-wide. The model split and the prompt and
+  # session counts are still whatever this machine's sessions hold, so the
+  # record itself stays device-scoped and synced aggregation keeps adding
+  # those across machines while deduplicating the account totals.
+  record["daysScope"] = "account"
+
+
 def fetch_codex_rpc():
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
   codex = find_command("codex")
@@ -556,6 +593,17 @@ def fetch_codex_rpc():
       entry = limit_window(window)
       if entry:
         result["limits"].append(entry)
+
+    # The account's daily token totals are optional: an older app-server
+    # answers with a method-not-found error, and the local scan then stands
+    # on its own without disturbing the limits already collected.
+    try:
+      usage_msg = rpc_request(proc, 4, "account/usage/read", timeout=8)
+      buckets = (usage_msg.get("result") or {}).get("dailyUsageBuckets")
+      if isinstance(buckets, list):
+        result["accountDailyTokens"] = account_daily_tokens(buckets)
+    except Exception:
+      pass
   except Exception as exc:
     result["usageStatusText"] = "Codex limits unavailable"
     result["authHelpText"] = str(exc)
@@ -585,6 +633,7 @@ def main():
   max_age = 0 if args.force else (LIMITS_ONLY_REUSE_SECONDS if args.limits_only else SCAN_REUSE_SECONDS)
   stats = cached_local_stats(max_age)
   rpc = fetch_codex_rpc()
+  account_daily = rpc.pop("accountDailyTokens", None)
 
   record = {
     "schemaVersion": 1,
@@ -596,6 +645,8 @@ def main():
   }
   record.update(stats)
   record.update(rpc)
+  if account_daily is not None:
+    apply_account_usage(record, account_daily)
   print(json.dumps(record, separators=(",", ":")))
 
 

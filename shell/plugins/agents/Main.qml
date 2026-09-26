@@ -269,6 +269,16 @@ Item {
       hasLocalStats: synced ? (stats.hasLocalStats !== false) : (record.hasLocalStats !== false),
       hasPromptStats: synced ? (stats.hasPromptStats !== false) : (record.hasPromptStats !== false),
 
+      // Which population each stat family describes, for the panel's section
+      // headers: "account" is the provider's own account-wide figure,
+      // "device" is what sessions on this machine add up to, and "synced" is
+      // the merge of every machine's snapshot. A collector may scope its day
+      // totals or its model split apart from the rest of the record, the way
+      // Codex reads days from the account and everything else from local
+      // sessions.
+      daysScope: synced ? "synced" : String(record.daysScope || record.scope || "device"),
+      modelUsageScope: synced ? "synced" : String(record.modelUsageScope || record.scope || "device"),
+
       syncEnabled: synced,
       syncDeviceCount: deviceCount,
       syncUpdatedAt: aggregateData && aggregateData.updatedAt ? aggregateData.updatedAt : ""
@@ -535,16 +545,49 @@ Item {
   }
 
   // Device-scoped stats add up across machines; account-scoped stats
-  // (Fireworks' billing API) are replicas of the same upstream truth on
-  // every synced device, so the widest value wins — summing them would
-  // double every token per machine.
-  function combineNumber(additive, current, value) {
-    return additive ? numberValue(current) + numberValue(value) : Math.max(numberValue(current), numberValue(value))
+  // (Fireworks' billing API, Codex day totals) are replicas of the same
+  // upstream truth on every synced device, so the widest value wins —
+  // summing them would double every token per machine.
+  //
+  // A tally keeps the two populations apart until the end, so the answer
+  // does not depend on the order snapshots were read: account replicas
+  // collapse to their maximum, device tallies add up, and the larger of the
+  // two stands. An account figure covers every device, so it wins over the
+  // machines it already includes, while a lagging or absent account figure
+  // still lets the device sum through.
+  function emptyTally() {
+    return { account: 0, device: 0 }
   }
 
-  function combineObjectNumbers(additive, target, source) {
+  function tallyAdd(tally, scope, value) {
+    if (scope === "account") tally.account = Math.max(tally.account, numberValue(value))
+    else tally.device += numberValue(value)
+  }
+
+  function tallyValue(tally) {
+    return tally ? Math.max(tally.account, tally.device) : 0
+  }
+
+  function tallyObject(target, scope, source) {
     if (!source) return
-    for (var key in source) target[key] = combineNumber(additive, target[key], source[key])
+    for (var key in source) {
+      if (!target[key]) target[key] = emptyTally()
+      tallyAdd(target[key], scope, source[key])
+    }
+  }
+
+  function tallyObjectValues(tallies) {
+    var out = {}
+    for (var key in tallies) out[key] = tallyValue(tallies[key])
+    return out
+  }
+
+  // A snapshot may scope its day totals and model split apart from the rest
+  // of its record; each family falls back to the record's own scope, and
+  // snapshots from older versions only ever carry that one.
+  function snapshotScope(stats, family) {
+    var specific = family ? stats[family] : ""
+    return String(specific || stats.scope || "device")
   }
 
   function aggregateSnapshots(snapshots) {
@@ -555,20 +598,20 @@ Item {
     function providerAcc(id) {
       if (providers[id]) return providers[id]
       var recentByDay = {}
-      for (var d = 0; d < dates.length; d++) recentByDay[dates[d]] = 0
+      for (var d = 0; d < dates.length; d++) recentByDay[dates[d]] = emptyTally()
       providers[id] = {
         providerId: id,
         providerName: "",
         ready: false,
         hasLocalStats: false,
         hasPromptStats: false,
-        todayPrompts: 0,
-        todaySessions: 0,
-        todayTotalTokens: 0,
+        todayPrompts: emptyTally(),
+        todaySessions: emptyTally(),
+        todayTotalTokens: emptyTally(),
         todayTokensByModel: ({}),
         recentByDay: recentByDay,
-        totalPrompts: 0,
-        totalSessions: 0,
+        totalPrompts: emptyTally(),
+        totalSessions: emptyTally(),
         activeDays: 0,
         activeDates: ({}),
         modelUsage: ({}),
@@ -592,33 +635,33 @@ Item {
         // Snapshots from before the field existed only came from agents that
         // count prompts, so a missing value reads as true.
         acc.hasPromptStats = acc.hasPromptStats || stats.hasPromptStats !== false
-        var additive = String(stats.scope || "device") !== "account"
-        acc.todayPrompts = combineNumber(additive, acc.todayPrompts, stats.todayPrompts)
-        acc.todaySessions = combineNumber(additive, acc.todaySessions, stats.todaySessions)
-        acc.todayTotalTokens = combineNumber(additive, acc.todayTotalTokens, stats.todayTotalTokens)
-        acc.totalPrompts = combineNumber(additive, acc.totalPrompts, stats.totalPrompts)
-        acc.totalSessions = combineNumber(additive, acc.totalSessions, stats.totalSessions)
+        var recordScope = snapshotScope(stats, "")
+        var daysScope = snapshotScope(stats, "daysScope")
+        var modelScope = snapshotScope(stats, "modelUsageScope")
+        tallyAdd(acc.todayPrompts, recordScope, stats.todayPrompts)
+        tallyAdd(acc.todaySessions, recordScope, stats.todaySessions)
+        tallyAdd(acc.totalPrompts, recordScope, stats.totalPrompts)
+        tallyAdd(acc.totalSessions, recordScope, stats.totalSessions)
+        tallyAdd(acc.todayTotalTokens, daysScope, stats.todayTotalTokens)
         // Active days overlap between machines, so union the dates rather than
         // summing counts. Snapshots written before activeDates existed only
         // carry a count; the widest one stands in for them.
         var activeDates = Array.isArray(stats.activeDates) ? stats.activeDates : []
         for (var ad = 0; ad < activeDates.length; ad++) acc.activeDates[String(activeDates[ad])] = true
         acc.activeDays = Math.max(acc.activeDays, numberValue(stats.activeDays))
-        combineObjectNumbers(additive, acc.todayTokensByModel, stats.todayTokensByModel || {})
+        tallyObject(acc.todayTokensByModel, modelScope, stats.todayTokensByModel || {})
 
         var recent = Array.isArray(stats.recentDays) ? stats.recentDays : []
         for (var r = 0; r < recent.length; r++) {
           var day = recent[r] || {}
           var date = String(day.date || "")
-          if (acc.recentByDay[date] !== undefined)
-            acc.recentByDay[date] = combineNumber(additive, acc.recentByDay[date], day.messageCount)
+          if (acc.recentByDay[date] !== undefined) tallyAdd(acc.recentByDay[date], daysScope, day.messageCount)
         }
 
         var usage = stats.modelUsage || {}
         for (var modelId in usage) {
-          var bucket = acc.modelUsage[modelId]
-          if (!bucket) bucket = acc.modelUsage[modelId] = emptyTokenBucket()
-          combineObjectNumbers(additive, bucket, usage[modelId] || {})
+          if (!acc.modelUsage[modelId]) acc.modelUsage[modelId] = {}
+          tallyObject(acc.modelUsage[modelId], modelScope, usage[modelId] || {})
         }
       }
     }
@@ -627,7 +670,14 @@ Item {
     for (var id in providers) {
       var acc = providers[id]
       var recentDays = []
-      for (var di = 0; di < dates.length; di++) recentDays.push({ date: dates[di], messageCount: acc.recentByDay[dates[di]] || 0 })
+      for (var di = 0; di < dates.length; di++) recentDays.push({ date: dates[di], messageCount: tallyValue(acc.recentByDay[dates[di]]) })
+      var modelUsage = {}
+      for (var modelId in acc.modelUsage) {
+        var bucket = emptyTokenBucket()
+        var tallied = tallyObjectValues(acc.modelUsage[modelId])
+        for (var field in tallied) bucket[field] = tallied[field]
+        modelUsage[modelId] = bucket
+      }
       var providerDevices = Object.keys(acc.devices).sort()
       outProviders[id] = {
         providerId: acc.providerId,
@@ -635,15 +685,15 @@ Item {
         ready: acc.ready || providerDevices.length > 0,
         hasLocalStats: acc.hasLocalStats,
         hasPromptStats: acc.hasPromptStats,
-        todayPrompts: acc.todayPrompts,
-        todaySessions: acc.todaySessions,
-        todayTotalTokens: acc.todayTotalTokens,
-        todayTokensByModel: acc.todayTokensByModel,
+        todayPrompts: tallyValue(acc.todayPrompts),
+        todaySessions: tallyValue(acc.todaySessions),
+        todayTotalTokens: tallyValue(acc.todayTotalTokens),
+        todayTokensByModel: tallyObjectValues(acc.todayTokensByModel),
         recentDays: recentDays,
-        totalPrompts: acc.totalPrompts,
-        totalSessions: acc.totalSessions,
+        totalPrompts: tallyValue(acc.totalPrompts),
+        totalSessions: tallyValue(acc.totalSessions),
         activeDays: Math.max(acc.activeDays, Object.keys(acc.activeDates).length),
-        modelUsage: acc.modelUsage,
+        modelUsage: modelUsage,
         deviceCount: providerDevices.length,
         devices: providerDevices
       }
@@ -669,6 +719,8 @@ Item {
       hasLocalStats: record.hasLocalStats !== false,
       hasPromptStats: record.hasPromptStats !== false,
       scope: String(record.scope || "device"),
+      daysScope: String(record.daysScope || record.scope || "device"),
+      modelUsageScope: String(record.modelUsageScope || record.scope || "device"),
       todayPrompts: numberValue(record.todayPrompts),
       todaySessions: numberValue(record.todaySessions),
       todayTotalTokens: numberValue(record.todayTotalTokens),
