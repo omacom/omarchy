@@ -458,8 +458,9 @@ QtObject {
   }
 
   // Resolve the fontconfig alias to a concrete family name. `omarchy font
-  // set <name>` rewrites ~/.config/fontconfig/fonts.conf and restarts the
-  // shell, but rerun on file change anyway so manual edits propagate too.
+  // set <name>` writes ~/.config/fontconfig/conf.d/50-omarchy-monospace.conf
+  // and restarts the shell, but rerun on file change anyway so manual edits
+  // propagate too.
   function resolveFontFamily() {
     fcMatchProc.running = true
   }
@@ -477,7 +478,7 @@ QtObject {
   }
 
   property FileView fontconfigFile: FileView {
-    path: Quickshell.env("HOME") + "/.config/fontconfig/fonts.conf"
+    path: Quickshell.env("HOME") + "/.config/fontconfig/conf.d/50-omarchy-monospace.conf"
     watchChanges: true
     printErrors: false
     onFileChanged: root.resolveFontFamily()
