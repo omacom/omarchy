@@ -7,6 +7,10 @@ image/gif=imv.desktop
 image/webp=imv.desktop
 image/bmp=imv.desktop
 image/tiff=imv.desktop
+image/avif=imv.desktop
+image/heif=imv.desktop
+image/heic=imv.desktop
+image/jxl=imv.desktop
 
 application/pdf=org.gnome.Evince.desktop
 
