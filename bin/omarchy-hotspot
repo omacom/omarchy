@@ -245,7 +245,7 @@ station_list() {
 
 status() {
   local capable=0 active=0 configured=0 iface ssid band password freq ip clients upstream
-  local client_list client_count bands
+  local client_list client_count bands max_clients
 
   iface=$(ap_iface)
   if [[ -n $iface ]] && ap_capable "$iface"; then capable=1; fi
@@ -261,6 +261,7 @@ status() {
   client_count=0
   upstream="none"
   bands=""
+  max_clients=""
 
   if ((capable)); then
     upstream=$(upstream_type)
@@ -270,6 +271,7 @@ status() {
     ssid=$(profile_ssid)
     band=$(profile_band)
     password=$(profile_secret)
+    max_clients=$(profile_max_clients)
 
     if ((active)); then
       freq=$(iw dev "$iface" link 2>/dev/null | awk '/freq:/ { print $2; exit }' || true)
@@ -297,6 +299,7 @@ status() {
   printf 'ip\t%s\n' "$ip"
   printf 'client_count\t%d\n' "$client_count"
   printf 'clients\t%s\n' "$clients"
+  printf 'max_clients\t%s\n' "$max_clients"
   printf 'upstream\t%s\n' "$upstream"
 }
 
@@ -366,6 +369,51 @@ shared_subnet() {
   printf '%d.%d.%d.%d/%d\n' \
     $(((network >> 24) & 255)) $(((network >> 16) & 255)) \
     $(((network >> 8) & 255)) $((network & 255)) "$prefix"
+}
+
+# First three octets of the shared subnet, which every bounded DHCP range is
+# built from. Only a /24 can hold a hand-written range, so anything else is
+# refused rather than silently reinterpreting the user's subnet.
+shared_base() {
+  local address prefix base
+  address=$(profile_shared_address)
+  [[ -n $address ]] || address=$DEFAULT_SHARED_ADDRESS
+  address=${address%%,*}
+  address=${address%% *}
+  prefix=${address##*/}
+  address=${address%/*}
+  [[ $prefix == 24 ]] || fail "hotspot subnet '$address/$prefix' is not a /24"
+  [[ $address =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "invalid hotspot address '$address'"
+  base=${address%.*}
+  [[ $base != "$address" && $base =~ ^([0-9]{1,3}\.){2}[0-9]{1,3}$ ]] ||
+    fail "cannot derive a DHCP range from hotspot address '$address'"
+  printf '%s' "$base"
+}
+
+# How many clients the profile currently admits, read back from the shared DHCP
+# range: "10.42.0.2,10.42.0.6" hands out five leases. Empty when unlimited.
+profile_max_clients() {
+  local range start end start_host end_host
+  range=$(nm_get ipv4.shared-dhcp-range connection show "$PROFILE")
+  [[ $range == *,* ]] || return 0
+  start=${range%,*}
+  end=${range#*,}
+  [[ ${start%.*} == "${end%.*}" ]] || return 0
+  start_host=${start##*.}
+  end_host=${end##*.}
+  [[ $start_host =~ ^[0-9]{1,3}$ && $end_host =~ ^[0-9]{1,3}$ ]] || return 0
+  (( 10#$end_host >= 10#$start_host )) || return 0
+  printf '%d\n' $((10#$end_host - 10#$start_host + 1))
+}
+
+# A range handing out exactly N leases. The gateway keeps .1, so leases run from
+# .2 to .(N+1) and a device past the Nth associates but never gets an address.
+dhcp_range_for() {
+  local clients=$1 base
+  [[ $clients =~ ^[0-9]{1,3}$ ]] || fail "participant limit must be a number"
+  (( 10#$clients >= 1 && 10#$clients <= 253 )) || fail "participant limit must be 1-253"
+  base=$(shared_base)
+  printf '%s.2,%s.%d\n' "$base" "$base" $((10#$clients + 1))
 }
 
 firewall_scope_valid() {
@@ -951,6 +999,9 @@ qr() {
 # the profile on first use, then updates it. start() reuses this path.
 apply() {
   local ssid=$1 band=${2:-2.4} password device nm_band nm_channel
+  local limit_given=0 limit=${3-}
+
+  [[ $# -lt 3 ]] || limit_given=1
 
   device=$(ap_iface)
   [[ -n $device ]] || fail "no Wi-Fi device found"
@@ -990,6 +1041,52 @@ apply() {
 
   if [[ -n $nm_channel ]]; then
     nmcli connection modify "$PROFILE" 802-11-wireless.channel "$nm_channel" >/dev/null 2>&1
+  fi
+
+  apply_participant_limit "$limit_given" "$limit"
+}
+
+# The limit is a shared DHCP range, so NetworkManager and dnsmasq own it: a
+# device past the last lease associates but never gets an address. Without the
+# argument the profile keeps whatever it already has, which is what starting the
+# hotspot must do; an explicit "unlimited" or empty value clears it. A changed
+# range only reaches a running dnsmasq on a restart, so bounce a live AP rather
+# than reporting a limit the current clients are not subject to.
+apply_participant_limit() {
+  local given=$1 requested=$2 old_range new_range="" base
+
+  (( given == 1 )) || return 0
+  old_range=$(nm_get ipv4.shared-dhcp-range connection show "$PROFILE")
+  [[ $old_range != "--" ]] || old_range=""
+
+  case "$requested" in
+    "" | unlimited) new_range="" ;;
+    *) new_range=$(dhcp_range_for "$requested") ;;
+  esac
+
+  if [[ -z $new_range ]]; then
+    [[ -n $old_range ]] || return 0
+  elif [[ $new_range == "$old_range" ]]; then
+    return 0
+  fi
+
+  if [[ -n $new_range ]]; then
+    if [[ -z $(profile_shared_address) ]]; then
+      base=$(shared_base)
+      nmcli connection modify "$PROFILE" ipv4.addresses "$base.1/24" >/dev/null 2>&1 ||
+        fail "could not set the hotspot subnet for the participant limit"
+    fi
+    nmcli connection modify "$PROFILE" ipv4.shared-dhcp-range "$new_range" >/dev/null 2>&1 ||
+      fail "could not apply the participant limit"
+  else
+    nmcli connection modify "$PROFILE" ipv4.shared-dhcp-range "" >/dev/null 2>&1 ||
+      fail "could not clear the participant limit"
+  fi
+
+  if profile_active; then
+    nmcli connection down "$PROFILE" >/dev/null 2>&1 || true
+    nmcli connection up "$PROFILE" >/dev/null 2>&1 ||
+      fail "participant limit saved, but the hotspot did not come back up"
   fi
 }
 
@@ -1091,7 +1188,7 @@ diagnose() {
 }
 
 usage() {
-  echo "Usage: omarchy-hotspot <status|start|stop|toggle|qr|apply|setup|teardown|diagnose|generate-password> [ssid] [band]" >&2
+  echo "Usage: omarchy-hotspot <status|start|stop|toggle|qr|apply|setup|teardown|diagnose|generate-password> [ssid] [band] [max-clients|unlimited]" >&2
 }
 
 case "${1:-}" in

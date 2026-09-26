@@ -30,6 +30,8 @@ case "$*" in
   '-e no -g GENERAL.DEVICE connection show omarchy-hotspot') printf '%s\n' 'wlan1' ;;
   '-e no -g 802-11-wireless.ssid connection show omarchy-hotspot') printf '%s\n' 'Saved Hotspot' ;;
   '-e no -g 802-11-wireless.band connection show omarchy-hotspot') printf '%s\n' 'bg' ;;
+  '-e no -g ipv4.shared-dhcp-range connection show omarchy-hotspot') printf '%s\n' "${SHARED_RANGE:-}" ;;
+  '-e no -g ipv4.addresses connection show omarchy-hotspot') printf '%s\n' "${SHARED_ADDRESS:-10.42.0.1/24}" ;;
   '--show-secrets --escape no --get-values 802-11-wireless-security.psk connection show omarchy-hotspot') printf '%s\n' 'savedpassword' ;;
   *) exit 1 ;;
 esac
@@ -75,7 +77,7 @@ stderr: $(<"$TEST_TMP/status.err")"
 
 declare -A values=()
 declare -A seen=()
-expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients upstream)
+expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients upstream)
 index=0
 while IFS=$'\t' read -r key value; do
   [[ -n $key ]] || continue
@@ -99,6 +101,7 @@ done <"$TEST_TMP/status.out"
 (( seen[ip] == 1 )) || fail "no-route status reports IP"
 (( seen[client_count] == 1 )) || fail "no-route status reports client count"
 (( seen[clients] == 1 )) || fail "no-route status reports clients"
+(( seen[max_clients] == 1 )) || fail "no-route status reports the participant limit"
 (( seen[upstream] == 1 )) || fail "no-route status reports upstream"
 [[ ${values[upstream]} == "none" ]] || fail "no-route status reports upstream none" "${values[upstream]}"
 [[ ${values[ap_capable]} == "1" ]] || fail "no-route status remains AP-capable" "${values[ap_capable]}"
@@ -167,6 +170,12 @@ case "$*" in
     ;;
   '-e no -g 802-11-wireless.band connection show omarchy-hotspot')
     [[ -e $PROFILE_STATE ]] && printf '%s\n' 'bg'
+    ;;
+  '-e no -g ipv4.shared-dhcp-range connection show omarchy-hotspot')
+    printf '%s\n' "${SHARED_RANGE:-}"
+    ;;
+  '-e no -g ipv4.addresses connection show omarchy-hotspot')
+    printf '%s\n' "${SHARED_ADDRESS:-10.42.0.1/24}"
     ;;
   'connection add type wifi ifname wlan0 con-name omarchy-hotspot ssid Shared mode ap 802-11-wireless.band a wifi-sec.key-mgmt wpa-psk ipv4.method shared ipv4.addresses 10.42.0.1/24 autoconnect no') touch "$PROFILE_STATE" ;;
   'connection edit omarchy-hotspot')
@@ -273,3 +282,100 @@ SAVED_INTERFACE=wlan0 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bi
 [[ $(<"$TEST_TMP/missing-phy-diagnose.out") == *"ap capable: unknown (could not determine Wi-Fi PHY for wlan0)"* ]] || fail "diagnose distinguishes missing PHY data from an incapable adapter" "$(<"$TEST_TMP/missing-phy-diagnose.out")"
 pass "missing PHY information degrades status instead of failing it"
 pass "missing PHY information stays diagnosable"
+
+# Participant limit: the profile's shared DHCP range is the contract, so the
+# range arithmetic and the read-back are tested directly, then end to end.
+extract_hotspot_function() {
+  local name=$1 out="$TEST_TMP/$1.sh" in_function=0
+  : >"$out"
+  while IFS= read -r line; do
+    if [[ $line == "$name() {" ]]; then
+      in_function=1
+    fi
+    if (( in_function )); then
+      printf '%s\n' "$line" >>"$out"
+      [[ $line != "}" ]] || break
+    fi
+  done <"$ROOT/bin/omarchy-hotspot"
+}
+
+extract_hotspot_function profile_shared_address
+extract_hotspot_function shared_base
+extract_hotspot_function profile_max_clients
+extract_hotspot_function dhcp_range_for
+cat >"$TEST_TMP/limit-drivers.sh" <<'DRIVER'
+PROFILE=omarchy-hotspot
+fail() { echo "hotspot: $*" >&2; exit 1; }
+declare -A PROPERTY_VALUES=(
+  ["ipv4.addresses"]="10.42.0.1/24"
+  ["ipv4.shared-dhcp-range"]="10.42.0.2,10.42.0.5"
+)
+nm_get() { printf '%s\n' "${PROPERTY_VALUES[$1]:-}"; }
+source "$TEST_TMP/profile_shared_address.sh"
+source "$TEST_TMP/shared_base.sh"
+source "$TEST_TMP/profile_max_clients.sh"
+source "$TEST_TMP/dhcp_range_for.sh"
+[[ $(shared_base) == "10.42.0" ]] || fail "shared_base keeps the profile subnet"
+[[ $(dhcp_range_for 4) == "10.42.0.2,10.42.0.5" ]] || fail "a four-device limit hands out four leases"
+[[ $(dhcp_range_for 1) == "10.42.0.2,10.42.0.2" ]] || fail "a one-device limit hands out a single lease"
+[[ $(profile_max_clients) == "4" ]] || fail "a bounded range reads back as its device count"
+
+for bad in 0 254 999 abc ""; do
+  if (dhcp_range_for "$bad") >/dev/null 2>&1; then
+    fail "an out-of-range participant limit is refused" "$bad"
+  fi
+done
+
+PROPERTY_VALUES[ipv4.shared-dhcp-range]="10.42.0.2,10.43.0.5"
+[[ -z $(profile_max_clients) ]] || fail "a cross-subnet range reads back as unlimited"
+PROPERTY_VALUES[ipv4.shared-dhcp-range]="10.42.0.9,10.42.0.4"
+[[ -z $(profile_max_clients) ]] || fail "an inverted range reads back as unlimited"
+PROPERTY_VALUES[ipv4.shared-dhcp-range]="nonsense"
+[[ -z $(profile_max_clients) ]] || fail "an unparseable range reads back as unlimited"
+PROPERTY_VALUES[ipv4.shared-dhcp-range]=""
+[[ -z $(profile_max_clients) ]] || fail "an absent range reads back as unlimited"
+
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.1/16"
+if (shared_base) >/dev/null 2>&1; then
+  fail "a non-/24 hotspot subnet is refused a hand-written DHCP range"
+fi
+PROPERTY_VALUES[ipv4.addresses]="10.42.0.1/24"
+DRIVER
+set +e
+PATH="$STUB_BIN:$PATH" TEST_TMP="$TEST_TMP" bash -euo pipefail "$TEST_TMP/limit-drivers.sh" >"$TEST_TMP/limit-drivers.out" 2>"$TEST_TMP/limit-drivers.err"
+limit_drivers_status=$?
+set -e
+(( limit_drivers_status == 0 )) || fail "participant limit arithmetic behaves" "exit: $limit_drivers_status
+stderr: $(<"$TEST_TMP/limit-drivers.err")"
+pass "the participant limit is a bounded DHCP range on the profile subnet"
+
+# Status reports the limit the profile carries. The capability stub is restored
+# first: the limit is only reported for an adapter that can host the AP.
+cat >"$STUB_BIN/iw" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == "dev" ]]; then
+  case ${2:-} in
+    wlan0) printf '%s\n' 'Interface wlan0' '  type managed' '  wiphy 0' ;;
+    wlan1) printf '%s\n' 'Interface wlan1' '  type managed' '  wiphy 1' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+if [[ ${1:-} == "phy" ]]; then
+  case ${2:-} in
+    phy0) printf '%s\n' 'Wiphy phy0' '  Band 1:' '  Band 2:' '    * AP' ;;
+    phy1) printf '%s\n' 'Wiphy phy1' '  Band 3:' '    * AP' ;;
+    *) exit 1 ;;
+  esac
+  exit 0
+fi
+exit 1
+STUB
+chmod +x "$STUB_BIN/iw"
+: >"$NMCLI_LOG"
+SHARED_RANGE=10.42.0.2,10.42.0.5 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" \
+  bash "$ROOT/bin/omarchy-hotspot" status >"$TEST_TMP/limit-status.out" 2>"$TEST_TMP/limit-status.err"
+limit_status=$(awk -F'\t' '$1 == "max_clients" { print $2 }' "$TEST_TMP/limit-status.out")
+[[ $limit_status == "4" ]] || fail "status reports the profile participant limit" "$limit_status"
+[[ -z $(<"$TEST_TMP/limit-status.err") ]] || fail "limit status keeps stderr empty" "$(<"$TEST_TMP/limit-status.err")"
+pass "status reports the participant limit from the profile"
