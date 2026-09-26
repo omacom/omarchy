@@ -16,9 +16,13 @@ The end-user view (hotkey notices for time, battery, weather) is in
 
 A toast lives on screen for at least 5s (low), 8s (normal), or forever
 (critical), stretched up to 30s if the sender asked for a longer
-`expire_timeout`. Hovering pauses the countdown, and a content update restarts
-it — new text deserves a full look. Left-click invokes the default action,
-right-click or the hover-revealed close button dismisses.
+`expire_timeout`. Forever is reserved for critical toasts from the two
+senders the DND bypass trusts (`omarchy-action`, `notify-send`); Chromium
+stamps critical urgency on every web notification, so a brand-named app's
+critical toast gets the normal 8s lifetime instead. Hovering pauses the
+countdown, and a content update restarts it — new text deserves a full look.
+Left-click invokes the default action, right-click or the hover-revealed close
+button dismisses.
 
 Every on-screen popup is mirrored to its own file under
 `~/.local/state/omarchy/notifications/` (one JSON line per file, named

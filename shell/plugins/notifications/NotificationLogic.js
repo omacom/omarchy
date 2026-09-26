@@ -121,6 +121,16 @@ function shouldBypassDnd(notification, criticalUrgency) {
   return appName === "notify-send" && notification && notification.urgency === criticalUrgency
 }
 
+// Critical urgency only earns a permanent popup from senders trusted to mean
+// it — the same two the DND bypass trusts. Chromium stamps urgency=critical on
+// every web notification (Teams, YouTube, ...), so a brand-named app's
+// "critical" toast falls through to the normal on-screen lifetime instead of
+// sitting there until dismissed by hand.
+function keepsCriticalOnScreen(appName) {
+  var name = String(appName || "")
+  return name === "notify-send" || name === "omarchy-action"
+}
+
 function isEphemeralApp(appName) {
   var name = String(appName || "")
   return name === "notify-send" || name === "omarchy-action"
@@ -453,6 +463,7 @@ if (typeof module !== "undefined") {
     styledBody: styledBody,
     summaryStartsWithGlyph: summaryStartsWithGlyph,
     shouldBypassDnd: shouldBypassDnd,
+    keepsCriticalOnScreen: keepsCriticalOnScreen,
     isEphemeralApp: isEphemeralApp,
     stringHint: stringHint,
     glyphFromHints: glyphFromHints,
