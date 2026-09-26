@@ -50,7 +50,8 @@ install_user_icon() {
 }
 
 download_icon() {
-  curl -fsSL --max-time 10 -o "$2" "$1" 2>/dev/null &&
+  [[ $1 == http://* || $1 == https://* ]] || return 1
+  curl -fsSL --max-time 10 --proto '=https,http' --proto-redir '=https,http' -o "$2" "$1" 2>/dev/null &&
     [[ -s $2 && $(file -b --mime-type "$2") == image/* ]]
 }
 
@@ -89,9 +90,16 @@ fetch_site_icon() {
 
   # Prefer the site's own high-res icon (apple-touch-icon is typically 180px+),
   # then the well-known path, then Google's favicon service as a last resort.
-  page=$(curl -fsSL --max-time 5 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
+  page=$(curl -fsSL --max-time 5 --proto '=https,http' --proto-redir '=https,http' "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
   icon_url=$(grep -oiE "<link[^>]*rel=[\"'][^\"']*apple-touch-icon[^\"']*[\"'][^>]*>" <<<"$page" |
     grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//")
+
+  icon_lc=$(printf '%s' "$icon_url" | tr '[:upper:]' '[:lower:]')
+  case $icon_lc in
+  file:* | javascript:* | data:* | ext:* | ftp:*)
+    icon_url=""
+    ;;
+  esac
 
   case $icon_url in
   http://* | https://*) ;;
