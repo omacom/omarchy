@@ -77,6 +77,45 @@ assertEqual(acronymMatches[0], 'Google Contacts', 'short acronym matching still 
 const directMatches = search.sortedEntries(entries, 'obs').map(row => search.entryName(row.entry))
 assertEqual(directMatches[0], 'OBS Studio', 'direct app-name matching still works')
 
+// A browser-installed web app's .desktop id is a generated identifier, not
+// something a user would ever intentionally type: <browser>-<32-char
+// Chromium extension id>-<browser profile directory name> ("Default",
+// "Profile 1", ...). Installing more than one web app under the same
+// profile used to mean every one of them matched any search for that
+// profile's name - three unrelated PWAs all matching a search for
+// "default", ranked as real results ahead of unrelated, actually relevant
+// matches.
+const webapps = [
+  { name: 'YouTube', id: 'chrome-agimnkijcaahngcdmfeangaknmldooml-Default' },
+  { name: 'Prime Video', id: 'chrome-amkmcdedgjbeaehpnmhmlpkbmcnebgko-Default' },
+  { name: 'Disney+', id: 'chrome-mbjafbmjpcimpkkihihoideiofnoalmh-Default' }
+]
+assertDeepEqual(
+  search.sortedEntries(webapps, 'default'),
+  [],
+  'web apps installed under the "Default" profile do not match a search for "default"'
+)
+assertEqual(
+  search.entryAcronym(webapps[0]),
+  'yt',
+  'a web app acronym does not fold in its generated id'
+)
+
+// omarchy-launch-webapp installs the same id shape for other Chromium-based
+// browsers too - the invariant is the 32-letter extension id, not the
+// "chrome-" prefix specifically.
+assert(
+  search.fuzzyScore({ name: 'YouTube', id: 'brave-agimnkijcaahngcdmfeangaknmldooml-Profile 1' }, 'profile') < 0,
+  'the generated-id exclusion is not specific to Chrome or the "Default" profile name'
+)
+
+// A real, human-chosen id is unaffected - only the generated web app shape
+// is excluded.
+assert(
+  search.fuzzyScore({ name: 'Firefox', id: 'firefox' }, 'firefox') > 0,
+  'a normal app id is still searchable'
+)
+
 // The menu's Apps submenu is the launcher now: app rows launch and uninstall
 // through the shared app library instead of running commands themselves.
 const activateMatch = menuQml.match(/function activateIndex\(index, fromPointer\) \{([\s\S]*?)\n  \}/)
