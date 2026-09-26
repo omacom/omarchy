@@ -392,10 +392,18 @@ ShellRoot {
     disabledToggle.Accessible.pressAction()
     disabledSwitch.Accessible.toggleAction()
     same(disabledToggleEvents, 0, "disabled Toggle and ToggleSwitch ignore accessibility actions")
-    var disabledTrigger = accessibleChild(testWindow.contentItem, "Unavailable", Accessible.ComboBox)
+    var disabledTrigger = accessibleChild(testWindow.contentItem, "Unavailable dropdown", Accessible.ComboBox)
     check(disabledTrigger !== null, "disabled Dropdown trigger is exposed as a combo box")
     if (disabledTrigger) disabledTrigger.Accessible.pressAction()
     same(disabledDropdown.popupOpen, false, "disabled Dropdown ignores its accessibility press")
+    var disabledSearchableTrigger = accessibleChild(testWindow.contentItem, "Unavailable searchable dropdown", Accessible.ComboBox)
+    check(disabledSearchableTrigger !== null, "disabled SearchableDropdown trigger is exposed as a combo box")
+    if (disabledSearchableTrigger) disabledSearchableTrigger.Accessible.pressAction()
+    same(disabledSearchable.popupOpen, false, "disabled SearchableDropdown ignores its accessibility press")
+    var disabledMultiTrigger = accessibleChild(testWindow.contentItem, "Unavailable multi-select", Accessible.ComboBox)
+    check(disabledMultiTrigger !== null, "disabled MultiSelect trigger is exposed as a combo box")
+    if (disabledMultiTrigger) disabledMultiTrigger.Accessible.pressAction()
+    same(disabledMulti.popupOpen, false, "disabled MultiSelect ignores its accessibility press")
 
     // A row whose press turns something on or off reports that as checked,
     // not the cursor's focus as selected (the Display panel's monitor rows).
@@ -473,9 +481,23 @@ ShellRoot {
     Dropdown {
       id: disabledDropdown
       y: 40
-      label: "Unavailable"
+      label: "Unavailable dropdown"
       enabled: false
-      options: ["One", "Two"]
+      options: ["Disabled dropdown one", "Disabled dropdown two"]
+    }
+    SearchableDropdown {
+      id: disabledSearchable
+      y: 40
+      label: "Unavailable searchable dropdown"
+      enabled: false
+      options: ["Disabled searchable one", "Disabled searchable two"]
+    }
+    MultiSelect {
+      id: disabledMulti
+      y: 40
+      label: "Unavailable multi-select"
+      enabled: false
+      options: ["Disabled multi-select one", "Disabled multi-select two"]
     }
     CursorSurface {
       id: toggleRow
