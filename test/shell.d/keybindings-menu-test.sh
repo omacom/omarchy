@@ -220,3 +220,29 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# The scanner's no-op API must behave like an empty list when a config queries
+# loaded plugins. Keep later bindings in the fixture to catch silent scan errors.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+hl.plugin.load("unused.so")
+local plugin_count = 0
+for _, plugin in ipairs(hl.get_loaded_plugins()) do
+  plugin_count = plugin_count + 1
+end
+assert(plugin_count == 0, "the scanner should not report loaded plugins")
+hl.bind("SUPER + W", hl.dsp.window.close(), { description = "Close window" })
+hl.bind("SUPER + Q", hl.dsp.window.close(), { description = "Close window" })
+LUA
+
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + W" "Close window")
+$(lua_bind 64 "SUPER + Q" "Close window")
+BINDS
+
+rendered=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+  XDG_CACHE_HOME="$tmpdir/plugin-cache" OMARCHY_PATH="$ROOT" \
+  timeout --kill-after=1s 5s bash "$ROOT/bin/omarchy-menu-keybindings" --print) ||
+  fail "scanning a plugin list finishes without hanging"
+grep -q 'SUPER + W / SUPER + Q  *→ Close window' <<<"$rendered" ||
+  fail "bindings after a plugin list are still resolved" "$rendered"
+pass "plugin list iteration terminates and later bindings are resolved"
