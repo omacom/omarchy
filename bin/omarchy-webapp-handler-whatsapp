@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Open WhatsApp links in the WhatsApp web app
+# omarchy:args=[url]
+
+url="${1:-}"
+web_url="https://web.whatsapp.com/"
+
+if [[ $url =~ ^whatsapp://send/?\?([^#]+) ]]; then
+  web_url="https://web.whatsapp.com/send?${BASH_REMATCH[1]}"
+fi
+
+exec omarchy-launch-webapp "$web_url"
