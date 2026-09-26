@@ -66,6 +66,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   printf 'pkg:%s\n' "$package" >>"$OMARCHY_TEST_INSTALL_LOG"
   case $package in
   chromium) command=chromium ;;
+  brave-origin-bin) command=brave-origin ;;
   firefox) command=firefox ;;
   zen-browser-bin) command=zen-browser ;;
   cursor-bin) command=cursor ;;
@@ -226,6 +227,21 @@ grep -Fxq 'omarchy-install-chromium-ytdlp:' "$setup_log" ||
 grep -Fxq 'omarchy-theme-set-browser:' "$setup_log" ||
   fail "Chromium browser installer applies the current theme"
 pass "Chromium browser installer restores the complete Omarchy setup"
+
+: >"$install_log"
+: >"$setup_log"
+rm -f "$installed_dir/brave-origin"
+OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install brave-origin >/dev/null
+[[ $(<"$install_log") == "pkg:brave-origin-bin" ]] || fail "Brave Origin installer installs the package"
+[[ $(omarchy-default-browser) == "brave-origin" ]] || fail "Brave Origin becomes the default after its full installer succeeds"
+cmp -s "$ROOT/config/brave-origin-flags.conf" "$test_home/.config/brave-origin-flags.conf" ||
+  fail "Brave Origin installer uses the same flags as a fresh installation"
+grep -Fxq 'sudo:install -d -m 0755 -o root -g root /etc/brave/policies/managed' "$setup_log" ||
+  fail "Brave Origin installer creates a root-owned policy directory"
+for helper in omarchy-install-chromium-copy-url omarchy-install-chromium-ytdlp omarchy-theme-set-browser; do
+  grep -Fxq "$helper:" "$setup_log" || fail "Brave Origin installer runs $helper"
+done
+pass "Brave Origin installer restores the complete Omarchy setup"
 
 : >"$install_log"
 : >"$setup_log"
