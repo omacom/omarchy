@@ -10,7 +10,7 @@ Omarchy takes security extremely seriously. This is meant to be an operating sys
 
 ## Changing your passwords
 
-You have two passwords on an encrypted install: the one that unlocks the drive at boot, and the one you log in and `sudo` with. Both can be changed under _Update > Password_ in the Omarchy menu — _Drive Encryption_ for the first, _User_ for the second. Changing the drive password asks for the current one first, so have it handy.
+You have two passwords on an encrypted install: the one that unlocks the drive at boot, and the one you log in and `sudo` with. Both can be changed under _Update > Password_ in the Omarchy menu — _Drive Encryption_ for the first, _User and root_ for the second (that row sets the login account and root to the same new password). Changing the drive password asks for the current one first, so have it handy.
 
 ## Passing on a machine you've already used
 
