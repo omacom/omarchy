@@ -130,6 +130,14 @@ assertDeepEqual(
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
 
+// One-click installs stay atomic: bitwarden-cli drags in a conflicting Node.js
+// and must not take down the desktop app it was bundled with (#12726).
+assertEqual(
+  defaultById['install.service.bitwarden'].action,
+  'omarchy-install-and-launch Bitwarden bitwarden bitwarden',
+  'menu installs the Bitwarden desktop without the conflicting CLI bundle'
+)
+
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.
 const rankBase = menu.mergeMenuSources(defaultItems, [])

@@ -10,7 +10,7 @@ You start 1Password with `Super + Shift + /`. If it isn't installed yet, that ho
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) is the open source alternative in the password manager space, with a free tier that covers most personal use. Install it with _Install > Service > Bitwarden_ from the Omarchy menu, which brings along the Bitwarden command line tool as well.
+[Bitwarden](https://bitwarden.com/) is the open source alternative in the password manager space, with a free tier that covers most personal use. Install it with _Install > Service > Bitwarden_ from the Omarchy menu. The command line tool is a separate opt-in (`omarchy pkg add bitwarden-cli`) — its Node.js dependency can conflict with an installed `nodejs`, so it is no longer bundled with the desktop install.
 
 ## Spotify
 
