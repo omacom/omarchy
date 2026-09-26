@@ -26,6 +26,10 @@ case $1 in
   eval) printf '%s\n' "$2" >>"$HYPRCTL_LOG" ;;
   reload) printf 'reload\n' >>"$HYPRCTL_LOG" ;;
   devices)
+    if [[ ${HYPRCTL_DEVICES_FAIL:-} == 1 ]]; then
+      echo 'hyprctl devices failed' >&2
+      exit 1
+    fi
     if [[ -n ${HYPRCTL_DEVICES:-} && -f $HYPRCTL_DEVICES ]]; then
       cat "$HYPRCTL_DEVICES"
     else
@@ -324,6 +328,16 @@ grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "
   fail "touchpad enable applies to the mouse-emulation sibling"
 [[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names"
 pass "touchpad enable toggles the mouse-emulation sibling"
+
+printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
+: >"$log_file"
+HYPRCTL_DEVICES_FAIL=1 run_toggle touchpad on
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-touchpad", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved touchpad when the devices query fails"
+grep -Fx 'hl.device({ name = "msft0001:00-093a:0255-mouse", enabled = true })' "$log_file" >/dev/null ||
+  fail "touchpad enable restores the saved mouse sibling when the devices query fails"
+[[ ! -e $name_file ]] || fail "touchpad enable still clears persisted names when the devices query fails"
+pass "touchpad enable restores saved siblings when the devices query fails"
 
 printf '%s\n' 'msft0001:00-093a:0255-touchpad' 'msft0001:00-093a:0255-mouse' >"$name_file"
 HOME="$home_dir" XDG_STATE_HOME="$xdg_decoy" OMARCHY_PATH="$ROOT" lua - <<'LUA'
