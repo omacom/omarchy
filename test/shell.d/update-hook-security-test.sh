@@ -26,9 +26,12 @@ s=open(sys.argv[1]).read().splitlines()
 # A cached credential from before the update is revoked, then the update
 # authorizes exactly once before any step that could need sudo.
 assert s[0]=='sudo -k', s
-assert s.count('sudo -v')==1, s
-auth=s.index('sudo -v')
-assert auth < s.index('step:omarchy-update-pkg-prune '), s
+# Authorization runs a command (sudo -v prompts even with passwordless sudo).
+prune=s.index('step:omarchy-update-pkg-prune ')
+auth=s.index('sudo /usr/bin/true')
+assert auth < prune, s
+assert [l for l in s[:prune] if l.startswith('sudo ') and l not in ('sudo -k','sudo -h')]==['sudo /usr/bin/true'], s
+assert 'sudo -v' not in s, s
 positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
 yay=positions[5]

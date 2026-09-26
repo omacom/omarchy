@@ -37,6 +37,7 @@ mkdir -p "$stub_bin" "$test_home" "$mapped_root/bin" "$mapped_root/default/omarc
 
 cat >"$stub_bin/pkexec" <<'SH'
 #!/bin/bash
+[[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'pkexec\n' >>"$SUDO_EVENT_LOG"
 exec "$@"
 SH
 
@@ -49,6 +50,7 @@ case ${1:-} in
     exit 0
     ;;
 esac
+[[ -z ${SUDO_EVENT_LOG:-} ]] || printf 'sudo %s\n' "$*" >>"$SUDO_EVENT_LOG"
 background=0
 while (( $# )); do
   case "$1" in
@@ -186,11 +188,20 @@ sudo_events="$test_tmp/sudo-events"
 : >"$sudo_events"
 OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper start
 OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop
-[[ ! -s $sudo_events ]] || fail "helper revoked the update's authorization" "$(<"$sudo_events")"
+! grep -qx 'sudo -k' "$sudo_events" || fail "helper revoked the update's authorization" "$(<"$sudo_events")"
 SUDO_EVENT_LOG="$sudo_events" run_helper start
 SUDO_EVENT_LOG="$sudo_events" run_helper stop
 grep -qx 'sudo -k' "$sudo_events" || fail "standalone helper no longer revokes sudo"
 pass "helper leaves the update's authorization alone and revokes when standalone"
+
+# Without a terminal, an update's inhibitor reuses the update's authorization
+# non-interactively instead of asking again through polkit.
+: >"$sudo_events"
+OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper start </dev/null
+OMARCHY_UPDATE_SUDO_SESSION=1 SUDO_EVENT_LOG="$sudo_events" run_helper stop </dev/null
+grep -q -- '^sudo -n -N -b -- ' "$sudo_events" || fail "update inhibitor without a terminal did not reuse sudo" "$(<"$sudo_events")"
+! grep -qx pkexec "$sudo_events" || fail "update inhibitor without a terminal asked polkit" "$(<"$sudo_events")"
+pass "update inhibitor without a terminal reuses the update's authorization instead of polkit"
 
 permissive_runtime="$test_tmp/permissive-runtime"
 mkdir -m 755 "$permissive_runtime"

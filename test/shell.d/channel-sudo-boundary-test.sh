@@ -45,7 +45,7 @@ events = open(sys.argv[1]).read().splitlines()
 assert events[0] == 'sudo -k', events
 # The switch itself authorizes command by command. The update it hands off to
 # starts cold and authorizes once for its own phases.
-auth = events.index('sudo -v')
+auth = events.index('sudo /usr/bin/true')
 sudo = [event for event in events[:auth] if event.startswith('sudo ')]
 assert all(event in ('sudo -h', 'sudo -k') or event.startswith('sudo -N ') for event in sudo), events
 hooks = [i for i, event in enumerate(events) if event.startswith('step:omarchy-hook ')]

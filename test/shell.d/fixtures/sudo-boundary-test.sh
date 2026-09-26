@@ -52,6 +52,10 @@ if [[ ${1:-} == "-k" || ${1:-} == "-K" ]]; then
   /usr/bin/rm -f "$SUDO_TEST_CACHE"
   exit 0
 fi
+if [[ ${1:-} == "-n" && ! -e $SUDO_TEST_CACHE ]]; then
+  # Non-interactive sudo cannot authenticate without a cached credential.
+  exit 1
+fi
 if [[ ${1:-} == "-N" ]]; then
   shift
 else

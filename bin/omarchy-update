@@ -39,8 +39,10 @@ sudo_keepalive_pid=""
 
 # Ask for the password once, then keep sudo's timestamp fresh so long package
 # downloads, migrations, hooks, and mise never outlast it and prompt again.
+# Authorize by running a command rather than sudo -v: under the default
+# verifypw=all, -v prompts even when passwordless sudo is enabled.
 authorize_update() {
-  /usr/bin/sudo -v || return 1
+  /usr/bin/sudo /usr/bin/true || return 1
 
   local update_pid=$$
   (
@@ -53,7 +55,7 @@ authorize_update() {
       sleep_pid=$!
       wait "$sleep_pid"
       kill -0 "$update_pid" 2>/dev/null || exit 0
-      /usr/bin/sudo -n -v 2>/dev/null || exit 0
+      /usr/bin/sudo -n /usr/bin/true 2>/dev/null || exit 0
     done
   ) &
   sudo_keepalive_pid=$!
