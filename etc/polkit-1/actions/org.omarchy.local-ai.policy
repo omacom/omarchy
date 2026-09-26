@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- What the password prompt says when Local AI needs root to reach Docker: one action per phase of omarchy-local-ai -->
+<policyconfig>
+  <vendor>Omarchy</vendor>
+  <action id="org.omarchy.local-ai.start">
+    <description>Start a local model</description>
+    <message>Local AI needs your password to start a model on your GPU</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-local-ai</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">__start</annotate>
+  </action>
+  <action id="org.omarchy.local-ai.stop">
+    <description>Stop a local model</description>
+    <message>Local AI needs your password to stop a model</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-local-ai</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">__stop</annotate>
+  </action>
+  <action id="org.omarchy.local-ai.share">
+    <description>Share a local model on the tailnet</description>
+    <message>Local AI needs your password to change what your tailnet can reach</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-local-ai</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">__share</annotate>
+  </action>
+  <action id="org.omarchy.local-ai.purge">
+    <description>Remove Local AI's containers and engines</description>
+    <message>Local AI needs your password to remove its models, containers and engines</message>
+    <defaults><allow_any>no</allow_any><allow_inactive>no</allow_inactive><allow_active>auth_admin</allow_active></defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/omarchy-local-ai</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">__purge</annotate>
+  </action>
+</policyconfig>

@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Add Local AI to the bar, with the NVIDIA container runtime when an NVIDIA card needs it
+# omarchy:requires-sudo=true
+
+set -e
+
+if omarchy-hw-nvidia && ! docker info 2>/dev/null | grep -qi nvidia; then
+  echo "Setting up the NVIDIA container runtime..."
+  omarchy-pkg-add nvidia-container-toolkit
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+fi
+
+omarchy-bar put omarchy.local-ai
+echo "Local AI is in the bar. Click its mark to run the model for your GPU."
