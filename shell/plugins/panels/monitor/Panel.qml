@@ -14,8 +14,8 @@ Panel {
 
   // manageIpc: false so this panel can own the single IpcHandler the target
   // permits — needed for the brightness + state methods below.
-  property int brightnessPercent: 0
-  property int pendingBrightnessPercent: 0
+  property real brightnessPercent: 0
+  property real pendingBrightnessPercent: 0
   property bool brightnessSetQueued: false
   property bool brightnessAvailable: false
   property string internalMonitor: ""
@@ -143,7 +143,16 @@ Panel {
   function adjustBrightness(delta) {
     if (focusSection !== "brightness") return
     if (!brightnessAvailable) return
-    setBrightness(root.brightnessPercent + delta)
+    var step = root.internalBrightness() && root.brightnessPercent <= 1 ? 0.1 : Math.abs(delta)
+    setBrightness(root.brightnessPercent + Math.sign(delta) * step)
+  }
+
+  function internalBrightness() {
+    return /^(eDP|LVDS|DSI)-/.test(root.focusedMonitor)
+  }
+
+  function brightnessLabel(value) {
+    return value < 1 ? Number(value).toFixed(1) : String(Math.round(value))
   }
 
   function activateCursor() {
@@ -234,7 +243,7 @@ Panel {
   }
 
   function setBrightness(value) {
-    var percent = Model.clampBrightness(value)
+    var percent = Model.clampBrightness(value, root.internalBrightness())
     root.brightnessPercent = percent
     root.pendingBrightnessPercent = percent
 
@@ -249,7 +258,7 @@ Panel {
   }
 
   function previewBrightness(value) {
-    root.brightnessPercent = Model.clampBrightness(value)
+    root.brightnessPercent = Model.clampBrightness(value, root.internalBrightness())
     brightnessDebounce.restart()
   }
 
@@ -257,7 +266,8 @@ Panel {
     if (!bar || !bar.shell) return
     bar.shell.summon("omarchy.osd", JSON.stringify({
       icon: "brightness",
-      value: percent
+      value: percent,
+      progressText: root.brightnessLabel(percent) + "%"
     }))
   }
 
@@ -392,7 +402,7 @@ Panel {
         var lines = String(text || "").split("\n")
         var brightness = String(lines[0] || "").trim()
         root.brightnessAvailable = brightness !== "unavailable" && brightness !== ""
-        root.brightnessPercent = root.brightnessAvailable ? Math.max(0, Math.min(100, parseInt(brightness, 10))) : 0
+        root.brightnessPercent = root.brightnessAvailable ? Math.max(0, Math.min(100, parseFloat(brightness))) : 0
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
@@ -476,7 +486,8 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      root.setBrightness(root.brightnessPercent + wheel.steps * 5)
+      var step = root.internalBrightness() && root.brightnessPercent <= 1 ? 0.1 : 5
+      root.setBrightness(root.brightnessPercent + wheel.steps * step)
       root.showBrightnessOsd(root.brightnessPercent)
     }
   }
@@ -605,7 +616,7 @@ Panel {
               Text {
                 id: brightnessPercent
                 textFormat: Text.PlainText
-                text: Math.round(brightnessSlider.dragging ? brightnessSlider.liveValue : root.brightnessPercent) + "%"
+                text: root.brightnessLabel(brightnessSlider.dragging ? brightnessSlider.liveValue : root.brightnessPercent) + "%"
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
@@ -631,11 +642,11 @@ Panel {
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
                 anchors.rightMargin: Style.space(6)
-                minimum: 1
+                minimum: root.internalBrightness() ? 0 : 1
                 maximum: 100
-                step: 1
+                step: root.internalBrightness() && root.brightnessPercent <= 1 ? 0.1 : 1
                 value: root.brightnessPercent
-                integer: true
+                integer: false
                 onMoved: function(v) { root.previewBrightness(v) }
                 onReleased: function(v) {
                   brightnessDebounce.stop()

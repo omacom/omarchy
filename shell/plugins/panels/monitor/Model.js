@@ -1,6 +1,7 @@
-function clampBrightness(value) {
+function clampBrightness(value, allowSubpercent) {
   var n = Number(value)
   if (!isFinite(n)) return 1
+  if (allowSubpercent && n < 1) return Math.max(0, Math.round(n * 10) / 10)
   return Math.max(1, Math.min(100, Math.round(n)))
 }
 

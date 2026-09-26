@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# omarchy:summary=Manage hyprsunset gamma for the display brightness range below 1%.
+# omarchy:args=<get|set percentage|cleanup>
+# omarchy:hidden=true
+
+state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.hyprsunset"
+
+running_pid() {
+  pgrep -n -x hyprsunset 2>/dev/null
+}
+
+current_gamma() {
+  local gamma
+  gamma=$(hyprctl hyprsunset gamma 2>/dev/null) || return 1
+  [[ $gamma =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  printf '%s\n' "$gamma"
+}
+
+owned_pid() {
+  local pid
+  [[ -r $state_file ]] || return 1
+  read -r pid <"$state_file"
+  [[ $pid =~ ^[0-9]+$ ]] || return 1
+  [[ $(running_pid) == "$pid" ]] || return 1
+  printf '%s\n' "$pid"
+}
+
+cleanup() {
+  local pid gamma temperature config profile_count
+  pid=$(owned_pid) || {
+    rm -f -- "$state_file"
+    return 0
+  }
+  gamma=$(current_gamma) || return 0
+  [[ $gamma == "100" || $gamma == "100.0" ]] || return 0
+  temperature=$(hyprctl hyprsunset temperature 2>/dev/null) || return 0
+  [[ $temperature =~ ^[0-9]+$ ]] || return 0
+  (( temperature >= 6000 )) || return 0
+
+  # A configured schedule still needs this process after brightness recovers.
+  config="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprsunset.conf"
+  if [[ -r $config ]]; then
+    profile_count=$(awk '/^[[:space:]]*profile[[:space:]]*[{=]/ { count++ } END { print count+0 }' "$config")
+    (( profile_count <= 1 )) || return 0
+  fi
+
+  kill "$pid" 2>/dev/null || return 0
+  rm -f -- "$state_file"
+}
+
+case ${1:-} in
+get)
+  if [[ -n $(running_pid) ]]; then
+    current_gamma
+  else
+    printf '100\n'
+  fi
+  ;;
+set)
+  value=${2:-}
+  [[ $value =~ ^[0-9]+$ ]] && (( value >= 25 && value <= 100 )) || exit 1
+
+  if [[ -z $(running_pid) ]]; then
+    if (( value == 100 )); then
+      rm -f -- "$state_file"
+      exit 0
+    fi
+    setsid uwsm-app -- hyprsunset >/dev/null 2>&1 &
+    for _ in {1..10}; do
+      pid=$(running_pid) && break
+      sleep 0.2
+    done
+    [[ -n ${pid:-} ]] || exit 1
+    printf '%s\n' "$pid" >"$state_file"
+  fi
+
+  for _ in {1..10}; do
+    if hyprctl hyprsunset gamma "$value" >/dev/null 2>&1 && [[ $(current_gamma) == "$value" ]]; then
+      if (( value == 100 )); then
+        cleanup
+      fi
+      exit 0
+    fi
+    sleep 0.2
+  done
+  exit 1
+  ;;
+cleanup)
+  cleanup
+  ;;
+*)
+  exit 1
+  ;;
+esac
