@@ -729,7 +729,14 @@ Item {
   function setActiveMenu(id, pushHistory, fromPointer) {
     panel.freezeCardTop()
     if (!root.item(id)) id = "root"
-    if (pushHistory && id !== root.activeMenu) root.navStack = root.navStack.concat([root.activeMenu])
+    if (pushHistory && id !== root.activeMenu) {
+      var selectedRow = root.cursorActive && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count
+        ? displayModel.get(root.selectedIndex) : null
+      root.navStack = root.navStack.concat([{
+        menuId: root.activeMenu,
+        selectedItemId: selectedRow ? selectedRow.itemId : ""
+      }])
+    }
     root.activeMenu = id
     root.filterText = ""
     root.selectedIndex = 0
@@ -747,7 +754,14 @@ Item {
     if (root.navStack.length > 0) {
       var previous = root.navStack[root.navStack.length - 1]
       root.navStack = root.navStack.slice(0, root.navStack.length - 1)
-      root.setActiveMenu(previous, false)
+      root.setActiveMenu(previous.menuId, false)
+      if (previous.selectedItemId) {
+        for (var i = 0; i < displayModel.count; i++) {
+          if (displayModel.get(i).itemId !== previous.selectedItemId || !root.rowSelectable(i)) continue
+          root.selectedIndex = i
+          break
+        }
+      }
       return true
     }
 
