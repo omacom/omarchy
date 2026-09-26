@@ -53,6 +53,21 @@ esac
 
 sleep_monitor="$OMARCHY_PATH/bin/omarchy-system-sleep-monitor"
 
+# logind rejects a new delay inhibit while a sleep/wake cycle is still settling
+# ("The operation inhibition has been requested for is already running";
+# OperationInProgress/EINPROGRESS). Restart=always would otherwise log FAILURE
+# every resume. Probe with a throwaway inhibitor, then exec the real one so the
+# long-lived monitor keeps systemd-inhibit as PID 1 and stderr on the journal.
+attempt=0
+while ! inhibit_err=$(systemd-inhibit --what=sleep --mode=delay --who=Omarchy \
+    --why="Lock screen before suspend" true 2>&1); do
+  if [[ $inhibit_err != *"is already running"* ]] || (( ++attempt > 30 )); then
+    printf '%s\n' "$inhibit_err" >&2
+    exit 1
+  fi
+  sleep 0.2
+done
+
 exec systemd-inhibit \
   --what=sleep \
   --mode=delay \

@@ -104,3 +104,76 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+# Restore event-emitting dbus-monitor for subsequent inhibit-retry tests (the
+# termination block replaced it with a silent long sleep).
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+echo "$$" >"$PRODUCER_PID_FILE"
+printf '   boolean true\n'
+exec sleep 30
+SH
+chmod +x "$mock_bin/dbus-monitor"
+rm -f "$producer_pid_file" "$lock_log"
+
+# logind can reject a delay inhibit while a sleep/wake is still
+# settling. Retry that specific error instead of exiting 1 for systemd.
+cat >"$mock_bin/systemd-inhibit" <<'SH'
+#!/bin/bash
+
+count_file="${INHIBIT_COUNT_FILE:?}"
+count=0
+[[ -f $count_file ]] && count=$(<"$count_file")
+count=$((count + 1))
+printf '%s\n' "$count" >"$count_file"
+
+if (( count < 3 )); then
+  echo "Failed to inhibit: The operation inhibition has been requested for is already running" >&2
+  exit 1
+fi
+
+while [[ $1 == --* ]]; do
+  shift
+done
+
+exec "$@"
+SH
+chmod +x "$mock_bin/systemd-inhibit"
+rm -f "$lock_log"
+inhibit_count="$tmpdir/inhibit-count"
+
+OMARCHY_PATH="$mock_omarchy" \
+  PATH="$mock_bin:$PATH" \
+  PRODUCER_PID_FILE="$producer_pid_file" \
+  LOCK_LOG="$lock_log" \
+  INHIBIT_COUNT_FILE="$inhibit_count" \
+  "$sleep_monitor"
+
+[[ $(<"$lock_log") == "locked" ]] ||
+  fail "sleep monitor retries an EBUSY delay inhibit" "lock log: $(<"$lock_log" 2>/dev/null || true)"
+pass "sleep monitor retries an EBUSY delay inhibit"
+
+[[ $(<"$inhibit_count") == "4" ]] ||
+  fail "sleep monitor retries until inhibit succeeds" "attempts: $(<"$inhibit_count")"
+pass "sleep monitor retries until inhibit succeeds"
+
+# Unrelated inhibit failures must still fail the unit.
+cat >"$mock_bin/systemd-inhibit" <<'SH'
+#!/bin/bash
+echo "Failed to inhibit: Permission denied" >&2
+exit 1
+SH
+chmod +x "$mock_bin/systemd-inhibit"
+
+if OMARCHY_PATH="$mock_omarchy" \
+  PATH="$mock_bin:$PATH" \
+  PRODUCER_PID_FILE="$producer_pid_file" \
+  LOCK_LOG="$lock_log" \
+  "$sleep_monitor" 2>"$tmpdir/inhibit-fail.err"; then
+  fail "sleep monitor still fails unrelated inhibit errors"
+fi
+grep -Fq "Permission denied" "$tmpdir/inhibit-fail.err" ||
+  fail "sleep monitor reports unrelated inhibit errors"
+pass "sleep monitor still fails unrelated inhibit errors"
+
