@@ -148,6 +148,39 @@ Panel {
     return Math.max(1, minutes) + "m"
   }
 
+  // Two refresh cycles (default refreshIntervalSec is 900s → 30m). A record
+  // older than that is drawn dimmed with an "Updated … ago" line so a dead
+  // collector is visually distinct from a live one.
+  readonly property int staleAfterMs: Math.max(30, Number(usage.refreshIntervalSec || 900)) * 2 * 1000
+
+  function providerUpdatedAtMs(p) {
+    if (!p) return 0
+    var ms = Number(p.updatedAtMs)
+    if (isFinite(ms) && ms > 0) return ms
+    if (p.updatedAt) {
+      var parsed = new Date(String(p.updatedAt)).getTime()
+      if (isFinite(parsed) && parsed > 0) return parsed
+    }
+    // Synced-only tabs never wrote a local record; fall back to aggregate age.
+    if (p.syncUpdatedAt) {
+      var syncMs = new Date(String(p.syncUpdatedAt)).getTime()
+      if (isFinite(syncMs) && syncMs > 0) return syncMs
+    }
+    return 0
+  }
+
+  function providerIsStale(p) {
+    var ms = providerUpdatedAtMs(p)
+    if (!(ms > 0)) return false
+    return (root.nowMs - ms) > root.staleAfterMs
+  }
+
+  function staleUpdatedText(p) {
+    if (!providerIsStale(p)) return ""
+    var age = root.nowMs - providerUpdatedAtMs(p)
+    return "Updated " + formatDuration(age) + " ago"
+  }
+
   // ---------------------------------------------------------------- balance
   //
   // Prepaid agents report a credit ledger instead of rate-limit windows: the
@@ -403,6 +436,7 @@ Panel {
             meta: root.heroMeta(root.provider)
             foreground: root.foreground
             fontFamily: root.fontFamily
+            opacity: root.providerIsStale(root.provider) ? 0.65 : 1.0
 
             iconComponent: Component {
               Item {
@@ -444,6 +478,16 @@ Panel {
                 }
               }
             }
+          }
+
+          Text {
+            visible: !!root.provider && root.staleUpdatedText(root.provider) !== ""
+            width: parent.width
+            text: root.staleUpdatedText(root.provider)
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
           }
 
           Text {
