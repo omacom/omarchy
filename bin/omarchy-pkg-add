@@ -7,9 +7,26 @@
 
 if omarchy-pkg-missing "$@"; then
   if (( EUID == 0 )); then
-    pacman -S --noconfirm --needed -- "$@" || exit 1
+    PACMAN_CMD=(pacman -S --noconfirm --needed -- "$@")
   else
-    sudo pacman -S --noconfirm --needed -- "$@" || exit 1
+    PACMAN_CMD=(sudo pacman -S --noconfirm --needed -- "$@")
+  fi
+
+  if ! "${PACMAN_CMD[@]}"; then
+    echo -e "\n\033[33mInstallation failed. This usually happens when package databases are out of date (e.g., 404 errors).\033[0m" >&2
+    if [[ -t 0 && -t 1 ]]; then
+      read -p "Would you like to run a full system update (omarchy update) now? (y/N) " -n 1 -r
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]; then
+        omarchy update
+        "${PACMAN_CMD[@]}" || exit 1
+      else
+        exit 1
+      fi
+    else
+      echo -e "To fix this safely, run: \033[1momarchy update\033[0m, then try again." >&2
+      exit 1
+    fi
   fi
 fi
 
