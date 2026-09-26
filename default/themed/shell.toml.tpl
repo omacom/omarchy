@@ -15,6 +15,11 @@ active           = "{{ red }}"
 scale-with-font  = true
 size-horizontal  = 26
 size-vertical    = 28
+# Widget sizes at base-size 12, scaled the same way. Uncomment to change.
+#   icon-slot   = 27   # width of one widget slot
+#   icon-canvas = 16   # size of a widget's icon
+#   icon-font   = 13   # glyph size of a font icon
+#   status-slot = 21   # width of a status indicator slot
 
 [hyprland]
 # Shared Hyprland-derived border tokens. Surface sections reference these so

@@ -378,6 +378,10 @@ of top/bottom and left/right bars respectively, measured at the default
 scale-with-font = true
 size-horizontal = 26   # top/bottom bar height at base-size 12
 size-vertical   = 28   # left/right bar width at base-size 12
+icon-slot       = 27   # width of one widget slot
+icon-canvas     = 16   # size of a widget's icon
+icon-font       = 13   # glyph size of a font icon
+status-slot     = 21   # width of a status indicator slot
 ```
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.

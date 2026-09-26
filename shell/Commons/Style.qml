@@ -23,8 +23,9 @@ import Quickshell.Io
 // padding, controls, and panel dimensions while preserving each component's
 // proportions; by default it also tracks `base-size`. `[bar]
 // size-horizontal` / `size-vertical` set the cross-axis dimension for
-// top/bottom and left/right bars at the default 12px font size; by default
-// those dimensions scale with `base-size` so larger fonts don't clip.
+// top/bottom and left/right bars at the default 12px font size, and
+// `icon-slot`, `icon-canvas`, `icon-font` and `status-slot` the widget sizes;
+// by default all of them scale with `base-size` so larger fonts don't clip.
 QtObject {
   id: root
 
@@ -405,7 +406,10 @@ QtObject {
       } else if (section === "bar") {
         if (key === "scale-with-font") {
           nextBarScaleWithFont = boolToken(raw, nextBarScaleWithFont)
-        } else if (key === "size-horizontal" || key === "size-vertical") {
+        } else {
+          // Every numeric [bar] key reaches barToken(), which reads only the
+          // keys it declares; naming them here dropped icon-slot, icon-canvas,
+          // icon-font and status-slot on the floor.
           var b = parseInt(raw, 10)
           if (isFinite(b)) barOut[key] = b
         }
