@@ -275,6 +275,73 @@ fi
 [[ -d $dir_dist/policies.json ]] || fail "Firefox policy install leaves a planted policies.json directory in place"
 pass "Firefox policy install does not write into a planted policies.json directory"
 
+lw_packaged=$test_tmp/librewolf-packaged-policies.json
+cat >"$lw_packaged" <<'JSON'
+{
+  "__COMMENT__ More Information": "https://github.com/mozilla/policy-templates/blob/master/README.md",
+  "policies": {
+    "DisableTelemetry": true,
+    "HttpsOnlyMode": "enabled",
+    "ExtensionSettings": {
+      "uBlock0@raymondhill.net": {
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/uBlock0@raymondhill.net/latest.xpi",
+        "installation_mode": "normal_installed",
+        "private_browsing": true
+      }
+    },
+    "Preferences": {
+      "apz.overscroll.enabled": {
+        "Value": false,
+        "Status": "locked"
+      }
+    }
+  }
+}
+JSON
+
+lw_merged=$(browser_policy_librewolf_merged_policies "$lw_packaged")
+jq -e '.policies.DisableTelemetry == true and .policies.HttpsOnlyMode == "enabled"' <<<"$lw_merged" >/dev/null ||
+  fail "the LibreWolf merge keeps LibreWolf's own policies"
+jq -e '.policies.ExtensionSettings."uBlock0@raymondhill.net".installation_mode == "normal_installed"' <<<"$lw_merged" >/dev/null ||
+  fail "the LibreWolf merge keeps LibreWolf's uBlock Origin defaults"
+jq -e '.policies.Preferences."widget.wayland.fractional-scale.enabled" == {"Value": true, "Status": "default"}' <<<"$lw_merged" >/dev/null ||
+  fail "the LibreWolf merge carries Omarchy's Preferences"
+jq -e '.policies.Preferences."apz.overscroll.enabled" == {"Value": true, "Status": "default"}' <<<"$lw_merged" >/dev/null ||
+  fail "the LibreWolf merge lets Omarchy's overlay win over the packaged policies"
+jq -e '."__COMMENT__ More Information" != null' <<<"$lw_merged" >/dev/null ||
+  fail "the LibreWolf merge keeps the packaged comment keys"
+pass "LibreWolf policies merge the packaged file with Omarchy's overlay"
+
+lw_dir=$test_tmp/librewolf-policies
+mkdir -p "$lw_dir"
+printf 'original\n' >"$test_tmp/librewolf-pwn"
+ln -s "$test_tmp/librewolf-pwn" "$lw_dir/policies.json"
+as_root() { unprivileged_as_root "$@"; }
+browser_policy_install_librewolf_policies "$lw_dir" "$lw_packaged" ||
+  fail "LibreWolf policy install replaces a planted policies.json symlink"
+[[ -f $lw_dir/policies.json && ! -L $lw_dir/policies.json ]] ||
+  fail "LibreWolf policy install unlinks a planted policies.json symlink instead of writing through it"
+grep -Fxq 'original' "$test_tmp/librewolf-pwn" || fail "LibreWolf policy install leaves the symlink target unchanged"
+mode=$(stat -c '%a' "$lw_dir/policies.json")
+[[ $mode == "644" ]] || fail "LibreWolf policy install writes a root-mode policies.json" "mode=$mode"
+jq -e '.policies.ExtensionSettings."uBlock0@raymondhill.net" != null and .policies.Preferences != null' "$lw_dir/policies.json" >/dev/null ||
+  fail "LibreWolf policy install writes the merged policies"
+pass "LibreWolf policy install does not follow a planted policies.json symlink"
+
+if browser_policy_install_librewolf_policies "$lw_dir" "$test_tmp/no-such-packaged-policies.json" 2>/dev/null; then
+  fail "LibreWolf policy install refuses a missing packaged policies file"
+fi
+jq -e '.policies.Preferences != null' "$lw_dir/policies.json" >/dev/null ||
+  fail "a refused LibreWolf install leaves the existing merged policies intact"
+pass "LibreWolf policy install refuses to merge without the packaged policies"
+
+[[ $(jq -c '.policies | keys_unsorted' "$ROOT/default/librewolf/policies.json") == '["Preferences"]' ]] ||
+  fail "Omarchy ships only its Preferences for LibreWolf, never a frozen copy of LibreWolf's policies"
+if grep -Fq 'uBlock0@raymondhill.net' "$ROOT/default/librewolf/policies.json"; then
+  fail "Omarchy's LibreWolf overlay does not freeze LibreWolf's extension defaults"
+fi
+pass "Omarchy's LibreWolf policies are a minimal overlay"
+
 grep -F 'exit "$failed"' "$ROOT/bin/omarchy-theme-set-browser" >/dev/null ||
   fail "omarchy-theme-set-browser exits non-zero when a policy write fails"
 pass "omarchy-theme-set-browser exits non-zero when a policy write fails"

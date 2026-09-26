@@ -14,8 +14,29 @@ install_log="$test_tmp/install-log"
 terminal_log="$test_tmp/terminal-log"
 notification_log="$test_tmp/notification-log"
 setup_log="$test_tmp/setup-log"
+jq_log="$test_tmp/jq-log"
 browser_file="$test_tmp/browser"
 mkdir -p "$mock_bin" "$test_home/.config" "$installed_dir"
+
+# The LibreWolf installer merges the packaged policies with Omarchy's overlay
+# through jq. The packaged file only exists on machines that have LibreWolf
+# installed, so the merge runs against this stand-in and only its invocation
+# is asserted here; browser-policy-dir-test.sh exercises the real merge.
+librewolf_packaged="$test_tmp/librewolf-packaged-policies.json"
+cat >"$librewolf_packaged" <<'JSON'
+{
+  "policies": {
+    "DisableTelemetry": true,
+    "HttpsOnlyMode": "enabled",
+    "ExtensionSettings": {
+      "uBlock0@raymondhill.net": {
+        "installation_mode": "normal_installed",
+        "private_browsing": true
+      }
+    }
+  }
+}
+JSON
 
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 #!/bin/bash
@@ -52,6 +73,16 @@ set) printf '%s\n' "$3" >"$OMARCHY_TEST_BROWSER_FILE" ;;
 esac
 SH
 
+cat >"$mock_bin/jq" <<'SH'
+#!/bin/bash
+printf 'jq:%s\n' "$*" >>"$OMARCHY_TEST_JQ_LOG"
+if [[ $1 == "-s" && $2 == '.[0] * .[1]' ]]; then
+  cat "$OMARCHY_TEST_LIBREWOLF_PACKAGED_POLICIES"
+elif [[ -x /usr/bin/jq ]]; then
+  exec /usr/bin/jq "$@"
+fi
+SH
+
 cat >"$mock_bin/omarchy-test-installer" <<'SH'
 #!/bin/bash
 installer=${0##*/}
@@ -67,6 +98,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   case $package in
   chromium) command=chromium ;;
   firefox) command=firefox ;;
+  librewolf) command=librewolf ;;
   zen-browser-bin) command=zen-browser ;;
   cursor-bin) command=cursor ;;
   sublime-text-4) command=subl ;;
@@ -84,6 +116,7 @@ omarchy-install-browser)
   brave-origin) command=brave-origin ;;
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
+  librewolf) command=librewolf ;;
   zen) command=zen-browser ;;
   esac
   ;;
@@ -135,7 +168,9 @@ export OMARCHY_TEST_INSTALL_LOG="$install_log"
 export OMARCHY_TEST_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_NOTIFICATION_LOG="$notification_log"
 export OMARCHY_TEST_SETUP_LOG="$setup_log"
+export OMARCHY_TEST_JQ_LOG="$jq_log"
 export OMARCHY_TEST_BROWSER_FILE="$browser_file"
+export OMARCHY_TEST_LIBREWOLF_PACKAGED_POLICIES="$librewolf_packaged"
 
 assert_missing_opens_installer() {
   local type=$1
@@ -155,6 +190,7 @@ browser_cases=(
   'brave-origin brave-origin browser:brave-origin'
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
+  'librewolf librewolf browser:librewolf'
   'zen zen-browser browser:zen'
 )
 
@@ -241,6 +277,26 @@ grep -Fxq "sudo:install -m 644 -o root -g root -T $ROOT/default/firefox/policies
   fail "Firefox browser installer copies policies.json without following a destination symlink"
 [[ -e $installed_dir/firefox ]] || fail "Firefox browser installer marks firefox installed"
 pass "Firefox browser installer restores the complete Omarchy setup"
+
+: >"$install_log"
+: >"$setup_log"
+: >"$jq_log"
+rm -f "$installed_dir/librewolf"
+OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install librewolf >/dev/null
+[[ $(<"$install_log") == "pkg:librewolf" ]] || fail "LibreWolf browser installer installs the package"
+[[ $(omarchy-default-browser) == "librewolf" ]] || fail "LibreWolf becomes the default after its full installer succeeds"
+grep -Fxq 'sudo:install -d -m 0755 -o root -g root /etc/librewolf/policies' "$setup_log" ||
+  fail "LibreWolf browser installer creates its policy directory"
+grep -Fxq 'sudo:find /etc/librewolf/policies -mindepth 1 -maxdepth 1 ! -user root -exec rm -rf -- {} +' "$setup_log" ||
+  fail "LibreWolf browser installer drops non-root files from its policy directory"
+grep -Eq 'sudo:install -m 644 -o root -g root -T [^ ]+ /etc/librewolf/policies/policies\.json' "$setup_log" ||
+  fail "LibreWolf browser installer installs its merged policies.json without following a destination symlink"
+grep -Fxq "jq:-s .[0] * .[1] /usr/lib/librewolf/distribution/policies.json $ROOT/default/librewolf/policies.json" "$jq_log" ||
+  fail "LibreWolf browser installer merges LibreWolf's packaged policies with Omarchy's overlay"
+jq -e '.policies | keys_unsorted == ["Preferences"]' "$ROOT/default/librewolf/policies.json" >/dev/null ||
+  fail "Omarchy's LibreWolf policies stay a Preferences-only overlay instead of a frozen copy of LibreWolf's"
+[[ -e $installed_dir/librewolf ]] || fail "LibreWolf browser installer marks librewolf installed"
+pass "LibreWolf browser installer restores the complete Omarchy setup"
 
 : >"$install_log"
 : >"$setup_log"
