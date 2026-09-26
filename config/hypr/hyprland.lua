@@ -9,6 +9,10 @@ dofile((os.getenv("OMARCHY_PATH") or "/usr/share/omarchy") .. "/default/hypr/boo
 -- Or disable only bindings for Omarchy's preinstalled apps/web apps while
 -- keeping core window-manager bindings:
 -- omarchy_preinstalled_bindings = false
+--
+-- Make SUPER+1..0 (and the move variants) act on the monitor you're on, for
+-- setups that pin workspaces per monitor (1–10 left, 11–20 right, …):
+-- omarchy_workspaces_per_monitor = true
 
 -- Load Omarchy defaults.
 require("default.hypr.omarchy")
