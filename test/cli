@@ -536,8 +536,21 @@ case "$1" in
     echo "$*" >>"${TMUX_LOG:-/dev/null}"
     exit 0
     ;;
-  list-panes|list-clients)
+  list-panes)
+    [[ -n ${TMUX_TEST_PANE_TTY:-} ]] && printf '%s\n' "$TMUX_TEST_PANE_TTY"
     exit 0
+    ;;
+  list-clients)
+    [[ $2 == "-F" ]] && printf '%s\n' "${TMUX_TEST_TERMNAME:-}"
+    exit 0
+    ;;
+  show-option)
+    # show-option -gv <name>: answer from TMUX_SHOW_<name without @, - as _>
+    key=${3#@}
+    key=${key//-/_}
+    var="TMUX_SHOW_$key"
+    [[ -n ${!var:-} ]] || exit 1
+    printf '%s' "${!var}"
     ;;
   *)
     exit 0
@@ -549,6 +562,73 @@ chmod +x "$FAKE_BIN/tmux"
 TMUX_LOG="$PI_TMPDIR/tmux.log" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
 grep -q 'set-environment -g COLORFGBG 0;15' "$PI_TMPDIR/tmux.log" || fail "tmux sync reads mode from colors.toml"
 pass "tmux sync reads mode from colors.toml"
+
+cat >"$FAKE_BIN/omarchy-theme-osc" <<'EOF'
+#!/bin/bash
+[[ -n ${TMUX_OSC_LOG:-} ]] && printf 'osc\n' >>"$TMUX_OSC_LOG"
+printf '\033]11;#000000\007'
+EOF
+chmod +x "$FAKE_BIN/omarchy-theme-osc"
+
+# Terminals that reload their own config already pick up the palette, so the
+# theme push must not stamp an explicit background through tmux: that turns
+# every transparent pane opaque for its lifetime.
+cp "$CURRENT_THEME/colors.toml" "$PI_TMPDIR/colors-backup.toml"
+printf 'cursor = "#eeeeee"\n' >>"$CURRENT_THEME/colors.toml"
+
+TMUX_TEST_TERMNAME=xterm-ghostty TMUX_OSC_LOG="$PI_TMPDIR/tmux-osc-ghostty.log" TMUX_LOG="$PI_TMPDIR/tmux-ghostty.log" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+TMUX_TEST_TERMNAME=xterm-kitty TMUX_OSC_LOG="$PI_TMPDIR/tmux-osc-kitty.log" TMUX_LOG="$PI_TMPDIR/tmux-kitty.log" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+TMUX_TEST_TERMNAME=foot TMUX_OSC_LOG="$PI_TMPDIR/tmux-osc-foot.log" TMUX_LOG="$PI_TMPDIR/tmux-foot.log" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+
+mv "$PI_TMPDIR/colors-backup.toml" "$CURRENT_THEME/colors.toml"
+
+if grep -q 'window-style' "$PI_TMPDIR/tmux-ghostty.log" 2>/dev/null; then
+  fail "tmux sync skips the background stamp for self-reloading terminals"
+fi
+[[ ! -s $PI_TMPDIR/tmux-osc-ghostty.log ]] || fail "tmux sync skips the pane OSC push for self-reloading terminals"
+grep -q 'cursor-colour' "$PI_TMPDIR/tmux-ghostty.log" || fail "tmux sync keeps the cursor fallback for self-reloading terminals"
+grep -q 'set-environment -g COLORFGBG' "$PI_TMPDIR/tmux-ghostty.log" || fail "tmux sync keeps the environment sync for self-reloading terminals"
+pass "tmux sync preserves transparency for self-reloading terminals"
+
+if grep -q 'window-style' "$PI_TMPDIR/tmux-kitty.log" 2>/dev/null; then
+  fail "tmux sync skips the background stamp for kitty"
+fi
+[[ ! -s $PI_TMPDIR/tmux-osc-kitty.log ]] || fail "tmux sync skips the pane OSC push for kitty"
+pass "tmux sync preserves transparency for kitty"
+
+grep -q 'set-option -g window-style' "$PI_TMPDIR/tmux-foot.log" || fail "tmux sync still stamps the background for terminals without config reload"
+[[ -s $PI_TMPDIR/tmux-osc-foot.log ]] || fail "tmux sync still pushes pane colors for terminals without config reload"
+grep -q 'set-option -g @omarchy_window_style' "$PI_TMPDIR/tmux-foot.log" || fail "tmux sync records the stamped styles it may later clear"
+pass "tmux sync keeps the full color push for terminals without config reload"
+
+# A stamp from an earlier run (before the upgrade, while detached, or under
+# another terminal) would otherwise stick on the previous theme: the skip path
+# clears it, but only when the value is still one this script wrote.
+stamped="fg=#ffffff,bg=#000000"
+TMUX_TEST_TERMNAME=xterm-ghostty TMUX_LOG="$PI_TMPDIR/tmux-ghostty-clear.log" \
+  TMUX_SHOW_window_style="$stamped" TMUX_SHOW_window_active_style="$stamped" \
+  TMUX_SHOW_omarchy_window_style="$stamped" TMUX_SHOW_omarchy_window_active_style="$stamped" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+grep -q 'set-option -gu window-style' "$PI_TMPDIR/tmux-ghostty-clear.log" || fail "tmux sync clears a previously stamped window style"
+grep -q 'set-option -gu window-active-style' "$PI_TMPDIR/tmux-ghostty-clear.log" || fail "tmux sync clears a previously stamped active style"
+grep -q 'set-option -gu @omarchy_window_style' "$PI_TMPDIR/tmux-ghostty-clear.log" || fail "tmux sync drops its style record after clearing"
+pass "tmux sync clears previously stamped styles for self-reloading terminals"
+
+TMUX_TEST_TERMNAME=xterm-ghostty TMUX_LOG="$PI_TMPDIR/tmux-ghostty-custom.log" \
+  TMUX_SHOW_window_style="fg=#ff0000,bg=#000000" TMUX_SHOW_window_active_style="$stamped" \
+  TMUX_SHOW_omarchy_window_style="$stamped" TMUX_SHOW_omarchy_window_active_style="$stamped" \
+  PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-tmux"
+if grep -q 'set-option -gu window-style' "$PI_TMPDIR/tmux-ghostty-custom.log" 2>/dev/null; then
+  fail "tmux sync leaves a user-set window style alone"
+fi
+pass "tmux sync leaves a user-set window style alone"
+
+grep -F '033]104\007\033]110\007\033]111\007' "$ROOT/bin/omarchy-theme-set-tmux" >/dev/null ||
+  fail "tmux sync resets pane colors before unsetting the styles"
+pass "tmux sync resets pane colors before unsetting the styles"
 
 cat >"$FAKE_BIN/gsettings" <<'EOF'
 #!/bin/bash
