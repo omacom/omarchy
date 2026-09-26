@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when an ambient light sensor is present.
+
+# The same IIO attributes iio-sensor-proxy's udev rules match for its light
+# sensor drivers.
+for device in /sys/bus/iio/devices/iio:device*; do
+  for attribute in in_illuminance_input in_illuminance0_input in_illuminance_raw in_illuminance_clear_raw in_intensity_clear_raw scan_elements/in_intensity_both_en; do
+    [[ -e $device/$attribute ]] && exit 0
+  done
+done
+
+exit 1
