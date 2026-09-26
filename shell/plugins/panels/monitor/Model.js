@@ -1,3 +1,12 @@
+function brightnessTargets(focused, mirror) {
+  var names = []
+  var focus = String(focused || "")
+  var other = String(mirror || "")
+  if (focus) names.push(focus)
+  if (other && other !== focus) names.push(other)
+  return names
+}
+
 function clampBrightness(value) {
   var n = Number(value)
   if (!isFinite(n)) return 1
@@ -113,6 +122,7 @@ function parseDisplays(raw) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    brightnessTargets: brightnessTargets,
     clampBrightness: clampBrightness,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,
