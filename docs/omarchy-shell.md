@@ -94,8 +94,8 @@ You can still install by hand: drop a plugin into
 `~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then
 `omarchy plugin enable <id>`. A bar widget starts in its declared default
 section; enabling a full bar replaces the one in use. `omarchy bar` drives the
-bar from the CLI — `use | reset | defaults | position | transparent | put |
-move | set`, with placement flags such as `--section` and `--index`.
+bar from the CLI — `use | reset | defaults | position | transparent | pills |
+floating | put | move | set`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Elsewhen
@@ -378,9 +378,63 @@ of top/bottom and left/right bars respectively, measured at the default
 scale-with-font = true
 size-horizontal = 26   # top/bottom bar height at base-size 12
 size-vertical   = 28   # left/right bar width at base-size 12
+icon-slot       = 27   # width of one widget slot
+icon-canvas     = 16   # size of a widget's icon
+icon-font       = 13   # glyph size of a font icon
+status-slot     = 21   # width of a status indicator slot
 ```
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
+
+### Floating bar
+
+A floating bar sits off the screen edge instead of flush against it. It is off unless you turn it on, so a stock bar is unchanged.
+
+Turn it on with `"floating": true` under `bar` in `shell.json` (`omarchy bar floating true`, or right-click empty bar space), or let a theme do it with a non-zero `[bar] margin`. `bar.floating: false` keeps the bar flush whatever the theme says.
+
+```toml
+[bar]
+margin = 10   # gap between the bar and the screen edges it touches
+radius = 12   # corner rounding of the bar background
+```
+
+`margin` accepts the same CSS-style list as the border widths, `N`, `"Y X"`, `"T X B"` or `"T R B L"`, so the gap can differ per edge. It applies to the edge the bar is anchored to and the two it spans:
+
+```toml
+[bar]
+margin = "4 8"   # 4 above and below, 8 left and right
+```
+
+Without a theme margin a floating bar floats inside the space a flush bar already reserves. It sits half of Hyprland's `general:gaps_out` from the screen edge, so the gap above it matches the gap below it, and the full `gaps_out` in from its ends, so they line up with the windows. The windows stay where they are when floating is switched on or off, as long as half of `gaps_out` stays below the bar's thickness (`gaps_out` up to 50 for the stock 26 px bar). Above that the bar reserves half of `gaps_out` plus 1. `radius` applies only while the bar floats; a flush bar stays square. Unset, it follows Hyprland's `decoration:rounding`, and it never rounds past half the bar's thickness.
+
+Theme values follow `scale-with-font` like the sizes above; the Hyprland-derived defaults do not. A theme margin is reserved along with the bar, so tiled and maximized windows stop clear of it and keep `gaps_out` below it. Auto-hide parks the bar fully off screen, margin included.
+
+### Bar pills
+
+Pills give bar widgets their own background, so the bar background can be switched off (`transparent: true`) and the widgets still sit on something. They are off unless you turn them on, so a stock bar is unchanged.
+
+Turn them on with `"pills": "section"` under `bar` in `shell.json` (`omarchy bar pills section`, or right-click empty bar space), or let a theme set a default with `[bar] pills`. `shell.json` wins.
+
+| Mode | Effect |
+|---|---|
+| `off` | no pills |
+| `section` | one pill per run of neighbouring widgets. A spacer ends the run, even at `"size": 0`, and so does a change of `"group"` value between neighbours |
+| `widget` | one pill per widget |
+
+These `[bar]` keys shape the pills. All are optional.
+
+| Key | Default | Effect |
+|---|---|---|
+| `pill` | see below | fill colour |
+| `pill-alpha` | `background-alpha` | fill opacity, 0 to 1, used with `pill` or on a transparent bar |
+| `pill-text` | picked | widget text while pills are on, `"pill": false` widgets included. Unset, the shell picks `text` or the theme background, whichever contrasts more with the pill, composited over the wallpaper when the pill is translucent on a transparent bar |
+| `pill-border`, `pill-border-alpha` | none | a 1 px outline; shown when its alpha is above 0, also on a transparent fill |
+| `pill-radius` | Hyprland `decoration:rounding` | corner radius; 0 is square; capped at half the pill's thickness |
+| `pill-inset` | 2 | gap between a pill and the bar's edges and ends |
+| `pill-padding` | 4 | space inside a pill at its ends |
+| `pill-gap` | 6 | space between neighbouring pills |
+
+Unset, `pill` depends on the bar background. On a transparent bar the pill is the bar `background` at `background-alpha`, so the bar colour stays behind the widgets. On the drawn bar that colour would not show, so the pill is `text` at 10% over the bar, a raised tone that works for dark and light themes. A theme that sets `pill` gets that colour in both states. The sizes scale with the font like the bar sizes above; a `pill-radius` or `pill-inset` of 0 stays 0.
 
 ## Custom bar modules
 

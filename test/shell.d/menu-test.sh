@@ -341,6 +341,8 @@ assertEqual(
   'omarchy-bar transparent toggle',
   'menu exposes Menu Bar transparency as a toggle'
 )
+assertEqual(defaultById['style.bar.pills'].action, 'omarchy-bar pills toggle', 'menu exposes Menu Bar pills as a toggle')
+assertEqual(defaultById['style.bar.floating'].action, 'omarchy-bar floating toggle', 'menu exposes a floating Menu Bar as a toggle')
 assertDeepEqual(
   defaultItems.filter(item => item.parent === 'setup.plugin').map(item => item.label),
   ['Enable Plugin', 'Disable Plugin', 'Add Plugin', 'Clone Plugin', 'Remove Plugin'],

@@ -1606,6 +1606,24 @@ ShellRoot {
       return "no-bar"
     }
 
+    // The bar toggles from what it shows: theme defaults and the last pill
+    // mode included, which shell.json alone does not know.
+    function toggleBarPills(): string {
+      if (shell.bar && typeof shell.bar.togglePills === "function") {
+        shell.bar.togglePills()
+        return "ok"
+      }
+      return "no-bar"
+    }
+
+    function toggleBarFloating(): string {
+      if (shell.bar && typeof shell.bar.toggleFloating === "function") {
+        shell.bar.toggleFloating()
+        return "ok"
+      }
+      return "no-bar"
+    }
+
     function setPluginEnabled(id: string, enabled: string): string {
       return shell.pluginRegistry.setEnabled(id, enabled === "true") ? "ok" : "unknown"
     }

@@ -16,7 +16,7 @@ the shell for its whole session.
 
 The bar config lives under the `bar:` key of [`~/.config/omarchy/shell.json`](../../../docs/omarchy-shell.md#shelljson). Out of the box the shell uses [`config/omarchy/shell.json`](../../../config/omarchy/shell.json). Once you customize anything via the bar gestures, `omarchy bar ...`, or by editing shell.json directly, your file is canonical — there is no deep-merge.
 
-The bar is configured directly on the bar itself: drag empty bar space (or click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to toggle transparency, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar transparent`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
+The bar is configured directly on the bar itself: drag empty bar space (or click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to toggle transparency, right-click empty bar space for switches for the background, floating and pills, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar transparent`, `omarchy bar pills`, `omarchy bar floating`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
 
 Example `shell.json` (bar subtree only shown):
 
@@ -47,6 +47,35 @@ Example `shell.json` (bar subtree only shown):
 ```
 
 `centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. Set to an empty string to disable anchoring (the center list is centered as a group).
+
+`pills` puts widgets on their own background, so the bar background can be switched off (`transparent: true`) and the widgets still sit on something. Unset, a theme's `[bar] pills` decides, and without one there are no pills.
+
+| `pills` | Effect |
+|---|---|
+| `"off"` | no pills; the bar renders as it always has |
+| `"section"` | one pill per run of neighbouring widgets. A spacer ends the run, even at `"size": 0`, and so does a change of `"group"` value between neighbours |
+| `"widget"` | one pill per widget |
+
+```json
+"bar": {
+  "transparent": true,
+  "pills": "section",
+  "layout": {
+    "right": [
+      { "id": "omarchy.tray" },
+      { "id": "omarchy.spacer", "size": 0 },
+      { "id": "omarchy.bluetooth", "group": "net" },
+      { "id": "omarchy.network", "group": "net" },
+      { "id": "omarchy.audio" },
+      { "id": "omarchy.power", "pill": false }
+    ]
+  }
+}
+```
+
+That right section draws `[tray] [bluetooth network] [audio]` and a bare power widget: `"pill": false` keeps a widget off any pill. Widgets that hide themselves drop out of their pill. Widget text is picked for legibility against the pill, and a bare widget uses the same colour, so it reads best on an opaque bar background. Theme keys are in [`docs/omarchy-shell.md`](../../../docs/omarchy-shell.md#bar-pills).
+
+`floating: true` lifts the bar into the gap above the windows: half of Hyprland's `gaps_out` from the screen edge and the full `gaps_out` at its ends, so it lines up with the windows, which do not move. Its corners follow the windows'. Unset, a theme's `[bar] margin` decides; `false` keeps it flush. Theme keys are in [`docs/omarchy-shell.md`](../../../docs/omarchy-shell.md#floating-bar).
 
 ## Module catalogue
 

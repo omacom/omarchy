@@ -94,6 +94,7 @@ function inlineSettingsDelta(current, next) {
       if (entryId(a[j]) !== entryId(b[j])) return null
       if (JSON.stringify(a[j]) === JSON.stringify(b[j])) continue
       if (customModuleType(a[j]) || customModuleType(b[j])) return null
+      if (pillKey(a[j]) !== pillKey(b[j])) return null
       if (counts[entryId(b[j])] > 1) return null
       changes.push({ region: region, index: j, entry: b[j] })
     }
@@ -208,8 +209,243 @@ function nearestDropTarget(candidates, point, vertical) {
   return best
 }
 
+// Pills give bar widgets their own background, so the bar background can be
+// switched off and the widgets still sit on something. `bar.pills` picks how
+// widgets share one: "off" draws none, "section" joins neighbours into one
+// pill per run, "widget" gives every widget its own.
+var PILL_MODES = ["off", "section", "widget"]
+
+function pillMode(value) {
+  var mode = String(value || "").trim()
+  return PILL_MODES.indexOf(mode) === -1 ? "off" : mode
+}
+
+// How one entry takes part in a run: null when it draws nothing (hidden or
+// zero-size), which skips it without breaking the run; false when it breaks the
+// run and draws no pill (a spacer, even at size 0, or an entry with
+// "pill": false); true when it joins.
+function pillState(entry, drawn) {
+  if (entryId(entry) === "omarchy.spacer") return false
+  if (!drawn) return null
+  return entrySettings(entry).pill !== false
+}
+
+function pillGroup(entry) {
+  var group = entrySettings(entry).group
+  return group === undefined || group === null ? "" : String(group)
+}
+
+// Changing these reshapes the pills, which the in-place settings push cannot.
+function pillKey(entry) {
+  var settings = entrySettings(entry)
+  return JSON.stringify([settings.pill, settings.group])
+}
+
+// Segment role per entry, after DMS SegmentRoles.resolve: "none" draws
+// nothing, "solo" a whole pill, and a run of two or more "first", "middle"...,
+// "last". In section mode neighbours join while their "group" values match, so
+// a group key splits a run where no spacer sits.
+function pillRoles(entries, states, mode) {
+  var list = Array.isArray(entries) ? entries : []
+  var roles = list.map(function() { return "none" })
+  if (mode !== "section" && mode !== "widget") return roles
+
+  var run = []
+  var runGroup = ""
+  function close() {
+    for (var k = 0; k < run.length; k++) {
+      if (run.length === 1) roles[run[k]] = "solo"
+      else roles[run[k]] = k === 0 ? "first" : (k === run.length - 1 ? "last" : "middle")
+    }
+    run = []
+  }
+
+  for (var i = 0; i < list.length; i++) {
+    var state = states ? states[i] : undefined
+    if (state === null || state === undefined) continue
+    if (state === false) {
+      close()
+      continue
+    }
+    var group = pillGroup(list[i])
+    if (mode === "widget" || (run.length > 0 && group !== runGroup)) close()
+    runGroup = group
+    run.push(i)
+  }
+  close()
+  return roles
+}
+
+// Space between a bar end and the outermost drawn widget of a section.
+// `states` are the section's pill states in order (null: not drawn, false:
+// bare, true: pill). A pill already carries half the pill gap as padding, so
+// its end margin is what is left of the inset; a bare widget keeps the
+// margin the bar has without pills.
+function sectionEndMargin(states, fromEnd, pillsOn, pillInset, pillGap, stockMargin) {
+  if (!pillsOn) return stockMargin
+  var list = states || []
+  for (var n = 0; n < list.length; n++) {
+    var state = list[fromEnd ? list.length - 1 - n : n]
+    if (state === null || state === undefined) continue
+    return state === false ? stockMargin : pillInset - Math.round(pillGap / 2)
+  }
+  return stockMargin
+}
+
+// Offset that centres the widget, not the widget plus its pill padding, in
+// `parentLength`. Rounds each half on its own, as anchors.centerIn does, so a
+// bar without pills keeps the exact pixel it had.
+function anchorOffset(parentLength, slotLength, lead, trail) {
+  return Math.round(parentLength / 2) - Math.round((slotLength - lead - trail) / 2) - lead
+}
+
+function pillStartsRound(role) {
+  return role === "solo" || role === "first"
+}
+
+function pillEndsRound(role) {
+  return role === "solo" || role === "last"
+}
+
+// Text on a pill uses the same two-way WCAG pick as omarchy-bar-text-color:
+// the theme's bar text, or the background colour when that reads better.
+function hexChannels(hex) {
+  var match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ""))
+  if (!match) return null
+  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)]
+}
+
+function toHex(channels) {
+  return "#" + channels.map(function(c) {
+    var v = Math.max(0, Math.min(255, Math.round(c)))
+    return (v < 16 ? "0" : "") + v.toString(16)
+  }).join("")
+}
+
+// `top` at `alpha` over an opaque `bottom`.
+function blendHex(top, alpha, bottom) {
+  var t = hexChannels(top)
+  var b = hexChannels(bottom)
+  if (!t || !b) return ""
+  var a = Math.max(0, Math.min(1, Number(alpha)))
+  if (!isFinite(a)) a = 1
+  return toHex([0, 1, 2].map(function(i) { return t[i] * a + b[i] * (1 - a) }))
+}
+
+function luminance(hex) {
+  var c = hexChannels(hex)
+  if (!c) return NaN
+  var linear = c.map(function(v) {
+    v = v / 255
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+}
+
+function contrastRatio(a, b) {
+  var l1 = luminance(a)
+  var l2 = luminance(b)
+  if (!isFinite(l1) || !isFinite(l2)) return NaN
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
+}
+
+function pickTextColor(text, alternative, backdrop) {
+  return contrastRatio(alternative, backdrop) > contrastRatio(text, backdrop) ? alternative : text
+}
+
+// Floating bar. `setting` is bar.floating from shell.json: true, false, or
+// unset. Unset, a theme's [bar] margin decides, as a non-zero margin always
+// did, and is used as given. Without a theme margin the bar floats inside the
+// space a flush bar already has: half of Hyprland's gaps_out from the screen
+// edge, so the gap above the bar matches the gap below it, and the full
+// gaps_out at its ends, so they line up with the windows.
+var NO_MARGINS = { top: 0, right: 0, bottom: 0, left: 0 }
+
+function hasMargin(margins) {
+  return !!margins && (margins.top > 0 || margins.right > 0 || margins.bottom > 0 || margins.left > 0)
+}
+
+function barFloating(setting, themeMargins) {
+  if (setting === true || setting === false) return setting
+  return hasMargin(themeMargins)
+}
+
+function barMargins(floating, themeMargins, gaps, position) {
+  if (!floating) return NO_MARGINS
+  if (hasMargin(themeMargins)) return themeMargins
+  if (!hasMargin(gaps)) return NO_MARGINS
+  var edge = normalizePosition(position)
+  var margins = { top: gaps.top, right: gaps.right, bottom: gaps.bottom, left: gaps.left }
+  margins[edge] = Math.round(gaps[edge] / 2)
+  return margins
+}
+
+// Corner radius of the bar background: only while it floats, a flush bar
+// stays square. A theme's [bar] radius wins over Hyprland's rounding, and
+// neither rounds past half the bar's thickness.
+function barRadius(floating, themeRadius, hyprRadius, barSize) {
+  if (!floating) return 0
+  var radius = themeRadius === undefined || themeRadius === null ? hyprRadius : themeRadius
+  radius = Number(radius)
+  if (!isFinite(radius) || radius < 0) radius = 0
+  return Math.min(radius, Math.floor(Number(barSize) / 2) || 0)
+}
+
+// The default floating bar keeps the windows where a flush bar leaves them:
+// it reserves only what a flush bar reserves, so switching floating on or off
+// never moves a window. A theme margin is reserved on top of the bar instead.
+function floatsInGap(floating, themeMargins) {
+  return floating === true && !hasMargin(themeMargins)
+}
+
+// Layer-shell margins of the bar window. Only the edges the bar touches take
+// a gap: the one it is anchored to, and the two it spans. The remaining side
+// is the bar's own far face. Hidden, the anchored edge parks the bar past the
+// screen edge, clearing its margin as well as its own size, or the gap leaves
+// a sliver of it on screen.
+function windowMargins(position, margins, barSize, hidden) {
+  var edge = normalizePosition(position)
+  var vertical = edge === "left" || edge === "right"
+  var anchored = hidden ? -(barSize + margins[edge]) : margins[edge]
+  return {
+    top: edge === "top" ? anchored : (vertical ? margins.top : 0),
+    right: edge === "right" ? anchored : (vertical ? 0 : margins.right),
+    bottom: edge === "bottom" ? anchored : (vertical ? margins.bottom : 0),
+    left: edge === "left" ? anchored : (vertical ? 0 : margins.left)
+  }
+}
+
+// Hyprland reserves the exclusive zone plus the anchored edge's margin.
+// Floating inside the gap, the zone gives the margin back so the windows stay
+// where a flush bar leaves them. Otherwise it is the bar size, which is what
+// ExclusionMode.Auto uses: Auto can pick up an explicit zone, so it must not
+// differ from it. The zone cannot go below 1, so once the edge margin reaches
+// the bar size the bar reserves margin + 1 instead.
+function exclusiveZone(inGap, barSize, margins, position) {
+  if (!inGap) return barSize
+  return Math.max(1, barSize - margins[normalizePosition(position)])
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    pillMode: pillMode,
+    pillState: pillState,
+    pillGroup: pillGroup,
+    pillKey: pillKey,
+    pillRoles: pillRoles,
+    pillStartsRound: pillStartsRound,
+    pillEndsRound: pillEndsRound,
+    sectionEndMargin: sectionEndMargin,
+    anchorOffset: anchorOffset,
+    blendHex: blendHex,
+    contrastRatio: contrastRatio,
+    pickTextColor: pickTextColor,
+    barFloating: barFloating,
+    barMargins: barMargins,
+    floatsInGap: floatsInGap,
+    windowMargins: windowMargins,
+    exclusiveZone: exclusiveZone,
+    barRadius: barRadius,
     isDrawnSlot: isDrawnSlot,
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,

@@ -108,6 +108,8 @@
   "style.bar": {"icon":"󰍜","label":"Menu Bar"},
   "style.bar.position": {"icon":"","label":"Position"},
   "style.bar.transparency": {"icon":"󰂵","label":"Transparency","action":"omarchy-bar transparent toggle"},
+  "style.bar.pills": {"icon":"󰐂","label":"Pills","action":"omarchy-bar pills toggle"},
+  "style.bar.floating": {"icon":"󱂬","label":"Floating","action":"omarchy-bar floating toggle"},
   "style.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/looknfeel.lua\""},
   "style.screensaver": {"icon":"󱄄","label":"Screensaver"},
   "style.about": {"icon":"","label":"About"},

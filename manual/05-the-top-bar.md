@@ -80,15 +80,17 @@ If you'd rather they were always visible, set `alwaysShow` to `true` on the widg
 
 The bar configures itself. You don't have to open a config file to move things.
 
-Grab an empty patch of the bar around the center and drag it toward another screen edge, and the bar moves there — left, right, top, or bottom all work, and every widget adapts (vertical bars fall back to compact icon-only forms). A click-and-hold starts the same drag. Double-left-click that same empty space to toggle transparency. And drag any widget to reorder it or throw it into another section.
+Grab an empty patch of the bar around the center and drag it toward another screen edge, and the bar moves there — left, right, top, or bottom all work, and every widget adapts (vertical bars fall back to compact icon-only forms). A left click-and-hold starts the same drag. Double-left-click that same empty space to toggle transparency. Right-click empty bar space for three switches: the bar background, floating (the bar sits off the screen edge, lined up with your windows) and pills (each group of widgets gets its own background, which works well with the bar background off). And drag any widget to reorder it or throw it into another section.
 
-If you'd rather pick from a menu, **Style → Menu Bar** has both position and transparency.
+If you'd rather pick from a menu, **Style → Menu Bar** has position, transparency, pills and floating.
 
 The same things have commands, which is what you want for a [dotfiles](31-dotfiles.md) setup:
 
 ```bash
 omarchy bar position bottom
 omarchy bar transparent toggle
+omarchy bar pills section     # off, section, widget or toggle
+omarchy bar floating toggle
 omarchy bar move omarchy.clock --section center --index 0
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
