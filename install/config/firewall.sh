@@ -2,9 +2,14 @@
 ufw default deny incoming
 ufw default allow outgoing
 
-# Allow ports for LocalSend.
-ufw allow 53317/udp
-ufw allow 53317/tcp
+# Allow ports for LocalSend, on private networks only. An unrestricted rule
+# would leave 53317 reachable from every network the machine ever joins, for a
+# service that is not running by default -- and any unprivileged process could
+# then claim that port and be reachable from outside without touching UFW.
+for cidr in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16; do
+  ufw allow in proto udp from "$cidr" to any port 53317 comment 'omarchy-localsend'
+  ufw allow in proto tcp from "$cidr" to any port 53317 comment 'omarchy-localsend'
+done
 
 # Allow Docker containers to use DNS on host.
 ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns'
