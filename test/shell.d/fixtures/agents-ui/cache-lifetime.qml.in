@@ -1,0 +1,215 @@
+import QtQuick
+import QtTest
+
+Item {
+  id: root
+  property double nowMs: new Date(2026, 8, 12, 12).getTime()
+  property bool opened: false
+  property var trace: ({changes: 0})
+  Main { id: usage }
+  Agent { id: codex; onRecordChanged: usage.recordsChanged() }
+  Agent { id: claude; onRecordChanged: usage.recordsChanged() }
+  Agent { id: kimi; onRecordChanged: usage.recordsChanged() }
+  Agent { id: fireworks; onRecordChanged: usage.recordsChanged() }
+  Repeater {
+    id: preparedPages
+    model: usage.preparedProviderViews.length
+    Item {
+      required property int index
+      property var provider: usage.preparedProviderViews[index].provider
+      visible: root.opened && usage.preparedProviderViews[index].scopeId === usage.selectedMachineId
+      PRICE_BINDINGS
+    }
+  }
+  Repeater {
+    id: pages
+    model: usage.enabledProviders.length
+    Item {
+      required property int index
+      property var provider: usage.enabledProviders[index]
+      visible: root.opened
+      PRICE_BINDINGS
+      onModelPresentationChanged: root.trace.changes++
+      onPricedDailyRowsChanged: root.trace.changes++
+    }
+  }
+  function record(id, n, limit) {
+    var days = [["2026-09-12", n], ["2026-09-06", n * 2], ["2026-08-14", n * 3]]
+    return {id: id, ready: true, totalSessions: 1, todayTotalTokens: n, recentDays: [], limits: [{percent: limit || 0}],
+      dailyUsage: {schemaVersion: 1, unit: "tokens", complete: true, issues: [], unallocatedTokens: 0,
+        fromDate: "2026-08-14", throughDate: "2026-09-12", days: days.map(function(day) {
+          return {date: day[0], buckets: [{rawModel: "cache-fixture", source: id + "-native", sourceId: "synthetic",
+            tariff: {}, issues: [], totalTokens: day[1], tokens: {inputTokens: day[1], outputTokens: 0,
+              cacheReadInputTokens: 0, cacheCreationInputTokens: 0}}]}
+        })}}
+  }
+  function overrides(rate) {
+    usage.pricing.applyOverrides(JSON.stringify({models: {"cache-fixture": {input: rate, output: rate, cacheRead: rate, cacheWrite: rate}}}))
+  }
+  TestCase {
+    name: "PresentationCacheLifetime"
+    when: windowShown
+    function waitRecords(n) {
+      var until = Date.now() + 1000
+      while (!(codex.record && claude.record && codex.record.todayTotalTokens === n && claude.record.todayTotalTokens === n) && Date.now() < until) wait(1)
+      verify(codex.record && claude.record && codex.record.todayTotalTokens === n && claude.record.todayTotalTokens === n)
+    }
+    function setRecords(n, limit) {
+      codex.parse(JSON.stringify(root.record("codex", n, limit)))
+      claude.parse(JSON.stringify(root.record("claude", n, limit)))
+      waitRecords(n)
+    }
+    function checkWindows(page, n, rate) {
+      var windows = page.modelPresentation.summaries
+      compare(windows.length, 3)
+      compare(windows[0].tokens, n)
+      compare(windows[1].tokens, n * 3)
+      compare(windows[2].tokens, n * 6)
+      fuzzyCompare(windows[0].cost.total, n * rate / 1000000, 1e-10)
+      fuzzyCompare(windows[1].cost.total, n * 3 * rate / 1000000, 1e-10)
+      fuzzyCompare(windows[2].cost.total, n * 6 * rate / 1000000, 1e-10)
+    }
+    function processStarts(item) {
+      var count = item.fixtureStarts || 0
+      for (var i = 0; i < item.children.length; i++) count += processStarts(item.children[i])
+      return count
+    }
+    function idleProcesses(item) {
+      if (item.fixtureStarts !== undefined) item.running = false
+      for (var i = 0; i < item.children.length; i++) idleProcesses(item.children[i])
+    }
+    function init() {
+      root.nowMs = new Date(2026, 8, 12, 12).getTime()
+      usage.settings = {}
+      usage.remoteSnapshot = {machines: []}
+      usage.selectedMachineId = "all"
+      usage.agents = [codex, claude]
+      root.overrides(1)
+      root.opened = false
+      setRecords(1000000, 0)
+    }
+    function test_passive_refresh_natural_gc() {
+      var before = root.trace.changes
+      for (var i = 1; i <= 1000; i++) {
+        setRecords(i, 0)
+        compare(pages.count, 2)
+        checkWindows(pages.itemAt(0), i, 1)
+        checkWindows(pages.itemAt(1), i, 1)
+        if (i % 50 === 0) root.opened = !root.opened
+      }
+      var changes = root.trace.changes
+      wait(40)
+      compare(root.trace.changes, changes, "passive bindings settle")
+      verify(changes - before < 20000, "no runaway binding updates")
+      console.log("cache lifetime: 1000 passive updates, price changes", changes - before)
+    }
+    function test_limits_revision_and_recreation() {
+      var page = pages.itemAt(0)
+      var view = page.modelPresentation, rows = page.pricedDailyRows
+      var usageObject = codex.record.dailyUsage
+      codex.parse(JSON.stringify(root.record("codex", 1000000, 0.5)))
+      tryVerify(function() { return codex.record.limits[0].percent === 0.5 })
+      verify(codex.record.dailyUsage === usageObject)
+      verify(page.modelPresentation === view)
+      verify(page.pricedDailyRows === rows)
+      root.overrides(2)
+      verify(page.modelPresentation !== view)
+      checkWindows(page, 1000000, 2)
+      codex.parse("")
+      tryCompare(pages, "count", 1)
+      codex.parse(JSON.stringify(root.record("codex", 2000000, 0)))
+      tryCompare(pages, "count", 2)
+      checkWindows(pages.itemAt(0), 2000000, 2)
+    }
+    function test_sixty_computers_four_providers_prepared_ticks() {
+      kimi.parse(JSON.stringify(root.record("kimi", 1000000, 0)))
+      fireworks.parse(JSON.stringify(root.record("fireworks", 1000000, 0)))
+      tryVerify(function() { return kimi.record && fireworks.record })
+      usage.agents = [codex, claude, kimi, fireworks]
+      var machines = []
+      for (var i = 1; i <= 60; i++) {
+        var providers = {}
+        for (var id of ["codex", "claude", "kimi", "fireworks"]) providers[id] = root.record(id, i * 1000000, 0)
+        machines.push({id: "machine-" + i, identity: "account-" + i, lastSuccess: root.nowMs / 1000,
+          status: "current", providers: providers})
+      }
+      usage.remoteSnapshot = {machines: machines}
+      compare(preparedPages.count, 248)
+      var saved = []
+      for (var i = 0; i < preparedPages.count; i++) saved.push({
+        daily: preparedPages.itemAt(i).pricedDailyRows, models: preparedPages.itemAt(i).modelPresentation})
+      idleProcesses(usage)
+      var starts = processStarts(usage), pending = usage.pendingUpdateKind
+      for (var turn = 1; turn <= 5; turn++) {
+        root.opened = turn % 2 === 0
+        root.nowMs += 30000
+        usage.selectedMachineId = turn % 2 ? "machine-60" : "all"
+        for (var i = 0; i < preparedPages.count; i++) {
+          var page = preparedPages.itemAt(i)
+          verify(page.pricedDailyRows === saved[i].daily, "current daily result reused on timer tick")
+          verify(page.modelPresentation === saved[i].models, "current model result reused on timer tick")
+          var scope = usage.preparedProviderViews[i].scopeId
+          var n = scope === "all" ? 1831000000 : scope === "local" ? 1000000 : Number(scope.slice(8)) * 1000000
+          if (page.provider.providerId !== "fireworks") checkWindows(page, n, 1)
+        }
+      }
+      compare(processStarts(usage), starts)
+      compare(usage.pendingUpdateKind, pending)
+      // Disabling a remote-only provider changes the prepared owner too.
+      usage.settings = {providers: {fireworks: {enabled: false}}}
+      compare(preparedPages.count, 186)
+      usage.settings = {}
+      compare(preparedPages.count, 248)
+      // Drop all remote views and two providers. Ownership must follow the
+      // current local snapshot, and the retained pages still settle correctly.
+      usage.remoteSnapshot = {machines: []}
+      usage.agents = [codex, claude]
+      usage.selectedMachineId = "local"
+      compare(preparedPages.count, 4)
+      checkWindows(pages.itemAt(0), 1000000, 1)
+      var changes = root.trace.changes
+      wait(40)
+      compare(root.trace.changes, changes)
+    }
+    function test_prepared_five_and_ten_computers() {
+      for (var countIndex = 0; countIndex < 2; countIndex++) {
+        var count = countIndex === 0 ? 5 : 10
+        var machines = []
+        for (var i = 1; i <= count; i++) machines.push({id: "machine-" + i, identity: "account-" + i,
+          lastSuccess: root.nowMs / 1000, status: "current", providers: {
+            codex: root.record("codex", i * 1000000, 0), claude: root.record("claude", i * 1000000, 0)}})
+        usage.remoteSnapshot = {machines: machines}
+        var ids = ["all", "local"].concat(machines.map(function(m) { return m.id }))
+        var saved = {}
+        for (var k = 0; k < ids.length; k++) {
+          usage.selectedMachineId = ids[k]
+          saved[ids[k]] = []
+          for (var pageIndex = 0; pageIndex < pages.count; pageIndex++) saved[ids[k]].push({page: pages.itemAt(pageIndex),
+            model: pages.itemAt(pageIndex).modelPresentation, daily: pages.itemAt(pageIndex).pricedDailyRows})
+        }
+        // Initial discovery/update stubs must be idle, otherwise a mistaken
+        // selection-triggered refresh could be hidden by an already busy job.
+        idleProcesses(usage)
+        var pending = usage.pendingUpdateKind
+        var starts = processStarts(usage)
+        for (var turn = 0; turn < 5; turn++) for (var k = 0; k < ids.length; k++) {
+          root.opened = turn % 2 === 0
+          usage.selectedMachineId = ids[k]
+          var n = ids[k] === "all" ? (1 + count * (count + 1) / 2) * 1000000 : ids[k] === "local" ? 1000000 : (k - 1) * 1000000
+          for (var pageIndex = 0; pageIndex < pages.count; pageIndex++) {
+            var page = pages.itemAt(pageIndex)
+            verify(page === saved[ids[k]][pageIndex].page, "pages are retained")
+            verify(page.modelPresentation === saved[ids[k]][pageIndex].model)
+            verify(page.pricedDailyRows === saved[ids[k]][pageIndex].daily)
+            checkWindows(page, n, 1)
+          }
+        }
+        compare(processStarts(usage), starts, "prepared switching starts no source/refresh command")
+        compare(usage.pendingUpdateKind, pending, "prepared switching queues no source scan")
+      }
+      var changes = root.trace.changes
+      wait(40)
+      compare(root.trace.changes, changes)
+    }
+  }
+}
