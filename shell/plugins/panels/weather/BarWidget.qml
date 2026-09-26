@@ -64,12 +64,16 @@ BarWidget {
     }
   }
 
-  BarIconButton {
+  // The temperature needs real layout width rather than an icon-sized slot.
+  // Keep vertical bars compact by continuing to show their condition icon only.
+  WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: panelLoader.item ? panelLoader.item.label : ""
-    slotSize: Style.bar.statusSlot
+    text: panelLoader.item ? (root.vertical ? panelLoader.item.label : panelLoader.item.barLabel) : ""
+    fontSize: Style.bar.iconFont
+    horizontalMargin: 12
+    fixedHeight: root.vertical ? Style.bar.statusSlot : -1
     // Tooltip suppressed because the panel is the detail view.
     tooltipText: ""
 
