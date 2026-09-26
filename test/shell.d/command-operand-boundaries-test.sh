@@ -216,6 +216,14 @@ setsid_argv=$(<"$setsid_calls")
   fail "launch-editor separates a graphical editor path from editor options" "$setsid_argv"
 pass "launch-editor separates a graphical editor path from editor options"
 
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_SETSID_CALLS="$setsid_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -cquit
+
+setsid_argv=$(<"$setsid_calls")
+[[ $setsid_argv == $'<-w>\n<uwsm-app>\n<-->\n<code>\n<--wait>\n<-->\n<-cquit>' ]] ||
+  fail "launch-editor --inline passes wait flag and blocks on graphical editor" "$setsid_argv"
+pass "launch-editor --inline passes wait flag and blocks on graphical editor"
+
 hook_calls="$test_tmp/hook-calls"
 hook_home="$test_tmp/hook-home"
 printf '#!/bin/bash\n' >"$test_tmp/--help"
