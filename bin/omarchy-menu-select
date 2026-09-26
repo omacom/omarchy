@@ -11,6 +11,8 @@
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+#
+# Passing "--default-index N" after "--" pre-highlights row N of the menu.
 
 set -euo pipefail
 
@@ -25,6 +27,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+menu_defaultindex=""
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -47,6 +50,14 @@ while (( $# > 0 )); do
             exit 1
           fi
           menu_maxheight="$1"
+          ;;
+        --default-index)
+          shift
+          if (( $# == 0 )); then
+            echo "omarchy-menu-select: --default-index requires a value" >&2
+            exit 1
+          fi
+          menu_defaultindex="$1"
           ;;
       esac
       shift
@@ -81,10 +92,20 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
     selectionFile => decode("UTF-8", $ARGV[2]),
     doneFile => decode("UTF-8", $ARGV[3])
   };
-  $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
-  $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  if (length($ARGV[4] // "")) {
+    my $w = int($ARGV[4]);
+    $payload->{width} = ("$w" =~ /^-?[0-9]+$/) ? $w + 0 : 0;
+  }
+  if (length($ARGV[5] // "")) {
+    my $mh = int($ARGV[5]);
+    $payload->{maxHeight} = ("$mh" =~ /^-?[0-9]+$/) ? $mh + 0 : 0;
+  }
+  if (length($ARGV[6] // "")) {
+    my $di = int($ARGV[6]);
+    $payload->{defaultIndex} = ("$di" =~ /^-?[0-9]+$/) ? $di + 0 : 0;
+  }
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$menu_defaultindex")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 

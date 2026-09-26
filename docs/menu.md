@@ -165,3 +165,9 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+`omarchy-menu-select` also takes menu args after `--`: `--width` and
+`--maxheight` size the window, and `--default-index N` rides the payload as
+an integer `defaultIndex` field that pre-highlights row N of the option
+list — initial-only, since typing in the filter resets the highlight to the
+first row. An absent field means row 0, so callers that never pass the flag
+see no change.

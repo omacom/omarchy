@@ -60,6 +60,7 @@ Item {
   property string doneFile: ""
   property int dmenuWidth: 300
   property int dmenuMaxHeight: 0
+  property int dmenuDefaultIndex: 0
   property bool requestActive: false
   property bool rowsLoaded: false
   property string activeMenu: "root"
@@ -719,6 +720,8 @@ Item {
   function setFilter(nextFilter) {
     panel.freezeCardTop()
     root.filterText = nextFilter
+    // defaultIndex is an initial position, not a persistent anchor: typing
+    // means the user is searching, so resetting the highlight is intentional.
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
@@ -868,10 +871,11 @@ Item {
     requestActive = !!doneFile
     dmenuWidth = Math.max(1, Number(payload.width || 300))
     dmenuMaxHeight = Math.max(0, Number(payload.maxHeight || 0))
+    dmenuDefaultIndex = MenuModel.dmenuDefaultIndex(payload, dmenuOptions.length)
     activeMenu = "root"
     navStack = []
     filterText = ""
-    selectedIndex = 0
+    selectedIndex = dmenuDefaultIndex
     cursorActive = mode !== "input"
     root.disarmPointer()
     opened = true
