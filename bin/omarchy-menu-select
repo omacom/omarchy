@@ -6,6 +6,11 @@
 # omarchy:args=prompt [option...] [-- menu args...]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
+# --inspect-keybindings asks the menu to read chords as well as words: a
+# shortcut pressed physically is looked up instead of reaching the compositor.
+# It is off by default because this is the system's dmenu, and a picker asking
+# for a timezone has no business swallowing shortcuts.
+#
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
 # subtext shown under the label, as "<glyph><TAB><label><TAB><subtext>". The
 # menu shows the glyph but never returns it. A plain option returns the label
@@ -25,6 +30,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+inspect_keybindings=""
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -47,6 +53,9 @@ while (( $# > 0 )); do
             exit 1
           fi
           menu_maxheight="$1"
+          ;;
+        --inspect-keybindings)
+          inspect_keybindings=1
           ;;
       esac
       shift
@@ -74,22 +83,56 @@ trap 'rm -f "$selection_file" "$done_file"' EXIT
 
 options_json=$(perl -MEncode=decode -MJSON::PP=encode_json -e 'print encode_json([map { decode("UTF-8", $_) } @ARGV])' "${options[@]}")
 payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
+  my $inspect = length($ARGV[6] // "") > 0;
+  my $raw_options = decode_json($ARGV[1]);
+  my @options = @$raw_options;
+  my @inspection_options;
+  my $blocked_reason = "";
+  my $has_inspectable = 0;
+
+  if ($inspect) {
+    @options = ();
+    for my $raw (@$raw_options) {
+      my ($label, $chords, $inspectable, $reason, $bypass) = split(/\t/, $raw, 5);
+      my $safe = ($inspectable // "") eq "1";
+      push @options, $label // "";
+      push @inspection_options, {
+        chords => [grep { length($_) } split(/\|/, $chords // "")],
+        inspectable => $safe ? JSON::PP::true : JSON::PP::false,
+        reason => $reason // ""
+      };
+      $has_inspectable ||= $safe;
+      $blocked_reason = $reason // "unsafe binding" if !$blocked_reason && ($bypass // "") eq "1";
+    }
+    $blocked_reason = "No supported keyboard bindings are available" if !$blocked_reason && !$has_inspectable;
+  }
+
   my $payload = {
     mode => "select",
     prompt => decode("UTF-8", $ARGV[0]),
-    options => decode_json($ARGV[1]),
+    options => \@options,
     selectionFile => decode("UTF-8", $ARGV[2]),
     doneFile => decode("UTF-8", $ARGV[3])
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  if ($inspect) {
+    $payload->{inspectKeybindings} = JSON::PP::true;
+    $payload->{inspectionOptions} = \@inspection_options;
+    $payload->{inspectionBlockedReason} = $blocked_reason if $blocked_reason;
+  }
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$inspect_keybindings")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null
 
+poll_count=0
 while [[ ! -e $done_file ]]; do
   sleep 0.05
+  (( poll_count += 1 ))
+  if (( poll_count % 20 == 0 )) && ! omarchy-shell shell ping >/dev/null 2>&1; then
+    exit 1
+  fi
 done
 
 if [[ -s $selection_file ]]; then
