@@ -1,0 +1,177 @@
+#!/bin/bash
+# omarchy:summary=Manage stable monitor→workspace base assignments
+# omarchy:hidden=true
+# omarchy-monitor-base <command> [args]
+#
+# Manage stable name-keyed monitor workspace bases.
+#
+# Commands:
+#   sync          Allocate missing bases for all currently connected monitors,
+#                 persist to monitor-bases.json, and print "name base\n" lines.
+#   get <name>    Print the base for a named monitor (e.g. "DP-1"), or 1 exit code if unknown.
+#   list          Print all stored name→base pairs (same format as sync output).
+#
+# Storage: ~/.local/state/omarchy/monitor-bases.json
+#   { "eDP-1": 0, "HDMI-1": 10, "DP-2": 20 }
+#
+# Allocation strategy:
+#   New monitors get the next free multiple-of-10 base (0, 10, 20, 30, ...).
+#   Bases are never reassigned or freed; unplugged monitors keep their slot
+#   so reconnecting always restores the same workspace range.
+#
+# Requires: hyprctl (for 'sync' only, to enumerate connected monitors)
+
+STATE_DIR="$HOME/.local/state/omarchy"
+BASES_FILE="$STATE_DIR/monitor-bases.json"
+
+# ── JSON helpers (pure bash + python3) ───────────────────────────────────────
+
+read_bases() {
+  if [[ -f "$BASES_FILE" ]]; then
+    python3 -c "
+import json, sys
+with open('$BASES_FILE') as f:
+    data = json.load(f)
+for name, base in sorted(data.items(), key=lambda x: x[1]):
+    print(name, base)
+" 2>/dev/null
+  fi
+}
+
+write_bases() {
+  # Reads "name base\n" lines from stdin, merges with existing, writes file.
+  python3 - "$BASES_FILE" <<'PYEOF'
+import json, sys, os
+
+bases_file = sys.argv[1]
+existing = {}
+if os.path.exists(bases_file):
+    try:
+        with open(bases_file) as f:
+            existing = json.load(f)
+    except Exception:
+        existing = {}
+
+new_entries = {}
+for line in sys.stdin:
+    parts = line.strip().split()
+    if len(parts) == 2:
+        name, base = parts[0], int(parts[1])
+        new_entries[name] = base
+
+# Merge: existing takes priority (stable bases)
+merged = {**new_entries, **existing}  # existing wins
+
+os.makedirs(os.path.dirname(bases_file), exist_ok=True)
+with open(bases_file, 'w') as f:
+    json.dump(merged, f, indent=2, sort_keys=True)
+PYEOF
+}
+
+allocate_bases() {
+  # Given a list of monitor names as arguments, return a full name→base mapping
+  # with new bases allocated for any names not yet in the file.
+  # Usage: allocate_bases name1 name2 ...
+  python3 - "$BASES_FILE" "$@" << 'PYEOF'
+import json, sys, os
+
+bases_file = sys.argv[1]
+names = sys.argv[2:]  # monitor names passed as arguments, not stdin
+
+existing = {}
+if os.path.exists(bases_file):
+    try:
+        with open(bases_file) as f:
+            existing = json.load(f)
+    except Exception:
+        existing = {}
+
+used_bases = set(existing.values())
+
+# Allocate bases for new monitors: find next free multiple of 10
+next_base = 0
+result = dict(existing)
+for name in names:
+    if name not in result:
+        while next_base in used_bases:
+            next_base += 10
+        result[name] = next_base
+        used_bases.add(next_base)
+        next_base += 10
+
+os.makedirs(os.path.dirname(bases_file), exist_ok=True)
+with open(bases_file, 'w') as f:
+    json.dump(result, f, indent=2, sort_keys=True)
+
+# Output all name→base pairs for currently connected monitors
+for name in names:
+    print(name, result[name])
+PYEOF
+}
+
+# ── Commands ──────────────────────────────────────────────────────────────────
+
+cmd="${1:-}"
+
+case "$cmd" in
+  sync)
+    # Enumerate currently connected monitors via hyprctl.
+    # If hyprctl is absent or fails (e.g. outside a session, or compositor
+    # not yet ready), fall back to printing the persisted bases so callers
+    # always get a usable output rather than a hard failure.
+    if omarchy-cmd-missing hyprctl; then
+      # hyprctl not available — degrade gracefully to persisted data.
+      read_bases
+      exit 0
+    fi
+    monitor_names=$(hyprctl monitors -j 2>/dev/null | python3 -c "
+import json, sys
+monitors = json.load(sys.stdin)
+for m in monitors:
+    print(m['name'])
+" 2>/dev/null)
+    if [[ -z "$monitor_names" ]]; then
+      # hyprctl returned nothing (compositor starting up, no monitors yet,
+      # or session not fully ready) — degrade gracefully to persisted data.
+      read_bases
+      exit 0
+    fi
+    # Allocate bases and print results
+    # shellcheck disable=SC2086
+    allocate_bases $monitor_names
+    ;;
+
+  get)
+    name="${2:-}"
+    if [[ -z "$name" ]]; then
+      echo "Usage: omarchy-monitor-base get <monitor-name>" >&2
+      exit 1
+    fi
+    result=$(python3 - "$BASES_FILE" "$name" <<'PYEOF'
+import json, sys, os
+bases_file, name = sys.argv[1], sys.argv[2]
+if not os.path.exists(bases_file):
+    sys.exit(1)
+with open(bases_file) as f:
+    data = json.load(f)
+if name not in data:
+    sys.exit(1)
+print(data[name])
+PYEOF
+)
+    if [[ $? -ne 0 ]]; then
+      echo "omarchy-monitor-base: monitor '$name' not found in bases file" >&2
+      exit 1
+    fi
+    echo "$result"
+    ;;
+
+  list)
+    read_bases
+    ;;
+
+  *)
+    echo "Usage: omarchy-monitor-base <sync|get|list> [args]" >&2
+    exit 1
+    ;;
+esac

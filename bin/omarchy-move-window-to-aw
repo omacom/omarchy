@@ -1,0 +1,45 @@
+#!/bin/bash
+# omarchy:summary=Move focused window to AW slot N (global) or current monitor (local)
+# omarchy:args=[--silent] <slot 1-10>
+#
+# Move the focused window to AW slot N, respecting the global/local toggle.
+#
+# GLOBAL MODE (workspace-global.lua flag present):
+#   Calls omarchy-hyprland-workspace-global-move-window N.
+#   That script reads the active window's monitor name, looks up its stable
+#   base, and silently moves the window to WS(base+N). The display does not
+#   change — press SUPER+N to follow the window to that slot.
+#
+# LOCAL MODE (flag absent):
+#   --silent absent (SUPER+SHIFT+N):
+#     Moves the window to raw workspace N AND follows it (focus changes).
+#     Mirrors Hyprland's default moveToWorkspace dispatcher.
+#   --silent present (SUPER+SHIFT+ALT+N):
+#     Moves the window to raw workspace N silently (no focus change).
+#     Mirrors Hyprland's default moveToWorkspacesilent dispatcher.
+
+SILENT=false
+if [[ "${1:-}" == "--silent" ]]; then
+  SILENT=true
+  shift
+fi
+
+SLOT="${1:-}"
+if [[ -z "$SLOT" || ! "$SLOT" =~ ^([1-9]|10)$ ]]; then
+  echo "Usage: $0 [--silent] <slot 1-10>" >&2
+  exit 1
+fi
+
+GLOBAL_FLAG="$HOME/.local/state/omarchy/toggles/hypr/workspace-global.lua"
+
+if [[ -f "$GLOBAL_FLAG" ]]; then
+  exec omarchy-hyprland-workspace-global-move-window "$SLOT"
+else
+  if [[ "$SILENT" == true ]]; then
+    # Silent move: no focus or display change (matches SUPER+SHIFT+ALT+N intent)
+    exec hyprctl dispatch "hl.dsp.window.move({ workspace = \"$SLOT\", follow = false })"
+  else
+    # Follow move: window moves and display follows it (matches SUPER+SHIFT+N intent)
+    exec hyprctl dispatch "hl.dsp.window.move({ workspace = \"$SLOT\" })"
+  fi
+fi

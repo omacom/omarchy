@@ -20,9 +20,12 @@ o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }
 
 for workspace = 1, 10 do
   local key = "code:" .. tostring(workspace + 9)
-  o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, hl.dsp.focus({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace) }))
-  o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, hl.dsp.window.move({ workspace = tostring(workspace), follow = false }))
+  -- Route through omarchy-switch-to-aw / omarchy-move-window-to-aw so that
+  -- global workspace mode (workspace-global.lua) is respected at runtime.
+  -- In local mode those scripts fall back to the equivalent raw hyprctl dispatch.
+  o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, "omarchy-switch-to-aw " .. workspace)
+  o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, "omarchy-move-window-to-aw " .. workspace)
+  o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, "omarchy-move-window-to-aw --silent " .. workspace)
 end
 
 o.bind("SUPER + S", "Toggle scratchpad", hl.dsp.workspace.toggle_special("scratchpad"))
