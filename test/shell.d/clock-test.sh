@@ -110,6 +110,14 @@ assertDeepEqual(julySunday.map(week => week.week), [27, 28, 29, 30, 31, 32], 'ca
 const januarySunday = calendar.monthGrid(2021, 0, 0, '')
 assertEqual(januarySunday[0].week, 53, 'calendar carries the previous ISO year into a straddling first row')
 
+// A month straddling a spring-forward DST transition (Chile skips
+// 2026-09-06 00:00-00:59 local). Node's V8 handles the invalid local hour
+// correctly on its own, so this only locks in the calendar math; it cannot
+// reproduce the Qt/QV4 engine defect that motivated anchoring the cursor to
+// noon below, which needs `quickshell -p` against a real QML engine to see.
+const septemberDst = calendar.monthGrid(2026, 8, 1, '')
+assertDeepEqual(septemberDst[3].days.map(day => day.day), [21, 22, 23, 24, 25, 26, 27], 'calendar keeps every date in its true weekday column across a DST transition')
+
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
 assertDeepEqual(calendar.stepMonth(2026, 0, -1), { year: 2025, month: 11 }, 'calendar steps back across the new year')
