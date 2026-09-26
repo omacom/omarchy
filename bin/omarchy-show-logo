@@ -1,9 +1,11 @@
 #!/bin/bash
 
-# omarchy:summary=Display the Omarchy logo in the terminal using green color.
+# omarchy:summary=Display the Omarchy logo in the terminal, coloured with the theme field bands.
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=omarchy-screensaver-theme
+source "$SCRIPT_DIR/omarchy-screensaver-theme"
 
 clear
-echo -e "\033[32m"
-cat <$OMARCHY_PATH/logo.txt
-echo -e "\033[0m"
+print_field_banded_file "$OMARCHY_PATH/logo.txt"
 echo

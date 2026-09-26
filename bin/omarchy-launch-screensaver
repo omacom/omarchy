@@ -2,6 +2,10 @@
 
 # omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=omarchy-screensaver-theme
+source "$SCRIPT_DIR/omarchy-screensaver-theme"
+
 # Exit early if screensaver is already running
 pgrep -f '[o]rg.omarchy.screensaver' && exit 0
 
@@ -63,7 +67,11 @@ for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
     hypr_exec foot --app-id=org.omarchy.screensaver --config="$OMARCHY_PATH/default/foot/screensaver.ini" -e omarchy-screensaver
     ;;
   *kitty*)
-    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 -e omarchy-screensaver
+    kitty_bg=#000000
+    if colors_file=$(default_colors_file) && screensaver_theme_from_colors "$colors_file"; then
+      kitty_bg=$SCREENSAVER_BG
+    fi
+    hypr_exec kitty --class=org.omarchy.screensaver --override font_size=18 --override window_padding_width=0 --override "background=$kitty_bg" -e omarchy-screensaver
     ;;
   esac
 
