@@ -10,6 +10,7 @@ BarWidget {
 
   WidgetButton {
     id: button
+    accessibleName: "Omarchy menu"
     anchors.fill: parent
     bar: root.bar
     text: "\ue900"

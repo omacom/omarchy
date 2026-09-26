@@ -58,9 +58,21 @@ BorderSurface {
   property color tooltipForeground: Color.tooltip.text
   property color tooltipBorder: Color.tooltip.border
 
+  // What assistive technology announces. Defaults to the visible label, then
+  // the tooltip; an icon-only button must say what it does in one of them.
+  property string accessibleName: text !== "" ? text : tooltipText
+
   signal clicked()
   signal rightClicked()
   signal hovered(bool isHovered)
+
+  Accessible.role: Accessible.Button
+  Accessible.name: accessibleName
+  Accessible.description: tooltipText !== accessibleName ? tooltipText : ""
+  Accessible.focusable: focusable
+  Accessible.selectable: selected || active
+  Accessible.selected: selected || active
+  Accessible.onPressAction: if (root.enabled) root.clicked()
 
   activeFocusOnTab: focusable
   Keys.onReturnPressed: if (focusable) root.clicked()

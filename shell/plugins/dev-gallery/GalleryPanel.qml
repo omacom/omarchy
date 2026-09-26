@@ -1276,6 +1276,7 @@ Item {
 
                 PanelSlider {
                   id: demoSlider
+                  accessibleName: "Demo volume"
                   bar: root.fakeBar
                   width: parent.width - 70
                   anchors.verticalCenter: parent.verticalCenter
@@ -1516,6 +1517,7 @@ Item {
               spacing: Style.space(24)
 
               ToggleSwitch {
+                accessibleName: "Demo switch"
                 checked: root.switchDemoOn
                 foreground: root.foreground
                 accent: root.accent
@@ -1531,6 +1533,7 @@ Item {
               }
 
               ToggleSwitch {
+                accessibleName: "Busy demo switch"
                 checked: root.switchBusyOn
                 busy: true
                 foreground: root.foreground

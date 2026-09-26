@@ -407,3 +407,33 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
 `requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for
 `run`, use `Util.shellQuote(v)` from `qs.Commons`.
+
+## Accessibility
+
+The shared `qs.Ui` kit publishes Qt `Accessible` roles, names, states and actions, so screen readers such as Orca and AT-SPI tools can find and operate shell controls without the mouse. On an enabled control, an accessibility action calls the same signal a click, toggle or slider step does (`clicked()`, `toggled()`, `triggerPress()`, `moved()` / `released()`), so there is no second code path; disabled controls ignore accessibility actions just as they ignore the pointer. A `PanelSlider` value set directly through the accessibility Value interface is committed the same way, through `moved()` and `released()`. This needs a Quickshell build that includes quickshell-mirror/quickshell@916a0dd: releases up to and including 0.3.1 publish no accessibility tree for any window.
+
+| Component | Role | Name, in fallback order |
+|-----------|------|-------------------------|
+| `Button` | button | `accessibleName`, `text`, `tooltipText` |
+| `WidgetButton` | button (static text when not `pressable`) | `accessibleName`, `tooltipText`, `text` |
+| `BarIconButton`, `BarIndicator` | button | `accessibleName`, `tooltipText` — never the glyph |
+| `PanelActionButton` | button | `accessibleName`, `tooltipText` |
+| `Toggle` | check box | `label`, with `description` as the description |
+| `ToggleSwitch` | check box | `accessibleName`; hidden when `interactive: false`, as inside `Toggle` |
+| `TextField` | text / password text | `accessibleName`, `placeholderText` |
+| `PanelSlider` | slider, carried by its `accessibleItem` | `accessibleName` |
+| `Dropdown`, `SearchableDropdown`, `MultiSelect` | combo box, with list items or check boxes in the popup | `accessibleName`, `label` |
+| `CursorSurface` | list item | `accessibleName`; unnamed rows stay out of the tree |
+| `ConfirmDialog` | dialog with buttons | `message`, `cancelText`, `confirmText` |
+| `KeyboardPanel` | dialog | `accessibleName` |
+
+Rules for anything built on the kit:
+
+- Every control someone can press, toggle or drag has a non-empty name. Set `accessibleName` when the visible content is only an icon; setting `tooltipText` instead also shows a tooltip.
+- Never use a glyph as a name. Nerd Font and other icon code points read as noise.
+- Name the function and let state carry the rest: a `Toggle` is "Wi-Fi" plus checked, not "Wi-Fi on". Where a name includes state, bind it to coarse state ("Battery 80%"), not text that changes every second.
+- Password fields never report a name, by Qt design; the kit copies `accessibleName` into the description, and a field with a visible label can also set `Accessible.labelledBy`.
+- Keep controls out of the accessibility tree whenever they are concealed or otherwise unavailable to sighted users.
+- A `CursorSurface` row that should be reachable sets `accessibleName` and wires `Accessible.onPressAction` next to its own click handler.
+
+`test/shell.d/ui-accessibility-test.sh` statically checks first-party uses of `BarIconButton`, `BarIndicator`, `ToggleSwitch`, `PanelSlider`, `PanelActionButton` and icon-only `Button` for a non-empty name, and its runtime fixture checks the kit's roles, names, states and actions.

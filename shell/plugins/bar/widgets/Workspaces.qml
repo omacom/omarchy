@@ -59,6 +59,9 @@ BarWidget {
         readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
 
         bar: root.bar
+        accessibleName: "Workspace " + modelData
+        Accessible.selectable: true
+        Accessible.selected: focused
         text: focused ? "\uDB85\uDCFB" : (modelData === 10 ? "0" : String(modelData))
         opacity: occupied || focused ? 1 : 0.5
         horizontalMargin: 6

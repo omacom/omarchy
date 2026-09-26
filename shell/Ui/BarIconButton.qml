@@ -15,6 +15,9 @@ WidgetButton {
   readonly property int glyphFontSize: glyph.visible ? glyph.renderedFontSize : 0
 
   labelVisible: false
+  // The label is always a glyph, so only the tooltip (or an explicit
+  // accessibleName) names the button.
+  accessibleName: tooltipText
   hasVisualContent: text !== "" || iconComponent !== null
   fontSize: Style.bar.iconFont
   fixedWidth: vertical ? -1 : slotSize

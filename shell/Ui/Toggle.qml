@@ -37,6 +37,15 @@ BorderSurface {
   signal clicked()
   signal hovered(bool isHovered)
 
+  Accessible.role: Accessible.CheckBox
+  Accessible.name: label
+  Accessible.description: description
+  Accessible.checkable: true
+  Accessible.checked: checked
+  Accessible.focusable: true
+  Accessible.onToggleAction: if (root.enabled) root.clicked()
+  Accessible.onPressAction: if (root.enabled) root.clicked()
+
   activeFocusOnTab: true
   Keys.onReturnPressed: root.clicked()
   Keys.onEnterPressed: root.clicked()
