@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Install a generated Hyprland toggle flag from stdin, atomically.
+# omarchy:args=<flag-name>
+# omarchy:hidden=true
+
+if (($# != 1)); then
+  echo "Usage: omarchy-hyprland-toggle-write <flag-name>" >&2
+  exit 1
+fi
+
+TOGGLES_DIR="$HOME/.local/state/omarchy/toggles/hypr"
+FLAG_FILE="$TOGGLES_DIR/$1.lua"
+
+mkdir -p "$TOGGLES_DIR" || exit 1
+
+temporary=$(mktemp "$TOGGLES_DIR/.$1.XXXXXX") || exit 1
+trap 'rm -f "$temporary"' EXIT
+
+cat >"$temporary" || exit 1
+
+# The flag's existence is the signal and its contents are the Lua that acts on
+# it, so an empty one claims an override it cannot apply. Never install one.
+[[ -s $temporary ]] || exit 1
+
+# Land the data before the name, so an interrupted write leaves the flag either
+# absent or whole rather than a zero-length husk every reader still believes.
+sync -- "$temporary"
+mv -f -- "$temporary" "$FLAG_FILE" || exit 1
+trap - EXIT
