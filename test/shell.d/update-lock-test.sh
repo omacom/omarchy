@@ -103,6 +103,8 @@ wait "$update_pid"
 
 [[ $update_second_status -ne 0 ]] || fail "second omarchy-update exits non-zero while update lock is held"
 grep -q "already running" "$test_tmp/update-second.out" || fail "second omarchy-update reports held update lock"
+rg -q 'Follow it with: tail -f /tmp/omarchy-update.log' "$ROOT/bin/omarchy-update-lock" ||
+  fail "a held update lock points at the running update log"
 [[ ! -f $test_tmp/update-second-snapshot-started ]] || fail "second omarchy-update did not snapshot while lock was held"
 pass "omarchy-update prevents overlapping top-level updates"
 
