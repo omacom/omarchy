@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Print the Chromium-family binary used for Omarchy web apps
+
+# Optional override for tests or a Chromium that supports extra web-app switches.
+if [[ -n ${OMARCHY_WEBAPP_CHROMIUM:-} && -x $OMARCHY_WEBAPP_CHROMIUM ]]; then
+  printf '%s\n' "$OMARCHY_WEBAPP_CHROMIUM"
+  exit 0
+fi
+
+browser=$(xdg-settings get default-web-browser)
+
+case $browser in
+google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+*) browser="chromium.desktop" ;;
+esac
+
+bin=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/"$browser" 2>/dev/null | head -1)
+
+if [[ -n $bin ]]; then
+  printf '%s\n' "$bin"
+fi
