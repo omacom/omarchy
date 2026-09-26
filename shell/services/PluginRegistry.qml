@@ -668,6 +668,8 @@ QtObject {
       "-q",
       "-e",
       "close_write,create,delete,move",
+      "--exclude",
+      "(__pycache__|\\.pyc$|\\.pyo$|/\\.git/|~$|\\.sw[px]$|\\.tmp$|\\.bak$)",
       "--format",
       "%w%f",
       registry.pluginsDir
@@ -734,6 +736,12 @@ QtObject {
     // Hidden entries are not plugins: clone staging dirs, remove backups.
     if (relative.indexOf(".") === 0) return ""
     if (relative.indexOf("/.git/") !== -1 || relative.endsWith("/.git")) return ""
+    // Runtime artefacts must never trigger a reload. A Python helper writing
+    // __pycache__/*.pyc would otherwise cause a reload storm: reload restarts
+    // the helper, the helper imports the next module, the import writes the
+    // next .pyc, repeat. Editor temp files get the same treatment.
+    if (relative.indexOf("__pycache__") !== -1) return ""
+    if (path.match(/\.pyc$|\.pyo$|~$|\.sw[px]$|\.tmp$|\.bak$/)) return ""
 
     var slash = relative.indexOf("/")
     return slash === -1 ? relative : relative.slice(0, slash)
