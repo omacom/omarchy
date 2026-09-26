@@ -571,6 +571,8 @@ QtObject {
   // Output format produced by the rescan script:
   //   ===<kind>::<absolute-source-dir>===
   //   ... raw manifest.json content ...
+  //   === I18N ===            (only when the plugin ships i18n.json)
+  //   ... raw i18n.json content ...
   //   === EOM ===
   // (repeating for every manifest found)
   function parseScanOutput(text) {
@@ -580,6 +582,7 @@ QtObject {
     var currentSource = null
     var currentKind = null
     var currentJson = []
+    var currentI18n = null
 
     function flush() {
       if (!currentSource) return
@@ -588,6 +591,13 @@ QtObject {
         var manifest = JSON.parse(raw)
         manifest.__sourceDir = currentSource
         manifest.__isFirstParty = (currentKind === "firstparty")
+        if (currentI18n) {
+          try {
+            manifest.__i18n = JSON.parse(currentI18n.join("\n"))
+          } catch (e) {
+            console.warn("PluginRegistry: bad i18n.json at " + currentSource + ": " + e)
+          }
+        }
         var validated = validateManifest(manifest, currentSource + "/manifest.json")
         if (validated) {
           if (currentKind === "firstparty") firstParty[validated.id] = validated
@@ -609,13 +619,19 @@ QtObject {
         currentKind = startMatch[1]
         currentSource = startMatch[2].replace(/\/$/, "")
         currentJson = []
+        currentI18n = null
+        continue
+      }
+      if (line === "=== I18N ===") {
+        currentI18n = []
         continue
       }
       if (line === "=== EOM ===") {
         flush()
         continue
       }
-      if (currentSource) currentJson.push(line)
+      if (currentI18n) currentI18n.push(line)
+      else if (currentSource) currentJson.push(line)
     }
     flush()
 
@@ -701,6 +717,7 @@ QtObject {
       + "  if [[ ${manifest##*/} == \"manifest.json\" ]]; then sub=\"${manifest%/manifest.json}\"; else sub=\"$(dirname -- \"$manifest\")\"; fi; "
       + "  printf '===%s::%s===\\n' \"$kind\" \"$sub\"; "
       + "  cat \"$manifest\"; "
+      + "  if [[ -f \"$sub/i18n.json\" ]]; then printf '\\n=== I18N ===\\n'; cat \"$sub/i18n.json\"; fi; "
       + "  printf '\\n=== EOM ===\\n'; "
       + "}; "
       + "scan_firstparty() { local dir=\"$1\"; "
