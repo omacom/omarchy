@@ -75,7 +75,7 @@ pass "third-party entry points receive scoped shell facades"
 if qml_matches "$plugin_shell_api" 'function +pluginShellForId\('; then
   fail "replacement-bar facade exposes a generic plugin-shell factory"
 fi
-qml_matches "$bar_qml" 'else if *\( *root\.shell *&& *typeof root\.shell\.pluginShellForBarEntry *=== *"function" *\) *\{[^}]*pluginShell *= *root\.shell\.pluginShellForBarEntry\( *key, *moduleName *\)' ||
+qml_matches "$bar_qml" 'else if *\( *root\.shell *&& *typeof root\.shell\.pluginShellForBarEntry *=== *"function" *\) *\{[^}]*pluginShell *= *root\.shell\.pluginShellForBarEntry\( *id, *moduleName *\)' ||
   fail "replacement bars do not fall back to a service-less entry facade"
 pass "replacement bars cannot manufacture another plugin's service facade"
 
@@ -85,7 +85,7 @@ qml_matches "$shell_qml" 'bar\.barConfig *= *shell\.barConfigFor\( *shell\.activ
   fail "replacement-bar configuration updates are not detached"
 pass "replacement bars receive detached configuration snapshots"
 
-qml_matches "$bar_qml" 'target\.bar *= *firstParty *\? *root *: *root\.pluginBarApiFor\( *pluginApiId, *moduleName, *registered *\)' ||
+qml_matches "$bar_qml" 'target\.bar *= *firstParty *\? *\( *barSurface *\|\| *root *\) *: *root\.pluginBarApiFor\( *pluginApiId, *moduleName, *registered, *slot *\)' ||
   fail "third-party widgets receive a bar facade instead of the host bar"
 qml_matches "$bar_qml" 'api\.clickTargets *= *root\.pluginClickTargets\( *api\.pluginId *\)' ||
   fail "third-party bar facades exclude other widgets from their object graph"
@@ -110,7 +110,7 @@ pass "custom bar modules retain settings and popout identity"
 if qml_matches "$bar_qml" 'on(Foreground|BarForeground|Background|Urgent|FontFamily|Vertical|BarSize|Transparent)Changed: *sync'; then
   fail "animated scalar properties still trigger full facade resyncs"
 fi
-qml_matches "$bar_qml" 'api\.foreground *= *Qt\.binding\( *function\( *\) *\{ *return root\.foreground *\} *\)' ||
+qml_matches "$bar_qml" 'api\.foreground *= *Qt\.binding\( *function\( *\) *\{[^}]*return surface *\? *surface\.foreground *: *root\.foreground *\} *\)' ||
   fail "third-party bar scalar mirrors use bindings"
 qml_matches "$shell_qml" 'shell\.prunePluginApis\( *\)' ||
   fail "disabled plugin facade caches are pruned"

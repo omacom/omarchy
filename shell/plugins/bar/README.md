@@ -139,7 +139,7 @@ Item {
   Text {
     anchors.centerIn: parent
     text: "GPU"
-    color: bar ? bar.foreground : "white"
+    color: bar ? bar.barForeground : "white"
     font.family: bar ? bar.fontFamily : "monospace"
     font.pixelSize: 12
   }
@@ -153,9 +153,10 @@ Item {
 
 ## Bar properties available to widgets
 
-Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. The bar exposes:
+Widgets receive `bar`, `moduleName` (string), and `settings` (object) injected at load time. First-party widgets receive their monitor's bar surface; third-party widgets receive a plugin-scoped facade with presentation state from their own monitor. The bar exposes:
 
-- `bar.foreground`, `bar.background`, `bar.urgent` — theme colors (live-updated)
+- `bar.foreground`, `bar.background`, `bar.urgent` — theme/popup colors (live-updated)
+- `bar.barForeground` — text color for the bar surface, adjusted for wallpaper contrast when configured; use `bar.foreground` for popup content
 - `bar.fontFamily` — current monospace family
 - `bar.position` — `"top" | "bottom" | "left" | "right"`
 - `bar.vertical` — boolean shortcut

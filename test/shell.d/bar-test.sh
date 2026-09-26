@@ -41,15 +41,23 @@ assert(/function toggleBarTransparency\(\): string \{[\s\S]*?shell\.bar\.toggleT
 assert(/transparentOnlyWhenWorkspaceEmpty: false/.test(barSource), 'bar defaults workspace-conditional transparency to off')
 assert(/transparentOnlyWhenWorkspaceEmpty = config\.transparentOnlyWhenWorkspaceEmpty === true/.test(barSource), 'bar reads workspace-conditional transparency from configuration')
 assert(/if \(!transparentOnlyWhenWorkspaceEmpty\) return true/.test(barSource), 'bar retains normal transparency when workspace mode is disabled')
-assert(/enabled: root\.transparentOnlyWhenWorkspaceEmpty/.test(barSource), 'bar listens for workspace changes only in workspace mode')
+assert(/root\.updateVisibleSpecialWorkspace\(event\)[\s\S]*?!root\.transparentOnlyWhenWorkspaceEmpty/.test(barSource), 'bar tracks special workspaces even while workspace mode is off')
 assert(/transparentForegroundPerMonitor: false/.test(barSource), 'bar defaults per-monitor transparent foregrounds to off')
 assert(/transparentForegroundPerMonitor = config\.transparentForegroundPerMonitor === true/.test(barSource), 'bar reads per-monitor transparent foregrounds from configuration')
 assert(/specialWorkspaceHasToplevels\(targetMonitor\)/.test(barSource), 'bar includes visible special workspaces in workspace mode')
 assert(/readonly property var hyprlandMonitor: Hyprland\.monitorFor\(screen\)/.test(barSource), 'each bar surface resolves its own Hyprland monitor')
 assert(/color: barWindow\.transparent \? "transparent" : root\.background/.test(barSource), 'each bar surface paints from its own transparency state')
 assert(/property color transparentForeground: root\.themeForeground/.test(barSource), 'each bar surface keeps its own transparent foreground')
-assert(/"--screen"/.test(barSource), 'each bar surface samples its monitor dimensions for transparent text')
+assert(/String\(Math\.round\(barWindow\.screen\.width\)\) \+ "x" \+ String\(Math\.round\(barWindow\.screen\.height\)\)/.test(barSource), 'each bar surface samples its logical, oriented screen dimensions')
+assert(/readonly property color foreground: root\.transparentForegroundPerMonitor && barWindow\.transparent\s*\? Color\.popups\.text : root\.foreground/.test(barSource), 'bar surfaces preserve theme foreground by default and use popup text with per-monitor contrast')
+assert(/readonly property var clickTargets: root\.clickTargets/.test(barSource), 'first-party panels can forward clicks to other bar icons')
+assert(/: root\.transparent\s*property color transparentForeground/.test(barSource), 'ordinary transparent bars wait for wallpaper contrast')
 assert(/\?\s*\(barSurface \|\| root\) : root\.pluginBarApiFor/.test(barSource), 'first-party widgets receive their monitor-local bar surface')
+assert(/api\.barForeground = Qt\.binding\(function\(\) \{[\s\S]*?root\.slotWindow\(slot\)/.test(barSource), 'third-party foreground follows its own surface')
+assert(/api\.transparent = Qt\.binding\(function\(\) \{[\s\S]*?surface\.transparent : root\.transparent/.test(barSource), 'third-party transparency follows its own surface')
+assert(/var key = slot\.ensurePluginApiKey\(\)/.test(barSource), 'third-party facades are scoped to a widget copy on one monitor')
+assert(/if \(!stillUsed\) root\.releasePluginObjects\(removed\[i\]\)/.test(barSource), 'removing one facade keeps another copy of the same plugin alive')
+assert(/readonly property var barSurface: root\.barSurfaceForScreen\(ghostScreen\)/.test(barSource), 'drag previews use their own monitor bar surface')
 
 // put tolerates a placement target the bar does not carry, so the IPC call
 // must reach the registry's put rather than route back through enable.
@@ -368,6 +376,12 @@ assertDeepEqual(
   'bar parses special-workspace deactivation events'
 )
 assertEqual(bar.specialWorkspaceEvent('workspacev2', '1,1'), null, 'bar ignores unrelated Hyprland events')
+for (const event of ['openwindow', 'closewindow', 'movewindowv2', 'workspacev2', 'focusedmon', 'activespecial', 'activespecialv2', 'monitorremoved']) {
+  assertEqual(bar.affectsTransparency(event), true, `bar refreshes for ${event}`)
+}
+for (const event of ['windowtitle', 'activewindow', 'urgent']) {
+  assertEqual(bar.affectsTransparency(event), false, `bar ignores unrelated ${event} events`)
+}
 assertEqual(bar.entryIndex(entries, 'b'), 2, 'bar finds entry indexes')
 assertDeepEqual(bar.entriesBefore(entries, 'b').map(bar.entryId), ['a', 'omarchy.tray'], 'bar returns entries before target')
 assertDeepEqual(bar.entriesAfter(entries, 'a').map(bar.entryId), ['omarchy.tray', 'b'], 'bar returns entries after target')

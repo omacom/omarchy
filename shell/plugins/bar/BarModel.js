@@ -219,6 +219,19 @@ function specialWorkspaceEvent(eventName, eventData) {
   return null
 }
 
+function affectsTransparency(eventName) {
+  switch (eventName) {
+  case "openwindow": case "closewindow": case "movewindow": case "movewindowv2":
+  case "workspace": case "workspacev2": case "focusedmon":
+  case "createworkspace": case "createworkspacev2": case "destroyworkspace": case "destroyworkspacev2":
+  case "activespecial": case "activespecialv2":
+  case "monitoradded": case "monitoraddedv2": case "monitorremoved": case "monitorremovedv2":
+    return true
+  default:
+    return false
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isDrawnSlot: isDrawnSlot,
@@ -226,6 +239,7 @@ if (typeof module !== "undefined") {
     pickPanelSlot: pickPanelSlot,
     nearestDropTarget: nearestDropTarget,
     specialWorkspaceEvent: specialWorkspaceEvent,
+    affectsTransparency: affectsTransparency,
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
     entryId: entryId,
