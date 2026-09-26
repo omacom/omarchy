@@ -232,7 +232,7 @@
   "install.editor.vscode": {"icon":"","label":"VSCode","disabled":"omarchy-pkg-present visual-studio-code-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-vscode"},
   "install.editor.cursor": {"icon":"","iconFont":"omarchy","label":"Cursor","disabled":"omarchy-pkg-present cursor-bin","action":"omarchy-install-and-launch Cursor cursor-bin cursor"},
   "install.editor.zed": {"icon":"","label":"Zed","disabled":"omarchy-pkg-present zed","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-zed"},
-  "install.editor.sublime": {"icon":"","label":"Sublime Text","disabled":"omarchy-pkg-present sublime-text-4","action":"omarchy-install-and-launch 'Sublime Text' sublime-text-4 sublime_text"},
+  "install.editor.sublime": {"icon":"","label":"Sublime Text","disabled":"omarchy-pkg-present sublime-text-4","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-sublime"},
   "install.editor.helix": {"icon":"","label":"Helix","disabled":"omarchy-pkg-present helix","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-helix"},
   "install.editor.vim": {"icon":"","label":"Vim","disabled":"omarchy-pkg-present vim","action":"omarchy-install-app Vim vim"},
   "install.editor.emacs": {"icon":"","label":"Emacs","disabled":"omarchy-pkg-present omarchy-emacs","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-emacs"},
