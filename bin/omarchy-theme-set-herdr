@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Sync current Omarchy theme to Herdr configuration
+# omarchy:hidden=true
+
+set -euo pipefail
+
+CURRENT_THEME_PATH="$HOME/.local/state/omarchy/current/theme"
+HERDR_SOURCE="$CURRENT_THEME_PATH/herdr.toml"
+HERDR_TARGET="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"
+
+[[ -f $HERDR_SOURCE ]] || exit 0
+
+if [[ -L $HERDR_TARGET ]] || [[ ! -e $HERDR_TARGET ]]; then
+  mkdir -p "$(dirname "$HERDR_TARGET")"
+  ln -snf "$HERDR_SOURCE" "$HERDR_TARGET"
+elif [[ -f $HERDR_TARGET && -n ${OMARCHY_PATH:-} && -f $OMARCHY_PATH/config/herdr/config.toml ]] && cmp -s "$HERDR_TARGET" "$OMARCHY_PATH/config/herdr/config.toml"; then
+  mkdir -p "$(dirname "$HERDR_TARGET")"
+  ln -snf "$HERDR_SOURCE" "$HERDR_TARGET"
+fi
+
+omarchy-restart-herdr >/dev/null 2>&1 || true
