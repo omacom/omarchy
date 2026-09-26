@@ -35,6 +35,14 @@ if [[ -f ~/.config/kitty/kitty.conf ]] || omarchy-cmd-present kitty; then
   if grep -qE '^[[:space:]]*font_family[[:space:]]+' ~/.config/kitty/kitty.conf 2>/dev/null; then
     kitty_font_name=$(printf '%s' "$font_name" | sed 's/[\\&/]/\\&/g')
     sed --follow-symlinks -i -E "s/^[[:space:]]*font_family[[:space:]]+.*/font_family $kitty_font_name/" ~/.config/kitty/kitty.conf
+    for face in bold italic bold_italic; do
+      if grep -qE "^[[:space:]]*${face}_font[[:space:]]+auto([[:space:]]|$)" ~/.config/kitty/kitty.conf 2>/dev/null; then
+        continue
+      fi
+      if grep -qE "^[[:space:]]*${face}_font[[:space:]]+" ~/.config/kitty/kitty.conf 2>/dev/null; then
+        sed --follow-symlinks -i -E "s/^[[:space:]]*${face}_font[[:space:]]+.*/${face}_font $kitty_font_name/" ~/.config/kitty/kitty.conf
+      fi
+    done
   else
     printf '\nfont_family %s\n' "$font_name" >>~/.config/kitty/kitty.conf
   fi
