@@ -73,3 +73,6 @@ t2fanrd
 
 # Framework 16
 qmk-hid
+
+# VMware guest integration for offline installation
+open-vm-tools
