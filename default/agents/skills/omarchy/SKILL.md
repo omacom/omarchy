@@ -7,20 +7,23 @@ description: >
   Triggers: Hyprland, window rules, animations, keybindings, monitors, gaps, borders,
   blur, opacity, omarchy-shell, bar, terminal config, themes, background,
   night light, idle, lock screen, screenshots, reminders, layer rules, workspace
-  settings, display config, and user-facing omarchy commands. Excludes Omarchy
-  source development through `omarchy dev link` workflows.
+  settings, display config, user-facing omarchy commands, diagnosing or reporting
+  Omarchy bugs, suggesting Omarchy features, and explicit requests to contribute
+  fixes upstream. Omarchy source development remains excluded unless the user
+  explicitly requests upstream work.
 ---
 
 # Omarchy Skill
 
 Manage [Omarchy](https://omarchy.org/) Linux systems - a beautiful, fun, agentic Arch Linux distribution with Hyprland.
 
-This skill is for end-user customization on installed systems.
-It is not for contributing to Omarchy source code.
+This skill is for end-user customization on installed systems. It also routes
+bug diagnosis, reporting, and explicit requests to contribute upstream fixes.
+Source-development conventions come from the Omarchy checkout itself.
 
 ## When This Skill MUST Be Used
 
-**ALWAYS invoke this skill for end-user requests involving ANY of these:**
+**ALWAYS invoke this skill for requests involving ANY of these:**
 
 - Editing ANY file in `~/.config/hypr/` (window rules, animations, keybindings, monitors, etc.)
 - Editing `~/.config/omarchy/shell.json` (status bar layout, widgets)
@@ -30,11 +33,13 @@ It is not for contributing to Omarchy source code.
 - Layer rules, workspace settings, display/monitor configuration
 - Themes, backgrounds, fonts, appearance changes
 - User-facing `omarchy` commands (`omarchy theme ...`, `omarchy refresh ...`, `omarchy restart ...`, etc.)
+- Diagnosing or reporting Omarchy bugs and suggesting Omarchy features
+- Explicit requests to implement or prepare upstream Omarchy fixes
 - Screenshots, screen recording, reminders, night light, idle behavior, lock screen
 
 **If you're about to edit a config file in ~/.config/ on this system, STOP and use this skill first.**
 
-**Do NOT use this skill for Omarchy development tasks** (editing the Omarchy source tree, creating migrations, or running `omarchy dev ...` workflows).
+**Do NOT start Omarchy source development unless the user explicitly requests an upstream fix.** For an explicit contribution request, read [`contributing.md`](contributing.md) for scope and checkout safeguards, then follow the Omarchy checkout's repository instructions.
 
 ## Topic Guides
 
@@ -46,7 +51,7 @@ matching guide before starting:
 - [`theming.md`](theming.md) - themes, backgrounds, and fonts
 - [`hooks.md`](hooks.md) - automation hooks that run on system events
 - [`capture.md`](capture.md) - screenshots, screen recordings, OCR text capture, and file sharing
-- [`contributing.md`](contributing.md) - reporting Omarchy bugs and submitting fixes upstream
+- [`contributing.md`](contributing.md) - diagnosing or reporting Omarchy bugs and, when explicitly requested, submitting fixes upstream
 
 ## Critical Safety Rules
 
@@ -79,7 +84,7 @@ overwritten on the next `omarchy update`.
 - `~/.config/omarchy/themes/<custom-name>/` - Custom themes
 - `~/.config/omarchy/hooks/` - Custom automation hooks
 
-If the request is to develop Omarchy itself, this skill is out of scope. Follow repository development instructions instead of this skill.
+For an explicit request to contribute an upstream fix, follow [`contributing.md`](contributing.md) before leaving the current project, then use the Omarchy checkout's repository instructions for the source work itself.
 
 ## Privilege Escalation
 
@@ -268,12 +273,11 @@ omarchy reminder show
 omarchy reminder clear
 ```
 
-## Out of Scope
+## Source Development Scope
 
-This skill intentionally does not cover Omarchy source development. Do not use this skill for:
-- Editing files in `/usr/share/omarchy/` (`bin/`, `config/`, `default/`, `shell/`, `themes/`, `migrations/`, etc.)
-- Creating or editing migrations
-- Running `omarchy dev ...` commands
+This skill does not replace the repository instructions for Omarchy source development. Enter that workflow only when the user explicitly requests an upstream fix and after following the scope and checkout safeguards in [`contributing.md`](contributing.md).
+
+Never treat the packaged files in `/usr/share/omarchy/` as a development checkout. Source changes, migrations, and `omarchy dev ...` workflows belong in an Omarchy source checkout and follow that checkout's repository instructions.
 
 ## Example Requests
 

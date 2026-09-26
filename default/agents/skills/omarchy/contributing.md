@@ -1,7 +1,23 @@
 # Reporting Issues and Submitting PRs
 
-Read this when the user wants to report an Omarchy bug, suggest a feature, or
-contribute a fix upstream.
+Read this when the user wants to diagnose or report an Omarchy bug, suggest a
+feature, or explicitly contribute a fix upstream.
+
+## Keep Upstream Work Explicit
+
+Reporting or diagnosing a bug does not authorize implementing a fix. Do not
+leave the current project or clone, fork, branch, or modify an Omarchy source
+checkout unless the user explicitly asks to work on an upstream Omarchy fix.
+
+If upstream work is explicitly requested but the current project is not an
+Omarchy source checkout, tell the user that the work requires a separate
+checkout and get confirmation before creating one. Once working in an Omarchy
+source checkout, follow its repository instructions.
+
+Diagnosing a bug, preparing a report, or developing a feature idea does not
+authorize publishing it. Before uploading diagnostics, creating an issue or
+discussion, or otherwise sharing results externally, ensure the user explicitly
+asks for that action or confirms the prepared contents and destination.
 
 Omarchy lives at https://github.com/omacom/omarchy. Route requests to the
 right place:
@@ -25,9 +41,9 @@ omarchy version
 # Generate the diagnostic log (also written to /tmp/omarchy-debug.log)
 omarchy debug --no-sudo --print
 
-# Interactive variant: `omarchy debug` offers to upload the log to
-# logs.omarchy.org (expires after 24h) and prints a shareable URL to
-# include in the issue.
+# After the user explicitly approves uploading diagnostics, the interactive
+# variant (`omarchy debug`) can upload the log to logs.omarchy.org for 24 hours
+# and print a shareable URL to include in the issue.
 ```
 
 **Capture the problem on screen.** A screenshot or short recording of the bug
@@ -40,18 +56,23 @@ path to attach (`gh` cannot upload media).
 For screen-recording failures specifically, rerun with
 `OMARCHY_SCREENRECORD_DEBUG=true` and attach `$XDG_RUNTIME_DIR/omarchy-screenrecord.log` (or `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omarchy-screenrecord.log` without a session runtime directory).
 
-File the issue with `gh` when available:
+Prepare the report for the user to review. Include what happened, what was
+expected, steps to reproduce, system details, the debug log URL or attached
+log, and the capture. Do not publish it unless the user explicitly asks to file
+the report or approves the prepared contents and destination.
+
+After that approval, file the issue with `gh` when available:
 
 ```bash
 gh issue create --repo omacom/omarchy --title "..." --body "..."
 ```
 
-Include: what happened, what was expected, steps to reproduce, system details,
-the debug log URL (or attached log), and the capture.
-
 ## Submitting a PR
 
-Never develop against `/usr/share/omarchy`. Clone a working copy instead:
+Only follow this workflow when the user explicitly asks to implement or prepare
+an upstream Omarchy fix. Never develop against `/usr/share/omarchy`. Use an
+existing Omarchy source checkout when one is available. If a new checkout is
+needed, explain that to the user and get confirmation before creating it:
 
 ```bash
 gh repo fork omacom/omarchy --clone
@@ -59,7 +80,8 @@ cd omarchy
 ```
 
 Follow the repository's own `AGENTS.md` for style, testing, and commit
-conventions — it is the authority on contributions. Keep commits atomic, run
-`./test/all` before pushing, and open the PR with `gh pr create`. A PR that
-fixes a visual problem should include before/after captures (again, see
-[`capture.md`](capture.md)).
+conventions — it is the authority on contributions. Keep commits atomic and run
+`./test/all` before pushing. Preparing a fix does not authorize publishing it;
+get the user's explicit approval before pushing or opening the PR with
+`gh pr create`. A PR that fixes a visual problem should include before/after
+captures (again, see [`capture.md`](capture.md)).
