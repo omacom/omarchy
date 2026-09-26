@@ -6,8 +6,10 @@
 
 Local stats come from native Codex CLI session files, pi/omp sessions that
 ran through openai-codex, and opencode sessions that ran on an OpenAI
-provider; rate limits and the plan come from the Codex app-server RPC. The agents
-panel only ever reads the JSON this prints.
+provider; rate limits and the plan come from the Codex app-server RPC. The
+probe runs an installed Codex binary. Omarchy's lazy launcher and mise shims
+are skipped, so a usage refresh cannot install Codex. The agents panel only
+ever reads the JSON this prints.
 """
 
 import argparse
@@ -89,6 +91,75 @@ ENV = runtime_env()
 
 def find_command(name):
   return shutil.which(name, path=ENV.get("PATH"))
+
+
+def is_omarchy_launcher(path):
+  # omarchy-mise-install writes this regular file. Running it installs the tool.
+  if not path:
+    return False
+  candidate = Path(path)
+  launcher = Path.home() / ".local/bin/codex"
+  try:
+    return not candidate.is_symlink() and os.path.normpath(candidate.absolute()) == os.path.normpath(launcher.absolute())
+  except OSError:
+    return False
+
+
+def is_mise_shim(path):
+  # Each shim is a symlink to the mise binary, named for the tool. Executing
+  # the symlink asks mise for that tool, and mise installs it when it is missing.
+  if not path:
+    return False
+  shims = Path.home() / ".local/share/mise/shims"
+  try:
+    Path(path).absolute().relative_to(shims.absolute())
+  except (OSError, ValueError):
+    return False
+  return True
+
+
+def executable(path):
+  return bool(path) and os.path.isfile(path) and os.access(path, os.X_OK) and not is_omarchy_launcher(path) and not is_mise_shim(path)
+
+
+def mise_which(name):
+  # `mise which` prints the installed executable. It does not install.
+  mise = find_command("mise")
+  if not mise:
+    return None
+  try:
+    mise = str(Path(mise).resolve())
+  except OSError:
+    return None
+  try:
+    completed = subprocess.run(
+      [mise, "which", name],
+      capture_output=True,
+      text=True,
+      timeout=5,
+      env=ENV,
+    )
+  except (OSError, subprocess.TimeoutExpired):
+    return None
+  if completed.returncode != 0:
+    return None
+  for line in reversed(completed.stdout.splitlines()):
+    candidate = line.strip()
+    if executable(candidate):
+      return candidate
+  return None
+
+
+def resolve_codex():
+  found = find_command("codex")
+  if executable(found):
+    return found, None
+  installed = mise_which("codex")
+  if installed:
+    return installed, None
+  if is_omarchy_launcher(found) or is_mise_shim(found):
+    return None, "uninstalled"
+  return None, "missing"
 
 
 now = datetime.now()
@@ -520,10 +591,10 @@ def limit_window(window):
 
 def fetch_codex_rpc():
   result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": AUTH_HELP}
-  codex = find_command("codex")
+  codex, reason = resolve_codex()
   if not codex:
     result["usageStatusText"] = "Codex unavailable"
-    result["authHelpText"] = "codex not found in PATH"
+    result["authHelpText"] = "codex is not installed" if reason == "uninstalled" else "codex not found in PATH"
     return result
 
   try:
