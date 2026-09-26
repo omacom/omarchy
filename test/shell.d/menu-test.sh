@@ -10,6 +10,28 @@ const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
 
+// Catch expiry boundary, disabled settings, route overrides, and stale menu ids.
+const memoryPath = path.join(root, 'shell/plugins/menu/MenuMemory.js')
+assert(fs.existsSync(memoryPath), 'menu navigation memory is implemented')
+const memory = requireFromRoot('shell/plugins/menu/MenuMemory.js')
+const locations = { root: { kind: 'menu' }, style: { kind: 'menu' }, 'style.font': { kind: 'menu' }, action: { kind: 'action' } }
+const saved = { menu: 'style.font', history: ['root', 'style'], closedAt: 1000 }
+assertEqual(memory.duration({}), 15000, 'existing configurations remember menus for fifteen seconds')
+assertEqual(memory.duration({ memory: false }), 0, 'memory can be disabled')
+assertEqual(memory.duration({ memorySeconds: 2 }), 2000, 'memory duration uses configured seconds')
+assertEqual(memory.duration({ memorySeconds: 0 }), 0, 'zero duration disables memory')
+for (const value of [-1, 'bad', null, true, Infinity]) {
+  assertEqual(memory.duration({ memorySeconds: value }), 15000, 'invalid duration falls back: ' + value)
+}
+assertDeepEqual(memory.restore(saved, 'root', locations, 15999, 15000), saved, 'reopening before expiry restores location and back history')
+assertEqual(memory.restore(saved, 'root', locations, 16000, 15000), null, 'memory expires at the deadline')
+assertEqual(memory.restore(saved, 'root', locations, 2000, 0), null, 'disabled memory always starts fresh')
+assertEqual(memory.restore(saved, 'style', locations, 2000, 15000), null, 'explicit submenu routes override memory')
+assertEqual(memory.restore(saved, 'root', { root: locations.root }, 2000, 15000), null, 'removed submenu is not restored')
+assertEqual(memory.restore({ ...saved, menu: 'action' }, 'root', locations, 2000, 15000), null, 'remembered location must still be a menu')
+assertEqual(memory.restore(null, 'root', locations, 2000, 15000), null, 'first opening starts fresh')
+assertEqual(memory.restore(saved, 'root', locations, 999, 15000), null, 'clock moving backward expires memory')
+
 const parsed = menu.parseMenuJsonc(`
 {
   // comment

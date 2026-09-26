@@ -5,6 +5,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
+import "MenuMemory.js" as MenuMemory
 
 Item {
   id: root
@@ -71,6 +72,9 @@ Item {
   property var items: ({})
   property var itemOrder: []
   property var navStack: []
+  property var rememberedNavigation: null
+  readonly property real memoryDuration: MenuMemory.duration(root.shell && root.shell.shellConfig ? root.shell.shellConfig.menu : null)
+  onMemoryDurationChanged: if (memoryDuration <= 0) rememberedNavigation = null
   property var providersLoaded: ({})
   property var providerQueue: []
   property int providerRevision: 0
@@ -80,7 +84,11 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  onOpenedChanged: if (!opened) {
+    root.rememberNavigation()
+    deleteConfirmOpen = false
+    deleteTarget = null
+  }
   // Bound to the central [menu] section in shell.toml via Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -834,14 +842,23 @@ Item {
     filterText = ""
   }
 
+  function rememberNavigation() {
+    if (root.dmenuActive) return
+    root.rememberedNavigation = root.memoryDuration > 0
+      ? { menu: root.activeMenu, history: root.navStack.slice(), closedAt: Date.now() }
+      : null
+  }
+
   function openExistingMenu(initialMenu) {
+    var remembered = !root.opened ? MenuMemory.restore(root.rememberedNavigation, initialMenu, root.items, Date.now(), root.memoryDuration) : null
+    root.rememberedNavigation = null
     requestSerial += 1
     mode = "menu"
     requestActive = false
     selectionFile = ""
     doneFile = ""
-    activeMenu = root.item(initialMenu) ? initialMenu : "root"
-    navStack = []
+    activeMenu = remembered ? remembered.menu : (root.item(initialMenu) ? initialMenu : "root")
+    navStack = remembered ? remembered.history.filter(function(id) { return root.item(id) && root.item(id).kind === "menu" }) : []
     filterText = ""
     selectedIndex = 0
     cursorActive = true
@@ -859,6 +876,7 @@ Item {
   }
 
   function openDmenu(payload) {
+    if (root.opened && !root.dmenuActive) root.rememberNavigation()
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))

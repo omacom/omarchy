@@ -41,7 +41,9 @@ Verbs:
   ping             Health check.
 
 Route is an item id (e.g. setup.power) or alias (e.g. power). Defaults to
-"root", which opens the top-level menu.
+"root", which resumes the recent menu location while menu memory is active,
+or opens the top-level menu otherwise. Configure memory and memorySeconds
+under "menu" in ~/.config/omarchy/shell.json (enabled for 15 seconds by default).
 USAGE
     exit 0
     ;;
