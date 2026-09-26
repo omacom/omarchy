@@ -61,6 +61,26 @@ On Dell XPS laptops with a haptic touchpad, you can also set the click strength 
 
 Omarchy runs the [fcitx5](https://fcitx-im.org/) input method framework as part of every session — it's what powers the CapsLock compose sequences. That means the plumbing for non-Latin input is already in place: install an input engine like `fcitx5-mozc` (Japanese) or `fcitx5-chinese-addons` (Chinese) with `omarchy pkg add`, plus `fcitx5-configtool` to add the engine to your input methods and set the key that switches between them.
 
+### Japanese
+
+For Japanese, run _Setup > Japanese_ in the Omarchy menu (or `omarchy setup japanese`). It installs Mozc and `fcitx5-configtool`, adds Mozc after your keyboard layout in the input methods, and keeps Japanese input on when you switch between windows. It also sets the interface font to Noto Sans CJK JP so kanji take their Japanese forms, and asks whether to switch the system language to Japanese (`ja_JP.UTF-8`), which applies the next time you log in.
+
+On a US keyboard, `Ctrl + Space` toggles Japanese input. That's also the tmux and Herdr prefix, so in the terminal use `Ctrl + B` for tmux, or pick another toggle key in `fcitx5-configtool`.
+
+If you installed Omarchy with the Japanese (JIS) keyboard layout, a few more defaults apply:
+
+| Key | Action |
+| --- | --- |
+| `Henkan` (変換) | Japanese input on |
+| `Muhenkan` (無変換) | Japanese input off |
+| `Zenkaku/Hankaku` (半角/全角) | Toggle Japanese input |
+| `Ctrl + Shift + ;` (`Ctrl + +`) | Zoom in, in apps that don't read the JIS `+` key |
+| `Ctrl + Space` in a terminal | Switch to direct input, then send the tmux/Herdr prefix |
+
+The window resize keys `Super + Minus` and `Super + Equal` sit on `-` and `^` on a JIS keyboard.
+
+If Mozc's candidate window shows up in the wrong place in Chromium or Obsidian with display scaling on, add `--force-device-scale-factor=1` to `~/.config/chromium-flags.conf` or `~/.config/obsidian/user-flags.conf`. That renders those apps at 1x, so they'll look smaller than the rest of the desktop.
+
 ### Use ALT as SUPER
 
 On some keyboards, it's not convenient to use the primary meta key (Windows/cmd key) as SUPER. You can change this to be ALT instead using this change:
