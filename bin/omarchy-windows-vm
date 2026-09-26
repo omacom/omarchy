@@ -1482,6 +1482,14 @@ To stop: omarchy-windows-vm stop"
   # /args-from must stay the only argument here — FreeRDP rejects it outright
   # when it is combined with any other, so new flags belong in RDP_ARGS above.
   printf '%s\n' "${RDP_ARGS[@]}" | xfreerdp3 /args-from:stdin
+  RDP_STATUS=$?
+  if (( RDP_STATUS != 0 )); then
+    echo ""
+    echo "RDP connection failed. Windows VM is still running."
+    echo "Try again, or connect at: http://127.0.0.1:8006"
+    echo "To stop it: omarchy-windows-vm stop"
+    return "$RDP_STATUS"
+  fi
 
   # After RDP closes, stop the container unless --keep-alive was specified
   if [[ $KEEP_ALIVE = "false" ]]; then
