@@ -131,6 +131,43 @@ grep -q 'SUPER + ~  *→ Toggle scratchpad' <<<"$rendered" ||
   fail "a keycode resolves to the symbol printed on the key too" "$rendered"
 pass "a keycode resolves to the symbol printed on the key too"
 
+keycode_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: \n\tkeycode: %s\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: exec\n\targ: true\n' "$1" "$2" "$3"
+}
+
+# xkbcli writes a key whose type it spells out over several lines, with the
+# symbols on a line of their own. Stand in for it with a keymap that puts
+# something other than minus on code:20, since the fallback table says MINUS
+# there and would hide a key that never resolved.
+cat >"$stub_bin/xkbcli" <<'XKBCLI'
+#!/bin/bash
+cat <<'KEYMAP'
+xkb_keymap {
+xkb_keycodes "stub" {
+	<AE11>               = 20;
+};
+xkb_symbols "stub" {
+	key <AE11>               {
+		type= "FOUR_LEVEL",
+		symbols[1]= [       semicolon,           colon,       backslash,    questiondown ]
+	};
+};
+};
+KEYMAP
+XKBCLI
+chmod +x "$stub_bin/xkbcli"
+
+stub_hyprctl <<BINDS
+$(keycode_bind 64 20 "Key with its type spelled out")
+BINDS
+
+rendered=$(keybindings)
+rm "$stub_bin/xkbcli"
+
+grep -q 'SUPER + SEMICOLON  *→ Key with its type spelled out' <<<"$rendered" ||
+  fail "a key whose type is spelled out resolves to its symbol" "$rendered"
+pass "a key whose type is spelled out resolves to its symbol"
+
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.
 stub_hyprctl <<BINDS
