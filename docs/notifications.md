@@ -197,3 +197,11 @@ timers and mutations make). `omarchy-reminder -i` summons the
 `omarchy.reminders` overlay (`shell/plugins/reminders/ReminderFlow.qml`), a
 two-step minutes/message prompt that shells back out to `omarchy-reminder` to
 do the setting.
+
+## Duplicate popups
+
+Matching live notifications share a popup with a `(2)`, `(3)`, etc. count. By default they group until that popup is dismissed or expires. Configure `notifications.deduplicationWindowMs` in `~/.config/omarchy/shell.json`: `-1` (the default) groups for the popup's lifetime, `0` disables grouping, and a positive number sets a millisecond window measured from the first arrival. For example, `"notifications": { "deduplicationWindowMs": 2000 }` limits grouping to two seconds. Changes apply to subsequent arrivals; existing groups stay intact.
+
+Grouping compares app name, desktop-entry hint, raw title and body, urgency, and the executable-action hint. Temporary icon/image paths are not compared. Matching text can represent separate real messages, so choose a timed window or disable grouping if this is undesirable. Restored/history popups do not accept fresh members.
+
+All members remain tracked. An update is not a new arrival: unchanged updates preserve the count, while a member whose matching content changes leaves its group and receives its own popup. Clicking invokes the first remaining member's default action; dismissing or expiring the popup closes all its members. If a sender closes a member, the count decreases and the next member supplies the action. Counts are retained in persisted popups and history, but live actions cannot survive a shell restart.

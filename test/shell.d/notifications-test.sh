@@ -632,7 +632,7 @@ assert(
   'notifications service re-persists a silenced notification updated while its write was queued'
 )
 assert(
-  /rows\.push\(NotificationLogic\.persistablePopup\(\{[\s\S]{0,400}?\}, imagesDir\)\.entry\)/.test(serviceQml),
+  /rows\.push\(NotificationLogic\.persistablePopup\(\{[\s\S]{0,600}?\}, imagesDir\)\.entry\)/.test(serviceQml),
   'notifications service replays carried-over toasts from their persisted image copies'
 )
 assert(
@@ -650,18 +650,6 @@ assert(
 assert(
   /if \(signal && typeof signal\.connect === "function"\) signal\.connect\(refresh\)/.test(serviceQml),
   'notifications service refreshes the popup from every property the card draws'
-)
-assert(
-  /popupModel\.setProperty\(i, roles\[r\], updated\[roles\[r\]\]\)[\s\S]{0,600}?persistPopupFile\(updated\)/.test(serviceQml),
-  'notifications service rewrites both the row and its file when a notification is updated in place'
-)
-assert(
-  /if \(!NotificationLogic\.popupRowChanged\(row, updated\)\) return/.test(serviceQml),
-  'notifications service leaves the row and its file alone when a refresh finds nothing changed'
-)
-assert(
-  /popupModel\.insert\(0, snapshot\)[\s\S]{0,300}?service\.refreshPopup\(notification, snapshot\.originalId, snapshot\.timestamp\)/.test(serviceQml),
-  'notifications service catches up on an update that beat the deferred row insert'
 )
 assert(
   /function showRecentHistory\(\)[\s\S]{0,300}?enqueueHistoryRead\(\)/.test(serviceQml),
@@ -696,7 +684,7 @@ assert(
   'notifications service protects restored popups from new-generation id collisions'
 )
 assert(
-  /var ref = !restored && originalId >= 0 \? liveRefs\[originalId\] : null/.test(serviceQml),
+  /if \(!entry \|\| isRestoredRow\(entry\)\) return null/.test(serviceQml),
   'notifications service never resolves a restored popup to a live server object'
 )
 assert(

@@ -57,6 +57,74 @@ Item {
   // and the next read of that role segfaults in QQmlListModel::data. A JS
   // map only holds a wrapper, which degrades to a catchable error instead.
   property var liveRefs: ({})
+  // Snapshots only: live QObject wrappers remain in liveRefs.
+  property var popupGroups: ({})
+  readonly property real deduplicationWindowMs: NotificationLogic.deduplicationWindow(
+    shell && shell.shellConfig && shell.shellConfig.notifications
+      ? shell.shellConfig.notifications.deduplicationWindowMs : undefined)
+
+  function groupIndex(originalId) {
+    for (var i = 0; i < popupModel.count; i++) {
+      var members = popupGroups[NotificationLogic.popupFileName(popupModel.get(i))] || []
+      for (var j = 0; j < members.length; j++) {
+        if (members[j].originalId === originalId) return i
+      }
+    }
+    return -1
+  }
+
+  function popupRef(entry) {
+    if (!entry || isRestoredRow(entry)) return null
+    var members = popupGroups[NotificationLogic.popupFileName(entry)]
+    return liveRefs[members && members.length ? members[0].originalId : entry.originalId]
+  }
+
+  function updateGroup(index, members) {
+    var row = popupModel.get(index)
+    var entry = NotificationLogic.popupEntry(members[0], NotificationUrgency.Normal)
+    // Keep the file identity stable when the original representative leaves.
+    entry.id = row.id
+    entry.originalId = row.originalId
+    entry.timestamp = row.timestamp
+    entry.duplicateCount = members.length
+    popupGroups[NotificationLogic.popupFileName(row)] = members
+    var roles = NotificationLogic.popupRoles().concat(["duplicateCount"])
+    for (var r = 0; r < roles.length; r++) popupModel.setProperty(index, roles[r], entry[roles[r]])
+    persistPopupFile(entry)
+  }
+
+  function detachMember(originalId) {
+    var index = groupIndex(originalId)
+    if (index < 0) return
+    var row = popupModel.get(index)
+    var key = NotificationLogic.popupFileName(row)
+    var members = popupGroups[key].filter(function(member) { return member.originalId !== originalId })
+    if (members.length) updateGroup(index, members)
+    else {
+      delete popupGroups[key]
+      archivePopupFileFor(row)
+      popupModel.remove(index)
+    }
+  }
+
+  function insertGrouped(snapshot) {
+    for (var i = 0; i < popupModel.count; i++) {
+      var row = popupModel.get(i)
+      var key = NotificationLogic.popupFileName(row)
+      var members = popupGroups[key]
+      if (!members || !members.length) continue
+      if (!NotificationLogic.duplicateMatches(row, snapshot, deduplicationWindowMs)) continue
+      updateGroup(i, members.concat([snapshot]))
+      return
+    }
+    insertSingleton(snapshot)
+  }
+
+  function insertSingleton(snapshot) {
+    popupGroups[NotificationLogic.popupFileName(snapshot)] = [snapshot]
+    persistPopupFile(snapshot)
+    popupModel.insert(0, snapshot)
+  }
 
   // PersistentProperties handles in-process QML reloads. The on-disk
   // notifications.json file is the cross-restart backstop — its `dnd` key
@@ -163,8 +231,11 @@ Item {
     // Guard the delete: a newer notification may have reused this originalId
     // (freedesktop replaces_id) and taken over the map slot.
     notification.closed.connect(function() {
-      if (service.liveRefs[snapshot.originalId] === notification)
-        delete service.liveRefs[snapshot.originalId]
+      if (service.liveRefs[snapshot.originalId] !== notification) return
+      delete service.liveRefs[snapshot.originalId]
+      Qt.callLater(function() {
+        if (!service.liveRefs[snapshot.originalId]) service.detachMember(snapshot.originalId)
+      })
     })
 
     // DND bypass rules: chat apps abuse urgency=critical to force
@@ -183,17 +254,17 @@ Item {
       return
     }
 
-    persistPopupFile(snapshot)
     watchForUpdates(notification, snapshot)
     // Qt.callLater avoids "QV4::Object::insertMember" crashes when a
     // Repeater is mid-incubation while we mutate its model.
     Qt.callLater(function() {
-      removePopupsByOriginalId(snapshot.originalId, NotificationLogic.popupFileName(snapshot))
-      popupModel.insert(0, snapshot)
+      if (service.liveRefs[snapshot.originalId] !== notification) return
+      service.detachMember(snapshot.originalId)
+      service.insertGrouped(NotificationLogic.replacementSnapshot(notification, snapshot.originalId, snapshot.timestamp))
       // An update that arrived while the insert was deferred found no row to
       // write to, and a property that already changed will not change again.
       // Reading the object once the row exists catches up on it.
-      service.refreshPopup(notification, snapshot.originalId, snapshot.timestamp)
+      Qt.callLater(function() { service.refreshPopup(notification, snapshot.originalId, snapshot.timestamp) })
     })
   }
 
@@ -244,7 +315,9 @@ Item {
   // — so nothing reaches the screen until we copy it again.
   function watchForUpdates(notification, snapshot) {
     function refresh() {
-      service.refreshPopup(notification, snapshot.originalId, snapshot.timestamp)
+      // A replaces_id update emits one signal per changed property. Read its
+      // final content once those changes have settled before splitting a group.
+      Qt.callLater(function() { service.refreshPopup(notification, snapshot.originalId, snapshot.timestamp) })
     }
 
     for (var i = 0; i < updateSignals.length; i++) {
@@ -266,17 +339,22 @@ Item {
       return
     }
 
-    var roles = NotificationLogic.popupRoles()
-    for (var i = 0; i < popupModel.count; i++) {
-      var row = popupModel.get(i)
-      if (!row || row.originalId !== originalId || row.timestamp !== timestamp) continue
-      if (!NotificationLogic.popupRowChanged(row, updated)) return
-      for (var r = 0; r < roles.length; r++) popupModel.setProperty(i, roles[r], updated[roles[r]])
-      // The file name is the timestamp and id this popup was persisted under,
-      // so the rewrite lands on the same file: a restart restores the version
-      // last shown, and so does the copy that ends up in history.
-      persistPopupFile(updated)
-      return
+    var index = groupIndex(originalId)
+    if (index < 0) return
+    var row = popupModel.get(index)
+    var members = popupGroups[NotificationLogic.popupFileName(row)]
+    var memberIndex = members.findIndex(function(member) { return member.originalId === originalId })
+    if (!NotificationLogic.popupRowChanged(members[memberIndex], updated)) return
+    if (members.length > 1 && !NotificationLogic.sameContent(members[memberIndex], updated)) {
+      // A single client changing content leaves its old group. Give the new
+      // card a fresh lifetime and file identity, even if it was the first member.
+      var nextTimestamp = Math.max(Date.now(), row.timestamp + 1)
+      detachMember(originalId)
+      updated.timestamp = nextTimestamp
+      insertSingleton(updated)
+    } else {
+      members[memberIndex] = updated
+      updateGroup(index, members)
     }
   }
 
@@ -326,7 +404,9 @@ Item {
     // may meanwhile belong to a fresh notification — resolving liveRefs by
     // id would dismiss that unrelated notification at the server.
     var restored = isRestoredRow(entry)
-    var ref = !restored && originalId >= 0 ? liveRefs[originalId] : null
+    var members = !restored ? popupGroups[NotificationLogic.popupFileName(entry)] : null
+    var refs = members ? members.map(function(member) { return liveRefs[member.originalId] }) : [popupRef(entry)]
+    delete popupGroups[NotificationLogic.popupFileName(entry)]
     // The popup is leaving the screen — for any reason — so its file must not
     // survive to the next shell restart. It becomes the newest history entry
     // instead. Rows that never had a file (a history replay, the empty-history
@@ -336,9 +416,10 @@ Item {
       if (restored) delete restoredPopups[NotificationLogic.popupFileName(entry)]
     }
     popupModel.remove(index)
-    if (ref) {
+    for (var member = 0; member < refs.length; member++) {
+      var ref = refs[member]
       try {
-        if (ref.tracked) {
+        if (ref && ref.tracked) {
           if (reason === "expire" && typeof ref.expire === "function") ref.expire()
           else ref.dismiss()
         }
@@ -371,7 +452,7 @@ Item {
     }
     // Restored rows have no live actions, and looking up liveRefs by their
     // old-generation id could fire an unrelated fresh notification's action.
-    var ref = entry && !isRestoredRow(entry) ? liveRefs[entry.originalId] : null
+    var ref = popupRef(entry)
     var invoked = false
     try {
       if (ref && ref.actions) {
@@ -660,6 +741,8 @@ Item {
       rows.push(NotificationLogic.persistablePopup({
         id: row.id,
         originalId: row.originalId,
+        duplicateCount: row.duplicateCount,
+        desktopEntry: row.desktopEntry,
         app: row.app,
         appIcon: row.appIcon,
         summary: row.summary,
@@ -684,6 +767,8 @@ Item {
       popupModel.insert(0, {
         id: -1,
         originalId: -1,
+        duplicateCount: 1,
+        desktopEntry: "",
         app: "omarchy-action",
         appIcon: "",
         summary: "No recent notifications",
@@ -996,6 +1081,7 @@ Item {
             required property int index
             required property string app
             required property string appIcon
+            required property int duplicateCount
             required property string summary
             required property string body
             required property string image
@@ -1043,7 +1129,7 @@ Item {
               anchors.right: parent.right
               app: cardSlot.app
               appIcon: cardSlot.appIcon
-              summary: cardSlot.summary
+              summary: NotificationLogic.countedSummary(cardSlot.summary, cardSlot.duplicateCount)
               body: cardSlot.body
               image: cardSlot.image
               urgency: cardSlot.urgency
