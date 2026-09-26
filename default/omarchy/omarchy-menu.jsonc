@@ -195,6 +195,8 @@
   "install.aur": {"icon":"󰣇","label":"AUR","action":"xdg-terminal-exec --app-id=org.omarchy.terminal omarchy-pkg-aur-install"},
   "install.ai": {"icon":"󱚤","label":"AI"},
   "install.service": {"icon":"","label":"Service"},
+  "install.keyboard": {"icon":"󰌌","label":"Keyboard"},
+  "install.keyboard.nepali": {"icon":"󰌌","label":"Nepali","disabled":"grep -q '^Name=m17n_ne_phonetic$' ~/.config/fcitx5/profile","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-keyboard-nepali"},
   "install.development": {"icon":"󰵮","label":"Development"},
   "install.editor": {"icon":"","label":"Editor"},
   "install.style": {"icon":"","label":"Style"},
