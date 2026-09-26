@@ -560,9 +560,9 @@ BarWidget {
           width: menuHeader.width
           implicitHeight: Style.space(30)
 
-          Rectangle {
+          BorderSurface {
             anchors.fill: parent
-            radius: Math.max(2, Style.cornerRadius)
+            radius: backMouse.containsMouse ? Math.max(2, Style.cornerRadius) : 0
             color: backMouse.containsMouse ? Style.hoverFillFor(root.foreground, root.foreground) : "transparent"
           }
 
@@ -675,10 +675,10 @@ BarWidget {
                 opacity: 0.45
               }
 
-              Rectangle {
+              BorderSurface {
                 visible: !menuRow.modelData.isSeparator
                 anchors.fill: parent
-                radius: Math.max(2, Style.cornerRadius)
+                radius: rowMouse.containsMouse ? Math.max(2, Style.cornerRadius) : 0
                 color: rowMouse.containsMouse && menuRow.modelData.enabled ? Style.hoverFillFor(root.foreground, root.foreground) : "transparent"
               }
 

@@ -467,7 +467,7 @@ Item {
                 spacing: Style.space(4)
                 boundsBehavior: Flickable.StopAtBounds
 
-                delegate: Rectangle {
+                delegate: BorderSurface {
                   id: row
                   required property int index
                   required property string entryType
@@ -479,7 +479,9 @@ Item {
 
                   width: ListView.view.width
                   height: root.rowHeight
-                  radius: root.cornerRadius
+                  // Only the selected row is visible, so only it takes a
+                  // corner (a chamfered corner costs a layer per row).
+                  radius: hasCursor ? root.cornerRadius : 0
                   color: hasCursor ? root.selectedBackground : "transparent"
 
                   Row {
