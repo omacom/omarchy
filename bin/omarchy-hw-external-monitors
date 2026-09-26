@@ -6,7 +6,8 @@ drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 
 for status in "$drm_path"/card*-*/status; do
   [[ -e $status ]] || continue
-  [[ $status =~ -(eDP|LVDS|DSI)-[^/]+/status$ ]] && continue
+  # Internal laptop panels. USB is the T1/iBridge Touch Bar DRM connector, not a desktop head.
+  [[ $status =~ -(eDP|LVDS|DSI|USB)-[^/]+/status$ ]] && continue
   [[ $(< $status) == "connected" ]] && exit 0
 done
 exit 1
