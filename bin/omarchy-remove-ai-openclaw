@@ -35,8 +35,9 @@ for unit_file in "$unit_dir"/openclaw-gateway.service "$unit_dir"/openclaw-node.
     systemctl --user disable --now "$unit" 2>/dev/null ||
     unit_stopped "$unit"; then
     # .bak is what `gateway install --force` leaves behind when it rewrites a
-    # unit, so it goes with the unit.
-    rm -f "$unit_file" "$unit_file.bak" "$unit_dir/default.target.wants/$unit"
+    # unit, and .reconcile-*.bak what `openclaw update` leaves when it
+    # refreshes one, so they go with the unit.
+    rm -f "$unit_file" "$unit_file.bak" "$unit_file".reconcile-*.bak "$unit_dir/default.target.wants/$unit"
     systemctl --user daemon-reload 2>/dev/null || true
     # A unit that had been failing stays listed as "not-found failed" after
     # its file is gone until its failed state is reset.

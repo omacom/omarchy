@@ -21,6 +21,10 @@ cat >"$mock_bin/omarchy-pkg-add" <<'SH'
 printf 'pkg-add %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
 touch "$OMARCHY_TEST_ROOT/package-installed"
 SH
+cat >"$mock_bin/systemctl" <<'SH'
+#!/bin/bash
+printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+SH
 chmod +x "$mock_bin/"*
 
 # Stands in for upstream's install-cli.sh: it writes the command the way the
@@ -34,7 +38,7 @@ cat >"$prefix/bin/openclaw" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 [[ -z "${OMARCHY_TEST_INSTALL_BROKEN:-}" ]] || exit 1
-printf 'runtime %s\n' "\$*" >>"$OMARCHY_TEST_ROOT/events"
+printf 'runtime %s%s\n' "\$*" "\${OPENCLAW_PROFILE:+ profile=\$OPENCLAW_PROFILE}" >>"$OMARCHY_TEST_ROOT/events"
 exec true "$prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/entry.js" "\$@"
 EOF
 chmod 755 "$prefix/bin/openclaw"
@@ -122,10 +126,33 @@ printf '#!/bin/bash\n' >"$test_tmp/usr-bin/openclaw"
 chmod +x "$test_tmp/usr-bin/openclaw"
 run omarchy-install-openclaw-cli --now && fail "an openclaw earlier on PATH fails the install"
 grep -q "on PATH is $test_tmp/usr-bin/openclaw" "$test_tmp/output" || fail "an openclaw earlier on PATH is named" "$(cat "$test_tmp/output")"
+[[ ! -e $test_home/.openclaw && ! -e $command ]] || fail "an openclaw earlier on PATH is refused before anything is touched"
+rm "$test_tmp/usr-bin/openclaw"
+run omarchy-install-openclaw-cli --now || fail "--now follows once nothing shadows the runtime" "$(cat "$test_tmp/output")"
+printf '#!/bin/bash\n' >"$test_tmp/usr-bin/openclaw"
+chmod +x "$test_tmp/usr-bin/openclaw"
 run omarchy-install-openclaw-cli --check && fail "--check calls a shadowed runtime installed"
 rm "$test_tmp/usr-bin/openclaw"
 run omarchy-install-openclaw-cli --check || fail "--check follows once nothing shadows the runtime"
-pass "the runtime has to be the openclaw PATH finds"
+pass "the runtime has to be the openclaw PATH finds, and anything else is refused before it is set up"
+
+# A runtime that answers without the package still leaves --now a pacman step,
+# which the default agent must not run outside a terminal.
+rm "$test_tmp/package-installed"
+run omarchy-install-openclaw-cli --check && fail "--check calls a runtime without its package installed"
+pass "--check needs the package too, so --now never has a password to ask for unseen"
+
+# Upstream's installer rewrites a loaded gateway service to the copy it has
+# just made, so a gateway running another OpenClaw stops the seeding first.
+new_home foreign-gateway
+mkdir -p "$test_home/.config/systemd/user"
+printf 'Environment=OPENCLAW_CONFIG_PATH=%s/.openclaw/openclaw.json\nExecStart=/opt/node %s/openclaw/dist/index.js gateway\n' "$test_home" "$test_home" \
+  >"$test_home/.config/systemd/user/openclaw-gateway.service"
+run omarchy-install-openclaw-cli --now && fail "a gateway running another OpenClaw stops the install"
+grep -q "runs another OpenClaw" "$test_tmp/output" || fail "a gateway running another OpenClaw is named" "$(cat "$test_tmp/output")"
+! grep -q '^install-cli' "$events" && [[ ! -e $test_home/.openclaw ]] ||
+  fail "a gateway running another OpenClaw is refused before anything is set up" "$(cat "$events")"
+pass "a gateway running another OpenClaw is refused before upstream's installer can take it over"
 
 # A gateway the old package installed runs from /usr/lib/node_modules, which
 # the seed package no longer ships; one running any other OpenClaw stays.
@@ -134,9 +161,11 @@ units="$test_home/.config/systemd/user"
 mkdir -p "$units"
 printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway --port 18789\n' >"$units/openclaw-gateway.service"
 printf 'ExecStart=/opt/node /home/someone/openclaw/dist/index.js node run\n' >"$units/openclaw-node.service"
-run omarchy-install-openclaw-cli --now || fail "--now moves the old package's services" "$(cat "$test_tmp/output")"
-grep -Fxq "runtime gateway install --force" "$events" || fail "--now moves a gateway the old package installed" "$(cat "$events")"
-! grep -q "runtime node install" "$events" || fail "--now leaves a service running another OpenClaw alone" "$(cat "$events")"
+OPENCLAW_PROFILE=work run omarchy-install-openclaw-cli --now || fail "--now moves the old package's services" "$(cat "$test_tmp/output")"
+grep -A1 -Fx "systemctl --user stop openclaw-gateway.service" "$events" | grep -Fxq "runtime gateway install --force" ||
+  fail "--now stops a gateway the old package installed, then moves it" "$(cat "$events")"
+! grep -q "runtime node install\|openclaw-node" "$events" || fail "--now leaves a service running another OpenClaw alone" "$(cat "$events")"
+! grep -q "install --force profile=work" "$events" || fail "--now moves the default unit whatever profile the shell selects" "$(cat "$events")"
 pass "a service the old package installed moves to the runtime, and only that one"
 
 # The migration moves only machines that have the package, and waits for the
