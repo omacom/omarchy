@@ -74,6 +74,15 @@ Example `shell.json` (bar subtree only shown):
 
 The `omarchy.indicators` widget loads individual bar indicators from `indicators/`. Omit `items` (or set it to an empty array) to show all indicators in the default order, or set `items` to a subset such as `["Dnd", "Reminder", "NightLight"]`. Set `alwaysShow` to `true` to keep inactive indicators visible instead of revealing them only on hover. Multiple `omarchy.indicators` instances are allowed, so different sections can show different subsets.
 
+Indicators can also come from other installed plugins. An `items` entry may be an object naming the plugin and the QML file inside it:
+
+```json
+{ "id": "omarchy.indicators",
+  "items": ["Dnd", "NightLight", { "id": "Backup", "plugin": "my.org.backup", "source": "Indicator.qml" }] }
+```
+
+The file is a normal `BarIndicator`; `source` defaults to `Indicator.qml` and must stay inside the plugin directory. Any other keys of the entry are passed to the indicator as `settings`.
+
 ## Orientation
 
 All widgets work in `top`, `bottom`, `left`, and `right` positions. Popups anchor on the side opposite the bar edge, sliding into the workspace. Vertical bars use 28px width; widgets that show text fall back to compact icon-only forms (e.g. `media` hides its scrolling label).
