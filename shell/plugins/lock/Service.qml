@@ -287,6 +287,7 @@ Item {
         root.pendingSessionLock = false
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
+        lockView.forcePasswordFocus()
         root.startFingerprint()
       }
     }
