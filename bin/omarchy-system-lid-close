@@ -7,14 +7,19 @@
 # Locking here rather than waiting for PrepareForSleep is what keeps the lock
 # off the critical path. logind's delay inhibitor is a timer that expires
 # whether or not the session is secure, so starting the lock the moment the lid
-# closes gives Quickshell a head start before logind even decides to suspend.
-# omarchy-system-sleep-lock then usually finds the session already secure.
+# closes gives Quickshell a head start before omarchy-system-lid-suspend
+# actually asks systemd to sleep. omarchy-system-sleep-lock then usually finds
+# the session already secure.
 #
-# A docked lid close does not suspend (HandleLidSwitchDocked defaults to
-# ignore), so it must not lock either: that is clamshell mode, still in use on
-# the external display.
+# A docked lid close must not lock: that is clamshell mode, still in use on
+# the external display. logind is told to ignore the lid (30-lid-ignore.conf)
+# so it cannot race this path by suspending on the falling edge.
 if omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors; then
   omarchy-system-lock >/dev/null 2>&1 || true
 fi
 
 omarchy-hyprland-monitor-clamshell
+
+# Debounced suspend: a 2s close/open must not enter S3 with the lid already
+# open. Failures here must not block display reconciliation above.
+omarchy-system-lid-suspend >/dev/null 2>&1 || true

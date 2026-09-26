@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# After S3, Hyprland has often missed the lid-open switch because user.slice
+# was frozen. Turn the panel back on once the session can run again.
+
+if [[ $1 != post ]]; then
+  exit 0
+fi
+
+# user.slice is still frozen here; a synchronous call would block thaw.
+(
+  sleep 1
+  for uid_dir in /run/user/*; do
+    [[ -S $uid_dir/bus ]] || continue
+    uid=${uid_dir##*/}
+    [[ $uid =~ ^[0-9]+$ ]] || continue
+    sudo -u "#$uid" env \
+      XDG_RUNTIME_DIR="$uid_dir" \
+      DBUS_SESSION_BUS_ADDRESS="unix:path=$uid_dir/bus" \
+      WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+      omarchy-system-lid-open >/dev/null 2>&1 || true
+  done
+) &
