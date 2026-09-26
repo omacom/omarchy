@@ -38,11 +38,16 @@ function ownedByOmarchy(item, layout) {
     || (layoutHasWidget(layout, "omarchy.dropbox") && itemNamed(item, "dropbox"))
 }
 
+function menuModelHasChildren(model) {
+  return Boolean(model && model.values && model.values.length > 0)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    menuModelHasChildren: menuModelHasChildren
   }
 }

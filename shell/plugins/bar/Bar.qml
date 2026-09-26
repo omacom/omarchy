@@ -1329,6 +1329,8 @@ Item {
         id: tooltipBubble
         implicitWidth: tooltipLabel.implicitWidth + 20
         implicitHeight: tooltipLabel.implicitHeight + 14
+        width: tooltipWindow.width
+        height: tooltipWindow.height
         color: Color.tooltip.background
         borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
         radius: Style.cornerRadius
