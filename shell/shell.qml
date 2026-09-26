@@ -55,6 +55,11 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // shellConfig is the builtin object until these files report. Idle waits
+  // for both so its first notification uses the configured timeout.
+  property bool defaultsConfigLoaded: false
+  property bool userConfigLoaded: false
+  readonly property bool shellConfigLoaded: defaultsConfigLoaded && userConfigLoaded
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -123,10 +128,14 @@ ShellRoot {
     path: shell.defaultsPath
     watchChanges: true
     printErrors: false
-    onLoaded: shell.loadDefaults(text())
+    onLoaded: {
+      shell.loadDefaults(text())
+      shell.defaultsConfigLoaded = true
+    }
     onLoadFailed: function(error) {
       console.warn("default shell.json load failed: " + error + " path=" + shell.defaultsPath)
       shell.loadDefaults("")
+      shell.defaultsConfigLoaded = true
     }
     onFileChanged: reload()
   }
@@ -137,8 +146,14 @@ ShellRoot {
     watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: shell.applyShellConfig()
-    onLoadFailed: function(error) { shell.applyShellConfig() }
+    onLoaded: {
+      shell.applyShellConfig()
+      shell.userConfigLoaded = true
+    }
+    onLoadFailed: function(error) {
+      shell.applyShellConfig()
+      shell.userConfigLoaded = true
+    }
     onFileChanged: reload()
   }
 

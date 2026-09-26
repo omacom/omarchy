@@ -43,10 +43,38 @@ function screensaverWindowsAfter(windows, address, visible) {
   }
 }
 
+// The Wayland notification is created only after shell config has settled, and
+// a later timeout destroys that object instead of updating it. Quickshell
+// replaces the notification in place, and a reused native address drops idled.
+function monitorSubscription(ready, timeoutSeconds, live, armedTimeout) {
+  if (!ready) {
+    return {
+      live: false,
+      timeout: armedTimeout,
+      recreate: !!live
+    }
+  }
+
+  if (live && armedTimeout === timeoutSeconds) {
+    return {
+      live: true,
+      timeout: armedTimeout,
+      recreate: false
+    }
+  }
+
+  return {
+    live: true,
+    timeout: timeoutSeconds,
+    recreate: true
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     secondsFromConfig: secondsFromConfig,
     eventParts: eventParts,
-    screensaverWindowsAfter: screensaverWindowsAfter
+    screensaverWindowsAfter: screensaverWindowsAfter,
+    monitorSubscription: monitorSubscription
   }
 }

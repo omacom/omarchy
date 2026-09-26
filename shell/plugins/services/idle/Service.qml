@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
-import Quickshell.Wayland
 import "IdleModel.js" as IdleModel
 
 Item {
@@ -24,6 +23,13 @@ Item {
   readonly property int screensaverDelaySeconds: Math.max(0, screensaverTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property int lockDelaySeconds: Math.max(0, lockTimeoutSeconds - firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
+  // The host shell installs builtin timeouts before shell.json has loaded.
+  // A facade has no shellConfig and already holds a settled snapshot.
+  readonly property bool idleConfigReady: {
+    if (!root.shell) return false
+    if (root.shell.shellConfig) return root.shell.shellConfigLoaded === true
+    return true
+  }
   readonly property string screensaverClass: "org.omarchy.screensaver"
 
   property bool stayAwake: false
@@ -189,6 +195,10 @@ Item {
       screensaverStarted: root.screensaverStartedThisCycle,
       screensaver: root.screensaverTimeoutSeconds,
       lock: root.lockTimeoutSeconds,
+      monitor: {
+        subscribed: idleMonitor.subscribed,
+        timeout: idleMonitor.subscribedTimeout
+      },
       screensaverDelay: root.screensaverDelaySeconds,
       lockDelay: root.lockDelaySeconds,
       screensaverWindows: root.screensaverWindowCount,
@@ -248,12 +258,15 @@ Item {
     return applyStayAwake(!value, true, "ipc")
   }
 
-  IdleMonitor {
+  // Stay subscribed while stay-awake is on. IdleMonitor.enabled starts false
+  // when idleEnabled does, and a monitor created disabled does not reliably
+  // re-subscribe, so stay-awake suppresses cycles instead of unbinding it.
+  // The subscription itself waits until the configured timeout is known.
+  IdleSubscription {
     id: idleMonitor
-    enabled: root.idleEnabled
-    timeout: root.firstIdleTimeoutSeconds
-    respectInhibitors: true
-    onIsIdleChanged: root.handleIdleChanged()
+    ready: root.idleConfigReady
+    timeoutSeconds: root.firstIdleTimeoutSeconds
+    onIdleChanged: root.handleIdleChanged()
   }
 
   Timer {
