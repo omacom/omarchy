@@ -220,3 +220,25 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# Rows are ordered by a locale-collated sort, so the same binds come out in a
+# different order under a different collation. Whatever decides the order has to
+# be in the cache key, or the collation in force when the cache was built is the
+# one every later locale is served.
+eval "$(sed -n '/^keybindings_cache_key()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
+
+cache_key_under() {
+  (
+    export PATH="$stub_bin:$PATH" LC_ALL="$1"
+    keybindings_cache_key
+  )
+}
+
+[[ $(cache_key_under C) != $(cache_key_under en_US.UTF-8) ]] ||
+  fail "the cache key follows the collation" "$(cache_key_under C)"
+pass "the cache key follows the collation"
+
+# A key that moved on its own would evict the cache on every call.
+[[ $(cache_key_under C) == $(cache_key_under C) ]] ||
+  fail "the cache key is stable for one locale" "$(cache_key_under C)"
+pass "the cache key is stable for one locale"

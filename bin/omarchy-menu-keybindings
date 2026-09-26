@@ -531,6 +531,10 @@ output_binding_records_uncached() {
 keybindings_cache_key() {
   {
     printf 'v13\n'
+    # prioritize_entries breaks ties with a locale-collated sort, so the active
+    # collation decides the row order and is an input to what gets cached.
+    # Without it here, changing locale serves back the previous one's order.
+    printf 'collation=%s|%s|%s\n' "${LC_ALL-}" "${LC_COLLATE-}" "${LANG-}"
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
