@@ -195,6 +195,11 @@ grep -Fq 'trigger --subsystem-match=power_supply' "$calls" ||
   fail "migration applies the cap immediately through a power-supply trigger"
 pass "migration publishes the cap on Intel laptops with a battery"
 
+: >"$calls"
+INTEL_HARDWARE=1 LAPTOP_BATTERY=1 HOME="$test_tmp/home" PATH="$stub_bin:$PATH" OMARCHY_PATH="$mock_omarchy" bash -euo pipefail "$migration" >/dev/null
+[[ ! -s $calls ]] || fail "migration repeats privileged work once the machine is repaired"
+pass "migration no-ops once the machine is repaired"
+
 INTEL_HARDWARE=0 LAPTOP_BATTERY=1 run_migration
 [[ ! -e $rule_dest && ! -e $hook_dest && ! -s $calls ]] ||
   fail "migration touches non-Intel machines"
