@@ -147,6 +147,18 @@ assert(
   !beginLaunchMatch[1].includes('root.launchOsdOpen = false'),
   'app library keeps owning an OSD a previous launch left on screen'
 )
+assert(
+  beginLaunchMatch[1].includes('launchDelay.restart()'),
+  'app library still restarts the launch delay on each beginLaunchFeedback'
+)
+assert(
+  beginLaunchMatch[1].includes('if (!launchTimeout.running) launchTimeout.start()'),
+  'app library starts launchTimeout only when it is not already running'
+)
+assert(
+  !beginLaunchMatch[1].includes('launchTimeout.restart()'),
+  'app library does not restart launchTimeout (avoids pushing the 15s safety-net forever)'
+)
 
 const openMatch = menuQml.match(/function openExistingMenu\(initialMenu\) \{([\s\S]*?)\n  \}/)
 assert(openMatch, 'menu openExistingMenu function exists')
