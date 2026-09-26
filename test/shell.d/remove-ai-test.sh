@@ -245,6 +245,8 @@ fresh_openclaw_home() {
     "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor/256x256/apps"
   touch "$HOME/.config/systemd/user/openclaw-gateway.service" \
     "$HOME/.config/systemd/user/openclaw-gateway.service.bak" \
+    "$HOME/.config/systemd/user/openclaw-gateway.service.reconcile-0f1e.bak" \
+    "$HOME/.config/systemd/user/openclaw-gateway.service.reconcile-0f1e.receipt.bak" \
     "$HOME/.config/systemd/user/openclaw-node.service" \
     "$HOME/.openclaw/openclaw.json" \
     "$HOME/.local/share/applications/OpenClaw.desktop" \
@@ -269,6 +271,8 @@ fresh_openclaw_home
 
 for gone in .config/systemd/user/openclaw-gateway.service \
   .config/systemd/user/openclaw-gateway.service.bak \
+  .config/systemd/user/openclaw-gateway.service.reconcile-0f1e.bak \
+  .config/systemd/user/openclaw-gateway.service.reconcile-0f1e.receipt.bak \
   .config/systemd/user/default.target.wants/openclaw-gateway.service \
   .config/systemd/user/openclaw-node.service \
   .config/systemd/user/default.target.wants/openclaw-node.service \
