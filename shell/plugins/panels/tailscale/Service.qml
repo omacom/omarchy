@@ -26,6 +26,8 @@ Item {
   property string selfIp: ""
   property string selfUserId: ""
   property bool fileSharing: false
+  property bool receiverActive: false
+  property bool receiverAvailable: true
   property string authUrl: ""
   property var peers: []
   property var exitNodes: []
@@ -42,7 +44,8 @@ Item {
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
-  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
+  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running || receiverToggleProcess.running
+  readonly property bool receiverBusy: receiverStatusProcess.running || receiverToggleProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
 
   property string _statusOutput: ""
@@ -146,6 +149,7 @@ Item {
   }
 
   function refresh(forceAccounts) {
+    refreshReceiver()
     if (installed) {
       refreshStatusAndAccounts(forceAccounts === true)
       return
@@ -155,6 +159,21 @@ Item {
       whichProcess.command = ["which", "tailscale"]
       whichProcess.running = true
     }
+  }
+
+  function refreshReceiver() {
+    if (receiverStatusProcess.running || receiverToggleProcess.running) return
+    receiverStatusProcess.command = ["systemctl", "--user", "is-active", "omarchy-tailscale-receive.service"]
+    receiverStatusProcess.running = true
+  }
+
+  function toggleReceiver() {
+    if (!receiverAvailable || receiverToggleProcess.running) return
+    actionStatus = receiverActive ? "Turning automatic file receiving off..." : "Turning automatic file receiving on..."
+    receiverToggleProcess.command = receiverActive
+      ? ["systemctl", "--user", "disable", "--now", "omarchy-tailscale-receive.service"]
+      : ["systemctl", "--user", "enable", "--now", "omarchy-tailscale-receive.service"]
+    receiverToggleProcess.running = true
   }
 
   function refreshStatusAndAccounts(forceAccounts) {
@@ -419,6 +438,13 @@ Item {
   }
 
   Timer {
+    id: delayedReceiverRefresh
+    interval: 300
+    repeat: false
+    onTriggered: root.refreshReceiver()
+  }
+
+  Timer {
     // Every poll is skipped while its own process is still running, so one that
     // never exits — tailscale can hang on a network that is coming and going —
     // silently stops the panel refreshing at all, and it stays stopped. Reap
@@ -632,6 +658,36 @@ Item {
         root._lastAccountsRefreshMs = 0
       }
       delayedRefresh.restart()
+    }
+  }
+
+  Process {
+    id: receiverStatusProcess
+    running: false
+    command: []
+    onExited: function(exitCode) {
+      root.receiverActive = exitCode === 0
+      root.receiverAvailable = exitCode === 0 || exitCode === 3
+    }
+  }
+
+  Process {
+    id: receiverToggleProcess
+    running: false
+    command: []
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.lastError = "Could not change automatic file receiving"
+        root.actionStatus = root.lastError
+      } else {
+        root.lastError = ""
+        root.actionStatus = root.receiverActive
+          ? "Automatic file receiving turned off"
+          : "Automatic file receiving turned on"
+        root.receiverActive = !root.receiverActive
+      }
+      actionStatusTimer.restart()
+      delayedReceiverRefresh.restart()
     }
   }
 }
