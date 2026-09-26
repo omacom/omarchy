@@ -1,29 +1,239 @@
 #!/bin/bash
 
-# omarchy:summary=Ensure the OpenClaw CLI is installed for the default agent
-# omarchy:args=[--check|--now]
+# omarchy:summary=Install OpenClaw for the default agent as the self-updating copy under ~/.openclaw
+# omarchy:args=<--check|--now>
+# omarchy:examples=omarchy install openclaw cli --now | omarchy install openclaw cli --check
 # omarchy:requires-sudo=true
 
-# OpenClaw is not a mise tool: the openclaw pacman package is the one OpenClaw
-# installation on the machine — the CLI, the gateway, and the Install > AI web
-# app all share it, and the fast ring keeps it current. The default-agent flow
-# talks to that package through the same --check/--now contract mise-backed
-# agents get from mise itself.
+# There is one OpenClaw on a machine, and it is the one under ~/.openclaw that
+# upstream's install-cli.sh makes: a private Node and the package in a prefix
+# the user owns, which `openclaw update` and the Control UI's Update button
+# replace in place. A copy in /usr belongs to pacman, and upstream's updater
+# refuses to touch it. The openclaw package is therefore the seed rather than
+# the runtime: the release Omarchy ships and the installer that came with it.
+# The CLI, the gateway service and the Install > AI web app all run this copy.
+#
+# Each mode is named outright, like omarchy-install-hermes-cli: the default
+# agent asks --check first and opens a terminal for --now only on a no.
 
 set -euo pipefail
 
-case "${1:---now}" in
---check)
-  omarchy-pkg-present openclaw
-  ;;
---now)
-  if ! omarchy-pkg-present openclaw; then
-    echo "Installing OpenClaw..."
-    omarchy-pkg-add openclaw
+mode=${1:-}
+
+# Everything here runs the user's own files, --check included.
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
+
+# Omarchy's OpenClaw is the default one, in ~/.openclaw with the default unit,
+# whatever another profile, unit or state directory a shell selects; a service
+# installed from here would otherwise carry that selection.
+unset OPENCLAW_PROFILE OPENCLAW_SYSTEMD_UNIT OPENCLAW_WRAPPER OPENCLAW_HOME OPENCLAW_STATE_DIR OPENCLAW_CONFIG_PATH
+
+prefix="$HOME/.openclaw"
+runtime_command="$prefix/bin/openclaw"
+command_path="$HOME/.local/bin/openclaw"
+seed=/usr/share/openclaw
+
+# Usable means the command answers, not that the file is there: upstream's
+# wrapper execs the prefix's own Node, so a prefix missing either fails here.
+runtime_runs() {
+  [[ -f $runtime_command && -x $runtime_command ]] &&
+    timeout 30 "$runtime_command" --version >/dev/null 2>&1
+}
+
+# The name on PATH is a link to the runtime's command. A link already aimed
+# there, even one left dangling by a removed runtime, is Omarchy's to rewrite;
+# anything else at the path is the user's.
+command_ours() {
+  [[ ! -e $command_path && ! -L $command_path ]] || [[ $(readlink -- "$command_path") == "$runtime_command" ]]
+}
+
+# What omarchy-agent, the web app and a terminal run is whichever openclaw is
+# first on PATH, and Omarchy puts /usr/bin and the mise shims ahead of
+# ~/.local/bin, so the command has to resolve to the runtime from there.
+on_path() {
+  local found
+  found=$(type -P openclaw) || return 1
+  [[ $(realpath -m -- "$found") == "$(realpath -m -- "$runtime_command")" ]]
+}
+
+# Nothing yet, or the runtime's command.
+path_clear() {
+  ! type -P openclaw >/dev/null || on_path
+}
+
+# The package counts too: without it --now has a pacman step to take, and
+# answering yes here would run that where no terminal can ask for a password.
+installed() {
+  omarchy-pkg-present openclaw && runtime_runs && on_path
+}
+
+# Whether a unit's ExecStart runs a program from under a path: the program
+# itself, or the script it is handed. Later arguments and other lines can name
+# ~/.openclaw whichever OpenClaw the unit starts.
+unit_runs() {
+  local words word
+  read -ra words <<<"$(sed -n 's/^ExecStart=//p' "$1" | head -1)"
+  if [[ ${words[0]:-} == "$2"* ]]; then
+    return 0
   fi
+  for word in "${words[@]:1}"; do
+    if [[ $word != -* ]]; then
+      [[ $word == "$2"* ]]
+      return
+    fi
+  done
+  return 1
+}
+
+# A gateway service already running some other OpenClaw. Upstream's installer
+# rewrites a loaded gateway service to the copy it has just installed, so
+# seeding beside one would take it over.
+foreign_gateway() {
+  local unit
+  unit=$(unit_path gateway)
+  [[ -f $unit ]] && ! unit_runs "$unit" "$prefix/" && ! unit_runs "$unit" "/usr/lib/node_modules/openclaw/"
+}
+
+# A service the openclaw package's own copy installed runs from
+# /usr/lib/node_modules/openclaw, which that package no longer ships, and is
+# moved to the runtime, where `openclaw update` can replace its code. A service
+# running any other OpenClaw is the user's arrangement and stays. The --now
+# steps below list these, and which were running, before anything changes.
+unit_path() {
+  echo "$HOME/.config/systemd/user/openclaw-$1.service"
+}
+
+# Stopped before anything is installed: still running the old code from deleted
+# files, such a service holds the state directory the newer runtime has to
+# migrate, which upstream's installer does the moment it finds one loaded.
+stop_legacy_services() {
+  local role
+  for role in "${moving[@]}"; do
+    if ! systemctl --user stop "openclaw-$role.service"; then
+      echo "Could not stop the OpenClaw $role service, so OpenClaw was not moved to $prefix." >&2
+      return 1
+    fi
+    if [[ " ${running[*]} " == *" $role "* ]]; then
+      stopped+=("$role")
+    fi
+  done
+}
+
+# Not moved yet: still on the old copy, or running before and not now.
+unsettled() {
+  unit_runs "$(unit_path "$1")" "/usr/lib/node_modules/openclaw/" ||
+    { [[ " ${running[*]} " == *" $1 "* ]] && ! systemctl --user is-active --quiet "openclaw-$1.service"; }
+}
+
+# Upstream's installer rewrites a loaded gateway itself, but only warns when
+# the restart fails, so whatever is still unsettled is installed again from the
+# runtime and then has to have settled.
+rehome_services() {
+  local role
+  for role in "${moving[@]}"; do
+    if unsettled "$role"; then
+      echo "Moving the OpenClaw $role service to $prefix..."
+      "$runtime_command" "$role" install --force || true
+    fi
+    if unsettled "$role"; then
+      echo "Could not move the OpenClaw $role service to $prefix. Finish with: openclaw $role install --force" >&2
+      return 1
+    fi
+  done
+}
+
+# Said on any failure that leaves a service this run stopped not running.
+stopped_note() {
+  local role
+  for role in "${stopped[@]}"; do
+    if ! systemctl --user is-active --quiet "openclaw-$role.service"; then
+      echo "The OpenClaw $role service was stopped for this and is not running now." >&2
+    fi
+  done
+}
+
+case "$mode" in
+--check)
+  if installed; then exit 0; else exit 1; fi
   ;;
+--now) ;;
 *)
-  echo "Usage: omarchy-install-openclaw-cli [--check|--now]" >&2
+  echo "Usage: omarchy-install-openclaw-cli <--check|--now>" >&2
   exit 1
   ;;
 esac
+
+# Refused before anything is installed or touched: the command's name, what
+# PATH finds, and a gateway running another OpenClaw all have to be clear.
+if ! command_ours; then
+  echo "$command_path is not the OpenClaw Omarchy set up. Move it aside, then run omarchy-install-openclaw-cli --now again." >&2
+  exit 1
+fi
+if ! path_clear; then
+  echo "'openclaw' on PATH is $(type -P openclaw), which is what Omarchy would run instead of $runtime_command." >&2
+  echo "Remove it or reorder PATH, then run omarchy-install-openclaw-cli --now again." >&2
+  exit 1
+fi
+
+# A runtime that already answers is never reinstalled: it may be past the
+# packaged release by its own updates, and seeding would take it back.
+seeding=false
+if ! runtime_runs; then
+  seeding=true
+fi
+if [[ $seeding == "true" ]] && foreign_gateway; then
+  echo "The OpenClaw gateway service runs another OpenClaw, which setting one up in $prefix would take over." >&2
+  echo "Remove that gateway with 'openclaw gateway uninstall', then run omarchy-install-openclaw-cli --now again." >&2
+  exit 1
+fi
+
+if ! omarchy-pkg-present openclaw; then
+  echo "Installing OpenClaw..."
+  omarchy-pkg-add openclaw
+fi
+if [[ $seeding == "true" && ( ! -r $seed/install-cli.sh || ! -r $seed/openclaw.tgz ) ]]; then
+  echo "The installed OpenClaw package cannot set up a self-updating OpenClaw. Run 'omarchy update', then try again." >&2
+  exit 1
+fi
+
+# What the old package installed and what of it was running, read before
+# anything changes.
+moving=()
+running=()
+stopped=()
+for role in gateway node; do
+  if [[ -f $(unit_path "$role") ]] && unit_runs "$(unit_path "$role")" "/usr/lib/node_modules/openclaw/"; then
+    moving+=("$role")
+    if systemctl --user is-active --quiet "openclaw-$role.service"; then
+      running+=("$role")
+    fi
+  fi
+done
+
+trap 'status=$?; (( status == 0 )) || stopped_note' EXIT
+stop_legacy_services
+
+if [[ $seeding == "true" ]]; then
+  # Every choice the installer reads from the environment is named, so an
+  # OPENCLAW_INSTALL_METHOD or OPENCLAW_PREFIX left in a shell cannot move it.
+  echo "Setting up OpenClaw in $prefix..."
+  bash "$seed/install-cli.sh" --install-method npm --prefix "$prefix" --version "$seed/openclaw.tgz" --no-onboard || true
+  if ! runtime_runs; then
+    echo "OpenClaw setup did not complete. Re-run this command after resolving the installer error." >&2
+    exit 1
+  fi
+fi
+
+mkdir -p "${command_path%/*}"
+ln -sfn "$runtime_command" "$command_path"
+
+rehome_services
+
+if ! on_path; then
+  echo "$runtime_command is ready, but 'openclaw' on PATH is $(type -P openclaw || echo missing), which is what Omarchy runs." >&2
+  echo "Put ~/.local/bin on PATH, then run omarchy-install-openclaw-cli --now again." >&2
+  exit 1
+fi

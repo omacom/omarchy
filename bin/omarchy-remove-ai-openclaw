@@ -35,8 +35,9 @@ for unit_file in "$unit_dir"/openclaw-gateway.service "$unit_dir"/openclaw-node.
     systemctl --user disable --now "$unit" 2>/dev/null ||
     unit_stopped "$unit"; then
     # .bak is what `gateway install --force` leaves behind when it rewrites a
-    # unit, so it goes with the unit.
-    rm -f "$unit_file" "$unit_file.bak" "$unit_dir/default.target.wants/$unit"
+    # unit, and .reconcile-*.bak what `openclaw update` leaves when it
+    # refreshes one, so they go with the unit.
+    rm -f "$unit_file" "$unit_file.bak" "$unit_file".reconcile-*.bak "$unit_dir/default.target.wants/$unit"
     systemctl --user daemon-reload 2>/dev/null || true
     # A unit that had been failing stays listed as "not-found failed" after
     # its file is gone until its failed state is reset.
@@ -49,6 +50,14 @@ done
 
 omarchy-pkg-drop openclaw
 
+# The command on PATH goes, so nothing answers to openclaw. The OpenClaw it
+# pointed at stays in ~/.openclaw with the state below: its own updates may
+# have migrated that state past the packaged release, which could not open it
+# again, and a reinstall picks the kept copy back up instead of seeding one.
+if [[ -L $HOME/.local/bin/openclaw && $(readlink -- "$HOME/.local/bin/openclaw") == "$HOME/.openclaw/bin/openclaw" ]]; then
+  rm -f "$HOME/.local/bin/openclaw"
+fi
+
 # The web app launcher and icon omarchy-install-ai-openclaw created.
 rm -f "$HOME/.local/share/applications/OpenClaw.desktop"
 rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/openclaw.png"
@@ -59,12 +68,13 @@ gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
 # better surprise. But it also holds the plugin runtimes and caches OpenClaw
 # downloads for itself, easily hundreds of megabytes, so the choice is put in
 # front of the user with the size rather than left silent. Without a terminal
-# to ask in, keeping it is the answer.
+# to ask in, keeping it is the answer. The snapshots `openclaw update` takes
+# of that state sit beside it and go with it.
 state_removed=false
 if [[ -d $HOME/.openclaw && -t 0 ]]; then
   size=$(du -sh "$HOME/.openclaw" 2>/dev/null | cut -f1)
-  if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, and downloaded plugins)?"; then
-    rm -rf "$HOME/.openclaw"
+  if gum confirm --default=false "Also delete ~/.openclaw ($size: chats, memories, credentials, downloaded plugins, and OpenClaw itself)?"; then
+    rm -rf "$HOME/.openclaw" "$HOME/.openclaw.update-captures"
     state_removed=true
   fi
 fi
