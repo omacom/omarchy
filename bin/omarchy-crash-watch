@@ -22,6 +22,7 @@ readonly dedupe_seconds=${OMARCHY_CRASH_DEDUPE_SECONDS:-60}
 readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
 
 declare -A last_notified
+declare -A notify_ids
 
 announce() {
   local comm=$1 pid=$2 exe=$3 signal=$4
@@ -32,17 +33,38 @@ announce() {
   # likely to be delivered is the one most worth reporting.
   omarchy-notification-wait || return 1
 
+  # A crash loop re-announces every window, and each announcement is a critical
+  # toast that waits for the user, so an unattended machine would collect one
+  # per program per minute forever. Handing the server back the id it gave us
+  # updates that one toast in place instead. The id is the server's, so ask for
+  # it with -p rather than inventing one: a number we made up names whichever
+  # live notification happens to hold it, and the server only matches a
+  # replaces_id against a notification it still holds. Capturing every time
+  # also heals the stored id once the toast has been dismissed.
+  local previous=${notify_ids[$comm]:-}
+  local replace=()
+  [[ $previous =~ ^[0-9]+$ ]] && replace=(-r "$previous")
+
   # --exec rather than a libnotify action: the shell runs clicks from its own
   # hint and never emits ActionInvoked. Keeps the default "omarchy-action" app
   # name, the only one shouldBypassDnd() lets through. Crash details ride as
   # discrete argv words, so a hostile process name can't be reparsed as a
-  # command. --exec consumes the rest of the line, so it comes last.
-  omarchy-notification-send \
+  # command. --exec consumes the rest of the line, so it comes last, which is
+  # also why -p has to come before it.
+  local id
+  id="$(omarchy-notification-send \
     --urgency critical \
     --glyph "$CRASH_GLYPH" \
+    -p \
+    "${replace[@]}" \
     "Process crashed: $comm" \
     "Click to diagnose with AI" \
-    --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
+    --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal")" || return 1
+
+  # The toast is on screen either way, so the caller's dedupe window starts
+  # regardless; only the id is lost, and the next announcement learns it again.
+  [[ $id =~ ^[0-9]+$ ]] && notify_ids[$comm]=$id
+  return 0
 }
 
 # -n 0 so a restart does not re-announce crashes already dealt with.

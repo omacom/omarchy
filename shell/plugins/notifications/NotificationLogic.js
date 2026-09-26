@@ -272,6 +272,35 @@ function parseSettings(raw) {
   }
 }
 
+var LOW_POPUP_DURATION = 5000
+var NORMAL_POPUP_DURATION = 8000
+var MAX_POPUP_DURATION = 30000
+
+// Milliseconds a popup stays on screen, 0 meaning it waits for the user.
+// `expireTimeout` is the sender's request in ms; 0 or absent means it asked for
+// nothing. The urgency values are the caller's, because this module has no
+// Quickshell import, so it can compare but not name them.
+function durationFor(urgency, expireTimeout, lowUrgency, criticalUrgency) {
+  var requested = requestedDuration(expireTimeout)
+
+  // Critical waits for the user: first-party senders rely on it (a Taildrop
+  // arrival, a pending migration, a crash to diagnose) and the Taildrop promise
+  // in manual/35-networking.md depends on it, so an explicit sender timeout is
+  // the only thing allowed to shorten one.
+  if (urgency === criticalUrgency && requested === 0) return 0
+
+  var floor = urgency === lowUrgency ? LOW_POPUP_DURATION : NORMAL_POPUP_DURATION
+  return Math.min(MAX_POPUP_DURATION, Math.max(floor, requested))
+}
+
+function requestedDuration(expireTimeout) {
+  // FreeDesktop notification spec (and Quickshell) report expireTimeout in
+  // milliseconds, so pass it through directly.
+  var ms = Number(expireTimeout || 0)
+  if (!isFinite(ms) || ms <= 0) return 0
+  return Math.round(ms)
+}
+
 // ---------------------------------------------------- popup persistence
 //
 // Each on-screen popup is mirrored to its own file under
@@ -465,6 +494,7 @@ if (typeof module !== "undefined") {
     replacementSnapshot: replacementSnapshot,
     historyEntry: historyEntry,
     parseSettings: parseSettings,
+    durationFor: durationFor,
     historyRows: historyRows,
     popupEntry: popupEntry,
     popupFileName: popupFileName,
