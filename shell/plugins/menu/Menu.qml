@@ -109,7 +109,10 @@ Item {
   property bool searchDivider: false
   property int layoutSerial: 0
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
-  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
+  // Height must not bind to displayModel.count: rebuild appends one row at a
+  // time, and a count dependency re-walks every row on every append (O(n^2)).
+  // layoutSerial is bumped once the model is finished, so one pass is enough.
+  property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial) : rowListHeight(layoutSerial)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
     : Math.min(contentMargin * 2 + headerHeight + contentSpacing + visibleRowsHeight, panel.height - Style.gapsOut * 2)
@@ -178,7 +181,8 @@ Item {
     return totals[full - 1] + root.rowSpacing + peek
   }
 
-  function rowListHeight(_serial, _count, _filter, _divider) {
+  // _serial is a binding dependency only; the walk always reads the model.
+  function rowListHeight(_serial) {
     if (displayModel.count === 0) return root.baseRowHeight
 
     var totals = []
@@ -197,7 +201,7 @@ Item {
     return foldedListHeight(totals, availableRowsHeight())
   }
 
-  function dmenuRowListHeight(_serial, _count, _filter) {
+  function dmenuRowListHeight(_serial) {
     if (root.mode === "input") return 0
     if (displayModel.count === 0) return root.baseRowHeight
 
@@ -610,7 +614,12 @@ Item {
 
     displayModel.clear()
 
-    if (!root.rowsLoaded) return
+    // Without a count binding on visibleRowsHeight, an empty model still needs
+    // a serial bump so the card collapses instead of keeping the prior height.
+    if (!root.rowsLoaded) {
+      layoutSerial += 1
+      return
+    }
 
     var active = root.item(root.activeMenu) ? root.activeMenu : "root"
     root.activeMenu = active
