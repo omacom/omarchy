@@ -37,9 +37,14 @@ assertEqual(
   'power shows the discharging icon while the battery is discharging on AC'
 )
 assertEqual(
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging }, true, states),
-  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, true, states),
-  'power shows battery icon when unplugged before battery state refreshes'
+  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, true, states),
+  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states),
+  'power shows the charging icon while the battery state is charging'
+)
+assertEqual(
+  power.modeLabel({ isPresent: true, percentage: 0.4, state: states.Charging }, true, states),
+  'Charging',
+  'power labels charging from device state when onBattery is still true'
 )
 
 assert(/if \(b === Qt\.RightButton\) root\.togglePercentage\(\)/.test(panelSource), 'power right click toggles the bar percentage')
