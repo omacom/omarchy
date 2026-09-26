@@ -19,6 +19,20 @@ if rg -q 'barMoveSettling|barMoveSettleTimer' "$ROOT/shell/plugins/bar/Bar.qml";
 fi
 pass "bar move outline has no post-release settling state"
 
+# Every per-screen bar surface has to go through the real-screen filter, or the
+# placeholder and FALLBACK screens get a bar again; BarModel's tests below cover
+# which screens the filter keeps.
+if rg -q 'model:\s*Quickshell\.screens' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar surfaces must not be built for Qt's placeholder screen"
+fi
+if (( $(rg -c 'model:\s*root\.realScreens' "$ROOT/shell/plugins/bar/Bar.qml") != 3 )); then
+  fail "bar, drag ghost and move ghost surfaces must all use the real-screen filter"
+fi
+if ! rg -q 'readonly property var realScreens: BarModel\.realScreens\(Quickshell\.screens\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
+  fail "bar real-screen list must come from BarModel.realScreens"
+fi
+pass "bar surfaces are built only for real screens"
+
 # A widget above the gesture area propagates its composed press-and-hold down
 # without handing over the grab, so the resulting move gets neither a release
 # nor a cancel and the ghost stays up for the session. Only the grabbing area
@@ -83,6 +97,23 @@ assertEqual(bar.pickDrawnSlot([drawn, placeholder]), drawn, 'bar picks the drawn
 assertEqual(bar.pickDrawnSlot([placeholder]), placeholder, 'bar falls back to the placeholder when nothing is drawn')
 assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are none')
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
+
+// With every monitor unplugged, Qt substitutes a nameless 0x0 placeholder and
+// Hyprland a FALLBACK output with a real mode; neither may get a bar. A
+// user-created headless output is a real screen and keeps its bar.
+const qtPlaceholder = { name: '', width: 0, height: 0 }
+const hyprFallback = { name: 'FALLBACK', width: 1920, height: 1080 }
+const monitor = { name: 'HDMI-A-1', width: 3840, height: 2160 }
+const headless = { name: 'HEADLESS-2', width: 1920, height: 1080 }
+const unsized = { name: 'DP-1', width: 0, height: 0 }
+assertEqual(bar.isRealScreen(qtPlaceholder), false, 'bar skips Qt\'s placeholder screen')
+assertEqual(bar.isRealScreen(hyprFallback), false, 'bar skips Hyprland\'s FALLBACK output despite its real mode')
+assertEqual(bar.isRealScreen(monitor), true, 'bar keeps a real monitor')
+assertEqual(bar.isRealScreen(headless), true, 'bar keeps a user-created headless output')
+assertEqual(bar.isRealScreen(unsized), false, 'bar waits for a screen\'s geometry')
+assertEqual(bar.isRealScreen(null), false, 'bar tolerates a missing screen')
+assertEqual(JSON.stringify(bar.realScreens([qtPlaceholder, monitor, hyprFallback, headless])), JSON.stringify([monitor, headless]), 'bar keeps only real screens, in order')
+assertEqual(JSON.stringify(bar.realScreens(null)), '[]', 'bar tolerates a missing screen list')
 
 // Revealing the indicators can slide a neighbouring widget under a stationary
 // pointer; collapsing the peek on that un-hover re-opens it and stutters the
