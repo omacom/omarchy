@@ -1,0 +1,563 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the DeepSeek usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect DeepSeek usage into one display-ready JSON record.
+
+Local stats come from pi/omp session files whose assistant messages ran on the
+deepseek provider, and from opencode sessions that ran on a deepseek provider.
+DeepSeek billing is prepaid, so the record carries the live credit balance from
+GET https://api.deepseek.com/user/balance when a key is available, plus the
+optional funded/spent detail derived from ~/.config/omarchy/agents/deepseek.json
+(the same shape the fireworks collector uses). The agents panel only ever reads
+the JSON this prints.
+
+Token accounting deliberately matches pi's own totals: input + output +
+cacheRead + cacheWrite, with the separate "reasoning" field left out, exactly
+like the codex collector treats pi sessions.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import Any
+
+AGENT_ID = "deepseek"
+AGENT_NAME = "DeepSeek"
+AUTH_HELP = (
+  "Add a DeepSeek key in pi, set DEEPSEEK_API_KEY, "
+  "or sign in to DeepSeek in opencode."
+)
+API_BASE_URL = "https://api.deepseek.com"
+
+
+class DeepSeekError(Exception):
+  pass
+
+
+def number(value: Any) -> int:
+  try:
+    return int(value or 0)
+  except Exception:
+    return 0
+
+
+def model_name(raw: Any) -> str:
+  value = str(raw or AGENT_ID)
+  return value if value else AGENT_ID
+
+
+def local_day(value: Any) -> str:
+  if value is None:
+    return datetime.now().strftime("%Y-%m-%d")
+  if isinstance(value, (int, float)):
+    # pi message timestamps are milliseconds; other clients use seconds.
+    if value > 10_000_000_000:
+      value = value / 1000
+    return datetime.fromtimestamp(value).strftime("%Y-%m-%d")
+  text = str(value)
+  try:
+    if text.endswith("Z"):
+      dt = datetime.fromisoformat(text[:-1] + "+00:00")
+    else:
+      dt = datetime.fromisoformat(text)
+    if dt.tzinfo is not None:
+      dt = dt.astimezone()
+    return dt.strftime("%Y-%m-%d")
+  except Exception:
+    return datetime.now().strftime("%Y-%m-%d")
+
+
+def runtime_env() -> dict[str, str]:
+  home = str(Path.home())
+  path_parts = [
+    os.environ.get("PATH", ""),
+    f"{home}/.local/bin",
+    f"{home}/.npm-global/bin",
+    f"{home}/.local/share/mise/shims",
+  ]
+  env = os.environ.copy()
+  env["PATH"] = os.pathsep.join(part for part in path_parts if part)
+  return env
+
+
+ENV = runtime_env()
+
+
+def find_command(name: str) -> str | None:
+  return shutil.which(name, path=ENV.get("PATH"))
+
+
+def empty_bucket() -> dict[str, int]:
+  return {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 0,
+  }
+
+
+def empty_stats() -> dict[str, Any]:
+  return {
+    "todayPrompts": 0,
+    "todaySessions": 0,
+    "todayTotalTokens": 0,
+    "todayTokensByModel": {},
+    "recentDays": [],
+    "totalPrompts": 0,
+    "totalSessions": 0,
+    "activeDays": 0,
+    "activeDates": [],
+    "modelUsage": {},
+  }
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  record: dict[str, Any] = {
+    "schemaVersion": 1,
+    "id": AGENT_ID,
+    "name": AGENT_NAME,
+    "updatedAt": datetime.now(timezone.utc).isoformat(),
+    "ready": True,
+    "hasLocalStats": True,
+    # Prompt and session counts are real: every pi session message carries
+    # them, so today's tooltip may show "N prompts · M sessions".
+    "hasPromptStats": True,
+    "tierLabel": "Prepaid",
+    "usageStatusText": "",
+    "authHelpText": "",
+    "limits": [],
+  }
+  record.update(empty_stats())
+  record.update(overrides)
+  return record
+
+
+def pi_session_roots() -> list[Path]:
+  return [
+    Path.home() / ".pi" / "agent" / "sessions",
+    Path.home() / ".omp" / "agent" / "sessions",
+  ]
+
+
+def scan_pi_sessions() -> dict[str, Any]:
+  """Aggregate pi/omp session messages that ran on the deepseek provider."""
+  now = datetime.now()
+  today = now.strftime("%Y-%m-%d")
+  recent_dates = [
+    (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+    for offset in range(6, -1, -1)
+  ]
+  recent = {day: 0 for day in recent_dates}
+
+  today_prompts = 0
+  today_total_tokens = 0
+  today_sessions: set[str] = set()
+  today_tokens_by_model: dict[str, int] = {}
+  total_prompts = 0
+  total_sessions: set[str] = set()
+  active_days: set[str] = set()
+  model_usage: dict[str, dict[str, int]] = {}
+  seen_messages: set[str] = set()
+
+  rg = find_command("rg") or "rg"
+  for root in pi_session_roots():
+    if not root.exists():
+      continue
+    try:
+      proc = subprocess.Popen(
+        [rg, "--json", "-e", r'"provider"\s*:\s*"deepseek"', str(root)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        errors="replace",
+        env=ENV,
+      )
+    except FileNotFoundError:
+      continue
+
+    assert proc.stdout is not None
+    for raw in proc.stdout:
+      try:
+        event = json.loads(raw)
+        if event.get("type") != "match":
+          continue
+        line = event.get("data", {}).get("lines", {}).get("text", "")
+        path = event.get("data", {}).get("path", {}).get("text", "pi-session")
+        entry = json.loads(line)
+      except Exception:
+        continue
+
+      if entry.get("type") != "message":
+        continue
+      message_key = path + ":" + str(entry.get("id") or "")
+      if message_key in seen_messages:
+        continue
+      seen_messages.add(message_key)
+      message = entry.get("message") or {}
+      if message.get("role") != "assistant":
+        continue
+      if str(message.get("provider") or "") != "deepseek":
+        continue
+
+      usage = message.get("usage") or {}
+      if not usage:
+        continue
+      total = number(usage.get("totalTokens"))
+      input_tokens = number(usage.get("input"))
+      output_tokens = number(usage.get("output"))
+      cache_read = number(usage.get("cacheRead"))
+      cache_write = number(usage.get("cacheWrite"))
+      if total and not (input_tokens or output_tokens or cache_read or cache_write):
+        input_tokens = total
+      if not (input_tokens or output_tokens or cache_read or cache_write):
+        continue
+
+      day = local_day(entry.get("timestamp") or message.get("timestamp"))
+      model = model_name(message.get("model"))
+      bucket = model_usage.setdefault(model, empty_bucket())
+      bucket["inputTokens"] += input_tokens
+      bucket["outputTokens"] += output_tokens
+      bucket["cacheReadInputTokens"] += cache_read
+      bucket["cacheCreationInputTokens"] += cache_write
+
+      total_tokens = input_tokens + output_tokens + cache_read + cache_write
+      total_prompts += 1
+      total_sessions.add(path)
+      active_days.add(day)
+      if day in recent:
+        recent[day] += total_tokens
+      if day == today:
+        today_prompts += 1
+        today_sessions.add(path)
+        today_total_tokens += total_tokens
+        today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total_tokens
+
+    try:
+      proc.wait(timeout=1)
+    except Exception:
+      proc.kill()
+
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
+    "totalPrompts": total_prompts,
+    "totalSessions": len(total_sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": model_usage,
+  }
+
+
+def opencode_db_path() -> Path:
+  data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+  return data_home / "opencode" / "opencode.db"
+
+
+def scan_opencode_sessions() -> tuple[dict[str, Any], bool]:
+  """opencode messages on a deepseek provider, mirroring the codex scan.
+
+  Returns the stats and whether the scan ran to completion: a scan cut short
+  by a database error still contributes what it read, but a caller that caches
+  must not treat it as the whole story. Read-only: opencode may be writing
+  right now.
+  """
+  db = opencode_db_path()
+  if not db.is_file():
+    return empty_stats(), True
+
+  import sqlite3
+
+  now = datetime.now()
+  today = now.strftime("%Y-%m-%d")
+  recent_dates = [
+    (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+    for offset in range(6, -1, -1)
+  ]
+  recent = {day: 0 for day in recent_dates}
+
+  today_prompts = 0
+  today_total_tokens = 0
+  today_sessions: set[str] = set()
+  today_tokens_by_model: dict[str, int] = {}
+  total_prompts = 0
+  total_sessions: set[str] = set()
+  active_days: set[str] = set()
+  model_usage: dict[str, dict[str, int]] = {}
+
+  try:
+    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return empty_stats(), False
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    # The json_extract conditions are the authority; the LIKE gates are pure
+    # acceleration that skip rows whose JSON cannot contain the pair, the same
+    # trade the codex collector makes on this table.
+    for session_id, raw in conn.execute(
+      "SELECT session_id, data FROM message"
+      " WHERE data LIKE '%\"role\"%:%\"assistant\"%'"
+      " AND data LIKE '%\"providerID\"%:%\"deepseek\"%'"
+      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.role') END = 'assistant'"
+      " AND CASE WHEN json_valid(data) THEN json_extract(data, '$.providerID') END = 'deepseek'"
+    ):
+      try:
+        entry = json.loads(raw)
+        if not isinstance(entry, dict) or entry.get("role") != "assistant":
+          continue
+        if str(entry.get("providerID") or "") != "deepseek":
+          continue
+        tokens = entry.get("tokens") or {}
+        cache = tokens.get("cache") or {}
+        input_tokens = number(tokens.get("input"))
+        # opencode keeps thinking tokens out of output; both are generated.
+        output_tokens = number(tokens.get("output")) + number(tokens.get("reasoning"))
+        cache_read = number(cache.get("read"))
+        cache_write = number(cache.get("write"))
+        if not (input_tokens or output_tokens or cache_read or cache_write):
+          continue
+        day = local_day((entry.get("time") or {}).get("created"))
+        model = model_name(str(entry.get("modelID") or "").rstrip("/").split("/")[-1])
+        bucket = model_usage.setdefault(model, empty_bucket())
+        bucket["inputTokens"] += input_tokens
+        bucket["outputTokens"] += output_tokens
+        bucket["cacheReadInputTokens"] += cache_read
+        bucket["cacheCreationInputTokens"] += cache_write
+        total_tokens = input_tokens + output_tokens + cache_read + cache_write
+        total_prompts += 1
+        total_sessions.add("opencode:" + str(session_id))
+        active_days.add(day)
+        if day in recent:
+          recent[day] += total_tokens
+        if day == today:
+          today_prompts += 1
+          today_sessions.add("opencode:" + str(session_id))
+          today_total_tokens += total_tokens
+          today_tokens_by_model[model] = today_tokens_by_model.get(model, 0) + total_tokens
+      except Exception:
+        continue
+  except sqlite3.Error:
+    return empty_stats(), False
+  finally:
+    conn.close()
+
+  return {
+    "todayPrompts": today_prompts,
+    "todaySessions": len(today_sessions),
+    "todayTotalTokens": today_total_tokens,
+    "todayTokensByModel": today_tokens_by_model,
+    "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
+    "totalPrompts": total_prompts,
+    "totalSessions": len(total_sessions),
+    "activeDays": len(active_days),
+    "activeDates": sorted(active_days),
+    "modelUsage": model_usage,
+  }, True
+
+
+def merge_stats(first: dict[str, Any], second: dict[str, Any]) -> dict[str, Any]:
+  """Sum two stats dicts. recentDays arrive as parallel per-day lists."""
+
+  def day_map(recent_days: list[dict[str, Any]]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for day in recent_days:
+      out[str(day.get("date") or "")] = number(day.get("messageCount"))
+    return out
+
+  days = day_map(first.get("recentDays") or [])
+  for date, count in day_map(second.get("recentDays") or []).items():
+    days[date] = days.get(date, 0) + count
+
+  def add_models(target: dict[str, dict[str, int]], source: Any) -> None:
+    for model, bucket in (source or {}).items():
+      if not isinstance(bucket, dict):
+        continue
+      slot = target.setdefault(str(model), empty_bucket())
+      slot["inputTokens"] += number(bucket.get("inputTokens"))
+      slot["outputTokens"] += number(bucket.get("outputTokens"))
+      slot["cacheReadInputTokens"] += number(bucket.get("cacheReadInputTokens"))
+      slot["cacheCreationInputTokens"] += number(bucket.get("cacheCreationInputTokens"))
+
+  def add_today(target: dict[str, int], source: Any) -> None:
+    for model, tokens in (source or {}).items():
+      target[str(model)] = target.get(str(model), 0) + number(tokens)
+
+  model_usage: dict[str, dict[str, int]] = {}
+  add_models(model_usage, first.get("modelUsage"))
+  add_models(model_usage, second.get("modelUsage"))
+
+  today_by_model: dict[str, int] = {}
+  add_today(today_by_model, first.get("todayTokensByModel"))
+  add_today(today_by_model, second.get("todayTokensByModel"))
+
+  return {
+    "todayPrompts": number(first.get("todayPrompts")) + number(second.get("todayPrompts")),
+    "todaySessions": number(first.get("todaySessions")) + number(second.get("todaySessions")),
+    "todayTotalTokens": number(first.get("todayTotalTokens")) + number(second.get("todayTotalTokens")),
+    "todayTokensByModel": today_by_model,
+    "recentDays": [{"date": day, "messageCount": days[day]} for day in sorted(days)],
+    "totalPrompts": number(first.get("totalPrompts")) + number(second.get("totalPrompts")),
+    "totalSessions": number(first.get("totalSessions")) + number(second.get("totalSessions")),
+    "activeDays": number(first.get("activeDays")) + number(second.get("activeDays")),
+    "activeDates": sorted(set(first.get("activeDates") or []) | set(second.get("activeDates") or [])),
+    "modelUsage": model_usage,
+  }
+
+
+# -------------------------------------------------------------- credentials
+
+def read_key_from_dict(parsed: Any, provider: str) -> str:
+  if not isinstance(parsed, dict):
+    return ""
+  entry = parsed.get(provider)
+  if not isinstance(entry, dict):
+    return ""
+  return str(entry.get("key") or entry.get("apiKey") or entry.get("api_key") or "").strip()
+
+
+def read_json_key(path: Path, provider: str) -> str:
+  try:
+    return read_key_from_dict(json.loads(path.read_text()), provider)
+  except (OSError, json.JSONDecodeError):
+    return ""
+
+
+def api_key() -> str:
+  env_key = str(os.environ.get("DEEPSEEK_API_KEY", "")).strip()
+  if env_key:
+    return env_key
+  key = read_json_key(Path.home() / ".pi" / "agent" / "auth.json", "deepseek")
+  if key:
+    return key
+  data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+  return read_json_key(data_home / "opencode" / "auth.json", "deepseek")
+
+
+def config_path() -> Path:
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config"))
+  return config_home / "omarchy" / "agents" / "deepseek.json"
+
+
+def read_config() -> dict[str, Any]:
+  try:
+    parsed = json.loads(config_path().read_text())
+    return parsed if isinstance(parsed, dict) else {}
+  except (OSError, json.JSONDecodeError):
+    return {}
+
+
+# ----------------------------------------------------------------- balance
+
+def fetch_balance(api_base_url: str, key: str) -> dict[str, Any]:
+  """GET /user/balance: total_balance, granted_balance, topped_up_balance."""
+  url = api_base_url.rstrip("/") + "/user/balance"
+  request = urllib.request.Request(
+    url,
+    headers={"Authorization": "Bearer " + key, "Accept": "application/json"},
+  )
+  try:
+    with urllib.request.urlopen(request, timeout=15) as response:
+      payload = json.load(response)
+  except urllib.error.HTTPError as error:
+    raise DeepSeekError(f"DeepSeek balance endpoint returned HTTP {error.code}")
+  except urllib.error.URLError as error:
+    raise DeepSeekError("Could not reach the DeepSeek API") from error
+  except (json.JSONDecodeError, TimeoutError) as error:
+    raise DeepSeekError("DeepSeek returned an invalid balance response") from error
+
+  if not isinstance(payload, dict):
+    raise DeepSeekError("DeepSeek returned an invalid balance response")
+  infos = payload.get("balance_infos")
+  if not isinstance(infos, list) or not infos or not isinstance(infos[0], dict):
+    raise DeepSeekError("DeepSeek balance response carried no balance_infos")
+  first = infos[0]
+
+  def money(value: Any) -> Decimal:
+    try:
+      return Decimal(str(value or "0"))
+    except InvalidOperation:
+      return Decimal("0")
+
+  return {
+    "remaining": money(first.get("total_balance")),
+    "granted": money(first.get("granted_balance")),
+    "toppedUp": money(first.get("topped_up_balance")),
+    "currency": str(first.get("currency") or "CNY"),
+  }
+
+
+def balance_record(key: str, api_base_url: str) -> dict[str, Any] | None:
+  config = read_config()
+  try:
+    funded = Decimal(str(config.get("fundedAmount") or "0"))
+  except InvalidOperation:
+    funded = Decimal("0")
+  if not funded.is_finite() or funded < 0:
+    funded = Decimal("0")
+
+  try:
+    live = fetch_balance(api_base_url, key)
+  except DeepSeekError as error:
+    print(f"omarchy-agent-usage-deepseek: balance unavailable ({error})", file=sys.stderr)
+    return None
+
+  remaining = live["remaining"]
+  spent = max(Decimal("0"), funded - remaining) if funded > 0 else Decimal("0")
+  return {
+    "remaining": float(max(Decimal("0"), remaining)),
+    "funded": float(funded),
+    "spent": float(spent),
+    "currency": str(live["currency"] or "CNY"),
+    # funded/spent derive from the configured fundedAmount, not DeepSeek's
+    # own ledger, so they are labelled estimates; remaining is live.
+    "estimated": funded > 0,
+  }
+
+
+def scan(api_base_url: str) -> dict[str, Any]:
+  stats = merge_stats(scan_pi_sessions(), scan_opencode_sessions()[0])
+  record = base_record()
+  record.update(stats)
+
+  key = api_key()
+  if key:
+    record["balance"] = balance_record(key, api_base_url)
+  else:
+    print("omarchy-agent-usage-deepseek: no DeepSeek key found; balance omitted", file=sys.stderr)
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the DeepSeek usage record as JSON")
+  # Stats are local file scans and the balance is one API call; there is no
+  # cache to force past and no faster limits-only path. The flags exist so
+  # every collector accepts the same invocation.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.add_argument("--api-base-url", default=os.environ.get("DEEPSEEK_API_BASE_URL", API_BASE_URL))
+  args = parser.parse_args()
+
+  try:
+    record = scan(args.api_base_url)
+  except Exception as error:
+    record = base_record(usageStatusText="DeepSeek unavailable", authHelpText="DeepSeek usage scan failed")
+    print(f"omarchy-agent-usage-deepseek: {type(error).__name__}: {error}", file=sys.stderr)
+  print(json.dumps(record, separators=(",", ":")))
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
