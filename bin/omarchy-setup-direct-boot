@@ -24,6 +24,10 @@ case "${bios_vendor,,}" in
     echo "Error: Apple firmware uses its own boot manager" >&2
     exit 1
     ;;
+  *microsoft*)
+    echo "Error: Surface firmware manages its own boot order and may drop custom EFI entries" >&2
+    exit 1
+    ;;
 esac
 
 existing_entry=$(efibootmgr | grep -E "^Boot[0-9A-Fa-f]+\*? Omarchy([[:space:]]|$)" | head -1)
