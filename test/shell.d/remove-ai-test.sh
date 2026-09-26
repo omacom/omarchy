@@ -295,6 +295,27 @@ pass "OpenClaw removal stops the gateway service"
   fail "OpenClaw removal keeps the user's agent state" "asked about ~/.openclaw without a terminal"
 pass "OpenClaw removal keeps the user's agent state"
 
+# The runtime omarchy-install-openclaw-cli set up sits beside that state and
+# goes; a command that is not the installer's, or a link elsewhere, stays.
+fresh_openclaw_home
+mkdir -p "$HOME/.openclaw/bin" "$HOME/.openclaw/tools/node-v24.19.0/lib" "$HOME/.local/bin"
+printf '#!/usr/bin/env bash\nexec "%s/.openclaw/tools/node/bin/node" "%s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/entry.js" "$@"\n' "$HOME" "$HOME" >"$HOME/.openclaw/bin/openclaw"
+ln -s "$HOME/.openclaw/bin/openclaw" "$HOME/.local/bin/openclaw"
+"$ROOT/bin/omarchy-remove-ai-openclaw" >/dev/null
+for gone in .openclaw/tools .openclaw/bin .local/bin/openclaw; do
+  [[ ! -e $HOME/$gone && ! -L $HOME/$gone ]] || fail "OpenClaw removal deletes the runtime it set up" "$gone"
+done
+[[ -f $HOME/.openclaw/openclaw.json ]] || fail "OpenClaw removal deletes the runtime it set up" "state went with it"
+
+fresh_openclaw_home
+mkdir -p "$HOME/.openclaw/bin" "$HOME/.openclaw/tools" "$HOME/.local/bin"
+printf '#!/bin/bash\nexec /opt/openclaw/openclaw.mjs "$@"\n' >"$HOME/.openclaw/bin/openclaw"
+ln -s /opt/openclaw/openclaw "$HOME/.local/bin/openclaw"
+"$ROOT/bin/omarchy-remove-ai-openclaw" >/dev/null
+[[ -f $HOME/.openclaw/bin/openclaw && -d $HOME/.openclaw/tools && -L $HOME/.local/bin/openclaw ]] ||
+  fail "OpenClaw removal deletes the runtime it set up" "someone else's install went with it"
+pass "OpenClaw removal deletes the runtime it set up, and only that"
+
 # A CLI that knows `gateway uninstall` owns the teardown; the manual systemd
 # fallback must not run.
 cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'

@@ -50,10 +50,11 @@ esac
 
 agent_package=${agent_package:-$agent}
 
-# Hermes and OpenClaw are not mise tools: Hermes is the desktop app's
-# self-updating runtime and OpenClaw comes from its pacman package. Each has
-# its own installer with the same --check/--now contract mise-backed agents
-# get from mise; see omarchy-install-hermes-cli and omarchy-install-openclaw-cli.
+# Hermes and OpenClaw are not mise tools: each is a self-updating runtime in
+# the user's home, Hermes the desktop app's and OpenClaw the one its Control
+# UI updates. Each has its own installer with the same --check/--now contract
+# mise-backed agents get from mise; see omarchy-install-hermes-cli and
+# omarchy-install-openclaw-cli.
 if [[ -n ${agent_installer:-} ]]; then
   # Not omarchy-cmd-present: a command on PATH says nothing about whether the
   # install behind it finished or runs the sessions omarchy-agent starts.

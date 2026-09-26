@@ -761,15 +761,16 @@ grep -F "missing is not installed" "$test_tmp/missing-output" >/dev/null ||
   fail "agent launcher explains when the default command is missing"
 pass "agent launcher reports a missing default command"
 
-# OpenClaw comes from its pacman package, not mise: choosing it must route
+# OpenClaw is its own self-updating runtime, not mise's: choosing it must route
 # through omarchy-install-openclaw-cli and never touch a mise environment.
-cat >"$mock_bin/omarchy-pkg-present" <<'SH'
+# openclaw-cli-test.sh covers the installer itself.
+cat >"$mock_bin/omarchy-install-openclaw-cli" <<'SH'
 #!/bin/bash
-[[ $1 == openclaw && ${OMARCHY_TEST_OPENCLAW_INSTALLED:-false} == "true" ]]
-SH
-cat >"$mock_bin/omarchy-pkg-add" <<'SH'
-#!/bin/bash
-printf '%s\n' "pkg-add $*" >>"$OMARCHY_TEST_STUB_LOG"
+if [[ $1 == "--check" ]]; then
+  [[ ${OMARCHY_TEST_OPENCLAW_INSTALLED:-false} == "true" ]]
+else
+  printf '%s\n' "install-openclaw-cli $*" >>"$OMARCHY_TEST_STUB_LOG"
+fi
 SH
 cat >"$mock_bin/omarchy-launch-openclaw" <<'SH'
 #!/bin/bash
@@ -779,7 +780,7 @@ cat >"$mock_bin/openclaw" <<'SH'
 #!/bin/bash
 exit 0
 SH
-chmod +x "$mock_bin/omarchy-pkg-present" "$mock_bin/omarchy-pkg-add" \
+chmod +x "$mock_bin/omarchy-install-openclaw-cli" \
   "$mock_bin/omarchy-launch-openclaw" "$mock_bin/openclaw"
 
 : >"$launch_log"
@@ -793,7 +794,7 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "choosing OpenClaw launches its terminal UI"
 [[ ! -s $terminal_log ]] || fail "an installed OpenClaw needs no install terminal"
 ! grep -q 'use -g openclaw' "$mise_history" || fail "OpenClaw never installs through mise"
-pass "choosing OpenClaw uses the package and launches its terminal UI"
+pass "choosing OpenClaw uses its runtime and launches its terminal UI"
 
 : >"$terminal_log"
 OMARCHY_TEST_OPENCLAW_INSTALLED=false omarchy-default-agent openclaw
@@ -805,12 +806,12 @@ pass "a missing OpenClaw routes through the install terminal"
 : >"$stub_log"
 : >"$inline_log"
 OMARCHY_TEST_OPENCLAW_INSTALLED=false omarchy-default-agent --install openclaw >/dev/null
-grep -Fx "pkg-add openclaw" "$stub_log" >/dev/null ||
-  fail "installing OpenClaw as default agent adds its package"
+grep -Fx "install-openclaw-cli --now" "$stub_log" >/dev/null ||
+  fail "installing OpenClaw as default agent sets up its runtime"
 mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "omarchy-launch-openclaw --tui" ]] ||
   fail "installing OpenClaw as default agent hands over to its terminal UI"
-pass "installing OpenClaw as default agent adds its package"
+pass "installing OpenClaw as default agent sets up its runtime"
 
 : >"$launch_log"
 omarchy agent prompt "Review this project"
