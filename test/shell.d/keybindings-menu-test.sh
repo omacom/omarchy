@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
@@ -13,6 +15,13 @@ home="$tmpdir/home"
 stub_bin="$tmpdir/bin"
 mkdir -p "$home/.config" "$stub_bin"
 cp -r "$ROOT/config/hypr" "$home/.config/hypr"
+
+# User configs may iterate values returned by Hyprland APIs the scanner does
+# not model. The fallback must look like an empty sequence instead of yielding
+# a value forever for every numeric index.
+#
+# It goes at the top so a later config error cannot hide a hanging loop.
+sed -i '1i for _, stub in ipairs({hl.get_monitors(), hl, hl.dsp, hl.dsp.anything}) do for _, value in ipairs(stub) do end end' "$home/.config/hypr/hyprland.lua"
 
 # The menu reads binds from Hyprland, which is not running here, so stand in for
 # it. A Lua bind reports dispatcher __lua and no arg, and the menu recovers both
@@ -43,7 +52,7 @@ stub_hyprctl() {
 keybindings() {
   env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
     XDG_CACHE_HOME="$tmpdir/cache" OMARCHY_PATH="$ROOT" \
-    bash "$ROOT/bin/omarchy-menu-keybindings" --print
+    timeout 5 bash "$ROOT/bin/omarchy-menu-keybindings" --print
 }
 
 # Closing a window and toggling the scratchpad are two of the actions Omarchy
@@ -182,6 +191,25 @@ rendered=$(keybindings)
 (( $(grep -c '→ Close window$' <<<"$rendered") == 2 )) ||
   fail "chords with the same label but different actions stay apart" "$rendered"
 pass "chords with the same label but different actions stay apart"
+
+# Stock config loads qconsole before the user's bindings. The scan must reach
+# the latter to recover a Lua binding's key from its source.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "" "Probe user bind")
+BINDS
+
+probe_home="$tmpdir/probe-home"
+mkdir -p "$probe_home/.config"
+cp -r "$ROOT/config/hypr" "$probe_home/.config/hypr"
+cat >>"$probe_home/.config/hypr/bindings.lua" <<'LUA'
+o.bind("SUPER + Y", "Probe user bind", "true")
+LUA
+probe_rendered=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$probe_home" \
+  XDG_CACHE_HOME="$tmpdir/cache-probe" OMARCHY_PATH="$ROOT" \
+  timeout 5 bash "$ROOT/bin/omarchy-menu-keybindings" --print)
+grep -q 'SUPER + Y  *→ Probe user bind' <<<"$probe_rendered" ||
+  fail "the keybindings scanner reaches user binds after qconsole" "$probe_rendered"
+pass "the keybindings scanner reaches user binds after qconsole"
 
 # An unresolved Lua bind reports no dispatcher at all, so nothing says the two
 # chords run the same thing, whatever their label promises.
