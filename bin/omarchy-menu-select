@@ -3,7 +3,7 @@
 # omarchy:summary=Pick one option from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- menu args...]
+# omarchy:args=[--print-index] prompt [option...] [-- menu args...]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
@@ -11,11 +11,31 @@
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+#
+# --print-index returns where the choice sits in the list that was passed in
+# instead of the text of it, so a caller looks the answer up in its own data
+# rather than parsing what was on screen. It must come before the prompt, since
+# every argument after that is an option.
 
 set -euo pipefail
 
+print_index=false
+
+while (( $# > 0 )) && [[ $1 == --* ]]; do
+  case "$1" in
+    --print-index)
+      print_index=true
+      ;;
+    *)
+      echo "omarchy-menu-select: unknown option $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
 if (( $# < 1 )); then
-  echo "Usage: omarchy-menu-select <prompt> [option...] [-- menu args...]" >&2
+  echo "Usage: omarchy-menu-select [--print-index] <prompt> [option...] [-- menu args...]" >&2
   exit 1
 fi
 
@@ -63,8 +83,27 @@ if (( ${#options[@]} == 0 )) && [[ ! -t 0 ]]; then
 fi
 
 if (( ${#options[@]} == 0 )); then
-  echo "Usage: omarchy-menu-select <prompt> [option...] [-- menu args...]" >&2
+  echo "Usage: omarchy-menu-select [--print-index] <prompt> [option...] [-- menu args...]" >&2
   exit 1
+fi
+
+# What comes back is the option with everything up to its first tab removed,
+# since the menu drops a leading glyph and keeps a subtext. Mapping that back to
+# a position is only sound while no two options come back as the same text;
+# choosing between them would act on a row the user did not pick.
+declare -A option_indexes=()
+
+if [[ $print_index == true ]]; then
+  for index in "${!options[@]}"; do
+    returned="${options[index]#*$'\t'}"
+
+    if [[ -n ${option_indexes[$returned]:-} ]]; then
+      echo "omarchy-menu-select: --print-index needs options that come back as different text" >&2
+      exit 1
+    fi
+
+    option_indexes["$returned"]="$index"
+  done
 fi
 
 selection_file=$(mktemp)
@@ -93,7 +132,18 @@ while [[ ! -e $done_file ]]; do
 done
 
 if [[ -s $selection_file ]]; then
-  cat "$selection_file"
+  if [[ $print_index == true ]]; then
+    selection=$(cat "$selection_file")
+
+    if [[ -z ${option_indexes[$selection]:-} ]]; then
+      echo "omarchy-menu-select: the selection matches no option" >&2
+      exit 1
+    fi
+
+    printf '%s\n' "${option_indexes[$selection]}"
+  else
+    cat "$selection_file"
+  fi
 else
   exit 1
 fi
