@@ -20,6 +20,8 @@ stub_log="$test_tmp/stubs"
 terminal_log="$test_tmp/terminal"
 menu_log="$test_tmp/menu"
 muse_login_log="$test_tmp/muse-login"
+reachable_log="$test_tmp/agent-reachable"
+ssh_kill_log="$test_tmp/ssh-kill"
 mkdir -p "$mock_bin" "$test_home"
 
 cat >"$mock_bin/omarchy-install-chromium-claude" <<'SH'
@@ -39,6 +41,36 @@ SH
 cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
 #!/bin/bash
 [[ $1 == ${OMARCHY_TEST_MISSING_COMMAND:-} ]]
+SH
+
+cat >"$mock_bin/omarchy-agent-host-reachable" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >>"$OMARCHY_TEST_AGENT_REACHABLE_LOG"
+[[ ${OMARCHY_TEST_AGENT_HOST_UNREACHABLE:-false} != "true" ]]
+SH
+
+# Answers the two questions omarchy-agent-stop asks a remote machine, and
+# records the kills so the test can tell one from several.
+cat >"$mock_bin/ssh" <<'SH'
+#!/bin/bash
+remote=${!#}
+
+case $remote in
+*list-sessions*)
+  if [[ -n ${OMARCHY_TEST_TMUX_SESSIONS:-} ]]; then
+    printf '%s\n' "$OMARCHY_TEST_TMUX_SESSIONS"
+  fi
+  ;;
+*kill-session*)
+  # eval because the far side is a shell: the session name arrives quoted and
+  # is unquoted by the shell that runs tmux, not handed over with its quotes.
+  eval "printf '%s\n' ${remote#tmux kill-session -t }" >>"$OMARCHY_TEST_SSH_KILL_LOG"
+  ;;
+esac
+
+# A trailing conditional would leave the mock exiting 1 and the caller reading
+# a reachable host as unreachable.
+exit 0
 SH
 
 cat >"$mock_bin/omarchy-launch-tui" <<'SH'
@@ -118,6 +150,8 @@ export OMARCHY_TEST_STUB_LOG="$stub_log"
 export OMARCHY_TEST_AGENT_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_AGENT_MENU_LOG="$menu_log"
 export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
+export OMARCHY_TEST_AGENT_REACHABLE_LOG="$reachable_log"
+export OMARCHY_TEST_SSH_KILL_LOG="$ssh_kill_log"
 export OMARCHY_PATH="$ROOT"
 
 grok_package="npm:@xai-official/grok"
@@ -825,3 +859,196 @@ mapfile -d '' -t launch_args <"$launch_log"
   ${launch_args[4]} == "Review this project" ]] ||
   fail "OpenClaw receives prompts through --message" "argv: ${launch_args[*]}"
 pass "OpenClaw receives prompts through --message"
+
+# Remote agents: the machine the agent runs on is the only thing that changes,
+# so every per-agent flag above has to survive the trip unaltered.
+host_file="$test_home/.config/omarchy/defaults/agent-host"
+
+omarchy-default-agent --host gpu-box
+[[ $(omarchy-default-agent --host) == "gpu-box" ]] || fail "the agent host is recorded and read back"
+pass "the agent host is recorded and read back"
+
+: >"$launch_log"
+remote_prompt=$' --help !Crash /quit {$(touch must-not-run)}\ntrailing\\ '
+printf '%s\n' "hermes" >"$agent_file"
+omarchy-agent-prompt "$remote_prompt"
+mapfile -d '' -t launch_args <"$launch_log"
+# Located by the -- separator rather than by index, so adding an ssh option
+# does not renumber the assertion.
+for ((separator = 0; separator < ${#launch_args[@]}; separator++)); do
+  [[ ${launch_args[$separator]} == "--" ]] && break
+done
+[[ ${launch_args[0]} == "--app-id=org.omarchy.agent" &&
+  ${launch_args[1]} == "ssh" &&
+  ${launch_args[2]} == "-t" &&
+  ${launch_args[separator - 1]} == "gpu-box" &&
+  ${launch_args[separator]} == "--" ]] ||
+  fail "a remote agent launches over ssh" "argv: ${launch_args[*]}"
+[[ ${launch_args[*]} == *"ControlPath="* ]] ||
+  fail "a remote agent reuses one connection" "argv: ${launch_args[*]}"
+remote_shell_command=${launch_args[separator + 1]}
+[[ $remote_shell_command == "bash -lic "* ]] ||
+  fail "a remote agent runs through a login+interactive shell" "argv: $remote_shell_command"
+pass "a remote agent launches over ssh under the shared app-id"
+
+# Parsed twice, because the far side parses twice: the login shell ssh hands
+# the line to resolves one layer and passes bash a single command string, which
+# bash then splits into argv. A prompt carrying quotes, newlines and a command
+# substitution has to survive both as one literal argument rather than as
+# something the far side runs.
+remote_command=$(eval "printf '%s' ${remote_shell_command#bash -lic }")
+# ssh lands in the remote $HOME, the one directory agents refuse to remember
+# trust for, so the far side gets the same redirect a local launch from $HOME
+# gets.
+[[ $remote_command == '[[ -d ~/Work ]] && cd ~/Work'* ]] ||
+  fail "a remote agent starts outside the remote home" "command: $remote_command"
+
+# The session outlives its window, and a second launch joins the one already
+# there rather than starting a rival agent over the top of it.
+tmux_line=$(grep -F 'exec tmux new-session' <<<"$remote_command") ||
+  fail "a remote agent runs inside tmux" "command: $remote_command"
+[[ $tmux_line == *"new-session -A -s"* ]] ||
+  fail "a second launch attaches instead of starting a rival agent" "line: $tmux_line"
+
+# A machine without tmux still runs the agent, so the command appears twice and
+# both copies have to be quoted correctly.
+grep -qE '^exec ' <<<"$remote_command" ||
+  fail "a remote machine without tmux still runs the agent" "command: $remote_command"
+
+# Two more parses on this path: bash reads the line and hands tmux one
+# argument, and tmux hands that to sh, which splits it into the agent's argv.
+tmux_argument=${tmux_line#*-s \"\$session\" }
+sh_command=$(eval "printf '%s' $tmux_argument")
+mapfile -d '' -t remote_argv < <(eval "printf '%s\0' $sh_command")
+[[ ${#remote_argv[@]} == 8 &&
+  ${remote_argv[0]} == "env" &&
+  ${remote_argv[6]} == "--tui" &&
+  ${remote_argv[7]} == "--query=$remote_prompt" ]] ||
+  fail "the remote command survives quoting intact" "argv: ${remote_argv[*]}"
+[[ ! -e must-not-run ]] || fail "a prompt cannot run commands on the remote host"
+pass "the remote command and its prompt survive quoting intact"
+
+: >"$launch_log"
+: >"$mise_history"
+: >"$terminal_log"
+OMARCHY_TEST_MISSING_COMMAND=claude omarchy-default-agent claude
+read -r chosen <"$agent_file"
+[[ $chosen == claude ]] || fail "choosing a remote agent records it"
+[[ ! -s $mise_history && ! -s $terminal_log ]] ||
+  fail "a remote agent is never installed locally"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[1]} == "ssh" ]] ||
+  fail "an agent missing locally still launches remotely" "argv: ${launch_args[*]}"
+pass "a remote agent is chosen without installing it locally"
+
+: >"$launch_log"
+omarchy-default-agent --host ""
+[[ ! -f $host_file ]] || fail "clearing the agent host removes the file"
+[[ -z $(omarchy-default-agent --host) ]] || fail "a cleared agent host reads back empty"
+printf '%s\n' "pi" >"$agent_file"
+omarchy-agent
+assert_launched pi "runs locally again once the host is cleared" pi
+pass "clearing the agent host returns the agent to this machine"
+
+# Work that is about this machine cannot be done from another one, so it stays
+# here whatever the default agent's usual home is.
+: >"$launch_log"
+omarchy-default-agent --host gpu-box
+printf '%s\n' "pi" >"$agent_file"
+omarchy-agent --local
+assert_launched pi "stays on this machine with --local" pi
+pass "--local runs the agent here even when it normally runs elsewhere"
+
+: >"$launch_log"
+printf '%s\n' "claude" >"$agent_file"
+omarchy-agent-crash 1234 hyprland /usr/bin/hyprland SIGSEGV
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[1]} == "claude" ]] ||
+  fail "crash diagnosis runs on the machine that crashed" "argv: ${launch_args[*]}"
+[[ ${launch_args[*]} == *"diagnose-crash"* ]] ||
+  fail "crash diagnosis still points at the skill" "argv: ${launch_args[*]}"
+pass "crash diagnosis runs on the machine that crashed, not the agent's host"
+
+# A remote agent is not installed here, so the local probe must not be the thing
+# that decides whether it can run -- but it still guards a local launch.
+: >"$launch_log"
+if OMARCHY_TEST_MISSING_COMMAND=claude omarchy-agent --local >"$test_tmp/local-missing" 2>&1; then
+  fail "--local still reports an agent that is missing here"
+fi
+grep -q "not installed" "$test_tmp/local-missing" ||
+  fail "--local explains that the agent is missing here" "$(cat "$test_tmp/local-missing")"
+pass "--local reports an agent that is missing on this machine"
+
+omarchy-default-agent --host ""
+
+# An unreachable machine has to say so: a terminal that opens and closes again
+# is the least informative way to report it.
+: >"$launch_log"
+: >"$notification_history"
+omarchy-default-agent --host gpu-box
+printf '%s\n' "hermes" >"$agent_file"
+if OMARCHY_TEST_AGENT_HOST_UNREACHABLE=true omarchy-agent; then
+  fail "an unreachable agent host fails the launch"
+fi
+[[ ! -s $launch_log ]] || fail "an unreachable agent host opens no window" "argv: $(cat "$launch_log")"
+mapfile -d '' -t notification <"$notification_history"
+[[ ${notification[*]} == *"gpu-box"* ]] ||
+  fail "an unreachable agent host is reported on the desktop" "notification: ${notification[*]}"
+pass "an unreachable agent host is reported instead of flashing a window"
+
+: >"$notification_history"
+if OMARCHY_TEST_AGENT_HOST_UNREACHABLE=true omarchy-agent --inline >"$test_tmp/unreachable-inline" 2>&1; then
+  fail "an unreachable agent host fails an inline launch"
+fi
+[[ ! -s $notification_history ]] ||
+  fail "an inline launch reports in the terminal rather than on the desktop"
+grep -q "omarchy agent --local" "$test_tmp/unreachable-inline" ||
+  fail "an unreachable agent host points at the local escape hatch" "$(cat "$test_tmp/unreachable-inline")"
+pass "an inline launch reports an unreachable host in the terminal it was run from"
+
+: >"$reachable_log"
+omarchy-agent
+[[ $(cat "$reachable_log") == "gpu-box" ]] ||
+  fail "the reachability check is asked about the configured host" "asked: $(cat "$reachable_log")"
+pass "the agent host is checked before its window is spawned"
+
+: >"$reachable_log"
+omarchy-agent --local
+[[ ! -s $reachable_log ]] || fail "--local never probes a remote host"
+pass "--local skips the reachability check entirely"
+
+omarchy-default-agent --host ""
+
+# A session that outlives its window needs a way to end it, or the sessions
+# pile up on the machine nobody is looking at.
+omarchy-default-agent --host ""
+if omarchy-agent-stop >"$test_tmp/stop-local" 2>&1; then
+  fail "stopping a local agent is refused"
+fi
+grep -q "runs on this machine" "$test_tmp/stop-local" ||
+  fail "stopping a local agent explains why there is nothing to stop" "$(cat "$test_tmp/stop-local")"
+pass "there is nothing to stop when the agent runs on this machine"
+
+omarchy-default-agent --host gpu-box
+: >"$ssh_kill_log"
+OMARCHY_TEST_TMUX_SESSIONS="" omarchy-agent-stop >"$test_tmp/stop-none" 2>&1
+grep -q "No agent session" "$test_tmp/stop-none" ||
+  fail "an idle host says so" "$(cat "$test_tmp/stop-none")"
+[[ ! -s $ssh_kill_log ]] || fail "an idle host has nothing killed on it"
+pass "stopping an idle host reports that nothing was running"
+
+# Every session, not just the first: ssh reads stdin, so a loop that feeds it
+# the list it is still reading ends one session and silently swallows the rest.
+: >"$ssh_kill_log"
+OMARCHY_TEST_TMUX_SESSIONS=$'omarchy-agent-work\nomarchy-agent-notes' omarchy-agent-stop >/dev/null 2>&1
+[[ $(wc -l <"$ssh_kill_log") == 2 ]] ||
+  fail "every remote agent session is ended" "killed: $(cat "$ssh_kill_log")"
+pass "stopping a remote agent ends every session it started"
+
+: >"$ssh_kill_log"
+OMARCHY_TEST_TMUX_SESSIONS=$'omarchy-agent-work\nomarchy-agent-notes' omarchy-agent-stop notes >/dev/null 2>&1
+[[ $(cat "$ssh_kill_log") == "omarchy-agent-notes" ]] ||
+  fail "a named session is the only one ended" "killed: $(cat "$ssh_kill_log")"
+pass "a named session is the only one ended"
+
+omarchy-default-agent --host ""
