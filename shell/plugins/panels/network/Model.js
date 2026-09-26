@@ -14,9 +14,60 @@ function wifiIconFor(strength) {
   return icons[index]
 }
 
-// A known plain-HTTP endpoint lets the network redirect the browser to its
-// login page. Never execute or automatically open an untrusted Location header.
-var captivePortalUrl = "http://ping.archlinux.org/nm-check.txt"
+// A known plain-HTTP probe lets the portal redirect the browser to its login
+// page. Prefer NetworkManager's [connectivity] uri so the button opens the
+// same host NM used to detect the portal; Arch's ping.archlinux.org is often
+// ignored. Fall back to GNOME's well-known check, which portals intercept.
+// Never execute or automatically open an untrusted Location header. #11961
+var defaultCaptivePortalUrl = "http://nmcheck.gnome.org/check_network_status.txt"
+var captivePortalUrl = defaultCaptivePortalUrl
+
+function captivePortalUriIsSafe(uri) {
+  var value = String(uri || "")
+  if (value.indexOf("http://") !== 0) return false
+  if (value.indexOf(" ") !== -1 || value.indexOf("\t") !== -1) return false
+
+  var rest = value.substring(7)
+  var slash = rest.indexOf("/")
+  var authority = slash === -1 ? rest : rest.substring(0, slash)
+  // userinfo is a credential vector and is never a connectivity probe
+  if (authority === "" || authority.indexOf("@") !== -1) return false
+  return true
+}
+
+function parseNetworkManagerConnectivityUri(raw) {
+  var text = String(raw || "").replace(/\r/g, "")
+  var lines = text.split("\n")
+  var inConnectivity = false
+  var uri = ""
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].replace(/^\s+|\s+$/g, "")
+    if (!line || line.charAt(0) === "#" || line.charAt(0) === ";") continue
+    if (line.charAt(0) === "[") {
+      inConnectivity = line.toLowerCase() === "[connectivity]"
+      continue
+    }
+    if (!inConnectivity) continue
+
+    var eq = line.indexOf("=")
+    if (eq === -1) continue
+    var key = line.substring(0, eq).replace(/^\s+|\s+$/g, "").toLowerCase()
+    if (key !== "uri") continue
+
+    var value = line.substring(eq + 1).replace(/^\s+|\s+$/g, "")
+    if (value.charAt(0) === "\"" && value.charAt(value.length - 1) === "\"") {
+      value = value.substring(1, value.length - 1)
+    }
+    uri = value
+  }
+
+  return captivePortalUriIsSafe(uri) ? uri : ""
+}
+
+function resolveCaptivePortalUrl(raw) {
+  return parseNetworkManagerConnectivityUri(raw) || defaultCaptivePortalUrl
+}
 
 function connectivityState(kind, connectivity, states, checksEnabled) {
   if (kind === "disconnected") return "none"
@@ -370,6 +421,7 @@ if (typeof module !== "undefined") {
     connectionIcon: connectionIcon,
     connectivityState: connectivityState,
     captivePortalUrl: captivePortalUrl,
+    resolveCaptivePortalUrl: resolveCaptivePortalUrl,
     formatHeaderSpeed: formatHeaderSpeed,
     formatHeaderFreq: formatHeaderFreq,
     headerDetail: headerDetail,
