@@ -19,6 +19,10 @@ hl.config({
     layout = "dwindle",
   },
 
+  render = {
+    -- Attempt direct scanout automatically for fullscreen game content.
+    direct_scanout = 2,
+  },
   decoration = {
     rounding = 0,
 
