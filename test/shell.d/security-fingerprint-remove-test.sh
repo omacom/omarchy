@@ -5,7 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 remove="$ROOT/bin/omarchy-remove-security-fingerprint"
-test_tmp=$(mktemp -d)
+test_tmp=$(mktemp -d /tmp/omarchy-fingerprint-remove.XXXXXX)
 trap 'rm -rf "$test_tmp"' EXIT
 mkdir -p "$test_tmp/bin" "$test_tmp/etc/pam.d" "$test_tmp/fprint"
 copy="$test_tmp/remove.sh"
@@ -50,15 +50,39 @@ printf 'package %s\n' "$*" >>"$TEST_LOG"
 SH
 chmod +x "$test_tmp/bin/"* "$test_tmp/trusted-id"
 
+# Root test runs still exercise the ordinary caller branch as a real user.
+# The copied script and stubs live in this scratch tree, so a private checkout
+# does not need to be traversable after dropping privileges.
+if (( EUID == 0 )); then
+  require_command setpriv
+  passwd_entry=$(getent passwd nobody) || fail "an unprivileged test account is available"
+  IFS=: read -r test_username _ test_uid test_gid _ _ _ <<<"$passwd_entry"
+  [[ $test_uid =~ ^[0-9]+$ && $test_gid =~ ^[0-9]+$ ]] || fail "unprivileged test account has numeric IDs"
+  touch "$log" "$output"
+  chown -R "$test_uid:$test_gid" "$test_tmp"
+else
+  test_username=$(/usr/bin/id -un)
+fi
+
 run_remove() {
   : >"$log"
   local status=0
-  TEST_LOG="$log" TEST_FPRINT="$test_tmp/fprint" TEST_EXPECTED_USER="$expected" \
-    TEST_DIRECT_USER="$direct_user" TEST_SUDO_USER="$sudo_user" TEST_SUDO_UID="${SUDO_UID:-}" \
-    TEST_ID_FAIL="${id_fail:-0}" SUDO_UID="${SUDO_UID:-}" \
-    TEST_DELETE_FAIL="${delete_fail:-0}" TEST_PACKAGE_FAIL="${package_fail:-0}" \
-    USER=spoofed SUDO_USER=spoofed PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
-    bash "$copy" >"$output" 2>&1 || status=$?
+  local sudo_env=()
+  [[ -v SUDO_UID ]] && sudo_env=("SUDO_UID=$SUDO_UID")
+  local fixture_env=(
+    "TEST_LOG=$log" "TEST_FPRINT=$test_tmp/fprint" "TEST_EXPECTED_USER=$expected"
+    "TEST_DIRECT_USER=$direct_user" "TEST_SUDO_USER=$sudo_user" "TEST_SUDO_UID=${SUDO_UID:-}"
+    "TEST_ID_FAIL=${id_fail:-0}" "TEST_DELETE_FAIL=${delete_fail:-0}"
+    "TEST_PACKAGE_FAIL=${package_fail:-0}" "USER=spoofed" "SUDO_USER=spoofed"
+    "PATH=$test_tmp/bin:/usr/bin:/bin"
+  )
+  if (( EUID == 0 )); then
+    chown -R "$test_uid:$test_gid" "$test_tmp"
+    setpriv --reuid="$test_uid" --regid="$test_gid" --clear-groups \
+      env -u SUDO_UID "${sudo_env[@]}" "${fixture_env[@]}" bash "$copy" >"$output" 2>&1 || status=$?
+  else
+    env -u SUDO_UID "${sudo_env[@]}" "${fixture_env[@]}" bash "$copy" >"$output" 2>&1 || status=$?
+  fi
   return "$status"
 }
 
@@ -83,7 +107,7 @@ unset SUDO_UID
 pass "unprivileged caller ignores forged SUDO_UID"
 
 sed "s|$test_tmp/trusted-id|/usr/bin/id|g" "$copy" >"$test_tmp/absolute-id.sh"
-copy="$test_tmp/absolute-id.sh" expected=$(/usr/bin/id -un)
+copy="$test_tmp/absolute-id.sh" expected=$test_username
 mkdir -p "$test_tmp/fprint/$expected"
 run_remove || fail "absolute system id ignores malicious PATH id" "$(cat "$output")"
 [[ ! -e $test_tmp/fprint/$expected && -f $test_tmp/fprint/bob/print ]] || fail "system id selects only the invoking user"
@@ -124,6 +148,9 @@ unset id_fail
 pass "failed id lookup aborts before mutations"
 
 if unshare -Ur true >/dev/null 2>&1; then
+  if (( EUID == 0 )); then
+    chown -R 0:0 "$test_tmp"
+  fi
   run_root() {
     : >"$log"
     local status=0
@@ -131,7 +158,7 @@ if unshare -Ur true >/dev/null 2>&1; then
     [[ -v SUDO_UID ]] && sudo_env=("SUDO_UID=$SUDO_UID")
     TEST_LOG="$log" TEST_FPRINT="$test_tmp/fprint" TEST_EXPECTED_USER="$expected" \
       TEST_DIRECT_USER=root TEST_SUDO_USER="$sudo_user" TEST_SUDO_UID="${SUDO_UID:-}" \
-      USER=spoofed SUDO_USER=spoofed PATH="$test_tmp/bin:$ROOT/bin:$PATH" \
+      USER=spoofed SUDO_USER=spoofed PATH="$test_tmp/bin:/usr/bin:/bin" \
       env -u SUDO_UID "${sudo_env[@]}" unshare -Ur bash "$copy" >"$output" 2>&1 || status=$?
     return "$status"
   }
