@@ -196,7 +196,35 @@ assert(
   !backgroundQml.includes('bootIntroPath')
     && !backgroundQml.includes('cancelBootIntro')
     && !backgroundQml.includes('bootIntroResolving'),
-  'OWE owns intro playback and both visual handoffs'
+  'OWE owns intro playback'
+)
+
+const { execFileSync } = require('child_process')
+const os = require('os')
+const lookup = JSON.parse(backgroundQml.match(/id: readlinkProc[\s\S]*?"bash", "-c",\s*("(?:[^"\\]|\\.)*")/)[1])
+const lookupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'background-lookup-'))
+const marker = path.join(lookupDir, 'background-intro.boot-id')
+const still = path.join(lookupDir, 'still.png')
+const link = path.join(lookupDir, 'background')
+fs.writeFileSync(still, '')
+fs.symlinkSync(still, link)
+const lookUp = () => execFileSync('bash', ['-c', lookup, '_', link, marker], {
+  env: { ...process.env, OMARCHY_BOOT_ID: 'boot-b' }
+}).toString().split('\n')
+
+assert(lookUp()[0] === still && lookUp()[1] === 'unplayed', 'the background lookup reports an unplayed boot without a marker')
+fs.writeFileSync(marker, 'boot-a\n')
+assert(lookUp()[1] === 'unplayed', 'the background lookup reports an unplayed boot after an earlier boot')
+fs.writeFileSync(marker, 'boot-b\n')
+assert(lookUp()[1] === 'played', 'the background lookup honors the launcher boot id and marker')
+fs.rmSync(lookupDir, { recursive: true, force: true })
+
+assert(
+  backgroundQml.includes('color: "black"')
+    && backgroundQml.includes('visible: bootIntroCover.running')
+    && backgroundQml.includes('interval: 5000')
+    && /bootIntroProc[\s\S]*?onExited[\s\S]*?bootIntroCover\.stop\(\)/.test(backgroundQml),
+  'black covers the still until the launcher returns or five seconds pass'
 )
 JS
 
