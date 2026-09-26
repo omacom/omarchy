@@ -81,6 +81,8 @@ add_color hl "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
 add_color hl+ "${GUM_CONFIRM_SELECTED_FOREGROUND:-}"
 add_color pointer "${GUM_CONFIRM_SELECTED_BACKGROUND:-}"
 
+# gum confirm answers y/n/q immediately and toggles with the arrow keys.
+# --no-input would otherwise swallow those keys, and Enter would accept Yes.
 fzf_args=(
   --no-input
   --height=6
@@ -89,19 +91,44 @@ fzf_args=(
   --info=hidden
   --header="$prompt"
   --prompt=""
-  --bind "start:pos($start_pos)"
+  --bind "load:pos($start_pos)"
   --bind "left-click:accept"
+  --bind "y:pos(1)+accept,Y:pos(1)+accept,n:pos(2)+accept,N:pos(2)+accept,q:pos(2)+accept,left:up,right:down,tab:down"
 )
 
 if [[ -n $color_spec ]]; then
   fzf_args+=(--color="$color_spec")
 fi
 
+# fzf is installed by the base package list, not declared on the omarchy package,
+# so a removed fzf must not turn every update prompt into a cancel.
+if ! command -v fzf >/dev/null 2>&1; then
+  echo "omarchy-confirm: fzf is not installed, using gum confirm" >&2
+  gum_args=(--affirmative "$affirmative" --negative "$negative")
+  [[ $default == true ]] || gum_args+=(--default=false)
+  if [[ -n $prompt ]]; then
+    gum confirm "${gum_args[@]}" "$prompt"
+  else
+    gum confirm "${gum_args[@]}"
+  fi
+  exit 0
+fi
+
 status=0
-choice=$(printf '%s\n%s\n' "$affirmative" "$negative" | fzf "${fzf_args[@]}") || status=$?
+# A caller's FZF_DEFAULT_OPTS (--tac, --no-mouse, --print-query) would change
+# which row Enter accepts. This prompt owns its own fzf options.
+choice=$(
+  unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE
+  printf '%s\n%s\n' "$affirmative" "$negative" | fzf "${fzf_args[@]}"
+) || status=$?
 
 if ((status != 0)); then
-  exit 130
+  # 130 is Esc / Ctrl-C, the same cancel gum confirm reports. Any other status
+  # is an fzf failure; mapping it to 130 made a broken fzf look like "No".
+  if ((status != 130)); then
+    echo "omarchy-confirm: fzf failed (exit $status)" >&2
+  fi
+  exit "$status"
 fi
 
 [[ $choice == "$affirmative" ]]
