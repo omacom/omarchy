@@ -91,3 +91,23 @@ pass "declining Remove Preinstalls changes nothing"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $marker ]] || fail "Remove Preinstalls records the opt-out"
 pass "Remove Preinstalls records the opt-out"
+
+# Every unconditional mise stub the user setup writes is a preinstall, so a tool
+# added to install/user/mise.sh without a matching removal survives the opt-out.
+# The conditional stubs (cursor-agent, muse) have their own ownership checks.
+mkdir -p "$test_home/.local/bin"
+stubs=()
+while read -r _ package command _; do
+  command=${command:-$package}
+  stubs+=("$command")
+  printf '#!/bin/bash\n' >"$test_home/.local/bin/$command"
+done < <(grep '^omarchy-mise-install ' "$ROOT/install/user/mise.sh")
+(( ${#stubs[@]} > 0 )) ||
+  fail "Remove Preinstalls deletes every mise stub from the user setup" "no omarchy-mise-install lines found in install/user/mise.sh"
+
+"$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
+for command in "${stubs[@]}"; do
+  [[ ! -e $test_home/.local/bin/$command ]] ||
+    fail "Remove Preinstalls deletes every mise stub from the user setup" "$command is left behind"
+done
+pass "Remove Preinstalls deletes every mise stub from the user setup"
