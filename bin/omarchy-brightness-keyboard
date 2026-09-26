@@ -26,7 +26,10 @@ if [[ -z $device ]]; then
 fi
 
 if [[ $direction == "off" ]]; then
-  brightnessctl -sd "$device" set 0 >/dev/null
+  current_brightness="$(brightnessctl -d "$device" get)"
+  if (( current_brightness > 0 )); then
+    brightnessctl -sd "$device" set 0 >/dev/null
+  fi
   exit 0
 elif [[ $direction == "restore" ]]; then
   brightnessctl -rd "$device" >/dev/null
