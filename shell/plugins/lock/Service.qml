@@ -219,10 +219,10 @@ Item {
     var password = String(value || "")
     if (!lockRequested || authenticatingPassword || password.length === 0) return
 
-    runWake()
     pendingPassword = password
     failureMessage = ""
     authenticatingPassword = true
+    runWake()
 
     if (!passwordPam.start()) {
       handlePasswordFailure()
@@ -253,6 +253,7 @@ Item {
       var p = fingerprintPamInstance
       fingerprintPamInstance = null
       fingerprintAuthenticating = false
+      if (p.active) p.abort()
       p.destroy()
     }
   }
@@ -260,6 +261,7 @@ Item {
   function startFingerprint() {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
     if (displaysBlank) return
+    if (authenticatingPassword) return
     if (fingerprintPamInstance) return
 
     var p = fingerprintPamFactory.createObject(root)
@@ -274,11 +276,10 @@ Item {
   }
 
   function handleFingerprintFinished(result, ctx) {
+    if (ctx !== fingerprintPamInstance) return
     fingerprintAuthenticating = false
-    if (ctx === fingerprintPamInstance) {
-      fingerprintPamInstance = null
-      Qt.callLater(function() { if (ctx) ctx.destroy() })
-    }
+    fingerprintPamInstance = null
+    Qt.callLater(function() { if (ctx) ctx.destroy() })
 
     if (!lockRequested) return
     if (result === PamResult.Success) {
@@ -289,11 +290,10 @@ Item {
   }
 
   function handleFingerprintError(error, ctx) {
+    if (ctx !== fingerprintPamInstance) return
     fingerprintAuthenticating = false
-    if (ctx === fingerprintPamInstance) {
-      fingerprintPamInstance = null
-      Qt.callLater(function() { if (ctx) ctx.destroy() })
-    }
+    fingerprintPamInstance = null
+    Qt.callLater(function() { if (ctx) ctx.destroy() })
     if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
   }
 
@@ -596,6 +596,7 @@ Item {
       if (root.fingerprintPamInstance) root.stopFingerprintPam()
     } else {
       armBlankTimer()
+      if (root.lockRequested && root.fingerprintConfigured) root.startFingerprint()
     }
   }
 
