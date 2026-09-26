@@ -109,6 +109,41 @@ assertEqual(weather.currentIcon({ openMeteoWeatherCode: 0, isDay: 0 }, ''), weat
 assert(weather.iconForOpenMeteoCode(45, true) !== weather.iconForOpenMeteoCode(45, false), 'weather distinguishes nighttime fog from daytime fog')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, ''), weather.iconForCode(113, false), 'weather uses wttr to fill an empty initial icon')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, 'night'), 'night', 'weather refresh preserves a resolved day-night icon')
+
+// The words under the hero temperature. Open-Meteo's code has to win over
+// wttr's wording for the same reason the icon prefers it: the label is built
+// from Open-Meteo whenever it has answered, and the two cannot disagree.
+assertEqual(weather.describeOpenMeteoCode(0), 'Clear', 'weather names a clear sky')
+assertEqual(weather.describeOpenMeteoCode(2), 'Partly cloudy', 'weather names partial cloud')
+assertEqual(weather.describeOpenMeteoCode(3), 'Overcast', 'weather names overcast')
+assertEqual(weather.describeOpenMeteoCode(65), 'Heavy rain', 'weather names heavy rain')
+assertEqual(weather.describeOpenMeteoCode(95), 'Thunderstorm', 'weather names a thunderstorm')
+assertEqual(weather.describeOpenMeteoCode(7), '', 'weather has no wording for an unmapped code')
+assertEqual(weather.describeOpenMeteoCode(null), '', 'weather has no wording without a code')
+
+assertEqual(
+  weather.currentDescription({ openMeteoWeatherCode: 3, weatherDesc: [{ value: 'Sunny' }] }),
+  'Overcast',
+  'weather describes the current conditions from the Open-Meteo code rather than wttr wording'
+)
+assertEqual(
+  weather.currentDescription({ weatherDesc: [{ value: '  Patchy rain nearby  ' }] }),
+  'Patchy rain nearby',
+  'weather falls back to wttr wording and trims it'
+)
+assertEqual(weather.currentDescription({ weatherCode: 113 }), '', 'weather adds no wording for a wttr reading with no text')
+assertEqual(weather.currentDescription(null), '', 'weather describes nothing without current conditions')
+
+// The icon, the words, and the wallpaper all read the same object, so the
+// panel resolves it once rather than letting each pick its own source.
+assert(
+  panelSource.includes('readonly property var resolvedCurrent: openMeteoCurrent || current'),
+  'weather panel resolves one current reading for the icon, the label, and the wallpaper'
+)
+assert(
+  panelSource.includes('Model.currentDescription(resolvedCurrent)'),
+  'weather panel names the condition from that same reading'
+)
 // The bar identifies a panel by the widget in its slot, so the nested panel
 // has to present the host widget rather than itself — otherwise the
 // open-panel dot never lights and Tab cannot leave the panel.
