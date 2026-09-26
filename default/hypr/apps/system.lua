@@ -29,10 +29,15 @@ o.window("org.omarchy.about", { size = { 920, 480 } })
 
 o.window("omacalc", { float = true })
 
--- Fullscreen screensaver.
-o.window("org.omarchy.screensaver", { fullscreen = true })
+-- Screensaver overlay (float and fill screen so dismissing does not fullscreen underlying windows).
 o.window("org.omarchy.screensaver", { float = true })
+o.window("org.omarchy.screensaver", { pin = true })
+o.window("org.omarchy.screensaver", { move = "0 0" })
+o.window("org.omarchy.screensaver", { size = "100% 100%" })
+o.window("org.omarchy.screensaver", { rounding = 0 })
+o.window("org.omarchy.screensaver", { no_border = true })
 o.window("org.omarchy.screensaver", { animation = "slide" })
+
 
 -- No transparency on media windows.
 o.window(
