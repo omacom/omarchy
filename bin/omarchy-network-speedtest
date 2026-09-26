@@ -5,6 +5,11 @@
 # omarchy:args=[down|up]
 
 set -e
+# set -m puts each backgrounded worker in its own process group, so
+# cleanup can signal a worker and everything it has spawned in one
+# atomic operation, instead of racing pkill/kill against a worker
+# that loops forever forking a fresh dd|curl pair.
+set -m
 
 direction="${1:-}"
 probe=1.1.1.1
@@ -54,14 +59,20 @@ traffic_pids=()
 
 cleanup() {
   local pid
+  # set -m makes each worker its own process group leader, so a single
+  # signal to the negative pid reaches the worker and every child it
+  # currently has, including one forked a moment ago, in one go. A
+  # pid-by-pid pkill -P snapshot can't do that: a worker that spawns a
+  # new dd|curl pair right after the snapshot leaves that pair orphaned,
+  # running until the connection ends on its own.
   for pid in "${traffic_pids[@]}"; do
     [[ -n $pid ]] || continue
-    pkill -TERM -P "$pid" 2>/dev/null || true
-    kill "$pid" 2>/dev/null || true
+    kill -TERM -- "-$pid" 2>/dev/null || true
   done
   for pid in "${traffic_pids[@]}"; do
     [[ -n $pid ]] || continue
     wait "$pid" 2>/dev/null || true
+    kill -KILL -- "-$pid" 2>/dev/null || true
   done
 }
 trap cleanup EXIT
