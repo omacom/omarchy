@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to the Unreal Engine editor
+# omarchy:hidden=true
+
+# Writes the palette as an Unreal editor theme named "Omarchy", picked once under
+# Editor Preferences > General > Appearance > Theme. Unreal reads a theme's file each time
+# the theme is applied, so a switch shows up after re-selecting it or restarting the editor.
+#
+# unreal.json keeps sRGB hex like every other template, so a theme can hand-write its own.
+# Unreal stores theme colors as linear FLinearColor strings, so they are converted here, and
+# keys them by the enum's registered names (EStyleColor::Panel), so the slot names are prefixed.
+# A key Unreal doesn't recognise is ignored and that slot keeps its default color.
+
+UNREAL_SOURCE_PATH="$HOME/.local/state/omarchy/current/theme/unreal.json"
+UNREAL_SETTINGS_DIR="$HOME/.config/Epic/UnrealEngine"
+UNREAL_THEME_PATH="$UNREAL_SETTINGS_DIR/Slate/Themes/Omarchy.json"
+# Unreal remembers the selected theme by this id, so it must never change.
+UNREAL_THEME_ID="886DB8111A8D42E9B681840D0BA1C0EC"
+
+# Unreal creates its settings directory on first launch; without it there is no editor to theme.
+[[ -d $UNREAL_SETTINGS_DIR ]] || exit 0
+
+if omarchy-toggle-enabled skip-unreal-theme-changes; then
+  rm -f "$UNREAL_THEME_PATH"
+  exit 0
+fi
+
+[[ -f $UNREAL_SOURCE_PATH ]] || exit 0
+
+mkdir -p "$(dirname "$UNREAL_THEME_PATH")"
+tmp=$(mktemp "$UNREAL_THEME_PATH.XXXXXX")
+
+# -e fails on empty input too, which plain jq accepts silently by printing nothing.
+if jq -e --arg id "$UNREAL_THEME_ID" '
+  def hex_byte:
+    ascii_downcase | explode | map(if . >= 97 then . - 87 else . - 48 end) | .[0] * 16 + .[1];
+
+  def srgb_to_linear:
+    if . <= 0.04045 then . / 12.92 else pow((. + 0.055) / 1.055; 2.4) end;
+
+  def linear_color:
+    if test("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$") | not then
+      error("\(.) is not #rrggbb or #rrggbbaa")
+    end
+    | ltrimstr("#") as $hex
+    | [range(0; $hex | length; 2) | $hex[.:. + 2] | hex_byte / 255] as $channels
+    | ($channels[0:3] | map(srgb_to_linear)) + [$channels[3] // 1]
+    | "(R=\(.[0]),G=\(.[1]),B=\(.[2]),A=\(.[3]))";
+
+  {
+    Version: 1,
+    Id: $id,
+    DisplayName: "Omarchy",
+    Colors: (.Colors | with_entries(.key |= "EStyleColor::" + . | .value |= linear_color))
+  }
+' "$UNREAL_SOURCE_PATH" >"$tmp"; then
+  mv "$tmp" "$UNREAL_THEME_PATH"
+else
+  rm -f "$tmp"
+  echo "Unreal theme not updated: $UNREAL_SOURCE_PATH is empty or has an invalid color" >&2
+  exit 1
+fi
