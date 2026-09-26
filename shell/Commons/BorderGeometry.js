@@ -177,8 +177,68 @@ function appendArc(path, rx, ry, sweep, point) {
   else path.push("L", point.x, point.y)
 }
 
-function roundedRectPath(x, y, w, h, radii) {
+// Hyprland's corner boundary is |x/rx|^power + |y/ry|^power = 1.
+// Keep chamfers exact and circular corners native; approximate other powers
+// to 0.05 logical pixels, with a bounded subdivision depth.
+function roundingPower(value) {
+  var n = Number(value)
+  return isFinite(n) && n >= 1 ? Math.min(n, 10) : 2
+}
+
+function cornerPoints(boundary, side) {
+  var r = boundary.corner[side]
+  var start = boundary.end[side]
+  var end = boundary.start[(side + 1) % 4]
+  var power = roundingPower(boundary.power)
+  if (power === 1 || r.rx <= 0 || r.ry <= 0) return [start, end]
+  var cx = side % 2 === 0 ? start.x : end.x
+  var cy = side % 2 === 0 ? end.y : start.y
+  function point(t) {
+    if (t === 0) return start
+    if (t === Math.PI / 2) return end
+    var s = Math.pow(Math.sin(t), 2 / power)
+    var c = Math.pow(Math.cos(t), 2 / power)
+    if (side === 0) return { x: cx + r.rx * s, y: cy - r.ry * c }
+    if (side === 1) return { x: cx + r.rx * c, y: cy + r.ry * s }
+    if (side === 2) return { x: cx - r.rx * s, y: cy + r.ry * c }
+    return { x: cx - r.rx * c, y: cy - r.ry * s }
+  }
+  var points = [start]
+  function subdivide(a, b, pa, pb, depth) {
+    var mid = (a + b) / 2
+    var pm = point(mid)
+    var dx = pb.x - pa.x
+    var dy = pb.y - pa.y
+    var length = Math.sqrt(dx * dx + dy * dy)
+    var error = length > 0 ? Math.abs(dx * (pa.y - pm.y) - (pa.x - pm.x) * dy) / length : 0
+    if (error > 0.05 && depth < 12) {
+      subdivide(a, mid, pa, pm, depth + 1)
+      subdivide(mid, b, pm, pb, depth + 1)
+    } else points.push(pb)
+  }
+  subdivide(0, Math.PI / 2, start, end, 0)
+  return points
+}
+
+function surfacePath(w, h, radius, power) {
+  return roundedRectPath(0, 0, w, h, {
+    tlrx: radius, tlry: radius, trrx: radius, trry: radius,
+    brrx: radius, brry: radius, blrx: radius, blry: radius,
+  }, power)
+}
+
+function roundedRectPath(x, y, w, h, radii, power) {
   if (w <= 0 || h <= 0) return ""
+  if (roundingPower(power) !== 2) {
+    var boundary = borderBoundary(x, y, w, h, radii, power)
+    var path = ["M", boundary.start[0].x, boundary.start[0].y]
+    for (var side = 0; side < 4; side++) {
+      path.push("L", boundary.end[side].x, boundary.end[side].y)
+      appendForwardCorner(path, boundary, side)
+    }
+    path.push("Z")
+    return path.join(" ")
+  }
   var r = normalizeRadii(w, h, radii)
   var right = x + w
   var bottom = y + h
@@ -198,7 +258,7 @@ function roundedRectPath(x, y, w, h, radii) {
   return p.join(" ")
 }
 
-function borderBoundary(x, y, w, h, radii) {
+function borderBoundary(x, y, w, h, radii, power) {
   var r = radii && radii.tl ? radii : normalizeRadii(w, h, radii)
   var right = x + w
   var bottom = y + h
@@ -216,15 +276,26 @@ function borderBoundary(x, y, w, h, radii) {
       { x: x, y: y + r.tl.ry },
     ],
     corner: [r.tr, r.br, r.bl, r.tl],
+    power: roundingPower(power),
   }
 }
 
 function appendForwardCorner(path, boundary, side) {
+  if (boundary.power !== 2) {
+    var points = cornerPoints(boundary, side)
+    for (var i = 1; i < points.length; i++) path.push("L", points[i].x, points[i].y)
+    return
+  }
   var corner = boundary.corner[side]
   appendArc(path, corner.rx, corner.ry, 1, boundary.start[(side + 1) % 4])
 }
 
 function appendReverseCorner(path, boundary, side) {
+  if (boundary.power !== 2) {
+    var points = cornerPoints(boundary, side)
+    for (var i = points.length - 2; i >= 0; i--) path.push("L", points[i].x, points[i].y)
+    return
+  }
   var corner = boundary.corner[side]
   appendArc(path, corner.rx, corner.ry, 0, boundary.end[side])
 }
@@ -274,7 +345,7 @@ function radiiFit(w, h, r) {
 // need two. The all-sides case is one compound winding path with a reversed
 // inner loop. Disabled sides never require touching or epsilon-offset inner
 // geometry, so a zero/zero rounded corner emits no border pixels.
-function borderPaths(w, h, radius, widths) {
+function borderPaths(w, h, radius, widths, power) {
   w = Math.max(0, Number(w) || 0)
   h = Math.max(0, Number(h) || 0)
   radius = Math.max(0, Number(radius) || 0)
@@ -299,7 +370,7 @@ function borderPaths(w, h, radius, widths) {
     trrx: outerRadii.tr.rx, trry: outerRadii.tr.ry,
     brrx: outerRadii.br.rx, brry: outerRadii.br.ry,
     blrx: outerRadii.bl.rx, blry: outerRadii.bl.ry,
-  })
+  }, power)
 
   var iw = w - left - right
   var ih = h - top - bottom
@@ -322,8 +393,8 @@ function borderPaths(w, h, radius, widths) {
   if (!radiiFit(iw, ih, desiredInnerRadii)) return [outerPath]
 
   var innerRadii = normalizeRadii(iw, ih, desiredInnerRadii)
-  var outer = borderBoundary(0, 0, w, h, outerRadii)
-  var inner = borderBoundary(left, top, iw, ih, innerRadii)
+  var outer = borderBoundary(0, 0, w, h, outerRadii, power)
+  var inner = borderBoundary(left, top, iw, ih, innerRadii, power)
 
   if (enabled[0] && enabled[1] && enabled[2] && enabled[3])
     return [outerPath + " " + reverseBoundaryPath(inner)]
@@ -338,8 +409,8 @@ function borderPaths(w, h, radius, widths) {
   return paths
 }
 
-function ringPath(w, h, radius, widths) {
-  return borderPaths(w, h, radius, widths).join(" ")
+function ringPath(w, h, radius, widths, power) {
+  return borderPaths(w, h, radius, widths, power).join(" ")
 }
 
 function gradientEndpoints(w, h, angle) {

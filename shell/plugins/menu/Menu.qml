@@ -1192,7 +1192,7 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: root.contentSpacing
 
-        Rectangle {
+        CornerRectangle {
           width: parent.width
           height: root.headerHeight
           radius: root.cornerRadius
@@ -1275,7 +1275,7 @@ Item {
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
 
-              Rectangle {
+              CornerRectangle {
                 visible: false
                 width: Style.space(4)
                 height: parent.height - Style.space(18)

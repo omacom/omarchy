@@ -157,6 +157,38 @@ function flattenedBounds(paths) {
   }
 }
 
+assertEqual(geometry.surfacePath(100, 50, 10, 1),
+  'M 10 0 L 90 0 L 100 10 L 100 40 L 90 50 L 10 50 L 0 40 L 0 10 L 10 0 Z',
+  'power one produces exact chamfers')
+assertEqual(geometry.surfacePath(100, 50, 10), geometry.surfacePath(100, 50, 10, 2),
+  'default power retains circular arc geometry')
+for (const power of [1, 1.5, 2, 3, 4, 10]) {
+  for (const radius of [0, 10, 100]) {
+    for (let mask = 0; mask < 16; mask++) {
+      const widths = { top: mask & 1 ? 2 : 0, right: mask & 2 ? 3 : 0,
+        bottom: mask & 4 ? 1 : 0, left: mask & 8 ? 4 : 0 }
+      const paths = geometry.borderPaths(100, 50, radius, widths, power)
+      if (/(NaN|Infinity)/.test(paths.join(' '))) fail('finite powered geometry')
+      const contours = flattenPaths(paths)
+      if (contours.flat().some(p => p.x < -1e-8 || p.x > 100 + 1e-8 || p.y < -1e-8 || p.y > 50 + 1e-8))
+        fail('powered border remains within surface bounds')
+      if (pathContains(paths, 50, 25)) fail('powered border leaves its center empty')
+      for (const [side, x, y] of [[1, 50, 0.5], [2, 99.5, 25], [4, 50, 49.5], [8, 0.5, 25]]) {
+        if (pathContains(paths, x, y) !== !!(mask & side)) fail('powered border honors enabled sides')
+      }
+    }
+  }
+  pass(`power ${power} preserves all side masks, bounds, and winding at zero, normal, and oversized radii`)
+}
+for (const power of [1.5, 3, 4, 10]) {
+  const boundary = geometry.borderBoundary(0, 0, 100, 50,
+    { tlrx: 10, tlry: 10, trrx: 10, trry: 10, brrx: 10, brry: 10, blrx: 10, blry: 10 }, power)
+  const points = geometry.cornerPoints(boundary, 0)
+  assert(points.every(p => Math.abs(Math.pow((p.x - 90) / 10, power) + Math.pow((10 - p.y) / 10, power) - 1) < 1e-8),
+    `power ${power} samples match Hyprland's superellipse equation`)
+  assert(points.length < 100, `power ${power} has bounded practical geometry size`)
+}
+
 const selectedPaths = pathsFor({ top: 0, right: 0, bottom: 1, left: 3 })
 assertEqual(selectedPaths.length, 1, 'adjacent left and bottom borders share one contour')
 assert(

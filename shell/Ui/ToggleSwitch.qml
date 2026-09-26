@@ -79,6 +79,7 @@ Item {
     height: root.trackHeight
     anchors.centerIn: parent
     radius: root.rounded ? height / 2 : 0
+    roundingPower: 2
     color: root.checked
       ? Style.selectedFillFor(root.foreground, root.accent)
       : Style.normalFillFor(root.foreground, root.accent)

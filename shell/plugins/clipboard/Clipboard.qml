@@ -425,7 +425,7 @@ Item {
         anchors.leftMargin: card.contentLeftInset
         spacing: root.contentSpacing
 
-        Rectangle {
+        CornerRectangle {
           width: parent.width
           height: root.headerHeight
           radius: root.cornerRadius
@@ -467,7 +467,7 @@ Item {
                 spacing: Style.space(4)
                 boundsBehavior: Flickable.StopAtBounds
 
-                delegate: Rectangle {
+                delegate: CornerRectangle {
                   id: row
                   required property int index
                   required property string entryType
