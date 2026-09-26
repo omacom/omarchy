@@ -21,6 +21,8 @@ Item {
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
+  property string fingerprintMessage: ""
+  property bool fingerprintWakeUsed: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
   property string enteredPassword: ""
@@ -139,6 +141,7 @@ Item {
     pendingPassword = ""
     failureMessage = ""
     failedAttempts = 0
+    fingerprintMessage = ""
     authenticatingPassword = false
     fingerprintAuthenticating = false
     fingerprintRetryTimer.stop()
@@ -154,6 +157,7 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    fingerprintWakeUsed = false
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -259,6 +263,7 @@ Item {
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
+    fingerprintMessage = ""
     fingerprintAuthenticating = true
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
@@ -321,6 +326,7 @@ Item {
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        fingerprintMessage: root.fingerprintMessage
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -354,6 +360,7 @@ Item {
       videoPosterPath: root.videoPosterPath
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured
+      fingerprintMessage: root.fingerprintMessage
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -394,6 +401,16 @@ Item {
 
   PamContext {
     id: fingerprintPam
+    onPamMessage: {
+      root.fingerprintMessage = message
+      // Wake once for the first informational message. Later retries must not
+      // repeatedly wake an unattended laptop. No translated text matching.
+      if (root.lockRequested && !root.fingerprintWakeUsed && !messageIsError
+          && !responseRequired && message.length > 0) {
+        root.fingerprintWakeUsed = true
+        root.runWake()
+      }
+    }
     config: "omarchy-lock-fingerprint"
     user: root.userName
 
@@ -447,7 +464,7 @@ Item {
 
   Process {
     id: fingerprintCheckProc
-    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1 && fprintd-list \"$USER\" 2>/dev/null | grep -qi finger; then echo yes; else echo no; fi"]
+    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1 && fprintd-list \"$USER\" 2>/dev/null | grep -Eq '^[[:space:]]*-[[:space:]]*#[0-9]+:'; then echo yes; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
     onExited: {
       root.fingerprintConfigured = String(fingerprintCheckStdout.text || "").trim() === "yes"
