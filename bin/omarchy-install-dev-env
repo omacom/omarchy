@@ -67,9 +67,7 @@ symfony)
   echo -e "\nYou can now run: symfony new --webapp myproject"
   ;;
 python)
-  echo -e "Installing Python...\n"
-  mise use --global python@latest
-  echo -e "\nInstalling uv...\n"
+  echo -e "Installing uv...\n"
   curl -fsSL https://astral.sh/uv/install.sh | sh
   ;;
 elixir)
