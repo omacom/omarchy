@@ -123,6 +123,28 @@ if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared
 fi
 pass "cross-filesystem symlink sources bind by identity and migrated 0700 leaves deny another account"
 
+# The dockurr/windows container chmods its /shared bind source to 2777 on every
+# run so Samba can write to it, which lands the setgid bit on the caller's own
+# ~/Windows. chmod leaves a directory's setuid/setgid bits alone unless a
+# numeric mode clears them with five or more octal digits, so a four-digit 0700
+# here would read back as 2700 and fail the == 700 assert on every launch after
+# the first. Reproduce the exact drift the container leaves and prove a rerun
+# recovers both the source and its anchor.
+chmod 2777 /home/shared-target
+chmod 4700 /home/storage-target
+[[ $(command stat -Lc '%a' /home/shared-target) == 2777 &&
+  $(command stat -Lc '%a' /home/storage-target) == 4700 ]] || fail "test setup did not reproduce the special-bit drift"
+with_vm_lock prepare_caller_mounts || fail "root failed to recover from special bits left on the pinned sources"
+[[ $(command stat -Lc '%a' /home/shared-target) == 700 ]] || fail "setgid survived prepare_caller_mounts on the shared source"
+[[ $(command stat -Lc '%a' /home/storage-target) == 700 ]] || fail "setuid survived prepare_caller_mounts on the storage source"
+[[ $(command stat -Lc '%u:%a' "$EXPECTED_SHARED") == 1000:700 &&
+  $(command stat -Lc '%u:%a' "$EXPECTED_STORAGE") == 1000:700 ]] || fail "special bits survived on the production anchors"
+mounts_ready || fail "final pre-Docker guard rejected sources recovered from special-bit drift"
+if setpriv --reuid=1001 --regid=1001 --clear-groups cat "$EXPECTED_SHARED/shared.txt" >/dev/null 2>&1; then
+  fail "another local account read shared files after the 2777 drift was hardened"
+fi
+pass "prepare_caller_mounts clears setuid/setgid the running VM leaves on its pinned sources"
+
 # Existing production boundary components are never repaired in place when
 # their ownership or write permissions are unsafe. Both the preparation path
 # and the final pre-Docker guard must fail closed without disturbing the binds.
