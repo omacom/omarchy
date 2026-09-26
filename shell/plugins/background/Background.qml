@@ -20,6 +20,10 @@ Item {
   property string oldBackground: ""
   property bool finishingTransition: false
   property int backgroundVersion: 0
+  property bool bootIntroChecked: false
+  property int bootIntroAttempts: 0
+  readonly property int bootIntroMaxAttempts: 60
+  readonly property int bootIntroRetryInterval: 1000
   property int revealStartedVersion: -1
   property int pendingThemeVersion: -1
   property string pendingColorsRaw: ""
@@ -40,6 +44,13 @@ Item {
 
   function setBackground(path, instant) {
     transitionBackground("", path, path, instant, false)
+  }
+
+  function checkBootIntro() {
+    if (bootIntroChecked || bootIntroProc.running) return
+    bootIntroChecked = true
+    bootIntroAttempts += 1
+    bootIntroProc.running = true
   }
 
   function transitionBackground(fromPath, path, finalPath, instant, force) {
@@ -126,12 +137,56 @@ Item {
     onExited: root.refreshBackground()
   }
 
+  // Also reports whether this boot's intro is still unplayed, using the same
+  // boot id and marker as omarchy-theme-bg-boot-intro. The launcher keeps the
+  // authoritative check; this answer only decides the cover.
   Process {
     id: readlinkProc
-    command: ["readlink", "-f", root.currentBackgroundLink]
+    command: [
+      "bash", "-c",
+      "readlink -f \"$1\"; [[ $(cat \"$2\" 2>/dev/null) == \"${OMARCHY_BOOT_ID:-$(</proc/sys/kernel/random/boot_id)}\" ]] && echo played || echo unplayed",
+      "_", root.currentBackgroundLink, root.stateHome + "/omarchy/background-intro.boot-id"
+    ]
     stdout: StdioCollector {
-      onStreamFinished: root.setBackground(String(text || "").trim(), false)
+      onStreamFinished: {
+        var lines = String(text || "").split("\n")
+        if (!root.bootIntroChecked && root.bootIntroAttempts === 0 && String(lines[1] || "").trim() === "unplayed") {
+          bootIntroCover.start()
+        }
+        root.setBackground(String(lines[0] || "").trim(), false)
+        root.checkBootIntro()
+      }
     }
+  }
+
+  // The first shell of a boot may play an intro that ends on the still, so
+  // showing the still first would flash the intro's final image. Black covers
+  // it, matching OWE's empty layer before the intro's first frame, until OWE
+  // takes the desktop (which disables this plugin), the launcher returns, or
+  // five seconds pass.
+  Timer {
+    id: bootIntroCover
+    interval: 5000
+    repeat: false
+  }
+
+  Process {
+    id: bootIntroProc
+    command: ["omarchy-theme-bg-boot-intro"]
+    onExited: function(exitCode) {
+      bootIntroCover.stop()
+      if (exitCode === 2 && root.bootIntroAttempts < root.bootIntroMaxAttempts) {
+        root.bootIntroChecked = false
+        bootIntroRetry.restart()
+      }
+    }
+  }
+
+  Timer {
+    id: bootIntroRetry
+    interval: root.bootIntroRetryInterval
+    repeat: false
+    onTriggered: root.checkBootIntro()
   }
 
   IpcHandler {
@@ -236,6 +291,12 @@ Item {
             root.finishingTransition = false
           }
         }
+      }
+
+      Rectangle {
+        anchors.fill: parent
+        color: "black"
+        visible: bootIntroCover.running
       }
 
       Image {
