@@ -13,8 +13,6 @@ SUNSHINE_ADMIN_APP="Sunshine Admin"
 SUNSHINE_ADMIN_URL="https://localhost:47990"
 SUNSHINE_ADMIN_EXEC="omarchy-launch-webapp $SUNSHINE_ADMIN_URL --ignore-certificate-errors"
 SUNSHINE_ICON_SOURCE="/usr/share/sunshine/web/images/logo-sunshine-45.png"
-HYPR_AUTOSTART_FILE="$HOME/.config/hypr/autostart.lua"
-HYPR_AUTOSTART_ENTRY='o.launch_on_start("sunshine")'
 
 open_ufw_port_for_private_lans() {
   local proto="$1"
@@ -60,18 +58,30 @@ install_admin_webapp() {
   omarchy-webapp-install "$SUNSHINE_ADMIN_APP" "$SUNSHINE_ADMIN_URL" "$SUNSHINE_ICON_SOURCE" "$SUNSHINE_ADMIN_EXEC"
 }
 
-enable_hyprland_autostart() {
-  mkdir -p "$(dirname "$HYPR_AUTOSTART_FILE")"
-  touch "$HYPR_AUTOSTART_FILE"
+enable_sunshine_unit() {
+  local unit=app-dev.lizardbyte.app.Sunshine.service
 
-  if ! grep -Fxq "$HYPR_AUTOSTART_ENTRY" "$HYPR_AUTOSTART_FILE"; then
-    printf '\n%s\n' "$HYPR_AUTOSTART_ENTRY" >>"$HYPR_AUTOSTART_FILE"
+  # systemd only resolves Alias= after enable by the real unit name. Arch
+  # ships this unit with Alias=sunshine.service, so enabling "sunshine" fails
+  # on a fresh install ("Unit sunshine.service does not exist").
+  if [[ -f /usr/lib/systemd/user/$unit ]]; then
+    systemctl --user enable --now "$unit"
+  elif systemctl --user is-enabled sunshine.service >/dev/null 2>&1; then
+    systemctl --user enable --now sunshine.service
+  else
+    systemctl --user enable --now "$unit"
   fi
 }
 
 echo "Installing Sunshine..."
 omarchy-pkg-add sunshine
-systemctl --user enable --now sunshine
+# Stable can lag the security-fixed Sunshine build tracked in #10836; pull the
+# edge package when the just-installed version is still below that floor.
+# Soft-continue on helper failure so unit enable / firewall / webapp still run.
+if ! omarchy-pkg-upgrade-sunshine-security; then
+  echo "Sunshine security-floor upgrade did not complete; continuing with the installed package." >&2
+fi
+enable_sunshine_unit
 
 echo "Opening Sunshine firewall ports..."
 open_ufw_ports
@@ -80,8 +90,8 @@ echo "Installing Sunshine admin web app..."
 install_admin_webapp
 $SUNSHINE_ADMIN_EXEC >/dev/null 2>&1 &
 
-echo "Enabling Sunshine autostart..."
-enable_hyprland_autostart
+# Start only via the systemd user unit. A Hyprland o.launch_on_start line would
+# race a second process onto the same RTSP port (#7218).
 
 echo ""
 echo "Sunshine has been installed and its Moonlight streaming ports are open for private LANs and Tailscale."
