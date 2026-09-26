@@ -141,6 +141,17 @@ EOF
   echo "Added Mozc after keyboard-$group_layout in your input methods."
 }
 
+# fontconfig picks the CJK face by locale, so outside a Japanese locale GTK can
+# draw shared kanji in their Chinese forms. Name the Japanese face outright, at
+# the size the interface already uses (see omarchy-display-text-size).
+setup_interface_font() {
+  local current size
+
+  current=$(gsettings get org.gnome.desktop.interface font-name 2>/dev/null) || current=""
+  size=$(sed -n "s/^'.* \([0-9.]*\)'$/\1/p" <<<"$current")
+  gsettings set org.gnome.desktop.interface font-name "Noto Sans CJK JP ${size:-11}"
+}
+
 # Typing Japanese doesn't need a Japanese desktop, so the language is a choice.
 setup_locale() {
   local current
@@ -183,6 +194,7 @@ fi
 
 start_fcitx5
 
+setup_interface_font
 setup_locale
 
 echo

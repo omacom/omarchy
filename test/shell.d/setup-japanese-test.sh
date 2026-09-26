@@ -31,6 +31,13 @@ cat >"$stub_bin/sudo" <<'STUB'
 #!/bin/bash
 printf 'sudo %s\n' "$*" >>"${CALL_LOG:?}"
 STUB
+cat >"$stub_bin/gsettings" <<'STUB'
+#!/bin/bash
+printf 'gsettings %s\n' "$*" >>"${CALL_LOG:?}"
+if [[ $1 == "get" ]]; then
+  echo "${TEST_FONT-'Adwaita Sans 11'}"
+fi
+STUB
 cat >"$stub_bin/localectl" <<'STUB'
 #!/bin/bash
 [[ $1 == "status" ]] || exit 2
@@ -196,3 +203,14 @@ if sed --version >/dev/null 2>&1; then
 else
   skip "no GNU sed; skipping the locale.gen expression check"
 fi
+
+# The interface font names the Japanese CJK face and keeps its size.
+TEST_FONT="'Adwaita Sans 12.5'" run_setup font
+grep -Fx 'gsettings set org.gnome.desktop.interface font-name Noto Sans CJK JP 12.5' "$test_dir/font.calls" >/dev/null ||
+  fail "the interface font switches to Noto Sans CJK JP at its current size" "$(<"$test_dir/font.calls")"
+pass "the interface font switches to Noto Sans CJK JP at its current size"
+
+TEST_FONT="" run_setup font-unset
+grep -Fx 'gsettings set org.gnome.desktop.interface font-name Noto Sans CJK JP 11' "$test_dir/font-unset.calls" >/dev/null ||
+  fail "an unreadable interface font falls back to size 11" "$(<"$test_dir/font-unset.calls")"
+pass "an unreadable interface font falls back to size 11"
