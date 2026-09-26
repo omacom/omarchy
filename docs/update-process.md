@@ -23,7 +23,7 @@ The design goal is:
 | --- | --- | --- |
 | `${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.lock` | user | Prevent overlapping update runs. Owned by `omarchy-update-lock`; compatibility wrappers inherit/respect it. |
 | `${XDG_RUNTIME_DIR}/omarchy-update-stay-awake/` | user | Private mode-0700 inhibitor coordination state. If no runtime directory is available, the helper uses the validated mode-0700 `/tmp/omarchy-$UID/` fallback. |
-| `/tmp/omarchy-update.log` | user | Transcript of `omarchy update`, used by `omarchy-update-analyze-logs`. |
+| `${XDG_RUNTIME_DIR}/omarchy-update/update.log (or ~/.cache/omarchy/update/update.log)` | user | Transcript of `omarchy update`, used by `omarchy-update-analyze-logs`. |
 | `~/.local/state/omarchy/current/` | user | Generated active theme, selected theme name, and current background symlink. |
 | `~/.local/state/omarchy/migrations/` | user | Per-user migration markers. |
 | `~/.local/state/omarchy/reboot-required` | user | Optional reboot marker checked by `omarchy-update-restart`. |
@@ -120,7 +120,7 @@ High-level flow:
 
 ```text
 omarchy-update
-  ├─ ensure transcript logging through script(1) → /tmp/omarchy-update.log
+  ├─ ensure transcript logging through script(1) → ${XDG_RUNTIME_DIR}/omarchy-update/update.log (or ~/.cache/omarchy/update/update.log)
   ├─ omarchy-update-lock
   │    └─ acquire the update lock and run omarchy-update inside it
   ├─ omarchy-update-requires-free-space
@@ -164,7 +164,7 @@ Important behavior:
   check is silently skipped. Set `OMARCHY_UPDATE_FORCE=1` to bypass the check.
 - `omarchy update` checks/runs migrations in the same visible terminal via
   `omarchy-migrate` after pacman finishes.
-- A failure should leave enough output in `/tmp/omarchy-update.log` and the
+- A failure should leave enough output in `${XDG_RUNTIME_DIR}/omarchy-update/update.log (or ~/.cache/omarchy/update/update.log)` and the
   terminal transcript to debug.
 
 ## Path 2: direct `sudo pacman -Syu` attempt
@@ -307,7 +307,7 @@ scripts.
 | `omarchy-update-aur-pkgs` | Updates AUR packages with `yay -Sua` if foreign packages exist and AUR is reachable. | **Question.** Omarchy is package-backed now, but users may still install AUR packages. Keep for now. |
 | `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
 | `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal; noninteractive mode never removes. | **Keep for now.** Safe because it is prompt-only. |
-| `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
+| `omarchy-update-analyze-logs` | Scans `${XDG_RUNTIME_DIR}/omarchy-update/update.log (or ~/.cache/omarchy/update/update.log)` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
 | `omarchy-update-restart` | Restarts components selected by `restart-*-required` markers, always restarts the shell, and prompts for reboot after kernel/Hyprland updates. Internal phase flags let the update finish sudo-capable restarts before user hooks and defer only the unprivileged reboot prompt. | **Keep.** Important final step; may eventually include service-restart checks. |
 | `omarchy-update-firmware` | Manual firmware update command using fwupd. Not part of the normal update pipeline. | **Keep separate.** Firmware is not a routine system update step. |
 | `omarchy-update-time` | Restarts `systemd-timesyncd`. | **Question.** Not really an update command. Consider renaming/moving under system/time maintenance. |
