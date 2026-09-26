@@ -103,3 +103,20 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+write_usb_devices '2541:0236:CS9711Fingprint'
+assert_detects "the CS9711 reader is detected despite its misspelled descriptor"
+
+write_usb_devices '2541:0236'
+assert_detects "the CS9711 USB ID is detected without a product descriptor"
+
+write_usb_devices '2541:1234:Generic USB Device'
+assert_rejects "an unrelated Chipsailing product is not treated as a reader"
+
+write_usb_devices '2541:0236:CS9711Fingprint'
+bind_driver '1-0/1-0:1.0' usbhid
+assert_rejects "the CS9711 ID match still rejects a kernel-bound device"
+
+write_usb_devices '2541:0236:CS9711Fingprint'
+bind_driver '1-0/1-0:1.0' usbfs
+assert_detects "the CS9711 reader remains detected while claimed through usbfs"
