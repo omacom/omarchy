@@ -10,6 +10,8 @@ Item {
   property string videoPosterPath: ""
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
+  property bool fingerprintAuthenticating: false
+  property int fingerprintFailureNonce: 0
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -40,6 +42,12 @@ Item {
     : 1
   readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
   readonly property bool errorState: failureMessage.length > 0
+  // A rejected scan re-arms almost immediately, so its feedback cannot ride the
+  // PAM state: a nonce raises it and its own timer clears it.
+  property bool fingerprintFailureActive: false
+  readonly property color fingerprintColor: root.fingerprintFailureActive
+    ? Color.lock.textError
+    : (root.fingerprintAuthenticating ? Color.lock.borderActive : Color.lock.placeholder)
   readonly property var inputBorderSpec: errorState
     ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
@@ -68,6 +76,12 @@ Item {
   }
 
   onPasswordTextChanged: syncPasswordText()
+  onFingerprintFailureNonceChanged: {
+    if (fingerprintFailureNonce <= 0) return
+    fingerprintFailureActive = true
+    fingerprintFailureTimer.restart()
+    fingerprintShake.restart()
+  }
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
@@ -84,6 +98,13 @@ Item {
     font.pixelSize: root.passwordDotFontSize
     font.letterSpacing: root.passwordDotLetterSpacing
     text: "●".repeat(passwordInput.text.length)
+  }
+
+  Timer {
+    id: fingerprintFailureTimer
+    interval: 1400
+    repeat: false
+    onTriggered: root.fingerprintFailureActive = false
   }
 
   Rectangle {
@@ -224,12 +245,50 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         visible: root.fingerprintConfigured
         text: "󰈷"
-        color: Color.lock.placeholder
+        color: root.fingerprintColor
+        Behavior on color { ColorAnimation { duration: 140 } }
+        transform: Translate { id: fingerprintNudge }
         font.family: Style.font.family
         font.pixelSize: Math.round(root.fieldFontSize * 1.1)
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
       }
+
+      // Waiting on the reader is otherwise invisible: pulse the glyph so a
+      // finger on the sensor reads as a live prompt, not a static hint.
+      SequentialAnimation {
+        running: root.fingerprintAuthenticating && !root.fingerprintFailureActive
+        loops: Animation.Infinite
+        NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 0.35; duration: 720; easing.type: Easing.InOutQuad }
+        NumberAnimation { target: fingerprintIcon; property: "opacity"; to: 1.0; duration: 720; easing.type: Easing.InOutQuad }
+        onRunningChanged: if (!running) fingerprintIcon.opacity = 1
+      }
+
+      // A rejected read flashes the glyph urgent and nudges it, so a bad scan
+      // is told apart from a scanner that is still listening.
+      SequentialAnimation {
+        id: fingerprintShake
+        NumberAnimation { target: fingerprintNudge; property: "x"; to: -5; duration: 45; easing.type: Easing.OutQuad }
+        NumberAnimation { target: fingerprintNudge; property: "x"; to: 5; duration: 55; easing.type: Easing.InOutQuad }
+        NumberAnimation { target: fingerprintNudge; property: "x"; to: 0; duration: 70; easing.type: Easing.OutQuad }
+      }
+    }
+
+    // The retry re-arms in a quarter second with no other sign the scan failed.
+    Text {
+      id: fingerprintRetryLabel
+      objectName: "fingerprintRetryLabel"
+      textFormat: Text.PlainText
+      text: "Try again"
+      anchors.top: inputField.bottom
+      anchors.topMargin: Style.spacing.lg
+      anchors.horizontalCenter: inputField.horizontalCenter
+      visible: root.fingerprintFailureActive
+      opacity: root.fingerprintFailureActive ? 1 : 0
+      color: Color.lock.textError
+      font.family: Style.font.family
+      font.pixelSize: Style.font.bodySmall
+      Behavior on opacity { NumberAnimation { duration: 160 } }
     }
   }
 }

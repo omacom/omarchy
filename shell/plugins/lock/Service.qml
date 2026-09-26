@@ -20,6 +20,11 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property int fingerprintFailureNonce: 0
+  property int fingerprintRetryDelay: 250
+  property bool fingerprintAttemptEngaged: false
+  readonly property int fingerprintRetryDelayMin: 250
+  readonly property int fingerprintRetryDelayMax: 30000
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property bool previewVisible: false
@@ -141,6 +146,8 @@ Item {
     failedAttempts = 0
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintRetryDelay = fingerprintRetryDelayMin
+    fingerprintAttemptEngaged = false
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
@@ -260,6 +267,7 @@ Item {
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
     fingerprintAuthenticating = true
+    fingerprintAttemptEngaged = false
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
     }
@@ -272,8 +280,24 @@ Item {
     if (result === PamResult.Success) {
       finishUnlock()
     } else if (fingerprintConfigured) {
-      fingerprintRetryTimer.restart()
+      scheduleFingerprintRetry()
     }
+  }
+
+  function scheduleFingerprintRetry() {
+    // If the reader never got as far as asking for a finger, the stack failed
+    // before the scan; back off quietly so a wedged fprintd cannot spin the
+    // retry into a flashing "Try again". A reader that did ask was a real scan,
+    // so re-arm it at once and flag the miss.
+    if (fingerprintAttemptEngaged) {
+      fingerprintRetryDelay = fingerprintRetryDelayMin
+      fingerprintFailureNonce += 1
+    } else {
+      fingerprintRetryDelay = Math.min(
+        Math.max(fingerprintRetryDelay * 2, 1000),
+        fingerprintRetryDelayMax)
+    }
+    fingerprintRetryTimer.restart()
   }
 
   WlSessionLock {
@@ -321,6 +345,8 @@ Item {
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        fingerprintAuthenticating: root.fingerprintAuthenticating
+        fingerprintFailureNonce: root.fingerprintFailureNonce
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -401,15 +427,17 @@ Item {
       root.handleFingerprintFinished(result)
     }
 
+    onPamMessage: root.fingerprintAttemptEngaged = true
+
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      if (root.lockRequested && root.fingerprintConfigured) root.scheduleFingerprintRetry()
     }
   }
 
   Timer {
     id: fingerprintRetryTimer
-    interval: 250
+    interval: root.fingerprintRetryDelay
     repeat: false
     onTriggered: root.startFingerprint()
   }
