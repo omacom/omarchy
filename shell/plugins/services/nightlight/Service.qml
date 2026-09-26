@@ -8,14 +8,17 @@ Item {
   // Injected by omarchy-shell (the first-party service loader).
   property var shell: null
 
-  // Keep in sync with bin/omarchy-toggle-nightlight, which sets the same
-  // temperatures for callers outside the shell (keybindings, menu, ssh).
-  readonly property int nightTemperature: 4000
-  readonly property int dayTemperature: 6500
+  // Temperatures come from shell.json `nightlight.night` / `nightlight.day`
+  // (defaults 4000 / 6500). bin/omarchy-toggle-nightlight reads the same keys
+  // for callers outside the shell (keybindings, menu, ssh).
+  readonly property var nightlightConfig: shell && shell.shellConfig && shell.shellConfig.nightlight ? shell.shellConfig.nightlight : ({})
+  readonly property var temperatures: NightlightModel.temperaturesFromConfig(nightlightConfig)
+  readonly property int nightTemperature: temperatures.night
+  readonly property int dayTemperature: temperatures.day
 
   property bool stateLoaded: false
   property var temperature: null
-  readonly property bool enabled: stateLoaded && NightlightModel.isNightlight(temperature)
+  readonly property bool enabled: stateLoaded && NightlightModel.isNightlight(temperature, dayTemperature)
 
   property bool hasPendingTemperature: false
   property int pendingTemperature: 0
