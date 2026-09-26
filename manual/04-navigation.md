@@ -26,7 +26,7 @@ You close a window on `Super + W` or `Super + Q` (and close all windows on `Ctrl
 
 You can also go full screen with `Super + F` or even just full-width (keeping the top bar) with `Super + Alt + F` or full-screen within a window with `Super + Ctrl + F` (good for YouTube!).
 
-### Dwindle vs scrolling layout
+### Dwindle, scrolling, and master layouts
 
 Omarchy's default layout is called dwindle. It keeps all the windows you open on a single workspace visible at all time, even if it has to shrink them down.
 
@@ -36,9 +36,11 @@ But you can also choose to turn a workspace into the scrolling layout where wind
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
+Hit `Super + L` once more and the workspace turns into the master layout, where one main window keeps the bulk of the screen and the rest stack up beside it. That's a great fit for ultrawide displays. A third press brings you back to dwindle.
+
 The choice is per workspace, and it sticks. So you can keep workspace 1 on dwindle for browsing and workspace 2 on scrolling for code, and they'll come back that way after a restart. (The same toggle is under _Trigger > Toggle > Workspace Layout_ in the Omarchy menu).
 
-If you wish to use the scrolling layout as the default, you can set that in `~/.config/hypr/looknfeel.lua`:
+If you wish to use the scrolling or master layout as the default, you can set that in `~/.config/hypr/looknfeel.lua`:
 
 ```lua
 hl.config({
