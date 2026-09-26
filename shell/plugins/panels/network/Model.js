@@ -303,6 +303,36 @@ function sortWifiRows(rows) {
   return nets
 }
 
+// SSID is the row identity: Quickshell's WifiNetwork is per-network, not per
+// BSSID, so one entry exists per SSID even where several APs advertise it.
+function wifiRowKey(row) {
+  return row ? String(row.ssid || "") : ""
+}
+
+// Flat list-model entries for the Wi-Fi list. Fields are net-prefixed because a
+// delegate Item already owns `state`, and the section title is resolved here so
+// a delegate never has to look at its neighbours.
+function wifiRowEntries(rows) {
+  var list = Array.isArray(rows) ? rows : []
+  var entries = []
+
+  for (var i = 0; i < list.length; i++) {
+    var net = list[i]
+    if (!net) continue
+    entries.push({
+      key: wifiRowKey(net),
+      sectionTitle: wifiSectionTitle(list, i),
+      netConnected: !!net.connected,
+      netKnown: !!net.known,
+      netSsid: net.ssid || "",
+      netSignal: net.signal || 0,
+      netSecurity: net.security
+    })
+  }
+
+  return entries
+}
+
 function wifiSectionTitle(wifiNetworks, index) {
   var networks = Array.isArray(wifiNetworks) ? wifiNetworks : []
   if (index < 0 || index >= networks.length) return ""
@@ -389,6 +419,8 @@ if (typeof module !== "undefined") {
     wifiRow: wifiRow,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
+    wifiRowKey: wifiRowKey,
+    wifiRowEntries: wifiRowEntries,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,

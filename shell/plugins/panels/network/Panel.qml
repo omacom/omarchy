@@ -392,7 +392,30 @@ Panel {
 
   onWifiNetworkObjectsChanged: syncWifiNetworks()
 
+  // Keyboard navigation scrolls the list under a stationary pointer, so a row
+  // slides beneath the cursor and fires containsMouse without the user having
+  // touched the mouse. Ungated, that synthetic hover overwrites focusSection
+  // and selectedIndex, and the selection jumps to whichever row landed under
+  // the pointer.
+  PointerMoveGate {
+    id: pointerGate
+    referenceItem: keyCatcher
+  }
+
+  function disarmPointer() {
+    pointerGate.reset()
+  }
+
+  function selectFromPointer(index, actionFocused, item, mouse) {
+    if (!pointerGate.moved(item, mouse)) return
+    cursorActive = true
+    focusSection = "wifi"
+    selectedIndex = index
+    wifiActionFocused = actionFocused
+  }
+
   function selectByDelta(delta) {
+    disarmPointer()
     if (wifiNetworks.length === 0) { selectedIndex = -1; return }
     if (selectedIndex < 0) selectedIndex = delta > 0 ? 0 : wifiNetworks.length - 1
     else selectedIndex = Math.max(0, Math.min(wifiNetworks.length - 1, selectedIndex + delta))
@@ -661,10 +684,45 @@ Panel {
     wifiNetworks = Model.sortWifiRows(nets)
     wifiStationAvailable = !!wifiDevice
     scanning = false
+    disarmPointer()
+    syncWifiModel()
   }
 
-  function wifiSectionTitle(index) {
-    return Model.wifiSectionTitle(wifiNetworks, index)
+  // Assigning a fresh JS array to ListView.model is a model reset: every
+  // delegate is destroyed and contentY snaps back to 0. While the panel is
+  // open it enables scanning, and NetworkManager then churns the AP list every
+  // couple of seconds, so binding the array directly yanked the list out from
+  // under anyone scrolling it. Rows are also re-sorted by signal strength, so
+  // the order moves even when membership does not. Reconcile a ListModel keyed
+  // by SSID instead: a row that only re-sorted moves rather than being torn
+  // down, and the viewport keeps its position.
+  ListModel { id: wifiModel }
+
+  function syncWifiModel() {
+    var entries = Model.wifiRowEntries(wifiStationAvailable ? wifiNetworks : [])
+    var i, j
+
+    // Drop networks that dropped out of the scan.
+    for (i = wifiModel.count - 1; i >= 0; i--) {
+      var gone = true
+      for (j = 0; j < entries.length; j++)
+        if (entries[j].key === wifiModel.get(i).key) { gone = false; break }
+      if (gone) wifiModel.remove(i)
+    }
+
+    // Align order, moving rows that merely re-sorted and inserting new ones.
+    for (i = 0; i < entries.length; i++) {
+      if (i < wifiModel.count && wifiModel.get(i).key === entries[i].key) continue
+      var found = -1
+      for (j = i + 1; j < wifiModel.count; j++)
+        if (wifiModel.get(j).key === entries[i].key) { found = j; break }
+      if (found >= 0) wifiModel.move(found, i, 1)
+      else wifiModel.insert(i, entries[i])
+    }
+
+    // Refresh mutable fields in place; setProperty only notifies on a change.
+    for (i = 0; i < entries.length && i < wifiModel.count; i++)
+      for (var prop in entries[i]) wifiModel.setProperty(i, prop, entries[i][prop])
   }
 
   function wifiIconFor(strength) {
@@ -1058,6 +1116,7 @@ Panel {
           root.cursorActive = true
           if (dy >= 0) return
         }
+        root.disarmPointer()
         if (dy !== 0) {
           // Hidden sections drop out of the keyboard chain entirely.
           if (root.focusSection === "header") {
@@ -1600,17 +1659,44 @@ Panel {
 
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-        model: root.wifiStationAvailable ? root.wifiNetworks : []
+        model: wifiModel
         currentIndex: root.selectedIndex
-        onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+        // Deferred by a turn: called straight out of the signal, the position
+        // does not take. Driven off root.selectedIndex rather than
+        // this.currentIndex because the view writes currentIndex itself on an
+        // insert or a move, which breaks the binding and would silently
+        // disable keyboard auto-scroll.
+        Connections {
+          target: root
+          function onSelectedIndexChanged() { Qt.callLater(networkList.keepCurrentVisible) }
+        }
+        function keepCurrentVisible() {
+          var i = root.selectedIndex
+          if (i >= 0 && i < count) positionViewAtIndex(i, ListView.Contain)
+        }
 
         // Wrapper takes the required props from ListView's delegate context
         // (which doesn't bind into nested `component` declarations like
         // NetworkRow) and passes them down explicitly.
         delegate: Item {
-          required property var modelData
+          id: wifiDelegate
           required property int index
-          readonly property string sectionTitle: root.wifiSectionTitle(index)
+          required property string sectionTitle
+          required property bool netConnected
+          required property bool netKnown
+          required property string netSsid
+          required property int netSignal
+          required property int netSecurity
+
+          // Reassembled from roles so NetworkRow keeps taking one network object.
+          readonly property var net: ({
+            connected: wifiDelegate.netConnected,
+            known: wifiDelegate.netKnown,
+            ssid: wifiDelegate.netSsid,
+            signal: wifiDelegate.netSignal,
+            security: wifiDelegate.netSecurity
+          })
+
           width: ListView.view.width
           height: delegateColumn.implicitHeight
 
@@ -1619,19 +1705,21 @@ Panel {
             width: parent.width
             spacing: Style.space(4)
 
+            // No explicit height: Column already skips invisible children, and
+            // binding height back to implicitHeight is a cycle Qt now detects,
+            // because a reused delegate flips sectionTitle as rows re-sort.
             PanelSectionHeader {
-              visible: sectionTitle !== ""
-              text: sectionTitle
+              visible: wifiDelegate.sectionTitle !== ""
+              text: wifiDelegate.sectionTitle
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
-              height: visible ? implicitHeight : 0
             }
 
             NetworkRow {
               id: row
               width: parent.width
-              net: modelData
-              index: parent.parent.index
+              net: wifiDelegate.net
+              index: wifiDelegate.index
             }
           }
         }
@@ -1797,7 +1885,7 @@ Panel {
       // Move the cursor here when the mouse enters; mouse leaving doesn't
       // clear it (so the cursor stays where the mouse last was and
       // subsequent j/k pick up from this row).
-      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
+      onPositionChanged: function(mouse) { root.selectFromPointer(row.index, false, row, mouse) }
 
       onClicked: {
         if (!row.net) return
@@ -1880,7 +1968,7 @@ Panel {
           acceptedButtons: Qt.LeftButton
           enabled: row.canForget && !root.busy
           cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-          onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true }
+          onPositionChanged: function(mouse) { root.selectFromPointer(row.index, true, row, mouse) }
           onClicked: if (row.net) root.forget(row.net)
         }
 
@@ -1918,7 +2006,6 @@ Panel {
           // so rows without status keep a tight one-line look.
           text: row.statusText
           visible: row.statusText !== ""
-          height: visible ? implicitHeight : 0
           color: row.statusColor
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
