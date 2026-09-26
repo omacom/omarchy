@@ -1,0 +1,34 @@
+-- Affinity runs under Wine. Its document window is tiled, but its dialogs
+-- (welcome, open/save, preferences) arrive as separate top-level windows with
+-- an empty title, and some of them land off-centre.
+--
+-- Deliberately not centered, despite that. Wine also draws each menu-bar
+-- dropdown (File, Edit, ...) as its own top-level window, and a center rule
+-- catches those too: the menu opens in the middle of the screen over the menu
+-- bar, then snaps back under its entry as soon as the pointer moves down and
+-- Wine reasserts its own position. Unusable menus are worse than dialogs that
+-- open off-centre.
+--
+-- No rule can tell the two apart. A menu popup and a real dialog both report
+-- class affinity.exe, an empty title, floating, xwayland, transient for the
+-- document window, _NET_WM_WINDOW_TYPE_DIALOG, no _NET_WM_STATE (so `modal`
+-- does not discriminate), no content type and no xdg tag. Their one real
+-- difference is that menus are X11 override-redirect, which Hyprland exposes
+-- to neither window rules nor the Lua window object, so a window.open handler
+-- is equally blind. Only size separates them, and size is not matchable.
+--
+-- Centering an override-redirect window is arguably a Hyprland bug: X11 gives
+-- the client sole say over its position. If that changes upstream, centering
+-- can come back.
+
+-- Hovering from one menu-bar entry to another also briefly flashes the active
+-- border. Wine opens a tiny transient helper window (e.g. 246x100) on hover
+-- that takes focus for ~400ms before handing it back, so the border animates
+-- active/inactive/active. Left alone for the same reason: no_focus,
+-- no_initial_focus, no_follow_mouse, focus_on_activate, stay_focused, and
+-- suppress_event either fail to stop the steal or break focus for genuine
+-- dialogs and menus.
+
+-- Colour-critical editing: keep fully opaque instead of the default
+-- translucency, which distorts the canvas.
+o.window("affinity.exe", { tag = "-default-opacity", opacity = "1 1" })

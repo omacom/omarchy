@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Install Affinity creative suite (Designer, Photo, Publisher) via Wine AppImage
+# omarchy:requires-sudo=true
+
+set -e
+
+omarchy-pkg-aur-add affinity-appimage-bin
+
+# Affinity's AppImage has no Linux file associations of its own, so the opener,
+# the MIME definitions, the launcher entry, and the icon all come from Omarchy.
+# The packaged icon lands in the system hicolor theme, but a dev-linked checkout
+# never reaches /usr/share/icons, so install a user copy the entry can name.
+icon_dir="$HOME/.local/share/icons/hicolor/512x512/apps"
+mkdir -p "$icon_dir"
+install -m 644 "$OMARCHY_PATH/applications/icons/affinity.png" \
+  "$icon_dir/affinity.png"
+gtk-update-icon-cache "$HOME/.local/share/icons/hicolor" &>/dev/null || true
+
+mkdir -p "$HOME/.local/bin"
+install -m 755 "$OMARCHY_PATH/default/applications/affinity-open" \
+  "$HOME/.local/bin/affinity-open"
+
+mkdir -p "$HOME/.local/share/mime/packages"
+install -m 644 "$OMARCHY_PATH/default/applications/affinity-filetypes.xml" \
+  "$HOME/.local/share/mime/packages/affinity-filetypes.xml"
+update-mime-database "$HOME/.local/share/mime"
+
+mkdir -p "$HOME/.local/share/applications"
+install -m 644 "$OMARCHY_PATH/default/applications/affinity.desktop" \
+  "$HOME/.local/share/applications/affinity.desktop"
+update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+
+# The AppImage registers no handlers, so the default has to be set explicitly
+# for every type. Without this the files fall back to "no application".
+while IFS= read -r mime_type; do
+  xdg-mime default affinity.desktop "$mime_type"
+done < <(sed -n 's/.*<mime-type type="\([^"]*\)".*/\1/p' \
+  "$OMARCHY_PATH/default/applications/affinity-filetypes.xml")
+
+echo
+echo "Affinity has been installed. Double-click an .af/.afphoto/.afdesign file to open it."
