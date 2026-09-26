@@ -165,7 +165,9 @@ Item {
           opacity: root.filterText ? 1 : 0.58
           font.family: root.fontFamily
           font.pixelSize: Style.font.heading
-          elide: Text.ElideRight
+          // Elide the head, not the tail: the card is one line by design, and
+          // while typing it is the freshly typed end that needs to stay visible.
+          elide: Text.ElideLeft
         }
       }
     }
