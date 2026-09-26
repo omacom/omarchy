@@ -15,6 +15,19 @@ fi
 wpctl set-default "$node_id" 2>/dev/null || true
 pactl set-default-source "$source_name" 2>/dev/null || true
 
-pactl list short source-outputs 2>/dev/null | awk '{ print $1 }' | while read -r output; do
+# Move only real application streams. A DSP filter-chain's own capture stream
+# is also a source output but carries no application.name, and moving it would
+# rewire the processing itself. WirePlumber cannot point a chain's input at the
+# chain's own output, so it destroys the stream and the whole chain unloads --
+# the Asahi microphone beamformer vanishes. EasyEffects' input stream must stay
+# put for the same reason.
+pactl list source-outputs 2>/dev/null | awk '
+  /^Source Output #/ {id = substr($3, 2)}
+  /application\.name = / {
+    app = $0
+    sub(/.*application\.name = "/, "", app)
+    sub(/"$/, "", app)
+    if (app != "EasyEffects") print id
+  }' | while read -r output; do
   [[ -n $output ]] && pactl move-source-output "$output" "$source_name" 2>/dev/null || true
 done
