@@ -88,6 +88,14 @@ if [[ -n ${CREATE_BAD_IDLE:-} ]]; then
 fi
 trap 'exit 0' TERM
 while [[ ${1:-} == --* ]]; do shift; done
+if [[ -n ${INHIBITOR_CHILD_STATUS:-} ]]; then
+  # Like the real systemd-inhibit, wait for the held command and record how it
+  # ended: a child killed by TERM makes systemd-inhibit print an error.
+  "$@" &
+  wait "$!" && status=0 || status=$?
+  printf '%s\n' "$status" >"$INHIBITOR_CHILD_STATUS"
+  exit "$status"
+fi
 exec "$@"
 SH
 
@@ -181,6 +189,14 @@ wait_dead "$valid_pid" || fail "valid inhibitor identity is stopped"
 
 [[ ! -e $state_dir ]] || fail "valid state is cleaned after stop"
 pass "valid XDG runtime uses private atomic inhibitor state"
+
+child_status="$test_tmp/inhibitor-child-status"
+rm -f "$child_status"
+INHIBITOR_CHILD_STATUS="$child_status" run_helper start
+INHIBITOR_CHILD_STATUS="$child_status" run_helper stop
+for _ in {1..100}; do [[ -s $child_status ]] && break; sleep 0.02; done
+[[ $(<"$child_status") == "0" ]] || fail "stopped inhibitor did not exit cleanly" "$(<"$child_status")"
+pass "a stopped inhibitor exits cleanly instead of dying from TERM"
 
 # omarchy update owns its one authorization; the helper must not revoke it.
 # Run on its own, the helper still starts and ends cold.
@@ -446,8 +462,8 @@ pause = ': >"$TEST_CANCEL_READY"; while :; do /usr/bin/sleep 0.02; done'
 if sys.argv[2] == 'published':
     anchor = '  while :; do\n    inhibit_record='
     edits = [(anchor, '  ' + pause + '\n' + anchor),
-             ('      exec -a "$expected"',
-              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      exec -a "$expected"')]
+             ('      trap stop_holding TERM',
+              '      while [[ ! -e $TEST_RELEASE_CHILD ]]; do /usr/bin/sleep 0.02; done\n      trap stop_holding TERM')]
 elif sys.argv[2] == 'idle-temporary':
     anchor = '  temporary=$(mktemp "$state_dir/.${state_file##*/}.XXXXXXXX") || return 1'
     edits = [(anchor, anchor + '\n  if [[ $state_file == "$idle_owner_file" ]]; then ' + pause + '; fi')]
