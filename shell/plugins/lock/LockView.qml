@@ -190,12 +190,15 @@ Item {
           if (submitted.length > 0) root.submitPassword(submitted)
         }
 
+        Keys.priority: Keys.BeforeItem
         Keys.onPressed: function(event) {
+          var clearPassword = root.displaysBlank
+            || event.key === Qt.Key_Escape
+            || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)
+
           root.wakeRequested()
-          if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
-            root.passwordTextEdited("")
-            event.accepted = true
-          }
+          if (clearPassword) root.passwordTextEdited("")
+          event.accepted = clearPassword
         }
       }
 
