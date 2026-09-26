@@ -46,6 +46,13 @@ if omarchy-cmd-missing "$command"; then
   fi
 fi
 
+prev="$(env -u BROWSER xdg-settings get default-web-browser)"
+
 env -u BROWSER xdg-settings set default-web-browser "$desktop_id" || exit 1
+
+# A different browser has different profiles, so drop remembered webapp selections.
+if [[ $prev != "$desktop_id" ]]; then
+  omarchy-webapp-profile-store clear-all
+fi
 
 omarchy-notification-send -g $glyph "$name is now the default browser"

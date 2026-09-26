@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=List the browser profiles a webapp can open in, as dirname<TAB>name
+# omarchy:args=[--browser]
+
+# Webapps run in the default browser when it is Chromium-based and in Chromium
+# otherwise, so the profiles offered are those of whichever that is. This mirrors
+# the choice omarchy-launch-webapp makes.
+browser=$(xdg-settings get default-web-browser)
+
+case $browser in
+google-chrome*) config_dir="$HOME/.config/google-chrome" ;;
+brave-origin*) config_dir="$HOME/.config/BraveSoftware/Brave-Origin" ;;
+brave*) config_dir="$HOME/.config/BraveSoftware/Brave-Browser" ;;
+microsoft-edge*) config_dir="$HOME/.config/microsoft-edge" ;;
+opera*) config_dir="$HOME/.config/opera" ;;
+vivaldi*) config_dir="$HOME/.config/vivaldi" ;;
+helium*) config_dir="$HOME/.config/net.imput.helium" ;;
+*)
+  browser="chromium.desktop"
+  config_dir="$HOME/.config/chromium"
+  ;;
+esac
+
+if [[ ${1:-} == "--browser" ]]; then
+  echo "$browser"
+  exit 0
+fi
+
+[[ -f "$config_dir/Local State" ]] || exit 0
+
+# Chromium keeps every profile's directory and display name in Local State.
+jq -r '(.profile.info_cache // {}) | to_entries[] | "\(.key)\t\(.value.name // .key)"' \
+  "$config_dir/Local State" 2>/dev/null | sort
