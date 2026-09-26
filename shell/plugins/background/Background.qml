@@ -280,7 +280,7 @@ Item {
       Item {
         id: revealMask
         anchors.fill: parent
-        visible: false
+        opacity: 0
         layer.enabled: true
 
         readonly property real slant: -0.18
