@@ -46,4 +46,11 @@ assertEqual(audio.matchingMprisStreamLabel('Chromium', players), 'Chromium', 'au
 assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spotify', 'audio uses unmatched MPRIS player for generic streams')
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
+
+const liveSink = { name: 'alsa_output' }
+const droppedSink = { name: 'bluez_output' }
+assertDeepEqual(audio.livingNodes([liveSink, droppedSink], [liveSink]), [liveSink], 'audio drops cached nodes PipeWire no longer lists')
+assertDeepEqual(audio.livingNodes([liveSink, droppedSink], []), [], 'audio empties the cache when PipeWire drops every node')
+assertDeepEqual(audio.livingNodes([liveSink], [liveSink]), [liveSink], 'audio keeps cached nodes that are still live')
+assertDeepEqual(audio.livingNodes(null, [liveSink]), [], 'audio tolerates a missing cache')
 JS
