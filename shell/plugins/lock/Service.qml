@@ -21,7 +21,27 @@ Item {
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
   property bool passwordPamConfigured: false
+  property string fingerprintMessage: ""
+  property bool fingerprintWakeUsed: false
   property bool fingerprintConfigured: false
+  // Nobody can touch the sensor while the display is blanked, so the
+  // fingerprint PAM is aborted for that stretch instead of being retried
+  // every timeout until the display comes back.
+  property bool fingerprintSuspended: false
+  // A reader that fails the moment it is asked -- a backend in a bad way
+  // rather than a finger that did not match -- would otherwise be asked again
+  // every retry for the whole lock. Back those attempts off, and forget the
+  // streak as soon as one lasts long enough to have been a real touch or the
+  // user turns up at the display.
+  readonly property int fingerprintRetryBase: 250
+  readonly property int fingerprintRetryFloor: 2000
+  readonly property int fingerprintRetryMax: 30000
+  readonly property int fingerprintInstantFailure: 1000
+  readonly property int fingerprintRetryDelay: fingerprintFailureStreak === 0
+    ? fingerprintRetryBase
+    : Math.min(fingerprintRetryMax, fingerprintRetryFloor * Math.pow(2, fingerprintFailureStreak - 1))
+  property int fingerprintFailureStreak: 0
+  property double fingerprintStartedAt: 0
   property bool previewVisible: false
   property string enteredPassword: ""
   property string pendingPassword: ""
@@ -139,8 +159,12 @@ Item {
     pendingPassword = ""
     failureMessage = ""
     failedAttempts = 0
+    fingerprintMessage = ""
     authenticatingPassword = false
     fingerprintAuthenticating = false
+    fingerprintSuspended = false
+    fingerprintFailureStreak = 0
+    fingerprintStartedAt = 0
     fingerprintRetryTimer.stop()
     if (passwordPam.active) passwordPam.abort()
     if (fingerprintPam.active) fingerprintPam.abort()
@@ -154,6 +178,7 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    fingerprintWakeUsed = false
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -190,12 +215,50 @@ Item {
     root.monitorDpmsKnown = false
     if (!wakeProcess.running) wakeProcess.running = true
     if (lockRequested) armBlankTimer()
+    resumeFingerprint()
   }
 
   function runBlank() {
     root.displaysBlank = true
     root.monitorDpmsKnown = false
     if (!blankProcess.running) blankProcess.running = true
+    suspendFingerprint()
+  }
+
+  function suspendFingerprint() {
+    if (fingerprintSuspended) return
+
+    fingerprintSuspended = true
+    fingerprintRetryTimer.stop()
+    if (fingerprintPam.active) fingerprintPam.abort()
+    fingerprintAuthenticating = false
+  }
+
+  function resumeFingerprint() {
+    resetFingerprintBackoff()
+    if (!fingerprintSuspended) return
+
+    fingerprintSuspended = false
+    if (lockRequested && fingerprintConfigured) startFingerprint()
+  }
+
+  function resetFingerprintBackoff() {
+    if (fingerprintFailureStreak === 0) return
+
+    fingerprintFailureStreak = 0
+    if (fingerprintRetryTimer.running) fingerprintRetryTimer.restart()
+  }
+
+  function scheduleFingerprintRetry() {
+    if (!lockRequested || !fingerprintConfigured || fingerprintSuspended) return
+
+    // An attempt no finger had time to reach is the reader failing, not the
+    // user missing; only those compound.
+    var attempt = fingerprintStartedAt > 0 ? Date.now() - fingerprintStartedAt : 0
+    if (attempt >= fingerprintInstantFailure) fingerprintFailureStreak = 0
+    else if (fingerprintFailureStreak < 16) fingerprintFailureStreak += 1
+
+    fingerprintRetryTimer.restart()
   }
 
   function screenBlank(screenName) {
@@ -256,10 +319,12 @@ Item {
   }
 
   function startFingerprint() {
-    if (!lockRequested || !sessionLock.secure || !fingerprintConfigured) return
+    if (fingerprintSuspended || !lockRequested || !sessionLock.secure || !fingerprintConfigured) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
+    fingerprintMessage = ""
     fingerprintAuthenticating = true
+    fingerprintStartedAt = Date.now()
     if (!fingerprintPam.start()) {
       fingerprintAuthenticating = false
     }
@@ -269,11 +334,8 @@ Item {
     fingerprintAuthenticating = false
 
     if (!lockRequested) return
-    if (result === PamResult.Success) {
-      finishUnlock()
-    } else if (fingerprintConfigured) {
-      fingerprintRetryTimer.restart()
-    }
+    if (result === PamResult.Success) finishUnlock()
+    else scheduleFingerprintRetry()
   }
 
   WlSessionLock {
@@ -321,6 +383,7 @@ Item {
         videoPosterPath: root.videoPosterPath
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured
+        fingerprintMessage: root.fingerprintMessage
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -354,6 +417,7 @@ Item {
       videoPosterPath: root.videoPosterPath
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured
+      fingerprintMessage: root.fingerprintMessage
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -394,6 +458,16 @@ Item {
 
   PamContext {
     id: fingerprintPam
+    onPamMessage: {
+      root.fingerprintMessage = message
+      // Wake once for the first informational message. Later retries must not
+      // repeatedly wake an unattended laptop. No translated text matching.
+      if (root.lockRequested && !root.fingerprintWakeUsed && !messageIsError
+          && !responseRequired && message.length > 0) {
+        root.fingerprintWakeUsed = true
+        root.runWake()
+      }
+    }
     config: "omarchy-lock-fingerprint"
     user: root.userName
 
@@ -403,13 +477,13 @@ Item {
 
     onError: function(error) {
       root.fingerprintAuthenticating = false
-      if (root.lockRequested && root.fingerprintConfigured) fingerprintRetryTimer.restart()
+      root.scheduleFingerprintRetry()
     }
   }
 
   Timer {
     id: fingerprintRetryTimer
-    interval: 250
+    interval: root.fingerprintRetryDelay
     repeat: false
     onTriggered: root.startFingerprint()
   }
@@ -447,7 +521,7 @@ Item {
 
   Process {
     id: fingerprintCheckProc
-    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1 && fprintd-list \"$USER\" 2>/dev/null | grep -qi finger; then echo yes; else echo no; fi"]
+    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1 && fprintd-list \"$USER\" 2>/dev/null | grep -Eq '^[[:space:]]*-[[:space:]]*#[0-9]+:'; then echo yes; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
     onExited: {
       root.fingerprintConfigured = String(fingerprintCheckStdout.text || "").trim() === "yes"
@@ -520,8 +594,8 @@ Item {
         return
       }
       // Only a password check in flight should hold the display up. The
-      // fingerprint PAM stays armed for the whole lock, so gating on
-      // `authenticating` here would keep the panel lit until unlock.
+      // fingerprint PAM stays armed for the whole time the display is up, so
+      // gating on `authenticating` here would keep the panel lit until unlock.
       if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
     }
   }
@@ -566,6 +640,7 @@ Item {
       // for, so the blank state has to be given up here or a visible lock
       // wallpaper stays frozen until the next keypress.
       root.displaysBlank = false
+      root.resumeFingerprint()
       root.requestSessionLock()
 
       // A monitor still coming up has no workspace, so cannot answer yet.
