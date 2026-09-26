@@ -1,0 +1,32 @@
+mode = "light"
+
+accent = "#d6336c"
+selection = "#f8c8dc"
+muted = "#a58aa8"
+
+background = "#fff4f8"
+dark_background = "#fbe4ee"
+darker_background = "#f5d3e3"
+lighter_background = "#fffafc"
+
+foreground = "#4a2a4e"
+dark_foreground = "#8e6f93"
+light_foreground = "#5e3d63"
+bright_foreground = "#3a1f3d"
+
+red = "#d7263d"
+yellow = "#e0a106"
+orange = "#f0742a"
+green = "#2a9d5c"
+cyan = "#0f9fb0"
+blue = "#3b7ddd"
+magenta = "#c04ccf"
+brown = "#8c5a3c"
+
+# Clearly lifted candy accents, distinct from the normal colors.
+bright_red = "#f2536b"
+bright_yellow = "#f4be32"
+bright_green = "#4cbd7d"
+bright_cyan = "#36bdcc"
+bright_blue = "#659bf4"
+bright_magenta = "#dc78e8"

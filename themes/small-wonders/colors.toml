@@ -1,0 +1,34 @@
+# Small Wonders — Miasma's woodland, lit by a little lantern.
+# Keep Miasma's olive blue slot, copper magenta, and amber cyan;
+# lift their readability rather than replacing them with pastels.
+mode = "dark"
+
+accent = "#A3AC68"
+selection = "#444735"
+muted = "#A6A38D"
+
+background = "#24241F"
+dark_background = "#1B1B17"
+darker_background = "#141410"
+lighter_background = "#2E2E28"
+
+foreground = "#D6D3BA"
+dark_foreground = "#B9B69E"
+light_foreground = "#E4DFC5"
+bright_foreground = "#F2E8C9"
+
+red = "#C88C70"
+yellow = "#D29B59"
+orange = "#C29468"
+green = "#87A477"
+cyan = "#D0B462"
+blue = "#A3AC68"
+magenta = "#CC925E"
+brown = "#B69A79"
+
+bright_red = "#E0A384"
+bright_yellow = "#E9B875"
+bright_green = "#A5BF8D"
+bright_cyan = "#E6CE85"
+bright_blue = "#BEC780"
+bright_magenta = "#E5AE78"

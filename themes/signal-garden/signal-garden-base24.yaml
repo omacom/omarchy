@@ -1,0 +1,38 @@
+system: "base24"
+name: "Signal Garden"
+slug: "signal-garden"
+author: "OldJobobo / Omarchy Kids Themes"
+variant: "dark"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+
+palette:
+  # --- field instruments / dark glass ---
+  base00: "#0C1A25" # Field Glass - default background
+  base01: "#132B34" # Sensor Casing - lighter background
+  base02: "#1C3A43" # Specimen Tray - selection background
+  base03: "#6F8990" # Glass Haze - comments / muted text
+  base04: "#AAC1B6" # Instrument Label - dark foreground
+  base05: "#E8F3DF" # Leaf Paper - default foreground
+  base06: "#E8F3DF" # Specimen Lettering - light foreground
+  base07: "#F7FFE9" # Pale Sprout - brightest foreground
+
+  # --- living specimens and spectral signals ---
+  base08: "#DB5D61" # Petal Signal - red / error
+  base09: "#D67843" # Copper Probe - orange / warning
+  base0A: "#C3A52D" # Pollen Gauge - yellow
+  base0B: "#78A83F" # Leaf Sensor - green
+  base0C: "#35AEB1" # Culture Cyan - cyan
+  base0D: "#4F83C8" # Spectral Blue - blue
+  base0E: "#9068C5" # Cell Violet - purple
+  base0F: "#84665A" # Soil Sample - brown / special
+
+  # --- base24 extension ---
+  base10: "#08131B" # Sensor Shadow - darker background
+  base11: "#08131B" # Glass Recess - darkest background
+  base12: "#EF7778" # Bright Petal Signal - bright red
+  base13: "#E6C335" # Bright Pollen Gauge - bright orange / yellow
+  base14: "#8EC64A" # Bright Leaf Sensor - bright green
+  base15: "#3FCDD1" # Bright Culture Cyan - bright cyan
+  base16: "#5D9BEC" # Bright Spectral Blue - bright blue
+  base17: "#AA7BE8" # Bright Cell Violet - bright purple
