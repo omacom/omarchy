@@ -40,7 +40,7 @@ submenu. The fields:
 | `target` | Existing submenu id to open; makes the row a link |
 | `provider` | Runtime row source for this submenu (see Providers) |
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
-| `description` | Subtitle shown while searching, and extra search text matched by whole word |
+| `description` | Subtitle shown while searching, and extra search text matched by whole word or in-order fuzzy match |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
 
 Do not add `aliases` to new entries. They are reserved for established
