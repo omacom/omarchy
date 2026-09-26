@@ -23,7 +23,7 @@ import Quickshell.Io
 // padding, controls, and panel dimensions while preserving each component's
 // proportions; by default it also tracks `base-size`. `[bar]
 // size-horizontal` / `size-vertical` set the cross-axis dimension for
-// top/bottom and left/right bars at the default 12px font size; by default
+// top/bottom and left/right bars at the 12px reference font size; by default
 // those dimensions scale with `base-size` so larger fonts don't clip.
 QtObject {
   id: root
@@ -276,7 +276,7 @@ QtObject {
 
   // The only sanity floor is 1px. Themes and users can make this as large
   // as they like; if the shell gets ridiculous, that's their call.
-  property int fontBaseSize: 12
+  property int fontBaseSize: 13
 
   property var fontOverrides: ({})
   property var barOverrides: ({})
@@ -324,18 +324,18 @@ QtObject {
     readonly property string menuFamily: root.menuFontFamily
     readonly property int baseSize: root.fontBaseSize
 
-    readonly property int caption:      root.fontToken("caption",       root.fontPx(0.833))   // 10
-    readonly property int bodySmall:    root.fontToken("body-small",    root.fontPx(0.917))   // 11
-    readonly property int body:         root.fontToken("body",          root.fontPx(1.0))     // 12
-    readonly property int subtitle:     root.fontToken("subtitle",      root.fontPx(1.083))   // 13
-    readonly property int title:        root.fontToken("title",         root.fontPx(1.167))   // 14
-    readonly property int heading:      root.fontToken("heading",       root.fontPx(1.333))   // 16
-    readonly property int display:      root.fontToken("display",       root.fontPx(2.0))     // 24
-    readonly property int displayLarge: root.fontToken("display-large", root.fontPx(2.333))   // 28
+    readonly property int caption:      root.fontToken("caption",       root.fontPx(0.833))   // 11
+    readonly property int bodySmall:    root.fontToken("body-small",    root.fontPx(0.917))   // 12
+    readonly property int body:         root.fontToken("body",          root.fontPx(1.0))     // 13
+    readonly property int subtitle:     root.fontToken("subtitle",      root.fontPx(1.083))   // 14
+    readonly property int title:        root.fontToken("title",         root.fontPx(1.167))   // 15
+    readonly property int heading:      root.fontToken("heading",       root.fontPx(1.333))   // 17
+    readonly property int display:      root.fontToken("display",       root.fontPx(2.0))     // 26
+    readonly property int displayLarge: root.fontToken("display-large", root.fontPx(2.333))   // 30
 
     readonly property int iconSmall:    root.fontToken("icon-small",    bodySmall)
     readonly property int icon:         root.fontToken("icon",          title)
-    readonly property int iconLarge:    root.fontToken("icon-large",    root.fontPx(1.5))     // 18
+    readonly property int iconLarge:    root.fontToken("icon-large",    root.fontPx(1.5))     // 20
   }
 
   readonly property QtObject bar: QtObject {
@@ -386,7 +386,7 @@ QtObject {
     var barOut = {}
     var styleOut = {}
     var spacingOut = {}
-    var nextBase = 12
+    var nextBase = 13
     var nextSpacingScale = 1.0
     var nextSpacingScaleWithFont = true
     var nextBarScaleWithFont = true

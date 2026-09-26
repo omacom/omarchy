@@ -2,5 +2,5 @@
 # panel renders the default size a touch large. Uses the unified display text
 # size (shell + GTK + terminals together) rather than GTK scaling alone.
 if omarchy-hw-match "DX13260"; then
-  omarchy-display-text-size 11
+  omarchy-display-text-size 12
 fi
