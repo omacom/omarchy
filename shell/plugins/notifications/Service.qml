@@ -95,27 +95,8 @@ Item {
   // many `showHistory` can replay.
   readonly property int historyLimit: 10
 
-  readonly property int lowPopupDuration: 5000
-  readonly property int normalPopupDuration: 8000
-  readonly property int maxPopupDuration: 30000
-
   function durationFor(urgency, expireTimeout) {
-    switch (urgency) {
-    case NotificationUrgency.Critical:
-      return 0
-    case NotificationUrgency.Low:
-      return Math.min(maxPopupDuration, Math.max(lowPopupDuration, requestedDuration(expireTimeout)))
-    default:
-      return Math.min(maxPopupDuration, Math.max(normalPopupDuration, requestedDuration(expireTimeout)))
-    }
-  }
-
-  function requestedDuration(expireTimeout) {
-    // FreeDesktop notification spec (and Quickshell) report expireTimeout in
-    // milliseconds, so pass it through directly.
-    var ms = Number(expireTimeout || 0)
-    if (!isFinite(ms) || ms <= 0) return 0
-    return Math.round(ms)
+    return NotificationLogic.durationFor(urgency, expireTimeout, NotificationUrgency.Low, NotificationUrgency.Critical)
   }
 
   // DND bypass: only let through notifications we trust to be intentional
@@ -1015,14 +996,16 @@ Item {
             readonly property bool ticking: cardSlot.lifetime > 0 && !card.hovered
 
             // A client updating this notification in place rewrites the row
-            // under the card (see refreshPopup). New text deserves a full look,
-            // so the countdown starts over instead of running out the clock the
-            // superseded text was already most of the way through. Delegates
-            // keep their own row as the model changes around them, so only a
-            // real content change lands here.
+            // under the card (see refreshPopup). New text, a rise in urgency and
+            // a new expire_timeout each deserve a full look rather than
+            // inheriting a clock the state they replaced was most of the way
+            // through. Delegates keep their own row as the model changes around
+            // them, so only a real update lands here.
             onSummaryChanged: cardSlot.remainingLifetime = 1.0
             onBodyChanged: cardSlot.remainingLifetime = 1.0
             onImageChanged: cardSlot.remainingLifetime = 1.0
+            onUrgencyChanged: cardSlot.remainingLifetime = 1.0
+            onExpireTimeoutChanged: cardSlot.remainingLifetime = 1.0
 
             Timer {
               interval: 50

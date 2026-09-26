@@ -508,6 +508,95 @@ assertDeepEqual(
   'notifications restore nothing from an empty popup dir'
 )
 
+// How long a popup lives, with 0 meaning it waits for the user. The logic
+// module cannot name the urgency enum, so the service passes its values in
+// (see NotificationUrgency: Low=0, Normal=1, Critical=2 upstream).
+const LOW = 0
+const NORMAL = 1
+const CRITICAL = 2
+
+// Critical with nothing asked for is the one case that never expires, and six
+// first-party senders rely on it: a Taildrop arrival the manual promises waits
+// for the user, and a cap here silently breaks that promise.
+assertEqual(
+  notifications.durationFor(CRITICAL, 0, LOW, CRITICAL),
+  0,
+  'a critical toast that asked for no timeout waits for the user'
+)
+assertEqual(
+  notifications.durationFor(CRITICAL, undefined, LOW, CRITICAL),
+  0,
+  'an absent expire_timeout is a critical toast asking for nothing'
+)
+
+// A sender that does state a timeout gets it, clamped like any other urgency.
+assertEqual(
+  notifications.durationFor(CRITICAL, 30000, LOW, CRITICAL),
+  30000,
+  'a critical toast gets the timeout its sender asked for'
+)
+assertEqual(
+  notifications.durationFor(CRITICAL, 200000, LOW, CRITICAL),
+  30000,
+  'a requested timeout is capped at the ceiling every urgency already had'
+)
+assertEqual(
+  notifications.durationFor(CRITICAL, 1000, LOW, CRITICAL),
+  8000,
+  'a critical toast asking for less than the normal floor still gets the floor'
+)
+
+// A value that is not a request must not be read as one, or a malformed hint
+// would quietly shorten the toasts that are meant to wait.
+assertEqual(
+  notifications.durationFor(CRITICAL, -5000, LOW, CRITICAL),
+  0,
+  'a negative expire_timeout does not shorten a critical toast'
+)
+assertEqual(
+  notifications.durationFor(CRITICAL, 'soon', LOW, CRITICAL),
+  0,
+  'a non-numeric expire_timeout does not shorten a critical toast'
+)
+
+// Low and normal are untouched by that exception: neither ever waits, whatever
+// the sender asked for, and both are still held to the same floor and ceiling.
+assertEqual(
+  notifications.durationFor(LOW, 0, LOW, CRITICAL),
+  5000,
+  'a low toast with no requested timeout lives the low floor'
+)
+assertEqual(
+  notifications.durationFor(LOW, 12000, LOW, CRITICAL),
+  12000,
+  'a low toast lives the timeout its sender asked for'
+)
+assertEqual(
+  notifications.durationFor(LOW, 200000, LOW, CRITICAL),
+  30000,
+  'a low toast is capped at the ceiling'
+)
+assertEqual(
+  notifications.durationFor(LOW, 1000, LOW, CRITICAL),
+  5000,
+  'a low toast asking for less than the low floor still gets the floor'
+)
+assertEqual(
+  notifications.durationFor(NORMAL, 0, LOW, CRITICAL),
+  8000,
+  'a normal toast with no requested timeout lives the normal floor'
+)
+assertEqual(
+  notifications.durationFor(NORMAL, 12000, LOW, CRITICAL),
+  12000,
+  'a normal toast lives the timeout its sender asked for'
+)
+assertEqual(
+  notifications.durationFor(NORMAL, 200000, LOW, CRITICAL),
+  30000,
+  'a normal toast is capped at the ceiling'
+)
+
 assert(!notifications.popupExpired({ timestamp: 0 }, 0, 999999), 'critical popups never expire on restore')
 assert(!notifications.popupExpired({ timestamp: 1000 }, 8000, 5000), 'popups within their lifetime are restored')
 assert(notifications.popupExpired({ timestamp: 1000 }, 8000, 9000), 'popups past their lifetime are not restored')
@@ -682,6 +771,17 @@ assert(
 assert(
   /onSummaryChanged: cardSlot\.remainingLifetime = 1\.0/.test(serviceQml),
   'notifications service restarts the countdown when a toast is updated under it'
+)
+// Urgency and expire_timeout are the other two things that change how long a
+// toast lives, and a sender raising only the urgency used to inherit the old
+// fraction, so a toast escalated at the end of its life vanished seconds later.
+assert(
+  /onUrgencyChanged: cardSlot\.remainingLifetime = 1\.0/.test(serviceQml),
+  'notifications service restarts the countdown when a toast is escalated'
+)
+assert(
+  /onExpireTimeoutChanged: cardSlot\.remainingLifetime = 1\.0/.test(serviceQml),
+  'notifications service restarts the countdown when a toast asks for a different lifetime'
 )
 assert(
   /awk 1 \\"\$1\\"\/\*\.json 2>\/dev\/null \|\| true", "--", historyDir/.test(serviceQml),
