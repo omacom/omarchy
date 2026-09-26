@@ -119,6 +119,81 @@ if grep -F 'wtype -M' "$ROOT/default/hypr/bindings/clipboard.lua" >/dev/null; th
 fi
 pass "universal clipboard shortcuts avoid virtual keyboard modifier merging"
 
+OMARCHY_PATH="$ROOT" lua <<'LUA'
+local function dispatcher(kind, arg)
+  return { kind = kind, arg = arg }
+end
+
+local function proxy(prefix)
+  return setmetatable({}, {
+    __index = function(_, key)
+      return function(arg)
+        return dispatcher(prefix .. "." .. key, arg)
+      end
+    end,
+  })
+end
+
+local workspace = { tiled_layout = "scrolling" }
+local window = { floating = false }
+local dispatched = {}
+local bindings = {}
+
+hl = {
+  dsp = {
+    focus = function(arg) return dispatcher("focus", arg) end,
+    layout = function(arg) return dispatcher("layout", arg) end,
+    window = proxy("window"),
+    workspace = proxy("workspace"),
+    group = proxy("group"),
+  },
+  dispatch = function(action)
+    table.insert(dispatched, action)
+  end,
+  get_active_special_workspace = function() return nil end,
+  get_active_workspace = function() return workspace end,
+  get_active_window = function() return window end,
+}
+
+o = {
+  bind = function(keys, _, action)
+    bindings[keys] = bindings[keys] or {}
+    table.insert(bindings[keys], action)
+  end,
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/tiling.lua")
+
+local function run(keys)
+  dispatched = {}
+  bindings[keys][1]()
+  assert(#dispatched == 1, keys .. " dispatches one focus action")
+  return dispatched[1]
+end
+
+local action = run("ALT + TAB")
+assert(action.kind == "layout" and action.arg == "focus r", "scrolling Alt+Tab focuses right")
+
+action = run("ALT + SHIFT + TAB")
+assert(action.kind == "layout" and action.arg == "focus l", "scrolling reverse Alt+Tab focuses left")
+
+workspace.tiled_layout = "dwindle"
+action = run("ALT + TAB")
+assert(action.kind == "window.cycle_next" and action.arg == nil, "dwindle Alt+Tab keeps cycle_next")
+
+action = run("ALT + SHIFT + TAB")
+assert(action.kind == "window.cycle_next" and action.arg.next == false, "dwindle reverse Alt+Tab keeps cycle_next")
+
+workspace.tiled_layout = "scrolling"
+window.floating = true
+action = run("ALT + TAB")
+assert(action.kind == "window.cycle_next", "floating Alt+Tab keeps cycle_next")
+
+assert(bindings["ALT + TAB"][2].kind == "window.bring_to_top", "Alt+Tab keeps bring_to_top")
+assert(bindings["ALT + SHIFT + TAB"][2].kind == "window.bring_to_top", "reverse Alt+Tab keeps bring_to_top")
+LUA
+pass "Alt+Tab follows adjacent tiled windows in scrolling layout"
+
 removed_home="$tmpdir/removed-home"
 mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
