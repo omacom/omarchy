@@ -31,6 +31,18 @@ Item {
   readonly property int fieldFontSize: Math.round(Style.font.heading * 1.125)
   readonly property int passwordDotFontSize: Math.round(Style.font.heading * 1.33)
   readonly property int passwordDotLetterSpacing: Math.round(Style.font.heading * 0.19)
+  readonly property string statusText: authenticatingPassword ? "Checking…" : (errorState ? failureMessage : placeholderText)
+  readonly property bool statusItalic: !authenticatingPassword && errorState
+  // The status line shares the field with the icons, so a long failure message
+  // can outgrow the space left for it. Shrink it to fit rather than elide the
+  // attempt count away, and keep the placeholder whole at large text sizes too.
+  // The floor stops the shrink where the message stops being readable; past
+  // that point elide is the honest answer.
+  readonly property int statusMinFontSize: 10
+  readonly property real statusTextScale: statusMetrics.advanceWidth > 0 && statusTextNode.width > 0
+    ? Math.min(1, statusTextNode.width / statusMetrics.advanceWidth)
+    : 1
+  readonly property int statusFontSize: Math.max(Math.min(statusMinFontSize, fieldFontSize), Math.floor(fieldFontSize * statusTextScale))
   // Space to keep clear on each side of the field for the fingerprint icon
   // and the password-visibility toggle (icon widths plus gaps) so the
   // centered dots never run under them.
@@ -41,6 +53,11 @@ Item {
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
     ? Math.min(1, (passwordInput.width - 4) / dotMetrics.advanceWidth)
+    : 1
+  // A revealed password renders at the field font size, so a long one has to
+  // shrink for the same reason the dots do: both ends of it have to be readable.
+  readonly property real plainTextScale: plainMetrics.advanceWidth > 0
+    ? Math.min(1, (passwordInput.width - 4) / plainMetrics.advanceWidth)
     : 1
   readonly property bool showPasswordCursor: inputEnabled && !authenticatingPassword && failureMessage.length === 0
   readonly property bool errorState: failureMessage.length > 0
@@ -78,6 +95,9 @@ Item {
   onInputEnabledChanged: {
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
   }
+  // The display blanks after a few idle seconds and the revealed text would
+  // still be sitting there when it wakes.
+  onDisplaysBlankChanged: if (displaysBlank) passwordVisible = false
   Component.onCompleted: {
     syncPasswordText()
     if (inputEnabled) Qt.callLater(forcePasswordFocus)
@@ -91,6 +111,25 @@ Item {
     font.pixelSize: root.passwordDotFontSize
     font.letterSpacing: root.passwordDotLetterSpacing
     text: "●".repeat(passwordInput.text.length)
+  }
+
+  // Measures the status line at full size; statusTextScale compares this against
+  // the width the line actually gets, which the icon reserve takes out of.
+  TextMetrics {
+    id: statusMetrics
+    font.family: Style.font.family
+    font.italic: root.statusItalic
+    font.pixelSize: root.fieldFontSize
+    text: root.statusText
+  }
+
+  // Measures a revealed password at full size, the way dotMetrics measures the
+  // dots. Never rendered, so holding the text here exposes nothing.
+  TextMetrics {
+    id: plainMetrics
+    font.family: Style.font.family
+    font.pixelSize: root.fieldFontSize
+    text: passwordInput.text
   }
 
   Rectangle {
@@ -154,6 +193,7 @@ Item {
 
       TextInput {
         id: passwordInput
+        objectName: "passwordInput"
         anchors.fill: parent
         anchors.topMargin: inputField.borderTop
         // Reserve both icons' width on each side so the centered dots
@@ -164,18 +204,28 @@ Item {
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
+        // Qt refuses a copy only while echoMode is Password, so revealing turns
+        // that guard off for the clipboard and the primary selection alike.
+        // This drops the selection the primary copy reads; Keys covers the rest.
+        selectByMouse: false
         clip: true
         enabled: root.inputEnabled && !root.authenticatingPassword
         readOnly: root.authenticatingPassword
         echoMode: root.passwordVisible ? TextInput.Normal : TextInput.Password
-        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+        // Qt adds ImhNoAutoUppercase itself only while echoMode is not Normal,
+        // so revealed mode needs it spelled out or an IME upper-cases the first letter.
+        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
         passwordCharacter: "\u25CF"
         passwordMaskDelay: 0
         color: Color.lock.text
         selectionColor: Color.lock.selection
         selectedTextColor: Color.lock.text
         font.family: Style.font.family
-        font.pixelSize: text.length === 0 ? root.fieldFontSize : (root.passwordVisible ? root.fieldFontSize : Math.max(1, Math.floor(root.passwordDotFontSize * root.passwordDotScale)))
+        font.pixelSize: text.length === 0
+          ? root.fieldFontSize
+          : (root.passwordVisible
+            ? Math.max(1, Math.floor(root.fieldFontSize * root.plainTextScale))
+            : Math.max(1, Math.floor(root.passwordDotFontSize * root.passwordDotScale)))
         font.letterSpacing: text.length > 0 && !root.passwordVisible ? root.passwordDotLetterSpacing * root.passwordDotScale : 0
         cursorVisible: activeFocus && root.showPasswordCursor && text.length > 0
         cursorDelegate: Rectangle {
@@ -203,19 +253,26 @@ Item {
           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
             root.passwordTextEdited("")
             event.accepted = true
+          } else if (event.matches(StandardKey.Copy) || event.matches(StandardKey.Cut)) {
+            // Keyboard selection still works, so without this a shortcut would
+            // put the password on the regular clipboard and from there in
+            // clipboard history.
+            event.accepted = true
           }
         }
       }
 
       Text {
+        id: statusTextNode
+        objectName: "passwordStatusText"
         textFormat: Text.PlainText
         anchors.fill: passwordInput
-        text: root.authenticatingPassword ? "Checking…" : (root.failureMessage.length > 0 ? root.failureMessage : root.placeholderText)
+        text: root.statusText
         visible: passwordInput.text.length === 0
-        color: root.authenticatingPassword ? Color.lock.text : (root.failureMessage.length > 0 ? Color.lock.textError : Color.lock.placeholder)
+        color: root.authenticatingPassword ? Color.lock.text : (root.errorState ? Color.lock.textError : Color.lock.placeholder)
         font.family: Style.font.family
-        font.pixelSize: root.fieldFontSize
-        font.italic: !root.authenticatingPassword && root.failureMessage.length > 0
+        font.pixelSize: root.statusFontSize
+        font.italic: root.statusItalic
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
