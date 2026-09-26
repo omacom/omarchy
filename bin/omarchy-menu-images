@@ -113,13 +113,30 @@ rows_cache_file="$cache_dir/$cache_key.rows"
 rows_signature_file="$cache_dir/$cache_key.signature"
 rows_fast_signature_file="$cache_dir/$cache_key.fast-signature"
 rows_signature="v4"$'\n'
-rows_fast_signature="v3"$'\n'
+rows_fast_signature="v4"$'\n'
 rows_cacheable=true
 rows_cache_hit=false
 image_files=()
 
+# The fast signature must cover each image's own size and mtime, not just the
+# directory mtime: an editor saves by writing in place, which never touches the
+# directory, so a directory-only signature keeps a stale thumbnail on a cache
+# hit forever. A per-file stat sweep is still cheap (no decoding), so the fast
+# decision stays accurate.
+image_name_filters=(
+  -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp'
+  -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi'
+)
+
 for dir in "${image_dirs[@]}"; do
-  [[ -d $dir ]] && rows_fast_signature+="$dir:$(stat -Lc '%Y' "$dir")"$'\n'
+  if [[ -d $dir ]]; then
+    rows_fast_signature+="$dir:$(stat -Lc '%Y' "$dir")"$'\n'
+
+    while IFS= read -r -d '' image; do
+      image_signature=$(stat -Lc '%s:%Y' "$image") || continue
+      rows_fast_signature+="$image:$image_signature"$'\n'
+    done < <(find -L "$dir" -maxdepth 1 -type f \( "${image_name_filters[@]}" \) -print0 2>/dev/null | sort -z)
+  fi
 done
 
 if [[ -f $rows_cache_file && -f $rows_fast_signature_file ]] && cmp -s "$rows_fast_signature_file" <(printf '%s' "$rows_fast_signature"); then
@@ -134,10 +151,7 @@ else
         image_files+=("$image")
         image_signature=$(stat -Lc '%s:%Y' "$image") || continue
         rows_signature+="$image:$image_signature"$'\n'
-      done < <(find -L "$dir" -maxdepth 1 -type f \
-        \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' -o -iname '*.bmp' -o -iname '*.webp' \
-           -o -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.mkv' -o -iname '*.avi' \) \
-        -print0 2>/dev/null | sort -z)
+      done < <(find -L "$dir" -maxdepth 1 -type f \( "${image_name_filters[@]}" \) -print0 2>/dev/null | sort -z)
     fi
   done
 fi
