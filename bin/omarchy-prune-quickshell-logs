@@ -1,0 +1,62 @@
+#!/bin/bash
+# omarchy:summary=Remove stale Quickshell instance log dirs from the user runtime
+# omarchy:hidden=true
+
+# Quickshell writes per-instance logs under $XDG_RUNTIME_DIR/quickshell/by-id
+# and never deletes them. After enough shell restarts those dirs fill the
+# runtime tmpfs, and every uwsm-app launch fails (#13287). Keep only dirs
+# still referenced by a live by-pid symlink.
+
+set -euo pipefail
+
+runtime_dir=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+by_id=$runtime_dir/quickshell/by-id
+by_pid=$runtime_dir/quickshell/by-pid
+
+[[ -d $by_id ]] || exit 0
+
+# Resolve by-id to its physical path so prefix checks survive macOS /tmp
+# → /private/tmp (and any other symlink parents).
+by_id_real=$(cd -- "$by_id" && pwd -P)
+
+keep_list=$(mktemp)
+trap 'rm -f -- "$keep_list"' EXIT
+
+resolve_link_target() {
+  local link=$1 target
+  if target=$(readlink -f -- "$link" 2>/dev/null); then
+    printf '%s\n' "$target"
+    return 0
+  fi
+  if [[ -d $link ]]; then
+    (cd -- "$link" && pwd -P)
+    return 0
+  fi
+  return 1
+}
+
+if [[ -d $by_pid ]]; then
+  for link in "$by_pid"/*; do
+    [[ -e $link || -L $link ]] || continue
+    pid=${link##*/}
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f -- "$link"
+      continue
+    fi
+    target=$(resolve_link_target "$link" || true)
+    [[ -n ${target:-} && -d $target ]] || continue
+    case $target in
+      "$by_id_real"/*) printf '%s\n' "${target##*/}" >>"$keep_list" ;;
+    esac
+  done
+fi
+
+for dir in "$by_id"/*; do
+  [[ -d $dir ]] || continue
+  id=${dir##*/}
+  if [[ -s $keep_list ]] && grep -Fxq -- "$id" "$keep_list"; then
+    continue
+  fi
+  rm -rf -- "$dir"
+done

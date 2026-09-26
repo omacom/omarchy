@@ -15,6 +15,10 @@
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
 run_shell() {
+  # Drop stale Quickshell instance log dirs before each start so they cannot
+  # fill $XDG_RUNTIME_DIR and break every uwsm-app launch (#13287).
+  omarchy-prune-quickshell-logs 2>/dev/null || true
+
   QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
