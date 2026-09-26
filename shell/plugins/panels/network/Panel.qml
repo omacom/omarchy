@@ -97,6 +97,9 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  // Eye toggle on the passphrase field. Resets whenever the prompt moves or
+  // closes so a revealed passphrase never carries over to another network.
+  property bool passwordRevealed: false
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -354,6 +357,7 @@ Panel {
   // The KeyboardPanel's focusTarget covers initial popup-open; this handles
   // the inline-editor case where focus was handed off to a child.
   onPasswordSsidChanged: {
+    passwordRevealed = false
     if (passwordSsid === "" && opened) {
       passwordText = ""
       Qt.callLater(function() { if (keyCatcher) keyCatcher.forceActiveFocus() })
@@ -1959,7 +1963,7 @@ Panel {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: revealPwBtn.left
         anchors.top: parent.top
         anchors.rightMargin: Style.space(6)
         placeholderText: "Identity (user@domain)"
@@ -1983,11 +1987,14 @@ Panel {
         id: pwField
         visible: !row.isBusy && !row.isFailed
         anchors.left: parent.left
-        anchors.right: connectPwBtn.left
+        anchors.right: revealPwBtn.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
-        password: true
+        password: !root.passwordRevealed
+        // Qt only asks the input method not to learn or predict what's typed
+        // while the text is masked, so keep asking once it is revealed.
+        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
         placeholderText: "Passphrase"
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2025,6 +2032,25 @@ Panel {
           color: row.isFailed ? root.bar.urgent : root.bar.foreground
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
+        }
+      }
+
+      // Shows the passphrase in plain text so typos are visible before
+      // connecting. Clicking doesn't take focus from pwField, but hand it
+      // back anyway so typing continues after the toggle.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: pwField.visible
+        anchors.right: connectPwBtn.left
+        anchors.verticalCenter: pwField.verticalCenter
+        anchors.rightMargin: Style.space(2)
+        iconText: root.passwordRevealed ? "󰈉" : "󰈈"
+        tooltipText: root.passwordRevealed ? "Hide passphrase" : "Show passphrase"
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: {
+          root.passwordRevealed = !root.passwordRevealed
+          pwField.forceActiveFocus()
         }
       }
 
