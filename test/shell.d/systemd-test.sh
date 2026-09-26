@@ -6,8 +6,10 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 service="$ROOT/default/systemd/user/bt-agent.service"
 
-grep -Fx 'ExecCondition=/usr/bin/systemctl is-active --quiet bluetooth.service' "$service" >/dev/null
-pass "bt-agent skips when bluetooth.service is inactive"
+grep -F 'ExecCondition=' "$service" >/dev/null && fail "bt-agent ExecCondition skip is terminal across a bluez race"
+grep -F 'ExecStartPre=' "$service" >/dev/null || fail "bt-agent must wait for bluetooth.service instead of skipping"
+grep -Fx 'After=dbus.socket bluetooth.service' "$service" >/dev/null || fail "bt-agent starts without ordering on bluetooth.service"
+pass "bt-agent waits for bluetooth.service instead of skipping"
 
 grep -Fx 'Restart=on-failure' "$service" >/dev/null
 pass "bt-agent still restarts after runtime failures"
