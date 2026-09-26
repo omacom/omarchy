@@ -1,8 +1,9 @@
 #!/bin/bash
 #
-# The fingerprint setup installs libfprint-git in place of stock libfprint. The
-# two conflict, so the swap has to happen inside one --ask 4 transaction, and a
-# rerun with everything installed must not touch pacman at all. The real
+# The fingerprint setup installs libfprint-git when no libfprint provider is
+# present, or when only Arch stock libfprint is. A community fork that already
+# provides libfprint must not be replaced, and a package transaction must
+# restart fprintd so enroll does not talk to a stale .so. The real
 # omarchy-pkg-missing runs; pacman and the privileged calls are stubbed.
 
 set -euo pipefail
@@ -22,21 +23,47 @@ STUB
 cat > "$scratch/bin/sudo" <<'STUB'
 #!/bin/bash
 case "$1" in
-  pacman | fprintd-enroll) exec "$@" ;;
+  pacman | fprintd-enroll | systemctl) exec "$@" ;;
   *) echo "Unexpected privileged call: $*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
-# INSTALLED lists the installed package names, one per line.
+# INSTALLED lists installed package names, one per line.
+# PROVIDES maps query=provider for pacman -Qq provides resolution (forks).
 cat > "$scratch/bin/pacman" <<'STUB'
 #!/bin/bash
-case "$1" in
-  -Q)
-    if [[ $2 == "--" ]]; then
-      shift 2
-    else
-      shift
+resolve() {
+  local query=$1
+  if grep -qx "$query" <<< "${INSTALLED:-}"; then
+    printf '%s\n' "$query"
+    return 0
+  fi
+  local line provider target
+  while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    target=${line%%=*}
+    provider=${line#*=}
+    if [[ $target == "$query" ]] && grep -qx "$provider" <<< "${INSTALLED:-}"; then
+      printf '%s\n' "$provider"
+      return 0
     fi
-    grep -qx -- "$1" <<< "${INSTALLED:-}"
+  done <<< "${PROVIDES:-}"
+  return 1
+}
+
+case "$1" in
+  -Qq)
+    shift
+    found=0
+    for query in "$@"; do
+      if out=$(resolve "$query"); then
+        printf '%s\n' "$out"
+        found=1
+      fi
+    done
+    (( found ))
+    ;;
+  -Q)
+    resolve "$2" >/dev/null
     ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
@@ -44,6 +71,10 @@ case "$1" in
     ;;
   *) printf 'pacman %s\n' "$*" >> "$CALL_LOG"; exit 99 ;;
 esac
+STUB
+cat > "$scratch/bin/systemctl" <<'STUB'
+#!/bin/bash
+printf 'systemctl %s\n' "$*" >> "$CALL_LOG"
 STUB
 cat > "$scratch/bin/fprintd-enroll" <<'STUB'
 #!/bin/bash
@@ -68,26 +99,46 @@ run_setup() {
   fi
 }
 
-assert_installs() {
-  grep -qx 'pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils' "$CALL_LOG" || fail "$1"
+assert_full_install() {
+  grep -qx 'pacman -S --needed --noconfirm --ask 4 libfprint-git fprintd usbutils' "$CALL_LOG" || fail "$1"
   (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one pacman transaction"
+  grep -qx 'systemctl try-restart fprintd.service' "$CALL_LOG" || fail "$1: restarts fprintd after install"
 }
 
 run_setup
-assert_installs "a fresh machine installs libfprint-git, fprintd and usbutils"
+assert_full_install "a fresh machine installs libfprint-git, fprintd and usbutils"
 grep -qx enroll "$CALL_LOG" || fail "installation is followed by enrollment"
 pass "a fresh machine installs libfprint-git and reaches enrollment"
 
 INSTALLED=$'libfprint\nfprintd\nusbutils' run_setup
-assert_installs "installed stock libfprint is replaced in the same transaction"
+grep -qx 'pacman -S --needed --noconfirm --ask 4 libfprint-git' "$CALL_LOG" ||
+  fail "installed stock libfprint is replaced with libfprint-git only"
+(( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "stock replacement: one pacman transaction"
+grep -qx 'systemctl try-restart fprintd.service' "$CALL_LOG" ||
+  fail "stock replacement restarts fprintd"
 pass "installed stock libfprint is replaced without a removal step"
 
 INSTALLED=$'libfprint-git\nfprintd\nusbutils' run_setup
 if grep -q '^pacman' "$CALL_LOG"; then
   fail "a rerun with everything installed does not touch pacman"
 fi
+if grep -q '^systemctl' "$CALL_LOG"; then
+  fail "a no-op package path does not restart fprintd"
+fi
 grep -qx enroll "$CALL_LOG" || fail "a rerun with everything installed reaches enrollment"
 pass "a rerun with everything installed goes straight to enrollment"
+
+INSTALLED=$'libfprint-goodix53x5\nfprintd\nusbutils' \
+  PROVIDES=$'libfprint=libfprint-goodix53x5\nlibfprint-2=libfprint-goodix53x5' \
+  run_setup
+if grep -q '^pacman' "$CALL_LOG"; then
+  fail "a working libfprint fork is not replaced with libfprint-git"
+fi
+if grep -q '^systemctl' "$CALL_LOG"; then
+  fail "keeping a fork does not restart fprintd"
+fi
+grep -qx enroll "$CALL_LOG" || fail "a forked libfprint still reaches enrollment"
+pass "a working libfprint fork is left alone"
 
 INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
