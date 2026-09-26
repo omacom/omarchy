@@ -843,6 +843,26 @@ ShellRoot {
     _pluginBarEntryShellApis = entryNext
   }
 
+  // keepLoaded panels/menus only receive `shell` in Loader.onLoaded. After
+  // prunePluginApis destroys a scoped facade (startup before shell.json is
+  // ready, or a capability-profile change), re-hand the live item a fresh
+  // API the way _syncServices reassigns kept service instances.
+  function reinjectLoadedPanelShellApis() {
+    var plugins = shell.pluginRegistry.installedPlugins
+    for (var id in panelLoaders) {
+      var loader = panelLoaders[id]
+      if (!loader || !loader.item) continue
+      var manifest = plugins[id]
+      if (!manifest || !shell.pluginRegistry.isEnabled(id)) continue
+      var item = loader.item
+      if ("shell" in item) item.shell = shell.pluginShellFor(manifest)
+      if ("manifest" in item) item.manifest = shell.publicPluginManifest(manifest)
+      if ("barWidgetRegistry" in item) item.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
+      if ("pluginRegistry" in item) item.pluginRegistry = shell.pluginRegistryFor(manifest)
+      if ("service" in item) item.service = shell.serviceFor(id)
+    }
+  }
+
   function syncPluginApis() {
     shell.prunePluginApis()
     var plugins = shell.pluginRegistry.installedPlugins
@@ -866,6 +886,7 @@ ShellRoot {
     }
     for (var entryKey in _pluginBarEntryShellApis)
       _pluginBarEntryShellApis[entryKey].barConfig = shell.publicBarConfig()
+    shell.reinjectLoadedPanelShellApis()
   }
 
   // Reassigned as each service registers, so a binding that reads this before
