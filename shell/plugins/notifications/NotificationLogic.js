@@ -126,12 +126,28 @@ function isEphemeralApp(appName) {
   return name === "notify-send" || name === "omarchy-action"
 }
 
+// Read a string hint from a notification's hints map. Quickshell 0.3.1 can
+// expose D-Bus a{sv} hints as a QVariantMap wrapper where bracket indexing
+// for custom keys returns undefined; .value(name) / .get(name) still work.
+// Prefer those accessors, then fall back to plain indexing for plain objects
+// used in tests and older builds. Empty string on any miss — click-to-exec
+// must fail closed when the hint cannot be read (#8346).
 function stringHint(hints, name) {
   try {
-    if (hints) {
-      var value = hints[name]
-      if (value !== undefined && value !== null) return String(value)
+    if (!hints) return ""
+
+    var value
+    if (typeof hints.value === "function") {
+      try { value = hints.value(name) } catch (e) { value = undefined }
     }
+    if ((value === undefined || value === null) && typeof hints.get === "function") {
+      try { value = hints.get(name) } catch (e) { value = undefined }
+    }
+    if (value === undefined || value === null) {
+      try { value = hints[name] } catch (e) { value = undefined }
+    }
+
+    if (value !== undefined && value !== null) return String(value)
   } catch (e) {
   }
   return ""
@@ -146,17 +162,21 @@ function glyphFromHints(hints) {
 // clickable (a libnotify action can't — its sender is gone). Run via
 // Util.execArgv as bash positional parameters, never a shell string, so
 // attacker-controlled values (a title, a filename) can't become commands.
-function execArgvFromHints(hints) {
-  return stringHint(hints, "omarchy-exec-argv")
+function execArgvFromHints(hints, sessionToken) {
+  var argv = stringHint(hints, "omarchy-exec-argv")
+  if (!argv) return ""
+  var token = stringHint(hints, "omarchy-exec-token")
+  if (!sessionToken || !token || token !== String(sessionToken)) return ""
+  return argv
 }
 
 // Validate a persisted omarchy-exec-argv into a runnable argv, or null. This is
 // a STRUCTURAL check only: it fails closed on a malformed hint (non-array, a
 // non-string or empty program, or a leading-dash program that argv would read as
 // an option). It does not judge intent — a well-formed ["bash","-c",…] is
-// accepted. WHICH senders may set this hint is a separate boundary: any
-// session-bus process can, by the freedesktop protocol's design (see
-// docs/notifications.md), which is equivalent to same-uid code execution.
+// accepted. WHICH senders may set a runnable click argv is gated by a per-session
+// token (omarchy-exec-token) that only host processes can read from
+// $XDG_RUNTIME_DIR (see docs/notifications.md / issue #8433).
 function parseExecArgv(value) {
   var text = String(value || "")
   if (!text) return null
@@ -180,7 +200,7 @@ function shouldRenderCompactGlyph(glyph, iconSource, singleLineToast) {
   return String(glyph || "").length > 0 && String(iconSource || "").length === 0 && !!singleLineToast
 }
 
-function snapshotOf(notification, timestamp) {
+function snapshotOf(notification, timestamp, sessionToken) {
   var n = notification || {}
   var id = n.id || 0
   var expireTimeout = Number(n.expireTimeout || 0)
@@ -194,7 +214,7 @@ function snapshotOf(notification, timestamp) {
     body: n.body || "",
     image: n.image || "",
     glyph: glyphFromHints(n.hints),
-    execArgv: execArgvFromHints(n.hints),
+    execArgv: execArgvFromHints(n.hints, sessionToken),
     urgency: n.urgency,
     expireTimeout: expireTimeout,
     timestamp: timestamp === undefined ? Date.now() : timestamp
@@ -314,15 +334,63 @@ function imageStem(entry) {
   return String(e.timestamp || 0) + "-" + String(e.originalId || 0)
 }
 
-// The filesystem path behind a file-backed image value, or "" for anything
-// a copy can't capture: themed icon names, in-process image:// URLs, empty.
-function localImageFile(value) {
+// Host paths a notification is allowed to snapshot. Chromium web apps drop
+// avatars under /tmp (or the user runtime dir); packaged icons live under
+// /usr/share. Anything else — home directories, /etc, a symlink farm in
+// /tmp — is the sender naming a file the shell can read that the sender
+// often cannot. Persisting that path would copy it into history.
+function decodeFileImagePath(value) {
   var s = String(value || "")
   if (s.indexOf("file://") === 0) {
     s = s.slice(7)
     try { s = decodeURIComponent(s) } catch (e) {}
   }
-  return s.charAt(0) === "/" ? s : ""
+  if (s.charAt(0) !== "/") return ""
+  if (s.indexOf("\0") !== -1) return ""
+  var parts = s.split("/")
+  for (var i = 0; i < parts.length; i++) {
+    if (parts[i] === "..") return ""
+  }
+  return s
+}
+
+function pathIsUnder(pathname, prefix) {
+  var p = String(pathname || "")
+  var pre = String(prefix || "")
+  if (!pre) return false
+  if (p === pre) return true
+  if (pre.charAt(pre.length - 1) !== "/") pre += "/"
+  return p.indexOf(pre) === 0
+}
+
+function isCopyableImagePath(pathname) {
+  var s = String(pathname || "")
+  if (s.charAt(0) !== "/") return false
+  if (s.indexOf("\0") !== -1) return false
+  var parts = s.split("/")
+  for (var i = 0; i < parts.length; i++) {
+    if (parts[i] === "..") return false
+  }
+  if (s.indexOf("/tmp/") === 0) return true
+  if (s.indexOf("/var/tmp/") === 0) return true
+  if (s.indexOf("/run/user/") === 0) return true
+  if (s.indexOf("/usr/share/icons/") === 0) return true
+  if (s.indexOf("/usr/share/pixmaps/") === 0) return true
+  return false
+}
+
+function looksLikeFileImage(value) {
+  var s = String(value || "")
+  if (s.indexOf("file://") === 0) return true
+  return s.charAt(0) === "/"
+}
+
+// The filesystem path behind a file-backed image value, or "" for anything
+// a copy can't capture: themed icon names, in-process image:// URLs, empty,
+// and host paths outside the snapshot allowlist.
+function localImageFile(value) {
+  var s = decodeFileImagePath(value)
+  return isCopyableImagePath(s) ? s : ""
 }
 
 // The entry as it should hit the disk, plus the copies that make it true.
@@ -338,12 +406,18 @@ function persistablePopup(entry, imagesDir) {
     var role = PERSISTED_IMAGE_ROLES[i]
     var value = String(out[role] || "")
     if (!value) continue
-    var source = localImageFile(value)
+    var decoded = decodeFileImagePath(value)
+    var source = isCopyableImagePath(decoded) ? decoded : ""
+    // History already points at our own copies. Those live under imagesDir,
+    // not /tmp, so the allowlist would otherwise drop them on restore.
+    if (!source && decoded && pathIsUnder(decoded, imagesDir)) source = decoded
     if (source) {
       var copy = String(imagesDir || "") + imageStem(e) + "-" + role
       if (source !== copy) copies.push({ from: source, to: copy })
       out[role] = "file://" + copy
-    } else if (value.indexOf("image://") === 0) {
+    } else if (value.indexOf("image://") === 0 || looksLikeFileImage(value)) {
+      // Drop the original. Leaving file:///home/… in history JSON would
+      // still render (and re-read) the secret on restore.
       out[role] = ""
     }
   }
@@ -469,6 +543,7 @@ if (typeof module !== "undefined") {
     popupEntry: popupEntry,
     popupFileName: popupFileName,
     imageStem: imageStem,
+    isCopyableImagePath: isCopyableImagePath,
     localImageFile: localImageFile,
     persistablePopup: persistablePopup,
     serializePopup: serializePopup,
