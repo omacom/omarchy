@@ -1041,6 +1041,11 @@ Item {
             NotificationCard {
               id: card
               anchors.right: parent.right
+              // The placement margins are the column's inset from both screen
+              // edges, so what is left is the room a card actually has.
+              maxWidth: popupWindow.width
+                        - popupWindow.popupPlacement.margins.left
+                        - popupWindow.popupPlacement.margins.right
               app: cardSlot.app
               appIcon: cardSlot.appIcon
               summary: cardSlot.summary
