@@ -96,6 +96,9 @@ import Quickshell.Io
 
 Item {
   property string marker: ""
+  // Mirrors omarchy.lock: _syncServices retains a disabled keepLoaded
+  // instance only while this is true.
+  property bool locked: false
 
   IpcHandler {
     target: "acme-keep"
@@ -107,6 +110,11 @@ Item {
 
     function get(): string {
       return marker
+    }
+
+    function setLocked(value: string): string {
+      locked = value === "true"
+      return "ok"
     }
   }
 }
@@ -466,6 +474,39 @@ lock_event_after=$(jq -r '.lastEvent // empty' <<<"$lock_status_after")
   fail_with_log "plugin rescan keeps the keepLoaded service instance mounted"
 pass "keepLoaded service instance survives plugin rescan"
 
+# Explicit disable must tear down keepLoaded services that are not holding a
+# session lock (idle, unlocked lock clones). Re-enable for the locked case.
+[[ $(shell_ipc shell setPluginEnabled "$keep_service_id" false) == "ok" ]] ||
+  fail_with_log "keepLoaded fixture service could not be disabled"
+keep_gone_unlocked=""
+for _ in {1..80}; do
+  keep_gone_unlocked=$(shell_ipc acme-keep get 2>/dev/null || true)
+  [[ $keep_gone_unlocked != "survived" ]] && break
+  sleep 0.1
+done
+[[ $keep_gone_unlocked != "survived" ]] ||
+  fail_with_log "explicit disable tears down an unlocked keepLoaded service"
+pass "explicit disable tears down an unlocked keepLoaded service"
+
+[[ $(shell_ipc shell setPluginEnabled "$keep_service_id" true) == "ok" ]] ||
+  fail_with_log "keepLoaded fixture service could not be re-enabled"
+keep_marker_set=""
+for _ in {1..80}; do
+  keep_marker_set=$(shell_ipc acme-keep set "locked-retain" 2>/dev/null || true)
+  [[ $keep_marker_set == "ok" ]] && break
+  sleep 0.1
+done
+[[ $keep_marker_set == "ok" ]] || fail_with_log "re-enabled keepLoaded fixture IPC responds"
+[[ $(shell_ipc acme-keep setLocked true) == "ok" ]] ||
+  fail_with_log "keepLoaded fixture could not report a held session lock"
+[[ $(shell_ipc shell setPluginEnabled "$keep_service_id" false) == "ok" ]] ||
+  fail_with_log "keepLoaded fixture service could not be disabled while locked"
+[[ $(shell_ipc acme-keep get) == "locked-retain" ]] ||
+  fail_with_log "disablement keeps a locked keepLoaded service instance mounted"
+[[ $(shell_ipc shell setPluginEnabled "$keep_service_id" true) == "ok" ]] ||
+  fail_with_log "keepLoaded fixture service could not be re-enabled after locked retain"
+pass "keepLoaded service instance survives disablement only while locked"
+
 # Dropping the service entry point from the manifest must drop the kept
 # instance instead of leaving a zombie behind.
 jq 'del(.keepLoaded) | .kinds = ["overlay"] | .entryPoints = {"overlay": "Service.qml"}' \
@@ -474,10 +515,10 @@ mv "$keep_service_dir/manifest.json.tmp" "$keep_service_dir/manifest.json"
 keep_gone=""
 for _ in {1..80}; do
   keep_gone=$(shell_ipc acme-keep get 2>/dev/null || true)
-  [[ $keep_gone != "survived" ]] && break
+  [[ $keep_gone != "locked-retain" ]] && break
   sleep 0.1
 done
-[[ $keep_gone != "survived" ]] ||
+[[ $keep_gone != "locked-retain" ]] ||
   fail_with_log "kept service is dropped when its plugin stops declaring a service"
 pass "kept service is dropped when its plugin stops declaring a service"
 

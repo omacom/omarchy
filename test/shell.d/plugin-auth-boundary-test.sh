@@ -44,6 +44,8 @@ qml_matches "$shell_qml" 'AuthServiceStore\.updateManifest\( *id, *shell\.public
   fail "kept authentication services receive only a public manifest snapshot"
 qml_matches "$shell_qml" 'if *\( *!serviceKeepLoaded\( *authenticationId *\) *\) *AuthServiceStore\.destroy\( *authenticationId *\)' ||
   fail "keepLoaded authentication services survive plugin rescans"
+qml_matches "$shell_qml" 'shouldRetainDisabledKeepLoaded\( *authenticationId' ||
+  fail "disabled keepLoaded authentication services are retained only while locked"
 pass "third-party and authentication services are detached from the host object tree"
 
 run_node_test <<'JS'

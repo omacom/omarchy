@@ -979,7 +979,11 @@ ShellRoot {
       ensureService(id)
     }
     // Drop services for plugins that have been disabled or removed, or that
-    // no longer declare a service entry point.
+    // no longer declare a service entry point. keepLoaded alone must not keep
+    // a disabled idle/polkit/lock clone original running — only defer teardown
+    // while a keepLoaded instance still holds the session lock (builtin-defaults
+    // can mark a third-party lock disabled mid-lock; destroying it then strands
+    // ext-session-lock). Hot-reload uses unloadPluginServices instead.
     for (var existingId in _services) {
       var stillThere = plugins[existingId]
       var stillService = stillThere && Array.isArray(stillThere.kinds)
@@ -987,6 +991,7 @@ ShellRoot {
         && stillThere.entryPoints && stillThere.entryPoints.service
       var stillEnabled = stillThere && pluginRegistry.isEnabled(existingId)
       if (stillService && stillEnabled) continue
+      if (shouldRetainDisabledKeepLoaded(existingId, _services[existingId])) continue
       var inst = _services[existingId]
       if (inst && typeof inst.destroy === "function") inst.destroy()
       var next = ({})
@@ -1006,6 +1011,7 @@ ShellRoot {
         && authenticationManifest.entryPoints.service
       if (stillAuthenticationService && pluginRegistry.isEnabled(authenticationId)
           && shell.isAuthenticationService(authenticationManifest, authenticationId)) continue
+      if (shouldRetainDisabledKeepLoaded(authenticationId, AuthServiceStore.get(authenticationId))) continue
       AuthServiceStore.destroy(authenticationId)
     }
   }
@@ -1014,6 +1020,15 @@ ShellRoot {
     var plugins = pluginRegistry && pluginRegistry.installedPlugins
     var manifest = plugins ? plugins[pluginId] : null
     return !!(manifest && manifest.keepLoaded === true)
+  }
+
+  // Explicit disable / clone replacement must tear down keepLoaded services.
+  // Retain only while the live instance still reports a held session lock.
+  function shouldRetainDisabledKeepLoaded(pluginId, instance) {
+    if (!serviceKeepLoaded(pluginId)) return false
+    var inst = instance
+    if (!inst && _services) inst = _services[pluginId]
+    return !!(inst && inst.locked === true)
   }
 
   // keepLoaded services (lock, idle, polkit) must survive plugin hot-reload.

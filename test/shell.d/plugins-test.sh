@@ -205,9 +205,24 @@ const shellSource = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
 const unloadMatch = shellSource.match(/function unloadPluginServices\(\) \{[\s\S]*?\n  \}/)
 check(!!unloadMatch, 'unloadPluginServices is defined')
 check(!!unloadMatch && /serviceKeepLoaded/.test(unloadMatch[0]), 'unloadPluginServices honors keepLoaded')
+const syncMatch = shellSource.match(/function _syncServices\(\) \{[\s\S]*?\n  \}/)
+check(!!syncMatch, '_syncServices is defined')
 check(
-  /function _syncServices\(\) \{[\s\S]*Drop services for plugins that have been disabled/.test(shellSource),
+  !!syncMatch && /Drop services for plugins that have been disabled/.test(syncMatch[0]),
   '_syncServices still drops disabled or removed services'
+)
+check(
+  !!syncMatch && /shouldRetainDisabledKeepLoaded\(existingId/.test(syncMatch[0]),
+  '_syncServices retains disabled keepLoaded services only while locked'
+)
+check(
+  !!syncMatch && /shouldRetainDisabledKeepLoaded\(authenticationId/.test(syncMatch[0]),
+  '_syncServices retains disabled keepLoaded auth services only while locked'
+)
+check(
+  /function shouldRetainDisabledKeepLoaded\(/.test(shellSource) &&
+    /inst\.locked === true/.test(shellSource),
+  'disabled keepLoaded retention requires a held session lock'
 )
 
 assert(errors.length === 0, 'plugin manifests match shell registry contract', errors.join('\n'))
