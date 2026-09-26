@@ -101,12 +101,23 @@ Panel {
   // and that beats reading it back out of the label: a model-scoped limit is
   // titled after its model, and a name like "Opus 5 (1M context)" would parse
   // as a one-minute window.
-  function limitWindow(label, percent, resetAt, title) {
+  function limitWindow(label, percent, resetAt, title, spend) {
     return {
       title: String(title || "") !== "" ? String(title) : windowTitle(label),
       percent: Number(percent),
-      resetAt: String(resetAt || "")
+      resetAt: String(resetAt || ""),
+      // A monetary allowance says what its percentage cost. A rate limit
+      // window has no such figure and carries nothing here.
+      spend: spendValue(spend)
     }
+  }
+
+  function spendValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var used = Number(raw.used)
+    var limit = Number(raw.limit)
+    if (!isFinite(used) || !(limit > 0)) return null
+    return { used: used, limit: limit, currency: String(raw.currency || "USD") }
   }
 
   function limitWindows(p) {
@@ -116,17 +127,21 @@ Panel {
     for (var i = 0; i < list.length; i++) {
       var entry = list[i] || {}
       var percent = Number(entry.percent)
-      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title))
+      if (percent >= 0) out.push(limitWindow(entry.label, percent, entry.resetsAt, entry.title, entry.spend))
     }
     return out
   }
 
   // The window that decides how much room is left — the fullest one, since
-  // that is what stops the next prompt.
+  // that is what stops the next prompt. A credit allowance is passed over:
+  // running it down drops the account back onto these rate limit windows
+  // rather than stopping anything, and its month-long window would hold the
+  // bar in alarm for weeks over money that was already spent.
   function bindingWindow(p) {
     var windows = limitWindows(p)
     var best = null
     for (var i = 0; i < windows.length; i++) {
+      if (windows[i].spend) continue
       if (!best || windows[i].percent > best.percent) best = windows[i]
     }
     return best
@@ -164,7 +179,23 @@ Panel {
   function formatMoney(value, currency) {
     var amount = Number(value)
     if (!isFinite(amount)) amount = 0
-    return currencyPrefix(currency) + amount.toFixed(2)
+    return (amount < 0 ? "-" : "") + currencyPrefix(currency) + Math.abs(amount).toFixed(2)
+  }
+
+  function spendDetailText(spend) {
+    if (!spend) return ""
+    return formatMoney(spend.used, spend.currency) + " / " + formatMoney(spend.limit, spend.currency) + " spent"
+  }
+
+  // What a window says under its meter: the money it stands for, the time
+  // until it resets, or both. A rate limit window has no money and reads the
+  // way it always did.
+  function limitDetailText(window, remainingMs) {
+    var parts = []
+    var spent = spendDetailText(window ? window.spend : null)
+    if (spent !== "") parts.push(spent)
+    if (remainingMs > 0) parts.push("Resets in " + formatDuration(remainingMs))
+    return parts.join(" \u00b7 ")
   }
 
   function balanceDetailText(b) {
@@ -753,10 +784,7 @@ Panel {
       id: resetText
       textFormat: Text.PlainText
       width: parent.width
-      text: {
-        var remainingMs = root.resetMsFor(limitRow.window)
-        return remainingMs > 0 ? "Resets in " + root.formatDuration(remainingMs) : ""
-      }
+      text: root.limitDetailText(limitRow.window, root.resetMsFor(limitRow.window))
       color: root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
