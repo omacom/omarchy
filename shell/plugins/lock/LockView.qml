@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import qs.Commons
 import qs.Ui
+import "LockModel.js" as LockModel
 
 Item {
   id: root
@@ -54,6 +55,17 @@ Item {
 
   function forcePasswordFocus() {
     passwordInput.forceActiveFocus()
+  }
+
+  // With NumLock desynced the keypad sends Home, Up, PageUp and so on with
+  // KeypadModifier set and no text, which the field would otherwise treat as
+  // cursor movement. The top row never carries the modifier, so it is untouched.
+  function insertKeypadDigit(event) {
+    if (passwordInput.readOnly || !(event.modifiers & Qt.KeypadModifier)) return false
+    var digit = LockModel.keypadDigit(event.key)
+    if (digit === "") return false
+    passwordInput.insert(passwordInput.cursorPosition, digit)
+    return true
   }
 
   function clearPassword() {
@@ -194,6 +206,8 @@ Item {
           root.wakeRequested()
           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
             root.passwordTextEdited("")
+            event.accepted = true
+          } else if (root.insertKeypadDigit(event)) {
             event.accepted = true
           }
         }
