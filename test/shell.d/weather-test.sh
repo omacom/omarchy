@@ -31,6 +31,20 @@ assertEqual(weather.wttrLocationQuery('Malibu', 'nope', -118.7804), 'Malibu', 'w
 assertEqual(weather.wttrLocationQuery('', null, null), '', 'weather falls back to IP auto-detect without a location')
 assertEqual(weather.wttrLocationQuery('  ', null, null), '', 'weather treats a blank location as unset')
 
+assertEqual(weather.reportLocationLabel('Tel Aviv', { areaName: [{ value: 'Orient' }] }, 'Chicago'), 'Tel Aviv', 'weather configured location wins over report area and auto-detect label')
+assertEqual(
+  weather.reportLocationLabel('', { areaName: [{ value: 'Orient' }] }, 'Tel Aviv'),
+  'Orient',
+  'weather prefers nearest_area from the conditions response over the separate %l auto-detect label'
+)
+assertEqual(weather.reportLocationLabel('', null, 'Tel Aviv'), 'Tel Aviv', 'weather falls back to %l auto-detect while the report is missing')
+assertEqual(weather.reportLocationLabel('', { areaName: [] }, ''), '', 'weather returns empty when no location sources are available')
+assert(
+  panelSource.includes('Model.reportLocationLabel(configuredLocation, areaInfo, wttrLocation)'),
+  'weather panel derives the displayed city from reportLocationLabel'
+)
+
+
 assertDeepEqual(
   weather.parseGeocodingResults(JSON.stringify({
     results: [

@@ -32,6 +32,18 @@ function wttrLocationQuery(location, latitude, longitude) {
   return name === "" ? "" : encodeURIComponent(name)
 }
 
+// Panel location label. Prefer the city from the same j1 response that
+// supplied the displayed conditions (nearest_area) over the separate
+// ?format=%l auto-detect string — those two wttr requests can disagree on
+// the same IP (see #12904). Configured locations still win; %l remains a
+// fallback while the report is in flight or lacks nearest_area.
+function reportLocationLabel(configuredLocation, areaInfo, wttrLocation) {
+  if (configuredLocation) return String(configuredLocation)
+  var areaName = areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : ""
+  if (areaName) return String(areaName)
+  return wttrLocation ? String(wttrLocation) : ""
+}
+
 // Open-Meteo geocoding response → suggestion rows for the location picker.
 function parseGeocodingResults(raw) {
   try {
@@ -269,6 +281,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
     wttrLocationQuery: wttrLocationQuery,
+    reportLocationLabel: reportLocationLabel,
     parseGeocodingResults: parseGeocodingResults,
     locationCommit: locationCommit,
     isFutureForecastDate: isFutureForecastDate,
