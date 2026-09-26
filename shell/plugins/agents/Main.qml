@@ -11,6 +11,10 @@ Item {
   visible: false
 
   property var settings: ({})
+  property alias pricing: pricingTable
+  property bool pricingActive: false
+
+  Pricing { id: pricingTable; active: root.pricingActive }
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
@@ -115,6 +119,7 @@ Item {
   // -------------------------------------------------------------- refresh
 
   property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 900)))
+  property double lastUpdateStartedMs: 0
   property string pendingUpdateKind: ""
 
   Timer {
@@ -164,6 +169,7 @@ Item {
       if (kind === "force" || root.pendingUpdateKind === "") root.pendingUpdateKind = kind
       return
     }
+    lastUpdateStartedMs = Date.now()
     updateProcess.command = updateCommand(kind, agentIds)
     updateProcess.running = true
   }
@@ -174,7 +180,11 @@ Item {
   // Opening the panel wants the numbers that go stale on the wire, not
   // another walk over every transcript on disk — the collectors reuse their
   // recent scans in this mode.
-  function refreshLimits() { runUpdate("limits") }
+  function refreshLimits() {
+    // Reopening during the collector's 15-second reuse window needs no new job.
+    if (updateProcess.running || Date.now() - lastUpdateStartedMs < 15000) return
+    runUpdate("limits")
+  }
 
   // ------------------------------------------------------------- providers
 
@@ -188,12 +198,13 @@ Item {
     var result = []
     var localIds = {}
     for (var i = 0; i < agents.length; i++) {
-      var record = agents[i] ? agents[i].record : null
+      var agent = agents[i]
+      var record = agent ? agent.record : null
       if (!record || !record.id) continue
       var id = String(record.id)
       localIds[id] = true
       if (!providerEnabled(id)) continue
-      var display = displayProvider(record)
+      var display = displayProvider(record, record.dailyUsage)
       if (providerHasData(display)) result.push(display)
     }
     // An agent that only ever ran on another machine has no local record, but
@@ -203,7 +214,7 @@ Item {
     for (var syncedId in syncedProviders) {
       if (localIds[syncedId] || !providerEnabled(syncedId)) continue
       var stats = syncedProviders[syncedId] || {}
-      var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId })
+      var syncedDisplay = displayProvider({ id: syncedId, name: stats.providerName || syncedId }, null)
       if (providerHasData(syncedDisplay)) result.push(syncedDisplay)
     }
     return result
@@ -239,7 +250,7 @@ Item {
     }
   }
 
-  function displayProvider(record) {
+  function displayProvider(record, localDailyUsage) {
     var stats = syncedStatsFor(String(record.id))
     var synced = !!stats
     var deviceCount = synced ? Number(stats.deviceCount || aggregateData.deviceCount || 0) : 0
@@ -268,6 +279,12 @@ Item {
       modelUsage: synced ? (stats.modelUsage || ({})) : (record.modelUsage || ({})),
       hasLocalStats: synced ? (stats.hasLocalStats !== false) : (record.hasLocalStats !== false),
       hasPromptStats: synced ? (stats.hasPromptStats !== false) : (record.hasPromptStats !== false),
+
+      // The versioned daily contract is local in Ticket 01. Once legacy or
+      // synchronized totals widen the token scope, no local subtotal is paired
+      // with them; the presentation reports unknown cost instead.
+      dailyUsage: synced ? null : localDailyUsage,
+      costScopeCompatible: !synced,
 
       syncEnabled: synced,
       syncDeviceCount: deviceCount,
