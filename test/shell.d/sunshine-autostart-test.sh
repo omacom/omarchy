@@ -1,0 +1,57 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+if grep -Fq 'launch_on_start("sunshine")' "$ROOT/bin/omarchy-install-service-sunshine"; then
+  fail "Sunshine installer does not add a Hyprland autostart copy"
+fi
+pass "Sunshine installer does not add a Hyprland autostart copy"
+
+grep -Fq 'o.launch_on_start("sunshine")' "$ROOT/bin/omarchy-remove-service-sunshine" ||
+  fail "Sunshine removal still strips a leftover Hyprland autostart line"
+pass "Sunshine removal still strips a leftover Hyprland autostart line"
+
+grep -Fq 'app-dev.lizardbyte.app.Sunshine.service' "$ROOT/bin/omarchy-install-service-sunshine" ||
+  fail "Sunshine installer enables the canonical user unit"
+pass "Sunshine installer enables the canonical user unit"
+
+if grep -Eq 'systemctl --user enable --now sunshine([[:space:]]|$)' "$ROOT/bin/omarchy-install-service-sunshine"; then
+  fail "Sunshine installer does not enable the sunshine alias"
+fi
+pass "Sunshine installer does not enable the sunshine alias"
+
+grep -Fq 'app-dev.lizardbyte.app.Sunshine.service' "$ROOT/bin/omarchy-remove-service-sunshine" ||
+  fail "Sunshine removal disables the canonical user unit"
+pass "Sunshine removal disables the canonical user unit"
+
+if grep -Eq 'systemctl --user disable --now sunshine([[:space:]]|$)' "$ROOT/bin/omarchy-remove-service-sunshine"; then
+  fail "Sunshine removal does not disable the sunshine alias"
+fi
+pass "Sunshine removal does not disable the sunshine alias"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+home="$test_tmp/home"
+mkdir -p "$home/.config/hypr"
+autostart="$home/.config/hypr/autostart.lua"
+
+cat >"$autostart" <<'LUA'
+-- Extra autostart processes.
+o.launch_on_start("my-service")
+o.launch_on_start("sunshine")
+LUA
+
+HOME="$home" bash -euo pipefail "$ROOT/migrations/1789703649.sh" >/dev/null
+grep -Fq 'o.launch_on_start("my-service")' "$autostart" ||
+  fail "Sunshine migration leaves other autostart entries"
+if grep -Fq 'o.launch_on_start("sunshine")' "$autostart"; then
+  fail "Sunshine migration removes the duplicate autostart line"
+fi
+pass "Sunshine migration removes the duplicate autostart line"
+
+HOME="$home" bash -euo pipefail "$ROOT/migrations/1789703649.sh" >/dev/null
+grep -Fq 'o.launch_on_start("my-service")' "$autostart" ||
+  fail "Sunshine migration is idempotent"
+pass "Sunshine migration is idempotent"
