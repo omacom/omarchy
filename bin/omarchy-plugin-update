@@ -12,6 +12,8 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
 UPDATED_ANY=0
+WATCH_SUSPENDED=0
+SHELL_AVAILABLE=0
 
 fail() {
   echo "omarchy-plugin-update: $*" >&2
@@ -36,7 +38,7 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
-update_one() {
+prepare_one() {
   local id="$1"
   local dir="$PLUGINS_DIR/$id"
 
@@ -47,7 +49,7 @@ update_one() {
 
   if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
     echo "$id is up to date."
-    return 0
+    return 2
   fi
 
   if (( ! ASSUME_YES )); then
@@ -60,9 +62,16 @@ update_one() {
     echo
     confirm "Update $id?" || {
       echo "Skipped $id."
-      return 0
+      return 2
     }
   fi
+
+  return 0
+}
+
+apply_one() {
+  local id="$1"
+  local dir="$PLUGINS_DIR/$id"
 
   if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
     echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
@@ -77,6 +86,42 @@ update_one() {
 
   echo "Updated $id."
   UPDATED_ANY=1
+}
+
+resume_local_plugin_watch() {
+  (( WATCH_SUSPENDED )) || return 0
+  WATCH_SUSPENDED=0
+
+  if (( SHELL_AVAILABLE )); then
+    if ! omarchy-shell shell setLocalPluginWatch true >/dev/null; then
+      echo "omarchy-plugin-update: warning: could not resume local plugin watch; restart omarchy-shell" >&2
+      return 1
+    fi
+  fi
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT
+  resume_local_plugin_watch || true
+  exit "$status"
+}
+
+suspend_local_plugin_watch() {
+  SHELL_AVAILABLE=0
+  if omarchy-shell shell ping >/dev/null 2>&1; then
+    SHELL_AVAILABLE=1
+  fi
+
+  # No running shell means there is no live watcher to race. If a shell is
+  # reachable, however, suspension is part of the mutation invariant: do not
+  # write the plugin tree if that request fails (including an older shell that
+  # does not yet expose setLocalPluginWatch).
+  if (( SHELL_AVAILABLE )); then
+    omarchy-shell shell setLocalPluginWatch false >/dev/null ||
+      fail "running shell could not suspend the local plugin watcher; restart the shell and retry"
+    WATCH_SUSPENDED=1
+  fi
 }
 
 id=""
@@ -122,12 +167,41 @@ else
   fi
 fi
 
+# Serialize complete update sessions so two callers cannot independently
+# suspend/resume the one global watcher or merge the same checkout concurrently.
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+lock_file="${OMARCHY_PLUGIN_UPDATE_LOCK:-$runtime_dir/omarchy-plugin-update-$UID.lock}"
+exec 9>"$lock_file" || fail "cannot open update lock: $lock_file"
+flock 9 || fail "cannot acquire plugin update lock"
+
+planned=()
 rc=0
 for id in "${targets[@]}"; do
-  update_one "$id" || rc=1
+  if prepare_one "$id"; then
+    planned+=("$id")
+  else
+    status=$?
+    (( status == 2 )) || rc=1
+  fi
 done
 
-if (( UPDATED_ANY )); then
-  omarchy-shell shell rescanPlugins >/dev/null
+# Nothing will mutate the tree, so leave the watcher untouched.
+if (( ${#planned[@]} == 0 )); then
+  exit "$rc"
 fi
-exit $rc
+
+suspend_local_plugin_watch
+trap cleanup EXIT
+
+for id in "${planned[@]}"; do
+  apply_one "$id" || rc=1
+done
+
+if (( UPDATED_ANY )) && (( SHELL_AVAILABLE )); then
+  omarchy-shell shell rescanPlugins >/dev/null ||
+    echo "omarchy-plugin-update: warning: shell rescan failed; updated plugins will load on the next shell rescan" >&2
+fi
+
+resume_local_plugin_watch || true
+trap - EXIT
+exit "$rc"

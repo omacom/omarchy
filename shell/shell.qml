@@ -60,7 +60,10 @@ ShellRoot {
 
   Timer {
     id: localPluginReloadTimer
-    interval: 150
+    // Recursive plugin edits can emit large write bursts. Update suspends the
+    // watcher around its own merge; this trailing window protects ordinary
+    // local edits from reloading while a write burst is still settling.
+    interval: 500
     onTriggered: shell.reloadPlugins()
   }
 
@@ -1591,6 +1594,13 @@ ShellRoot {
 
     function rescanPlugins(): void {
       shell.reloadPlugins()
+    }
+
+    function setLocalPluginWatch(enabled: string): string {
+      var on = enabled === "true" || enabled === "1" || enabled === "on"
+      shell.pluginRegistry.setLocalPluginWatch(on)
+      if (!on) localPluginReloadTimer.stop()
+      return on ? "watching" : "suspended"
     }
 
     function reloadConfig(): string {
