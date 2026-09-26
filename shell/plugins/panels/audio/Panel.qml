@@ -121,6 +121,11 @@ Panel {
   // selected while a tuning still exists.
   property string volumeSinkName: ""
 
+  // Serialize the pactl fallback used for device-routed sinks. Slider movement
+  // may arrive faster than an external process can finish, so keep at most one
+  // in-flight write plus the newest pending value.
+  property var outputVolumeWriteState: Model.newVolumeWriteState()
+
   // Carry sub-notch touchpad deltas between wheel events.
   property real wheelAccumulator: 0
 
@@ -423,10 +428,39 @@ Panel {
     return Model.outputVolumeName(volume, muted)
   }
 
+  function queueOutputVolumeWrite(sinkName, volume) {
+    if (!sinkName) return
+    outputVolumeWriteState = Model.queueVolumeWrite(
+      outputVolumeWriteState,
+      sinkName,
+      Math.round(volume * 100)
+    )
+    if (!outputVolumeWriteProc.running) outputVolumeWriteTimer.restart()
+  }
+
+  function flushOutputVolumeWrite() {
+    if (outputVolumeWriteProc.running) return
+
+    var next = Model.beginVolumeWrite(outputVolumeWriteState)
+    outputVolumeWriteState = next
+    if (!next.running) return
+
+    outputVolumeWriteProc.sinkName = next.activeSink
+    outputVolumeWriteProc.percent = next.activePercent
+    outputVolumeWriteProc.running = true
+  }
+
   function setOutputVolume(v) {
     if (!volumeSink || !volumeSink.audio) return outputVolume
     var volume = Math.max(0, Math.min(1, v))
+
+    // Keep the panel responsive immediately. For device-routed sinks where
+    // Quickshell drops this PwNodeAudio write, the serialized pactl path below
+    // is the authoritative fallback.
     volumeSink.audio.volume = volume
+
+    var name = volumeSinkName || (volumeSink.name ? String(volumeSink.name) : "")
+    root.queueOutputVolumeWrite(name, volume)
     return volume
   }
 
@@ -599,6 +633,26 @@ Panel {
       waitForEnd: true
       onStreamFinished: root.volumeSinkName = String(text).trim()
     }
+  }
+
+  Process {
+    id: outputVolumeWriteProc
+    property string sinkName: ""
+    property int percent: 0
+
+    command: ["pactl", "set-sink-volume", sinkName, String(percent) + "%"]
+
+    onExited: {
+      root.outputVolumeWriteState = Model.finishVolumeWrite(root.outputVolumeWriteState)
+      root.flushOutputVolumeWrite()
+    }
+  }
+
+  Timer {
+    id: outputVolumeWriteTimer
+    interval: 35
+    repeat: false
+    onTriggered: root.flushOutputVolumeWrite()
   }
 
   Timer {

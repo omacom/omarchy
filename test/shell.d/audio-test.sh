@@ -46,4 +46,46 @@ assertEqual(audio.matchingMprisStreamLabel('Chromium', players), 'Chromium', 'au
 assertEqual(audio.unmatchedMprisStreamLabel('audio-src', players, streams), 'Spotify', 'audio uses unmatched MPRIS player for generic streams')
 assertEqual(audio.streamLabel(streams[1], players, streams), 'Spotify', 'audio labels generic streams from MPRIS')
 assert(audio.streamRepresentsPlayer(streams[1], players[0], players, streams), 'audio links generic streams to active player')
+
+
+let volumeWrites = audio.newVolumeWriteState()
+
+// Rapid movement before the first external write starts coalesces to one value.
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 20)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 45)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 80)
+volumeWrites = audio.beginVolumeWrite(volumeWrites)
+assertEqual(volumeWrites.activePercent, 80, 'audio volume queue starts only the newest pre-launch value')
+assertEqual(volumeWrites.pendingPercent, -1, 'audio volume queue consumes the pending value when it starts')
+
+// Movement during an active write retains only the newest pending value.
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 35)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 60)
+volumeWrites = audio.queueVolumeWrite(volumeWrites, 'bluez_output.speaker', 95)
+assertEqual(volumeWrites.activePercent, 80, 'active audio volume write is not replaced mid-process')
+assertEqual(volumeWrites.pendingPercent, 95, 'audio volume queue keeps only the newest in-flight update')
+
+volumeWrites = audio.finishVolumeWrite(volumeWrites)
+volumeWrites = audio.beginVolumeWrite(volumeWrites)
+assertEqual(volumeWrites.activePercent, 95, 'next audio volume write is the final slider value')
+assertEqual(volumeWrites.pendingPercent, -1, 'final slider value leaves no older pending write')
+
+volumeWrites = audio.finishVolumeWrite(volumeWrites)
+assert(!volumeWrites.running, 'audio volume queue becomes idle after the final write')
+assertEqual(volumeWrites.pendingPercent, -1, 'no stale volume write remains after the final value')
+
+const fs = require('fs')
+const panelSource = fs.readFileSync(root + '/shell/plugins/panels/audio/Panel.qml', 'utf8')
+assert(
+  /Process \{[\s\S]*id: outputVolumeWriteProc[\s\S]*command: \["pactl", "set-sink-volume"/.test(panelSource),
+  'audio panel uses one reusable pactl process for output volume writes'
+)
+assert(
+  /onExited:[\s\S]*finishVolumeWrite[\s\S]*flushOutputVolumeWrite/.test(panelSource),
+  'audio panel starts the latest pending write only after the active process exits'
+)
+assert(
+  !/Quickshell\.execDetached\(\["pactl", "set-sink-volume"/.test(panelSource),
+  'audio panel no longer spawns detached pactl writers per slider event'
+)
 JS
