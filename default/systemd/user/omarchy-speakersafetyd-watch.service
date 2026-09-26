@@ -1,0 +1,18 @@
+[Unit]
+Description=Announce when speaker protection has locked the amps
+# Needs the session bus to notify. Both are up only after graphical-session.target.
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+# speakersafetyd is Asahi-only. ConditionPath* keeps this enabled unit inert
+# on machines that never install it.
+ConditionPathExists=/usr/bin/speakersafetyd
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-audio-speakersafetyd-watch
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

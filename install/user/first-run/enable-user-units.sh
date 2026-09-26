@@ -19,6 +19,7 @@ systemctl --user enable --now \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
-  omarchy-crash-watch.service
+  omarchy-crash-watch.service \
+  "$OMARCHY_PATH/default/systemd/user/omarchy-speakersafetyd-watch.service"
 
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
