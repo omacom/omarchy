@@ -1,0 +1,14 @@
+{
+  "name": "agent-desktops",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "dependencies": {
+    "@novnc/novnc": "1.7.0",
+    "dompurify": "^3.3.0",
+    "express": "^5.1.0",
+    "marked": "^17.0.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": { "playwright": "^1.63.0" }
+}
