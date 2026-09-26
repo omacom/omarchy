@@ -42,7 +42,13 @@ for format in "${formats[@]}"; do
   format="${format#.}"
   find_args+=(-iname "*.$format")
 done
-find_args+=(")" -printf '%T@\t%p\n')
+find_args+=(")" -printf '%D:%i\t%T@\t%p\n')
 
-find "${find_args[@]}" 2>/dev/null | sort -rn | cut -f2- |
+# -H: follow command-line symlink roots only. Interior symlinked dirs are not
+# descended (they stay -type l), so nested loops cannot make find exit 1 under
+# pipefail the way -L would. Do not "simplify" back to -L.
+# Dedup by device:inode so symlink-aliased roots (Pictures→Videos) collapse to
+# one row; path-string dedup alone keeps both spellings.
+find -H "${find_args[@]}" 2>/dev/null |
+  sort -t$'\t' -k2,2rn | awk -F'\t' '!seen[$1]++' | cut -f3- |
   omarchy-menu-select "$label" -- --width 800 --maxheight 500 "$@"
