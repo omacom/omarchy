@@ -6,9 +6,25 @@ import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
 import qs.Ui
+import "Wallpaper.js" as Wallpaper
 
 Item {
   id: root
+
+  readonly property var backgroundConfig: shell && shell.shellConfig ? shell.shellConfig.background : null
+  property var panels: []
+
+  // A fixed override may already be loaded when the theme transition ends.
+  // Check all displays, including ones whose Image.status did not change.
+  function finishTransition() {
+    if (!finishingTransition) return
+    for (var i = 0; i < panels.length; i++) {
+      if (!panels[i].baseReady) return
+    }
+    incomingBackground = ""
+    oldBackground = ""
+    finishingTransition = false
+  }
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
@@ -177,6 +193,7 @@ Item {
       if (root.incomingBackground) {
         root.displayedBackground = root.currentBackground || root.incomingBackground
         root.finishingTransition = true
+        Qt.callLater(root.finishTransition)
       }
       root.revealProgress = 1
     }
@@ -207,12 +224,24 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      readonly property string overridePath: Wallpaper.select(root.backgroundConfig, modelData.name, width, height, root.home)
+      readonly property bool baseReady: base.ready && overrideProbe.status !== Image.Loading
+
+      Component.onCompleted: {
+        root.panels = root.panels.concat([panel])
+        Qt.callLater(panel.maybeStartReveal)
+      }
+      Component.onDestruction: {
+        root.panels = root.panels.filter(function(candidate) { return candidate !== panel })
+        Qt.callLater(root.finishTransition)
+      }
+      onBaseReadyChanged: Qt.callLater(root.finishTransition)
 
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+        if (!root.incomingBackground || maskReady) return
         if (incomingFrame.status !== Image.Ready) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
+          if (!root.incomingBackground || maskReady) return
           if (incomingFrame.status !== Image.Ready) return
           root.startReveal(panel)
         })
@@ -223,25 +252,27 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
 
-      // OWE owns video backgrounds. This layer draws stills, and stays empty
-      // behind a video so OWE's own layer shows through.
+      // Validate the still-image override before handing its path to the media
+      // renderer. Failed overrides retain the theme background; OWE owns video
+      // playback beneath this layer.
+      Image {
+        id: overrideProbe
+        source: root.imageUrl(panel.overridePath)
+        asynchronous: true
+        visible: false
+      }
+
       BackgroundMedia {
         id: base
         anchors.fill: parent
-        path: root.displayedBackground
-        onReadyChanged: {
-          if (ready && root.finishingTransition) {
-            root.incomingBackground = ""
-            root.oldBackground = ""
-            root.finishingTransition = false
-          }
-        }
+        path: overrideProbe.status === Image.Ready ? panel.overridePath : root.displayedBackground
       }
 
-      Image {
+      WallpaperImage {
         id: oldFrame
         anchors.fill: parent
-        source: root.imageUrl(root.oldBackground)
+        overrideSource: root.imageUrl(panel.overridePath)
+        fallbackSource: root.imageUrl(root.oldBackground)
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         cache: false
@@ -264,10 +295,11 @@ Item {
           maskSpreadAtMin: 0.02
         }
 
-        Image {
+        WallpaperImage {
           id: incomingFrame
           anchors.fill: parent
-          source: root.imageUrl(root.incomingBackground)
+          overrideSource: root.imageUrl(panel.overridePath)
+          fallbackSource: root.imageUrl(root.incomingBackground)
           fillMode: Image.PreserveAspectCrop
           asynchronous: true
           cache: false
@@ -309,7 +341,7 @@ Item {
         target: root
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
-          panel.maybeStartReveal()
+          Qt.callLater(panel.maybeStartReveal)
         }
       }
 
