@@ -62,14 +62,30 @@ BarWidget {
         anchors.verticalCenter: parent.verticalCenter
 
         property bool needsScroll: implicitWidth > scrollClip.width
+        readonly property bool shouldScroll: needsScroll && !root.popupOpen && !root.bar.vertical
 
-        NumberAnimation on x {
+        // A running NumberAnimation latches from/to at start and ignores later
+        // changes, so restart it once the width bindings have settled.
+        function restartScroll() {
+          scrollAnim.stop()
+          x = 0
+          if (!shouldScroll) return
+          scrollAnim.from = scrollClip.width
+          scrollAnim.to = -implicitWidth
+          scrollAnim.duration = Math.max(6000, implicitWidth * 25)
+          scrollAnim.start()
+        }
+
+        onTextChanged: Qt.callLater(restartScroll)
+        onImplicitWidthChanged: Qt.callLater(restartScroll)
+        onShouldScrollChanged: Qt.callLater(restartScroll)
+        Component.onCompleted: Qt.callLater(restartScroll)
+
+        NumberAnimation {
           id: scrollAnim
-          running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical
+          target: labelText
+          property: "x"
           loops: Animation.Infinite
-          duration: Math.max(6000, labelText.implicitWidth * 25)
-          from: scrollClip.width
-          to: -labelText.implicitWidth
           easing.type: Easing.Linear
         }
       }
