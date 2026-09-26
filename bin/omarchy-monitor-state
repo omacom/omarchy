@@ -8,16 +8,38 @@ focused_monitor=$(printf '%s\n' "$monitors_json" | jq -r '[.[] | select(.focused
 
 { omarchy-brightness-display --monitor "$focused_monitor" 2>/dev/null; echo; } | head -n 1
 
-printf '%s\n' "$monitors_json" | jq -r '
+# An empty internal connector has no size, no modes, and no EDID identity.
+# A powered-down real panel still has an identity, so it stays selectable.
+monitor_identity='
   def internal: test("^(eDP|LVDS|DSI)-");
-  ([.[] | select(.name | internal)][0].name // ""),
+  def present: . != null and . != "";
+  def ghost:
+    (.name | internal) and
+    ((.width // 0) == 0) and
+    ((.height // 0) == 0) and
+    ((.availableModes // []) | length == 0) and
+    (.description | present | not) and
+    (.make | present | not) and
+    (.model | present | not);
+  def real: (.name | internal) and (ghost | not);
+'
+
+printf '%s\n' "$monitors_json" | jq -r "$monitor_identity"'
+  ([.[] | select(real)][0].name // [.[] | select(.name | internal)][0].name // ""),
   ([.[] | select((.name | internal) | not)][0].name // ""),
-  ([.[] | select((.name | internal) and .disabled != true)][0].name // ""),
+  (
+    if any(.[]; real) then
+      ([.[] | select(real and .disabled != true)][0].name // "")
+    else
+      ([.[] | select((.name | internal) and .disabled != true)][0].name // "")
+    end
+  ),
   ([.[] | select(.mirrorOf != "none") | if (.name | internal) then .mirrorOf else .name end][0] // "")
 '
 
 printf '%s\n' "$focused_monitor"
 omarchy-hyprland-monitor-scaling 2>/dev/null || echo
 
-printf '%s\n' "$monitors_json" | jq -c \
-  '[.[] | {name, enabled:(.disabled != true), focused:(.focused == true), width, height}]'
+printf '%s\n' "$monitors_json" | jq -c "$monitor_identity"'
+  [.[] | select(ghost | not) | {name, enabled:(.disabled != true), focused:(.focused == true), width, height}]
+'
