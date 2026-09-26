@@ -24,6 +24,11 @@ cross-device aggregation); `Agent.qml` is the per-record file watcher.
   to the heaviest model,
   the same way the weekly chart scales to its busiest day. Hover for the
   input / output / cache split.
+- **API equivalent** — when a provider's models have published token prices,
+  the hero shows their estimated standard API cost. The Tokens/Dollars button
+  switches the model rows without adding another section to the panel.
+  Rates cover the currently supported OpenAI, Anthropic, and named Fireworks
+  serverless models. Private deployments and unknown model IDs stay unpriced.
 
 A subscription appears only when it is enabled in settings and has actually
 recorded usage — on this machine or on a synced one. With one such agent
@@ -95,7 +100,8 @@ only adds the meter and the spent-of-funded line under the real figure.
 ## Interactions
 
 - Bar icon: left = panel, right = launch agent, middle = next subscription.
-- Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh,
+- Panel: `h`/`l` switch subscription, `j`/`k` scroll, `r` or Enter refresh, `d`
+  switches priced model rows between tokens and dollars,
   Tab moves to the neighboring bar panel, Esc closes.
 - IPC: `omarchy-shell omarchy.agents <open|close|toggle|refresh|next>`.
 
