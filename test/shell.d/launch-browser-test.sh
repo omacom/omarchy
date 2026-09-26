@@ -79,3 +79,24 @@ grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
 
 pass "browser launcher follows opened links to the browser workspace"
+
+# Chrome's --help execs `man` to show its manual page. On an image without
+# man-db that exec fails and kills Chrome with SIGTRAP, so private-mode
+# detection must never invoke the browser's --help to figure out its flag.
+help_probe_log="$test_tmp/help-probe"
+cat >"$mock_bin/chromium" <<SH
+#!/bin/bash
+if [[ \$1 == "--help" ]]; then
+  printf 'probed\n' >"$help_probe_log"
+  exit 1
+fi
+exit 0
+SH
+chmod +x "$mock_bin/chromium"
+
+HOME="$test_home" PATH="$mock_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" --private
+
+[[ ! -e $help_probe_log ]] || fail "browser launcher never probes the browser with --help"
+pass "browser launcher decides the private-mode flag without invoking --help"
