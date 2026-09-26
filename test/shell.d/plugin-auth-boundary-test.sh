@@ -153,6 +153,11 @@ qml_matches "$shell_qml" 'allowOwnService *&& *shell\.pluginOwnsTarget\( *key, *
   fail "cloned widgets cannot use a source id to reach their own service"
 pass "service facades resolve enabled clones without widening replacement-bar access"
 
+tr '\n\r\t' '   ' <<<"$bar_entry_shell" |
+  grep -Eq '_serviceLookup: *function\( *requestedId *\) *\{ *return shell\.pluginServiceFor\( *target, *requestedId *\)' ||
+  fail "bar-entry PluginShellApi does not wire service lookup for the hosted plugin"
+pass "bar-entry PluginShellApi wires service lookup for the hosted plugin"
+
 require_compositor "plugin authentication boundary runtime test"
 
 if ! command -v quickshell >/dev/null 2>&1; then
