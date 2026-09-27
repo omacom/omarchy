@@ -75,7 +75,7 @@ pass "copy-url native host installer registers the stable extension id"
   fail "copy-url native host installer covers Brave Origin"
 pass "copy-url native host installer covers Brave Origin"
 
-# Chromium ships in the base packages, so fresh installs do not go through
+# Brave Origin ships in the base packages, so fresh installs do not go through
 # omarchy-install-browser, and they mark every migration as already applied.
 # The user install still has to register the host itself.
 grep -q 'user/chromium.sh' "$ROOT/install/user/all.sh" ||
@@ -85,9 +85,13 @@ fresh_home="$TMPDIR/fresh-install"
 HOME="$fresh_home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
   bash -euo pipefail -c 'source "$ROOT/install/user/chromium.sh"'
 
-[[ -f $fresh_home/.config/chromium/NativeMessagingHosts/com.omarchy.copy_url.json ]] ||
+[[ -f $fresh_home/.config/BraveSoftware/Brave-Origin/NativeMessagingHosts/com.omarchy.copy_url.json ]] ||
   fail "fresh install registers the copy-url native messaging host"
 pass "fresh install registers the copy-url native messaging host"
+
+[[ -f $fresh_home/.config/BraveSoftware/Brave-Origin/NativeMessagingHosts/com.omarchy.ytdlp.json ]] ||
+  fail "fresh install registers the yt-dlp native messaging host for Brave Origin"
+pass "fresh install registers the yt-dlp native messaging host for Brave Origin"
 
 copied_url=$(bash -c '
   source "$1"

@@ -148,7 +148,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Ctrl + Print Screen` | Text extraction to clipboard |
 | `Super + Alt + [` | Make webcam overlay smaller while recording |
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
-| `Alt + Shift + L` | Copy current URL from webapp or Chromium |
+| `Alt + Shift + L` | Copy current URL from webapp or Brave Origin |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
 | `Super + Ctrl + X` | Start/stop dictation (requires _Install > AI > Dictation_) |
 | `F9` | Push-to-talk dictation (requires _Install > AI > Dictation_) |

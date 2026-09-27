@@ -1,12 +1,12 @@
 # Browsers
 
-Omarchy ships with [Chromium](https://www.chromium.org/) as the default browser. It's the plain open-source build, themed to match the rest of your system, and it's what `Super + Shift + Return` opens and what every [web app](25-web-apps.md) runs inside.
+Omarchy ships with [Brave Origin](https://brave.com/origin/) as the default browser. It includes Brave Shields for ad and tracker blocking without Brave's bundled extras, and it's free on Linux. It's themed to match the rest of your system, and it's what `Super + Shift + Return` opens and what [web apps](25-web-apps.md) use by default.
 
-If Chromium isn't your taste, you're not stuck with it. Under _Install > Browser_ in the Omarchy menu you'll find Chrome, Edge, Brave, Brave Origin, Firefox, and [Zen](https://zen-browser.app/). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
+Under _Install > Browser_ in the Omarchy menu you'll find Chromium, Chrome, Edge, Brave, Firefox, and [Zen](https://zen-browser.app/). Pick one and Omarchy installs it, sets up its policy directory, and applies your current theme to it.
 
 ## Making one the default
 
-Installing a browser doesn't promote it. Once it's on the machine, go to _Setup > Defaults > Browser_ and pick it — the menu only lists browsers you actually have installed, and marks the current default with a check.
+Installing a browser doesn't promote it. Go to _Setup > Defaults > Browser_ and pick one. Omarchy installs it if needed and marks the current default with a check.
 
 From the terminal it's:
 
@@ -18,7 +18,7 @@ Run it with no argument and it tells you the current default. This sets the XDG 
 
 ## Copy URL and Download Video
 
-The Chromium-family browsers (Chromium itself, Chrome, Edge, and Brave) come with two Omarchy extensions that reach out of the browser and into the rest of your system.
+The Chromium-family browsers (Brave Origin, Chromium, Chrome, Edge, and Brave) come with two Omarchy extensions that reach out of the browser and into the rest of your system.
 
 **Copy URL** puts the current tab's address on your clipboard with `Alt + Shift + L`. That's faster than clicking into the address bar and copying, and because it goes through the system clipboard rather than the browser's, you get an Omarchy notification confirming it and the URL is immediately available in [clipboard history](08-unified-clipboard-history.md) and every other app. There's a toolbar button too, if you prefer clicking.
 
@@ -36,4 +36,4 @@ They don't get the Chromium extensions above, and they're not themed by Omarchy,
 
 ## Removing one again
 
-Anything you installed here can be taken back off under _Remove > Browser_. Chromium isn't in that list — it's part of the base system.
+Anything you installed here can be taken back off under _Remove > Browser_. Brave Origin is part of the base system and isn't in that list. Removing your default browser switches back to Brave Origin. Existing installations without Brave Origin fall back to Chromium. If neither fallback is available, select another default browser before removing the current one.
