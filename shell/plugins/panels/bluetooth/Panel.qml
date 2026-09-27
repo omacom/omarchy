@@ -503,14 +503,21 @@ Panel {
 
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
   // discovery can also time out on its own. While the panel is open, keep
-  // nudging it back on so an enabled adapter is always scanning.
+  // nudging it back on so an enabled adapter is always scanning. A controller
+  // that keeps refusing is asked less and less often, then not at all; each
+  // time discovery starts, or the panel reopens, retries start over at one
+  // second.
   Timer {
     id: discoveryRetry
-    interval: 1000
+    property int attempts: 0
+    interval: Model.discoveryRetryInterval(attempts)
     repeat: true
     triggeredOnStart: true
     running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    onRunningChanged: if (running) attempts = 0
     onTriggered: {
+      if (!Model.discoveryRetryAllowed(attempts)) return
+      attempts += 1
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
     }
