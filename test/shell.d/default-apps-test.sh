@@ -84,6 +84,7 @@ omarchy-install-browser)
   brave-origin) command=brave-origin ;;
   edge) command=microsoft-edge-stable ;;
   firefox) command=firefox ;;
+  helium) command=helium-browser ;;
   zen) command=zen-browser ;;
   esac
   ;;
@@ -155,6 +156,7 @@ browser_cases=(
   'brave-origin brave-origin browser:brave-origin'
   'edge microsoft-edge-stable browser:edge'
   'firefox firefox browser:firefox'
+  'helium helium-browser browser:helium'
   'zen zen-browser browser:zen'
 )
 

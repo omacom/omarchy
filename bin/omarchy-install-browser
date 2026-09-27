@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Install a supported browser
-# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chromium|chrome|brave|brave-origin|edge|firefox|helium|zen>
 # omarchy:examples=omarchy install browser chromium | omarchy install browser firefox
 
 set -e
@@ -83,6 +83,15 @@ firefox)
   setup_firefox_wayland
   announce_browser_installed "Firefox"
   ;;
+helium)
+  echo "Installing Helium..."
+  omarchy-pkg-aur-add helium-browser-bin || exit 1
+
+  setup_chromium_policy_directory /etc/chromium/policies/managed
+  copy_chromium_flags ~/.config/helium-browser-flags.conf
+  omarchy-theme-set-browser
+  announce_browser_installed "Helium"
+  ;;
 zen)
   echo "Installing Zen..."
   omarchy-pkg-aur-add zen-browser-bin || exit 1
@@ -92,7 +101,7 @@ zen)
   announce_browser_installed "Zen"
   ;;
 *)
-  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-install-browser <chromium|chrome|brave|brave-origin|edge|firefox|helium|zen>"
   exit 1
   ;;
 esac
