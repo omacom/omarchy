@@ -66,6 +66,20 @@ expected=$(printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert Mod4+c'
   fail "chord repair only rewrites the shipped key-bindings lines" "$(cat -A "$foot_config")"
 pass "chord repair only rewrites the shipped key-bindings lines"
 
+# A chord the user already gave to another action stays theirs: foot drops a
+# second binding for the same keys, so adding it would lose their action.
+reset_home
+printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert' 'clipboard-paste=Shift+Insert' \
+  'spawn-terminal=Control+Shift+C' >"$foot_config"
+
+run_migration
+
+expected=$(printf '%s\n' '[key-bindings]' 'clipboard-copy=Control+Insert XF86Copy' \
+  'clipboard-paste=Shift+Insert Control+Shift+v XF86Paste' 'spawn-terminal=Control+Shift+C')
+[[ $(cat "$foot_config") == "$expected" ]] ||
+  fail "chord repair leaves a chord bound to another action alone" "$(cat -A "$foot_config")"
+pass "chord repair leaves a chord bound to another action alone"
+
 # Dotfile setups symlink the config; the link has to survive the rewrite.
 reset_home
 mkdir -p "$home/dotfiles"
