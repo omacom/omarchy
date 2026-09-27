@@ -35,7 +35,9 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 3. Select the orange EFI Boot device
 4. Proceed with the [install as normal](02-getting-started.md)
 
-The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models.
+The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, the CS8409 speaker driver on 2016–2017 MacBook Pros and 2017–2019 iMacs, an NVMe suspend fix for those same MacBook models, and the CS4208 speaker driver on the 12-inch MacBook (2016 and 2017).
+
+On those 12-inch MacBooks, Omarchy also enables software volume for the internal speakers and keeps the codec's hardware mixer at full scale, since that speaker path has no usable hardware volume control. The capture side is pinned the same way: reinitializing the codec resets every mixer control to muted, and with software volume in charge a muted hardware capture control silently kills the internal microphone.
 
 ### Known Limitations
 
@@ -51,7 +53,7 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 #### Known Issues
 
 - Touch Bar is non-functional
-- Sound is not functioning
+- Internal microphone capture is quiet and not fully wired up yet on the T1 MacBook Pros. Speakers and headphones work on those models and on 2017–2019 iMacs with the CS8409 bridge; the installer installs the CS8409 driver (`snd-hda-macbookpro-dkms`) automatically. Reboot once after install so the patched module replaces the silent in-tree codec.
 
 #### Devices with T2 Chip
 

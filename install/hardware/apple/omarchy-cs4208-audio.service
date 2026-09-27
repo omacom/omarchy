@@ -1,0 +1,13 @@
+[Unit]
+Description=Set the CS4208 speaker hardware mixer for software volume
+After=dev-snd-controlC0.device
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/amixer -c0 sset Master 100%% unmute
+ExecStart=/usr/bin/amixer -c0 sset Capture 100%% unmute cap
+ExecStart=/usr/bin/amixer -c0 sset "Internal Mic Boost" 1
+ExecStart=/usr/bin/alsactl store 0
+
+[Install]
+WantedBy=dev-snd-controlC0.device
