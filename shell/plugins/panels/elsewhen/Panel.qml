@@ -355,6 +355,26 @@ Panel {
   readonly property real capGap: Math.max(0,
     nameFontMetrics.height - nameFontMetrics.descent + nameCapMetrics.tightBoundingRect.y)
 
+  // The widest a row's time gets, so every row's weather lines up against one
+  // column rather than hugging "4:06" in one row and "10:06" in the next.
+  TextMetrics {
+    id: widestTimeMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.heading
+    font.weight: Font.DemiBold
+    text: "00:00"
+  }
+
+  TextMetrics {
+    id: meridiemMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.caption
+    text: "PM"
+  }
+
+  readonly property real timeColumnWidth: Math.ceil(widestTimeMetrics.advanceWidth
+    + (hour24 ? 0 : Style.spacing.xs + meridiemMetrics.advanceWidth))
+
   function tick() {
     nowMs = Date.now()
     localOffsetMinutes = -(new Date().getTimezoneOffset())

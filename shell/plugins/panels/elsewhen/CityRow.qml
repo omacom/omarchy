@@ -173,6 +173,11 @@ Rectangle {
         elide: Text.ElideRight
       }
 
+      // Takes the slack, so the weather sits against the time column in every row.
+      Item {
+        Layout.fillWidth: true
+      }
+
       Caption {
         Layout.alignment: Qt.AlignBaseline
         text: Model.tempLabel(row.panel.facts[Model.factsKey(row.rowData)], row.panel.units)
@@ -299,6 +304,8 @@ Rectangle {
 
   Column {
     id: timeBlock
+    // One width for every row, so the labels beside it line up.
+    width: Math.max(row.panel.timeColumnWidth, implicitWidth)
     anchors.right: parent.right
     anchors.rightMargin: Style.spacing.rowPaddingX
     anchors.verticalCenter: rowLabels.verticalCenter
