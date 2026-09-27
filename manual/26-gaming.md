@@ -6,6 +6,16 @@ Thanks to Valve's incredible work on [the proton compatibility layer](https://en
 
 All gaming installers live under _Install > Gaming_ in the Omarchy menu (`Super + Space`). If you ever want to undo one, use _Remove > Gaming_.
 
+## SpaceBeach
+
+SpaceBeach is Omarchy's visual time machine: your real workspaces become islands, windows become vessels, and desktop changes leave a tide you can explore. Open it from _Trigger > SpaceBeach_ in the Omarchy menu, then use Chronicle to move through recorded checkpoints or Tide Run to play a deterministic challenge built from those same changes.
+
+History is opt-in and local. On first launch, choose a session-only voyage or an ongoing durable mode that keeps up to 24 hours or the latest 360 changes, whichever is smaller, across restarts until you pause it. SpaceBeach never records screenshots, keystrokes, or window contents, and persisted checkpoints omit window titles. A lighthouse is an explicit title-free save and can remain beyond the rolling tide; durable mode keeps at most 24 until you erase them, while session lighthouses disappear when Omarchy Shell exits. You can pause recording or erase the tide from inside SpaceBeach at any time.
+
+Chronicle can submit a best-effort request to return a verified surviving window to its recorded workspace or floating geometry after showing a restore plan; exact identity requires the same observed window lifecycle, not merely a reusable compositor address. It reports the attempt instead of claiming the compositor completed it, and it never closes an extra window or executes a saved command. Tiled geometry, monitor assignment, and window state remain layout-only, and SpaceBeach never pretends to recover browser tabs, terminal processes, editor buffers, or an exact tiling tree. It creates a rollback checkpoint only when at least one placement attempt is accepted.
+
+Use `Left` and `Right` to travel between checkpoints, `Up` and `Down` to select a vessel, `Enter` to focus it, `C` to light a recovery lighthouse, `R` to preview a restore, `V` to reveal the selected current window's live pixels, `G` to switch between Chronicle and Tide Run, `Tab` to move through controls, and `Escape` to leave. Tide Run accepts `1` for Anchor, `2` for Drift, `3` for Scan, `4` for Repair, and `Enter` to meet the next recorded wave; press a committed intervention again to cancel it before the wave.
+
 ## Steam
 
 Install [Steam](https://store.steampowered.com/) by selecting _Install > Gaming > Steam_ from the Omarchy menu (`Super + Space`).
