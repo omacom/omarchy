@@ -21,12 +21,12 @@ o.bind("ALT + XF86MonBrightnessUp", "Brightness up precise", "omarchy-brightness
 o.bind("ALT + XF86MonBrightnessDown", "Brightness down precise", "omarchy-brightness-display 1%-", { locked = true, repeating = true })
 
 -- Media controls.
-o.bind("XF86AudioNext", "Next track", "omarchy-shell media next", { locked = true })
-o.bind("ALT + XF86AudioPlay", "Next track", "omarchy-shell media next", { locked = true })
-o.bind("XF86AudioPause", "Pause", "omarchy-shell media playPause", { locked = true })
-o.bind("XF86AudioPlay", "Play", "omarchy-shell media playPause", { locked = true })
-o.bind("XF86AudioPrev", "Previous track", "omarchy-shell media previous", { locked = true })
-o.bind("ALT + SHIFT + XF86AudioPlay", "Previous track", "omarchy-shell media previous", { locked = true })
+o.bind("XF86AudioNext", "Next track", { ipc = "media.next" }, { locked = true })
+o.bind("ALT + XF86AudioPlay", "Next track", { ipc = "media.next" }, { locked = true })
+o.bind("XF86AudioPause", "Pause", { ipc = "media.playPause" }, { locked = true })
+o.bind("XF86AudioPlay", "Play", { ipc = "media.playPause" }, { locked = true })
+o.bind("XF86AudioPrev", "Previous track", { ipc = "media.previous" }, { locked = true })
+o.bind("ALT + SHIFT + XF86AudioPlay", "Previous track", { ipc = "media.previous" }, { locked = true })
 o.bind("XF86Eject", "Eject media", "eject", { locked = true })
 
 o.bind("SHIFT + XF86AudioMute", "Switch audio output", "omarchy-audio-output-switch", { locked = true })

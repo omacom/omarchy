@@ -1526,15 +1526,26 @@ ShellRoot {
     var lines = String(raw || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
-      if (match && (match[1] === "menu" || match[1] === "panel" || match[1] === "audio"))
+      if (match && ["menu", "panel", "audio", "ipc"].indexOf(match[1]) !== -1)
         entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
     }
     return entries
   }
 
+  // The IPC targets an ipc shortcut may name, and the service that owns each.
+  readonly property var ipcShortcutServices: ({ media: "omarchy.media", notifications: "omarchy.notifications" })
+
   function runShortcut(entry) {
     if (entry.kind === "menu") {
       shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
+    } else if (entry.kind === "ipc") {
+      // "media.next" runs the media service's own IPC handler for next.
+      var dot = entry.target.indexOf(".")
+      var target = entry.target.slice(0, dot)
+      var method = entry.target.slice(dot + 1)
+      var service = shell.serviceFor(shell.ipcShortcutServices[target] || "")
+      if (!service || !service.runShortcut(method))
+        Util.execArgv(["omarchy-shell", target, method])
     } else if (entry.kind === "audio") {
       var media = shell.serviceFor("omarchy.media")
       if (!media || !media.handleVolumeKey(entry.target))
@@ -1559,7 +1570,7 @@ ShellRoot {
 
       appid: "omarchy"
       name: modelData.name
-      description: modelData.kind === "audio" ? "Volume " + modelData.target : "Toggle the " + modelData.target + " " + modelData.kind
+      description: modelData.kind === "audio" ? "Volume " + modelData.target : (modelData.kind === "ipc" ? "Run " + modelData.target : "Toggle the " + modelData.target + " " + modelData.kind)
       onPressed: shell.runShortcut(modelData)
     }
   }

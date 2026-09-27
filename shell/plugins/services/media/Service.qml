@@ -522,7 +522,16 @@ Item {
     })
   }
 
+  // Keybindings reach these handlers as Hyprland global shortcuts, run here
+  // exactly as the IPC call would run them, with no client to spawn.
+  function runShortcut(method) {
+    if (typeof ipcHandler[method] !== "function") return false
+    ipcHandler[method]()
+    return true
+  }
+
   IpcHandler {
+    id: ipcHandler
     target: "media"
 
     function status(): string {
