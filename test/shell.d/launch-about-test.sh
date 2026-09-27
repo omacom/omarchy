@@ -158,6 +158,147 @@ pass "an enumeration that failed does not read as no config"
 eval "$listing"
 rm -r "${HOME:?}/.config/fastfetch"
 
+# fastfetch recomputes the storage row on every run, but nothing re-runs
+# fastfetch unless the window or the logo changed, so without a probe of its own
+# the row keeps whatever it was when the window opened. That is the whole of what
+# the figure being reported is.
+grid="45 140"
+resized=false
+logo_stamp=$(stat -c %Y "$HOME/.config/omarchy/branding/about.txt")
+
+# 1000 GiB, which fastfetch would draw in GiB, so the quantum is 0.01 of a GiB
+# and 536870900000 used is exactly 50000 of them. Every value below is that
+# figure plus something, so the difference being tested is the difference. df is
+# the one stood in for rather than storage_stamp, because it is df that hands over
+# bytes and storage_stamp that turns them into the figure the row is drawn from —
+# replacing the stamp instead would skip the rounding every case below is about.
+df_size=1073741824000
+df_used=536870900000
+df() { printf '%s\n' "$df_output"; }
+df_output="Filesystem 1B-blocks Used
+/dev/sda1 $df_size $df_used"
+storage_at_render=$(storage_stamp)
+
+if content_changed; then
+  fail "storage that has not moved leaves the render alone"
+else
+  pass "storage that has not moved leaves the render alone"
+fi
+
+# df's own header is not a filesystem, and a row whose fields are not counts must
+# not divide by an empty field on the way past.
+df_output="Filesystem 1B-blocks Used
+a line that is not a filesystem
+/dev/sda1 $df_size $df_used"
+stamp=$(storage_stamp)
+[[ $stamp == "/dev/sda1 50000" ]] ||
+  fail "the stamp is one quantized figure per filesystem, header dropped" "$(printf '%q' "$stamp")"
+pass "the stamp is one quantized figure per filesystem, header dropped"
+
+# Bytes the row cannot render are not a change, and redrawing for them is what
+# turns this fix into a window that flickers.
+df_output="Filesystem 1B-blocks Used
+/dev/sda1 $df_size $(( df_used + 12000 ))"
+if content_changed; then
+  fail "a change below the quantum leaves the render alone"
+else
+  pass "a change below the quantum leaves the render alone"
+fi
+
+# A whole quantum has to move it. Anything short of one lands on the figure the
+# render was drawn against, so it must not.
+df_output="Filesystem 1B-blocks Used
+/dev/sda1 $df_size $(( df_used + 10737417 ))"
+if content_changed; then
+  fail "a change short of a whole quantum leaves the render alone"
+else
+  pass "a change short of a whole quantum leaves the render alone"
+fi
+
+df_output="Filesystem 1B-blocks Used
+/dev/sda1 $df_size $(( df_used + 10737418 ))"
+if content_changed; then
+  pass "a change the row can render redraws"
+else
+  fail "a change the row can render redraws"
+fi
+
+# Which mount fastfetch reads the row from is its own choice, so a change to a
+# mount it did not pick is still a change.
+df_output="Filesystem 1B-blocks Used
+/dev/sda1 $df_size $df_used
+/dev/sdb1 2097152000000 1000000000000"
+if content_changed; then
+  pass "a change to another filesystem redraws"
+else
+  fail "a change to another filesystem redraws"
+fi
+
+df() { return 1; }
+if content_changed; then
+  fail "a storage probe that failed leaves the render alone"
+else
+  pass "a storage probe that failed leaves the render alone"
+fi
+
+df() { :; }
+if content_changed; then
+  fail "a storage probe that said nothing leaves the render alone"
+else
+  pass "a storage probe that said nothing leaves the render alone"
+fi
+
+df() { printf '%s\n' "$df_output"; }
+df_output="Filesystem 1B-blocks Used
+/dev/sda1 $df_size $df_used"
+
+# The quantum is read off the size, because a 900 MB disk and a 900 GB one do not
+# round at the same byte — and one of them redrawing for a change the other
+# swallowed is how a real change goes unnoticed.
+for sized in "104857600 10485" "1073741824000 10737418" "974646272000000 10995116277"; do
+  read -r size_bytes expected_quantum <<<"$sized"
+  [[ $(storage_quantum "$size_bytes") == "$expected_quantum" ]] ||
+    fail "the quantum is read off the size of the filesystem" "$size_bytes bytes gave $(storage_quantum "$size_bytes"), expected $expected_quantum"
+done
+pass "the quantum is read off the size of the filesystem"
+
+# The memory filesystems move on their own all day, and a redraw the machine's
+# own bookkeeping asks for is one nobody wanted. A stubbed df cannot see whether
+# the probe excludes them, so the exclusions themselves are what is pinned here —
+# drop one and the window flickers for the rest of the machine's uptime.
+stamp_source=$(declare -f storage_stamp)
+for excluded in tmpfs devtmpfs squashfs overlay; do
+  [[ $stamp_source == *"-x $excluded"* ]] ||
+    fail "the probe leaves the memory filesystems out" "it does not exclude $excluded"
+done
+pass "the probe leaves the memory filesystems out"
+
+# A resize and a rebrand outrank the quantum, because neither is a figure that
+# can settle.
+grid="40 140"
+if content_changed; then
+  pass "a resized window redraws whatever the storage says"
+else
+  fail "a resized window redraws whatever the storage says"
+fi
+grid="45 140"
+
+logo_stamp=0
+if content_changed; then
+  pass "a rebranded logo redraws whatever the storage says"
+else
+  fail "a rebranded logo redraws whatever the storage says"
+fi
+logo_stamp=$(stat -c %Y "$HOME/.config/omarchy/branding/about.txt")
+
+resized=true
+if content_changed; then
+  pass "a resize landing during the check redraws"
+else
+  fail "a resize landing during the check redraws"
+fi
+resized=false
+
 # The grid costs a process and is only read on the poll interval, so a resize can
 # land while it is being read. The sweep has to see that before it paints again.
 SHEEN_FRAMES=("first" "second" "third")
@@ -181,6 +322,11 @@ for called in build_sheen play_sheen rest_sheen; do
   [[ $render_block == *"$called"* ]] || fail "the render loop plays the sheen" "it never calls $called"
 done
 pass "the render loop plays the sheen"
+
+# The render is only current for the storage it was drawn against, so the loop
+# has to record it or every poll would read as a change.
+[[ $render_block == *"storage_at_render="* ]] || fail "the render loop stamps the storage it drew" "it never assigns storage_at_render"
+pass "the render loop stamps the storage it drew"
 
 measure_layout() { return 1; }
 refuses "a layout fastfetch cannot be measured from leaves it still"

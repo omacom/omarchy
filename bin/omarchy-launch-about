@@ -7,6 +7,10 @@
 # that fit and apply it as a window rule before launching, so the window opens at
 # it instead of resizing after the first paint. Bash defers WINCH traps while read
 # blocks, so poll for size changes and re-render fastfetch whenever it is resized.
+# The storage row goes stale the same way and for the same reason: fastfetch
+# recomputes it on every run, and this window only ever runs it again when
+# something about the window or the logo changed — so the figure on screen stays
+# whatever it was when the window opened, and stays there after files are deleted.
 
 LOGO_FILE="$HOME/.config/omarchy/branding/about.txt"
 FIT_FILE="$HOME/.local/state/omarchy/windows/about.fit"
@@ -29,6 +33,12 @@ FIT_SPARE_COLUMNS=2
 FIT_SPARE_ROWS=1
 
 POLL_SECONDS=0.5
+
+# fastfetch draws the storage row with two decimals of whatever unit keeps the
+# number readable, so a difference below one of those decimals cannot change a
+# cell on screen. Comparing at that resolution is what lets the redraw be
+# immediate and still quiet on a machine that is merely writing.
+STORAGE_DECIMALS=2
 
 # fastfetch has no animation of its own, so the sheen is ours. It knows about a
 # logo and nothing about About, which is why it is a file of its own.
@@ -276,12 +286,61 @@ build_sheen() {
   sheen_build "$LOGO_FILE" "$LOGO_ROW" "$LOGO_COLUMN" "${ESC}[0m${LOGO_COLOR}" "$(( cols - LOGO_COLUMN + 1 ))"
 }
 
-# What the frames were built against. A window that resized, or a logo that was
-# rebranded, needs fastfetch run again before anything is drawn over it.
+# The smallest change in used bytes that the storage row could show, worked out
+# from the size of the filesystem it is drawn on. 10**STORAGE_DECIMALS of
+# whatever unit fastfetch would pick for that size: a 900 MB disk and a 900 GB
+# one do not round at the same byte, and assuming one of them is how a real
+# change goes unnoticed.
+storage_quantum() {
+  local bytes="$1" unit=1 quantum
+
+  # Capped at PiB so an absurd size cannot walk the multiply off the end of the
+  # integer, and floored at a byte so the divide below is never by nothing.
+  while (( bytes >= 1024 && unit < 1125899906842624 )); do
+    bytes=$(( bytes / 1024 ))
+    unit=$(( unit * 1024 ))
+  done
+
+  quantum=$(( unit / 10 ** STORAGE_DECIMALS ))
+  (( quantum < 1 )) && quantum=1
+  printf '%d\n' "$quantum"
+}
+
+# Every local filesystem on real storage, rather than the one fastfetch reads the
+# row from. Which mount that is, is fastfetch's own choice, and watching a
+# different one would leave the figure this issue is about still wrong. The
+# memory filesystems are left out because they move on their own all day, and a
+# redraw the machine's own bookkeeping asks for is one nobody wanted.
+storage_stamp() {
+  local source size used
+
+  while read -r source size used; do
+    # df's own header is not a filesystem, and neither is a row with a field that
+    # is not a count. Catching both here keeps a divide by an empty field off the
+    # path rather than answering a question with a shell error.
+    [[ -n $size && -n $used && $size != *[!0-9]* && $used != *[!0-9]* ]] || continue
+    printf '%s %s\n' "$source" "$(( used / $(storage_quantum "$size") ))"
+  done < <(df -l -B1 --output=source,size,used -x tmpfs -x devtmpfs -x squashfs -x overlay 2>/dev/null)
+}
+
+storage_changed() {
+  local current
+  current=$(storage_stamp) || return 1
+
+  # A probe that failed or came back empty says nothing about the storage, and
+  # reading that silence as a change would redraw on every poll.
+  [[ -n $current && $current != "$storage_at_render" ]]
+}
+
+# What the frames were built against. A window that resized, a logo that was
+# rebranded, or storage that moved needs fastfetch run again before anything is
+# drawn over it.
 content_changed() {
   [[ $resized == true ]] && return 0
 
-  [[ $(stty size) != "$grid" || $(stat -c %Y "$LOGO_FILE" 2>/dev/null) != "$logo_stamp" ]]
+  [[ $(stty size) != "$grid" || $(stat -c %Y "$LOGO_FILE" 2>/dev/null) != "$logo_stamp" ]] && return 0
+
+  storage_changed
 }
 
 # A tick either times out, which is the delay, or a key arrives and About closes.
@@ -338,6 +397,12 @@ if [[ ${1:-} == "--render" ]]; then
   while :; do
     grid=$(stty size)
     logo_stamp=$(stat -c %Y "$LOGO_FILE" 2>/dev/null)
+
+    # Stamped before fastfetch rather than after, so a change that lands while it
+    # is running costs one redundant redraw instead of leaving the stale figure
+    # the window was opened with still on screen.
+    storage_at_render=$(storage_stamp)
+
     resized=false
     LAYOUT_ROWS=""
     clear
