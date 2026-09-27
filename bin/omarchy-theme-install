@@ -135,7 +135,7 @@ install_from_catalog() {
   local commit
   local path
 
-  entry=$(omarchy-theme-catalog --entry "$name") || return 1
+  entry=$(omarchy-theme-catalog --entry "$name" --live) || return 1
 
   if [[ -z $entry ]]; then
     echo "Error: '$name' is not a theme in the marketplace. Browse them with: omarchy theme browse"

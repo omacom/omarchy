@@ -2,7 +2,7 @@
 
 # omarchy:summary=Read the published catalog of community themes
 # omarchy:group=theme
-# omarchy:args=[--refresh] [--full] [--entry <name>] [--previews [--size <px>] [name...]]
+# omarchy:args=[--refresh] [--full] [--entry <name> [--live]] [--previews [--size <px>] [name...]]
 # omarchy:hidden=true
 
 # The one place that knows where the theme marketplace publishes and how it is
@@ -32,13 +32,15 @@ fail() {
 
 usage() {
   cat <<USAGE
-Usage: omarchy-theme-catalog [--refresh] [--full] [--entry <name>] [--previews]
+Usage: omarchy-theme-catalog [--refresh] [--full] [--entry <name> [--live]] [--previews]
 
   (no flags)      Print the minimal catalog: one row per theme with the fields
                   browsing needs.
   --full          Print the full catalog, including palettes and warnings.
   --entry <name>  Print one full catalog entry, or nothing when the name is
                   not listed.
+  --live          With --entry: ask the registry for that theme directly,
+                  falling back to the cached catalog. What an install uses.
   --previews      Print "<name><TAB><path>" for each named theme's preview
                   image, downloading the ones not yet cached. Names come from
                   the arguments, or from stdin when none are given.
@@ -140,7 +142,31 @@ print_previews() {
     ' _
 }
 
+# One theme straight from the registry, bypassing the cache: an install should
+# check out the commit validated most recently, not the one a catalog cached up
+# to six hours ago named. The per-theme file is also what the marketplace counts
+# installs by -- a request for that path, carrying nothing about the machine.
+# Only an answer that names this theme and a commit is used; anything else
+# leaves the cached catalog to answer.
+live_entry() {
+  local tmp
+
+  (LC_ALL=C; [[ $ENTRY =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]) || return 1
+  tmp=$(mktemp)
+
+  if curl --silent --location --fail --max-time 20 --output "$tmp" "$CATALOG_URL/v1/themes/$ENTRY.json" &&
+    jq -e --arg slug "$ENTRY" '.slug == $slug and (.commit | type == "string")' "$tmp" >/dev/null 2>&1; then
+    jq -c . "$tmp"
+    rm -f "$tmp"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}
+
 REFRESH=0
+LIVE=0
 MODE="min"
 ENTRY=""
 SIZE=1200
@@ -161,6 +187,10 @@ while (( $# > 0 )); do
     MODE="entry"
     ENTRY="$2"
     shift 2
+    ;;
+  --live)
+    LIVE=1
+    shift
     ;;
   --previews)
     MODE="previews"
@@ -200,6 +230,9 @@ full)
   cat "$(catalog_file catalog.json)"
   ;;
 entry)
+  if (( LIVE )) && live_entry; then
+    exit 0
+  fi
   jq -c --arg slug "$ENTRY" 'first(.themes[] | select(.slug == $slug)) // empty' \
     "$(catalog_file catalog.json)"
   ;;

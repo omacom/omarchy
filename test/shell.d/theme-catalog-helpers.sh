@@ -108,11 +108,26 @@ marketplace_write_catalog() {
       "$fixtures/$name" >"$MARKETPLACE_CDN/v1/$name"
   done
 
+  marketplace_publish_entries
+
   for name in alpha beta gamma delta; do
     dir="$MARKETPLACE_CDN/v1/previews/$name/${MARKETPLACE_COMMITS[$name]}"
     mkdir -p "$dir"
     printf 'RIFF----WEBP fake %s 1200\n' "$name" >"$dir/1200.webp"
     printf 'RIFF----WEBP fake %s 480\n' "$name" >"$dir/480.webp"
+  done
+}
+
+# The per-theme files an install asks for, as the registry publishes them: one
+# per theme in catalog.json, and none for a theme it does not list. A test that
+# edits catalog.json calls this to publish the edit the way the registry would.
+marketplace_publish_entries() {
+  local theme
+
+  rm -rf "$MARKETPLACE_CDN/v1/themes"
+  mkdir -p "$MARKETPLACE_CDN/v1/themes"
+  jq -c '.themes[]' "$MARKETPLACE_CDN/v1/catalog.json" | while IFS= read -r theme; do
+    printf '%s\n' "$theme" >"$MARKETPLACE_CDN/v1/themes/$(jq -r .slug <<<"$theme").json"
   done
 }
 

@@ -127,11 +127,39 @@ missing=$(jq --arg c "0000000000000000000000000000000000000000" \
   '.themes |= map(if .slug == "gamma" then .commit = $c else . end)' \
   "$MARKETPLACE_CDN/v1/catalog.json")
 printf '%s' "$missing" >"$MARKETPLACE_CDN/v1/catalog.json"
+marketplace_publish_entries
 marketplace_forget_catalog
 output=$(omarchy-theme-install gamma 2>&1 || true)
 assert_contains "a missing validated commit refuses the install" "$output" "no longer has the commit"
 [[ ! -e $MARKETPLACE_THEMES/gamma ]] || fail "a refused install leaves nothing behind"
 pass "a refused install leaves nothing behind"
+marketplace_write_catalog
+marketplace_forget_catalog
+
+# --- an install asks the registry for the theme directly --------------------
+
+# The cached catalog can be six hours old. An install asks for the theme's own
+# file instead, so it gets the commit validated most recently: here the
+# registry has moved beta back to its first commit since the catalog was cached.
+omarchy-theme-catalog >/dev/null
+older=$(git -C "${MARKETPLACE_REPOS[beta]}" rev-parse HEAD~1)
+jq --arg c "$older" '.commit = $c' "$MARKETPLACE_CDN/v1/themes/beta.json" >"$MARKETPLACE_TMP/beta.json"
+mv "$MARKETPLACE_TMP/beta.json" "$MARKETPLACE_CDN/v1/themes/beta.json"
+omarchy-theme-install beta >/dev/null 2>&1
+assert_equal "an install uses the registry's latest word, not the cached catalog" \
+  "$(git -C "$MARKETPLACE_THEMES/beta" rev-parse HEAD)" "$older"
+rm -rf "$MARKETPLACE_THEMES/beta"
+
+# When the theme's file cannot be had, or answers for some other theme, the
+# cached catalog answers as it always did.
+rm -f "$MARKETPLACE_CDN/v1/themes/beta.json"
+omarchy-theme-install beta >/dev/null 2>&1
+assert_equal "without the theme's file, the cached catalog's commit is installed" \
+  "$(git -C "$MARKETPLACE_THEMES/beta" rev-parse HEAD)" "${MARKETPLACE_COMMITS[beta]}"
+rm -rf "$MARKETPLACE_THEMES/beta"
+cp "$MARKETPLACE_CDN/v1/themes/alpha.json" "$MARKETPLACE_CDN/v1/themes/beta.json"
+assert_equal "a file naming another theme is not believed" \
+  "$(omarchy-theme-catalog --entry beta --live | jq -r .slug)" "beta"
 marketplace_write_catalog
 marketplace_forget_catalog
 
@@ -217,6 +245,7 @@ list_hostile() {
       "$MARKETPLACE_CDN/v1/$name" >"$MARKETPLACE_TMP/listed" &&
       mv "$MARKETPLACE_TMP/listed" "$MARKETPLACE_CDN/v1/$name"
   done
+  marketplace_publish_entries
   marketplace_forget_catalog
 }
 
