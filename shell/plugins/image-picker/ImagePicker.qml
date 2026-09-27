@@ -367,7 +367,30 @@ Item {
     color: "transparent"
     WlrLayershell.namespace: "omarchy-image-selector"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root.opened && root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    // Prime with Exclusive on open, then settle on OnDemand, the same way
+    // Ui/KeyboardPanel.qml does. Exclusive grants focus when the surface
+    // maps, but it also makes Hyprland route every pointer and touch event
+    // here no matter what is drawn above, so a surface on top of this one
+    // cannot be reached and the event dismisses this instead. OnDemand
+    // releases that. The brief prime keeps the focus that Exclusive was
+    // there for.
+    property bool focusPrimed: false
+    readonly property bool focusGate: root.opened && root.imagesLoaded
+    WlrLayershell.keyboardFocus: panel.focusGate
+      ? (panel.focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
+      : WlrKeyboardFocus.None
+    onFocusGateChanged: {
+      panel.focusPrimed = false
+      if (panel.focusGate) focusPrimeTimer.restart()
+      else focusPrimeTimer.stop()
+    }
+    Timer {
+      id: focusPrimeTimer
+      // Long enough for a few Qt/Wayland commit cycles, short enough that
+      // the compositor-wide Exclusive phase is imperceptible.
+      interval: 75
+      onTriggered: if (panel.focusGate) panel.focusPrimed = true
+    }
     exclusionMode: ExclusionMode.Ignore
 
     Rectangle {
