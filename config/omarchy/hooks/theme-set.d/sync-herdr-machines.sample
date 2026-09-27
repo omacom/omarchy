@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# This hook is called with the snake-cased name of the theme that has just been set.
+# To put it into use, remove .sample from this file name.
+
+# Mirror each theme change to every enabled herdr machine that runs Omarchy.
+# The theme must also be installed on those machines. Results are logged to
+# ~/.local/state/omarchy/herdr-theme-sync.log. Running the hook with
+# OMARCHY_THEME_SYNC_DRY_RUN=1 reaches each machine's desktop session but leaves its theme alone.
+
+# A change that arrived from another machine stops here, so machines never echo it back.
+if [[ -z $1 || -n $OMARCHY_THEME_SYNC_FROM ]] || omarchy-cmd-missing herdr; then
+  exit 0
+fi
+
+LOG="$HOME/.local/state/omarchy/herdr-theme-sync.log"
+mkdir -p "${LOG%/*}"
+
+# Runs on the remote machine under a login shell, so OMARCHY_PATH and PATH are set.
+# SSH carries no desktop session, so the environment comes from the live Hyprland instance.
+# Braces make bash read the whole script before running it, so nothing it runs can consume the rest.
+read -r -d '' REMOTE_SCRIPT <<'EOF'
+{
+  if ! command -v omarchy >/dev/null; then
+    echo "not running Omarchy"
+    exit 0
+  fi
+
+  if [[ $(cat ~/.local/state/omarchy/current/theme.name 2>/dev/null) == "$theme" ]]; then
+    echo "already on $theme"
+    exit 0
+  fi
+
+  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+  instance=$(hyprctl instances -j 2>/dev/null | jq -r 'max_by(.time) // empty | "\(.instance) \(.wl_socket)"')
+  if [[ -z $instance ]]; then
+    echo "no Hyprland session"
+    exit 0
+  fi
+
+  read -r HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY <<<"$instance"
+  export HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+  export OMARCHY_THEME_SYNC_FROM="$from"
+
+  if [[ $dry_run == "1" ]]; then
+    echo "dry run: would set $theme (session $WAYLAND_DISPLAY)"
+  elif omarchy theme set "$theme" >/dev/null 2>&1; then
+    echo "set $theme"
+  else
+    echo "failed to set $theme"
+    exit 1
+  fi
+} </dev/null
+EOF
+
+# SSH joins its arguments into a remote shell command, so values travel on stdin as quoted
+# assignments instead. Returns non-zero when the machine could not be reached.
+sync_machine() {
+  local target=$1 theme=$2 output status
+
+  output=$(
+    {
+      printf 'theme=%q from=%q dry_run=%q\n' "$theme" "$(hostname)" "${OMARCHY_THEME_SYNC_DRY_RUN:-0}"
+      printf '%s\n' "$REMOTE_SCRIPT"
+    } | timeout 60 ssh -o BatchMode=yes -o ConnectTimeout=5 "$target" bash -l -s 2>&1
+  )
+  status=$?
+
+  echo "$(date '+%F %T') $target: $(tail -n 1 <<<"${output:-unreachable}")"
+  return $status
+}
+
+sync_machines() {
+  local theme targets=() i
+
+  # Serialize runs and send whichever theme is current once the lock is held,
+  # so a slow earlier run can never overwrite a later theme change.
+  exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-herdr-theme-sync.lock"
+  flock 9
+  theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+  [[ -n $theme ]] || return 0
+
+  # Columns: id, label, SSH target, session, state.
+  mapfile -t targets < <(herdr machine list | awk -F '\t' -v self="$(hostname)" '$5 == "enabled" && $2 != self { print $3 }')
+
+  # An SSH agent such as 1Password remembers its approval per application, so connect one
+  # machine at a time until one succeeds. Parallel connections before that would each ask.
+  for (( i = 0; i < ${#targets[@]}; i++ )); do
+    sync_machine "${targets[i]}" "$theme" && break
+  done
+
+  for target in "${targets[@]:i+1}"; do
+    sync_machine "$target" "$theme" &
+  done
+  wait
+}
+
+export REMOTE_SCRIPT
+export -f sync_machine sync_machines
+
+# Detach so omarchy-theme-set never waits on SSH.
+setsid bash -c sync_machines >>"$LOG" 2>&1 </dev/null &
