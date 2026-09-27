@@ -60,3 +60,15 @@ pass "the screensaver opens on its own special workspace, leaving a fullscreen w
 [[ ${spawns[1]} == *"[workspace special:scratchpad]"* ]] ||
   fail "the screensaver shares a special workspace that is already showing" "${spawns[1]}"
 pass "the screensaver shares a special workspace that is already showing"
+
+# Emptying a special workspace focuses its monitor; the last screensaver to close must not keep focus.
+printf '[{"class":"org.omarchy.screensaver","mapped":false}]\n' >"$tmpdir/clients.json"
+: >"$tmpdir/calls"
+printf 'closewindow>>2\n' >&"$events"
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" && break
+  sleep 0.05
+done
+grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" ||
+  fail "focus returns to the monitor that had it once the screensaver closes" "$(<"$tmpdir/calls")"
+pass "focus returns to the monitor that had it once the screensaver closes"
