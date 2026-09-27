@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -30,6 +31,14 @@ Item {
   property string doneFile: ""
   property string filterText: ""
   property var doneFilesToRelease: []
+  // Themes open from rows the shell already holds, so the picker shows without
+  // waiting on omarchy-theme-switcher; each open refreshes them behind it.
+  property string themeRows: ""
+  property bool themeMode: false
+  property bool themeOpenPending: false
+  // The surface outlives each open, so it no longer lands on the focused
+  // output by itself. Unset until the first open lets the compositor choose.
+  property var targetScreen: null
   // Bound to the central [image-picker] section in shell.toml via Color.qml.
   // `dimColor` tints unselected slices and text outlines on top of the scrim;
   // it intentionally tracks the foundational background, not a surface role.
@@ -151,6 +160,14 @@ Item {
 
   function applySelected() {
     var path = currentPath()
+
+    if (themeMode) {
+      themeMode = false
+      root.opened = false
+      if (path) Util.execArgv(["omarchy-theme-set", nameForPath(path)])
+      return
+    }
+
     if (!path || !selectionFile) {
       cancel()
       return
@@ -168,6 +185,8 @@ Item {
   }
 
   function cancel() {
+    themeOpenPending = false
+
     if (requestActive)
       finishDoneFile(doneFile)
 
@@ -179,6 +198,7 @@ Item {
 
   function closeSelector(nextDoneFile) {
     requestSerial += 1
+    themeOpenPending = false
 
     if (requestActive)
       finishDoneFile(doneFile)
@@ -212,6 +232,9 @@ Item {
       finishDoneFile(doneFile)
 
     requestSerial += 1
+    themeMode = false
+    themeOpenPending = false
+    targetScreen = focusedScreen() || targetScreen
 
     imageDirs = nextImageDirs
     imageRows = nextImageRows
@@ -254,6 +277,76 @@ Item {
   }
 
   property var imageArray: []
+
+  function focusedScreen() {
+    var monitor = Hyprland.focusedMonitor
+    var name = monitor ? String(monitor.name || "") : ""
+    for (var i = 0; i < Quickshell.screens.length; i++) {
+      if (Quickshell.screens[i].name === name) return Quickshell.screens[i]
+    }
+    return null
+  }
+
+  function currentThemePreview() {
+    var name = String(themeNameFile.text() || "").trim()
+    var images = ImagePickerModel.loadRows(themeRows)
+    for (var i = 0; i < images.length; i++) {
+      if (nameForPath(images[i].filePath) === name) return images[i].filePath
+    }
+    return ""
+  }
+
+  function openThemes() {
+    if (themeRows) {
+      openThemeRows()
+    } else {
+      // First open before the startup refresh has landed.
+      themeOpenPending = true
+    }
+    refreshThemeRows()
+  }
+
+  function openThemeRows() {
+    openSelector("", themeRows, currentThemePreview(), "", "", true, true)
+    themeMode = true
+  }
+
+  function refreshThemeRows() {
+    if (!themeRowsProc.running) themeRowsProc.running = true
+  }
+
+  function updateThemeRows(rows) {
+    var changed = rows !== themeRows
+    themeRows = rows
+
+    if (themeOpenPending) {
+      themeOpenPending = false
+      if (rows) openThemeRows()
+    } else if (changed && rows && themeMode && opened) {
+      // A theme was added or removed since the rows were last read. Keep the
+      // user's place in the carousel rather than jumping back to the current.
+      selectedImage = currentPath() || currentThemePreview()
+      imageRows = rows
+      loadRows(rows, false)
+    }
+  }
+
+  FileView {
+    id: themeNameFile
+    path: root.stateHome + "/omarchy/current/theme.name"
+    watchChanges: true
+    onFileChanged: reload()
+  }
+
+  Process {
+    id: themeRowsProc
+    command: [root.omarchyPath + "/bin/omarchy-theme-switcher", "--print-rows"]
+    stdout: StdioCollector {
+      onStreamFinished: root.updateThemeRows(String(text || "").trim())
+    }
+  }
+
+  Component.onCompleted: refreshThemeRows()
 
   function startImageScan(serial, dirs) {
     if (loadImagesProc.running) {
@@ -309,6 +402,10 @@ Item {
     if (payload) {
       try { args = JSON.parse(payload) || {} } catch (e) { args = {} }
     }
+    if (args.source === "themes") {
+      openThemes()
+      return
+    }
     var dirs = String(args.imageDirs || imageDirs)
     var rows = String(args.imageRows || "")
     var sel = String(args.selectedImage || selectedImage)
@@ -362,13 +459,22 @@ Item {
   PanelWindow {
     id: panel
 
-    visible: root.opened
+    // Stay mapped between opens. A fresh surface renders its first frames
+    // before the compositor sends its fractional scale, so the picker flashed
+    // blurry, and it had to re-upload every thumbnail texture. Closed, it
+    // waits transparent and input-less on the bottom layer: anything left on
+    // the overlay layer would block direct scanout for fullscreen apps.
+    visible: true
+    screen: root.targetScreen
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
+    mask: root.opened ? null : closedMask
     WlrLayershell.namespace: "omarchy-image-selector"
-    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.layer: root.opened ? WlrLayer.Overlay : WlrLayer.Bottom
     WlrLayershell.keyboardFocus: root.opened && root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
+
+    Region { id: closedMask }
 
     Rectangle {
       anchors.fill: parent

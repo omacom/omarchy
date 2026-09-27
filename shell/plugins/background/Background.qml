@@ -10,6 +10,7 @@ import qs.Ui
 Item {
   id: root
 
+  property var shell: null
   readonly property string home: Quickshell.env("HOME")
   readonly property string stateHome: home + "/.local/state"
   readonly property string currentBackgroundLink: stateHome + "/omarchy/current/background"
@@ -111,18 +112,17 @@ Item {
   }
 
   function openThemeSwitcher() {
-    if (!themeSwitchProc.running) themeSwitchProc.running = true
+    var payload = JSON.stringify({ source: "themes" })
+
+    // A cloned background may not summon the picker in-process, so it takes
+    // the IPC route instead.
+    if (!root.shell || !root.shell.summon("omarchy.image-picker", payload))
+      Util.execArgv(["omarchy-shell", "shell", "summon", "omarchy.image-picker", payload])
   }
 
   Process {
     id: bgSwitchProc
     command: ["bash", "-c", "background=$(omarchy-theme-bg-switcher); [[ -n $background ]] && omarchy-theme-bg-set \"$background\""]
-    onExited: root.refreshBackground()
-  }
-
-  Process {
-    id: themeSwitchProc
-    command: ["bash", "-c", "theme=$(omarchy-theme-switcher); [[ -n $theme ]] && omarchy-theme-set \"$theme\" >/dev/null 2>&1 &"]
     onExited: root.refreshBackground()
   }
 
