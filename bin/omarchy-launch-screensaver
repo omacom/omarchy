@@ -50,9 +50,10 @@ wait_for_screensaver_window() {
   done
 }
 
-for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
+while read -r m special; do
   hypr_focus_monitor "$m"
-  workspace="special:screensaver-$m"
+  # Share a special workspace that is already showing, like the scratchpad, so it is still open afterwards.
+  workspace=${special:-special:screensaver-$m}
 
   case $terminal in
   *Alacritty*)
@@ -70,6 +71,6 @@ for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
   esac
 
   wait_for_screensaver_window
-done
+done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
 
 hypr_focus_monitor "$focused"
