@@ -1,6 +1,6 @@
-if lspci -nn | grep -q "106b:180[12]" && [[ ! -f /usr/lib/systemd/system-sleep/wifi-resume ]]; then
-  echo "Installing WiFi resume hook for T2 MacBook"
+echo "Install WiFi resume hook on T2 MacBooks"
 
+if lspci -nn | grep -q "106b:180[12]" && [[ ! -f /usr/lib/systemd/system-sleep/wifi-resume ]]; then
   cat <<'HOOK' | sudo tee /usr/lib/systemd/system-sleep/wifi-resume >/dev/null
 #!/bin/bash
 if [[ $1 == "post" ]]; then
