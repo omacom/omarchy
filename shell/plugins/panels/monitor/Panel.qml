@@ -56,7 +56,7 @@ Panel {
 
   // Text size slider — curated macOS-style notches (px). The panel snaps to
   // these stops; the CLI (omarchy-display-text-size) accepts any integer in range.
-  readonly property var textSizeStops: [9, 10, 11, 12, 14, 16, 20]
+  readonly property var textSizeStops: [10, 11, 12, 13, 14, 16, 18]
   // While a change is in flight, the chosen stop index overrides the live
   // base-size so the knob doesn't snap back during the file round-trip. -1 =
   // no pending change; follow Style.font.baseSize.

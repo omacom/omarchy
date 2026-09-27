@@ -126,7 +126,7 @@ grep -qx 'font_family Test Font' "$kitty_config" || fail "font command creates f
 run_command omarchy-font-set Font
 grep -qx 'font_family Font' "$kitty_config" || fail "font command updates family override"
 [[ $(grep -c '^font_family ' "$kitty_config") == "1" ]] || fail "font update avoids duplicate overrides"
-grep -qx 'font_size 12.0' "$kitty_config" || fail "size command creates size override"
+grep -qx 'font_size 11.0' "$kitty_config" || fail "size command creates size override"
 grep -qx '# font_size 12' "$kitty_config" || fail "font commands keep commented instructions"
 run_command omarchy-display-text-size 18
 [[ $(grep -c '^font_size ' "$kitty_config") == "1" ]] || fail "size update avoids duplicate overrides"
@@ -140,11 +140,11 @@ output=$(run_command omarchy-display-text-size)
 run_command omarchy-font-set 'Test Font'
 run_command omarchy-display-text-size 16
 grep -qx 'font_family Test Font' "$kitty_config" || fail "font command handles absent config"
-grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent setting"
+grep -qx 'font_size 11.0' "$kitty_config" || fail "size command handles absent setting"
 ! grep -q '^include ' "$kitty_config" || fail "font controls must not opt users back into theming"
 rm "$kitty_config"
 run_command omarchy-display-text-size 16
-grep -qx 'font_size 12.0' "$kitty_config" || fail "size command handles absent config"
+grep -qx 'font_size 11.0' "$kitty_config" || fail "size command handles absent config"
 pass "font controls create missing Kitty overrides without restoring the theme include"
 
 if "$ROOT/bin/omarchy-cmd-present" kitty; then

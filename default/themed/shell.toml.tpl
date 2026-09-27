@@ -103,21 +103,21 @@ scale-with-font = true
 # derives from it (e.g. body = base, subtitle ≈ base * 1.083,
 # heading ≈ base * 1.333). The shell only floors this at 1px; increase it
 # as much as you want.
-base-size = 12
+base-size = 13
 # Per-token overrides, in px. Uncomment any to pin a specific size without
 # affecting the rest of the scale. Useful for stylistic emphasis (a
 # minimalist theme that wants a bigger heading without scaling everything).
-# caption       = 10
-# body-small    = 11
-# body          = 12
-# subtitle      = 13
-# title         = 14
-# heading       = 16
-# display       = 24
-# display-large = 28
-# icon-small    = 11
-# icon          = 14
-# icon-large    = 18
+# caption       = 11
+# body-small    = 12
+# body          = 13
+# subtitle      = 14
+# title         = 15
+# heading       = 17
+# display       = 26
+# display-large = 30
+# icon-small    = 12
+# icon          = 15
+# icon-large    = 20
 
 [popups]
 # Shared by every bar flyout (dropdowns, OSD, popup cards).

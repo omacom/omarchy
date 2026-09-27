@@ -28,8 +28,9 @@ Item {
     textFormat: Text.PlainText
     // Keep the shared line box and baseline intact. Correcting only the
     // horizontal painted bounds avoids per-glyph vertical drift.
-    anchors.centerIn: parent
-    anchors.horizontalCenterOffset: root.horizontalCorrection
+    anchors.verticalCenter: parent.verticalCenter
+    // centerIn rounds odd-sized canvases, leaving some glyphs visibly off-center.
+    x: (parent.width - width) / 2 + root.horizontalCorrection
     text: root.text
     color: root.color
     font.family: root.fontFamily

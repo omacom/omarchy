@@ -307,7 +307,7 @@ Popout placement deliberately follows Hyprland's `general:gaps_out`
 interior breathing room.
 
 For one-off proportional constants, use `Style.space(px)` to preserve the
-old default at scale `1.0` and `base-size = 12` while still responding to
+the 12px reference size at scale `1.0` while still responding to
 the theme scale and font scale. Use `Style.spaceReal(px)` only for
 fractional geometry that should not be rounded, such as bar widget text
 margins. Themes can override any semantic token directly in `[spacing]`,
@@ -328,23 +328,23 @@ bumping `base-size` rescales the whole shell proportionally:
 
 | Token                 | Multiplier | Default |
 |-----------------------|------------|---------|
-| `Style.font.caption`      | 0.833 | 10 |
-| `Style.font.bodySmall`    | 0.917 | 11 |
-| `Style.font.body`         | 1.0   | 12 |
-| `Style.font.subtitle`     | 1.083 | 13 |
-| `Style.font.title`        | 1.167 | 14 |
-| `Style.font.heading`      | 1.333 | 16 |
-| `Style.font.display`      | 2.0   | 24 |
-| `Style.font.displayLarge` | 2.333 | 28 |
-| `Style.font.iconSmall`    | bodySmall | 11 |
-| `Style.font.icon`         | title     | 14 |
-| `Style.font.iconLarge`    | 1.5       | 18 |
+| `Style.font.caption`      | 0.833 | 11 |
+| `Style.font.bodySmall`    | 0.917 | 12 |
+| `Style.font.body`         | 1.0   | 13 |
+| `Style.font.subtitle`     | 1.083 | 14 |
+| `Style.font.title`        | 1.167 | 15 |
+| `Style.font.heading`      | 1.333 | 17 |
+| `Style.font.display`      | 2.0   | 26 |
+| `Style.font.displayLarge` | 2.333 | 30 |
+| `Style.font.iconSmall`    | bodySmall | 12 |
+| `Style.font.icon`         | title     | 15 |
+| `Style.font.iconLarge`    | 1.5       | 20 |
 
 A theme can either scale everything by tweaking `base-size`:
 
 ```toml
 [font]
-base-size = 13   # roomier
+base-size = 14   # roomier
 ```
 
 …or pin individual tokens for stylistic emphasis without affecting
@@ -369,8 +369,8 @@ themes don't set it, the user does via `omarchy font set <name>`.
 ### Bar size
 
 `[bar] size-horizontal` / `size-vertical` set the cross-axis dimension
-of top/bottom and left/right bars respectively, measured at the default
-12px font base. By default `scale-with-font = true`, so increasing
+of top/bottom and left/right bars respectively, measured at the 12px reference
+font base. By default `scale-with-font = true`, so increasing
 `[font] base-size` also increases the bar's cross-axis size:
 
 ```toml
