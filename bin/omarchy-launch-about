@@ -10,7 +10,7 @@
 
 LOGO_FILE="$HOME/.config/omarchy/branding/about.txt"
 FIT_FILE="$HOME/.local/state/omarchy/windows/about.fit"
-OMARCHY_FASTFETCH_DIR=/etc/fastfetch
+OMARCHY_FASTFETCH_DIR=${OMARCHY_FASTFETCH_DIR:-/etc/fastfetch}
 
 # The logo block in the fastfetch config. The fit below reproduces this layout to
 # size the window, and the sheen has to repaint the very cells fastfetch drew the
@@ -325,13 +325,18 @@ plain_config() {
   ' "$OMARCHY_FASTFETCH_DIR/config.jsonc"
 }
 
-# Fenced so it keeps its lines when pasted into a GitHub issue.
+# Fenced so it keeps its lines when pasted into a GitHub issue. The config is
+# written to the file given, which the caller owns and cleans up.
+#
+# fastfetch takes its first parent to be the shell and the next one up to be the
+# terminal. Here that parent is this copy, the About render above it is the
+# shell, and the terminal About runs in is above that — so exec, to add no
+# subshell of its own, and have fastfetch skip the one parent that is this copy.
+# Otherwise the report names About as the terminal and has no font to go with it.
 copy_report() {
-  local config report
+  local config=$1 report
 
-  config=$(mktemp --suffix=.jsonc)
-  plain_config >"$config" && report=$(fastfetch --config "$config" --pipe true 2>/dev/null)
-  rm -f "$config"
+  plain_config >"$config" && report=$(FFTS_IGNORE_PARENT=1 exec fastfetch --config "$config" --pipe true 2>/dev/null)
 
   if [[ -n ${report:-} ]] && printf '```\n%s\n```' "$report" | wl-copy --type text/plain; then
     omarchy-notification-send -g 󰅍 "System details copied to clipboard" "Paste them into your bug report."
@@ -345,13 +350,16 @@ copy_report() {
 # any other key closes it. Anything else on stdin is a terminal that went away,
 # which closes it too. The copy runs in a session of its own, so closing About
 # straight after pressing c does not take the report, or the notice saying what
-# became of it, down with the window.
+# became of it, down with the window. It stays a child of About, though, without
+# setsid forking it away, because fastfetch finds the terminal by walking up from
+# it. And it gets no terminal to read from, so nothing fastfetch asks the terminal
+# is answered into the keys About is reading.
 tick() {
   local key
 
   if read -t "$1" -n 1 -s key; then
     if [[ $key == "c" ]]; then
-      setsid -f omarchy-launch-about --copy >/dev/null 2>&1
+      setsid omarchy-launch-about --copy </dev/null >/dev/null 2>&1 &
     else
       exit
     fi
@@ -392,7 +400,9 @@ rest_sheen() {
 }
 
 if [[ ${1:-} == "--copy" ]]; then
-  copy_report
+  COPY_CONFIG=$(mktemp --suffix=.jsonc)
+  trap 'rm -f "$COPY_CONFIG"' EXIT
+  copy_report "$COPY_CONFIG"
   exit
 fi
 

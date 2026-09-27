@@ -323,7 +323,7 @@ setsid() { printf '%s\n' "$*" >"$tmp_dir/copied"; }
 after=$( tick 1 <<<"c"; echo open )
 [[ -e $tmp_dir/copied ]] || fail "c copies the report"
 pass "c copies the report"
-[[ $(<"$tmp_dir/copied") == "-f omarchy-launch-about --copy" ]] || fail "the copy outlives About" "$(<"$tmp_dir/copied")"
+[[ $(<"$tmp_dir/copied") == "omarchy-launch-about --copy" ]] || fail "the copy outlives About" "$(<"$tmp_dir/copied")"
 pass "the copy outlives About"
 [[ $after == "open" ]] || fail "c leaves About open"
 pass "c leaves About open"
@@ -338,15 +338,33 @@ pass "any other key closes About without copying"
 # a fenced block of "Label: value" lines, with nothing a GitHub issue would show
 # as noise. The clipboard itself is left alone, so running the suite never
 # clobbers what the developer had copied.
+#
+# The copy execs fastfetch, which a function cannot stand in for, and runs as a
+# process of its own, which functions do not reach. So the stand-ins are commands
+# on PATH. omarchy-version answers only where the omarchy package is installed,
+# and fastfetch drops the OS line without it, so it stands in too.
 eval "$real_copy_report"
 unset -f fastfetch
 clipboard="$tmp_dir/clipboard"
 notified="$tmp_dir/notified"
-wl-copy() { printf '%s\n' "$*" >"$tmp_dir/wl-copy-args"; cat >"$clipboard"; }
-omarchy-notification-send() { printf '%s\n' "$*" >"$notified"; }
+stubs="$tmp_dir/stubs"
+mkdir -p "$stubs"
+cat >"$stubs/wl-copy" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >"$tmp_dir/wl-copy-args"
+cat >"$clipboard"
+STUB
+cat >"$stubs/omarchy-notification-send" <<STUB
+#!/bin/bash
+printf '%s\n' "\$*" >"$notified"
+STUB
+printf '#!/bin/bash\necho 9.9.9\n' >"$stubs/omarchy-version"
+chmod +x "$stubs"/*
+unset -f setsid
+PATH="$stubs:$PATH"
 rm -f "$clipboard" "$notified"
 
-copy_report
+copy_report "$tmp_dir/report.jsonc"
 [[ -s $clipboard ]] || fail "the report reaches the clipboard"
 pass "the report reaches the clipboard"
 
@@ -392,18 +410,52 @@ pass "copying says so"
 
 # A clipboard that would not take the report is a copy that did not happen, and
 # saying otherwise sends someone to paste nothing into their bug report.
-wl-copy() { cat >/dev/null; return 1; }
+printf '#!/bin/bash\ncat >/dev/null\nexit 1\n' >"$stubs/wl-copy"
 rm -f "$notified"
-copy_report || true
+copy_report "$tmp_dir/report.jsonc" || true
 [[ $(<"$notified") == *"-u critical"*"Could not copy"* ]] || fail "a clipboard that refused the report says so" "$(<"$notified")"
 pass "a clipboard that refused the report says so"
 
 # A report fastfetch could not produce copies nothing, rather than an empty fence
 # that pastes as if the details had been there.
-fastfetch() { return 1; }
+failing="$tmp_dir/failing"
+mkdir -p "$failing"
+printf '#!/bin/bash\nexit 1\n' >"$failing/fastfetch"
+chmod +x "$failing/fastfetch"
+cat >"$stubs/wl-copy" <<STUB
+#!/bin/bash
+cat >"$clipboard"
+STUB
 rm -f "$clipboard" "$notified"
-copy_report || true
+PATH="$failing:$PATH"
+copy_report "$tmp_dir/report.jsonc" || true
 [[ ! -e $clipboard ]] || fail "a failed report leaves the clipboard alone"
 pass "a failed report leaves the clipboard alone"
 [[ $(<"$notified") == *"-u critical"*"Could not copy"* ]] || fail "a failed report says so" "$(<"$notified")"
 pass "a failed report says so"
+PATH=${PATH#"$failing:"}
+
+# Pressed on About, the copy runs under the About render, which runs under the
+# terminal. The report has to name that terminal, not About, whose process name
+# fastfetch would otherwise take for one. Stand in for the terminal with a
+# command called foot, running a render that takes c exactly as About does.
+terminal="$tmp_dir/terminal"
+mkdir -p "$terminal"
+cat >"$terminal/render" <<STUB
+#!/bin/bash
+source "$tmp_dir/about.bash"
+tick 1 <<<"c"
+wait
+STUB
+cat >"$terminal/foot" <<STUB
+#!/bin/bash
+"$terminal/render"
+STUB
+chmod +x "$terminal/render" "$terminal/foot"
+rm -f "$clipboard" "$notified"
+OMARCHY_FASTFETCH_DIR="$OMARCHY_FASTFETCH_DIR" "$terminal/foot"
+for i in {1..50}; do [[ -s $notified ]] && break; sleep 0.1; done
+[[ -s $clipboard ]] || fail "c on About copies the report" "$(cat "$notified" 2>/dev/null)"
+pass "c on About copies the report"
+grep -q "^Terminal: foot" "$clipboard" || fail "the report names the terminal About runs in" "$(grep "^Terminal" "$clipboard")"
+pass "the report names the terminal About runs in"
