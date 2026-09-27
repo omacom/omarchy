@@ -46,7 +46,7 @@ Rectangle {
   radius: Style.cornerRadius
   // Opaque: knocked-aside rows pass over one another and over the globe.
   // The picked city lights up like a hovered one, so the arrow keys show where they are.
-  readonly property bool lit: rowHover.hovered || panel.focusIndex === index
+  readonly property bool lit: rowHover.hovered || (panel.focusIndex === index && !panel.addSelected)
   color: Model.mix(Color.popups.background, foreground, lit ? phaseFill + 0.05 : phaseFill)
 
   // Transforms leave the Column's layout alone: the knock that clears the

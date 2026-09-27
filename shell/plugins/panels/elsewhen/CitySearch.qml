@@ -27,6 +27,8 @@ Column {
 
   // False when the host shows CityMatches elsewhere.
   property bool inlineResults: true
+  // The host's keyboard cursor is on the button.
+  property bool hasCursor: false
 
   property bool active: false
   readonly property string query: field.text
@@ -74,6 +76,7 @@ Column {
     foreground: search.foreground
     fontFamily: search.fontFamily
     bordered: true
+    hasCursor: search.hasCursor
     onClicked: search.start()
   }
 
