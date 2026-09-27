@@ -3,12 +3,13 @@
 # omarchy:summary=Reset the trackpad by unbinding and rebinding its driver.
 # omarchy:requires-sudo=true
 
-# Only reset I2C HID devices that udev marks as a touchpad, so the keyboard and
-# touchscreen sharing the i2c_hid_acpi driver are left alone.
+# Only reset I2C devices that udev marks as a touchpad, so the keyboard and
+# touchscreen sharing the i2c_hid_acpi driver are left alone. elan_i2c registers
+# its input device on the I2C device itself; HID over I2C one level down.
 is_touchpad() {
   local input
 
-  for input in "$1"/*/input/input*; do
+  for input in "$1"/input/input* "$1"/*/input/input*; do
     if udevadm info --query=property "$input" 2>/dev/null | grep -qx "ID_INPUT_TOUCHPAD=1"; then
       return 0
     fi
@@ -20,18 +21,22 @@ is_touchpad() {
 echo "Releasing the trackpad in Hyprland..."
 omarchy-toggle-input-device touchpad cycle
 
-driver="${OMARCHY_I2C_HID_DRIVER_PATH:-/sys/bus/i2c/drivers/i2c_hid_acpi}"
+drivers="${OMARCHY_I2C_DRIVERS_PATH:-/sys/bus/i2c/drivers}"
 
-for dev in "$driver"/i2c-*; do
-  [[ -e $dev ]] || continue
-  is_touchpad "$dev" || continue
+# A touchpad sits behind whichever I2C driver claimed it: i2c_hid_acpi for HID
+# over I2C, elan_i2c for ELAN's own protocol (common on ASUS laptops).
+for driver in i2c_hid_acpi elan_i2c; do
+  for dev in "$drivers/$driver"/i2c-*; do
+    [[ -e $dev ]] || continue
+    is_touchpad "$dev" || continue
 
-  I2C_DEVICE=$(basename "$dev")
-  echo "Resetting $I2C_DEVICE via i2c_hid_acpi unbind/rebind..."
-  echo "$I2C_DEVICE" | sudo tee "$driver/unbind" > /dev/null
-  sleep 1
-  echo "$I2C_DEVICE" | sudo tee "$driver/bind" > /dev/null
-  echo "Done"
+    I2C_DEVICE=$(basename "$dev")
+    echo "Resetting $I2C_DEVICE via $driver unbind/rebind..."
+    echo "$I2C_DEVICE" | sudo tee "$drivers/$driver/unbind" > /dev/null
+    sleep 1
+    echo "$I2C_DEVICE" | sudo tee "$drivers/$driver/bind" > /dev/null
+    echo "Done"
+  done
 done
 
 # Also try THC path
