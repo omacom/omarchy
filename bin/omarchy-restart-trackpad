@@ -3,14 +3,18 @@
 # omarchy:summary=Reset the trackpad by unbinding and rebinding its driver.
 # omarchy:requires-sudo=true
 
-for dev in /sys/bus/i2c/drivers/i2c_hid_acpi/i2c-*; do
-  [[ -e $dev ]] || continue
-  I2C_DEVICE=$(basename "$dev")
-  echo "Resetting $I2C_DEVICE via i2c_hid_acpi unbind/rebind..."
-  echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/i2c_hid_acpi/unbind > /dev/null
-  sleep 1
-  echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/i2c_hid_acpi/bind > /dev/null
-  echo "Done"
+# A touchpad sits behind whichever I2C driver claimed it: i2c_hid_acpi for HID
+# over I2C, elan_i2c for ELAN's own protocol (common on ASUS laptops).
+for driver in i2c_hid_acpi elan_i2c; do
+  for dev in /sys/bus/i2c/drivers/$driver/i2c-*; do
+    [[ -e $dev ]] || continue
+    I2C_DEVICE=$(basename "$dev")
+    echo "Resetting $I2C_DEVICE via $driver unbind/rebind..."
+    echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/$driver/unbind > /dev/null
+    sleep 1
+    echo "$I2C_DEVICE" | sudo tee /sys/bus/i2c/drivers/$driver/bind > /dev/null
+    echo "Done"
+  done
 done
 
 # Also try THC path
