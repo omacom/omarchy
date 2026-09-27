@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether every NVIDIA GPU is runtime-suspended, so it is driving no display.
+
+# Read the cached sysfs power state rather than lspci or NVML, both of which
+# resume a runtime-suspended GPU just by asking after it.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+found=false
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/vendor") == "0x10de" ]] || continue
+  [[ $(< "$device/class") == 0x03* ]] || continue
+
+  found=true
+  [[ -r $device/power/runtime_status && $(< "$device/power/runtime_status") == "suspended" ]] || exit 1
+done
+
+[[ $found == "true" ]]
