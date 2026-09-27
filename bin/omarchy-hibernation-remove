@@ -44,6 +44,14 @@ if grep -Fq "$SWAP_FILE" /etc/fstab; then
   sudo sed -i '/^# Btrfs swapfile for system hibernation$/d' /etc/fstab
 fi
 
+# Without hibernation, UPower's critical action goes back to its default
+UPOWER_DROP_IN="/etc/UPower/UPower.conf.d/70-omarchy-critical-hibernate.conf"
+if [[ -f $UPOWER_DROP_IN ]]; then
+  echo "Removing critical battery hibernation"
+  sudo rm -f "$UPOWER_DROP_IN"
+  sudo systemctl try-restart upower.service
+fi
+
 # Remove mkinitcpio resume hook
 echo "Removing resume hook"
 sudo rm "$MKINITCPIO_CONF"
