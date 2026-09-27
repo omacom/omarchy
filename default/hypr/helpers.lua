@@ -1,5 +1,7 @@
 -- Shared helpers for Hyprland Lua configuration.
 
+local paths = require("default.hypr.paths")
+
 o = o or {}
 
 local function shell_quote(value)
@@ -53,6 +55,38 @@ function o.cmd_missing(command)
   return not o.cmd_present(command)
 end
 
+-- The global shortcuts the shell registers, read from the same list it reads.
+local shell_shortcuts = nil
+
+local function shell_shortcut_registered(name)
+  if not shell_shortcuts then
+    shell_shortcuts = {}
+    local file = io.open(paths.omarchy_path .. "/default/omarchy/shortcuts", "r")
+    if file then
+      for line in file:lines() do
+        local kind, target = line:match("^(%a+)%s+(%S+)%s*$")
+        if kind then
+          shell_shortcuts[kind .. "." .. target] = true
+        end
+      end
+      file:close()
+    end
+  end
+
+  return shell_shortcuts[name] == true
+end
+
+-- Reach the shell through its global shortcut when it registers one, so the
+-- keypress spawns nothing. Anything else runs the command as before.
+local function shell_dispatcher(kind, target, command)
+  local name = kind .. "." .. target
+  if shell_shortcut_registered(name) then
+    return hl.dsp.global("omarchy:" .. name)
+  end
+
+  return command
+end
+
 local function command_from(value, description)
   if type(value) ~= "table" then
     return value
@@ -60,6 +94,10 @@ local function command_from(value, description)
 
   if value.omarchy then
     return "omarchy-launch-" .. value.omarchy
+  elseif value.menu then
+    return shell_dispatcher("menu", value.menu, "omarchy-menu toggle " .. shell_quote(value.menu))
+  elseif value.panel then
+    return shell_dispatcher("panel", value.panel, "omarchy-shell shell toggle " .. shell_quote(value.panel))
   elseif value.focus and value.launch then
     return o.launch_sole(value.focus, value.launch)
   elseif value.launch then

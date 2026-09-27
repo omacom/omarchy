@@ -1,6 +1,7 @@
 import QtQuick
 import QtQml.Models
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 import qs.Commons
@@ -1510,6 +1511,51 @@ ShellRoot {
       comp.statusChanged.connect(finalize)
     } else {
       finalize()
+    }
+  }
+
+  // ------------------------------------------------------ global shortcuts
+  //
+  // Bindings that open a menu route or panel dispatch these through Hyprland,
+  // so a keypress reaches the shell without spawning an omarchy-shell IPC
+  // client. The list is shared with default/hypr/helpers.lua, which binds a
+  // route or panel missing from it through the command instead.
+
+  function parseShortcuts(raw) {
+    var entries = []
+    var lines = String(raw || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
+      if (match && (match[1] === "menu" || match[1] === "panel"))
+        entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
+    }
+    return entries
+  }
+
+  function runShortcut(entry) {
+    if (entry.kind === "menu")
+      shell.toggle("omarchy.menu", JSON.stringify({ menu: entry.target }))
+    else
+      shell.toggle(entry.target, "{}")
+  }
+
+  FileView {
+    id: shortcutsFile
+    path: shell.omarchyPath + "/default/omarchy/shortcuts"
+    watchChanges: true
+    onFileChanged: reload()
+  }
+
+  Variants {
+    model: shell.parseShortcuts(shortcutsFile.text())
+
+    GlobalShortcut {
+      required property var modelData
+
+      appid: "omarchy"
+      name: modelData.name
+      description: modelData.kind === "menu" ? "Toggle the " + modelData.target + " menu" : "Toggle the " + modelData.target + " panel"
+      onPressed: shell.runShortcut(modelData)
     }
   }
 
