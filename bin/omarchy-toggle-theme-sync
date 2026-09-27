@@ -5,7 +5,7 @@
 omarchy-toggle theme-sync-off
 
 if omarchy-toggle-enabled theme-sync-off; then
-  omarchy-notification-send -g 󰸌 "Theme sync disabled"
+  omarchy-notification-send -g 󰸌 "Herdr theme sync disabled"
 else
-  omarchy-notification-send -g 󰸌 "Theme sync enabled"
+  omarchy-notification-send -g 󰸌 "Herdr theme sync enabled"
 fi

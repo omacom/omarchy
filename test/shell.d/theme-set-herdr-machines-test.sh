@@ -135,3 +135,10 @@ run_sync >/dev/null
 [[ ! -e $SYNC_TEST/remotes/alpha/injected ]] || fail "a theme name cannot run commands on the remote"
 [[ $(set_log alpha) == 'theme set demo$(touch "$HOME/injected") from=local-box session=wayland-1' ]] || fail "a theme name reaches the remote verbatim"
 pass "a theme name reaches the remote verbatim without running commands"
+
+# The menu shows Herdr Theme Sync only when herdr has an enabled machine.
+PATH="$stub_bin:$ROOT/bin:$PATH" omarchy-herdr-machines-present || fail "an enabled herdr machine counts as present"
+pass "an enabled herdr machine counts as present"
+printf '#!/bin/bash\nprintf "1\\tretired\\tretired\\tdefault\\tdisabled\\n"\n' >"$SYNC_TEST/bin/herdr"
+! PATH="$stub_bin:$ROOT/bin:$PATH" omarchy-herdr-machines-present || fail "only disabled herdr machines count as absent"
+pass "only disabled herdr machines count as absent"

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true if herdr has an enabled SSH machine.
+# omarchy:hidden=true
+
+# Columns: id, label, SSH target, session, state.
+herdr machine list 2>/dev/null | cut -f5 | grep -qx enabled
