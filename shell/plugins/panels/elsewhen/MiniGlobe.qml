@@ -1,31 +1,23 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import qs.Commons
 import "GlobeModel.js" as Solar
+import "Model.js" as Model
 
-// A small drawn globe, for use where an icon would otherwise go.
-//
-// It is drawn rather than glyphed because a glyph cannot spin: rotating a
-// flat image about the vertical axis squashes it to a line and flips it,
-// which reads as a coin. A sphere keeps its circular outline and moves only
-// its surface across it, which is what this does - the disc is constant and
-// the graticule and coastlines are re-projected as `spin` advances.
-//
-// `spin` is the longitude facing the viewer, so animating it 0 -> 360 is one
-// full rotation of the earth. Tilt the whole item to lean the axis.
+// A small drawn globe for where an icon would go. Drawn, not glyphed, so it
+// can spin: `spin` is the longitude facing the viewer; rotate the item to lean it.
 Item {
   id: root
 
   property real spin: 0
   property color color: Color.foreground
-  // Landmasses are the point of a globe, but below about this size they turn
-  // to noise, so small instances draw the graticule alone.
+  // Below this size land turns to noise; draw the graticule alone.
   readonly property bool showLand: width >= 22
 
   property var land: []
 
-  // Heavier strokes and fuller fills, for when the globe is a centrepiece
-  // rather than an icon sitting inside a line of text.
+  // Heavier strokes and fuller fills, for a centerpiece rather than an inline icon.
   property bool bold: false
 
   // "You are here".
@@ -35,10 +27,7 @@ Item {
   property color markerColor: Color.accent
 
   readonly property real radius: Math.min(width, height) / 2 - 1
-  readonly property string here: {
-    var u = Qt.resolvedUrl(".").toString()
-    return u.replace(/^file:\/\//, "").replace(/\/$/, "")
-  }
+  readonly property string pluginDir: Quickshell.env("OMARCHY_PATH") + "/shell/plugins/panels/elsewhen"
 
   onSpinChanged: canvas.requestPaint()
   onColorChanged: canvas.requestPaint()
@@ -47,7 +36,7 @@ Item {
   onMarkerLonChanged: canvas.requestPaint()
 
   FileView {
-    path: root.here + "/world.json"
+    path: root.pluginDir + "/world.json"
     printErrors: false
     onLoaded: {
       try { root.land = JSON.parse(text()); canvas.requestPaint() } catch (e) { }
@@ -59,7 +48,6 @@ Item {
     anchors.fill: parent
     renderStrategy: Canvas.Cooperative
 
-    // Both helpers live in GlobeModel now, shared with the large globe.
     function strokePath(ctx, pts) {
       var segs = Solar.visibleSegments(pts, root.spin, 0, root.radius)
       for (var i = 0; i < segs.length; i++) {
@@ -77,16 +65,10 @@ Item {
       var c = root.color
       var lat, lon, pts, i
 
-      // The ocean. Its outline never changes shape, which is the whole
-      // difference between a turning globe and a flipping coin.
+      // The ocean, opaque like the large globe.
       ctx.beginPath()
       ctx.arc(0, 0, r, 0, Math.PI * 2)
-      // Opaque, like the large globe: a globe that lets the panel show
-      // through is a tinted disc, not an object.
-      var base = Color.popups.background
-      ctx.fillStyle = Qt.rgba(base.r + (c.r - base.r) * (root.bold ? 0.16 : 0.13),
-                              base.g + (c.g - base.g) * (root.bold ? 0.16 : 0.13),
-                              base.b + (c.b - base.b) * (root.bold ? 0.16 : 0.13), 1)
+      ctx.fillStyle = Model.mix(Color.popups.background, c, root.bold ? 0.16 : 0.13)
       ctx.fill()
 
       ctx.save()
@@ -105,16 +87,14 @@ Item {
       for (lon = -180; lon <= 180; lon += 6) pts.push([0, lon])
       strokePath(ctx, pts)
       ctx.lineWidth = Math.max(1, r * (root.bold ? 0.055 : 0.045))
-      ctx.strokeStyle = Qt.rgba(c.r, c.g, c.b,
-        root.showLand ? (root.bold ? 0.42 : 0.30) : 0.85)
+      ctx.strokeStyle = Util.alpha(c, root.showLand ? (root.bold ? 0.42 : 0.30) : 0.85)
       ctx.stroke()
 
       if (root.showLand && root.land.length > 0) {
         ctx.beginPath()
         for (i = 0; i < root.land.length; i++) {
           var ring = root.land[i]
-          // Only the major landmasses. Islands are single pixels here and
-          // read as dirt on the lens.
+          // Major landmasses only; islands read as dirt on the lens.
           if (ring.length < 40) continue
           var poly = Solar.clipRingToDisc(ring, root.spin, 0, root.radius)
           if (poly.length < 3) continue
@@ -122,12 +102,11 @@ Item {
           for (var q = 1; q < poly.length; q++) ctx.lineTo(poly[q].x, poly[q].y)
           ctx.closePath()
         }
-        ctx.fillStyle = Qt.rgba(c.r, c.g, c.b, root.bold ? 1.0 : 0.85)
+        ctx.fillStyle = Util.alpha(c, root.bold ? 1.0 : 0.85)
         ctx.fill()
       }
 
-      // "You are here", drawn only while it is on the near side - so it
-      // sweeps around with the spin and is facing you when it stops.
+      // "You are here", only while on the near side.
       if (root.showMarker) {
         var mp = Solar.project(root.markerLat, root.markerLon, root.spin, 0, r)
         if (mp.visible) {
@@ -136,18 +115,15 @@ Item {
           ctx.arc(mp.x, mp.y, mr, 0, Math.PI * 2)
           ctx.fillStyle = root.markerColor
           ctx.fill()
-          // A dark edge, because the marker can be nearly the same lightness
-          // as the filled continents and the dot would otherwise dissolve
-          // into whichever landmass it happens to be sitting on.
+          // Edged so it does not dissolve into a continent of similar lightness.
           ctx.lineWidth = Math.max(1, r * 0.04)
-          ctx.strokeStyle = Qt.rgba(0, 0, 0, 0.5)
+          ctx.strokeStyle = Util.alpha(Color.background, 0.5)
           ctx.stroke()
 
           ctx.beginPath()
           ctx.arc(mp.x, mp.y, mr * 1.9, 0, Math.PI * 2)
           ctx.lineWidth = Math.max(1, r * 0.045)
-          ctx.strokeStyle = Qt.rgba(root.markerColor.r, root.markerColor.g,
-                                    root.markerColor.b, 0.65)
+          ctx.strokeStyle = Util.alpha(root.markerColor, 0.65)
           ctx.stroke()
         }
       }
@@ -158,7 +134,7 @@ Item {
       ctx.beginPath()
       ctx.arc(0, 0, r, 0, Math.PI * 2)
       ctx.lineWidth = Math.max(1, r * (root.bold ? 0.095 : 0.08))
-      ctx.strokeStyle = Qt.rgba(c.r, c.g, c.b, root.bold ? 1.0 : 0.95)
+      ctx.strokeStyle = Util.alpha(c, root.bold ? 1.0 : 0.95)
       ctx.stroke()
     }
   }
