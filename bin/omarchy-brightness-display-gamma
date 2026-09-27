@@ -1,10 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Manage hyprsunset gamma for the display brightness range below 1%.
-# omarchy:args=<get|set percentage|cleanup>
+# omarchy:args=<get|active|can-dim|set percentage|cleanup>
 # omarchy:hidden=true
 
+# Hyprsunset gamma is global: dimming the internal panel also dims other outputs.
+
 state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.hyprsunset"
+gamma_state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.gamma"
 
 running_pid() {
   pgrep -n -x hyprsunset 2>/dev/null
@@ -24,6 +27,13 @@ owned_pid() {
   [[ $pid =~ ^[0-9]+$ ]] || return 1
   [[ $(running_pid) == "$pid" ]] || return 1
   printf '%s\n' "$pid"
+}
+
+gamma_owned() {
+  local pid value
+  [[ -r $gamma_state_file ]] || return 1
+  read -r pid value <"$gamma_state_file"
+  [[ $pid =~ ^[0-9]+$ && $value =~ ^[0-9]+$ && $(running_pid) == "$pid" && $(current_gamma) == "$value" ]]
 }
 
 cleanup() {
@@ -57,15 +67,28 @@ get)
     printf '100\n'
   fi
   ;;
+active)
+  gamma_owned
+  ;;
+can-dim)
+  if gamma_owned || [[ -z $(running_pid) ]]; then
+    exit 0
+  fi
+  gamma=$(current_gamma) || exit 1
+  [[ $gamma == "100" || $gamma == "100.0" ]]
+  ;;
 set)
   value=${2:-}
   [[ $value =~ ^[0-9]+$ ]] && (( value >= 25 && value <= 100 )) || exit 1
 
+  if (( value == 100 )); then
+    gamma_owned || exit 0
+  elif ! gamma_owned && [[ -n $(running_pid) ]]; then
+    gamma=$(current_gamma) || exit 1
+    [[ $gamma == "100" || $gamma == "100.0" ]] || exit 1
+  fi
+
   if [[ -z $(running_pid) ]]; then
-    if (( value == 100 )); then
-      rm -f -- "$state_file"
-      exit 0
-    fi
     setsid uwsm-app -- hyprsunset >/dev/null 2>&1 &
     for _ in {1..10}; do
       pid=$(running_pid) && break
@@ -78,7 +101,10 @@ set)
   for _ in {1..10}; do
     if hyprctl hyprsunset gamma "$value" >/dev/null 2>&1 && [[ $(current_gamma) == "$value" ]]; then
       if (( value == 100 )); then
+        rm -f -- "$gamma_state_file"
         cleanup
+      else
+        printf '%s %s\n' "$(running_pid)" "$value" >"$gamma_state_file"
       fi
       exit 0
     fi

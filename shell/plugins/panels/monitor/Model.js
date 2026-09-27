@@ -5,6 +5,12 @@ function clampBrightness(value, allowSubpercent) {
   return Math.max(1, Math.min(100, Math.round(n)))
 }
 
+function stepBrightness(value, direction, internal) {
+  if (!internal) return clampBrightness(value + direction * 5, false)
+  if (direction < 0) return clampBrightness(value - (value <= 1 ? 0.1 : value <= 5 ? 1 : 5), true)
+  return clampBrightness(value + (value < 1 ? 0.1 : value < 5 ? 1 : 5), true)
+}
+
 function normalizeScale(scale) {
   var n = parseFloat(String(scale || ""))
   if (!isFinite(n)) return ""
@@ -115,6 +121,7 @@ function parseDisplays(raw) {
 if (typeof module !== "undefined") {
   module.exports = {
     clampBrightness: clampBrightness,
+    stepBrightness: stepBrightness,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,
     matchingScaleIndex: matchingScaleIndex,

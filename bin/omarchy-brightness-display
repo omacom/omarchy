@@ -43,7 +43,7 @@ gamma_brightness() {
 display_brightness() {
   local hardware
   hardware=$(backlight_brightness "$1") || return 1
-  if (( hardware == 0 )); then
+  if (( hardware <= 1 )) && gamma_command active; then
     gamma_brightness
   else
     printf '%s\n' "$hardware"
@@ -131,15 +131,14 @@ else
   current=$(backlight_brightness "$device") || exit 1
 
   if [[ $step == "+5%" || $step == "+1%" || $step == "5%-" || $step == "1%-" ]]; then
-    if (( current == 0 )); then
+    if (( current <= 1 )) && gamma_command active; then
       gamma=$(gamma_command get) || exit 1
       tenth=$(awk -v gamma="$gamma" 'BEGIN { printf "%.0f", (gamma - 25) * 10 / 75 }')
       if [[ $step == +* ]]; then
         if (( tenth < 10 )); then
           set_gamma_tenth "$(( tenth + 1 ))" || exit 1
         else
-          brightnessctl -d "$device" set 1% >/dev/null || exit 1
-          gamma_command cleanup
+          gamma_command set 100 || true
         fi
       else
         set_gamma_tenth "$(( tenth - 1 ))" || exit 1
@@ -158,26 +157,36 @@ else
         else
           (( target = current - 1 ))
         fi
-        (( target < 0 )) && target=0
+        (( target < 1 )) && target=1
       fi
       brightnessctl -d "$device" set "$target%" >/dev/null || exit 1
-      gamma_command set 100 || exit 1
+      gamma_command set 100 || true
+      if (( current == 1 && target == 1 )) && [[ $step != +* ]] && gamma_command can-dim; then
+        set_gamma_tenth 9 || true
+      fi
     fi
+  elif [[ $step =~ ^[0-9]+%-$ ]]; then
+    amount=${step//[^0-9]/}
+    (( target = current - 10#$amount ))
+    (( target < 1 )) && target=1
+    brightnessctl -d "$device" set "$target%" >/dev/null || exit 1
+    gamma_command set 100 || true
   elif [[ $step =~ ^[0-9]+([.][0-9]+)?%$ ]]; then
     requested=${step%%%}
     if awk -v requested="$requested" 'BEGIN { exit !(requested < 1) }'; then
-      # Gamma changes only after the hardware backlight reaches zero.
-      brightnessctl -d "$device" set 0% >/dev/null || exit 1
-      tenth=$(awk -v requested="$requested" 'BEGIN { printf "%.0f", requested * 10 }')
-      set_gamma_tenth "$tenth" || exit 1
+      brightnessctl -d "$device" set 1% >/dev/null || exit 1
+      if gamma_command can-dim; then
+        tenth=$(awk -v requested="$requested" 'BEGIN { printf "%.0f", requested * 10 }')
+        set_gamma_tenth "$tenth" || true
+      fi
     else
-      gamma_command set 100 || exit 1
+      gamma_command set 100 || true
       brightnessctl -d "$device" set "$step" >/dev/null || exit 1
     fi
   else
     brightnessctl -d "$device" set "$step" >/dev/null || exit 1
     if (( $(backlight_brightness "$device") > 0 )); then
-      gamma_command set 100 || exit 1
+      gamma_command set 100 || true
     fi
   fi
 

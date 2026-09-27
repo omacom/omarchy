@@ -143,8 +143,7 @@ Panel {
   function adjustBrightness(delta) {
     if (focusSection !== "brightness") return
     if (!brightnessAvailable) return
-    var step = root.internalBrightness() && root.brightnessPercent <= 1 ? 0.1 : Math.abs(delta)
-    setBrightness(root.brightnessPercent + Math.sign(delta) * step)
+    setBrightness(Model.stepBrightness(root.brightnessPercent, Math.sign(delta), root.internalBrightness()))
   }
 
   function internalBrightness() {
@@ -486,8 +485,10 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      var step = root.internalBrightness() && root.brightnessPercent <= 1 ? 0.1 : 5
-      root.setBrightness(root.brightnessPercent + wheel.steps * step)
+      var value = root.brightnessPercent
+      for (var i = 0; i < Math.abs(wheel.steps); i++)
+        value = Model.stepBrightness(value, Math.sign(wheel.steps), root.internalBrightness())
+      root.setBrightness(value)
       root.showBrightnessOsd(root.brightnessPercent)
     }
   }
