@@ -7,13 +7,25 @@
 FORCE=false
 NO_REBUILD=false
 SWAPSIZE=""
-for arg in "$@"; do
-  case "$arg" in
+# Consume arguments one at a time so --size can appear in any position.
+# A `for arg in "$@"` loop iterates a snapshot while `shift` mutates the
+# positional parameters, which made `--size` pick up the wrong value unless
+# it happened to be first (e.g. `--force --size 8G` yielded SWAPSIZE=--size).
+while (( $# )); do
+  case "$1" in
     --force) FORCE=true ;;
     --no-rebuild) NO_REBUILD=true ;;
-    --size) shift; SWAPSIZE="$1" ;;
-    --size=*) SWAPSIZE="${arg#--size=}" ;;
+    --size)
+      if [[ -z ${2:-} || $2 == --* ]]; then
+        echo "--size requires a value (e.g. --size 8G)" >&2
+        exit 1
+      fi
+      SWAPSIZE="$2"
+      shift
+      ;;
+    --size=*) SWAPSIZE="${1#--size=}" ;;
   esac
+  shift
 done
 
 if [[ ! -f /sys/power/image_size ]]; then
