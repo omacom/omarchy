@@ -25,6 +25,9 @@ Column {
   property color fainter: Qt.darker(foreground, 2.1)
   property string fontFamily: Style.font.family
 
+  // False when the host shows CityMatches elsewhere.
+  property bool inlineResults: true
+
   property bool active: false
   readonly property string query: field.text
   readonly property var matches: active ? Model.searchZones(options, query, limit) : []
@@ -63,6 +66,8 @@ Column {
 
   Button {
     width: parent.width
+    // Matches the field, so opening the search does not shift the layout.
+    height: field.implicitHeight
     visible: !search.active
     text: search.buttonText
     fontSize: search.fontSize
@@ -85,83 +90,9 @@ Column {
     Keys.onDownPressed: search.selectedIndex = Model.moveSelection(search.selectedIndex, 1, search.matches.length)
   }
 
-  Column {
+  CityMatches {
     width: parent.width
-    visible: search.active
-    spacing: Style.space(2)
-
-    Repeater {
-      model: search.matches
-
-      CursorSurface {
-        id: match
-        required property var modelData
-        required property int index
-
-        width: parent.width
-        implicitHeight: Style.spacing.popupRowHeight
-        foreground: search.foreground
-        hasCursor: search.selectedIndex === index
-
-        Text {
-          anchors.left: parent.left
-          anchors.leftMargin: Style.spacing.xl
-          anchors.right: matchZone.left
-          anchors.rightMargin: Style.spacing.lg
-          anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          text: match.modelData.label
-          color: search.foreground
-          font.family: search.fontFamily
-          font.pixelSize: search.fontSize
-          elide: Text.ElideRight
-        }
-
-        // Two cities in one zone differ by name, two zones with one name by offset.
-        Row {
-          id: matchZone
-          anchors.right: parent.right
-          anchors.rightMargin: Style.spacing.xl
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.spacing.md
-
-          Caption {
-            text: match.modelData.value
-            color: search.fainter
-          }
-
-          Caption {
-            text: search.offsetLabel(match.modelData.value)
-            visible: text !== ""
-          }
-        }
-
-        // Only movement moves the selection, so a resting pointer cannot
-        // steal it from the arrow keys as the list rebuilds.
-        MouseArea {
-          anchors.fill: parent
-          hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
-          onPositionChanged: search.selectedIndex = match.index
-          onClicked: search.pick(match.modelData)
-        }
-      }
-    }
-
-    Caption {
-      visible: search.matches.length === 0
-      width: parent.width
-      horizontalAlignment: Text.AlignHCenter
-      topPadding: Style.spacing.md
-      text: search.loading ? search.loadingText : "No matches"
-      color: search.fainter
-    }
-  }
-
-  component Caption: Text {
-    textFormat: Text.PlainText
-    color: search.dim
-    font.family: search.fontFamily
-    font.pixelSize: Style.font.caption
+    visible: search.active && search.inlineResults
+    citySearch: search
   }
 }

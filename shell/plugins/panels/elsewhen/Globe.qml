@@ -46,8 +46,6 @@ Item {
   readonly property string homeName:
     homeRow.length > 0 ? String(homeRow[0]).toLowerCase() : ""
 
-  property bool jumping: false
-  property string jumpQuery: ""
   property string pendingJump: ""       // waiting on coordinates to arrive
 
   signal jumpRequested(string label, string zone)
@@ -120,27 +118,8 @@ Item {
   readonly property var allCities:
     Model.mergeCities(homeRow, cities, trackedCities, sessionCities)
 
-  readonly property var jumpMatches:
-    jumping ? Model.searchZones(jumpOptions, jumpQuery, 5) : []
-
-  // An index, since the matches are rebuilt per keystroke; reset when they change.
-  property int jumpIndex: 0
-  onJumpQueryChanged: jumpIndex = 0
-  onJumpMatchesChanged: {
-    if (jumpIndex >= jumpMatches.length) jumpIndex = 0
-    probeZones()
-  }
-
-  function moveJumpSelection(delta) {
-    jumpIndex = Model.moveSelection(jumpIndex, delta, jumpMatches.length)
-  }
-
-  function commitJump() {
-    if (jumpMatches.length === 0) return
-    var hit = jumpMatches[Util.clamp(jumpIndex, 0, jumpMatches.length - 1)]
-    goTo(hit.label, hit.value)
-    stopJump()
-  }
+  readonly property var jumpMatches: jumpSearch.matches
+  onJumpMatchesChanged: probeZones()
 
   // Centering a city is setting spin and viewLat to its own coordinates.
   function flyTo(lat, lon) {
@@ -197,16 +176,7 @@ Item {
   }
 
   function startJump() {
-    jumpQuery = ""
-    jumpIndex = 0
-    jumping = true
-    Qt.callLater(function() { jumpField.text = ""; jumpField.forceActiveFocus() })
-  }
-
-  function stopJump() {
-    jumping = false
-    jumpQuery = ""
-    jumpDismissed()
+    jumpSearch.start()
   }
 
   // Sub-pixel scale (spaceReal, not space) so thin strokes keep their weights.
@@ -215,7 +185,7 @@ Item {
   function scaled(px) { return Solar.scalePx(px, uiScale, 1) }
 
   readonly property real footerHeight: Style.space(34)
-  readonly property real jumpHeight: Style.space(34)
+  readonly property real jumpHeight: Style.space(4) + jumpSearch.implicitHeight
   readonly property real radius: Math.max(40,
     Math.min(width, height - footerHeight - jumpHeight) / 2 - Style.space(6))
   readonly property var sub: Solar.subsolarPoint(nowMs)
@@ -578,7 +548,8 @@ Item {
     id: footer
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.bottom: jumpBar.top
+    anchors.bottom: jumpSearch.top
+    anchors.bottomMargin: Style.space(4)
     height: root.footerHeight
     opacity: root.chromeOpacity
 
@@ -599,145 +570,46 @@ Item {
 
   // ---- jump to a city -----------------------------------------------------
   // Searches the whole catalogue; a city not on the globe joins for this session.
-  Item {
-    id: jumpBar
+  CitySearch {
+    id: jumpSearch
     anchors.left: parent.left
     anchors.right: parent.right
     anchors.bottom: parent.bottom
-    height: root.jumpHeight
     opacity: root.chromeOpacity
-
-    Rectangle {
-      anchors.fill: parent
-      anchors.topMargin: Style.space(4)
-      visible: !root.jumping
-      radius: Style.cornerRadius
-      color: Util.alpha(root.foreground, jumpHover.hovered ? 0.10 : 0.05)
-
-      Text {
-        anchors.centerIn: parent
-        textFormat: Text.PlainText
-        text: "Jump to a city"
-        color: jumpHover.hovered ? root.foreground : root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-      }
-
-      HoverHandler { id: jumpHover; cursorShape: Qt.PointingHandCursor }
-      TapHandler { onTapped: root.startJump() }
-    }
-
-    TextField {
-      id: jumpField
-      visible: root.jumping
-      anchors.fill: parent
-      anchors.topMargin: Style.space(4)
-      placeholderText: "Search cities\u2026"
-      foreground: root.foreground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      onTextChanged: root.jumpQuery = text
-      Keys.onEscapePressed: root.stopJump()
-      Keys.onReturnPressed: root.commitJump()
-      Keys.onEnterPressed: root.commitJump()
-      Keys.onUpPressed: root.moveJumpSelection(-1)
-      Keys.onDownPressed: root.moveJumpSelection(1)
-    }
+    options: root.jumpOptions
+    limit: 5
+    inlineResults: false
+    loading: root.jumpOptions.length === 0
+    buttonText: "Jump to a city"
+    loadingText: "Loading cities\u2026"
+    offsetLabel: function(zoneId) { return Model.utcOffsetLabel(root.offsets[zoneId]) }
+    foreground: root.foreground
+    dim: root.dim
+    fainter: root.fainter
+    fontFamily: root.fontFamily
+    onPicked: function(label, id) { root.goTo(label, id) }
+    onDismissed: root.jumpDismissed()
   }
 
   // Results overlay the globe so it never resizes under the pointer mid-search.
   Rectangle {
-    visible: root.jumping
+    visible: jumpSearch.active
     anchors.left: parent.left
     anchors.right: parent.right
-    anchors.bottom: jumpBar.top
+    anchors.bottom: jumpSearch.top
+    anchors.bottomMargin: Style.space(4)
     height: Math.min(results.implicitHeight + Style.space(8),
                      parent.height - root.jumpHeight - Style.space(20))
     radius: Style.cornerRadius
     color: root.surfaceBase
 
-    Column {
+    CityMatches {
       id: results
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: parent.top
       anchors.margins: Style.space(4)
-      spacing: Style.space(1)
-
-      Repeater {
-        model: root.jumpMatches
-
-        Rectangle {
-          id: hit
-          required property var modelData
-          required property int index
-
-          // Hover and keyboard selection are separate marks, so a resting
-          // pointer never steals the arrow keys' place.
-          readonly property bool selected: root.jumpIndex === hit.index
-
-          width: parent.width
-          implicitHeight: Style.spacing.popupRowHeight
-          radius: Style.cornerRadius
-          color: Util.alpha(root.foreground,
-                            hit.selected ? 0.20 : (hitHover.hovered ? 0.10 : 0.0))
-
-          Text {
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: hit.modelData.label
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-          }
-
-          Row {
-            anchors.right: parent.right
-            anchors.rightMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(6)
-
-            Text {
-              textFormat: Text.PlainText
-              text: hit.modelData.value
-              color: root.fainter
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-
-            Text {
-              textFormat: Text.PlainText
-              text: Model.utcOffsetLabel(root.offsets[hit.modelData.value])
-              visible: text !== ""
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-          }
-
-          HoverHandler { id: hitHover; cursorShape: Qt.PointingHandCursor }
-          TapHandler {
-            onTapped: {
-              root.goTo(hit.modelData.label, hit.modelData.value)
-              root.stopJump()
-            }
-          }
-        }
-      }
-
-      Text {
-        visible: root.jumpMatches.length === 0
-        width: parent.width
-        horizontalAlignment: Text.AlignHCenter
-        topPadding: Style.space(4)
-        textFormat: Text.PlainText
-        text: root.jumpOptions.length === 0 ? "Loading cities\u2026" : "No matches"
-        color: root.fainter
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-      }
+      citySearch: jumpSearch
     }
   }
 }
