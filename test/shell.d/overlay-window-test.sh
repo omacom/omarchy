@@ -61,6 +61,17 @@ assert(
   'the menu unfreezes its layout when the overlay hides'
 )
 
+// A kept surface grows from its parked 1x1 when shown, which Hyprland animates
+// as a slide in from the corner unless its layer rule turns animation off.
+const shellRules = read('default/hypr/apps/omarchy-shell.lua')
+const noAnim = /namespace = "\^\(([^)]*)\)\$" \}, no_anim = true/.exec(shellRules)
+assert(noAnim, 'the shell overlays share one no-animation layer rule')
+const unanimated = noAnim ? noAnim[1].split('|') : []
+for (const file of Object.keys(overlays)) {
+  const namespace = /WlrLayershell\.namespace: "([^"]+)"/.exec(read(file))
+  assert(namespace && unanimated.includes(namespace[1]), `${file} is exempt from Hyprland's layer animation`)
+}
+
 // The OSD never takes the keyboard or input, shown or not.
 const osd = read('shell/plugins/osd/Osd.qml')
 assert(
