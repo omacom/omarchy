@@ -156,11 +156,6 @@
       "type": "custom",
       "format": "\u001b[90m└────────────────────────────────────────────────────┘"
     },
-    "break",
-    {
-      "type": "custom",
-      "format": "\u001b[90m    Press c to copy these details for a bug report"
-    },
     "break"
   ]
 }

@@ -298,17 +298,38 @@ pass "every command in the report is named"
   fail "the report leaves the theme's colour swatch behind"
 pass "the report leaves the theme's colour swatch behind"
 
-# c copies and leaves About open; any other key still closes it.
+# The hint is About's alone: the config every other fastfetch run reads, and the
+# logs omarchy-upload-log gathers from it, never mention a key that does nothing
+# there.
+! grep -q "Press c" "$OMARCHY_FASTFETCH_DIR/config.jsonc" || fail "the hint stays out of the system fastfetch config"
+pass "the hint stays out of the system fastfetch config"
+
+about_config >"$tmp_dir/about.jsonc" || fail "About's config is made from Omarchy's own"
+[[ $(jq -r '.modules[-2].format' "$tmp_dir/about.jsonc") == *"Press c to copy"* ]] || fail "About's own screen shows the hint"
+pass "About's own screen shows the hint"
+
+# The fit and the sheen measure what About draws, so they have to be handed the
+# same config it is drawn with.
+ABOUT_CONFIG="$tmp_dir/about.jsonc"
+[[ $(fastfetch() { printf '%s\n' "$*"; }; about_fastfetch --logo none) == "--config $ABOUT_CONFIG --logo none" ]] ||
+  fail "About measures with the config it draws with"
+pass "About measures with the config it draws with"
+ABOUT_CONFIG=""
+
+# c copies and leaves About open; any other key still closes it. The copy is its
+# own session, so a window closed straight after c does not kill it mid-report.
 eval "$real_tick"
-copy_report() { touch "$tmp_dir/copied"; }
-after=$( tick 1 <<<"c"; wait; echo open )
+setsid() { printf '%s\n' "$*" >"$tmp_dir/copied"; }
+after=$( tick 1 <<<"c"; echo open )
 [[ -e $tmp_dir/copied ]] || fail "c copies the report"
 pass "c copies the report"
+[[ $(<"$tmp_dir/copied") == "-f omarchy-launch-about --copy" ]] || fail "the copy outlives About" "$(<"$tmp_dir/copied")"
+pass "the copy outlives About"
 [[ $after == "open" ]] || fail "c leaves About open"
 pass "c leaves About open"
 
 rm -f "$tmp_dir/copied"
-after=$( tick 1 <<<"q"; wait; echo open ) || true
+after=$( tick 1 <<<"q"; echo open ) || true
 [[ -z $after && ! -e $tmp_dir/copied ]] || fail "any other key closes About without copying"
 pass "any other key closes About without copying"
 
@@ -368,6 +389,14 @@ pass "the report carries the details a bug report needs"
 
 [[ $(<"$notified") == *"copied to clipboard"* ]] || fail "copying says so" "$(<"$notified")"
 pass "copying says so"
+
+# A clipboard that would not take the report is a copy that did not happen, and
+# saying otherwise sends someone to paste nothing into their bug report.
+wl-copy() { cat >/dev/null; return 1; }
+rm -f "$notified"
+copy_report || true
+[[ $(<"$notified") == *"-u critical"*"Could not copy"* ]] || fail "a clipboard that refused the report says so" "$(<"$notified")"
+pass "a clipboard that refused the report says so"
 
 # A report fastfetch could not produce copies nothing, rather than an empty fence
 # that pastes as if the details had been there.
