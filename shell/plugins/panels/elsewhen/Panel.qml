@@ -616,7 +616,7 @@ Panel {
     onTriggered: root.refresh()
   }
 
-  IpcHandler {
+  ShellIpc {
     target: root.ipcTarget
     function open(): void { root.open() }
     function close(): void { root.close() }
