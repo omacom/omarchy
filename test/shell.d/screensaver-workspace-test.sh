@@ -8,7 +8,7 @@ require_command lua
 
 tmpdir=$(mktemp -d)
 cleanup() {
-  [[ -f $tmpdir/socat.pid ]] && kill "$(<"$tmpdir/socat.pid")" 2>/dev/null
+  [[ -f $tmpdir/socat.pid ]] && kill "$(<"$tmpdir/socat.pid")" 2>/dev/null || true
   rm -rf "$tmpdir"
 }
 trap cleanup EXIT
@@ -63,8 +63,12 @@ pass "the screensaver opens on its own special workspace, leaving a fullscreen w
 pass "the screensaver shares a special workspace that is already showing"
 
 # Emptying a special workspace focuses its monitor; the last screensaver to close must not keep focus.
-printf '[{"class":"org.omarchy.screensaver","mapped":false}]\n' >"$tmpdir/clients.json"
 : >"$tmpdir/calls"
+printf 'closewindow>>1\n' >&"$events"
+sleep 0.5
+grep -q 'hl.dsp.focus' "$tmpdir/calls" && fail "focus waits until the last screensaver has closed" "$(<"$tmpdir/calls")"
+pass "focus waits until the last screensaver has closed"
+printf '[{"class":"org.omarchy.screensaver","mapped":false}]\n' >"$tmpdir/clients.json"
 printf 'closewindow>>2\n' >&"$events"
 for (( attempt = 0; attempt < 100; attempt++ )); do
   grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" && break
@@ -73,6 +77,20 @@ done
 grep -q 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls" ||
   fail "focus returns to the monitor that had it once the screensaver closes" "$(<"$tmpdir/calls")"
 pass "focus returns to the monitor that had it once the screensaver closes"
+
+# Screensavers can close while the launcher is still waiting on another monitor, consuming their events.
+kill "$(<"$tmpdir/socat.pid")"
+: >"$tmpdir/calls"
+: >"$tmpdir/spawned"
+PATH="$tmpdir/bin:$PATH" TEST_DIR="$tmpdir" XDG_RUNTIME_DIR="$tmpdir" HYPRLAND_INSTANCE_SIGNATURE=test \
+  timeout 10 "$ROOT/bin/omarchy-launch-screensaver" force
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  (( $(grep -c 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls") == 3 )) && break
+  sleep 0.05
+done
+(( $(grep -c 'hl.dsp.focus({ monitor = "DP-1" })' "$tmpdir/calls") == 3 )) ||
+  fail "focus returns without waiting for a close that has already happened" "$(<"$tmpdir/calls")"
+pass "focus returns without waiting for a close that has already happened"
 
 # The launcher's workspace only holds for the first map. A terminal mapped again as it closes falls back to
 # the class rule, which must keep it off the regular workspaces where its fullscreen rule would take over.
