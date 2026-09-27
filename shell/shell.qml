@@ -1,6 +1,7 @@
 import QtQuick
 import QtQml.Models
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 import qs.Commons
@@ -21,6 +22,34 @@ ShellRoot {
   property AppLibrary appLibrary: AppLibrary { }
 
   property string home: Quickshell.env("HOME")
+
+  // Hyprland hotkeys call these registrations in-process. Starting a `qs ipc`
+  // client for every panel summon adds hundreds of milliseconds before the
+  // live shell even sees the request; CLI callers keep the IPC surface below.
+  readonly property var menuShortcuts: [
+    { name: "menu-root", route: "root", description: "Toggle Omarchy menu" },
+    { name: "menu-apps", route: "apps", description: "Toggle Apps menu" },
+    { name: "menu-capture", route: "capture", description: "Toggle Capture menu" },
+    { name: "menu-toggle", route: "toggle", description: "Toggle actions menu" },
+    { name: "menu-hardware", route: "hardware", description: "Toggle Hardware menu" },
+    { name: "menu-system", route: "system", description: "Toggle System menu" },
+    { name: "menu-background", route: "background", description: "Toggle Background menu" },
+    { name: "menu-theme", route: "theme", description: "Toggle Theme menu" },
+    { name: "menu-share", route: "share", description: "Toggle Share menu" },
+    { name: "menu-reminder", route: "reminder-set", description: "Toggle Reminder menu" }
+  ]
+
+  Instantiator {
+    model: shell.menuShortcuts
+
+    delegate: GlobalShortcut {
+      required property var modelData
+      appid: "omarchy"
+      name: modelData.name
+      description: modelData.description
+      onPressed: shell.toggle("omarchy.menu", JSON.stringify({ menu: modelData.route }))
+    }
+  }
 
   // The omarchy-shell host is the long-running entry point. Plugins live in
   // sibling directories under plugins/. OMARCHY_PATH is provided by the uwsm

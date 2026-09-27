@@ -44,6 +44,47 @@ Item {
     return AppSearch.entrySubtext(entry)
   }
 
+  function stringList(values) {
+    var result = []
+    if (!values) return result
+    try {
+      for (var i = 0; i < values.length; i++) result.push(String(values[i] || ""))
+    } catch (e) { }
+    return result.filter(function(value) { return value.length > 0 })
+  }
+
+  // Keep desktop actions as data until they are invoked. Serializing their
+  // Exec lines here would lose field-code expansion and terminal semantics;
+  // DesktopAction.execute() preserves the desktop-entry implementation.
+  function desktopActionDescriptors(entry) {
+    var result = []
+    if (!entry || !entry.actions) return result
+    try {
+      for (var i = 0; i < entry.actions.length; i++) {
+        var action = entry.actions[i]
+        var id = String((action && action.id) || "")
+        var name = String((action && action.name) || "")
+        if (id && name) result.push({ id: id, name: name, icon: String(action.icon || "") })
+      }
+    } catch (e) { }
+    return result
+  }
+
+  function executeDesktopAction(desktopId, actionId, appName) {
+    var entry = DesktopEntries.byId(String(desktopId || ""))
+    if (!entry || !entry.actions) return false
+    try {
+      for (var i = 0; i < entry.actions.length; i++) {
+        var action = entry.actions[i]
+        if (String(action.id || "") !== String(actionId || "")) continue
+        root.beginLaunchFeedback(appName || root.entryName(entry))
+        action.execute()
+        return true
+      }
+    } catch (e) { }
+    return false
+  }
+
   function isHiddenEntry(entry) {
     var id = String((entry && entry.id) || "")
     return root.configuredHiddenEntryIds[id] === true || root.desktopHiddenEntryIds[id] === true

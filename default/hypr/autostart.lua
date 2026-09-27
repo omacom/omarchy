@@ -7,7 +7,11 @@ hl.on("hyprland.start", function()
   hl.exec_cmd("omarchy-provision-first-run")
   hl.exec_cmd("omarchy-powerprofiles-init")
   hl.exec_cmd(o.launch("omarchy-hyprland-monitor-watch"))
+  hl.exec_cmd(o.launch("omarchy-hyprland-window-track"))
   hl.exec_cmd(o.launch("udiskie --automount --no-notify --no-tray"))
+
+  -- Sync initial activity frecency from zoxide and agents
+  hl.exec_cmd("omarchy activity import-zoxide >/dev/null 2>&1 || true; omarchy activity import-agents >/dev/null 2>&1 || true")
 
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")

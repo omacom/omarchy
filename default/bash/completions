@@ -2,10 +2,11 @@ _omarchy_complete() {
   COMPREPLY=()
   local cur="${COMP_WORDS[COMP_CWORD]}"
 
-  local omarchy_path bin_dir
+  local omarchy_path bin_dir user_bin_dir
   omarchy_path=$(command -v omarchy 2>/dev/null) || return 0
   bin_dir=$(dirname -- "$(readlink -f -- "$omarchy_path" 2>/dev/null || printf '%s' "$omarchy_path")")
   [[ -d $bin_dir ]] || return 0
+  user_bin_dir="${HOME:-}/.local/bin"
 
   local prefix="omarchy"
   local i part
@@ -30,6 +31,18 @@ _omarchy_complete() {
       candidates+=("$next")
     fi
   done
+  if [[ -n $user_bin_dir && $user_bin_dir != "$bin_dir" && -d $user_bin_dir ]]; then
+    for file in "$user_bin_dir/$prefix"-*; do
+      [[ -f $file && -x $file ]] || continue
+      basename="${file##*/}"
+      rest="${basename#"$prefix"-}"
+      next="${rest%%-*}"
+      if [[ -n $next && -z ${seen[$next]:-} ]]; then
+        seen[$next]=1
+        candidates+=("$next")
+      fi
+    done
+  fi
   shopt -u nullglob
 
   if (( COMP_CWORD == 1 )); then
@@ -51,6 +64,9 @@ _omarchy_complete() {
       done
 
       command_path="$bin_dir/$command_prefix"
+      if [[ ! -x $command_path && -n $user_bin_dir && -x $user_bin_dir/$command_prefix ]]; then
+        command_path="$user_bin_dir/$command_prefix"
+      fi
       if [[ -x $command_path ]]; then
         first_arg_index=$((n + 1))
         break

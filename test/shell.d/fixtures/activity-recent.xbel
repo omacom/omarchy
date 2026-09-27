@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xbel version="1.0" xmlns:bookmark="http://www.freedesktop.org/standards/desktop-bookmarks" xmlns:mime="http://www.freedesktop.org/standards/shared-mime-info">
+  <bookmark href="file:///home/user/Documents/report.pdf" added="2026-09-01T10:00:00Z" modified="2026-09-10T12:00:00Z" visited="2026-09-10T12:00:00Z">
+    <title>report</title>
+  </bookmark>
+  <bookmark href="file:///home/user/Music/song%20one.mp3" added="2026-08-01T10:00:00Z" modified="2026-08-02T10:00:00Z" visited="2026-08-02T10:00:00Z">
+  </bookmark>
+  <bookmark href="https://example.com/not-a-file" added="2026-09-01T10:00:00Z" visited="2026-09-01T10:00:00Z">
+  </bookmark>
+  <bookmark href="file:///home/user/Documents/report.pdf" added="2026-09-01T10:00:00Z" visited="2026-09-11T10:00:00Z">
+  </bookmark>
+</xbel>

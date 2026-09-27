@@ -113,6 +113,21 @@ assert(
 )
 
 assert(
+  /function desktopActionDescriptors\(entry\) \{[\s\S]*?action\.id[\s\S]*?action\.name[\s\S]*?\n  \}/.test(appLibraryQml),
+  'app library carries every desktop action as a declarative descriptor'
+)
+
+assert(
+  /function executeDesktopAction\(desktopId, actionId, appName\) \{[\s\S]*?DesktopEntries\.byId[\s\S]*?action\.execute\(\)[\s\S]*?\n  \}/.test(appLibraryQml),
+  'app library resolves and executes native actions through the live desktop entry'
+)
+
+assert(
+  menuQml.includes('aliases.push(summary)') && menuQml.includes('aliases = aliases.concat(categories)'),
+  'application search includes desktop-entry comments and categories'
+)
+
+assert(
   appLibraryQml.includes('Util.shellQuote(id + ".desktop")'),
   'app library launches by full file name so ids ending in .desktop (org.telegram.desktop) resolve'
 )

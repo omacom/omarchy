@@ -11,6 +11,13 @@
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
 # with same-named rows get the subtext back as the stable key.
+#
+# A successful pick is recorded in the shared activity database (see
+# omarchy-activity) so future rankings learn it. The namespace defaults to
+# "dmenu"; callers whose pick names something another consumer ranks (files,
+# apps) pass --activity-kind. Display-only lists whose selection the caller
+# discards pass --no-activity instead of logging noise. omarchy-menu-input
+# never records: free text may be secrets.
 
 set -euo pipefail
 
@@ -25,6 +32,7 @@ shift
 options=()
 menu_width=""
 menu_maxheight=""
+activity_kind="dmenu"
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -52,6 +60,23 @@ while (( $# > 0 )); do
       shift
     done
     break
+  fi
+
+  if [[ $1 == "--activity-kind" ]]; then
+    shift
+    if (( $# == 0 )); then
+      echo "omarchy-menu-select: --activity-kind requires a value" >&2
+      exit 1
+    fi
+    activity_kind="$1"
+    shift
+    continue
+  fi
+
+  if [[ $1 == "--no-activity" ]]; then
+    activity_kind=""
+    shift
+    continue
   fi
 
   options+=("$1")
@@ -93,7 +118,11 @@ while [[ ! -e $done_file ]]; do
 done
 
 if [[ -s $selection_file ]]; then
-  cat "$selection_file"
+  selection=$(cat "$selection_file")
+  if [[ -n $activity_kind ]] && omarchy-cmd-present omarchy-activity; then
+    omarchy-activity record "$activity_kind" "$selection" "$prompt" >/dev/null 2>&1 || true
+  fi
+  printf '%s\n' "$selection"
 else
   exit 1
 fi

@@ -106,6 +106,14 @@ but a listing entry would put install-time plumbing back in front of users
 group means adding its `GROUP_DESCRIPTIONS` entry; adding hidden plumbing
 means deliberately not doing so.
 
+## User commands in ~/.local/bin
+
+The router also scans `~/.local/bin` for executable `omarchy-*` files, so a user script there routes exactly like a shipped one: filename-derived routes, header metadata (`summary`, `args`, `group`, `name`, `examples`, `aliases`), group help listings, and `omarchy commands` introspection all work the same. A missing `~/.local/bin` is not an error — the scan is simply skipped. Shell completion suggests user commands alongside shipped ones.
+
+Shipped commands always win. A user file is skipped — silently left out of listings and route resolution — when its binary name, canonical route, filename route, or any alias collides with an already-registered (shipped) route, so a stale or hostile user file can never hijack `omarchy menu` or any other packaged route. Registration order guarantees this: `bin/` loads first, and user files only fill unclaimed routes.
+
+User files must be regular files (not symlinks), executable, and owned by the invoking user; anything else is skipped silently. `omarchy commands --check` validates registered user commands the same way it validates shipped ones, but the `test/cli` metadata lint only scans `bin/` — user files outside the repo are never linted there. A user-only group still renders `omarchy <group> --help` from its commands, but the top-level `omarchy` listing stays driven by `GROUP_DESCRIPTIONS`, so a brand-new user group is reachable through its own group help without appearing in the top-level listing.
+
 ## Introspection
 
 `omarchy commands` prints every non-hidden command with its summary, plus an

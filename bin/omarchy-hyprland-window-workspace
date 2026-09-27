@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Move the active window to a workspace
+# omarchy:args=<1-10> [--silent]
+# omarchy:examples=omarchy hyprland window workspace 3 | omarchy hyprland window workspace 5 --silent
+
+# Menu-callable twin of the SUPER+SHIFT+number keybindings in
+# default/hypr/bindings: follows by default, stays put with --silent
+# (the SUPER+SHIFT+ALT variant).
+
+set -euo pipefail
+
+if (( $# >= 1 )) && [[ $1 == "-h" || $1 == "--help" ]]; then
+  cat <<USAGE
+Usage: omarchy-hyprland-window-workspace <1-10> [--silent]
+
+Moves the active window to the workspace (SUPER + SHIFT + number).
+With --silent the focus stays where it is (SUPER + SHIFT + ALT + number).
+USAGE
+  exit 0
+fi
+
+silent=0
+workspace=""
+
+while (( $# > 0 )); do
+  case "$1" in
+    --silent) silent=1 ;;
+    *)
+      if [[ -z $workspace ]]; then
+        workspace="$1"
+      else
+        echo "Usage: omarchy-hyprland-window-workspace <1-10> [--silent]" >&2
+        exit 2
+      fi
+      ;;
+  esac
+  shift
+done
+
+if [[ ! $workspace =~ ^[0-9]+$ ]] || ((workspace < 1 || workspace > 10)); then
+  echo "omarchy-hyprland-window-workspace: workspace must be 1-10, got '${workspace:-}'." >&2
+  exit 2
+fi
+
+addr=$(hyprctl activewindow -j | jq -er .address) || exit 1
+[[ -n $addr && $addr != "null" ]] || exit 1
+
+# Mirrors the keybinding forms exactly (acts on the active window).
+if ((silent)); then
+  hyprctl dispatch "hl.dsp.window.move({ workspace = \"$workspace\", follow = false })" >/dev/null
+else
+  hyprctl dispatch "hl.dsp.window.move({ workspace = \"$workspace\" })" >/dev/null
+fi
+echo "Moved active window to workspace $workspace"

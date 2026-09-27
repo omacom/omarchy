@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle float, fullscreen, or maximized for the active window
+# omarchy:args=(float|fullscreen|maximized)
+# omarchy:examples=omarchy hyprland window toggle float
+
+# Menu-callable twin of the Hyprland keybindings in default/hypr/bindings:
+# tries the Lua dispatch layer first, falls back to the raw dispatcher the
+# way omarchy-hyprland-window-pop does.
+
+set -euo pipefail
+
+if (( $# == 1 )) && [[ $1 == "-h" || $1 == "--help" ]]; then
+  cat <<USAGE
+Usage: omarchy-hyprland-window-toggle (float|fullscreen|maximized)
+
+  float        Toggle floating/tiling for the active window (SUPER + T).
+  fullscreen   Toggle fullscreen for the active window (SUPER + F).
+  maximized    Toggle full width, keeping gaps (SUPER + ALT + F).
+USAGE
+  exit 0
+fi
+
+if (( $# != 1 )); then
+  echo "Usage: omarchy-hyprland-window-toggle (float|fullscreen|maximized)" >&2
+  exit 2
+fi
+
+hypr_dispatch() {
+  local lua="$1"
+  shift
+
+  hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
+}
+
+case "$1" in
+  float)
+    hypr_dispatch 'hl.dsp.window.float({ action = "toggle" })' togglefloating
+    ;;
+  fullscreen)
+    hypr_dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen" })' fullscreen 0
+    ;;
+  maximized)
+    hypr_dispatch 'hl.dsp.window.fullscreen({ mode = "maximized" })' fullscreenstate 0 2
+    ;;
+  *)
+    echo "omarchy-hyprland-window-toggle: unknown target '$1'. Try 'omarchy hyprland window toggle --help'." >&2
+    exit 2
+    ;;
+esac

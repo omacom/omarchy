@@ -7,8 +7,14 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const menuModelJs = fs.readFileSync(path.join(root, 'shell/plugins/menu/MenuModel.js'), 'utf8')
 const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+const actionPanelQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/ActionPanel.qml'), 'utf8')
+const previewPaneQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/PreviewPane.qml'), 'utf8')
+const scopeSearchQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/ScopeSearchController.qml'), 'utf8')
 const defaultMenuJsonc = fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8')
+const shellQml = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
+const utilitiesLua = fs.readFileSync(path.join(root, 'default/hypr/bindings/utilities.lua'), 'utf8')
 
 const parsed = menu.parseMenuJsonc(`
 {
@@ -114,6 +120,10 @@ assertDeepEqual(
     iconFont: '',
     appIcon: '',
     appId: '',
+    appSubtitle: '',
+    summary: '',
+    categories: [],
+    desktopActions: [],
     label: 'Theme picker',
     target: 'style.theme',
     detail: 'Style',
@@ -127,8 +137,111 @@ assertDeepEqual(
   'menu builds display rows'
 )
 
+assert(shellQml.includes('delegate: GlobalShortcut {'), 'shell registers menu hotkeys in the persistent process')
+assert(shellQml.includes('shell.toggle("omarchy.menu", JSON.stringify({ menu: modelData.route }))'), 'global menu hotkeys still resolve plugin replacements centrally')
+assert(utilitiesLua.includes('hl.dsp.global("omarchy:menu-root")'), 'Super+Space bypasses per-invocation shell IPC startup')
+assertEqual(menu.parentDirectory('/home/user/file.txt'), '/home/user', 'menu finds a file containing folder')
+assertEqual(menu.parentDirectory('/home/user/project/'), '/home/user', 'menu finds a project containing folder')
+assertEqual(menu.parentDirectory('/file.txt'), '/', 'menu keeps a root-level file in root')
+assertDeepEqual(
+  menu.actionsForRow({ kind: 'file', target: '/tmp/readme', label: 'readme', disabled: false }).map(action => action.id),
+  ['primary', 'open-parent', 'copy-path', 'forget-recent'],
+  'file action panel offers open, reveal, copy, and forget'
+)
+assertDeepEqual(
+  menu.actionsForRow({ kind: 'agent-session', target: 'session-1', label: 'Session', disabled: false }).map(action => action.id),
+  ['primary', 'copy-session-id', 'forget-conversation'],
+  'conversation action panel offers resume, copy id, and forget'
+)
+assertDeepEqual(
+  menu.actionsForRow({ kind: 'app', appId: 'firefox', label: 'Firefox', disabled: false }).map(action => action.id),
+  ['primary', 'uninstall-app'],
+  'application action panel offers open and uninstall'
+)
+assertEqual(menu.actionsForRow({ kind: 'hint', disabled: true }).length, 0, 'action panel skips inert rows')
+assert(menuQml.includes('event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)'), 'menu opens actions with Ctrl+K')
+assert(menuQml.includes('mouse.button === Qt.RightButton'), 'menu opens actions from a row context click')
+assertEqual(menu.actionsForRow({ kind: 'file' })[2].operation, 'copy-target', 'result actions separate stable operations from type-specific presentation')
+assert(actionPanelQml.includes('signal triggered(var action)'), 'action panel returns declarative action descriptors to the menu')
+assert(actionPanelQml.includes('ListView {') && actionPanelQml.includes('ListView.Contain'), 'action panel caps long app action lists and keeps keyboard selection visible')
+
+const nativeAppActions = menu.actionsForRow({
+  kind: 'app', appId: 'firefox', label: 'Firefox', disabled: false,
+  desktopActions: [
+    { id: 'new-window', name: 'New Window', icon: 'window-new' },
+    { id: 'private-window', name: 'New Private Window', icon: '' }
+  ]
+})
+assertDeepEqual(nativeAppActions.map(action => action.id), ['primary', 'desktop.new-window', 'desktop.private-window', 'uninstall-app'], 'application action panel expands every declared desktop action in order')
+assertEqual(nativeAppActions[2].operation, 'desktop-action', 'native application actions use a stable declarative operation')
+assertEqual(nativeAppActions[2].target, 'private-window', 'native application action descriptors retain only their action id')
+
+assertEqual(menu.previewForRow({ kind: 'file', target: '/tmp/manual.pdf', label: 'Manual' }).kind, 'image', 'menu previews PDF and image files visually')
+assertEqual(menu.previewForRow({ kind: 'file', target: '/tmp/readme.md', label: 'Readme' }).kind, 'text', 'menu previews known text files as text')
+assertEqual(menu.previewForRow({ kind: 'file', target: '/tmp/archive.zip', label: 'Archive' }).kind, 'metadata', 'menu falls back to metadata for opaque files')
+const appPreview = menu.previewForRow({
+  kind: 'app', label: 'Firefox', appIcon: 'firefox', appId: 'firefox',
+  appSubtitle: 'Web Browser', summary: 'Browse the Web', categories: ['Network', 'WebBrowser'],
+  lastUsed: 1000, useCount: 3
+}, 121000)
+assertEqual(appPreview.kind, 'app', 'menu previews applications through their icon')
+assertEqual(appPreview.subtitle, 'Web Browser', 'application previews retain the desktop entry generic name')
+assertEqual(appPreview.summary, 'Browse the Web', 'application previews retain the desktop entry comment')
+assertDeepEqual(appPreview.metadata, [
+  { label: 'Category', value: 'Internet' },
+  { label: 'Last opened', value: '2m ago' },
+  { label: 'Launches', value: '3 times' },
+  { label: 'Application ID', value: 'firefox' }
+], 'application previews expose useful structured metadata')
+assertEqual(menu.previewForRow({ kind: 'menu', label: 'Setup' }).kind, '', 'menu does not expand for non-previewable command rows')
+assert(menuQml.includes('MenuModel.previewForRow(displayModel.get(index), Date.now())'), 'menu derives previews from the selected result descriptor')
+assert(menuQml.includes('PreviewPane {'), 'menu delegates preview rendering to the preview pane')
+assert(menuQml.includes('width: root.previewSpaceReserved'), 'result views reserve a stable detail column as selection changes')
+assert(
+  /function hasPreviewableRows\(serial\) \{[\s\S]*?MenuModel\.previewForRow\(displayModel\.get\(i\)\)\.kind !== ""/.test(menuQml)
+    && menuQml.includes('root.hasPreviewableRows(layoutSerial)'),
+  'fallback and loading states use the full card unless the displayed result set can show a preview'
+)
+assert(
+  menuQml.includes('label: "Ask Agent"')
+    && menuQml.includes('label: "Search the Web"'),
+  'fallback commands use concise full-width actions without a redundant heading'
+)
+assert(!menuQml.includes('Use “" + root.filterText'), 'fallback commands do not add a decorative query heading')
+assert(
+  /property int cardWidth: Math\.min\(root\.dmenuActive \? Style\.space\(root\.dmenuWidth\)\s*\n\s*: root\.standardCardWidth/.test(menuQml),
+  'every normal launcher route uses one fixed outer width while dmenu keeps its requested width'
+)
+assert(menuQml.includes('anchors.horizontalCenter: parent.horizontalCenter'), 'the fixed-width launcher card remains horizontally centered')
+assert(menuQml.includes('interval: 32'), 'menu coalesces sustained key-repeat bursts while text updates immediately')
+assert(
+  !/visibleRowsHeight:[^\n]*filterText/.test(menuQml),
+  'filter text changes do not synchronously walk row layout before results change'
+)
+assert(
+  /var previousWasEmpty = !root\.filterText\.trim\(\)[\s\S]*?if \(previousWasEmpty\) root\.loadProvidersForSearch\(\)/.test(menuQml),
+  'menu scans unloaded providers once when search begins rather than on every key'
+)
+assert(
+  menuModelJs.includes('if (Math.abs(al - bl) > 2) return 99'),
+  'typo matching rejects impossible length differences before allocating UI-thread work'
+)
+assert(previewPaneQml.includes('["head", "-c", "12288", "--", root.descriptor.target]'), 'text previews read a bounded amount without a shell')
+assert(previewPaneQml.includes('model: root.descriptor.metadata || []'), 'preview pane renders structured application metadata declaratively')
+
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
+
+assertEqual(defaultById.search.kind, 'menu', 'menu groups web searches in a Search submenu')
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'search').map(item => item.id),
+  ['search.web', 'search.github', 'search.aur'],
+  'menu keeps Web, GitHub, and AUR under Search'
+)
+assert(!defaultById.github && !defaultById.aur && !defaultById.archwiki, 'menu keeps search services and Arch Wiki out of the root')
+assert(defaultById['search.github'].aliases.includes('github'), 'menu preserves the GitHub route as an alias')
+assert(defaultById['search.aur'].aliases.includes('aur'), 'menu preserves the AUR route as an alias')
+assert(defaultById['learn.arch'].aliases.includes('archwiki'), 'menu preserves the Arch Wiki route on Learn > Arch')
 
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.
@@ -165,6 +278,9 @@ const routed = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'system'), 'system', 'menu routes an exact id even when an app keyword matches it')
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'process'), 'process', 'menu never routes to an app row through its keywords')
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'power-menu'), 'system', 'menu routes declared aliases to their item')
+assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'github'), 'search.github', 'menu preserves the former GitHub route below Search')
+assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'aur'), 'search.aur', 'menu preserves the former AUR route below Search')
+assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'archwiki'), 'learn.arch', 'menu preserves the former Arch Wiki route below Learn')
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'power_menu'), 'system', 'menu normalizes underscores in routes')
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, ''), 'root', 'menu routes empty input to root')
 assertEqual(menu.resolveRoute(routed.items, routed.itemOrder, 'no-such-route'), 'no-such-route', 'menu falls through to the literal input')
@@ -468,7 +584,7 @@ assert(
 )
 assert(
   /function selectFromPointer\(index, item, mouse\)[\s\S]*?if \(!root\.rowSelectable\(index\)\) return/.test(menuQml)
-    && /onClicked: \{\s*\n\s*if \(row\.disabled\) return/.test(menuQml),
+    && /onClicked: function\(mouse\) \{\s*\n\s*if \(row\.disabled\) return/.test(menuQml),
   'menu leaves the cursor put when the pointer crosses a disabled row'
 )
 assert(
@@ -638,6 +754,173 @@ assert(
     && /onClicked:[\s\S]*root\.activateIndex\(row\.index, true\)/.test(menuQml),
   'mouse activation carries pointer intent into subordinate menus'
 )
+
+// Fuzzy matching and typo tolerance
+assertEqual(menu.fuzzyMatch('zen', 'zen').score, 100, 'fuzzyMatch scores exact matches 100')
+assertEqual(menu.fuzzyMatch('zen', 'zen-browser').score, 85, 'fuzzyMatch scores prefix matches 85')
+assert(menu.fuzzyMatch('zb', 'zen-browser').matched, 'fuzzyMatch matches subsequence across word boundaries')
+assert(!menu.fuzzyMatch('xyz', 'zen').matched, 'fuzzyMatch rejects non-subsequence')
+assert(menu.fuzzyMatchWords('term', 'alacritty terminal emulator').matched, 'fuzzyMatchWords finds matches across words')
+
+assert(menu.typoMatch('brav', 'brave').matched, 'typoMatch tolerates single-character omission')
+assert(menu.typoMatch('chrmoe', 'chrome').matched, 'typoMatch tolerates transposition via Damerau-Levenshtein')
+assert(!menu.typoMatch('zen', 'zen').matched, 'typoMatch skips short patterns of 3 or fewer characters')
+assert(!menu.typoMatch('firefox', 'brave').matched, 'typoMatch rejects large edit distances')
+
+// Quicklink and prompt-first input helpers
+assertEqual(menu.quicklinkFirstTerm('g search query'), 'g', 'quicklinkFirstTerm extracts trigger word')
+assertEqual(menu.quicklinkRemainder('g search query'), 'search query', 'quicklinkRemainder extracts query after trigger')
+assertEqual(menu.quicklinkRemainder('singleword'), '', 'quicklinkRemainder returns empty string for single word')
+assert(menu.hasParam('omarchy-websearch {}'), 'hasParam detects {} placeholder')
+assert(!menu.hasParam('omarchy-theme-set'), 'hasParam returns false when {} is absent')
+assertEqual(menu.substituteParam('echo {}', 'hello world'), 'echo hello world', 'substituteParam replaces {} with argument')
+
+assertDeepEqual(
+  menu.normalizeInput({ prompt: 'Ask...', action: 'omarchy-agent-ask {}' }),
+  { prompt: 'Ask...', action: 'omarchy-agent-ask {}' },
+  'normalizeInput returns normalized prompt and action'
+)
+assertEqual(
+  menu.normalizeInput({ action: 'run {}' }).prompt,
+  'Input',
+  'normalizeInput defaults missing prompt to Input'
+)
+assertEqual(menu.normalizeInput(null), null, 'normalizeInput rejects null')
+assertEqual(menu.normalizeInput({ prompt: 'No action' }), null, 'normalizeInput rejects missing action')
+
+// Recent files search and icons
+assertEqual(menu.iconForFile('main.rs'), '\ue7a8', 'iconForFile identifies Rust files')
+assertEqual(menu.iconForFile('app.ts'), '\ue628', 'iconForFile identifies TypeScript files')
+assertEqual(menu.iconForFile('config.json'), '\ue60b', 'iconForFile identifies JSON files')
+assertEqual(menu.iconForFile('Dockerfile'), '\ue7b0', 'iconForFile identifies Dockerfile')
+assertEqual(menu.iconForFile('unknown.xyz123'), '\uf016', 'iconForFile falls back to default document icon')
+
+const sampleFrecency = {
+  '/home/user/project/main.rs': { score: 100 },
+  '/home/user/docs/notes.txt': { score: 50 },
+  'relative/path/ignored.txt': { score: 200 }
+}
+const fileRows = menu.fileSearchRows(sampleFrecency, 'main', 5)
+assertEqual(fileRows.length, 1, 'fileSearchRows filters entries by query terms')
+assertEqual(fileRows[0].target, '/home/user/project/main.rs', 'fileSearchRows targets matching absolute path')
+assertEqual(fileRows[0].kind, 'file', 'fileSearchRows creates file kind rows')
+assertEqual(fileRows[0].label, 'main.rs', 'fileSearchRows extracts basename for label')
+assertEqual(fileRows[0].detail, '/home/user/project', 'fileSearchRows extracts dirname for detail')
+assertEqual(menu.fileSearchRows(sampleFrecency, '', 5).length, 0, 'fileSearchRows returns empty list for empty query')
+
+// Unflattened submenus (flat: false) hide children from root flat search
+const itemsMap = {
+  'root': { id: 'root', parent: '' },
+  'trigger': { id: 'trigger', parent: 'root' },
+  'trigger.window': { id: 'trigger.window', parent: 'trigger' },
+  'trigger.window.workspace': { id: 'trigger.window.workspace', parent: 'trigger.window', flat: false },
+  'trigger.window.workspace.1': { id: 'trigger.window.workspace.1', parent: 'trigger.window.workspace' },
+  'trigger.window.left': { id: 'trigger.window.left', parent: 'trigger.window' }
+}
+assert(menu.isSearchableDescendant(itemsMap, 'trigger.window.workspace', 'root'), 'unflattened submenu is searchable from root')
+assert(!menu.isSearchableDescendant(itemsMap, 'trigger.window.workspace.1', 'root'), 'unflattened submenu child is hidden from root flat search')
+assert(menu.isSearchableDescendant(itemsMap, 'trigger.window.left', 'root'), 'normal child is searchable from root')
+assert(menu.isSearchableDescendant(itemsMap, 'trigger.window.workspace.1', 'trigger.window.workspace'), 'unflattened submenu child is searchable when submenu is active')
+
+// Project and agent-session frecency rows
+const richFrecency = {
+  '/home/user/Work/kiln': { score: 120, kind: 'project', title: 'kiln' },
+  '01a079e9-sess': { score: 80, kind: 'agent-session', title: 'Fix schema bug' }
+}
+const projRows = menu.fileSearchRows(richFrecency, 'kiln', 5)
+assertEqual(projRows.length, 1, 'fileSearchRows matches project directory')
+assertEqual(projRows[0].kind, 'project', 'project row has project kind')
+assertEqual(projRows[0].icon, '\uf07c', 'project row uses folder icon')
+assertEqual(projRows[0].label, 'kiln', 'project row uses project title')
+
+const sessRows = menu.fileSearchRows(richFrecency, 'schema', 5)
+assertEqual(sessRows.length, 0, 'fileSearchRows omits agent sessions from root search')
+const resumeRows = menu.fileSearchRows(richFrecency, 'resume', 5)
+assertEqual(resumeRows.length, 0, 'fileSearchRows does not match agent sessions on resume keyword')
+
+// Lazy session search in resume subsection
+const emptySess = menu.sessionSearchRows(richFrecency, '', 5)
+assertEqual(emptySess.length, 1, 'sessionSearchRows returns recent sessions on empty query')
+const matchSess = menu.sessionSearchRows(richFrecency, 'schema', 5)
+assertEqual(matchSess.length, 1, 'sessionSearchRows lazily matches session by keyword')
+assertEqual(matchSess[0].label, 'Fix schema bug', 'sessionSearchRows uses session title')
+assertEqual(matchSess[0].action, "omarchy agent resume '01a079e9-sess'", 'sessionSearchRows configures resume command')
+
+// Generic scoped search and normalization
+const normScoped = menu.normalizeItem('resume', {
+  label: 'Resume agent…',
+  scope: 'agent-session',
+  placeholder: 'Search previous conversations…',
+  action: 'omarchy agent resume {}'
+})
+assertEqual(normScoped.kind, 'menu', 'scoped item normalizes to menu kind')
+assertEqual(normScoped.scope, 'agent-session', 'scope attribute preserved')
+assertEqual(normScoped.placeholder, 'Search previous conversations…', 'placeholder attribute preserved')
+assertEqual(normScoped.action, 'omarchy agent resume {}', 'action template preserved')
+assert(menu.isVisible({ resume: normScoped }, ['resume'], {}, normScoped), 'scoped menu is visible')
+
+const emptyScoped = menu.scopedSearchRows(richFrecency, 'agent-session', '', 5)
+assertEqual(emptyScoped.length, 1, 'scopedSearchRows returns recent items on empty query')
+const matchScoped = menu.scopedSearchRows(richFrecency, 'agent-session', 'schema', 5, 'omarchy agent resume {}')
+assertEqual(matchScoped.length, 1, 'scopedSearchRows lazily matches session by keyword')
+assertEqual(matchScoped[0].label, 'Fix schema bug', 'scopedSearchRows uses item title')
+assertEqual(matchScoped[0].action, "omarchy agent resume '01a079e9-sess'", 'scopedSearchRows configures templated action')
+
+const normalizedScoped = menu.normalizeScopedResults([
+  { target: "session'one", label: 'Session one', score: 7, lastUsed: 1000, useCount: 3, pinned: true }
+], 'agent-session', 'omarchy agent resume {}', '')
+assertEqual(normalizedScoped[0].kind, 'agent-session', 'streamed scope results inherit their declared kind')
+assertEqual(normalizedScoped[0].icon, '', 'streamed scope results inherit their fallback icon')
+assertEqual(normalizedScoped[0].action, "omarchy agent resume 'session'\\''one'", 'streamed scope results safely receive the menu action template')
+assert(normalizedScoped[0].pinned && normalizedScoped[0].useCount === 3, 'streamed scope results retain rich activity metadata')
+
+assertEqual(menu.relativeAge(1000, 31000), 'now', 'result recency rounds sub-minute ages to now')
+assertEqual(menu.relativeAge(1000, 3 * 60 * 60000 + 1000), '3h', 'result recency formats compact hours')
+const richRows = menu.decorateResultRows([
+  { kind: 'file', target: '/tmp/report.pdf' },
+  { kind: 'app', appId: 'org.example.App' }
+], {
+  '/tmp/report.pdf': { lastUsed: 1000, count: 4, pinned: true },
+  'org.example.App': { lastUsed: 61000, count: 2 }
+}, 121000)
+assertDeepEqual(richRows[0].accessories.map(a => a.id), ['pinned', 'recency'], 'file results declare multiple ordered accessories')
+assertEqual(richRows[0].accessories[1].text, '2m', 'result rows expose compact recency')
+assertDeepEqual(menu.actionsForRow(richRows[0]).map(a => a.id), ['primary', 'open-parent', 'copy-path', 'unpin', 'forget-recent'], 'pinned files declaratively replace Pin with Unpin')
+assertDeepEqual(menu.actionsForRow(richRows[1]).map(a => a.id), ['primary', 'pin', 'reset-ranking', 'uninstall-app'], 'used apps declaratively offer Pin and Reset Ranking')
+const declaredAccessory = menu.decorateResultRows([
+  { kind: 'fallback', accessories: [{ id: 'context', text: 'Default agent' }] }
+], {}, 121000)
+assertDeepEqual(declaredAccessory[0].accessories, [{ id: 'context', text: 'Default agent' }], 'result decoration preserves explicitly declared contextual accessories')
+
+const firstBatch = menu.reduceScopeSearchEvent([], false, {
+  version: 1, source: 'activity', queryId: '7', type: 'rows', rows: [{ target: 'one' }]
+}, '7')
+assert(firstBatch.accepted && firstBatch.started && firstBatch.changed, 'scope search reducer accepts a correlated row batch')
+assertEqual(firstBatch.rows.length, 1, 'scope search reducer appends streamed rows')
+const staleBatch = menu.reduceScopeSearchEvent(firstBatch.rows, true, {
+  version: 1, source: 'activity', queryId: '6', type: 'rows', rows: [{ target: 'stale' }]
+}, '7')
+assert(!staleBatch.accepted && staleBatch.rows.length === 1, 'scope search reducer rejects stale query ids')
+const populatedDone = menu.reduceScopeSearchEvent(firstBatch.rows, true, {
+  version: 1, source: 'activity', queryId: '7', type: 'done'
+}, '7')
+assert(populatedDone.terminal && !populatedDone.changed, 'scope search reducer avoids a redundant populated done update')
+const emptyDone = menu.reduceScopeSearchEvent([], false, {
+  version: 1, source: 'activity', queryId: '7', type: 'done'
+}, '7')
+assert(emptyDone.terminal && emptyDone.changed, 'scope search reducer publishes a terminal empty result')
+const failedSearch = menu.reduceScopeSearchEvent(firstBatch.rows, true, {
+  version: 1, source: 'activity', queryId: '7', type: 'error', message: 'database unavailable'
+}, '7')
+assert(failedSearch.terminal && failedSearch.failed && !failedSearch.changed && failedSearch.rows.length === 1, 'scope search reducer preserves rows on backend errors')
+
+assert(menuQml.includes('ScopeSearchController {'), 'menu delegates lazy-search lifecycle to one controller')
+assert(menuQml.includes('scopeSearch.search(activeEntry.scope, query)'), 'menu schedules scoped queries through the controller contract')
+assert(scopeSearchQml.includes('stdout: SplitParser {'), 'scope search consumes asynchronous results as a delimited stream')
+assert(scopeSearchQml.includes('stdinEnabled: true'), 'scope search keeps a persistent worker')
+assert(scopeSearchQml.includes('command: ["omarchy-activity", "search", "--worker"]'), 'scope search bypasses an intermediary shell for reliable worker lifecycle')
+assert(scopeSearchQml.includes('worker.generation !== controller.generation'), 'scope search rejects results from stale generations')
+assert(scopeSearchQml.includes('queryId: String(worker.generation)'), 'scope search correlates worker requests with generations')
 JS
 
 font_charset=$(fc-query --format='%{charset}' "$ROOT/default/fonts/omarchy/omarchy.ttf")

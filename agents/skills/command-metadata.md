@@ -22,6 +22,8 @@ Only use `omarchy:examples` where there are args that need explaining.
 Prefer explicit metadata for user-facing commands. Keep routes consistent with
 the filename unless there is a deliberate alias or compatibility route.
 
+The same keys work for user commands in `~/.local/bin/omarchy-*`, which `bin/omarchy` routes like shipped commands without ever letting them shadow a packaged binary; see [the CLI router doc](../../docs/cli-router.md) for the precedence and safety rules. The `test/cli` metadata lint only scans `bin/`, so user files are validated by `omarchy commands --check` instead.
+
 Example:
 
 ```bash

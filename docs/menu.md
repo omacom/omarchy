@@ -41,6 +41,9 @@ submenu. The fields:
 | `provider` | Runtime row source for this submenu (see Providers) |
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
 | `description` | Subtitle shown while searching, and extra search text matched by whole word |
+| `flat` | Set to `false` to scope child items so they do not pollute root flat search until this submenu is explicitly navigated to |
+| `scope` | Kind of frecency items to lazily search within this submenu (e.g. `agent-session`, `project`) |
+| `placeholder` | Hint text displayed in the search header and empty state when entering a scoped submenu |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
 
 Do not add `aliases` to new entries. They are reserved for established
@@ -150,8 +153,24 @@ so a misspelling still attempts to open that id. Summoning a route that
 resolves to an action — an alias for a leaf, like `screenrecord-stop` — runs
 the action directly instead of opening an action with no children, and a
 link is followed to its target. The default Hyprland bindings in
-`default/hypr/bindings/utilities.lua` all go through this surface
-(SUPER+SPACE toggles root, SUPER+ESCAPE the system menu, and so on).
+`default/hypr/bindings/utilities.lua` use matching `GlobalShortcut`
+registrations in the already-running shell, avoiding the startup cost of a
+fresh `qs` IPC client on every keypress. The central shell owns those
+registrations and routes them through the plugin registry, so replacing
+`omarchy.menu` still works. `omarchy-menu` remains the equivalent IPC surface
+for scripts and terminals.
+
+## Result actions
+
+Press `Ctrl+K` on a selected result, or right-click it, to open its action panel. The first row is the result's normal Enter behavior. Files and projects also expose their containing folder, path copying, pinning, and removal from activity history; agent conversations expose session-id copying, pinning, and history removal; applications expose every action declared by their desktop entry (such as New Window), pinning, ranking reset, and uninstall. `MenuModel.js` declares reusable action definitions and the ordered action set for each result kind. `ActionPanel.qml` only presents those descriptors in a bounded, scrollable list, while `Menu.qml` executes their small, stable operation vocabulary. Native application commands remain live `DesktopAction` objects until invoked, so their desktop-entry field codes and launch semantics are preserved. This keeps row-specific capabilities out of keyboard and pointer handlers and lets each kind grow multiple actions without another input-handler branch.
+
+Every normal launcher route uses the same centered outer width, including root and ordinary submenus; select/input callers retain their explicitly requested dmenu width. A result set splits that stable frame into list and detail columns only when at least one displayed row can use a preview, so mixed results remain stable while fallback actions and loading or empty states use the full centered interior. Applications show their desktop icon, generic name, desktop-entry description, useful categories, recent-use summary, and stable application id; supported images and PDFs render directly through Qt; known text formats load asynchronously with a hard 12 KiB read cap; opaque files, projects, and conversations show structured metadata. App descriptions, categories, and keywords are searchable too. `MenuModel.js` maps result kinds and file extensions to preview descriptors, while `PreviewPane.qml` owns bounded loading and presentation. Moving the cursor across ordinary command rows starts no preview work.
+
+When root search has no direct match, its full-width fallback rows identify the default agent or browser inline. They need no extra heading: the action labels and contextual accessories already say what will happen. This follows the same declarative accessory path as result metadata rather than creating an empty detail pane merely to occupy space.
+
+Recent result rows also expose compact accessories such as pinned state and relative last-used time. Accessory definitions and the ordered set for each result kind live alongside the action definitions in `MenuModel.js`; the delegate only repeats the descriptors it receives. These values come from the activity snapshot loaded when the menu opens or from streamed search rows, so rendering them starts no watcher or background process.
+
+Keyboard edits update the filter immediately, while scoring/model updates are coalesced across a 32 ms window. This stays below a perceptible pause but spans common key-repeat intervals, so holding a key does not rebuild the catalogue between every event. Row-height calculation follows result-model revisions rather than raw keystrokes, provider discovery runs once when a search begins, and typo matching rejects impossible length differences before edit-distance work. Consequently rapid typing and Backspace do not queue catalog and layout work ahead of later key events.
 
 ## Select and input modes
 
@@ -165,3 +184,50 @@ renders under the label, filters with it, and comes back as
 `label\tsubtext` so callers with same-named rows get a stable key. This is
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
+
+## Quicklinks
+
+An action containing `{}` is parameterized: when the row is activated, every `{}` occurrence is replaced with user text, shell-quoted, by pure string substitution — never evaluated, so an input like `$(id)` stays literal. What fills it depends on the row:
+
+- A normal action row takes the filter remainder: the filter words after the first (trigger) word. Such rows match a search on the first word alone, so typing `github neovim` still lists the GitHub row and activates it with `neovim`. With a single-word filter the parameter is empty. The shipped GitHub and AUR actions live under Search but retain their short aliases for this flow.
+- A row with `input: {"prompt": "...", "action": "..."}` is prompt-first: selecting it opens input mode (prefilled with the filter remainder, if any) and runs the template with the answer on confirm. An empty answer runs nothing. This is how the shipped `ask` (Ask agent…, `omarchy agent prompt {}`) and Search › Web rows work.
+
+In both cases the input is never recorded in the activity database — free text may be secrets, the same rule `omarchy-menu-input` follows. Template authors: the substituted value is already shell-quoted and concatenates with its neighbors, so close static quotes around the placeholder (`'...q='{}'&...'`) rather than wrapping it — wrapping lets the value's quotes pair with the template's and re-split on spaces, while the closed form keeps a static `&` literal inside quotes.
+
+These fields are honored by compatible menus only. The shipped shell ignores the unknown `input` field (such rows have no children and stay hidden) and runs `{}` actions literally.
+
+## Scoped submenus (`flat: false`)
+
+Submenus with parameterized leaf options — such as "Move to Workspace…" (workspaces 1 through 10), "Touchpad Haptics" (`low`, `mid`, `high`), or "Menu Bar Position" (`top`, `bottom`, `left`, `right`) — can specify `"flat": false`.
+
+When `"flat": false` is set on an entry:
+- The parent submenu itself remains visible and fuzzy-searchable from root search.
+- The leaf children are hidden from root flat search so they do not pollute search results with generic numbers or values.
+- Once the user navigates into that submenu (or selects it), its child options become active and fully searchable.
+
+## Lazy search scopes (`scope`)
+
+For large collections or historical activity that should not be pre-enumerated or pollute top-level search (such as agent conversations, historical projects, or bookmarks), a submenu can declare a lazy `scope`:
+
+```jsonc
+"resume": {
+  "icon": "",
+  "label": "Resume agent…",
+  "title": "Resume Conversation",
+  "description": "Search past agent conversations",
+  "scope": "agent-session",
+  "placeholder": "Search previous conversations…",
+  "action": "omarchy agent resume {}",
+  "flat": false
+}
+```
+
+When `scope` is configured on an entry:
+- The entry acts as a submenu (`kind: "menu"`).
+- At the root level, items belonging to that scope are never exposed or dumped into top-level flat search.
+- When the user navigates into the submenu, recent items for that scope are displayed immediately (ranked by frecency score), or a clean placeholder hint is shown if no history exists yet.
+- As the user types, the hydrated frecency cache supplies immediate provisional matches while a debounced query searches the complete scoped collection through one persistent activity worker. Versioned request IDs reject superseded results, batches of up to eight rows progressively update the existing model, and the terminal event does not trigger a redundant rebuild after populated batches.
+- A backend error is terminal for its request but does not erase provisional or already streamed rows. An unexpected worker exit is retried once for the still-current request. The worker stops after five idle seconds or immediately when the menu closes, directly and without an intermediary shell process.
+- Selecting a match executes the `action` template, replacing `{}` with the quoted key/target of the selected item.
+
+`ScopeSearchController.qml` owns that lifecycle behind a small search/cancel/results contract. `Menu.qml` supplies the active scope and renders results, `MenuModel.js` performs pure row normalization and protocol reduction, and `omarchy-activity` owns SQLite search and ranking. This keeps process state and transport details out of the menu presentation.
