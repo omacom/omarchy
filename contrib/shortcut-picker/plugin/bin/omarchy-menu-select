@@ -1,0 +1,9 @@
+#!/bin/bash
+# A missing binary or changed shared-library ABI should leave a working picker.
+native="${BASH_SOURCE[0]%/*}/omarchy-shortcut-select"
+if [[ -x $native ]]; then
+  "$native" "$@"
+  result=$?
+  if (( result != 126 && result != 127 )); then exit "$result"; fi
+fi
+exec "${OMARCHY_PATH}/bin/omarchy-menu-select" "$@"
