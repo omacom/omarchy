@@ -8,6 +8,8 @@ Item {
   id: root
 
   property var settings: ({})
+  // Set by the panel while it's open, so the live transfer rate stays fresh.
+  property bool watching: false
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   property bool installed: false
@@ -21,6 +23,9 @@ Item {
   readonly property bool active: _desired === -1 ? running : (_desired === 1)
   property bool refreshing: false
   property string statusText: "Checking…"
+  // Dropbox's own status lines, e.g. `Uploading "x.tgz" (1,617 KB/sec, 1 hour)`.
+  readonly property var statusLines: Model.statusLines(statusText)
+  readonly property bool syncing: active && authenticated && Model.isSyncing(statusText)
   property string accountPath: ""
   property string plan: ""
   property double usedBytes: 0
@@ -116,7 +121,7 @@ Item {
   }
 
   function runControl(command, desired) {
-    // No progress status here — the greyed icon and hero phrase already convey
+    // No progress status here — the greyed icon and hero status already convey
     // the pause/resume; only surface a message if the command fails.
     if (!installed || controlProcess.running) return
     _desired = desired
@@ -159,7 +164,9 @@ Item {
 
   Timer {
     id: refreshTimer
-    interval: root.refreshIntervalSec * 1000
+    // Poll fast while the panel is open and a transfer is in flight, a bit
+    // slower while syncing in the background (just drives the bar dot).
+    interval: root.syncing ? (root.watching ? 3000 : 10000) : root.refreshIntervalSec * 1000
     repeat: true
     running: true
     triggeredOnStart: true

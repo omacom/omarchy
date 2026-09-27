@@ -27,6 +27,18 @@ assert(parsed.installed && parsed.running && parsed.authenticated, 'dropbox pars
 assertEqual(parsed.files.length, 1, 'dropbox preserves file rows')
 
 assertEqual(
+  JSON.stringify(dropbox.statusLines('Syncing "x.tgz" • 1 hour\n  Uploading "x.tgz" (1,617 KB/sec, 1 hour)\n\n')),
+  JSON.stringify(['Syncing "x.tgz" • 1 hour', 'Uploading "x.tgz" (1,617 KB/sec, 1 hour)']),
+  'dropbox splits status into trimmed lines'
+)
+assertEqual(dropbox.statusLines('').length, 0, 'dropbox handles empty status')
+assert(dropbox.isSyncing('Syncing 7 files • 1 hour\nUploading "x" (1,522 KB/sec, 1 hour)'), 'dropbox detects uploads as syncing')
+assert(dropbox.isSyncing('Indexing 517 files...'), 'dropbox detects indexing as syncing')
+assert(dropbox.isSyncing('Downloading 3 files (18.5 KB/sec, 2 mins)'), 'dropbox detects downloads as syncing')
+assert(!dropbox.isSyncing('Up to date'), 'dropbox treats up to date as idle')
+assert(!dropbox.isSyncing('Stopped'), 'dropbox treats stopped as idle')
+
+assertEqual(
   dropbox.fileMeta({ modifiedTs: 1000, folder: 'Docs' }, 1000 * 1000 + 3600 * 1000),
   '1h ago · Docs',
   'dropbox file metadata includes relative time and folder'

@@ -47,6 +47,17 @@ function defaultStatus() {
   }
 }
 
+// Dropbox's multi-line status (e.g. `Syncing 7 files` / `Uploading "x" (1,617 KB/sec, 1 hour)`)
+// split into trimmed, non-empty lines.
+function statusLines(text) {
+  return String(text || "").split("\n").map(function(line) { return line.trim() }).filter(function(line) { return line !== "" })
+}
+
+// Whether the status describes work in flight, as opposed to "Up to date" or "Stopped".
+function isSyncing(text) {
+  return /\b(Syncing|Indexing|Uploading|Downloading|Starting|Connecting)\b/i.test(String(text || ""))
+}
+
 function fileExtension(name) {
   var value = String(name || "").toLowerCase()
   var index = value.lastIndexOf(".")
@@ -125,6 +136,8 @@ if (typeof module !== "undefined") {
   module.exports = {
     parseStatus: parseStatus,
     defaultStatus: defaultStatus,
+    statusLines: statusLines,
+    isSyncing: isSyncing,
     fileExtension: fileExtension,
     fileKind: fileKind,
     fileGlyph: fileGlyph,

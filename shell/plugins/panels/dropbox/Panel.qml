@@ -17,21 +17,9 @@ Panel {
   property string focusSection: "login"
   property int fileIndex: 0
   property bool cursorActive: false
-  property int phraseIndex: 0
-
-  readonly property var activePhrases: [
-    "Filing files",
-    "Distributing data",
-    "Shuffling folders",
-    "Boxing bytes",
-    "Sorting stuff",
-    "Syncing secrets",
-    "Packing packets",
-    "Moving memories",
-    "Wrangling revisions",
-    "Cataloging chaos"
-  ]
-  readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
+  // The hero meta is a short uppercased label; Dropbox's full status lines
+  // (file names, rate, time left) go in the detail text below it.
+  readonly property string heroStatusText: dropbox.syncing ? "Syncing" : (dropbox.statusLines.length > 0 ? dropbox.statusLines[0] : "Up to date")
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
@@ -147,6 +135,7 @@ Panel {
     id: dropbox
     settings: root.settings
     omarchyPath: root.omarchyPath
+    watching: root.opened
   }
 
   Connections {
@@ -174,10 +163,30 @@ Panel {
     iconComponent: Component {
       Item {
         DropboxIcon {
+          id: barIcon
           anchors.centerIn: parent
           iconSize: Style.space(12)
           color: root.barIconColor
           opacity: dropbox.active ? 1.0 : 0.6
+
+          SequentialAnimation on opacity {
+            running: dropbox.syncing
+            loops: Animation.Infinite
+            onStopped: barIcon.opacity = Qt.binding(function() { return dropbox.active ? 1.0 : 0.6 })
+            NumberAnimation { to: 0.35; duration: 900; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1.0; duration: 900; easing.type: Easing.InOutSine }
+          }
+        }
+
+        // Activity dot while Dropbox is syncing/uploading/downloading.
+        Rectangle {
+          visible: dropbox.syncing
+          width: Style.space(5)
+          height: width
+          radius: width / 2
+          color: Color.accent
+          anchors.horizontalCenter: barIcon.right
+          anchors.verticalCenter: barIcon.bottom
         }
       }
     }
@@ -244,7 +253,7 @@ Panel {
               id: hero
               width: parent.width
               title: "Dropbox"
-              meta: dropbox.active ? root.heroPhraseText : "Syncing paused"
+              meta: dropbox.active ? root.heroStatusText : "Syncing paused"
               foreground: root.foreground
               fontFamily: root.fontFamily
               iconOpacity: dropbox.active ? 1.0 : 0.5
@@ -278,6 +287,17 @@ Panel {
                 }
               }
             }
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            visible: dropbox.authenticated && dropbox.syncing
+            width: parent.width
+            text: dropbox.statusLines.join("\n")
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
           }
 
           Text {
@@ -354,29 +374,6 @@ Panel {
           }
         }
       }
-    }
-  }
-
-  Timer {
-    id: phraseTimer
-    interval: 2800
-    running: root.opened && dropbox.authenticated && dropbox.active
-    repeat: true
-    onTriggered: phraseSwap.restart()
-  }
-
-  SequentialAnimation {
-    id: phraseSwap
-    PropertyAnimation {
-      target: hero; property: "metaOpacity"
-      to: 0.0; duration: 180; easing.type: Easing.OutQuad
-    }
-    ScriptAction {
-      script: root.phraseIndex = (root.phraseIndex + 1) % root.activePhrases.length
-    }
-    PropertyAnimation {
-      target: hero; property: "metaOpacity"
-      to: 1.0; duration: 260; easing.type: Easing.InQuad
     }
   }
 
