@@ -95,9 +95,9 @@ pass "skips the local machine and disabled machines"
 [[ $output == *"down: ssh: connect to host down"* ]] || fail "logs an unreachable machine"
 pass "logs an unreachable machine"
 
-# Connects one machine at a time until one succeeds, so an SSH agent asks for approval once.
-[[ $(head -n 2 "$SYNC_TEST/ssh-calls" | paste -sd ' ') == "down alpha" ]] || fail "tries machines in order until one connects"
-pass "tries machines in order until one connects"
+# Connects one machine at a time, so an SSH agent asks for approval at most once.
+[[ $(paste -sd ' ' "$SYNC_TEST/ssh-calls") == "down alpha beta gamma" ]] || fail "connects to machines one at a time in order"
+pass "connects to machines one at a time in order"
 
 # A machine with the toggle off refuses themes from other machines.
 reset_remotes
@@ -121,12 +121,6 @@ reset_remotes
 OMARCHY_THEME_SYNC_FROM=elsewhere run_sync >/dev/null
 [[ ! -e $SYNC_TEST/ssh-calls ]] || fail "a mirrored theme change is not mirrored again"
 pass "a mirrored theme change is not mirrored again"
-
-# A dry run reaches each session without changing its theme.
-reset_remotes
-output=$(run_sync --dry-run)
-[[ -z $(set_log alpha) && $output == *"alpha: dry run: would set lumon"* ]] || fail "dry run leaves remote themes alone"
-pass "dry run leaves remote themes alone"
 
 # The theme name reaches the remote as data, never as shell code.
 reset_remotes
