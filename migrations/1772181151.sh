@@ -6,7 +6,7 @@ if omarchy-cmd-present supergfxctl && [[ -f /etc/supergfxd.conf ]]; then
 
   # Reinstall the force-igpu sleep hook root-owned and executable (cp -p left it user-owned and inert)
   if [[ -f /usr/lib/systemd/system-sleep/force-igpu ]]; then
-    sudo install -m 0755 -o root -g root "$OMARCHY_PATH/default/systemd/system-sleep/force-igpu" /usr/lib/systemd/system-sleep/force-igpu
+    sudo install -m 0755 -o root -g root "$OMARCHY_PATH/default/systemd/system-sleep/force-igpu" /usr/lib/systemd/system-sleep/force-igpu || exit 1
   fi
 
   if [[ $current_mode == "Integrated" ]]; then
