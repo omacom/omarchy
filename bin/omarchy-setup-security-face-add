@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# omarchy:summary=Enrol another look for face authentication (glasses, beard, lighting)
+# omarchy:args=[label]
+# omarchy:requires-sudo=true
+
+set -e
+
+if (( EUID == 0 )); then
+  echo "Run omarchy-setup-security-face-add as your user, not under sudo (it asks for sudo where needed)." >&2
+  exit 1
+fi
+
+if ! systemctl is-active --quiet faceauth.service; then
+  echo -e "\e[31mFace authentication is not set up yet.\e[0m Run: omarchy setup security face"
+  exit 1
+fi
+
+label=${1:-}
+if [[ -z $label ]]; then
+  read -rp "Label for this look (e.g. glasses, beard, lamp): " label
+fi
+label=${label//[^A-Za-z0-9_-]/}
+[[ -n $label ]] || label=extra
+
+echo -e "\e[32m\nEnrolling another look ('$label'). Look at the camera and move your head a little.\e[0m"
+echo "Templates are merged into your existing identity, matched by best score."
+echo
+
+# Enrolment changes who can unlock the machine, so the daemon takes it only from root.
+if sudo faceauth enroll --user "$USER" --label "$label"; then
+  echo -e "\e[32m\nAdded. Try it: 'faceauth auth' facing the camera in this look.\e[0m"
+else
+  echo -e "\e[31m\nEnrolment failed. Please try again.\e[0m"
+  exit 1
+fi

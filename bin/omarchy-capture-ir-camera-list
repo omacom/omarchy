@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# omarchy:summary=List infrared cameras suitable for face authentication
+# omarchy:hidden=true
+
+# Two kinds of IR camera exist on laptops. On Intel IPU3/IPU6 machines the IR
+# sensor is a MIPI sensor behind the media controller, recognisable by the Y10
+# (10-bit greyscale) media-bus format on its pad. On everything else it is a UVC
+# device that offers only greyscale pixel formats: colour webcams advertise
+# YUYV/MJPEG/NV12 and never greyscale alone. Either way the IR stream is what
+# face authentication wants: it sees in the dark and its illuminator is what
+# the liveness gate measures.
+#
+# A configured override wins over detection and is printed first. It is a
+# video node path in $OMARCHY_IR_CAMERA or ~/.config/omarchy/ir-camera.
+
+override=${OMARCHY_IR_CAMERA:-}
+if [[ -z $override && -r $HOME/.config/omarchy/ir-camera ]]; then
+  override=$(head -1 "$HOME/.config/omarchy/ir-camera")
+fi
+# Only a real video node counts; anything else in the file is ignored.
+if [[ -n $override && $override == /dev/video* && -c $override ]]; then
+  printf '%s  %s\n' "$override" "configured"
+fi
+
+# MIPI sensors on the media controller: any entity whose pad format is Y10.
+if omarchy-cmd-present media-ctl; then
+  for media in /dev/media*; do
+    [[ -e $media ]] || continue
+    media-ctl -d "$media" -p 2>/dev/null | awk -v media="$media" '
+      /^- entity/ { entity = $0; sub(/^- entity [0-9]+: /, "", entity); sub(/ \(.*$/, "", entity) }
+      /device node name/ { node = $NF }
+      /fmt:Y10_1X10/ { if (entity != "" && entity !~ /ipu3-csi2|ipu6/) printf "%s  %s (%s)\n", node, entity, media }
+    '
+  done
+fi
+
+# UVC: a capture node whose every pixel format is greyscale.
+greyscale_only() {
+  v4l2-ctl --device "$1" --list-formats 2>/dev/null | awk '
+    /^[[:space:]]*\[[0-9]+\]:/ {
+      total++
+      if ($0 ~ /GREY|Y8  |Y10 |Y12 |Y16 /) grey++
+    }
+    END { exit !(total > 0 && total == grey) }
+  '
+}
+
+if omarchy-cmd-present v4l2-ctl; then
+  name=""
+  while IFS= read -r line; do
+    if [[ -n $line && $line != [[:space:]]* ]]; then
+      name="$line"
+    else
+      device="${line#"${line%%[![:space:]]*}"}"
+      if [[ $device == /dev/video* ]] && greyscale_only "$device"; then
+        printf '%s  %s\n' "$device" "$name"
+      fi
+    fi
+  done < <(v4l2-ctl --list-devices 2>/dev/null)
+fi
+
+exit 0

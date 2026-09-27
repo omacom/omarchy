@@ -10,6 +10,15 @@ Item {
   property string videoPosterPath: ""
   property int backgroundVersion: 0
   property bool fingerprintConfigured: false
+  // Face authentication: whether it is set up, and what it is doing right now:
+  // "scanning" (an attempt is running), "probing" (panel blank, watching for a
+  // face), "idle" (set up, between attempts) or "".
+  property bool faceConfigured: false
+  property string faceState: ""
+  // The shell's media service (omarchy.media), for the controls under the field.
+  property var mediaService: null
+  // Notifications received during this lock, masked to app name and count.
+  property var lockNotices: []
   property bool authenticatingPassword: false
   property string failureMessage: ""
   property int failedAttempts: 0
@@ -33,6 +42,10 @@ Item {
   // Space to keep clear on each side of the field for the fingerprint icon
   // (icon width plus a gap) so the centered dots never run under it.
   readonly property real fingerprintReserve: fingerprintConfigured ? Math.round(fingerprintIcon.implicitWidth + 12) : 0
+  readonly property real faceReserve: faceConfigured ? Math.round(faceIcon.implicitWidth + 12) : 0
+  readonly property real sideReserve: Math.max(fingerprintReserve, faceReserve)
+  readonly property var mediaPlayer: mediaService ? mediaService.activePlayer : null
+  readonly property bool mediaVisible: !!(mediaService && mediaService.hasMedia && mediaPlayer)
   // Shrink the dots to fit once the password outgrows the field, so every
   // keystroke stays visible — otherwise long passwords clip with no feedback.
   readonly property real passwordDotScale: dotMetrics.advanceWidth > 0
@@ -135,6 +148,95 @@ Item {
       onPositionChanged: root.wakeRequested()
     }
 
+    // What arrived while locked, without its contents: enough to know whether
+    // it is worth unlocking for, not enough for a passer-by to read.
+    Column {
+      id: noticeColumn
+      objectName: "lockNotices"
+      visible: root.lockNotices.length > 0
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.bottom: inputField.top
+      anchors.bottomMargin: 28
+      spacing: 4
+      width: root.fieldWidth
+
+      Repeater {
+        model: root.lockNotices
+        delegate: Text {
+          required property var modelData
+          width: noticeColumn.width
+          text: String(modelData.app) + (modelData.count > 1 ? "  ·  " + modelData.count + " notifications" : "  ·  1 notification")
+          textFormat: Text.PlainText
+          color: Color.lock.placeholder
+          font.family: Style.font.family
+          font.pixelSize: Math.round(root.fieldFontSize * 0.7)
+          horizontalAlignment: Text.AlignHCenter
+          elide: Text.ElideRight
+        }
+      }
+    }
+
+    // Whatever is playing keeps playing through a lock; these let it be paused
+    // or skipped without unlocking. Nothing here reveals more than the bar does.
+    Column {
+      id: mediaRow
+      objectName: "lockMedia"
+      visible: root.mediaVisible
+      anchors.horizontalCenter: parent.horizontalCenter
+      anchors.top: inputField.bottom
+      anchors.topMargin: 28
+      spacing: 6
+      width: root.fieldWidth
+
+      Text {
+        width: parent.width
+        text: root.mediaService ? [root.mediaService.title, root.mediaService.artist].filter(function(t) { return t && t.length > 0 }).join("  ·  ") : ""
+        textFormat: Text.PlainText
+        color: Color.lock.placeholder
+        font.family: Style.font.family
+        font.pixelSize: Math.round(root.fieldFontSize * 0.7)
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+      }
+
+      Row {
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 34
+
+        Repeater {
+          model: [
+            { action: "previous", glyph: "󰒮" },
+            { action: "playPause", glyph: "" },
+            { action: "next", glyph: "󰒭" }
+          ]
+          delegate: Text {
+            required property var modelData
+            readonly property bool enabledAction: !!(root.mediaService && root.mediaService.canHandleAction(root.mediaPlayer, modelData.action))
+            text: modelData.action === "playPause" ? (root.mediaPlayer && root.mediaPlayer.isPlaying ? "󰏤" : "󰐊") : modelData.glyph
+            textFormat: Text.PlainText
+            color: Color.lock.placeholder
+            opacity: enabledAction ? 1.0 : 0.35
+            font.family: Style.font.family
+            font.pixelSize: Math.round(root.fieldFontSize * 1.3)
+
+            MouseArea {
+              anchors.fill: parent
+              anchors.margins: -8
+              enabled: parent.enabledAction
+              onClicked: {
+                var player = root.mediaPlayer
+                if (!player) return
+                if (modelData.action === "playPause") player.togglePlaying()
+                else if (modelData.action === "next") player.next()
+                else if (modelData.action === "previous") player.previous()
+                root.wakeRequested()
+              }
+            }
+          }
+        }
+      }
+    }
+
     BorderSurface {
       id: inputField
       width: root.fieldWidth
@@ -151,9 +253,9 @@ Item {
         anchors.topMargin: inputField.borderTop
         // Reserve the fingerprint icon's width on both sides so the centered
         // dots stay symmetric and never slide under the icon as they grow.
-        anchors.rightMargin: inputField.borderRight + 18 + root.fingerprintReserve
+        anchors.rightMargin: inputField.borderRight + 18 + root.sideReserve
         anchors.bottomMargin: inputField.borderBottom
-        anchors.leftMargin: inputField.borderLeft + 18 + root.fingerprintReserve
+        anchors.leftMargin: inputField.borderLeft + 18 + root.sideReserve
         verticalAlignment: TextInput.AlignVCenter
         horizontalAlignment: TextInput.AlignHCenter
         activeFocusOnPress: true
@@ -211,6 +313,32 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+      }
+
+      // Face hint inside the field's left edge when face authentication is set
+      // up. It pulses while a scan runs, dims while the panel is blank and only
+      // the probe watches, and sits steady between attempts.
+      Text {
+        id: faceIcon
+        objectName: "faceIndicator"
+        anchors.left: parent.left
+        anchors.leftMargin: inputField.borderLeft + 18
+        anchors.verticalCenter: parent.verticalCenter
+        visible: root.faceConfigured
+        text: "󰙃"
+        color: root.faceState === "scanning" ? Color.lock.borderActive : Color.lock.placeholder
+        opacity: root.faceState === "probing" ? 0.45 : 1.0
+        font.family: Style.font.family
+        font.pixelSize: Math.round(root.fieldFontSize * 1.1)
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+
+        SequentialAnimation on opacity {
+          running: root.faceState === "scanning"
+          loops: Animation.Infinite
+          NumberAnimation { to: 0.35; duration: 500; easing.type: Easing.InOutSine }
+          NumberAnimation { to: 1.0; duration: 500; easing.type: Easing.InOutSine }
+        }
       }
 
       // Fingerprint hint pinned inside the field's right edge when a sensor is

@@ -39,6 +39,20 @@ auth required pam_unix.so
   'polkit detects fingerprint even behind a clamshell gate'
 )
 assert(
+  polkit.faceConsentConfiguredFromPamConfig(`
+auth sufficient pam_faceauth.so socket=/run/faceauth/sock timeout=60 consent
+auth include system-auth
+`),
+  "pam_faceauth with consent means the face window owns the request"
+)
+assert(
+  !polkit.faceConsentConfiguredFromPamConfig(`
+auth sufficient pam_faceauth.so socket=/run/faceauth/sock timeout=8 prompt
+auth include system-auth
+`),
+  "pam_faceauth without consent leaves the agent dialog as it was"
+)
+assert(
   !polkit.fingerprintConfiguredFromPamConfig(`
 account include system-auth
 auth include system-auth

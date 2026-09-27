@@ -1,0 +1,164 @@
+#!/bin/bash
+
+# omarchy:summary=Set up face authentication for the lock screen, sudo, and polkit
+# omarchy:args=[--greeter]
+# omarchy:requires-sudo=true
+
+set -e
+
+# --greeter also wires the SDDM login screen: face only, no nod (logging in is
+# not elevation), submitted by pressing Enter on the empty password field.
+# Off by default because most Omarchy installs log in automatically.
+greeter=0
+for arg in "$@"; do
+  case $arg in
+    --greeter) greeter=1 ;;
+    *) echo "Usage: omarchy setup security face [--greeter]" >&2; exit 1 ;;
+  esac
+done
+
+# These enrol the invoking user's face. Under sudo, $USER is root, which would
+# enrol root and leave the real user's templates behind on removal.
+if (( EUID == 0 )); then
+  echo "Run omarchy-setup-security-face as your user, not under sudo (it asks for sudo where needed)." >&2
+  exit 1
+fi
+target_user=$USER
+
+backup_dir=/var/backups/faceauth
+created_marker=$backup_dir/polkit-1.created-by-faceauth
+face_line='auth      sufficient pam_faceauth.so socket=/run/faceauth/sock consent'
+
+# Backups go outside /etc/pam.d: a stray file inside the PAM directory is a
+# service of its own. Only the first backup of a file is kept, so it always
+# holds the pre-face state, not the state before the latest re-run.
+backup_pam() {
+  local file="$1"
+  sudo install -dm700 "$backup_dir"
+  if [[ -f $file && ! -f $backup_dir/${file##*/}.pre-face ]]; then
+    sudo cp -p "$file" "$backup_dir/${file##*/}.pre-face"
+  fi
+}
+
+# Elevation is a deliberate act: the line carries `prompt`, so sudo and polkit
+# ask "Press Enter to authenticate by face, or type your password". Enter scans,
+# a typed password goes to pam_unix with no scan, and sitting in front of the
+# machine never elevates anything by itself. The line goes above the password
+# and is `sufficient`, never `required`: every failure inside the module is
+# PAM_IGNORE, so the password path stays the floor.
+setup_pam_config() {
+  if grep -qE '^[^#]*pam_faceauth\.so' /etc/pam.d/sudo; then
+    echo "Sudo is already configured for face authentication."
+  else
+    echo "Configuring sudo for face authentication..."
+    backup_pam /etc/pam.d/sudo
+    sudo sed -i "1i $face_line" /etc/pam.d/sudo
+  fi
+
+  if [[ -f /etc/pam.d/polkit-1 ]]; then
+    if grep -qE '^[^#]*pam_faceauth\.so' /etc/pam.d/polkit-1; then
+      echo "Polkit is already configured for face authentication."
+    else
+      echo "Configuring polkit for face authentication..."
+      backup_pam /etc/pam.d/polkit-1
+      sudo sed -i "1i $face_line" /etc/pam.d/polkit-1
+    fi
+  else
+    # No file in /etc/pam.d means polkit runs the vendor stack; an override
+    # there must carry the whole stack, not just our line. Remember that we
+    # created it, so removal deletes it and polkit returns to the vendor stack.
+    echo "Creating polkit configuration with face authentication..."
+    sudo install -dm700 "$backup_dir"
+    sudo touch "$created_marker"
+    # omarchy:heredoc-expands paths=face_line -- $face_line is the constant PAM
+    # line set at the top of this script, never user input; nothing else expands.
+    sudo tee /etc/pam.d/polkit-1 >/dev/null <<EOF
+#%PAM-1.0
+$face_line
+auth       include      system-auth
+account    include      system-auth
+password   include      system-auth
+session    include      system-auth
+EOF
+  fi
+}
+
+# The lock screen's face stack is its own PAM service beside the password and
+# fingerprint ones, so it takes no prompt: looking at the machine is the act.
+# It must be closed by pam_deny. The password is a separate service on its own
+# lane, and a stack whose only module answered "ignore" would otherwise carry
+# no verdict at all, which PAM reads as success.
+setup_greeter_pam() {
+  (( greeter )) || return 0
+  [[ -f /etc/pam.d/sddm ]] || { echo "No /etc/pam.d/sddm; greeter not wired."; return 0; }
+  if grep -qE '^[^#]*pam_faceauth\.so' /etc/pam.d/sddm; then
+    echo "The login screen is already configured for face authentication."
+    return 0
+  fi
+  echo "Configuring the login screen for face authentication..."
+  backup_pam /etc/pam.d/sddm
+  # Password stays behind it in the same stack, so no pam_deny and no prompt.
+  sudo sed -i '1a auth      sufficient pam_faceauth.so socket=/run/faceauth/sock timeout=8' /etc/pam.d/sddm
+}
+
+setup_lock_face_pam() {
+  echo "Configuring lock screen for face authentication..."
+  sudo tee /etc/pam.d/omarchy-lock-face >/dev/null <<'EOF'
+#%PAM-1.0
+auth       sufficient                  pam_faceauth.so socket=/run/faceauth/sock timeout=8
+auth       required                    pam_deny.so
+account    include                     system-local-login
+EOF
+}
+
+
+echo -e "\e[32mSetting up face authentication.\n\e[0m"
+
+if ! omarchy-hw-ir-camera; then
+  echo -e "\e[31mNo infrared camera detected.\e[0m"
+  echo "Face authentication needs an IR sensor (the kind Windows Hello uses)."
+  echo "A colour webcam is deliberately not enough: it cannot see in the dark and is easy to fool with a photo."
+  echo "If you have one that was not detected, put its /dev/video path in ~/.config/omarchy/ir-camera and run this again."
+  exit 1
+fi
+
+echo "Infrared camera:"
+omarchy-capture-ir-camera-list | sed 's/^/  /'
+echo
+
+if omarchy-pkg-missing omarchy-faceauth; then
+  echo "Installing face authentication..."
+  omarchy-pkg-add omarchy-faceauth
+fi
+
+echo "Fetching and verifying the recognition models (about 260 MB, once)..."
+sudo faceauth models fetch
+
+echo "Starting the face authentication service..."
+sudo systemctl enable --now faceauth.service
+
+# Enrol before touching PAM, and wire PAM only after a verification succeeds:
+# a stack pointed at a module with nothing to match would be wrong twice.
+echo -e "\e[32m\nLet's enrol your face. Look at the camera and move your head a little.\e[0m"
+echo "Your templates are numbers derived from your face, never images, stored root-only."
+echo -e "They are plaintext at rest until TPM sealing lands; 'faceauth doctor' will say so.\n"
+
+# Enrolment changes who can unlock the machine, so the daemon takes it only
+# from root: sudo here is the password (or an existing face) standing behind it.
+if sudo faceauth enroll --user "$target_user"; then
+  echo -e "\nNow let's verify it works.\n"
+  if faceauth auth --user "$target_user" | grep -q '^{"result":"match"'; then
+    setup_pam_config
+    setup_lock_face_pam
+    setup_greeter_pam
+    echo -e "\e[32m\nFace authentication is set up.\e[0m"
+    echo "Lock screen: look at the camera. sudo and polkit: press Enter at the prompt to scan, or type your password."
+    echo "Run 'faceauth doctor' any time to see the state of every part."
+  else
+    echo -e "\e[31m\nVerification failed. Enrolment is kept; try 'faceauth auth' facing the camera, then run this again.\e[0m"
+    exit 1
+  fi
+else
+  echo -e "\e[31m\nEnrolment failed. Please try again.\e[0m"
+  exit 1
+fi
