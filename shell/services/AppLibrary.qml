@@ -11,6 +11,7 @@ import "AppSearch.js" as AppSearch
 Item {
   id: root
 
+  property var shellHost: null
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
 
   property var configuredHiddenEntryIds: ({})
@@ -26,9 +27,7 @@ Item {
   property int launchSerial: 0
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
-  // True while the launch OSD is on screen. It outlives the launch that opened
-  // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
-  // down.
+  // Retain ownership across overlapping launches until feedback is closed.
   property bool launchOsdOpen: false
   property string launchOsdMessage: ""
 
@@ -166,14 +165,20 @@ Item {
     launchTimeout.restart()
   }
 
+  function showLaunchFeedback() {
+    if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
+    if (!root.shellHost) return
+    // Direct calls cannot arrive after a later close or queue during startup.
+    var result = root.shellHost.callIfLoaded("omarchy.osd", "open", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 13000 }))
+    root.launchOsdOpen = result === "ok"
+  }
+
   function closeLaunchFeedback(serial) {
     if (serial !== root.launchSerial) return
     launchDelay.stop()
     launchTimeout.stop()
-    if (root.launchOsdOpen) {
-      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
-      root.launchOsdOpen = false
-    }
+    if (root.launchOsdOpen && root.shellHost) root.shellHost.callIfLoaded("omarchy.osd", "close")
+    root.launchOsdOpen = false
   }
 
   function maybeFinishLaunchFeedback() {
@@ -239,11 +244,7 @@ Item {
   Timer {
     id: launchDelay
     interval: 2000
-    onTriggered: {
-      if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
-      root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
-    }
+    onTriggered: root.showLaunchFeedback()
   }
 
   Timer {
