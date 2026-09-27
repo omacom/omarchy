@@ -10,6 +10,14 @@ When your laptop lid is closed, the fingerprint prompt is automatically skipped,
 
 You can remove the fingerprint authentication under _Remove > Security > Fingerprint_ in the Omarchy menu.
 
+### Face authentication
+
+Laptops with an infrared camera (the Windows Hello kind) can unlock with your face. Run _Setup > Security > Face Unlock_ in the Omarchy menu (`Super + Space`). That installs Facelock, enrolls a face, and wires sudo, polkit, and the lock screen.
+
+On the lock screen (`Super + Ctrl + L`), look at the camera. The field shows _Scanning…_ while it works; you can still type a password at any time. Empty Enter starts another scan.
+
+You can remove it under _Remove > Security > Face Unlock_.
+
 ### Fido2 authentication
 
 If you're using a Fido2 device, you can set it up for `sudo` authentication using _Setup > Security > Fido2_ in the Omarchy menu (`Super + Space`). It covers `sudo` and system authorization prompts, though, not unlocking your computer.
