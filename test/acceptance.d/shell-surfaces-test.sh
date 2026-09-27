@@ -58,18 +58,18 @@ wait_until "system menu closes" 15 layer_absent "omarchy-menu"
 # Preview both visual selectors and cancel without changing user state. These
 # cover thumbnail generation, the image-grid overlay, and current selection.
 launch_app "omarchy-theme-bg-switcher"
-wait_until "background selector opens" 30 layer_present "omarchy-image-selector"
+wait_until "background selector opens" 30 layer_on_overlay "omarchy-image-selector"
 sleep 1
 screenshot "success-background-selector"
 wtype -k Escape
-wait_until "background selector closes" 15 layer_absent "omarchy-image-selector"
+wait_until "background selector closes" 15 layer_off_overlay "omarchy-image-selector"
 
 launch_app "omarchy-theme-switcher"
-wait_until "theme selector opens" 30 layer_present "omarchy-image-selector"
+wait_until "theme selector opens" 30 layer_on_overlay "omarchy-image-selector"
 sleep 1
 screenshot "success-theme-selector"
 wtype -k Escape
-wait_until "theme selector closes" 15 layer_absent "omarchy-image-selector"
+wait_until "theme selector closes" 15 layer_off_overlay "omarchy-image-selector"
 
 # Walk the reminder flow through each input screen, but dismiss before it
 # schedules a real timer in the test user's session.

@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -35,6 +36,9 @@ Item {
   property string themeRows: ""
   property bool themeMode: false
   property bool themeOpenPending: false
+  // The surface outlives each open, so it no longer lands on the focused
+  // output by itself. Unset until the first open lets the compositor choose.
+  property var targetScreen: null
   // Bound to the central [image-picker] section in shell.toml via Color.qml.
   // `dimColor` tints unselected slices and text outlines on top of the scrim;
   // it intentionally tracks the foundational background, not a surface role.
@@ -230,6 +234,7 @@ Item {
     requestSerial += 1
     themeMode = false
     themeOpenPending = false
+    targetScreen = focusedScreen() || targetScreen
 
     imageDirs = nextImageDirs
     imageRows = nextImageRows
@@ -272,6 +277,15 @@ Item {
   }
 
   property var imageArray: []
+
+  function focusedScreen() {
+    var monitor = Hyprland.focusedMonitor
+    var name = monitor ? String(monitor.name || "") : ""
+    for (var i = 0; i < Quickshell.screens.length; i++) {
+      if (Quickshell.screens[i].name === name) return Quickshell.screens[i]
+    }
+    return null
+  }
 
   function currentThemePreview() {
     var name = String(themeNameFile.text() || "").trim()
@@ -445,13 +459,22 @@ Item {
   PanelWindow {
     id: panel
 
-    visible: root.opened
+    // Stay mapped between opens. A fresh surface renders its first frames
+    // before the compositor sends its fractional scale, so the picker flashed
+    // blurry, and it had to re-upload every thumbnail texture. Closed, it
+    // waits transparent and input-less on the bottom layer: anything left on
+    // the overlay layer would block direct scanout for fullscreen apps.
+    visible: true
+    screen: root.targetScreen
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
+    mask: root.opened ? null : closedMask
     WlrLayershell.namespace: "omarchy-image-selector"
-    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.layer: root.opened ? WlrLayer.Overlay : WlrLayer.Bottom
     WlrLayershell.keyboardFocus: root.opened && root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
+
+    Region { id: closedMask }
 
     Rectangle {
       anchors.fill: parent
