@@ -364,6 +364,29 @@ ShellRoot {
 
     root.config = {
       version: 1,
+      bar: { centerAnchor: "omarchy.first-widget", layout: { left: [], center: [{ id: "omarchy.first-widget" }], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("local.first-widget", true)
+    root.assertEqual(root.config.bar.centerAnchor, "local.first-widget", "a widget clone takes over the center anchor of its source")
+    registry.setEnabled("local.first-widget", false)
+    root.assertEqual(root.config.bar.centerAnchor, "omarchy.first-widget", "disabling a widget clone hands the center anchor back")
+    registry.setEnabled("local.first-widget", true)
+    registry.setEnabled("omarchy.first-widget", true)
+    root.assertEqual(root.config.bar.centerAnchor, "omarchy.first-widget", "enabling a clone source takes the center anchor back")
+
+    root.config = {
+      version: 1,
+      bar: { centerAnchor: "omarchy.clock", layout: { left: [], center: [{ id: "omarchy.first-widget" }], right: [] } },
+      plugins: []
+    }
+    registry.setEnabled("local.first-widget", true)
+    root.assertEqual(root.config.bar.centerAnchor, "omarchy.clock", "cloning another widget leaves the center anchor alone")
+    registry.setEnabled("local.first-widget", false)
+    root.assertEqual(root.config.bar.centerAnchor, "omarchy.clock", "restoring another widget leaves the center anchor alone")
+
+    root.config = {
+      version: 1,
       bar: { layout: { left: [{ id: "omarchy.hybrid" }], center: [], right: [] } },
       plugins: []
     }
