@@ -46,6 +46,12 @@ keybindings() {
     bash "$ROOT/bin/omarchy-menu-keybindings" --print
 }
 
+inspection_records() {
+  env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" \
+    XDG_CACHE_HOME="$tmpdir/cache-inspection" OMARCHY_PATH="$ROOT" \
+    bash "$ROOT/bin/omarchy-menu-keybindings" --print-inspection
+}
+
 # Closing a window and toggling the scratchpad are two of the actions Omarchy
 # binds twice on purpose. The last bind carries the longest description Omarchy
 # ships, which is what puts a row closest to the width the menu allows.
@@ -97,9 +103,10 @@ pass "every entry pads its chords to the same column"
   fail "no entry outgrows the width the menu gives it" "$rendered"
 pass "no entry outgrows the width the menu gives it"
 
-# Priority ordering reads the row, and the chord sharing it must not reclassify
-# the entry: XF86Calculator alone belongs in the tail the menu keeps for media
-# keys, while the calculator itself sits in the body of the list.
+# Priority ordering reads the row. XF86Calculator is outside physical
+# inspection, so it no longer shares metadata with the ordinary Super chord;
+# the ordinary calculator stays in the body and the media key stays in the
+# tail.
 stub_hyprctl <<BINDS
 $(exec_bind 68 "SUPER CTRL + Q" "Calculator" "omacalc")
 $(exec_bind 0 "XF86Calculator" "Calculator" "omacalc")
@@ -107,17 +114,19 @@ $(exec_bind 8 "ALT + TAB" "Reveal active window on top" "true")
 BINDS
 
 rendered=$(keybindings)
-(( $(grep -n '→ Calculator$' <<<"$rendered" | cut -d: -f1) <
+(( $(grep -n 'SUPER CTRL.*→ Calculator$' <<<"$rendered" | cut -d: -f1) <
    $(grep -n '→ Reveal active window on top$' <<<"$rendered" | cut -d: -f1) )) ||
-  fail "a shared chord does not change where its entry ranks" "$rendered"
-pass "a shared chord does not change where its entry ranks"
+  fail "an excluded alternative does not change where the safe entry ranks" "$rendered"
+(( $(grep -c '→ Calculator$' <<<"$rendered") == 2 )) ||
+  fail "safe and excluded alternatives keep separate metadata rows" "$rendered"
+pass "safe and excluded alternatives keep separate rows"
 
 # The same key written as a keycode arrives by the other road: Hyprland reports
 # the code and the keymap resolves it, after the rename above has run.
 stub_hyprctl <<'BINDS'
 bind
 	modmask: 64
-	submap: 
+	submap:
 	key: 
 	keycode: 49
 	catchall: false
@@ -220,3 +229,152 @@ for action in "${expected_alternatives[@]}"; do
     fail "every action named as having an alternative is bound twice" "$action"
 done
 pass "every action named as having an alternative is bound twice"
+
+# Physical lookup reads these fields, not the padded display label. Unsafe and
+# unsupported rows stay present for ordinary text search.
+cat >"$home/.config/hypr/hyprland.lua" <<'LUA'
+hl.bind("SUPER + W", hl.dsp.exec_cmd("true"), { description = "Close window" })
+hl.bind("SUPER + I", hl.dsp.exec_cmd("true"), { description = "Ignore modifiers", ignore_mods = true })
+hl.bind("SUPER + P", hl.dsp.exec_cmd("true"), { description = "Bypass inhibition", dont_inhibit = true })
+hl.bind("SUPER + A", hl.dsp.exec_cmd("true"), { desc = "Allow input capture", allow_input_capture = true })
+hl.bind("SUPER + M + N", hl.dsp.exec_cmd("true"), { description = "Multi key" })
+hl.bind("SUPER + R", hl.dsp.exec_cmd("true"), { description = "Resize submap" })
+hl.bind("XF86AudioMute", hl.dsp.exec_cmd("true"), { description = "Mute" })
+-- Empty kind+arg (Lua function) must not collapse TSV fields and demote this.
+hl.bind("SUPER + C", function() end, { description = "Universal copy" })
+LUA
+
+stub_hyprctl <<'BINDS'
+bindd
+	modmask: 64
+	submap:
+	key: W
+	keycode: 0
+	catchall: false
+	description: Close window
+	dispatcher: exec
+	arg: true
+
+bindd
+	modmask: 64
+	submap:
+	key: I
+	keycode: 0
+	catchall: false
+	description: Ignore modifiers
+	dispatcher: exec
+	arg: true
+
+bindd
+	modmask: 64
+	submap:
+	key: P
+	keycode: 0
+	catchall: false
+	description: Bypass inhibition
+	dispatcher: exec
+	arg: true
+
+bindxd
+	modmask: 64
+	submap:
+	key: A
+	keycode: 0
+	catchall: false
+	description: Allow input capture
+	dispatcher: exec
+	arg: true
+
+bindd
+	modmask: 64
+	submap:
+	key: N
+	keycode: 0
+	catchall: false
+	description: Multi key
+	dispatcher: exec
+	arg: true
+
+bindd
+	modmask: 64
+	submap: resize
+	key: R
+	keycode: 0
+	catchall: false
+	description: Resize submap
+	dispatcher: exec
+	arg: true
+
+bindd
+	modmask: 0
+	submap:
+	key: XF86AudioMute
+	keycode: 0
+	catchall: false
+	description: Mute
+	dispatcher: exec
+	arg: true
+
+bind
+	modmask: 64
+	submap:
+	key: C
+	keycode: 0
+	catchall: false
+	description: Universal copy
+	dispatcher: __lua
+	arg: 
+BINDS
+
+metadata=$(inspection_records)
+awk -F '\t' '$1 ~ /Close window$/ && $2 == "SUPER+W" && $3 == "1" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "an ordinary default-submap keyboard binding is inspectable" "$metadata"
+awk -F '\t' '$1 ~ /Ignore modifiers$/ && $3 == "0" && $4 == "ignores modifiers" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "ignore-modifier bindings remain searchable but are not inspectable" "$metadata"
+awk -F '\t' '$1 ~ /Bypass inhibition$/ && $3 == "0" && $5 == "1" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "inhibitor-bypassing bindings block physical capture for the request" "$metadata"
+awk -F '\t' '$1 ~ /Allow input capture$/ && $3 == "0" && $4 == "allowed during input capture" && $5 == "0" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "input-capture bindings are excluded without being mistaken for shortcut-inhibitor bypasses" "$metadata"
+awk -F '\t' '$1 ~ /Multi key$/ && $3 == "0" && $4 == "multi-key binding" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "multi-key Lua bindings retain unsupported context omitted by hyprctl" "$metadata"
+awk -F '\t' '$1 ~ /Resize submap$/ && $3 == "0" && $4 == "non-default submap" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "non-default-submap bindings retain their context" "$metadata"
+awk -F '\t' '$1 ~ /Mute$/ && $3 == "0" && $4 == "media or device key" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "media bindings remain text-searchable but outside physical inspection" "$metadata"
+awk -F '\t' '$1 ~ /Universal copy$/ && $2 == "SUPER+C" && $3 == "1" && $4 == "" { found = 1 } END { exit !found }' <<<"$metadata" ||
+  fail "Lua function binds stay inspectable when kind and arg are empty" "$metadata"
+pass "structured inspection metadata preserves binding safety and context"
+
+# A Lua workspace bind is declared as code:10; the guide resolves that to digit
+# 1. Capture of Shift+1 arrives as Key_Exclam + scan 10 and must spell the same
+# chord the inspection record carries.
+stub_hyprctl <<BINDS
+$(lua_bind 65 "SUPER SHIFT + code:10" "Move window to workspace 1")
+BINDS
+
+workspace_meta=$(inspection_records)
+awk -F '\t' '$1 ~ /Move window to workspace 1$/ && $2 == "SUPER+SHIFT+1" { found = 1 } END { exit !found }' <<<"$workspace_meta" ||
+  fail "SUPER+SHIFT+code:10 resolves to inspection chord SUPER+SHIFT+1" "$workspace_meta"
+
+run_node_test <<'JS'
+const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
+const SUPER = 0x10000000
+const SHIFT = 0x02000000
+const Key_Exclam = 0x21
+assertEqual(menu.normalizeChordFromEvent(Key_Exclam, SUPER | SHIFT, 10), 'SUPER+SHIFT+1',
+  'scan-code capture matches the SUPER+SHIFT+code:10 inspection chord')
+JS
+pass "SUPER+SHIFT+code:10 record chord matches scan-code normalize"
+
+# Escape is a named chord key in the inspector model; without it in the
+# keybindings allowlist SUPER+ESCAPE was demoted to unsupported and silent.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + ESCAPE" "System menu")
+BINDS
+
+escape_meta=$(inspection_records)
+awk -F '\t' '$2 == "SUPER+ESCAPE" && $4 == "unsupported keyboard key" { bad = 1 } END { exit bad }' <<<"$escape_meta" ||
+  fail "SUPER+ESCAPE was demoted as an unsupported keyboard key" "$escape_meta"
+awk -F '\t' '$1 ~ /System menu$/ && $2 == "SUPER+ESCAPE" { found = 1 } END { exit !found }' <<<"$escape_meta" ||
+  fail "SUPER+ESCAPE resolves to an inspection chord" "$escape_meta"
+pass "SUPER+ESCAPE remains a supported inspection key"

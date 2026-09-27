@@ -8,6 +8,9 @@
 declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
+declare -A LUA_BIND_INSPECTABLE_MAP
+declare -A LUA_BIND_INSPECTION_REASON_MAP
+declare -A LUA_BIND_GLOBAL_BYPASS_MAP
 
 # Hyprland reports XKB keycodes for code: bindings. Resolve them to symbols
 # via the compiled keymap, with a small fallback for common keys so the menu
@@ -68,18 +71,33 @@ parse_keycodes() {
 
 # Supplement `hyprctl binds` for Lua-only binds that Hyprland currently
 # reports as dispatcher __lua and without their original key for code: binds.
+# Inspectability is decided here from Lua opts and again in dynamic_bindings
+# from hyprctl flags; both must agree, and hyprctl-only flags still override.
 build_lua_bind_cache() {
-  local modmask description key dispatcher arg cache_key
+  local modmask description key dispatcher arg inspectable inspection_reason global_bypass cache_key
 
   omarchy-cmd-present lua || return 0
 
-  while IFS=$'\t' read -r modmask description key dispatcher arg; do
+  # Unit separator, not tab: bash collapses consecutive IFS whitespace, and Lua
+  # function binds emit empty kind+arg, which would shift inspectable onto the
+  # wrong fields (Universal copy / zoom looked non-inspectable with no reason).
+  while IFS=$'\x1f' read -r modmask description key dispatcher arg inspectable inspection_reason global_bypass; do
     [[ -z $modmask || -z $description || -z $key ]] && continue
 
     LUA_BIND_KEY_MAP["$modmask,$description"]="$key"
     cache_key="$modmask,$description,$key"
     LUA_BIND_DISPATCHER_MAP["$cache_key"]="$dispatcher"
     LUA_BIND_ARG_MAP["$cache_key"]="$arg"
+    if [[ -v LUA_BIND_INSPECTABLE_MAP["$cache_key"] ]] &&
+      [[ ${LUA_BIND_INSPECTABLE_MAP["$cache_key"]},${LUA_BIND_INSPECTION_REASON_MAP["$cache_key"]},${LUA_BIND_GLOBAL_BYPASS_MAP["$cache_key"]} != "$inspectable,$inspection_reason,$global_bypass" ]]; then
+      LUA_BIND_INSPECTABLE_MAP["$cache_key"]=0
+      LUA_BIND_INSPECTION_REASON_MAP["$cache_key"]="ambiguous binding safety metadata"
+      LUA_BIND_GLOBAL_BYPASS_MAP["$cache_key"]=1
+    else
+      LUA_BIND_INSPECTABLE_MAP["$cache_key"]="$inspectable"
+      LUA_BIND_INSPECTION_REASON_MAP["$cache_key"]="$inspection_reason"
+      LUA_BIND_GLOBAL_BYPASS_MAP["$cache_key"]="$global_bypass"
+    fi
   done < <(
     lua <<'LUA'
 local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
@@ -87,19 +105,23 @@ local modifiers = { SHIFT = 1, CTRL = 4, CONTROL = 4, ALT = 8, SUPER = 64 }
 local function split_keys(keys)
   local modmask = 0
   local key = ""
+  local key_count = 0
+  local modifiers_ended = false
 
   for part in string.gmatch(tostring(keys or ""), "[^+]+") do
     local value = part:gsub("^%s+", ""):gsub("%s+$", "")
     local modifier = modifiers[string.upper(value)]
 
-    if modifier then
+    if modifier and not modifiers_ended then
       modmask = modmask + modifier
     else
+      modifiers_ended = true
       key = value
+      key_count = key_count + 1
     end
   end
 
-  return modmask, key
+  return modmask, key, key_count > 1
 end
 
 local function lua_literal(value)
@@ -198,11 +220,15 @@ hl = setmetatable({
   dsp = dsp_proxy("hl.dsp"),
   bind = function(keys, bind_dispatcher, opts)
     opts = opts or {}
+    local description = opts.description or opts.desc
 
-    if opts.description and opts.description ~= "" then
-      local modmask, key = split_keys(keys)
+    if description and description ~= "" then
+      local modmask, key, multi_key = split_keys(keys)
       local kind = ""
       local arg = ""
+      local inspectable = "1"
+      local inspection_reason = "-"
+      local global_bypass = "0"
 
       if type(bind_dispatcher) == "table" and bind_dispatcher.__omarchy_dispatcher then
         kind = bind_dispatcher.kind or ""
@@ -212,7 +238,25 @@ hl = setmetatable({
         arg = bind_dispatcher
       end
 
-      print(table.concat({ tostring(modmask), opts.description, key, kind, arg }, "\t"))
+      if opts.dont_inhibit then
+        inspectable = "0"
+        inspection_reason = "bypasses shortcut inhibition"
+        global_bypass = "1"
+      elseif opts.allow_input_capture then
+        inspectable = "0"
+        inspection_reason = "allowed during input capture"
+      elseif opts.ignore_mods then
+        inspectable = "0"
+        inspection_reason = "ignores modifiers"
+      elseif opts.device then
+        inspectable = "0"
+        inspection_reason = "device-specific binding"
+      elseif multi_key or tostring(keys):find("&", 1, true) then
+        inspectable = "0"
+        inspection_reason = "multi-key binding"
+      end
+
+      print(table.concat({ tostring(modmask), description, key, kind, arg, inspectable, inspection_reason, global_bypass }, "\x1f"))
     end
 
     return noop
@@ -270,7 +314,8 @@ modmask_to_text() {
 # - Map numeric modifier key mask to a textual rendition
 # - Output comma-separated values that the parser can understand
 dynamic_bindings() {
-  local modmask key keycode description dispatcher arg modifiers cache_key
+  local header flags named_flags modmask submap key keycode catchall description dispatcher arg device
+  local modifiers cache_key inspectable inspection_reason global_bypass
 
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
@@ -279,13 +324,14 @@ dynamic_bindings() {
     function emit() {
       if (!seen) return
       seen = 0
-      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
+      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", header, f["flags"], f["modmask"], f["submap"], f["key"], f["keycode"], f["catchall"], f["description"], f["dispatcher"], f["arg"], f["device"]
     }
-    /^bind/ { emit(); seen = 1; delete f; next }
+    /^bind/ { emit(); seen = 1; delete f; header = $0; next }
     seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
     END { emit() }
   ' |
-    while IFS=$'\x1f' read -r modmask key keycode description dispatcher arg; do
+    while IFS=$'\x1f' read -r header named_flags modmask submap key keycode catchall description dispatcher arg device; do
+      flags="${header#bind}"
       # Lua binds report their full display key ("SUPER + code:20"); the
       # modifiers are already carried separately in modmask.
       key="${key##* + }"
@@ -309,6 +355,25 @@ dynamic_bindings() {
       # The Copilot key just duplicates an existing binding, so keep it hidden
       [[ $key == "code:201" ]] && continue
 
+      cache_key="$modmask,$description,$key"
+      # Prefer Lua-scan inspectability when the row ties back to source; then
+      # apply hyprctl-visible flags below so both paths stay aligned.
+      if [[ -v LUA_BIND_INSPECTABLE_MAP["$cache_key"] ]]; then
+        inspectable="${LUA_BIND_INSPECTABLE_MAP["$cache_key"]}"
+        inspection_reason="${LUA_BIND_INSPECTION_REASON_MAP["$cache_key"]}"
+        [[ $inspection_reason == "-" ]] && inspection_reason=""
+        global_bypass="${LUA_BIND_GLOBAL_BYPASS_MAP["$cache_key"]}"
+      else
+        # Current Hyprland plain output exposes allow_input_capture as `x`, but
+        # omits dont_inhibit, ignore_mods, multi-key, and device metadata. An
+        # active row we cannot tie back to Lua source could therefore bypass
+        # the inhibitor; one such row disables physical capture for the whole
+        # request instead of making a safety claim from incomplete data.
+        inspectable=0
+        inspection_reason="binding safety metadata unavailable"
+        global_bypass=1
+      fi
+
       case "$key" in
         comma) key="COMMA" ;;
         grave) key="~" ;;
@@ -318,17 +383,50 @@ dynamic_bindings() {
         slash) key="SLASH" ;;
       esac
 
+      if [[ ,${named_flags// /}, == *",dont_inhibit,"* || $flags == *p* ]]; then
+        inspectable=0
+        inspection_reason="bypasses shortcut inhibition"
+        global_bypass=1
+      elif [[ ,${named_flags// /}, == *",ignore_mods,"* || $flags == *i* ]]; then
+        inspectable=0
+        inspection_reason="ignores modifiers"
+      elif [[ ,${named_flags// /}, == *",allow_input_capture,"* || $flags == *x* ]]; then
+        inspectable=0
+        inspection_reason="allowed during input capture"
+      elif [[ ,${named_flags// /}, == *",device_inclusive,"* ]]; then
+        inspectable=0
+        inspection_reason="device-specific binding"
+      elif [[ -n $submap ]]; then
+        inspectable=0
+        inspection_reason="non-default submap"
+      elif [[ -n $device ]]; then
+        inspectable=0
+        inspection_reason="device-specific binding"
+      elif [[ $catchall == "true" ]]; then
+        inspectable=0
+        inspection_reason="catch-all binding"
+      elif [[ $key == *" & "* ]]; then
+        inspectable=0
+        inspection_reason="multi-key binding"
+      elif [[ $key == mouse:* || $key == switch:* || $key == *"MOUSE BUTTON"* ]]; then
+        inspectable=0
+        inspection_reason="non-keyboard binding"
+      elif [[ ${key^^} == XF86* ]]; then
+        inspectable=0
+        inspection_reason="media or device key"
+      fi
+
       modifiers=$(modmask_to_text "$modmask")
       arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
 
-      printf '%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
+      printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$inspectable" "$inspection_reason" "$global_bypass" "$arg"
     done
 }
 
 # Hardcoded bindings, like the copy-url extension and such
 static_bindings() {
-  echo "SHIFT ALT,L,Copy URL from Web App,sendshortcut,SHIFT ALT,L,"
-  echo "SHIFT ALT,D,Download Video from Web App,sendshortcut,SHIFT ALT,D,"
+  echo "SHIFT ALT,L,Copy URL from Web App,sendshortcut,0,static binding context unavailable,0,SHIFT ALT,L,"
+  echo "SHIFT ALT,D,Download Video from Web App,sendshortcut,0,static binding context unavailable,0,SHIFT ALT,D,"
 }
 
 # Actions Omarchy binds to a second chord meant as an alternative, named one at
@@ -355,6 +453,28 @@ ACTIONS
 # - Prints display text and dispatch metadata as tab-separated fields.
 parse_binding_records() {
   awk -F, -v alternatives="$(alternative_chord_actions)" '
+function canonical_chord(modifiers, key,    count, values, result, i) {
+    gsub(/^[ \t]+|[ \t]+$/, "", modifiers);
+    gsub(/^[ \t]+|[ \t]+$/, "", key);
+    key = toupper(key);
+    result = "";
+    count = split(modifiers, values, /[ \t]+/);
+    for (i = 1; i <= count; i++) {
+        if (values[i] == "") continue;
+        result = result (result == "" ? "" : "+") toupper(values[i]);
+    }
+    return result (result == "" ? "" : "+") key;
+}
+# Must stay aligned with MenuModel chord naming / stand-alone keys
+# (test/shell.d/keybinding-inspector-test.sh allowlist parity).
+function supported_key(key, upper) {
+    upper = toupper(key);
+    return upper ~ /^[A-Z]$/ ||
+        upper ~ /^[0-9]$/ ||
+        upper ~ /^(SPACE|COMMA|MINUS|PERIOD|SLASH|SEMICOLON|EQUAL|BRACKETLEFT|BACKSLASH|BRACKETRIGHT|~|APOSTROPHE)$/ ||
+        upper ~ /^(TAB|BACKTAB|BACKSPACE|RETURN|INSERT|DELETE|HOME|END|LEFT|UP|RIGHT|DOWN|PRIOR|NEXT|PRINT|ESCAPE)$/ ||
+        upper ~ /^F([1-9]|1[0-2])$/;
+}
 BEGIN {
     # The column every row pads its chords to. Nothing is allowed past it: the
     # menu renders in monospace, and a row that overruns pushes its arrow out
@@ -377,17 +497,28 @@ BEGIN {
     # Use description, if set
     action = $3;
     dispatcher = $4;
+    inspectable = $5;
+    inspection_reason = $6;
+    global_bypass = $7;
+    canonical = canonical_chord($1, $2);
+
+    if (inspectable == "1" && !supported_key($2)) {
+        inspectable = "0";
+        inspection_reason = "unsupported keyboard key";
+    }
 
     # Reconstruct the dispatcher arg from the remaining fields
     arg = "";
-    for (i = 5; i <= NF; i++) {
+    for (i = 8; i <= NF; i++) {
         arg = arg $i (i < NF ? "," : "");
     }
 
     if (action == "") {
-        # Reconstruct the command from the remaining fields
-        for (i = 4; i <= NF; i++) {
-            action = action $i (i < NF ? "," : "");
+        # Reconstruct the command from the dispatcher and its argument. The
+        # structured inspection columns between them are metadata, not action.
+        action = dispatcher;
+        for (i = 8; i <= NF; i++) {
+            action = action (action == "" ? "" : ",") $i;
         }
 
         # Clean up trailing commas, remove leading "exec, ", and trim
@@ -406,12 +537,16 @@ BEGIN {
         action_key = action SUBSEP dispatcher SUBSEP arg;
         together = "";
 
-        if (action in shares_a_row && dispatcher != "" && action_key in leads) {
+        if (action in shares_a_row && dispatcher != "" && action_key in leads &&
+            inspectables[leads[action_key]] == inspectable &&
+            reasons[leads[action_key]] == inspection_reason &&
+            bypasses[leads[action_key]] == global_bypass) {
             together = chords[leads[action_key]] " / " key_combo;
         }
 
         if (together != "" && length(together) <= column) {
             chords[leads[action_key]] = together;
+            canonicals[leads[action_key]] = canonicals[leads[action_key]] "|" canonical;
         } else {
             # Also the path a pair too wide for the column takes: two rows in
             # line beat one that juts out of it.
@@ -420,13 +555,17 @@ BEGIN {
             actions[entries] = action;
             dispatchers[entries] = dispatcher;
             args[entries] = arg;
+            canonicals[entries] = canonical;
+            inspectables[entries] = inspectable;
+            reasons[entries] = inspection_reason;
+            bypasses[entries] = global_bypass;
             leads[action_key] = entries;
         }
     }
 }
 END {
     for (entry = 1; entry <= entries; entry++) {
-        printf "%-*s → %s\t%s\t%s\n", column, chords[entry], actions[entry], dispatchers[entry], args[entry];
+        printf "%-*s → %s\t%s\t%s\t%s\t%s\t%s\t%s\n", column, chords[entry], actions[entry], canonicals[entry], inspectables[entry], reasons[entry], bypasses[entry], dispatchers[entry], args[entry];
     }
 }'
 }
@@ -530,7 +669,8 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v13\n'
+    printf 'v15\n'
+    sha256sum "$0" 2>/dev/null
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
     hyprctl binds 2>/dev/null
   } | sha256sum | awk '{ print $1 }'
@@ -571,6 +711,10 @@ output_binding_records() {
 
 output_keybindings() {
   output_binding_records | cut -f1
+}
+
+output_inspection_records() {
+  output_binding_records | cut -f1-5
 }
 
 trim() {
@@ -654,15 +798,17 @@ dispatch_binding() {
 
 if [[ $1 == "--print" || $1 == "-p" ]]; then
   output_keybindings
+elif [[ $1 == "--print-inspection" ]]; then
+  output_inspection_records
 else
   records=$(output_binding_records)
-  selection=$(cut -f1 <<<"$records" |
-    omarchy-menu-select 'Keybindings' -- --width 800 --height 500)
+  selection=$(cut -f1-5 <<<"$records" |
+    omarchy-menu-select 'Keybindings' -- --width 800 --height 500 --inspect-keybindings)
 
   if [[ -n $selection ]]; then
     record=$(awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }' <<<"$records")
-    dispatcher=$(cut -f2 <<<"$record")
-    arg=$(cut -f3- <<<"$record")
+    dispatcher=$(cut -f6 <<<"$record")
+    arg=$(cut -f7- <<<"$record")
 
     dispatch_binding "$dispatcher" "$arg"
   fi
