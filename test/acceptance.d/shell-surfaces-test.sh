@@ -24,12 +24,12 @@ open_and_close() {
 # Search and select an emoji. The host harness separately proves the shortcut
 # with a QMP hardware key chord, while this test focuses on UI behavior.
 omarchy-shell shell summon omarchy.emojis >/dev/null
-wait_until "emoji picker opens" 15 layer_present "omarchy-emojis"
+wait_until "emoji picker opens" 15 layer_on_overlay "omarchy-emojis"
 wtype "rocket"
 sleep 1
 screenshot "success-emoji-picker-search"
 wtype -k Return
-wait_until "emoji picker selection closes" 15 layer_absent "omarchy-emojis"
+wait_until "emoji picker selection closes" 15 layer_off_overlay "omarchy-emojis"
 
 # Seed two clipboard entries, search for the older one, and copy it back out.
 clipboard_token="Omarchy acceptance clipboard $(date +%s)"
@@ -39,21 +39,21 @@ printf '%s' "clipboard decoy" | wl-copy
 sleep 1
 
 omarchy-shell shell summon omarchy.clipboard >/dev/null
-wait_until "clipboard opens" 15 layer_present "omarchy-clipboard"
+wait_until "clipboard opens" 15 layer_on_overlay "omarchy-clipboard"
 wtype "$clipboard_token"
 wait_until "clipboard search finds test text" 15 screen_contains "Omarchy acceptance clipboard"
 screenshot "success-clipboard-search"
 wtype -M shift -k Return -m shift
-wait_until "clipboard selection closes" 15 layer_absent "omarchy-clipboard"
+wait_until "clipboard selection closes" 15 layer_off_overlay "omarchy-clipboard"
 wait_until "clipboard selection restores test text" 15 bash -c '[[ $(wl-paste --no-newline) == "$1" ]]' _ "$clipboard_token"
 
 # Exercise the system branch without invoking any destructive action.
 omarchy-shell shell summon omarchy.menu '{"menu":"system"}' >/dev/null
-wait_until "system menu opens" 15 layer_present "omarchy-menu"
+wait_until "system menu opens" 15 layer_on_overlay "omarchy-menu"
 wait_until "system menu content is visible" 15 screen_contains "Shutdown"
 screenshot "success-system-menu"
 wtype -k Escape
-wait_until "system menu closes" 15 layer_absent "omarchy-menu"
+wait_until "system menu closes" 15 layer_off_overlay "omarchy-menu"
 
 # Preview both visual selectors and cancel without changing user state. These
 # cover thumbnail generation, the image-grid overlay, and current selection.
@@ -74,7 +74,7 @@ wait_until "theme selector closes" 15 layer_off_overlay "omarchy-image-selector"
 # Walk the reminder flow through each input screen, but dismiss before it
 # schedules a real timer in the test user's session.
 omarchy-shell shell summon omarchy.reminders >/dev/null
-wait_until "reminder flow opens" 15 layer_present "omarchy-reminders"
+wait_until "reminder flow opens" 15 layer_on_overlay "omarchy-reminders"
 screenshot "success-reminder-01-minutes-prompt"
 wtype "5"
 sleep 1
@@ -83,7 +83,7 @@ wtype -k Return
 wait_until "reminder message prompt opens" 15 screen_contains "Reminder message"
 screenshot "success-reminder-03-message-prompt"
 wtype -k Escape
-wait_until "reminder flow closes" 15 layer_absent "omarchy-reminders"
+wait_until "reminder flow closes" 15 layer_off_overlay "omarchy-reminders"
 
 # Render a real shell notification and clear it through the notification IPC.
 omarchy-shell notifications dismissAll >/dev/null
@@ -101,7 +101,7 @@ if window_present "(?i)omawrite" >/dev/null 2>&1; then
 fi
 
 omarchy-menu summon apps >/dev/null
-wait_until "apps menu opens" 15 layer_present "omarchy-menu"
+wait_until "apps menu opens" 15 layer_on_overlay "omarchy-menu"
 sleep 1
 screenshot "success-apps-menu-open"
 
@@ -111,7 +111,7 @@ screenshot "success-apps-menu-search"
 wtype -k Return
 
 wait_until "apps menu launches the top search hit" 60 window_present "(?i)omawrite"
-wait_until "apps menu closes after launching" 15 layer_absent "omarchy-menu"
+wait_until "apps menu closes after launching" 15 layer_off_overlay "omarchy-menu"
 
 close_windows "(?i)omawrite"
 wait_until "Omawrite window closes" 30 window_absent "(?i)omawrite"

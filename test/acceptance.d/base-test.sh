@@ -81,8 +81,9 @@ layer_absent() {
   ! layer_present "$1"
 }
 
-# The image selector stays mapped between opens, parked on the bottom layer, so
-# it keeps its textures and fractional scale. Showing means on the overlay.
+# Overlays built on OverlayWindow (the menu, image selector, emoji picker,
+# clipboard and the like) stay mapped between opens, parked 1x1 on the bottom
+# layer, so they keep their fractional scale. Showing means on the overlay.
 layer_on_overlay() {
   hyprctl -j layers | jq -e --arg ns "$1" '[.[].levels["3"][]? | select(.namespace == $ns)] | length > 0'
 }

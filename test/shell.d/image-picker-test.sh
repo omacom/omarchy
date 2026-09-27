@@ -70,14 +70,8 @@ assert(
   'image picker leaves theme mode when another caller opens it'
 )
 assert(
-  /PanelWindow \{[\s\S]*?visible: true[\s\S]*?mask: root\.opened \? null : closedMask[\s\S]*?WlrLayershell\.layer: root\.opened \? WlrLayer\.Overlay : WlrLayer\.Bottom/.test(imagePickerQml) &&
-    /Region \{ id: closedMask \}/.test(imagePickerQml),
-  'image picker keeps its surface mapped, parked input-less below windows while closed'
-)
-assert(
-  /function openSelector[\s\S]*?targetScreen = focusedScreen\(\) \|\| targetScreen/.test(imagePickerQml) &&
-    /screen: root\.targetScreen/.test(imagePickerQml),
-  'image picker follows the focused monitor on each open'
+  /OverlayWindow \{\s*id: panel\s*shown: root\.opened\s*shownKeyboardFocus: root\.imagesLoaded \? WlrKeyboardFocus\.Exclusive : WlrKeyboardFocus\.None/.test(imagePickerQml),
+  'image picker parks on OverlayWindow and takes the keyboard once images load'
 )
 assert(
   /source: item\.sourceActivated && item\.thumbnailPath \? Util\.fileUrl\(item\.thumbnailPath\) : ""[\s\S]*asynchronous: false/.test(imagePickerQml),
