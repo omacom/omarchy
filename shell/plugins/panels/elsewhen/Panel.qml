@@ -758,12 +758,12 @@ Panel {
       }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       // "+" searches in either view; "j" jumps on the globe, "a" adds on the list.
-      // "t" flips 24-hour and AM/PM time, like clicking a row's time, and Shift+T
+      // "t" flips 24-hour and AM/PM time, like clicking a row's time, and Alt+T
       // flips Fahrenheit and Celsius, like clicking a temperature.
-      onTextKey: function(text) {
+      onTextKey: function(text, modifiers) {
         var key = text.toLowerCase()
         if (key === "r") root.refresh()
-        else if (text === "T") root.toggleUnits()
+        else if (key === "t" && (modifiers & Qt.AltModifier)) root.toggleUnits()
         else if (key === "t") root.toggleHour24()
         else if (root.globeMode && (key === "+" || key === "j")) {
           if (globeLoader.item) globeLoader.item.startJump()
