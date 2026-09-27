@@ -45,6 +45,7 @@ case $(<"$MODE") in
   skip) printf 'SKIP\x1e' ;;
   hang) sleep 2 ;;
   close) ;;
+  partial) printf 'OK\x1fpartial answer' ;;
 esac
 SH
 chmod +x "$test_tmp/responder"
@@ -101,14 +102,21 @@ output=$(shell_call shell ping 2>&1) && fail "a shell that closes without answer
   fail "a connection closed without an answer is reported, not retried" "got: $output"
 pass "a connection closed without an answer is reported, not retried"
 
-kill "$server_pid"
+printf 'partial' >"$mode"
+output=$(shell_call shell listPlugins 2>&1) && fail "a reply cut off before its end fails the call"
+[[ $output == "omarchy-shell is not responding" && ! -s $calls ]] ||
+  fail "a reply cut off before its end is reported, not taken or retried" "got: $output"
+pass "a reply cut off before its end is reported, not taken or retried"
+
+# SIGKILL leaves the socket file behind with nothing listening, as a crashed
+# shell does; socat then never connects, so qs ipc may safely answer.
+kill -9 "$server_pid"
 wait "$server_pid" 2>/dev/null || true
 server_pid=""
-if [[ -S $socket ]]; then
-  output=$(shell_call shell ping)
-  [[ $output == "from-qs" ]] || fail "a stale socket with nothing listening falls back to qs ipc" "got: $output"
-  pass "a stale socket with nothing listening falls back to qs ipc"
-fi
+[[ -S $socket ]] || fail "a killed listener leaves its socket file behind"
+output=$(shell_call shell ping)
+[[ $output == "from-qs" ]] || fail "a stale socket with nothing listening falls back to qs ipc" "got: $output"
+pass "a stale socket with nothing listening falls back to qs ipc"
 
 rm -f "$socket"
 output=$(shell_call shell ping)

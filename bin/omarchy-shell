@@ -70,24 +70,28 @@ if [[ -S $socket && $request != *$'\x1e'* && $request != *$'\x1f'* ]]; then
   request="$*"
   IFS=$saved_ifs
   # socat waits as long as the shell takes; the timeout alone bounds the call.
-  reply=$(printf '%s\x1e' "$request" | timeout --kill-after=1s "${OMARCHY_SHELL_IPC_TIMEOUT:-2s}" socat -t 86400 - "UNIX-CONNECT:$socket" 2>/dev/null)
-  socket_status=$?
+  # Its own errors land in the reply too, so a connection it could not make
+  # is told apart from one that failed after the request went out.
+  reply=$(printf '%s\x1e' "$request" | timeout --kill-after=1s "${OMARCHY_SHELL_IPC_TIMEOUT:-2s}" socat -t 86400 - "UNIX-CONNECT:$socket" 2>&1)
 
-  if [[ $reply == OK$'\x1f'* ]]; then
+  # An answer counts only once its record separator arrived: a reply cut off
+  # partway must not pass for the whole of it.
+  if [[ $reply == OK$'\x1f'*$'\x1e'* ]]; then
     output=${reply#OK$'\x1f'}
-    output=${output%$'\x1e'}
+    output=${output%$'\x1e'*}
     # Match qs ipc's path, whose $(...) drops trailing newlines.
     while [[ $output == *$'\n' ]]; do output=${output%$'\n'}; done
     if (( !QUIET )) && [[ -n $output ]]; then
       echo "$output"
     fi
     exit 0
-  elif [[ $reply == "SKIP"$'\x1e' ]]; then
+  elif [[ $reply == "SKIP"$'\x1e'* ]]; then
     : # The shell ran nothing; qs ipc gives its exact answer below.
-  elif [[ -z $reply ]] && (( socket_status != 0 && socket_status != 124 && socket_status != 137 )); then
-    : # socat could not connect, a stale socket; qs ipc answers below.
+  elif [[ $reply != OK* && $reply == *" E connect("* ]]; then
+    : # socat never connected, a stale socket; qs ipc answers below.
   else
-    # Out of time, or closed without an answer: the call may have run.
+    # Out of time, cut off, or failed after the request went out: the call
+    # may have run, so it is reported rather than retried.
     fail "omarchy-shell is not responding"
   fi
 fi
