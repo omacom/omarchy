@@ -1235,7 +1235,7 @@ ShellRoot {
 
   function unloadPanels() {
     for (var id in panelLoaders) hide(id)
-    panelEntries = []
+    panelEntryModel.clear()
     panelLoaders = ({})
     pendingPayloads = ({})
     openPanelIds = ({})
@@ -1284,7 +1284,43 @@ ShellRoot {
   // One Loader per discoverable panel/overlay/menu plugin. Active when the
   // host marks it open. The Loader holds onto the instance while active so the
   // plugin's FloatingWindow + state survive between summons within a session.
-  property var panelEntries: []
+  //
+  // The entries live in a ListModel synced in place. Handing the Instantiator
+  // a fresh array instead rebuilt every panel on every plugin change, four
+  // times over during startup: each rebuild started a new asynchronous load of
+  // every keepLoaded panel while the last was in flight, so two OSDs could run
+  // at once, each registering its IPC handler. A full plugin reload clears
+  // the model in unloadPanels, so panels still rebuild from fresh code then.
+  ListModel { id: panelEntryModel }
+
+  function syncPanelEntries() {
+    var wanted = ({})
+    var order = []
+    var entries = computePanelEntries()
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i]
+      entry.sourceUrl = String(shell.pluginRegistry.entryPointUrl(entry.manifest, entry.kind) || "")
+      wanted[entry.id] = entry
+      order.push(entry.id)
+    }
+
+    // Keep an entry whose plugin still loads the same way; drop the rest.
+    for (var j = panelEntryModel.count - 1; j >= 0; j--) {
+      var row = panelEntryModel.get(j)
+      var next = wanted[row.pluginId]
+      if (next && next.kind === row.entryKind && next.keepLoaded === row.keepLoaded && next.sourceUrl === row.sourceUrl) {
+        delete wanted[row.pluginId]
+      } else {
+        panelEntryModel.remove(j)
+      }
+    }
+
+    for (var k = 0; k < order.length; k++) {
+      var added = wanted[order[k]]
+      if (!added) continue
+      panelEntryModel.append({ pluginId: added.id, entryKind: added.kind, keepLoaded: added.keepLoaded, sourceUrl: added.sourceUrl })
+    }
+  }
 
   function computePanelEntries() {
     var out = []
@@ -1307,21 +1343,21 @@ ShellRoot {
 
   Connections {
     target: shell.pluginRegistry
-    function onPluginsChanged() { if (!shell.pluginReloading) shell.panelEntries = shell.computePanelEntries() }
+    function onPluginsChanged() { if (!shell.pluginReloading) shell.syncPanelEntries() }
   }
 
   Instantiator {
-    model: shell.panelEntries
+    model: panelEntryModel
     active: true
 
     delegate: QtObject {
       id: panelEntry
-      required property var modelData
-      readonly property string pluginId: modelData.id
-      readonly property var manifest: modelData.manifest
-      readonly property string entryKind: modelData.kind
-      readonly property bool keepLoaded: modelData.keepLoaded === true
-      readonly property string sourceUrl: shell.pluginRegistry.entryPointUrl(manifest, entryKind)
+      required property string pluginId
+      required property string entryKind
+      required property bool keepLoaded
+      required property string sourceUrl
+      // The manifest can be replaced on a rescan without the entry changing.
+      readonly property var manifest: shell.pluginRegistry.installedPlugins[pluginId]
 
       property Loader panelLoader: Loader {
         source: panelEntry.sourceUrl
@@ -1477,7 +1513,7 @@ ShellRoot {
       }
       shell.pluginReloading = false
       shell._syncServices()
-      shell.panelEntries = shell.computePanelEntries()
+      shell.syncPanelEntries()
       shell.syncPluginWidgets()
     }
   }
