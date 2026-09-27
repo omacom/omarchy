@@ -75,7 +75,7 @@ Item {
     if (event.key === Qt.Key_Space) {
       activateRequested(); event.accepted = true; return
     }
-    if (event.text === "x" || event.text === "X") {
+    if (event.key === Qt.Key_Delete || event.text === "x" || event.text === "X") {
       deleteRequested(); event.accepted = true; return
     }
     if (event.text && event.text.length === 1) {

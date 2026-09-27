@@ -297,6 +297,15 @@ Panel {
     else scrollToItem(next >= 0 ? cityRows.itemAt(next) : null)
   }
 
+  // The picked city goes, as with its × button, and the cursor lands on the city
+  // that takes its place. The last city stays, so there is always one clock.
+  function deleteFocused() {
+    if (globeMode || addSelected || focusIndex < 0 || zones.length < 2) return
+    var at = focusIndex
+    removeCityAt(at)
+    focusOn(Math.min(at, zones.length - 1))
+  }
+
   function scrollToItem(item) {
     if (!item) { scroller.scrollToTop(); return }
     var top = item.mapToItem(content, 0, 0).y
@@ -711,6 +720,7 @@ Panel {
         else if (root.globeMode) root.setGlobeMode(false, false)
         else root.close()
       }
+      onDeleteRequested: root.deleteFocused()
       // Up and down pick a city; left and right move the clocks an hour.
       onMoveRequested: function(dx, dy) {
         if (dy !== 0) root.moveFocus(dy)

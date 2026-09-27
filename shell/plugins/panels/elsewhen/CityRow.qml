@@ -290,7 +290,8 @@ Rectangle {
     fontFamily: row.fontFamily
     fontSize: Style.font.bodySmall
     enabled: row.removable
-    opacity: row.removable && rowHover.hovered ? 1 : 0
+    // Shown on the keyboard's pick too, so Delete's target is plain.
+    opacity: row.removable && row.lit ? 1 : 0
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: 120 } }
     onClicked: row.panel.removeCityAt(row.index)
