@@ -138,6 +138,9 @@ Item {
     var command = String(action || "")
     if (!command) return
 
+    var summon = MenuModel.summonAction(command)
+    if (summon && root.shell && root.shell.summon(summon.id, summon.payload)) return
+
     Util.execDetached(command)
   }
 

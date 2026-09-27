@@ -8,6 +8,11 @@ Item {
 
   property string path: ""
   property int version: 0
+  // A caller that knows the size its screen needs, in physical pixels, sets
+  // constrainDecode and decodeSize. The image then waits for that size rather
+  // than decoding at the file's native size first.
+  property bool constrainDecode: false
+  property size decodeSize: Qt.size(0, 0)
   readonly property var current: imageLoader.item
   readonly property bool ready: current ? current.ready : false
   readonly property bool video: Util.isVideoPath(path)
@@ -27,12 +32,12 @@ Item {
 
     Image {
       readonly property bool ready: status === Image.Ready
-      source: root.imageUrl
+      source: !root.constrainDecode || root.decodeSize.width > 0 ? root.imageUrl : ""
       fillMode: Image.PreserveAspectCrop
       asynchronous: true
       cache: root.version === 0
-      sourceSize.width: root.version > 0 ? width : 0
-      sourceSize.height: root.version > 0 ? height : 0
+      sourceSize.width: root.constrainDecode ? root.decodeSize.width : (root.version > 0 ? width : 0)
+      sourceSize.height: root.constrainDecode ? root.decodeSize.height : (root.version > 0 ? height : 0)
     }
   }
 }
