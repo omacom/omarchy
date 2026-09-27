@@ -100,6 +100,9 @@ local function command_from(value, description)
     return shell_dispatcher("panel", value.panel, "omarchy-shell shell toggle " .. shell_quote(value.panel))
   elseif value.audio then
     return shell_dispatcher("audio", value.audio, "omarchy-audio-output-volume " .. shell_quote(value.audio))
+  elseif value.brightness then
+    local step = value.brightness == "raise" and "+5%" or "5%-"
+    return shell_dispatcher("brightness", value.brightness, "omarchy-brightness-display " .. step)
   elseif value.ipc then
     local target, method = value.ipc:match("^([^.]+)%.(.+)$")
     return shell_dispatcher("ipc", value.ipc, "omarchy-shell " .. shell_quote(target) .. " " .. shell_quote(method))

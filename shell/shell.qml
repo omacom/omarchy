@@ -20,6 +20,7 @@ ShellRoot {
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
+  property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
 
   property string home: Quickshell.env("HOME")
 
@@ -1526,7 +1527,7 @@ ShellRoot {
     var lines = String(raw || "").split("\n")
     for (var i = 0; i < lines.length; i++) {
       var match = /^([A-Za-z]+)\s+(\S+)\s*$/.exec(lines[i])
-      if (match && ["menu", "panel", "audio", "ipc"].indexOf(match[1]) !== -1)
+      if (match && ["menu", "panel", "audio", "brightness", "ipc"].indexOf(match[1]) !== -1)
         entries.push({ kind: match[1], target: match[2], name: match[1] + "." + match[2] })
     }
     return entries
@@ -1546,6 +1547,9 @@ ShellRoot {
       var service = shell.serviceFor(shell.ipcShortcutServices[target] || "")
       if (!service || !service.runShortcut(method))
         Util.execArgv(["omarchy-shell", target, method])
+    } else if (entry.kind === "brightness") {
+      if (!shell.brightnessKeys.handle(entry.target))
+        Util.execArgv(["omarchy-brightness-display", entry.target === "raise" ? "+5%" : "5%-"])
     } else if (entry.kind === "audio") {
       var media = shell.serviceFor("omarchy.media")
       if (!media || !media.handleVolumeKey(entry.target))
@@ -1570,7 +1574,7 @@ ShellRoot {
 
       appid: "omarchy"
       name: modelData.name
-      description: modelData.kind === "audio" ? "Volume " + modelData.target : (modelData.kind === "ipc" ? "Run " + modelData.target : "Toggle the " + modelData.target + " " + modelData.kind)
+      description: modelData.kind === "audio" || modelData.kind === "brightness" ? (modelData.kind === "audio" ? "Volume " : "Brightness ") + modelData.target : (modelData.kind === "ipc" ? "Run " + modelData.target : "Toggle the " + modelData.target + " " + modelData.kind)
       onPressed: shell.runShortcut(modelData)
     }
   }

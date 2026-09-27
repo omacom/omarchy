@@ -57,6 +57,7 @@ o.bind("C", "listed panel", { panel = "omarchy.emojis" })
 o.bind("D", "unlisted panel", { panel = "omarchy.wifiqr" })
 o.bind("E", "listed audio", { audio = "raise" })
 o.bind("F", "unlisted audio", { audio = "+1" })
+o.bind("I", "listed brightness", { brightness = "raise" })
 o.bind("G", "listed ipc", { ipc = "media.next" })
 o.bind("H", "unlisted ipc", { ipc = "media.sourceNext" })
 
@@ -80,6 +81,7 @@ expect_binding $'global\tomarchy:panel.omarchy.emojis\tlisted panel' "a listed p
 expect_binding $'exec\tomarchy-shell shell toggle \'omarchy.wifiqr\'\tunlisted panel' "an unlisted panel falls back to the command"
 expect_binding $'global\tomarchy:audio.raise\tlisted audio' "a listed volume key binds its global shortcut"
 expect_binding $'exec\tomarchy-audio-output-volume \'+1\'\tunlisted audio' "an unlisted volume step falls back to the script"
+expect_binding $'global\tomarchy:brightness.raise\tlisted brightness' "a listed brightness key binds its global shortcut"
 expect_binding $'global\tomarchy:ipc.media.next\tlisted ipc' "a listed IPC call binds its global shortcut"
 expect_binding $'exec\tomarchy-shell \'media\' \'sourceNext\'\tunlisted ipc' "an unlisted IPC call falls back to omarchy-shell"
 pass "shell bindings use global shortcuts only for what the shell registers"
@@ -94,6 +96,8 @@ expect_binding $'global\tomarchy:panel.omarchy.clipboard\tClipboard manager' "th
 expect_binding $'global\tomarchy:audio.raise\tVolume up' "the volume up key steps the volume in the shell"
 expect_binding $'global\tomarchy:audio.lower\tVolume down' "the volume down key steps the volume in the shell"
 expect_binding $'global\tomarchy:audio.mute-toggle\tMute' "the mute key toggles mute in the shell"
+expect_binding $'global\tomarchy:brightness.raise\tBrightness up' "the brightness up key steps the backlight in the shell"
+expect_binding $'global\tomarchy:brightness.lower\tBrightness down' "the brightness down key steps the backlight in the shell"
 expect_binding $'global\tomarchy:ipc.media.playPause\tPlay' "the play key reaches the media service directly"
 expect_binding $'global\tomarchy:ipc.notifications.dismissOne\tDismiss last notification' "dismissing a notification reaches the service directly"
 ! grep -E $'^exec\tomarchy-shell (media|notifications) ' <<<"$bindings" ||
@@ -103,7 +107,7 @@ pass "default bindings toggle menus and panels through global shortcuts"
 # The shell and the helpers read the same list, in the same format.
 while IFS= read -r line; do
   [[ -z $line || $line == \#* ]] && continue
-  [[ $line =~ ^(menu|panel|audio|ipc)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
+  [[ $line =~ ^(menu|panel|audio|brightness|ipc)\ [^[:space:]]+$ ]] || fail "shortcuts lines are a kind and a target: $line"
   if [[ $line == ipc\ * ]]; then
     [[ $line =~ ^ipc\ (media|notifications)\.[A-Za-z]+$ ]] || fail "ipc shortcuts name a mapped target and method: $line"
   fi
