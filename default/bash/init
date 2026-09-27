@@ -1,13 +1,16 @@
-if command -v mise &> /dev/null; then
-  eval "$(mise activate bash)"
-fi
-
 if [[ $- == *i* ]] && [[ ${TERM:-} != "dumb" ]] && command -v starship &> /dev/null; then
   eval "$(starship init bash)"
 fi
 
 if command -v zoxide &> /dev/null; then
   eval "$(zoxide init bash)"
+fi
+
+# Activate mise after starship and zoxide. Both replace PROMPT_COMMAND on
+# init, so activating mise first would drop its _mise_hook and leave managed
+# tools (e.g. python) off PATH in new shells (issue #3685).
+if command -v mise &> /dev/null; then
+  eval "$(mise activate bash)"
 fi
 
 if command -v try &> /dev/null; then
