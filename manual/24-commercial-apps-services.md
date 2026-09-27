@@ -28,6 +28,10 @@ You start Spotify using `Super + Shift + M`. Like 1Password, the hotkey kicks of
 
 It gets a panel in the bar, a web app for the admin console, and Taildrop for sending files between your machines — see [networking](35-networking.md).
 
+## Cloudflare
+
+[Cloudflare](https://www.cloudflare.com/) runs a huge part of the internet, and its developer platform hosts sites, apps, and storage at the edge. Omarchy ships with `cf`, the Cloudflare CLI, for managing all of it from the terminal. Select _Install > Service > Cloudflare_ from the Omarchy menu to sign it in to your account, which also adds a web app for the Cloudflare dashboard and a panel in the bar for your Workers and domains — see [the top bar](05-the-top-bar.md).
+
 ## ONCE
 
 [ONCE](https://once.com/) is 37signals' line of software you buy once and run on your own server, like the Campfire chat system. Select _Install > Service > ONCE_ from the Omarchy menu to install it, which enables its background service and drops you into the ONCE terminal interface to take it from there.
