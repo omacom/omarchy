@@ -87,8 +87,6 @@ Panel {
   // is currently running so it can render "Connecting…" / "Disconnecting…".
   // Forgetting runs on its own lane (`forgetActive` + `forgetSsid`) so a
   // saved row can be forgotten while another SSID is connecting.
-  // `cancelledSsid` remembers a user-aborted connect so a late NM outcome
-  // for it is adopted or swallowed silently instead of reprompting.
   // `passwordSsid` is the row currently expanded into
   // password-entry mode; we keep it open across refresh cycles so a slow scan
   // doesn't collapse the input the user is typing into. Rows must gate
@@ -98,7 +96,6 @@ Panel {
   property string actionKind: ""  // "connect" | "disconnect"
   property bool forgetActive: false
   property string forgetSsid: ""
-  property string cancelledSsid: ""
   property string failureSsid: ""
   property string failureReason: ""
   property string passwordSsid: ""
@@ -439,6 +436,7 @@ Panel {
     if (!net) return
     if (isConnectTarget(net.ssid)) { cancelNetworkAction(); return }
     if (wifiActionFocused && canForgetNetwork(net)) { forget(net); return }
+    if (forgetActive && forgetSsid === (net.ssid || "")) return
     if (busy) return
     // Only act on a row that still resolves. disconnect() falls back to
     // connectedWifiNetwork when handed null, so a row left stale by scan churn
@@ -782,12 +780,20 @@ Panel {
     return actionKind === "connect" && actionSsid !== "" && actionSsid === (ssid || "")
   }
 
+  // Whether NetworkManager is part-way through activating this SSID. Quickshell
+  // maps NetworkManager's device states 40-90 (prepare, config, need-auth,
+  // ip-config, ip-check, second-connection) onto ConnectionState.Connecting,
+  // which is the only state a pending activation can be aborted from.
+  function isActivationPending() {
+    var device = wifiDevice
+    return !!device && device.state === ConnectionState.Connecting
+  }
+
   function runNetworkAction(kind, network, callback) {
     if (actionKind !== "" || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
     actionKind = kind
-    cancelledSsid = ""
     failureSsid = ""
     failureReason = ""
     callback(network)
@@ -835,9 +841,6 @@ Panel {
   function checkActionCompletion(network) {
     if (!network) return
     var ssid = network.name || ""
-    // A user-aborted attempt that still completed behind our back is
-    // adopted silently: no failure, no passphrase reprompt.
-    if (cancelledSsid !== "" && cancelledSsid === ssid && network.connected) cancelledSsid = ""
     if (actionKind !== "" && actionSsid === ssid) {
       if (actionKind === "connect" && network.connected) clearNetworkAction()
       else if (actionKind === "disconnect" && !network.connected && !network.stateChanging) clearNetworkAction()
@@ -917,20 +920,32 @@ Panel {
     forgetTimeout.restart()
   }
 
-  // Abort an in-flight connect. `network.disconnect()` reaches NM's
-  // Device.Disconnect, which deactivates the activation the panel asked for
-  // even though the profile never reported Connected; the enterprise helper
-  // is killed first so it cannot complete after the state is cleared. The
-  // prompt (if open) stays open with its fields restored so the user can
-  // correct and retry; a direct connect simply returns to idle. The aborted
-  // SSID is remembered so a late NM outcome for it is adopted or swallowed
-  // silently instead of reprompting for a passphrase.
+  // Abort an in-flight connect. The profile-level `network.disconnect()` is
+  // useless here: Quickshell's Network::disconnect() returns early unless the
+  // profile already reports Connected, and `connected` is bound to
+  // NetworkManager's Activated state, so during "Connecting…" it never reaches
+  // the D-Bus call. The device-level disconnect is the one primitive NM exposes
+  // for dropping a pending activation, and it refuses only while the device is
+  // already Disconnected or Disconnecting -- hence the gate, which also keeps a
+  // Cancel aimed at a request NM has not picked up yet from tearing down a
+  // connection the user is actually on.
+  //
+  // Consequence: NetworkManager's Device.Disconnect blocks automatic
+  // activation on that device until a connection is activated again, the same
+  // as `nmcli device disconnect`. Activating any network from this panel
+  // clears the block again, so cancelling one network does not strand the
+  // radio.
+  //
+  // The enterprise helper is killed first so it cannot finish behind us; its
+  // script deletes the half-built 802.1X profile when it is terminated. The
+  // passphrase prompt (if open) stays open with its fields restored so the
+  // user can correct and retry. The slot is disarmed so a second click on the
+  // spot that showed Cancel cannot land on Forget.
   function cancelNetworkAction() {
     if (actionKind !== "connect") return
-    var network = actionSsid !== "" ? networkForSsid(actionSsid) : null
     if (enterpriseConnect.running) enterpriseConnect.running = false
-    if (network) network.disconnect()
-    if (actionSsid !== "") cancelledSsid = actionSsid
+    if (isActivationPending()) wifiDevice.disconnect()
+    wifiActionFocused = false
     resetActionState()
     refresh()
   }
@@ -1846,11 +1861,6 @@ Panel {
     Connections {
       target: row.net ? root.networkForSsid(row.net.ssid) : null
       function onConnectionFailed(reason) {
-        // A late failure for a user-aborted attempt carries no action to
-        // fail: swallow the marker so it never reprompts, then fall through
-        // to failNetworkAction, which no-ops without a tracked action.
-        var ssid = row.net ? (row.net.ssid || "") : ""
-        if (root.cancelledSsid !== "" && root.cancelledSsid === ssid) root.cancelledSsid = ""
         // Background auto-connect retries fire this too; only reprompt for
         // the connect started from this panel. Checked before
         // failNetworkAction, which clears the action state.
@@ -2105,12 +2115,9 @@ Panel {
 
         onAccepted: pwField.forceActiveFocus()
         onTextChanged: if (row.isPasswordOpen && text !== root.identityText) root.identityText = text
-        // Esc aborts the in-flight connect first (the prompt stays open
-        // for a retry); a second Esc closes the prompt.
-        Keys.onEscapePressed: {
-          if (row.isCancellable) root.cancelNetworkAction()
-          else root.cancelPasswordPrompt()
-        }
+        // While a connect is in flight these fields are disabled and the
+        // focused Cancel button owns Esc; here Esc just closes the prompt.
+        Keys.onEscapePressed: root.cancelPasswordPrompt()
 
         onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible) Qt.callLater(forceActiveFocus)
@@ -2136,12 +2143,8 @@ Panel {
 
         onAccepted: row.submitCredentials()
         onTextChanged: if (row.isPasswordOpen && text !== root.passwordText) root.passwordText = text
-        // Esc aborts the in-flight connect first (the prompt stays open
-        // for a retry); a second Esc closes the prompt.
-        Keys.onEscapePressed: {
-          if (row.isCancellable) root.cancelNetworkAction()
-          else root.cancelPasswordPrompt()
-        }
+        // See idField: the focused Cancel button handles Esc while connecting.
+        Keys.onEscapePressed: root.cancelPasswordPrompt()
 
         onVisibleChanged: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
         Component.onCompleted: if (visible && !row.isEnterprise) Qt.callLater(forceActiveFocus)
@@ -2174,9 +2177,17 @@ Panel {
       // Abort the in-flight connect. 22×22 right-anchored to line up with
       // the right-edge control above; the prompt stays open with its fields
       // restored so the passphrase can be corrected and retried.
+      //
+      // It is the keyboard abort while connecting: the passphrase fields are
+      // hidden and disabled once the attempt starts (and Qt drops focus from
+      // a disabled item), and the panel's key catcher is blocked while the
+      // prompt is open, so without focus here neither Enter nor Esc would
+      // reach anything. Taking focus when it appears is what keeps the abort
+      // reachable without a mouse.
       PanelActionButton {
         id: cancelPwBtn
         visible: row.isCancellable && row.isPasswordOpen
+        focusable: true
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         iconText: "󰅖"
@@ -2185,11 +2196,13 @@ Panel {
         hoverColor: root.bar.urgent
         fontFamily: root.bar.fontFamily
         onClicked: root.cancelNetworkAction()
+        Keys.onEscapePressed: root.cancelNetworkAction()
+        onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
+        Component.onCompleted: if (visible) Qt.callLater(forceActiveFocus)
       }
 
-      // 22×22 right-anchored to line up with lockIndicator above. Esc closes
-      // the prompt when idle (handled above); while connecting Esc aborts
-      // the attempt instead, same as the Cancel button beside the status.
+      // Submit the passphrase. Esc closes the prompt, handled by the fields
+      // above while they hold focus.
       PanelActionButton {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed

@@ -313,17 +313,33 @@ assert(
   /enabled: \(row\.canForget && !row\.isBusy\) \|\| row\.isCancellable/.test(panelSource),
   'network keeps Forget available on other rows while one SSID connects'
 )
+// The abort itself is behaviorally covered in network-cancel-test.sh, whose
+// mock mirrors the frontend guards the real backend applies. These assertions
+// only pin the parts a source read has to get right.
 assert(
-  (panelSource.match(/if \(row\.isCancellable\) root\.cancelNetworkAction\(\)\s*else root\.cancelPasswordPrompt\(\)/g) || []).length >= 2,
-  'network Esc aborts the in-flight connect before closing the passphrase prompt'
+  /if \(isActivationPending\(\)\) wifiDevice\.disconnect\(\)/.test(panelSource),
+  'network aborts the activation through the device, not the profile'
 )
 assert(
-  /cancelledSsid = actionSsid/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
-  'network remembers the aborted SSID so late outcomes stay silent'
+  !/network\.disconnect\(\)/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network does not reach for the profile-level disconnect, which no-ops while connecting'
 )
 assert(
-  /cancelledSsid = ""/.test(panelSource.match(/function runNetworkAction\(kind, network, callback\) \{[\s\S]*?\n {2}\}/)[0]),
-  'network drops the aborted marker once a new action starts'
+  /wifiActionFocused = false/.test(panelSource.match(/function cancelNetworkAction\(\) \{[\s\S]*?\n {2}\}/)[0]),
+  'network disarms the slot on cancel so a second click cannot land on Forget'
+)
+assert(
+  /id: cancelPwBtn[\s\S]{0,400}focusable: true/.test(panelSource) &&
+    /id: cancelPwBtn[\s\S]{0,600}Keys\.onEscapePressed: root\.cancelNetworkAction\(\)/.test(panelSource),
+  'network keeps the prompt Cancel keyboard-reachable while the fields are disabled'
+)
+assert(
+  /if \(forgetActive && forgetSsid === \(net\.ssid \|\| ""\)\) return/.test(panelSource),
+  'network does not start a keyboard connect on a row whose forget is still pending'
+)
+assert(
+  !/cancelledSsid/.test(panelSource),
+  'network carries no aborted-SSID marker, which only ever cleared itself'
 )
 
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }
