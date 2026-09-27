@@ -27,6 +27,10 @@ const parsed = menu.parseMenuJsonc(`
 `)
 
 assertEqual(parsed.length, 3, 'menu parses JSONC with comments and trailing commas')
+
+const withCommasInStrings = menu.parseMenuJsonc('{\n  "b": { "label": "x, ]y", "action": "mv f{.bak,}" },\n}')
+assertEqual(withCommasInStrings[0].label, 'x, ]y', 'menu keeps a comma before ] inside a label')
+assertEqual(withCommasInStrings[0].action, 'mv f{.bak,}', 'menu keeps a comma before } inside an action')
 assertDeepEqual(
   parsed.find(item => item.id === 'style.theme'),
   {
