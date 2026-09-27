@@ -8,7 +8,8 @@
 # theme-sync-off toggle neither sends its theme changes nor accepts them from other machines.
 
 # Columns: id, label, SSH target, session, state.
-targets=$(herdr machine list 2>/dev/null | awk -F '\t' -v self="$(hostname)" '$5 == "enabled" && $2 != self { print $3 }')
+# This machine may be listed too, and it is already on the theme, so it needs no special case.
+targets=$(herdr machine list 2>/dev/null | awk -F '\t' '$5 == "enabled" { print $3 }')
 
 # The menu offers the toggle whenever there is a machine to sync to, even with sync turned off.
 if [[ $1 == "--available" ]]; then
@@ -16,15 +17,17 @@ if [[ $1 == "--available" ]]; then
   exit
 fi
 
-# A theme that arrived from another machine stops here, so machines never echo it back.
-if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || omarchy-toggle-enabled theme-sync-off; then
-  exit 0
-fi
-
 # Serialize runs and send whichever theme is current once the lock is held,
 # so a slow earlier run can never overwrite a later theme change.
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-herdr-machines.lock"
 flock 9
+
+# A theme that arrived from another machine stops here, so machines never echo it back.
+# The toggle is checked once the lock is held, so turning sync off also stops a queued run.
+if [[ -n $OMARCHY_THEME_SYNC_FROM ]] || omarchy-toggle-enabled theme-sync-off; then
+  exit 0
+fi
+
 theme=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 
 # Runs on the remote machine under a login shell, so OMARCHY_PATH and PATH are set there.

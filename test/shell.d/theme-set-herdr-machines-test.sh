@@ -15,7 +15,7 @@ stub_bin="$SYNC_TEST/bin"
 remote_bin="$SYNC_TEST/remote-bin"
 mkdir -p "$local_home/.local/state/omarchy/current" "$stub_bin" "$remote_bin" "$SYNC_TEST/run"
 
-# herdr lists one unreachable machine first, the local machine, and a disabled one.
+# herdr lists one unreachable machine first, this machine, and a disabled one.
 cat >"$stub_bin/herdr" <<'EOF'
 #!/bin/bash
 printf '%s\t%s\t%s\t%s\t%s\n' \
@@ -63,7 +63,7 @@ chmod +x "$stub_bin"/* "$remote_bin"/*
 reset_remotes() {
   rm -rf "$SYNC_TEST/remotes" "$SYNC_TEST/ssh-calls"
   local machine
-  for machine in alpha beta gamma; do
+  for machine in alpha beta gamma local-box; do
     mkdir -p "$SYNC_TEST/remotes/$machine/.local/state/omarchy/current"
     echo "tokyo-night" >"$SYNC_TEST/remotes/$machine/.local/state/omarchy/current/theme.name"
   done
@@ -85,18 +85,21 @@ set_log() {
 reset_remotes
 set_local_theme lumon
 echo "lumon" >"$SYNC_TEST/remotes/beta/.local/state/omarchy/current/theme.name"
+echo "lumon" >"$SYNC_TEST/remotes/local-box/.local/state/omarchy/current/theme.name"
 output=$(run_sync)
 [[ $(set_log alpha) == "theme set lumon from=local-box session=wayland-1" ]] || fail "sets the theme inside the newest Hyprland session"
 pass "sets the theme inside the newest Hyprland session"
 [[ -z $(set_log beta) && $output == *"beta: already on lumon"* ]] || fail "skips a machine already on the theme"
 pass "skips a machine already on the theme"
-! grep -qx -e local-box -e retired "$SYNC_TEST/ssh-calls" || fail "skips the local machine and disabled machines"
-pass "skips the local machine and disabled machines"
+! grep -qx retired "$SYNC_TEST/ssh-calls" || fail "skips disabled machines"
+pass "skips disabled machines"
+[[ -z $(set_log local-box) && $output == *"local-box: already on lumon"* ]] || fail "leaves this machine alone when it is listed"
+pass "leaves this machine alone when it is listed"
 [[ $output == *"down: ssh: connect to host down"* ]] || fail "logs an unreachable machine"
 pass "logs an unreachable machine"
 
 # Connects one machine at a time, so an SSH agent asks for approval at most once.
-[[ $(paste -sd ' ' "$SYNC_TEST/ssh-calls") == "down alpha beta gamma" ]] || fail "connects to machines one at a time in order"
+[[ $(paste -sd ' ' "$SYNC_TEST/ssh-calls") == "down alpha beta gamma local-box" ]] || fail "connects to machines one at a time in order"
 pass "connects to machines one at a time in order"
 
 # A machine with the toggle off refuses themes from other machines.
@@ -114,6 +117,20 @@ touch "$local_home/.local/state/omarchy/toggles/theme-sync-off"
 run_sync >/dev/null
 [[ ! -e $SYNC_TEST/ssh-calls ]] || fail "theme sync off stops sending"
 pass "theme sync off stops sending"
+rm "$local_home/.local/state/omarchy/toggles/theme-sync-off"
+
+# Turning sync off also stops a run that is still waiting for an earlier one to finish.
+reset_remotes
+exec 8>"$SYNC_TEST/run/omarchy-theme-set-herdr-machines.lock"
+flock 8
+run_sync >/dev/null &
+queued=$!
+sleep 0.5
+touch "$local_home/.local/state/omarchy/toggles/theme-sync-off"
+flock -u 8
+wait $queued
+[[ ! -e $SYNC_TEST/ssh-calls ]] || fail "turning sync off stops a queued run"
+pass "turning sync off stops a queued run"
 rm "$local_home/.local/state/omarchy/toggles/theme-sync-off"
 
 # A theme that arrived from another machine is never sent on.
