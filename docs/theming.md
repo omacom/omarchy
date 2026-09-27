@@ -6,12 +6,11 @@ Omarchy themes live under `themes/<name>/` in the source tree (installed at
 `colors.toml`; Omarchy generates the active theme files from
 `default/themed/*.tpl` when `omarchy-theme-set <name>` runs.
 
-Beyond `colors.toml` and hand-written config overrides, a first-party theme can
-ship `backgrounds/` (users overlay their own via
-`~/.config/omarchy/backgrounds/<name>/`; the active image is the
-`~/.local/state/omarchy/current/background` symlink), `preview.png` and
-`preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`,
-`unlock.png`, and a `light.mode` marker file.
+Beyond `colors.toml` and hand-written config overrides, a first-party theme can ship `backgrounds/` (users overlay their own via `~/.config/omarchy/backgrounds/<name>/`; the active image is the `~/.local/state/omarchy/current/background` symlink), `preview.png` and `preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`, `unlock.png`, and a `light.mode` marker file.
+
+A first-party theme can pair a still background with a one-shot boot intro. Aim for a video between five and seven seconds long, ending near the still image so the 750 millisecond fade at login feels smooth. OWE prepares the still before taking the background layer and holds it again while the shell returns, which avoids black frames at both handoffs. For `backgrounds/0-winding-road.webp`, place the video at `intros/0-winding-road.mp4` and the still image's SHA-256 at `intros/0-winding-road.sha256`. The hash binding prevents a same-named user background from receiving a mismatched packaged intro. User-managed intros are stored under `~/.config/omarchy/backgrounds/<name>/intros/<background-sha256>/` and take precedence over first-party intros without colliding when multiple backgrounds share a filename stem.
+
+Boot-intro startup requires OWE's `intro-prepare`, `intro-commit`, and `intro-stop` commands from [OWE PR #5](https://github.com/omacom/owe/pull/5). They are not included in the published OWE 0.2.7 release; a build reporting that version is not sufficient to establish support. The shell invokes the resolver under a lock, prepares playback, records the boot marker only after OWE accepts the intro, and then commits playback. A rejected preparation leaves the boot available for a bounded retry (up to 60 attempts, with a one-second timer between attempts). Release integration must wait for an OWE package containing this protocol; the existing OWE package and service setup alone do not provide it.
 
 A theme installed from a git repo is held to a much shorter list; see [What an installed theme may not ship](#what-an-installed-theme-may-not-ship).
 
