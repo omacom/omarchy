@@ -1,0 +1,450 @@
+#!/bin/bash
+
+# omarchy:summary=Find which device wakes the machine early from suspend and offer a fix
+# omarchy:group=system
+# omarchy:args=<status|test|diagnose|restore> [seconds]
+
+# A machine that "sleeps" but drains its battery in hours instead of days is
+# usually not failing to suspend at all - it's being woken again and again by
+# a device that's allowed to signal a wake (Bluetooth heartbeats, a dock, a
+# stray PCIe root port) and never gets a chance to hold real S3 sleep. That
+# looks identical to a battery/firmware problem from the outside, so this
+# tool proves the difference: request N seconds of real sleep via the RTC
+# alarm and see whether the machine actually held it.
+#
+# The bisection re-enables one wake source at a time from a known-good
+# (everything disabled) baseline rather than binary-searching the candidate
+# list. Binary search is faster but only correct when exactly one culprit
+# exists; real machines showed up in the field with more than one (see
+# omacom/omarchy#1635), and a sequential pass finds all of them for the same
+# order of magnitude of suspend cycles that a real candidate list ever has.
+
+set -uo pipefail
+
+SECONDS_DEFAULT=60
+SETTLE_SECONDS=5 # pause between suspend cycles so drivers (esp. wifi) fully
+                  # come back up before the next one - see the diagnose loop
+ACPI_WAKEUP=/proc/acpi/wakeup
+STATE_DIR=/run/omarchy-diagnose-suspend-wake
+STATE_FILE="$STATE_DIR/pending"
+RESTORE_ON_EXIT=0
+RULE_FILE=/etc/udev/rules.d/91-omarchy-diagnosed-wake.rules
+
+# Never touched: without this the machine would have no way to wake at all
+# once every device-level wake source is disabled for the control test.
+ESSENTIAL_ACPI="LID0"
+
+require_root() {
+  if [[ $EUID -ne 0 ]]; then
+    echo "omarchy-diagnose-suspend-wake: needs root (rtcwake and the wakeup" \
+      "attributes under /sys and /proc both require it). Re-run with sudo." >&2
+    exit 1
+  fi
+}
+
+require_rtcwake() {
+  omarchy-cmd-present rtcwake || {
+    echo "omarchy-diagnose-suspend-wake: rtcwake not found (package: util-linux)" >&2
+    exit 1
+  }
+}
+
+# --- device enumeration -----------------------------------------------------
+
+# name, kind, sysfs-node columns for every /proc/acpi/wakeup device currently
+# enabled, other than the essential one above. Some rows have no fourth
+# (sysfs node) column at all - those are left with an empty node field.
+acpi_enabled_candidates() {
+  awk -v essential="$ESSENTIAL_ACPI" '
+    NR > 1 && $1 != essential && $3 == "*enabled" {
+      node = (NF >= 4) ? $NF : ""
+      print $1 "\t" "acpi" "\t" node
+    }
+  ' "$ACPI_WAKEUP"
+}
+
+acpi_is_enabled() {
+  awk -v n="$1" 'NR > 1 && $1 == n { print ($3 == "*enabled") ? "enabled" : "disabled" }' "$ACPI_WAKEUP"
+}
+
+acpi_set() {
+  local name=$1 want=$2
+  local current
+  current=$(acpi_is_enabled "$name") || return 1
+  [[ $current == "enabled" || $current == "disabled" ]] || return 1
+  [[ $current == "$want" ]] && return 0
+  { echo "$name" >"$ACPI_WAKEUP"; } 2>/dev/null || return 1
+  [[ $(acpi_is_enabled "$name") == "$want" ]]
+}
+
+# bus-port id and sysfs path for every USB device (not hub) that's currently
+# wake-enabled - these sit a level below the ACPI toggle above (e.g. a
+# Bluetooth controller enumerates as its own USB device on the XHC1
+# controller's bus, and only its own attribute needs to change).
+usb_enabled_candidates() {
+  local dir attr
+  for dir in /sys/bus/usb/devices/*/; do
+    [[ -f "${dir}idVendor" ]] || continue # skip hubs/root controllers
+    attr="${dir}power/wakeup"
+    [[ -r $attr ]] || continue
+    [[ $(<"$attr") == "enabled" ]] || continue
+    printf '%s\tusb\t%s\n' "$(basename "$dir")" "$dir"
+  done
+}
+
+usb_set() {
+  local dir=$1 want=$2
+  [[ -r ${dir}power/wakeup ]] || return 1
+  { echo "$want" >"${dir}power/wakeup"; } 2>/dev/null || return 1
+  [[ $(<"${dir}power/wakeup") == "$want" ]]
+}
+
+all_candidates() {
+  acpi_enabled_candidates || return 1
+  usb_enabled_candidates
+}
+
+set_candidate() {
+  local name=$1 kind=$2 node=$3 want=$4
+  case $kind in
+    acpi) acpi_set "$name" "$want" ;;
+    usb) usb_set "$node" "$want" ;;
+    *) return 1 ;;
+  esac
+}
+
+# --- state file (interrupt/undo safety net) -----------------------------------
+#
+# Tracks exactly what THIS tool has disabled and not yet made permanent, so
+# `restore` (and the INT/TERM trap) can put things back precisely rather than
+# guessing from current state - some devices are disabled by firmware default
+# and must never be touched, so "re-enable everything that's off" is wrong.
+
+prepare_state_dir() {
+  umask 077
+  if [[ -e $STATE_DIR || -L $STATE_DIR ]]; then
+    if [[ -L $STATE_DIR || ! -d $STATE_DIR || $(stat -c %u "$STATE_DIR") != 0 || $(stat -c %a "$STATE_DIR") != 700 ]]; then
+      echo "Unsafe recovery directory: $STATE_DIR" >&2
+      return 1
+    fi
+  else
+    mkdir -m700 "$STATE_DIR" || return 1
+  fi
+  [[ ! -L $STATE_FILE && ! -L $STATE_DIR/lock ]] || return 1
+  exec 9>"$STATE_DIR/lock" || return 1
+  flock -n 9 || { echo "Another suspend diagnosis is active." >&2; return 1; }
+}
+
+save_state() {
+  local pending
+  pending=$(mktemp "$STATE_FILE.XXXXXX") || return 1
+  if ! printf '%s\n' "$@" >"$pending" || ! mv "$pending" "$STATE_FILE"; then
+    rm -f "$pending"
+    return 1
+  fi
+}
+
+clear_state() {
+  rm -f "$STATE_FILE"
+}
+
+finish_command() {
+  local status=$?
+  trap - EXIT INT TERM HUP
+  if ((RESTORE_ON_EXIT)); then
+    cmd_restore >&2 || status=1
+  fi
+  exit "$status"
+}
+
+# --- reporting ---------------------------------------------------------------
+
+describe_candidate() {
+  local name=$1 kind=$2 node=$3
+  case $kind in
+    usb)
+      local vendor product maker label
+      vendor=$(<"${node}idVendor") product=$(<"${node}idProduct")
+      maker=$(<"${node}manufacturer" 2>/dev/null); maker=${maker:-unknown vendor}
+      label=$(<"${node}product" 2>/dev/null); label=${label:-unnamed device}
+      printf '%s (USB %s:%s, %s %s)' "$name" "$vendor" "$product" "$maker" "$label"
+      ;;
+    acpi)
+      printf '%s (%s)' "$name" "${node:-no sysfs node}"
+      ;;
+  esac
+}
+
+suggest_rule() {
+  local name=$1 kind=$2 node=$3
+  case $kind in
+    usb)
+      local vendor product
+      vendor=$(<"${node}idVendor") product=$(<"${node}idProduct")
+      printf 'SUBSYSTEM=="usb", ATTR{idVendor}=="%s", ATTR{idProduct}=="%s", ATTR{power/wakeup}="disabled"\n' \
+        "$vendor" "$product"
+      ;;
+    acpi)
+      local pci_addr=${node#pci:}
+      if [[ $pci_addr != "$node" && -e "/sys/bus/pci/devices/$pci_addr" ]]; then
+        printf 'SUBSYSTEM=="pci", KERNEL=="%s", ATTR{power/wakeup}="disabled"\n' "$pci_addr"
+      else
+        printf '# %s has no stable udev match this tool knows how to generate;\n' "$name"
+        printf '# re-run: echo %s | sudo tee %s   after every boot instead.\n' "$name" "$ACPI_WAKEUP"
+      fi
+      ;;
+  esac
+}
+
+# --- the actual sleep test ---------------------------------------------------
+
+# Prints "held" or "woke-early" on stdout; the elapsed seconds go to stderr
+# for the caller to log if it wants them. A device that's really going to
+# wake the machine early does so within a few seconds, so the pass threshold
+# only needs to allow for rtcwake's own suspend/resume transition overhead -
+# scaled down for short test durations rather than a flat 15s that would
+# swallow most of a 30s test.
+run_test() {
+  local seconds=$1 start end elapsed slack threshold
+  slack=$((seconds / 4))
+  ((slack > 15)) && slack=15
+  threshold=$((seconds - slack))
+
+  start=$(date +%s)
+  if ! rtcwake -m mem -s "$seconds" >/dev/null 2>&1; then
+    echo "rtcwake failed - can't tell whether this held sleep or not" >&2
+    echo "inconclusive"
+    return 1
+  fi
+  end=$(date +%s)
+  elapsed=$((end - start))
+  echo "elapsed: ${elapsed}s (requested ${seconds}s, threshold ${threshold}s)" >&2
+
+  if ((elapsed >= threshold)); then
+    echo "held"
+  else
+    echo "woke-early"
+  fi
+}
+
+# Several suspend/resume transitions back to back, with no gap between them,
+# has been observed to wedge a wifi chip's firmware interface badly enough
+# that only a reboot clears it (brcmfmac on Broadcom parts; likely not the
+# only affected driver) - independent of which wake sources are enabled or
+# disabled. A short pause after each resume gives drivers time to fully
+# settle before the next suspend starts, which is cheap insurance against
+# that even though it can't guarantee avoiding it on fragile hardware.
+settle() {
+  sleep "$SETTLE_SECONDS"
+}
+
+# --- subcommands --------------------------------------------------------------
+
+cmd_status() {
+  echo "Wake-enabled devices (candidates for a spurious wake):"
+  local any=0 name kind node
+  while IFS=$'\t' read -r name kind node; do
+    any=1
+    echo "  - $(describe_candidate "$name" "$kind" "$node")"
+  done < <(all_candidates)
+  ((any)) || echo "  (none - only $ESSENTIAL_ACPI is enabled)"
+}
+
+cmd_test() {
+  local seconds=${1:-$SECONDS_DEFAULT}
+  echo "Suspending for ${seconds}s via RTC alarm..."
+  local result
+  result=$(run_test "$seconds") || return 1
+  case $result in
+    held) echo "Held the full duration - suspend is behaving normally." ;;
+    woke-early) echo "Woke up early - something is pulling this machine out of sleep. Run 'diagnose' to find it." ;;
+    *) echo "Could not complete the test."; return 1 ;;
+  esac
+}
+
+# Re-enables exactly what this tool disabled and hasn't made permanent yet,
+# per the state file. Safe to run any time; a no-op if nothing is pending.
+cmd_restore() {
+  if [[ ! -s $STATE_FILE ]]; then
+    echo "Nothing pending - no wake sources were left disabled by this tool."
+    clear_state
+    return 0
+  fi
+  local name kind node entry
+  local pending=()
+  while IFS=$'\t' read -r name kind node || [[ -n ${name:-} ]]; do
+    [[ -z ${name:-} ]] && continue
+    if set_candidate "$name" "$kind" "$node" enabled; then
+      echo "  re-enabled: $name"
+    else
+      printf -v entry '%s\t%s\t%s' "$name" "$kind" "$node"
+      pending+=("$entry")
+      echo "  could not restore: $name; keeping recovery state" >&2
+    fi
+  done <"$STATE_FILE"
+  if ((${#pending[@]})); then
+    save_state "${pending[@]}" || return 1
+    return 1
+  fi
+  clear_state || return 1
+  echo "Restored."
+}
+
+cmd_diagnose() {
+  local seconds=${1:-$SECONDS_DEFAULT}
+  if [[ -s $STATE_FILE ]]; then
+    echo "Recovery is pending. Run restore before starting another diagnosis." >&2
+    return 1
+  fi
+  local candidate_output
+  candidate_output=$(all_candidates) || { echo "Could not enumerate wake sources." >&2; return 1; }
+  local candidates=()
+  [[ -z $candidate_output ]] || mapfile -t candidates <<<"$candidate_output"
+
+  if [[ ${#candidates[@]} -eq 0 ]]; then
+    echo "Nothing but $ESSENTIAL_ACPI is wake-enabled already - no candidates to test."
+    return 0
+  fi
+
+  echo "This will suspend the machine repeatedly (up to $((${#candidates[@]} + 2)) times," \
+    "~${seconds}s each, ${SETTLE_SECONDS}s apart) to isolate which device wakes it early." \
+    "Save your work first. On some hardware, many suspend cycles in a row can leave a" \
+    "wifi/USB driver wedged until the next reboot (independent of anything this tool" \
+    "changes) - if networking looks broken afterward, that's the likely cause."
+  read -r -p "Continue? [y/N] " reply
+  [[ $reply =~ ^[Yy]$ ]] || { echo "Aborted."; return 1; }
+
+  echo "==> Baseline: does sleep hold at all right now?"
+  local baseline
+  baseline=$(run_test "$seconds") || baseline=inconclusive
+  settle
+  if [[ $baseline == "held" ]]; then
+    echo "Held cleanly - no spurious wake detected. Nothing to fix."
+    return 0
+  elif [[ $baseline != "woke-early" ]]; then
+    echo "Test was inconclusive; stopping without changing anything."
+    return 1
+  fi
+  echo "Confirmed: woke up early. Disabling every wake-enabled device to isolate the cause..."
+
+  save_state "${candidates[@]}" || return 1
+  RESTORE_ON_EXIT=1
+  local name kind node entry
+  for entry in "${candidates[@]}"; do
+    IFS=$'\t' read -r name kind node <<<"$entry"
+    set_candidate "$name" "$kind" "$node" disabled || return 1
+  done
+
+  echo "==> Control: does sleep hold with everything disabled?"
+  local control
+  control=$(run_test "$seconds") || control=inconclusive
+  settle
+  if [[ $control != "held" ]]; then
+    echo "Control sleep did not hold or was inconclusive; restoring and stopping."
+    return 1
+  fi
+
+  echo "Confirmed the fix is somewhere in this list. Re-enabling one at a time..."
+  local culprits=()
+  for entry in "${candidates[@]}"; do
+    IFS=$'\t' read -r name kind node <<<"$entry"
+    echo "==> Testing: $(describe_candidate "$name" "$kind" "$node")"
+    set_candidate "$name" "$kind" "$node" enabled || return 1
+    local result
+    result=$(run_test "$seconds") || result=inconclusive
+    settle
+    if [[ $result == "woke-early" ]]; then
+      echo "    culprit - disabling it again and keeping it off."
+      set_candidate "$name" "$kind" "$node" disabled || return 1
+      culprits+=("$entry")
+    elif [[ $result == "held" ]]; then
+      echo "    not the cause - leaving it enabled."
+    else
+      echo "    test was inconclusive; restoring and stopping." >&2
+      return 1
+    fi
+  done
+
+  if [[ ${#culprits[@]} -eq 0 ]]; then
+    echo "No single device reproduced it on re-enable (the earlier failure may have" \
+      "been intermittent). Nothing left disabled."
+    clear_state || return 1
+    RESTORE_ON_EXIT=0
+    return 0
+  fi
+
+  echo
+  echo "Found ${#culprits[@]} wake source(s) causing the early wake:"
+  local rule_lines=()
+  for entry in "${culprits[@]}"; do
+    IFS=$'\t' read -r name kind node <<<"$entry"
+    echo "  - $(describe_candidate "$name" "$kind" "$node")"
+    rule_lines+=("$(suggest_rule "$name" "$kind" "$node")")
+  done
+
+  echo
+  echo "Suggested udev rule ($RULE_FILE):"
+  printf '%s\n' "${rule_lines[@]}"
+  echo
+  read -r -p "Write this rule now so it survives a reboot? [y/N] " reply
+  if [[ $reply =~ ^[Yy]$ ]]; then
+    if [[ -e $RULE_FILE || -L $RULE_FILE ]]; then
+      echo "Preserving existing rule: $RULE_FILE. Reconcile the suggested rule manually." >&2
+      return 1
+    fi
+    # noclobber also protects a file created between the check and write.
+    (set -o noclobber; printf '%s\n' "${rule_lines[@]}" >"$RULE_FILE") || return 1
+    if ! udevadm control --reload; then
+      rm -f "$RULE_FILE"
+      return 1
+    fi
+    clear_state || return 1 # now governed by the rule; live state matches it
+    RESTORE_ON_EXIT=0
+    echo "Wrote $RULE_FILE and reloaded udev."
+  else
+    save_state "${culprits[@]}" || return 1
+    RESTORE_ON_EXIT=0
+    echo "Left it disabled for this session only - it'll reset on reboot." \
+      "Run 'omarchy-diagnose-suspend-wake restore' to undo, or 'diagnose' again later."
+  fi
+}
+
+# --- entry point ---------------------------------------------------------------
+
+case "${1:-}" in
+  test|diagnose|restore)
+    require_root
+    prepare_state_dir || exit 1
+    trap finish_command EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    trap 'exit 129' HUP
+    ;;
+esac
+if [[ ${1:-} == "test" || ${1:-} == "diagnose" ]]; then
+  require_rtcwake
+  [[ ${2:-$SECONDS_DEFAULT} =~ ^[1-9][0-9]{0,8}$ ]] || { echo "Duration must be a positive whole number of seconds." >&2; exit 2; }
+fi
+
+case "${1:-}" in
+  status)
+    cmd_status
+    ;;
+  test)
+    cmd_test "${2:-}"
+    ;;
+  diagnose)
+    cmd_diagnose "${2:-}"
+    ;;
+  restore)
+    cmd_restore
+    ;;
+  *)
+    echo "Usage: omarchy-diagnose-suspend-wake <status|test|diagnose|restore> [seconds]" >&2
+    echo "  status    - list devices currently allowed to wake the machine from sleep"
+    echo "  test      - suspend for [seconds] (default $SECONDS_DEFAULT) and report whether it held"
+    echo "  diagnose  - find which device wakes it early and offer a persistent fix"
+    echo "  restore   - re-enable whatever this tool left disabled"
+    exit 2
+    ;;
+esac
