@@ -505,9 +505,80 @@ var CITY_ALIASES = [
 
 // ---- weather
 
-// worldclock-data.py answers keyed by "label|zone".
+// Coordinates and weather are keyed by "label|zone".
 function factsKey(zone) {
   return String(zone.label) + "|" + String(zone.id)
+}
+
+var WEATHER_TTL_MS = 20 * 60 * 1000
+
+function geocodeUrl(label) {
+  return "https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&name="
+    + encodeURIComponent(label)
+}
+
+// { place, answered }: a place in the row's own zone beats the top result, and
+// `answered` is false when the request itself failed.
+function pickGeocode(text, zone) {
+  var results
+  try { results = JSON.parse(text).results || [] } catch (e) { return { place: null, answered: false } }
+  var best = null
+  for (var i = 0; i < results.length && !best; i++) if (results[i].timezone === zone) best = results[i]
+  if (!best && results.length > 0) best = results[0]
+  return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
+}
+
+// The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
+function zoneTabCoords(tabText, zone) {
+  var lines = String(tabText || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var parts = lines[i].split("\t")
+    if (lines[i].charAt(0) === "#" || parts.length < 3 || parts[2] !== zone) continue
+    var m = /^([+-])(\d{2})(\d{2})(\d{2})?([+-])(\d{3})(\d{2})(\d{2})?$/.exec(parts[1])
+    if (!m) return null
+    function dec(sign, d, mm, ss) { return (sign === "-" ? -1 : 1) * (Number(d) + Number(mm) / 60 + Number(ss || 0) / 3600) }
+    return { lat: Math.round(dec(m[1], m[2], m[3], m[4]) * 1e4) / 1e4, lon: Math.round(dec(m[5], m[6], m[7], m[8]) * 1e4) / 1e4 }
+  }
+  return null
+}
+
+function forecastUrl(points) {
+  return "https://api.open-meteo.com/v1/forecast?current=temperature_2m,weather_code&temperature_unit=celsius"
+    + "&latitude=" + points.map(function(p) { return p.lat }).join(",")
+    + "&longitude=" + points.map(function(p) { return p.lon }).join(",")
+}
+
+// Open-Meteo answers one point as an object and several as an array, in request order.
+function parseForecast(text, keys, nowMs) {
+  var payload
+  try { payload = JSON.parse(text) } catch (e) { return {} }
+  if (!Array.isArray(payload)) payload = [payload]
+  var out = {}
+  for (var i = 0; i < keys.length && i < payload.length; i++) {
+    var current = (payload[i] && payload[i].current) || {}
+    if (current.temperature_2m === undefined || current.temperature_2m === null) continue
+    out[keys[i]] = { c: Math.round(current.temperature_2m * 10) / 10, w: current.weather_code, at: nowMs }
+  }
+  return out
+}
+
+function weatherStale(entry, nowMs) {
+  return !entry || nowMs - entry.at >= WEATHER_TTL_MS
+}
+
+// { "label|zone": { lat, lon, c, w } }, each field only when known.
+function mergeFacts(keys, coords, weather) {
+  var out = {}
+  keys.forEach(function(key) {
+    var entry = {}
+    if (coords[key]) { entry.lat = coords[key].lat; entry.lon = coords[key].lon }
+    if (weather[key]) {
+      entry.c = weather[key].c
+      if (weather[key].w !== undefined && weather[key].w !== null) entry.w = weather[key].w
+    }
+    out[key] = entry
+  })
+  return out
 }
 
 // An explicit "C" or "F" wins; anything else follows the system.
@@ -819,6 +890,13 @@ if (typeof module !== "undefined") {
     moveSelection: moveSelection,
     mergeCities: mergeCities,
     factsKey: factsKey,
+    geocodeUrl: geocodeUrl,
+    pickGeocode: pickGeocode,
+    zoneTabCoords: zoneTabCoords,
+    forecastUrl: forecastUrl,
+    parseForecast: parseForecast,
+    weatherStale: weatherStale,
+    mergeFacts: mergeFacts,
     resolveUnits: resolveUnits,
     usesTwentyFourHour: usesTwentyFourHour,
     resolveHour24: resolveHour24,

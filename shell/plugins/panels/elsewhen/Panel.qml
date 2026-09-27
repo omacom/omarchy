@@ -16,7 +16,6 @@ Panel {
   ipcTarget: "omarchy.elsewhen"
   manageIpc: false
 
-  readonly property string pluginDir: Quickshell.env("OMARCHY_PATH") + "/shell/plugins/panels/elsewhen"
 
   // ---- settings
   readonly property var zones: Model.parseZones(setting("zones", ""))
@@ -50,6 +49,10 @@ Panel {
   property var searchProbe: ({})
   property string zoneCatalogText: ""
   property var facts: ({})
+  // Geocoder answers are final for the session; fallbacks are retried.
+  property var geo: ({})
+  property var fallbackGeo: ({})
+  property var weather: ({})
   // Cities jumped to on the globe; never persisted.
   property var sessionCities: []
   property int localOffsetMinutes: -(new Date().getTimezoneOffset())
@@ -369,8 +372,38 @@ Panel {
 
   function refreshFacts() {
     if (zones.length === 0) return
-    if (factsProc.running) { factsQueued = true; return }
-    factsProc.running = true
+    if (geoProc.running || weatherProc.running) { factsQueued = true; return }
+    var missing = factsRequest.filter(function(row) { return !geo[Model.factsKey(row)] })
+    if (missing.length === 0) { fetchWeather(); return }
+    geoProc.rows = missing
+    geoProc.command = ["bash", "-c", 'for url; do curl -fsS --max-time 8 "$url"; printf "\\n\\036\\n"; done', "bash"]
+      .concat(missing.map(function(row) { return Model.geocodeUrl(row.label) }))
+    geoProc.running = true
+  }
+
+  function coordsFor(key) {
+    return geo[key] || fallbackGeo[key] || null
+  }
+
+  function fetchWeather() {
+    var now = Date.now()
+    var stale = factsRequest.map(Model.factsKey).filter(function(key) {
+      return coordsFor(key) && Model.weatherStale(weather[key], now)
+    })
+    if (stale.length === 0) { publishFacts(); return }
+    weatherProc.keys = stale
+    weatherProc.command = ["curl", "-fsS", "--max-time", "8", Model.forecastUrl(stale.map(coordsFor))]
+    weatherProc.running = true
+  }
+
+  function publishFacts() {
+    var coords = {}
+    var keys = factsRequest.map(Model.factsKey)
+    keys.forEach(function(key) { coords[key] = coordsFor(key) })
+    facts = Model.mergeFacts(keys, coords, weather)
+    if (!factsQueued) return
+    factsQueued = false
+    Qt.callLater(refreshFacts)
   }
 
   function loadCatalog() {
@@ -476,23 +509,42 @@ Panel {
     }
   }
 
-  // Weather and coordinates; the script caches on disk with its own TTLs.
+  FileView {
+    id: zoneTab
+    path: "/usr/share/zoneinfo/zone1970.tab"
+    printErrors: false
+  }
+
   Process {
-    id: factsProc
-    command: ["python3", root.pluginDir + "/worldclock-data.py", JSON.stringify(root.factsRequest)]
+    id: geoProc
+    property var rows: []
     stdout: StdioCollector {
       onStreamFinished: {
-        try {
-          var parsed = JSON.parse(text)
-          if (parsed && parsed.cities) root.facts = parsed.cities
-        } catch (e) {
-          // Keep the previous values rather than blanking every row.
-        }
-        Qt.callLater(function() {
-          if (!root.factsQueued) return
-          root.factsQueued = false
-          root.refreshFacts()
+        var answers = text.split("\n\u001e\n")
+        var nextGeo = Object.assign({}, root.geo)
+        var nextFallback = {}
+        geoProc.rows.forEach(function(row, i) {
+          var key = Model.factsKey(row)
+          var found = Model.pickGeocode(answers[i] || "", row.id)
+          var place = found.place || Model.zoneTabCoords(zoneTab.text(), row.id)
+          if (!place) return
+          if (found.answered) nextGeo[key] = place
+          else nextFallback[key] = place
         })
+        root.geo = nextGeo
+        root.fallbackGeo = nextFallback
+        root.fetchWeather()
+      }
+    }
+  }
+
+  Process {
+    id: weatherProc
+    property var keys: []
+    stdout: StdioCollector {
+      onStreamFinished: {
+        root.weather = Object.assign({}, root.weather, Model.parseForecast(text, weatherProc.keys, Date.now()))
+        root.publishFacts()
       }
     }
   }
